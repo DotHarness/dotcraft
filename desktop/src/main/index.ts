@@ -212,7 +212,8 @@ import {
   applyWorkspaceThreadListRequestResult,
   applyWorkspaceThreadNotificationToCache,
   beginWorkspaceThreadListRequest,
-  refreshWorkspaceThreadListCache
+  refreshWorkspaceThreadListCache,
+  WORKSPACE_THREAD_LIST_RETRY_DELAYS_MS
 } from './workspaceThreadCache'
 
 // Each Electron process owns exactly one window and one AppServer connection.
@@ -616,12 +617,19 @@ function getWorkspaceProjectsPayload(): WorkspaceProjectsPayload {
 
 async function refreshConnectionThreadList(entry: WorkspaceConnectionEntry): Promise<void> {
   if (!entry.connected) return
-  const changed = await refreshWorkspaceThreadListCache(entry, () =>
-    entry.client.sendRequest<{ data?: unknown[] }>('thread/list', {
-      identity: makeThreadListIdentity(entry.workspacePath),
-      scope: 'workspace',
-      includeSubAgents: true
-    })
+  const changed = await refreshWorkspaceThreadListCache(
+    entry,
+    () =>
+      entry.client.sendRequest<{ data?: unknown[] }>('thread/list', {
+        identity: makeThreadListIdentity(entry.workspacePath),
+        scope: 'workspace',
+        includeSubAgents: true
+      }),
+    {
+      retryDelaysMs: WORKSPACE_THREAD_LIST_RETRY_DELAYS_MS,
+      isActive: () => entry.connected && workspaceConnections.get(entry.key) === entry,
+      onRetryChanged: emitWorkspaceProjects
+    }
   )
   if (changed && workspaceConnections.get(entry.key) === entry) emitWorkspaceProjects()
 }

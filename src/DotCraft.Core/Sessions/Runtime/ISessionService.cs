@@ -127,6 +127,10 @@ public interface ISessionService
     Task<ThreadGoal?> GetThreadGoalAsync(string threadId, CancellationToken ct = default) =>
         throw new NotSupportedException("Thread goals are not supported by this session service.");
 
+    /// <summary>Returns a Thread's stored goal without loading the Thread, for summary listings.</summary>
+    Task<ThreadGoal?> GetStoredThreadGoalAsync(string threadId, CancellationToken ct = default) =>
+        GetThreadGoalAsync(threadId, ct);
+
     /// <summary>Returns the widget state saved by a Thread's visualization.</summary>
     VisualizationWidgetState? GetVisualizationWidgetState(string threadId, string path) =>
         throw new NotSupportedException("Visualization widget state is not supported by this session service.");

@@ -12,7 +12,16 @@ export interface WorkspaceThreadListRefreshState {
   errorMessage?: string
 }
 
+export const WORKSPACE_THREAD_LIST_RETRY_DELAYS_MS: readonly number[] = [2_000, 5_000, 15_000, 30_000]
+
+export interface WorkspaceThreadListRefreshOptions {
+  retryDelaysMs?: readonly number[]
+  isActive?: () => boolean
+  onRetryChanged?: () => void
+}
+
 const threadListRevisions = new WeakMap<WorkspaceThreadListRefreshState, number>()
+const threadListRetryTimers = new WeakMap<WorkspaceThreadListRefreshState, ReturnType<typeof setTimeout>>()
 
 function advanceThreadListRevision(entry: WorkspaceThreadListRefreshState): number {
   const revision = (threadListRevisions.get(entry) ?? 0) + 1
@@ -170,6 +179,7 @@ export function applyWorkspaceThreadListRefreshSuccess(
   data: unknown
 ): void {
   advanceThreadListRevision(entry)
+  cancelWorkspaceThreadListRetry(entry)
   entry.threads = Array.isArray(data) ? data : []
   entry.errorMessage = undefined
 }
@@ -212,10 +222,28 @@ export function applyWorkspaceThreadListRequestResult(
   return true
 }
 
-export async function refreshWorkspaceThreadListCache(
+export function refreshWorkspaceThreadListCache(
   entry: WorkspaceThreadListRefreshState,
-  load: () => Promise<{ data?: unknown[] }>
+  load: () => Promise<{ data?: unknown[] }>,
+  options: WorkspaceThreadListRefreshOptions = {}
 ): Promise<boolean> {
+  return refreshWorkspaceThreadListAttempt(entry, load, options, 0)
+}
+
+function cancelWorkspaceThreadListRetry(entry: WorkspaceThreadListRefreshState): void {
+  const timer = threadListRetryTimers.get(entry)
+  if (timer == null) return
+  clearTimeout(timer)
+  threadListRetryTimers.delete(entry)
+}
+
+async function refreshWorkspaceThreadListAttempt(
+  entry: WorkspaceThreadListRefreshState,
+  load: () => Promise<{ data?: unknown[] }>,
+  options: WorkspaceThreadListRefreshOptions,
+  attempt: number
+): Promise<boolean> {
+  cancelWorkspaceThreadListRetry(entry)
   const revision = advanceThreadListRevision(entry)
   try {
     const result = await load()
@@ -223,7 +251,19 @@ export async function refreshWorkspaceThreadListCache(
     applyWorkspaceThreadListRefreshSuccess(entry, result.data)
   } catch (error) {
     if (threadListRevisions.get(entry) !== revision) return false
-    applyWorkspaceThreadListRefreshFailure(entry, error)
+    const retryDelayMs = options.retryDelaysMs?.[attempt]
+    if (retryDelayMs == null) {
+      applyWorkspaceThreadListRefreshFailure(entry, error)
+      return true
+    }
+    threadListRetryTimers.set(entry, setTimeout(() => {
+      threadListRetryTimers.delete(entry)
+      if (options.isActive?.() === false) return
+      void refreshWorkspaceThreadListAttempt(entry, load, options, attempt + 1).then((changed) => {
+        if (changed) options.onRetryChanged?.()
+      })
+    }, retryDelayMs))
+    return false
   }
   return true
 }

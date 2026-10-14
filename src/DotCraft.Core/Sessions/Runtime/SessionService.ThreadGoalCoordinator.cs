@@ -24,6 +24,12 @@ public sealed partial class SessionService
             return await owner.Persistence.GetThreadGoalAsync(normalizedThreadId, ct);
         }
 
+        public async Task<ThreadGoal?> GetStoredAsync(string threadId, CancellationToken ct)
+        {
+            ThrowIfDisabled();
+            return await owner.Persistence.GetThreadGoalAsync(NormalizeRequiredThreadId(threadId), ct);
+        }
+
         public async Task<ThreadGoal> SetAsync(
             string threadId,
             ThreadGoalUpdate update,

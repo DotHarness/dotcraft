@@ -560,6 +560,10 @@ public sealed partial class SessionService(
         => await Goals.GetAsync(threadId, ct);
 
     /// <inheritdoc/>
+    public async Task<ThreadGoal?> GetStoredThreadGoalAsync(string threadId, CancellationToken ct = default)
+        => await Goals.GetStoredAsync(threadId, ct);
+
+    /// <inheritdoc/>
     public VisualizationWidgetState? GetVisualizationWidgetState(string threadId, string path)
         => Persistence.VisualizationWidgetStates.Load(NormalizeRequiredThreadId(threadId), path);
 

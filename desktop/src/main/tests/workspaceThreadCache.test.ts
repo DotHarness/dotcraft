@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   applyWorkspaceThreadListRefreshFailure,
   applyWorkspaceThreadListRefreshSuccess,
@@ -334,5 +334,69 @@ describe('workspace thread list refresh cache', () => {
 
     expect(entry.errorMessage).toBeUndefined()
     expect(ids(entry.threads)).toEqual(['fresh'])
+  })
+})
+
+describe('workspace thread list refresh retries', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  function failingThen(...outcomes: Array<Error | unknown[]>): () => Promise<{ data?: unknown[] }> {
+    return vi.fn(async () => {
+      const next = outcomes.shift()
+      if (next instanceof Error) throw next
+      return { data: next ?? [] }
+    })
+  }
+
+  it('keeps cached rows without an error while retrying, then recovers', async () => {
+    vi.useFakeTimers()
+    const entry = { threads: [thread('cached')], errorMessage: undefined as string | undefined }
+    const onRetryChanged = vi.fn()
+    const load = failingThen(new Error('timed out'), [thread('fresh')])
+
+    expect(await refreshWorkspaceThreadListCache(entry, load, { retryDelaysMs: [2_000], onRetryChanged })).toBe(false)
+    expect(ids(entry.threads)).toEqual(['cached'])
+    expect(entry.errorMessage).toBeUndefined()
+
+    await vi.advanceTimersByTimeAsync(2_000)
+
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(onRetryChanged).toHaveBeenCalledTimes(1)
+    expect(ids(entry.threads)).toEqual(['fresh'])
+    expect(entry.errorMessage).toBeUndefined()
+  })
+
+  it('records the error only after the final retry fails', async () => {
+    vi.useFakeTimers()
+    const entry = { threads: [thread('cached')], errorMessage: undefined as string | undefined }
+    const onRetryChanged = vi.fn()
+    const load = failingThen(new Error('first'), new Error('second'), new Error('last'))
+
+    await refreshWorkspaceThreadListCache(entry, load, { retryDelaysMs: [1_000, 3_000], onRetryChanged })
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(entry.errorMessage).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(3_000)
+
+    expect(load).toHaveBeenCalledTimes(3)
+    expect(onRetryChanged).toHaveBeenCalledTimes(1)
+    expect(entry.errorMessage).toBe('last')
+    expect(ids(entry.threads)).toEqual(['cached'])
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(load).toHaveBeenCalledTimes(3)
+  })
+
+  it('cancels a pending retry when a foreground list loads the cache', async () => {
+    vi.useFakeTimers()
+    const entry = { workspacePath: '/workspace', threads: [] as unknown[] }
+    const load = failingThen(new Error('timed out'), [thread('outdated')])
+
+    await refreshWorkspaceThreadListCache(entry, load, { retryDelaysMs: [2_000] })
+    expect(completeWorkspaceList(entry, 'thread/list', workspaceListParams, { data: [thread('foreground')] })).toBe(true)
+    await vi.advanceTimersByTimeAsync(2_000)
+
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(ids(entry.threads)).toEqual(['foreground'])
   })
 })
