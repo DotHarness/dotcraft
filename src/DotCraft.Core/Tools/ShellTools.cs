@@ -340,7 +340,7 @@ public sealed class ShellTools
         return sb.ToString().TrimEnd();
     }
 
-    private static string FormatForegroundSnapshot(BackgroundTerminalSnapshot snapshot)
+    internal static string FormatForegroundSnapshot(BackgroundTerminalSnapshot snapshot)
     {
         var output = string.IsNullOrWhiteSpace(snapshot.Output) ? "(no output)" : snapshot.Output;
         if (snapshot.Truncated)

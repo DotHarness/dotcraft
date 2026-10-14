@@ -94,7 +94,9 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
     [Fact]
     public async Task EnsureThreadLoadedAsync_SettlesCommandsWhoseTerminalsNoLongerRun()
     {
-        await using var terminals = new BackgroundTerminalService(CraftPath, new AppConfig.ShellBackgroundConfig());
+        await using var terminals = new BackgroundTerminalService(
+            CraftPath,
+            new AppConfig.ShellBackgroundConfig { DefaultReadMaxOutputChars = 4 });
         var finished = await terminals.StartAsync(new BackgroundTerminalStartRequest
         {
             ThreadId = "thread_terminals",
@@ -126,7 +128,9 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
         var items = Assert.Single(Assert.IsType<SessionThread>(await freshStore.LoadThreadAsync(threadId)).Turns).Items;
         var payloads = items.Select(static item => Assert.IsType<CommandExecutionPayload>(item.Payload)).ToArray();
         Assert.Equal(["completed", "lost", "inProgress"], payloads.Select(static payload => payload.Status));
-        Assert.Contains("finished", payloads[0].AggregatedOutput);
+        Assert.True(payloads[0].Truncated);
+        Assert.True(payloads[0].OriginalOutputChars >= "finished".Length);
+        Assert.Contains($"Full output: {finished.OutputPath}", payloads[0].AggregatedOutput);
         Assert.Equal([ItemStatus.Completed, ItemStatus.Completed, ItemStatus.Started], items.Select(static item => item.Status));
         await terminals.StopAsync(running.SessionId);
     }

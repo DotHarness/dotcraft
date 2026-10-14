@@ -1721,12 +1721,16 @@ public sealed partial class SessionService(
 
                 item.Status = ItemStatus.Completed;
                 item.CompletedAt = terminal?.CompletedAt ?? DateTimeOffset.UtcNow;
-                item.Payload = payload with
-                {
-                    Status = terminal is null ? "lost" : CommandExecutionTracker.StatusOf(terminal),
-                    AggregatedOutput = string.IsNullOrEmpty(terminal?.Output) ? payload.AggregatedOutput : terminal.Output,
-                    ExitCode = terminal?.ExitCode
-                };
+                item.Payload = terminal is null
+                    ? payload with { Status = "lost" }
+                    : payload with
+                    {
+                        Status = CommandExecutionTracker.StatusOf(terminal),
+                        AggregatedOutput = ShellTools.FormatForegroundSnapshot(terminal),
+                        ExitCode = terminal.ExitCode,
+                        OriginalOutputChars = terminal.OriginalOutputChars,
+                        Truncated = terminal.Truncated
+                    };
                 settled = true;
             }
         }
