@@ -279,7 +279,10 @@ public sealed partial class SkillsLoader
             return false;
 
         var fingerprint = SkillVariantStore.ComputeSourceFingerprint(source.Path);
-        return _variantStore.RestoreOriginal(source, fingerprint, target);
+        var restored = _variantStore.RestoreOriginal(source, fingerprint, target);
+        if (restored)
+            MarkChanged();
+        return restored;
     }
 
     /// <summary>

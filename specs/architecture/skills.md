@@ -85,7 +85,8 @@ but not uninstalled.
 Workspace configuration stores disabled Skill names in `Skills.DisabledSkills`. Thread and Agent
 Profile policy can further restrict Skill names with `allow` and `deny`, and can disable
 `SkillManage` with `allowManage`. `allow` names the Skills an Agent may use; when it is absent, every
-enabled Skill is available, and deny wins over allow. Runtime policy enforces these restrictions in
+enabled Skill is available, and deny wins over allow. Names match case-insensitively, as Skill names
+do everywhere. Runtime policy enforces these restrictions in
 Agent context and on invocation: a Skill the policy excludes is left out of active Skill context and
 the catalog, and `SkillView` refuses it. Prompt text is not the enforcement boundary.
 

@@ -271,7 +271,7 @@ public sealed class SkillsLoaderTests : IDisposable
         foreach (var name in new[] { "allowed", "denied", "disabled", "unlisted" })
             WriteSkill(loader.WorkspaceSkillsPath, name);
         loader.SetDisabledSkills(["disabled"]);
-        var policy = new ThreadSkillsPolicy { Allow = ["allowed", "denied", "disabled"], Deny = ["denied"] };
+        var policy = new ThreadSkillsPolicy { Allow = ["Allowed", "denied", "disabled"], Deny = ["DENIED"] };
 
         var names = loader.ListCatalog(variantModeEnabled: false, target: null, policy).Select(entry => entry.Name);
 

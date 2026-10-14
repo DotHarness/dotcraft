@@ -394,5 +394,5 @@ public sealed class ThreadSkillsPolicy
     private static bool Lists(string[]? names, string skillName) =>
         names != null
         && names.Any(name => !string.IsNullOrWhiteSpace(name)
-                             && string.Equals(skillName, name.Trim(), StringComparison.Ordinal));
+                             && string.Equals(skillName, name.Trim(), StringComparison.OrdinalIgnoreCase));
 }
