@@ -1,8 +1,8 @@
+import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { create } from 'zustand'
 import type { ComposerContextRecord } from '../../shared/composerContext'
 import type { ComposerDraftSegment } from '../types/composerDraft'
 import type { ComposerFileAttachment, ConversationTurn, ImageAttachment, InputPart } from '../types/conversation'
-import { sendComposerFollowUp } from '../utils/composerFollowUp'
 import { buildComposerInputParts } from '../utils/composeInputParts'
 import { createOptimisticUserMessage } from '../utils/inputPresentation'
 import { parsePendingApproval, parseUserInputRequest } from '../utils/interactiveRequestParsing'
@@ -76,6 +76,7 @@ interface SideChatStore {
 const DELTA_FLUSH_MS = 50
 
 const readyByKey = new Map<string, Promise<string | null>>()
+const connectionByKey = new Map<string, Promise<string | null>>()
 const pendingDeltas = new Map<string, { itemId: string; text: string }[]>()
 const deltaTimers = new Map<string, ReturnType<typeof setTimeout>>()
 let listening = false
@@ -230,9 +231,20 @@ function ensureListening(): void {
   })
 }
 
+async function request<M extends keyof ClientRequestMethods>(
+  key: string,
+  method: M,
+  params: ClientRequestMethods[M]['params']
+): Promise<ClientRequestMethods[M]['result']> {
+  const connection = await connectionByKey.get(key)
+  return connection
+    ? window.api.appServer.sendConnectionRequest(connection, method, params)
+    : window.api.appServer.sendRequest(method, params)
+}
+
 async function forkSideChat(key: string, parentThreadId: string): Promise<string | null> {
   try {
-    const result = await window.api.appServer.sendRequest('thread/fork', {
+    const result = await request(key, 'thread/fork', {
       threadId: parentThreadId,
       ephemeral: true,
       sideChat: true
@@ -241,7 +253,7 @@ async function forkSideChat(key: string, parentThreadId: string): Promise<string
     if (!threadId) throw new Error('thread/fork returned no thread')
     const chat = useSideChatStore.getState().chats.get(key)
     if (!chat) {
-      void window.api.appServer.sendRequest('thread/delete', { threadId }).catch(() => {})
+      void request(key, 'thread/delete', { threadId }).catch(() => {})
       return null
     }
     update(key, (current) => ({
@@ -250,7 +262,7 @@ async function forkSideChat(key: string, parentThreadId: string): Promise<string
       status: current.status === 'starting' ? 'ready' : current.status,
       turns: current.turns.map((turn) => turn.threadId ? turn : { ...turn, threadId })
     }))
-    void window.api.appServer.sendRequest('thread/subscribe', { threadId }).catch(() => {})
+    void request(key, 'thread/subscribe', { threadId }).catch(() => {})
     return threadId
   } catch (error) {
     const chat = useSideChatStore.getState().chats.get(key)
@@ -290,6 +302,7 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
       return { chats }
     })
     if (contexts?.length) useComposerContextStore.getState().setContexts(key, contexts)
+    connectionByKey.set(key, window.api.appServer.getConnectionKey())
     const ready = forkSideChat(key, parentThreadId)
     readyByKey.set(key, ready)
     get().requestFocus(key)
@@ -304,11 +317,10 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     const clientUserMessageId = crypto.randomUUID()
     const runningTurn = isSideChatRunning(chat) ? chat.turns.at(-1) : undefined
     if (runningTurn && chat.threadId) {
-      await sendComposerFollowUp({
-        clientUserMessageId,
-        mode: 'steer',
+      await request(key, 'turn/steer', {
         threadId: chat.threadId,
-        activeTurnId: runningTurn.id,
+        clientUserMessageId,
+        expectedTurnId: runningTurn.id,
         input: inputParts
       })
       return
@@ -327,7 +339,7 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     try {
       const threadId = await (readyByKey.get(key) ?? Promise.resolve(chat.threadId))
       if (!threadId) throw new Error('The side chat is not ready.')
-      await window.api.appServer.sendRequest('turn/start', { threadId, input: inputParts, clientUserMessageId })
+      await request(key, 'turn/start', { threadId, input: inputParts, clientUserMessageId })
     } catch (error) {
       update(key, (current) => ({
         ...current,
@@ -344,7 +356,7 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     if (chat.interruptingTurnId === turn.id) return
     update(key, (current) => ({ ...current, interruptingTurnId: turn.id }))
     try {
-      await window.api.appServer.sendRequest('turn/interrupt', { threadId: chat.threadId, turnId: turn.id })
+      await request(key, 'turn/interrupt', { threadId: chat.threadId, turnId: turn.id })
     } catch (error) {
       update(key, (current) => ({ ...current, interruptingTurnId: null }))
       throw error
@@ -369,9 +381,9 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     }
     const ready = readyByKey.get(key) ?? Promise.resolve(chat.threadId)
     readyByKey.delete(key)
-    void ready.then((threadId) => {
-      if (threadId) void window.api.appServer.sendRequest('thread/delete', { threadId }).catch(() => {})
-    }, () => {})
+    void ready.then((threadId) => threadId ? request(key, 'thread/delete', { threadId }) : undefined, () => {})
+      .catch(() => {})
+      .finally(() => connectionByKey.delete(key))
   },
 
   markRead(key) {
@@ -420,6 +432,7 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     deltaTimers.clear()
     pendingDeltas.clear()
     readyByKey.clear()
+    connectionByKey.clear()
     set({ chats: new Map(), focusRequest: null })
   }
 }))

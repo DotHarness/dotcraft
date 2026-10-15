@@ -9,6 +9,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { addToast } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
+import { isSubAgentThread } from './subAgentThreads'
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
 
@@ -18,6 +19,7 @@ export function canOpenSideChat(): boolean {
     && activeThreadId != null
     && activeThread?.id === activeThreadId
     && activeThread.status !== 'archived'
+    && !isSubAgentThread(activeThread)
     && useConversationStore.getState().turns.length > 0
 }
 
@@ -37,10 +39,10 @@ export async function openSideChat(
   }
 }
 
-export function openActiveSideChat(t: Translate, prompt?: SideChatPrompt): boolean {
+export function openActiveSideChat(t: Translate): boolean {
   const parentThreadId = useThreadStore.getState().activeThreadId
   if (!parentThreadId || !canOpenSideChat()) return false
-  void openSideChat(parentThreadId, t, { prompt })
+  void openSideChat(parentThreadId, t)
   return true
 }
 
@@ -89,7 +91,8 @@ export function useCanOpenSideChat(): boolean {
   const eligible = useThreadStore((state) =>
     state.activeThreadId != null
     && state.activeThread?.id === state.activeThreadId
-    && state.activeThread.status !== 'archived')
+    && state.activeThread.status !== 'archived'
+    && !isSubAgentThread(state.activeThread))
   const started = useConversationStore((state) => state.turns.length > 0)
   return supported && eligible && started
 }

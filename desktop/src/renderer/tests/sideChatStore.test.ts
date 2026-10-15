@@ -8,6 +8,7 @@ type Notify = (payload: { method: string; params: unknown }) => void
 
 let notify: Notify | null = null
 let sendRequest: ReturnType<typeof vi.fn>
+let sendConnectionRequest: ReturnType<typeof vi.fn>
 let sendServerResponse: ReturnType<typeof vi.fn>
 
 function emit(method: string, params: Record<string, unknown>): void {
@@ -36,12 +37,15 @@ beforeEach(() => {
     return {}
   })
   sendServerResponse = vi.fn(async () => {})
+  sendConnectionRequest = vi.fn((_key: string, method: string, params: unknown) => sendRequest(method, params))
   vi.stubGlobal('window', {
     setTimeout,
     clearTimeout,
     api: {
       appServer: {
         sendRequest,
+        sendConnectionRequest,
+        getConnectionKey: async () => 'workspace-a',
         sendServerResponse,
         onNotification: (callback: Notify) => {
           notify = callback
@@ -152,6 +156,17 @@ describe('side chats', () => {
     expect(useSideChatStore.getState().chats.has(key)).toBe(false)
     expect(sendServerResponse).toHaveBeenCalledWith('bridge-1', { decision: 'cancel' })
     await vi.waitFor(() => expect(sendRequest).toHaveBeenCalledWith('thread/delete', { threadId: 'side-1' }))
+  })
+
+  it('keeps using the connection it was opened on after the workspace switches', async () => {
+    await openSideChat('Where is Retry called?')
+
+    useViewerTabStore.getState().onWorkspaceSwitched('/workspace-b')
+
+    expect(sendConnectionRequest).toHaveBeenCalledWith('workspace-a', 'thread/fork', expect.anything())
+    expect(sendConnectionRequest).toHaveBeenCalledWith('workspace-a', 'turn/start', expect.anything())
+    await vi.waitFor(() =>
+      expect(sendConnectionRequest).toHaveBeenCalledWith('workspace-a', 'thread/delete', { threadId: 'side-1' }))
   })
 
   it('closes the tab when the server deletes the side chat', async () => {

@@ -69,7 +69,7 @@ function SideChatView({ chat }: { chat: SideChat }): JSX.Element {
   }), [chat.interruptingTurnId, chat.turns, running, stop])
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key !== 'Escape' || !running) return
+    if (event.key !== 'Escape' || !running || approvalRequest || chat.pendingUserInput) return
     event.preventDefault()
     event.stopPropagation()
     stop()

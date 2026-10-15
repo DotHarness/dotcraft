@@ -30,7 +30,7 @@ import type {
   QueuedTurnInput
 } from '../../types/conversation'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
-import { openActiveSideChat, openSideChat, parseSideSlashCommand, useCanOpenSideChat, withoutSideCommand } from '../../utils/sideChat'
+import { canOpenSideChat as canOpenSideChatNow, openSideChat, parseSideSlashCommand, useCanOpenSideChat, withoutSideCommand } from '../../utils/sideChat'
 import { useFailedTurnResume } from './useFailedTurnResume'
 import { useComposerRunState, type ComposerRuntime } from './useComposerRunState'
 import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../utils/composerSubmission'
@@ -1187,11 +1187,21 @@ function InputComposerCore({
     }
     const sideCommand = isAgentBuilder || hasSubmitOverride ? null : parseSideSlashCommand(trimmed)
     if (sideCommand) {
-      const prompt = sideCommand.question || inputContexts.length > 0
-        ? { text: sideCommand.question, segments: withoutSideCommand(segments), contexts: inputContexts }
+      if (!canOpenSideChatNow()) {
+        addToast(t('sideChat.unavailable'), 'warning')
+        return
+      }
+      if (sendInFlightRef.current) return
+      sendInFlightRef.current = true
+      const hasPrompt = sideCommand.question || inputContexts.length > 0 || inputFiles.length > 0 || inputImages.length > 0
+      const prompt = hasPrompt
+        ? { text: sideCommand.question, segments: withoutSideCommand(segments), contexts: inputContexts, files: inputFiles, images: inputImages }
         : undefined
-      if (openActiveSideChat(t, prompt)) resetComposerInput()
-      else addToast(t('sideChat.unavailable'), 'warning')
+      try {
+        if (await openSideChat(threadId, t, { prompt })) resetComposerInput()
+      } finally {
+        sendInFlightRef.current = false
+      }
       return
     }
 
@@ -1731,7 +1741,7 @@ function InputComposerCore({
       return
     }
     if (actionId === 'side') {
-      openActiveSideChat(t)
+      void openSideChat(threadId, t)
       return
     }
     if (actionId !== 'goal') return
@@ -1741,7 +1751,7 @@ function InputComposerCore({
     } else {
       enterGoalComposeMode()
     }
-  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, sendMessage, channelBindingCommands, toggleMode, t])
+  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, sendMessage, channelBindingCommands, toggleMode, t, threadId])
 
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)

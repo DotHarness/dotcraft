@@ -664,13 +664,13 @@ Worktree execution:
 
 ### 5.11.2 Side Chat
 
-A side chat answers a quick question beside a thread without interrupting it. It is a hidden ephemeral fork created with `thread/fork.sideChat` ([AppServer §4.2.1](../protocols/appserver-protocol.md#421-threadfork)) and shown as a viewer panel tab of its parent thread. Desktop offers it when `capabilities.sideChat = true` for a thread that has at least one Turn and is not archived.
+A side chat answers a quick question beside a thread without interrupting it. It is a hidden ephemeral fork created with `thread/fork.sideChat` ([AppServer §4.2.1](../protocols/appserver-protocol.md#421-threadfork)) and shown as a viewer panel tab of its parent thread. Desktop offers it when `capabilities.sideChat = true` for a top-level thread that has at least one Turn and is not archived.
 
 Entry points:
 
 - The thread header overflow menu offers `New side chat`, and `Mod+Alt+S` does the same for the active thread.
 - The viewer panel `+` menu and the empty-panel launcher offer `Side chat`.
-- `/side` in the composer opens an empty side chat. `/side <question>` clears the composer and sends the question as the side chat's first message. `/btw` is an unlisted alias.
+- `/side` in the composer opens an empty side chat. `/side <question>` sends the question, with the composer's attachments and context, as the side chat's first message and clears the composer once the side chat opens. A failure keeps the composer unchanged. `/btw` is an unlisted alias.
 - Selected assistant text offers `Ask in side chat`. The selection becomes context in the composer of the thread's most recent side chat, or a new one, which takes focus without sending.
 - A queued follow-up offers `Send in side chat`, which removes it from the queue and sends it as a new side chat's first message. A failed send returns it to the main composer.
 
@@ -679,13 +679,14 @@ Panel:
 - Each side chat is a tab titled `Side chat`, `Side chat 2`, and so on. Tabs stay open while the user visits other threads.
 - The transcript starts empty because inherited history stays hidden. A centered empty state says that side chats are temporary.
 - The side chat uses the conversation composer without the controls that act on the parent thread: mode, goal, profile, model, permissions, and thread commands such as `/compact`. Model, mode, and permissions follow the parent at fork time. `/side` is not available inside a side chat. A message sent while the side chat runs guides its running Turn.
-- Escape and the stop button interrupt only the side chat's running Turn. Escape elsewhere keeps interrupting the main Turn.
+- Escape and the stop button interrupt only the side chat's running Turn. While a side chat request waits for a response, Escape belongs to that request. Escape elsewhere keeps interrupting the main Turn.
 - Approval and user-input requests from a side chat appear in its own composer area, never in the main conversation. A tab whose side chat needs a response, is running, or has an unread reply shows that state.
 - `Ctrl+/` moves focus between the main composer and the active side chat's composer.
 
 Lifecycle:
 
 - Closing a tab interrupts its running Turn and deletes the fork with `thread/delete`. Closing a side chat that has messages asks for confirmation first.
+- A side chat sends every request through the AppServer connection it was opened on, so switching workspaces still deletes it on its own server.
 - Side chats are not restored after Desktop restarts. When the AppServer connection is lost, open side chats become read-only and offer a new side chat in their place.
 - Archiving or deleting the parent deletes its side chats on the server, and Desktop closes their tabs when `thread/deleted` arrives.
 - Nothing from a side chat enters the main thread automatically.
