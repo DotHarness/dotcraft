@@ -20,6 +20,7 @@ The catalog of contribution points is the whole contribution surface. Each one d
 | **System prompt section** | `ISystemPromptSection`, and `ISystemPromptAssembler` for Tier C | A, B, C |
 | **Chat context item** | `IChatContextProvider` | A |
 | **Thread prompt context** | `IThreadSystemPromptContextProvider` (`BaseInstructions` only) | A |
+| **World state section** | `IWorldStateSection` | A |
 | **Pre-send context transform** | `IAgentContextSource` → `AIContextProvider` | A, B |
 | **Chat middleware** | `IChatMiddleware` | A, B |
 | **Dispatch stages** | policy, approval, recorder, and normalizer stage interfaces | A, B |
@@ -120,6 +121,40 @@ internal sealed class TriageCommand(ReviewService service) : ICodeCommand
 A contributed command is a markdown custom command whose body is code, and the host serves it exactly where it serves those: the command palette, `command/list`, `command/execute`, and the ACP slash-command list all pick it up with no client change. It produces model input only — returning a direct reply to the user stays with the host's own commands.
 
 It never shadows anything: a built-in command, a workspace markdown command, and a workflow command all keep a contested name. Among contributions the lowest `Order` claims a name, and returning `null` declines the invocation so the next contribution may answer it. Revoking the handle removes the command from every listing and every resolution at once — the contribution point is read per call, so there is nothing left registered anywhere.
+
+### Tier A — keep the model aware of changing state
+
+A world state section tells the model about state that changes outside the conversation, such as an editor mode, a build status, or a connected device. The model hears the state once, then again only when it changes.
+
+```csharp
+internal sealed class ReviewWorldState(IReviewService service) : IWorldStateSection
+{
+    public string Id => "acme_review";
+
+    public JsonNode? Snapshot(WorldStateContext context) =>
+        new JsonObject { ["items"] = service.Checklist.Count };
+
+    public string? RenderDiff(WorldStateContext context, PreviousSectionState previous) =>
+        $"## Review Checklist State
+The review checklist has {service.Checklist.Count} items.";
+}
+```
+
+```csharp
+context.Contributions.Add<IWorldStateSection>(new ReviewWorldState(service));
+```
+
+The host evaluates every section before each sampling request: the first model call of a Turn and each call after a tool round. It compares the section's current `Snapshot` with the snapshot the model was last shown. An equal snapshot keeps the section silent. A different snapshot, or one with nothing to compare against, makes the host call `RenderDiff` and add the returned text to the model's context. The host owns the comparison, its persistence across resumes, and the context item that carries the text.
+
+- **`Id`** is persisted in thread rollouts. Keep it stable across plugin versions and unique among sections; a missing or duplicate id is skipped.
+- **`Snapshot`** returns JSON that changes exactly when the state does, or `null` to contribute no baseline. Leave out elapsed time, timestamps, counters, and other values that move on their own; they make every request look like a change. It is synchronous and runs on the sampling path, so read cached state and keep that cache current from your own events or `Lifetime.Run` work.
+- **`RenderDiff`** returns the text for the model, or `null` to say nothing. `PreviousSectionState` describes what the model last saw: `Absent` means the section was never shown, so state it in full; `Known` carries the exact previous snapshot through `TryGetKnown`, so describe the change; `Unknown` means history still holds an earlier rendering whose snapshot is unavailable, so restate the current state.
+
+A `null` snapshot leaves no baseline, so `RenderDiff` runs on every request until it returns text. Return `null` while there is nothing to report. When state disappears after it was shown, `previous.MayBeShown` is true; render a short retraction such as "The editor is closed."
+
+A section that throws from `Snapshot` contributes no baseline for that request. One that throws from `RenderDiff` is retried on the next request. Neither fails the Turn.
+
+Sections run only while the agent samples, so a change made while the thread is idle reaches the model at the start of its next Turn. To make the agent act on a change, push input into the thread as described in [Push events into a thread](./dotnet-plugins#push-events-into-a-thread). Register with `ContributionOptions.ForThread(threadId)` when the state belongs to one thread.
 
 ### Tier B — replace a named default
 

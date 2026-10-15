@@ -206,6 +206,8 @@ var sessions = (ISessionService?)context.Services.GetService(typeof(ISessionServ
     ?? throw new InvalidOperationException("ISessionService is unavailable.");
 ```
 
+插件激活时工作区运行时仍在启动，所以要在使用时才解析 `ISessionService`，不要在 `ActivateAsync` 中解析。具体做法见[向 thread 推送事件](#push-events-into-a-thread)。
+
 该提供程序由宿主拥有且只读。插件不能注册、装饰或替换容器服务。这个视图不暴露根 provider、贡献注册表、服务作用域工厂、宿主生命周期或插件运行时控制面。永远不要释放解析得到的服务。只有插件自己创建的东西才需要释放，并且要交给 `context.Lifetime`。
 
 消费面同样受版本绑定约束：今天能解析到的服务，由你编译时面向的宿主版本保证，而不是由只增不改的承诺保证。请在 generation 停止前解除对宿主服务的回调、事件订阅和其他引用，好让加载上下文能够卸载。
@@ -220,6 +222,57 @@ var limit = context.Settings.TryGetProperty("checklistLimit", out var value)
 ```
 
 插件预期使用的每个字段都应声明 schema 默认值。配置 mutation 会先 quiesce 当前 generation，写入后自动 reconcile 本插件及其必要依赖闭包。quiesce 失败不会写文件，写入失败会恢复原 generation。已捕获的激活上下文绝不会被原地修改。若反序列化到插件自定义类型，请让 serializer options 与 metadata 都归插件所有，以便 generation 能够卸载。
+
+### 响应运行时信号
+
+`IThreadRuntimeSignalContributor` 在宿主发布 thread 运行时信号之后接收它们，包括 Turn 的开始、完成、失败与取消，审批和用户输入请求及其处理结果，以及上下文压缩、回滚和维护状态的变化。它只负责观察，不能修改、延迟或否决已经发生的事情。
+
+```csharp
+internal sealed class CompactionWatcher(ReviewJournal journal) : IThreadRuntimeSignalContributor
+{
+    public Task OnThreadRuntimeSignalAsync(
+        ThreadRuntimeSignalContext context,
+        CancellationToken cancellationToken = default)
+    {
+        if (context.Signal == SessionThreadRuntimeSignal.ContextCompacted)
+            journal.Write($"compacted {context.ThreadId}");
+        return Task.CompletedTask;
+    }
+}
+```
+
+信号通过一个单读取者的有界队列送达贡献者，Turn 永远不会等待插件。处理较慢的贡献者会拖延排在后面的信号，队列满了之后最早未送达的信号会被丢弃。请尽快返回，把耗时工作交给插件自己的 `Lifetime.Run` 循环。抛出异常的处理器会被记录并跳过。信号只携带 thread id 与信号本身，需要 Turn id 时使用 `ITurnLifecycleContributor`。
+
+### 向 thread 推送事件 {#push-events-into-a-thread}
+
+插件如果在监听 DotCraft 之外的东西，比如编辑器、构建或设备，可以通过 `ISessionService` 把事件作为输入交给 thread。按 thread 的状态选择调用：
+
+- **有 Turn 正在运行。** `SteerTurnAsync` 把输入作为引导加入正在运行的 Turn，它会在下一次模型调用之前被读取。传入你预期的 Turn id，例如由 `ITurnLifecycleContributor.OnTurnStartedAsync` 记录下来的 id。该 Turn 已不再活跃时，调用会抛出 `InvalidOperationException`。
+- **thread 可能处于空闲。** `EnqueueTurnInputAsync` 把输入加入队列，`TryStartNextQueuedTurnAsync` 在没有 Turn 运行时启动它。如果有 Turn 正在运行，输入会等待，并在该 Turn 完成后启动。
+
+```csharp
+internal sealed class EditorEventSink(IServiceProvider services)
+{
+    public async Task DeliverAsync(string threadId, string text, CancellationToken cancellationToken)
+    {
+        var sessions = (ISessionService?)services.GetService(typeof(ISessionService))
+            ?? throw new InvalidOperationException("ISessionService is unavailable.");
+
+        using (TurnTriggerScope.Set(new TurnTriggerInfo { Kind = "app", Label = "Acme Editor" }))
+        {
+            await sessions.EnqueueTurnInputAsync(threadId, [new TextContent(text)], ct: cancellationToken);
+        }
+
+        await sessions.TryStartNextQueuedTurnAsync(threadId, cancellationToken);
+    }
+}
+```
+
+在 `ActivateAsync` 中用 `context.Services` 构造这个 sink，每次投递时再解析会话服务。插件激活时工作区运行时仍在启动，在这段时间内解析 `ISessionService` 会抛出 `InvalidOperationException`。通过 `Lifetime.Run` 注册的后台工作在激活后立即开始，如果它在开头一次性解析该服务，也可能落在同一段时间内。
+
+`TurnTriggerScope` 为输入标注来源。在入队或引导调用外层设置它，排队的输入启动时会保留这个标注。kind 使用 `app`，`Label` 使用插件或工具名，客户端就会把这条输入显示为由该应用发送，而不是用户输入。宿主自己的 kind，例如 `goal` 和 `hook`，会改变 Turn 的运行方式。
+
+你推送的输入会启动一个 Turn，这个 Turn 又会产生自己的信号和生命周期回调。插件如果对这些回调再推送输入，就可能无休止地唤醒 thread。只为外部变化推送输入，跳过与上一次投递相同的事件，并限制在没有用户输入打断的情况下连续唤醒的次数。对已归档的 thread，入队和引导都会抛出 `InvalidOperationException`。
 
 完整的贡献点目录、排序规则、类型化导出、信任与 generation 生命周期见 [.NET Plugin API 与生命周期](./dotnet-plugin-api)。
 

@@ -20,6 +20,7 @@
 | **系统提示词分节** | `ISystemPromptSection`，Tier C 为 `ISystemPromptAssembler` | A、B、C |
 | **会话上下文条目** | `IChatContextProvider` | A |
 | **Thread 提示词上下文** | `IThreadSystemPromptContextProvider`（仅 `BaseInstructions`） | A |
+| **World state 分节** | `IWorldStateSection` | A |
 | **发送前上下文变换** | `IAgentContextSource` → `AIContextProvider` | A、B |
 | **Chat 中间件** | `IChatMiddleware` | A、B |
 | **派发阶段** | policy、approval、recorder、normalizer 各阶段接口 | A、B |
@@ -120,6 +121,40 @@ internal sealed class TriageCommand(ReviewService service) : ICodeCommand
 贡献的命令就是一条“正文是代码”的 Markdown 自定义命令，宿主也在同样的地方伺服它：命令面板、`command/list`、`command/execute`、ACP 斜杠命令列表都会自动收录，客户端无需任何改动。它只产出模型输入——直接回复用户仍由宿主自己的命令负责。
 
 它不会遮蔽任何东西：内置命令、工作区 Markdown 命令、工作流命令在重名时都保留自己的名字。贡献之间由 `Order` 最小者取得名字，返回 `null` 表示放弃本次调用、交给下一个贡献回答。释放句柄即刻把命令从所有列举与解析中移除——贡献点是按调用读取的，不会有任何残留注册。
+
+### Tier A —— 让模型感知变化的状态
+
+World state 分节把对话之外会变化的状态告诉模型，例如编辑器模式、构建状态或已连接的设备。模型先得知一次状态，之后只在状态变化时再收到。
+
+```csharp
+internal sealed class ReviewWorldState(IReviewService service) : IWorldStateSection
+{
+    public string Id => "acme_review";
+
+    public JsonNode? Snapshot(WorldStateContext context) =>
+        new JsonObject { ["items"] = service.Checklist.Count };
+
+    public string? RenderDiff(WorldStateContext context, PreviousSectionState previous) =>
+        $"## Review Checklist State
+The review checklist has {service.Checklist.Count} items.";
+}
+```
+
+```csharp
+context.Contributions.Add<IWorldStateSection>(new ReviewWorldState(service));
+```
+
+宿主在每次采样请求之前评估所有分节，包括一个 Turn 的第一次模型调用，以及每轮工具调用之后的模型调用。它把分节当前的 `Snapshot` 与模型上次看到的快照比较。快照相同，分节保持静默。快照不同，或者没有可比较的上一份，宿主就调用 `RenderDiff`，把返回的文本加入模型上下文。比较、跨恢复的持久化，以及承载文本的上下文条目都由宿主负责。
+
+- **`Id`** 会持久化到 thread rollout 中。它在插件各版本间要保持稳定，并且在所有分节中唯一。缺失或重复的 id 会被跳过。
+- **`Snapshot`** 返回恰好随状态变化而变化的 JSON，返回 `null` 表示不提供基线。不要放入经过时间、时间戳、计数器等会自行变化的值，否则每次请求看起来都是变化。它是同步方法，运行在采样路径上，所以只读取缓存的状态，并由插件自己的事件或 `Lifetime.Run` 后台工作保持缓存最新。
+- **`RenderDiff`** 返回给模型的文本，返回 `null` 表示不发送。`PreviousSectionState` 描述模型上次看到的内容。`Absent` 表示该分节从未展示过，应完整陈述状态。`Known` 通过 `TryGetKnown` 提供上一份精确快照，应描述变化。`Unknown` 表示历史中仍保留着更早的渲染结果，但其快照不可用，应重新陈述当前状态。
+
+`null` 快照不会留下基线，所以 `RenderDiff` 会在每次请求时运行，直到它返回文本为止。没有内容可报告时返回 `null`。状态在展示过之后消失时，`previous.MayBeShown` 为 true，此时渲染一句简短的撤回说明，例如“The editor is closed.”
+
+`Snapshot` 抛出异常的分节在该次请求中不提供基线。`RenderDiff` 抛出异常的分节会在下一次请求时重试。两者都不会让 Turn 失败。
+
+分节只在 Agent 采样时运行，所以 thread 空闲期间发生的变化会在它下一个 Turn 开始时才送达模型。要让 Agent 对变化做出反应，按[向 thread 推送事件](./dotnet-plugins#push-events-into-a-thread)的方式向 thread 推送输入。状态只属于某一个 thread 时，用 `ContributionOptions.ForThread(threadId)` 注册。
 
 ### Tier B —— 替换具名默认项
 

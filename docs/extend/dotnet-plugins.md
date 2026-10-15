@@ -206,6 +206,8 @@ var sessions = (ISessionService?)context.Services.GetService(typeof(ISessionServ
     ?? throw new InvalidOperationException("ISessionService is unavailable.");
 ```
 
+Plugins activate while the workspace runtime is still starting, so resolve `ISessionService` when you use it rather than in `ActivateAsync`. [Push events into a thread](#push-events-into-a-thread) shows the pattern.
+
 The provider is host-owned and read-only. A plugin cannot register, decorate, or replace container services. The view excludes the root provider, contribution registry, service-scope factories, host lifecycle, and plugin-runtime control plane. Never dispose a resolved service. Only what the plugin itself created needs disposal, and that goes through `context.Lifetime`.
 
 Consumption carries the same version binding as the rest of the kernel surface: a service you resolve today is guaranteed by the host version you compiled against, not by an append-only promise. Release callbacks, event subscriptions, and other references to host services before the generation stops so the load context can unload.
@@ -220,6 +222,57 @@ var limit = context.Settings.TryGetProperty("checklistLimit", out var value)
 ```
 
 Use schema defaults for every field the plugin expects. A configuration mutation quiesces the current generation before writing and automatically reconciles the plugin and its required dependency closure afterward. A failed quiesce leaves the file unchanged; a failed write restores the original generation. A captured activation context is never mutated in place. If you deserialize to plugin-defined types, keep serializer options and metadata plugin-owned so the generation can unload.
+
+### React to runtime signals
+
+`IThreadRuntimeSignalContributor` receives a thread's runtime signals after the host publishes them: a Turn starting, completing, failing, or being cancelled; approval and user-input requests and their resolution; compaction, rollback, and maintenance transitions. It only observes. It cannot change, delay, or veto what happened.
+
+```csharp
+internal sealed class CompactionWatcher(ReviewJournal journal) : IThreadRuntimeSignalContributor
+{
+    public Task OnThreadRuntimeSignalAsync(
+        ThreadRuntimeSignalContext context,
+        CancellationToken cancellationToken = default)
+    {
+        if (context.Signal == SessionThreadRuntimeSignal.ContextCompacted)
+            journal.Write($"compacted {context.ThreadId}");
+        return Task.CompletedTask;
+    }
+}
+```
+
+Signals reach contributors through a bounded queue with a single reader, so a Turn never waits for a plugin. A slow handler delays the signals queued behind it, and once the queue fills the oldest undelivered signals are dropped. Return quickly and hand longer work to your own `Lifetime.Run` loop. A handler that throws is logged and skipped. A signal carries only the thread id and the signal; use `ITurnLifecycleContributor` when you need the Turn id.
+
+### Push events into a thread
+
+A plugin that watches something outside DotCraft, such as an editor, a build, or a device, can hand an event to a thread as input through `ISessionService`. Choose the call by the thread's state:
+
+- **A Turn is running.** `SteerTurnAsync` adds the input as guidance that the running Turn picks up before its next model call. Pass the id of the Turn you expect, for example one recorded by `ITurnLifecycleContributor.OnTurnStartedAsync`. The call throws `InvalidOperationException` when that Turn is no longer active.
+- **The thread may be idle.** `EnqueueTurnInputAsync` queues the input, and `TryStartNextQueuedTurnAsync` starts it when no Turn is running. If a Turn is running, the input waits and starts after that Turn completes.
+
+```csharp
+internal sealed class EditorEventSink(IServiceProvider services)
+{
+    public async Task DeliverAsync(string threadId, string text, CancellationToken cancellationToken)
+    {
+        var sessions = (ISessionService?)services.GetService(typeof(ISessionService))
+            ?? throw new InvalidOperationException("ISessionService is unavailable.");
+
+        using (TurnTriggerScope.Set(new TurnTriggerInfo { Kind = "app", Label = "Acme Editor" }))
+        {
+            await sessions.EnqueueTurnInputAsync(threadId, [new TextContent(text)], ct: cancellationToken);
+        }
+
+        await sessions.TryStartNextQueuedTurnAsync(threadId, cancellationToken);
+    }
+}
+```
+
+Construct the sink in `ActivateAsync` with `context.Services` and resolve the session service on each delivery. Plugins activate while the workspace runtime is still starting, and resolving `ISessionService` in that window throws `InvalidOperationException`. Background work registered through `Lifetime.Run` starts right after activation, so it can hit the same window if it resolves the service once up front.
+
+`TurnTriggerScope` tags the input with its source. Set it around the enqueue or steer call; the tag stays with queued input when it starts. Use `app` as the kind and your plugin or tool name as `Label`; clients then show the input as sent by that app instead of typed by the user. The host's own kinds, such as `goal` and `hook`, change how a Turn runs.
+
+Input you push starts a Turn, and that Turn raises signals and lifecycle callbacks of its own. A plugin that pushes input in response to those can wake the thread indefinitely. Push only for external changes, skip an event identical to the last one you delivered, and cap the number of consecutive wakes no user input has interrupted. Both queueing and steering throw `InvalidOperationException` for an archived thread.
 
 For the complete contribution catalog, ordering, typed exports, trust, and generation lifecycle, see [.NET Plugin API and lifecycle](./dotnet-plugin-api).
 
