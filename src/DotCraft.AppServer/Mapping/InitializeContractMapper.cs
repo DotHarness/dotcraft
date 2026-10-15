@@ -49,6 +49,7 @@ internal static class InitializeContractMapper
         ThreadSubscriptions = value.ThreadSubscriptions,
         ThreadGoals = value.ThreadGoals,
         ThreadFork = value.ThreadFork,
+        SideChat = value.SideChat,
         GitWorktrees = value.GitWorktrees,
         ManualCompaction = value.ManualCompaction,
         DynamicToolRebind = value.DynamicToolRebind,

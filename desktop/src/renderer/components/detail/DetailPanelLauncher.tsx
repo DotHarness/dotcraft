@@ -4,7 +4,7 @@
  * `canOpenWorkspaceTab` guard, so there is no duplicated open logic.
  */
 import type { CSSProperties } from 'react'
-import { Bot, FilePlus2, FolderOpen, Globe, ListChecks, SquareTerminal } from 'lucide-react'
+import { Bot, FilePlus2, FolderOpen, Globe, ListChecks, MessagesSquare, SquareTerminal } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { ACTION_SHORTCUTS, formatShortcutParts } from '../ui/shortcutKeys'
 import type { AddTabMenuAction } from '../../../shared/addTabMenu'
@@ -14,6 +14,7 @@ interface DetailPanelLauncherProps {
   onAction: (action: AddTabMenuAction) => void
   canOpenWorkspaceTab: boolean
   systemTabsAvailable: boolean
+  canOpenSideChat?: boolean
   /** Remote stacks do not yet expose Desktop-local file, diff, or terminal IPC. */
   remoteWorkspace?: boolean
 }
@@ -31,6 +32,7 @@ export function DetailPanelLauncher({
   onAction,
   canOpenWorkspaceTab,
   systemTabsAvailable,
+  canOpenSideChat = false,
   remoteWorkspace = false
 }: DetailPanelLauncherProps): JSX.Element {
   const t = useT()
@@ -78,6 +80,14 @@ export function DetailPanelLauncher({
       enabled: true
     },
     {
+      action: 'newSideChat',
+      title: t('detailPanel.launcherSideChatTitle'),
+      description: t('detailPanel.launcherSideChatDesc'),
+      icon: <MessagesSquare size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
+      shortcut: fmt(ACTION_SHORTCUTS.newSideChat),
+      enabled: canOpenSideChat
+    },
+    {
       action: 'newTerminal',
       title: t('detailPanel.launcherTerminalTitle'),
       description: t('detailPanel.launcherTerminalDesc'),
@@ -88,7 +98,7 @@ export function DetailPanelLauncher({
   ]
   const cards = systemTabsAvailable
     ? allCards
-    : allCards.filter((card) => card.action !== 'newChanges' && card.action !== 'newPlan' && card.action !== 'newSubagents')
+    : allCards.filter((card) => card.action !== 'newChanges' && card.action !== 'newPlan' && card.action !== 'newSubagents' && card.action !== 'newSideChat')
 
   return (
     <div style={containerStyle}>

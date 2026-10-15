@@ -266,6 +266,10 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ThreadFork { get; init; }
 
+    [JsonPropertyName("sideChat")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SideChat { get; init; }
+
     [JsonPropertyName("gitWorktrees")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool GitWorktrees { get; init; }

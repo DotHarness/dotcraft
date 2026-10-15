@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.6 |
+| **Version** | 0.8.7 |
 | **Status** | Living |
-| **Date** | 2026-10-13 |
+| **Date** | 2026-10-15 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Machines over SSH](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [DotCraft Mobile](mobile.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md), [Turn Navigation](../features/turn-navigation.md) |
 
@@ -661,6 +661,35 @@ Worktree execution:
 - Worktree -> local handoff checks out the worktree branch locally, applies the worktree's uncommitted changes back to the local workspace, and removes the managed worktree. If local dirty changes conflict, Desktop shows the server error and does not switch UI state.
 - Branch checkout and create-and-checkout controls operate on the current effective Git directory. Local mode operates on the main workspace; worktree mode operates on the selected thread's worktree path.
 - Desktop hides or disables Git worktree and branch controls for remote workspaces, missing capabilities, non-Git directories, and Perforce workspaces. Perforce changelist controls remain available in remote workspaces because all Perforce operations run through AppServer. For existing threads that are running, waiting for approval/input, or in blocking maintenance, the local/worktree handoff menu remains available, but the confirmation dialog disables the final handoff action and explains that the workspace cannot be switched while a conversation is in progress.
+
+### 5.11.2 Side Chat
+
+A side chat answers a quick question beside a thread without interrupting it. It is a hidden ephemeral fork created with `thread/fork.sideChat` ([AppServer §4.2.1](../protocols/appserver-protocol.md#421-threadfork)) and shown as a viewer panel tab of its parent thread. Desktop offers it when `capabilities.sideChat = true` for a top-level thread that has at least one Turn and is not archived.
+
+Entry points:
+
+- The thread header overflow menu offers `New side chat`, and `Mod+Alt+S` does the same for the active thread.
+- The viewer panel `+` menu and the empty-panel launcher offer `Side chat`.
+- `/side` in the composer opens an empty side chat. `/side <question>` sends the question, with the composer's attachments and context, as the side chat's first message and clears the composer once the side chat opens. A failure keeps the composer unchanged. `/btw` is an unlisted alias.
+- Selected assistant text offers `Ask in side chat`. The selection becomes context in the composer of the thread's most recent side chat, or a new one, which takes focus without sending.
+- A queued follow-up offers `Send in side chat`, which removes it from the queue and sends it as a new side chat's first message. A failed send returns it to the main composer.
+
+Panel:
+
+- Each side chat is a tab titled `Side chat`, `Side chat 2`, and so on. Tabs stay open while the user visits other threads.
+- The transcript starts empty because inherited history stays hidden. A centered empty state says that side chats are temporary.
+- The side chat uses the conversation composer without the controls that act on the parent thread: mode, goal, profile, model, permissions, and thread commands such as `/compact`. Model, mode, and permissions follow the parent at fork time. `/side` is not available inside a side chat. A message sent while the side chat runs guides its running Turn.
+- Escape and the stop button interrupt only the side chat's running Turn. While a side chat request waits for a response, Escape belongs to that request. Escape elsewhere keeps interrupting the main Turn.
+- Approval and user-input requests from a side chat appear in its own composer area, never in the main conversation. A tab whose side chat needs a response, is running, or has an unread reply shows that state.
+- `Ctrl+/` moves focus between the main composer and the active side chat's composer.
+
+Lifecycle:
+
+- Closing a tab interrupts its running Turn and deletes the fork with `thread/delete`. Closing a side chat that has messages asks for confirmation first.
+- A side chat sends every request through the AppServer connection it was opened on, so switching workspaces still deletes it on its own server.
+- Side chats are not restored after Desktop restarts. When the AppServer connection is lost, open side chats become read-only and offer a new side chat in their place.
+- Archiving or deleting the parent deletes its side chats on the server, and Desktop closes their tabs when `thread/deleted` arrives.
+- Nothing from a side chat enters the main thread automatically.
 
 ### 5.12 Manage Thread Goal
 

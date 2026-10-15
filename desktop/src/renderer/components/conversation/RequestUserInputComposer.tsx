@@ -19,6 +19,7 @@ import { interruptTurn } from '../../utils/interruptTurn'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
+import { inSameSideChat } from '../sideChat/sideChatScope'
 import {
   ComposerStatusContent,
   ComposerToolbarLeadingSlots,
@@ -51,17 +52,22 @@ interface RequestUserInputResponse {
 interface RequestUserInputComposerProps {
   request: PendingUserInputRequest
   onResponseAccepted?: () => void
+  onResolved?: () => void
   mascotEffectState?: ComposerMascotEffectState
   desktopPluginSurfaceContext?: DesktopPluginComposerSurfaceContext
+  showMascot?: boolean
 }
 
 export function RequestUserInputComposer({
   request,
   onResponseAccepted,
+  onResolved,
   mascotEffectState = DEFAULT_COMPOSER_MASCOT_EFFECT_STATE,
-  desktopPluginSurfaceContext
+  desktopPluginSurfaceContext,
+  showMascot = true
 }: RequestUserInputComposerProps): JSX.Element | null {
   const t = useT()
+  const rootRef = useRef<HTMLDivElement>(null)
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [editingOther, setEditingOther] = useState(false)
   const [selected, setSelected] = useState<number[]>([])
@@ -87,7 +93,8 @@ export function RequestUserInputComposer({
     window.api.appServer
       .sendServerResponse(request.bridgeId, response)
       .then(() => {
-        useConversationStore.getState().onUserInputResolved()
+        if (onResolved) onResolved()
+        else useConversationStore.getState().onUserInputResolved()
         onResponseAccepted?.()
       })
       .catch((err: unknown) => {
@@ -99,7 +106,7 @@ export function RequestUserInputComposer({
           'error'
         )
       })
-  }, [onResponseAccepted, request.bridgeId, t])
+  }, [onResolved, onResponseAccepted, request.bridgeId, t])
 
   const questionCount = request.questions.length
 
@@ -214,6 +221,7 @@ export function RequestUserInputComposer({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (!inSameSideChat(rootRef.current, event.target)) return
       const editingText = isEditableTarget(event.target)
 
       if (event.key === 'Escape') {
@@ -285,6 +293,7 @@ export function RequestUserInputComposer({
 
   return (
     <div
+      ref={rootRef}
       style={composerDockStyle}
       data-user-input-request="true"
       onPointerDownCapture={snoozeAutoResolution}
@@ -300,7 +309,7 @@ export function RequestUserInputComposer({
           onDragLeave={(e) => e.preventDefault()}
           onDrop={(e) => e.preventDefault()}
           focused={editingOther}
-          showMascot
+          showMascot={showMascot}
           mascotInteraction={DECISION_MASCOT}
           petSurface="decision"
           mascotReasoningEffort={mascotEffectState.reasoningEffort}

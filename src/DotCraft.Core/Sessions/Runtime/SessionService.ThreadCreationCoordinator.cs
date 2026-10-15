@@ -109,7 +109,14 @@ public sealed partial class SessionService
             options ??= new ThreadForkOptions();
             var normalizedThreadId = NormalizeRequiredThreadId(threadId);
             var source = await LoadForkSourceThreadAsync(normalizedThreadId, options.Path, ct);
-            if (options.Purpose is not null && (!options.Ephemeral
+            if (options.Purpose == ThreadForkPurpose.SideChat)
+            {
+                if (!options.Ephemeral || options.ForkPoint is not null)
+                    throw new ArgumentException("A side chat must be ephemeral and copy the whole source thread.", nameof(options));
+                if (CacheSharingFork.PurposeOf(source) == ThreadForkPurpose.SideChat)
+                    throw new ArgumentException("A side chat cannot be forked from another side chat.", nameof(options));
+            }
+            else if (options.Purpose is not null && (!options.Ephemeral
                 || options.ForkPoint is not { } forkPoint
                 || forkPoint.TurnId != source.Turns.LastOrDefault()?.Id
                 || !string.IsNullOrWhiteSpace(forkPoint.ItemId)
@@ -146,7 +153,8 @@ public sealed partial class SessionService
                 metadata[CacheSharingFork.CacheRootKey] = string.IsNullOrWhiteSpace(source.Source.SubAgent?.RootThreadId)
                     ? source.Id
                     : source.Source.SubAgent.RootThreadId;
-                metadata[CacheSharingFork.ParentTurnKey] = options.ForkPoint!.TurnId!;
+                if ((options.ForkPoint?.TurnId ?? source.Turns.LastOrDefault()?.Id) is { } parentTurnId)
+                    metadata[CacheSharingFork.ParentTurnKey] = parentTurnId;
                 metadata[CacheSharingFork.ToolKindKey] = ToolPlanningThreadClassifier.Classify(source).ToString();
             }
             var forked = new SessionThread
@@ -192,9 +200,12 @@ public sealed partial class SessionService
                 source, forked, ct, interruptions);
             if (options.Purpose is not null)
             {
-                var copiedHistory = await owner.Persistence.LoadModelHistoryAsync(source, null, ct);
+                var runningTurn = activeSourceTurns.LastOrDefault();
+                var copiedHistory = await owner.Persistence.LoadModelHistoryAsync(source, runningTurn?.Id, ct);
                 if (copiedHistory.Count > 0)
                 {
+                    if (runningTurn != null && materialization.TurnHistories.TryGetValue(runningTurn.Id, out var partial))
+                        copiedHistory.AddRange(partial.Select(message => message.Clone()));
                     materialization = materialization with
                     {
                         History = copiedHistory,

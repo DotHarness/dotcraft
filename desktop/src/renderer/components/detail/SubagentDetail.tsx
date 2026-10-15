@@ -12,14 +12,11 @@ import type { ConversationTurn } from '../../types/conversation'
 import type { ThreadConfigurationWire } from '../../types/thread'
 import type { TurnFileChange } from '../../types/turnDiff'
 import { formatSubAgentMeta } from '../../utils/subAgentPresentation'
-import { isVisibleUserMessage } from '../../utils/visibleUserMessage'
 import { readReasoningObject } from '../conversation/modelReasoning'
-import { AgentResponseBlock } from '../conversation/AgentResponseBlock'
-import { UserMessageBlock } from '../conversation/UserMessageBlock'
 import { collectConversationImages, ConversationImagesContext } from '../conversation/imagePreview/galleryImages'
 import { ScrollToBottomButton } from '../conversation/ScrollToBottomButton'
 import { TurnChangesCard } from '../conversation/TurnCompletionSummary'
-import { TranscriptThreadContext } from '../conversation/transcriptDiffs'
+import { TranscriptTurn } from '../conversation/TranscriptTurn'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { IconButton } from '../ui/IconButton'
 import { Skeleton } from '../ui/Skeleton'
@@ -129,7 +126,7 @@ function SubagentTranscript({
             {turns.map((turn, index) => {
               const isLastTurn = index === turns.length - 1
               return (
-                <TranscriptTurn
+                <SubagentTurn
                   key={turn.id}
                   childThreadId={childThreadId}
                   turn={turn}
@@ -147,7 +144,7 @@ function SubagentTranscript({
   )
 }
 
-const TranscriptTurn = memo(function TranscriptTurn({
+const SubagentTurn = memo(function SubagentTurn({
   childThreadId,
   turn,
   isLastTurn,
@@ -165,38 +162,14 @@ const TranscriptTurn = memo(function TranscriptTurn({
     [childThreadId]
   )
   return (
-    <div className={styles.turn}>
-      {turn.items.filter(isVisibleUserMessage).map((item) => (
-        <UserMessageBlock
-          key={item.id}
-          messageId={item.id}
-          text={item.text ?? ''}
-          nativeInputParts={item.nativeInputParts}
-          imageDataUrls={item.imageDataUrls}
-          images={item.images}
-          createdAt={item.createdAt}
-          deliveryMode={item.deliveryMode}
-          triggerKind={item.triggerKind}
-          triggerLabel={item.triggerLabel}
-          triggerRefId={item.triggerRefId}
-          sentAsGoal={item.sentAsGoal === true}
-        />
-      ))}
-      <TranscriptThreadContext.Provider value={childThreadId}>
-        <AgentResponseBlock
-          turn={turn}
-          streamingMessage={live?.kind === 'agentMessage' ? live.text : ''}
-          streamingReasoning={live?.kind === 'reasoningContent' ? live.text : ''}
-          isRunning={running}
-          isLastTurn={isLastTurn}
-          showIdleThinkingFallback={running && !live?.text}
-          activeItemIdOverride={live?.itemId ?? null}
-          shellRuntimeScope="none"
-          readOnly
-          renderTurnCompletion={renderTurnCompletion}
-        />
-      </TranscriptThreadContext.Provider>
-    </div>
+    <TranscriptTurn
+      threadId={childThreadId}
+      turn={turn}
+      isLastTurn={isLastTurn}
+      running={running}
+      live={live}
+      renderTurnCompletion={renderTurnCompletion}
+    />
   )
 })
 

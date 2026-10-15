@@ -7,6 +7,7 @@ export type AddTabMenuAction =
   | 'newChanges'
   | 'newPlan'
   | 'newSubagents'
+  | 'newSideChat'
 
 export interface AddTabMenuItem {
   action: AddTabMenuAction

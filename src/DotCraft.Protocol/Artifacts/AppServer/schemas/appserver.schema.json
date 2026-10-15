@@ -13024,6 +13024,9 @@
         "runtimeAdditionalContext": {
           "type": "boolean"
         },
+        "sideChat": {
+          "type": "boolean"
+        },
         "skillVariants": {
           "type": "boolean"
         },
@@ -16895,6 +16898,16 @@
               "items": {
                 "type": "string"
               }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sideChat": {
+          "anyOf": [
+            {
+              "type": "boolean"
             },
             {
               "type": "null"

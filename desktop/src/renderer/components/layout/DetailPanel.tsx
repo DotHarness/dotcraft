@@ -14,6 +14,8 @@ import { isSubAgentChildRunning, useSubAgentStore } from '../../stores/subAgentS
 import { AddTabPopupWindow } from '../detail/AddTabPopupWindow'
 import { DetailPanelLauncher } from '../detail/DetailPanelLauncher'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
+import { SideChatTabIcon } from '../sideChat/SideChatTabIcon'
+import { useCanOpenSideChat } from '../../utils/sideChat'
 import {
   resolveAddTabPopupPayload,
   type AddTabMenuAction,
@@ -77,6 +79,7 @@ export function DetailPanel({
       : 0
   )
 
+  const sideChatAvailable = useCanOpenSideChat()
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const [addTabMenu, setAddTabMenu] = useState<AddTabPopupPayload | null>(null)
 
@@ -168,7 +171,15 @@ export function DetailPanel({
               action: 'newSubagents' as const,
               label: t('detailPanel.tabSubagents'),
               enabled: true
-            }])
+            }]),
+        ...(systemTabsAvailable
+          ? [{
+              action: 'newSideChat' as const,
+              label: t('detailPanel.addTabSideChat'),
+              shortcut: fmt(ACTION_SHORTCUTS.newSideChat),
+              enabled: sideChatAvailable
+            }]
+          : [])
       ]
     }
     setAddTabMenu(resolveAddTabPopupPayload(request, {
@@ -248,6 +259,8 @@ export function DetailPanel({
               ? <SquareTerminal size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
               : tab.kind === 'workflow'
                 ? <Workflow size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+              : tab.kind === 'sideChat'
+                ? <SideChatTabIcon sideChatKey={tab.sideChatKey} />
               : tab.kind === 'files'
                 ? <FolderOpen size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
                 : <FileTypeIcon path={tab.relativePath} size={14} />
@@ -256,7 +269,7 @@ export function DetailPanel({
               key={tab.id}
               className={automationActive ? 'dotcraft-automation-viewer-tab' : undefined}
               active={activeViewerId === tab.id}
-              title={tab.kind === 'browser' ? tab.currentUrl : tab.kind === 'terminal' ? tab.cwd : tab.kind === 'workflow' ? tab.label : tab.kind === 'files' ? tab.label : tab.absolutePath}
+              title={tab.kind === 'browser' ? tab.currentUrl : tab.kind === 'terminal' ? tab.cwd : tab.kind === 'file' ? tab.absolutePath : tab.label}
               icon={icon}
               label={tab.label}
               closeLabel={`${t('viewer.close')} ${tab.label}`}
@@ -328,6 +341,7 @@ export function DetailPanel({
             onAction={handleAddTabAction}
             canOpenWorkspaceTab={canOpenWorkspaceTab}
             systemTabsAvailable={systemTabsAvailable}
+            canOpenSideChat={sideChatAvailable}
             remoteWorkspace={remoteWorkspace}
           />
         )}

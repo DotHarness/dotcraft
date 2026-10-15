@@ -1338,6 +1338,7 @@ public sealed partial class SessionService
                         new ThreadSystemPromptContext(threadId, thread.WorkspacePath, thread.OriginChannel),
                         threadContextCarrier);
                 }
+                SideChatBoundary.Reconcile(thread, session, threadContextCarrier);
 
                 var worldStateUpdate = BuildWorldStateUpdate(
                     thread,

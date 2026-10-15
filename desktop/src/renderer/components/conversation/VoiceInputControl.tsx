@@ -14,6 +14,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { sessionForThread, useVoiceStore } from '../../voice/voiceStore'
 import { isBlockedMicrophonePermission } from '../../voice/microphoneAccess'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { inSameSideChat } from '../sideChat/sideChatScope'
 import { VoiceSetupDialog, type VoiceSetupStage } from './VoiceSetupDialog'
 import styles from './VoiceInputControl.module.css'
 
@@ -60,6 +61,7 @@ export function VoiceInputControl({ threadId, enableShortcut = true, compact = f
   const pointerStarting = useRef(false)
   const pointerReleasePending = useRef(false)
   const suppressPointerClick = useRef(false)
+  const groupRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => initialize(), [initialize])
 
@@ -71,6 +73,7 @@ export function VoiceInputControl({ threadId, enableShortcut = true, compact = f
         return
       }
       if (!enableShortcut || event.code !== 'KeyD' || !event.ctrlKey || !event.shiftKey || event.repeat || !document.hasFocus()) return
+      if (!inSameSideChat(groupRef.current, event.target)) return
       if (!hasVoiceTranscriptionRoute(useVoiceStore.getState().snapshot)) return
       if (isBlockedMicrophonePermission(useVoiceStore.getState().microphonePermission)) {
         setSetupStage('recovery')
@@ -245,7 +248,7 @@ export function VoiceInputControl({ threadId, enableShortcut = true, compact = f
 
   return (
     <>
-      <span className={styles.group}>
+      <span ref={groupRef} className={styles.group}>
         {elapsedMs != null && <time className={styles.timer}>{formatElapsed(elapsedMs)}</time>}
         <ActionTooltip label={view.label} shortcut={enableShortcut && view.kind === 'mic' ? ['Ctrl', 'Shift', 'D'] : undefined} placement="top">
           <button

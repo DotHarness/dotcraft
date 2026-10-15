@@ -15,6 +15,7 @@ import {
   ComposerToolbarTrailingSlots
 } from './ComposerSurfaceSlots'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
+import { inSameSideChat } from '../sideChat/sideChatScope'
 import { DecisionDismissButton, DecisionSubmitButton } from './DecisionComposerChrome'
 import {
   DEFAULT_COMPOSER_MASCOT_EFFECT_STATE,
@@ -26,6 +27,7 @@ interface ApprovalDecisionComposerProps {
   onResponseAccepted?: () => void
   mascotEffectState?: ComposerMascotEffectState
   desktopPluginSurfaceContext?: DesktopPluginComposerSurfaceContext
+  showMascot?: boolean
 }
 
 /** Default tool-approval detail rows (when the request carries no custom `detailRows`). */
@@ -111,9 +113,11 @@ export function ApprovalDecisionComposer({
   request,
   onResponseAccepted,
   mascotEffectState = DEFAULT_COMPOSER_MASCOT_EFFECT_STATE,
-  desktopPluginSurfaceContext
+  desktopPluginSurfaceContext,
+  showMascot = true
 }: ApprovalDecisionComposerProps): JSX.Element {
   const t = useT()
+  const rootRef = useRef<HTMLDivElement>(null)
   const requestKey = useMemo(() => approvalRequestKey(request), [request])
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [submittingRequestKey, setSubmittingRequestKey] = useState<string | null>(null)
@@ -170,7 +174,7 @@ export function ApprovalDecisionComposer({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (isEditableTarget(event.target)) return
+      if (isEditableTarget(event.target) || !inSameSideChat(rootRef.current, event.target)) return
 
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -216,7 +220,7 @@ export function ApprovalDecisionComposer({
   } as const
 
   return (
-    <div style={composerDockStyle}>
+    <div ref={rootRef} style={composerDockStyle}>
       <ConversationColumn>
         <DesktopPluginSurface name="composer.before" context={mascotSurfaceContext} />
         <ComposerShell
@@ -226,7 +230,7 @@ export function ApprovalDecisionComposer({
           onDragOver={(e) => e.preventDefault()}
           onDragLeave={(e) => e.preventDefault()}
           onDrop={(e) => e.preventDefault()}
-          showMascot
+          showMascot={showMascot}
           petSurface="approval"
           mascotInteraction={DECISION_MASCOT}
           mascotReasoningEffort={mascotEffectState.reasoningEffort}

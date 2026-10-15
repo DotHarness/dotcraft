@@ -530,6 +530,21 @@ const api = {
       )
     },
 
+    getConnectionKey(): Promise<string | null> {
+      return ipcRenderer.invoke('appserver:get-connection-key')
+    },
+
+    async sendConnectionRequest<M extends keyof ClientRequestMethods>(
+      key: string,
+      method: M,
+      params: ClientRequestMethods[M]['params'],
+      timeoutMs?: number | null
+    ): Promise<ClientRequestMethods[M]['result']> {
+      return unwrapAppServerResult<ClientRequestMethods[M]['result']>(
+        await ipcRenderer.invoke('appserver:send-connection-request', key, method, params, timeoutMs)
+      )
+    },
+
     async sendRequestRaw(method: string, params?: unknown, timeoutMs?: number | null): Promise<unknown> {
       return unwrapAppServerResult<unknown>(
         await ipcRenderer.invoke('appserver:send-request-raw', method, params, timeoutMs)

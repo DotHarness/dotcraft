@@ -16444,6 +16444,13 @@
           "const": null
         },
         {
+          "name": "sideChat",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "skillVariants",
           "type": "boolean",
           "required": false,
@@ -20973,6 +20980,13 @@
         {
           "name": "runtimeWorkspaceRoots",
           "type": "array<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "sideChat",
+          "type": "boolean",
           "required": false,
           "nullable": true,
           "const": null

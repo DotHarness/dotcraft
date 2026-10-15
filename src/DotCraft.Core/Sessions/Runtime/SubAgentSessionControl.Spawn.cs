@@ -15,6 +15,8 @@ public static partial class SubAgentSessionControl
         SubAgentCoordinator? coordinator,
         CancellationToken ct)
     {
+        if (CacheSharingFork.PurposeOf(context.ParentThread) == ThreadForkPurpose.SideChat)
+            throw new InvalidOperationException("Sub-agents are unavailable in a side chat. Ask in the main thread to delegate work.");
         var prompt = NormalizeRequired(options.AgentPrompt, nameof(options.AgentPrompt));
         var taskName = AgentPath.ValidateTaskName(NormalizeRequired(options.TaskName, nameof(options.TaskName)), nameof(options.TaskName));
         var parentPath = GetCurrentAgentPath(context.ParentThread);

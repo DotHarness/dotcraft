@@ -4,11 +4,10 @@ import { buildComposerHistory, queuedInputToComposerDraft, linearLengthOfCompose
 import { useComposerContextStore } from '../../stores/composerContextStore'
 import { useRef, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
 import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
-import { Bot, ChevronsDown, FileText, ListChecks, Target } from 'lucide-react'
+import { Bot, ChevronsDown, FileText, ListChecks, MessagesSquare, Target } from 'lucide-react'
 import { readAppServerErrorFields } from '../../../shared/appServerError'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
-import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
 import { sendComposerFollowUp } from '../../utils/composerFollowUp'
 import { addToast } from '../../stores/toastStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -31,7 +30,9 @@ import type {
   QueuedTurnInput
 } from '../../types/conversation'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
+import { canOpenSideChat as canOpenSideChatNow, openSideChat, parseSideSlashCommand, useCanOpenSideChat, withoutSideCommand } from '../../utils/sideChat'
 import { useFailedTurnResume } from './useFailedTurnResume'
+import { useComposerRunState, type ComposerRuntime } from './useComposerRunState'
 import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../utils/composerSubmission'
 import { expandInitCommand } from '../../utils/initCommand'
 import { useComposerMascot } from './useComposerMascot'
@@ -162,7 +163,8 @@ interface InputComposerProps {
   minimalChrome?: boolean
   /** Overrides the thread-profile-derived name — the Agent Builder thread has no profile id. */
   mascotName?: string
-  variant?: 'default' | 'agentBuilder'
+  /** `sideChat` sends through `submitOverride` to a side chat and hides every control that acts on the active thread. */
+  variant?: 'default' | 'agentBuilder' | 'sideChat'
   placeholder?: string
   /** One-shot text injection request from an external empty state or suggestion. */
   prefillRequest?: { id: number; text: string } | null
@@ -172,6 +174,9 @@ interface InputComposerProps {
    * thread/RPC. Used by the Agent Builder intro before a hidden builder thread exists.
    */
   submitOverride?: (payload: InputComposerSubmitPayload) => Promise<void> | void
+  runtime?: ComposerRuntime
+  /** Focuses the editor whenever the value changes. */
+  focusRequest?: number
   /** Discards voice work when this pre-thread Composer unmounts. */
   transientVoiceOrigin?: boolean
   dockPadding?: CSSProperties['padding']
@@ -187,13 +192,11 @@ export function InputComposer(props: InputComposerProps): JSX.Element {
     workspacePath: props.workspacePath || null,
     threadId: hasSubmitOverride ? null : props.threadId,
     mode: hasSubmitOverride ? 'agent' : threadMode,
-    busy: (!hasSubmitOverride && (
-      turnStatus === 'running'
-      || waitingForInput
-      || maintenanceKind === 'compacting'
-    )),
+    busy: hasSubmitOverride
+      ? props.runtime?.running === true
+      : turnStatus === 'running' || waitingForInput || maintenanceKind === 'compacting',
     awaitingApproval: !hasSubmitOverride && turnStatus === 'waitingApproval',
-    variant: props.variant ?? 'default',
+    variant: props.variant === 'agentBuilder' ? 'agentBuilder' : 'default',
     minimalChrome: props.minimalChrome ?? false
   } as const
 
@@ -237,12 +240,16 @@ function InputComposerCore({
   prefillRequest = null,
   onBeforeSend,
   submitOverride,
+  runtime,
+  focusRequest,
   transientVoiceOrigin = false,
   dockPadding = composerDockStyle.padding,
   desktopPluginSurfaceContext
 }: InputComposerCoreProps): JSX.Element {
   const t = useT()
   const isAgentBuilder = variant === 'agentBuilder'
+  const isSideChat = variant === 'sideChat'
+  const ownsThreadControls = !isAgentBuilder && !isSideChat
   const hasSubmitOverride = submitOverride !== undefined
   const [images, setImages] = useState<ImageAttachment[]>([])
   const [files, setFiles] = useState<ComposerFileAttachment[]>([])
@@ -304,42 +311,42 @@ function InputComposerCore({
   const activeCatalogProviderId = useModelCatalogStore((s) => s.providerId)
   const activeChatGptProvider = useChatGptOAuthSummary(activeCatalogProviderId)
 
-  const turns = useConversationStore((s) => s.turns)
-  const turnStatus = useConversationStore((s) => s.turnStatus)
-  const activeTurnId = useConversationStore((s) => s.activeTurnId)
-  const pendingMessage = useConversationStore((s) => s.pendingMessage)
-  const queuedInputs = useConversationStore((s) => s.queuedInputs)
-  const interruptingTurnId = useConversationStore((s) => s.interruptingTurnId)
-  const maintenanceKind = useConversationStore((s) => s.maintenanceKind)
+  const {
+    turns,
+    historyTurns,
+    turnStatus,
+    activeTurnId,
+    visiblePendingMessage,
+    visibleQueuedInputs,
+    stopping,
+    isRunning,
+    isWaitingApproval,
+    isWaitingInput,
+    isMaintenanceActive,
+    isBusyForInput,
+    followUpMode
+  } = useComposerRunState(hasSubmitOverride, runtime)
   const rawMascotInteraction = useComposerMascot({ threadId, workspacePath })
   const mascotInteraction = hasSubmitOverride ? undefined : rawMascotInteraction
   const threadMode = useConversationStore((s) => s.threadMode)
   const setThreadMode = useConversationStore((s) => s.setThreadMode)
-  const composerPrefill = useUIStore((s) => s.composerPrefill)
+  const composerPrefill = useUIStore((s) => isSideChat ? null : s.composerPrefill)
   const currentGoal = useThreadStore((s) => s.goalSnapshots.get(threadId) ?? null)
-  const visibleQueuedInputs = hasSubmitOverride ? [] : queuedInputs
-  const visiblePendingMessage = hasSubmitOverride ? null : pendingMessage
-  const hasBackgroundActivityDock = !hasSubmitOverride && queuedInputs.length > 0
+  const hasBackgroundActivityDock = visibleQueuedInputs.length > 0
   const locale = useLocale()
   const confirm = useConfirmDialog()
   const activeMainView = useUIStore((s) => s.activeMainView)
   const desktopCommandContributions = useDesktopPluginRegistry((s) => s.commands)
 
-  const isRunning = !hasSubmitOverride && turnStatus === 'running'
-  const followUpPreference = useComposerPreferencesStore((state) => state.followUpQueueMode)
-  const followUpMode = isRunning ? followUpPreference : 'queue'
-  const isWaitingApproval = !hasSubmitOverride && turnStatus === 'waitingApproval'
-  const isWaitingInput = !hasSubmitOverride && turnStatus === 'waitingInput'
-  const isMaintenanceActive = !hasSubmitOverride && maintenanceKind === 'compacting'
-  const isBusyForInput = isRunning || isMaintenanceActive
   const canUseCommandPicker = capabilities?.commandManagement === true
   const canUseSkillPicker = capabilities?.skillsManagement === true
-  const canUseThreadGoals = !isAgentBuilder && capabilities?.threadGoals === true
-  const canUseManualCompaction = !isAgentBuilder && capabilities?.manualCompaction === true
+  const canUseThreadGoals = ownsThreadControls && capabilities?.threadGoals === true
+  const canUseManualCompaction = ownsThreadControls && capabilities?.manualCompaction === true
   const turnsLength = turns.length
   const canCompactCurrentThread = canUseManualCompaction && turnsLength > 0 && turnStatus === 'idle' && !isMaintenanceActive
-  const canUseSystemActions = !isAgentBuilder
-  const canUseAgentProfiles = !isAgentBuilder && capabilities?.agentProfileManagement === true
+  const canUseSystemActions = ownsThreadControls
+  const canOpenSideChat = useCanOpenSideChat() && !hasSubmitOverride
+  const canUseAgentProfiles = ownsThreadControls && capabilities?.agentProfileManagement === true
   const rawProfileId = (activeThread?.configuration as Record<string, unknown> | null | undefined)?.agentProfileId
   const activeProfileId = typeof rawProfileId === 'string' && rawProfileId.length > 0 ? rawProfileId : undefined
   const hasProfile = activeProfileId !== undefined
@@ -351,9 +358,9 @@ function InputComposerCore({
     viewId: activeMainView
   }), [activeMainView, threadId, workspacePath])
   const desktopCommands = useMemo(
-    () => desktopCommandContributions.filter((command) =>
+    () => isSideChat ? [] : desktopCommandContributions.filter((command) =>
       isDesktopPluginContributionAvailable(command, desktopCommandContext)),
-    [desktopCommandContext, desktopCommandContributions]
+    [desktopCommandContext, desktopCommandContributions, isSideChat]
   )
   const canUseSlashPicker = canUseCommandPicker
     || canUseSkillPicker
@@ -368,7 +375,7 @@ function InputComposerCore({
     threadId,
     enabled: canUseSystemActions && !hasSubmitOverride
   })
-  const isExactSystemSlashQuery = !isAgentBuilder
+  const isExactSystemSlashQuery = ownsThreadControls
     && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'init' || normalizedSlashQuery === 'compact'
       || channelBindingCommands.isExactQuery(normalizedSlashQuery))
   const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery && !isAgentBuilderModeSlashQuery
@@ -401,8 +408,8 @@ function InputComposerCore({
     [availableSkills, customCommands]
   )
   const composerHistory = useMemo(
-    () => buildComposerHistory(turns, threadId),
-    [threadId, turns]
+    () => buildComposerHistory(historyTurns, threadId),
+    [historyTurns, threadId]
   )
   const systemActions = useMemo(
     () => {
@@ -456,10 +463,19 @@ function InputComposerCore({
           icon: <Target size={15} strokeWidth={2} aria-hidden />
         })
       }
+      if (canOpenSideChat) {
+        actions.push({
+          id: 'side',
+          label: t('composer.system.side'),
+          description: t('composer.system.side.description'),
+          keywords: ['side', 'btw'],
+          icon: <MessagesSquare size={15} strokeWidth={2} aria-hidden />
+        })
+      }
       actions.push(...channelBindingCommands.actions)
       return actions
     },
-    [canCompactCurrentThread, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, hasProfile, initAvailable, channelBindingCommands.actions, t, threadMode]
+    [canCompactCurrentThread, canOpenSideChat, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, hasProfile, initAvailable, channelBindingCommands.actions, t, threadMode]
   )
 
   useEffect(() => {
@@ -576,7 +592,7 @@ function InputComposerCore({
     latestDraftRef.current = emptyComposerDraftSnapshot()
     let restoreTimer: number | undefined
     // A one-shot prefill (e.g. "Try in chat") takes precedence over a saved draft.
-    if (!useUIStore.getState().composerPrefill) {
+    if (isSideChat || !useUIStore.getState().composerPrefill) {
       const draft = useComposerDraftStore.getState().getDraft(id)
       if (draft && threadComposerDraftHasContent(draft)) {
         restoreTimer = window.setTimeout(() => {
@@ -603,7 +619,7 @@ function InputComposerCore({
         useComposerDraftStore.getState().clearDraft(id)
       }
     }
-  }, [threadId, applyComposerSnapshot])
+  }, [threadId, applyComposerSnapshot, isSideChat])
 
   const handleHistoryNavigate = useCallback((direction: 'previous' | 'next'): boolean => {
     if (showMentionPopover || showCommandPopover || showSkillPopover || goalPopoverOpen) {
@@ -715,6 +731,11 @@ function InputComposerCore({
   }, [prefillRequest?.id, prefillRequest?.text])
 
   useEffect(() => {
+    if (focusRequest !== undefined) richRef.current?.focus()
+  }, [focusRequest])
+
+  useEffect(() => {
+    if (isSideChat) return
     const focus = (): void => {
       richRef.current?.focus()
     }
@@ -728,16 +749,16 @@ function InputComposerCore({
       delete (window as Window & { __inputComposerFocus?: () => void }).__inputComposerFocus
       delete (window as Window & { __inputComposerSetText?: (v: string) => void }).__inputComposerSetText
     }
-  }, [])
+  }, [isSideChat])
 
   const prevTurnStatusRef = useRef(turnStatus)
   useEffect(() => {
     const prev = prevTurnStatusRef.current
-    if (prev === 'waitingApproval' && turnStatus !== 'waitingApproval') {
+    if (!hasSubmitOverride && prev === 'waitingApproval' && turnStatus !== 'waitingApproval') {
       richRef.current?.focus()
     }
     prevTurnStatusRef.current = turnStatus
-  }, [turnStatus])
+  }, [hasSubmitOverride, turnStatus])
 
   const previousCommandRefreshStatusRef = useRef(turnStatus)
   useEffect(() => {
@@ -998,7 +1019,7 @@ function InputComposerCore({
   useComposerImageAttachmentRequest((image) => {
     void saveDataUrlAsTemp(image.dataUrl, image.fileName, image.mimeType)
     setTimeout(() => richRef.current?.focus(), 0)
-  })
+  }, !isSideChat)
 
   const onPasteImage = useCallback(
     (file: File): void => {
@@ -1136,7 +1157,7 @@ function InputComposerCore({
       }
     }
 
-    if (!isAgentBuilder && trimmed.toLowerCase() === '/init') {
+    if (ownsThreadControls && trimmed.toLowerCase() === '/init') {
       if (sendInFlightRef.current) return
       sendInFlightRef.current = true
       const submission = submissionSnapshot()
@@ -1160,13 +1181,37 @@ function InputComposerCore({
       return
     }
 
+    if (isSideChat && parseSideSlashCommand(trimmed)) {
+      addToast(t('sideChat.nestedUnavailable'), 'warning')
+      return
+    }
+    const sideCommand = isAgentBuilder || hasSubmitOverride ? null : parseSideSlashCommand(trimmed)
+    if (sideCommand) {
+      if (!canOpenSideChatNow()) {
+        addToast(t('sideChat.unavailable'), 'warning')
+        return
+      }
+      if (sendInFlightRef.current) return
+      sendInFlightRef.current = true
+      const hasPrompt = sideCommand.question || inputContexts.length > 0 || inputFiles.length > 0 || inputImages.length > 0
+      const prompt = hasPrompt
+        ? { text: sideCommand.question, segments: withoutSideCommand(segments), contexts: inputContexts, files: inputFiles, images: inputImages }
+        : undefined
+      try {
+        if (await openSideChat(threadId, t, { prompt })) resetComposerInput()
+      } finally {
+        sendInFlightRef.current = false
+      }
+      return
+    }
+
     const channelBindingCommand = channelBindingCommands.runSlashCommand(trimmed)
     if (channelBindingCommand) {
       if (await channelBindingCommand) resetComposerInput()
       return
     }
 
-    const systemCommand = isAgentBuilder ? null : parseSystemSlashCommand(trimmed)
+    const systemCommand = ownsThreadControls ? parseSystemSlashCommand(trimmed) : null
     if (systemCommand) {
       let clearInput = false
       if (systemCommand.kind === 'plan') clearInput = await setComposerMode('plan')
@@ -1178,7 +1223,7 @@ function InputComposerCore({
       return
     }
 
-    const goalCommand: GoalSlashCommand | null = isAgentBuilder ? null : parseGoalSlashCommand(trimmed)
+    const goalCommand: GoalSlashCommand | null = ownsThreadControls ? parseGoalSlashCommand(trimmed) : null
     if (goalCommand) {
       const clearInput = await executeGoalCommand(goalCommand)
       if (clearInput) {
@@ -1313,7 +1358,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
+  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
@@ -1391,6 +1436,22 @@ function InputComposerCore({
     }
   }, [applyComposerSnapshot, threadId, t])
 
+  const sendQueuedInputInSideChat = useCallback(async (queuedInputId: string): Promise<void> => {
+    const queued = useConversationStore.getState().queuedInputs.find((item) => item.id === queuedInputId)
+    if (!queued || queued.status !== 'queued') return
+    try {
+      const draft = await queuedInputToComposerDraft(queued)
+      const res = await window.api.appServer.sendRequest('turn/queue/remove', { threadId, queuedInputId }) as {
+        queuedInputs?: unknown[]
+      }
+      useConversationStore.getState().setQueuedInputs((res.queuedInputs ?? []) as QueuedTurnInput[])
+      const key = await openSideChat(threadId, t, { prompt: draft })
+      if (!key) restoreComposerSubmission(draft)
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), 'error')
+    }
+  }, [restoreComposerSubmission, threadId, t])
+
   const steerQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
     const state = useConversationStore.getState()
     const queued = state.queuedInputs.find((item) => item.id === queuedInputId)
@@ -1440,6 +1501,10 @@ function InputComposerCore({
   }, [threadId, t])
 
   const stopTurn = useCallback(async () => {
+    if (runtime) {
+      runtime.onStop()
+      return
+    }
     const state = useConversationStore.getState()
     const activeTurnId = state.activeTurnId
     try {
@@ -1461,7 +1526,7 @@ function InputComposerCore({
     } catch (err) {
       console.error('interrupt failed:', err)
     }
-  }, [threadId, t])
+  }, [runtime, threadId, t])
 
   async function setComposerMode(nextMode: 'agent' | 'plan'): Promise<boolean> {
     if (hasProfile) return false
@@ -1675,6 +1740,10 @@ function InputComposerCore({
       void compactThreadContext()
       return
     }
+    if (actionId === 'side') {
+      void openSideChat(threadId, t)
+      return
+    }
     if (actionId !== 'goal') return
     if (currentGoal) {
       setGoalPopoverOpen(true)
@@ -1682,7 +1751,7 @@ function InputComposerCore({
     } else {
       enterGoalComposeMode()
     }
-  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, sendMessage, channelBindingCommands, toggleMode])
+  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, sendMessage, channelBindingCommands, toggleMode, t, threadId])
 
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)
@@ -1715,6 +1784,7 @@ function InputComposerCore({
             onQueueRemove={(id: string) => { void removeQueuedInput(id) }}
             onQueueEdit={(id: string) => { void editQueuedInput(id) }}
             onQueueReorder={(orderedIds: string[]) => { void reorderQueuedInputs(orderedIds) }}
+            onQueueSideChat={canOpenSideChat ? (id: string) => { void sendQueuedInputInSideChat(id) } : undefined}
             editingQueuedInputId={editingQueuedInputId}
           />
         )}
@@ -1723,7 +1793,7 @@ function InputComposerCore({
         onDragLeave={onDragLeave}
         onDrop={onDrop}
         focused={editorFocused}
-        showMascot
+        showMascot={!isSideChat}
         mascotBounceSignal={mascotBounce}
         mascotInteraction={mascotInteraction}
         mascotReasoningEffort={mascotEffectState.reasoningEffort}
@@ -1826,7 +1896,7 @@ function InputComposerCore({
                 disabled={isWaitingApproval || isWaitingInput}
                 suppressSubmit={showMentionPopover || showCommandPopover || showSkillPopover || modelLoading}
                 voiceOrigin={threadId}
-                onToggleModeShortcut={isAgentBuilder ? undefined : () => {
+                onToggleModeShortcut={!ownsThreadControls ? undefined : () => {
                   void toggleMode()
                 }}
                 onHistoryNavigate={handleHistoryNavigate}
@@ -1838,7 +1908,7 @@ function InputComposerCore({
                       ? t('composer.placeholder.userInput')
                       : goalComposeMode
                         ? t('goal.objective.placeholder')
-                        : !hasProfile && !isAgentBuilder && threadMode === 'plan'
+                        : !hasProfile && ownsThreadControls && threadMode === 'plan'
                           ? t('composer.placeholder.plan')
                           : placeholder ?? t('composer.placeholder.ask')
                 }
@@ -1903,7 +1973,7 @@ function InputComposerCore({
                     title={t('composer.customPill.title', { name: resolvedProfileName ?? activeProfileId ?? '' })}
                     ariaLabel={t('composer.customPill.aria')}
                   />
-                ) : !isAgentBuilder ? (
+                ) : ownsThreadControls ? (
                   <ComposerPlanModeLabel
                     value={threadMode}
                     onDisable={() => {
@@ -1957,7 +2027,7 @@ function InputComposerCore({
           <ComposerToolbarTrailingSlots
             context={desktopPluginSurfaceContext}
             contextUsage={!compactVoiceFooter && !hasSubmitOverride ? <ContextUsageRing /> : null}
-            model={!compactVoiceFooter ? (
+            model={!compactVoiceFooter && !isSideChat ? (
               <ModelPicker
                 providerId={providerId}
                 providerOptions={providerOptions}
@@ -1993,9 +2063,9 @@ function InputComposerCore({
                   <ComposerSubmitButton mode={followUpMode} onClick={sendMessage} />
                 ) : (
                   <ComposerSubmitButton
-                    mode={interruptingTurnId ? 'stopping' : 'stop'}
+                    mode={stopping ? 'stopping' : 'stop'}
                     tone="enabled"
-                    disabled={Boolean(interruptingTurnId)}
+                    disabled={stopping}
                     onClick={stopTurn}
                   />
                 )

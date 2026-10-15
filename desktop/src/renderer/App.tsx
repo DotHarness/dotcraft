@@ -49,6 +49,8 @@ import {
 } from './stores/appNavigationStore'
 import { isDefaultChatWorkspacePathCandidate } from '../shared/defaultChatWorkspace'
 import { isHiddenThread } from '../shared/hiddenThreads'
+import { useSideChatStore } from './stores/sideChatStore'
+import { openActiveSideChat, toggleSideChatFocus } from './utils/sideChat'
 import { CustomMenuBar } from './components/layout/CustomMenuBar'
 import { Sidebar } from './components/layout/Sidebar'
 import { SettingsSidebar } from './components/layout/SettingsSidebar'
@@ -2315,6 +2317,7 @@ export function App(): JSX.Element {
       const { bridgeId, method, params } = payload
       const p = (params ?? {}) as Record<string, unknown>
 
+      if (useSideChatStore.getState().handleServerRequest(method, bridgeId, p)) return
       if (method === 'item/approval/request') {
         const threadId = typeof p.threadId === 'string' ? p.threadId : null
         const turnId = typeof p.turnId === 'string' ? p.turnId : null
@@ -2444,7 +2447,18 @@ export function App(): JSX.Element {
 
       if (handleFindShortcut(e)) return
 
+      if (ctrl && e.altKey && !e.shiftKey && e.code === 'KeyS' && (e.key.toLowerCase() === 's' || e.key === 'ß')) {
+        if (openActiveSideChat((key, vars) => translate(localeRef.current, key, vars))) e.preventDefault()
+        return
+      }
+
+      if (e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey && e.key === '/') {
+        if (toggleSideChatFocus()) e.preventDefault()
+        return
+      }
+
       if (e.key === 'Escape') {
+        if ((e.target as HTMLElement | null)?.closest?.('[data-side-chat]')) return
         const convState = useConversationStore.getState()
         if (convState.turnStatus === 'running') {
           const activeId = useThreadStore.getState().activeThreadId

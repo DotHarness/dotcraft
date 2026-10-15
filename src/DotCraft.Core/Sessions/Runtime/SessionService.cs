@@ -611,6 +611,7 @@ public sealed partial class SessionService(
             commandCt => ThreadLifecycle.ArchiveAsync(threadId, commandCt),
             ct);
         McpAppTransientContexts?.ClearThread(threadId);
+        await DeleteSideChatsAsync(threadId, ct);
     }
 
     /// <inheritdoc/>
@@ -630,6 +631,7 @@ public sealed partial class SessionService(
         await ThreadLifecycle.ExecutePermanentDeletionAsync(deleteOrder, ct);
         _sessionApprovalScopes.RemoveThread(threadId);
         McpAppTransientContexts?.ClearThread(threadId);
+        await DeleteSideChatsAsync(threadId, ct);
     }
 
     /// <inheritdoc/>

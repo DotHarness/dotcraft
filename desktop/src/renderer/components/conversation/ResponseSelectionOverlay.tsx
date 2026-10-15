@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useT } from '../../contexts/LocaleContext'
 import { useComposerContextStore } from '../../stores/composerContextStore'
 import { useThreadStore } from '../../stores/threadStore'
+import { askInSideChat, useCanOpenSideChat } from '../../utils/sideChat'
 import { Button } from '../ui/Button'
 import { ContextCommentEditor } from './ContextCommentEditor'
 import { useResponseSelectionStore, type ResponseSelection } from './responseSelectionStore'
@@ -12,6 +13,8 @@ export function ResponseSelectionOverlay({ selection }: { selection: ResponseSel
   const root = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({ left: 0, top: 0 })
   const { dismiss, cancel, edit, setDraft } = useResponseSelectionStore.getState()
+  const sideChatAvailable = useCanOpenSideChat()
+  const isActiveThread = useThreadStore((state) => state.activeThreadId === selection.threadId)
 
   useLayoutEffect(() => {
     function update(): void {
@@ -72,11 +75,21 @@ export function ResponseSelectionOverlay({ selection }: { selection: ResponseSel
     }
   }, [selection, dismiss])
 
-  function add(comment: string): void {
-    useComposerContextStore.getState().addContext(selection.threadId, {
-      kind: 'responseAnnotation', id: crypto.randomUUID(), threadId: selection.threadId,
+  function annotation(comment: string) {
+    return {
+      kind: 'responseAnnotation' as const, id: crypto.randomUUID(), threadId: selection.threadId,
       turnId: selection.turnId, itemId: selection.itemId, selectedText: selection.text, comment,
-    })
+    }
+  }
+
+  function add(comment: string): void {
+    useComposerContextStore.getState().addContext(selection.threadId, annotation(comment))
+    cancel()
+    window.getSelection()?.removeAllRanges()
+  }
+
+  function askSide(): void {
+    askInSideChat(selection.threadId, annotation(''), t)
     cancel()
     window.getSelection()?.removeAllRanges()
   }
@@ -92,6 +105,9 @@ export function ResponseSelectionOverlay({ selection }: { selection: ResponseSel
           onMouseDown={(event) => event.preventDefault()}>
           <Button size="sm" variant="ghost" onClick={() => add('')}>{t('conversation.selection.addToChat')}</Button>
           <Button size="sm" variant="ghost" onClick={edit}>{t('conversation.selection.comment')}</Button>
+          {sideChatAvailable && isActiveThread && (
+            <Button size="sm" variant="ghost" onClick={askSide}>{t('conversation.selection.askInSideChat')}</Button>
+          )}
         </div>
       )}
     </div>, document.body,

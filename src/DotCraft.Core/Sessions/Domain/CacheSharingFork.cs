@@ -12,6 +12,7 @@ internal static class CacheSharingFork
     {
         ThreadForkPurpose.PromptSuggestion => "prompt-suggest",
         ThreadForkPurpose.MemoryExtraction => "memory-extract",
+        ThreadForkPurpose.SideChat => "side-chat",
         _ => throw new ArgumentOutOfRangeException(nameof(purpose), purpose, null)
     };
 

@@ -795,6 +795,8 @@ export interface IpcHandlerCallbacks {
   stopWorkspace?: (workspacePath: string) => void | Promise<void>
   /** Archives a thread in a (possibly non-foreground) workspace connection. */
   archiveThreadInWorkspace?: (workspacePath: string, threadId: string) => void | Promise<void>
+  getConnectionKey?: (client: DesktopAppServerClient) => string | null
+  getConnectionClient?: (key: string) => DesktopAppServerClient | null
   clearProjects?: () => Promise<void>
   getConnectionStatus: () => ConnectionStatusPayload
   getWorkspaceStatus: () => WorkspaceStatusPayload
@@ -997,10 +999,11 @@ export function registerIpcHandlers(
       result: unknown,
       requestGeneration?: number
     ) => void,
-    onStarted?: (client: DesktopAppServerClient, requestParams: unknown) => number | undefined
+    onStarted?: (client: DesktopAppServerClient, requestParams: unknown) => number | undefined,
+    resolveClient: () => DesktopAppServerClient | null = getWireClient
   ): Promise<unknown> => {
     try {
-      const client = getWireClient()
+      const client = resolveClient()
       if (!client) {
         throw new Error(`${translate(mainLocale(callbacks), 'ipc.appServerNotConnected')} (${method})`)
       }
@@ -1026,6 +1029,18 @@ export function registerIpcHandlers(
       sendAppServerRequest(method, params, timeoutMs, (client, requestParams, result, requestGeneration) => {
         callbacks?.onAppServerRequestCompleted?.(client, method, requestParams, result, requestGeneration)
       }, (client, requestParams) => callbacks?.onAppServerRequestStarted?.(client, method, requestParams))
+    )
+  )
+
+  handleSafe('appserver:get-connection-key', () => {
+    const client = getWireClient()
+    return client ? callbacks?.getConnectionKey?.(client) ?? null : null
+  })
+
+  handleSafe(
+    'appserver:send-connection-request',
+    (_event, key: string, method: string, params?: unknown, timeoutMs?: number) => (
+      sendAppServerRequest(method, params, timeoutMs, undefined, undefined, () => callbacks?.getConnectionClient?.(key) ?? null)
     )
   )
 
@@ -2317,6 +2332,8 @@ export function unregisterIpcHandlers(): void {
   }
   unregisterScreenViewHandlers()
   ipcMain.removeHandler('appserver:send-request')
+  ipcMain.removeHandler('appserver:get-connection-key')
+  ipcMain.removeHandler('appserver:send-connection-request')
   ipcMain.removeHandler('appserver:send-request-raw')
   ipcMain.removeHandler('visualization:copy-image')
   ipcMain.removeHandler('appserver:model-list')

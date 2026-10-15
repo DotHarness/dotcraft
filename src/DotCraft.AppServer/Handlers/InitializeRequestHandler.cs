@@ -38,6 +38,7 @@ internal sealed class InitializeRequestHandler(
             ThreadSubscriptions = true,
             ThreadGoals = threadProjector.GoalsCapabilityEnabled(),
             ThreadFork = true,
+            SideChat = true,
             GitWorktrees = true,
             ManualCompaction = true,
             DynamicToolRebind = services.WireDynamicToolProxy != null,

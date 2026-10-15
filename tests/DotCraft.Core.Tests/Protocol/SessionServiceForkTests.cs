@@ -22,7 +22,7 @@ using DotCraft.Tracing;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-public sealed class SessionServiceForkTests : IDisposable
+public sealed partial class SessionServiceForkTests : IDisposable
 {
     private readonly string _tempDir;
     private readonly ThreadStore _store;

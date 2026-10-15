@@ -23,7 +23,8 @@ public static class ThreadForkPositions
 public enum ThreadForkPurpose
 {
     PromptSuggestion,
-    MemoryExtraction
+    MemoryExtraction,
+    SideChat
 }
 
 /// <summary>
@@ -47,7 +48,7 @@ public sealed record ThreadForkOptions
 
     public bool Ephemeral { get; init; }
 
-    /// <summary>Makes an internal fork after the latest completed Turn that keeps the source's tool role and cache route.</summary>
+    /// <summary>Makes an internal fork that keeps the source's tool role and cache route.</summary>
     public ThreadForkPurpose? Purpose { get; init; }
 
     public ThreadWorktreeInfo? Worktree { get; init; }

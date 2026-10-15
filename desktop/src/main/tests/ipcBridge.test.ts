@@ -393,6 +393,25 @@ describe('registerIpcHandlers', () => {
     existsSyncMock.mockReturnValue(true)
   })
 
+  it('keeps a connection-keyed request on its connection after another workspace comes to the foreground', async () => {
+    const clientA = { sendRequest: vi.fn().mockResolvedValue({}) }
+    const clientB = { sendRequest: vi.fn().mockResolvedValue({}) }
+    const keys = new Map<unknown, string>([[clientA, 'project-a'], [clientB, 'project-b']])
+    let foreground: unknown = clientA
+    const handlers = registerHandlersForTest('/project-a', () => foreground as never, createIpcCallbacks({
+      getConnectionKey: (client) => keys.get(client) ?? null,
+      getConnectionClient: (key) => ([...keys].find(([, candidate]) => candidate === key)?.[0] ?? null) as never
+    }))
+
+    const key = await handlers.get('appserver:get-connection-key')?.({})
+    foreground = clientB
+    await handlers.get('appserver:send-connection-request')?.({}, key, 'thread/delete', { threadId: 'side-1' })
+
+    expect(key).toBe('project-a')
+    expect(clientA.sendRequest).toHaveBeenCalledWith('thread/delete', { threadId: 'side-1' }, undefined)
+    expect(clientB.sendRequest).not.toHaveBeenCalled()
+  })
+
   it('recovers each project cache through the originating client when foreground projects switch during list loads', async () => {
     let resolveA!: (result: { data: unknown[] }) => void
     const resultA = { data: [{ id: 'running-a', runtime: { state: 'running' } }] }

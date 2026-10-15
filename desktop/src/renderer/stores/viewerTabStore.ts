@@ -11,6 +11,7 @@ import type {
   BrowserViewerTab,
   TerminalViewerTab,
   WorkflowViewerTab,
+  SideChatViewerTab,
   ViewerContentClass,
   ViewerKind,
   PerThreadViewerState,
@@ -29,7 +30,6 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
     return tabs.map((tab, index) => {
       if (tab.kind === 'browser') return { ...tab, label: browserDefaultLabel(tab) }
       if (tab.kind === 'terminal') return { ...tab, label: terminalDefaultLabel(tabs, index) }
-      if (tab.kind === 'workflow') return tab
       return tab
     })
   }
@@ -50,7 +50,7 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
     if (tab.kind === 'files') return tab.label
     if (tab.kind === 'browser') return browserDefaultLabel(tab)
     if (tab.kind === 'terminal') return tab.label
-    if (tab.kind === 'workflow') return tab.label
+    if (tab.kind === 'workflow' || tab.kind === 'sideChat') return tab.label
     const parts = tab.relativePath.replace(/\\/g, '/').split('/')
     return parts[parts.length - 1] ?? tab.relativePath
   })
@@ -99,8 +99,7 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
     if (tab.kind === 'terminal') {
       return { ...tab, label: terminalDefaultLabel(tabs, i) }
     }
-    if (tab.kind === 'workflow') return tab
-    if (tab.kind === 'files') return tab
+    if (tab.kind === 'workflow' || tab.kind === 'sideChat' || tab.kind === 'files') return tab
     return { ...tab, label: labels[i] ?? tab.label }
   })
 }
@@ -186,6 +185,8 @@ interface ViewerTabStoreActions {
   }): string
 
   openWorkflow(params: { threadId: string; runId: string; initialLabel: string }): string
+
+  openSideChat(params: { threadId: string; sideChatKey: string; label: string }): string
 
   /** Focuses an existing browser tab in the thread by normalized current URL. */
   focusBrowserTabByUrl(params: { threadId: string; url: string }): string | null
@@ -435,6 +436,17 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
     const newTab: WorkflowViewerTab = {
       id: nextTabId(), kind: 'workflow', label: initialLabel, threadId, runId
     }
+    set((state) => {
+      const next = new Map(state.byThread)
+      next.set(threadId, { tabs: [...threadState.tabs, newTab], activeTabId: newTab.id })
+      return { byThread: next }
+    })
+    return newTab.id
+  },
+
+  openSideChat({ threadId, sideChatKey, label }) {
+    const threadState = get().getThreadState(threadId)
+    const newTab: SideChatViewerTab = { id: nextTabId(), kind: 'sideChat', label, threadId, sideChatKey }
     set((state) => {
       const next = new Map(state.byThread)
       next.set(threadId, { tabs: [...threadState.tabs, newTab], activeTabId: newTab.id })

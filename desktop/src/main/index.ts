@@ -2899,6 +2899,11 @@ function buildCallbacks(): IpcHandlerCallbacks {
       // secondary project group immediately (thread/list omits archived threads).
       await refreshConnectionThreadList(entry)
     },
+    getConnectionKey: (client) => findWorkspaceConnectionByClient(client)?.key ?? null,
+    getConnectionClient: (key) => {
+      const entry = workspaceConnections.get(key)
+      return entry?.connected ? entry.client : null
+    },
     onAppServerRequestStarted: (client, method, params) => {
       const entry = findWorkspaceConnectionByClient(client)
       return entry ? beginWorkspaceThreadListRequest(entry, method, params) : undefined
