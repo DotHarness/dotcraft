@@ -1,0 +1,6 @@
+interface:
+  display_name: "Fix Oratorio Review"
+  short_description: "Follow up Oratorio review findings on a pull request"
+  icon_small: "../../assets/dotcraft.svg"
+  icon_large: "../../assets/dotcraft.svg"
+  default_prompt: "Use $fix-oratorio-review to follow up the Oratorio review on this DotCraft pull request."
