@@ -14,6 +14,9 @@ public sealed partial class BackgroundTerminalService
         private string _status = BackgroundTerminalStatus.Running;
         private int? _exitCode;
         private DateTimeOffset? _completedAt;
+        private DateTimeOffset _quietSince;
+        private bool _stallReported;
+        private CancellationTokenSource _stall = new();
 
         public ActiveTerminal(
             string sessionId,
@@ -35,6 +38,8 @@ public sealed partial class BackgroundTerminalService
             _owner = owner;
             _output = new TerminalOutputPump(process, outputPath, owner._config.OutputMaxBytes,
                 text => owner.Raise("outputDelta", CreateSnapshot(includeOutput: false), text));
+            _quietSince = startedAt;
+            _output.Appended += OnOutputAppended;
         }
 
         public string SessionId { get; }
@@ -56,6 +61,73 @@ public sealed partial class BackgroundTerminalService
         public TaskCompletionSource MetadataCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public void BeginReading() => _output.Start();
+
+        public long OutputCharacters => _output.Characters;
+
+        public TerminalOutputSlice Slice(long from, int maxCharacters, bool tailOnly = false) =>
+            _output.Slice(from, maxCharacters, tailOnly);
+
+        public (string Text, long End, bool Lossy) SliceRaw(long from) => _output.SliceRaw(from);
+
+        public event Action? OutputAppended
+        {
+            add => _output.Appended += value;
+            remove => _output.Appended -= value;
+        }
+
+        /// <summary>Time since which the terminal has been quiet, or since its last stall check found no prompt.</summary>
+        public DateTimeOffset QuietSince
+        {
+            get
+            {
+                lock (_sync)
+                    return _quietSince;
+            }
+        }
+
+        /// <summary>Signalled when a stall is reported, and replaced when more output arrives.</summary>
+        public CancellationToken StallToken
+        {
+            get
+            {
+                lock (_sync)
+                    return _stall.Token;
+            }
+        }
+
+        public void RestartQuietPeriod()
+        {
+            lock (_sync)
+                _quietSince = DateTimeOffset.UtcNow;
+        }
+
+        public bool TryReportStall()
+        {
+            CancellationTokenSource stall;
+            lock (_sync)
+            {
+                if (_stallReported)
+                    return false;
+                _stallReported = true;
+                stall = _stall;
+            }
+            stall.Cancel();
+            return true;
+        }
+
+        private void OnOutputAppended() => ClearStall();
+
+        public void ClearStall()
+        {
+            lock (_sync)
+            {
+                _quietSince = DateTimeOffset.UtcNow;
+                if (!_stallReported)
+                    return;
+                _stallReported = false;
+                _stall = new CancellationTokenSource();
+            }
+        }
 
         public bool TryBeginCompletion()
         {
@@ -157,7 +229,8 @@ public sealed partial class BackgroundTerminalService
                 WallTimeMs = (long)Math.Max(0, ((completedAt ?? DateTimeOffset.UtcNow) - StartedAt).TotalMilliseconds),
                 OriginalOutputChars = original,
                 Truncated = truncated,
-                BackgroundReason = backgroundReason ?? (Request.RunInBackground ? "runInBackground" : null)
+                BackgroundReason = backgroundReason ?? (Request.RunInBackground ? "runInBackground" : null),
+                Interactive = Request.Interactive
             };
         }
 

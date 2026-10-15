@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using DotCraft.Security.ShellCommands;
 
 namespace DotCraft.Tools.BackgroundTerminals;
@@ -45,6 +46,14 @@ public sealed record BackgroundTerminalStartRequest
     public int? YieldTimeMs { get; init; }
 
     public int MaxOutputChars { get; init; } = 10000;
+
+    /// <summary>Signalled when a waiting foreground command should continue in the background at once.</summary>
+    public CancellationToken HandOverToken { get; init; }
+
+    /// <summary>Raise a completion notice if the model is handed this terminal while it still runs.</summary>
+    public bool NotifyOnCompletion { get; init; }
+
+    public Regex? WaitFor { get; init; }
 }
 
 /// <summary>
@@ -85,6 +94,29 @@ public sealed record BackgroundTerminalSnapshot
     public bool Truncated { get; init; }
 
     public string? BackgroundReason { get; init; }
+
+    /// <summary>Output starts after earlier unread output that is now only in the log.</summary>
+    public bool Lossy { get; init; }
+
+    /// <summary>The model will receive a completion notice when this running terminal exits.</summary>
+    public bool CompletionNoticeArmed { get; init; }
+
+    public string? MatchedLine { get; init; }
+
+    public bool WaitingForInput { get; init; }
+
+    public bool Interactive { get; init; }
+}
+
+public static class BackgroundTerminalEventTypes
+{
+    /// <summary>A terminal handed to the model while running has exited without the model seeing it.</summary>
+    public const string CompletionNotice = "completionNotice";
+
+    /// <summary>A terminal handed to the model appears to be waiting for input and no model call is waiting on it.</summary>
+    public const string StallNotice = "stallNotice";
+
+    public const string Stalled = "stalled";
 }
 
 /// <summary>
@@ -111,6 +143,13 @@ public interface IBackgroundTerminalService
     Task<BackgroundTerminalSnapshot> ReadAsync(string sessionId, int waitMs = 0, int? maxOutputChars = null, CancellationToken ct = default);
 
     Task<BackgroundTerminalSnapshot> WriteStdinAsync(string sessionId, string input, int yieldTimeMs = 1000, int? maxOutputChars = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Model-facing exchange: writes optional input, waits, and returns only output after the model's
+    /// read cursor. Input of only end-of-text and line endings stops the terminal instead. A match of
+    /// <paramref name="waitFor"/> in unread output ends the wait early.
+    /// </summary>
+    Task<BackgroundTerminalSnapshot> InteractAsync(string sessionId, string input, int waitMs, int? maxOutputChars = null, Regex? waitFor = null, CancellationToken ct = default);
 
     ShellStdinSession? GetStdinSession(string sessionId);
 

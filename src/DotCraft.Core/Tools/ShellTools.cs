@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Tools.BackgroundTerminals;
@@ -46,24 +47,35 @@ public sealed class ShellTools
             approvalService);
     }
 
-    [Description("Execute a shell command and return its output.")]
+    [Description("Execute a shell command and return its output. A command still running after the wait returns a session ID and keeps running. You will be notified when it finishes, so do not poll or sleep.")]
     [Tool(MaxResultChars = 30_000)]
     [ToolPresentation("core.shell", Operation = "exec")]
     [ToolRpc]
     public async Task<ToolExecutionResult> Exec(
         [Description("The shell command to execute.")] string command,
         [Description("Optional working directory for the command.")] string? workingDir = null,
-        [Description("Run the command in the background and return a session ID for later WriteStdin calls.")] bool runInBackground = false,
+        [Description("Run the command in the background when you do not need its result right away.")] bool runInBackground = false,
         [Description("Maximum milliseconds to wait before returning a session ID for a still-running command. Commands that finish sooner return immediately. Omit this parameter to use the default.")] int? yieldTimeMs = null,
         [Description("Maximum output characters to return in this tool result.")] int? maxOutputChars = null,
         [Description("Keep stdin open so WriteStdin can send input to the running process. This is pipe-based, not a full PTY.")] bool interactive = false,
         [Description("Optional shell override. Defaults to the shell reported in the environment context.")] string? shell = null,
+        [Description("Regular expression that ends the wait when matching output appears, such as a server's ready line.")] string? waitFor = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var cwd = !string.IsNullOrWhiteSpace(workingDir)
             ? Path.GetFullPath(workingDir)
             : _workingDirectory;
+
+        if (!TryCompileWaitFor(waitFor, out var waitPattern, out var patternError))
+            return patternError!;
+
+        if (!runInBackground && ShellDelayGuard.TryDetect(command, out var delay))
+        {
+            var message = $"Blocked: {delay}. Run long-running commands with runInBackground: true. You will be notified when they finish. " +
+                          "If you need a deliberate delay, keep it under 2 seconds.";
+            return ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.InputInvalid, message), message);
+        }
 
         var commandExecution = CommandExecutionTracker.Begin(command, cwd, source: "host");
         ShellGateResult gate;
@@ -99,20 +111,24 @@ public sealed class ShellTools
             interactive,
             stdinSession,
             commandExecution,
+            waitPattern,
             cancellationToken);
     }
 
-    [Description("Write input to a running background terminal session, or pass an empty input string to poll for recent output.")]
+    [Description("Write input to a background terminal session and return the output produced since your last read. Send Ctrl+C alone to stop the process.")]
     [Tool(MaxResultChars = 30_000)]
     [ToolPresentation("core.shell", Operation = "writeStdin")]
     [ToolRpc]
     public async Task<ToolExecutionResult> WriteStdin(
         [Description("Background terminal session ID returned by Exec.")] string sessionId,
         [Description("Characters to write to stdin. Include newlines when the process expects Enter.")] string input = "",
-        [Description("Milliseconds to wait after writing before returning output.")] int? yieldTimeMs = null,
+        [Description("Milliseconds to wait before returning output. Defaults to 1000 after input. Empty input waits up to 30000 and returns when the process exits.")] int? yieldTimeMs = null,
         [Description("Maximum output characters to return.")] int? maxOutputChars = null,
+        [Description("Regular expression that ends the wait when matching new output appears.")] string? waitFor = null,
         CancellationToken cancellationToken = default)
     {
+        if (!TryCompileWaitFor(waitFor, out var waitPattern, out var patternError))
+            return patternError!;
         try
         {
             var session = _backgroundTerminals.GetStdinSession(sessionId);
@@ -124,14 +140,16 @@ public sealed class ShellTools
                     return ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.AccessDenied, stdinGate.Error!), stdinGate.Error);
             }
 
-            var snapshot = await _backgroundTerminals.WriteStdinAsync(
+            var snapshot = await _backgroundTerminals.InteractAsync(
                 sessionId,
                 input,
-                yieldTimeMs ?? (input.Length == 0 ? 5000 : 1000),
+                yieldTimeMs ?? (input.Length == 0 ? 30_000 : 1000),
                 maxOutputChars ?? _maxOutputLength,
+                waitPattern,
                 cancellationToken);
             await EmitTerminalInteractionAsync(snapshot, input);
-            return SnapshotResult(snapshot, FormatSnapshot(snapshot));
+            var stopRequested = input.Trim('\r', '\n', EndOfText).Length == 0 && input.Contains(EndOfText);
+            return SnapshotResult(snapshot, FormatInteraction(snapshot, waitPattern != null), killedIsSuccess: stopRequested);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -146,6 +164,35 @@ public sealed class ShellTools
 
     private const char EndOfText = '\u0003';
 
+    private static bool TryCompileWaitFor(string? pattern, out Regex? regex, out ToolExecutionResult? error)
+    {
+        regex = null;
+        error = null;
+        if (string.IsNullOrEmpty(pattern))
+            return true;
+        try
+        {
+            regex = new Regex(pattern, RegexOptions.Multiline | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+            return true;
+        }
+        catch (ArgumentException ex)
+        {
+            var message = $"Invalid waitFor pattern: {ex.Message}";
+            error = ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.InputInvalid, message), message);
+            return false;
+        }
+    }
+
+    private static void AppendWaitResult(StringBuilder sb, BackgroundTerminalSnapshot snapshot, bool waitedForPattern)
+    {
+        if (snapshot.MatchedLine != null)
+            sb.AppendLine($"Matched: {snapshot.MatchedLine}");
+        else if (waitedForPattern && snapshot.Status == BackgroundTerminalStatus.Running)
+            sb.AppendLine("No output matched waitFor.");
+        if (snapshot.WaitingForInput)
+            sb.AppendLine("The process appears to be waiting for input.");
+    }
+
     // Empty input polls for output and a lone end-of-text is an interrupt; neither is a command.
     private static bool RequiresStdinAuthorization(string input) =>
         input.Trim('\r', '\n', EndOfText).Length > 0;
@@ -159,6 +206,7 @@ public sealed class ShellTools
         bool interactive,
         ShellStdinSession stdinSession,
         CommandExecutionTracker? commandExecution,
+        Regex? waitFor,
         CancellationToken cancellationToken)
     {
         try
@@ -203,7 +251,10 @@ public sealed class ShellTools
                     StdinSession = stdinSession,
                     TimeoutSeconds = _timeoutSeconds,
                     YieldTimeMs = yieldTimeMs,
-                    MaxOutputChars = maxOutputChars ?? _maxOutputLength
+                    MaxOutputChars = maxOutputChars ?? _maxOutputLength,
+                    HandOverToken = runtime?.ForegroundHandOverToken?.Invoke() ?? CancellationToken.None,
+                    NotifyOnCompletion = runtime != null,
+                    WaitFor = waitFor
                 }, cancellationToken);
             }
             finally
@@ -213,7 +264,7 @@ public sealed class ShellTools
             }
 
             var toolResult = runInBackground || snapshot.Status == BackgroundTerminalStatus.Running
-                ? FormatSnapshot(snapshot)
+                ? FormatSnapshot(snapshot, waitFor != null)
                 : FormatForegroundSnapshot(snapshot);
             if (snapshot.Status == BackgroundTerminalStatus.Running)
             {
@@ -267,26 +318,39 @@ public sealed class ShellTools
         CommandExecutionTracker commandExecution,
         int maxOutputChars)
     {
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnTerminalEvent(BackgroundTerminalEvent evt)
+        {
+            if (evt.EventType == "completed" && string.Equals(evt.Terminal.SessionId, sessionId, StringComparison.Ordinal))
+                completed.TrySetResult();
+        }
+
+        _backgroundTerminals.TerminalEvent += OnTerminalEvent;
         try
         {
-            BackgroundTerminalSnapshot snapshot;
-            do
+            var snapshot = await _backgroundTerminals.ReadAsync(sessionId, 0, maxOutputChars);
+            if (snapshot.Status == BackgroundTerminalStatus.Running)
             {
-                snapshot = await _backgroundTerminals.ReadAsync(sessionId, int.MaxValue, maxOutputChars);
+                await completed.Task;
+                snapshot = await _backgroundTerminals.ReadAsync(sessionId, 0, maxOutputChars);
             }
-            while (snapshot.Status == BackgroundTerminalStatus.Running);
 
             await commandExecution.CompleteFromTerminalAsync(snapshot, FormatForegroundSnapshot(snapshot), CommandExecutionTracker.StatusOf(snapshot));
         }
         catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException or IOException)
         {
         }
+        finally
+        {
+            _backgroundTerminals.TerminalEvent -= OnTerminalEvent;
+        }
     }
 
-    private static ToolExecutionResult SnapshotResult(BackgroundTerminalSnapshot snapshot, string content)
+    private static ToolExecutionResult SnapshotResult(BackgroundTerminalSnapshot snapshot, string content, bool killedIsSuccess = false)
     {
         if (snapshot.Status is BackgroundTerminalStatus.Running or BackgroundTerminalStatus.Completed
-            || snapshot.Status == BackgroundTerminalStatus.Failed && snapshot.ExitCode.HasValue)
+            || snapshot.Status == BackgroundTerminalStatus.Failed && snapshot.ExitCode.HasValue
+            || snapshot.Status == BackgroundTerminalStatus.Killed && killedIsSuccess)
             return ToolExecutionResult.Succeeded(
                 content,
                 ToolInvocationScope.Current?.Origin?.Kind == ToolInvocationOrigin.CodeModeKind
@@ -318,7 +382,7 @@ public sealed class ShellTools
         return JsonSerializer.SerializeToElement(result);
     }
 
-    private static string FormatSnapshot(BackgroundTerminalSnapshot snapshot)
+    private static string FormatSnapshot(BackgroundTerminalSnapshot snapshot, bool waitedForPattern)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"Session ID: {snapshot.SessionId}");
@@ -329,11 +393,31 @@ public sealed class ShellTools
         if (snapshot.ExitCode != null)
             sb.AppendLine($"Exit code: {snapshot.ExitCode}");
         if (snapshot.Status == BackgroundTerminalStatus.Running)
-            sb.AppendLine("The command is still running in the background.");
+            sb.AppendLine(snapshot.CompletionNoticeArmed
+                ? "The command is still running in the background. You will be notified when it finishes."
+                : "The command is still running in the background.");
+        AppendWaitResult(sb, snapshot, waitedForPattern);
         if (snapshot.Truncated)
             sb.AppendLine($"Output truncated from {snapshot.OriginalOutputChars} chars.");
         sb.AppendLine();
         sb.Append(snapshot.Output);
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string FormatInteraction(BackgroundTerminalSnapshot snapshot, bool waitedForPattern)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"Session ID: {snapshot.SessionId}");
+        sb.AppendLine($"Status: {snapshot.Status}");
+        if (snapshot.ExitCode != null)
+            sb.AppendLine($"Exit code: {snapshot.ExitCode}");
+        AppendWaitResult(sb, snapshot, waitedForPattern);
+        if (snapshot.Lossy)
+            sb.AppendLine($"Earlier unread output is only in the log: {snapshot.OutputPath}");
+        else if (snapshot.Truncated)
+            sb.AppendLine($"New output truncated from {snapshot.OriginalOutputChars} chars. Full log: {snapshot.OutputPath}");
+        sb.AppendLine();
+        sb.Append(string.IsNullOrEmpty(snapshot.Output) ? "(no new output)" : snapshot.Output);
         return sb.ToString().TrimEnd();
     }
 

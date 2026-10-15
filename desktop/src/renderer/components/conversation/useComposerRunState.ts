@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import type { ConversationTurn, QueuedTurnInput } from '../../types/conversation'
+import { isVisibleQueuedInput } from '../../utils/visibleUserMessage'
 
 export interface ComposerRuntime {
   turns: ConversationTurn[]
@@ -16,7 +18,8 @@ export function useComposerRunState(external: boolean, runtime: ComposerRuntime 
   const turnStatus = useConversationStore((s) => s.turnStatus)
   const activeTurnId = useConversationStore((s) => s.activeTurnId)
   const pendingMessage = useConversationStore((s) => s.pendingMessage)
-  const queuedInputs = useConversationStore((s) => s.queuedInputs)
+  const allQueuedInputs = useConversationStore((s) => s.queuedInputs)
+  const queuedInputs = useMemo(() => allQueuedInputs.filter(isVisibleQueuedInput), [allQueuedInputs])
   const interruptingTurnId = useConversationStore((s) => s.interruptingTurnId)
   const maintenanceKind = useConversationStore((s) => s.maintenanceKind)
   const followUpPreference = useComposerPreferencesStore((state) => state.followUpQueueMode)

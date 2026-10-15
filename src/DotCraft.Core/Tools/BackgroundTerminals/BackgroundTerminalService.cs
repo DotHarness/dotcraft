@@ -32,7 +32,10 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
     {
         Exited,
         TimedOut,
-        CallerCancelled
+        CallerCancelled,
+        HandedOver,
+        Matched,
+        Stalled
     }
 
     public BackgroundTerminalService(
@@ -46,6 +49,7 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
         Directory.CreateDirectory(_terminalRoot);
         LoadMetadataAndMarkLost();
         CleanupExpiredArtifactsOnStartup();
+        StartStallWatchdog();
         _retentionTimer = new Timer(
             static state => ((BackgroundTerminalService)state!).RunRetentionCleanup(),
             this,
@@ -126,21 +130,40 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
 
         _ = WatchProcessAsync(terminal);
 
-        var yieldMs = NormalizeYield(request.YieldTimeMs ?? 0);
+        using var watch = _config.Enabled && request.WaitFor is { } waitFor ? new OutputMatchWatch(terminal, waitFor, 0) : null;
+        var stalled = _config.Enabled ? terminal.StallToken : CancellationToken.None;
         if (request.RunInBackground)
         {
-            var outcome = await WaitForExitOrDelayAsync(process, TimeSpan.FromMilliseconds(yieldMs), ct).ConfigureAwait(false);
+            var yieldMs = NormalizeYield(request.YieldTimeMs ?? 0);
+            var outcome = await WaitForExitOrDelayAsync(
+                process,
+                TimeSpan.FromMilliseconds(yieldMs),
+                ct,
+                matched: watch?.Token ?? default,
+                stalled: stalled).ConfigureAwait(false);
             if (outcome != ProcessWaitOutcome.Exited)
-                return terminal.CreateSnapshot(BackgroundTerminalStatus.Running, request.MaxOutputChars, "runInBackground");
+                return WithWaitResult(HandToModel(terminal, BackgroundTerminalStatus.Running, request.MaxOutputChars, "runInBackground"), outcome, watch);
         }
         else
         {
             var timeout = TimeSpan.FromSeconds(Math.Max(1, request.TimeoutSeconds));
-            var yieldAfter = TimeSpan.FromMilliseconds(yieldMs);
+            var budget = Math.Max(1, _config.ForegroundBudgetMs);
+            var yieldAfter = TimeSpan.FromMilliseconds(request.YieldTimeMs is > 0 and var requested
+                ? Math.Min(requested, budget)
+                : budget);
             var canYield = _config.Enabled && yieldAfter < timeout;
-            var outcome = await WaitForExitOrDelayAsync(process, canYield ? yieldAfter : timeout, ct).ConfigureAwait(false);
-            if (outcome == ProcessWaitOutcome.TimedOut && canYield)
-                return terminal.CreateSnapshot(BackgroundTerminalStatus.Running, request.MaxOutputChars);
+            var outcome = await WaitForExitOrDelayAsync(
+                process,
+                canYield ? yieldAfter : timeout,
+                ct,
+                _config.Enabled ? request.HandOverToken : CancellationToken.None,
+                watch?.Token ?? default,
+                stalled).ConfigureAwait(false);
+            if (outcome is ProcessWaitOutcome.HandedOver or ProcessWaitOutcome.Matched or ProcessWaitOutcome.Stalled
+                || outcome == ProcessWaitOutcome.TimedOut && canYield)
+            {
+                return WithWaitResult(HandToModel(terminal, BackgroundTerminalStatus.Running, request.MaxOutputChars, null), outcome, watch);
+            }
             if (outcome == ProcessWaitOutcome.TimedOut)
             {
                 await KillAsync(terminal, BackgroundTerminalStatus.TimedOut, CancellationToken.None).ConfigureAwait(false);
@@ -154,7 +177,29 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
         }
 
         await terminal.WaitForCompletionMetadataAsync(request.RunInBackground ? CancellationToken.None : ct).ConfigureAwait(false);
-        return terminal.CreateSnapshot(maxOutputChars: request.MaxOutputChars);
+        return WithWaitResult(HandToModel(terminal, null, request.MaxOutputChars, null), ProcessWaitOutcome.Exited, watch);
+    }
+
+    private static BackgroundTerminalSnapshot WithWaitResult(
+        BackgroundTerminalSnapshot snapshot,
+        ProcessWaitOutcome outcome,
+        OutputMatchWatch? watch) =>
+        snapshot with
+        {
+            MatchedLine = watch?.MatchedLine,
+            WaitingForInput = outcome == ProcessWaitOutcome.Stalled
+        };
+
+    private BackgroundTerminalSnapshot HandToModel(
+        ActiveTerminal terminal,
+        string? status,
+        int maxOutputChars,
+        string? backgroundReason)
+    {
+        // Capture the end first so output racing the preview is repeated rather than skipped.
+        var end = terminal.OutputCharacters;
+        var snapshot = terminal.CreateSnapshot(status, maxOutputChars, backgroundReason);
+        return HandToModel(terminal, snapshot, end);
     }
 
     public async Task<BackgroundTerminalSnapshot> ReadAsync(
@@ -253,7 +298,10 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
             .ToArray();
         var snapshots = new List<BackgroundTerminalSnapshot>();
         foreach (var target in targets)
+        {
+            SettleModelRead(target.SessionId);
             snapshots.Add(await StopAsync(target.SessionId, ct).ConfigureAwait(false));
+        }
         return snapshots;
     }
 
@@ -277,7 +325,10 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
         }
 
         foreach (var metadata in _metadata.Values.Where(m => string.Equals(m.ThreadId, threadId, StringComparison.Ordinal)).ToArray())
+        {
             _metadata.TryRemove(metadata.SessionId, out _);
+            _modelReads.TryRemove(metadata.SessionId, out _);
+        }
 
         return failures;
     }
@@ -299,7 +350,9 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
 
     public async ValueTask DisposeAsync()
     {
+        _disposing = true;
         _retentionTimer.Dispose();
+        _stallTimer?.Dispose();
         foreach (var active in _active.Values.ToArray())
         {
             try
@@ -421,6 +474,7 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
         else
             terminal.SignalCompletionFailed(outputFailure);
         Raise("completed", terminal.CreateSnapshot(maxOutputChars: _config.DefaultReadMaxOutputChars), null);
+        OnTerminalCompletedForModel(terminal);
     }
 
     private async Task PersistMetadataAsync(BackgroundTerminalMetadata metadata, CancellationToken ct)
@@ -504,6 +558,7 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
             if (!artifactsRemain)
             {
                 _metadata.TryRemove(metadata.SessionId, out _);
+                _modelReads.TryRemove(metadata.SessionId, out _);
                 TryDeleteEmptyDirectory(directory);
             }
         }
@@ -610,10 +665,13 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
     private static async Task<ProcessWaitOutcome> WaitForExitOrDelayAsync(
         Process process,
         TimeSpan timeout,
-        CancellationToken ct)
+        CancellationToken ct,
+        CancellationToken handOver = default,
+        CancellationToken matched = default,
+        CancellationToken stalled = default)
     {
         using var timeoutCts = new CancellationTokenSource(timeout);
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource([ct, timeoutCts.Token, handOver, matched, stalled]);
         try
         {
             await process.WaitForExitAsync(linked.Token).ConfigureAwait(false);
@@ -622,6 +680,22 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             return ProcessWaitOutcome.CallerCancelled;
+        }
+        catch (OperationCanceledException) when (process.HasExited)
+        {
+            return ProcessWaitOutcome.Exited;
+        }
+        catch (OperationCanceledException) when (matched.IsCancellationRequested)
+        {
+            return ProcessWaitOutcome.Matched;
+        }
+        catch (OperationCanceledException) when (handOver.IsCancellationRequested)
+        {
+            return ProcessWaitOutcome.HandedOver;
+        }
+        catch (OperationCanceledException) when (stalled.IsCancellationRequested)
+        {
+            return ProcessWaitOutcome.Stalled;
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
         {

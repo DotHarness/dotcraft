@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Tools;
@@ -107,11 +108,12 @@ public sealed class ShellToolsStdinTests : IDisposable
 
         public override ShellStdinSession? GetStdinSession(string sessionId) => _session;
 
-        public override Task<BackgroundTerminalSnapshot> WriteStdinAsync(
+        public override Task<BackgroundTerminalSnapshot> InteractAsync(
             string sessionId,
             string input,
-            int yieldTimeMs = 1000,
+            int waitMs,
             int? maxOutputChars = null,
+            Regex? waitFor = null,
             CancellationToken ct = default)
         {
             Writes.Add(input);

@@ -9,7 +9,7 @@
 | `Tools.File.MaxFileSize` | 最大可读取文件大小（字节） | `10485760` |
 | `Tools.File.RipgrepPath` | 可选 `rg` 路径。为空时依次尝试 `DOTCRAFT_RG_PATH`、`PATH` 和内置回退 | `""` |
 | `Tools.File.SearchTimeoutSeconds` | `GrepFiles` 内容搜索最长运行时间，超时后返回超时结果 | `30` |
-| `Tools.Shell.Timeout` | agent 等待命令的最长时间（秒），超时后停止命令。运行超过 `Tools.Shell.Background.DefaultYieldTimeMs` 的命令会改为把会话交还给 agent，并继续运行直到结束或被停止，后台终端被关闭时除外 | `300` |
+| `Tools.Shell.Timeout` | agent 等待命令的最长时间（秒），超时后停止命令。运行超过 `Tools.Shell.Background.ForegroundBudgetMs` 的命令会改为把会话交还给 agent，并继续运行直到结束或被停止，后台终端被关闭时除外 | `300` |
 | `Tools.Shell.MaxOutputLength` | Shell 命令最大输出长度（字符） | `10000` |
 
 ## 后台终端
@@ -17,14 +17,17 @@
 | 配置项 | 说明 | 默认值 |
 |---|---|---|
 | `Tools.Shell.Background.Enabled` | 是否启用后台终端会话 | `true` |
-| `Tools.Shell.Background.DefaultYieldTimeMs` | 仍在运行的命令返回会话前的默认等待时间 | `10000` |
-| `Tools.Shell.Background.MaxYieldTimeMs` | 运行中命令返回前，以及后台会话读取或写入可接受的最长等待时间 | `30000` |
+| `Tools.Shell.Background.ForegroundBudgetMs` | agent 等待命令多久后让它转入后台继续运行。等待期间你发送的消息会让命令立即转入后台 | `120000` |
+| `Tools.Shell.Background.DefaultYieldTimeMs` | 后台启动的命令返回会话前的默认等待时间 | `10000` |
+| `Tools.Shell.Background.MaxYieldTimeMs` | 后台命令返回前，以及后台会话读取或写入可接受的最长等待时间 | `300000` |
+| `Tools.Shell.Background.CompletionDelivery` | `wake` 会在 agent 交给后台的命令结束时通知它，线程空闲时会开启新的回合。`off` 则由 agent 自行查看命令状态 | `wake` |
+| `Tools.Shell.Background.MaxConsecutiveWakes` | 后台命令结束最多能连续自动开启几个回合，之后 agent 会等你发消息 | `3` |
 | `Tools.Shell.Background.MaxSessionsPerThread` | 每个线程可同时运行的后台终端上限 | `8` |
 | `Tools.Shell.Background.MaxSessionsPerWorkspace` | 每个工作区可同时运行的后台终端上限 | `32` |
 | `Tools.Shell.Background.IdleTimeoutSeconds` | 预留字段。后台终端服务当前不执行该限制 | `1800` |
 | `Tools.Shell.Background.OutputMaxBytes` | 预留字段。后台终端服务当前不执行该限制 | `67108864` |
 | `Tools.Shell.Background.OutputRetentionDays` | 已完成或丢失终端的元数据与输出保留天数，不清理正在运行的终端 | `7` |
-| `Tools.Shell.Background.StallWatchdogSeconds` | 预留字段。后台终端服务当前不执行该限制 | `45` |
+| `Tools.Shell.Background.StallWatchdogSeconds` | 命令输出停在 `(y/n)` 这类提示行后，静默多少秒即视为在等待输入并报告。设为 `0` 关闭 | `45` |
 | `Tools.Shell.Background.DefaultReadMaxOutputChars` | 终端快照默认返回的最大字符数 | `10000` |
 
 ## Web

@@ -27,7 +27,7 @@ import { getSpawnedFromThreadId } from '../../utils/subAgentThreads'
 import { findSupersededRetryTurnIds } from '../../utils/failedTurnResume'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { readThreadHistoryHead } from '../../utils/threadHistory'
-import { isVisibleUserMessage } from '../../utils/visibleUserMessage'
+import { isVisibleQueuedInput, isVisibleUserMessage } from '../../utils/visibleUserMessage'
 import { estimateQueuedInputDockHeightPx } from './queuedInputDockLayout'
 import { TurnNavigation } from './turnNavigation/TurnNavigation'
 import { ConversationAsides } from './conversationAside/ConversationAside'
@@ -138,7 +138,7 @@ function MessageStreamContent(): JSX.Element {
     const parent = threadList.find((t) => t.id === parentId)
     return { refId: parentId, label: parent?.displayName?.trim() || undefined }
   }, [threadList, activeThreadId])
-  const queuedInputCount = useConversationStore((s) => s.queuedInputs.length)
+  const queuedInputCount = useConversationStore((s) => s.queuedInputs.filter(isVisibleQueuedInput).length)
   const changesPillVisible = useConversationStore((s) => runningTurnFiles(s).length > 0)
   const [editing, setEditing] = useState<InlineEditState | null>(null)
   const prevThreadIdRef = useRef<string | null>(null)

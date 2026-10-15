@@ -400,7 +400,7 @@ Each Item type has a specific payload structure:
       "fileName": string   // Optional original filename
     }
   ],
-  "triggerKind": string,   // Optional trigger marker: "automation" | "goal" | "app" | "mcpApp" | "team" | "subagentFollowupTask" | "subagentMailbox" | "subagentInput"
+  "triggerKind": string,   // Optional trigger marker: "automation" | "goal" | "app" | "mcpApp" | "team" | "subagentFollowupTask" | "subagentMailbox" | "subagentInput" | "terminal"
   "triggerLabel": string,  // Optional human-readable source label (e.g. automation name, task title, agent label)
   "triggerRefId": string   // Optional routing/audit id for click-through when supported (e.g. automation id, task id, agent path)
 }
@@ -410,7 +410,7 @@ Each Item type has a specific payload structure:
 
 `nativeInputParts` is authoritative for history rendering and editor rehydration when present. `materializedInputParts` captures the exact prompt/image snapshot that Session Core received after transport-side input materialization. `text` supports compatibility and preview generation; it is not the source of truth for user-message reconstruction.
 
-The optional `triggerKind` trio is populated by Session Core when a turn is submitted with an active trigger scope. Server-side runners set that scope so automation-synthesized messages carry a stable marker that clients can use to render an "automation-sourced" affordance and route click-through to the originating job or task. Goal continuation turns use `triggerKind = "goal"`, `triggerLabel = "Goal continuation"`, and `triggerRefId = internal goal id`. Session-backed SubAgent turns set `triggerKind = "subagentFollowupTask"` for follow-up task turns, `triggerKind = "subagentInput"` for direct/resumable external input, and mailbox drain items use `triggerKind = "subagentMailbox"`; mailbox drain items are internal/model-visible notifications rather than user-authored bubbles, and their `triggerRefId` is an agent path for audit/display and is not necessarily a client-navigable thread id. Fields are absent when the turn originates from a real user input.
+The optional `triggerKind` trio is populated by Session Core when a turn is submitted with an active trigger scope. Server-side runners set that scope so automation-synthesized messages carry a stable marker that clients can use to render an "automation-sourced" affordance and route click-through to the originating job or task. Goal continuation turns use `triggerKind = "goal"`, `triggerLabel = "Goal continuation"`, and `triggerRefId = internal goal id`. Session-backed SubAgent turns set `triggerKind = "subagentFollowupTask"` for follow-up task turns, `triggerKind = "subagentInput"` for direct/resumable external input, and mailbox drain items use `triggerKind = "subagentMailbox"`; mailbox drain items are internal/model-visible notifications rather than user-authored bubbles, and their `triggerRefId` is an agent path for audit/display and is not necessarily a client-navigable thread id. Background terminal notices use `triggerKind = "terminal"` (see the `CommandExecution` hand-over rules); like mailbox drain items they are model-visible notifications that clients do not present as user input. Fields are absent when the turn originates from a real user input.
 
 #### AgentMessage
 
@@ -676,14 +676,55 @@ aggregated Turn diff in [Turn Diff Events](#turn-diff-events) is live-only.
 ```
 
 An `Exec` without `runInBackground` waits for its process for at most its
-yield time: `yieldTimeMs`, or `Tools.Shell.Background.DefaultYieldTimeMs`
-(10 seconds) when omitted, capped by `Tools.Shell.Background.MaxYieldTimeMs`.
-A `runInBackground` command uses the same yield time. A process still running then is handed
-to the background terminal runtime, and the tool returns its session ID so the
-model can poll it with `WriteStdin`. The process keeps running until it exits
-or is stopped. `Tools.Shell.Timeout` applies only while the tool still waits:
-with a yield time at or above it, or with background terminals disabled, the
-tool waits until the process exits or times out.
+foreground budget: `Tools.Shell.Background.ForegroundBudgetMs` (120 seconds),
+or `yieldTimeMs` when given, capped by that budget. A `runInBackground` command waits for its yield time instead:
+`yieldTimeMs`, or `Tools.Shell.Background.DefaultYieldTimeMs` (10 seconds) when
+omitted, capped by `Tools.Shell.Background.MaxYieldTimeMs`. A process still
+running then is handed to the background terminal runtime, and the tool returns
+its session ID. The process keeps running until it exits or is stopped.
+`Tools.Shell.Timeout` applies only while the tool still waits: with a wait at or
+above it, or with background terminals disabled, the tool waits until the
+process exits or times out. While a foreground `Exec` of a regular Turn waits,
+guidance admitted for that Turn hands the process over at once, so the guidance
+reaches the model at the next sampling boundary instead of after the command.
+
+A terminal handed to the model while still running is armed for a completion
+notice. When it exits, Session Core delivers one notice to the Thread that
+started it, unless the model already received the terminal's final status from
+`Exec` or `WriteStdin`, or stopped it through `WriteStdin`. A stop requested by
+a client still produces a notice. The notice is a queued input with
+`triggerKind = "terminal"`, `triggerLabel` set to the shortened command, and
+`triggerRefId` set to the terminal session ID. Its display text is a one-line
+summary; its materialized text gives the status, exit code, wall time, the
+output log path, and at most 2,000 characters from the end of the output the
+model has not read. The model read cursor advances past that output only when
+the notice holds all of it.
+
+- While the Thread has an active Turn, the notice is added as `guidancePending`
+  for that Turn and is drained at its next sampling boundary. It does not
+  preempt a model request, does not hand over another waiting foreground
+  `Exec`, and skips `UserPromptSubmit` hooks. If the Turn ends first, it
+  becomes queued input like other undrained guidance.
+- While the Thread is idle, the notice is queued and the next queued Turn is
+  started.
+- When the Thread is not Active, the notice is dropped. Completions that occur
+  together are delivered as separate queued inputs in completion order.
+- `Tools.Shell.Background.CompletionDelivery` selects `wake` (the default) or
+  `off`. With `wake`, an idle Thread whose last
+  `Tools.Shell.Background.MaxConsecutiveWakes` Turns (3) were all started by
+  terminal notices is not woken again; the notice is dropped and the terminal
+  stays readable through `WriteStdin`.
+- Terminals of a Remote Tool Host route do not produce notices; the model reads
+  them through `WriteStdin`.
+
+A stall reported by the terminal watchdog (see Tools Architecture §7.3) for an
+armed terminal delivers a stall notice through the same rules and trigger
+fields. Its materialized text says the process appears to be waiting for
+input and gives at most 2,000 characters from the end of the unread output.
+It tells the model to answer through `WriteStdin` when the terminal keeps
+stdin open, and otherwise to stop it and rerun the command with piped input or
+a non-interactive option. A stall notice does not settle the terminal, so its
+completion notice still follows.
 
 A command handed over after its yield time, with or without `runInBackground`,
 keeps its Item in progress, records the terminal `sessionId` on it, and

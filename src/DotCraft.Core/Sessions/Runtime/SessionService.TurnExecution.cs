@@ -1205,8 +1205,10 @@ public sealed partial class SessionService
                         SupportsCommandExecutionStreaming = supportsCommandExecutionStreaming,
                         PersistItemAfterTurnAsync = item => PersistItemAfterTurnAsync(threadId, turn.Id, item),
                         EmitTerminalInteractionAsync = (commandTurnId, callId, interaction) =>
-                            EmitTerminalInteractionAsync(threadId, commandTurnId, callId, interaction)
+                            EmitTerminalInteractionAsync(threadId, commandTurnId, callId, interaction),
+                        ForegroundHandOverToken = () => GetForegroundHandOverToken(turn.Id)
                     });
+                using var foregroundHandOver = RegisterForegroundHandOver(turn.Id);
                 using var toolExecutionScope = ToolExecutionRuntimeScope.Set(
                     new ToolExecutionRuntimeContext
                     {

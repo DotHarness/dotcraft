@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using DotCraft.Configuration;
 using DotCraft.Lsp;
 using DotCraft.Security;
@@ -194,6 +195,14 @@ internal sealed class HostWorkspaceRuntime : IAsyncDisposable
             string input,
             int yieldTimeMs = 1000,
             int? maxOutputChars = null,
+            CancellationToken ct = default) => throw Unsupported();
+
+        public Task<BackgroundTerminalSnapshot> InteractAsync(
+            string sessionId,
+            string input,
+            int waitMs,
+            int? maxOutputChars = null,
+            Regex? waitFor = null,
             CancellationToken ct = default) => throw Unsupported();
 
         public ShellStdinSession? GetStdinSession(string sessionId) => null;

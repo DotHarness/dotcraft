@@ -383,8 +383,43 @@ remain bounded; completion follows output drain and log flush. Once the process 
 that does not reach end of stream within 2 seconds is not waited for, so a descendant that inherited
 the output pipes cannot hold the terminal open.
 
-Empty `WriteStdin` input reads the terminal snapshot, including final output and exit code after
-completion or recovery, until retention expires. Nonempty input to an exited terminal fails.
+The model reads a terminal through a cursor kept per terminal session. `Exec` returns the bounded
+preview of all output so far and moves the cursor to its end. `WriteStdin` waits, then returns
+only output after the cursor, bounded by `maxOutputChars` with the same head and tail excerpts,
+and moves the cursor to the end. When the retained buffer no longer holds the start of that
+output, the result marks the gap and names the complete log. Empty `WriteStdin` input waits for
+`yieldTimeMs` (30 seconds by default, capped by `Tools.Shell.Background.MaxYieldTimeMs`) and returns early when the process exits. It reads
+final output and exit code after completion or recovery, until retention expires. Nonempty input
+to an exited terminal fails. Input consisting only of end-of-text (`\u0003`) and line endings
+stops the terminal's process tree and returns its final output; such a model-requested stop
+does not produce a completion notice. Client terminal reads and writes keep returning the full
+bounded snapshot and do not move the model cursor.
+
+`Exec` rejects a command whose first segment is only a delay of two seconds or more: `sleep N`,
+`Start-Sleep N` in any of its seconds or milliseconds forms, or `timeout /t N`. The error
+directs the model to `runInBackground` and the completion notice. Delays under two seconds,
+delays inside a larger script, and `runInBackground` commands are not rejected.
+
+`Exec` and `WriteStdin` accept `waitFor`, a .NET regular expression matched against output the
+model has not yet read, as that output arrives. A match ends the wait early. `Exec` then returns
+the session ID of the still-running process, including for a foreground command, and
+`WriteStdin` returns the new output. The result names the matching line. Process exit, the wait
+time, caller cancellation, and foreground hand-over still end the wait. A pattern that does not
+compile fails the call before a process starts or input is written. Each evaluation has a
+one-second timeout, and matching sees only output still retained in the bounded buffer.
+
+A stall watchdog checks running terminals every 5 seconds. A terminal reports a stall when
+its output has not grown for `Tools.Shell.Background.StallWatchdogSeconds` (45 seconds, 0
+disables) and its last nonempty output line looks like an interactive prompt: a `(y/n)`,
+`[y/n]`, or `(yes/no)` choice, `Press Enter` or `Press any key`, `Continue?`, `Overwrite?`, or a
+question starting with "Do you", "Would you", "Shall I", "Are you sure", or "Ready to". Silence
+without such a line is checked again only after another full interval. A stall is reported once
+until the terminal produces more output. The report publishes `terminal/stalled` with the
+bounded snapshot. It ends a waiting `WriteStdin`, whose result says the process appears to be
+waiting for input. When no model call is waiting and the terminal is armed for a completion
+notice, it delivers a stall notice (see Session Core). The stall notice leaves the terminal armed
+for its completion notice.
+
 An exited process releases its active entry even if metadata persistence fails. Its in-memory final
 snapshot remains readable; metadata failures are diagnosed without changing the known exit code.
 Completion notifications must allow observers to read that final snapshot immediately.

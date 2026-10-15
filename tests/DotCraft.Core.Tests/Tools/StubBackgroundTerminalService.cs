@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Tools.BackgroundTerminals;
 
@@ -35,6 +36,9 @@ internal class StubBackgroundTerminalService : IBackgroundTerminalService
         throw new NotSupportedException();
 
     public virtual Task<BackgroundTerminalSnapshot> WriteStdinAsync(string sessionId, string input, int yieldTimeMs = 1000, int? maxOutputChars = null, CancellationToken ct = default) =>
+        throw new NotSupportedException();
+
+    public virtual Task<BackgroundTerminalSnapshot> InteractAsync(string sessionId, string input, int waitMs, int? maxOutputChars = null, Regex? waitFor = null, CancellationToken ct = default) =>
         throw new NotSupportedException();
 
     public virtual ShellStdinSession? GetStdinSession(string sessionId) => null;
