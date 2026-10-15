@@ -228,7 +228,7 @@ public sealed class FileTools(
         }
     }
 
-    [Description("Replace a text snippet in an existing file. Copy oldText from the file, using a small snippet with enough context to identify the intended location. Use WriteFile for new files or full rewrites.")]
+    [Description("Replace a text snippet in an existing file. Read the file first and copy oldText from it, using a small snippet with enough context to identify the intended location. If an edit fails, re-read the file and retry instead of switching to WriteFile. Use WriteFile for new files or full rewrites.")]
     [Tool]
     [ToolPresentation("core.file-write", Operation = "edit")]
     [ToolRpc]

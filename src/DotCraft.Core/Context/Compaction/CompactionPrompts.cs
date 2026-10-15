@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 namespace DotCraft.Context.Compaction;
 
@@ -11,83 +12,43 @@ Summarize the supplied conversation. Return only the handoff summary as text. Do
 
 """;
 
-    private const string BaseCompactPromptEn = $$"""
+    private const string BaseCompactPromptEn = """
 Create a concise handoff summary for continuing this session after context compaction.
+Stay below {0} tokens, and use only the length the remaining work needs.
 
-Length:
-- Target about 4,000-6,000 output tokens.
-- Stay below 12,000 output tokens.
-
-Include only information needed to continue work:
-
-1. Current task and user intent: the active request, constraints, and any explicit preferences that still matter.
-2. Key decisions and assumptions: important design choices, protocol/API expectations, and tradeoffs already settled.
-3. Important files and code areas: files read, edited, or planned, with why each matters.
-4. Errors, failures, and fixes: only issues that affect the next step or explain current state.
-5. Current state: what has already been completed, what is partially done, and what remains.
-6. Next step: the most direct continuation aligned with the latest user request.
-
-Use compact bullets focused on the continuation. Include code, logs, or command output only as short excerpts needed for the next step.
-
-Structure your response as:
+Write these sections in order, as compact bullets focused on the continuation:
 
 <summary>
-1. Current Task and User Intent:
-   ...
-2. Key Decisions and Assumptions:
-   - ...
-3. Important Files and Code Areas:
-   - ...
-4. Errors, Failures, and Fixes:
-   - ...
-5. Current State:
-   ...
-6. Next Step:
-   ...
+1. Current Task and User Intent: the active request, constraints, and explicit preferences that still matter.
+2. Key Decisions and Assumptions: design choices, protocol or API expectations, and tradeoffs already settled.
+3. Important Files and Code Areas: files read, edited, or planned, with why each matters.
+4. Errors, Failures, and Fixes: only issues that affect the next step or explain the current state.
+5. Current State: what is complete, what is partially done, and what remains.
+6. Next Step: the most direct continuation aligned with the latest user request.
 </summary>
 
-If you choose not to use tags, keep the same section order.
+Include code, logs, or command output only as short excerpts needed for the next step. Point to files or sources that can be read again instead of copying them.
 """;
 
     // "up_to" variant: model sees only the summarized prefix; newer messages
     // follow after the summary in the next turn.
-    private const string PartialCompactUpToEn = $$"""
+    private const string PartialCompactUpToEn = """
 Create a concise handoff summary for the older portion of this conversation.
 This summary will precede newer messages preserved verbatim after compaction. Those newer messages are not included here.
+Stay below {0} tokens, and use only the length the remaining work needs.
 
-Length:
-- Target about 4,000-6,000 output tokens.
-- Stay below 12,000 output tokens.
-
-Include only information needed to understand the older context before reading the preserved recent tail:
-
-1. Earlier task and user intent
-2. Key decisions and assumptions
-3. Important files and code areas
-4. Errors, failures, and fixes
-5. Work completed in the summarized prefix
-6. Context needed by the preserved recent messages
-
-Use compact bullets focused on the continuation. Include code, logs, or command output only as short excerpts needed for the next step.
-
-Structure your response as:
+Write these sections in order, as compact bullets covering what the preserved recent messages need:
 
 <summary>
-1. Earlier Task and User Intent:
-   ...
-2. Key Decisions and Assumptions:
-   - ...
-3. Important Files and Code Areas:
-   - ...
-4. Errors, Failures, and Fixes:
-   - ...
-5. Work Completed:
-   ...
-6. Context for Preserved Recent Messages:
-   ...
+1. Earlier Task and User Intent: the request, constraints, and explicit preferences that still matter.
+2. Key Decisions and Assumptions: design choices, protocol or API expectations, and tradeoffs already settled.
+3. Important Files and Code Areas: files read, edited, or planned, with why each matters.
+4. Errors, Failures, and Fixes: only issues that affect later work or explain the current state.
+5. Work Completed: what the summarized prefix finished.
+6. Context for Preserved Recent Messages: what the recent messages assume from earlier context.
 </summary>
 
-If you choose not to use tags, keep the same section order.
+Include code, logs, or command output only as short excerpts needed for the next step. Point to files or sources that can be read again instead of copying them.
 """;
 
     private const string ContinuationPrefaceEn =
@@ -103,15 +64,18 @@ If you choose not to use tags, keep the same section order.
     /// <summary>
     /// Returns the system-prompt text for a full-history compaction.
     /// </summary>
-    public static string GetCompactPrompt() =>
-        NoToolsPreambleEn + BaseCompactPromptEn;
+    public static string GetCompactPrompt(int maxOutputTokens) =>
+        NoToolsPreambleEn + FormatBudget(BaseCompactPromptEn, maxOutputTokens);
 
     /// <summary>
     /// Returns the system-prompt text for a partial (up-to) compaction where
     /// the summary will precede retained recent messages.
     /// </summary>
-    public static string GetPartialCompactPrompt() =>
-        NoToolsPreambleEn + PartialCompactUpToEn;
+    public static string GetPartialCompactPrompt(int maxOutputTokens) =>
+        NoToolsPreambleEn + FormatBudget(PartialCompactUpToEn, maxOutputTokens);
+
+    private static string FormatBudget(string template, int maxOutputTokens) =>
+        string.Format(CultureInfo.InvariantCulture, template, maxOutputTokens.ToString("N0", CultureInfo.InvariantCulture));
 
     private static readonly Regex AnalysisBlockRegex =
         new(@"<analysis>[\s\S]*?</analysis>", RegexOptions.Compiled);

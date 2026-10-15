@@ -139,7 +139,7 @@ public sealed class FullCompactor
             snapshot,
             new MaintenanceForkTask(
                 MaintenanceForkTaskKind.ContextCompaction,
-                BuildFullContextCompactionTaskInstructions())
+                BuildFullContextCompactionTaskInstructions(CompactionSummaryBudget.ResolveSummaryLimit(_config)))
             {
                 InputBudgetTokens = CompactionSummaryBudget.ResolveSnapshotInputBudget(_config, snapshot),
                 InputBudgetSource = "compaction.context_window_minus_summary_output",
@@ -168,7 +168,7 @@ public sealed class FullCompactor
         string? threadId,
         CancellationToken cancellationToken)
     {
-        var summaryPrompt = BuildFullContextCompactionTaskInstructions();
+        var summaryPrompt = BuildFullContextCompactionTaskInstructions(CompactionSummaryBudget.ResolveSummaryLimit(_config));
         var taskMessage = BuildLegacyContextCompactionTaskMessage();
         var candidate = CompactionPreflightTrimmer.TrimSummaryInput(
             messages,
@@ -215,7 +215,7 @@ public sealed class FullCompactor
         string? threadId,
         CancellationToken cancellationToken)
     {
-        var summaryPrompt = BuildFullContextCompactionTaskInstructions();
+        var summaryPrompt = BuildFullContextCompactionTaskInstructions(CompactionSummaryBudget.ResolveSummaryLimit(_config));
         var summaryMessages = new List<ChatMessage>(messages.Count + 2)
         {
             new(ChatRole.System, summaryPrompt)
@@ -424,9 +424,9 @@ public sealed class FullCompactor
             || mediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
             || mediaType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase));
 
-    private static string BuildFullContextCompactionTaskInstructions()
+    private static string BuildFullContextCompactionTaskInstructions(int maxOutputTokens)
     {
-        var prompt = CompactionPrompts.GetCompactPrompt();
+        var prompt = CompactionPrompts.GetCompactPrompt(maxOutputTokens);
         return $"""
 {prompt}
 

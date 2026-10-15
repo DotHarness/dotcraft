@@ -647,7 +647,8 @@ public sealed class AgentFactory : IAsyncDisposable
                 subAgentProfilesSection = SubAgentProfilePromptSectionBuilder.Build(
                     ctx.Config.SubAgentProfiles,
                     SubAgentProfileCatalog.Resolve(ctx.Contributions, ctx.CurrentThreadId, _logger),
-                    ctx.Config.SubAgent.DisabledProfiles);
+                    ctx.Config.SubAgent.DisabledProfiles,
+                    enableExternalCliSessionResume: ctx.Config.SubAgent.EnableExternalCliSessionResume);
             }
 
             // When deferred loading is active, derive connected server names from the

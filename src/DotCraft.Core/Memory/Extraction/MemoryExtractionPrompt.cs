@@ -19,7 +19,7 @@ internal static class MemoryExtractionPrompt
             .AppendLine("- Update an existing memory rather than adding a duplicate, and keep its pointer line in MEMORY.md in sync.")
             .AppendLine("- If nothing is worth saving, reply \"Nothing to save.\" and stop.")
             .AppendLine()
-            .Append("Only reads and Markdown writes inside `").Append(storeDirectory).AppendLine("` are allowed; other calls are refused.")
+            .Append("Write only Markdown files inside `").Append(storeDirectory).AppendLine("`. Calls other than file reads and those writes are refused.")
             .AppendLine()
             .AppendLine("## Existing memory files");
         if (files.Count == 0)

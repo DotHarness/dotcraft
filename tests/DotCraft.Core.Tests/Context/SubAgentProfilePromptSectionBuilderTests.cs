@@ -136,6 +136,34 @@ public sealed class SubAgentProfilePromptSectionBuilderTests
     }
 
     [Fact]
+    public void Build_NativeOnlyOmitsExternalCliGuidance()
+    {
+        var section = SubAgentProfilePromptSectionBuilder.Build(
+            configuredProfiles: null,
+            binaryAvailabilityProbe: _ => false,
+            enableExternalCliSessionResume: true);
+
+        Assert.NotNull(section);
+        Assert.Contains("`native`", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("External CLI", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("`agentNickname`", section, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Build_DescribesResumeOnlyWhenEnabled(bool enabled)
+    {
+        var section = SubAgentProfilePromptSectionBuilder.Build(
+            configuredProfiles: null,
+            binaryAvailabilityProbe: _ => true,
+            enableExternalCliSessionResume: enabled);
+
+        Assert.NotNull(section);
+        Assert.Equal(enabled, section.Contains("`agentNickname`", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Build_ShowsCliProfileWhenBinaryProbeSucceeds()
     {
         var section = SubAgentProfilePromptSectionBuilder.Build(
