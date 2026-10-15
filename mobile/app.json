@@ -2,7 +2,7 @@
   "expo": {
     "name": "DotCraft",
     "slug": "dotcraft",
-    "version": "0.8.7",
+    "version": "0.8.8",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "dotcraft",
@@ -10,7 +10,7 @@
     "backgroundColor": "#141515",
     "android": {
       "package": "com.dotharness.dotcraft",
-      "versionCode": 807,
+      "versionCode": 808,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
