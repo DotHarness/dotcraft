@@ -4,6 +4,7 @@ import type { ComposerFileAttachment, ImageAttachment, InputPart, ConversationIt
 import { stringifyComposerDraftSegments } from '../components/conversation/richInputSerialization'
 import { projectInputParts } from './inputPresentation'
 import { splitThreadMentions } from './threadReferences'
+import { isVisibleUserMessage } from './visibleUserMessage'
 export interface ComposerHistoryEntry {
   clientUserMessageId?: string
   text: string
@@ -28,8 +29,7 @@ export function buildComposerHistory(turns: ConversationTurn[], threadId: string
 }
 
 function userItemToComposerHistoryEntry(item: ConversationItem): ComposerHistoryEntry | null {
-  if (item.type !== 'userMessage') return null
-  if (item.deliveryMode === 'guidance') return null
+  if (!isVisibleUserMessage(item)) return null
   const text = item.text ?? ''
 
   const inputParts = item.nativeInputParts

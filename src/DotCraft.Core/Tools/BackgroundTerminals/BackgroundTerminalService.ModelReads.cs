@@ -7,18 +7,8 @@ public sealed partial class BackgroundTerminalService
 {
     internal const int CompletionNoticeTailChars = 2000;
 
-    private readonly ConcurrentDictionary<string, ModelReadState> _modelReads = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, TerminalModelReadState> _modelReads = new(StringComparer.Ordinal);
     private volatile bool _disposing;
-
-    private sealed class ModelReadState
-    {
-        public readonly object Sync = new();
-        public long Cursor;
-        public int Waiters;
-        public bool HandedOff;
-        public bool Completed;
-        public bool Settled;
-    }
 
     public async Task<BackgroundTerminalSnapshot> InteractAsync(
         string sessionId,
@@ -33,11 +23,11 @@ public sealed partial class BackgroundTerminalService
         _active.TryGetValue(sessionId, out var active);
         if (active == null)
             _ = GetMetadata(sessionId);
-        var state = _modelReads.GetOrAdd(sessionId, static _ => new ModelReadState());
+        var state = ModelReadStateFor(sessionId);
 
         if (IsStopRequest(input))
         {
-            SettleModelRead(sessionId);
+            state.Settle();
             if (active != null)
                 await KillAsync(active, BackgroundTerminalStatus.Killed, ct).ConfigureAwait(false);
             return await ReadForModelAsync(sessionId, active, state, limit, ct).ConfigureAwait(false);
@@ -54,18 +44,14 @@ public sealed partial class BackgroundTerminalService
             active.ClearStall();
         }
 
-        lock (state.Sync)
-            state.Waiters++;
+        state.EnterWait();
         OutputMatchWatch? watch = null;
         try
         {
             var outcome = ProcessWaitOutcome.Exited;
             if (active != null && !active.Process.HasExited && waitMs > 0)
             {
-                long from;
-                lock (state.Sync)
-                    from = state.Cursor;
-                watch = waitFor == null ? null : new OutputMatchWatch(active, waitFor, from);
+                watch = waitFor == null ? null : new OutputMatchWatch(active, waitFor, state.Cursor);
                 var wait = TimeSpan.FromMilliseconds(Math.Min(waitMs, Math.Max(1, _config.MaxYieldTimeMs)));
                 outcome = await WaitForExitOrDelayAsync(
                     active.Process,
@@ -89,19 +75,14 @@ public sealed partial class BackgroundTerminalService
         finally
         {
             watch?.Dispose();
-            bool notify;
-            lock (state.Sync)
-            {
-                state.Waiters--;
-                // The exit may have landed after this call read a running status.
-                notify = state.Waiters == 0 && state.Completed && state.HandedOff && !state.Settled && !_disposing;
-                if (notify)
-                    state.Settled = true;
-            }
-            if (notify && active != null)
+            // The exit may have landed after this call read a running status.
+            if (state.LeaveWait(_disposing) && active != null)
                 RaiseCompletionNotice(active, state);
         }
     }
+
+    private TerminalModelReadState ModelReadStateFor(string sessionId) =>
+        _modelReads.GetOrAdd(sessionId, static _ => new TerminalModelReadState());
 
     private static bool IsStopRequest(string input)
     {
@@ -112,13 +93,11 @@ public sealed partial class BackgroundTerminalService
     private async Task<BackgroundTerminalSnapshot> ReadForModelAsync(
         string sessionId,
         ActiveTerminal? active,
-        ModelReadState state,
+        TerminalModelReadState state,
         int limit,
         CancellationToken ct)
     {
-        long from;
-        lock (state.Sync)
-            from = state.Cursor;
+        var from = state.Cursor;
 
         // Status is read before output: a final status means output was already drained.
         BackgroundTerminalSnapshot snapshot;
@@ -136,13 +115,7 @@ public sealed partial class BackgroundTerminalService
             slice = buffer.Slice(from, limit);
         }
 
-        lock (state.Sync)
-        {
-            state.Cursor = Math.Max(state.Cursor, slice.End);
-            if (snapshot.Status != BackgroundTerminalStatus.Running)
-                state.Settled = true;
-        }
-
+        state.Read(slice.End, snapshot.Status != BackgroundTerminalStatus.Running);
         return snapshot with
         {
             Output = slice.Text,
@@ -154,74 +127,35 @@ public sealed partial class BackgroundTerminalService
 
     private BackgroundTerminalSnapshot HandToModel(ActiveTerminal terminal, BackgroundTerminalSnapshot snapshot, long end)
     {
-        var state = _modelReads.GetOrAdd(terminal.SessionId, static _ => new ModelReadState());
         var running = snapshot.Status == BackgroundTerminalStatus.Running;
         var armed = running && terminal.Request.NotifyOnCompletion;
-        var notify = false;
-        lock (state.Sync)
-        {
-            state.Cursor = Math.Max(state.Cursor, end);
-            if (!running)
-                state.Settled = true;
-            else if (armed)
-            {
-                state.HandedOff = true;
-                notify = state.Completed && !state.Settled;
-                if (notify)
-                    state.Settled = true;
-            }
-        }
-
-        if (notify)
+        var state = ModelReadStateFor(terminal.SessionId);
+        if (state.HandOff(end, running, armed))
             RaiseCompletionNotice(terminal, state);
         return armed ? snapshot with { CompletionNoticeArmed = true } : snapshot;
     }
 
     private void OnTerminalCompletedForModel(ActiveTerminal terminal)
     {
-        if (!_modelReads.TryGetValue(terminal.SessionId, out var state))
-            return;
-        bool notify;
-        lock (state.Sync)
-        {
-            state.Completed = true;
-            notify = state.HandedOff && !state.Settled && state.Waiters == 0 && !_disposing;
-            if (notify)
-                state.Settled = true;
-        }
-
-        if (notify)
+        var state = ModelReadStateFor(terminal.SessionId);
+        if (state.Complete(_disposing))
             RaiseCompletionNotice(terminal, state);
     }
 
-    private void RaiseCompletionNotice(ActiveTerminal terminal, ModelReadState state) =>
+    private void RaiseCompletionNotice(ActiveTerminal terminal, TerminalModelReadState state) =>
         RaiseModelNotice(terminal, state, BackgroundTerminalEventTypes.CompletionNotice);
 
     private void OnTerminalStalledForModel(ActiveTerminal terminal)
     {
-        if (!_modelReads.TryGetValue(terminal.SessionId, out var state))
-            return;
-        bool notify;
-        lock (state.Sync)
-            notify = state.HandedOff && !state.Settled && state.Waiters == 0 && !_disposing;
-        if (notify)
+        if (_modelReads.TryGetValue(terminal.SessionId, out var state) && state.OwesStallNotice(_disposing))
             RaiseModelNotice(terminal, state, BackgroundTerminalEventTypes.StallNotice);
     }
 
-    private void RaiseModelNotice(ActiveTerminal terminal, ModelReadState state, string eventType)
+    // A notice can be dropped by Session Core, so it never moves the model read cursor.
+    private void RaiseModelNotice(ActiveTerminal terminal, TerminalModelReadState state, string eventType)
     {
-        var completion = eventType == BackgroundTerminalEventTypes.CompletionNotice;
-        long from;
-        lock (state.Sync)
-            from = state.Cursor;
         var snapshot = terminal.CreateSnapshot(includeOutput: false);
-        var slice = terminal.Slice(from, CompletionNoticeTailChars, tailOnly: true);
-        if (completion && !slice.Truncated && !slice.Lossy)
-        {
-            lock (state.Sync)
-                state.Cursor = Math.Max(state.Cursor, slice.End);
-        }
-
+        var slice = terminal.Slice(state.Cursor, CompletionNoticeTailChars, tailOnly: true);
         Raise(
             eventType,
             snapshot with
@@ -230,15 +164,10 @@ public sealed partial class BackgroundTerminalService
                 OriginalOutputChars = slice.NewChars,
                 Truncated = slice.Truncated,
                 Lossy = slice.Lossy,
-                WaitingForInput = !completion
+                WaitingForInput = eventType == BackgroundTerminalEventTypes.StallNotice
             },
             null);
     }
 
-    private void SettleModelRead(string sessionId)
-    {
-        var state = _modelReads.GetOrAdd(sessionId, static _ => new ModelReadState());
-        lock (state.Sync)
-            state.Settled = true;
-    }
+    private void SettleModelRead(string sessionId) => ModelReadStateFor(sessionId).Settle();
 }

@@ -169,7 +169,7 @@ public sealed partial class SessionService
         else
         {
             if (terminal.Truncated || terminal.Lossy)
-                sb.AppendLine($"Last {terminal.Output.Length} of {terminal.OriginalOutputChars} unread chars. WriteStdin with empty input returns the rest:");
+                sb.AppendLine($"Last {terminal.Output.Length} of {terminal.OriginalOutputChars} unread chars. WriteStdin with empty input returns all of them:");
             else
                 sb.AppendLine("Unread output:");
             sb.AppendLine(terminal.Output);

@@ -697,8 +697,8 @@ a client still produces a notice. The notice is a queued input with
 `triggerRefId` set to the terminal session ID. Its display text is a one-line
 summary; its materialized text gives the status, exit code, wall time, the
 output log path, and at most 2,000 characters from the end of the output the
-model has not read. The model read cursor advances past that output only when
-the notice holds all of it.
+model has not read. A notice never moves the model read cursor, so output in a
+notice that is dropped stays readable through `WriteStdin`.
 
 - While the Thread has an active Turn, the notice is added as `guidancePending`
   for that Turn and is drained at its next sampling boundary. It does not

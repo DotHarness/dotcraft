@@ -50,7 +50,7 @@ public sealed class BackgroundTerminalModelReadTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CompletionNotice_IsRaisedOnceForATerminalHandedOverWhileRunning()
+    public async Task CompletionNotice_IsRaisedOnceAndLeavesItsOutputUnread()
     {
         var completed = WaitForEvent("completed");
         var started = await Service.StartAsync(Request(TwoPartCommand("early", "late-tail")) with
@@ -68,6 +68,8 @@ public sealed class BackgroundTerminalModelReadTests : IAsyncLifetime
         Assert.Equal(started.SessionId, notice.Terminal.SessionId);
         Assert.Equal(0, notice.Terminal.ExitCode);
         Assert.Contains("late-tail", notice.Terminal.Output);
+        var read = await Service.InteractAsync(started.SessionId, string.Empty, 1000);
+        Assert.Contains("late-tail", read.Output);
     }
 
     [Fact]
