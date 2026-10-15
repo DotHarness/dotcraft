@@ -66,19 +66,22 @@ public sealed class RemoteToolRegressionTests : IAsyncLifetime
         });
         var session = started.Content!.Split('\n').Single(line => line.StartsWith("Session ID:", StringComparison.Ordinal))["Session ID:".Length..].Trim();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        for (var i = 0; i < 2; i++)
+        var output = started.Content;
+        ToolExecutionResult end;
+        do
         {
-            ToolExecutionResult end;
-            do
-            {
-                end = await Invoke("WriteStdin", new() { ["sessionId"] = session, ["input"] = "", ["yieldTimeMs"] = 5000 }, deadline.Token);
-                Assert.True(end.Success, end.Error?.Message);
-            } while (end.Content!.Contains("Status: running", StringComparison.Ordinal));
-            Assert.Null(end.Error);
-            Assert.Contains("远端标准输出", end.Content);
-            Assert.Contains("远端错误输出", end.Content);
-            Assert.Contains("Exit code: 7", end.Content);
-        }
+            end = await Invoke("WriteStdin", new() { ["sessionId"] = session, ["input"] = "", ["yieldTimeMs"] = 5000 }, deadline.Token);
+            Assert.True(end.Success, end.Error?.Message);
+            output += end.Content;
+        } while (end.Content!.Contains("Status: running", StringComparison.Ordinal));
+        Assert.Contains("远端标准输出", output);
+        Assert.Contains("远端错误输出", output);
+        Assert.Contains("Exit code: 7", end.Content);
+
+        var again = await Invoke("WriteStdin", new() { ["sessionId"] = session, ["input"] = "" }, deadline.Token);
+        Assert.True(again.Success, again.Error?.Message);
+        Assert.Contains("Exit code: 7", again.Content);
+        Assert.DoesNotContain("远端标准输出", again.Content);
         var nonempty = await Invoke("WriteStdin", new() { ["sessionId"] = session, ["input"] = "input" });
         Assert.False(nonempty.Success);
     }

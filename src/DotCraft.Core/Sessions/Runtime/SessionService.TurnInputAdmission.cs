@@ -27,7 +27,8 @@ public sealed partial class SessionService
             return thread.QueuedInputs.Any(input =>
                 IsPendingGuidance(input, turnId)
                 && !IsLegacyGoalBudgetGuidanceInput(input)
-                && !string.Equals(input.TriggerKind, SubAgentSessionControl.SubAgentFollowupTriggerKind, StringComparison.Ordinal));
+                && !string.Equals(input.TriggerKind, SubAgentSessionControl.SubAgentFollowupTriggerKind, StringComparison.Ordinal)
+                && !IsTerminalNotice(input));
     }
 
     private async Task<IReadOnlyList<PreparedGuidance>> PrepareGuidanceInputsAsync(
@@ -41,6 +42,8 @@ public sealed partial class SessionService
             commandCt => ListPendingGuidanceAsync(thread, turn.Id, commandCt),
             drainCt);
         var prepared = new List<PreparedGuidance>();
+        if (pending.Count > 0)
+            ResetForegroundHandOver(turn.Id);
         foreach (var queued in pending)
         {
             var content = await ThreadQueue.ResolveInputPartsAsync(queued.MaterializedInputParts.ToList(), drainCt);
@@ -54,6 +57,7 @@ public sealed partial class SessionService
                 ? queued.DisplayText
                 : SessionWireMapper.BuildDisplayText(queued.NativeInputParts);
             var hook = string.Equals(queued.TriggerKind, SubAgentSessionControl.SubAgentFollowupTriggerKind, StringComparison.Ordinal)
+                || IsTerminalNotice(queued)
                 ? new HookResult()
                 : await RunPromptLifecycleHookAsync(
                     HookEvent.UserPromptSubmit,

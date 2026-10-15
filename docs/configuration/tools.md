@@ -9,7 +9,7 @@ Limits and switches for the built-in tools. What the agent may touch is set in [
 | `Tools.File.MaxFileSize` | Max readable file size in bytes | `10485760` |
 | `Tools.File.RipgrepPath` | Optional `rg` path; empty tries `DOTCRAFT_RG_PATH`, `PATH`, then fallback | `""` |
 | `Tools.File.SearchTimeoutSeconds` | Max `GrepFiles` content-search time before timeout | `30` |
-| `Tools.Shell.Timeout` | Seconds the agent waits for a command before stopping it. A command still running after `Tools.Shell.Background.DefaultYieldTimeMs` is instead returned to the agent and keeps running until it exits or is stopped, unless background terminals are disabled | `300` |
+| `Tools.Shell.Timeout` | Seconds the agent waits for a command before stopping it. A command still running after `Tools.Shell.Background.ForegroundBudgetMs` is instead returned to the agent and keeps running until it exits or is stopped, unless background terminals are disabled | `300` |
 | `Tools.Shell.MaxOutputLength` | Max shell output length in characters | `10000` |
 
 ## Background terminals
@@ -17,14 +17,17 @@ Limits and switches for the built-in tools. What the agent may touch is set in [
 | Field | Description | Default |
 |---|---|---|
 | `Tools.Shell.Background.Enabled` | Enable background terminal sessions | `true` |
-| `Tools.Shell.Background.DefaultYieldTimeMs` | Default wait before a still-running command returns its session | `10000` |
-| `Tools.Shell.Background.MaxYieldTimeMs` | Maximum wait before a running command returns, and for a background-session read or write | `30000` |
+| `Tools.Shell.Background.ForegroundBudgetMs` | How long the agent waits for a command before it continues in the background. A message you send while it waits moves it to the background at once | `120000` |
+| `Tools.Shell.Background.DefaultYieldTimeMs` | Default wait before a command started in the background returns its session | `10000` |
+| `Tools.Shell.Background.MaxYieldTimeMs` | Maximum wait for a background command to return, and for a background-session read or write | `300000` |
+| `Tools.Shell.Background.CompletionDelivery` | `wake` tells the agent when a background command it is waiting on finishes, starting a new turn if the thread is idle. `off` leaves the agent to check the command itself | `wake` |
+| `Tools.Shell.Background.MaxConsecutiveWakes` | Maximum turns in a row that finished background commands can start on their own before the agent waits for you | `3` |
 | `Tools.Shell.Background.MaxSessionsPerThread` | Maximum concurrent background terminals per thread | `8` |
 | `Tools.Shell.Background.MaxSessionsPerWorkspace` | Maximum concurrent background terminals in one workspace | `32` |
 | `Tools.Shell.Background.IdleTimeoutSeconds` | Reserved; not currently enforced by the background terminal service | `1800` |
 | `Tools.Shell.Background.OutputMaxBytes` | Reserved; not currently enforced by the background terminal service | `67108864` |
 | `Tools.Shell.Background.OutputRetentionDays` | Retention window for completed or lost terminal metadata and output; running terminals are excluded | `7` |
-| `Tools.Shell.Background.StallWatchdogSeconds` | Reserved; not currently enforced by the background terminal service | `45` |
+| `Tools.Shell.Background.StallWatchdogSeconds` | Seconds of silence after a prompt-like line, such as `(y/n)`, before a running command is reported as waiting for input. `0` turns this off | `45` |
 | `Tools.Shell.Background.DefaultReadMaxOutputChars` | Default maximum characters returned in a terminal snapshot | `10000` |
 
 ## Web

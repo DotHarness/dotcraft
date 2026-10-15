@@ -179,7 +179,7 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
             Assert.Single(turn.Items, item => item.Type == ItemType.CommandExecution).Payload);
 
     private static string SleepCommand() =>
-        OperatingSystem.IsWindows() ? "Start-Sleep -Seconds 30" : "sleep 30";
+        OperatingSystem.IsWindows() ? "Write-Output started; Start-Sleep -Seconds 30" : "echo started; sleep 30";
 
     private sealed class ShellToolSource(ShellTools shellTools) : AIFunctionToolSource
     {

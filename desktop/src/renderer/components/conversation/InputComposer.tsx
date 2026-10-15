@@ -30,6 +30,7 @@ import type {
   QueuedTurnInput
 } from '../../types/conversation'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
+import { mergeVisibleQueueOrder } from '../../utils/visibleUserMessage'
 import { canOpenSideChat as canOpenSideChatNow, openSideChat, parseSideSlashCommand, useCanOpenSideChat, withoutSideCommand } from '../../utils/sideChat'
 import { useFailedTurnResume } from './useFailedTurnResume'
 import { useComposerRunState, type ComposerRuntime } from './useComposerRunState'
@@ -1472,9 +1473,10 @@ function InputComposerCore({
     }
   }, [threadId])
 
-  const reorderQueuedInputs = useCallback(async (orderedQueuedInputIds: string[]): Promise<void> => {
+  const reorderQueuedInputs = useCallback(async (visibleOrder: string[]): Promise<void> => {
     const previousQueue = useConversationStore.getState().queuedInputs
     const previousById = new Map(previousQueue.map((item) => [item.id, item]))
+    const orderedQueuedInputIds = mergeVisibleQueueOrder(previousQueue, visibleOrder)
     const optimisticQueue = orderedQueuedInputIds
       .map((id) => previousById.get(id))
       .filter((item): item is QueuedTurnInput => item !== undefined)

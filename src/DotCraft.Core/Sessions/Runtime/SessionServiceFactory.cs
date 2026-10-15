@@ -61,6 +61,7 @@ public static class SessionServiceFactory
             () => appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config);
         sp.GetService<ToolInvocationRecorderRouter>()?.Bind(sessionService);
         sessionService.AttachRemoteRouteNotices();
+        sessionService.AttachTerminalNotices();
         BindSessionServiceConsumers(sp, sessionService);
         return sessionService;
     }

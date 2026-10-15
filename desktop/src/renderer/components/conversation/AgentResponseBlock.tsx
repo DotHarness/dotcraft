@@ -200,7 +200,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
           kind: 'tool',
           node: <ImageGenerationEntry item={item} />
         })
-      } else if (item.type === 'userMessage' && item.deliveryMode === 'guidance') {
+      } else if (item.type === 'userMessage' && item.deliveryMode === 'guidance' && item.triggerKind !== 'terminal') {
         nodes.push({
           key: item.id,
           kind: 'user',

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.GeneratedTools.Core;
@@ -390,6 +391,15 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         }
 
         public ShellStdinSession? GetStdinSession(string sessionId) => null;
+
+        public Task<BackgroundTerminalSnapshot> InteractAsync(
+            string sessionId,
+            string input,
+            int waitMs,
+            int? maxOutputChars = null,
+            Regex? waitFor = null,
+            CancellationToken ct = default) =>
+            throw new NotSupportedException();
 
         public Task<BackgroundTerminalSnapshot> ReadAsync(
             string sessionId,

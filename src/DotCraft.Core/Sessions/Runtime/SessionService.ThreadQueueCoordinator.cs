@@ -150,6 +150,7 @@ public sealed partial class SessionService
             }
 
             owner.PublishQueueUpdated(thread.Id, queueSnapshot);
+            owner.SignalForegroundHandOver(activeTurnId);
             owner._subAgentCommunicationRuntime.PublishSteer(thread.Id, AgentPath.Root);
             return activeTurnId;
         }
@@ -293,6 +294,7 @@ public sealed partial class SessionService
                 owner.PublishQueueUpdated(thread.Id, queueSnapshot);
                 if (string.Equals(status, "guidancePending", StringComparison.Ordinal))
                 {
+                    owner.SignalForegroundHandOver(expectedTurnId);
                     var rootThreadId = string.IsNullOrWhiteSpace(thread.Source.SubAgent?.RootThreadId)
                         ? thread.Id
                         : thread.Source.SubAgent.RootThreadId;

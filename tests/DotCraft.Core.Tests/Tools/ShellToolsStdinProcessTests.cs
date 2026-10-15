@@ -53,7 +53,7 @@ public sealed class ShellToolsStdinProcessTests : IAsyncLifetime
 
         if (approve)
         {
-            Assert.Contains(Marker, await PollAsync(tools, session.SessionId));
+            Assert.Contains(Marker, result.Content + await PollAsync(tools, session.SessionId));
         }
         else
         {
@@ -96,7 +96,7 @@ public sealed class ShellToolsStdinProcessTests : IAsyncLifetime
         {
             var result = await tools.WriteStdin(sessionId, string.Empty, yieldTimeMs: 1000);
             Assert.True(result.Success, result.Error?.Message);
-            output = result.Content!;
+            output += result.Content;
             if (output.Contains(Marker, StringComparison.Ordinal))
                 break;
         }

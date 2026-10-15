@@ -214,6 +214,7 @@ export interface ConversationItem {
     | 'subagentFollowupTask'
     | 'subagentMailbox'
     | 'subagentInput'
+    | 'terminal'
   /** Optional human-readable label for the automation source (e.g. automation name). */
   triggerLabel?: string
   /** Optional routing id for client-side click-through (e.g. automation id). */
@@ -794,7 +795,8 @@ function normalizeTriggerKind(
     normalized === 'automation' ||
     normalized === 'goal' ||
     normalized === 'app' ||
-    normalized === 'workflow'
+    normalized === 'workflow' ||
+    normalized === 'terminal'
   ) {
     return normalized
   }

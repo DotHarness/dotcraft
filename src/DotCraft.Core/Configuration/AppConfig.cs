@@ -641,7 +641,16 @@ public sealed partial class AppConfig
         public int DefaultYieldTimeMs { get; set; } = 10000;
 
         [ConfigField(Min = 1, Hint = "milliseconds")]
-        public int MaxYieldTimeMs { get; set; } = 30000;
+        public int MaxYieldTimeMs { get; set; } = 300000;
+
+        [ConfigField(Min = 1, Hint = "milliseconds a foreground command runs before it continues in the background")]
+        public int ForegroundBudgetMs { get; set; } = 120000;
+
+        [ConfigField(Hint = "wake | off")]
+        public string CompletionDelivery { get; set; } = "wake";
+
+        [ConfigField(Min = 0)]
+        public int MaxConsecutiveWakes { get; set; } = 3;
 
         [ConfigField(Min = 1)]
         public int MaxSessionsPerThread { get; set; } = 8;

@@ -58,6 +58,86 @@ internal sealed class TerminalOutputBuffer
         }
     }
 
+    public long Characters
+    {
+        get
+        {
+            lock (_sync)
+                return _characters;
+        }
+    }
+
+    /// <summary>
+    /// Returns output from character offset <paramref name="from"/> to the current end. When the
+    /// retained excerpts no longer reach back to that offset, only the retained tail is returned.
+    /// </summary>
+    public TerminalOutputSlice Slice(long from, int maxCharacters, bool tailOnly = false)
+    {
+        lock (_sync)
+        {
+            var end = _characters;
+            from = Math.Clamp(from, 0, end);
+            var tail = string.Concat(_tailChunks);
+            var tailStart = end - tail.Length;
+            var head = _head.ToString();
+            string text;
+            var lossy = false;
+            if (from >= tailStart)
+                text = tail[(int)(from - tailStart)..];
+            else if (head.Length >= tailStart)
+                text = head[(int)from..(int)tailStart] + tail;
+            else
+            {
+                text = tail;
+                lossy = true;
+            }
+
+            var newChars = (int)Math.Min(end - from, int.MaxValue);
+            text = text.TrimEnd('\r', '\n');
+            var limit = maxCharacters > 0 ? Math.Min(maxCharacters, CapacityBytes) : CapacityBytes;
+            if (text.Length <= limit)
+                return new TerminalOutputSlice(text, end, newChars, false, lossy);
+            if (tailOnly)
+            {
+                var start = text.Length - limit;
+                if (char.IsLowSurrogate(text[start]))
+                    start++;
+                return new TerminalOutputSlice(text[start..], end, newChars, true, lossy);
+            }
+
+            var headLength = (limit + 1) / 2;
+            if (char.IsHighSurrogate(text[headLength - 1]))
+                headLength--;
+            var tailFrom = text.Length - (limit - headLength);
+            if (char.IsLowSurrogate(text[tailFrom]))
+                tailFrom++;
+            var omitted = tailFrom - headLength;
+            return new TerminalOutputSlice(
+                $"{text[..headLength]}{Environment.NewLine}... (truncated, {omitted} middle chars){Environment.NewLine}{text[tailFrom..]}",
+                end,
+                newChars,
+                true,
+                lossy);
+        }
+    }
+
+    public (string Text, long End, bool Lossy) SliceRaw(long from)
+    {
+        lock (_sync)
+        {
+            var end = _characters;
+            from = Math.Clamp(from, 0, end);
+            var tail = string.Concat(_tailChunks);
+            var tailStart = end - tail.Length;
+            if (from >= tailStart)
+                return (tail[(int)(from - tailStart)..], end, false);
+            var head = _head.ToString();
+            return head.Length >= tailStart
+                ? (head[(int)from..(int)tailStart] + tail, end, false)
+                : (tail, end, true);
+        }
+    }
+
     public (string Output, int OriginalChars, bool Truncated) Snapshot(int maxCharacters)
     {
         lock (_sync)
@@ -144,3 +224,9 @@ internal sealed class TerminalOutputBuffer
             yield return text[start..offset];
     }
 }
+
+/// <summary>
+/// Output read from a terminal cursor. <see cref="End"/> is the cursor after the read, and
+/// <see cref="Lossy"/> means earlier unread output is only in the log file.
+/// </summary>
+internal sealed record TerminalOutputSlice(string Text, long End, int NewChars, bool Truncated, bool Lossy);

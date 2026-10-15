@@ -24,6 +24,9 @@ public sealed class CommandExecutionRuntimeContext
 
     public Func<string, string, CommandExecutionTerminalInteraction, Task>? EmitTerminalInteractionAsync { get; init; }
 
+    /// <summary>Returns a token signalled when guidance arrives, so a waiting foreground command continues in the background.</summary>
+    public Func<CancellationToken>? ForegroundHandOverToken { get; init; }
+
     private readonly ConcurrentQueue<PendingCommandExecutionRegistration> _pending = new();
 
     private readonly ConcurrentQueue<PendingShellExecutionRegistration> _pendingShellExecutions = new();

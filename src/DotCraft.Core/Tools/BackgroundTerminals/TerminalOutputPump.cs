@@ -49,6 +49,15 @@ internal sealed class TerminalOutputPump(
     public (string Output, int OriginalChars, bool Truncated) Snapshot(int maxCharacters) =>
         _buffer.Snapshot(maxCharacters);
 
+    public long Characters => _buffer.Characters;
+
+    public TerminalOutputSlice Slice(long from, int maxCharacters, bool tailOnly = false) =>
+        _buffer.Slice(from, maxCharacters, tailOnly);
+
+    public (string Text, long End, bool Lossy) SliceRaw(long from) => _buffer.SliceRaw(from);
+
+    public event Action? Appended;
+
     private async Task ReadAsync(Stream stream)
     {
         try
@@ -102,6 +111,7 @@ internal sealed class TerminalOutputPump(
                 await log.WriteAsync(text).ConfigureAwait(false);
                 await log.FlushAsync().ConfigureAwait(false);
                 _buffer.Append(text);
+                Appended?.Invoke();
                 QueueNotifications(text);
             }
             if (_readsAbandoned)

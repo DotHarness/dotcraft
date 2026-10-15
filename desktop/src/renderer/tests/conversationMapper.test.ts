@@ -127,6 +127,26 @@ describe('wireItemToConversationItem — nested payload format (thread/read)', (
     expect(item.type).toBe('userMessage')
   })
 
+  it('keeps the terminal trigger of a background command completion notice', () => {
+    const item = wireItemToConversationItem({
+      id: 'i-terminal',
+      type: 'userMessage',
+      status: 'completed',
+      payloadKind: 'userMessage',
+      payload: {
+        text: 'Background command finished (exit code 0): npm test',
+        deliveryMode: 'guidance',
+        triggerKind: 'terminal',
+        triggerLabel: 'npm test',
+        triggerRefId: 'term_abc'
+      },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+    expect(item.triggerKind).toBe('terminal')
+    expect(item.triggerLabel).toBe('npm test')
+    expect(item.triggerRefId).toBe('term_abc')
+  })
+
   it('strips trailing system reminders from userMessage payload text', () => {
     const item = wireItemToConversationItem({
       id: 'i2-runtime',

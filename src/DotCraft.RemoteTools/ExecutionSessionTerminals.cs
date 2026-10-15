@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Tools.BackgroundTerminals;
 
@@ -61,6 +62,8 @@ internal sealed class ExecutionSessionTerminals : IBackgroundTerminalService
         Current.ReadAsync(sessionId, waitMs, maxOutputChars, ct);
     public Task<BackgroundTerminalSnapshot> WriteStdinAsync(string sessionId, string input, int yieldTimeMs = 1000, int? maxOutputChars = null, CancellationToken ct = default) =>
         Current.WriteStdinAsync(sessionId, input, yieldTimeMs, maxOutputChars, ct);
+    public Task<BackgroundTerminalSnapshot> InteractAsync(string sessionId, string input, int waitMs, int? maxOutputChars = null, Regex? waitFor = null, CancellationToken ct = default) =>
+        Current.InteractAsync(sessionId, input, waitMs, maxOutputChars, waitFor, ct);
     public ShellStdinSession? GetStdinSession(string sessionId) => Current.GetStdinSession(sessionId);
     public Task<IReadOnlyList<BackgroundTerminalSnapshot>> ListAsync(string? threadId = null, CancellationToken ct = default) =>
         Current.ListAsync(threadId, ct);
