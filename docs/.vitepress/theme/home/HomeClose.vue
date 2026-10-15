@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import Backdrop from './Backdrop.vue'
 import CopyButton from './CopyButton.vue'
 import DownloadSplit from './DownloadSplit.vue'
+import GlyphField from './GlyphField.vue'
 import Icon from './Icon.vue'
 import InstallTabs from './InstallTabs.vue'
 import PerchedMascot from './PerchedMascot.vue'
@@ -17,6 +18,7 @@ const mascot = ref<InstanceType<typeof PerchedMascot>>()
 <template>
   <section class="dc-close" aria-labelledby="close-title">
     <Backdrop />
+    <GlyphField />
     <div class="dc-wrap">
       <h2 id="close-title">{{ t.close.title }}</h2>
       <div class="dc-close__composer">

@@ -96,12 +96,16 @@
   text-align: center;
 }
 
-.dc-backdrop {
+.dc-backdrop,
+.dc-glyphs {
   position: absolute;
   z-index: -1;
   overflow: hidden;
-  background: url("./media/hero-backdrop-light.webp") center / cover no-repeat;
   pointer-events: none;
+}
+
+.dc-backdrop {
+  background: url("./media/hero-backdrop-light.webp") center / cover no-repeat;
 }
 
 .dark .dc-backdrop {
@@ -121,18 +125,56 @@
   opacity: 1;
 }
 
-.dc-hero .dc-backdrop {
+.dc-glyphs {
+  --field-light: #becafc;
+  --field-dark: #293c99;
+  --bg-primary: var(--field-light);
+  --accent: var(--dc-logo-gold);
+  contain: strict;
+  color: var(--field-dark);
+  font-family: var(--font-mono);
+  opacity: 0;
+  transition: opacity 900ms ease-out;
+}
+
+.dark .dc-glyphs {
+  --bg-primary: var(--field-dark);
+  color: var(--field-light);
+}
+
+.dc-glyphs[data-shown] {
+  opacity: 1;
+}
+
+.dc-glyphs__canvas {
+  position: absolute;
+  display: block;
+}
+
+.dc-hero :is(.dc-backdrop, .dc-glyphs) {
   inset: 0 0 auto;
   height: calc(var(--vp-nav-height) + 1040px);
   -webkit-mask-image: linear-gradient(180deg, #000 62%, transparent);
   mask-image: linear-gradient(180deg, #000 62%, transparent);
 }
 
-.dc-close .dc-backdrop {
+.dc-hero .dc-glyphs {
+  --clear: linear-gradient(180deg, transparent var(--vp-nav-height), #000 calc(var(--vp-nav-height) + 80px), #000 62%, transparent);
+  -webkit-mask-image: var(--clear);
+  mask-image: var(--clear);
+}
+
+.dc-close :is(.dc-backdrop, .dc-glyphs) {
   --fade: linear-gradient(180deg, transparent, rgb(0 0 0 / 0.05) 70px, rgb(0 0 0 / 0.2) 150px, rgb(0 0 0 / 0.48) 230px, rgb(0 0 0 / 0.8) 310px, #000 380px);
   inset: 120px 0 0;
   -webkit-mask-image: var(--fade);
   mask-image: var(--fade);
+}
+
+.dc-close .dc-glyphs {
+  --clear: linear-gradient(180deg, transparent, rgb(0 0 0 / 0.05) 70px, rgb(0 0 0 / 0.2) 150px, rgb(0 0 0 / 0.48) 230px, rgb(0 0 0 / 0.8) 310px, #000 380px, #000 calc(100% - 170px), transparent calc(100% - 90px));
+  -webkit-mask-image: var(--clear);
+  mask-image: var(--clear);
 }
 
 .dc-field {
@@ -278,7 +320,7 @@
     background-position: 30% center;
   }
 
-  .dc-hero .dc-backdrop {
+  .dc-hero :is(.dc-backdrop, .dc-glyphs) {
     height: calc(var(--vp-nav-height) + 860px);
   }
 
@@ -321,7 +363,7 @@
     text-align: left;
   }
 
-  .dc-close .dc-backdrop {
+  .dc-close :is(.dc-backdrop, .dc-glyphs) {
     top: 80px;
   }
 

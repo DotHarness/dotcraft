@@ -151,6 +151,7 @@ export function startWelcomeBackdrop(
     canvasClassName: string
     calm: () => HTMLElement | null
     onShown: () => void
+    contrast?: { dark: number; light: number }
   }
 ): WelcomeBackdropHandle | null {
   const doc = host.ownerDocument
@@ -260,7 +261,8 @@ export function startWelcomeBackdrop(
     const ink = parseColor(doc, style.color, [0.5, 0.5, 0.5])
     const bg = parseColor(doc, style.getPropertyValue('--bg-primary'), [0.5, 0.5, 0.5])
     const glow = parseColor(doc, style.getPropertyValue('--accent'), [0.2, 0.5, 1])
-    const strength = alphaForContrast(ink, bg, luminance(bg) < 0.18 ? LIT_CONTRAST.dark : LIT_CONTRAST.light)
+    const contrast = options.contrast ?? LIT_CONTRAST
+    const strength = alphaForContrast(ink, bg, luminance(bg) < 0.18 ? contrast.dark : contrast.light)
     gl.useProgram(glyphProgram)
     gl.uniform3f(glyph.ink, ...ink)
     gl.uniform3f(glyph.glow, ...glow)

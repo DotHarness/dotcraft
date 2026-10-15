@@ -4,6 +4,7 @@ import Backdrop from './Backdrop.vue'
 import CopyButton from './CopyButton.vue'
 import DemoWindow from './DemoWindow.vue'
 import DownloadSplit from './DownloadSplit.vue'
+import GlyphField from './GlyphField.vue'
 import Icon from './Icon.vue'
 import InstallTabs from './InstallTabs.vue'
 import PerchedMascot from './PerchedMascot.vue'
@@ -18,6 +19,7 @@ const mascot = ref<InstanceType<typeof PerchedMascot>>()
 <template>
   <section class="dc-hero" aria-labelledby="hero-title">
     <Backdrop />
+    <GlyphField />
     <div class="dc-wrap">
       <a class="dc-hero__eyebrow" href="https://github.com/DotHarness/dotcraft">
         <Icon name="github" :size="14" />

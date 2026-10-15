@@ -22,12 +22,18 @@ vec2 flow(vec2 uv, float t) {
   );
 }
 
+vec2 mirror(vec2 uv) {
+  return 1.0 - abs(1.0 - mod(uv, 2.0));
+}
+
 void main() {
+  float t = u_time * 1.3;
   vec2 uv = v_uv;
-  uv += flow(uv, u_time) * 0.018;
-  uv += flow(uv * 1.6 + 4.0, u_time * 0.8) * 0.012;
+  uv += flow(uv, t) * 0.026;
+  uv += flow(uv * 1.6 + 4.0, t * 0.8) * 0.016;
+  uv = 0.5 + (uv - 0.5) * (1.0 - 0.04 * (0.5 + 0.5 * sin(u_time * 0.11)));
   vec2 image = uv * u_cover + u_focus * (1.0 - u_cover);
-  gl_FragColor = texture2D(u_image, clamp(image, 0.0, 1.0));
+  gl_FragColor = texture2D(u_image, mirror(image));
 }
 `
 

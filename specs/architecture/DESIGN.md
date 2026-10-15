@@ -2148,12 +2148,24 @@ change here is mirrored in the docs theme. Two exceptions serve reading in a
 browser: the dark theme re-seeds `--seed-surface` deeper, so every derived dark
 surface moves together, and the home page's hero and closing call to action sit
 on a generated, fully defocused colour-field image in a light and a dark
-variant. The field drifts slowly, warping the same image so its colours never
-change; reduced motion or a missing WebGL context leaves it still. It fills the
+variant. The field drifts and breathes slowly, warping the same image so its
+colours never change; reduced motion or a missing WebGL context leaves it still. It fills the
 hero edge to edge from the top of the window and fades into the main surface
 behind the demo window. The closing field starts a clear gap below the section
 before it, fades in on an eased ramp, so no edge or band shows, and runs to the
 bottom of the page, carrying the footer with no rule or surface change. Copy over it uses frosted or near-primary text so it stays legible.
+
+The [Welcome backdrop](#welcome-backdrop)'s character field lies over both
+colour fields, covering the same area and fading with it, and clears under the
+top band and above the footer so their labels stay clean. It keeps that
+section's wind, pointer, click ripple, pacing, and fallback rules, with three
+changes for the colour field. Characters take the other theme's field tone, deep
+blue in the light theme and pale blue in the dark one, so they stay in the
+field's hue instead of greying it. Their strength is set against the field's own
+mean tone: a fully lit character reaches about 2.2:1 in the dark theme and 1.8:1
+in the light one, so the field reads behind bright and deep colour alike. A
+click glows in the logo gold instead of `--accent`. The field stays nearly empty
+behind the hero copy and the closing composer.
 
 - A chrome-tone band runs across the top of every page. On the home page it
   carries only the lockup, language, appearance, and GitHub, with no section
