@@ -81,6 +81,7 @@ import { Skeleton } from '../ui/Skeleton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
+import { WelcomeBackdrop } from './welcomeBackdrop/WelcomeBackdrop'
 import {
   ComposerStatusContent,
   ComposerToolbarLeadingSlots,
@@ -280,6 +281,7 @@ function ConversationWelcomeCore({
   const suggestionFingerprintRef = useRef<string | null>(null)
   const suggestionRequestSeqRef = useRef(0)
   const richRef = useRef<RichInputAreaHandle>(null)
+  const welcomeContentRef = useRef<HTMLDivElement>(null)
   const threadReferences = useComposerThreadReferences(null, richRef)
   const voiceRecording = useVoiceStore((state) => state.recording?.threadId === voiceThreadId)
   const voiceProcessing = useVoiceStore((state) => isVoiceProcessingForThread(
@@ -1525,11 +1527,14 @@ function ConversationWelcomeCore({
         overflow: 'hidden'
       }}
     >
+      <WelcomeBackdrop calmRef={welcomeContentRef} />
       <div style={welcomeHeaderActionsSlot}>
         <DetailPanelToggleButton />
       </div>
       <div
         style={{
+          position: 'relative',
+          zIndex: 1,
           flex: 1,
           minHeight: 0,
           overflowY: 'auto',
@@ -1539,6 +1544,7 @@ function ConversationWelcomeCore({
         }}
       >
         <div
+          ref={welcomeContentRef}
           style={{
             width: '100%',
             maxWidth: 'var(--conversation-reading-width)',

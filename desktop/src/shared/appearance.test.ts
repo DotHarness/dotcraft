@@ -110,7 +110,8 @@ describe('resolveAppearanceSettings', () => {
         reduceMotion: 'on',
         pointerCursors: true,
         interfaceZoom: 1.2,
-        translucentSidebar: false
+        translucentSidebar: false,
+        welcomeBackdrop: false
       })
     ).toEqual({
       themeMode: 'system',
@@ -121,7 +122,8 @@ describe('resolveAppearanceSettings', () => {
       reduceMotion: 'on',
       pointerCursors: true,
       interfaceZoom: 17 / 14, // resolves 1.2 by snapping to 17px
-      translucentSidebar: false
+      translucentSidebar: false,
+      welcomeBackdrop: false
     })
   })
 })

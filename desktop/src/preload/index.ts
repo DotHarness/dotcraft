@@ -1515,6 +1515,7 @@ const api = {
       pointerCursors?: boolean
       interfaceZoom?: number
       translucentSidebar?: boolean
+      welcomeBackdrop?: boolean
       locale?: AppLocale
       showThinkingContent?: boolean
       followUpQueueMode?: FollowUpQueueMode
@@ -1599,6 +1600,7 @@ const api = {
       pointerCursors?: boolean
       interfaceZoom?: number
       translucentSidebar?: boolean
+      welcomeBackdrop?: boolean
       locale?: AppLocale
       showThinkingContent?: boolean
       followUpQueueMode?: FollowUpQueueMode

@@ -358,6 +358,8 @@ renderer root element:
 - Diff markers (`color` vs `+/-`) change how `InlineDiffView` / `DiffViewer` present changes.
 - `data-reduce-motion` (`system | on | off`) gates animations; `data-pointer-cursors`
   toggles pointer cursors on interactive elements.
+- Welcome backdrop on or off via `data-welcome-backdrop` (see
+  [Welcome backdrop](#welcome-backdrop)).
 
 When adding animated, accent-driven, or code-sized UI, rely on these tokens/attributes rather
 than hardcoding colors, sizes, or unconditional animations, so user preferences are honored.
@@ -624,6 +626,32 @@ move; one part of the glyph does, for 340–720ms:
   opacity, in sequence, rather than hopping across pixel rows, and is drawn at least
   2.5 units wide; two strokes a unit or two apart, such as a lid held over a rim,
   merge into one, so the glyph never draws them together.
+
+### Welcome backdrop
+
+The welcome composer may sit on a field of small monospace characters that light up
+as gusts of wind pass over them. The field is decoration behind the composer, never
+content: it is hidden from assistive technology, never takes focus or blocks a
+pointer, and never competes with the heading, composer, or suggestions. Only some
+cells hold a character, unlit cells show nothing, and the field stays nearly empty
+behind the content, so it moves in the margins.
+
+- The wind blows on one heading chosen per visit, but nothing in it keeps time. It
+  surges and slackens, gusts change shape as they travel, groups of gusts arrive off
+  the beat, and calm spells come and go. A gust lights first on the side it is
+  heading for and thins out behind. Nothing in the field repeats on a fixed rhythm.
+- Characters use the ink of tertiary text and change slowly. Their strength is set by
+  contrast, not by a fixed opacity: a fully lit character reaches about 1.45:1 against
+  the background in dark themes and 1.32:1 in light ones, so it holds under custom
+  backgrounds and contrast while body text stays above 15:1. Only the moment of a click
+  brings in color, which follows `--accent` and may reach three times the plain light.
+- The field fades in over a few seconds, moves at about 25 frames a second, and
+  settles to rest after three minutes without pointer or keyboard activity. It stops
+  while the window is hidden or unfocused and resumes on return.
+- Moving the pointer lights the characters beneath it, and a click sends a ripple out
+  from that point, unless the click lands on a control.
+- Reduced motion draws one still frame. Without hardware WebGL2, with increased
+  contrast, or with forced colors, nothing is drawn.
 
 ## Controls
 

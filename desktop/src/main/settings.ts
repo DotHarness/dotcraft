@@ -139,6 +139,8 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   interfaceZoom?: number
   /** Omitted defaults to true. */
   translucentSidebar?: boolean
+  /** Omitted defaults to true. */
+  welcomeBackdrop?: boolean
   /** Display language (BCP 47); omitted or invalid values are treated as English */
   locale?: AppLocale
   /** Renderer-only preference; omitted or invalid values are treated as true */
@@ -349,6 +351,10 @@ function normalizeInterfaceZoomSetting(settings: AppSettings): number | undefine
 
 function normalizeTranslucentSidebarSetting(settings: AppSettings): boolean | undefined {
   return settings.translucentSidebar === false ? false : undefined
+}
+
+function normalizeWelcomeBackdropSetting(settings: AppSettings): boolean | undefined {
+  return settings.welcomeBackdrop === false ? false : undefined
 }
 
 function normalizeShowThinkingContent(settings: AppSettings): boolean | undefined {
@@ -624,6 +630,7 @@ export function loadSettings(): AppSettings {
       raw.pointerCursors = normalizePointerCursorsSetting(raw)
       raw.interfaceZoom = normalizeInterfaceZoomSetting(raw)
       raw.translucentSidebar = normalizeTranslucentSidebarSetting(raw)
+      raw.welcomeBackdrop = normalizeWelcomeBackdropSetting(raw)
       raw.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(raw)
       raw.profile = normalizeProfileSettings(raw)
       raw.voice = normalizeVoiceSettings(raw)
@@ -686,6 +693,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.pointerCursors = normalizePointerCursorsSetting(settings)
     settings.interfaceZoom = normalizeInterfaceZoomSetting(settings)
     settings.translucentSidebar = normalizeTranslucentSidebarSetting(settings)
+    settings.welcomeBackdrop = normalizeWelcomeBackdropSetting(settings)
     settings.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(settings)
     settings.profile = normalizeProfileSettings(settings)
     settings.voice = normalizeVoiceSettings(settings)

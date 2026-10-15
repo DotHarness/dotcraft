@@ -1176,6 +1176,8 @@ export const MESSAGES_DE = {
   'settings.appearance.reduceMotion.system': 'System',
   'settings.appearance.reduceMotion.on': 'Ein',
   'settings.appearance.reduceMotion.off': 'Aus',
+  'settings.appearance.welcomeBackdrop.label': 'Begrüßungshintergrund',
+  'settings.appearance.welcomeBackdrop.hint': 'Lässt blasse Zeichen hinter dem Eingabefeld für neue Chats treiben.',
   'settings.appearance.pointerCursors.label': 'Zeiger-Cursor verwenden',
   'settings.appearance.pointerCursors.hint': 'Ändert den Cursor in einen Zeiger, wenn du über interaktive Elemente fährst.',
   'settings.appearance.group.interface': 'Oberfläche',

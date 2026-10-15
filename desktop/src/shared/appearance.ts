@@ -32,6 +32,7 @@ export interface AppearanceSettings {
   interfaceZoom: number
   /** Whether the window chrome around the sidebar stays translucent. */
   translucentSidebar: boolean
+  welcomeBackdrop: boolean
 }
 
 export const CODE_FONT_SIZE_MIN = 10
@@ -72,7 +73,8 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   // switches interactive elements to the native arrow cursor.
   pointerCursors: true,
   interfaceZoom: DEFAULT_INTERFACE_ZOOM,
-  translucentSidebar: true
+  translucentSidebar: true,
+  welcomeBackdrop: true
 }
 
 /** The accent is one field of the theme seed, so it normalizes the same way every color does. */
@@ -115,6 +117,10 @@ export function normalizeTranslucentSidebar(raw: unknown): boolean {
   return raw !== false
 }
 
+export function normalizeWelcomeBackdrop(raw: unknown): boolean {
+  return raw !== false
+}
+
 /** Build a fully-normalized AppearanceSettings from loosely-typed persisted input. */
 export function resolveAppearanceSettings(raw: {
   theme?: unknown
@@ -126,6 +132,7 @@ export function resolveAppearanceSettings(raw: {
   pointerCursors?: unknown
   interfaceZoom?: unknown
   translucentSidebar?: unknown
+  welcomeBackdrop?: unknown
 } | null | undefined): AppearanceSettings {
   const source = raw ?? {}
   return {
@@ -137,6 +144,7 @@ export function resolveAppearanceSettings(raw: {
     reduceMotion: normalizeReduceMotion(source.reduceMotion),
     pointerCursors: normalizePointerCursors(source.pointerCursors),
     interfaceZoom: normalizeInterfaceZoom(source.interfaceZoom),
-    translucentSidebar: normalizeTranslucentSidebar(source.translucentSidebar)
+    translucentSidebar: normalizeTranslucentSidebar(source.translucentSidebar),
+    welcomeBackdrop: normalizeWelcomeBackdrop(source.welcomeBackdrop)
   }
 }

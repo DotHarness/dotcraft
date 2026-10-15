@@ -1176,6 +1176,8 @@ export const MESSAGES_JA = {
   'settings.appearance.reduceMotion.system': 'システム',
   'settings.appearance.reduceMotion.on': 'オン',
   'settings.appearance.reduceMotion.off': 'オフ',
+  'settings.appearance.welcomeBackdrop.label': 'ようこそ画面の背景',
+  'settings.appearance.welcomeBackdrop.hint': '新しいチャットの入力欄の背後で、淡い文字を風のように流します。',
   'settings.appearance.pointerCursors.label': 'ポインターカーソルを使用',
   'settings.appearance.pointerCursors.hint': '操作可能な要素にカーソルを合わせたときにポインターカーソルへ変更します。',
   'settings.appearance.group.interface': 'インターフェース',

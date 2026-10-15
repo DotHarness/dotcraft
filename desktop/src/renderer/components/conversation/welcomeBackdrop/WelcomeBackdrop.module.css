@@ -1,0 +1,21 @@
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  opacity: 0;
+  transition: opacity 900ms ease-out;
+}
+
+.layer[data-shown="true"] {
+  opacity: 1;
+}
+
+.canvas {
+  position: absolute;
+  display: block;
+}

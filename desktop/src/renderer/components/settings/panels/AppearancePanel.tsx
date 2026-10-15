@@ -9,7 +9,8 @@ import {
   applyCodeFontSize,
   applyPointerCursors,
   applyReduceMotion,
-  applyTranslucentSidebar
+  applyTranslucentSidebar,
+  applyWelcomeBackdrop
 } from '../../../utils/appearance'
 import {
   CODE_FONT_SIZE_MAX,
@@ -162,6 +163,12 @@ export function AppearancePanel(): JSX.Element {
     setAppearance((prev) => ({ ...prev, reduceMotion: mode }))
     applyReduceMotion(mode)
     void persist({ reduceMotion: mode })
+  }
+
+  function handleWelcomeBackdrop(on: boolean): void {
+    setAppearance((prev) => ({ ...prev, welcomeBackdrop: on }))
+    applyWelcomeBackdrop(on)
+    void persist({ welcomeBackdrop: on })
   }
 
   function handlePointerCursors(on: boolean): void {
@@ -372,6 +379,17 @@ export function AppearancePanel(): JSX.Element {
                 { value: 'on', label: t('settings.appearance.reduceMotion.on') },
                 { value: 'off', label: t('settings.appearance.reduceMotion.off') }
               ]}
+            />
+          }
+        />
+        <SettingsRow
+          label={t('settings.appearance.welcomeBackdrop.label')}
+          description={t('settings.appearance.welcomeBackdrop.hint')}
+          control={
+            <PillSwitch
+              checked={appearance.welcomeBackdrop}
+              aria-label={t('settings.appearance.welcomeBackdrop.label')}
+              onChange={handleWelcomeBackdrop}
             />
           }
         />

@@ -118,6 +118,10 @@ export function applyTranslucentSidebar(on: boolean): void {
   document.documentElement.setAttribute('data-translucent-sidebar', on ? 'true' : 'false')
 }
 
+export function applyWelcomeBackdrop(on: boolean): void {
+  document.documentElement.setAttribute('data-welcome-backdrop', on ? 'true' : 'false')
+}
+
 /**
  * Apply the document-level appearance preferences. Theme mode is applied via {@link applyTheme},
  * diff markers are held in the UI store, and interface zoom is applied via the renderer/main
@@ -129,4 +133,5 @@ export function applyAppearanceDom(appearance: AppearanceSettings): void {
   applyReduceMotion(appearance.reduceMotion)
   applyPointerCursors(appearance.pointerCursors)
   applyTranslucentSidebar(appearance.translucentSidebar)
+  applyWelcomeBackdrop(appearance.welcomeBackdrop)
 }
