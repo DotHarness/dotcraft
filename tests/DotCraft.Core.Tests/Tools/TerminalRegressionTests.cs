@@ -88,7 +88,7 @@ public sealed class TerminalRegressionTests : IAsyncLifetime
     [InlineData("powershell")]
     public async Task PowerShellBothStreamsKeepChinese(string selector)
     {
-        if (!OperatingSystem.IsWindows() && selector == "powershell") return;
+        if (!OperatingSystem.IsWindows()) return;
         Assert.True(ShellIdentityResolver.Host.TryResolve(selector, out var shell, out var reason), reason);
         var result = await _service.StartAsync(Request("[Console]::Out.Write('标准输出中文'); [Console]::Error.Write('错误输出中文')", shell));
         Assert.Equal(0, result.ExitCode);
