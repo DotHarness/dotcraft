@@ -52,7 +52,7 @@ DotCraft schema version `1` allows a plugin to contribute skills, MCP servers, l
 - Hooks-only plugins are valid when `hooks` points to plugin hook files or a root `hooks/hooks.json` exists.
 - Desktop Plugins declare one inline `desktop` entry, an optional contribution description, and optional styles inside `./desktop/dist/`.
 - Interface-only plugins are valid for catalog or UI metadata.
-- Managed plugins declare `dotnet` metadata and contribute native Tools from their C# implementation.
+- Managed plugins declare `dotnet` metadata and contribute in-process behavior, such as native Tools, through the .NET plugin contribution points.
 - Manifest fields `tools`, `functions`, and `processes` are unsupported and must not be generated.
 - Out-of-process executable capabilities can be exposed through MCP.
 - Thread-scoped AppServer client callbacks should use Runtime Dynamic Tools, not plugin manifest fields.
