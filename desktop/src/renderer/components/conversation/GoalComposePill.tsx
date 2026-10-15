@@ -1,11 +1,7 @@
 import { useState } from 'react'
-import type { CSSProperties } from 'react'
 import { CircleX, Target } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import {
-  COMPOSER_FOOTER_CONTROL_HEIGHT,
-  composerFooterControlHoverBackground
-} from './ComposerShell'
+import { composerModePillStyle } from './ComposerShell'
 
 /** Footer indicator shown while the composer is in goal-compose mode; clicking it exits. */
 export function GoalComposePill({
@@ -34,31 +30,12 @@ export function GoalComposePill({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         aria-label={ariaLabel}
-        style={goalComposePillStyle(active)}
+        className="dc-composer-pill"
+        style={composerModePillStyle}
       >
         <Icon size={13} strokeWidth={2} aria-hidden />
         <span>{label}</span>
       </button>
     </ActionTooltip>
   )
-}
-
-function goalComposePillStyle(active: boolean): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '6px',
-    height: COMPOSER_FOOTER_CONTROL_HEIGHT,
-    padding: '0 8px',
-    borderRadius: '999px',
-    border: 'none',
-    background: active ? composerFooterControlHoverBackground : 'transparent',
-    color: 'var(--composer-footer-text)',
-    cursor: 'pointer',
-    fontSize: 'var(--type-ui-size)',
-    lineHeight: 'var(--type-ui-line-height)',
-    fontWeight: 'var(--type-ui-emphasis-weight)',
-    outline: 'none',
-    transition: 'background-color 120ms ease, color 120ms ease'
-  }
 }

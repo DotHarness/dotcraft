@@ -19,7 +19,7 @@
   min-width: 0;
   align-items: center;
   align-self: flex-start;
-  padding: 3px 6px;
+  padding: 3px 0;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -65,19 +65,6 @@
   color: var(--text-secondary);
 }
 
-/* The transcript's one rule: agent activity above it, the answer below. Ordinary
-   tool rows nest inside a run and carry none. */
-.dc-tool-row[data-variant="turn"] > summary {
-  border-bottom: 1px solid var(--border-subtle);
-  border-radius: 0;
-}
-
-.dc-tool-row[data-tone="error"] > summary,
-.dc-tool-row[data-tone="error"][open] > summary,
-.dc-tool-row-static[data-tone="error"] {
-  color: var(--error);
-}
-
 .dc-tool-row-title {
   display: inline-flex;
   max-width: 100%;
@@ -88,7 +75,6 @@
 
 .dc-tool-row-icon {
   flex-shrink: 0;
-  margin-inline-end: -2px;
 }
 
 .dc-tool-row-icon[data-tone="warning"] {
@@ -137,11 +123,9 @@
   opacity: 1;
 }
 
-/* The panel is the row's own content, so it starts at the row's text edge. */
 .dc-tool-panel {
   min-width: 0;
   margin: 2px 0 6px;
-  padding-left: 6px;
   color: var(--text-secondary);
   font-size: var(--conversation-secondary-size);
   line-height: var(--conversation-line-height);
@@ -158,23 +142,49 @@
   padding: 8px;
 }
 
-/* Rows nesting under a row indent; a panel does not. */
-.dc-tool-children {
-  margin: 0 0 4px 6px;
-  padding-left: 12px;
+@property --dc-tool-children-fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
 }
 
-/* A live group bounds its children so a long run cannot push the answer off screen. */
-.dc-tool-children[data-live="true"] {
-  max-height: 162px;
+@property --dc-tool-children-fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.dc-tool-children {
+  max-height: 224px;
+  margin: 0 0 4px;
   overflow-y: auto;
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    #000 18px,
-    #000 calc(100% - 18px),
+    #000 var(--dc-tool-children-fade-top),
+    #000 calc(100% - var(--dc-tool-children-fade-bottom)),
     transparent 100%
   );
+  animation: dc-tool-children-fade linear both;
+  animation-timeline: scroll(self);
+}
+
+@keyframes dc-tool-children-fade {
+  0% {
+    --dc-tool-children-fade-top: 0px;
+    --dc-tool-children-fade-bottom: 18px;
+  }
+
+  10%,
+  90% {
+    --dc-tool-children-fade-top: 18px;
+    --dc-tool-children-fade-bottom: 18px;
+  }
+
+  100% {
+    --dc-tool-children-fade-top: 18px;
+    --dc-tool-children-fade-bottom: 0px;
+  }
 }
 
 .dc-tool-chevron {
@@ -209,7 +219,7 @@
 }
 
 .dc-subagent-chips {
-  padding: 3px 6px;
+  padding: 3px 0;
   color: var(--text-dimmed);
   font-size: var(--conversation-font-size);
   line-height: var(--conversation-line-height);

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.8 |
+| Version | 0.7.9 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-15 |
 
 The Desktop implements `NodeReplJs` with one lazily created Electron utility process per task. This execution contract is shared by the in-app browser and Chrome clients and by Windows computer use. The existing evaluate/cancel request and text, image, logs, result and error response fields remain unchanged.
 
@@ -21,7 +21,9 @@ Assignment to `const` is an error. Existing closures observe a redeclared bindin
 
 `nodeRepl.cwd` exposes the active workspace directory and `nodeRepl.homeDir` exposes the host user's home directory. Host-specific paths remain available through `dotcraft`.
 
-The model-visible declaration uses the existing `[ToolDeclaration]` generator for its name, description and parameter schema. The plugin descriptor adds runtime plugin identity and namespace; invocation remains a plugin-native proxy to preserve multimodal results, metadata and binding leases. `code` remains required; `timeoutSeconds` remains an optional integer with no schema default. Generated declarations reject additional properties.
+The model-visible declaration uses the existing `[ToolDeclaration]` generator for its name, description and parameter schema. The plugin descriptor adds runtime plugin identity and namespace; invocation remains a plugin-native proxy to preserve multimodal results, metadata and binding leases. `code` remains required; `title` is an optional short, user-facing description of the run, and `timeoutSeconds` remains an optional integer with no schema default. Generated declarations reject additional properties. The browser, Chrome and computer skills ask for a `title` on every call.
+
+Policy and approval keep the plugin-native definition identity. The registration is presented as Core-native with presentation `core.node-repl` and option `surface` set to the runtime plugin (`browser`, `chrome` or `computer`), so Desktop can trust it for rendering. Desktop labels a call with its `title`, truncated to 80 characters; without one it names the surface ("Used the browser", "Used Chrome", "Used the computer"). The row's icon follows the surface, and a tool group names the surface as one of its kinds. The expanded row shows the result text and images, not the code.
 
 ## Process ownership and cancellation
 

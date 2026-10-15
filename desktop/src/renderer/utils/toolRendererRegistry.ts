@@ -21,6 +21,7 @@ export type ToolRendererFamily =
   | 'deferredSearch'
   | 'agentBuilder'
   | 'remoteToolHost'
+  | 'nodeRepl'
 
 export interface ToolRendererPlan {
   family: ToolRendererFamily
@@ -115,6 +116,11 @@ function hasBuilderField(options: Readonly<Record<string, unknown>>): boolean {
     && isBuilderField(options.field)
 }
 
+function hasSurface(options: Readonly<Record<string, unknown>>): boolean {
+  return Object.keys(options).length === 1
+    && (options.surface === 'browser' || options.surface === 'chrome' || options.surface === 'computer')
+}
+
 function hasOperation(...allowed: readonly string[]) {
   return (options: Readonly<Record<string, unknown>>): boolean => (
     Object.keys(options).length === 1
@@ -158,7 +164,8 @@ export const CORE_TOOL_PRESENTATION_IDS = {
   todo: 'core.todo',
   deferredSearch: 'core.deferred-search',
   agentBuilder: 'core.agent-builder',
-  remoteToolHost: 'core.remote-tool-host'
+  remoteToolHost: 'core.remote-tool-host',
+  nodeRepl: 'core.node-repl'
 } as const
 
 export const coreToolRendererRegistry = new ToolRendererRegistry([
@@ -202,6 +209,7 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   registration(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'agentBuilder', {
     mode: 'standalone'
   }, hasBuilderField),
+  registration(CORE_TOOL_PRESENTATION_IDS.nodeRepl, 'nodeRepl', { mode: 'collapsible' }, hasSurface),
   registration(CORE_TOOL_PRESENTATION_IDS.remoteToolHost, 'remoteToolHost', {
     mode: 'collapsible'
   }, hasOperation('list', 'connect', 'disconnect', 'transfer'))

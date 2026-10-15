@@ -36,7 +36,7 @@ export const activate: DesktopPluginActivate = async (host) => {
     commands: [
       {
         id: 'toggle',
-        label: { default: 'Token HUD: show or hide', translations: translationsOf('toggleCommand') },
+        label: { default: 'Toggle Token HUD', translations: translationsOf('toggleCommand') },
         description: {
           default: 'Shows or hides the performance readout.',
           translations: translationsOf('toggleDescription')

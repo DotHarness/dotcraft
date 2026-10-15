@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, memo, useEffect, useState, type ReactNode } from 'react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
 import { useLocale } from '../../contexts/LocaleContext'
@@ -60,6 +60,7 @@ import {
 } from '../../utils/skillViewToolDisplay'
 import { isToolItemLive, resolveShellBackgroundState, type ShellBackgroundState } from '../../utils/toolCallAggregation'
 import { formatDefaultToolResultForDisplay } from '../../utils/toolResultDisplay'
+import { normalizeNodeReplTitle } from '../../utils/nodeReplToolDisplay'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { SubAgentToolResultCard, getSubAgentToolDisplay, formatSubAgentRunningLabel } from './SubAgentToolResultCard'
 import { BoardToolCard } from './BoardToolCard'
@@ -105,6 +106,9 @@ function formatRunningToolLabel(
   }
   if (rendererFamily === 'skillView' && args) {
     return formatSkillViewRunningLabel(args, locale)
+  }
+  if (rendererFamily === 'nodeRepl' && args) {
+    return normalizeNodeReplTitle(args.title) ?? streamingLabel
   }
   if (isWebToolKind(kind) && kind !== 'toolSearch' && args && !invocationNeedsCallingPrefix(kind, args)) {
     return formatInvocationDisplay(kind, args, locale) ?? streamingLabel
@@ -226,10 +230,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   const workspacePath = useTranscriptWorkspacePath()
   const [hovered, setHovered] = useState(false)
   const [expanded, setExpanded] = useState(false)
-  const [autoExpanded, setAutoExpanded] = useState(false)
-  const [userInteracted, setUserInteracted] = useState(false)
   const [elapsedMs, setElapsedMs] = useState(0)
-  const autoExpandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const toolName = item.toolName ?? 'tool'
   const pluginRenderer = useDesktopPluginRegistry((state) => {
@@ -339,8 +340,6 @@ export const ToolCallCard = memo(function ToolCallCard({
     && !isTodoTool
     && (remoteToolHostRow?.expandable ?? true)
     && (isSkillManageTool ? !!renderableSkillManageDiff : hasCompletedExpandableContent)
-  const autoExpandEligible = (isShellTool || isStreamingFileTool || !!remoteTransfer)
-    && (isRunning ? hasRunningExpandableContent : hasCompletedExpandableContent)
   const hasFinalArgs = args != null && Object.keys(args).length > 0
   const subAgentRunningLabel = hasFinalArgs && rendererFamily === 'subagent'
     ? formatSubAgentRunningLabel(rendererOperation, args, locale, subAgentLookup)
@@ -360,81 +359,15 @@ export const ToolCallCard = memo(function ToolCallCard({
     ? formatFileToolLabel(rendererOperation, renderableStreamingFileDiff, runningBaseLabel, locale)
     : runningBaseLabel
 
+  const canExpand = isRunning ? canExpandWhileRunning : canExpandCompleted
+
   function toggleExpand(): void {
-    if ((isRunning && canExpandWhileRunning) || (!isRunning && canExpandCompleted)) {
-      setUserInteracted(true)
-      if (autoExpandTimerRef.current != null) {
-        clearTimeout(autoExpandTimerRef.current)
-        autoExpandTimerRef.current = null
-      }
-      setAutoExpanded(false)
-      setExpanded((v) => !v)
-    }
+    if (canExpand) setExpanded((v) => !v)
   }
 
   useEffect(() => {
-    const canExpand = isRunning ? canExpandWhileRunning : canExpandCompleted
-    if (canExpand) return
-    if (autoExpandTimerRef.current != null) {
-      clearTimeout(autoExpandTimerRef.current)
-      autoExpandTimerRef.current = null
-    }
-    if (expanded) {
-      setExpanded(false)
-    }
-    if (autoExpanded) {
-      setAutoExpanded(false)
-    }
-  }, [autoExpanded, canExpandCompleted, canExpandWhileRunning, expanded, isRunning])
-
-  useEffect(() => {
-    if (!autoExpandEligible) {
-      if (autoExpandTimerRef.current != null) {
-        clearTimeout(autoExpandTimerRef.current)
-        autoExpandTimerRef.current = null
-      }
-      if (autoExpanded) {
-        setAutoExpanded(false)
-      }
-      return
-    }
-
-    if (liveInTurn) {
-      if (!userInteracted && !expanded && autoExpandTimerRef.current == null) {
-        autoExpandTimerRef.current = setTimeout(() => {
-          setExpanded(true)
-          setAutoExpanded(true)
-          autoExpandTimerRef.current = null
-        }, 400)
-      }
-      return
-    }
-
-    if (autoExpandTimerRef.current != null) {
-      clearTimeout(autoExpandTimerRef.current)
-      autoExpandTimerRef.current = null
-    }
-
-    const shouldAutoCollapse = !userInteracted && expanded && autoExpanded
-    if (shouldAutoCollapse) {
-      setExpanded(false)
-      setAutoExpanded(false)
-      return
-    }
-
-    if (autoExpanded) {
-      setAutoExpanded(false)
-    }
-  }, [autoExpandEligible, autoExpanded, liveInTurn, expanded, userInteracted])
-
-  useEffect(() => {
-    return () => {
-      if (autoExpandTimerRef.current != null) {
-        clearTimeout(autoExpandTimerRef.current)
-        autoExpandTimerRef.current = null
-      }
-    }
-  }, [])
+    if (!canExpand) setExpanded(false)
+  }, [canExpand])
 
   if (!isRunning && hasAvailableMcpApp(item)) {
     return <McpAppView item={item} threadId={threadId} turnId={turnId} />
@@ -673,7 +606,6 @@ export const ToolCallCard = memo(function ToolCallCard({
       onToggle={toggleExpand}
       expandable={canExpandCompleted}
       onHoverChange={setHovered}
-      tone={success ? undefined : 'error'}
       icon={rowIcon}
       title={remoteToolHostRow?.title ?? completedTitle}
       accessory={completedAccessory}

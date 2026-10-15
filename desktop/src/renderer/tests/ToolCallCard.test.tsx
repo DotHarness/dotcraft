@@ -706,54 +706,6 @@ describe('ToolCallCard shell rendering', () => {
     vi.useRealTimers()
   })
 
-  it('auto-expands eligible running tools after threshold and auto-collapses after the collapse animation completes', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-04-13T10:00:00.000Z'))
-    const runningItem: ConversationItem = {
-      id: 'tool-auto-open',
-      type: 'toolCall',
-      status: 'started',
-      toolName: 'Exec', ...coreToolFields('Exec'),
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
-      toolCallId: 'exec-auto-open-1',
-      arguments: { command: 'sleep 10' },
-      aggregatedOutput: 'booting\n',
-      createdAt: '2026-04-13T10:00:00.000Z'
-    }
-    const completedItem: ConversationItem = {
-      ...runningItem,
-      status: 'completed',
-      aggregatedOutput: 'ok',
-      result: 'ok',
-      success: true,
-      duration: 820
-    }
-
-    const { rerender } = render(
-      <LocaleProvider>
-        <ToolCallCard threadId="thread-1" item={runningItem} turnId="turn-1" turnRunning />
-      </LocaleProvider>
-    )
-
-    expect(document.querySelector('pre')).toBeNull()
-
-    act(() => {
-      vi.advanceTimersByTime(450)
-    })
-
-    expect(document.querySelector('pre')).toBeInTheDocument()
-
-    rerender(
-      <LocaleProvider>
-        <ToolCallCard threadId="thread-1" item={completedItem} turnId="turn-1" turnRunning />
-      </LocaleProvider>
-    )
-
-    expect(document.querySelector('pre')).toBeInTheDocument()
-    expect(document.querySelector('.dc-tool-row')).not.toHaveAttribute('open')
-    vi.useRealTimers()
-  })
-
   it('does not auto-expand running Exec before output exists', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-13T10:00:00.000Z'))
@@ -776,33 +728,6 @@ describe('ToolCallCard shell rendering', () => {
 
     expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
     fireEvent.click(screen.getByTestId('tool-row'))
-    expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
-    vi.useRealTimers()
-  })
-
-  it('does not auto-expand non-eligible tools while running', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-04-13T10:00:00.000Z'))
-    const runningItem: ConversationItem = {
-      id: 'tool-no-auto-open',
-      type: 'toolCall',
-      status: 'started',
-      toolName: 'WebFetch', ...coreToolFields('WebFetch'),
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebFetch' },
-      presentation: { presentationId: 'core.web', options: { operation: 'fetch' } },
-      toolCallId: 'webfetch-2',
-      arguments: { url: 'https://dotcraft.ai' },
-      createdAt: '2026-04-13T10:00:00.000Z'
-    }
-
-    renderWithLocale(<ToolCallCard threadId="thread-1" item={runningItem} turnId="turn-1" />)
-
-    expect(document.querySelector('[data-running-shimmer]')).toBeInTheDocument()
-
-    act(() => {
-      vi.advanceTimersByTime(450)
-    })
-
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
     vi.useRealTimers()
   })

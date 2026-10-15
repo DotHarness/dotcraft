@@ -1,5 +1,5 @@
 ---
-version: "0.8.7"
+version: "0.8.8"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -94,8 +94,8 @@ components:
   turn-activity-status:
     color: "{colors.text-secondary}"
     typography: "conversation body; regular; tabular numerals"
-    padding: "no vertical padding; label inset 6px to align with tool-row text"
-    divider: "full-width 1px border-default; 8px below standalone text, 4px below disclosure text"
+    padding: "no vertical padding; label flush with tool-row and reply text"
+    divider: "full-width 1px border-default, 4px below the label whether working, worked, or stopped"
     spacing: "16px from the boundary to activity or final response content"
     behavior: "Working/worked/stopped share one top boundary before activity; final answer enables collapse; cancellation keeps output expanded"
   primary-action:
@@ -1421,6 +1421,13 @@ own placeholder and state already say.
   branch or changelist control. Context-row chips share one footer pill (28px,
   pill radius, `--composer-footer-text`) and open their menus upward from the
   row; the work-location chip names the branch it works on in a hover tooltip.
+- Every capsule in the card's action row and the context row (mode, goal, model,
+  permissions, project, Run on, location, branch, subscription) shares
+  `.dc-composer-pill` with the icon-only controls' states: transparent at rest,
+  `--sidebar-control-hover` on hover, `--sidebar-control-active` while its menu or
+  popover is open, and an accent outline only for keyboard focus. The label keeps
+  its colour, and there is no separate pressed fill. Opaque surface fills belong to
+  page controls, never to these capsules.
 - The send control is one 32px button whose glyph follows the turn: Send at rest
   or with a draft to steer or queue, Stop while a turn runs with an empty draft,
   and a spinner while stopping. The glyphs stack in one cell and crossfade on
@@ -1506,13 +1513,15 @@ long labels slide underneath.
 
 ### Tool rows
 
-Each individual tool row leads with a 16px activity icon, 4px before its summary.
+Each tool row leads with a 16px activity icon, 6px before its summary, and the icon
+sits flush with the reply's text edge. A group row ("Edited files, ran commands")
+takes the icon of the first kind it names, and its expanded rows sit flush beneath it.
 The icon takes the row's text colour, so it rests dimmed and lifts with the row on
-hover; only a declined command tints it, in `--warning`. Grouped summary rows
-("Explored …", "Ran commands") carry no icon; their expanded child rows do. Rows
-that already lead with an identity mark (subagents) and cards with their own
-surface (automation, agent builder, plan, workflow, image, browser) take none.
-The summary stays one line and ellipsizes, however long the command.
+hover; only a declined command tints it, in `--warning`. A failed call's row and its
+group keep the neutral colours; the failure reads in the expanded output. Rows that already lead with
+an identity mark (subagents) and cards with their own surface (automation, agent
+builder, plan, workflow, image, browser) take none. The summary stays one line and
+ellipsizes, however long the command.
 
 | Activity | Icon |
 |---|---|
@@ -1524,6 +1533,7 @@ The summary stays one line and ellipsizes, however long the command.
 | File listing | folder |
 | File or skill edit | pencil |
 | Memory update | brain |
+| Viewed image | image |
 | Web search or fetch | globe |
 | Discussion board read or change | speech bubbles |
 | Any other tool | wrench |

@@ -20,9 +20,7 @@ import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
 import {
-  composerFooterControlActiveBackground,
   composerFooterControlBoxStyle,
-  composerFooterControlHoverBackground
 } from './ComposerShell'
 import { EffortSlider } from './EffortSlider'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
@@ -91,7 +89,6 @@ export function ModelPicker({
   const t = useT()
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<View>('panel')
-  const [triggerActive, setTriggerActive] = useState(false)
   const [secondary, setSecondary] = useState<SecondaryMenu | null>(null)
   const [secondaryTop, setSecondaryTop] = useState(6)
   const [secondaryOpensLeft, setSecondaryOpensLeft] = useState(false)
@@ -527,12 +524,7 @@ export function ModelPicker({
           aria-expanded={interactive ? open : undefined}
           aria-controls={interactive && open ? menuId : undefined}
           disabled={!interactive}
-          onMouseEnter={() => setTriggerActive(true)}
-          onMouseLeave={() => setTriggerActive(false)}
-          onFocus={(event) => {
-            if (event.currentTarget.matches(':focus-visible')) setTriggerActive(true)
-          }}
-          onBlur={() => setTriggerActive(false)}
+          className="dc-composer-pill"
           onClick={() => {
             if (!interactive) return
             if (open) closePicker()
@@ -545,13 +537,6 @@ export function ModelPicker({
           }}
           style={{
             ...triggerStyle,
-            backgroundColor: interactive
-              ? open
-                ? composerFooterControlActiveBackground
-                : triggerActive
-                  ? composerFooterControlHoverBackground
-                  : 'transparent'
-              : 'transparent',
             cursor: interactive ? 'pointer' : 'default'
           }}
         >

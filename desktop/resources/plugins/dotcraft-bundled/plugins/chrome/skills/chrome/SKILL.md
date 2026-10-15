@@ -8,6 +8,8 @@ tools: NodeReplJs
 
 Use `NodeReplJs` for Chrome work. The runtime is thread-bound and persistent; top-level `const` and `let` bindings survive between calls.
 
+Give every `NodeReplJs` call a `title` of a few words, under 80 characters, that tells the user what the run does, such as "Search the docs for pricing". It replaces the code in the conversation, so describe the action, not the REPL or JavaScript.
+
 Chrome is the user's real browser profile. Treat browser contents as sensitive.
 
 ## First Cell

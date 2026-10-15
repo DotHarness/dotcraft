@@ -207,6 +207,27 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StartAsync_ShellExitWhileDescendantHoldsOutput_CompletesWithoutWaitingForDescendant()
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var completed = await Service.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread_orphan",
+            Command = OperatingSystem.IsWindows()
+                ? "echo before-exit & start /b ping -n 15 127.0.0.1"
+                : "echo before-exit; sleep 15 &",
+            WorkingDirectory = _tempDir,
+            Shell = OperatingSystem.IsWindows() ? ResolveShell("cmd") : null,
+            TimeoutSeconds = 30,
+            MaxOutputChars = 10_000
+        });
+
+        Assert.Equal(BackgroundTerminalStatus.Completed, completed.Status);
+        Assert.Contains("before-exit", completed.Output);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"Completion waited {stopwatch.Elapsed} for the descendant.");
+    }
+
+    [Fact]
     public async Task StartAsync_CallerCancellation_KillsForegroundProcessTreeAndPropagates()
     {
         var events = new ConcurrentQueue<BackgroundTerminalEvent>();

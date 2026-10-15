@@ -14,6 +14,7 @@ import type { ComposerRuntime } from '../conversation/useComposerRunState'
 import { collectConversationImages, ConversationImagesContext } from '../conversation/imagePreview/galleryImages'
 import { RequestUserInputComposer } from '../conversation/RequestUserInputComposer'
 import { ScrollToBottomButton } from '../conversation/ScrollToBottomButton'
+import { ConversationColumn } from '../conversation/ConversationColumn'
 import { TranscriptTurn } from '../conversation/TranscriptTurn'
 import { Button } from '../ui/Button'
 import styles from './SideChat.module.css'
@@ -138,20 +139,22 @@ function SideChatTranscript({ chat, running }: { chat: SideChat; running: boolea
           </div>
         ) : (
           <ConversationImagesContext.Provider value={getConversationImages}>
-            {turns.map((turn, index) => {
-              const isLastTurn = index === turns.length - 1
-              return (
-                <TranscriptTurn
-                  key={turn.id}
-                  threadId={chat.threadId ?? chat.key}
-                  turn={turn}
-                  isLastTurn={isLastTurn}
-                  running={running && isLastTurn}
-                  live={isLastTurn ? live : null}
-                  renderTurnCompletion={NO_TURN_COMPLETION}
-                />
-              )
-            })}
+            <ConversationColumn className="dc-conversation-column-stack">
+              {turns.map((turn, index) => {
+                const isLastTurn = index === turns.length - 1
+                return (
+                  <TranscriptTurn
+                    key={turn.id}
+                    threadId={chat.threadId ?? chat.key}
+                    turn={turn}
+                    isLastTurn={isLastTurn}
+                    running={running && isLastTurn}
+                    live={isLastTurn ? live : null}
+                    renderTurnCompletion={NO_TURN_COMPLETION}
+                  />
+                )
+              })}
+            </ConversationColumn>
           </ConversationImagesContext.Provider>
         )}
       </div>

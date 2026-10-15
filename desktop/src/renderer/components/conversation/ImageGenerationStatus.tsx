@@ -71,7 +71,7 @@ const imageGenerationRowStyle: CSSProperties = {
   alignItems: 'center',
   gap: '8px',
   minHeight: '28px',
-  padding: '3px 6px',
+  padding: '3px 0',
   color: 'var(--text-secondary)',
   fontSize: 'var(--conversation-font-size)',
   lineHeight: 'var(--conversation-line-height)',
@@ -93,5 +93,5 @@ const imageGenerationLabelStyle: CSSProperties = {
 const imageGenerationSkeletonFrameStyle: CSSProperties = {
   width: '180px',
   height: '180px',
-  padding: '0 6px'
+  padding: 0
 }

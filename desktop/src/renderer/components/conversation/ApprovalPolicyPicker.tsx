@@ -16,9 +16,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 import {
-  composerFooterControlActiveBackground,
   composerFooterControlBoxStyle,
-  composerFooterControlHoverBackground,
   composerModelPillStyle
 } from './ComposerShell'
 import css from './ApprovalPolicyPicker.module.css'
@@ -62,7 +60,6 @@ export function ApprovalPolicyPicker({
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
   const [saving, setSaving] = useState(false)
-  const [triggerActive, setTriggerActive] = useState(false)
   const configuredDefault = useConfigValue('Permissions.DefaultApprovalPolicy')
   const workspaceDefault = resolveConcreteApprovalPolicyFromWorkspaceDefault(workspaceDefaultOverride ?? configuredDefault)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -214,25 +211,13 @@ export function ApprovalPolicyPicker({
           aria-expanded={interactive ? open : undefined}
           aria-controls={interactive && open ? listId : undefined}
           disabled={!interactive}
-          onMouseEnter={() => setTriggerActive(true)}
-          onMouseLeave={() => setTriggerActive(false)}
-          onFocus={(event) => {
-            if (event.currentTarget.matches(':focus-visible')) setTriggerActive(true)
-          }}
-          onBlur={() => setTriggerActive(false)}
+          className="dc-composer-pill"
           onClick={() => {
             if (!interactive) return
             setOpen((current) => !current)
           }}
           style={{
             ...composerModelPillStyle(triggerColor, !interactive),
-            backgroundColor: interactive
-              ? open
-                ? composerFooterControlActiveBackground
-                : triggerActive
-                  ? composerFooterControlHoverBackground
-                  : 'transparent'
-              : 'transparent',
             cursor: interactive ? 'pointer' : 'default'
           }}
         >

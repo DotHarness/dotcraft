@@ -122,7 +122,7 @@ export const activate: DesktopPluginActivate = async (host) => {
     commands: [
       {
         id: 'next-scene',
-        label: { default: 'Wallpaper: next scene', translations: translationsOf('nextCommand') },
+        label: { default: 'Next wallpaper scene', translations: translationsOf('nextCommand') },
         description: {
           default: 'Cycles the scene for the current theme.',
           translations: translationsOf('nextDescription')
@@ -138,7 +138,7 @@ export const activate: DesktopPluginActivate = async (host) => {
       },
       {
         id: 'toggle',
-        label: { default: 'Wallpaper: show or hide', translations: translationsOf('toggleCommand') },
+        label: { default: 'Toggle wallpaper', translations: translationsOf('toggleCommand') },
         description: {
           default: 'Turns the wallpaper off and back on.',
           translations: translationsOf('toggleDescription')

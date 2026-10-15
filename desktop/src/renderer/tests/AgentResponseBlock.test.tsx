@@ -478,7 +478,7 @@ describe('AgentResponseBlock tool transcript rendering', () => {
       .toHaveAttribute('src', 'data:image/png;base64,preview')
   })
 
-  it('renders ReadFile image output from a hydrated toolResult after the tool row', () => {
+  it('shows a ReadFile image as a Viewed an image row whose thumbnail opens on demand', () => {
     const turn: ConversationTurn = {
       id: 'turn-readfile-image',
       threadId: 'thread-1',
@@ -512,7 +512,8 @@ describe('AgentResponseBlock tool transcript rendering', () => {
       </LocaleProvider>
     )
 
-    expect(screen.getByTestId('tool-output-image-gallery')).toBeInTheDocument()
+    expect(screen.queryByTestId('tool-output-image-gallery')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Viewed an image' }))
     expect(screen.getByRole('img', { name: 'Tool output image 1' }))
       .toHaveAttribute('src', 'data:image/png;base64,AQID')
 
@@ -619,7 +620,7 @@ describe('AgentResponseBlock tool transcript rendering', () => {
     expect(clipboardItem.items['image/png'].type).toBe('image/png')
   })
 
-  it('renders grouped tool images once after the group row', () => {
+  it('keeps images of grouped calls inside the expanded group', () => {
     const turn: ConversationTurn = {
       id: 'turn-grouped-image',
       threadId: 'thread-1',
@@ -627,7 +628,7 @@ describe('AgentResponseBlock tool transcript rendering', () => {
       startedAt: '2026-04-18T10:07:00.000Z',
       items: [
         {
-          ...makeToolCallItem('read-tool-1', 'read-call-1', 'ReadFile', '2026-04-18T10:07:01.000Z', DECLARED),
+          ...makeToolCallItem('shell-tool-1', 'shell-call-1', 'Exec', '2026-04-18T10:07:01.000Z', DECLARED),
           contentItems: [
             { type: 'image', mediaType: 'image/png', dataBase64: 'grouped' }
           ]
@@ -642,8 +643,8 @@ describe('AgentResponseBlock tool transcript rendering', () => {
       </LocaleProvider>
     )
 
-    expect(screen.getAllByTestId('tool-output-image')).toHaveLength(1)
-    fireEvent.click(screen.getAllByRole('button')[0])
+    expect(screen.queryByTestId('tool-output-image')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Explored a file, ran a command/ }))
     expect(screen.getAllByTestId('tool-output-image')).toHaveLength(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview tool output image 1' }))
@@ -660,7 +661,7 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       })
   })
 
-  it('keeps trailing completed tool run as single cards while the turn is still running', () => {
+  it('shows the trailing run of a running turn as one active row that hosts Thinking', () => {
     const turn: ConversationTurn = {
       id: 'turn-tail-running',
       threadId: 'thread-1',
@@ -674,15 +675,16 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
 
     render(
       <LocaleProvider>
-        <AgentResponseBlock turn={turn} isRunning />
+        <AgentResponseBlock turn={turn} isRunning showIdleThinkingFallback />
       </LocaleProvider>
     )
 
-    expect(screen.queryByText('Explored 2 files')).toBeNull()
-    expect(screen.getAllByText('Explored files')).toHaveLength(2)
+    const rows = screen.getAllByTestId('tool-row')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveTextContent('Thinking')
   })
 
-  it('aggregates the same tool run once reasoning starts after it', () => {
+  it('shows live reasoning as the active row status instead of splitting the run', () => {
     const turn: ConversationTurn = {
       id: 'turn-tail-unlocked',
       threadId: 'thread-1',
@@ -701,13 +703,16 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       ]
     }
 
-    render(
+    const { container } = render(
       <LocaleProvider>
-        <AgentResponseBlock turn={turn} isRunning activeItemIdOverride="reasoning-1" />
+        <AgentResponseBlock turn={turn} isRunning showIdleThinkingFallback activeItemIdOverride="reasoning-1" streamingReasoning={'**Planning the fix**'} />
       </LocaleProvider>
     )
 
-    expect(screen.getByText('Explored 2 files')).toBeInTheDocument()
+    const rows = screen.getAllByTestId('tool-row')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveTextContent('Planning the fix')
+    expect(container.querySelector('.dc-thinking-row')).toBeNull()
   })
 
   it('keeps a settled restored explore run grouped before later live tools and approvals', () => {
@@ -761,7 +766,7 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       </LocaleProvider>
     )
 
-    expect(screen.getByText('Explored 3 files')).toBeInTheDocument()
+    expect(screen.getByText('Explored files')).toBeInTheDocument()
     expect(screen.queryByText(/Reading file/)).toBeNull()
   })
 
@@ -783,55 +788,7 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       </LocaleProvider>
     )
 
-    expect(screen.getByText('Explored 2 files')).toBeInTheDocument()
-  })
-
-  it('does not redden an aggregated shell group when an exec command fails', () => {
-    const turn: ConversationTurn = {
-      id: 'turn-shell-failed',
-      threadId: 'thread-1',
-      status: 'completed',
-      startedAt: '2026-04-18T11:11:00.000Z',
-      items: [
-        makeToolCallItem('shell-1', 'call-shell-1', 'Exec', '2026-04-18T11:11:01.000Z', DECLARED),
-        { ...makeToolCallItem('shell-2', 'call-shell-2', 'Exec', '2026-04-18T11:11:02.000Z', DECLARED), success: false, exitCode: 1 }
-      ]
-    }
-
-    const { container } = render(
-      <LocaleProvider>
-        <AgentResponseBlock turn={turn} />
-      </LocaleProvider>
-    )
-
-    const titleGroup = container.querySelector('[data-testid="tool-row-title-group"]') as HTMLElement
-    expect(titleGroup).toBeTruthy()
-    expect(titleGroup).toHaveTextContent('Ran 2 commands')
-    // Mirrors the individual ToolCallCard, which never reddens shell tools.
-    expect(titleGroup.closest('[data-tone]')).toBeNull()
-  })
-
-  it('still reddens an aggregated non-shell group when a tool fails', () => {
-    const turn: ConversationTurn = {
-      id: 'turn-explore-failed',
-      threadId: 'thread-1',
-      status: 'completed',
-      startedAt: '2026-04-18T11:11:00.000Z',
-      items: [
-        makeToolCallItem('file-1', 'call-file-1', 'ReadFile', '2026-04-18T11:11:01.000Z', DECLARED),
-        { ...makeToolCallItem('file-2', 'call-file-2', 'FindFiles', '2026-04-18T11:11:02.000Z', DECLARED), success: false }
-      ]
-    }
-
-    const { container } = render(
-      <LocaleProvider>
-        <AgentResponseBlock turn={turn} />
-      </LocaleProvider>
-    )
-
-    const titleGroup = container.querySelector('[data-testid="tool-row-title-group"]') as HTMLElement
-    expect(titleGroup).toBeTruthy()
-    expect(titleGroup.closest('[data-tone="error"]')).toBeTruthy()
+    expect(screen.getByText('Explored files')).toBeInTheDocument()
   })
 
   it('does not render agent message footers while the turn is still running', () => {
@@ -950,9 +907,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       </LocaleProvider>
     )
 
-    const completedLabel = screen.getByText('Called FollowupTool')
-    expect(completedLabel).toBeInTheDocument()
-    expect(screen.getByText(/PendingTool/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /PendingTool/ }))
+    expect(screen.getByText('Called FollowupTool')).toBeInTheDocument()
     expect(screen.queryByText('done')).toBeNull()
   })
 
@@ -1002,8 +958,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       </LocaleProvider>
     )
 
+    fireEvent.click(screen.getByRole('button', { name: /PendingTool/ }))
     expect(screen.getByText('Called FollowupTool')).toBeInTheDocument()
-    expect(screen.getByText(/PendingTool/)).toBeInTheDocument()
     expect(screen.queryByText('agent done')).toBeNull()
   })
 
@@ -1048,7 +1004,7 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       </LocaleProvider>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Searched web 2 times/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Searched the web/ }))
 
     const firstToolTitle = screen.getByRole('button', { name: 'Searched "large graph visualization"' })
     const secondToolTitle = screen.getByRole('button', { name: 'Searched "react flow performance"' })
@@ -1262,6 +1218,7 @@ describe('AgentResponseBlock reasoning timeline rendering', () => {
         <AgentResponseBlock
           turn={turn}
           isRunning
+          showIdleThinkingFallback
           activeItemIdOverride="reasoning-streaming-hidden"
           streamingReasoning="<!-- hidden live reasoning -->"
         />
@@ -2293,6 +2250,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
     expect(screen.queryByText('Read main.ts')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: /Worked for/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Called a tool, explored a file/ }))
     expect(screen.getByText('Read main.ts')).toBeInTheDocument()
   })
 

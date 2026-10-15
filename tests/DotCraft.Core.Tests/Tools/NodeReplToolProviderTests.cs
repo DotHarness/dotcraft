@@ -72,6 +72,9 @@ public sealed class NodeReplToolProviderTests
         Assert.Equal(ToolSourceKind.PluginNative, registration.Definition.Id.Kind);
         Assert.Equal(PluginIds.Browser, registration.Definition.Id.SourceId);
         Assert.Equal("NodeReplJs", registration.Definition.Id.SourceToolId.Value);
+        Assert.Equal(ToolSourceKind.CoreNative, registration.Definition.Provenance.Kind);
+        Assert.Equal("core.node-repl", registration.Definition.Presentation?.Id.Value);
+        Assert.Equal(PluginIds.Browser, registration.Definition.Presentation?.Options["surface"].GetString());
     }
 
     [Fact]

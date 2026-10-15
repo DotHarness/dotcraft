@@ -1,29 +1,37 @@
 import type { ConversationItem } from '../types/conversation'
 import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
 import { resolveDesktopPluginToolRenderer } from '../plugins/desktopPluginRegistry'
-import { isBoardReadOperation } from './boardToolDisplay'
-import { resolveMemoryOperation } from './toolKind'
-import { isToolExecutionFailure } from './toolCallDisplay'
+import { resolveToolKind } from './toolKind'
 
-export type ToolGroupCategory = 'explore' | 'write' | 'memoryUpdate' | 'shell' | 'web' | 'subagent' | 'board'
+export type ToolGroupCategory = 'explore' | 'write' | 'shell' | 'web' | 'subagent' | 'board'
 
 export type AggregatedToolCall =
   | { kind: 'single'; item: ConversationItem }
-  | { kind: 'group'; category: ToolGroupCategory; items: ConversationItem[] }
+  | { kind: 'reasoning'; item: ConversationItem }
+  | { kind: 'group'; items: ConversationItem[] }
+  | { kind: 'active'; items: ConversationItem[] }
+  | { kind: 'subagents'; items: ConversationItem[] }
+  | { kind: 'images'; items: ConversationItem[] }
 
 interface ToolItemLiveContext {
   turnRunning?: boolean
 }
 
-function getGroupCategory(item: ConversationItem): ToolGroupCategory | null {
-  const plan = resolveCoreFallbackPlan(item)
-  if (plan?.groupCategory === 'board') return isBoardReadOperation(plan.options.operation) ? 'board' : null
-  // A failed update keeps its own row, which names the file and the error.
-  if (plan && resolveMemoryOperation(item) === 'update') return isToolExecutionFailure(item) ? null : 'memoryUpdate'
-  if (plan?.groupCategory !== 'subagent') return plan?.groupCategory ?? null
-  return plan.options.operation === 'spawn' || plan.options.operation === 'followupTask'
-    ? 'subagent'
-    : null
+type ToolRunRole = 'grouped' | 'own' | 'subagent' | 'images'
+
+const OWN_ROW_FAMILIES = new Set(['createPlan', 'automation', 'agentBuilder', 'requestUserInput'])
+
+function getToolRunRole(item: ConversationItem): ToolRunRole {
+  if (item.type === 'mcpToolCall' && item.status === 'completed' && item.mcpAppAvailable === true) return 'own'
+  if (resolveToolKind(item) === 'workflow') return 'own'
+  const presentationId = item.presentation?.presentationId
+  if (presentationId && resolveDesktopPluginToolRenderer(presentationId)) return 'own'
+  const plan = resolveCoreToolRenderPlan(item)
+  if (plan?.family === 'readFile' && item.contentItems?.some((content) => content.type === 'image')) return 'images'
+  if (plan?.family === 'subagent') {
+    return plan.options.operation === 'spawn' || plan.options.operation === 'followupTask' ? 'subagent' : 'own'
+  }
+  return plan && OWN_ROW_FAMILIES.has(plan.family) ? 'own' : 'grouped'
 }
 
 function getSubAgentGroupOperation(item: ConversationItem): unknown {
@@ -77,93 +85,63 @@ function resolveCoreFallbackPlan(item: ConversationItem) {
     : resolveCoreToolRenderPlan(item)
 }
 
-/**
- * Groups consecutive tool calls by category while preserving chronological order;
- * a category transition closes the current group.
- */
-export function aggregateToolCalls(
-  items: ConversationItem[],
-  context: ToolItemLiveContext = {}
-): AggregatedToolCall[] {
-  const result: AggregatedToolCall[] = []
-  let i = 0
+function isReasoning(item: ConversationItem): boolean {
+  return item.type === 'reasoningContent'
+}
 
-  while (i < items.length) {
-    const item = items[i]
-    const category = getGroupCategory(item)
-    const subAgentOperation = category === 'subagent' ? getSubAgentGroupOperation(item) : null
-
-    if (category == null) {
-      result.push({ kind: 'single', item })
-      i++
-      continue
+function pushSettledSegment(entries: AggregatedToolCall[], segment: ConversationItem[], turnRunning: boolean): void {
+  let bucket: ConversationItem[] = []
+  const flush = (): void => {
+    if (bucket.filter((item) => !isReasoning(item)).length > 1) {
+      entries.push({ kind: 'group', items: bucket })
+    } else {
+      for (const item of bucket) entries.push(isReasoning(item) ? { kind: 'reasoning', item } : { kind: 'single', item })
     }
-
-    // Collect consecutive items in the same category and aggregate only settled
-    // stretches. Live items split runs but do not de-aggregate neighbors.
-    const run: ConversationItem[] = [item]
-    while (i + 1 < items.length) {
-      const next = items[i + 1]
-      const nextCategory = getGroupCategory(next)
-      if (nextCategory !== category) break
-      if (category === 'subagent' && getSubAgentGroupOperation(next) !== subAgentOperation) break
-      run.push(next)
-      i++
-    }
-
-    let settledBucket: ConversationItem[] = []
-    const flushSettledBucket = (): void => {
-      if (settledBucket.length === 0) return
-      if (settledBucket.length === 1) {
-        result.push({ kind: 'single', item: settledBucket[0] })
-      } else {
-        result.push({
-          kind: 'group',
-          category,
-          items: settledBucket
-        })
-      }
-      settledBucket = []
-    }
-
-    // The sentence carries each agent's own state, so a live spawn joins it rather than splitting it.
-    if (category === 'subagent') {
-      settledBucket.push(...run)
-      flushSettledBucket()
-      i++
-      continue
-    }
-
-    for (const runItem of run) {
-      const isBreakingItem = isToolItemLive(runItem, context)
-      if (isBreakingItem) {
-        flushSettledBucket()
-        result.push({ kind: 'single', item: runItem })
-      } else {
-        settledBucket.push(runItem)
-      }
-    }
-    flushSettledBucket()
-
-    i++
+    bucket = []
   }
-
-  return result
+  for (const item of segment) {
+    if (!isReasoning(item) && isToolItemLive(item, { turnRunning })) {
+      flush()
+      entries.push({ kind: 'single', item })
+    } else {
+      bucket.push(item)
+    }
+  }
+  flush()
 }
 
 export function planToolRunRender(
-  toolRun: ConversationItem[],
+  run: ConversationItem[],
   context: { isRunning: boolean; isTrailingRun: boolean }
-): { entries: AggregatedToolCall[] } {
-  if (toolRun.length === 0) {
-    return { entries: [] }
-  }
-
-  if (context.isRunning && context.isTrailingRun) {
-    return {
-      entries: toolRun.map((item) => ({ kind: 'single', item }))
+): AggregatedToolCall[] {
+  const entries: AggregatedToolCall[] = []
+  let segment: ConversationItem[] = []
+  const flushSegment = (active: boolean): void => {
+    if (active && segment.some((item) => !isReasoning(item))) {
+      entries.push({ kind: 'active', items: segment })
+    } else {
+      pushSettledSegment(entries, segment, context.isRunning)
     }
+    segment = []
   }
 
-  return { entries: aggregateToolCalls(toolRun, { turnRunning: context.isRunning }) }
+  for (let i = 0; i < run.length; i++) {
+    const item = run[i]
+    const role = isReasoning(item) ? 'grouped' : getToolRunRole(item)
+    if (role === 'grouped') {
+      segment.push(item)
+      continue
+    }
+    flushSegment(false)
+
+    const items = [item]
+    const joins = (next: ConversationItem): boolean => !isReasoning(next) && getToolRunRole(next) === role
+      && (role === 'images' || (role === 'subagent' && getSubAgentGroupOperation(next) === getSubAgentGroupOperation(item)))
+    while (i + 1 < run.length && joins(run[i + 1])) items.push(run[++i])
+    entries.push(role === 'images' ? { kind: 'images', items }
+      : items.length > 1 ? { kind: 'subagents', items }
+        : { kind: 'single', item })
+  }
+  flushSegment(context.isRunning && context.isTrailingRun)
+  return entries
 }

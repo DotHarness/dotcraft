@@ -1,5 +1,5 @@
-/* The composer footer's icon-only controls. Size comes from the neighbours each one
-   sits beside; the treatment is shared. */
+/* The composer footer's icon-only controls and capsules. Size comes from the neighbours
+   each one sits beside; the state treatment is shared. */
 .dc-composer-icon-control {
   display: inline-flex;
   flex-shrink: 0;
@@ -15,7 +15,13 @@
   transition: background-color 120ms ease, color 120ms ease;
 }
 
-.dc-composer-icon-control:hover:not(:disabled) {
+.dc-composer-pill {
+  background: transparent;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dc-composer-icon-control:hover:not(:disabled),
+.dc-composer-pill:hover:not(:disabled) {
   background: var(--sidebar-control-hover);
 }
 
@@ -25,7 +31,12 @@
   color: var(--text-primary);
 }
 
-.dc-composer-icon-control:focus-visible {
+.dc-composer-pill[aria-expanded="true"] {
+  background: var(--sidebar-control-active);
+}
+
+.dc-composer-icon-control:focus-visible,
+.dc-composer-pill:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
   outline-offset: 2px;
 }

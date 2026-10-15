@@ -20,8 +20,6 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ProviderMark } from '../ui/ProviderMark'
 import { ChatGptUsagePopover } from './ChatGptUsagePopover'
 import {
-  composerFooterControlActiveBackground,
-  composerFooterControlHoverBackground
 } from './ComposerShell'
 
 interface ChatGptUsageBadgeProps {
@@ -34,8 +32,6 @@ export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Ele
   const t = useT()
   const usage = useChatGptUsage()
   const [open, setOpen] = useState(false)
-  const [hovered, setHovered] = useState(false)
-  const [focused, setFocused] = useState(false)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -69,7 +65,6 @@ export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Ele
   for (const display of displayWindows) {
     ariaParts.push(formatUsageAriaLabel(display.kind, remainingPercent(display.window) ?? 0, t))
   }
-  const active = hovered || focused
   const badgeButton = (
     <button
       type="button"
@@ -77,16 +72,8 @@ export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Ele
       aria-haspopup="dialog"
       aria-expanded={open}
       aria-label={ariaParts.join(' – ')}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      // Only treat keyboard focus as "focused" so the highlight clears after a mouse
-      // click + click-outside (a plain click leaves DOM focus on the button, which would
-      // otherwise keep the chip stuck in its selected state once the popover closes).
-      onFocus={(event) => {
-        if (event.currentTarget.matches(':focus-visible')) setFocused(true)
-      }}
-      onBlur={() => setFocused(false)}
-      style={badgeStyle(open, active)}
+      className="dc-composer-pill"
+      style={badgeStyle}
     >
       <ProviderMark kind="openai" size={14} style={iconStyle()} />
       <span style={miniTrackStyle()} aria-hidden>
@@ -167,32 +154,24 @@ function colorForRemaining(remaining: number | null): string {
   return 'var(--success, #3fb950)'
 }
 
-function badgeStyle(open: boolean, active: boolean): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '6px',
-    justifyContent: 'center',
-    padding: '0 7px',
-    height: '24px',
-    width: '70px',
-    borderRadius: '999px',
-    border: 'none',
-    background: open
-      ? composerFooterControlActiveBackground
-      : active
-        ? composerFooterControlHoverBackground
-        : 'transparent',
-    color: 'var(--composer-footer-highlight, var(--text-primary))',
-    fontSize: 'var(--type-ui-size)',
-    lineHeight: 1.0,
-    whiteSpace: 'nowrap',
-    boxSizing: 'border-box',
-    overflow: 'hidden',
-    flexShrink: 0,
-    cursor: 'pointer',
-    transition: 'background-color 120ms ease, color 120ms ease'
-  }
+const badgeStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  justifyContent: 'center',
+  padding: '0 7px',
+  height: '28px',
+  width: '70px',
+  borderRadius: '999px',
+  border: 'none',
+  color: 'var(--composer-footer-highlight, var(--text-primary))',
+  fontSize: 'var(--type-ui-size)',
+  lineHeight: 1.0,
+  whiteSpace: 'nowrap',
+  boxSizing: 'border-box',
+  overflow: 'hidden',
+  flexShrink: 0,
+  cursor: 'pointer'
 }
 
 function iconStyle(): CSSProperties {

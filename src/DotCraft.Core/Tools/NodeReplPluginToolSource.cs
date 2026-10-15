@@ -12,6 +12,7 @@ internal interface INodeReplToolDeclaration
     [Description("Execute JavaScript in the current thread's persistent Node REPL with top-level await and dynamic imports. Use nodeRepl.write(value) for text and await nodeRepl.emitImage(image) for images. Outer timeout or cancellation clears JavaScript state.")]
     void Evaluate(
         [Description("JavaScript code to execute.")] string code,
+        [Description("A short user-facing description of what this run does, at most 80 characters, such as \"Open the pricing page\" or \"Click Save in Notepad\".")] string? title = null,
         [Description("Optional execution timeout in seconds. Defaults to 30 seconds.")] int timeoutSeconds = 0);
 }
 
@@ -74,7 +75,40 @@ public sealed class NodeReplPluginToolSource(
             [new PluginToolRegistration(CreateDescriptor(runtimePluginId), new NodeReplPluginToolInvoker(proxy))],
             bindingLease: new NodeReplPluginLease(config, proxy, runtimePluginId),
             priority: Priority);
-        return source.GetRegistrationsAsync(context, cancellationToken);
+        return PresentAsCoreAsync(source.GetRegistrationsAsync(context, cancellationToken), runtimePluginId);
+    }
+
+    private async ValueTask<IReadOnlyList<ToolRegistration>> PresentAsCoreAsync(
+        ValueTask<IReadOnlyList<ToolRegistration>> registrations,
+        string pluginId)
+    {
+        var presentation = new ToolPresentationDescriptor(
+            new PresentationId("core.node-repl"),
+            new Dictionary<string, JsonElement> { ["surface"] = JsonSerializer.SerializeToElement(pluginId) });
+        return [.. (await registrations.ConfigureAwait(false)).Select(registration =>
+        {
+            var definition = registration.Definition;
+            return new ToolRegistration(
+                new ToolDefinition(
+                    definition.Id,
+                    definition.Name,
+                    definition.Description,
+                    definition.InputSchema,
+                    definition.OutputSchema,
+                    definition.Annotations,
+                    definition.PolicyHints,
+                    presentation,
+                    new ToolProvenance(ToolSourceKind.CoreNative, SourceId, "native"),
+                    definition.NamespaceDescription,
+                    definition.PolicyScope,
+                    definition.FreeformInput),
+                registration.Binding,
+                registration.ProjectionShape,
+                registration.Exposure,
+                registration.InvocationAudiences,
+                registration.Deferred,
+                registration.ProviderFlatNameOverride);
+        })];
     }
 
     private static PluginFunctionDescriptor CreateDescriptor(string pluginId)

@@ -20,6 +20,8 @@ Setup is internal. Do not mention `NodeReplJs`, the REPL, JavaScript bindings, m
 
 Run browser code with `NodeReplJs`. Initialize once per thread. `setupBrowserRuntime()` returns the agent; select the in-app browser and read its complete documentation before acting:
 
+Give every `NodeReplJs` call a `title` of a few words, under 80 characters, that tells the user what the run does, such as "Open the pricing page". It replaces the code in the conversation, so describe the action, not the REPL or JavaScript.
+
 ```js
 const { setupBrowserRuntime } = await import(dotcraft.browserClientPath);
 const agent = await setupBrowserRuntime();

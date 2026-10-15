@@ -1,4 +1,5 @@
-import { memo, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { memo, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Image as ImageIcon } from 'lucide-react'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
@@ -19,9 +20,8 @@ import { ImageGenerationStatus } from './ImageGenerationStatus'
 import { getToolOutputImages, ToolOutputImageGallery, useGeneratedOutputImage, type ToolOutputImageItem } from './ToolOutputImageGallery'
 import { planToolRunRender } from '../../utils/toolCallAggregation'
 import type { AggregatedToolCall } from '../../utils/toolCallAggregation'
-import type { ToolGroupCategory } from '../../utils/toolCallAggregation'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
-import { isToolExecutionFailure } from '../../utils/toolCallDisplay'
+import { getToolRowIcon, isToolExecutionFailure } from '../../utils/toolCallDisplay'
 import { isCodeModeExecItem } from '../../utils/codeModeExec'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -31,13 +31,14 @@ import { useTranscriptItemDiffs } from './transcriptDiffs'
 import { getSubAgentChipDisplay } from './SubAgentChips'
 import { SubAgentGroupChips } from './SubAgentGroupChips'
 import { useLocale } from '../../contexts/LocaleContext'
-import { formatToolGroupLabel } from '../../utils/toolGroupLabel'
+import { translate } from '../../../shared/locales'
+import { formatActiveToolLabel, formatToolGroupLabel, getToolGroupIconItem } from '../../utils/toolGroupLabel'
+import { RunningShimmer } from '../ui/RunningShimmer'
 import { CORE_TOOL_PRESENTATION_IDS, resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
 import { resolveToolKind } from '../../utils/toolKind'
 import { CapacityRetryRow } from './CapacityRetryRow'
 import { TurnFailureNotice } from './TurnFailureNotice'
 import { parseWorkflowLaunch } from '../workflow/WorkflowToolCard'
-import { MemoryUpdateCard } from './MemoryUpdateCard'
 
 interface AgentResponseBlockProps {
   turn: ConversationTurn
@@ -71,9 +72,12 @@ function normalizedErrorMessage(message: string | undefined): string {
 }
 
 interface ConversationRenderNode {
+  key: string
   kind: ConversationNodeKind
   node: ReactNode
 }
+
+const LABEL_HOLD_MS = 1000
 
 /**
  * Renders agent-side content for a single turn in chronological `turn.items` order.
@@ -98,6 +102,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
   const activeItemIdFromStore = useConversationStore((s) => s.activeItemId)
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
+  const locale = useLocale()
   const activeItemId =
     activeItemIdOverride !== undefined ? activeItemIdOverride : activeItemIdFromStore
 
@@ -115,13 +120,49 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     ? defaultRenderableItems.filter(isTrimmedHistoryRenderableItem)
     : defaultRenderableItems
 
+  const canShowThinking = showIdleThinkingFallback && !isSleeping && pendingUserInput == null
   const offersCapacityRetry = !readOnly && isLastTurn && turn.status === 'failed'
     && turn.providerError === 'serverOverloaded'
   const lastErrorItemId = turn.items.findLast((item) => item.type === 'error')?.id
 
+  const reasoningText = (item: ConversationItem): string =>
+    isRunning && item.status === 'streaming' && item.id === activeItemId ? streamingReasoning : (item.reasoning ?? '')
+
+  const renderReasoning = (item: ConversationItem): ReactNode => {
+    if (!showThinkingContent) return null
+    const streaming = isRunning && item.status === 'streaming' && item.id === activeItemId
+    return <ThinkingIndicator key={item.id} elapsedSeconds={item.elapsedSeconds} reasoning={reasoningText(item)} streaming={streaming} />
+  }
+
+  const renderToolRunEntry = (entry: AggregatedToolCall): ReactNode => {
+    if (entry.kind === 'reasoning') return renderReasoning(entry.item)
+    if (entry.kind !== 'group' && entry.kind !== 'active') {
+      return renderAggregatedEntry(entry, turn.threadId, turn.id, isRunning, shellRuntimeScope)
+    }
+    const last = entry.items[entry.items.length - 1]
+    const thinkingLabel = entry.kind === 'active' && canShowThinking
+      ? (last.type === 'reasoningContent' ? extractThinkingStatus(reasoningText(last)) : undefined)
+        ?? translate(locale, 'conversation.thinking.streaming')
+      : undefined
+    return (
+      <ToolActivityRow
+        key={`tools-${entry.items[0].id}`}
+        items={entry.items}
+        active={entry.kind === 'active'}
+        thinkingLabel={thinkingLabel}
+        threadId={turn.threadId}
+        turnId={turn.id}
+        turnRunning={isRunning}
+        shellRuntimeScope={shellRuntimeScope}
+        renderReasoning={renderReasoning}
+      />
+    )
+  }
+
+  let hostsThinking = false
+
   const renderItemSequence = (
-    itemsToRender: ConversationItem[],
-    keyPrefix = ''
+    itemsToRender: ConversationItem[]
   ): ConversationRenderNode[] => {
     const nodes: ConversationRenderNode[] = []
     let i = 0
@@ -129,51 +170,42 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     while (i < itemsToRender.length) {
       const item = itemsToRender[i]
 
-      if (isToolLikeItemType(item.type)) {
+      if (isToolRunItem(item)) {
         const toolRun: ConversationItem[] = [item]
-        while (
-          i + 1 < itemsToRender.length
-          && isToolLikeItemType(itemsToRender[i + 1].type)
-        ) {
+        while (i + 1 < itemsToRender.length && isToolRunItem(itemsToRender[i + 1])) {
           i++
           toolRun.push(itemsToRender[i])
         }
-        const isTrailingRun = i + 1 >= itemsToRender.length
-        const { entries } = planToolRunRender(toolRun, { isRunning, isTrailingRun })
+        const isTrailingRun = toolRun[toolRun.length - 1] === renderableItems[renderableItems.length - 1]
+        const entries = planToolRunRender(toolRun, { isRunning, isTrailingRun })
+        if (entries.some((entry) => entry.kind === 'active')) hostsThinking = true
+        const runNodes = entries.map(renderToolRunEntry)
 
-        const toolRunNodes = entries.map((entry, offset) =>
-          renderAggregatedEntry(
-            entry,
-            turn.threadId,
-            turn.id,
-            offset,
-            isRunning,
-            shellRuntimeScope,
-            `${keyPrefix}-tool-run-${item.id}`
-          )
-        )
-
-        if (toolRunNodes.length > 0) {
+        if (entries.every((entry) => entry.kind === 'reasoning')) {
+          entries.forEach((entry, index) => {
+            if (runNodes[index] && entry.kind === 'reasoning') {
+              nodes.push({ key: entry.item.id, kind: 'assistant', node: runNodes[index] })
+            }
+          })
+        } else {
           nodes.push({
+            key: `tool-run-${item.id}`,
             kind: 'tool',
-            node: (
-              <ToolRunStack key={`tool-run-${keyPrefix}-${item.id}`}>
-                {toolRunNodes}
-              </ToolRunStack>
-            )
+            node: <ToolRunStack>{runNodes}</ToolRunStack>
           })
         }
       } else if (item.type === 'imageGeneration') {
         nodes.push({
+          key: item.id,
           kind: 'tool',
-          node: <ImageGenerationEntry key={item.id} item={item} />
+          node: <ImageGenerationEntry item={item} />
         })
       } else if (item.type === 'userMessage' && item.deliveryMode === 'guidance') {
         nodes.push({
+          key: item.id,
           kind: 'user',
           node: (
             <UserMessageBlock
-              key={item.id}
               text={item.text ?? ''}
               nativeInputParts={item.nativeInputParts}
               imageDataUrls={item.imageDataUrls}
@@ -183,26 +215,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
               triggerKind={item.triggerKind}
               triggerLabel={item.triggerLabel}
               triggerRefId={item.triggerRefId}
-            />
-          )
-        })
-      } else if (item.type === 'reasoningContent') {
-        const isLiveStreaming =
-          isRunning && item.status === 'streaming' && item.id === activeItemId
-        if (!showThinkingContent && !isLiveStreaming) {
-          i++
-          continue
-        }
-        const displayReasoning = isLiveStreaming ? streamingReasoning : (item.reasoning ?? '')
-        nodes.push({
-          kind: 'assistant',
-          node: (
-            <ThinkingIndicator
-              key={item.id}
-              elapsedSeconds={item.elapsedSeconds}
-              reasoning={showThinkingContent ? displayReasoning : undefined}
-              statusText={showThinkingContent ? undefined : extractThinkingStatus(displayReasoning)}
-              streaming={isLiveStreaming}
             />
           )
         })
@@ -216,10 +228,10 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         }
         const isFooterMessage = item.id === footerAgentMessageId
         nodes.push({
+          key: item.id,
           kind: 'assistant',
           node: (
             <AgentMessage
-              key={item.id}
               text={displayText}
               threadId={turn.threadId}
               turnId={turn.id}
@@ -236,10 +248,10 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         })
       } else if (item.type === 'error') {
         nodes.push({
+          key: item.id,
           kind: 'other',
           node: (
             <TurnFailureNotice
-              key={item.id}
               message={item.text ?? 'Unknown error'}
               providerError={turn.providerError}
               retry={offersCapacityRetry && item.id === lastErrorItemId ? <CapacityRetryRow /> : undefined}
@@ -247,11 +259,12 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
           )
         })
       } else if (item.type === 'approvalCard' && (item.approvalState ?? 'pending') === 'pending') {
-        nodes.push({ kind: 'other', node: <ApprovalCard key={item.id} item={item} /> })
+        nodes.push({ key: item.id, kind: 'other', node: <ApprovalCard item={item} /> })
       } else if (item.type === 'systemNotice') {
         nodes.push({
+          key: item.id,
           kind: 'other',
-          node: <SystemNoticeBlock key={item.id} item={item} />
+          node: <SystemNoticeBlock item={item} />
         })
       }
 
@@ -274,9 +287,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     !trimHistoricalToolContent && turn.status === 'completed'
       ? renderTurnCompletion ? renderTurnCompletion(turn.id) : <TurnCompletionContent turnId={turn.id} />
       : null
-  const shouldCollapseIntermediate = activity.status === 'worked' && lastFinalAgentMessageIndex > 0
+  const collapsesIntermediate = activity.status === 'worked' && lastFinalAgentMessageIndex > 0
   const renderNodes: ConversationRenderNode[] = []
-  let hasActivitySummary = false
   const streamingMessageStalled = useStreamingMessageStall({
     enabled:
       showIdleThinkingFallback &&
@@ -285,117 +297,70 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       hasActiveStreamingAgentMessage(renderableItems, activeItemId),
     lastDeltaAt: streamingMessageLastDeltaAt
   })
-  const shouldShowIdleThinkingFallback = showIdleThinkingFallback
-    && !isSleeping
-    && pendingUserInput == null
+  const shouldShowIdleThinkingFallback = canShowThinking
     && shouldRenderIdleThinkingFallback({
       items: renderableItems,
       isRunning,
       activeItemId,
       streamingMessage,
-      streamingMessageStalled
+      streamingMessageStalled,
+      showThinkingContent
     })
+  const activitySummary = (intermediateNodes: ConversationRenderNode[]): ConversationRenderNode => ({
+    key: `turn-activity-${turn.id}`,
+    kind: 'other',
+    node: (
+      <TurnActivitySummary
+        status={activity.status!}
+        collapsible={collapsesIntermediate}
+        threadId={turn.threadId} turnId={turn.id}
+        startedAt={turn.startedAt} completedAt={activity.completedAt}
+      >
+        {intermediateNodes.length > 0 ? <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-tool-assistant-gap)" /> : null}
+      </TurnActivitySummary>
+    )
+  })
 
-  if (shouldCollapseIntermediate) {
-    if (trimHistoricalToolContent) {
-      const beforeFinalItems = collapseSourceItems.slice(0, lastFinalAgentMessageIndex)
-      const pinnedTrimmedIndices = collectTrimmedPinnedIntermediateIndices(beforeFinalItems)
-      const intermediateNodes = renderItemSequence(
-        beforeFinalItems.filter((item, index) =>
-          !pinnedTrimmedIndices.has(index) && isTrimmedHistoryCollapsedItem(item)
-        ),
-        'trimmed-history-intermediate'
+  if (collapsesIntermediate && trimHistoricalToolContent) {
+    const beforeFinalItems = collapseSourceItems.slice(0, lastFinalAgentMessageIndex)
+    const pinnedTrimmedIndices = collectTrimmedPinnedIntermediateIndices(beforeFinalItems)
+    renderNodes.push(activitySummary(renderItemSequence(
+      beforeFinalItems.filter((item, index) =>
+        !pinnedTrimmedIndices.has(index) && isTrimmedHistoryCollapsedItem(item)
       )
-      const pinnedTrimmedNodes = Array.from(pinnedTrimmedIndices)
-        .sort((a, b) => a - b)
-        .flatMap((pinnedIndex, position) =>
-          renderItemSequence([beforeFinalItems[pinnedIndex]], `trimmed-history-pinned-${position}`)
-        )
-      const trailingNodes = renderItemSequence(
-        collapseSourceItems.slice(lastFinalAgentMessageIndex).filter(isTrimmedHistoryRenderableItem),
-        'trimmed-history-trailing'
-      )
-
-      hasActivitySummary = true
-      renderNodes.push({
-        kind: 'other',
-        node: (
-          <TurnActivitySummary
-            key={`turn-collapsed-${turn.id}`}
-            status="worked" threadId={turn.threadId} turnId={turn.id}
-            startedAt={turn.startedAt} completedAt={activity.completedAt}
-          >
-            {intermediateNodes.length > 0 ? <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-block-gap)" /> : null}
-          </TurnActivitySummary>
-        )
-      })
-      renderNodes.push(...pinnedTrimmedNodes)
-      renderNodes.push(...trailingNodes)
-    } else {
-      // Pin durable user-facing results out of the collapsed
-      // summary (desktop-client.md §5.8). Split the intermediate run at each
-      // pinned boundary so a pinned card never merges the tool runs on either side.
-      const pinnedIndices = collectPinnedIntermediateIndices(renderableItems, lastFinalAgentMessageIndex)
-      const trailingNodes = renderItemSequence(renderableItems.slice(lastFinalAgentMessageIndex))
-
-      const intermediateNodes: ConversationRenderNode[] = []
-      if (pinnedIndices.length === 0) {
-        intermediateNodes.push(...renderItemSequence(renderableItems.slice(0, lastFinalAgentMessageIndex)))
-      } else {
-        let segmentStart = 0
-        pinnedIndices.forEach((pinnedIndex, segment) => {
-          intermediateNodes.push(...renderItemSequence(
-            renderableItems.slice(segmentStart, pinnedIndex),
-            `intermediate-${segment}`
-          ))
-          segmentStart = pinnedIndex + 1
-        })
-        intermediateNodes.push(...renderItemSequence(
-          renderableItems.slice(segmentStart, lastFinalAgentMessageIndex),
-          'intermediate-tail'
-        ))
-      }
-
-      const pinnedNodes = pinnedIndices.flatMap((pinnedIndex, position) =>
-        renderItemSequence([renderableItems[pinnedIndex]], `pinned-${position}`)
-      )
-
-      hasActivitySummary = true
-      renderNodes.push({
-        kind: 'other',
-        node: (
-          <TurnActivitySummary
-            key={`turn-collapsed-${turn.id}`}
-            status="worked" threadId={turn.threadId} turnId={turn.id}
-            startedAt={turn.startedAt} completedAt={activity.completedAt}
-          >
-            {intermediateNodes.length > 0 ? <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-block-gap)" /> : null}
-          </TurnActivitySummary>
-        )
-      })
-
-      renderNodes.push(...pinnedNodes)
-      renderNodes.push(...trailingNodes)
+    )))
+    renderNodes.push(...Array.from(pinnedTrimmedIndices)
+      .sort((a, b) => a - b)
+      .flatMap((pinnedIndex) => renderItemSequence([beforeFinalItems[pinnedIndex]])))
+    renderNodes.push(...renderItemSequence(
+      collapseSourceItems.slice(lastFinalAgentMessageIndex).filter(isTrimmedHistoryRenderableItem)
+    ))
+  } else if (activity.status) {
+    // Pinned results stay outside the collapsed summary (desktop-client.md §5.8).
+    const splitIndex = collapsesIntermediate ? lastFinalAgentMessageIndex
+      : activity.status === 'worked' ? 0 : renderableItems.length
+    const pinnedIndices = collapsesIntermediate ? collectPinnedIntermediateIndices(renderableItems, splitIndex) : []
+    const intermediateNodes: ConversationRenderNode[] = []
+    let segmentStart = 0
+    for (const boundary of [...pinnedIndices, splitIndex]) {
+      intermediateNodes.push(...renderItemSequence(renderableItems.slice(segmentStart, boundary)))
+      segmentStart = boundary + 1
     }
+    renderNodes.push(activitySummary(intermediateNodes))
+    renderNodes.push(...pinnedIndices.flatMap((pinnedIndex) => renderItemSequence([renderableItems[pinnedIndex]])))
+    renderNodes.push(...renderItemSequence(renderableItems.slice(splitIndex)))
   } else {
-    if (activity.status) {
-      renderNodes.push({ kind: 'other', node: <TurnActivitySummary key={`turn-activity-${turn.id}`} status={activity.status}
-        threadId={turn.threadId} turnId={turn.id} startedAt={turn.startedAt} completedAt={activity.completedAt} /> })
-      hasActivitySummary = true
-    }
     renderNodes.push(...renderItemSequence(renderableItems))
   }
 
-  if (shouldShowIdleThinkingFallback) {
+  if (shouldShowIdleThinkingFallback && !hostsThinking) {
+    const liveReasoning = renderableItems.some((item) =>
+      item.type === 'reasoningContent' && item.status === 'streaming' && item.id === activeItemId)
     renderNodes.push({
+      key: `idle-thinking-${turn.id}`,
       kind: 'assistant',
-      node: <ThinkingIndicator key={`idle-thinking-${turn.id}`} streaming />
+      node: <ThinkingIndicator streaming statusText={liveReasoning ? extractThinkingStatus(streamingReasoning) : undefined} />
     })
-  }
-
-  if (activity.status && !hasActivitySummary) {
-    renderNodes.push({ kind: 'other', node: <TurnActivitySummary key={`turn-activity-${turn.id}`} status={activity.status}
-      threadId={turn.threadId} turnId={turn.id} startedAt={turn.startedAt} completedAt={activity.completedAt} /> })
   }
 
   const hasMatchingErrorItem = turn.status === 'failed' && turn.error != null && turn.items.some(
@@ -452,7 +417,7 @@ function ConversationNodeFlow({
 
         return (
           <div
-            key={index}
+            key={entry.key}
             data-testid="conversation-flow-item"
             data-kind={entry.kind}
             style={{
@@ -506,21 +471,19 @@ const userFlowItemStyle: CSSProperties = {
 }
 
 function renderAggregatedEntry(
-  entry: AggregatedToolCall,
+  entry: Extract<AggregatedToolCall, { kind: 'single' | 'subagents' | 'images' }>,
   threadId: string,
   turnId: string,
-  offset: number,
   turnRunning: boolean,
-  shellRuntimeScope: ShellRuntimeScope,
-  keyPrefix = ''
-): React.ReactNode {
+  shellRuntimeScope: ShellRuntimeScope
+): ReactNode {
   if (entry.kind === 'single') {
     const images = getToolOutputImages([entry.item])
     // A lone follow-up keeps its own row: it updates an agent rather than introducing one.
     const isLoneSpawn = resolveCoreFallbackPlan(entry.item)?.options.operation === 'spawn'
-    if (isLoneSpawn && getSubAgentChipDisplay(entry.item) != null) {
-      return (
-        <ToolEntryWithOutputs key={entry.item.id} images={images}>
+    return (
+      <ToolEntryWithOutputs key={entry.item.id} images={images}>
+        {isLoneSpawn && getSubAgentChipDisplay(entry.item) != null ? (
           <SubAgentGroupChips
             items={[entry.item]}
             threadId={threadId}
@@ -528,51 +491,47 @@ function renderAggregatedEntry(
             turnRunning={turnRunning}
             shellRuntimeScope={shellRuntimeScope}
           />
-        </ToolEntryWithOutputs>
-      )
-    }
-    return (
-      <ToolEntryWithOutputs
-        key={entry.item.id}
-        images={images}
-      >
-        <ToolCallCard
-          item={entry.item}
-          threadId={threadId}
-          turnId={turnId}
-          turnRunning={turnRunning}
-          shellRuntimeScope={shellRuntimeScope}
-        />
+        ) : (
+          <ToolCallCard
+            item={entry.item}
+            threadId={threadId}
+            turnId={turnId}
+            turnRunning={turnRunning}
+            shellRuntimeScope={shellRuntimeScope}
+          />
+        )}
       </ToolEntryWithOutputs>
     )
   }
-  const images = getToolOutputImages(entry.items)
+  if (entry.kind === 'images') return <ImageViewRow key={`images-${entry.items[0].id}`} items={entry.items} />
   return (
-    <ToolEntryWithOutputs
-      key={`group-${keyPrefix}-${turnId}-${offset}`}
-      images={images}
-    >
-      {entry.category === 'subagent' ? (
-        <SubAgentGroupChips
-          items={entry.items}
-          threadId={threadId}
-          turnId={turnId}
-          turnRunning={turnRunning}
-          shellRuntimeScope={shellRuntimeScope}
-        />
-      ) : entry.category === 'memoryUpdate' ? (
-        <MemoryUpdateCard items={entry.items} running={false} />
-      ) : (
-        <GroupedToolCallRow
-          category={entry.category}
-          items={entry.items}
-          threadId={threadId}
-          turnId={turnId}
-          turnRunning={turnRunning}
-          shellRuntimeScope={shellRuntimeScope}
-        />
-      )}
+    <ToolEntryWithOutputs key={`tools-${entry.items[0].id}`} images={getToolOutputImages(entry.items)}>
+      <SubAgentGroupChips
+        items={entry.items}
+        threadId={threadId}
+        turnId={turnId}
+        turnRunning={turnRunning}
+        shellRuntimeScope={shellRuntimeScope}
+      />
     </ToolEntryWithOutputs>
+  )
+}
+
+function ImageViewRow({ items }: { items: ConversationItem[] }): JSX.Element {
+  const locale = useLocale()
+  const [expanded, setExpanded] = useState(false)
+  const images = getToolOutputImages(items)
+  return (
+    <ToolDisclosure
+      expanded={expanded}
+      onToggle={() => setExpanded((v) => !v)}
+      icon={{ icon: ImageIcon }}
+      title={images.length === 1
+        ? translate(locale, 'toolCall.activity.viewedImages.one')
+        : translate(locale, 'toolCall.activity.viewedImages.other', { count: images.length })}
+    >
+      <ToolOutputImageGallery images={images} />
+    </ToolDisclosure>
   )
 }
 
@@ -583,12 +542,10 @@ function ToolEntryWithOutputs({
   children: ReactNode
   images: ToolOutputImageItem[]
 }): JSX.Element {
-  if (images.length === 0) return <>{children}</>
-
   return (
     <div style={toolEntryWithOutputsStyle}>
       {children}
-      <ToolOutputImageGallery images={images} />
+      {images.length > 0 ? <ToolOutputImageGallery images={images} /> : null}
     </div>
   )
 }
@@ -605,46 +562,79 @@ const toolEntryWithOutputsStyle: CSSProperties = {
   gap: '6px'
 }
 
-interface GroupedToolCallRowProps {
-  category: ToolGroupCategory
+interface ToolActivityRowProps {
   items: ConversationItem[]
+  active: boolean
+  thinkingLabel?: string
   threadId: string
   turnId: string
   turnRunning: boolean
   shellRuntimeScope: ShellRuntimeScope
+  renderReasoning: (item: ConversationItem) => ReactNode
 }
 
-function GroupedToolCallRow({
-  category,
+function ToolActivityRow({
   items,
+  active,
+  thinkingLabel,
   threadId,
   turnId,
   turnRunning,
-  shellRuntimeScope
-}: GroupedToolCallRowProps): JSX.Element {
+  shellRuntimeScope,
+  renderReasoning
+}: ToolActivityRowProps): JSX.Element {
   const locale = useLocale()
   const itemDiffs = useTranscriptItemDiffs()
-  const label = formatToolGroupLabel(category, items, locale, itemDiffs)
-  const hasFailedItems = items.some(isGroupedItemFailed)
   const [expanded, setExpanded] = useState(false)
-
-  // A live group bounds its children so a long run cannot push the answer off screen.
-  const live = turnRunning && items.some((item) => isToolItemLive(item))
+  const tools = items.filter((item) => item.type !== 'reasoningContent')
+  const liveTool = active ? tools.findLast((item) => isToolItemLive(item, { turnRunning })) : undefined
+  const working = liveTool != null || thinkingLabel != null
+  const label = useHeldLabel(liveTool ? formatActiveToolLabel(liveTool, locale)
+    : thinkingLabel ?? formatToolGroupLabel(tools, locale, itemDiffs), active)
+  const iconItem = liveTool ?? (thinkingLabel == null ? getToolGroupIconItem(tools) : undefined)
 
   return (
     <ToolDisclosure
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
-      tone={hasFailedItems ? 'error' : undefined}
-      title={label}
+      icon={iconItem ? getToolRowIcon(iconItem) : undefined}
+      title={<RunningShimmer active={working} className="dc-tool-row-running-label">{label}</RunningShimmer>}
     >
-      <div className="dc-tool-children" data-live={live ? 'true' : undefined}>
-        {items.map((item) => (
-          <ToolCallCard key={item.id} item={item} threadId={threadId} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
+      <div className="dc-tool-children">
+        {items.map((item) => item.type === 'reasoningContent' ? renderReasoning(item) : (
+          <ToolEntryWithOutputs key={item.id} images={getToolOutputImages([item])}>
+            <ToolCallCard item={item} threadId={threadId} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
+          </ToolEntryWithOutputs>
         ))}
       </div>
     </ToolDisclosure>
   )
+}
+
+function useHeldLabel(label: string, hold: boolean): string {
+  const [held, setHeld] = useState(label)
+  const shownAt = useRef(Date.now())
+
+  useEffect(() => {
+    if (label === held) return
+    const show = (): void => {
+      shownAt.current = Date.now()
+      setHeld(label)
+    }
+    const wait = shownAt.current + LABEL_HOLD_MS - Date.now()
+    if (!hold || wait <= 0) {
+      show()
+      return
+    }
+    const timer = setTimeout(show, wait)
+    return () => clearTimeout(timer)
+  }, [label, held, hold])
+
+  return hold ? held : label
+}
+
+function isToolRunItem(item: ConversationItem): boolean {
+  return isToolLikeItemType(item.type) || item.type === 'reasoningContent'
 }
 
 function resolveCoreFallbackPlan(item: ConversationItem) {
@@ -654,14 +644,6 @@ function resolveCoreFallbackPlan(item: ConversationItem) {
     : resolveCoreToolRenderPlan(item)
 }
 
-function isGroupedItemFailed(item: ConversationItem): boolean {
-  if (isToolItemLive(item)) return false
-  // Shell tools (Exec/RunCommand/BashCommand) never render as failed in their
-  // individual card — ToolCallCard forces success via `isShellTool`. Keep the
-  // aggregated row consistent so an exec exit code / failure doesn't redden it.
-  if (resolveCoreFallbackPlan(item)?.successOverride === true) return false
-  return isToolExecutionFailure(item)
-}
 
 function findLastVisibleAgentMessageIndex(items: ConversationItem[]): number {
   for (let i = items.length - 1; i >= 0; i--) {
@@ -757,6 +739,7 @@ function isDefaultRenderableItem(item: ConversationItem): boolean {
   // before the agent footer (TurnThreadActions), so suppress their inline tool row.
   if (isThreadActionToolItem(item) && parseThreadToolAction(item) != null) return false
   const plan = resolveCoreFallbackPlan(item)
+  if (plan?.family === 'todo') return false
   if (plan?.family === 'subagent') {
     const operation = plan.options.operation
     if (operation === 'wait') return false
@@ -817,20 +800,22 @@ function shouldRenderIdleThinkingFallback({
   isRunning,
   activeItemId,
   streamingMessage,
-  streamingMessageStalled
+  streamingMessageStalled,
+  showThinkingContent
 }: {
   items: ConversationItem[]
   isRunning: boolean
   activeItemId: string | null
   streamingMessage: string
   streamingMessageStalled: boolean
+  showThinkingContent: boolean
 }): boolean {
   if (!isRunning) return false
   if (isActivitySliceClosed(items)) return false
 
   return !items.some((item) => {
     if (item.type === 'reasoningContent' && item.status === 'streaming' && item.id === activeItemId) {
-      return true
+      return showThinkingContent
     }
     if (item.type === 'agentMessage' && item.status === 'streaming' && item.id === activeItemId) {
       return streamingMessage.trim().length > 0 && !streamingMessageStalled

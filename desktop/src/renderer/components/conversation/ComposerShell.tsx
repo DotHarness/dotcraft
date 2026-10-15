@@ -50,8 +50,6 @@ export const DECISION_MASCOT: ComposerMascotInteraction = { expression: 'operato
 type ComposerActionButtonTone = 'enabled' | 'disabled'
 
 export const COMPOSER_FOOTER_CONTROL_HEIGHT = 24
-export const composerFooterControlHoverBackground = 'var(--sidebar-control-hover)'
-export const composerFooterControlActiveBackground = 'var(--sidebar-control-active)'
 
 export const composerFooterControlBoxStyle: CSSProperties = {
   display: 'inline-flex',
@@ -392,23 +390,8 @@ export function ComposerPlanModeLabel({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         aria-label={ariaLabel}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-          height: COMPOSER_FOOTER_CONTROL_HEIGHT,
-          padding: '0 8px',
-          borderRadius: '999px',
-          border: 'none',
-          background: active ? composerFooterControlHoverBackground : 'transparent',
-          color: 'var(--composer-footer-text)',
-          cursor: 'pointer',
-          fontSize: 'var(--type-ui-size)',
-          lineHeight: 'var(--type-ui-line-height)',
-          fontWeight: 'var(--type-ui-emphasis-weight)',
-          outline: 'none',
-          transition: 'background-color 120ms ease, color 120ms ease'
-        }}
+        className="dc-composer-pill"
+        style={composerModePillStyle}
     >
         <Icon size={13} strokeWidth={2} aria-hidden />
         <span>{label}</span>
@@ -440,29 +423,29 @@ export function ComposerCustomProfileLabel({ label, onClear, title, ariaLabel }:
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         aria-label={ariaLabel}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-          height: COMPOSER_FOOTER_CONTROL_HEIGHT,
-          padding: '0 8px',
-          borderRadius: '999px',
-          border: 'none',
-          background: active ? composerFooterControlHoverBackground : 'transparent',
-          color: 'var(--composer-footer-text)',
-          cursor: 'pointer',
-          fontSize: 'var(--type-ui-size)',
-          lineHeight: 'var(--type-ui-line-height)',
-          fontWeight: 'var(--type-ui-emphasis-weight)',
-          outline: 'none',
-          transition: 'background-color 120ms ease, color 120ms ease'
-        }}
+        className="dc-composer-pill"
+        style={composerModePillStyle}
       >
         <Icon size={13} strokeWidth={2} aria-hidden />
         <span>{label}</span>
       </button>
     </ActionTooltip>
   )
+}
+
+export const composerModePillStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  height: COMPOSER_FOOTER_CONTROL_HEIGHT,
+  padding: '0 8px',
+  borderRadius: '999px',
+  border: 'none',
+  color: 'var(--composer-footer-text)',
+  cursor: 'pointer',
+  fontSize: 'var(--type-ui-size)',
+  lineHeight: 'var(--type-ui-line-height)',
+  fontWeight: 'var(--type-ui-emphasis-weight)'
 }
 
 export function composerModelPillStyle(color: string, disabled = false): CSSProperties {
@@ -478,15 +461,11 @@ export function composerModelPillStyle(color: string, disabled = false): CSSProp
     height: COMPOSER_FOOTER_CONTROL_HEIGHT,
     borderRadius: '999px',
     border: 'none',
-    backgroundColor: 'transparent',
     padding: '0 4px',
-    outline: 'none',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    opacity: disabled ? 0.72 : 1,
-    boxShadow: 'none',
-    transition: 'background-color 120ms ease, color 120ms ease'
+    opacity: disabled ? 0.72 : 1
   }
 }
 

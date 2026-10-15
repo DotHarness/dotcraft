@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateToolCalls, isToolItemLive, planToolRunRender, resolveShellBackgroundState } from '../utils/toolCallAggregation'
+import { isToolItemLive, planToolRunRender, resolveShellBackgroundState } from '../utils/toolCallAggregation'
 import type { ConversationItem } from '../types/conversation'
 import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
 import { withTestCorePresentation } from './testToolPresentation'
@@ -73,339 +73,83 @@ function makeItem(
   }, presentation.presentationId, presentation.options)
 }
 
-describe('aggregateToolCalls', () => {
-  it('returns empty array for empty input', () => {
-    expect(aggregateToolCalls([])).toHaveLength(0)
+function reasoning(id: string): ConversationItem {
+  return { id, type: 'reasoningContent', status: 'completed', reasoning: '**Checking**', createdAt: new Date().toISOString() }
+}
+
+function shape(
+  items: ConversationItem[],
+  context = { isRunning: false, isTrailingRun: false }
+): Array<[string, string | string[]]> {
+  return planToolRunRender(items, context).map((entry) => 'items' in entry
+    ? [entry.kind, entry.items.map((item) => item.id)]
+    : [entry.kind, entry.item.id])
+}
+
+describe('planToolRunRender', () => {
+  it('keeps a lone finished call as its own row', () => {
+    expect(shape([makeItem(EXPLORE, 'ReadFile', '1')])).toEqual([['single', '1']])
   })
 
-  it('keeps a single ReadFile as individual card', () => {
-    const items = [makeItem(EXPLORE, 'ReadFile', '1')]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(1)
-    expect(result[0].kind).toBe('single')
-    if (result[0].kind === 'single') {
-      expect(result[0].item.toolName).toBe('ReadFile')
-    }
-  })
-
-  it('groups three consecutive ReadFile calls into one group', () => {
-    const items = [
+  it('groups consecutive calls across categories, with reasoning inside the group', () => {
+    expect(shape([
       makeItem(EXPLORE, 'ReadFile', '1'),
+      reasoning('r1'),
+      makeItem(SHELL, 'Exec', '2'),
+      makeItem(EDIT, 'EditFile', '3'),
+      makeItem(WEB_SEARCH, 'WebSearch', '4'),
+      makeItem(RECALL, 'ReadFile', '5')
+    ])).toEqual([['group', ['1', 'r1', '2', '3', '4', '5']]])
+  })
+
+  it('ends a group at a call that renders on its own', () => {
+    expect(shape([
+      makeItem(EXPLORE, 'ReadFile', '1'),
+      makeItem(SHELL, 'Exec', '2'),
+      makeItem(SUBAGENT_LIST, 'ListAgents', '3'),
+      makeItem(WRITE, 'WriteFile', '4'),
+      makeItem(WEB_FETCH, 'WebFetch', '5')
+    ])).toEqual([
+      ['group', ['1', '2']],
+      ['single', '3'],
+      ['group', ['4', '5']]
+    ])
+  })
+
+  it('renders the trailing run of a running turn as one active row', () => {
+    expect(shape([
+      makeItem(SUBAGENT_LIST, 'ListAgents', '1'),
       makeItem(EXPLORE, 'ReadFile', '2'),
-      makeItem(EXPLORE, 'ReadFile', '3')
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(1)
-    expect(result[0].kind).toBe('group')
-    if (result[0].kind === 'group') {
-      expect(result[0].items).toHaveLength(3)
-      expect(result[0].category).toBe('explore')
-    }
+      makeItem(SHELL, 'Exec', '3', { status: 'started' }),
+      reasoning('r1')
+    ], { isRunning: true, isTrailingRun: true })).toEqual([
+      ['single', '1'],
+      ['active', ['2', '3', 'r1']]
+    ])
   })
 
-  it('groups consecutive explore tools into one group', () => {
-    const items = [
-      makeItem(EXPLORE, 'ReadFile', '1'),
-      makeItem(EXPLORE, 'GrepFiles', '2'),
-      makeItem(EXPLORE, 'FindFiles', '3')
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(1)
-    expect(result[0].kind).toBe('group')
-    if (result[0].kind === 'group') {
-      expect(result[0].items).toHaveLength(3)
-      expect(result[0].category).toBe('explore')
-    }
+  it('leaves reasoning without calls to render on its own', () => {
+    expect(shape([reasoning('r1')], { isRunning: true, isTrailingRun: true })).toEqual([['reasoning', 'r1']])
   })
 
-  it('groups consecutive write tools into one group', () => {
-    const items = [
-      makeItem(WRITE, 'WriteFile', '1'),
-      makeItem(EDIT, 'EditFile', '2')
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(1)
-    expect(result[0].kind).toBe('group')
-    if (result[0].kind === 'group') {
-      expect(result[0].category).toBe('write')
-      expect(result[0].items).toHaveLength(2)
-    }
-  })
-
-  it('handles mixed sequences: [ReadFile, WriteFile, ReadFile, ReadFile]', () => {
-    const items = [
-      makeItem(EXPLORE, 'ReadFile', '1'),
-      makeItem(WRITE, 'WriteFile', '2'),
-      makeItem(EXPLORE, 'ReadFile', '3'),
-      makeItem(EXPLORE, 'ReadFile', '4')
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(3)
-    expect(result[0].kind).toBe('single')
-    if (result[0].kind === 'single') {
-      expect(result[0].item.toolName).toBe('ReadFile')
-    }
-    expect(result[1].kind).toBe('single')
-    if (result[1].kind === 'single') {
-      expect(result[1].item.toolName).toBe('WriteFile')
-    }
-    expect(result[2].kind).toBe('group')
-    if (result[2].kind === 'group') {
-      expect(result[2].category).toBe('explore')
-    }
-  })
-
-  it('groups consecutive shell tools into one group', () => {
-    const items = [
-      makeItem(SHELL, 'Exec', '1', { result: 'ok', success: true }),
-      makeItem(SHELL, 'RunCommand', '2', { result: 'ok', success: true }),
-      makeItem(SHELL, 'BashCommand', '3', { result: 'ok', success: true })
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(1)
-    expect(result[0].kind).toBe('group')
-    if (result[0].kind === 'group') {
-      expect(result[0].category).toBe('shell')
-      expect(result[0].items).toHaveLength(3)
-    }
-  })
-
-  it('groups consecutive WebSearch calls into one web group', () => {
-    const items = [
-      makeItem(WEB_SEARCH, 'WebSearch', '1', { result: '{"results":[]}', success: true }),
-      makeItem(WEB_SEARCH, 'WebSearch', '2', { result: '{"results":[]}', success: true })
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(1)
-    expect(result[0].kind).toBe('group')
-    if (result[0].kind === 'group') {
-      expect(result[0].category).toBe('web')
-      expect(result[0].items).toHaveLength(2)
-    }
-  })
-
-  it('groups mixed WebSearch and WebFetch calls into one web group', () => {
-    const items = [
-      makeItem(WEB_SEARCH, 'WebSearch', '1', { result: '{"results":[]}', success: true }),
-      makeItem(WEB_FETCH, 'WebFetch', '2', { result: '{"status":200}', success: true })
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(1)
-    expect(result[0].kind).toBe('group')
-    if (result[0].kind === 'group') {
-      expect(result[0].category).toBe('web')
-      expect(result[0].items.map((item) => item.toolName)).toEqual(['WebSearch', 'WebFetch'])
-    }
-  })
-
-  it('groups consecutive settled SpawnAgent calls', () => {
-    const items = [
-      makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '1', { result: '{"status":"running"}', success: true }),
-      makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '2', { result: '{"status":"running"}', success: true })
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(1)
-    expect(result[0].kind).toBe('group')
-    if (result[0].kind === 'group') {
-      expect(result[0].category).toBe('subagent')
-      expect(result[0].items).toHaveLength(2)
-    }
-  })
-
-  it('keeps non-narrative SubAgent control calls out of aggregation', () => {
-    const items = [
-      makeItem(SUBAGENT_MESSAGE, 'SendMessage', '1', { result: '{"status":"sent"}', success: true }),
-      makeItem(SUBAGENT_WAIT, 'WaitAgent', '2', { result: '{"status":"timeout"}', success: true }),
-      makeItem(SUBAGENT_LIST, 'ListAgents', '3', { result: '{"data":[]}', success: true })
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(3)
-    expect(result.every((entry) => entry.kind === 'single')).toBe(true)
-  })
-
-  it('groups consecutive settled FollowupTask calls', () => {
-    const items = [
-      makeItem(SUBAGENT_FOLLOWUP, 'FollowupTask', '1', { result: '{"status":"running"}', success: true }),
-      makeItem(SUBAGENT_FOLLOWUP, 'FollowupTask', '2', { result: '{"status":"running"}', success: true })
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(1)
-    expect(result[0].kind).toBe('group')
-    if (result[0].kind === 'group') {
-      expect(result[0].category).toBe('subagent')
-      expect(result[0].items.map((item) => item.toolName)).toEqual(['FollowupTask', 'FollowupTask'])
-    }
-  })
-
-  it('does not combine SpawnAgent and FollowupTask calls', () => {
-    const items = [
-      makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '1', { result: '{"status":"running"}', success: true }),
-      makeItem(SUBAGENT_FOLLOWUP, 'FollowupTask', '2', { result: '{"status":"running"}', success: true })
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(2)
-    expect(result.every((entry) => entry.kind === 'single')).toBe(true)
-  })
-
-  it('keeps a starting SpawnAgent on the same line as its settled neighbour', () => {
-    const items = [
-      makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '1', { status: 'started' }),
-      makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '2', { result: '{"status":"running"}', success: true })
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(1)
-    expect(result[0].kind).toBe('group')
-    if (result[0].kind === 'group') {
-      expect(result[0].category).toBe('subagent')
-      expect(result[0].items).toHaveLength(2)
-    }
-  })
-
-  it('preserves order of non-aggregatable items', () => {
-    const items = [
-      makeItem(SHELL, 'Exec', '1'),
+  it('splits a live call out of an earlier group while the turn runs', () => {
+    expect(shape([
+      makeItem(EXPLORE, 'ReadFile', '1', { result: 'ok', success: true }),
       makeItem(EXPLORE, 'ReadFile', '2'),
-      makeItem(EXPLORE, 'GrepFiles', '3'),
-      makeItem(WRITE, 'WriteFile', '4')
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(3)
-    if (result[0].kind === 'single') expect(result[0].item.toolName).toBe('Exec')
-    if (result[1].kind === 'group') expect(result[1].category).toBe('explore')
-    if (result[2].kind === 'single') expect(result[2].item.toolName).toBe('WriteFile')
+      makeItem(EXPLORE, 'ReadFile', '3', { result: 'ok', success: true }),
+      makeItem(EXPLORE, 'ReadFile', '4', { result: 'ok', success: true })
+    ], { isRunning: true, isTrailingRun: false })).toEqual([
+      ['single', '1'],
+      ['single', '2'],
+      ['group', ['3', '4']]
+    ])
   })
 
-  it('does not aggregate across category transitions', () => {
-    const items = [
+  it('does not keep missing-result historical tools live after the turn is completed', () => {
+    expect(shape([
       makeItem(EXPLORE, 'ReadFile', '1'),
-      makeItem(WRITE, 'WriteFile', '2'),
-      makeItem(SHELL, 'Exec', '3')
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(3)
-    for (const entry of result) {
-      expect(entry.kind).toBe('single')
-    }
-  })
-
-  it('groups each category independently in a mixed run', () => {
-    const items = [
-      makeItem(EXPLORE, 'ReadFile', '1'),
-      makeItem(EXPLORE, 'FindFiles', '2'),
-      makeItem(WRITE, 'WriteFile', '3'),
-      makeItem(EDIT, 'EditFile', '4'),
-      makeItem(SHELL, 'Exec', '5', { result: 'ok', success: true }),
-      makeItem(SHELL, 'RunCommand', '6', { result: 'ok', success: true })
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(3)
-    expect(result[0].kind).toBe('group')
-    expect(result[1].kind).toBe('group')
-    expect(result[2].kind).toBe('group')
-    if (result[0].kind === 'group') expect(result[0].category).toBe('explore')
-    if (result[1].kind === 'group') expect(result[1].category).toBe('write')
-    if (result[2].kind === 'group') expect(result[2].category).toBe('shell')
-  })
-
-  it('keeps settled write prefix grouped when trailing write item is live', () => {
-    const items = [
-      makeItem(WRITE, 'WriteFile', '1'),
-      makeItem(EDIT, 'EditFile', '2'),
-      makeItem(WRITE, 'WriteFile', '3', { status: 'streaming' })
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(2)
-    expect(result[0].kind).toBe('group')
-    if (result[0].kind === 'group') {
-      expect(result[0].category).toBe('write')
-      expect(result[0].items.map((item) => item.id)).toEqual(['1', '2'])
-    }
-    expect(result[1].kind).toBe('single')
-    if (result[1].kind === 'single') {
-      expect(result[1].item.id).toBe('3')
-    }
-  })
-
-  it('keeps settled shell prefix grouped when trailing shell execution is live', () => {
-    const items = [
-      makeItem(SHELL, 'Exec', '1', {
-        status: 'completed',
-        executionStatus: 'completed',
-        result: 'done',
-        success: true
-      }),
-      makeItem(SHELL, 'RunCommand', '2', {
-        status: 'completed',
-        executionStatus: 'completed',
-        result: 'done',
-        success: true
-      }),
-      makeItem(SHELL, 'BashCommand', '3', {
-        status: 'completed',
-        executionStatus: 'inProgress'
-      })
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(2)
-    expect(result[0].kind).toBe('group')
-    if (result[0].kind === 'group') {
-      expect(result[0].category).toBe('shell')
-      expect(result[0].items.map((item) => item.id)).toEqual(['1', '2'])
-    }
-    expect(result[1].kind).toBe('single')
-    if (result[1].kind === 'single') {
-      expect(result[1].item.id).toBe('3')
-    }
-  })
-
-  it('does not de-aggregate settled prefix and suffix around a live item', () => {
-    const items = [
-      makeItem(EXPLORE, 'ReadFile', '1'),
-      makeItem(EXPLORE, 'FindFiles', '2'),
-      makeItem(EXPLORE, 'ReadFile', '3', { status: 'streaming' }),
-      makeItem(EXPLORE, 'GrepFiles', '4'),
-      makeItem(EXPLORE, 'ReadFile', '5')
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(3)
-    expect(result[0].kind).toBe('group')
-    if (result[0].kind === 'group') {
-      expect(result[0].items.map((item) => item.id)).toEqual(['1', '2'])
-    }
-    expect(result[1].kind).toBe('single')
-    if (result[1].kind === 'single') {
-      expect(result[1].item.id).toBe('3')
-    }
-    expect(result[2].kind).toBe('group')
-    if (result[2].kind === 'group') {
-      expect(result[2].items.map((item) => item.id)).toEqual(['4', '5'])
-    }
-  })
-
-  it('keeps settled web calls grouped around a live web item', () => {
-    const items = [
-      makeItem(WEB_SEARCH, 'WebSearch', '1', { result: '{"results":[]}', success: true }),
-      makeItem(WEB_FETCH, 'WebFetch', '2', { result: '{"status":200}', success: true }),
-      makeItem(WEB_SEARCH, 'WebSearch', '3', { status: 'streaming' }),
-      makeItem(WEB_SEARCH, 'WebSearch', '4', { result: '{"results":[]}', success: true }),
-      makeItem(WEB_FETCH, 'WebFetch', '5', { result: '{"status":200}', success: true })
-    ]
-    const result = aggregateToolCalls(items)
-    expect(result).toHaveLength(3)
-    expect(result[0].kind).toBe('group')
-    if (result[0].kind === 'group') {
-      expect(result[0].category).toBe('web')
-      expect(result[0].items.map((item) => item.id)).toEqual(['1', '2'])
-    }
-    expect(result[1].kind).toBe('single')
-    if (result[1].kind === 'single') {
-      expect(result[1].item.id).toBe('3')
-    }
-    expect(result[2].kind).toBe('group')
-    if (result[2].kind === 'group') {
-      expect(result[2].category).toBe('web')
-      expect(result[2].items.map((item) => item.id)).toEqual(['4', '5'])
-    }
+      makeItem(EXPLORE, 'ReadFile', '2')
+    ])).toEqual([['group', ['1', '2']]])
   })
 
   it('treats completed tool calls without tool results as live only while the turn is running', () => {
@@ -417,67 +161,33 @@ describe('aggregateToolCalls', () => {
     expect(isToolItemLive(pending, { turnRunning: true })).toBe(true)
   })
 
-  it('keeps pending-result tools out of settled groups in running turns', () => {
-    const items = [
-      makeItem(EXPLORE, 'ReadFile', '1', { result: 'ok', success: true }),
-      makeItem(EXPLORE, 'ReadFile', '2'),
-      makeItem(EXPLORE, 'ReadFile', '3', { result: 'ok', success: true })
-    ]
-
-    const result = aggregateToolCalls(items, { turnRunning: true })
-
-    expect(result).toHaveLength(3)
-    expect(result[0].kind).toBe('single')
-    expect(result[1].kind).toBe('single')
-    expect(result[2].kind).toBe('single')
-    if (result[1].kind === 'single') {
-      expect(result[1].item.id).toBe('2')
-    }
-  })
-
-  it('does not keep missing-result historical tools live after the turn is completed', () => {
-    const items = [
-      makeItem(EXPLORE, 'ReadFile', '1'),
-      makeItem(EXPLORE, 'ReadFile', '2')
-    ]
-
-    const result = planToolRunRender(items, { isRunning: false, isTrailingRun: false })
-
-    expect(result.entries).toHaveLength(1)
-    expect(result.entries[0].kind).toBe('group')
-  })
-})
-
-describe('aggregateToolCalls memory calls', () => {
-  function shape(items: ConversationItem[]): Array<[string, string | string[]]> {
-    return aggregateToolCalls(items).map((entry) => entry.kind === 'group'
-      ? [entry.category, entry.items.map((item) => item.id)]
-      : ['single', entry.item.id])
-  }
-
-  it('keeps recalls in the exploration group they join', () => {
+  it('groups settled spawns and follow-ups separately, keeping a starting spawn on the line', () => {
     expect(shape([
-      makeItem(EXPLORE, 'ReadFile', '1'),
-      makeItem(RECALL, 'ReadFile', '2'),
-      makeItem(RECALL, 'GrepFiles', '3'),
-      makeItem(EXPLORE, 'ReadFile', '4')
+      makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '1'),
+      makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '2', { status: 'started' }),
+      makeItem(SUBAGENT_FOLLOWUP, 'FollowupTask', '3'),
+      makeItem(SUBAGENT_FOLLOWUP, 'FollowupTask', '4'),
+      makeItem(SUBAGENT_MESSAGE, 'SendMessage', '5')
     ])).toEqual([
-      ['explore', ['1', '2', '3', '4']]
+      ['subagents', ['1', '2']],
+      ['subagents', ['3', '4']],
+      ['single', '5']
     ])
   })
 
-  it('merges consecutive memory updates apart from file writes, leaving a failed update on its own', () => {
+  it('folds memory updates and other tools into the group but views images on their own row', () => {
+    const image = { contentItems: [{ type: 'image' as const, dataBase64: 'AA==', mediaType: 'image/png' }] }
     expect(shape([
       makeItem(WRITE, 'WriteFile', '1'),
-      makeItem(MEMORY_EDIT, 'EditFile', '2'),
-      makeItem(MEMORY_EDIT, 'EditFile', '3'),
-      makeItem(MEMORY_EDIT, 'EditFile', '4', { success: false }),
-      makeItem(MEMORY_EDIT, 'EditFile', '5')
+      makeItem(MEMORY_EDIT, 'EditFile', '2', { success: false }),
+      makeItem(EXPLORE, 'ReadFile', '3', image),
+      makeItem(EXPLORE, 'ReadFile', '4', image),
+      makeItem(SHELL, 'Exec', '5'),
+      { id: '6', type: 'mcpToolCall', status: 'completed', toolName: 'lookup', createdAt: new Date().toISOString() }
     ])).toEqual([
-      ['single', '1'],
-      ['memoryUpdate', ['2', '3']],
-      ['single', '4'],
-      ['single', '5']
+      ['group', ['1', '2']],
+      ['images', ['3', '4']],
+      ['group', ['5', '6']]
     ])
   })
 })

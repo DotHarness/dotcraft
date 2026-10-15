@@ -32,7 +32,9 @@ export function showReplyTextContextMenu(
     })
   }
   if (process.platform !== 'darwin') items.push({
-    label: translate(locale, 'conversation.selectAll'),
+    label: translate(locale, 'conversation.selection.selectAll'),
+    accelerator: 'CmdOrCtrl+A',
+    registerAccelerator: false,
     click: () => { if (!sender.isDestroyed()) sender.selectAll() },
   })
   if (items.length === 0) return Promise.resolve()
