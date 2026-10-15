@@ -9,7 +9,8 @@ internal static class SubAgentProfilePromptSectionBuilder
         IEnumerable<SubAgentProfile>? configuredProfiles,
         SubAgentProfileCatalog? catalog = null,
         IEnumerable<string>? disabledProfiles = null,
-        Func<string, bool>? binaryAvailabilityProbe = null)
+        Func<string, bool>? binaryAvailabilityProbe = null,
+        bool enableExternalCliSessionResume = false)
     {
         var effectiveCatalog = catalog ?? SubAgentProfileCatalog.BuiltIn;
         var runtimeSet = new HashSet<string>(effectiveCatalog.KnownRuntimeTypes, StringComparer.OrdinalIgnoreCase);
@@ -43,9 +44,21 @@ internal static class SubAgentProfilePromptSectionBuilder
             lines.Add($"- `{profile.Name}`: {description}");
         }
 
-        lines.Add("");
-        lines.Add("External CLI profiles provide stage-level progress and a final result, not native tool-by-tool execution details.");
-        lines.Add("When the workspace enables external CLI session resume, reusing the same profile and label continues the prior external CLI session when the profile supports it.");
+        var externalProfiles = visibleProfiles.Where(IsExternalCliProfile).ToArray();
+        if (externalProfiles.Length > 0)
+        {
+            lines.Add("");
+            lines.Add("External CLI profiles report stage-level progress and a final result, not tool-by-tool details.");
+        }
+
+        var resumableProfiles = enableExternalCliSessionResume
+            ? externalProfiles.Where(profile => profile.SupportsResume == true).Select(profile => $"`{profile.Name}`").ToArray()
+            : [];
+        if (resumableProfiles.Length > 0)
+        {
+            lines.Add(
+                $"Resumable profiles ({string.Join(", ", resumableProfiles)}) continue the previous external session when spawned again with the same `profile`, `agentNickname` (defaults to `taskName`), and `workingDirectory`. Use a new `agentNickname` to start fresh.");
+        }
 
         return string.Join(Environment.NewLine, lines);
     }
@@ -68,7 +81,7 @@ internal static class SubAgentProfilePromptSectionBuilder
         if (!registry.IsEnabled(profile.Name))
             return false;
 
-        if (string.Equals(profile.Runtime, CliOneshotRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase))
+        if (IsExternalCliProfile(profile))
         {
             if (string.IsNullOrWhiteSpace(profile.Bin))
                 return false;
@@ -79,6 +92,9 @@ internal static class SubAgentProfilePromptSectionBuilder
 
         return registry.GetValidationWarningsForProfile(profile.Name).Count == 0;
     }
+
+    private static bool IsExternalCliProfile(SubAgentProfile profile)
+        => string.Equals(profile.Runtime, CliOneshotRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase);
 
     private static bool IsDefaultProfile(SubAgentProfile profile)
         => string.Equals(profile.Name, SubAgentCoordinator.DefaultProfileName, StringComparison.OrdinalIgnoreCase);
@@ -95,10 +111,10 @@ internal static class SubAgentProfilePromptSectionBuilder
                 var modes = string.Join(
                     ", ",
                     profile.PermissionModeMapping.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase));
-                return $"External CLI profile launched as a short-lived subprocess per task. Permission modes: {modes}.";
+                return $"External CLI profile. Permission modes: {modes}.";
             }
 
-            return "External CLI profile launched as a short-lived subprocess per task.";
+            return "External CLI profile.";
         }
 
         return $"Subagent profile using runtime `{profile.Runtime}`.";

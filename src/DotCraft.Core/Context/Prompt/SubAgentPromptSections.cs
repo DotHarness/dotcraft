@@ -32,7 +32,7 @@ internal static class SubAgentPromptSections
         if (context.IsToolAvailable("SendMessage"))
             controls.Add("Use `SendMessage` to send a message without starting a target agent turn.");
         if (context.IsToolAvailable("FollowupTask"))
-            controls.Add("Use `FollowupTask` to start or queue a target agent turn. Set `deliveryMode` to `steer` only for same-turn guidance to a running native agent. Otherwise use the default `queue`. Pending messages are delivered with the task.");
+            controls.Add("Use `FollowupTask` to start or queue a target agent turn. Pending messages are delivered with the task.");
         if (context.IsToolAvailable("WaitAgent"))
             controls.Add($"Use `WaitAgent` to wait for a message update from any live agent. It does not return message content. `timeoutMs` is in milliseconds, defaults to {timeoutOptions.DefaultTimeoutMs}, and must be between {timeoutOptions.MinTimeoutMs} and {timeoutOptions.MaxTimeoutMs}.");
         if (context.IsToolAvailable("CloseAgent"))
@@ -50,8 +50,8 @@ Use `SpawnAgent` for independent work that can run while you continue the main t
 
 - Handle immediate blockers yourself. Delegate parallel exploration, verification, or implementation in separate areas.
 - Give each child a specific, self-contained task. Use `agentRole: "explorer"` for read-only research and `agentRole: "worker"` for bounded execution.
-- Set `taskName` using lowercase letters, digits, and underscores. Address the child by `agentPath`. `agentNickname` controls display naming only.
-- Full-history forks (`forkTurns` omitted or `"all"`) inherit the parent model and reasoning effort and do not accept overrides. Set `model` or `reasoningEffort` only when explicitly requested by the user, applicable `AGENTS.md` instructions, or skill instructions. For overrides, set `forkTurns` to `"none"` or a positive integer string.
+- Address the child by the returned `agentPath`.
+- Set `model` or `reasoningEffort` only when the user, applicable `AGENTS.md` instructions, or skill instructions explicitly request it. Overrides require `forkTurns` to be `"none"` or a positive integer string.
 {{controlsText}}
 - When a child finishes, review and integrate its result without redoing the same work.
 """;

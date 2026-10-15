@@ -210,7 +210,7 @@ public sealed class PartialCompactor
         IReadOnlyList<ChatMessage> messagesBeforeTask,
         CancellationToken cancellationToken)
     {
-        var instructions = BuildContextCompactionTaskInstructions(splitIndex, tail);
+        var instructions = BuildContextCompactionTaskInstructions(splitIndex, tail, CompactionSummaryBudget.ResolveSummaryLimit(_config));
         var result = await _maintenanceForkRunner!.RunAsync(
             snapshot,
             new MaintenanceForkTask(
@@ -238,7 +238,7 @@ public sealed class PartialCompactor
         var taskMessage = BuildLegacyContextCompactionTaskMessage();
         candidate = CompactionPreflightTrimmer.TrimSummaryInput(
             candidate,
-            CompactionPrompts.GetPartialCompactPrompt(),
+            CompactionPrompts.GetPartialCompactPrompt(CompactionSummaryBudget.ResolveSummaryLimit(_config)),
             _config,
             taskMessage);
         for (var attempt = 0; attempt <= MaxPromptTooLongRetries; attempt++)
@@ -281,7 +281,7 @@ public sealed class PartialCompactor
         string? threadId,
         CancellationToken cancellationToken)
     {
-        var summaryPrompt = CompactionPrompts.GetPartialCompactPrompt();
+        var summaryPrompt = CompactionPrompts.GetPartialCompactPrompt(CompactionSummaryBudget.ResolveSummaryLimit(_config));
         var summaryMessages = new List<ChatMessage>(paired.Count + 2)
         {
             new(ChatRole.System, summaryPrompt)
@@ -400,9 +400,10 @@ public sealed class PartialCompactor
 
     private static string BuildContextCompactionTaskInstructions(
         int splitIndex,
-        IReadOnlyList<ChatMessage> tail)
+        IReadOnlyList<ChatMessage> tail,
+        int maxOutputTokens)
     {
-        var prompt = CompactionPrompts.GetPartialCompactPrompt();
+        var prompt = CompactionPrompts.GetPartialCompactPrompt(maxOutputTokens);
         var firstTail = tail.FirstOrDefault();
         var tailHint = firstTail is null
             ? "No recent tail messages are preserved."

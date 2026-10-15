@@ -22,11 +22,11 @@ internal static class CompactionSummaryBudget
         return Math.Max(1, config.ContextWindow - maxOutputTokens);
     }
 
+    public static int ResolveSummaryLimit(CompactionConfig config) =>
+        Math.Max(1, config.SummaryMaxOutputTokens);
+
     public static bool ExceedsMaxOutputTokens(
         string summary,
-        CompactionConfig config)
-    {
-        var limit = Math.Max(1, config.SummaryMaxOutputTokens);
-        return MessageTokenEstimator.RoughTokenCount(summary) > limit;
-    }
+        CompactionConfig config) =>
+        MessageTokenEstimator.RoughTokenCount(summary) > ResolveSummaryLimit(config);
 }
