@@ -21,7 +21,7 @@ import { getToolOutputImages, ToolOutputImageGallery, useGeneratedOutputImage, t
 import { planToolRunRender } from '../../utils/toolCallAggregation'
 import type { AggregatedToolCall } from '../../utils/toolCallAggregation'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
-import { getToolRowIcon, isToolExecutionFailure } from '../../utils/toolCallDisplay'
+import { getToolRowIcon, isToolExecutionFailure, type ToolRowIcon } from '../../utils/toolCallDisplay'
 import { isCodeModeExecItem } from '../../utils/codeModeExec'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -321,6 +321,17 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     )
   })
 
+  const idleThinkingNodes = (): ConversationRenderNode[] => {
+    if (!shouldShowIdleThinkingFallback || hostsThinking) return []
+    const liveReasoning = renderableItems.some((item) =>
+      item.type === 'reasoningContent' && item.status === 'streaming' && item.id === activeItemId)
+    return [{
+      key: `idle-thinking-${turn.id}`,
+      kind: 'assistant',
+      node: <ThinkingIndicator streaming statusText={liveReasoning ? extractThinkingStatus(streamingReasoning) : undefined} />
+    }]
+  }
+
   if (collapsesIntermediate && trimHistoricalToolContent) {
     const beforeFinalItems = collapseSourceItems.slice(0, lastFinalAgentMessageIndex)
     const pinnedTrimmedIndices = collectTrimmedPinnedIntermediateIndices(beforeFinalItems)
@@ -346,6 +357,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       intermediateNodes.push(...renderItemSequence(renderableItems.slice(segmentStart, boundary)))
       segmentStart = boundary + 1
     }
+    if (activity.status === 'working') intermediateNodes.push(...idleThinkingNodes())
     renderNodes.push(activitySummary(intermediateNodes))
     renderNodes.push(...pinnedIndices.flatMap((pinnedIndex) => renderItemSequence([renderableItems[pinnedIndex]])))
     renderNodes.push(...renderItemSequence(renderableItems.slice(splitIndex)))
@@ -353,15 +365,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     renderNodes.push(...renderItemSequence(renderableItems))
   }
 
-  if (shouldShowIdleThinkingFallback && !hostsThinking) {
-    const liveReasoning = renderableItems.some((item) =>
-      item.type === 'reasoningContent' && item.status === 'streaming' && item.id === activeItemId)
-    renderNodes.push({
-      key: `idle-thinking-${turn.id}`,
-      kind: 'assistant',
-      node: <ThinkingIndicator streaming statusText={liveReasoning ? extractThinkingStatus(streamingReasoning) : undefined} />
-    })
-  }
+  if (activity.status !== 'working') renderNodes.push(...idleThinkingNodes())
 
   const hasMatchingErrorItem = turn.status === 'failed' && turn.error != null && turn.items.some(
     (item) => item.type === 'error' &&
@@ -589,15 +593,18 @@ function ToolActivityRow({
   const tools = items.filter((item) => item.type !== 'reasoningContent')
   const liveTool = active ? tools.findLast((item) => isToolItemLive(item, { turnRunning })) : undefined
   const working = liveTool != null || thinkingLabel != null
-  const label = useHeldLabel(liveTool ? formatActiveToolLabel(liveTool, locale)
-    : thinkingLabel ?? formatToolGroupLabel(tools, locale, itemDiffs), active)
   const iconItem = liveTool ?? (thinkingLabel == null ? getToolGroupIconItem(tools) : undefined)
+  const { label, icon } = useHeldRowHeader({
+    label: liveTool ? formatActiveToolLabel(liveTool, locale)
+      : thinkingLabel ?? formatToolGroupLabel(tools, locale, itemDiffs),
+    icon: iconItem ? getToolRowIcon(iconItem) : undefined
+  }, active)
 
   return (
     <ToolDisclosure
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
-      icon={iconItem ? getToolRowIcon(iconItem) : undefined}
+      icon={icon}
       title={<RunningShimmer active={working} className="dc-tool-row-running-label">{label}</RunningShimmer>}
     >
       <div className="dc-tool-children">
@@ -611,15 +618,26 @@ function ToolActivityRow({
   )
 }
 
-function useHeldLabel(label: string, hold: boolean): string {
-  const [held, setHeld] = useState(label)
+interface RowHeader {
+  label: string
+  icon?: ToolRowIcon
+}
+
+function sameRowHeader(a: RowHeader, b: RowHeader): boolean {
+  return a.label === b.label && a.icon?.icon === b.icon?.icon && a.icon?.tone === b.icon?.tone
+}
+
+function useHeldRowHeader(header: RowHeader, hold: boolean): RowHeader {
+  const [held, setHeld] = useState(header)
   const shownAt = useRef(Date.now())
+  const latest = useRef(header)
+  latest.current = header
 
   useEffect(() => {
-    if (label === held) return
+    if (sameRowHeader(latest.current, held)) return
     const show = (): void => {
       shownAt.current = Date.now()
-      setHeld(label)
+      setHeld(latest.current)
     }
     const wait = shownAt.current + LABEL_HOLD_MS - Date.now()
     if (!hold || wait <= 0) {
@@ -628,9 +646,9 @@ function useHeldLabel(label: string, hold: boolean): string {
     }
     const timer = setTimeout(show, wait)
     return () => clearTimeout(timer)
-  }, [label, held, hold])
+  }, [header.label, header.icon?.icon, header.icon?.tone, held, hold])
 
-  return hold ? held : label
+  return hold ? held : header
 }
 
 function isToolRunItem(item: ConversationItem): boolean {

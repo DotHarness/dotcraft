@@ -1539,6 +1539,43 @@ describe('AgentResponseBlock idle running fallback', () => {
     expect(screen.queryByText(/Reading file/i)).toBeNull()
   })
 
+  it('switches the activity row label and icon together when a tool hands over to thinking', () => {
+    vi.useFakeTimers()
+    const readItem = (status: 'started' | 'completed'): ConversationItem => ({
+      id: 'tool-read-handover',
+      type: 'toolCall',
+      status,
+      toolCallId: 'call-read-handover',
+      toolName: 'ReadFile', ...coreToolFields('ReadFile'),
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+      arguments: { path: 'docs/readme.md' },
+      ...(status === 'completed' ? { result: 'file contents', success: true, completedAt: '2026-04-18T11:24:22.000Z' } : {}),
+      createdAt: '2026-04-18T11:24:21.000Z'
+    })
+    const renderTurn = (status: 'started' | 'completed'): JSX.Element => (
+      <LocaleProvider>
+        <AgentResponseBlock
+          turn={{ id: 'turn-read-handover', threadId: 'thread-1', status: 'running', startedAt: '2026-04-18T11:24:20.000Z', items: [readItem(status)] }}
+          isRunning
+          showIdleThinkingFallback
+        />
+      </LocaleProvider>
+    )
+    const { container, rerender } = render(renderTurn('started'))
+    const icon = (): Element | null => container.querySelector('.dc-tool-row-icon')
+    expect(icon()).not.toBeNull()
+
+    rerender(renderTurn('completed'))
+    expect(screen.queryByText('Thinking')).toBeNull()
+    expect(icon()).not.toBeNull()
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(screen.getByText('Thinking')).toBeInTheDocument()
+    expect(icon()).toBeNull()
+  })
+
   it('reopens Thinking after a tool completes following an intermediate agent message', () => {
     const turn: ConversationTurn = {
       id: 'turn-intermediate-message-tool-complete',
