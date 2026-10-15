@@ -121,6 +121,16 @@
         }
       ]
     },
+    "sideChat": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "threadId": {
       "type": "string"
     }

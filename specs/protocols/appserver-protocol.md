@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.7 |
+| **Version** | 0.8.8 |
 | **Status** | Living |
-| **Date** | 2026-10-14 |
+| **Date** | 2026-10-15 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
 
@@ -272,6 +272,7 @@ Built-in channels and external adapters share the delivery and tool-call contrac
 | `serverInfo.extensions` | string[] | Optional flat list of available extension namespaces. |
 | `capabilities.threadManagement` | boolean | Server supports thread CRUD operations. |
 | `capabilities.threadFork` | boolean | Server supports creating conversation branches with `thread/fork`. |
+| `capabilities.sideChat` | boolean | Server supports side chat forks through `thread/fork.sideChat`. |
 | `capabilities.threadSubscriptions` | boolean | Server supports passive `thread/subscribe` observers independent from `turn/start`. |
 | `capabilities.threadGoals` | boolean | Server supports the complete thread goal runtime contract: `thread/goal/*` control methods, goal notifications, prompt-visible goal context, usage accounting, budget transitions, and model goal tools. Automatic idle continuation still depends on server config. |
 | `capabilities.manualCompaction` | boolean | Server supports manual context compaction with `thread/compact/start`. |
@@ -640,6 +641,7 @@ Create a new thread from a source thread's persisted history. Clients must check
 | `displayName` | string | no | Explicit display name for the forked thread. When omitted, the fork uses the source thread's visible display name, or the first retained user message when the source has no display name. |
 | `ephemeral` | boolean | no | When true, create a process-local fork with the same meaning as `thread/start.ephemeral`. Defaults to false. |
 | `promptSuggestion` | boolean | no | Marks an ephemeral fork used to predict the next user message. Requires `ephemeral = true` and a full `after` boundary at the latest completed Turn, with no non-empty `itemId`; omitted position defaults to `after`. Preserves the source's tool-planning role and provider cache routing identity while keeping a distinct thread id. Defaults to false. |
+| `sideChat` | boolean | no | Creates a side chat, described below. Requires `capabilities.sideChat`, `ephemeral = true`, and no `forkPoint`, and cannot be combined with `promptSuggestion`. The source must not be a side chat. Defaults to false. |
 
 **Result**: `{ "thread": Thread, "instructionSources": string[] }`
 
@@ -652,6 +654,17 @@ Semantics:
 - Forks do not inherit queued inputs, pending approvals, active user-input requests, app bindings, active goals, or durable plan state.
 - A persistent `systemNotice` item with `kind = "forked"` and `sourceThreadId` marks the copied-history boundary. Clients read it through `thread/items/list`.
 - The response and the subsequent `thread/started` broadcast contain only the new Thread header. Clients read copied history through the paged history methods.
+
+Side chats:
+
+A side chat is a temporary conversation beside its source thread for questions and light exploration that should not disturb the source's work.
+
+- It copies the source's complete current history. When the source has a running Turn, the copy ends at an interrupted boundary at the moment of the fork while the source Turn keeps running.
+- It keeps the source's configuration, approval policy, tool-planning role, and provider cache routing identity, so its requests can reuse the source's cached prompt prefix.
+- It is hidden like other internal ephemeral threads. It is not listed or searched, and its workspace notifications reach only its subscribers.
+- Before each Turn the server ensures the model-visible history contains a side chat boundary. The boundary marks the copied history as reference-only context and asks for read-only help unless the user explicitly requests a change in the side chat. It is not a client-visible Item.
+- `SpawnAgent` calls in a side chat fail with a tool error.
+- It lives until `thread/delete`, until its source thread is archived or permanently deleted, or until the server process exits. Clients delete side chats they no longer show.
 
 ### 4.3 `thread/list`
 

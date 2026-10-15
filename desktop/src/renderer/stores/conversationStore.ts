@@ -19,7 +19,6 @@ import {
   isToolLikeItemType,
   normalizeConversationItemType,
   normalizePluginFunctionContentItems,
-  normalizeApprovalShell,
   normalizeToolUiDescriptor,
   wireItemToConversationItem,
   wireTurnToConversationTurn
@@ -42,6 +41,7 @@ import {
   extractStreamingFilePath
 } from '../utils/streamingDiff'
 import { parsePlanMarkdown } from '../utils/planMarkdown'
+import { parsePendingApproval, parseUserInputRequest } from '../utils/interactiveRequestParsing'
 import { extractPartialJsonStringValue } from '../utils/toolCallDisplay'
 import {
   createShellRuntimeBuffer,
@@ -222,12 +222,6 @@ const approvalDecisionToState: Record<ApprovalDecision, ApprovalState> = {
   acceptAlways: 'acceptedAlways',
   decline: 'declined',
   cancel: 'cancelled'
-}
-
-function normalizeApprovalDecision(value: unknown): ApprovalDecision | null {
-  return typeof value === 'string' && value in approvalDecisionToState
-    ? value as ApprovalDecision
-    : null
 }
 
 function matchesPendingApproval(
@@ -2897,60 +2891,23 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   onApprovalRequest(bridgeId, params) {
-    const state = get()
-    const activeTurnId = state.activeTurnId
-    const turnId = typeof params.turnId === 'string' ? params.turnId : activeTurnId
-    if (!activeTurnId && !turnId) return
-    const threadId = typeof params.threadId === 'string' ? params.threadId : null
-    const requestId = typeof params.requestId === 'string' ? params.requestId : ''
-    const locallySubmittedDecision = normalizeApprovalDecision(params.locallySubmittedDecision)
-
-    const rawApprovalType = params.approvalType
-    const approvalType: ApprovalType =
-      rawApprovalType === 'file' ||
-      rawApprovalType === 'remoteResource' ||
-      rawApprovalType === 'skill' ||
-      rawApprovalType === 'computerUse'
-        ? rawApprovalType
-        : 'shell'
-    const operation = (params.operation as string) ?? ''
-    const target = (params.target as string) ?? ''
-    const targetLabel = typeof params.targetLabel === 'string' && params.targetLabel.trim()
-      ? params.targetLabel
-      : undefined
-    const reason = (params.reason as string) ?? ''
-    const shell = normalizeApprovalShell(params.shell)
-    const itemId = typeof params.itemId === 'string' && params.itemId.trim().length > 0
-      ? params.itemId
-      : `approval-${bridgeId}`
+    const activeTurnId = get().activeTurnId
+    const pending = parsePendingApproval(bridgeId, params, activeTurnId)
+    const turnId = pending.turnId
+    if (!turnId) return
 
     const approvalItem: ConversationItem = {
-      id: itemId,
+      id: pending.itemId,
       type: 'approvalCard',
       status: 'completed',
-      approvalRequestId: requestId,
-      approvalType,
-      approvalOperation: operation,
-      approvalTarget: target,
-      approvalReason: reason,
-      approvalShell: shell,
+      approvalRequestId: pending.requestId,
+      approvalType: pending.approvalType,
+      approvalOperation: pending.operation,
+      approvalTarget: pending.target,
+      approvalReason: pending.reason,
+      approvalShell: pending.shell,
       approvalState: 'pending',
       createdAt: new Date().toISOString()
-    }
-
-    const pending: PendingApproval = {
-      bridgeId,
-      threadId,
-      turnId: turnId ?? null,
-      requestId,
-      locallySubmittedDecision,
-      itemId,
-      approvalType,
-      operation,
-      target,
-      targetLabel,
-      reason,
-      shell
     }
 
     set((s) => {
@@ -3116,49 +3073,9 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   onUserInputRequest(bridgeId, params) {
-    if (
-      typeof params.threadId !== 'string'
-      || typeof params.turnId !== 'string'
-      || typeof params.requestId !== 'string'
-      || typeof params.isBlocking !== 'boolean'
-    ) return
-
-    const rawQuestions = Array.isArray(params.questions) ? params.questions : []
-    const questions: UserInputQuestion[] = rawQuestions
-      .map((raw) => {
-        const q = raw as Record<string, unknown>
-        const rawOptions = Array.isArray(q.options) ? q.options : []
-        return {
-          id: typeof q.id === 'string' ? q.id : '',
-          header: typeof q.header === 'string' ? q.header : '',
-          question: typeof q.question === 'string' ? q.question : '',
-          isOther: q.isOther !== false,
-          isSecret: q.isSecret === true,
-          options: rawOptions
-            .map((rawOption) => {
-              const option = rawOption as Record<string, unknown>
-              return {
-                label: typeof option.label === 'string' ? option.label : '',
-                description: typeof option.description === 'string' ? option.description : ''
-              }
-            })
-            .filter((option) => option.label.trim().length > 0)
-        }
-      })
-      .filter((q) => q.id.trim().length > 0 && q.question.trim().length > 0)
-
-    set({
-      turnStatus: 'waitingInput',
-      activeTurnId: params.turnId,
-      pendingUserInput: {
-        bridgeId,
-        threadId: params.threadId,
-        requestId: params.requestId,
-        turnId: params.turnId,
-        isBlocking: params.isBlocking,
-        questions
-      }
-    })
+    const request = parseUserInputRequest(bridgeId, params)
+    if (!request) return
+    set({ turnStatus: 'waitingInput', activeTurnId: request.turnId, pendingUserInput: request })
   },
 
   onUserInputResolved() {

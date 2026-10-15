@@ -568,6 +568,7 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
 
         var capabilities = init.RootElement.GetProperty("result").GetProperty("capabilities");
         Assert.True(capabilities.GetProperty("threadFork").GetBoolean());
+        Assert.True(capabilities.GetProperty("sideChat").GetBoolean());
         Assert.True(capabilities.GetProperty("gitWorktrees").GetBoolean());
     }
 
@@ -662,6 +663,27 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
             threadId = source.Id,
             promptSuggestion = true,
             forkPoint = new { turnId = "turn_001" }
+        });
+
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        CoreAppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+    }
+
+    [Theory]
+    [InlineData("persistent")]
+    [InlineData("promptSuggestion")]
+    [InlineData("forkPoint")]
+    public async Task ThreadFork_SideChatRequiresWholeEphemeralFork(string conflict)
+    {
+        var source = await _h.Service.CreateThreadAsync(_h.Identity);
+        AddCompletedTurn(source, "turn_001", "first");
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadFork, conflict switch
+        {
+            "persistent" => (object)new { threadId = source.Id, sideChat = true },
+            "promptSuggestion" => new { threadId = source.Id, sideChat = true, ephemeral = true, promptSuggestion = true },
+            _ => new { threadId = source.Id, sideChat = true, ephemeral = true, forkPoint = new { turnId = "turn_001" } }
         });
 
         await _h.ExecuteRequestAsync(msg);

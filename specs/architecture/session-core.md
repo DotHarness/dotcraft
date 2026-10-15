@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.4 |
+| **Version** | 0.8.5 |
 | **Status** | Living |
-| **Date** | 2026-10-13 |
+| **Date** | 2026-10-15 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -193,6 +193,15 @@ Fork contract:
 - Forked threads include a persisted `SystemNotice` item with `kind = "forked"` and `sourceThreadId` at the boundary between inherited source history and fork-specific work. This marker is client-visible but not model-visible.
 - A persistent fork must materialize its own optimized model-visible history when source history has already been compacted. If the selected fork prefix fully retains a source compaction checkpoint's covered turn, Session Core rebases that checkpoint into the fork rollout, appends the retained later model-history messages, and records an estimated context usage snapshot. If the fork point cuts inside or before the checkpoint-covered turn, that checkpoint is not compatible and an older compatible checkpoint may be used instead.
 - Fork rebuilds must prefer fork-local compaction checkpoints and must not expand compacted source history back into the full pre-compaction transcript when a compatible checkpoint exists.
+
+Side chat forks:
+
+- A side chat is an internal ephemeral fork of a thread that is not itself a side chat. It copies the source's full current history and may be taken while a source Turn is running.
+- Its model-visible history reuses the source's persisted model history for every completed Turn, so the copied prefix is byte-identical to the source's. A running source Turn is rebuilt from its copied Items and ends at the interrupted boundary.
+- It inherits the source's tool-planning role and cache routing root like other cache-sharing forks, so its tool surface and base instructions match the source.
+- Before each Turn, Session Core appends a side chat boundary thread context item when the history has none. The boundary follows the copied history, survives compaction by being restored on the next Turn, and is not a visible Item.
+- `SpawnAgent` fails in a side chat because a side chat cannot own persistent child threads.
+- Archiving or permanently deleting the source deletes its side chats.
 
 #### 4.1.1.2 Worktree Handoff
 

@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { CornerDownRight, GripVertical, ListChecks, Pencil, Trash2 } from 'lucide-react'
+import { CornerDownRight, GripVertical, ListChecks, MessagesSquare, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Spinner } from '../ui/Spinner'
 import { useT } from '../../contexts/LocaleContext'
@@ -34,6 +34,7 @@ interface QueuedInputDockProps {
   onQueueRemove?: (id: string) => void
   onQueueEdit?: (id: string) => void
   onQueueReorder?: (orderedQueuedInputIds: string[]) => void
+  onQueueSideChat?: (id: string) => void
   editingQueuedInputId?: string | null
 }
 
@@ -44,6 +45,7 @@ export function QueuedInputDock({
   onQueueRemove,
   onQueueEdit,
   onQueueReorder,
+  onQueueSideChat,
   editingQueuedInputId = null
 }: QueuedInputDockProps): JSX.Element | null {
   const t = useT()
@@ -88,6 +90,7 @@ export function QueuedInputDock({
             onRemove={onQueueRemove}
             onEdit={onQueueEdit}
             onReorder={onQueueReorder}
+            onSideChat={onQueueSideChat}
             editingQueuedInputId={editingQueuedInputId}
           />
         </SortableContext>
@@ -113,6 +116,7 @@ function QueuedInputDockSection({
   onRemove,
   onEdit,
   onReorder,
+  onSideChat,
   editingQueuedInputId
 }: {
   queuedInputs: QueuedTurnInput[]
@@ -122,6 +126,7 @@ function QueuedInputDockSection({
   onRemove?: (id: string) => void
   onEdit?: (id: string) => void
   onReorder?: (orderedQueuedInputIds: string[]) => void
+  onSideChat?: (id: string) => void
   editingQueuedInputId?: string | null
 }): JSX.Element {
   const t = useT()
@@ -146,6 +151,7 @@ function QueuedInputDockSection({
             onSteer={onSteer}
             onRemove={onRemove}
             onEdit={onEdit}
+            onSideChat={onSideChat}
             onKeyboardMove={moveQueuedInput}
             editing={editingQueuedInputId === item.id}
           />
@@ -161,6 +167,7 @@ function QueuedInputDockRow({
   onSteer,
   onRemove,
   onEdit,
+  onSideChat,
   onKeyboardMove,
   editing
 }: {
@@ -169,6 +176,7 @@ function QueuedInputDockRow({
   onSteer?: (id: string) => void
   onRemove?: (id: string) => void
   onEdit?: (id: string) => void
+  onSideChat?: (id: string) => void
   onKeyboardMove?: (id: string, delta: -1 | 1) => void
   editing: boolean
 }): JSX.Element {
@@ -239,6 +247,18 @@ function QueuedInputDockRow({
           </RunningShimmer>
         </Button>
       </ActionTooltip>
+      {onSideChat && (
+        <IconButton
+          icon={<MessagesSquare size={14} aria-hidden />}
+          label={t('composer.queueSideChat')}
+          tooltipLabel={t('composer.queueSideChat')}
+          tooltipPlacement="top"
+          size={24}
+          radius={6}
+          onClick={() => onSideChat(item.id)}
+          disabled={item.status !== 'queued' || Boolean(item.triggerKind) || item.sentAsGoal === true || isLocalEcho}
+        />
+      )}
       <IconButton
         icon={<Trash2 size={14} aria-hidden />}
         label={t('composer.queueRemove')}

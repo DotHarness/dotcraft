@@ -20,6 +20,14 @@ Fenced `mermaid` blocks in a reply render as diagrams, falling back to the sourc
 
 When a calculator, comparison, or quiz answers a question better than text, DotCraft puts one in the reply as an [interactive answer](../guide/interactive-answers). Ask for a chart, a simulation, or a few design mockups, and DotCraft draws a [visualization](../guide/visualizations) you can explore and refine without leaving the conversation.
 
+## Ask a side question
+
+A side chat answers a quick question without interrupting the thread. Open one with **New side chat** in the thread's **…** menu, with **Ctrl+Alt+S** (**⌘⌥S** on macOS), or by typing `/side` followed by your question. It opens as a tab in the side panel and already knows the conversation so far, so you can ask what a change does or where something lives while the agent keeps working.
+
+Select text in a reply and choose **Ask in side chat** to quote it there. A queued message can go to a side chat with **Send in side chat** instead of waiting for the current task. **Ctrl+/** moves between the main composer and the side chat.
+
+A side chat is for questions: it reads and answers, and changes files only when you ask it to. Approvals it needs appear in its own tab. Side chats are temporary: closing the tab deletes one, and nothing from it enters the main thread.
+
 ## Keep several projects in one window
 
 <LiveExample feature="desktop" :examples="['several-projects']" />

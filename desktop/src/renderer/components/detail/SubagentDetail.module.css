@@ -77,12 +77,6 @@
   overflow-y: auto;
 }
 
-.turn {
-  display: flex;
-  flex-direction: column;
-  gap: var(--conversation-block-gap);
-}
-
 .skeleton {
   display: flex;
   flex-direction: column;

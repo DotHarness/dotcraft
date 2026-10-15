@@ -222,6 +222,9 @@ public sealed class ServerCapabilitySnapshot
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ThreadFork { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SideChat { get; set; }
+
     /// <summary>
     /// Server supports DotCraft-managed Git worktree handoff methods (<c>worktree/*</c>).
     /// </summary>

@@ -4,6 +4,7 @@ import { useUIStore, type SystemDetailTab } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useFileEditorStore } from '../../stores/fileEditorStore'
+import { useSideChatStore } from '../../stores/sideChatStore'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 
 export type DetailTabRef =
@@ -65,6 +66,15 @@ export function useDetailPanelTabClose(): DetailPanelTabClose {
         if (!discard) return false
       }
       useFileEditorStore.getState().discard(tabId)
+    }
+    if (closing.kind === 'sideChat' && (useSideChatStore.getState().chats.get(closing.sideChatKey)?.turns.length ?? 0) > 0) {
+      const discard = await confirm({
+        title: t('sideChat.closeTitle'),
+        message: t('sideChat.closeMessage'),
+        confirmLabel: t('sideChat.closeConfirm'),
+        danger: true
+      })
+      if (!discard) return false
     }
     if (closing.kind === 'browser') {
       void window.api.workspace.viewer.browser.destroy({ tabId: closing.id })

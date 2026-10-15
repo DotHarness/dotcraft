@@ -17,6 +17,7 @@ export interface ServerInfo {
 export interface ServerCapabilities {
   threadManagement?: boolean
   threadFork?: boolean
+  sideChat?: boolean
   gitWorktrees?: boolean
   threadSubscriptions?: boolean
   approvalFlow?: boolean

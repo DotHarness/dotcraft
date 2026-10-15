@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { DesktopPluginThreadSurfaceContext } from '@dotcraft/plugin'
-import { Archive, ArrowRightLeft, GitFork, Laptop, MessageSquareOff, Pencil, Pin } from 'lucide-react'
+import { Archive, ArrowRightLeft, GitFork, Laptop, MessageSquareOff, MessagesSquare, Pencil, Pin } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { writtenFileSummaries } from '../../stores/turnDiffs'
@@ -24,6 +24,7 @@ import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { Input } from '../ui/Input'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
+import { openSideChat, useCanOpenSideChat } from '../../utils/sideChat'
 import { archiveThreadWithUndo } from '../../utils/threadArchive'
 import { buildOpenInSubmenu, useOpenTargets } from '../../utils/openTargets'
 import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
@@ -97,6 +98,7 @@ export function ThreadHeader({
   const activeThreadIsSubAgent = activeThread ? isSubAgentThread(activeThread) : false
   const pinned = pinnedThreadIds.includes(threadId)
   const canFork = canForkThread(capabilities)
+  const sideChatAvailable = useCanOpenSideChat()
   const chatThread = isDefaultChatWorkspacePathCandidate(activeThread?.workspacePath)
   const canForkIntoWorktree = canForkWorktree(capabilities) && !remoteWorkspace && !chatThread
   const worktreeBranch = activeThread?.worktree?.branchName?.trim()
@@ -363,9 +365,19 @@ export function ThreadHeader({
           })
         ]
       : []),
+    ...((!activeThreadIsSubAgent && canFork) || sideChatAvailable ? [{ type: 'separator' as const }] : []),
+    ...(sideChatAvailable
+      ? [{
+          label: t('sideChat.new'),
+          icon: <MessagesSquare size={14} aria-hidden />,
+          onClick: () => {
+            setMenuPosition(null)
+            void openSideChat(threadId, t)
+          }
+        }]
+      : []),
     ...(!activeThreadIsSubAgent && canFork
       ? [
-          { type: 'separator' as const },
           {
             label: t('fork.menu'),
             icon: <GitFork size={14} aria-hidden />,

@@ -147,8 +147,12 @@ internal sealed partial class ThreadRequestHandler(
         var msg = request.Message;
         var p = request.Params;
         RejectRemovedFields(p.ExtensionData, "excludeTurns");
-        if (ValueOrDefault(p.PromptSuggestion) == true && ValueOrDefault(p.Ephemeral) != true)
+        var promptSuggestion = ValueOrDefault(p.PromptSuggestion) == true;
+        var sideChat = ValueOrDefault(p.SideChat) == true;
+        if (promptSuggestion && ValueOrDefault(p.Ephemeral) != true)
             throw AppServerErrors.InvalidParams("'promptSuggestion' requires 'ephemeral' to be true.");
+        if (sideChat && (ValueOrDefault(p.Ephemeral) != true || promptSuggestion || ValueOrDefault(p.ForkPoint) != null))
+            throw AppServerErrors.InvalidParams("'sideChat' requires 'ephemeral' to be true and cannot be combined with 'promptSuggestion' or 'forkPoint'.");
         var threadId = Require(p.ThreadId, "'threadId' is required.");
         var dynamicTools = WorktreeContractMapper.ToDynamicTools(ValueOrDefault(p.DynamicTools));
         var additionalContext = WorktreeContractMapper.ToAdditionalContext(ValueOrDefault(p.AdditionalContext));
@@ -173,11 +177,13 @@ internal sealed partial class ThreadRequestHandler(
                 RuntimeWorkspaceRoots = ValueOrDefault(p.RuntimeWorkspaceRoots),
                 DisplayName = ValueOrDefault(p.DisplayName),
                 Ephemeral = ValueOrDefault(p.Ephemeral) ?? false,
-                Purpose = ValueOrDefault(p.PromptSuggestion) == true ? ThreadForkPurpose.PromptSuggestion : null
+                Purpose = promptSuggestion ? ThreadForkPurpose.PromptSuggestion
+                    : sideChat ? ThreadForkPurpose.SideChat
+                    : null
             },
             ct);
 
-        if (ValueOrDefault(p.PromptSuggestion) == true)
+        if (promptSuggestion || sideChat)
             threadBinder.ForkAdditionalContext(threadId, thread.Id);
 
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);

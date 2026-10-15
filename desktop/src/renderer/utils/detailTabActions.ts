@@ -7,6 +7,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import { activeDetailScopeId } from './detailPanelScope'
+import { openActiveSideChat } from './sideChat'
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string
 
@@ -24,6 +25,11 @@ export function performAddTabAction(action: AddTabMenuAction, ctx: AddTabActionC
   if (action === 'newChanges' || action === 'newPlan' || action === 'newSubagents') {
     if (!useThreadStore.getState().activeThreadId) return
     ui.setActiveDetailTab(action === 'newChanges' ? 'changes' : action === 'newPlan' ? 'plan' : 'subagents')
+    return
+  }
+
+  if (action === 'newSideChat') {
+    openActiveSideChat(ctx.t)
     return
   }
 

@@ -3329,6 +3329,7 @@ export interface ServerCapabilities {
   remoteToolHost?: boolean;
   requestUserInput?: boolean;
   runtimeAdditionalContext?: boolean;
+  sideChat?: boolean;
   skillVariants?: boolean;
   skillsManagement?: boolean;
   sourceControlManagement?: boolean;
@@ -4220,6 +4221,7 @@ export interface ThreadForkParams {
   path?: string | null;
   promptSuggestion?: boolean | null;
   runtimeWorkspaceRoots?: string[] | null;
+  sideChat?: boolean | null;
   threadId?: string;
   [key: string]: unknown;
 }

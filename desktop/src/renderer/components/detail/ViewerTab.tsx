@@ -10,6 +10,7 @@ import { AlertTriangle, Folder, FolderOpen } from 'lucide-react'
 import { ViewerHeader } from './ViewerHeader'
 import { WorkspaceExplorer } from './WorkspaceExplorer'
 import { ExplorerDock } from './ExplorerDock'
+import { SideChatTab } from '../sideChat/SideChatTab'
 import { IconButton } from '../ui/IconButton'
 import { useFileEditorStore } from '../../stores/fileEditorStore'
 
@@ -110,6 +111,8 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
       {t('quickOpen.loading')}
     </div>
   )
+
+  if (tab.kind === 'sideChat') return <SideChatTab tabId={tab.id} />
 
   // Browser / terminal tabs keep their own chrome and fill the panel.
   if (tab.kind === 'browser' || tab.kind === 'terminal' || tab.kind === 'workflow') {
