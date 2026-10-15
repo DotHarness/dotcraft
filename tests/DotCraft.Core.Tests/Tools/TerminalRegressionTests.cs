@@ -13,7 +13,7 @@ public sealed class TerminalRegressionTests : IAsyncLifetime
 
     public Task InitializeAsync()
     {
-        _service = new(_root, new AppConfig.ShellBackgroundConfig { MaxYieldTimeMs = 5000 });
+        _service = new(_root, new AppConfig.ShellBackgroundConfig());
         return Task.CompletedTask;
     }
     public async Task DisposeAsync()
