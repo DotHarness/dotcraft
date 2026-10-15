@@ -1,8 +1,11 @@
 import {
   BookOpen,
+  Brain,
   CircleStop,
   Folder,
   Globe,
+  MessagesSquare,
+  Monitor,
   Pencil,
   Search,
   ShieldAlert,
@@ -25,6 +28,7 @@ import {
   type ToolKindSource
 } from './toolKind'
 import { formatInvocationDisplay, invocationNeedsCallingPrefix } from './webToolDisplay'
+import { formatNodeReplLabel, getNodeReplSurface } from './nodeReplToolDisplay'
 
 type ToolArgs = Record<string, unknown> | undefined
 type PlanTodoLike = { id?: string; content?: string }
@@ -345,6 +349,8 @@ export function formatCollapsedToolLabel(
       return formatSkillManageLabel(args, undefined, locale)
     case 'skillView':
       return formatSkillViewLabel(args, locale)
+    case 'nodeRepl':
+      return formatNodeReplLabel(item, args?.title, locale)
     case 'webSearch':
     case 'webFetch':
     case 'toolSearch': {
@@ -370,11 +376,17 @@ export function getToolRowIcon(
     if (item.errorCode === 'tool_cancelled' || item.executionStatus === 'cancelled') return { icon: CircleStop }
     return { icon: SquareTerminal }
   }
+  if (resolveMemoryOperation(item) === 'update') return { icon: Brain }
   const exploreIcon = kind ? EXPLORE_ICONS[kind] : undefined
   if (exploreIcon) return { icon: exploreIcon }
+  if (kind === 'board') return { icon: MessagesSquare }
   if (kind === 'skillView') return { icon: BookOpen }
   if (kind === 'write' || kind === 'edit' || kind === 'skillManage') return { icon: Pencil }
   if (kind === 'webSearch' || kind === 'webFetch') return { icon: Globe }
+  if (kind === 'nodeRepl') {
+    const surface = getNodeReplSurface(item)
+    return { icon: surface === 'computer' ? Monitor : surface ? Globe : SquareTerminal }
+  }
   return { icon: Wrench }
 }
 
@@ -421,6 +433,8 @@ export function formatExpandedInvocation(
       return formatSkillManageLabel(args, undefined, locale)
     case 'skillView':
       return formatSkillViewLabel(args, locale)
+    case 'nodeRepl':
+      return null
   }
   return formatGenericInvocation(item, args)
 }

@@ -23,11 +23,11 @@ describe('turn activity disclosure lifecycle', () => {
       { id: 'final', type: 'agentMessage', phase: 'final', status: 'streaming', text: 'Here is the partial answer.', createdAt: '2026-01-01T12:00:12Z' }
     ] }
     rerender(ui(answering, true))
-    expect(screen.queryByText('Inspecting the example.')).toBeNull()
+    expect(screen.getByText('Inspecting the example.').closest('[inert]')).not.toBeNull()
     expect(screen.getByText('Keep existing behavior.')).toBeInTheDocument()
     expect(screen.getByText('Here is the partial answer.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { expanded: false }))
-    expect(screen.getByText('Inspecting the example.')).toBeInTheDocument()
+    expect(screen.getByText('Inspecting the example.').closest('[inert]')).toBeNull()
     rerender(ui({ ...answering, status: 'cancelled', completedAt: '2026-01-01T12:00:20Z' }, false))
     expect(screen.getByText('Inspecting the example.')).toBeInTheDocument()
     expect(screen.getByText('Here is the partial answer.')).toBeInTheDocument()

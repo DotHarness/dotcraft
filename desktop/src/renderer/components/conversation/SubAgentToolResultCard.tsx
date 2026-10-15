@@ -69,7 +69,6 @@ export function SubAgentToolResultCard({
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
       expandable={hasMessage}
-      tone={display.failed ? 'error' : undefined}
       title={title}
     >
       <div

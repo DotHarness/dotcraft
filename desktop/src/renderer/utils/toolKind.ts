@@ -16,6 +16,7 @@ export type ToolKind =
   | 'skillManage' | 'skillView'
   | 'board' | 'automation' | 'agentBuilder' | 'remoteToolHost'
   | 'workflow'
+  | 'nodeRepl'
 
 export type ToolKindSource = Pick<ConversationItem, 'toolName' | 'presentation' | 'source'>
 
@@ -62,6 +63,7 @@ export function resolveToolKind(item: ToolKindSource): ToolKind | null {
     case 'automation':
     case 'agentBuilder':
     case 'remoteToolHost':
+    case 'nodeRepl':
       return plan.family
   }
 }

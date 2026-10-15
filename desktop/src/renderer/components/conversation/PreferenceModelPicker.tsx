@@ -24,7 +24,6 @@ const FIELD_TRIGGER_STYLE: CSSProperties = {
   justifyContent: 'space-between',
   gap: '8px',
   color: 'var(--text-primary)',
-  outline: 'none',
   boxShadow: 'none',
   fontSize: 'var(--type-ui-size)',
   lineHeight: 'var(--type-ui-line-height)',

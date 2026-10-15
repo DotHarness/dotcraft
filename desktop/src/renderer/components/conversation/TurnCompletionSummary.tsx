@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { Redo2, Undo2 } from 'lucide-react'
+import { createLucideIcon, Redo2, Undo2 } from 'lucide-react'
 import type { MessageKey } from '../../../shared/locales'
 import { useT } from '../../contexts/LocaleContext'
 import { useTurnDiffActions, type TurnDiffSource, type TurnPatchOutcome } from '../../hooks/useTurnDiffActions'
@@ -17,6 +17,13 @@ import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { FileDiffStats } from './FileDiffStats'
 import { InlineDiffView } from './InlineDiffView'
 import styles from './TurnCompletionSummary.module.css'
+
+const SquarePlusMinusIcon = createLucideIcon('square-plus-minus', [
+  ['rect', { x: '4', y: '4', width: '16', height: '16', rx: '4', key: 'frame' }],
+  ['path', { d: 'M12 7.5v5', key: 'plus-v' }],
+  ['path', { d: 'M9.5 10h5', key: 'plus-h' }],
+  ['path', { d: 'M9.5 16h5', key: 'minus' }]
+])
 
 interface TurnCompletionSummaryProps {
   turnId: string
@@ -67,6 +74,9 @@ export function TurnChangesCard({ turnId, rows, workspacePath, source, onReview 
   return (
     <section className={styles.card} aria-label={title}>
       <div className={styles.header}>
+        <span className={styles.iconTile} aria-hidden>
+          <SquarePlusMinusIcon size={20} strokeWidth={1.5} />
+        </span>
         <div className={styles.heading}>
           <span className={styles.title}>{title}</span>
           <span className={styles.stats}>
@@ -104,10 +114,10 @@ export function TurnChangesCard({ turnId, rows, workspacePath, source, onReview 
               aria-expanded={showAll}
               onClick={() => setShowAll((current) => !current)}
             >
-              <DisclosureChevron expanded={showAll} direction="reveal" />
               {showAll
                 ? t('turnChanges.collapseFiles')
                 : t(hiddenCount === 1 ? 'turnChanges.showMoreFiles.one' : 'turnChanges.showMoreFiles.other', { count: hiddenCount })}
+              <DisclosureChevron expanded={showAll} direction="reveal" />
             </button>
           )}
         </>

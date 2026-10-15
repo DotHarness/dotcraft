@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.7 |
+| **Version** | 0.8.8 |
 | **Status** | Living |
 | **Date** | 2026-10-15 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -206,9 +206,11 @@ The confirmed action interrupts the target's current turn before archiving; inte
 failure prevents archive. Secondary workspace rows use the same confirmation and route
 operations to their owning workspace. Repeated activation while pending is ignored.
 
-Running turns show one activity timing boundary, updated once per second. An explicit
-final-phase assistant message freezes activity duration at its start and enables process
-collapse before the turn completes. Providers without phase metadata retain the completed-turn
+Running turns show one activity timing boundary, updated once per second, and the turn's
+process sits beneath it. An explicit final-phase assistant message freezes activity duration
+at its start and folds that process in place, with a short height animation, before the turn
+completes; nothing in it renders again. Expanding or collapsing it keeps its header where it
+is on screen until the user scrolls. Providers without phase metadata retain the completed-turn
 fallback; commentary must not trigger early collapse. Final replies and persistent results
 remain outside the collapsed process, including guidance messages.
 Cancelled turns retain partial replies and tool results, remain expanded, and replace
@@ -231,18 +233,20 @@ Raw HTML in a reply shows as text, except a lone `<br>` tag, which breaks the li
 
 `Turn.error` is the canonical user-facing Turn failure. If the same failure is also retained as an Error Item, Desktop presents it once. Distinct errors remain independently visible.
 
-While a turn is actively running, the conversation view must always show visible activity. If no live reasoning, non-stalled non-empty streaming assistant text, running tool row, approval wait row, user-input wait row, or system maintenance status row is currently visible, Desktop renders a non-persistent Thinking indicator at the active turn tail until the next visible live item appears. If non-empty assistant text is streaming but no text delta arrives for 2 seconds, Desktop treats that text stream as stalled and shows the same non-persistent Thinking indicator below the current streaming message; the indicator disappears as soon as a new text delta arrives, and the delta continues appending to the same streaming assistant message.
+While a turn is actively running, the conversation view must always show visible activity. If no live reasoning, non-stalled non-empty streaming assistant text, running tool row, approval wait row, user-input wait row, or system maintenance status row is currently visible, Desktop shows Thinking as the status of the turn's trailing tool row (Section 5.8); where no tool row trails the turn, such as when it starts or right after a commentary paragraph, Desktop renders a non-persistent Thinking indicator at the active turn tail until the next visible live item appears. If non-empty assistant text is streaming but no text delta arrives for 2 seconds, Desktop treats that text stream as stalled and shows the same non-persistent Thinking indicator below the current streaming message; the indicator disappears as soon as a new text delta arrives, and the delta continues appending to the same streaming assistant message.
 
 ### 4.3 Item Events
 
-When Show thinking content is disabled, live reasoning still supplies a non-expandable
-status title. Desktop selects the last non-empty line that is not solely an HTML comment
-(including an unfinished comment opener), converts Markdown to plain text, and recursively
-unwraps a whole-line bold span. The title updates with streaming text without waiting for
-a complete heading, falling back to localized Thinking when no readable title is available.
-The full reasoning body is not mounted, and the row disappears when reasoning is no longer
-live. Enabling Show thinking content retains the existing Thinking / Thought duration
-labels and expandable body. Idle indicators without reasoning keep the generic Thinking label.
+Reasoning supplies the Thinking status a title. Desktop selects the last non-empty line that
+is not solely an HTML comment (including an unfinished comment opener), converts Markdown to
+plain text, and recursively unwraps a whole-line bold span. The title updates with streaming
+text without waiting for a complete heading, falling back to localized Thinking when no
+readable title is available. A trailing tool row shows the title of the reasoning that follows
+its last call; the tail indicator shows the title of live reasoning. When Show thinking
+content is disabled, the reasoning body is not mounted. Enabling it lists reasoning between
+tool calls inside their group, in order, with its Thinking / Thought duration label and
+expandable body; reasoning outside tool calls keeps a row of its own. Reasoning never splits
+a tool group.
 
 | Protocol event | UX behavior |
 |---------------|-------------|
@@ -261,11 +265,10 @@ tool row. Its expanded body keeps source machine and path, an arrow, and destina
 on one line; long paths ellipsize, retain a full-path tooltip, and can be copied. Preparing uses an
 indeterminate neutral meter. Transferring shows byte progress, confirmed file counts, and the current
 file. Failure preserves the last progress and confirmed destination bytes, with the reason on the
-error-toned row. Completed appends final file and byte counts to the row and leaves only the route in
+row. Completed appends final file and byte counts to the row and leaves only the route in
 the body. Raw JSON is not rendered.
 
-Transfer reuses the existing delayed auto-expand behavior for live tool output and the corresponding
-terminal auto-collapse. Manual disclosure interaction remains authoritative. Reduced-motion settings
+Like every tool row, a transfer opens only when the user expands it. Reduced-motion settings
 stop indeterminate animation. Historical results without totals show known statistics without a
 percentage, and must not borrow the current thread route to label an older transfer.
 
@@ -475,7 +478,7 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 
 - The Changes panel shows only the most recent turn that changed files: a "Last turn" header with that turn's added and removed line totals, then each changed file with its counts and a collapsible diff. A file too large to render inline says so instead of showing a diff. The panel offers no revert; a file's own actions copy its workspace-relative path and open its containing folder. The panel's badge counts that turn's files.
 - While a turn is running, the panel reflects the server's live turn diff. After a thread is reopened, a turn's files are rebuilt from the per-edit diffs recorded with each file tool result, so a file edited several times in one turn appears once per edit.
-- A completed turn that changed files ends with a card titled with the edited file's name, or the number of edited files, above the turn's line totals. When more than one file changed, the card lists up to three and can show the rest; each listed file expands to its diff, and its name opens the Changes panel. Review opens the Changes panel.
+- A completed turn that changed files ends with a card titled with the edited file's name, or the number of edited files, above the turn's line totals, led by a change icon on a 40px tile. When more than one file changed, the card lists up to three and can show the rest; each listed file expands to its diff, and its name opens the Changes panel. Review opens the Changes panel.
 - The card's Undo reverts the turn's recorded diff through the workspace's Git repository, newest edit first, without asking for confirmation, and then becomes Reapply. Files too large to render are left as they are. Success, partial success, and failure are each reported; a failed file stays as it was and stops the remaining ones.
 - Outside a Git repository, Undo explains that it needs one and changes nothing. Undo works through the Git repository on this computer, so it cannot change a remote workspace's files; the attempt fails and is reported.
 - While a running turn has changed files and nothing waits on the user, a strip centred above the composer reads "N files changed" with the turn's line totals. Hovering it lists each file with its counts; the strip or a listed file opens the Changes panel. It leaves when the turn ends or an approval or question takes the composer, and the completed turn's card takes over.
@@ -484,8 +487,9 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 - Plan updates remain associated with the active thread and reflect the latest complete plan snapshot. While a `CreatePlan` tool call is still streaming its arguments, the dedicated plan surface renders a live draft (title, overview, and any fully-formed todo entries) so the user sees the plan taking shape in real time; the draft is replaced by the finalized snapshot once `plan/updated` is received. The overview renders Markdown in both draft and finalized snapshots, including inline code and links. A to-do list without a plan has an empty title, and both the plan surface and the conversation summary label it Progress.
 - When the latest completed Plan-mode Turn contains a successful `CreatePlan`, Desktop replaces the normal composer with the plan-confirmation composer. Later tool calls or assistant output in the same Turn, including SubAgent cleanup, do not suppress confirmation. The confirmation remains recoverable after switching threads or restarting Desktop and is cleared when the next Turn starts.
 - Tool output remains readable in-thread and must remain distinguishable from agent conversational text.
+- Consecutive tool calls share one row. Commentary, user messages, and calls with a surface of their own end it: spawned or followed-up subagents, plans, automations, Agent Builder edits, workflow launches, answered questions, live MCP App Views, and plugin-rendered tools. A read that returned images ends it too and shows as "Viewed an image" ("Viewed N images" for adjacent reads), whose thumbnails appear only once it is expanded; images returned by any other call show only inside the expanded group. Reasoning never ends a row, and to-do updates are not shown in the conversation. The row names what its calls did without counting them, one phrase per kind in a fixed order joined as a list: the browser, Chrome or computer a Node REPL run used ([Node REPL](../features/node-repl.md)), loaded skills, called tools, edited files, memory updated, recalled memories, explored files, read the board, updated the board, ran commands, searched the web, fetched pages ("Edited files, explored files, ran commands"). It leads with the icon of the first kind. A single finished call keeps its own row. While the turn runs, its trailing calls form one row naming the call in progress ("Running: {command}", "Reading {file}...") or, between calls, the Thinking status (Section 4.2) without an icon, and each label stays at least one second. Tool rows never expand on their own. An expanded group lists its calls in order and scrolls past a fixed height. A failed call stays in its group, and neither the group nor the call's row turns red; the failure shows in the expanded output.
 - Desktop and the mobile client decide how a tool call renders, groups and labels itself only from its trusted presentation: a `CoreNative` source plus the presentation id and its operation. They do not branch on tool names, so a server tool keeps its rendering when it is renamed and an untrusted tool cannot borrow one. A presentation without an operation that its family later named, as in older records, renders with that family's generic labels. Desktop's own runtime thread tools (Section 5.14), Code Mode and the Dynamic Workflow launch, which registers with plugin provenance, are identified by their name and source instead.
-- A file tool call whose presentation options carry `memory` renders as memory rather than as a file operation ([Memory Section 8](../features/memory.md#8-presentation)). Recall operations that would otherwise join an exploration group render in that group as "Recalled N memories", listing the memory files; an expanded recall keeps its memory label and shows the content read. An update renders as "Updating memory" while it runs and "Memory updated" ("Memories updated" for several files) when done, with the added and deleted lines; expanding it shows the diff of each changed memory file, as for an edited file. `MEMORY.md` is not counted as a memory file; an update that changes only `MEMORY.md` shows "Memory updated" without a file list.
+- A file tool call whose presentation options carry `memory` renders as memory rather than as a file operation ([Memory Section 8](../features/memory.md#8-presentation)). Recall operations in a tool group add "Recalled memories" to its name, and updates add "Memory updated", each listed as its own row; an expanded recall keeps its memory label and shows the content read. An update renders as "Updating memory" while it runs and "Memory updated" ("Memories updated" for several files) when done, with the added and deleted lines; expanding it shows the diff of each changed memory file, as for an edited file. `MEMORY.md` is not counted as a memory file; an update that changes only `MEMORY.md` shows "Memory updated" without a file list.
 - Completed `RequestUserInput` tool results render as a question-to-answer list using the original question text and the user's selected option or free-form response, rather than exposing the raw response JSON.
 - Desktop declares `backgroundTerminals = true` and treats `terminal/*` notifications as its primary live shell output data. `commandExecution` remains a persisted/compatibility projection and fallback.
 - In the conversation view, shell work remains collapsed by default using the normal tool-card style. If the user expands the card, live output may be shown there while the command is still running.
@@ -672,12 +676,12 @@ Entry points:
 - The viewer panel `+` menu and the empty-panel launcher offer `Side chat`.
 - `/side` in the composer opens an empty side chat. `/side <question>` sends the question, with the composer's attachments and context, as the side chat's first message and clears the composer once the side chat opens. A failure keeps the composer unchanged. `/btw` is an unlisted alias.
 - Selected assistant text offers `Ask in side chat`. The selection becomes context in the composer of the thread's most recent side chat, or a new one, which takes focus without sending.
-- A queued follow-up offers `Send in side chat`, which removes it from the queue and sends it as a new side chat's first message. A failed send returns it to the main composer.
+- A queued follow-up's `Queued message actions` menu offers `Send in side chat`, which removes it from the queue and sends it as a new side chat's first message. A failed send returns it to the main composer.
 
 Panel:
 
 - Each side chat is a tab titled `Side chat`, `Side chat 2`, and so on. Tabs stay open while the user visits other threads.
-- The transcript starts empty because inherited history stays hidden. A centered empty state says that side chats are temporary.
+- The transcript starts empty because inherited history stays hidden. A centered empty state says that side chats are temporary. Messages keep the main conversation's reading width, centered in a wider panel.
 - The side chat uses the conversation composer without the controls that act on the parent thread: mode, goal, profile, model, permissions, and thread commands such as `/compact`. Model, mode, and permissions follow the parent at fork time. `/side` is not available inside a side chat. A message sent while the side chat runs guides its running Turn.
 - Escape and the stop button interrupt only the side chat's running Turn. While a side chat request waits for a response, Escape belongs to that request. Escape elsewhere keeps interrupting the main Turn.
 - Approval and user-input requests from a side chat appear in its own composer area, never in the main conversation. A tab whose side chat needs a response, is running, or has an unread reply shows that state.
@@ -717,7 +721,7 @@ The slash reference surface includes Desktop-owned system actions above custom C
 - Manual compaction is shown as "Compact" with the hint "Compact this session's context" only when `capabilities.manualCompaction = true`, the active thread has at least one turn, and no turn is running or waiting for approval. Selecting it calls `thread/compact/start` with the active `threadId` and a 300-second maintenance wait. That timeout is only the client's wait limit for the request/response pair; it does not prove that server-side compaction has failed.
 - Settings → General exposes a Desktop-local, application-wide `followUpQueueMode` preference (`queue` or `steer`). Missing or invalid values default to `steer`. Startup restores the saved preference; a successful settings save applies to subsequent submissions without converting existing queued inputs. A failed save preserves the previous choice and reports an error.
 - While the preference is `steer` and the server advertises `capabilities.workspaceConfigManagement`, Settings → General shows a workspace toggle for `InstantInterruptEnabled` directly below it. The toggle shows the server's effective value, saves through `config/value/write`, refreshes after `config/changed` lists `InstantInterruptEnabled`, and on failure restores the previous value and reports an error. A running Turn keeps the value it started with.
-- While a regular Turn is active, the composer sends a non-empty draft through `turn/steer` with the observed active Turn id when the preference is `steer`, or through `turn/enqueue` when it is `queue`. Enter and the send button share this decision, and the button announces the selected action. Queue entries retain their explicit Steer/cancel Steering controls. When the thread is idle it uses `turn/start`. When `system/event` or `thread/status/changed` reports active maintenance (`maintenanceKind = "compacting"`), it uses `turn/enqueue`; the empty-draft stop control calls `thread/maintenance/interrupt`.
+- While a regular Turn is active, the composer sends a non-empty draft through `turn/steer` with the observed active Turn id when the preference is `steer`, or through `turn/enqueue` when it is `queue`. Enter and the send button share this decision, and the button announces the selected action. Queue entries retain their explicit Steer/cancel Steering and remove controls; editing and sending in a side chat sit in a `Queued message actions` menu, so a row never wraps. When the thread is idle it uses `turn/start`. When `system/event` or `thread/status/changed` reports active maintenance (`maintenanceKind = "compacting"`), it uses `turn/enqueue`; the empty-draft stop control calls `thread/maintenance/interrupt`.
 - Submission is optimistic. Desktop clears the composer and echoes the submitted content locally before it issues `turn/start`, `turn/steer`, or `turn/enqueue`, and must not wait for the response to do either. The welcome composer follows the same rule against `thread/start` and `worktree/createAndStart`, echoing into the creating state of [5.2](#52-start-a-new-conversation). `turn/start` echoes a user message into the conversation. `turn/steer` and `turn/enqueue` echo queue entries with status `guidancePending` and `queued`, respectively; they do not enter the conversation until the server admits them as a Turn item. A local echo carries the submission's `clientUserMessageId` and is replaced by the server queue entry of the same submission rather than rendered a second time.
 - A failed submission removes its local echo and returns the submitted content to the composer. When the composer is empty at that moment, Desktop restores the whole submission, including its segments, contexts, files, and images. When the user has typed since submitting, Desktop restores the submitted text above the current text, separated by a blank line, so neither is lost. Desktop reports the failure and must not resend automatically; `clientUserMessageId` is provenance only and carries no server-side de-duplication.
 - If `turn/steer` fails because the active Turn changed or ended, Desktop restores the submission and reports the failure. It must not silently retry through `turn/start`, `turn/enqueue`, or a different Turn. If a normal `turn/start` races with a maintenance transition and is rejected as busy, Desktop retries once through `turn/enqueue` before treating the submission as failed.

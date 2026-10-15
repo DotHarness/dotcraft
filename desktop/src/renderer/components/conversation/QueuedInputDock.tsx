@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   closestCenter,
@@ -23,6 +23,8 @@ import type { QueuedTurnInput } from '../../types/conversation'
 import { isOptimisticQueuedInput } from '../../stores/optimisticMessages'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
+import { MoreActionsButton } from '../ui/MoreActionsButton'
+import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
 import { RunningShimmer } from '../ui/RunningShimmer'
 import { projectInputParts } from '../../utils/inputPresentation'
 
@@ -193,6 +195,24 @@ function QueuedInputDockRow({
     transition,
     isDragging
   } = useSortable({ id: item.id, disabled: isGuidancePending || isLocalEcho })
+  const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
+  const menuEntries: ContextMenuEntry[] = []
+  if (onEdit) {
+    menuEntries.push({
+      label: t('composer.queueEdit'),
+      icon: <Pencil size={14} aria-hidden />,
+      disabled: !canEdit,
+      onClick: () => { setMenuPosition(null); onEdit(item.id) }
+    })
+  }
+  if (onSideChat) {
+    menuEntries.push({
+      label: t('composer.queueSideChat'),
+      icon: <MessagesSquare size={14} aria-hidden />,
+      disabled: item.status !== 'queued' || Boolean(item.triggerKind) || item.sentAsGoal === true || isLocalEcho,
+      onClick: () => { setMenuPosition(null); onSideChat(item.id) }
+    })
+  }
   const rowDragStyle: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -247,18 +267,6 @@ function QueuedInputDockRow({
           </RunningShimmer>
         </Button>
       </ActionTooltip>
-      {onSideChat && (
-        <IconButton
-          icon={<MessagesSquare size={14} aria-hidden />}
-          label={t('composer.queueSideChat')}
-          tooltipLabel={t('composer.queueSideChat')}
-          tooltipPlacement="top"
-          size={24}
-          radius={6}
-          onClick={() => onSideChat(item.id)}
-          disabled={item.status !== 'queued' || Boolean(item.triggerKind) || item.sentAsGoal === true || isLocalEcho}
-        />
-      )}
       <IconButton
         icon={<Trash2 size={14} aria-hidden />}
         label={t('composer.queueRemove')}
@@ -269,19 +277,28 @@ function QueuedInputDockRow({
         onClick={() => onRemove?.(item.id)}
         disabled={!onRemove || isLocalEcho}
       />
-      <IconButton
-        icon={editing
-          ? <Spinner size={14} testId={`queued-editing-${item.id}`} />
-          : <Pencil size={14} aria-hidden />}
-        label={t('composer.queueEdit')}
-        tooltipLabel={t('composer.queueEdit')}
-        tooltipPlacement="top"
-        size={24}
-        radius={6}
-        onClick={() => onEdit?.(item.id)}
-        disabled={!canEdit || editing}
-        aria-busy={editing}
-      />
+      {editing ? (
+        <span style={queueBusyStyle} aria-busy>
+          <Spinner size={14} testId={`queued-editing-${item.id}`} />
+        </span>
+      ) : (
+        <MoreActionsButton
+          label={t('composer.queueActions')}
+          size={24}
+          radius={6}
+          iconSize={14}
+          tooltipPlacement="top"
+          open={menuPosition != null}
+          disabled={menuEntries.length === 0}
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect()
+            setMenuPosition({ x: rect.right - 200, y: rect.bottom + 4 })
+          }}
+        />
+      )}
+      {menuPosition && (
+        <ContextMenu position={menuPosition} onClose={() => setMenuPosition(null)} items={menuEntries} />
+      )}
     </div>
   )
 }
@@ -422,12 +439,11 @@ const queueGuideLabelStyle: CSSProperties = {
   lineHeight: 1.25
 }
 
-
-
-
-
-
-
-
-
-
+const queueBusyStyle: CSSProperties = {
+  width: 24,
+  height: 24,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'var(--text-dimmed)'
+}

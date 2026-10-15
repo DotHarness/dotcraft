@@ -1,37 +1,77 @@
-.status {
+.summary {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+}
+
+.header {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0 4px;
+  border: none;
+  border-bottom: 1px solid var(--border-default);
+  border-radius: 0;
+  background: transparent;
   color: var(--text-secondary);
+  font: inherit;
   font-size: var(--conversation-font-size);
   line-height: var(--conversation-line-height);
   font-style: normal;
   font-variant-numeric: tabular-nums;
+  text-align: left;
 }
 
-.status > span {
-  padding-inline: 6px;
+button.header {
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 
-.divider {
-  border-top: 1px solid var(--border-default);
+button.header:hover {
+  color: var(--text-primary);
 }
 
-.summary :global(.dc-tool-row[data-variant="turn"] > summary) {
-  width: 100%;
-  padding: 0 6px 4px;
-  color: var(--text-secondary);
-  border-bottom-color: var(--border-default);
-  font-size: var(--conversation-font-size);
-  line-height: var(--conversation-line-height);
-  font-variant-numeric: tabular-nums;
+button.header:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+  color: var(--text-primary);
 }
 
-.summary :global(.dc-tool-row[data-variant="turn"] > .dc-tool-panel) {
-  margin: var(--conversation-tool-assistant-gap) 0 0;
-  padding-left: 0;
+.chevron {
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
-.summary :global(.dc-tool-chevron) {
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition:
+    grid-template-rows var(--duration-base) var(--ease-standard),
+    opacity var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
+}
+
+.body[data-open] {
+  grid-template-rows: 1fr;
   opacity: 1;
+  transform: none;
+  transition-duration: var(--duration-expand);
+  transition-timing-function: var(--ease-expand);
+}
+
+.bodyContent {
+  min-height: 0;
+  overflow: clip;
+}
+
+.body[data-open] > .bodyContent {
+  overflow: visible;
+}
+
+.bodyContent > :first-child {
+  padding-top: var(--conversation-tool-assistant-gap);
 }

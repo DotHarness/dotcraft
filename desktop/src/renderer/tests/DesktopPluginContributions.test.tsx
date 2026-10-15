@@ -32,7 +32,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { makeSpawn, makeSubAgent } from './subAgentFixtures'
 import { useConversationStore } from '../stores/conversationStore'
 import type { ConversationItem } from '../types/conversation'
-import { aggregateToolCalls } from '../utils/toolCallAggregation'
+import { planToolRunRender } from '../utils/toolCallAggregation'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const revision = 'a'.repeat(64)
@@ -168,10 +168,10 @@ describe('Desktop Plugin contribution registry', () => {
     })
     publishDesktopPluginGeneration(generation('fixture.plugin', { toolRenderers: [renderer] }))
 
-    expect(aggregateToolCalls([item('one'), item('two')]).map((entry) => entry.kind))
+    expect(planToolRunRender([item('one'), item('two')], { isRunning: false, isTrailingRun: false }).map((entry) => entry.kind))
       .toEqual(['single', 'single'])
     withdrawDesktopPluginGeneration('fixture.plugin')
-    expect(aggregateToolCalls([item('one'), item('two')]).map((entry) => entry.kind))
+    expect(planToolRunRender([item('one'), item('two')], { isRunning: false, isTrailingRun: false }).map((entry) => entry.kind))
       .toEqual(['group'])
   })
 

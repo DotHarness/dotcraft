@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.6 |
+| Version | 0.8.7 |
 | Status | Living |
-| Date | 2026-10-13 |
+| Date | 2026-10-15 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 
 ## 1. Purpose
@@ -379,7 +379,9 @@ character boundaries. Foreground command results include the complete log path w
 Real-time output is limited to 8 KiB per delta, 10,000 deltas per terminal, and the configured
 live-byte budget. Exhaustion stops data
 notifications while logging and process execution continue. Both running and recovered previews
-remain bounded; completion follows output drain and log flush.
+remain bounded; completion follows output drain and log flush. Once the process has exited, output
+that does not reach end of stream within 2 seconds is not waited for, so a descendant that inherited
+the output pipes cannot hold the terminal open.
 
 Empty `WriteStdin` input reads the terminal snapshot, including final output and exit code after
 completion or recovery, until retention expires. Nonempty input to an exited terminal fails.

@@ -139,6 +139,8 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200, aut
     }
     function handleKeyDown(e: KeyboardEvent): void {
       if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
         cancelMenuAim()
         onClose()
       } else if (moveMenuFocus(submenuRef.current?.contains(document.activeElement) ? submenuRef.current : menuRef.current, e.key)) {

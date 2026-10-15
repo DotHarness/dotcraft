@@ -10,6 +10,7 @@ import {
   getRequestUserInputQuestionCount
 } from './toolCallDisplay'
 import { resolveMemoryOperation, resolveToolKind, resolveToolOperation, type ToolKindSource } from './toolKind'
+import { formatNodeReplLabel } from './nodeReplToolDisplay'
 
 /**
  * Parsed preview extracted from the streaming JSON delta for a tool call.
@@ -140,6 +141,8 @@ export function getStreamingToolDisplay(
       }
       return { label: translate(locale, 'toolCall.streaming.findingGeneric') }
     }
+    case 'nodeRepl':
+      return { label: formatNodeReplLabel(item, extractPartialJsonStringValue(rawArgs, 'title'), locale) }
     case 'exec':
     case 'shell': {
       const command = extractPartialJsonStringValue(rawArgs, 'command')

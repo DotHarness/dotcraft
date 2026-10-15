@@ -1,13 +1,16 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { ToolDisclosure } from './ToolDisclosure'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { getActivityElapsedMs, type TurnActivityStatus } from './turnActivityModel'
 import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import { turnStopKey, useTurnStopStore } from '../../stores/turnStopStore'
+import { DisclosureChevron } from '../ui/DisclosureChevron'
 import styles from './TurnActivitySummary.module.css'
+
+const SCROLL_ANCHOR_MS = 350
 
 interface TurnActivitySummaryProps {
   status: TurnActivityStatus
+  collapsible?: boolean
   children?: ReactNode
   threadId: string
   turnId: string
@@ -15,11 +18,16 @@ interface TurnActivitySummaryProps {
   completedAt?: string
 }
 
-export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, status, children }: TurnActivitySummaryProps): JSX.Element {
+export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, status, collapsible = false, children }: TurnActivitySummaryProps): JSX.Element {
   const locale = useLocale()
   const byUser = useTurnStopStore(state => state.requested.has(turnStopKey(threadId, turnId)))
   const [expanded, setExpanded] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const headerRef = useRef<HTMLButtonElement>(null)
+  const open = !collapsible || expanded
+  const mounted = useRef(open)
+  if (open) mounted.current = true
+
   useEffect(() => {
     if (status !== 'working' || completedAt || !startedAt || !Number.isFinite(Date.parse(startedAt))) return
     setNow(Date.now())
@@ -33,17 +41,51 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
   const label = translate(locale, hasDuration ? `${key}${status === 'stopped' ? 'After' : 'For'}` : key,
     { duration: elapsed == null ? '' : formatActivityDuration(elapsed, locale) })
 
-  if (status === 'worked' && children) {
-    return <div className={styles.summary}>
-      <ToolDisclosure expanded={expanded} onToggle={() => setExpanded(value => !value)} title={label} variant="turn">
-        {children}
-      </ToolDisclosure>
-    </div>
-  }
-  return <div className={styles.status} role="status">
-    <span>{label}</span>
-    <div className={styles.divider} />
+  return <div className={styles.summary}>
+    {collapsible && children ? (
+      <button
+        ref={headerRef}
+        type="button"
+        className={styles.header}
+        aria-expanded={expanded}
+        onClick={() => {
+          if (headerRef.current) anchorScroll(headerRef.current)
+          setExpanded(value => !value)
+        }}
+      >
+        <span>{label}</span>
+        <span className={styles.chevron} aria-hidden><DisclosureChevron expanded={expanded} /></span>
+      </button>
+    ) : (
+      <div className={styles.header} role="status"><span>{label}</span></div>
+    )}
+    {children ? (
+      <div className={styles.body} data-open={open ? 'true' : undefined} inert={!open}>
+        <div className={styles.bodyContent}>{mounted.current ? children : null}</div>
+      </div>
+    ) : null}
   </div>
+}
+
+function anchorScroll(element: HTMLElement): void {
+  let scroller = element.parentElement
+  while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement
+  if (!scroller) return
+  const container = scroller
+  const top = element.getBoundingClientRect().top
+  const end = performance.now() + SCROLL_ANCHOR_MS
+  let frame = 0
+  const stop = (): void => {
+    cancelAnimationFrame(frame)
+    for (const type of ['wheel', 'touchstart', 'keydown']) container.removeEventListener(type, stop)
+  }
+  const step = (): void => {
+    container.scrollTop += element.getBoundingClientRect().top - top
+    if (performance.now() < end) frame = requestAnimationFrame(step)
+    else stop()
+  }
+  for (const type of ['wheel', 'touchstart', 'keydown']) container.addEventListener(type, stop, { passive: true })
+  frame = requestAnimationFrame(step)
 }
 
 function formatActivityDuration(elapsed: number, locale: string): string {

@@ -75,7 +75,6 @@ import {
   ComposerCustomProfileLabel,
   ComposerPlanModeLabel,
   ComposerShell,
-  composerFooterControlHoverBackground,
   composerModelPillStyle
 } from './ComposerShell'
 import { ComposerSubmitButton } from './ComposerSubmitButton'
@@ -263,7 +262,6 @@ function InputComposerCore({
   const [goalPopoverOpen, setGoalPopoverOpen] = useState(false)
   const [goalComposeMode, setGoalComposeMode] = useState(false)
   const [profilePickerOpen, setProfilePickerOpen] = useState(false)
-  const [goalPillActive, setGoalPillActive] = useState(false)
   const [goalBusy, setGoalBusy] = useState(false)
   const [compactBusy, setCompactBusy] = useState(false)
   const [editingQueuedInputId, setEditingQueuedInputId] = useState<string | null>(null)
@@ -2005,14 +2003,11 @@ function InputComposerCore({
                           setGoalPopoverOpen(true)
                           void ensureCurrentGoal().catch(() => {})
                         }}
-                        onMouseEnter={() => setGoalPillActive(true)}
-                        onMouseLeave={() => setGoalPillActive(false)}
-                        onFocus={(event) => {
-                          if (event.currentTarget.matches(':focus-visible')) setGoalPillActive(true)
-                        }}
-                        onBlur={() => setGoalPillActive(false)}
+                        className="dc-composer-pill"
+                        aria-haspopup="dialog"
+                        aria-expanded={goalPopoverOpen}
                         aria-label={t('goal.pill.aria', { status: t(`goal.status.${currentGoal.status}`) })}
-                        style={goalPillStyle(currentGoal.status, goalPillActive)}
+                        style={goalPillStyle}
                       >
                         <Target size={13} aria-hidden />
                         <span>{t(`goal.pill.${currentGoal.status}`)}</span>
@@ -2118,25 +2113,20 @@ function parseSystemSlashCommand(text: string): { kind: 'plan' | 'agent' | 'comp
   return null
 }
 
-function goalPillStyle(_status: ThreadGoal['status'], active = false): CSSProperties {
-  const color = 'var(--composer-footer-text)'
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    maxWidth: 260,
-    minHeight: COMPOSER_FOOTER_CONTROL_HEIGHT,
-    border: 'none',
-    borderRadius: 999,
-    background: active ? composerFooterControlHoverBackground : 'transparent',
-    color,
-    cursor: 'pointer',
-    fontSize: 'var(--type-ui-size)',
-    lineHeight: 'var(--type-ui-line-height)',
-    fontWeight: 'var(--type-ui-emphasis-weight)',
-    padding: '0 8px',
-    overflow: 'hidden',
-    whiteSpace: 'nowrap',
-    transition: 'background-color 120ms ease, color 120ms ease'
-  }
+const goalPillStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  maxWidth: 260,
+  minHeight: COMPOSER_FOOTER_CONTROL_HEIGHT,
+  border: 'none',
+  borderRadius: 999,
+  color: 'var(--composer-footer-text)',
+  cursor: 'pointer',
+  fontSize: 'var(--type-ui-size)',
+  lineHeight: 'var(--type-ui-line-height)',
+  fontWeight: 'var(--type-ui-emphasis-weight)',
+  padding: '0 8px',
+  overflow: 'hidden',
+  whiteSpace: 'nowrap'
 }

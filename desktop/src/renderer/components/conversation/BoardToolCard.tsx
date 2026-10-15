@@ -103,7 +103,6 @@ function BoardCallRow({ call, context }: { call: BoardCall; context: BoardAgentC
       onToggle={() => setExpanded((value) => !value)}
       expandable={hasBoardToolDetail(call)}
       icon={BOARD_ICON}
-      tone={failed ? 'error' : undefined}
       title={call.phase === 'running'
         ? <RunningShimmer className="dc-tool-row-running-label">{label}</RunningShimmer>
         : (

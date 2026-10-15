@@ -9,8 +9,6 @@ interface ToolDisclosureProps {
   title: ReactNode
   icon?: ToolRowIcon
   accessory?: ReactNode
-  tone?: 'error'
-  variant?: 'turn'
   onHoverChange?: (hovered: boolean) => void
   children?: ReactNode
 }
@@ -27,8 +25,6 @@ export function ToolDisclosure({
   title,
   icon,
   accessory,
-  tone,
-  variant,
   onHoverChange,
   children
 }: ToolDisclosureProps): JSX.Element {
@@ -52,7 +48,7 @@ export function ToolDisclosure({
 
   if (!expandable) {
     return (
-      <div className="dc-tool-row-static" data-testid="tool-row" data-expandable="false" data-tone={tone} data-variant={variant} {...hoverProps}>
+      <div className="dc-tool-row-static" data-testid="tool-row" data-expandable="false" {...hoverProps}>
         <span className="dc-tool-row-title" data-testid="tool-row-title-group">
           {leadingIcon}
           <span className="dc-tool-row-text">{title}</span>
@@ -65,8 +61,6 @@ export function ToolDisclosure({
   return (
     <details
       className="dc-tool-row"
-      data-tone={tone}
-      data-variant={variant}
       open={expanded}
     >
       <summary

@@ -1,9 +1,12 @@
-import { translate, type AppLocale } from '../../shared/locales'
+import { translate, type AppLocale, type MessageKey } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
-import type { ToolGroupCategory } from './toolCallAggregation'
 import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
-import { collectMemoryFileNames, formatExplorationGroupLabel, formatMemoryUpdatedLabel } from './memoryToolDisplay'
+import { resolveMemoryOperation } from './toolKind'
+import { getStreamingToolDisplay } from './streamingToolDisplay'
+import { collectMemoryFileNames, formatMemoryUpdatedLabel } from './memoryToolDisplay'
+import { isBoardReadOperation } from './boardToolDisplay'
+import { formatNodeReplSurfaceLabel, getNodeReplSurface } from './nodeReplToolDisplay'
 
 function getPathArgument(item: ConversationItem): string {
   const args = item.arguments
@@ -62,60 +65,88 @@ function getWriteCounts(items: ConversationItem[], itemDiffs: ReadonlyMap<string
   return { createdCount: createdPaths.size, modifiedCount: modifiedPaths.size }
 }
 
-export function formatToolGroupLabel(
-  category: ToolGroupCategory,
+type ActivityPart = 'browser' | 'chrome' | 'computer' | 'skill' | 'tool' | 'write' | 'memory' | 'recall' | 'explore' | 'board' | 'boardUpdate' | 'shell' | 'search' | 'fetch'
+
+const PART_ORDER: readonly ActivityPart[] = ['browser', 'chrome', 'computer', 'skill', 'tool', 'write', 'memory', 'recall', 'explore', 'board', 'boardUpdate', 'shell', 'search', 'fetch']
+
+function getActivityPart(item: ConversationItem): ActivityPart | null {
+  if (item.type === 'reasoningContent') return null
+  const memory = resolveMemoryOperation(item)
+  if (memory === 'update') return 'memory'
+  if (memory === 'recall') return 'recall'
+  const plan = resolveCoreToolRenderPlan(item)
+  if (plan?.family === 'skillView') return 'skill'
+  if (plan?.family === 'nodeRepl') return getNodeReplSurface(item) ?? 'shell'
+  switch (plan?.groupCategory) {
+    case 'write': return 'write'
+    case 'explore': return 'explore'
+    case 'board': return isBoardReadOperation(plan.options.operation) ? 'board' : 'boardUpdate'
+    case 'shell': return 'shell'
+    case 'web': return plan.options.operation === 'fetch' ? 'fetch' : 'search'
+    default: return 'tool'
+  }
+}
+
+function plural(count: number, one: MessageKey, other: MessageKey): MessageKey {
+  return count === 1 ? one : other
+}
+
+function formatActivityPart(
+  part: ActivityPart,
   items: ConversationItem[],
   locale: AppLocale,
   itemDiffs: ReadonlyMap<string, FileDiff>
 ): string {
   const count = items.length
-
-  if (category === 'explore') {
-    return formatExplorationGroupLabel(items, locale)
-  }
-
-  if (category === 'memoryUpdate') {
-    return formatMemoryUpdatedLabel(collectMemoryFileNames(items).length, locale)
-  }
-
-  if (category === 'shell') {
-    return translate(locale, 'toolCall.group.ran', { count })
-  }
-
-  if (category === 'web') {
-    const allSearch = items.every((item) => resolveCoreToolRenderPlan(item)?.options.operation === 'search')
-    const allFetch = items.every((item) => resolveCoreToolRenderPlan(item)?.options.operation === 'fetch')
-    if (allSearch) {
-      return translate(locale, 'toolCall.group.webSearched', { count })
+  switch (part) {
+    case 'browser':
+    case 'chrome':
+    case 'computer': return formatNodeReplSurfaceLabel(part, locale)
+    case 'skill': return translate(locale, plural(count, 'toolCall.activity.loadedSkill.one', 'toolCall.activity.loadedSkill.other'))
+    case 'tool': return translate(locale, plural(count, 'toolCall.activity.calledTool.one', 'toolCall.activity.calledTool.other'))
+    case 'memory': return formatMemoryUpdatedLabel(collectMemoryFileNames(items).length, locale)
+    case 'write': {
+      const { createdCount, modifiedCount } = getWriteCounts(items, itemDiffs)
+      return createdCount > 0 && modifiedCount === 0
+        ? translate(locale, plural(createdCount, 'toolCall.activity.created.one', 'toolCall.activity.created.other'))
+        : translate(locale, plural(createdCount + modifiedCount, 'toolCall.activity.edited.one', 'toolCall.activity.edited.other'))
     }
-    if (allFetch) {
-      return translate(locale, 'toolCall.group.webFetched', { count })
-    }
-    return translate(locale, 'toolCall.group.webUsed', { count })
+    case 'recall': return translate(locale, 'toolCall.memory.recalled')
+    case 'explore': return translate(locale, plural(count, 'toolCall.activity.explored.one', 'toolCall.activity.explored.other'))
+    case 'board': return translate(locale, 'toolCall.activity.readBoard')
+    case 'boardUpdate': return translate(locale, 'toolCall.activity.updatedBoard')
+    case 'shell': return translate(locale, plural(count, 'toolCall.activity.ran.one', 'toolCall.activity.ran.other'))
+    case 'search': return translate(locale, 'toolCall.activity.searchedWeb')
+    case 'fetch': return translate(locale, plural(count, 'toolCall.activity.fetched.one', 'toolCall.activity.fetched.other'))
   }
+}
 
-  if (category === 'board') {
-    return translate(locale, 'toolCall.group.readBoard', { count })
+function groupByPart(items: readonly ConversationItem[]): Map<ActivityPart, ConversationItem[]> {
+  const byPart = new Map<ActivityPart, ConversationItem[]>()
+  for (const item of items) {
+    const part = getActivityPart(item)
+    if (part) byPart.set(part, [...(byPart.get(part) ?? []), item])
   }
+  return new Map(PART_ORDER.filter((part) => byPart.has(part)).map((part) => [part, byPart.get(part)!]))
+}
 
-  if (category === 'subagent') {
-    const operation = resolveCoreToolRenderPlan(items[0])?.options.operation
-    if (operation === 'followupTask') {
-      return translate(locale, 'toolCall.group.updatedAgents', { count })
-    }
-    return translate(locale, 'toolCall.group.spawnedAgents', { count })
-  }
+export function formatToolGroupLabel(
+  items: readonly ConversationItem[],
+  locale: AppLocale,
+  itemDiffs: ReadonlyMap<string, FileDiff>
+): string {
+  const parts = [...groupByPart(items)].map(([part, partItems], index) => {
+    const label = formatActivityPart(part, partItems, locale, itemDiffs)
+    return index === 0 || locale === 'de' ? label : label.charAt(0).toLocaleLowerCase(locale) + label.slice(1)
+  })
+  return parts.length > 0 ? parts.join(translate(locale, 'toolCall.activity.separator')) : translate(locale, 'conversation.worked')
+}
 
-  const { createdCount, modifiedCount } = getWriteCounts(items, itemDiffs)
-  if (createdCount > 0 && modifiedCount > 0) {
-    return translate(locale, 'toolCall.group.createdAndModified', {
-      created: createdCount,
-      modified: modifiedCount,
-      count
-    })
-  }
-  if (createdCount > 0) {
-    return translate(locale, 'toolCall.group.created', { count: createdCount })
-  }
-  return translate(locale, 'toolCall.group.modified', { count: modifiedCount || count })
+export function getToolGroupIconItem(items: readonly ConversationItem[]): ConversationItem | undefined {
+  return groupByPart(items).values().next().value?.[0] ?? items.find((item) => item.type !== 'reasoningContent')
+}
+
+export function formatActiveToolLabel(item: ConversationItem, locale: AppLocale): string {
+  const preview = item.argumentsPreview ?? (item.arguments ? JSON.stringify(item.arguments) : null)
+  return getStreamingToolDisplay(item, preview, locale).label
 }

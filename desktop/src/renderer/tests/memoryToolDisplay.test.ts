@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConversationItem } from '../types/conversation'
-import { collectMemoryFileNames, countExplorationGroup } from '../utils/memoryToolDisplay'
+import { collectMemoryFileNames } from '../utils/memoryToolDisplay'
 import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
 import { withTestCorePresentation } from './testToolPresentation'
 
@@ -44,30 +44,5 @@ describe('collectMemoryFileNames', () => {
 
   it('finds no memory file in an update that only rewrote the index', () => {
     expect(collectMemoryFileNames([update({ path: '.craft/memory/MEMORY.md' })])).toEqual([])
-  })
-})
-
-describe('countExplorationGroup', () => {
-  const read = (path: string): ConversationItem =>
-    call(CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read' }, { path })
-
-  it('splits recalled memory files from the other explored calls', () => {
-    expect(countExplorationGroup([
-      read('src/a.ts'),
-      recall({ path: '.craft/memory/user_role.md' }),
-      recall({ path: '.craft/memory/user_role.md' }, 'grep'),
-      recall({ path: '.craft/memory/MEMORY.md' }),
-      read('src/b.ts')
-    ])).toEqual({ recalls: 3, memoryFiles: 1, explored: 2 })
-  })
-
-  it('counts a group without recalls as exploration only', () => {
-    expect(countExplorationGroup([read('src/a.ts'), read('src/b.ts')]))
-      .toEqual({ recalls: 0, memoryFiles: 0, explored: 2 })
-  })
-
-  it('counts a search-only recall group with no named memory file', () => {
-    expect(countExplorationGroup([recall({ path: '.craft/memory', pattern: 'role' }, 'grep')]))
-      .toEqual({ recalls: 1, memoryFiles: 0, explored: 0 })
   })
 })

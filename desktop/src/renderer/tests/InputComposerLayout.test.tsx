@@ -755,8 +755,8 @@ describe('InputComposer layout', () => {
     expect(within(dock).getByRole('button', { name: 'Steering' })).toHaveAttribute('aria-pressed', 'true')
     expect(within(dock).getAllByRole('button', { name: 'Reorder queued message' })[1]).toBeDisabled()
     expect(within(dock).getAllByRole('button', { name: 'Remove' })[0]).toHaveAttribute('data-tone', 'neutral')
-    const firstEditButton = within(dock).getAllByRole('button', { name: 'Edit queued message' })[0]
-    const firstQueueRow = firstEditButton.parentElement?.parentElement
+    const firstActionsButton = within(dock).getAllByRole('button', { name: 'Queued message actions' })[0]
+    const firstQueueRow = firstActionsButton.parentElement?.parentElement
     expect(firstQueueRow).toHaveStyle({
       gridTemplateColumns: '18px minmax(0, 1fr) auto 24px 24px'
     })
@@ -825,11 +825,8 @@ describe('InputComposer layout', () => {
     const textbox = screen.getByRole('textbox')
     textbox.textContent = 'replace this draft'
     fireEvent.input(textbox)
-    const removeButton = screen.getByRole('button', { name: 'Remove' })
-    const editButton = screen.getByRole('button', { name: 'Edit queued message' })
-    expect(removeButton.compareDocumentPosition(editButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-
-    fireEvent.click(editButton)
+    fireEvent.click(screen.getByRole('button', { name: 'Queued message actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit queued message' }))
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('turn/queue/remove', {
@@ -880,10 +877,13 @@ describe('InputComposer layout', () => {
 
     renderComposer()
 
-    const editButtons = screen.getAllByRole('button', { name: 'Edit queued message' })
-    expect(editButtons).toHaveLength(2)
-    expect(editButtons[0]).not.toBeDisabled()
-    expect(editButtons[1]).toBeDisabled()
+    const actionButtons = screen.getAllByRole('button', { name: 'Queued message actions' })
+    fireEvent.click(actionButtons[0])
+    fireEvent.click(actionButtons[1])
+    const editItems = screen.getAllByRole('menuitem', { name: 'Edit queued message' })
+    expect(editItems).toHaveLength(2)
+    expect(editItems[0]).not.toBeDisabled()
+    expect(editItems[1]).toBeDisabled()
   })
 
   it('cancels Steering after the active turn ends through turn/queue/update', async () => {
@@ -941,7 +941,8 @@ describe('InputComposer layout', () => {
     const textbox = screen.getByRole('textbox')
     textbox.textContent = 'keep this draft'
     fireEvent.input(textbox)
-    fireEvent.click(screen.getByRole('button', { name: 'Edit queued message' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Queued message actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit queued message' }))
 
     await waitFor(() => {
       expect(useToastStore.getState().toasts.some((toast) =>
@@ -975,7 +976,8 @@ describe('InputComposer layout', () => {
     const textbox = screen.getByRole('textbox')
     textbox.textContent = 'keep this draft'
     fireEvent.input(textbox)
-    fireEvent.click(screen.getByRole('button', { name: 'Edit queued message' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Queued message actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit queued message' }))
 
     await waitFor(() => {
       expect(useToastStore.getState().toasts.some((toast) =>

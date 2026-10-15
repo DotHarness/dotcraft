@@ -8,6 +8,8 @@ tools: NodeReplJs
 
 `dotcraft.computer` operates Windows desktop apps from `NodeReplJs`. It is already present in the REPL. Do not import anything, start helper programs, or drive input with scripts, PowerShell or native APIs; only `dotcraft.computer` is permitted to touch the user's desktop.
 
+Give every `NodeReplJs` call a `title` of a few words, under 80 characters, that tells the user what the run does, such as "Click Save in Notepad". It replaces the code in the conversation, so describe the action, not the REPL or JavaScript.
+
 Read [guidance](references/guidance.md) before the first desktop action in a task. Read [confirmations](references/confirmations.md) before any action that sends, submits, deletes, buys, installs or changes settings. Look up exact signatures in [api](references/api.md).
 
 ## Workflow

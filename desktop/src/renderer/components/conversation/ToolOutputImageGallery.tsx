@@ -107,7 +107,7 @@ const galleryStyle: CSSProperties = {
   flexWrap: 'wrap',
   alignItems: 'flex-start',
   gap: '8px',
-  padding: '0 6px'
+  padding: 0
 }
 
 const buttonStyle: CSSProperties = {

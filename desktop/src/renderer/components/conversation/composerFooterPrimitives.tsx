@@ -11,11 +11,9 @@ const pillStyle: CSSProperties = {
   padding: '0 8px',
   border: 'none',
   borderRadius: '999px',
-  background: 'transparent',
   color: 'var(--composer-footer-text)',
   font: 'inherit',
-  cursor: 'pointer',
-  transition: 'background 120ms ease, color 120ms ease, box-shadow 120ms ease'
+  cursor: 'pointer'
 }
 
 export const menuStyle: CSSProperties = {
@@ -159,26 +157,19 @@ export function WorkspaceFooterPill({
   'aria-controls'?: string
   'data-testid'?: string
 }): JSX.Element {
-  const { state, eventHandlers } = useInteractiveState(disabled)
   return (
     <button
       type="button"
       id={id}
+      className="dc-composer-pill"
       aria-label={ariaLabel}
-      aria-haspopup={ariaHasPopup}
-      aria-expanded={ariaExpanded}
+      aria-haspopup={ariaHasPopup ?? 'menu'}
+      aria-expanded={ariaExpanded ?? open === true}
       aria-controls={ariaControls}
       data-testid={dataTestId}
-      style={{
-        ...pillStyle,
-        ...interactiveStyle(state, {
-          active: open,
-          disabled
-        })
-      }}
+      style={disabled ? { ...pillStyle, opacity: 0.45, cursor: 'default' } : pillStyle}
       disabled={disabled}
       onClick={onClick}
-      {...eventHandlers}
     >
       {children}
     </button>

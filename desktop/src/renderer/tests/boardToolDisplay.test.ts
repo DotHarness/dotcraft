@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConversationItem } from '../types/conversation'
-import { aggregateToolCalls } from '../utils/toolCallAggregation'
+import { planToolRunRender } from '../utils/toolCallAggregation'
 import { parseBoardCall, type BoardOperation } from '../utils/boardToolDisplay'
 import { isToolExecutionFailure } from '../utils/toolCallDisplay'
 import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
@@ -74,15 +74,15 @@ describe('board tool display', () => {
     expect(isToolExecutionFailure(boardItem('read', 'readThread'))).toBe(false)
   })
 
-  it('folds consecutive reads but keeps writes and subscriptions on their own rows', () => {
-    const entries = aggregateToolCalls([
+  it('folds board reads, posts, and subscriptions into one group', () => {
+    const entries = planToolRunRender([
       boardItem('post', 'post'),
       boardItem('thread', 'readThread'),
       boardItem('read', 'readPost'),
       boardItem('subscribe', 'subscribe')
-    ])
+    ], { isRunning: false, isTrailingRun: false })
 
-    expect(entries.map((entry) => (entry.kind === 'group' ? `group:${entry.category}:${entry.items.length}` : entry.item.id)))
-      .toEqual(['post', 'group:board:2', 'subscribe'])
+    expect(entries.map((entry) => ('items' in entry ? `${entry.kind}:${entry.items.length}` : entry.item.id)))
+      .toEqual(['group:4'])
   })
 })

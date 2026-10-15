@@ -459,7 +459,7 @@ describe('MessageStream', () => {
 
       const { unmount } = renderWithLocale(<MessageStream />)
 
-      expect(screen.getByText(`Read active-${status}.ts`)).toBeInTheDocument()
+      expect(document.querySelector(`[data-turn-id="${activeTurnId}"] [data-testid="tool-row"]`)).not.toBeNull()
       unmount()
     }
   })
@@ -528,7 +528,7 @@ describe('MessageStream', () => {
     expect(guidanceIndex).toBeLessThan(assistantIndex)
   })
 
-  it('keeps running tool auto-scroll stable under StrictMode streaming updates', () => {
+  it('keeps running tool auto-scroll stable under StrictMode streaming updates', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     useConversationStore.setState({
       turns: [{
@@ -577,7 +577,7 @@ describe('MessageStream', () => {
       })
     })
 
-    expect(screen.getByText('Fetching https://dotcraft.ai...')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('Fetching https://dotcraft.ai...')).toBeInTheDocument(), { timeout: 2000 })
     const maxDepthErrors = consoleError.mock.calls.filter((call) =>
       call.some((part) => String(part).includes('Maximum update depth exceeded'))
     )

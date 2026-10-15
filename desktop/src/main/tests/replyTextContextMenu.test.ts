@@ -55,6 +55,7 @@ it('copies and selects using only the requesting WebContents', async () => {
 it.skipIf(process.platform === 'darwin')('offers only native select-all without a selection', async () => {
   const { sender, items, open, completion, close } = setup('')
   expect(items).toHaveLength(1)
+  expect(items[0].label).toBe('Select all')
   items[0].click?.(undefined as never, undefined as never, undefined as never)
   expect(sender.selectAll).toHaveBeenCalledOnce()
   expect(sender.copy).not.toHaveBeenCalled()

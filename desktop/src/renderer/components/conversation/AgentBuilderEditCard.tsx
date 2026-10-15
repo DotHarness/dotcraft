@@ -42,7 +42,6 @@ export function AgentBuilderEditCard({ item, field, locale }: AgentBuilderEditCa
       expanded={expanded}
       onToggle={() => setExpanded((value) => !value)}
       expandable={display.panel != null}
-      tone={display.failed ? 'error' : undefined}
       title={display.title}
     >
       <div className="dc-tool-panel-surface dc-profile-edit-panel" data-padded="true">
