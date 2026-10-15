@@ -98,7 +98,7 @@ public sealed class NodeReplPluginToolSource(
                     definition.Annotations,
                     definition.PolicyHints,
                     presentation,
-                    new ToolProvenance(ToolSourceKind.CoreNative, SourceId, "native"),
+                    new ToolProvenance(ToolSourceKind.CoreNative, pluginId, "native"),
                     definition.NamespaceDescription,
                     definition.PolicyScope,
                     definition.FreeformInput),

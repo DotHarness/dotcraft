@@ -21,6 +21,19 @@ describe('ContextMenu', () => {
     })
   }
 
+  it('consumes Escape so closing the menu does not reach global shortcuts', () => {
+    const onClose = vi.fn()
+    const globalShortcut = vi.fn()
+    window.addEventListener('keydown', globalShortcut)
+
+    render(<ContextMenu position={{ x: 16, y: 16 }} onClose={onClose} items={[{ label: 'Edit', onClick: vi.fn() }]} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    window.removeEventListener('keydown', globalShortcut)
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(globalShortcut).not.toHaveBeenCalled()
+  })
+
   it('opens a submenu when its parent item is clicked', () => {
     const onClose = vi.fn()
     const onForkLocal = vi.fn()
