@@ -100,6 +100,10 @@ export const MESSAGES_EN = {
   "conversation.workedFor": "Worked for {{duration}}",
   "conversation.startedByBackgroundCommand": "Started by background command: {{command}}",
   "conversation.startedByBackgroundCommandGeneric": "Started by a background command",
+  "conversation.backgroundCommandFinished": "Background command finished: {{command}}",
+  "conversation.backgroundCommandFailed": "Background command failed: {{command}}",
+  "conversation.backgroundCommandStopped": "Background command stopped: {{command}}",
+  "conversation.backgroundCommandWaitingForInput": "Background command waiting for input: {{command}}",
   "threadArchive.confirmRunning.title": "Stop and archive this chat?",
   "threadArchive.confirmRunning.message": "Archiving will stop any ongoing work. You can restore the chat later in settings.",
   "threadArchive.confirmRunning.confirm": "Stop and archive",
@@ -1306,14 +1310,11 @@ export const MESSAGES_EN = {
   'settings.personalization.showThinkingContentHint':
     'When off, DotCraft still shows the live thinking status but hides reasoning text.',
   'settings.permissions.workspaceDefault.label': 'Default permissions',
-  'settings.permissions.workspaceDefault.description':
-    'Choose the default approval behavior for new threads in this workspace.',
+  'settings.permissions.workspaceDefault.description': 'Applies to new threads in this workspace.',
   'settings.permissions.default.label': 'Ask for approval',
-  'settings.permissions.default.description':
-    'DotCraft asks before editing files outside the workspace or running commands.',
+  'settings.permissions.default.description': 'Ask before commands and external edits',
   'settings.permissions.fullAccess.label': 'Full access',
-  'settings.permissions.fullAccess.description':
-    'Approve every action automatically. Higher risk — only for workspaces you trust.',
+  'settings.permissions.fullAccess.description': 'Approve every action without asking',
   'settings.permissions.fullAccess.warningTitle': 'Enable full access?',
   'settings.permissions.fullAccess.warningBody':
     'Full access automatically approves approval-gated actions. DotCraft may edit files outside the workspace or run network commands without asking first. Only enable this for workspaces and channels you trust.',
@@ -3198,10 +3199,9 @@ export const MESSAGES_EN = {
   'composer.approval.default.label': 'Default',
   'composer.approval.default.description': 'Follow your workspace setting ({{policy}})',
   'composer.approval.prompt.label': 'Ask for approval',
-  'composer.approval.prompt.description':
-    'Always ask before editing files outside the workspace or running commands',
+  'composer.approval.prompt.description': 'Ask before commands and external edits',
   'composer.approval.fullAccess.label': 'Full access',
-  'composer.approval.fullAccess.description': 'Approve every action automatically — higher risk',
+  'composer.approval.fullAccess.description': 'Approve every action without asking',
   'composer.approval.workspaceDefaultHint': 'Workspace default: {{policy}}',
   'composer.approval.updateFailed': 'Failed to update approval policy: {{error}}',
   'planApproval.title': 'Implement this plan?',

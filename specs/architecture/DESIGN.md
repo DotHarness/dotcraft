@@ -1111,7 +1111,11 @@ transition before the menu is revealed, preventing option text from reflowing
 while the overlay is visible. The expanded width is capped to the viewport and
 extreme labels wrap inside the menu. Rich options with icons or descriptions,
 and frameless toolbar selects, keep their fixed-width treatment. Reduced-motion
-preferences skip the staged animation.
+preferences skip the staged animation. A rich menu may set a minimum width so
+each description stays on one line, opening past its trigger in place rather
+than animating the trigger; one at the trailing edge of a settings row keeps its
+right edge on the trigger's. The approval policy menu is 288px in both the
+composer and Settings.
 
 ### Tooltips
 
@@ -1489,7 +1493,7 @@ destination stays inert, so a target that goes nowhere never looks reachable.
 
 A turn with no bubble, started by a background command's notice, carries its origin
 on its activity boundary instead: a 13px terminal icon, 6px before the timing label
-and in its colour. The icon and timing name the command on hover. The boundary keeps
+and in its colour. The icon and timing name the command and how it ended on hover; the icon itself stays neutral whatever the outcome, like a failed tool row. The boundary keeps
 its single row, rule and disclosure, so a woken turn reads as a peer of the turn above
 it rather than a second header for the same reply.
 

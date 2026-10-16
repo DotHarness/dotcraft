@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { SquareTerminal } from 'lucide-react'
-import { getActivityElapsedMs, type TurnActivityStatus } from './turnActivityModel'
+import { getActivityElapsedMs, type TerminalWake, type TurnActivityStatus } from './turnActivityModel'
 import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
+import type { AppLocale } from '../../../shared/locales/types'
 import { turnStopKey, useTurnStopStore } from '../../stores/turnStopStore'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -18,11 +19,10 @@ interface TurnActivitySummaryProps {
   turnId: string
   startedAt?: string
   completedAt?: string
-  /** Set when a background command's notice started the turn; '' when the notice names no command. */
-  startedByCommand?: string | null
+  terminalWake?: TerminalWake | null
 }
 
-export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, status, collapsible = false, startedByCommand, children }: TurnActivitySummaryProps): JSX.Element {
+export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, status, collapsible = false, terminalWake, children }: TurnActivitySummaryProps): JSX.Element {
   const locale = useLocale()
   const byUser = useTurnStopStore(state => state.requested.has(turnStopKey(threadId, turnId)))
   const [expanded, setExpanded] = useState(false)
@@ -44,9 +44,7 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
   const hasDuration = elapsed != null && (status !== 'working' || elapsed >= 1000)
   const label = translate(locale, hasDuration ? `${key}${status === 'stopped' ? 'After' : 'For'}` : key,
     { duration: elapsed == null ? '' : formatActivityDuration(elapsed, locale) })
-  const origin = startedByCommand == null ? null
-    : startedByCommand ? translate(locale, 'conversation.startedByBackgroundCommand', { command: startedByCommand })
-      : translate(locale, 'conversation.startedByBackgroundCommandGeneric')
+  const origin = terminalWake ? terminalWakeLabel(locale, terminalWake) : null
   const accessibleName = origin ? `${label} · ${origin}` : undefined
   const labelContent = origin ? (
     <ActionTooltip label={origin} multiline>
@@ -82,6 +80,18 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
       </div>
     ) : null}
   </div>
+}
+
+const TERMINAL_WAKE_KEYS: Record<string, string> = {
+  completed: 'conversation.backgroundCommandFinished',
+  failed: 'conversation.backgroundCommandFailed',
+  killed: 'conversation.backgroundCommandStopped',
+  waitingForInput: 'conversation.backgroundCommandWaitingForInput'
+}
+
+function terminalWakeLabel(locale: AppLocale, { command, status }: TerminalWake): string {
+  if (!command) return translate(locale, 'conversation.startedByBackgroundCommandGeneric')
+  return translate(locale, (status && TERMINAL_WAKE_KEYS[status]) || 'conversation.startedByBackgroundCommand', { command })
 }
 
 function anchorScroll(element: HTMLElement): void {

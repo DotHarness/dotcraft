@@ -23,6 +23,8 @@ public sealed class TurnTriggerInfo
     /// Optional routing id for client-side navigation (e.g. automation id, task id).
     /// </summary>
     public string? RefId { get; init; }
+
+    public string? Status { get; init; }
 }
 
 /// <summary>

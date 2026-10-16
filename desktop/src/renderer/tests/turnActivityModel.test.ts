@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
-import { getActivityElapsedMs, getTerminalWakeCommand, getTurnActivityState } from '../components/conversation/turnActivityModel'
+import { getActivityElapsedMs, getTerminalWake, getTurnActivityState } from '../components/conversation/turnActivityModel'
 
 const start = '2026-01-01T12:00:00Z'
 const finalStart = '2026-01-01T12:00:12Z'
@@ -38,13 +38,13 @@ describe('turn activity lifecycle', () => {
     expect(getActivityElapsedMs(start, start)).toBe(0)
   })
 
-  it('names the background command only for a turn its notice started', () => {
-    const notice: ConversationItem = { id: 'notice', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'terminal', triggerLabel: 'npm run build', text: 'Background command finished (exit code 0): npm run build', createdAt: start }
+  it('reads the background command and its outcome only for a turn its notice started', () => {
+    const notice: ConversationItem = { id: 'notice', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'terminal', triggerLabel: 'npm run build', triggerStatus: 'failed', text: 'Background command finished (exit code 2): npm run build', createdAt: start }
     const prompt: ConversationItem = { id: 'prompt', type: 'userMessage', status: 'completed', text: 'Run the build', createdAt: start }
-    expect(getTerminalWakeCommand({ ...turn, items: [notice, commentary] })).toBe('npm run build')
-    expect(getTerminalWakeCommand({ ...turn, items: [{ ...notice, triggerLabel: undefined }] })).toBe('')
-    expect(getTerminalWakeCommand({ ...turn, items: [prompt, { ...notice, deliveryMode: 'guidance' }] })).toBeNull()
-    expect(getTerminalWakeCommand({ ...turn, items: [{ ...notice, deliveryMode: 'guidance' }] })).toBeNull()
-    expect(getTerminalWakeCommand({ ...turn, items: [commentary] })).toBeNull()
+    expect(getTerminalWake({ ...turn, items: [notice, commentary] })).toEqual({ command: 'npm run build', status: 'failed' })
+    expect(getTerminalWake({ ...turn, items: [{ ...notice, triggerLabel: undefined, triggerStatus: undefined }] })).toEqual({ command: '', status: undefined })
+    expect(getTerminalWake({ ...turn, items: [prompt, { ...notice, deliveryMode: 'guidance' }] })).toBeNull()
+    expect(getTerminalWake({ ...turn, items: [{ ...notice, deliveryMode: 'guidance' }] })).toBeNull()
+    expect(getTerminalWake({ ...turn, items: [commentary] })).toBeNull()
   })
 })

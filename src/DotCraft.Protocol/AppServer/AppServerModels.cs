@@ -1570,6 +1570,10 @@ public sealed class QueuedTurnInput : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? TriggerRefId { get; init; }
 
+    [JsonPropertyName("triggerStatus")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TriggerStatus { get; init; }
+
     [JsonPropertyName("deliveryBindingId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DeliveryBindingId { get; init; }

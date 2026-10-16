@@ -268,6 +268,7 @@ function isOfficialOpenAIEndpoint(endpoint: string): boolean {
 
 type VisibleApprovalPolicy = 'default' | 'autoApprove'
 const SETTINGS_SELECT_WIDTH = '240px'
+const APPROVAL_MENU_MIN_WIDTH = 288
 
 const DEFAULT_WS_HOST = '127.0.0.1'
 const DEFAULT_WS_PORT = 9100
@@ -1948,6 +1949,7 @@ export function SettingsView({
                           return handleDefaultApprovalPolicyChange(nextPolicy as VisibleApprovalPolicy)
                         }}
                         style={{ width: SETTINGS_SELECT_WIDTH }}
+                        menuMinWidth={APPROVAL_MENU_MIN_WIDTH}
                         options={[
                           {
                             value: 'default',

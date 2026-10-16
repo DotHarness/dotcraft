@@ -3137,6 +3137,7 @@ export interface QueuedTurnInput {
   triggerKind?: string | null;
   triggerLabel?: string | null;
   triggerRefId?: string | null;
+  triggerStatus?: string | null;
   [key: string]: unknown;
 }
 
@@ -5173,6 +5174,7 @@ export interface UserMessagePayload {
   triggerKind?: string | null;
   triggerLabel?: string | null;
   triggerRefId?: string | null;
+  triggerStatus?: string | null;
   [key: string]: unknown;
 }
 
