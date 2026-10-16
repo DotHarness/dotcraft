@@ -48,6 +48,7 @@ public static class TurnContractMapper
         TriggerKind = value.TriggerKind,
         TriggerLabel = value.TriggerLabel,
         TriggerRefId = value.TriggerRefId,
+        TriggerStatus = value.TriggerStatus,
         DeliveryBindingId = value.DeliveryBindingId,
         SentAsGoal = value.SentAsGoal
     };

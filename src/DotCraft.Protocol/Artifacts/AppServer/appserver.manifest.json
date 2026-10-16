@@ -15464,6 +15464,13 @@
           "required": false,
           "nullable": true,
           "const": null
+        },
+        {
+          "name": "triggerStatus",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
         }
       ],
       "variants": []
@@ -25819,6 +25826,13 @@
         },
         {
           "name": "triggerRefId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "triggerStatus",
           "type": "string",
           "required": false,
           "nullable": true,

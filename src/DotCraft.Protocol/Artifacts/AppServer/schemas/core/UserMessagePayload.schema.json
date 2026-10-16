@@ -185,6 +185,16 @@
           "type": "null"
         }
       ]
+    },
+    "triggerStatus": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "additionalProperties": true,

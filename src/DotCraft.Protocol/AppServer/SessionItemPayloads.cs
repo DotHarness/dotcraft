@@ -80,6 +80,10 @@ public sealed class UserMessagePayload : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? TriggerRefId { get; init; }
 
+    [JsonPropertyName("triggerStatus")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TriggerStatus { get; init; }
+
     [JsonPropertyName("queuedInputId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? QueuedInputId { get; init; }

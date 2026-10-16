@@ -219,6 +219,7 @@ export interface ConversationItem {
   triggerLabel?: string
   /** Optional routing id for client-side click-through (e.g. automation id). */
   triggerRefId?: string
+  triggerStatus?: string
   /**
    * True when this user message established the thread goal (the objective was sent "as a goal").
    * Durable provenance from `UserMessagePayload.SentAsGoal`; drives the "Sent as goal" badge.
@@ -735,6 +736,8 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
       ?? (payload.triggerLabel as string | undefined),
     triggerRefId: (raw.triggerRefId as string | undefined)
       ?? (payload.triggerRefId as string | undefined),
+    triggerStatus: (raw.triggerStatus as string | undefined)
+      ?? (payload.triggerStatus as string | undefined),
     sentAsGoal: (raw.sentAsGoal as boolean | undefined) ?? (payload.sentAsGoal as boolean | undefined),
     systemNotice: type === 'systemNotice' ? mapSystemNotice(raw, payload) : undefined,
     createdAt,

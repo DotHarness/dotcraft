@@ -99,6 +99,8 @@ public sealed record UserMessagePayload
     /// </summary>
     public string? TriggerRefId { get; init; }
 
+    public string? TriggerStatus { get; init; }
+
     /// <summary>
     /// Queued input id that produced this user message when <see cref="DeliveryMode"/> is <c>queued</c>.
     /// </summary>
@@ -203,6 +205,8 @@ public sealed record QueuedTurnInput
     /// Optional routing id for client-side click-through to the trigger source.
     /// </summary>
     public string? TriggerRefId { get; init; }
+
+    public string? TriggerStatus { get; init; }
 
     /// <summary>
     /// Thread app binding id that should receive this queued input's default assistant delivery.

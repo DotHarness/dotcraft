@@ -402,7 +402,8 @@ Each Item type has a specific payload structure:
   ],
   "triggerKind": string,   // Optional trigger marker: "automation" | "goal" | "app" | "mcpApp" | "team" | "subagentFollowupTask" | "subagentMailbox" | "subagentInput" | "terminal"
   "triggerLabel": string,  // Optional human-readable source label (e.g. automation name, task title, agent label)
-  "triggerRefId": string   // Optional routing/audit id for click-through when supported (e.g. automation id, task id, agent path)
+  "triggerRefId": string,  // Optional routing/audit id for click-through when supported (e.g. automation id, task id, agent path)
+  "triggerStatus": string  // Optional state of the source when the message was created (background terminal notices only)
 }
 ```
 
@@ -693,12 +694,17 @@ notice. When it exits, Session Core delivers one notice to the Thread that
 started it, unless the model already received the terminal's final status from
 `Exec` or `WriteStdin`, or stopped it through `WriteStdin`. A stop requested by
 a client still produces a notice. The notice is a queued input with
-`triggerKind = "terminal"`, `triggerLabel` set to the shortened command, and
-`triggerRefId` set to the terminal session ID. Its display text is a one-line
+`triggerKind = "terminal"`, `triggerLabel` set to the shortened command,
+`triggerRefId` set to the terminal session ID, and `triggerStatus` set to the
+terminal's final status (`completed`, `failed`, `killed`, `timedOut`, or `lost`),
+or to `waitingForInput` for a stall notice. Its display text is a one-line
 summary; its materialized text gives the status, exit code, wall time, the
 output log path, and at most 2,000 characters from the end of the output the
-model has not read. A notice never moves the model read cursor, so output in a
-notice that is dropped stays readable through `WriteStdin`.
+model has not read. A `killed` notice comes only from a client stop, so its
+materialized text says the user stopped the command, that this is not a failure
+of the command, and that the model should not start it again unless asked. A
+notice never moves the model read cursor, so output in a notice that is dropped
+stays readable through `WriteStdin`.
 
 - While the Thread has an active Turn, the notice is added as `guidancePending`
   for that Turn and is drained at its next sampling boundary. It does not

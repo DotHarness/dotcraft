@@ -43,6 +43,7 @@ export interface SelectProps<T extends string = string> {
   style?: CSSProperties
   valueProps?: HTMLAttributes<HTMLSpanElement> & DataAttributeProps
   menuMaxHeight?: number
+  menuMinWidth?: number
   appearance?: SelectAppearance
   /** Text-only field selects expand to reveal their longest option by default. */
   adaptiveWidth?: boolean
@@ -80,6 +81,7 @@ export function Select<T extends string = string>({
   style,
   valueProps,
   menuMaxHeight = 280,
+  menuMinWidth = MENU_MIN_WIDTH,
   appearance = 'field',
   adaptiveWidth
 }: SelectProps<T>): JSX.Element {
@@ -193,7 +195,10 @@ export function Select<T extends string = string>({
       : Math.min(window.innerHeight - VIEWPORT_INSET, rect.bottom + MENU_GAP)
     const width = adaptive && adaptiveTargetRef.current != null
       ? adaptiveTargetRef.current
-      : Math.max(rect.width, MENU_MIN_WIDTH)
+      : Math.min(Math.max(rect.width, menuMinWidth), window.innerWidth - VIEWPORT_INSET * 2)
+    const alignedLeft = width > rect.width && resolveAdaptiveAnchor(trigger) === 'right'
+      ? rect.right - width
+      : rect.left
     const left = adaptive && adaptiveEdgeRef.current != null
       ? adaptiveAnchorRef.current === 'left'
         ? Math.max(
@@ -208,7 +213,7 @@ export function Select<T extends string = string>({
             )
           )
       : Math.min(
-          Math.max(VIEWPORT_INSET, rect.left),
+          Math.max(VIEWPORT_INSET, alignedLeft),
           Math.max(VIEWPORT_INSET, window.innerWidth - width - VIEWPORT_INSET)
         )
     const nextPosition = { top, left, width, maxHeight }
@@ -224,7 +229,7 @@ export function Select<T extends string = string>({
       }
       return nextPosition
     })
-  }, [adaptive, menuMaxHeight])
+  }, [adaptive, menuMaxHeight, menuMinWidth])
 
   useLayoutEffect(() => {
     if (!adaptive) {
@@ -580,7 +585,7 @@ export function Select<T extends string = string>({
 }
 
 function resolveAdaptiveAnchor(trigger: HTMLElement): AdaptiveAnchor {
-  const wrapper = trigger.closest<HTMLElement>('.dc-adaptive-select')
+  const wrapper = trigger.closest<HTMLElement>('.dc-adaptive-select') ?? trigger
   const row = trigger.closest<HTMLElement>('.dc-settings-row')
   if (!wrapper || !row) return 'left'
 

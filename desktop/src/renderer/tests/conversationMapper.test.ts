@@ -138,13 +138,15 @@ describe('wireItemToConversationItem — nested payload format (thread/read)', (
         deliveryMode: 'guidance',
         triggerKind: 'terminal',
         triggerLabel: 'npm test',
-        triggerRefId: 'term_abc'
+        triggerRefId: 'term_abc',
+        triggerStatus: 'failed'
       },
       createdAt: '2025-01-01T00:00:00Z'
     })
     expect(item.triggerKind).toBe('terminal')
     expect(item.triggerLabel).toBe('npm test')
     expect(item.triggerRefId).toBe('term_abc')
+    expect(item.triggerStatus).toBe('failed')
   })
 
   it('strips trailing system reminders from userMessage payload text', () => {

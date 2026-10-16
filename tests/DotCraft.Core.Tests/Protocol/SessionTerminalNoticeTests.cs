@@ -47,9 +47,27 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
         Assert.NotNull(woken);
         Assert.Equal(SessionService.TerminalTriggerKind, woken.TriggerKind);
         Assert.StartsWith("term_", woken.TriggerRefId);
+        Assert.Equal(BackgroundTerminalStatus.Completed, woken.TriggerStatus);
         var notice = Assert.Single(chatClient.ReceivedNotices);
         Assert.Contains("notice-tail", notice);
         Assert.Contains("exit code 0", notice);
+    }
+
+    [Fact]
+    public async Task ClientStop_WakesTheThreadWithAUserStopNotice()
+    {
+        var chatClient = new NoticeAwareChatClient(LongRunningCommand(), keepWorking: false);
+        await using var harness = await CreateHarnessAsync(chatClient);
+
+        await harness.RunTurnAsync();
+        var running = Assert.Single(await harness.Terminals.ListAsync(harness.ThreadId));
+        await harness.Terminals.StopAsync(running.SessionId);
+        var thread = await WaitForThreadAsync(harness, t => t.Turns.Count == 2 && t.Turns[1].Status == TurnStatus.Completed);
+
+        Assert.Equal(BackgroundTerminalStatus.Killed, thread.Turns[1].Input?.AsUserMessage?.TriggerStatus);
+        var notice = Assert.Single(chatClient.ReceivedNotices);
+        Assert.Contains("The user stopped", notice);
+        Assert.Contains("Do not start it again", notice);
     }
 
     [Fact]
@@ -144,6 +162,9 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
         OperatingSystem.IsWindows()
             ? $"Start-Sleep -Milliseconds 800; Write-Output '{text}'"
             : $"sleep 0.8; echo '{text}'";
+
+    private static string LongRunningCommand() =>
+        OperatingSystem.IsWindows() ? "Start-Sleep -Seconds 60" : "sleep 60";
 
     private static string QuickCommand() =>
         OperatingSystem.IsWindows() ? "Start-Sleep -Milliseconds 300; Write-Output tick" : "sleep 0.3; echo tick";

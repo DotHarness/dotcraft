@@ -50,6 +50,7 @@ public sealed partial class SessionService
                 TriggerKind = triggerInfo?.Kind,
                 TriggerLabel = triggerInfo?.Label,
                 TriggerRefId = triggerInfo?.RefId,
+                TriggerStatus = triggerInfo?.Status,
                 DeliveryBindingId = inputSnapshot?.DeliveryBindingId,
                 SentAsGoal = inputSnapshot?.SentAsGoal
             };
@@ -140,6 +141,7 @@ public sealed partial class SessionService
                     TriggerKind = triggerInfo?.Kind,
                     TriggerLabel = triggerInfo?.Label,
                     TriggerRefId = triggerInfo?.RefId,
+                    TriggerStatus = triggerInfo?.Status,
                     DeliveryBindingId = inputSnapshot?.DeliveryBindingId,
                     SentAsGoal = inputSnapshot?.SentAsGoal
                 });
@@ -448,7 +450,8 @@ public sealed partial class SessionService
             {
                 Kind = queued.TriggerKind!,
                 Label = queued.TriggerLabel,
-                RefId = queued.TriggerRefId
+                RefId = queued.TriggerRefId,
+                Status = queued.TriggerStatus
             });
         }
 

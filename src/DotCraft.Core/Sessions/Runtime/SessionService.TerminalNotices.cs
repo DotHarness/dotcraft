@@ -9,6 +9,7 @@ namespace DotCraft.Sessions;
 public sealed partial class SessionService
 {
     internal const string TerminalTriggerKind = "terminal";
+    internal const string TerminalWaitingForInputStatus = "waitingForInput";
     private const int TerminalLabelMaxChars = 80;
 
     private readonly ConcurrentDictionary<string, ForegroundHandOverSignal> _foregroundHandOver = new(StringComparer.Ordinal);
@@ -108,7 +109,8 @@ public sealed partial class SessionService
                 ReadyAfterTurnId = activeTurn?.Id,
                 TriggerKind = TerminalTriggerKind,
                 TriggerLabel = ShortenTerminalCommand(terminal.Command),
-                TriggerRefId = terminal.SessionId
+                TriggerRefId = terminal.SessionId,
+                TriggerStatus = terminal.WaitingForInput ? TerminalWaitingForInputStatus : terminal.Status
             });
             thread.QueuedInputs = queue;
             thread.LastActiveAt = DateTimeOffset.UtcNow;
@@ -143,10 +145,13 @@ public sealed partial class SessionService
 
     private static string BuildTerminalNoticeDisplayText(BackgroundTerminalSnapshot terminal)
     {
+        var command = ShortenTerminalCommand(terminal.Command);
         if (terminal.WaitingForInput)
-            return $"Background command is waiting for input: {ShortenTerminalCommand(terminal.Command)}";
+            return $"Background command is waiting for input: {command}";
+        if (terminal.Status == BackgroundTerminalStatus.Killed)
+            return $"Background command stopped by the user: {command}";
         var outcome = terminal.ExitCode is { } exitCode ? $"exit code {exitCode}" : terminal.Status;
-        return $"Background command finished ({outcome}): {ShortenTerminalCommand(terminal.Command)}";
+        return $"Background command finished ({outcome}): {command}";
     }
 
     private static string BuildTerminalNoticeModelText(BackgroundTerminalSnapshot terminal)
@@ -155,6 +160,12 @@ public sealed partial class SessionService
         sb.AppendLine("<terminal_notification>");
         if (terminal.WaitingForInput)
             sb.AppendLine($"Background terminal {terminal.SessionId} appears to be waiting for input.");
+        else if (terminal.Status == BackgroundTerminalStatus.Killed)
+        {
+            // Model stops send no notice and shutdown suppresses notices, so a killed notice is a client stop.
+            sb.AppendLine($"The user stopped background terminal {terminal.SessionId} after {FormatWallTime(terminal.WallTimeMs)}.");
+            sb.AppendLine("This is not a failure of the command, so there is nothing in it to debug. Do not start it again unless the user asks.");
+        }
         else
         {
             sb.Append($"Background terminal {terminal.SessionId} finished with status {terminal.Status}");

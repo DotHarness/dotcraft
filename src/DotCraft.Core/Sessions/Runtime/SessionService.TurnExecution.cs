@@ -106,6 +106,7 @@ public sealed partial class SessionService
                 TriggerKind = triggerInfo?.Kind,
                 TriggerLabel = triggerInfo?.Label,
                 TriggerRefId = triggerInfo?.RefId,
+                TriggerStatus = triggerInfo?.Status,
                 QueuedInputId = inputSnapshot?.QueuedInputId,
                 DeliveryBindingId = inputSnapshot?.DeliveryBindingId,
                 SentAsGoal = inputSnapshot?.SentAsGoal

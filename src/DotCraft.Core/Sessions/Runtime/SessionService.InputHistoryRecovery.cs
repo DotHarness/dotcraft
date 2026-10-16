@@ -41,7 +41,7 @@ public sealed partial class SessionService
                             ChannelContext = turn.Initiator?.ChannelContext,
                             GroupId = input.Sender?.GroupId ?? turn.Initiator?.GroupId,
                             TriggerKind = input.TriggerKind, TriggerLabel = input.TriggerLabel,
-                            TriggerRefId = input.TriggerRefId, QueuedInputId = input.Id,
+                            TriggerRefId = input.TriggerRefId, TriggerStatus = input.TriggerStatus, QueuedInputId = input.Id,
                             DeliveryBindingId = input.DeliveryBindingId,
                             Images = images.Count > 0 ? images : null
                         }

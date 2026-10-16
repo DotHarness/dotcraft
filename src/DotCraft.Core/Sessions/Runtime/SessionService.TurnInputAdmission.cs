@@ -220,6 +220,7 @@ public sealed partial class SessionService
                 TriggerKind = queued.TriggerKind,
                 TriggerLabel = queued.TriggerLabel,
                 TriggerRefId = queued.TriggerRefId,
+                TriggerStatus = queued.TriggerStatus,
                 QueuedInputId = queued.Id,
                 DeliveryBindingId = queued.DeliveryBindingId
             }
