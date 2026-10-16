@@ -8,10 +8,10 @@ import { useComposerMotion } from './useComposerMotion.js'
 import { MASCOT_SIZE, MASCOT_SCALE, MASCOT_HIDDEN_RATIO, MASCOT_RAISE, MASCOT_SLEEP_AFTER_MS, MASCOT_WAVE_DURATION_MS, MASCOT_SPARKLES } from './constants.js'
 import { useMascotActiveIdle } from './useMascotActiveIdle.js'
 import type { ComposerMascotProps, ComposerMascotContext, MascotExpression, MascotLight } from './types.js'
-export function ComposerMascot({ name, appearance, motion = 'system', theme = 'dark', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', anchorOffset = 0, anchorPushSignal = 0, handoff = false, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
+export function ComposerMascot({ name, appearance, appearanceOf = deriveAppearance, motion = 'system', theme = 'dark', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', anchorOffset = 0, anchorPushSignal = 0, handoff = false, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
   const reduced = !useComposerMotion(motion)
-  const { avatar, profileTransition, profileTransitionRevision } = useComposerProfile(name, reduced)
-  const look = appearance && !avatar ? appearance : deriveAppearance(avatar ?? '')
+  const { avatar, profileTransition, profileTransitionRevision } = useComposerProfile(name, reduced, appearanceOf)
+  const look = appearance && !avatar ? appearance : appearanceOf(avatar ?? '')
   useEffect(() => { onNameRendered?.(avatar) }, [avatar, onNameRendered])
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [ambientSleeping, setSleeping] = useState(false)
