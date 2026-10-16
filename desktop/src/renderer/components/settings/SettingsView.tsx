@@ -74,6 +74,7 @@ import { SettingsPanelShell } from './SettingsPanelShell'
 import { SettingsBreadcrumb } from './SettingsBreadcrumb'
 import { PluginIcon, pluginSubtitle, pluginTitle } from '../plugins/PluginCatalogItem'
 import { PluginInstallDialog } from '../plugins/PluginInstallDialog'
+import controlRowStyles from './panels/computerUse/ComputerUsePanel.module.css'
 import { showPluginInstalledToast } from '../plugins/pluginToasts'
 
 import { SettingsSelect } from './ui/SettingsSelect'
@@ -1631,6 +1632,14 @@ export function SettingsView({
     }
   }
 
+  function handleOpenBrowserUsePlugin(): void {
+    if (!browserUsePlugin) return
+    void usePluginStore.getState().selectPlugin(browserUsePlugin.id)
+    const ui = useUIStore.getState()
+    ui.setPluginCatalogSurface('plugins')
+    ui.setActiveMainView('skills')
+  }
+
   function handleTryBrowserUseInChat(): void {
     const prompt = browserUsePlugin?.interface?.defaultPrompt || ''
     // The segments are the content, so the default prompt needs one of its own —
@@ -2805,21 +2814,25 @@ export function SettingsView({
                 {pluginManagementEnabled && browserUsePlugin && (
                   <SettingsGroup title={t('settings.browserUse.plugin')}>
                     <SettingsRow>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', minWidth: 0 }}>
-                        <PluginIcon plugin={browserUsePlugin} role="list" size={38} />
-                        <div style={{ display: 'flex', flex: 1, flexDirection: 'column', minWidth: 0 }}>
-                          <strong style={settingsLabelStyle()}>{pluginTitle(browserUsePlugin)}</strong>
-                          <span style={{ ...settingsHintStyle(), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {pluginSubtitle(browserUsePlugin)}
-                          </span>
+                      <div className={controlRowStyles.controlRow}>
+                        <button type="button" className={controlRowStyles.controlOpen} onClick={handleOpenBrowserUsePlugin}>
+                          <PluginIcon plugin={browserUsePlugin} role="list" size={38} />
+                          <div className={controlRowStyles.controlText}>
+                            <strong style={settingsLabelStyle()}>{pluginTitle(browserUsePlugin)}</strong>
+                            <span className={controlRowStyles.controlDetail} style={settingsHintStyle()}>
+                              {pluginSubtitle(browserUsePlugin)}
+                            </span>
+                          </div>
+                        </button>
+                        <div className={controlRowStyles.controlActions}>
+                          {!browserUsePlugin.installed ? (
+                            <Button onClick={() => setBrowserUseInstallOpen(true)}>{t('plugins.install')}</Button>
+                          ) : browserUsePlugin.enabled ? (
+                            <Button iconLeft={<MessageCircle size={14} aria-hidden />} onClick={handleTryBrowserUseInChat}>
+                              {t('plugins.tryInChat')}
+                            </Button>
+                          ) : null}
                         </div>
-                        {!browserUsePlugin.installed ? (
-                          <Button onClick={() => setBrowserUseInstallOpen(true)}>{t('plugins.install')}</Button>
-                        ) : browserUsePlugin.enabled ? (
-                          <Button iconLeft={<MessageCircle size={14} aria-hidden />} onClick={handleTryBrowserUseInChat}>
-                            {t('plugins.tryInChat')}
-                          </Button>
-                        ) : null}
                       </div>
                     </SettingsRow>
                   </SettingsGroup>
