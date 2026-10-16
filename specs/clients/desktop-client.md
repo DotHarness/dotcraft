@@ -1403,6 +1403,8 @@ User input request delivery follows the same reliability expectation: if the dia
 
 - Streaming text should appear quickly enough to feel live rather than batch-delivered.
 - User actions such as thread selection, approval response, model-question answer, and interrupt should visibly acknowledge input immediately, even if final protocol completion arrives later.
+- Opening a main view or settings panel never leaves its area blank. Their modules load ahead of the click when the pointer enters or keyboard focus reaches the entry. The Settings page and its active panel load together. Once the app has been idle for a few seconds after startup, the Settings page and the Appearance panel load. A module that is still loading shows a skeleton of the Settings layout, or a spinner that stays hidden for its first 400ms on other views.
+- A main view the user leaves stays mounted while hidden for ten minutes, so returning shows its previous state at once. Settings and Agents are rebuilt on every visit; the Agent Builder hands the active thread back when it closes and takes a new one when it opens again.
 
 ### 9.2 Reliability
 

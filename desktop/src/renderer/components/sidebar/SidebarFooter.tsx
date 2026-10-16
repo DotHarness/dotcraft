@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
+import { prefetchCoreMainView } from '../../core/coreMainViewRoutes'
 import {
   SIDEBAR_NAV_BORDER_INACTIVE,
   SIDEBAR_NAV_ICON_SLOT,
@@ -37,8 +38,12 @@ export function SidebarFooter(): JSX.Element {
         data-nav-icon-host=""
         onClick={() => setActiveMainView('settings')}
         aria-label={t('sidebar.openSettingsAria')}
-        onFocus={() => setSettingsRowActive(true)}
+        onFocus={() => {
+          setSettingsRowActive(true)
+          prefetchCoreMainView('settings')
+        }}
         onBlur={() => setSettingsRowActive(false)}
+        onPointerEnter={() => prefetchCoreMainView('settings')}
         onMouseEnter={() => setSettingsRowActive(true)}
         onMouseLeave={() => setSettingsRowActive(false)}
         style={{

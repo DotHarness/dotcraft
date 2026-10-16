@@ -105,6 +105,8 @@ import {
   type StatusTone
 } from './panels/settingsStatusStyles'
 import { coreSettingsPanels } from './coreSettingsPanels'
+import { settingsContentContainerStyle, settingsMainStyle } from './settingsLayout'
+import { SettingsPanelSkeleton } from './SettingsSkeleton'
 import { DesktopPluginSettingsPageOutlet } from '../desktopPlugins/DesktopPluginOutlets'
 import {
   isDesktopPluginSettingsTab,
@@ -347,24 +349,6 @@ function providerInlineStatusStyle(): CSSProperties {
     maxWidth: 'min(420px, 100%)',
     fontSize: '12px',
     lineHeight: 1.4
-  }
-}
-
-function settingsMainStyle(): CSSProperties {
-  return {
-    flex: 1,
-    minWidth: 0,
-    overflowY: 'auto',
-    padding: '20px'
-  }
-}
-
-function settingsContentContainerStyle(): CSSProperties {
-  return {
-    width: '100%',
-    maxWidth: '760px',
-    margin: '0 auto',
-    boxSizing: 'border-box'
   }
 }
 
@@ -1856,7 +1840,7 @@ export function SettingsView({
     >
       <main className="dc-scrollbar-stable" style={settingsMainStyle()}>
         <div className={SETTINGS_SURFACE_CLASS} style={settingsContentContainerStyle()}>
-          <Suspense fallback={null}>
+          <Suspense fallback={<SettingsPanelSkeleton />}>
             {activeSettingsTab === 'profile' && (
               <ProfilePanel>
                 <ProfileView />

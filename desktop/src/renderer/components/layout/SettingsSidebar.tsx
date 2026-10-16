@@ -12,6 +12,7 @@ import {
 import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
 import { IconButton } from '../ui/IconButton'
 import { buildSettingsTabs, type SettingsTabGroup } from '../settings/settingsTabs'
+import { prefetchSettingsPanel } from '../settings/coreSettingsPanels'
 import {
   SIDEBAR_NAV_BORDER_INACTIVE,
   SIDEBAR_NAV_ICON_SLOT,
@@ -76,6 +77,8 @@ export function SettingsSidebar(): JSX.Element {
               tooltipPlacement="right"
               active={active}
               onClick={() => setActiveSettingsTab(tab.id)}
+              onPointerEnter={active ? undefined : () => prefetchSettingsPanel(tab.id)}
+              onFocus={active ? undefined : () => prefetchSettingsPanel(tab.id)}
               icon={<TabIcon size={16} aria-hidden="true" />}
             />
           )
@@ -115,6 +118,8 @@ export function SettingsSidebar(): JSX.Element {
                 className="dotcraft-sidebar-nav-button dotcraft-sidebar-row-radius"
                 type="button"
                 onClick={() => setActiveSettingsTab(tab.id)}
+                onPointerEnter={active ? undefined : () => prefetchSettingsPanel(tab.id)}
+                onFocus={active ? undefined : () => prefetchSettingsPanel(tab.id)}
                 style={expandedTabStyle}
                 aria-current={active ? 'page' : undefined}
                 data-active={active ? 'true' : undefined}

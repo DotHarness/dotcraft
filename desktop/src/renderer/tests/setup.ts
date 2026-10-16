@@ -12,6 +12,12 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   } as unknown as typeof ResizeObserver
 }
 
+// jsdom has no idle callbacks either.
+if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'undefined') {
+  window.requestIdleCallback = () => 0
+  window.cancelIdleCallback = () => {}
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllTimers()
