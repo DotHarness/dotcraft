@@ -30,6 +30,7 @@ import {
   SIDEBAR_NAV_ROW_OUTER
 } from '../sidebar/sidebarNavRowStyles'
 import { SidebarNavIcon } from '../sidebar/SidebarNavIcon'
+import { prefetchCoreMainView } from '../../core/coreMainViewRoutes'
 import { MessageSquare } from 'lucide-react'
 import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -89,6 +90,7 @@ export function Sidebar({
           label={t('sidebar.channels')}
           active={activeMainView === 'channels'}
           onClick={() => setActiveMainView('channels')}
+          onPrefetch={() => prefetchCoreMainView('channels')}
           icon={<SidebarNavIcon name="channels" />}
           testId="nav-channels"
         />
@@ -106,6 +108,7 @@ export function Sidebar({
           label={t('sidebar.agents')}
           active={activeMainView === 'agents'}
           onClick={() => setActiveMainView('agents')}
+          onPrefetch={() => prefetchCoreMainView('agents')}
           icon={<SidebarNavIcon name="agents" />}
           testId="nav-agents"
         />
@@ -114,6 +117,7 @@ export function Sidebar({
             label={t('sidebar.automations')}
             active={activeMainView === 'automations'}
             onClick={() => setActiveMainView('automations')}
+            onPrefetch={() => prefetchCoreMainView('automations')}
             icon={<SidebarNavIcon name="automations" />}
             testId="nav-automations"
           />
@@ -122,6 +126,7 @@ export function Sidebar({
           label={t('sidebar.skills')}
           active={activeMainView === 'skills'}
           onClick={() => setActiveMainView('skills')}
+          onPrefetch={() => prefetchCoreMainView('skills')}
           icon={<SidebarNavIcon name="skills" />}
           testId="nav-skills"
         />
@@ -144,6 +149,7 @@ interface SidebarNavRowProps {
   label: string
   active: boolean
   onClick: () => void
+  onPrefetch?: () => void
   icon: JSX.Element
   disabled?: boolean
   title?: string
@@ -154,6 +160,7 @@ function SidebarNavRow({
   label,
   active,
   onClick,
+  onPrefetch,
   icon,
   disabled,
   title,
@@ -166,6 +173,8 @@ function SidebarNavRow({
       data-testid={testId}
       data-nav-icon-host=""
       onClick={disabled ? undefined : onClick}
+      onPointerEnter={disabled || active ? undefined : onPrefetch}
+      onFocus={disabled || active ? undefined : onPrefetch}
       disabled={disabled}
       data-active={active ? 'true' : undefined}
       style={{
@@ -309,6 +318,8 @@ function CollapsedSidebar(): JSX.Element {
         className="dc-sidebar-icon-button"
         active={activeMainView === 'channels'}
         onClick={() => setActiveMainView('channels')}
+        onPointerEnter={() => prefetchCoreMainView('channels')}
+        onFocus={() => prefetchCoreMainView('channels')}
       />
       {desktopMainViews.map((entry) => {
         const label = resolveDesktopPluginLabel(entry.label, locale)
@@ -339,6 +350,8 @@ function CollapsedSidebar(): JSX.Element {
         className="dc-sidebar-icon-button"
         active={activeMainView === 'agents'}
         onClick={() => setActiveMainView('agents')}
+        onPointerEnter={() => prefetchCoreMainView('agents')}
+        onFocus={() => prefetchCoreMainView('agents')}
       />
       {collapsedAutomationsAvailable && (
         <IconButton
@@ -352,6 +365,8 @@ function CollapsedSidebar(): JSX.Element {
           className="dc-sidebar-icon-button"
           active={activeMainView === 'automations'}
           onClick={() => setActiveMainView('automations')}
+          onPointerEnter={() => prefetchCoreMainView('automations')}
+          onFocus={() => prefetchCoreMainView('automations')}
         />
       )}
       <IconButton
@@ -365,6 +380,8 @@ function CollapsedSidebar(): JSX.Element {
         className="dc-sidebar-icon-button"
         active={activeMainView === 'skills'}
         onClick={() => setActiveMainView('skills')}
+        onPointerEnter={() => prefetchCoreMainView('skills')}
+        onFocus={() => prefetchCoreMainView('skills')}
       />
 
       <div
@@ -477,6 +494,8 @@ function CollapsedSidebar(): JSX.Element {
         className="dc-sidebar-icon-button"
         active={activeMainView === 'settings'}
         onClick={() => setActiveMainView('settings')}
+        onPointerEnter={() => prefetchCoreMainView('settings')}
+        onFocus={() => prefetchCoreMainView('settings')}
       />
 
       {/* Connection status dot — only when the projects rail (which carries its own

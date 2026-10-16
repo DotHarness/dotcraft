@@ -73,7 +73,10 @@ import { ConfirmDialogHost } from './components/ui/ConfirmDialog'
 import { Button } from './components/ui/Button'
 import { ToastContainer } from './components/ui/ToastContainer'
 import { DesktopPluginMainViewOutlet } from './components/desktopPlugins/DesktopPluginOutlets'
-import { CoreMainViewBoundary, coreMainViews } from './core/coreMainViewRoutes'
+import { CoreMainViewBoundary, coreMainViews, prefetchCoreMainView } from './core/coreMainViewRoutes'
+import { MainViewOutlet } from './components/layout/MainViewOutlet'
+import { SettingsViewSkeleton } from './components/settings/SettingsSkeleton'
+import { scheduleIdlePrefetch } from './core/idlePrefetch'
 import { WhatsNewDialog } from './components/whats-new/WhatsNewDialog'
 import {
   McpElicitationDialog,
@@ -158,6 +161,10 @@ const CoreAgentBuilderView = coreMainViews.agents
 const CoreAutomationsView = coreMainViews.automations
 const CorePluginsView = coreMainViews.skills
 const CoreSettingsView = coreMainViews.settings
+
+function retainsMainView(view: string): boolean {
+  return view !== 'settings'
+}
 
 type WorkspaceLaunchTarget = 'unknown' | 'setup' | 'main' | 'error'
 
@@ -695,8 +702,8 @@ export function App(): JSX.Element {
   const quickOpenVisible = useUIStore((s) => s.quickOpenVisible)
   const nativeViewBlocked = useTransientOverlayStore((s) => s.nativeViewBlockerCount > 0)
   const activeThreadEffectiveWorkspacePath = useThreadStore((s) => s.activeThread?.effectiveWorkspacePath ?? null)
-  const activeDesktopPluginView = useDesktopPluginRegistry((state) =>
-    state.mainViews.find((entry) => entry.viewKey === activeMainView) ?? null)
+  const desktopPluginMainViews = useDesktopPluginRegistry((state) => state.mainViews)
+  const activeDesktopPluginView = desktopPluginMainViews.find((entry) => entry.viewKey === activeMainView) ?? null
   const whatsNewOpenRequestSeq = useUIStore((s) => s.whatsNewOpenRequestSeq)
   const setQuickOpenVisible = useUIStore((s) => s.setQuickOpenVisible)
   const pendingRestartVisible = usePendingRestartStore((s) => s.visible)
@@ -1633,6 +1640,9 @@ export function App(): JSX.Element {
     if (status !== 'connected' || capabilities?.providerManagement !== true) return
     void useProvidersStore.getState().reload()
   }, [capabilities?.providerManagement, connectionEpoch, status])
+
+  const connected = status === 'connected'
+  useEffect(() => connected ? scheduleIdlePrefetch() : undefined, [connected])
 
   useEffect(() => {
     if (!isDesktopPluginMainView(activeMainView) || activeDesktopPluginView) return
@@ -3614,48 +3624,46 @@ export function App(): JSX.Element {
                 )
           }
           conversation={
-            <div data-testid={`view-${activeMainView}`} style={{ display: 'contents' }}>
-              {activeMainView === 'settings' ? (
-                <CoreMainViewBoundary>
-                  <CoreSettingsView
-                    workspacePath={workspacePath}
-                    identityWorkspacePath={protocolWorkspacePath || workspacePath}
-                    onThreadListRefreshRequested={() => {
-                      void reloadThreadList()
-                    }}
-                    workspaceConfigChange={workspaceConfigChange}
-                    workspaceConfigChangeSeq={workspaceConfigChangeSeq}
-                    openChromeSettingsSeq={chromeSettingsOpenSeq}
-                  />
-                </CoreMainViewBoundary>
-              ) : activeMainView === 'channels' ? (
-                <CoreMainViewBoundary>
-                  <CoreChannelsView />
-                </CoreMainViewBoundary>
-              ) : activeMainView === 'agents' ? (
-                <CoreMainViewBoundary>
-                  <CoreAgentBuilderView />
-                </CoreMainViewBoundary>
-              ) : activeMainView === 'skills' ? (
-                <CoreMainViewBoundary>
-                  <CorePluginsView />
-                </CoreMainViewBoundary>
-              ) : activeMainView === 'automations' ? (
-                <CoreMainViewBoundary>
-                  <CoreAutomationsView />
-                </CoreMainViewBoundary>
-              ) : activeDesktopPluginView ? (
-                <DesktopPluginMainViewOutlet contribution={activeDesktopPluginView} />
-              ) : (
-                <ConversationPanel
-                  workspacePath={workspacePath}
-                  identityWorkspacePath={protocolWorkspacePath || workspacePath}
-                  projectKey={activeProjectKey}
-                  remoteWorkspace={remoteWorkspaceActive}
-                  onInteractionResponseAccepted={scheduleActiveThreadSnapshotReconcile}
-                />
-              )}
-            </div>
+            <MainViewOutlet
+              activeView={activeMainView}
+              retains={retainsMainView}
+              renderView={(view) => {
+                if (view === 'settings') {
+                  prefetchCoreMainView('settings')
+                  return (
+                    <CoreMainViewBoundary fallback={<SettingsViewSkeleton />}>
+                      <CoreSettingsView
+                        workspacePath={workspacePath}
+                        identityWorkspacePath={protocolWorkspacePath || workspacePath}
+                        onThreadListRefreshRequested={() => {
+                          void reloadThreadList()
+                        }}
+                        workspaceConfigChange={workspaceConfigChange}
+                        workspaceConfigChangeSeq={workspaceConfigChangeSeq}
+                        openChromeSettingsSeq={chromeSettingsOpenSeq}
+                      />
+                    </CoreMainViewBoundary>
+                  )
+                }
+                if (view === 'channels') return <CoreMainViewBoundary><CoreChannelsView /></CoreMainViewBoundary>
+                if (view === 'agents') return <CoreMainViewBoundary><CoreAgentBuilderView /></CoreMainViewBoundary>
+                if (view === 'skills') return <CoreMainViewBoundary><CorePluginsView /></CoreMainViewBoundary>
+                if (view === 'automations') return <CoreMainViewBoundary><CoreAutomationsView /></CoreMainViewBoundary>
+                if (view === 'conversation') {
+                  return (
+                    <ConversationPanel
+                      workspacePath={workspacePath}
+                      identityWorkspacePath={protocolWorkspacePath || workspacePath}
+                      projectKey={activeProjectKey}
+                      remoteWorkspace={remoteWorkspaceActive}
+                      onInteractionResponseAccepted={scheduleActiveThreadSnapshotReconcile}
+                    />
+                  )
+                }
+                const pluginView = desktopPluginMainViews.find((entry) => entry.viewKey === view)
+                return pluginView ? <DesktopPluginMainViewOutlet contribution={pluginView} /> : null
+              }}
+            />
           }
           detail={<DetailPanel workspacePath={activeConversationWorkspacePath} remoteWorkspace={remoteWorkspaceActive} />}
         />
