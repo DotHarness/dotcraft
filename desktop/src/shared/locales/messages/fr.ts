@@ -100,6 +100,8 @@ export const MESSAGES_FR = {
   "conversation.workingFor": "En cours depuis {{duration}}",
   "conversation.worked": "Travail terminé",
   "conversation.workedFor": "Travail effectué en {{duration}}",
+  "conversation.startedByBackgroundCommand": "Démarré par une commande en arrière-plan : {{command}}",
+  "conversation.startedByBackgroundCommandGeneric": "Démarré par une commande en arrière-plan",
   "threadArchive.confirmRunning.title": "Arrêter et archiver cette discussion ?",
   "threadArchive.confirmRunning.message": "L’archivage arrêtera le travail en cours. Vous pourrez restaurer la discussion dans les paramètres.",
   "threadArchive.confirmRunning.confirm": "Arrêter et archiver",

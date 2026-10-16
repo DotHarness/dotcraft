@@ -34,4 +34,17 @@ describe('turn activity disclosure lifecycle', () => {
     expect(screen.queryByRole('button', { expanded: false })).toBeNull()
     expect(screen.getAllByRole('status')).toHaveLength(1)
   })
+
+  it('exposes the command behind a turn started by a background command notice', () => {
+    const turn: ConversationTurn = {
+      id: 'woken', threadId: 'thread', status: 'completed', startedAt: '2026-01-01T12:00:00Z', completedAt: '2026-01-01T12:00:18Z',
+      items: [
+        { id: 'notice', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'terminal', triggerLabel: 'npm run build', text: 'Background command finished (exit code 0): npm run build', createdAt: '2026-01-01T12:00:00Z' },
+        { id: 'final', type: 'agentMessage', status: 'completed', phase: 'final', text: 'The build passed.', createdAt: '2026-01-01T12:00:18Z' }
+      ]
+    }
+    render(<LocaleProvider loadSettings={false}><AgentResponseBlock turn={turn} isRunning={false} /></LocaleProvider>)
+    expect(screen.getByRole('status', { name: /npm run build/ })).toBeInTheDocument()
+    expect(screen.queryByText(/Background command finished/)).toBeNull()
+  })
 })

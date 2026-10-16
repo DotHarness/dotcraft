@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { SquareTerminal } from 'lucide-react'
 import { getActivityElapsedMs, type TurnActivityStatus } from './turnActivityModel'
 import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import { turnStopKey, useTurnStopStore } from '../../stores/turnStopStore'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
+import { ActionTooltip } from '../ui/ActionTooltip'
 import styles from './TurnActivitySummary.module.css'
 
 const SCROLL_ANCHOR_MS = 350
@@ -16,9 +18,11 @@ interface TurnActivitySummaryProps {
   turnId: string
   startedAt?: string
   completedAt?: string
+  /** Set when a background command's notice started the turn; '' when the notice names no command. */
+  startedByCommand?: string | null
 }
 
-export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, status, collapsible = false, children }: TurnActivitySummaryProps): JSX.Element {
+export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, status, collapsible = false, startedByCommand, children }: TurnActivitySummaryProps): JSX.Element {
   const locale = useLocale()
   const byUser = useTurnStopStore(state => state.requested.has(turnStopKey(threadId, turnId)))
   const [expanded, setExpanded] = useState(false)
@@ -40,6 +44,18 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
   const hasDuration = elapsed != null && (status !== 'working' || elapsed >= 1000)
   const label = translate(locale, hasDuration ? `${key}${status === 'stopped' ? 'After' : 'For'}` : key,
     { duration: elapsed == null ? '' : formatActivityDuration(elapsed, locale) })
+  const origin = startedByCommand == null ? null
+    : startedByCommand ? translate(locale, 'conversation.startedByBackgroundCommand', { command: startedByCommand })
+      : translate(locale, 'conversation.startedByBackgroundCommandGeneric')
+  const accessibleName = origin ? `${label} · ${origin}` : undefined
+  const labelContent = origin ? (
+    <ActionTooltip label={origin} multiline>
+      <span className={styles.origin}>
+        <SquareTerminal size={13} strokeWidth={1.8} aria-hidden />
+        <span>{label}</span>
+      </span>
+    </ActionTooltip>
+  ) : <span>{label}</span>
 
   return <div className={styles.summary}>
     {collapsible && children ? (
@@ -48,16 +64,17 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
         type="button"
         className={styles.header}
         aria-expanded={expanded}
+        aria-label={accessibleName}
         onClick={() => {
           if (headerRef.current) anchorScroll(headerRef.current)
           setExpanded(value => !value)
         }}
       >
-        <span>{label}</span>
+        {labelContent}
         <span className={styles.chevron} aria-hidden><DisclosureChevron expanded={expanded} /></span>
       </button>
     ) : (
-      <div className={styles.header} role="status"><span>{label}</span></div>
+      <div className={styles.header} role="status" aria-label={accessibleName}>{labelContent}</div>
     )}
     {children ? (
       <div className={styles.body} data-open={open ? 'true' : undefined} inert={!open}>

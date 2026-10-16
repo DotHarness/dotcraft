@@ -38,6 +38,12 @@ button.header:focus-visible {
   color: var(--text-primary);
 }
 
+.origin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .chevron {
   display: inline-flex;
   flex-shrink: 0;

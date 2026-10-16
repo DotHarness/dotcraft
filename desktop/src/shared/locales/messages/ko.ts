@@ -100,6 +100,8 @@ export const MESSAGES_KO = {
   "conversation.workingFor": "{{duration}} 동안 작업 중",
   "conversation.worked": "작업 완료",
   "conversation.workedFor": "{{duration}} 동안 작업함",
+  "conversation.startedByBackgroundCommand": "백그라운드 명령으로 시작됨: {{command}}",
+  "conversation.startedByBackgroundCommandGeneric": "백그라운드 명령으로 시작됨",
   "threadArchive.confirmRunning.title": "이 대화를 중지하고 보관할까요?",
   "threadArchive.confirmRunning.message": "보관하면 진행 중인 작업이 중지됩니다. 나중에 설정에서 대화를 복원할 수 있습니다.",
   "threadArchive.confirmRunning.confirm": "중지하고 보관",

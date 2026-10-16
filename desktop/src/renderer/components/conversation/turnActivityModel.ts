@@ -24,6 +24,16 @@ export function getTurnActivityState(turn: ConversationTurn, items: Conversation
   }
 }
 
+/**
+ * The command whose background terminal notice started this turn: '' when the notice carries
+ * no label, null when the turn has another origin. A notice drained as guidance does not count.
+ */
+export function getTerminalWakeCommand(turn: ConversationTurn): string | null {
+  const input = turn.items.find((item) => item.type === 'userMessage')
+  if (input?.triggerKind !== 'terminal' || input.deliveryMode === 'guidance') return null
+  return input.triggerLabel?.trim() ?? ''
+}
+
 export function getActivityElapsedMs(startedAt: string | undefined, endedAt: string | undefined): number | undefined {
   if (!startedAt || !endedAt) return undefined
   const elapsed = Date.parse(endedAt) - Date.parse(startedAt)

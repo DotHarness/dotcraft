@@ -100,6 +100,8 @@ export const MESSAGES_DE = {
   "conversation.workingFor": "Seit {{duration}} in Bearbeitung",
   "conversation.worked": "Bearbeitet",
   "conversation.workedFor": "{{duration}} lang bearbeitet",
+  "conversation.startedByBackgroundCommand": "Durch Hintergrundbefehl gestartet: {{command}}",
+  "conversation.startedByBackgroundCommandGeneric": "Durch einen Hintergrundbefehl gestartet",
   "threadArchive.confirmRunning.title": "Diesen Chat stoppen und archivieren?",
   "threadArchive.confirmRunning.message": "Beim Archivieren wird die laufende Arbeit gestoppt. Du kannst den Chat später in den Einstellungen wiederherstellen.",
   "threadArchive.confirmRunning.confirm": "Stoppen und archivieren",

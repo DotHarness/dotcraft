@@ -8,7 +8,7 @@ import { ToolCallCard, type ShellRuntimeScope } from './ToolCallCard'
 import { hasAvailableMcpApp } from './McpAppView'
 import { AgentMessage } from './AgentMessage'
 import { TurnActivitySummary } from './TurnActivitySummary'
-import { getTurnActivityState } from './turnActivityModel'
+import { getTerminalWakeCommand, getTurnActivityState } from './turnActivityModel'
 import { TurnCompletionSummary } from './TurnCompletionSummary'
 import { TurnArtifacts } from './TurnArtifacts'
 import { TurnThreadActions } from './TurnThreadActions'
@@ -315,6 +315,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         collapsible={collapsesIntermediate}
         threadId={turn.threadId} turnId={turn.id}
         startedAt={turn.startedAt} completedAt={activity.completedAt}
+        startedByCommand={getTerminalWakeCommand(turn)}
       >
         {intermediateNodes.length > 0 ? <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-tool-assistant-gap)" /> : null}
       </TurnActivitySummary>

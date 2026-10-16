@@ -100,6 +100,8 @@ export const MESSAGES_ZH_HANS = {
   "conversation.workingFor": "正在处理 {{duration}}",
   "conversation.worked": "已处理",
   "conversation.workedFor": "已处理 {{duration}}",
+  "conversation.startedByBackgroundCommand": "由后台命令触发：{{command}}",
+  "conversation.startedByBackgroundCommandGeneric": "由后台命令触发",
   "threadArchive.confirmRunning.title": "停止并归档此会话？",
   "threadArchive.confirmRunning.message": "归档将停止正在进行的工作。你之后可以在设置中恢复此会话。",
   "threadArchive.confirmRunning.confirm": "停止并归档",

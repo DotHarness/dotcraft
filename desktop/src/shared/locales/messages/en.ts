@@ -98,6 +98,8 @@ export const MESSAGES_EN = {
   "conversation.workingFor": "Working for {{duration}}",
   "conversation.worked": "Worked",
   "conversation.workedFor": "Worked for {{duration}}",
+  "conversation.startedByBackgroundCommand": "Started by background command: {{command}}",
+  "conversation.startedByBackgroundCommandGeneric": "Started by a background command",
   "threadArchive.confirmRunning.title": "Stop and archive this chat?",
   "threadArchive.confirmRunning.message": "Archiving will stop any ongoing work. You can restore the chat later in settings.",
   "threadArchive.confirmRunning.confirm": "Stop and archive",

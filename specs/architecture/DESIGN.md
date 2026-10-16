@@ -1487,6 +1487,12 @@ automation — and nothing more. When the origin has somewhere to go the line is
 quiet action and lifts to `--text-secondary` on hover; an origin with no
 destination stays inert, so a target that goes nowhere never looks reachable.
 
+A turn with no bubble, started by a background command's notice, carries its origin
+on its activity boundary instead: a 13px terminal icon, 6px before the timing label
+and in its colour. The icon and timing name the command on hover. The boundary keeps
+its single row, rule and disclosure, so a woken turn reads as a peer of the turn above
+it rather than a second header for the same reply.
+
 Special state goes into the message action row below the bubble
 (`.dc-message-state`): the same small icon plus label, sitting after the actions.
 State is information rather than an action, so it stays visible at rest while the
