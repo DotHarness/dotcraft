@@ -14,8 +14,10 @@ export interface ComposerMascotContext {
 }
 export interface ComposerMascotProps {
   name?: string
-  /** What the default companion wears; ignored while a name is rendered, which keeps deriving its own look. */
+  /** What the default companion wears; ignored while a name is rendered, which `appearanceOf` draws. */
   appearance?: Appearance
+  /** How a rendered name is drawn; `deriveAppearance` unless the host fixes some names' looks. */
+  appearanceOf?: (name: string) => Appearance
   motion?: 'system' | 'on' | 'off'
   theme?: 'light' | 'dark'
   focused?: boolean

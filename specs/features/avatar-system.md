@@ -34,7 +34,8 @@ Out of scope for this version:
 ## 2. Principles
 
 - Names are the only identity input for Agent Profile avatars. The same normalized name renders
-  the same avatar in every host; renaming changes the avatar.
+  the same avatar in every host; renaming changes the avatar. A host that gives some of its Agents a
+  fixed look instead passes the composer mascot its own name resolver (section 3).
 - The model is a development-stage contract. It has one version and no compatibility layer;
   changing the registry or the draw order changes existing name-derived avatars, and consumers must derive the current registry consistently.
 - Rarity is a metadata and sampling concept. It never grants functional behavior, and it never
@@ -71,6 +72,11 @@ interface Appearance {
 normalized name derives it; Desktop's default composer mascot renders it unless the person has
 dressed the companion (section 12), in which case `ComposerMascot` receives the equipped record as
 `appearance`.
+
+`ComposerMascot` and `ComposerMascotShadow` draw a rendered name through `appearanceOf`, which is
+`deriveAppearance` unless the host passes its own. The resolver covers every name the mascot shows,
+including both sides of a profile transition, so a host that fixes some Agents' looks keeps them
+through hand-offs and tints.
 
 Slot IDs are stable kebab-case strings and are serialized as-is. Slots are independent fields so a
 host can override one slot without touching the others.

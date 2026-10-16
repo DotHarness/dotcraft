@@ -4,6 +4,7 @@ import { JSDOM } from 'jsdom'
 import { createElement, act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ComposerMascot } from '../dist/react.js'
+import { originalAppearance } from '../dist/index.js'
 
 test('Composer swaps only at the midpoint, cancels superseded names and disposes timers', async () => {
   const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true })
@@ -53,6 +54,26 @@ test('Composer swaps only at the midpoint, cancels superseded names and disposes
   } finally {
     await act(async () => root.unmount())
     assert.equal(timers.size, 0)
+    dom.window.close()
+    for (const key of keys) if (previous[key] === undefined) delete globalThis[key]; else globalThis[key] = previous[key]
+  }
+})
+
+test('Composer draws a named mascot through the host resolver', async () => {
+  const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true })
+  const keys = ['window', 'document', 'MutationObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'IS_REACT_ACT_ENVIRONMENT']
+  const previous = Object.fromEntries(keys.map(key => [key, globalThis[key]]))
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, MutationObserver: dom.window.MutationObserver, requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window), cancelAnimationFrame: dom.window.cancelAnimationFrame.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
+  window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
+  const root = createRoot(document.querySelector('#root'))
+  const appearanceOf = name => name === 'Triage' ? { ...originalAppearance, palette: 1, face: 'neon-visor' } : originalAppearance
+  try {
+    await act(async () => root.render(createElement(ComposerMascot, { name: 'Triage', motion: 'off', appearanceOf })))
+    assert.ok(document.querySelector('[data-faceplate="neon-visor"]'))
+    await act(async () => root.render(createElement(ComposerMascot, { name: 'Researcher', motion: 'off', appearanceOf })))
+    assert.equal(document.querySelector('[data-faceplate]'), null)
+  } finally {
+    await act(async () => root.unmount())
     dom.window.close()
     for (const key of keys) if (previous[key] === undefined) delete globalThis[key]; else globalThis[key] = previous[key]
   }

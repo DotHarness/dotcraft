@@ -1,13 +1,15 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { deriveAppearance, mascotPaletteOf } from '../index.js'
+import { mascotPaletteOf, type Appearance } from '../index.js'
 import { mascotNameKey, MASCOT_PROFILE_TRANSITION_SWAP_MS, MASCOT_PROFILE_TRANSITION_DURATION_MS, type MascotProfileTransition } from './constants.js'
-export function useComposerProfile(mascotName: string | undefined, reduced: boolean) {
+export function useComposerProfile(mascotName: string | undefined, reduced: boolean, appearanceOf: (name: string) => Appearance) {
   const [renderedMascotAvatar, setRenderedMascotAvatar] = useState(mascotName)
   const [transitionState, setTransitionState] = useState<{ revision: number; transition: MascotProfileTransition | null }>({ revision: 0, transition: null })
   const renderedMascotAvatarRef = useRef(renderedMascotAvatar)
   const targetMascotAvatarRef = useRef(mascotName)
   renderedMascotAvatarRef.current = renderedMascotAvatar
   targetMascotAvatarRef.current = mascotName
+  const appearanceOfRef = useRef(appearanceOf)
+  appearanceOfRef.current = appearanceOf
   const targetAvatarKey = mascotNameKey(mascotName)
   useLayoutEffect(() => {
     const currentAvatar = renderedMascotAvatarRef.current
@@ -27,8 +29,8 @@ export function useComposerProfile(mascotName: string | undefined, reduced: bool
     setTransitionState(current => ({
       revision: current.revision + 1,
       transition: {
-        fromAccent: mascotPaletteOf(deriveAppearance(currentAvatar ?? '')).accent,
-        toAccent: mascotPaletteOf(deriveAppearance(nextAvatar ?? '')).accent
+        fromAccent: mascotPaletteOf(appearanceOfRef.current(currentAvatar ?? '')).accent,
+        toAccent: mascotPaletteOf(appearanceOfRef.current(nextAvatar ?? '')).accent
       }
     }))
 
