@@ -6,6 +6,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSPr
 import {
   Hand,
   ListChecks,
+  MessageCircle,
   OctagonAlert,
   Pencil,
   Plus,
@@ -63,6 +64,7 @@ import {
   SETTINGS_SURFACE_CLASS,
   settingsDescriptionStyle,
   settingsHintStyle,
+  settingsLabelStyle,
   settingsMetaTextStyle,
   settingsPlaceholderStyle,
   settingsSectionLabelStyle as sectionLabelStyle
@@ -70,7 +72,7 @@ import {
 import { SettingsDescriptionWithLearnMore } from './SettingsLearnMoreLink'
 import { SettingsPanelShell } from './SettingsPanelShell'
 import { SettingsBreadcrumb } from './SettingsBreadcrumb'
-import { PluginCatalogItem, pluginTitle } from '../plugins/PluginCatalogItem'
+import { PluginIcon, pluginSubtitle, pluginTitle } from '../plugins/PluginCatalogItem'
 import { PluginInstallDialog } from '../plugins/PluginInstallDialog'
 import { showPluginInstalledToast } from '../plugins/pluginToasts'
 
@@ -2802,15 +2804,23 @@ export function SettingsView({
                 >
                 {pluginManagementEnabled && browserUsePlugin && (
                   <SettingsGroup title={t('settings.browserUse.plugin')}>
-                    <SettingsRow orientation="block">
-                      <PluginCatalogItem
-                        plugin={browserUsePlugin}
-                        tryLabel={t('plugins.tryInChat')}
-                        installLabel={t('plugins.install')}
-                        onTryInChat={handleTryBrowserUseInChat}
-                        onInstall={() => setBrowserUseInstallOpen(true)}
-                        style={{ height: 54, padding: '0 4px' }}
-                      />
+                    <SettingsRow>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', minWidth: 0 }}>
+                        <PluginIcon plugin={browserUsePlugin} role="list" size={38} />
+                        <div style={{ display: 'flex', flex: 1, flexDirection: 'column', minWidth: 0 }}>
+                          <strong style={settingsLabelStyle()}>{pluginTitle(browserUsePlugin)}</strong>
+                          <span style={{ ...settingsHintStyle(), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {pluginSubtitle(browserUsePlugin)}
+                          </span>
+                        </div>
+                        {!browserUsePlugin.installed ? (
+                          <Button onClick={() => setBrowserUseInstallOpen(true)}>{t('plugins.install')}</Button>
+                        ) : browserUsePlugin.enabled ? (
+                          <Button iconLeft={<MessageCircle size={14} aria-hidden />} onClick={handleTryBrowserUseInChat}>
+                            {t('plugins.tryInChat')}
+                          </Button>
+                        ) : null}
+                      </div>
                     </SettingsRow>
                   </SettingsGroup>
                 )}
