@@ -73,7 +73,7 @@ import { ConfirmDialogHost } from './components/ui/ConfirmDialog'
 import { Button } from './components/ui/Button'
 import { ToastContainer } from './components/ui/ToastContainer'
 import { DesktopPluginMainViewOutlet } from './components/desktopPlugins/DesktopPluginOutlets'
-import { CoreMainViewBoundary, coreMainViews, prefetchCoreMainView } from './core/coreMainViewRoutes'
+import { CoreMainViewBoundary, coreMainViews, prefetchCoreMainView, retainsMainView } from './core/coreMainViewRoutes'
 import { MainViewOutlet } from './components/layout/MainViewOutlet'
 import { SettingsViewSkeleton } from './components/settings/SettingsSkeleton'
 import { scheduleIdlePrefetch } from './core/idlePrefetch'
@@ -161,10 +161,6 @@ const CoreAgentBuilderView = coreMainViews.agents
 const CoreAutomationsView = coreMainViews.automations
 const CorePluginsView = coreMainViews.skills
 const CoreSettingsView = coreMainViews.settings
-
-function retainsMainView(view: string): boolean {
-  return view !== 'settings'
-}
 
 type WorkspaceLaunchTarget = 'unknown' | 'setup' | 'main' | 'error'
 

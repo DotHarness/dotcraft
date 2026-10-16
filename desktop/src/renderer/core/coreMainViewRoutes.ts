@@ -19,6 +19,11 @@ export const coreMainViews = {
 
 export type CoreMainViewKey = keyof typeof coreMainViews
 
+// The Agent Builder releases its thread when hidden and only claims it again on mount.
+export function retainsMainView(view: string): boolean {
+  return view !== 'settings' && view !== 'agents'
+}
+
 export function prefetchCoreMainView(view: CoreMainViewKey): void {
   void coreMainViews[view].prefetch().catch(() => undefined)
   if (view === 'settings') prefetchSettingsPanel(useUIStore.getState().activeSettingsTab)
