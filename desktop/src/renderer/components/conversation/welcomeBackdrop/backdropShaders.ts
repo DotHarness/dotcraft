@@ -51,23 +51,50 @@ float gustAt(vec2 at, float carried) {
   float drift = 0.5 * span * vnoise(vec3(u_time * 0.045, at.y / (2.5 * u_wind.w), 7.0), 24u);
   return 1.7 * sum / norm + 0.3 * cos((at.x - carried + drift) * 6.2831853 / span);
 }
-float field(vec2 p) {
+float field(vec2 p, vec4 hand) {
   vec2 heading = vec2(cos(u_wind.x), sin(u_wind.x));
   vec2 across = vec2(-heading.y, heading.x);
-  vec2 bend = vec2(vnoise(vec3(p / 360.0, u_time * 0.04), 11u), vnoise(vec3(p / 360.0 + 9.3, u_time * 0.04), 12u));
-  vec2 q = vec2(dot(p + 80.0 * bend, heading), dot(p + 80.0 * bend, across));
+  // Air that has been pushed shows here what was over there.
+  vec2 from = p - hand.xy;
+  vec2 bend = vec2(vnoise(vec3(from / 360.0, u_time * 0.04), 11u), vnoise(vec3(from / 360.0 + 9.3, u_time * 0.04), 12u));
+  vec2 q = vec2(dot(from + 80.0 * bend, heading), dot(from + 80.0 * bend, across));
   float carried = u_wind.y * (u_time + 2.5 * vnoise(vec3(u_time * 0.08, 3.7, 0.0), 13u));
   vec2 riding = (q - vec2(0.85 * carried, 0.0)) / (1.1 * u_wind.w);
   vec2 eddy = vec2(vnoise(vec3(riding, u_time * 0.12), 14u), vnoise(vec3(riding + 31.7, u_time * 0.12), 15u));
-  vec2 curled = q + 0.6 * u_wind.w * eddy;
-  float now = gustAt(curled, carried);
-  float ahead = gustAt(curled + vec2(56.0, 0.0), carried);
+  vec2 curled = q + 0.6 * (1.0 + 0.9 * min(hand.w, 1.5)) * u_wind.w * eddy;
+  float now = gustAt(curled, carried) + hand.z;
+  float ahead = gustAt(curled + vec2(56.0, 0.0), carried) + hand.z;
   float level = mix(0.25, 0.55, 0.5 + 0.5 * vnoise(vec3(0.0, 0.0, u_time * 0.035), 16u));
   float arriving = smoothstep(-0.05, 0.07, ahead - now);
   float lit = smoothstep(level - mix(0.05, 0.22, arriving), level + 0.2, now);
   float thread = vnoise(vec3((curled.x - carried * 1.6) / 140.0, curled.y / 28.0, u_time * 0.16), 30u);
   float streak = 1.0 - smoothstep(0.0, 0.5, abs(thread));
   return lit * lit * (0.6 + 0.4 * streak);
+}
+
+// A click is a blow: a front runs out and slows, with a trough and a weaker crest behind it, shoving the air outward.
+// Returns the push in CSS pixels (xy), the wind raised or lowered (z) and how roused the air is (w); glow is the front's colour and its afterlight.
+vec4 tapsAt(vec2 p, out vec2 glow) {
+  vec4 sum = vec4(0.0);
+  glow = vec2(0.0);
+  for (int i = 0; i < ${MAX_TAPS}; i++) {
+    if (i >= u_tapCount) break;
+    vec4 tap = u_taps[i];
+    float age = u_now - tap.z;
+    vec2 away = p - tap.xy;
+    float d = length(away);
+    float behind = 620.0 * (1.0 - exp(-age / 1.3)) - d;
+    float width = 85.0 + 60.0 * age;
+    float front = smoothstep(-16.0, 10.0, behind) * exp(-behind * behind / (width * width));
+    float swell = tap.w * exp(-age / 1.5) * front;
+    sum.xy += (away / max(d, 1.0)) * (44.0 * swell);
+    sum.z += 1.9 * swell * (0.25 + 0.75 * cos(behind * (6.2831853 / 130.0)));
+    sum.w += swell;
+    float trail = smoothstep(0.0, 70.0, behind) * exp(-max(behind, 0.0) / 260.0);
+    glow.x += tap.w * (exp(-age / 1.0) * front + 0.7 * exp(-age / 1.3) * trail);
+    glow.y += tap.w * (1.0 - exp(-age / 0.2)) * exp(-age / 1.2) * trail;
+  }
+  return sum;
 }
 `
 
@@ -87,20 +114,16 @@ ${NOISE}
 ${FIELD}
 void main() {
   vec2 p = (vec2(ivec2(gl_FragCoord.xy)) + 0.5) * u_cellCss;
-  float light = field(p);
 
-  float rouse = 0.0, glow = 0.0;
-  for (int i = 0; i < ${MAX_TAPS}; i++) {
-    if (i >= u_tapCount) break;
-    vec4 tap = u_taps[i];
-    float age = u_now - tap.z;
-    float radius = 560.0 * (1.0 - exp(-age / 1.2));
-    float width = 60.0 + 70.0 * age;
-    float x = (length(p - tap.xy) - radius) / width;
-    float front = exp(-x * x);
-    rouse += tap.w * exp(-age / 1.4) * front;
-    glow += tap.w * exp(-age / 0.9) * front;
+  vec4 hand = vec4(0.0);
+  vec2 glow = vec2(0.0);
+  if (u_tapCount > 0) {
+    // Read a little off true, so that a blow's outline is never a drawn circle.
+    vec2 near = p + 24.0 * vec2(vnoise(vec3(p / 95.0, u_now * 0.12), 40u), vnoise(vec3(p / 95.0 + 9.1, u_now * 0.12 + 4.0), 41u));
+    hand = tapsAt(near, glow);
   }
+  float light = field(p, hand);
+
   float warm = 0.0;
   if (u_pointer.z > 0.0) {
     vec2 d = p - u_pointer.xy;
@@ -111,9 +134,12 @@ void main() {
   vec2 q = abs(p - u_calm.xy) - u_calm.zw;
   float outside = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
   float calm = mix(0.05, 1.0, smoothstep(-40.0, 180.0, outside));
-  float hand = max(warm, min(1.0, 0.8 * rouse));
-  float lit = max(light * calm * u_reveal, hand * mix(calm, 1.0, 0.6));
-  o = vec4(lit, clamp(glow, 0.0, 1.0), clamp(rouse, 0.0, 1.0), 0.0);
+  float roused = min(1.0, hand.w);
+  // What the hand does shows at once, however little of the wind has arrived, and reaches a little into the calm.
+  float shown = max(u_reveal, min(1.0, 2.0 * hand.w));
+  float stirred = mix(calm, 1.0, 0.6 * roused);
+  float lit = max(light * stirred * shown, warm * mix(calm, 1.0, 0.6));
+  o = vec4(lit, clamp(glow.x, 0.0, 1.0), clamp(hand.w, 0.0, 1.0), clamp(glow.y * stirred, 0.0, 1.0));
 }
 `
 
@@ -136,19 +162,24 @@ void main() {
   if (c.x >= u_grid.x || c.y >= u_grid.y) { o = vec4(0.0); return; }
   vec4 f = texelFetch(u_field, c, 0);
   float light = min(1.0, f.r);
-  if (light <= 0.004) { o = vec4(0.0); return; }
+  if (light <= 0.004 && f.a <= 0.015) { o = vec4(0.0); return; }
   uint h = pcg((uint(c.x) * 0x9E3779B9u) ^ pcg(uint(c.y) ^ u_seed));
   if (unit(pcg(h ^ 0x2545F491u)) >= u_fill) { o = vec4(0.0); return; }
   uint pace = pcg(h);
-  int steps = int(floor(u_time * u_flick * (0.6 + 0.8 * unit(pace)) + unit(pcg(pace)))) + int(floor(6.0 * f.b));
+  // A roused cell runs on through its set, and back as it settles.
+  int steps = int(floor(u_time * u_flick * (0.6 + 0.8 * unit(pace)) + unit(pcg(pace)))) + int(floor(6.0 * f.b + unit(pcg(pace ^ 0x33u))));
   int g = int(texelFetch(u_sequence, ivec2((int(h >> 8u) + steps) % u_count, 0), 0).r * 255.0 + 0.5);
   ivec2 local = px - c * u_cell;
   float ink = texelFetch(u_atlas, ivec2((g & 15) * u_cell.x + local.x, (g >> 4) * u_cell.y + local.y), 0).r;
   if (ink <= 0.0) { o = vec4(0.0); return; }
-  float tint = smoothstep(0.05, 0.6, f.g);
-  vec3 color = mix(u_ink, u_glow, tint);
-  float a = ink * light * mix(u_strength, u_glowStrength, tint);
-  o = vec4(color * a, a);
+  // Every cell glows with its neighbours, some a little more than others.
+  vec2 glow = f.ga * (0.65 + 0.35 * unit(pcg(pace ^ 0x51u)));
+  // The colour comes in whole and goes out quickly: halfway between it and the plain ink is only mud.
+  float tint = smoothstep(0.04, 0.3, glow.x);
+  float bright = light * mix(u_strength, u_glowStrength, tint);
+  float left = 0.1 * u_glowStrength * glow.y;
+  float a = ink * min(1.0, bright + left);
+  o = vec4((mix(u_ink, u_glow, tint) * bright + u_glow * left) / (bright + left + 0.0001) * a, a);
 }
 `
 

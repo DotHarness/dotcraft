@@ -648,8 +648,12 @@ behind the content, so it moves in the margins.
 - The field fades in over a few seconds, moves at about 25 frames a second, and
   settles to rest after three minutes without pointer or keyboard activity. It stops
   while the window is hidden or unfocused and resumes on return.
-- Moving the pointer lights the characters beneath it, and a click sends a ripple out
-  from that point, unless the click lands on a control.
+- Moving the pointer lights the characters beneath it. A click is a blow on the air,
+  unless it lands on a control: a front runs out from that point and slows, pushing
+  the wind outward and raising it, with a trough and a weaker crest behind. What
+  lights up is the wind's own grain, so the front is never a drawn circle. The front
+  carries the accent color in whole and drops it quickly, and leaves a faint
+  afterlight behind it.
 - Reduced motion draws one still frame. Without hardware WebGL2, with increased
   contrast, or with forced colors, nothing is drawn.
 

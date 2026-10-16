@@ -1,6 +1,6 @@
 import { MAX_TAPS } from './backdropShaders'
 
-const TAP_LIFE_S = 3.5
+const TAP_LIFE_S = 3.6
 const SLOW_PX_S = 60
 const FAST_PX_S = 800
 const WARMTH_FADE_S = 0.6
