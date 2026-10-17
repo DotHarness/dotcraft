@@ -2,23 +2,26 @@
 
 | Field | Value  |
 | ----- | ------ |
-| Version      | 0.7.8    |
+| Version      | 0.8.10    |
 | Status       | Living |
-| Date         | 2026-09-28        |
+| Date         | 2026-10-17        |
 | Parent Specs | [Automations Lifecycle](../automations-lifecycle.md) |
 
 Oratorio is DotCraft's built-in agent project management product. It runs as
-native DotCraft Desktop surfaces backed by a durable headless service, owns Task
-state, comments, dispatch and review rounds, decisions, run summaries, review drafts, delivery
-drafts, and source write audit history, and drives DotCraft through AppServer.
-DotCraft remains the agent runtime and workspace execution layer.
+native DotCraft Desktop surfaces backed by a durable headless service. It owns
+task state, comments, dispatch and review rounds, decisions, run summaries,
+review, implementation and follow-up drafts, and the audit history of every
+source write, and it drives DotCraft through AppServer. DotCraft remains the
+agent runtime and workspace execution layer.
 
-The native surface boundary is intentionally narrow: Oratorio shows
-the board, Task cards, and compact Status drawers. Detailed AppServer
-conversation, approval decisions, plan inspection, file/terminal/preview views,
-and turn-by-turn interaction belong in DotCraft Desktop.
+The native surface is intentionally narrow: Oratorio shows the board, task
+cards and the task page. Detailed conversation, approval decisions, plan
+inspection, file, terminal and preview views, and turn-by-turn interaction
+belong in DotCraft Desktop.
 
-This document is the canonical product and behavior contract for Oratorio: enduring boundaries, domain behavior, source semantics, runtime contracts, and validation expectations.
+This document is the canonical product and behavior contract for Oratorio:
+boundaries, domain behavior, source semantics, runtime contracts and validation
+expectations.
 
 ## 1. Product Boundary
 
@@ -64,39 +67,36 @@ flowchart LR
     Backend --> Worktrees
 ```
 
-| Component          | Contract                                                                                                                                         |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| DotCraft Desktop surfaces | Provide the task board, Status-only drawer, source/run/write summaries, Settings, and operator-visible board actions through typed Main-process IPC. |
-| Headless Backend   | Owns orchestration, durable state, source sync, review transitions, AppServer dispatch, reconciliation, and source writes. It exposes API, health, and realtime stream endpoints, and does not serve a browser UI. |
-| Oratorio DB        | Stores items, rounds, runs, comments, decisions, review drafts, source snapshots, timeline events, and source write logs.                        |
-| Source Adapters    | Normalize external and local work into Oratorio source items and expose explicit read/write capabilities.                                        |
-| GitHub App Adapter | Reads GitHub issues/PRs and writes comments, reviews, check runs, and source write audit entries through installation credentials.               |
-| Local Task Source  | Owns Oratorio-local tasks with comments, rounds, dispatch, and review decisions independent of GitHub.                                           |
-| AppServer Bridge   | Starts or resumes DotCraft threads, submits turns, subscribes to events, and records final output.                                               |
-| Worktree Manager   | Owns backend-managed worktree paths, branch naming, concurrency limits, cleanup, and restart reconciliation.                                     |
-| Desktop Provider   | Resolves the local Hub-managed or remote tunneled service, injects credentials, and owns the realtime stream.                                     |
+| Component | Contract |
+| --- | --- |
+| DotCraft Desktop surfaces | Show the board, the task drawer and page, source, run and write summaries, Settings, and operator board actions. They reach the backend only through Desktop's main process. |
+| Headless backend | Owns orchestration, durable state, source sync, review transitions, AppServer dispatch, reconciliation and source writes. It exposes an API, a health check and a realtime stream, and serves no browser UI. |
+| Oratorio database | Stores items, rounds, runs, comments, decisions, drafts, source snapshots, timeline events and source write records. |
+| Source adapters | Normalize external and local work into Oratorio items and declare what they can read and write. |
+| Provider adapters | GitHub (through a GitHub App) and GitLab (through project tokens) read issues and pull or merge requests and write comments, reviews, checks or statuses, and delivery, each write audited. |
+| Local task source | Owns Oratorio-local tasks with comments, rounds, dispatch and decisions independent of any provider. |
+| AppServer bridge | Starts or resumes DotCraft threads, submits turns, follows their events and records the outcome. |
+| Worktree manager | Owns managed worktree locations, branch naming, concurrency limits, cleanup and restart reconciliation. |
+| Desktop provider | Resolves the local Hub-managed or remote tunneled service, injects credentials and owns the realtime stream. |
 
-Runtime topology contract:
+Runtime topology:
 
-- **Local-managed service**: DotCraft Desktop asks Hub to ensure the bundled
-  Oratorio Server. Hub owns process lifecycle; Desktop Main owns API semantics,
-  authentication injection, and the realtime stream.
-- **Remote Stack service**: DotCraft Desktop connects to the official Stack with
+- **Local service**: Desktop asks Hub to ensure the bundled Oratorio Server.
+  Hub owns the process lifecycle; Desktop's main process owns API semantics,
+  authentication and the realtime stream.
+- **Remote Stack service**: Desktop connects to the official Stack through
   separate authenticated SSH tunnels for AppServer and Oratorio. The remote
   service owns orchestration, durable state, source sync, managed worktrees,
-  AppServer dispatch, reconciliation, and source writes.
-- Direct public exposure of the Oratorio API is unsupported. The optional
-  webhook gateway exposes only the exact GitHub webhook POST endpoint.
-- In a remote-controlled deployment, the Oratorio backend and DotCraft AppServer
-  must run where they can access the same repository workspace and managed
-  worktree filesystem paths. Containerized deployments must mount the shared
-  workspace at the same absolute path for both services. The local Desktop
-  filesystem is never used for remote AppServer execution.
-- Stack initialization creates a writable server configuration under
-  `state/oratorio`. Authenticated Desktop settings use the same revision and
+  dispatch, reconciliation and source writes.
+- The Oratorio API is never exposed publicly. The optional webhook gateway
+  exposes only the provider webhook endpoint ([Server Webhook
+  Ingress](server-webhook-ingress.md)).
+- In a remote deployment the Oratorio backend and AppServer must reach the same
+  repository workspace and managed worktrees at the same absolute paths. The
+  local Desktop filesystem is never used for remote execution.
+- Stack initialization creates a writable server configuration in the
+  deployment's Oratorio state. Desktop Settings use the same revision and
   secret semantics in local and remote modes.
-- Source webhook ingress is enabled and disabled through `dotcraft stack
-  webhook`; it never exposes the remaining Oratorio API.
 
 ## 3. Lifecycle Contract
 
@@ -123,961 +123,792 @@ stateDiagram-v2
 
 Required lifecycle behavior:
 
-- Every dispatch belongs to a durable round.
-- Every run belongs to a round and records runner kind, attempt, status,
-progress, heartbeat, summary, and error information when available.
-- `approve` and `reject` are terminal for the current round until reopened.
-- Timeline entries are operator-facing projections; canonical state remains in
-items, rounds, runs, comments, decisions, source snapshots, and source write
-logs.
-- Operator cancellation is available only while an item is `dispatching` or
-  `running`. It marks the active run as `cancelled`, closes the current round as
-  `cancelled`, clears the current run, and returns the item to `discovered`.
-  Cancellation is a run lifecycle action, not a decision, and the next dispatch
-  creates the next numbered round.
-- `requestChanges` requires non-empty feedback, records a linked operator
-comment, closes the current round as `changesRequested`, and returns the item
-to `discovered`.
-- The next dispatch after requested changes creates the next numbered round.
-- `reReview` is available for a GitHub pull request or GitLab merge request
-  after its head SHA changes from the one analyzed by the latest successful
-  AppServer review analysis run. It records an internal decision, supersedes the
-  current round, creates the next numbered round, and queues a new read-only
-  review run. It writes no source decision; the new round drives the
-  `oratorio/review` gate check like any other review round.
-- Repository-level Auto Review uses the same round semantics as `reReview`.
-  For enabled repositories, new open non-draft pull requests that appear after
-  enablement queue an AppServer `reviewAnalysis` run automatically. Later head
-  SHA changes supersede the current round and queue the next read-only review
-  round after any active run finishes. Auto Review never writes a source
-  decision.
-- Implementation Follow-up returns an eligible originating issue/local task to `discovered` and queues its next numbered implementation round when its delivered PR gains unresolved published findings or new human review comments. It requires `awaitingReview`, no active run, an open generated PR and a remaining configured round budget. Disabled policies, terminal/archived origin, a closed/merged PR or a clean latest review stop the loop; a reached cap is operator-visible. Delivery reuses the same PR and branch under §6.2.
-- `approve` is allowed only after a completed run has moved the item to
-  `awaitingReview`.
-- Every GitHub pull request review round — first dispatch, `reReview`, Auto
-  Review, and retry alike — drives one `oratorio/review` check run, keyed to the
-  head SHA under review. Oratorio writes it `in_progress` when the round is
-  queued and updates that same check run to completed `neutral` when the review
-  run succeeds, returning merge ownership to GitHub collaborators. A later
-  Oratorio approval, requested changes, rejection, cancellation, or terminal run
-  failure updates the same check run to success, action-required, or failure.
-  This external check is the merge gate only when the repository requires it
-  through GitHub branch protection or rulesets.
-- `archive` is available for non-active local and source-backed items and
-  preserves all history; `reopen` restores an archived item to `discovered`.
-- Rejected and archived items are closed/history work. Their TaskStatus
-  projection is `cancelled`, and they are not part of the default Active board.
-- Imported source comments are source context, not operator feedback, and must
-  not be treated as requested follow-up work by themselves. The bounded
-  exemptions are:
-  - a GitHub PR conversation command accepted by verified source-command intake, which may request a read-only review run for
-    an already configured repository; and
-  - human review comments on the generated pull request of an originating
-    implementation item, which are actionable follow-up feedback for that
-    originating item's next implementation round under the gated
-    Implementation Follow-up loop (§6.2, §8).
+- Every dispatch belongs to a durable, numbered round. Every run belongs to a
+  round and records its runner, attempt, status, progress, heartbeat, summary
+  and error when available.
+- Approve and Reject end the current round until the item is reopened. Approve
+  is allowed only after a completed run has moved the item to Awaiting Review.
+- Timeline entries are operator-facing projections. Canonical state is the
+  items, rounds, runs, comments, decisions, source snapshots and source write
+  records.
+- **Cancel run** is available only while an item is Dispatching or Running. It
+  cancels the active run, closes the round as cancelled, clears the current run
+  and returns the item to Discovered. It is a run action, not a decision; the
+  next dispatch opens the next round.
+- **Request changes** requires non-empty feedback, records it as a linked
+  operator comment, closes the round as changes requested and returns the item
+  to Discovered. The next dispatch opens the next round.
+- **Re-review** (shown as Review new revision) is available for a GitHub pull
+  request or GitLab merge request once its head commit differs from the one
+  analyzed by the latest successful review analysis run. It records an internal
+  decision, supersedes the current round, opens the next round and queues a new
+  read-only review run. It writes no source decision; the new round drives the
+  review check like any other review round.
+- Repository **Auto Review** uses the same round semantics as Re-review (§7).
+  It never writes a source decision.
+- **Implementation Follow-up** returns an eligible originating issue or local
+  task to Discovered and queues its next implementation round when its
+  delivered pull or merge request gains unresolved published findings or new
+  human review comments. It requires Awaiting Review, no active run, an open
+  generated pull or merge request and remaining round budget. A disabled
+  policy, a terminal or archived origin, a closed or merged generated change,
+  or a clean latest review stops the loop; a reached cap is visible to the
+  operator. Delivery reuses the same branch and review target (§6.2).
+- Every GitHub pull request review round — first dispatch, Re-review, Auto
+  Review and retry alike — drives one `oratorio/review` check run for the head
+  commit under review. Oratorio marks it in progress when the round is queued
+  and completes it as neutral when the review run succeeds, leaving merge
+  ownership with the repository's collaborators. A later Oratorio approval,
+  requested changes, rejection, cancellation or terminal run failure updates
+  the same check to success, action required or failure. The check is a merge
+  gate only when the repository requires it through branch protection or
+  rulesets.
+- **Archive** is available for any non-active item and preserves all history;
+  **Reopen** returns an archived item to Discovered.
+- Rejected and archived items are closed history. They project to the Cancelled
+  task status and are not on the default Active board.
+- Imported source comments are source context, not operator feedback, and never
+  count as requested follow-up work on their own. The bounded exceptions are:
+  - a pull request conversation command accepted through verified command
+    intake, which may request a read-only review of an already configured
+    repository ([GitHub Mention Review](github-mention-review.md)); and
+  - human review comments on the generated pull or merge request of an
+    originating implementation item, which feed that item's next round under
+    the gated Implementation Follow-up loop (§6.2, §8).
 
 ## 4. Domain and API Contract
 
-Oratorio's backend owns workflow truth. The Desktop renderer renders state
-returned by the API and must not invent domain transitions.
+The backend owns workflow truth. Desktop renders the state the API returns and
+never invents domain transitions.
 
-Canonical domain records:
+Domain records:
 
-- `Item`: source-neutral unit of work with `(source, externalId)` identity,
-  optional repository metadata, lifecycle state, current round, current run,
-  latest summary, check state, source lifecycle state, archive reason, and
-  source sync timestamp.
-- `Round`: durable review cycle for one item with a number, status, prompt
-  audit context, latest summary, and completion timestamp.
-- `Run`: execution attempt inside a round with runner kind, dispatch trigger,
-  target head SHA when applicable, attempt, status, thread ID, turn ID,
-  AppServer endpoint, prompt audit context, summary, error details, managed
-  worktree metadata, retry state, and scheduler lease metadata.
-- `Comment`: operator, source, agent, or system feedback attached to an item and
-  optionally a round, with a purpose such as feedback, discussion question,
-  discussion reply, source context, or system note.
-- `DiscussionTurn`: lightweight operator-to-agent question bound to one item,
-  optional round, operator question comment, optional agent reply comment, base
-  AppServer run, thread ID, turn ID, status, prompt audit context, and error
-  information. Discussion Turns are not Runs and do not create Rounds.
-- `Decision`: operator action on a round: `approve`, `requestChanges`,
-  `reject`, `reopen`, or `reReview`.
-- `ReviewDraft` and `ReviewDraftComment`: structured PR review draft data
-  submitted by DotCraft and later published, discarded, or left in draft state.
-  A published, accepted `ReviewDraftComment` additionally carries resolution
-  state (open/resolved, kind, actor, note, provenance, and source-thread
-  mapping) per §6.4.
-- `SourceWrite`: auditable GitHub write attempt with request, response, status,
-  error, retry, and external URL metadata.
-- `TimelineEvent`: append-only operator-facing projection for source sync,
-  round, run, comment, decision, check, review draft, and write events.
-- `AutoReviewRepositoryState` and `AutoReviewItemState`: durable backend
-  scheduler state for repository Auto Review enablement, first-enable
-  baselines, last observed PR heads, last queued PR heads, and visible skip or
-  routing errors.
-- `ImplementationFollowUpItemState`: durable backend scheduler state for the
-  Implementation Follow-up loop (§3, §6.2), keyed by originating item, with the
-  linked generated PR item, the last observed open-finding signature, the last
-  observed human PR comment time, last queued head/round/run, the follow-up round
-  count, and visible skip or cap state.
+- **Item**: a source-neutral unit of work with a stable source identity, its
+  lifecycle and source state, its check state, archive reason, and its current
+  round and run.
+- **Round**: one numbered review cycle of an item.
+- **Run**: one execution attempt inside a round — what triggered it, the head
+  commit it targets when relevant, its DotCraft thread and turn, its managed
+  worktree, its outcome and its retry state.
+- **Comment**: operator, source, agent or system text on an item and optionally
+  a round. Its purpose — feedback, discussion question, discussion reply,
+  source context or system note — decides whether it feeds the next round.
+- **Discussion Turn**: a lightweight operator question to the agent (§6.3). It
+  is not a run and creates no round.
+- **Decision**: an operator action on a round: approve, request changes,
+  reject, reopen or re-review.
+- **Review Draft** and its findings: the structured result of a review run,
+  published by Oratorio (§6.1). Published findings carry resolution state
+  (§6.4).
+- **Implementation Draft** and **Follow-up Draft** (§6.2).
+- **Source Write**: one auditable provider write attempt (§5).
+- **Timeline Event**: an append-only operator-facing record of sync, round,
+  run, comment, decision, check, draft and write events.
+- **Scheduler state** for Auto Review and Implementation Follow-up: per
+  repository and per item, the enablement baseline, last observed and last
+  queued heads, the follow-up round count, the last observed open findings and
+  human comment time, and any visible skip, routing or cap state.
 
-Public REST endpoints live under `/api/v1`, use camelCase JSON, and return
-stable error objects:
+Every item in list and detail responses carries its **latest Oratorio result**:
+none, no issues, findings, changes ready, delivered, or follow-ups. It is
+derived from the newer of the item's latest review draft and latest
+implementation draft, and from its follow-up drafts still waiting for a
+decision; pending follow-ups take precedence over the rest. The result stays until a newer draft replaces it, so
+the board shows it without extra requests.
 
-```json
-{
-  "error": {
-    "code": "invalidTransition",
-    "message": "Cannot approve an item that is not awaiting review.",
-    "details": {}
-  }
-}
-```
+The API is versioned and returns errors as a stable code with a readable
+message. It covers:
 
-Required endpoint groups:
-
-- item list/detail and source-key lookup;
-- local task create/update/archive/reopen;
-- source-backed item archive/reopen;
-- comment, discussion-turn, dispatch, approve, request-changes, reject, and
-  reopen actions;
+- item list, detail and lookup by source identity;
+- local task create, update, archive and reopen; source-backed archive and
+  reopen;
+- comments, discussion turns, dispatch, approve, request changes, reject,
+  reopen and re-review;
 - run detail;
-- GitHub status, sync, write retry, and source write visibility;
-- review draft detail exposure plus edit, publish, and discard actions, and
-  operator resolve/reopen of a published review finding per §6.4;
-- DotCraft/AppServer status, workspace inventory, per-workspace health, and
-  dispatch diagnostics.
-- top-level status capabilities for managed worktrees, concurrency limits, and
-  bridge/runtime feature visibility.
-- settings diagnostics and server configuration endpoints for redacted
-  diagnostics, configuration reads/writes, encrypted secret updates, and change
-  audit history.
+- source status, sync, source write visibility and write retry;
+- review draft detail with publication retry and discard, and resolve or
+  reopen of a published finding (§6.4);
+- DotCraft and AppServer status, workspace inventory, per-workspace health and
+  dispatch diagnostics;
+- capability status for managed worktrees, concurrency and runtime features;
+- settings diagnostics, configuration reads and writes, secret updates and the
+  change audit history.
 
-Mutating endpoints must validate lifecycle transitions at write time. Retrying a
-failed source write retries only that write record and never creates a new
-operator decision.
+Mutating calls validate lifecycle transitions at write time. Retrying a failed
+source write retries only that write and never creates a new decision.
 
 Server configuration writes are a local-admin capability, not a general remote
-administration API. They require a trusted local boundary or production operator
-authentication. Writable fields include selected GitHub source, GitHub credential
-presence, DotCraft bridge, workspace routing, managed worktree, concurrency,
-retry, timeout, cleanup policy values, implementation auto-dispatch policy,
-repository Auto Review allowlists, Draft auto-publish allowlists, and the
-Implementation Follow-up policy (global enablement, repository allowlist, and
-maximum follow-up rounds). Tokens,
-webhook secrets, and private keys are writable only through one-shot
-replace/clear semantics and must be stored encrypted. Auto-start commands and
-process arguments are never writable through Settings. Writes create a durable
-redacted configuration change audit entry and apply without a restart: the
-server reloads the configuration overlay before the write responds, so
-subsequent reads and dependent operations such as sync schedules and sync jobs
-observe the saved values immediately.
+administration API; they require a trusted local boundary or operator
+authentication. Writable settings are the source provider connections and
+credentials, the DotCraft bridge, workspace routing, managed worktrees,
+concurrency, retry, timeout and cleanup policy, implementation auto-dispatch
+policy, the repository Auto Review list, and the Implementation Follow-up
+policy (global switch, repository list and maximum follow-up rounds). Tokens,
+webhook secrets and private keys can only be replaced or cleared, never read
+back, and are stored encrypted. Auto-start commands and process arguments are
+never writable through Settings. Every write records a redacted change audit
+entry and takes effect without a restart: the server reloads configuration
+before answering, so later reads, sync schedules and sync jobs see the saved
+values immediately.
 
-Repository workspace routes are declarative configuration. Configuration writes
-validate each canonical source project key and require a syntactically valid,
-fully qualified filesystem path, but they do not require that the directory is
-currently mounted, registered with Hub, or present on disk. Availability belongs
-to workspace inventory and run preparation: unavailable routes remain visible to
-operators, report their health reason, and fail execution with the
-applicable stable error such as `workspaceNotRegisteredInHub` or
-`baseWorkspaceMissing`. An unavailable route must not block unrelated Settings
-changes, rebinding, or removal.
+Workspace routes are declarative. A write validates each source project key and
+requires a well-formed absolute path, but not that the directory is mounted,
+registered with Hub or present. Availability belongs to workspace inventory and
+run preparation: an unavailable route stays visible with its health reason and
+fails runs with a stable reason (for example, not registered in Hub, or base
+workspace missing). An unavailable route never blocks unrelated Settings
+changes, rebinding or removal.
 
 ## 5. Source Contract
 
 ### Source provider model
 
-Providers adapt reads, detail hydration, diff anchors, writes, Git delivery and webhook verification into the shared Item, Review Draft and SourceWrite model. Capability status reports configured/authentication state, read/write/webhook availability, project counts, last sync and safe failure reasons. Unsupported actions fail explicitly.
+Providers adapt reads, detail hydration, diff anchors, writes, Git delivery and
+webhook verification into the shared item, review draft and source write model.
+Each provider reports whether it is configured and authenticated, its read,
+write and webhook availability, project counts, last sync and safe failure
+reasons. Unsupported actions fail explicitly.
 
-Canonical source project keys are `<provider>:<instance>/<project-path>`. Routing and allowlists use that identity; identical paths on different providers or instances remain distinct. Existing GitHub `owner/name` configuration remains accepted. Display labels do not replace canonical keys.
+Every source project has a canonical key made of provider, instance and full
+project path. Routing and allowlists use that key, so identical paths on
+different providers or instances stay distinct. GitHub repositories may also be
+configured as a plain owner and name. Display labels never replace canonical
+keys.
 
-Sync jobs are provider/project scoped and report trigger (`manual`, `webhook`, `scheduled`), mode, status, project progress and `issuesImported`, `reviewTargetsImported`, `commentsImported`, and `skipped` counters. A failed project does not block unrelated projects. Scheduled sync defaults off, first runs at `now + interval`, and performs incremental work only. An already-active job covers the due cycle; missed intervals coalesce into one catch-up. Full repair is manual.
+Sync jobs are scoped to a provider and its projects. They report their trigger
+(manual, webhook or scheduled), mode, status, per-project progress and counts
+of imported issues, review targets, comments and skipped items. A failed
+project does not block the others. Scheduled sync is off by default, first runs
+one interval after it is enabled and does incremental work only; an active job
+covers a due cycle, and missed intervals collapse into one catch-up. Full
+repair is manual.
 
-Source writes express canonical intent separately from provider payload: comments, review summaries/discussions, external status, local commit, branch push, review-target creation and explicitly supported approval. Each intent is persisted before execution with provider, instance, project key, source identity, head SHA when applicable, request/response, external identity, attempt and error information. Retry reuses the write record without repeating the domain decision.
+Source writes record their intent separately from the provider payload:
+comments, review summaries and discussions, external status, local commit,
+branch push, review target creation, review thread resolution, and explicitly
+supported approval. Each write is persisted before it runs, with its target,
+head commit when applicable, request and response, external identity, attempts
+and error. Retry reuses the same write record without repeating the domain
+decision.
 
 ### 5.1 GitHub Read Sync
 
-GitHub read sync must normalize:
+GitHub read sync normalizes:
 
-- issues and pull requests into stable Oratorio source items;
-- stable source keys of the form `github` plus an external ID such as
-`issue:owner/repo#42` or `pr:owner/repo#184`;
-- title, body, repository, assignee, labels, external URL, branch, draft state,
-source updated time, and head SHA where applicable;
-- issue comments, PR reviews, and PR review comments as source-visible comments;
-- source lifecycle state as `open`, `closed`, `merged`, or `unknown`, plus
-  source close and merge timestamps when available;
+- issues and pull requests into stable items identified by kind, repository and
+  number;
+- title, body, repository, assignee, labels, link, branch, draft state, source
+  update time and head commit where applicable;
+- issue comments, pull request reviews and review comments as source-visible
+  comments;
+- the source state (open, closed, merged or unknown) with close and merge times
+  when available;
 - source snapshots for prompt reconstruction and audit.
 
-GitHub read failures should be visible to operators and must not corrupt
-existing imported item history.
+Read failures are visible to operators and never corrupt existing item history.
 
-Verified source commands may request read-only review through the normal dispatch boundary. Ordinary imported comments remain non-dispatchable.
+Verified source commands may request a read-only review through the normal
+dispatch boundary. Ordinary imported comments never dispatch work.
 
-Closed issues and closed or merged pull requests should be automatically
-archived when no run is active. If a source item reopens and the archive reason
-was source-driven, Oratorio should restore it to `discovered`. Manual archive
-must not be undone by a later source sync.
+Closed issues and closed or merged pull requests are archived automatically
+when no run is active. If a source item reopens and it was archived because of
+the source, Oratorio restores it to Discovered. A manual archive is never undone
+by sync.
 
-Archived source-backed and local tasks are hidden from the Active board by
-default. Operators access them through an explicit Archived list view that pages
-history results instead of rendering all archived cards in the board.
+Archived items are hidden from the Active board and reached through an explicit
+Archived list that pages results.
 
 ### 5.2 GitHub Write Feedback
 
-GitHub writes are backend-owned adapter operations, not implicit agent behavior.
-Oratorio supports explicit, auditable write actions for:
+GitHub writes are backend operations, never implicit agent behavior. Oratorio
+writes:
 
-- Oratorio review summaries;
-- request-changes feedback;
-- reject or attention-needed feedback;
-- GitHub PR review comments, including suggestion blocks;
-- `oratorio/review` check-run state;
-- source write logs visible in Oratorio.
+- review summaries and published review drafts (§6.1);
+- request-changes feedback, and reject or attention-needed feedback;
+- inline review comments, including suggestion blocks;
+- the `oratorio/review` check run;
+- review thread resolution (§6.4);
+- implementation delivery (§6.2).
 
-GitHub writes are enabled only when GitHub write configuration and GitHub App
-authentication are available. If writes are disabled or misconfigured, Oratorio
-records a failed source write with a stable error code instead of hiding the
-problem.
+Writes are possible only when GitHub writes are enabled and GitHub App
+authentication is available. Otherwise Oratorio records a failed source write
+with a stable reason instead of hiding the problem.
 
-GitHub App installation identity is routed by GitHub instance and repository
-owner rather than by one global installation ID. A configured profile maps
-`<instance>/<owner>` to one installation ID, and every GitHub read, write,
-branch push, and PR creation resolves the target repository through that owner
-profile. When a profile is missing, Oratorio may use GitHub App credentials to
-discover the repository installation through GitHub's repository installation
-API; discovery failures must be reported without blocking unrelated project
-routing saves.
+GitHub App installations are chosen per GitHub instance and repository owner,
+not from one global installation. A configured owner installation covers every
+read, write, push and pull request creation for that owner's repositories. When
+none is configured, Oratorio may discover the repository's installation with
+its App credentials; a discovery failure is reported without blocking
+unrelated routing saves.
 
-Decision write mapping:
+Decision writes:
 
 | Oratorio item | Operator action | GitHub write |
 | --- | --- | --- |
-| Pull request | `approve` | PR review plus `oratorio/review` success check |
-| Pull request | `requestChanges` | PR review plus action-required check |
-| Pull request | `reject` | PR review plus failure check |
-| Pull request | `reReview` | no decision write; the new round drives the `oratorio/review` check per §3 |
-| Issue | `approve`, `requestChanges`, or `reject` | Issue comment only |
-| Local task | any decision | no GitHub write |
+| Pull request | Approve | Approving review plus `oratorio/review` success |
+| Pull request | Request changes | Review plus action-required check |
+| Pull request | Reject | Review plus failed check |
+| Pull request | Re-review | No decision write; the new round drives the check (§3) |
+| Issue | Approve, Request changes or Reject | Issue comment only |
+| Local task | Any decision | No GitHub write |
 
-PR review suggestions must be published through GitHub PR review APIs as
-operator-visible Oratorio writes. A single GitHub `COMMENT` review may include
-one summary body and multiple inline comments. Inline comments should use
-GitHub's current diff anchor fields (`path`, `line`, `side`, and optional
-`startLine`/`startSide`) rather than relying on deprecated diff positions.
-Suggestion replacements are rendered by Oratorio into GitHub suggestion blocks
-inside the inline comment body.
+Inline comments use GitHub's line-based diff anchors rather than deprecated
+diff positions. Oratorio renders concrete suggestions as GitHub suggestion
+blocks inside the comment.
 
-GitHub App installation alone must not be treated as a merge gate. Repositories
-must explicitly require the Oratorio check through branch protection or rulesets.
+Installing the GitHub App is not a merge gate by itself. Repositories must
+require the Oratorio check through branch protection or rulesets.
 
-Automated Oratorio writes must not silently merge PRs, create commits, push
-branches, or approve outside an explicit operator decision. Review draft
-publication always creates a GitHub `COMMENT` review and never emits approval,
-request-changes, merge, close, or branch-protection decisions by itself. GitHub
-`APPROVE` review events are emitted only for explicit Oratorio operator approval
-decisions.
+Oratorio never merges. A GitHub approving review is written only for an
+explicit operator approval. Commits, branch pushes and pull request creation
+happen only through implementation delivery (§6.2).
 
-Every intended write creates a source write record with item, round, decision or
-draft linkage, source, kind, intent, status, repository, source number, head SHA
-when applicable, request JSON, response JSON, external ID or URL when available,
-attempt count, error code, error message, and timestamps. Timeline entries must
-show queued, succeeded, and failed write attempts.
-
-GitHub write failures are audited and retryable through Oratorio source-write
-records. They do not roll back recorded Oratorio decisions or item transitions;
-check-gated repositories should rely on the `oratorio/review` check-run state as
-the external merge gate when GitHub write delivery fails.
+Every intended write is recorded with its item, round, and decision or draft,
+and the timeline shows its queued, succeeded and failed attempts. Write
+failures are retryable and never roll back a recorded decision or item
+transition; check-gated repositories rely on the check state as the external
+merge gate when a write fails.
 
 ### 5.3 Local Tasks
 
-Oratorio-local tasks are first-class Oratorio records. They are separate from
-DotCraft built-in Automations local tasks.
+Oratorio-local tasks are first-class Oratorio records, separate from DotCraft
+built-in Automations tasks. They support:
 
-Local task behavior must include:
+- an operator-written title and body;
+- optional repository, base branch, labels and workspace;
+- comments, rounds, decisions and timeline history;
+- dispatch to DotCraft AppServer or the mock runner;
+- approve, request changes, reject and reopen;
+- edit, archive and reopen only while no run is dispatching or running.
 
-- operator-created title and body;
-- optional repository, branch, labels, and workspace metadata;
-- comments, review rounds, decisions, and timeline history;
-- dispatch through mock runner or DotCraft AppServer;
-- approve, request-changes, reject, and reopen transitions;
-- edit, archive, and reopen actions only when the task is not actively
-  dispatching or running.
+The backend assigns each local task a short stable identity; identity is never
+derived from the title, since titles are editable. Archived local tasks are
+hidden unless the archived view is selected.
 
-Local task identity:
-
-```text
-source = local
-kind = localTask
-externalId = task:{shortId}
-```
-
-The backend generates the local task external ID. The UI must not derive
-identity from the title because titles are editable. Default task lists hide
-archived local tasks unless an explicit archived filter is selected.
-
-Local tasks may participate in implementation auto-dispatch policy for
-implementation work. They are still not a general cron/reminder system.
+Local tasks may take part in implementation auto-dispatch. They are still not a
+general cron or reminder system.
 
 ## 6. Review Draft Contract
 
-### 6.1 Structured PR Review Suggestions
+### 6.1 Structured Review Suggestions
 
-PR review suggestions are a structured draft flow, not free-form agent text.
+Pull and merge request review results are structured drafts, not free-form
+agent text.
 
-The required ownership boundary is:
+- DotCraft agents analyze the change and submit a structured review draft.
+- Oratorio validates, stores, publishes, displays and audits the draft.
+- Only Oratorio writes to the provider, with its own credentials.
+- Operators retry or discard a failed publication, resolve findings and record
+  the Oratorio decision.
 
-- DotCraft agents analyze the PR and submit structured review drafts.
-- Oratorio validates, stores, displays, and audits the drafts.
-- Operators decide whether to publish, edit, discard, or request another round.
-- GitHub writes are performed only by Oratorio through installation
-  credentials.
+Agents submit through the **review draft submission tool**, a run tool that
+Oratorio declares on the threads it creates. Run tools follow [Tool
+Architecture](../../architecture/tools-architecture.md): one tool identity and
+schema per operation, with surface-specific allowlists. Every call is bound to
+the run's AppServer connection and thread, so a draft can never be submitted
+for an unrelated run. An external reusable review service needs an explicit
+run or round binding before it may submit drafts.
 
-The canonical agent submission contract is the Runtime Dynamic Tool
-`oratorio_run.SubmitReviewDraft`. Oratorio declares it on
-`thread/start.dynamicTools` for Oratorio-created AppServer runs; DotCraft
-invokes it through `item/tool/call`, and the callback is bound to the AppServer
-connection and thread that created the run.
+A submission carries a summary (counts and body text) and a list of inline
+findings. Each finding has a severity, title, body and repository-relative
+path, and is one of two kinds:
 
-Runtime Dynamic Tool declarations and callback leases follow [Tool Architecture](../../architecture/tools-architecture.md). Oratorio exposes one tool identity and schema per operation, with surface-specific allowlists; MCP metadata remains an MCP-only projection.
+- a **concrete suggestion**: the exact existing right-side text and its
+  replacement; the server resolves the diff range;
+- **comment-only**: a line (optionally a start line and a side) and a reason —
+  needs a human decision, requires a larger change, cannot be anchored safely,
+  investigation only, or targets the left side or a deletion.
 
-Every `oratorio_run.SubmitReviewDraft` call must bind to the current Oratorio
-run thread so that drafts cannot be submitted across unrelated runs. Any
-external reusable review service must provide an explicit run or round binding
-contract before it can submit drafts.
+Details belonging to the other kind are ignored; undeclared details are
+rejected.
 
-`oratorio_run.SubmitReviewDraft` input must include:
+Content rules:
 
-- `summary`: object with review counts and body text;
-- `comments`: array of inline review findings.
+- a clean review's summary reads exactly `No issues found.`, with all counts
+  zero and no findings;
+- a review with findings reads `Found N issue.` or `Found N issues.`; the
+  detail belongs in the inline findings;
+- Oratorio recomputes the summary text and the red and yellow counts from the
+  accepted findings when the draft is submitted;
+- red means a likely bug affecting correctness, security, data loss or a broken
+  workflow; yellow means an investigation flag, maintainability risk or
+  lower-confidence issue. Published titles are prefixed `🔴` or `🟡`; stored
+  titles are not;
+- a concrete suggestion is used only for an exact, small right-side change
+  that the provider can render as a native suggestion; every other finding is
+  comment-only with its reason;
+- explanations stay in the summary and never become inline findings;
+- the suggestion count means accepted concrete suggestions only. The server
+  derives it and records a warning when the agent's count differs.
 
-Each comment carries severity, title, body and repository-relative path. `kind` is the authoritative discriminator:
+A successful submission returns the draft, the accepted finding count and
+warnings for anchors the agent cannot repair this round, such as unavailable
+provider diff data.
 
-- `suggestion` requires exact right-side `oldText` and a present `newText` replacement; the server resolves its diff range.
-- `commentOnly` requires a line and `reason` (`needsHumanDecision`, `requiresLargerChange`, `cannotAnchorSafely`, `investigateOnly`, `leftSideOrDeletion`), with optional side and start-line range.
+Validation:
 
-Fields from the other branch are ignored; undeclared fields are rejected by the closed schema. Anchor and content rules below remain authoritative.
+- the summary body is required;
+- paths are repository-relative with no traversal;
+- a concrete suggestion needs non-empty existing text and a replacement; the
+  existing text must match exactly one contiguous right-side changed or context
+  range after line-ending normalization;
+- a comment-only finding needs a line and a reason; lines are positive, a start
+  line is not after its line, and sides are left or right;
+- unknown kinds, missing details and undeclared details are invalid arguments;
+- a suggestion whose replacement equals the existing text is skipped with a
+  warning;
+- a summary-only draft needs no diff reads;
+- when provider diff data is unavailable or omits a file, submitted findings
+  are kept as skipped warnings instead of failing the call.
 
-Review Draft content contract:
+Correctable anchor errors — a path outside the diff, a non-commentable line or
+range, a side mismatch, or suggestion text that is absent or matches more than
+one range — fail the call with a stable reason, the commentable ranges and
+enough detail for the agent to repair the draft and submit again in the same
+round. A failing call stores no draft. Invalid findings never lead to a silent
+partial publication.
 
-- a clean review uses `summary.body` exactly `No issues found.`, sets
-  `majorCount`, `minorCount`, and `suggestionCount` to `0`, and submits
-  `comments: []`;
-- a review with accepted findings uses the summary body `Found N issue.` or
-  `Found N issues.`; the detail belongs in the inline comments;
-- Oratorio canonicalizes agent-submitted `summary.body`, `majorCount`, and
-  `minorCount` from the accepted comments when the draft is submitted; operator
-  edits made afterward are respected when publishing;
-- published inline comment titles are prefixed with `🔴` for `RED` findings and
-  `🟡` for `YELLOW` findings; stored draft titles remain unprefixed;
-- `RED` means a likely bug affecting correctness, security, data loss, or a
-  broken workflow; `YELLOW` means an investigation flag, maintainability risk,
-  or lower-confidence issue;
-- `kind: suggestion` is used only for exact, small, right-side code changes that
-  can be published as native suggestions; every other finding is
-  `kind: commentOnly` with the matching `reason`;
-- informational explanations stay in `summary.body` and must not become inline
-  comments.
+Every GitHub pull request and GitLab merge request review analysis run must
+submit a draft before it can succeed; a clean review submits a summary-only
+draft. A review run that finishes without a draft fails, and Oratorio never
+writes the draft on the agent's behalf.
 
-`summary.suggestionCount` means accepted concrete code suggestions only. The
-server derives and persists this value from accepted inline comments with
-resolved `oldText`/`newText`; if the agent-submitted
-count differs, Oratorio stores the derived value and records a warning.
+A missing draft, an AppServer turn failure and a cancellation not made by the
+operator are recoverable review failures: they schedule another attempt in the
+same round under the bounded retry policy. The failed thread may be resumed
+only when its failure was semantic or turn-level, its workspace and required
+run tools still match, and AppServer can rebind run tools. Timeouts,
+disconnections, stalled heartbeats and interrupted-run recovery start a fresh
+thread.
 
-Successful `oratorio_run.SubmitReviewDraft` output must include:
+A stored draft is the authoritative result of a review run. If a terminal
+failure not made by the operator arrives after the draft is stored, Oratorio
+completes the run from the draft, shows the late signal as a warning, and never
+asks for a duplicate draft. An operator cancellation remains authoritative.
 
-- `draftId`;
-- accepted comment count;
-- warnings for skipped anchors that the agent cannot repair in the current
-  round, such as unavailable provider diff data.
+**Publication.** When a review analysis run on a GitHub pull request or GitLab
+merge request succeeds, Oratorio publishes its draft to the provider right away
+as a comment-only review: the summary plus the accepted inline findings, with
+concrete suggestions rendered as native suggestions and comment-only findings
+as prose. On GitHub this is one `COMMENT` review; GitLab publication is defined
+in [GitLab Integration](gitlab-integration.md). Publication never approves,
+requests changes, merges, closes, or changes branch protection, and it never
+records an Oratorio decision: the task stays Awaiting Review until the operator
+decides. There is no manual publish step and no editing of a draft before
+publication.
 
-Correctable agent anchor errors, including paths outside the diff,
-non-commentable comment-only line or range anchors, or side mismatches, must
-fail the dynamic tool with `reviewDraftAnchorNotCommentable`. Suggestion
-`oldText` that is absent from the right-side diff must fail with
-`reviewDraftSuggestionTextNotFound`; `oldText` that matches multiple right-side
-diff ranges must fail with `reviewDraftSuggestionTextAmbiguous`. Failed results
-must include enough metadata and available commentable ranges for the agent to
-repair the draft and call `oratorio_run.SubmitReviewDraft` again in the same DotCraft round.
-Invalid items must not cause Oratorio to publish a partial GitHub review
-silently.
+Publication is blocked when the draft has warnings or skipped findings, the
+reviewed head commit is missing or no longer the current head, write
+credentials are missing, or provider writes are disabled. A blocked or failed
+publication is recorded as a failed source write on the draft. The operator can
+retry it, which publishes on their say-so without the warning and stale-head
+gates but still refuses unsafe suggestions and disabled or unauthenticated
+writes, or discard the draft.
 
-Validation requirements:
+Publishing is not resolving. A finding counts as handled only when it is fixed
+or explicitly dismissed (§6.4); publishing just puts the suggestions on the
+provider.
 
-- summary body is required;
-- paths must be repository-relative and must not contain traversal;
-- `kind: suggestion` comments must provide non-empty `oldText` and present
-  `newText`; missing values fail the tool with `InvalidArguments`;
-- `oldText` must match exactly one contiguous right-side
-  changed/context diff range after line-ending normalization;
-- `kind: commentOnly` comments must provide `line` and `reason`;
-- `line` and `startLine` must be positive when present;
-- `startLine` must be less than or equal to `line`;
-- `side` and `startSide` must be `right` or `left`;
-- unknown `kind` values, missing branch fields, and undeclared fields are
-  rejected with `InvalidArguments`;
-- no-op replacements whose `newText` exactly matches
-  `oldText` should be skipped with a
-  `reviewDraftNoOpSuggestion` warning;
-- changed file and diff anchor validation must fail correctable invalid agent
-  anchors with `reviewDraftAnchorNotCommentable` and must not persist a draft
-  for that tool call;
-- summary-only drafts with `comments: []` must not require source diff reads;
-- unavailable source diff data or provider/file patch omissions must preserve
-  submitted inline comments as skipped warnings instead of failing the dynamic
-  tool call.
+Draft states:
 
-Draft lifecycle:
+- **Publishing**: stored and being published;
+- **Published**: accepted by the provider; immutable;
+- **Publication failed**: blocked or rejected; retryable or discardable;
+- **Discarded**: dropped by the operator after a failed publication.
 
-- `draft`: editable and publishable;
-- `published`: immutable after GitHub publication succeeds;
-- `discarded`: intentionally ignored by the operator;
-- `publishFailed`: retryable after a failed publish attempt.
-
-Every GitHub pull request and GitLab merge request AppServer `reviewAnalysis`
-run must call `oratorio_run.SubmitReviewDraft` before it can succeed. If the agent finds no
-actionable issues, it must submit a summary-only draft with `majorCount`,
-`minorCount`, and `suggestionCount` all `0`, summary body `No issues found.`,
-and `comments: []`. A GitHub PR or GitLab MR review run that completes without any
-Review Draft fails with the stable error code `reviewDraftRequired`; Oratorio
-must not synthesize the draft on the agent's behalf.
-
-`reviewDraftRequired`, AppServer turn failure, and a non-operator AppServer
-turn cancellation are recoverable PR/MR review failures. They schedule a new
-run attempt in the same round according to the configured bounded retry policy.
-The immediately preceding failed thread may be resumed only when its failure is
-semantic or turn-level, its workspace and required Dynamic Tools still match,
-and the AppServer supports Dynamic Tool rebind. Timeout, disconnection, stalled
-heartbeat, and interrupted-run recovery start a fresh thread.
-
-A successfully persisted Review Draft is the authoritative result of a review
-analysis run. If a non-operator terminal failure arrives after the draft is
-stored, Oratorio completes the run from the draft, records the terminal signal
-as an operator-visible warning, and must not ask the agent to submit a duplicate
-draft. Explicit Oratorio operator cancellation remains authoritative.
-
-Comment lifecycle:
-
-- `accepted`: valid inline comment eligible for publication;
-- `skipped`: stored for audit and warning display, but not sent to GitHub.
-
-An accepted comment that has been published additionally carries a resolution
-state per §6.4. Publication status and resolution state are independent: only
-published, accepted comments are resolvable, and resolution never edits the
-published comment body.
+Each inline finding is either **accepted** (eligible for publication) or
+**skipped** (kept for audit and shown as a warning, never sent to the
+provider). Publication and resolution are independent: only accepted findings
+of a published draft are resolvable, and resolution never edits the published
+text.
 
 ### 6.2 Implementation and Follow-up Drafts
 
-Implementation mode is available for GitHub issues and Oratorio local tasks.
-GitHub pull requests remain review targets and are not mutated by
+Implementation is available for GitHub and GitLab issues and Oratorio local
+tasks. Pull and merge requests remain review targets and are never changed by
 implementation runs.
 
-Implementation runs expose an Oratorio-owned Runtime Dynamic Tool named
-`oratorio_run.SubmitImplementationDraft`. The tool is bound to the current run and thread in
-the same way as `oratorio_run.SubmitReviewDraft`; final agent summaries are not sufficient to
-create commits or pull requests. A valid draft includes a concise summary,
-validation notes, risks, changed files, proposed commit message, proposed PR
-title, and proposed PR body.
+Implementation runs submit through the **implementation draft submission
+tool**, bound to the run and thread like the review tool; a final agent summary
+is never enough to commit or open a pull request. A valid draft has a concise
+summary, validation notes, risks, changed files, a proposed commit message, and
+a proposed title and body for the pull or merge request.
 
-Agents may modify only the Oratorio-managed execution worktree selected for the
-run. Agents must not commit, push, create pull requests, write GitHub issues,
-publish reviews, approve, request changes, close issues, or merge. Oratorio
-performs delivery actions through its backend and GitHub App credentials.
+Agents may modify only the managed worktree selected for the run. They never
+commit, push, open pull or merge requests, write issues, publish reviews,
+approve, request changes, close or merge. Oratorio performs every delivery step
+through its backend and provider credentials.
 
-Delivery policy values are:
+Delivery policy:
 
-- `manualDelivery`: keep the Implementation Draft for explicit operator
-  delivery;
-- `autoPr`: after validation, commit locally, push a branch through the GitHub
-  App installation token, create a pull request through the GitHub API, upsert
-  the generated PR as a source item, and link it to the originating issue or
-  local task.
+- **Manual delivery**: the draft waits for the operator to deliver it;
+- **Automatic PR/MR**: once the draft is valid, Oratorio commits locally,
+  pushes a branch, opens the pull or merge request, adds it as a source item
+  and links it to the originating issue or local task.
 
-Approving an originating implementation item is blocked while it has an
-undelivered Implementation Draft. After generated PR delivery, approving the
-originating item means the operator accepts the handoff to the generated PR
-review flow; it does not approve or merge the generated PR.
+Approving an originating item is blocked while it has an undelivered
+implementation draft. After delivery, approving the originating item accepts
+the handoff to the generated change's review; it does not approve or merge that
+change.
 
-Implementation auto-dispatch is controlled separately from delivery policy.
-`autoDispatch` decides whether the backend scheduler may start eligible
-implementation runs. `deliveryPolicy` decides whether a valid draft waits for
-manual delivery or uses `autoPr`. Allow/block labels and repository/workspace
-configuration determine eligibility.
+**Implementation auto-dispatch** is separate from delivery policy: it decides
+whether the scheduler may start eligible implementation runs, while delivery
+policy decides what happens to a valid draft. Allow and block labels and
+repository and workspace configuration decide eligibility.
 
-Implementation follow-up delivery handles the case where an originating item that
-already delivered a generated pull request is implemented again under the
-Implementation Follow-up loop (§3). It is delivery of additional commits to the
-existing review target, not creation of a new one:
+Follow-up delivery covers an originating item that already delivered a pull or
+merge request and is implemented again under the Implementation Follow-up loop
+(§3). It adds commits to the existing review target instead of opening a new
+one:
 
-- Before creating a review target, delivery must detect an existing open
-  generated pull request for the originating item (by parent linkage and head
-  branch). When one exists, delivery pushes follow-up commits to the same branch
-  and updates the same generated PR item; it must not open a second pull request.
-  If the source API rejects a duplicate creation because the PR already exists,
-  delivery resolves and links the existing pull request instead of failing.
-- After a follow-up push, delivery updates the generated PR item head so that
-  Auto Review or `reReview` (§3, §6.1) detects the new head and re-reviews it.
-- The follow-up implementation round's managed worktree is prepared from the
-  existing generated PR branch head, not reset to the repository base ref, so
-  previously delivered commits are retained and new commits stack on top. This is
-  the narrow exception to the per-round worktree base-ref reset in §6.
+- Delivery first looks for an open generated change for the originating item
+  (by parent link and branch). When one exists it pushes to the same branch and
+  updates the same item, never opening a second one. If the provider rejects a
+  creation because the change already exists, delivery links the existing one
+  instead of failing.
+- After the push, the generated item's head is updated so Auto Review or
+  Re-review sees the new head and reviews it again.
+- The follow-up round's worktree starts from the generated branch's head, not
+  the repository base, so earlier commits are kept. This is the only exception
+  to the per-round base reset (§8).
 
-`autoFollowUp` is a third policy, independent of `autoDispatch` and
-`deliveryPolicy`. It decides whether the backend may automatically re-implement an
-originating item in response to its generated pull request's review feedback. It
-is globally gated and repository opt-in by exact `owner/name`, mirroring Auto
-Review and Draft auto-publish. With `autoFollowUp` disabled or the repository not
-allow-listed, generated PR feedback never auto-re-activates the originating item.
+**Implementation Follow-up** is a third policy, independent of auto-dispatch
+and delivery. It decides whether the backend may re-implement an originating
+item in response to review feedback on its generated change. It has a global
+switch and a per-repository opt-in, like Auto Review. When it is off or the
+repository is not opted in, feedback on a generated change never re-activates
+the originating item.
 
-The Implementation Follow-up loop (§3) is distinct from `oratorio_run.SubmitFollowUpDraft`
-below: the loop continues the current item's own delivery on its existing PR,
-while `oratorio_run.SubmitFollowUpDraft` proposes separately scoped new work.
+The Implementation Follow-up loop continues an item's own delivery on its
+existing change. Follow-up drafts are different: they propose separately scoped
+new work.
 
-Follow-up runs expose an Oratorio-owned Runtime Dynamic Tool named
-`oratorio_run.SubmitFollowUpDraft` when eligible. Agents use it to propose split-out work,
-blockers, or separately scoped improvements without directly creating external
-issues or mutating source trackers.
-
-Follow-up Drafts are bound to the current item, round, run, and AppServer thread.
-Operators can edit, discard, or create each draft as an Oratorio local task while
-it remains in `draft` status. Creating a local task copies the operator-reviewed
-fields into a new local task, marks the draft `created`, records the created item
-ID, and adds timeline entries on both the originating item and created task.
-When the originating item is a GitHub PR or GitLab MR and the draft does not
-explicitly override routing, the created local task inherits the review target's
-repository, head branch, and head SHA so later implementation runs start from
-the reviewed head rather than the mapped workspace's current `HEAD`.
-Follow-up Drafts are advisory and do not become hidden requirements for the
-current round.
+Runs may expose the **follow-up draft submission tool** when eligible. Agents
+use it to propose split-out work, blockers or separately scoped improvements
+without creating external issues or touching source trackers. A follow-up draft
+is bound to its item, round, run and thread. While a draft is pending the
+operator can edit it, discard it, or create a local task from it; creating
+copies the reviewed fields into a new local task, marks the draft created,
+links the new task, and adds timeline entries on both items. When the
+originating item is a pull or merge request and the draft does not override
+routing, the new task inherits the review target's repository, branch and head
+commit, so later implementation starts from the reviewed head rather than the
+workspace's current head. Follow-up drafts are advisory and never become
+hidden requirements of the current round.
 
 ### 6.3 Agent Discussion Turns
 
-Oratorio supports a narrow, lightweight operator question flow for completed
-AppServer work. This flow exists so operators can ask the agent questions from
-the Task detail Discussion without re-dispatching a full review or
-implementation round.
+Operators can ask the agent a question about completed AppServer work from the
+task's Discussion without dispatching a new round.
 
-The required ownership boundary is:
+- **Add comment** records internal operator feedback for the record and later
+  rounds.
+- **Ask agent** records an operator question and starts a Discussion Turn.
+- Re-review is the explicit way to review new commits; a comment or question
+  never creates a review round.
+- A Discussion Turn never creates a round or run, never changes the item's
+  lifecycle, current run or check state, and writes to a source only to resolve
+  a review finding (§6.4).
+- Questions and replies appear in the same Discussion history as comments, but
+  their purpose keeps them out of next-round feedback by default.
 
-- `Add comment` creates internal operator feedback for record keeping and later
-  review rounds.
-- `Ask agent` creates an internal operator discussion question and a
-  `DiscussionTurn`.
-- A pull request `reReview` action is the explicit way to dispatch a fresh
-  review after new commits. `Add comment` plus `Ask agent` must not implicitly
-  create a re-review round.
-- Discussion Turns never create a `Round` or `Run`, never change Task lifecycle
-  state, never update `currentRunId`, and never change check state. A Discussion
-  Turn writes to a source system only to resolve a review finding under §6.4;
-  it must perform no other source write.
-- Operator questions and agent replies are rendered in the same Discussion
-  history as comments, but their purpose keeps them out of next-round feedback
-  by default.
+Ask agent is allowed only when the item is not archived, dispatching or
+running; its latest successful AppServer run left a reusable compact-prompt
+thread that carries the discussion reply tool; and no Discussion Turn is
+already pending or running. Otherwise Oratorio rejects the request with a stable
+reason instead of dispatching a new round.
 
-Ask agent eligibility:
+The agent answers through the **discussion reply tool**, which Oratorio
+declares on every thread it creates so the thread's tool set stays
+prompt-cache friendly. The tool takes the Discussion Turn being answered and a
+Markdown reply. It succeeds only for the pending or running Discussion Turn on
+the current thread and turn; a mismatched thread or turn, an unknown or
+completed turn, or an empty reply fails with a stable reason. A call that
+arrives before Oratorio has recorded the turn binds the Discussion Turn to the
+call's turn. On success Oratorio records one agent reply comment, links it to
+the Discussion Turn, marks the turn succeeded and pushes a board update. Calls
+made during ordinary runs with no pending Discussion Turn fail.
 
-- The Task must not be archived, dispatching, or running.
-- The Task must have a latest compatible successful AppServer run with a
-  reusable thread whose prompt context used compact prompt mode and whose
-  dynamic tool list includes `oratorio_run.SubmitDiscussionReply`.
-- The Task must not already have a pending or running Discussion Turn.
-- If no compatible thread exists, Oratorio rejects Ask agent with a stable
-  validation error instead of implicitly dispatching a new round.
-
-The canonical agent reply contract is the Runtime Dynamic Tool
-`oratorio_run.SubmitDiscussionReply`. Oratorio declares this tool on every new
-Oratorio-created AppServer thread from `thread/start.dynamicTools` so the tool
-set remains prompt-cache friendly across later turns. The tool input is:
-
-- `discussionTurnId`: the pending Discussion Turn to answer;
-- `body`: the Markdown reply to record.
-
-`oratorio_run.SubmitDiscussionReply` succeeds only when the call is bound to the current
-thread and turn for a pending or running Discussion Turn. Mismatched thread,
-mismatched turn, unknown turn, completed turn, and empty reply calls must fail
-with stable errors. A call that arrives before Oratorio has recorded the turn ID
-binds the Discussion Turn to the call's turn. On success, Oratorio records one agent comment with purpose
-`discussionReply`, links it from the Discussion Turn, marks the Discussion Turn
-succeeded, and publishes a board update so the detail page refreshes.
-
-Discussion Turn prompts must be short and incremental. They should identify the
-Task, include the operator's question and `discussionTurnId`, mention the most
-recent run summary when available, and point the agent to the stable Oratorio
-discussion runtime context for reply submission and boundaries. They must not
-restate full source snapshots, full round history, imported source comment
-history, or stable tool-use rules.
-When the Task has open published review findings, the prompt may additionally
-list them per §6.4 so the agent can resolve a finding the discussion concludes
-is handled. Discussion Turns require both Dynamic Tool rebind and runtime
-additional context support.
+Discussion prompts are short and incremental: the task, the question and its
+Discussion Turn, the latest run summary when available, and a pointer to the
+stable Oratorio discussion guidance. They never restate full source snapshots,
+round history, imported comment history or stable tool rules. When the item
+has open published findings, the prompt may list them so the agent can resolve
+one the discussion concludes is handled (§6.4). Discussion Turns require
+AppServer support for rebinding run tools and for runtime guidance.
 
 ### 6.4 Review Finding Resolution
 
-A published review finding (§6.1) is a standing thread that stays open until it
-is addressed. Both agents and operators can close a finding without re-running a full review.
-Resolution serves two flows:
+A published finding (§6.1) is a standing thread that stays open until it is
+handled. Agents and operators can close it without a full review:
 
-- in an Agent Discussion Turn (§6.3), once discussion concludes a finding is a
+- in a Discussion Turn (§6.3), once the discussion concludes the finding is a
   non-issue or already handled;
-- in a later review round, once the agent confirms an earlier round's finding was
-  fixed at the current head.
+- in a later review round, once the agent confirms an earlier finding is fixed
+  at the current head.
 
 Oratorio owns resolution as durable state on the finding and, when the finding
-maps to a known source review thread, propagates it to the source system through
-installation credentials. Source resolution is never the source of truth;
-Oratorio's stored resolution state is.
+maps to a known provider review thread, mirrors it to the provider. Oratorio's
+stored state is the source of truth, never the provider's.
 
-Resolution model. Each published, accepted `ReviewDraftComment` carries:
+Each published, accepted finding carries:
 
-- `resolutionState`: `open` or `resolved`, defaulting to `open`;
-- `resolutionKind`, required when resolving: `fixed` means the underlying issue
-  was addressed in code, typically detected in a later round; `dismissed` means
-  the finding was agreed to be a non-issue or intentionally not actioned,
-  typically concluded in discussion;
-- `resolvedByKind`: `agent` or `operator`;
-- `resolutionNote`: optional short rationale;
-- `resolvedAt`;
-- resolution provenance: `resolvedInRunId` for review-round resolutions,
-  `resolvedViaDiscussionTurnId` for discussion resolutions, neither for operator
-  resolutions;
-- source-thread mapping: `remoteThreadId` and `remoteResolveWriteId` per the
-  source propagation rules below.
+- its state, **open** or **resolved** (open by default);
+- when resolved, its kind: **fixed** (addressed in code, usually found in a
+  later round) or **dismissed** (agreed non-issue or intentionally not acted
+  on, usually concluded in discussion);
+- who resolved it (agent or operator), an optional note and the time;
+- where it was resolved: the review run or the Discussion Turn (operator
+  resolutions have neither);
+- its provider thread, when known, and the source write that mirrored it.
 
-Resolution rules:
+Rules:
 
-- only an accepted comment in a `published` draft is resolvable; `skipped` and
-  unpublished comments are never resolvable because they were never posted;
-- resolving is idempotent: resolving an already-resolved finding with the same
-  kind is a success no-op; changing the kind updates the stored kind, actor, and
-  note;
-- operators may reopen a finding (`resolved` to `open`), which clears the
-  resolution fields and, when applicable, enqueues a source un-resolve;
-- open-finding tallies exclude resolved findings; resolved findings remain stored
-  and visible for audit.
+- only accepted findings of a published draft are resolvable; skipped and
+  unpublished findings never are;
+- resolving is idempotent; resolving again with another kind updates the kind,
+  actor and note;
+- operators may reopen a resolved finding, which clears its resolution and,
+  when applicable, un-resolves the provider thread;
+- open counts exclude resolved findings; resolved findings stay stored and
+  visible for audit.
 
-Agent contract. The canonical agent contract is a Runtime Dynamic Tool named
-`oratorio_run.ResolveReviewFinding`, declared on every Oratorio-created AppServer thread
-alongside `oratorio_run.SubmitDiscussionReply` so both the originating review run and later
-Discussion Turns on the same thread can call it, and so the thread tool set stays
-prompt-cache friendly. Its input is:
+Agents resolve through the **finding resolution tool**, declared on every
+thread Oratorio creates alongside the discussion reply tool, so the review run
+and later Discussion Turns on that thread can both use it. It takes the
+finding, the kind (fixed or dismissed) and an optional note. It succeeds only
+on the current thread and for a finding of the same item as the calling run or
+Discussion Turn; other threads, other items' findings, unknown findings and
+non-resolvable findings fail with stable reasons. On success Oratorio records
+the agent resolution with its origin, adds a timeline entry, pushes a board
+update and returns the finding's new state. Resolving a finding is the only
+source-affecting change a Discussion Turn may make.
 
-- `findingId`: the published `ReviewDraftComment` to resolve;
-- `resolutionKind`: `fixed` or `dismissed`;
-- `note`: optional rationale.
+A prompt that offers the tool lists the open published findings it may target
+and limits the kind to its flow: a review round resolves only as fixed, only for
+findings addressed at the current head; a Discussion Turn resolves only as
+dismissed, only once the discussion concluded the finding is a non-issue or
+already handled. Resolution never substitutes for answering the operator.
 
-`oratorio_run.ResolveReviewFinding` succeeds only when the call is bound to the current thread
-and the finding belongs to the same Item as the calling run or Discussion Turn.
-Mismatched thread, cross-Item findings, unknown findings, and non-resolvable
-findings must fail with stable errors (`reviewFindingNotFound`,
-`reviewFindingNotResolvable`). On success it records the resolution with
-`resolvedByKind` `agent`, sets the matching provenance, appends a timeline event,
-publishes a board update, and returns the `findingId` and resulting
-`resolutionState`. Resolving a finding is the only source-affecting state change
-an Agent Discussion Turn may make.
+**Provider mirroring.** Each published inline finding carries a hidden marker
+naming the finding, so Oratorio can map it to its provider thread when it
+reconciles the publication: a GitHub pull request review thread, or the GitLab
+discussion created for it. When a mapped finding is resolved or reopened,
+Oratorio queues a source write that resolves or un-resolves that thread through
+the usual audit and retry path. Provider mirroring:
 
-A prompt that offers `oratorio_run.ResolveReviewFinding` must list the open
-published findings the call may target, with their `findingId` values, and must
-constrain the resolution kind to the flow it is running: a review round may
-resolve only as `fixed`, and only for findings addressed at the current head; a
-Discussion Turn may resolve only as `dismissed`, and only when the discussion has
-concluded the finding is a non-issue or already handled. Resolution must never
-substitute for answering the operator's question.
-
-Source propagation. Resolution propagates to the source review thread only when
-Oratorio knows the finding's source thread identity. To map findings to threads,
-each accepted inline comment published under §6.1 carries a stable hidden marker
-referencing its `findingId`. During publish reconciliation Oratorio records
-`remoteThreadId` per finding:
-
-- GitHub: each published `COMMENT` review inline comment maps to a pull request
-  review thread; Oratorio records the GraphQL review-thread node id per finding;
-- GitLab: each inline discussion created during publication maps to one finding;
-  Oratorio records the discussion id per finding.
-
-When a finding becomes resolved and a `remoteThreadId` exists, Oratorio enqueues
-a `SourceWrite` of canonical kind `resolveReviewThread` that resolves the thread
-through the same source-write audit and retry machinery as other writes:
-
-- GitHub resolves with the `resolveReviewThread` GraphQL mutation and un-resolves
-  with `unresolveReviewThread`;
-- GitLab resolves the discussion with `resolved=true` and un-resolves with
-  `resolved=false`.
-
-Source resolution requirements:
-
-- it only toggles the thread resolved flag and never changes review decision,
-  approval, merge, close, or branch-protection state;
-- it operates only on PRs/MRs Oratorio published to; if no `remoteThreadId` is
-  known — for example a draft published before mapping existed, or a comment that
-  was `skipped` — resolution stays internal-only and records an operator-visible
-  note that the source thread was not resolved;
-- a failed `resolveReviewThread` write retries only that write record per §4 and
-  never alters the stored resolution state;
-- propagation follows the same provider write controls as other source writes;
-  disabled writes or invalid credentials record a failed source write rather than
-  silently keeping the resolution internal-only.
+- only toggles the thread's resolved flag and never changes review decision,
+  approval, merge, close or branch protection;
+- applies only to changes Oratorio published to; without a known thread (for
+  example a skipped finding) resolution stays internal and the operator sees
+  that the provider thread was not resolved;
+- on failure retries only that write and never changes the stored resolution;
+- follows the same provider write controls as other writes: disabled writes or
+  invalid credentials record a failed write rather than silently staying
+  internal.
 
 ## 7. Automation Policies
 
-Review Draft publication may be manual or automatic by Draft auto-publish
-policy. Draft auto-publish is globally gated and repository opt-in by exact
-`owner/name`. It must publish only a GitHub `COMMENT` review, never `APPROVE`,
-`REQUEST_CHANGES`, merge, close, issue-close, or branch-protection decision
-events. Draft auto-publish does not resolve the Oratorio item; the item remains
-`AwaitingReview` until an operator records an Oratorio decision. Draft warnings,
-skipped inline comments, stale head SHA, missing GitHub write authentication, or
-disabled GitHub writes block auto-publication and create failed source-write
-records tied to the draft.
+Review publication is not a policy: every successful pull or merge request
+review is published automatically under the gates of §6.1.
 
-GitHub publication uses a single `COMMENT` pull request review with the summary
-body plus accepted inline comments. Only concrete code suggestions render a
-fenced `suggestion` block; comment-only findings publish as prose comments.
-Provider publication preserves concrete-suggestion and comment-only semantics without granting review-decision authority.
+**Repository Auto Review** is configured as a list of exact repositories or
+projects, each on or off. Label-based review triggers are not part of Auto
+Review and never affect implementation auto-dispatch. Auto Review:
 
-Draft auto-publish is configured as a repository allowlist over the configured
-GitHub repositories, under `Automation.AutoReviewPublishEnabled` and its
-allowlist. A non-empty allowlist enables the policy for exactly those
-repositories; an empty allowlist disables it.
+- baselines the open non-draft pull or merge requests when a repository is
+  enabled or re-enabled, and never queues historical reviews;
+- after enablement, queues a review run for each new open non-draft pull or
+  merge request;
+- queues one new review round for each observed head change, behaving exactly
+  like a manual Re-review (§3);
+- skips draft, closed, merged, archived, rejected and active-run items,
+  non-review-target items and items without a workspace route, and records a
+  visible skip or error;
+- when a new head appears during an active review, remembers the latest head
+  and queues exactly one round for it after the active run ends.
 
-Repository-level Auto Review is a separate policy, configured under
-`Automation.AutoReviewRepositories` and exposed as
-`automation.autoReviewRepositories` in the Settings API. Each entry is an exact
-`owner/name`, and a configured repository is either off or on. Label-based PR
-review triggers are not part of the Auto Review contract and must not affect
-Issues implementation auto-dispatch policy.
+**Implementation auto-dispatch** allow and block labels are trimmed, empty
+entries dropped and duplicates removed ignoring case while keeping the first
+spelling. An empty allow list means every otherwise eligible, unblocked issue
+and local task may dispatch.
 
-Implementation auto-dispatch allow and block labels are trimmed; empty
-entries are ignored, and duplicates are removed case-insensitively while
-preserving the first entered spelling. An empty allow list continues to mean
-all otherwise eligible, unblocked GitHub Issues and local tasks may dispatch.
-
-Auto Review scheduler requirements:
-
-- when a repository is first enabled or re-enabled, baseline current open
-  non-draft PRs and do not queue historical reviews;
-- after enablement, a new open non-draft PR queues an AppServer
-  `reviewAnalysis` run;
-- after enablement, each observed PR head SHA change queues one new review
-  round for the latest head;
-- auto re-review must match manual `reReview` in every respect (§3);
-- skip draft, closed, merged, archived, rejected, active-run, non-PR, non-GitHub
-  and missing-workspace-route items, and record operator-visible skip or error
-  state;
-- if a new head appears while a review run is active, record the latest
-  observed head and queue exactly one follow-up round for that latest head after
-  the active run completes.
+**Implementation Follow-up** is described in §6.2.
 
 ## 8. AppServer, Hub, and Prompt Contract
 
-Oratorio uses DotCraft AppServer as the runtime boundary.
+Oratorio uses DotCraft AppServer as the runtime boundary. It:
 
-Required AppServer interactions:
-
-- establish an initialized SDK connection with automatic Wire reconnect disabled;
-- resolve a workspace AppServer endpoint through Hub when available and fall
-  back to explicit configuration when Hub cannot provide one;
-- start a new thread or reuse a compatible existing thread for an item;
-- declare Oratorio-owned Runtime Dynamic Tools through `thread/start.dynamicTools`
-  when a round requires thread-scoped callbacks such as PR review drafts,
-  implementation drafts, follow-up drafts, or discussion replies;
-- declare Oratorio-owned, versioned, thread-stable runtime guidance through
-  `thread/start.additionalContext` and rebind the same guidance through
-  `thread/resume.additionalContext` for reused threads;
-- for accepted App Binding board-tool grants, attach the tools and upsert a
-  model-visible App Context Block that tells DotCraft to search/load Oratorio
-  board tools before answering board or task-management requests;
-- attach per-thread or plugin-bundled MCP tools through `mcpServers` only when a
-  round uses external reusable services that are not submitting back into
-  a specific Oratorio run;
-- submit the rendered prompt as a turn;
-- subscribe to thread and turn events;
-- map turn completion, failure, cancellation, timeout, and disconnection into
-  Oratorio run status;
-- treat an SDK Run disconnect as `appServerDisconnected`, then use the
-  bounded retry flow to resume and subscribe without replaying the original
-  `turn/start`;
-- when an Oratorio AppServer run timeout or stalled-run timeout fires after a
-  turn has started, request a DotCraft turn interrupt and wait for a terminal
-  notification or a short bounded acknowledgement window before closing the
+- connects through the SDK with its own reconnect handling (automatic wire
+  reconnect off);
+- resolves a workspace's AppServer through Hub, falling back to an explicitly
+  configured endpoint when Hub cannot provide one;
+- starts a new thread or reuses a compatible one for an item;
+- declares its run tools when it starts a thread for a round that needs
+  thread-bound callbacks (review, implementation and follow-up drafts,
+  discussion replies, finding resolution);
+- supplies versioned, thread-stable Oratorio guidance as runtime context when a
+  thread starts, and supplies the same guidance again when resuming a reused
+  thread;
+- for an accepted App Binding board-tool grant, attaches the board tools and
+  tells DotCraft to search for and load them before answering board or task
+  requests;
+- attaches external MCP tools only for reusable services that never submit
+  back into a specific run;
+- submits the rendered prompt as a turn and follows thread and turn events;
+- maps completion, failure, cancellation, timeout and disconnection to run
+  status;
+- treats an SDK disconnect as a disconnection failure and recovers through the
+  bounded retry flow by resuming and re-subscribing, never replaying the
+  original turn;
+- when a run or stall timeout fires after a turn started, asks DotCraft to
+  interrupt the turn and waits briefly for a terminal signal before closing the
   run;
-- schedule an automatic retry for a timed-out or stalled run only after the old
-  turn is confirmed terminal. If Oratorio cannot issue the interrupt or confirm
-  termination within that window, close the run with
-  `appServerTerminationUnconfirmed` and require an operator to retry;
-- keep Oratorio's timeout budget authoritative: a DotCraft completion that
-  arrives after Oratorio has timed out is recorded as a late terminal signal and
-  must not convert the Oratorio run back to success;
-- record thread ID, turn ID, prompt context, summary, and error details.
+- retries a timed-out or stalled run only after the old turn is confirmed
+  ended. If the interrupt cannot be sent or confirmed in time, it closes the run
+  as termination unconfirmed and requires an operator retry;
+- keeps its own timeout authoritative: a DotCraft completion arriving after an
+  Oratorio timeout is recorded as a late signal and never turns the run back
+  into a success;
+- records the thread, turn, prompt context, summary and errors.
 
-Prompt context for real AppServer rounds must include:
+Prompt context for AppServer rounds includes the current source snapshot, the
+round and attempt, the operator's dispatch note, imported source comments,
+operator comments, prior run summaries and errors, and workspace, repository,
+branch and head commit when available.
 
-- current source item snapshot;
-- current round and attempt metadata;
-- operator dispatch note;
-- imported source comments;
-- Oratorio operator comments;
-- prior run summaries and errors;
-- workspace, repository, branch, and head SHA metadata when available.
+For an implementation run on an originating item with a generated pull or merge
+request (the Implementation Follow-up loop, §3, §6.2), the turn's feedback also
+lists the generated change's open published findings — severity, title, path,
+line and any suggested replacement — and the human review comments added since
+the previous follow-up round, and asks the agent to address them on the
+existing branch. The implementation agent does not resolve findings itself:
+resolution stays with the generated change (§6.4), so the push moves its head
+and the next review round resolves what it confirms fixed. This is the only
+place one item's prompt references another item's review state, and it is
+limited to the originating-item-to-generated-change link. Only published
+findings take part. This per-run, cross-item feedback stays in the turn
+request, never in thread-stable guidance.
 
-For an implementation run on an originating item that has a linked generated pull
-request (the Implementation Follow-up loop, §3, §6.2), the per-turn prompt's
-feedback section must additionally include the generated PR's still-open published
-review findings — `findingId`, severity, title, path, line, and the
-`suggestionReplacement` text for concrete code suggestions — together with the
-human PR review comments added since the previous follow-up round. The prompt
-instructs the agent to address them on the existing PR branch. The implementation
-agent does not resolve findings itself: finding resolution stays bound to the
-generated PR per §6.4, so the follow-up push changes the PR head and the
-subsequent PR review round resolves the findings it confirms fixed. This is the
-only place where one item's prompt references another item's review
-state, and it is bounded to the originating-item → generated-PR parent link. Only
-findings from a published review draft participate; unpublished drafts do not
-trigger or feed the loop. This per-run, cross-item feedback stays in the user-turn
-request, never in thread-stable runtime additional context.
+The stored prompt context is audit data and may hold full structured context.
+The prompt the operator sees is compact prose: the review target, the source
+description, new operator feedback, the current task and the available tools.
 
-The stored prompt context is audit data and may contain full structured
-context. The operator-visible prompt is compact prose covering the review
-target, the source description, new operator feedback, the current task, and the
-available tools.
+The agent prompt never contains a serialized context dump, full round history,
+the full source snapshot, the full imported comment history or every prior
+summary, unless a product change deliberately changes this contract. Stable run
+rules, source write boundaries, draft formatting and submission rules, and
+Discussion tool rules belong in the thread-stable guidance, not in each turn.
+That guidance is stable for the thread's lifetime and never carries per-run or
+per-turn facts such as discussion turns, operator questions, open finding
+state, head commits, or whether a diff snapshot is available. If AppServer does
+not support runtime guidance, Oratorio runs fail with a stable reason instead
+of falling back to prompt injection.
 
-The agent-facing prompt must not include a full serialized `Context JSON:`
-section, full round history, full source snapshot payload, full imported comment
-history, or all prior summaries unless a specific product change intentionally
-changes the prompt contract. Stable Oratorio run rules, source-write boundaries,
-Review Draft formatting rules, implementation draft submission rules, follow-up
-draft submission rules, and Discussion Turn tool-use rules belong in runtime
-additional context rather than in each turn's user request. Runtime additional
-context is thread-lifecycle context: it must be stable for the thread and must
-not include per-run or per-turn facts such as concrete discussion turn IDs,
-operator questions, open finding state, source head SHAs, or whether a specific
-review diff snapshot is currently available. If the AppServer does not advertise
-`runtimeAdditionalContext`, Oratorio-created runs must fail with
-`runtimeAdditionalContextUnsupported` instead of falling back to prompt
-injection.
+Thread reuse:
 
-Thread reuse contract:
+- Oratorio may reuse the item's latest successful AppServer thread when it used
+  compact prompts, the workspace is the same, and the required run tools match
+  exactly. Otherwise it starts a new compact-prompt thread and records why.
+- A reused thread still gets a new turn and a new run.
+- New threads receive the full compact context. Reused threads receive only the
+  incremental request, new feedback, source changes and required metadata, and
+  never repeat the compact prompt already in the thread.
+- Re-review runs use ordinary review prompts. On a reused thread the
+  incremental input names the old and new head commits and asks the agent to
+  review the latest head, focusing on new changes when useful.
+- Before a turn on a reused thread, Oratorio resumes the thread with the run's
+  tools and the same guidance version. If tools cannot be rebound, it starts a
+  fresh thread instead of reusing a stale callback; if guidance cannot be
+  accepted, the run fails. Threads from an older guidance version are not
+  reused.
+- Tool calls stay bound to the current run, round, connection and thread;
+  stale or mismatched calls fail with a stable reason.
 
-- Oratorio may reuse the latest successful AppServer run thread for the same
-  item when the previous run used compact prompt mode, the workspace path is the
-  same, and required Dynamic Tools match exactly.
-- If no compatible thread is found, Oratorio creates a new compact-prompt
-  thread and records the reason in the timeline.
-- Reused threads still create a new turn and a new Oratorio run.
-- New threads receive full compact context. Reused threads receive only the
-  incremental user request, new operator feedback, source deltas, and required
-  metadata needed for the next turn; they must not repeat the full compact
-  prompt that was already injected into the thread.
-- Re-review runs caused by a changed pull request head use ordinary review run
-  prompts. When a compatible thread is reused, the incremental operator input
-  must state the old and new head SHAs and ask the agent to re-review the latest
-  head while focusing on new changes when useful.
-- Before starting a turn on a reused thread, Oratorio resumes the AppServer
-  thread with the current run's Dynamic Tools and the same versioned Oratorio
-  runtime additional context used for the thread lifecycle. If the server cannot
-  rebind tools, Oratorio creates a fresh thread instead of reusing a stale
-  callback binding. If the server cannot accept runtime additional context,
-  Oratorio fails the run. Threads whose stored prompt context has an older
-  runtime context version are not eligible for reuse.
-- Tool calls remain bound to the current run, round, connection, and thread.
-  Stale or mismatched calls must fail with a stable error.
-- `oratorio_run.SubmitDiscussionReply` is declared on every new Oratorio-created
-  AppServer thread, but it is accepted only for the currently bound
-  Discussion Turn thread and turn. Calls made during ordinary review or
-  implementation runs without a pending Discussion Turn must fail with a stable
-  error.
-- Hub is used for AppServer endpoint discovery, not as a message relay or
-  security boundary. Oratorio resolves a configured repository workspace path,
-  asks Hub for the workspace's AppServer endpoint, then connects directly to that
-  AppServer.
-- In remote-controlled Desktop topology, Hub discovery and explicit AppServer
-  endpoints are evaluated from the remote backend host or container, not from the
-  operator's local Desktop machine.
-- Repository workspace routing must support a single configured workspace and
-  explicit `owner/name` to absolute workspace path mappings. There is no
-  implicit fallback workspace route.
-- A configured absolute workspace path may be temporarily unavailable. Settings
-  preserves that route so an operator can rebind or remove it; runtime probes and
-  execution, rather than configuration persistence, determine availability.
-- When Hub is unavailable, an explicit AppServer endpoint may be used for mapped
-  workspaces; it does not imply a fallback workspace path. If no endpoint can be
-  resolved for a mapped workspace, status surfaces and runs must report the
-  stable reason `workspaceNotRegisteredInHub`.
+Hub and routing:
 
-Managed worktree and concurrency contract:
+- Hub is used only to discover a workspace's AppServer, not as a relay or
+  security boundary. Oratorio resolves the configured workspace path, asks Hub
+  for its AppServer and connects directly.
+- In a remote deployment, Hub discovery and explicit endpoints are evaluated
+  from the remote backend, not the operator's machine.
+- Workspace routing supports a single workspace or explicit repository-to-path
+  mappings. There is no implicit fallback route.
+- A configured path may be temporarily unavailable; Settings keeps it so the
+  operator can rebind or remove it, and probes and runs decide availability.
+- Without Hub, an explicit endpoint may serve mapped workspaces but implies no
+  fallback path. If no endpoint resolves for a mapped workspace, status and runs
+  report that the workspace is not registered in Hub.
 
-- AppServer runs use Oratorio-managed Git worktrees by default. Mock runs do
-  not require a worktree.
-- Hub and AppServer endpoint discovery use the mapped repository checkout.
-  DotCraft thread state remains owned by that base workspace; the execution
-  workspace uses the managed worktree through `executionWorkspaceOverride`.
-- If the base checkout is missing or is not a Git repository, preparation fails
-  clearly and Oratorio must not silently dispatch against a shared workspace.
-- Fetching a review target ref that is absent from the mapped checkout uses the
-  same Oratorio-owned source credentials as the write path in §5.2. When no
-  credential is configured for the project, the fetch falls back to anonymous
-  transport and therefore succeeds only for public repositories; preparation
-  then fails with `reviewTargetFetchFailed` and names the missing credential.
-- Worktree identity is deterministic per work item so repeated rounds can reuse
-  the same isolated workspace when it is clean and valid.
-- Worktrees live under the configured Oratorio-managed root. By default this is
-  `<repositoryWorkspace>/.craft/oratorio/worktrees`.
-- Managed work branches use the `oratorio/run` prefix. Their full deterministic
-  name is `oratorio/run/<work-item-key>`; `oratorio/run` is not itself a shared
-  default branch.
-- Reuse must validate the existing worktree. Dirty or invalid worktrees fail
-  preparation with operator-visible errors instead of destructive cleanup.
-- Each run records the base workspace path, worktree path, worktree branch,
-  requested base ref, resolved base SHA, worktree status, error details, retry
-  count, next retry time, lease owner, and lease acquisition time.
-- A run's worktree is in exactly one state: not required, preparing, ready,
-  cleanup pending, cleaned, or failed.
-- AppServer scheduling uses explicit leases and configurable capacity limits at
-  global, repository, and source levels.
-- AppServer runs interrupted by backend restart reconnect to the persisted
-  endpoint and interrupt the persisted turn before applying the retry policy.
-  If termination cannot be confirmed, Oratorio closes the run without an
-  automatic retry. Stale heartbeats use the same interrupt-and-confirm path.
-- Transient preparation, AppServer, timeout, disconnection, and stalled-run
-  failures may schedule bounded retries with exponential backoff capped at five
-  minutes.
-- `MaxRunAttempts` is the maximum total number of runs in the automatic retry
-  set, including the initial run. Intermediate attempt failures keep the round
-  and source review gate pending; only success or exhausted retries complete
-  the gate.
-- A queued PR/MR review retry remains bound to its target head SHA. If source
-  sync observes a different head before the retry starts, Oratorio cancels the
-  queued run with `reviewRetrySuperseded`, marks the round `Superseded`, closes
-  the old head's review gate, and leaves the new head eligible for a new review
-  round with a fresh attempt budget.
-- Successful managed worktrees are retained briefly for inspection and then
-  cleaned. Failed or timed-out worktrees are retained longer for debugging.
-  Cleanup is allowed only for persisted Oratorio-managed paths under the
-  configured root.
+Managed worktrees and concurrency:
 
-Review analysis runs must preserve the read-only safety posture: no GitHub
-writes by the agent, no merges, no branch or commit creation, no pull requests,
-and no workspace file mutation. Implementation runs are the narrow exception:
-the agent may modify only the selected Oratorio-managed execution worktree, and
-Oratorio remains responsible for commit, push, pull request creation, and source
-write audit.
+- AppServer runs use Oratorio-managed Git worktrees by default; mock runs need
+  none.
+- Hub discovery and thread ownership use the mapped repository checkout; the
+  run executes in the managed worktree.
+- If the base checkout is missing or not a Git repository, preparation fails
+  clearly; Oratorio never silently runs against a shared workspace.
+- Fetching a review target that the checkout lacks uses the same Oratorio
+  source credentials as writes (§5.2). Without a configured credential the
+  fetch is anonymous and works only for public repositories; otherwise
+  preparation fails and names the missing credential.
+- Each work item has a deterministic worktree and branch, so later rounds can
+  reuse a clean, valid worktree. Worktrees live under the configured managed
+  root, inside the repository by default, and branches use the configured
+  prefix.
+- Reuse validates the worktree; a dirty or invalid one fails preparation with a
+  visible error instead of being destroyed. Each round's worktree is reset to
+  the requested base, except for Implementation Follow-up (§6.2).
+- Each run records its base workspace, worktree, branch, requested and resolved
+  base, worktree state, errors, retry count and next retry, and scheduling
+  lease. A worktree is in exactly one state: not required, preparing, ready,
+  cleanup pending, cleaned or failed.
+- Scheduling uses explicit leases and configurable global, repository and
+  source capacity limits.
+- Runs interrupted by a backend restart reconnect to their recorded endpoint
+  and interrupt the recorded turn before the retry policy applies; if
+  termination cannot be confirmed, the run closes without an automatic retry.
+  Stale heartbeats take the same path.
+- Transient preparation, AppServer, timeout, disconnection and stall failures
+  may retry with exponential backoff capped at five minutes. The maximum run
+  attempts setting counts the initial run. Intermediate failures keep the round
+  and the source review gate pending; only success or exhausted retries
+  complete the gate.
+- A queued review retry stays bound to its head commit. If sync sees a new head
+  before the retry starts, Oratorio cancels the queued run as superseded, marks
+  the round superseded, closes the old head's gate, and leaves the new head
+  eligible for a new round with a fresh attempt budget.
+- Successful worktrees are kept briefly for inspection, failed or timed-out
+  ones longer for debugging. Cleanup touches only recorded managed paths under
+  the configured root.
 
-When PR review suggestion drafting is enabled, prompts must instruct the agent
-to call the available `oratorio_run.SubmitReviewDraft` tool instead of embedding
-machine-readable review JSON in the final answer. GitHub PR and GitLab MR
-review runs must always call the tool, including clean reviews with zero inline
-comments. Inline findings must target commentable changed/context lines from
-the PR/MR diff rather than arbitrary full-file line numbers. If
-`oratorio_run.SubmitReviewDraft` fails with `reviewDraftAnchorNotCommentable`, the prompt
-must require the agent to choose from the returned ranges and call the tool
-again before completing the turn. Final summaries should describe what was
-submitted and any warnings that remain, while the tool call remains the
-canonical structured delivery channel.
+Review runs are read-only: no source writes by the agent, no merges, no
+branches or commits, no pull or merge requests and no workspace changes.
+Implementation runs are the narrow exception: the agent may change only its
+managed worktree, and Oratorio performs commit, push, pull or merge request
+creation and their audit.
+
+Review prompts tell the agent to submit through the review draft submission
+tool rather than embedding machine-readable review data in its answer, and to
+submit even for a clean review. Inline findings target commentable changed or
+context lines of the diff, not arbitrary file lines. When a submission fails on
+a non-commentable anchor, the agent must choose from the returned ranges and
+submit again before ending the turn. The final summary describes what was
+submitted and any remaining warnings; the tool call remains the structured
+result.
 
 ## 9. Desktop Renderer Behavior Contract
 
-Clients render server-owned lifecycle, capability and validation state. They must not invent transitions or treat local presentation state as a domain mutation. [Desktop DESIGN](../../architecture/DESIGN.md) governs shared visual primitives.
+Clients render server-owned lifecycle, capability and validation state. They
+never invent transitions or treat local presentation state as a domain change.
+[Desktop DESIGN](../../architecture/DESIGN.md) governs shared visual
+primitives; [Oratorio Native Surfaces](oratorio-frontend.md) defines the
+Oratorio surfaces.
 
 ## 10. Operations and Validation
 
-Self-hosted Oratorio requires operator authentication, encrypted secret handling, health checks, bounded diagnostics and a single-node operating model. Source writes and lifecycle decisions remain auditable independently of their client presentation. Enterprise SSO, hosted SaaS and general deployment administration are outside this contract.
+Self-hosted Oratorio requires operator authentication, encrypted secret
+handling, health checks, bounded diagnostics and a single-node operating model.
+Source writes and lifecycle decisions remain auditable independently of their
+client presentation. Enterprise SSO, hosted SaaS and general deployment
+administration are outside this contract.

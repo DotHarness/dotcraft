@@ -240,17 +240,6 @@ public static class OratorioEndpoints
             return Results.Ok(result);
         });
 
-        group.MapPatch("/review-drafts/{draftId}", async (
-            string draftId,
-            ReviewDraftUpdateRequest request,
-            ReviewDraftService drafts,
-            OratorioService items,
-            CancellationToken ct) =>
-        {
-            var result = await drafts.UpdateAsync(draftId, request, items, ct);
-            return Results.Ok(result);
-        });
-
         group.MapPost("/review-drafts/{draftId}/publish", async (
             string draftId,
             ReviewDraftService drafts,

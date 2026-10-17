@@ -11,8 +11,6 @@ public sealed class OratorioAutomationOptions
     public DeliveryPolicy DeliveryPolicy { get; set; } = DeliveryPolicy.ManualDelivery;
     public int MaxImplementationTurns { get; set; } = 3;
     public string[] AutoReviewRepositories { get; set; } = [];
-    public bool AutoReviewPublishEnabled { get; set; }
-    public string[] AutoReviewPublishRepositories { get; set; } = [];
     public bool AutoFollowUpEnabled { get; set; }
     public string[] AutoFollowUpRepositories { get; set; } = [];
     public int MaxFollowUpRounds { get; set; } = 5;
@@ -24,11 +22,6 @@ public sealed class OratorioAutomationOptions
     public bool CanAutoReviewRepository(string? repository) =>
         !string.IsNullOrWhiteSpace(repository) &&
         AutoReviewRepositories.Any(x => MatchesRepository(x, repository));
-
-    public bool CanAutoPublishReviewForRepository(string? repository) =>
-        AutoReviewPublishEnabled &&
-        !string.IsNullOrWhiteSpace(repository) &&
-        AutoReviewPublishRepositories.Any(x => MatchesRepository(x, repository));
 
     public bool CanAutoFollowUpRepository(string? repository) =>
         AutoFollowUpEnabled &&

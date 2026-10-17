@@ -11,8 +11,8 @@ You can run Oratorio before connecting any provider:
 1. Open a Git repository as a project in DotCraft Desktop.
 2. Select **Oratorio** in the sidebar.
 3. Select **New local task**, describe the problem, and choose the repository and base branch.
-4. Open the card and pick a run mode under **Start Agent work**.
-5. Follow the run in Quick View, then open the full task once it is ready for review.
+4. Open the card and start a run with the button at the top of the task.
+5. Follow the run in the task's Activity, and review it there once it is ready.
 
 Agent work happens in a worktree Oratorio creates for the run, so the checkout you are using stays untouched. For the full path from filtering the Board to reviewing and delivering, see the [Oratorio workflow](./workflow).
 

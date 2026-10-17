@@ -2523,14 +2523,14 @@ public sealed class OratorioApiTests
             client,
             $"/api/v1/items/id/{pr.ItemId}/dispatch",
             new DispatchRequest("appServer", "Initial read-only DotCraft pass.", null, null));
-        await WaitForItemByIdAsync(client, pr.ItemId!, x => x.Item.State == ItemState.AwaitingReview);
+        await WaitForItemByIdAsync(client, pr.ItemId!, x => x.Item.State == ItemState.AwaitingReview && x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status == ReviewDraftStatus.Published);
 
         var approved = await PostAsync<ItemDetailResponse>(
             client,
             $"/api/v1/items/id/{pr.ItemId}/approve",
             new DecisionRequest("Looks good."));
         Assert.Equal(ItemState.Approved, approved.Item.State);
-        Assert.Equal(4, approved.SourceWrites.Count);
+        Assert.Equal(5, approved.SourceWrites.Count);
 
         clock.Advance(TimeSpan.FromMinutes(5));
         MoveDefaultPullRequestHead(fakeGitHub, "fed789", clock.UtcNow);
@@ -2540,9 +2540,9 @@ public sealed class OratorioApiTests
         Assert.Equal(ItemState.Dispatching, queued.Item.State);
         Assert.Equal(2, queued.Item.CurrentRound);
         Assert.Contains(queued.Rounds, x => x.RoundNumber == 1 && x.Status == RoundStatus.Superseded);
-        Assert.Equal(5, queued.SourceWrites.Count);
+        Assert.Equal(6, queued.SourceWrites.Count);
         Assert.Contains(queued.SourceWrites, x => x.Kind == SourceWriteKind.CheckRun && x.Intent == "reviewGateStart" && x.HeadSha == "fed789");
-        Assert.Single(fakeGitHub.PullRequestReviews);
+        Assert.Equal(2, fakeGitHub.PullRequestReviews.Count);
         Assert.Equal(2, fakeGitHub.CheckRuns.Count);
     }
 
@@ -3212,7 +3212,7 @@ public sealed class OratorioApiTests
         var reviewed = await WaitForItemByIdAsync(
             client,
             pr.ItemId!,
-            x => x.Item.State == ItemState.AwaitingReview && x.ReviewDrafts.Count == 1);
+            x => x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status == ReviewDraftStatus.Published);
         var draft = Assert.Single(reviewed.ReviewDrafts);
         var run = Assert.Single(reviewed.Runs, x => x.RunnerKind == "appServer");
 
@@ -3231,9 +3231,6 @@ public sealed class OratorioApiTests
             write.Kind == SourceWriteKind.CheckRun &&
             write.Intent == "reviewGateComplete" &&
             write.Status == SourceWriteStatus.Succeeded);
-
-        var published = await PostAsync<ItemDetailResponse>(client, $"/api/v1/review-drafts/{draft.DraftId}/publish", new { });
-        Assert.Equal(ReviewDraftStatus.Published, Assert.Single(published.ReviewDrafts).Status);
         var review = Assert.Single(fakeGitHub.PullRequestReviews);
         Assert.Equal("COMMENT", review.Event);
         Assert.Equal("No issues found.", review.Body);
@@ -3783,7 +3780,7 @@ public sealed class OratorioApiTests
             $"/api/v1/items/id/{pr.ItemId}/dispatch",
             new DispatchRequest("appServer", "Prepare a retryable synthetic review anchor regression.", null, null));
 
-        var reviewed = await WaitForItemByIdAsync(client, pr.ItemId!, x => x.Item.State == ItemState.AwaitingReview && x.ReviewDrafts.Count == 1);
+        var reviewed = await WaitForItemByIdAsync(client, pr.ItemId!, x => x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status != ReviewDraftStatus.Draft);
         var draft = Assert.Single(reviewed.ReviewDrafts);
 
         Assert.Collection(
@@ -3794,7 +3791,7 @@ public sealed class OratorioApiTests
                 Assert.Equal("reviewDraftAnchorNotCommentable", first.ErrorCode);
             },
             second => Assert.True(second.Success));
-        Assert.Equal(ReviewDraftStatus.Draft, draft.Status);
+        Assert.Equal(ReviewDraftStatus.Published, draft.Status);
         Assert.Equal(1, draft.AcceptedCount);
         Assert.Equal(0, draft.WarningCount);
         var comment = Assert.Single(draft.Comments);
@@ -4526,63 +4523,6 @@ public sealed class OratorioApiTests
     }
 
     [Fact]
-    public async Task ReviewDraftPublish_CreatesCommentReviewWithInlineSuggestions()
-    {
-        var fakeGitHub = new FakeGitHubApiClient();
-        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitCleanReviewDraft);
-        await using var app = new TestOratorioApp(services =>
-        {
-            services.RemoveAll<IGitHubApiClient>();
-            services.AddSingleton<IGitHubApiClient>(fakeGitHub);
-            services.RemoveAll<IDotCraftAppServerProcessManager>();
-            services.RemoveAll<IDotCraftAppServerClientFactory>();
-            services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
-            services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
-        });
-        var client = app.CreateClient();
-
-        await PostAsync<GitHubSyncResponse>(client, "/api/v1/sources/github/sync", new { });
-        var list = await client.GetFromJsonAsync<ItemListResponse>("/api/v1/items?source=github", JsonOptions);
-        var pr = Assert.Single(list!.Items, x => x.Kind == ItemKind.PullRequest);
-
-        await PostAsync<ItemDetailResponse>(
-            client,
-            $"/api/v1/items/id/{pr.ItemId}/dispatch",
-            new DispatchRequest("appServer", "Prepare structured PR review suggestions.", null, null));
-        var reviewed = await WaitForItemByIdAsync(client, pr.ItemId!, x => x.Item.State == ItemState.AwaitingReview && x.ReviewDrafts.Count == 1);
-        var draft = Assert.Single(reviewed.ReviewDrafts);
-
-        var edited = await PatchAsync<ItemDetailResponse>(
-            client,
-            $"/api/v1/review-drafts/{draft.DraftId}",
-            new ReviewDraftUpdateRequest(
-                "Edited summary.",
-                [new ReviewDraftCommentUpdateRequest(draft.Comments.First(x => x.Status == ReviewDraftCommentStatus.Accepted && x.SuggestionReplacement is not null).DraftCommentId, "Edited inline body.", "return editedToken;")]));
-        Assert.Equal("Edited summary.", Assert.Single(edited.ReviewDrafts).SummaryBody);
-
-        var published = await PostAsync<ItemDetailResponse>(client, $"/api/v1/review-drafts/{draft.DraftId}/publish", new { });
-
-        var publishedDraft = Assert.Single(published.ReviewDrafts);
-        Assert.Equal(ReviewDraftStatus.Published, publishedDraft.Status);
-        Assert.Equal(ItemState.AwaitingReview, published.Item.State);
-        Assert.Single(fakeGitHub.PullRequestReviews);
-        var review = fakeGitHub.PullRequestReviews[0];
-        Assert.Equal("COMMENT", review.Event);
-        Assert.Equal("Edited summary.", review.Body);
-        Assert.Equal("abc123", review.CommitId);
-        Assert.Equal(2, review.Comments.Count);
-        Assert.Contains(review.Comments, comment => comment.Path == "src/Auth/RefreshTokenStore.cs" && comment.Line == 87 && comment.Side == "RIGHT");
-        Assert.DoesNotContain(review.Comments, comment => comment.Path == "missing/File.cs");
-        Assert.DoesNotContain(review.Comments, comment => comment.Side == "LEFT");
-        Assert.Contains(review.Comments, comment => comment.Body.StartsWith("**🔴 Missing refresh guard**", StringComparison.Ordinal) && comment.Body.Contains("```suggestion", StringComparison.Ordinal) && comment.Body.Contains("return editedToken;", StringComparison.Ordinal));
-        Assert.Contains(review.Comments, comment => comment.Body.StartsWith("**🟡 Validate middleware setup**", StringComparison.Ordinal) && comment.Path == "src/Auth/JwtMiddleware.cs" && !comment.Body.Contains("```suggestion", StringComparison.Ordinal));
-        Assert.Contains(published.SourceWrites, write => write.Kind == SourceWriteKind.PullRequestReview && write.Intent == "reviewDraftPublish" && write.Status == SourceWriteStatus.Succeeded);
-
-        var publishAgain = await client.PostAsJsonAsync($"/api/v1/review-drafts/{draft.DraftId}/publish", new { }, JsonOptions);
-        Assert.Equal(HttpStatusCode.Conflict, publishAgain.StatusCode);
-    }
-
-    [Fact]
     public async Task ReviewFindingResolution_CapturesThreadIdsAndResolvesGitHubReviewThread()
     {
         var fakeGitHub = new FakeGitHubApiClient();
@@ -4607,10 +4547,8 @@ public sealed class OratorioApiTests
             client,
             $"/api/v1/items/id/{pr.ItemId}/dispatch",
             new DispatchRequest("appServer", "Prepare structured PR review suggestions.", null, null));
-        var reviewed = await WaitForItemByIdAsync(client, pr.ItemId!, x => x.Item.State == ItemState.AwaitingReview && x.ReviewDrafts.Count == 1);
+        var reviewed = await WaitForItemByIdAsync(client, pr.ItemId!, x => x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status == ReviewDraftStatus.Published);
         var draft = Assert.Single(reviewed.ReviewDrafts);
-
-        await PostAsync<ItemDetailResponse>(client, $"/api/v1/review-drafts/{draft.DraftId}/publish", new { });
 
         // Step B: GraphQL review-thread mapping captured a remote thread id per accepted finding.
         string findingId;
@@ -4642,7 +4580,7 @@ public sealed class OratorioApiTests
     }
 
     [Fact]
-    public async Task AutoReviewPublish_PublishesValidDraftAsCommentReviewOnly()
+    public async Task AutoReviewPublish_PublishesValidDraftAsCommentReviewWithInlineSuggestions()
     {
         var fakeGitHub = new FakeGitHubApiClient();
         var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitCleanReviewDraft);
@@ -4654,10 +4592,6 @@ public sealed class OratorioApiTests
             services.RemoveAll<IDotCraftAppServerClientFactory>();
             services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
             services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
-        }, settings: new Dictionary<string, string?>
-        {
-            ["Oratorio:Automation:AutoReviewPublishEnabled"] = "true",
-            ["Oratorio:Automation:AutoReviewPublishRepositories:0"] = "example-owner/oratorio"
         });
         var client = app.CreateClient();
 
@@ -4685,10 +4619,17 @@ public sealed class OratorioApiTests
         Assert.Equal("Found 2 issues.", review.Body);
         Assert.Equal("abc123", review.CommitId);
         Assert.Equal(2, review.Comments.Count);
+        Assert.Contains(review.Comments, comment => comment.Path == "src/Auth/RefreshTokenStore.cs" && comment.Line == 87 && comment.Side == "RIGHT");
+        Assert.DoesNotContain(review.Comments, comment => comment.Side == "LEFT");
+        Assert.Contains(review.Comments, comment => comment.Body.StartsWith("**🔴 Missing refresh guard**", StringComparison.Ordinal) && comment.Body.Contains("```suggestion", StringComparison.Ordinal) && comment.Body.Contains("return token;", StringComparison.Ordinal));
+        Assert.Contains(review.Comments, comment => comment.Body.StartsWith("**🟡 Validate middleware setup**", StringComparison.Ordinal) && comment.Path == "src/Auth/JwtMiddleware.cs" && !comment.Body.Contains("```suggestion", StringComparison.Ordinal));
         var check = Assert.Single(fakeGitHub.CheckRuns);
         Assert.Equal("completed", check.Status);
         Assert.Equal("neutral", check.Conclusion);
         Assert.Contains(reviewed.SourceWrites, write => write.Kind == SourceWriteKind.PullRequestReview && write.Intent == "reviewDraftPublish" && write.Status == SourceWriteStatus.Succeeded);
+
+        var publishAgain = await client.PostAsJsonAsync($"/api/v1/review-drafts/{draft.DraftId}/publish", new { }, JsonOptions);
+        Assert.Equal(HttpStatusCode.Conflict, publishAgain.StatusCode);
     }
 
     [Fact]
@@ -4704,10 +4645,6 @@ public sealed class OratorioApiTests
             services.RemoveAll<IDotCraftAppServerClientFactory>();
             services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
             services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
-        }, settings: new Dictionary<string, string?>
-        {
-            ["Oratorio:Automation:AutoReviewPublishEnabled"] = "true",
-            ["Oratorio:Automation:AutoReviewPublishRepositories:0"] = "example-owner/oratorio"
         });
         var client = app.CreateClient();
 
@@ -4752,10 +4689,6 @@ public sealed class OratorioApiTests
             services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
             services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
             services.AddSingleton<IWorktreeManager>(fakeWorktree);
-        }, settings: new Dictionary<string, string?>
-        {
-            ["Oratorio:Automation:AutoReviewPublishEnabled"] = "true",
-            ["Oratorio:Automation:AutoReviewPublishRepositories:0"] = "example-owner/oratorio"
         });
         var client = app.CreateClient();
 
@@ -4774,6 +4707,11 @@ public sealed class OratorioApiTests
         var write = Assert.Single(reviewed.SourceWrites, x => x.Intent == "reviewDraftPublish");
         Assert.Equal(SourceWriteStatus.Failed, write.Status);
         Assert.Equal("stalePullRequestHead", write.ErrorCode);
+
+        var retried = await PostAsync<ItemDetailResponse>(client, $"/api/v1/review-drafts/{reviewed.ReviewDrafts[0].DraftId}/publish", new { });
+
+        Assert.Equal(ReviewDraftStatus.Published, Assert.Single(retried.ReviewDrafts).Status);
+        Assert.Single(fakeGitHub.PullRequestReviews);
     }
 
     [Fact]
@@ -4791,9 +4729,7 @@ public sealed class OratorioApiTests
             services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
         }, settings: new Dictionary<string, string?>
         {
-            ["Oratorio:GitHub:WritesEnabled"] = "false",
-            ["Oratorio:Automation:AutoReviewPublishEnabled"] = "true",
-            ["Oratorio:Automation:AutoReviewPublishRepositories:0"] = "example-owner/oratorio"
+            ["Oratorio:GitHub:WritesEnabled"] = "false"
         });
         var client = app.CreateClient();
 
@@ -4817,7 +4753,7 @@ public sealed class OratorioApiTests
     [Fact]
     public async Task ReviewDraftPublishRetry_PreservesInlineSuggestionsAndMarksDraftPublished()
     {
-        var fakeGitHub = new FakeGitHubApiClient();
+        var fakeGitHub = new FakeGitHubApiClient { FailNextPullRequestReviewCount = 1 };
         var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitCleanReviewDraft);
         await using var app = new TestOratorioApp(services =>
         {
@@ -4838,19 +4774,7 @@ public sealed class OratorioApiTests
             client,
             $"/api/v1/items/id/{pr.ItemId}/dispatch",
             new DispatchRequest("appServer", "Prepare structured PR review suggestions.", null, null));
-        var reviewed = await WaitForItemByIdAsync(client, pr.ItemId!, x => x.Item.State == ItemState.AwaitingReview && x.ReviewDrafts.Count == 1);
-        var draft = Assert.Single(reviewed.ReviewDrafts);
-
-        var acceptedComment = draft.Comments.First(x => x.Status == ReviewDraftCommentStatus.Accepted && x.SuggestionReplacement is not null);
-        _ = await PatchAsync<ItemDetailResponse>(
-            client,
-            $"/api/v1/review-drafts/{draft.DraftId}",
-            new ReviewDraftUpdateRequest(
-                "Retryable review summary.",
-                [new ReviewDraftCommentUpdateRequest(acceptedComment.DraftCommentId, "Retry inline body.", "return retryToken;")]));
-
-        fakeGitHub.FailNextWriteCount = 1;
-        var failedPublish = await PostAsync<ItemDetailResponse>(client, $"/api/v1/review-drafts/{draft.DraftId}/publish", new { });
+        var failedPublish = await WaitForItemByIdAsync(client, pr.ItemId!, x => x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status == ReviewDraftStatus.PublishFailed);
 
         var failedDraft = Assert.Single(failedPublish.ReviewDrafts);
         Assert.Equal(ReviewDraftStatus.PublishFailed, failedDraft.Status);
@@ -4863,7 +4787,7 @@ public sealed class OratorioApiTests
             Assert.Contains(
                 comments.EnumerateArray(),
                 comment => (comment.GetProperty("body").GetString() ?? "").Contains("```suggestion", StringComparison.Ordinal) &&
-                    (comment.GetProperty("body").GetString() ?? "").Contains("return retryToken;", StringComparison.Ordinal));
+                    (comment.GetProperty("body").GetString() ?? "").Contains("return token;", StringComparison.Ordinal));
         }
 
         var retried = await PostAsync<ItemDetailResponse>(client, $"/api/v1/source-writes/{failedWrite.WriteId}/retry", new { });
@@ -4878,7 +4802,7 @@ public sealed class OratorioApiTests
         var review = Assert.Single(fakeGitHub.PullRequestReviews);
         Assert.Equal("COMMENT", review.Event);
         Assert.Equal(2, review.Comments.Count);
-        Assert.Contains(review.Comments, comment => comment.Body.StartsWith("**🔴 Missing refresh guard**", StringComparison.Ordinal) && comment.Body.Contains("```suggestion", StringComparison.Ordinal) && comment.Body.Contains("return retryToken;", StringComparison.Ordinal));
+        Assert.Contains(review.Comments, comment => comment.Body.StartsWith("**🔴 Missing refresh guard**", StringComparison.Ordinal) && comment.Body.Contains("```suggestion", StringComparison.Ordinal) && comment.Body.Contains("return token;", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -5577,6 +5501,7 @@ internal sealed class FakeGitHubApiClient : IGitHubApiClient
         new("src/Auth/JwtMiddleware.cs", "modified", 2, 0, 2, JwtMiddlewarePatch)
     ];
     public int FailNextWriteCount { get; set; }
+    public int FailNextPullRequestReviewCount { get; set; }
     public int IssueCommentCallCount { get; private set; }
     public int PullRequestReviewCallCount { get; private set; }
     public int PullRequestReviewCommentCallCount { get; private set; }
@@ -5811,6 +5736,12 @@ index 3333333..4444444 100644
     public Task<GitHubWriteResponse> CreatePullRequestReviewAsync(GitHubRepositoryRef repository, int number, string @event, string body, string? commitId, IReadOnlyList<GitHubPullRequestReviewCommentWrite> comments, CancellationToken ct)
     {
         MaybeFailWrite();
+        if (FailNextPullRequestReviewCount > 0)
+        {
+            FailNextPullRequestReviewCount--;
+            throw new HttpRequestException("Synthetic GitHub review failure.");
+        }
+
         PullRequestReviews.Add(new GitHubPullRequestReviewWrite(repository, number, @event, body, commitId, comments));
         return Task.FromResult(new GitHubWriteResponse("review:200", $"https://github.example.test/{repository.FullName}/pull/{number}#pullrequestreview-200", """{"id":200}"""));
     }

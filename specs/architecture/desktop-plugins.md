@@ -4,7 +4,7 @@
 | --- | --- |
 | Version | 0.8.10 |
 | Status | Living |
-| Date | 2026-10-12 |
+| Date | 2026-10-17 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -125,6 +125,12 @@ plugin code built from theme tokens.
 ### Agent identity
 
 `AgentAvatar` renders the avatar Core shows for an agent, using `{ name: string; size?: number; animated?: boolean }`. `name` is the agent nickname, the same value the Subagents tab uses, so a plugin and Core always draw the same character for the same agent. The Host supplies the component; a plugin does not bundle the avatar package to recreate it.
+
+`UserAvatar` renders the Desktop user's own Profile avatar, using `{ size?: number }`, for content the user wrote. It falls back to the user's initials and then to a person glyph, as Core does for line comments.
+
+### Markdown
+
+`Markdown` renders a Markdown string with the renderer Core uses for messages, using `{ content: string }`. Links open externally, Mermaid fences stay code, and wide content scrolls inside the block instead of widening the plugin surface. A plugin does not bundle its own Markdown parser to show source or agent text.
 
 ## Activation contract
 

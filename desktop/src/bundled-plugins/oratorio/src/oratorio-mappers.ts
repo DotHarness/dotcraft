@@ -1,5 +1,5 @@
 import type { ItemDetailResponse, ItemState, ItemSummaryDto, RunDto } from './oratorio-contracts'
-import type { DiscussionComment, OratorioTask, TaskCapabilities, TaskColumn, TaskState } from './oratorio-model'
+import type { OratorioTask, TaskCapabilities, TaskColumn, TaskState } from './oratorio-model'
 
 export function mapItemSummary(item: ItemSummaryDto): OratorioTask {
   const provider = item.source === 'github' || item.source === 'gitlab' ? item.source : 'local'
@@ -10,7 +10,7 @@ export function mapItemSummary(item: ItemSummaryDto): OratorioTask {
     shortId: item.shortId || (provider === 'local' ? item.externalId : `#${item.externalId}`),
     sourceLabel: sourceItemLabel(provider, item.externalId, kind),
     provider,
-    repository: item.repository || (provider === 'local' ? 'Current workspace' : 'Unknown repository'),
+    repository: item.repository ?? '',
     kind,
     title: item.title,
     description: item.latestSummary || '',
@@ -18,53 +18,33 @@ export function mapItemSummary(item: ItemSummaryDto): OratorioTask {
     labels: item.labels ?? [],
     column,
     state: mapState(item.state),
-    check: item.checkState === 'passing' || item.checkState === 'failing' || item.checkState === 'pending' ? item.checkState : undefined,
+    latestResult: item.latestResult ?? 'none',
     lifecycle: item.sourceState === 'merged' ? 'merged' : item.sourceState === 'closed' ? 'closed' : 'open',
-    synced: item.lastSourceSyncAt ? relativeTime(item.lastSourceSyncAt) : undefined,
-    updated: relativeTime(item.sourceUpdatedAt || item.updatedAt),
+    syncedAt: item.lastSourceSyncAt || undefined,
+    updatedAt: item.sourceUpdatedAt || item.updatedAt,
     headSha: item.headSha?.slice(0, 7) || undefined,
     archived: item.state === 'archived',
     cancelled: item.taskStatus === 'cancelled',
     branch: item.branch || undefined,
     round: item.currentRound,
-    artifacts: { reviewDrafts: 0, implementationDrafts: 0, followUpDrafts: 0, comments: 0, writes: 0 },
     capabilities: capabilitiesFor(item.state)
   }
 }
 function sourceItemLabel(provider: OratorioTask['provider'], externalId: string, kind: OratorioTask['kind']): string {
   if (provider === 'local') return 'Task'
-  const match = externalId.trim().match(/(?:^|[#!])(\d+)$/)
-  return match ? `#${match[1]}` : kind
+  const match = externalId.trim().match(/(?:^|([#!]))(\d+)$/)
+  return match ? `${match[1] === '!' ? '!' : '#'}${match[2]}` : kind
 }
 export function mapItemDetail(detail: ItemDetailResponse): OratorioTask {
   const task = mapItemSummary(detail.item)
   const latestRun = detail.runs.at(-1)
+  const body = detail.item.description || ''
   return {
     ...task,
-    description: detail.item.description || '',
-    artifacts: {
-      reviewDrafts: detail.reviewDrafts?.length ?? 0,
-      actionableReviewDrafts: detail.reviewDrafts?.filter((draft) => draft.status === 'draft' || draft.status === 'publishFailed').length ?? 0,
-      implementationDrafts: detail.implementationDrafts?.length ?? 0,
-      actionableImplementationDrafts: detail.implementationDrafts?.filter((draft) => draft.status === 'draft' || draft.status === 'deliveryFailed').length ?? 0,
-      followUpDrafts: detail.followUpDrafts?.length ?? 0,
-      actionableFollowUpDrafts: detail.followUpDrafts?.filter((draft) => draft.status === 'draft').length ?? 0,
-      comments: detail.comments?.length ?? 0,
-      writes: detail.sourceWrites?.length ?? 0
-    },
+    description: task.description || sourceSummary(body) || '',
+    body,
     run: latestRun ? mapRun(latestRun) : undefined,
     detail
-  }
-}
-
-export function mapComment(comment: NonNullable<ItemDetailResponse['comments']>[number]): DiscussionComment {
-  return {
-    id: comment.commentId,
-    author: comment.authorName || comment.authorKind,
-    role: comment.authorKind.toLowerCase() === 'agent' ? 'agent' : 'operator',
-    body: comment.body,
-    time: new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    purpose: comment.purpose === 'discussionQuestion' ? 'question' : comment.purpose === 'discussionReply' ? 'reply' : 'note'
   }
 }
 
@@ -104,12 +84,26 @@ function capabilitiesFor(state: ItemState): TaskCapabilities {
   return { archive: true, reReview: state === 'approved' }
 }
 
-function relativeTime(value: string): string {
-  const timestamp = Date.parse(value)
-  if (!Number.isFinite(timestamp)) return value
-  const minutes = Math.max(0, Math.round((Date.now() - timestamp) / 60_000))
-  if (minutes < 1) return 'now'
-  if (minutes < 60) return `${minutes} min ago`
-  const hours = Math.round(minutes / 60)
-  return hours < 24 ? `${hours} hr ago` : `${Math.round(hours / 24)} days ago`
+function sourceSummary(description: string | null | undefined): string | null {
+  const source = description?.trim()
+  if (!source) return null
+
+  const lines = source.replace(/\r\n/g, '\n').split('\n')
+  const summary: string[] = []
+  let readingSummary = false
+
+  for (const line of lines) {
+    const heading = line.match(/^#{2,4}\s+(.+?)\s*$/)
+    if (heading) {
+      const name = heading[1].trim().toLowerCase()
+      if (name === 'summary') {
+        readingSummary = true
+        continue
+      }
+      if (readingSummary) break
+    }
+    if (readingSummary) summary.push(line)
+  }
+
+  return summary.join('\n').trim() || source
 }

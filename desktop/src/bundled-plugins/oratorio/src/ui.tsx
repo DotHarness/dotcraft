@@ -6,6 +6,8 @@ export {
   IconButton,
   InlineDiff,
   Input,
+  Markdown,
+  Menu,
   ModalHeader,
   PillSwitch,
   SegmentedControl,
@@ -15,5 +17,8 @@ export {
   SettingsPanelShell,
   SettingsRow,
   Skeleton,
-  Textarea
+  Spinner,
+  SplitButton,
+  Textarea,
+  UserAvatar
 } from '@dotcraft/plugin'

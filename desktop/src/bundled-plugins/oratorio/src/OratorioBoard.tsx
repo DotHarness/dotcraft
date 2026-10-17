@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Archive,
-  Clock3,
-  CircleDot,
-  FileText,
-  Folder,
-  GitPullRequest,
   Plus,
   RefreshCw,
   RotateCcw,
   Search,
   Settings,
   Tag,
+  TriangleAlert,
 } from 'lucide-react'
 import {
   Button,
@@ -20,22 +16,24 @@ import {
   Select,
   Skeleton,
 } from './ui'
-import { GithubGlyph, GitlabGlyph } from './ProviderGlyphs'
-import { OratorioQuickView } from './OratorioQuickView'
+import { OratorioTaskDetail } from './OratorioTaskDetail'
 import {
   ORATORIO_COLUMNS,
+  repositoryName,
+  repositoryPath,
   taskMatches,
   type BoardMode,
   type OratorioTask,
   type TaskColumn,
-  type TaskStage,
 } from './oratorio-model'
 import { OratorioBrandMark } from './OratorioBrandMark'
-import type { QuickActionId } from './oratorio-workflow'
 import { oratorioHost, showOratorioToast } from './runtime'
 import { NewLocalTaskDialog, type NewLocalTaskDraft } from './NewLocalTaskDialog'
 import { OratorioBoardEmptyState } from './OratorioBoardEmptyState'
+import { useOratorioI18n, type OratorioMessageKey, type OratorioTranslate } from './oratorio-i18n'
+import { KindIcon, ProviderIcon, sourceLabel, taskStateKey, taskStateTone, type TaskTone } from './OratorioTaskParts'
 import type { SourceProvider } from './settings/oratorio-settings-model'
+import type { LatestResult } from './oratorio-contracts'
 
 type BoardPresentation = 'ready' | 'loading' | 'empty' | 'unconfigured' | 'error'
 
@@ -48,11 +46,28 @@ export interface OratorioBoardState {
   scrollTop: number
 }
 
+const MODES: Array<{ id: BoardMode; label: OratorioMessageKey }> = [
+  { id: 'active', label: 'modeActive' },
+  { id: 'all', label: 'modeAll' },
+  { id: 'cancelled', label: 'modeCancelled' },
+  { id: 'archived', label: 'modeArchived' },
+]
+
+const COLUMN_LABELS: Record<TaskColumn, OratorioMessageKey> = {
+  todo: 'laneTodo',
+  'in-progress': 'laneInProgress',
+  'in-review': 'laneInReview',
+  done: 'laneDone',
+}
+
+export type BoardTaskAction = 'dispatch' | 'request-changes' | 'approve' | 'cancel-run'
+
 export function OratorioBoard({
   presentation = 'ready',
   initialMode = 'active',
   tasks: serverTasks = [],
   onSync,
+  onRetry,
   onCreateTask,
   onLoadMore,
   hasMore = false,
@@ -70,20 +85,21 @@ export function OratorioBoard({
   initialMode?: BoardMode
   tasks?: OratorioTask[]
   onSync?: () => Promise<void>
+  onRetry?: () => Promise<void>
   onCreateTask?: (task: NewLocalTaskDraft) => Promise<OratorioTask>
   onLoadMore?: () => Promise<void>
   hasMore?: boolean
   onReorder?: (task: OratorioTask, column: TaskColumn) => Promise<void>
-  onTaskAction?: (task: OratorioTask, action: QuickActionId, note?: string) => Promise<OratorioTask>
+  onTaskAction?: (task: OratorioTask, action: BoardTaskAction) => Promise<OratorioTask>
   onLoadTaskDetail?: (task: OratorioTask) => Promise<OratorioTask>
-  onOpenDetail: (task: OratorioTask, stage?: TaskStage, options?: { focus?: 'discussion' }) => void
+  onOpenDetail: (task: OratorioTask) => void
   onOpenSettings: () => void
   onConnectSource?: (provider: SourceProvider) => void
   onOpenThread: (task: OratorioTask) => void
   initialState?: OratorioBoardState
   onStateChange?: (state: OratorioBoardState) => void
 }) {
-  const boardRef = useRef<HTMLElement>(null)
+  const { t, relativeTime } = useOratorioI18n()
   const [mode, setMode] = useState<BoardMode>(initialState?.mode ?? initialMode)
   const [query, setQuery] = useState(initialState?.query ?? '')
   const [repository, setRepository] = useState(initialState?.repository ?? 'all')
@@ -93,32 +109,29 @@ export function OratorioBoard({
   const [taskItems, setTaskItems] = useState(serverTasks)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [newTaskOpen, setNewTaskOpen] = useState(false)
-  const [quickViewLoading, setQuickViewLoading] = useState(false)
-  const [recovered, setRecovered] = useState(false)
-  const effectivePresentation = presentation === 'error' && recovered ? 'ready' : presentation
+  const [detailRefresh, setDetailRefresh] = useState(0)
+  const selectedRef = useRef(selected)
+  selectedRef.current = selected
+  const scrollTop = useRef(initialState?.scrollTop ?? 0)
+
+  function reportState(): void {
+    onStateChange?.({ mode, query, repository, assignee, selectedTaskId: selected?.id ?? null, scrollTop: scrollTop.current })
+  }
 
   useEffect(() => {
     if (!initialState) setMode(initialMode)
   }, [initialMode])
 
-  useEffect(() => {
-    if (boardRef.current && initialState?.scrollTop) boardRef.current.scrollTop = initialState.scrollTop
-  }, [])
-
-  useEffect(() => {
-    onStateChange?.({
-      mode,
-      query,
-      repository,
-      assignee,
-      selectedTaskId: selected?.id ?? null,
-      scrollTop: boardRef.current?.scrollTop ?? initialState?.scrollTop ?? 0
-    })
-  }, [assignee, mode, query, repository, selected?.id])
+  useEffect(reportState, [assignee, mode, query, repository, selected?.id])
 
   useEffect(() => {
     setTaskItems(serverTasks)
-    setSelected((current) => current ? serverTasks.find((task) => task.id === current.id) ?? current : null)
+    const current = selectedRef.current
+    const next = current ? serverTasks.find((task) => task.id === current.id) : undefined
+    if (!current || !next) return
+    if (next.detail) { setSelected(next); return }
+    if (next.updatedAt !== current.updatedAt || next.state !== current.state) setDetailRefresh((count) => count + 1)
+    setSelected({ ...next, body: next.body ?? current.body, detail: current.detail })
   }, [serverTasks])
 
   useEffect(() => {
@@ -129,167 +142,167 @@ export function OratorioBoard({
   }, [initialState?.selectedTaskId, taskItems])
 
   useEffect(() => {
-    if (!selected || selected.detail || !onLoadTaskDetail) {
-      setQuickViewLoading(false)
-      return
-    }
+    const task = selectedRef.current
+    if (!task || !onLoadTaskDetail) return
     let active = true
-    setQuickViewLoading(true)
-    void onLoadTaskDetail(selected).then((detailed) => {
+    void onLoadTaskDetail(task).then((detailed) => {
       if (!active) return
-      setTaskItems((items) => items.map((task) => task.id === detailed.id ? detailed : task))
+      setTaskItems((items) => items.map((item) => item.id === detailed.id ? detailed : item))
       setSelected((current) => current?.id === detailed.id ? detailed : current)
     }).catch((error) => {
-      if (active) showOratorioToast({ message: error instanceof Error ? error.message : 'Task details could not be loaded', tone: 'error' })
-    }).finally(() => {
-      if (active) setQuickViewLoading(false)
+      if (active) showOratorioToast({ message: error instanceof Error ? error.message : t('detailsNotLoaded'), tone: 'error' })
     })
     return () => { active = false }
-  }, [onLoadTaskDetail, selected?.detail, selected?.id])
+  }, [onLoadTaskDetail, selected?.id, detailRefresh])
 
   const source = useMemo(() => {
-    if (effectivePresentation === 'empty' || effectivePresentation === 'unconfigured') return []
+    if (presentation === 'empty' || presentation === 'unconfigured') return []
     if (mode === 'active') return taskItems.filter((task) => task.lifecycle === 'open' && !task.archived && !task.cancelled)
     if (mode === 'all') return taskItems
     if (mode === 'cancelled') return taskItems.filter((task) => task.cancelled)
     return taskItems.filter((task) => task.archived)
-  }, [effectivePresentation, mode, taskItems])
+  }, [presentation, mode, taskItems])
   const tasks = useMemo(
     () => source.filter((task) => taskMatches(task, query, repository, assignee)),
     [assignee, query, repository, source],
   )
-  const repositories = ['all', ...Array.from(new Set(taskItems.filter((task) => task.provider !== 'local').map((task) => task.repository)))]
+  const repositories = ['all', ...Array.from(new Set(taskItems.filter((task) => task.provider !== 'local' && task.repository).map((task) => task.repository)))]
   const assignees = ['all', 'unassigned', ...Array.from(new Set(taskItems.map((task) => task.assignee).filter((value): value is string => Boolean(value))))]
 
   function sync(): void {
     setSyncing(true)
     void (onSync?.() ?? Promise.resolve()).then(() => {
-      showOratorioToast({ message: 'Sources updated', tone: 'success' })
-    }).catch(() => showOratorioToast({ message: 'Source sync failed', tone: 'error' })).finally(() => setSyncing(false))
+      showOratorioToast({ message: t('sourcesUpdated'), tone: 'success' })
+    }).catch(() => showOratorioToast({ message: t('sourceSyncFailed'), tone: 'error' })).finally(() => setSyncing(false))
+  }
+
+  function drop(column: TaskColumn): void {
+    if (!draggingId) return
+    const moving = taskItems.find((task) => task.id === draggingId)
+    if (!moving) return
+    const columnLabel = t(COLUMN_LABELS[column])
+    const action = dragAction(moving, column)
+    if (!action) {
+      if (moving.column === column) void onReorder?.(moving, column).catch(() => showOratorioToast({ message: t('orderNotSaved'), tone: 'error' }))
+      else showOratorioToast({ message: t('cannotMove', { task: moving.shortId, lane: columnLabel }), tone: 'warning' })
+      setDraggingId(null)
+      return
+    }
+    void (async () => {
+      if (action === 'cancel-run') {
+        const confirmed = await oratorioHost().ui.confirm({
+          title: t('actionCancelRun'),
+          message: t('cancelRunMessage', { task: moving.shortId }),
+          confirmLabel: t('actionCancelRun'),
+          danger: true
+        })
+        if (!confirmed) return
+      }
+      const updated = await onTaskAction?.(moving, action)
+      if (updated) setTaskItems((items) => items.map((task) => task.id === updated.id ? updated : task))
+      showOratorioToast({ message: action === 'cancel-run' ? t('toastRunCancelled') : t('taskMovedTo', { lane: columnLabel }), tone: 'success' })
+    })().catch(() => showOratorioToast({ message: t('actionNotCompleted'), tone: 'error' }))
+    setDraggingId(null)
   }
 
   return (
-    <main
-      ref={boardRef}
-      className="ora-board"
-      aria-label="Oratorio task board"
-      onScroll={() => {
-        const element = boardRef.current
-        onStateChange?.({ mode, query, repository, assignee, selectedTaskId: selected?.id ?? null, scrollTop: element?.scrollTop ?? 0 })
-        if (mode !== 'active' && hasMore && element && element.scrollHeight - element.scrollTop - element.clientHeight < 160) void onLoadMore?.()
-      }}
-    >
+    <main className="ora-board" aria-label={t('boardLabel')}>
       <header className="ora-board__brand">
         <OratorioBrandMark />
-        <strong>Oratorio</strong>
+        <h1>Oratorio</h1>
       </header>
 
-      <div className="ora-board__toolbar" aria-label="Board controls">
-        <div className="ora-board__modes" role="group" aria-label="Task view">
-          {(['active', 'all', 'cancelled', 'archived'] as BoardMode[]).map((value) => (
-            <button type="button" key={value} aria-pressed={mode === value} onClick={() => setMode(value)}>
-              {value === 'active' ? 'Active' : value[0].toUpperCase() + value.slice(1)}
+      <div className="ora-board__toolbar" aria-label={t('boardControls')}>
+        <div className="ora-board__modes" role="group" aria-label={t('taskView')}>
+          {MODES.map((value) => (
+            <button type="button" key={value.id} data-mode={value.id} aria-pressed={mode === value.id} onClick={() => setMode(value.id)}>
+              {t(value.label)}
             </button>
           ))}
         </div>
         <label className="ora-board__search">
           <Search size={15} aria-hidden="true" />
-          <Input bare value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tasks · source:github · label:frontend" aria-label="Search tasks" />
+          <Input bare value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('searchPlaceholder')} aria-label={t('searchTasks')} />
         </label>
         <Select
-          ariaLabel="Repository"
+          ariaLabel={t('repository')}
           value={repository}
           onValueChange={setRepository}
-          options={repositories.map((value) => ({ value, label: value === 'all' ? 'All repositories' : value }))}
+          options={repositories.map((value) => ({ value, label: value === 'all' ? t('allRepositories') : repositoryName(value) }))}
           appearance="frameless"
         />
         <Select
-          ariaLabel="Assignee"
+          ariaLabel={t('assignee')}
           value={assignee}
           onValueChange={setAssignee}
-          options={assignees.map((value) => ({ value, label: value === 'all' ? 'All assignees' : value }))}
+          options={assignees.map((value) => ({ value, label: value === 'all' ? t('allAssignees') : value === 'unassigned' ? t('unassigned') : value }))}
           appearance="frameless"
         />
         <span className="ora-board__actions">
-          <IconButton icon={<Plus size={15} />} label="New local task" tooltipLabel="New local task" onClick={() => setNewTaskOpen(true)} />
-          <IconButton icon={<RefreshCw size={15} className={syncing ? 'ora-spin' : undefined} />} label="Sync sources" tooltipLabel="Sync sources" onClick={sync} disabled={syncing || effectivePresentation === 'unconfigured'} />
-          <IconButton icon={<Settings size={15} />} label="Oratorio settings" tooltipLabel="Oratorio settings" onClick={onOpenSettings} />
+          <IconButton className="ora-board__new-task" icon={<Plus size={15} />} label={t('newLocalTask')} tooltipLabel={t('newLocalTask')} onClick={() => setNewTaskOpen(true)} />
+          <IconButton icon={<RefreshCw size={15} className={syncing ? 'ora-spin' : undefined} />} label={t('syncSources')} tooltipLabel={t('syncSources')} onClick={sync} disabled={syncing || presentation === 'unconfigured'} />
+          <IconButton icon={<Settings size={15} />} label={t('oratorioSettings')} tooltipLabel={t('oratorioSettings')} onClick={onOpenSettings} />
         </span>
       </div>
 
-      {effectivePresentation === 'loading' ? <BoardSkeleton /> : effectivePresentation === 'unconfigured' ? (
+      {presentation === 'loading' ? <BoardSkeleton label={t('loadingBoard')} /> : presentation === 'unconfigured' ? (
         <OratorioBoardEmptyState onConnect={(provider) => onConnectSource?.(provider)} onCreateTask={() => setNewTaskOpen(true)} />
-      ) : effectivePresentation === 'error' ? (
-        <InlineBoardError onRetry={() => { setRecovered(true); showOratorioToast({ message: 'Board restored', tone: 'success' }) }} />
+      ) : presentation === 'error' ? (
+        <InlineBoardError t={t} onRetry={onRetry} />
       ) : mode === 'active' ? (
         <div className="ora-board__columns">
           {ORATORIO_COLUMNS.map((column) => {
-            const columnTasks = tasks.filter((task) => task.column === column.id)
+            const columnTasks = tasks.filter((task) => task.column === column)
+            const label = t(COLUMN_LABELS[column])
             return (
               <section
                 className="ora-column"
-                key={column.id}
-                aria-label={column.label}
+                key={column}
+                aria-label={label}
                 data-drag-target={draggingId ? 'true' : undefined}
                 onDragOver={(event) => event.preventDefault()}
-                onDrop={() => {
-                  if (!draggingId) return
-                  const moving = taskItems.find((task) => task.id === draggingId)
-                  if (!moving) return
-                  const action = dragAction(moving, column.id)
-                  if (!action) {
-                    if (moving.column === column.id) void onReorder?.(moving, column.id).catch(() => showOratorioToast({ message: 'Task order could not be saved', tone: 'error' }))
-                    else showOratorioToast({ message: `Cannot move ${moving.shortId} from ${moving.column} to ${column.label}`, tone: 'warning' })
-                    setDraggingId(null)
-                    return
-                  }
-                  void (async () => {
-                    if (action === 'cancel-run') {
-                      const confirmed = await oratorioHost().ui.confirm({
-                        title: 'Cancel run',
-                        message: `Cancel the active run for ${moving.shortId}?`,
-                        confirmLabel: 'Cancel run',
-                        danger: true
-                      })
-                      if (!confirmed) return
-                    }
-                    const updated = await onTaskAction?.(moving, action)
-                    if (updated) setTaskItems((items) => items.map((task) => task.id === updated.id ? updated : task))
-                    showOratorioToast({ message: action === 'cancel-run' ? 'Run cancelled' : `Task moved to ${column.label}`, tone: 'success' })
-                  })().catch(() => showOratorioToast({ message: 'Task action could not be completed', tone: 'error' }))
-                  setDraggingId(null)
-                }}
+                onDrop={() => drop(column)}
               >
                 <header className="ora-column__header">
-                  <strong>{column.label}</strong>
+                  <h2>{label}</h2>
                   <b>{columnTasks.length}</b>
                 </header>
                 <div className="ora-column__stack dc-scrollbar-stable">
                   {columnTasks.length ? columnTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} selected={selected?.id === task.id} onOpen={() => setSelected(task)} onDragStart={() => setDraggingId(task.id)} onDragEnd={() => setDraggingId(null)} />
-                  )) : <p className="ora-board__empty">No tasks</p>}
+                    <TaskCard key={task.id} task={task} t={t} relativeTime={relativeTime} selected={selected?.id === task.id} onOpen={() => setSelected(task)} onDragStart={() => setDraggingId(task.id)} onDragEnd={() => setDraggingId(null)} />
+                  )) : <p className="ora-board__empty">{t('noTasks')}</p>}
                 </div>
               </section>
             )
           })}
         </div>
       ) : (
-        <ClosedTaskList mode={mode} tasks={tasks} onOpen={setSelected} hasMore={hasMore} onLoadMore={onLoadMore} />
+        <ClosedTaskList
+          title={t(MODES.find((value) => value.id === mode)!.label)}
+          tasks={tasks}
+          t={t}
+          relativeTime={relativeTime}
+          onOpen={setSelected}
+          hasMore={hasMore}
+          onLoadMore={onLoadMore}
+          initialScrollTop={scrollTop.current}
+          onScrollTop={(value) => { scrollTop.current = value; reportState() }}
+        />
       )}
 
       {selected ? (
-        <OratorioQuickView
+        <OratorioTaskDetail
           key={selected.id}
           task={selected}
-          loading={quickViewLoading}
-          onClose={() => setSelected(null)}
-          onOpenDetail={(stage, options) => onOpenDetail(selected, stage, options)}
+          presentation="drawer"
+          closeOnEscape={!newTaskOpen}
+          onBack={() => setSelected(null)}
+          onExpand={() => onOpenDetail(selected)}
           onOpenThread={() => onOpenThread(selected)}
           onTaskChange={(nextTask) => {
             setTaskItems((items) => items.map((task) => task.id === nextTask.id ? nextTask : task))
             setSelected(nextTask)
           }}
-          onAction={onTaskAction ? (action, note) => onTaskAction(selected, action, note) : undefined}
         />
       ) : null}
       {newTaskOpen ? <NewLocalTaskDialog tasks={taskItems} onCancel={() => setNewTaskOpen(false)} onCreate={(draft) => {
@@ -298,26 +311,36 @@ export function OratorioBoard({
           setTaskItems((items) => [task, ...items.filter((item) => item.id !== task.id)])
           setNewTaskOpen(false)
           setSelected(task)
-          showOratorioToast({ message: 'Local task created', tone: 'success' })
-        }).catch(() => showOratorioToast({ message: 'Local task could not be created', tone: 'error' }))
+          showOratorioToast({ message: t('localTaskCreated'), tone: 'success' })
+        }).catch(() => showOratorioToast({ message: t('localTaskNotCreated'), tone: 'error' }))
       }} /> : null}
     </main>
   )
 }
 
-function TaskCard({ task, selected, onOpen, onDragStart, onDragEnd }: { task: OratorioTask; selected?: boolean; onOpen: () => void; onDragStart: () => void; onDragEnd: () => void }) {
+function TaskCard({ task, t, relativeTime, selected, onOpen, onDragStart, onDragEnd }: {
+  task: OratorioTask
+  t: OratorioTranslate
+  relativeTime: (value: string) => string
+  selected?: boolean
+  onOpen: () => void
+  onDragStart: () => void
+  onDragEnd: () => void
+}) {
+  const sourceName = task.provider === 'local' ? t('sourceLocal') : repositoryName(task.repository)
+  const synced = task.syncedAt ? [task.headSha, t('metaSynced', { time: relativeTime(task.syncedAt) })].filter(Boolean).join(' · ') : ''
+  const meta = [synced, t('metaUpdated', { time: relativeTime(task.updatedAt) })].filter(Boolean).join(' · ')
   return (
     <button type="button" className="ora-card" data-selected={selected ? 'true' : undefined} onClick={onOpen} draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <span className="ora-card__topline">
-        <span className="ora-chip ora-chip--source"><ProviderIcon task={task} /> <span>{task.provider === 'local' ? 'Local' : task.repository}</span></span>
-        <span className="ora-chip"><KindIcon task={task} /> {task.sourceLabel}</span>
+        <span className="ora-chip ora-chip--source" title={task.repository ? repositoryPath(task.repository) : undefined}><ProviderIcon task={task} />{sourceName ? <span>{sourceName}</span> : null}</span>
+        <span className="ora-chip"><KindIcon task={task} /> {sourceLabel(task, t)}</span>
       </span>
-      <span className="ora-card__title"><strong>{task.title}</strong><StateDot task={task} /></span>
+      <span className="ora-card__title"><strong>{task.title}</strong><CardSignal task={task} t={t} /></span>
       <span className="ora-card__description">{task.description}</span>
-      <span className="ora-card__meta">{task.synced ? `${task.headSha ? `${task.headSha} · ` : ''}synced ${task.synced} · ` : ''}updated {task.updated}</span>
+      <span className="ora-card__meta">{meta}</span>
       <span className="ora-card__footer">
-        {task.lifecycle && task.lifecycle !== 'open' ? <CompactStatus icon={<Archive size={11} />} label={task.lifecycle} /> : null}
-        {task.check ? <CompactStatus icon={task.check === 'passing' ? <span>✓</span> : task.check === 'pending' ? <Clock3 size={12} /> : <CircleDot size={12} />} label={task.check} tone={task.check} /> : null}
+        {task.lifecycle && task.lifecycle !== 'open' ? <CompactStatus icon={<Archive size={11} />} label={t(task.lifecycle === 'merged' ? 'lifecycleMerged' : 'lifecycleClosed')} /> : null}
         {task.labels.slice(0, 2).map((label) => <span className="ora-label" key={label}><Tag size={11} />{label}</span>)}
         {task.labels.length > 2 ? <span className="ora-label-more">+{task.labels.length - 2}</span> : null}
       </span>
@@ -325,26 +348,50 @@ function TaskCard({ task, selected, onOpen, onDragStart, onDragEnd }: { task: Or
   )
 }
 
-function ClosedTaskList({ mode, tasks, onOpen, hasMore, onLoadMore }: { mode: BoardMode; tasks: OratorioTask[]; onOpen: (task: OratorioTask) => void; hasMore: boolean; onLoadMore?: () => Promise<void> }) {
+function ClosedTaskList({ title, tasks, t, relativeTime, onOpen, hasMore, onLoadMore, initialScrollTop, onScrollTop }: {
+  title: string
+  tasks: OratorioTask[]
+  t: OratorioTranslate
+  relativeTime: (value: string) => string
+  onOpen: (task: OratorioTask) => void
+  hasMore: boolean
+  onLoadMore?: () => Promise<void>
+  initialScrollTop: number
+  onScrollTop: (value: number) => void
+}) {
+  const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (listRef.current) listRef.current.scrollTop = initialScrollTop
+  }, [])
+
   return (
-    <section className="ora-closed" aria-label={`${mode} tasks`}>
-      <header><strong>{mode[0].toUpperCase() + mode.slice(1)}</strong><b>{tasks.length}</b></header>
-      <div className="ora-closed__list dc-scrollbar-stable">
+    <section className="ora-closed" aria-label={title}>
+      <header><h2>{title}</h2><b>{tasks.length}</b></header>
+      <div
+        ref={listRef}
+        className="ora-closed__list dc-scrollbar-stable"
+        onScroll={(event) => {
+          const element = event.currentTarget
+          onScrollTop(element.scrollTop)
+          if (hasMore && element.scrollHeight - element.scrollTop - element.clientHeight < 160) void onLoadMore?.()
+        }}
+      >
         {tasks.length ? tasks.map((task) => (
-          <button type="button" key={task.id} onClick={() => onOpen(task)}>
+          <button type="button" key={task.id} className="ora-closed__row" onClick={() => onOpen(task)}>
             <ProviderIcon task={task} />
-            <span><strong>{task.title}</strong><small>{task.repository} · {task.sourceLabel}</small></span>
+            <span><strong>{task.title}</strong><small title={task.repository ? repositoryPath(task.repository) : undefined}>{[task.repository && repositoryName(task.repository), sourceLabel(task, t)].filter(Boolean).join(' · ')}</small></span>
             <span className="ora-closed__labels">{task.labels.map((label) => <span className="ora-label" key={label}>{label}</span>)}</span>
-            <span>{task.updated}</span>
+            <span>{relativeTime(task.updatedAt)}</span>
           </button>
-        )) : <p className="ora-board__empty">No matching tasks</p>}
+        )) : <p className="ora-board__empty">{t('noMatchingTasks')}</p>}
       </div>
-      {hasMore ? <footer><Button size="sm" variant="secondary" onClick={() => void onLoadMore?.()}>Load more</Button></footer> : null}
+      {hasMore ? <footer><Button size="sm" variant="secondary" onClick={() => void onLoadMore?.()}>{t('loadMore')}</Button></footer> : null}
     </section>
   )
 }
 
-function dragAction(task: OratorioTask, target: TaskColumn): QuickActionId | null {
+function dragAction(task: OratorioTask, target: TaskColumn): BoardTaskAction | null {
   if (task.column === 'todo' && target === 'in-progress') return 'dispatch'
   if (task.column === 'in-review' && target === 'in-progress') return 'request-changes'
   if (task.column === 'in-review' && target === 'done') return 'approve'
@@ -352,31 +399,51 @@ function dragAction(task: OratorioTask, target: TaskColumn): QuickActionId | nul
   return null
 }
 
-function BoardSkeleton() {
-  return <div className="ora-board__columns" role="status" aria-label="Loading board">{ORATORIO_COLUMNS.map((column) => <section className="ora-column" key={column.id}><header className="ora-column__header"><Skeleton width={80} height={14} /><Skeleton circle width={24} height={24} /></header><div className="ora-column__stack dc-scrollbar-stable"><Skeleton height={190} radius={8} /></div></section>)}</div>
+function BoardSkeleton({ label }: { label: string }) {
+  return <div className="ora-board__columns" role="status" aria-label={label}>{ORATORIO_COLUMNS.map((column) => <section className="ora-column" key={column}><header className="ora-column__header"><Skeleton width={80} height={14} /><Skeleton circle width={24} height={24} /></header><div className="ora-column__stack dc-scrollbar-stable"><Skeleton height={190} radius={8} /></div></section>)}</div>
 }
 
-function InlineBoardError({ onRetry }: { onRetry: () => void }) {
-  return <section className="ora-board__recovery" role="alert"><span><strong>Oratorio couldn’t load this board</strong><small>The managed service did not answer. Your filters and navigation state are preserved.</small></span><Button variant="secondary" iconLeft={<RotateCcw size={14} />} onClick={onRetry}>Retry</Button></section>
+function InlineBoardError({ t, onRetry }: { t: OratorioTranslate; onRetry?: () => Promise<void> }) {
+  const [retrying, setRetrying] = useState(false)
+  return (
+    <section className="ora-notice" data-tone="error" role="alert">
+      <TriangleAlert size={20} aria-hidden="true" />
+      <span className="ora-notice__copy">
+        <strong>{t('boardErrorTitle')}</strong>
+        <span>{t('boardErrorDescription')}</span>
+      </span>
+      {onRetry ? (
+        <Button variant="secondary" iconLeft={<RotateCcw size={14} />} loading={retrying} onClick={() => {
+          setRetrying(true)
+          void onRetry().finally(() => setRetrying(false))
+        }}>{t('retry')}</Button>
+      ) : null}
+    </section>
+  )
 }
 
-function ProviderIcon({ task }: { task: OratorioTask }) {
-  if (task.provider === 'github') return <GithubGlyph />
-  if (task.provider === 'gitlab') return <GitlabGlyph />
-  return <Folder size={14} />
+function CardSignal({ task, t }: { task: OratorioTask; t: OratorioTranslate }) {
+  const signal = cardSignal(task)
+  return signal ? <span className="ora-state-dot" data-tone={signal.tone} title={t(signal.label)} /> : null
 }
 
-function KindIcon({ task }: { task: OratorioTask }) {
-  if (task.kind === 'Pull request') return <GitPullRequest size={13} />
-  if (task.kind === 'Issue') return <CircleDot size={13} />
-  return <FileText size={13} />
+function cardSignal(task: OratorioTask): { tone: TaskTone; label: OratorioMessageKey } | null {
+  if (task.column === 'in-progress') {
+    const tone = taskStateTone(task)
+    return tone === 'info' || tone === 'error' ? { tone, label: taskStateKey(task) } : null
+  }
+  if (task.column === 'in-review') return RESULT_SIGNALS[task.latestResult] ?? null
+  return null
 }
 
-function StateDot({ task }: { task: OratorioTask }) {
-  const tone = task.state === 'awaiting-review' ? 'warning' : task.state === 'failed' ? 'error' : task.state === 'approved' ? 'success' : task.state === 'running' || task.state === 'dispatching' ? 'info' : 'neutral'
-  return <span className="ora-state-dot" data-tone={tone} title={task.state} />
+const RESULT_SIGNALS: Partial<Record<LatestResult, { tone: TaskTone; label: OratorioMessageKey }>> = {
+  noIssues: { tone: 'success', label: 'resultNoIssues' },
+  delivered: { tone: 'success', label: 'resultDelivered' },
+  findings: { tone: 'warning', label: 'resultFindings' },
+  changesReady: { tone: 'warning', label: 'resultChangesReady' },
+  followUps: { tone: 'warning', label: 'resultFollowUps' },
 }
 
-function CompactStatus({ icon, label, tone }: { icon: ReactNode; label: string; tone?: string }) {
-  return <span className="ora-status" data-tone={tone}>{icon}{label}</span>
+function CompactStatus({ icon, label }: { icon: ReactNode; label: string }) {
+  return <span className="ora-status">{icon}{label}</span>
 }

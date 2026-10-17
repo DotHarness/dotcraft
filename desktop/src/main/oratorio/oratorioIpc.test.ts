@@ -30,9 +30,10 @@ describe('Oratorio IPC validation', () => {
       path: '/api/v1/local-tasks',
       body: { title: 'Task' }
     })
-    expect(validateRequest({ method: 'PATCH', path: '/api/v1/review-drafts/draft-1', body: { summaryBody: 'Updated' } })).toEqual({
-      method: 'PATCH', path: '/api/v1/review-drafts/draft-1', body: { summaryBody: 'Updated' }
+    expect(validateRequest({ method: 'PATCH', path: '/api/v1/follow-up-drafts/draft-1', body: { body: 'Updated' } })).toEqual({
+      method: 'PATCH', path: '/api/v1/follow-up-drafts/draft-1', body: { body: 'Updated' }
     })
+    expect(() => validateRequest({ method: 'PATCH', path: '/api/v1/review-drafts/draft-1', body: { summaryBody: 'Updated' } })).toThrow('oratorio.invalid_path')
     expect(validateRequest({ method: 'POST', path: '/api/v1/review-drafts/draft-1/comments/comment-1/resolve', body: { resolutionKind: 'fixed' } })).toBeTruthy()
     expect(validateRequest({ method: 'GET', path: '/api/v1/sources/sync-schedules' })).toBeTruthy()
     expect(validateRequest({ method: 'GET', path: '/api/v1/sources/sync-jobs/job-1?provider=gitlab' })).toBeTruthy()

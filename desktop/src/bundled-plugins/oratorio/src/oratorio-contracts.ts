@@ -7,6 +7,7 @@ export type ReviewDraftStatus = 'draft' | 'published' | 'discarded' | 'publishFa
 export type ImplementationDraftStatus = 'draft' | 'delivered' | 'deliveryFailed'
 export type FollowUpDraftStatus = 'draft' | 'created' | 'discarded'
 export type ReviewFindingResolutionKind = 'fixed' | 'dismissed'
+export type LatestResult = 'none' | 'noIssues' | 'findings' | 'changesReady' | 'delivered' | 'followUps'
 
 export interface ItemSummaryDto {
   itemId?: string | null; source: string; externalId: string; kind: ItemKind; title: string
@@ -16,6 +17,7 @@ export interface ItemSummaryDto {
   sourceDetailsStatus?: 'notRequired' | 'stale' | 'current' | 'failed' | null
   sourceDetailsHydratedAt?: string | null; sourceDetailsErrorCode?: string | null; sourceDetailsErrorMessage?: string | null
   state: ItemState; currentRound: number; checkState: 'notConfigured' | 'pending' | 'attention' | 'passing' | 'failing'
+  latestResult?: LatestResult | null
   latestSummary: string | null; createdAt: string; updatedAt: string; parentItemId?: string | null
   generatedFromDraftId?: string | null; shortId?: string | null; taskStatus?: TaskStatus | null; boardSortOrder?: number | null
 }

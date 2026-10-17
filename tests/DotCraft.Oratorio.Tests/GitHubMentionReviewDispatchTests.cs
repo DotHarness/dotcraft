@@ -145,58 +145,7 @@ public sealed class GitHubMentionReviewDispatchTests
     }
 
     [Fact]
-    public async Task MentionReview_PublishesCommentReview_WhenOrdinaryAutoPublishIsDisabled()
-    {
-        var fakeGitHub = new FakeGitHubApiClient();
-        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitSummaryOnlyReviewDraft);
-        await using var app = new TestOratorioApp(services =>
-        {
-            ReplaceGitHub(services, fakeGitHub);
-            services.RemoveAll<IDotCraftAppServerProcessManager>();
-            services.RemoveAll<IDotCraftAppServerClientFactory>();
-            services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
-            services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
-        }, settings: new Dictionary<string, string?>
-        {
-            ["Oratorio:Automation:AutoReviewPublishEnabled"] = "false"
-        });
-        var client = app.CreateClient();
-
-        await PostReviewCommandAsync(client, 9401, "@dotcraft-ai review for security regressions");
-        await WaitUntilAsync(async () =>
-        {
-            using var scope = app.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-            return await db.SourceWriteLogs.AsNoTracking().AnyAsync(x =>
-                x.Intent == "reviewDraftPublish" && x.Status == SourceWriteStatus.Succeeded);
-        });
-
-        using var scope = app.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-        var command = await db.GitHubCommentCommands.AsNoTracking().SingleAsync();
-        var run = await db.Runs.AsNoTracking().SingleAsync(x => x.RunId == command.RunId);
-        var draft = await db.ReviewDrafts.AsNoTracking().SingleAsync(x => x.RunId == run.RunId);
-        var publishWrite = await db.SourceWriteLogs.AsNoTracking()
-            .SingleAsync(x => x.ItemId == run.ItemId && x.Intent == "reviewDraftPublish");
-        var review = Assert.Single(fakeGitHub.PullRequestReviews);
-
-        Assert.Equal(GitHubCommentCommandStatus.Dispatched, command.Status);
-        Assert.Equal(RunDispatchTrigger.GitHubMentionReview, run.DispatchTrigger);
-        Assert.Equal("abc123", run.TargetHeadSha);
-        Assert.Equal(ReviewDraftStatus.Published, draft.Status);
-        Assert.Equal(SourceWriteStatus.Succeeded, publishWrite.Status);
-        Assert.Equal("COMMENT", review.Event);
-        Assert.Equal("abc123", review.CommitId);
-        Assert.DoesNotContain(fakeGitHub.PullRequestReviews, x => x.Event is "APPROVE" or "REQUEST_CHANGES");
-        Assert.Contains(
-            fakeAppServer.TurnPrompts,
-            prompt => prompt.Contains("Review focus: security regressions", StringComparison.Ordinal));
-        Assert.Empty(fakeGitHub.IssueStateArguments);
-        Assert.Empty(fakeGitHub.PullRequestStateArguments);
-    }
-
-    [Fact]
-    public async Task MentionReview_AutoPublishStillBlocksDraftWarnings()
+    public async Task MentionReview_AutoPublishBlocksDraftWarnings()
     {
         var fakeGitHub = new FakeGitHubApiClient();
         var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitNoOpReviewDraft);
@@ -207,9 +156,6 @@ public sealed class GitHubMentionReviewDispatchTests
             services.RemoveAll<IDotCraftAppServerClientFactory>();
             services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
             services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
-        }, settings: new Dictionary<string, string?>
-        {
-            ["Oratorio:Automation:AutoReviewPublishEnabled"] = "false"
         });
         var client = app.CreateClient();
 

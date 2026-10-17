@@ -112,6 +112,8 @@ export type {
   IconButtonProps,
   InlineDiffProps,
   InputProps,
+  MarkdownProps,
+  UserAvatarProps,
   MenuEntry,
   MenuItem,
   MenuLabel,
@@ -161,7 +163,9 @@ export const SettingsBreadcrumb = ui.SettingsBreadcrumb;
 export const SettingsGroup = ui.SettingsGroup;
 export const SettingsRow = ui.SettingsRow;
 export const InlineDiff = ui.InlineDiff;
+export const Markdown = ui.Markdown;
 export const AgentAvatar = ui.AgentAvatar;
+export const UserAvatar = ui.UserAvatar;
 export const Menu = ui.Menu;
 export const SplitButton = ui.SplitButton;
 export const CatalogPage = ui.CatalogPage;

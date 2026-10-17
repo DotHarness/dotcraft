@@ -10,6 +10,8 @@ import {
   Slider,
   AgentAvatar,
   IconButton,
+  Markdown,
+  UserAvatar,
   Menu,
   type DesktopPluginActivate,
   type DesktopPluginHost,
@@ -189,6 +191,9 @@ void (
 );
 
 void <AgentAvatar name="Ada" size={28} animated />;
+
+void <Markdown content="**Keep** filters stable." />;
+void <UserAvatar size={24} />;
 
 void (
   <Menu

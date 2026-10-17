@@ -22,6 +22,8 @@ import { RobotAvatar } from '../components/agents/RobotAvatar'
 import { CatalogSection, CatalogToolbarIconButton } from '../components/catalog/CatalogSurface'
 import { DesktopPluginCatalogPage } from '../components/desktopPlugins/DesktopPluginCatalogPage'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
+import { DesktopPluginMarkdown } from '../components/desktopPlugins/DesktopPluginMarkdown'
+import { DesktopPluginUserAvatar } from '../components/desktopPlugins/DesktopPluginUserAvatar'
 import { DesktopPluginMenu } from '../components/desktopPlugins/DesktopPluginMenu'
 import { DesktopPluginSegmentedControl } from '../components/desktopPlugins/DesktopPluginSegmentedControl'
 import { DesktopPluginSplitButton } from '../components/desktopPlugins/DesktopPluginSplitButton'
@@ -49,6 +51,8 @@ installDesktopPluginRuntime({
     SettingsGroup,
     SettingsRow,
     InlineDiff: DesktopPluginInlineDiff,
+    Markdown: DesktopPluginMarkdown,
+    UserAvatar: DesktopPluginUserAvatar,
     AgentAvatar: RobotAvatar,
     Menu: DesktopPluginMenu,
     SplitButton: DesktopPluginSplitButton,

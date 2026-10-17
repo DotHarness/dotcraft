@@ -639,13 +639,15 @@ Import shared UI components from `@dotcraft/plugin` so a plugin page looks like 
 | Group | Components |
 |---|---|
 | **Controls** | `Button`, `IconButton`, `SplitButton`, `Menu`, `Input`, `Textarea`, `Select`, `SegmentedControl`, `Combobox`, `Checkbox`, `PillSwitch`, `Slider` |
-| **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff`, `AgentAvatar` |
+| **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff`, `Markdown`, `AgentAvatar`, `UserAvatar` |
 | **Settings layout** | `SettingsPanelShell`, `SettingsBreadcrumb`, `SettingsGroup`, `SettingsRow` |
 | **Catalog layout** | `CatalogPage`, `CatalogSection`, `CatalogToolbarButton` |
 
 `CatalogPage` gives a main view the same frame as Desktop's Plugins and Agents pages: pass a `title`, optional `actions` for the top bar (`CatalogToolbarButton` for icon-only commands such as Refresh, `Button` or `SplitButton` for the principal one), an optional `search` and `filters`, and render your groups as children with `CatalogSection`. In each filter group, put the unfiltered choice first.
 
 `AgentAvatar` draws the character Desktop shows for an agent. Pass the SubAgent's `nickname` as `name`, plus an optional `size` and `animated`, and your plugin draws the same character as the Subagents tab. Desktop supplies the component, so do not bundle the avatar package yourself.
+
+`UserAvatar` draws the Desktop user's own Profile avatar, with an optional `size`. Use it beside things the user wrote, such as their comments, so they look the same as in Desktop.
 
 A control that reports a chosen value — `Select`, `Combobox`, `SegmentedControl` — calls `onValueChange` and takes its accessible name from `ariaLabel`. A boolean toggle — `Checkbox`, `PillSwitch` — calls `onChange`.
 

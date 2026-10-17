@@ -2,14 +2,13 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.7.8 |
+| Version | 0.8.10 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-17 |
 | Parent Spec | [Oratorio Design](./oratorio-design.md), [Stack deployment](stack-deployment.md) |
 
-This document defines the deployment contract for exposing the GitHub webhook
-endpoint of a server-managed Oratorio stack without exposing the rest of the
-backend API.
+This document defines how a server-managed Oratorio stack exposes its GitHub
+webhook endpoint without exposing the rest of the backend.
 
 Reference material:
 
@@ -20,109 +19,91 @@ Reference material:
 
 ## 1. Overview
 
-An operator may add a Caddy gateway to a `dotcraft stack` Docker deployment. The
+An operator may add a Caddy gateway to a `dotcraft stack` deployment. The
 gateway accepts public HTTPS requests for exactly:
 
 ```text
 POST /api/v1/sources/github/webhook
 ```
 
-Every other HTTPS request returns `404`. Oratorio, DotCraft AppServer, and the
-DotCraft dashboard remain published on host loopback only. DotCraft Desktop
-continues to connect to Oratorio through an SSH tunnel.
+Every other HTTPS request gets `404`. Oratorio, DotCraft AppServer and the
+DotCraft dashboard stay published on host loopback only, and DotCraft Desktop
+keeps reaching Oratorio through an SSH tunnel.
 
-The gateway is optional. A deployment without the generated Compose overlay and
-Caddyfile retains the existing private-only topology.
+The gateway is optional; without it the deployment stays private-only.
 
 ## 2. Goals
 
-The completed behavior must:
+The feature must:
 
 - provide a production HTTPS endpoint for GitHub webhook delivery;
-- keep the full Oratorio API inaccessible through the public gateway;
-- preserve the webhook request method, path, body, signature, delivery, and
-  event headers;
-- keep the existing Oratorio host port bound to `127.0.0.1`;
-- support both DNS names and public IP addresses;
-- generate, preserve, and inject a high-entropy webhook secret;
-- make enable, status, disable, restart, logs, upgrade, and doctor behavior
-  predictable for `dotcraft stack` deployments;
-- leave GitHub App settings and host firewall policy under operator control.
+- keep the rest of the Oratorio API unreachable through the gateway;
+- pass the webhook's method, path, body, signature, delivery and event headers
+  through unchanged;
+- keep Oratorio's own host port on loopback;
+- support DNS names and public IP addresses;
+- generate, keep and inject a high-entropy webhook secret;
+- make enable, status, disable, restart, logs, upgrade and doctor predictable;
+- leave GitHub App settings and firewall policy to the operator.
 
 ## 3. Non-goals
 
-The first version does not:
+Not provided:
 
-- expose any Oratorio endpoint other than the GitHub webhook POST;
-- provide an HTTP-only mode or bypass certificate validation;
-- add a webhook relay or tunnel service;
-- expose GitLab webhooks;
-- modify the backend API, database, Desktop UI, or `oratorio.config.json`;
-- modify GitHub App settings, cloud firewalls, DNS, or host firewall rules;
-- invite or grant repository access to the public command account.
+- any public Oratorio endpoint other than the GitHub webhook POST;
+- an HTTP-only mode or skipped certificate validation;
+- a webhook relay or tunnel service;
+- public GitLab webhooks;
+- changes to the backend API, database, Desktop UI or Oratorio configuration;
+- changes to GitHub App settings, cloud firewalls, DNS or host firewall rules;
+- inviting or granting repository access to the public command account.
 
 ## 4. Deployment Assets
 
-An enabled `dotcraft stack` deployment contains:
+Enabling ingress adds a webhook Compose overlay and a gateway configuration
+next to the base Compose file and the deployment's environment file. The base
+Compose file stays authoritative for the private stack. The overlay adds the
+gateway service, publishes host ports `80` and `443`, mounts the gateway
+configuration read-only, keeps certificate and account state in persistent
+volumes, passes the webhook secret from the environment file into Oratorio, and
+leaves Oratorio's loopback binding unchanged.
 
-```text
-docker-compose.yml
-docker-compose.webhook.yml
-Caddyfile
-.env
-```
-
-The base Compose file remains authoritative for the private stack. The webhook
-overlay:
-
-- adds a `webhook-gateway` service using `caddy:2.11-alpine`;
-- publishes host TCP ports `80` and `443`;
-- mounts `Caddyfile` read-only;
-- persists `/data` and `/config` in named volumes;
-- injects `Oratorio__GitHub__WebhookSecret` into the existing `oratorio`
-  service from `.env`;
-- does not change the Oratorio `5087` host binding.
-
-CLI lifecycle commands automatically include the overlay when the managed
-overlay file exists. Manual Compose users must pass both Compose files.
+Stack lifecycle commands include the overlay automatically when it exists.
+Manual Compose users must pass both Compose files.
 
 ## 5. HTTPS and Routing
 
 ### 5.1 Domain host
 
-A DNS host uses Caddy's normal automatic HTTPS behavior. The configured host
-must resolve to the server and ports `80` and `443` must be reachable for ACME
-validation and HTTPS traffic.
+A DNS host uses Caddy's normal automatic HTTPS. The host must resolve to the
+server, and ports `80` and `443` must be reachable for ACME validation and
+HTTPS traffic.
 
 ### 5.2 Public IP host
 
-A public IP uses the Let's Encrypt ACME issuer with the `shortlived` profile.
-Caddy stores certificate and account state in its persistent data volume and
-renews the short-lived certificate automatically.
+A public IP uses Let's Encrypt short-lived certificates, kept in the gateway's
+persistent state and renewed automatically.
 
-Loopback, private, link-local, multicast, unspecified, and other non-public IP
-addresses are rejected. Host input must be a bare DNS name or IP address. URLs,
-paths, query strings, fragments, wildcard hosts, ports, and `localhost` are
-invalid.
+Loopback, private, link-local, multicast, unspecified and other non-public
+addresses are rejected. The host must be a bare DNS name or IP address; URLs,
+paths, query strings, fragments, wildcards, ports and `localhost` are invalid.
 
 ### 5.3 Route boundary
 
-Caddy matches both the exact method and exact path. It forwards the matching
-request to `oratorio:5087` without rewriting the request body or GitHub
-headers. It returns a plain `404` for:
+The gateway matches the exact method and path and forwards only that request
+to Oratorio, without rewriting the body or GitHub headers. It answers a plain
+`404` for any other method on the webhook path, for paths below or beside it,
+and for health, board, settings, source and every other API route.
 
-- `GET` or any non-`POST` method on the webhook path;
-- paths below or adjacent to the webhook path;
-- health, board, settings, source, and every other API route.
-
-Port `80` exists only for Caddy's ACME challenge and automatic HTTPS redirect.
-The product does not provide an HTTP webhook endpoint.
+Port `80` exists only for ACME challenges and the automatic HTTPS redirect;
+there is no HTTP webhook endpoint.
 
 ## 6. CLI Contract
 
 ### 6.1 New deployment
 
-`dotcraft stack init` accepts:
+`dotcraft stack init` accepts a public host, an optional ACME email and an
+optional secret file:
 
 ```text
 --webhook-public-host <host-or-ip>
@@ -130,17 +111,15 @@ The product does not provide an HTTP webhook endpoint.
 --webhook-secret-file <path>
 ```
 
-Interactive initialization asks for an optional public host. Leaving it empty
-creates the private stack only. Non-interactive `--yes` mode enables the
-gateway only when `--webhook-public-host` is explicitly present.
+Interactive initialization asks for an optional public host; leaving it empty
+creates a private stack. Non-interactive initialization enables the gateway
+only when a public host is given.
 
-When enabled during initialization, the generated overlay and Caddyfile are
+When enabled during initialization, the overlay and gateway configuration are
 written before the stack starts. Dry-run reports the planned files and public
-URL without printing or writing a secret.
+URL without writing or printing a secret.
 
 ### 6.2 Existing deployment
-
-The CLI provides:
 
 ```text
 dotcraft stack webhook enable --public-host <host-or-ip> \
@@ -151,70 +130,53 @@ dotcraft stack webhook disable [--dir <path>]
 
 `enable`:
 
-1. validates the deployment and public host;
-2. reads an existing non-empty secret from `.env`, or reads the requested
-   secret file, or generates a 32-byte URL-safe secret;
-3. validates that host ports `80` and `443` are available unless the existing
-   managed gateway owns them;
-4. atomically updates `.env` with mode `0600` on Unix;
-5. writes only CLI-marked generated overlay and Caddy files;
-6. validates the merged Compose model and Caddyfile;
-7. starts the gateway and recreates Oratorio so the secret is injected.
+1. validates the deployment and the public host;
+2. keeps an existing secret, or reads the given secret file, or generates a
+   32-byte URL-safe secret;
+3. checks that host ports `80` and `443` are free unless the managed gateway
+   already holds them;
+4. updates the environment file atomically, readable only by its owner on Unix;
+5. writes only CLI-owned overlay and gateway files;
+6. validates the merged Compose model and the gateway configuration;
+7. starts the gateway and recreates Oratorio so it receives the secret.
 
-Repeated enable preserves the secret. A newly generated secret is printed only
-after a successful first enable. Dry-run performs validation and reports
-actions without writing files, starting containers, or printing secret values.
+Enabling again keeps the secret. A newly generated secret is printed once,
+after the first successful enable. Dry-run validates and reports without
+writing files, starting containers or printing secrets.
 
-`status` reports whether ingress is enabled, the public webhook URL, whether the
-secret is configured, and the gateway container status. It never prints the
-secret.
+`status` reports whether ingress is enabled, the public webhook URL, whether a
+secret is configured and the gateway's state. It never prints the secret.
 
-`disable` stops and removes the gateway, then removes only CLI-marked generated
-overlay and Caddy files. It preserves the webhook secret in `.env`, Caddy named
-volumes, the base stack, and the loopback Oratorio service.
+`disable` stops and removes the gateway, then removes only CLI-owned overlay and
+gateway files. It keeps the webhook secret, the gateway's persistent state, the
+base stack and the loopback Oratorio service.
 
-If a target overlay or Caddyfile exists without the CLI ownership marker,
-enable and disable fail without overwriting or deleting that file.
+If an overlay or gateway file exists without the CLI's ownership marker, enable
+and disable fail without overwriting or deleting it.
 
 ## 7. Secret Handling
 
-The `.env` key is:
+Generated secrets are 32 random bytes in URL-safe base64 without padding. A
+secret file must hold one non-empty value after trimming trailing line endings.
+A secret never appears in dry-run, status, doctor, Compose validation output,
+the gateway configuration, documentation or error messages.
 
-```text
-ORATORIO_GITHUB_WEBHOOK_SECRET
-```
-
-The Compose overlay maps it to:
-
-```text
-Oratorio__GitHub__WebhookSecret
-```
-
-Generated secrets contain 32 random bytes encoded with URL-safe base64 without
-padding. A secret file must contain one non-empty value after trimming terminal
-line endings. The CLI never includes a secret in dry-run, status, doctor,
-Compose validation output, Caddyfile, documentation, or error messages.
-
-Updating `.env` preserves unrelated keys and comments. The replacement is
-written through a same-directory temporary file followed by an atomic rename.
-On Unix the final file mode is `0600`.
+Updating the environment file keeps unrelated entries and comments, writes
+through a temporary file in the same directory followed by an atomic rename,
+and leaves the file readable only by its owner on Unix.
 
 ## 8. Operational Behavior
 
-`status`, `logs`, `restart`, and `upgrade` automatically use the merged Compose
-model whenever the managed overlay exists.
+`status`, `logs`, `restart` and `upgrade` use the merged Compose model whenever
+the overlay exists.
 
-When ingress is enabled, `doctor` additionally checks:
+With ingress enabled, `doctor` also checks: the webhook secret (reported only as
+configured or missing), presence and CLI ownership of the overlay and gateway
+files, merged Compose validation, gateway configuration validation, that the
+gateway is running, and host listeners on `80` and `443`.
 
-- webhook secret presence, reported only as `configured` or `missing`;
-- CLI ownership and presence of the overlay and Caddyfile;
-- successful merged Compose validation;
-- successful Caddyfile adaptation or validation;
-- gateway container running state;
-- host listeners on TCP `80` and `443`.
-
-Ingress checks are absent for a private-only deployment. A failed check does not
-mutate the deployment.
+A private-only deployment has no ingress checks. A failed check never changes
+the deployment.
 
 ## 9. Operator Responsibilities
 
@@ -226,22 +188,22 @@ https://<host-or-ip>/api/v1/sources/github/webhook
 
 The operator must:
 
-- point the DNS name to the host when using a domain;
+- point the DNS name at the host when using a domain;
 - allow inbound TCP `80` and `443`;
-- keep `5087` and the DotCraft ports closed publicly;
+- keep Oratorio's and DotCraft's own ports closed to the public;
 - enable the GitHub App webhook, paste the same secret, keep SSL verification
-  active, and subscribe to `Issue comments`;
-- test a delivery and the `@dotcraft-ai review` command in an open,
-  configured pull request.
+  on, and subscribe to issue comments;
+- test a delivery and the `@dotcraft-ai review` command on an open, configured
+  pull request.
 
 ## 10. Failure Rules
 
-- Port conflicts fail before the CLI changes a previously private deployment.
-- Invalid host, missing base deployment files, invalid Compose, and invalid
-  Caddy configuration fail closed.
-- Existing webhook enable is idempotent when its generated files and settings
-  are compatible.
-- An interrupted file update leaves either the previous complete file or the
-  new complete file, never a partially written `.env`.
-- Disabling ingress must not stop or recreate the base Oratorio or DotCraft
+- Port conflicts fail before a private deployment is changed.
+- An invalid host, missing base deployment files, or invalid Compose or gateway
+  configuration fail closed.
+- Enabling again is idempotent when the generated files and settings are
+  compatible.
+- An interrupted update leaves either the complete previous or the complete new
+  environment file, never a partial one.
+- Disabling ingress never stops or recreates the base Oratorio or DotCraft
   services.

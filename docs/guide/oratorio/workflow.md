@@ -9,31 +9,29 @@ The **Active** view groups current tasks by lifecycle stage. Use **All**, **Canc
 - Search titles and descriptions, or narrow the results with `source:` and `label:`.
 - Filter by repository or assignee.
 - Select **Sync sources** to request an immediate GitHub and GitLab update.
-- Select a card to open Quick View without losing your current Board filters.
+- Select a card to open the task beside the Board without losing your current Board filters.
 
-Quick View shows the task's status, recent activity, drafts, and comments, along with the actions allowed right now.
+The task panel shows the description, the task's properties, and its Activity, with the one action that fits the task right now at the top. Select **Full details** to open the same task across the whole view.
 
 ## Start and follow Agent work
 
-Open a pending task and pick one of the offered run modes. The choices depend on where the task came from and which stage it is in.
+Open a pending task and start a run from the button at the top. Its menu offers the other run modes; the choices depend on where the task came from.
 
 Every run happens in an Oratorio-managed worktree. Open the linked DotCraft thread for the full conversation, plan, tool activity, or file changes. Cancelling a run in progress asks for confirmation.
 
-## The five stages of a task
+## Review and decide
 
-Open a task's full detail and the workflow unfolds in five stages:
+Everything about a task reads top to bottom on one page. Agent runs appear like CI checks, Agent drafts as cards, and decisions and comments in between, in the order they happened.
 
-1. **Intake** — problem statement, source metadata, labels, assignee, and base branch.
-2. **Analysis** — run attempts, live activity, timeline, and diagnostics.
-3. **Review** — Agent drafts, findings, and suggested changes.
-4. **Decision** — approve, request changes, or reject, plus the result of any provider write.
-5. **Closed** — the recorded outcome and history, with archive, reopen, and re-review available when they apply.
+- When a task is ready, select **Review** to approve, request changes, or reject it. Requesting changes needs a comment.
+- To close a task, open its status menu at the top left and select **Archive**. An archived task is reopened the same way.
+- When a pull request gets new commits after an approval, **Review new revision** starts a fresh review.
 
 ![Reviewing an Oratorio task in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/oratorio/task-review.png)
 
 ## Deliver or continue the work
 
-Review drafts carry inline findings and suggested replacements. Resolve or reopen a finding before publishing when a point still needs discussion.
+When a review of a pull request or merge request finishes, Oratorio publishes its findings and suggested replacements to GitHub or GitLab right away as a comment-only review. It never approves, requests changes, or merges, and the task still waits for your decision. A published finding stays open until it's handled: select **Mark fixed** or **Dismiss** on the task, and **Reopen** it if it needs another look. If a review can't be published, for example because writes are off or the pull request has new commits, the task shows why. Retry the publication or discard the review.
 
 With source writes enabled, an implementation draft delivers its branch as a GitHub pull request or a GitLab merge request. A follow-up draft can be edited and turned into a new local task. If a provider write fails, Oratorio keeps the recorded decision and offers a retry for that write.
 

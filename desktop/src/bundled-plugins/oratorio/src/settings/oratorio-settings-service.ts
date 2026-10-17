@@ -143,7 +143,6 @@ function fromServer(envelope: JsonObject, schedules: JsonObject[]): OratorioSett
     maxImplementationTurns: automation.maxImplementationTurns ?? 3,
     deliveryPolicy: automation.deliveryPolicy ?? 'manualDelivery',
     autoReview: automation.autoReviewRepositories ?? [],
-    draftPublish: automation.autoReviewPublishRepositories ?? [],
     followUp: automation.autoFollowUpRepositories ?? [],
     maxFollowUpRounds: automation.maxFollowUpRounds ?? 5,
     github: {
@@ -238,8 +237,6 @@ function toServer(settings: OratorioSettingsConfig, current: JsonObject): JsonOb
     maxImplementationTurns: settings.maxImplementationTurns,
     deliveryPolicy: settings.deliveryPolicy,
     autoReviewRepositories: settings.autoReview,
-    autoReviewPublishEnabled: settings.draftPublish.length > 0,
-    autoReviewPublishRepositories: settings.draftPublish,
     autoFollowUpEnabled: settings.followUp.length > 0,
     autoFollowUpRepositories: settings.followUp,
     maxFollowUpRounds: settings.maxFollowUpRounds

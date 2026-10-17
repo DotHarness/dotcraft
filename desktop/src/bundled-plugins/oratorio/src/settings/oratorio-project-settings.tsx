@@ -51,7 +51,6 @@ function withoutProject(config: OratorioSettingsConfig, projectId: string): Orat
   transaction.projects = transaction.projects.filter((item) => item.id !== projectId)
   if (!option) return transaction
   transaction.autoReview = transaction.autoReview.filter((value) => !projectValueMatchesOption(value, option))
-  transaction.draftPublish = transaction.draftPublish.filter((value) => !projectValueMatchesOption(value, option))
   transaction.followUp = transaction.followUp.filter((value) => !projectValueMatchesOption(value, option))
   return transaction
 }

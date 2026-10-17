@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using DotCraft.Oratorio.Api;
 using DotCraft.Oratorio.Data;
 using DotCraft.Oratorio.Domain;
@@ -17,7 +16,6 @@ public sealed class ReviewDraftService(
     GitHubWriteService gitHubWrites,
     GitLabWriteService gitLabWrites,
     IGitLabApiClient gitLab,
-    IOptionsMonitor<OratorioAutomationOptions> automationOptions,
     IClock clock)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -89,59 +87,6 @@ public sealed class ReviewDraftService(
         return new SubmitReviewDraftResponse(draft.DraftId, validation.AcceptedCount, warnings.Count, warnings);
     }
 
-    public async Task<ItemDetailResponse> UpdateAsync(string draftId, ReviewDraftUpdateRequest request, OratorioService items, CancellationToken ct)
-    {
-        var draft = await db.ReviewDrafts.Include(x => x.Comments).FirstOrDefaultAsync(x => x.DraftId == draftId, ct)
-            ?? throw OratorioApiException.Conflict("reviewDraftNotFound", "The requested review draft does not exist.", new Dictionary<string, object?> { ["draftId"] = draftId });
-        EnsureDraftStatus(draft);
-
-        if (!string.IsNullOrWhiteSpace(request.SummaryBody))
-        {
-            draft.SummaryBody = request.SummaryBody.Trim();
-        }
-
-        var updates = (request.Comments ?? []).ToDictionary(x => x.DraftCommentId, StringComparer.Ordinal);
-        foreach (var comment in draft.Comments)
-        {
-            if (!updates.TryGetValue(comment.DraftCommentId, out var update))
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrWhiteSpace(update.Body))
-            {
-                comment.Body = update.Body.Trim();
-            }
-
-            if (update.SuggestionReplacement is not null)
-            {
-                if (!HasCodeSuggestion(comment))
-                {
-                    throw new OratorioApiException(
-                        StatusCodes.Status400BadRequest,
-                        "reviewDraftSuggestionRequired",
-                        "Existing comment-only findings cannot be converted to code suggestions without suggestion.oldText.",
-                        new Dictionary<string, object?> { ["draftCommentId"] = comment.DraftCommentId });
-                }
-
-                comment.SuggestionReplacement = NormalizeSuggestionSnippet(update.SuggestionReplacement);
-                comment.CommentOnlyReason = null;
-            }
-            else if (!string.IsNullOrWhiteSpace(update.CommentOnlyReason))
-            {
-                comment.SuggestionOriginal = null;
-                comment.SuggestionReplacement = null;
-                comment.CommentOnlyReason = NormalizeCommentOnlyReason(update.CommentOnlyReason);
-            }
-        }
-
-        EnsureDraftCommentsHaveSuggestionOrReason(draft.Comments);
-        draft.SuggestionCount = draft.Comments.Count(IsAcceptedCodeSuggestion);
-        draft.UpdatedAt = clock.UtcNow;
-        await db.SaveChangesAsync(ct);
-        return await items.GetItemDetailByIdAsync(draft.ItemId, ct);
-    }
-
     public async Task<ItemDetailResponse> DiscardAsync(string draftId, OratorioService items, CancellationToken ct)
     {
         var draft = await db.ReviewDrafts.FirstOrDefaultAsync(x => x.DraftId == draftId, ct)
@@ -174,14 +119,11 @@ public sealed class ReviewDraftService(
             .Include(x => x.Item)
             .Include(x => x.Round)
             .FirstOrDefaultAsync(x => x.RunId == runId, ct);
-        var mentionPublish = run?.DispatchTrigger == RunDispatchTrigger.GitHubMentionReview &&
-            run.Item?.Source == "github";
         if (run?.Item is null ||
             run.Round is null ||
             run.Purpose != RunPurpose.ReviewAnalysis ||
             run.Item.Source is not ("github" or "gitlab") ||
-            run.Item.Kind != ItemKind.PullRequest ||
-            (!mentionPublish && !automationOptions.CurrentValue.CanAutoPublishReviewForRepository(run.Item.Repository)))
+            run.Item.Kind != ItemKind.PullRequest)
         {
             return 0;
         }
@@ -539,9 +481,9 @@ public sealed class ReviewDraftService(
 
     private static void EnsureDraftStatus(OratorioReviewDraft draft)
     {
-        if (draft.Status != ReviewDraftStatus.Draft)
+        if (draft.Status is not (ReviewDraftStatus.Draft or ReviewDraftStatus.PublishFailed))
         {
-            throw OratorioApiException.Conflict("invalidReviewDraftState", "Only draft review drafts can be changed.", new Dictionary<string, object?> { ["status"] = draft.Status });
+            throw OratorioApiException.Conflict("invalidReviewDraftState", "Only unpublished review drafts can be published or discarded.", new Dictionary<string, object?> { ["status"] = draft.Status });
         }
     }
 
@@ -1102,21 +1044,6 @@ public sealed class ReviewDraftService(
         }
 
         return normalized;
-    }
-
-    private static void EnsureDraftCommentsHaveSuggestionOrReason(IEnumerable<OratorioReviewDraftComment> comments)
-    {
-        foreach (var comment in comments)
-        {
-            if (!HasCodeSuggestion(comment) && string.IsNullOrWhiteSpace(comment.CommentOnlyReason))
-            {
-                throw new OratorioApiException(
-                    StatusCodes.Status400BadRequest,
-                    "reviewDraftSuggestionRequired",
-                    "Each inline comment must include suggestion.oldText/newText for concrete code suggestions or commentOnly.reason for comment-only findings.",
-                    new Dictionary<string, object?> { ["draftCommentId"] = comment.DraftCommentId });
-            }
-        }
     }
 
     private static bool IsAcceptedCodeSuggestion(OratorioReviewDraftComment comment) =>

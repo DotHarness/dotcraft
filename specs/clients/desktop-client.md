@@ -428,7 +428,7 @@ Desktop receives thread truth through durable header/history queries and realtim
 
 ### 5.3.5 Open a Thread from a Workspace-owned product surface
 
-When a native product surface such as Oratorio opens a Thread, it supplies both the real Thread id and its canonical Workspace path. If the target Workspace is not foreground, Desktop records the pending Thread selection, switches that Workspace through the existing project connection lifecycle, and selects the Thread only after the target thread list has loaded. Returning to the product surface restores its filters, selected item, drawer/detail stage, and scroll position for the lifetime of the Desktop window.
+When a native product surface such as Oratorio opens a Thread, it supplies both the real Thread id and its canonical Workspace path. If the target Workspace is not foreground, Desktop records the pending Thread selection, switches that Workspace through the existing project connection lifecycle, and selects the Thread only after the target thread list has loaded. Returning to the product surface restores its filters, selected item, open drawer or detail page, and scroll position for the lifetime of the Desktop window.
 
 ### 5.4 Send a Message
 
