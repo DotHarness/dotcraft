@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
-import { Square } from 'lucide-react'
+import { CircleAlert, Square } from 'lucide-react'
 import type { WorkflowPhaseView } from '@dotcraft/sdk/contracts'
 import { useT } from '../../../contexts/LocaleContext'
 import { useViewerTabStore } from '../../../stores/viewerTabStore'
@@ -11,6 +11,28 @@ import { ToolCollapseChevron } from '../../conversation/ToolDisclosure'
 import { openSubAgent } from '../../../utils/subAgentNavigation'
 import { WorkflowStatusGlyph, formatWorkflowElapsed, formatWorkflowPhaseMetrics, formatWorkflowTokens, workflowTone } from '../../workflow/workflowPresentation'
 import type { WorkflowViewerTab as WorkflowViewerTabDescriptor } from '../../../../shared/viewer/types'
+
+function WorkflowOutcomeNotice({ run }: { run: { status: string; error?: string; startedAt?: string; createdAt: string; completedAt?: string } }): JSX.Element | null {
+  const t = useT()
+  if (run.status === 'stopped') {
+    const elapsed = formatWorkflowElapsed(run.startedAt ?? run.createdAt, run.completedAt)
+    return (
+      <div className="dc-workflow-runtime__outcome" role="status">
+        <WorkflowStatusGlyph status="stopped" />
+        <span>{elapsed ? t('workflow.stoppedAfter', { duration: elapsed }) : t('workflow.stopped')}</span>
+      </div>
+    )
+  }
+  if ((run.status === 'failed' || run.status === 'interrupted') && run.error) {
+    return (
+      <div className="dc-workflow-runtime__outcome" data-tone="error" role="status">
+        <CircleAlert size={14} strokeWidth={1.8} aria-hidden />
+        <span>{run.error}</span>
+      </div>
+    )
+  }
+  return null
+}
 
 function WorkflowPhaseSection({
   phase,
@@ -138,7 +160,7 @@ export function WorkflowViewerTab({ tabId }: { tabId: string }): JSX.Element {
           />
         )}
       </header>
-      {run.error && <div className="dc-workflow-runtime__error">{run.error}</div>}
+      <WorkflowOutcomeNotice run={run} />
       <div className="dc-workflow-runtime__phases">
         {run.phases.map((phase) => (
           <WorkflowPhaseSection key={phase.name} phase={phase} renderAgent={renderAgent} />

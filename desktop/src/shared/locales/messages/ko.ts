@@ -4384,6 +4384,8 @@ export const MESSAGES_KO = {
   'workflow.missing': '이 워크플로를 사용할 수 없습니다.',
   'workflow.stop': '중지',
   'workflow.stopping': '중지 중…',
+  'workflow.stopped': '중지됨',
+  'workflow.stoppedAfter': '{{duration}} 후 중지됨',
   'workflow.otherAgents': '기타 에이전트',
   'toolCall.workflow.started': '{{name}} 워크플로를 시작했습니다',
   'toolCall.workflow.startedGeneric': '워크플로를 시작했습니다',

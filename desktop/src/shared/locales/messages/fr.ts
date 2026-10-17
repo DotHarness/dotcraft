@@ -4386,6 +4386,8 @@ export const MESSAGES_FR = {
   'workflow.missing': 'Ce workflow est indisponible.',
   'workflow.stop': 'Arrêter',
   'workflow.stopping': 'Arrêt…',
+  'workflow.stopped': 'Arrêté',
+  'workflow.stoppedAfter': 'Arrêté après {{duration}}',
   'workflow.otherAgents': 'Autres agents',
   'toolCall.workflow.started': 'Workflow {{name}} démarré',
   'toolCall.workflow.startedGeneric': 'Workflow démarré',

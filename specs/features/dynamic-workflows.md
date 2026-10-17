@@ -531,6 +531,9 @@ The Workflow Detail tab:
 
 - uses the shared Workflow icon in its Detail Panel tab chrome;
 - displays the workflow name and metadata description, without a logo or aggregate progress subtitle;
+- states a stopped or failed run's outcome as one quiet notice under the header: a stopped run reads
+  "Stopped after {elapsed}" with the neutral stopped glyph, a failed or interrupted run shows its error
+  with an alert glyph, and a completed run shows none;
 - shows the complete phase graph with nested Agents and neutral status icons;
 - applies the shared running gradient to current phase detail;
 - shows each Agent's total tokens and tool-call count, appending elapsed time only after the Agent is

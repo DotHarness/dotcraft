@@ -1786,6 +1786,14 @@ retried in place, and otherwise the frameless `CopyButton`, which copies the raw
 or throttling failure shows a short localized sentence in place of the raw message. Reaching a usage
 limit is a neutral timeline divider instead.
 
+### Run outcomes
+
+A background run's detail view states how the run ended with at most one quiet notice under its
+header, in the same `--bg-secondary`, 8px-radius form as a turn error: a stopped run is neutral, with
+the stopped glyph in `--text-tertiary` and "Stopped after {elapsed}" in `--text-secondary`; a failed
+run uses a 14px alert icon in `--error-text` and the reason in `--text-secondary`; a completed run
+shows nothing. A stop is never presented as an error, and no second line repeats the outcome.
+
 ### Interactive tool UI
 
 MCP tools may render an interactive UI in a sandboxed iframe (see

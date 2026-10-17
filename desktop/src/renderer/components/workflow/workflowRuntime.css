@@ -126,7 +126,23 @@
 .dc-workflow-runtime__header h3 { margin: 0; color: var(--text-primary); font-size: var(--type-heading-size); overflow-wrap: anywhere; }
 .dc-workflow-runtime__header p { margin: 2px 0 0; color: var(--text-secondary); font-size: var(--type-secondary-size); line-height: var(--type-secondary-prose-line-height); }
 
-.dc-workflow-runtime__error { margin-bottom: 14px; padding: 8px 0; border-block: 1px solid var(--border-subtle); color: var(--error); font-size: var(--type-secondary-size); }
+.dc-workflow-runtime__outcome {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.dc-workflow-runtime__outcome > svg { flex: none; margin-top: 2px; color: var(--text-tertiary); }
+.dc-workflow-runtime__outcome[data-tone='error'] > svg { color: var(--error-text); }
 .dc-workflow-runtime__phases { display: flex; flex-direction: column; gap: 8px; }
 
 .dc-workflow-runtime-phase__header,

@@ -4457,6 +4457,8 @@ export const MESSAGES_ZH_HANS = {
   'workflow.missing': '此工作流不可用。',
   'workflow.stop': '停止',
   'workflow.stopping': '正在停止…',
+  'workflow.stopped': '已停止',
+  'workflow.stoppedAfter': '运行 {{duration}} 后停止',
   'workflow.otherAgents': '其他 Agent',
   'toolCall.workflow.started': '已启动工作流 {{name}}',
   'toolCall.workflow.startedGeneric': '已启动工作流',

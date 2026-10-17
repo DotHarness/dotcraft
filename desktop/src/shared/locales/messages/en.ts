@@ -4537,6 +4537,8 @@ export const MESSAGES_EN = {
   'workflow.missing': 'This workflow is unavailable.',
   'workflow.stop': 'Stop',
   'workflow.stopping': 'Stopping…',
+  'workflow.stopped': 'Stopped',
+  'workflow.stoppedAfter': 'Stopped after {{duration}}',
   'workflow.otherAgents': 'Other agents',
   'workflow.loadFailed': 'Could not load this workflow.',
   'workflow.retry': 'Retry',

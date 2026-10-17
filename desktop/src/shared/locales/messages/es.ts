@@ -4386,6 +4386,8 @@ export const MESSAGES_ES = {
   'workflow.missing': 'Este flujo de trabajo no está disponible.',
   'workflow.stop': 'Detener',
   'workflow.stopping': 'Deteniendo…',
+  'workflow.stopped': 'Detenido',
+  'workflow.stoppedAfter': 'Detenido tras {{duration}}',
   'workflow.otherAgents': 'Otros agentes',
   'toolCall.workflow.started': 'Flujo de trabajo {{name}} iniciado',
   'toolCall.workflow.startedGeneric': 'Flujo de trabajo iniciado',

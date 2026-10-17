@@ -4384,6 +4384,8 @@ export const MESSAGES_JA = {
   'workflow.missing': 'このワークフローは利用できません。',
   'workflow.stop': '停止',
   'workflow.stopping': '停止中…',
+  'workflow.stopped': '停止済み',
+  'workflow.stoppedAfter': '{{duration}} で停止',
   'workflow.otherAgents': 'その他のエージェント',
   'toolCall.workflow.started': 'ワークフロー {{name}} を開始しました',
   'toolCall.workflow.startedGeneric': 'ワークフローを開始しました',
