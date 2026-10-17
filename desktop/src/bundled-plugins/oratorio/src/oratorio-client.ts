@@ -38,7 +38,6 @@ export const oratorioClient = {
   },
   syncSourceDetails(itemId: string): Promise<ItemDetailResponse> { return request('POST', `/api/v1/items/id/${encodeURIComponent(itemId)}/source-details/sync`) },
   retrySourceWrite(writeId: string): Promise<ItemDetailResponse> { return request('POST', `/api/v1/source-writes/${encodeURIComponent(writeId)}/retry`) },
-  updateReviewDraft(draftId: string, body: Body): Promise<ItemDetailResponse> { return request('PATCH', `/api/v1/review-drafts/${encodeURIComponent(draftId)}`, body) },
   publishReviewDraft(draftId: string): Promise<ItemDetailResponse> { return request('POST', `/api/v1/review-drafts/${encodeURIComponent(draftId)}/publish`) },
   discardReviewDraft(draftId: string): Promise<ItemDetailResponse> { return request('POST', `/api/v1/review-drafts/${encodeURIComponent(draftId)}/discard`) },
   resolveFinding(draftId: string, commentId: string, resolutionKind: ReviewFindingResolutionKind, note?: string): Promise<ItemDetailResponse> {

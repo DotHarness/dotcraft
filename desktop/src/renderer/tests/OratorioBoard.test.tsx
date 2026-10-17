@@ -1,5 +1,5 @@
 import './setupPluginRuntime'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -69,47 +69,36 @@ describe('OratorioBoard', () => {
     expect(document.querySelector('.ora-board__notice')).toBeNull()
   })
 
-  it('loads source detail for Quick View and reports decisions through the host toast', async () => {
+  it('opens a task in the drawer with its source detail and expands it to the full page', async () => {
     const summaryTask = {
-      id: 'pr-198', shortId: 'DEF-198', sourceLabel: '#198', provider: 'github' as const, repository: 'DotHarness/dotcraft', kind: 'Pull request' as const,
+      id: 'pr-198', shortId: 'DEF-198', sourceLabel: '#198', provider: 'github' as const, repository: 'example-org/sample-app', kind: 'Pull request' as const,
       title: 'Preserve filters when opening a thread', description: 'Agent-generated list summary', assignee: null, labels: ['frontend'],
-      column: 'in-review' as const, state: 'awaiting-review' as const, lifecycle: 'open' as const, updated: '10 min ago',
-      artifacts: { reviewDrafts: 0, implementationDrafts: 0, followUpDrafts: 0, comments: 0, writes: 0 }, capabilities: { decide: true },
+      column: 'in-review' as const, state: 'awaiting-review' as const, lifecycle: 'open' as const, updatedAt: '2026-08-08T08:00:00Z',
+      latestResult: 'none' as const, capabilities: { decide: true },
     }
     const detailTask = {
       ...summaryTask,
-      description: '## Summary\nKeep the Board context stable.\n\n## Key details\nInternal detail.',
-      artifacts: { ...summaryTask.artifacts, reviewDrafts: 1 },
-      detail: {
-        item: {}, rounds: [], runs: [{ summary: 'Raw run output' }], comments: [], timeline: [], decisions: [], sourceWrites: [], implementationDrafts: [], followUpDrafts: [], discussionTurns: [],
-        reviewDrafts: [{ summaryBody: 'The implementation preserves Board context.', updatedAt: '2026-08-08T08:00:00Z' }],
-      },
+      body: 'Keep the Board context stable.',
+      detail: { item: {}, rounds: [], runs: [], comments: [], timeline: [], decisions: [], sourceWrites: [], reviewDrafts: [], implementationDrafts: [], followUpDrafts: [], discussionTurns: [] },
     } as unknown as typeof summaryTask & { detail: import('../../bundled-plugins/oratorio/src/oratorio-contracts').ItemDetailResponse }
-    const onAction = vi.fn().mockResolvedValue(detailTask)
+    const onOpenDetail = vi.fn()
 
     renderBoard(
       <OratorioBoard
         tasks={[summaryTask]}
         onLoadTaskDetail={vi.fn().mockResolvedValue(detailTask)}
-        onTaskAction={onAction}
-        onOpenDetail={vi.fn()}
+        onOpenDetail={onOpenDetail}
         onOpenSettings={vi.fn()}
         onOpenThread={vi.fn()}
       />
     )
 
     fireEvent.click(screen.getByRole('button', { name: /Preserve filters when opening a thread/ }))
-    expect(await screen.findByText('Keep the Board context stable.')).toBeInTheDocument()
-    expect(screen.getByText('The implementation preserves Board context.')).toBeInTheDocument()
-    expect(screen.queryByText('Agent-generated list summary')).not.toBeInTheDocument()
-    expect(screen.queryByText('Raw run output')).not.toBeInTheDocument()
-    expect(screen.queryByText('Drafts')).not.toBeInTheDocument()
-    expect(screen.queryByText('Comments')).not.toBeInTheDocument()
-    expect(screen.queryByText('Writes')).not.toBeInTheDocument()
+    const drawer = within(await screen.findByRole('complementary'))
+    expect(await drawer.findByText('Keep the Board context stable.')).toBeInTheDocument()
+    expect(drawer.queryByText('Agent-generated list summary')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
-    await waitFor(() => expect(useToastStore.getState().toasts).toEqual(expect.arrayContaining([
-      expect.objectContaining({ message: 'Task approved', type: 'success' })
-    ])))
+    fireEvent.click(drawer.getByRole('button', { name: 'Full details' }))
+    expect(onOpenDetail).toHaveBeenCalledWith(expect.objectContaining({ id: 'pr-198' }))
   })
 })

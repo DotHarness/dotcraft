@@ -72,7 +72,8 @@ public sealed record ItemSummaryDto(
     string? GeneratedFromDraftId,
     string? ShortId,
     BoardTaskStatus TaskStatus,
-    long BoardSortOrder);
+    long BoardSortOrder,
+    LatestResult LatestResult);
 
 public sealed record ItemDto(
     string ItemId,
@@ -110,7 +111,18 @@ public sealed record ItemDto(
     string? GeneratedFromDraftId,
     string? ShortId,
     BoardTaskStatus TaskStatus,
-    long BoardSortOrder);
+    long BoardSortOrder,
+    LatestResult LatestResult);
+
+public enum LatestResult
+{
+    None,
+    NoIssues,
+    Findings,
+    ChangesReady,
+    Delivered,
+    FollowUps
+}
 
 public sealed record RoundDto(
     string RoundId,
@@ -401,10 +413,6 @@ public sealed record ReviewDraftCommentOnlyRequest(
     string? Reason);
 
 public sealed record SubmitReviewDraftResponse(string DraftId, int AcceptedCount, int WarningCount, IReadOnlyList<string> Warnings);
-
-public sealed record ReviewDraftUpdateRequest(string? SummaryBody, IReadOnlyList<ReviewDraftCommentUpdateRequest>? Comments);
-
-public sealed record ReviewDraftCommentUpdateRequest(string DraftCommentId, string? Body, string? SuggestionReplacement, string? CommentOnlyReason = null);
 
 public sealed record ResolveReviewFindingRequest(string FindingId, string ResolutionKind, string? Note);
 
@@ -855,8 +863,6 @@ public sealed record AutomationServerConfigurationDto(
     DeliveryPolicy DeliveryPolicy,
     int MaxImplementationTurns,
     IReadOnlyList<string> AutoReviewRepositories,
-    bool AutoReviewPublishEnabled,
-    IReadOnlyList<string> AutoReviewPublishRepositories,
     bool AutoFollowUpEnabled,
     IReadOnlyList<string> AutoFollowUpRepositories,
     int MaxFollowUpRounds);

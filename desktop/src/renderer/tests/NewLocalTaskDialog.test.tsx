@@ -79,7 +79,7 @@ function task(overrides: Partial<OratorioTask>): OratorioTask {
   return {
     id: 'task', shortId: 'TASK-1', sourceLabel: '#1', provider: 'github', repository: 'sample-org/widget-service', kind: 'Issue',
     title: 'Fixture task', description: 'Fixture description', assignee: null, labels: [], column: 'todo', state: 'discovered',
-    lifecycle: 'open', updated: 'just now', artifacts: { reviewDrafts: 0, implementationDrafts: 0, followUpDrafts: 0, comments: 0, writes: 0 },
+    lifecycle: 'open', updated: 'just now', latestResult: 'none',
     capabilities: {}, ...overrides,
   }
 }

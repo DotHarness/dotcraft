@@ -2,14 +2,13 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.7.8 |
+| Version | 0.8.10 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-17 |
 | Parent Spec | [Oratorio Design](./oratorio-design.md) |
 
 This document defines the product and behavior contract for GitLab as a
-first-class Oratorio source. It is intentionally a core design and flow
-specification, not an implementation plan.
+first-class Oratorio source.
 
 Reference material:
 
@@ -28,358 +27,251 @@ Reference material:
 
 ## 1. Product Goal and Boundaries
 
-Oratorio supports GitLab issues and merge requests as source-backed Tasks with
-the same Oratorio lifecycle, review rounds, AppServer dispatch, review draft
-control, source write audit, and implementation delivery concepts that exist
-for GitHub-backed work.
+Oratorio supports GitLab issues and merge requests as source-backed tasks with
+the same lifecycle, review rounds, AppServer dispatch, review drafts, source
+write audit and implementation delivery as GitHub-backed work.
 
 The integration must:
 
-- preserve GitHub provider behavior while adding the GitLab provider;
-- treat GitLab as a source provider with its own endpoint, credentials,
-  project identity, webhook verification, diff anchors, commit status, and
-  merge request semantics;
-- support GitLab.com, self-managed GitLab, and Dedicated-style endpoint shapes;
+- keep GitHub behavior unchanged alongside GitLab;
+- treat GitLab as a provider with its own endpoint, credentials, project
+  identity, webhook verification, diff anchors, commit status and merge request
+  semantics;
+- support GitLab.com, self-managed GitLab and Dedicated-style endpoints;
 - make GitHub and GitLab understandable side by side in Desktop Settings;
-- keep every external write backend-owned, explicit, auditable, retryable, and
+- keep every external write backend-owned, explicit, auditable, retryable and
   separate from agent tool execution.
 
 The integration must not:
 
 - merge GitLab merge requests;
 - silently approve GitLab merge requests;
-- let agents push branches, create merge requests, or write source comments
-  directly;
-- require GitLab Premium or Ultimate for the baseline read/write flow;
+- let agents push branches, create merge requests or write source comments;
+- require GitLab Premium or Ultimate for the baseline read and write flow;
 - assume GitLab.com-only project or URL behavior;
-- require OAuth browser connection setup for the baseline token flow.
+- require an OAuth browser flow for the baseline token setup.
 
 ## 2. Source Provider Model
 
-Provider capabilities, sync jobs, source-write audit and canonical routing keys follow [Oratorio Design](oratorio-design.md#source-provider-model).
+Provider capabilities, sync jobs, source write audit and canonical routing keys
+follow [Oratorio Design](oratorio-design.md#source-provider-model).
 
-GitLab operators configure the full namespace path, including subgroups. A canonical key is `gitlab:<instance>/<group[/subgroup]/project>`. External identities use the project-scoped `iid`: `issue:<instance>/<project-path>#<iid>` or `mr:<instance>/<project-path>!<iid>`. Numeric project ids are cached provider metadata, not routing identity.
+Operators configure the full namespace path, including subgroups. A project's
+canonical key is GitLab, its instance and that full path. Issues and merge
+requests are identified by the project and GitLab's project-scoped number
+(`#N` for issues, `!N` for merge requests). GitLab's numeric project id is
+cached metadata, never routing identity.
 
 ## 3. GitLab Provider Contract
 
-GitLab baseline setup uses token-based authentication. OAuth setup, automatic
-webhook creation, production RBAC administration, and enterprise SSO are
-separate product contracts.
+The baseline uses token authentication. OAuth setup, automatic webhook
+creation, RBAC administration and enterprise SSO are separate contracts.
 
 ### 3.1 Configuration and Authentication
 
-GitLab configuration includes:
+GitLab configuration holds whether the provider is enabled, the instance
+endpoint (GitLab.com by default), the configured project paths, write
+enablement, a local-development webhook bypass, and one access record per
+configured project.
 
-- provider enabled state;
-- GitLab instance endpoint, defaulting to `https://gitlab.com`;
-- configured project paths;
-- one project profile per configured GitLab project;
-- write enablement state;
-- local-development webhook bypass state.
+A project's access record is keyed by its canonical project key and holds the
+token kind, the write-only token, and an optional write-only webhook secret and
+signing token. The token kind (project, group or personal access token) is a
+label for the operator, not a permission claim. Matching is exact per project:
+a group or personal token is used for several projects by entering it on each,
+with no inheritance by group prefix.
 
-Each GitLab project profile is keyed by canonical project key:
+The endpoint is the only URL the operator configures; the API address is always
+derived from it, and Desktop never asks for a separate API URL.
 
-```text
-gitlab:<instance>/<group[/subgroup]/project>
-```
+Reading a project needs a token that can read it. Writing needs a token that
+can create notes, discussions and statuses, push branches and open merge
+requests in it. The UI and diagnostics show token presence and the capability
+observed per project, and never claim a scope that no capability check has
+verified.
 
-The persisted profile data is `Oratorio:GitLab:ProjectProfiles[]` with:
-
-- `Instance`;
-- `ProjectPath`;
-- `TokenKind`;
-- write-only `Token`;
-- optional write-only `WebhookSecret`;
-- optional write-only `WebhookSigningToken`.
-
-`TokenKind` is an operator-facing label, not a permission claim. The first
-implementation supports exact project matching only. Group tokens or personal
-tokens can be used by entering the same token in multiple project profiles;
-there is no group-prefix inheritance.
-
-The GitLab endpoint is the single operator-facing URL setting. The API URL is
-derived as:
-
-```text
-<endpoint>/api/v4
-```
-
-Desktop must not ask the operator to separately configure an API base URL.
-Runtime behavior always follows the endpoint-derived URL.
-
-GitLab read access requires a project profile token that can read the target
-project. GitLab write access requires a project profile token that can create
-notes, discussions, statuses, push branches, and create merge requests for the
-target project. The UI and diagnostics report token presence and observed
-capability per project, but they must not claim a specific scope is present
-unless a provider capability check has verified it.
-
-GitLab writes happen as the target project profile's token identity. Operators
-should prefer project access tokens for single-project automation and use group
-or personal tokens only when broader access is intentional.
+Writes act as the project's token identity. Operators should prefer project
+access tokens for single-project automation and use group or personal tokens
+only when broader access is intended.
 
 ### 3.2 Read Sync
 
-Configured projects are resolved independently. If one project fails to resolve
-or sync, that project run fails with a stable error and does not block other
-configured projects.
+Configured projects sync independently. A project that fails to resolve or
+sync fails with a stable reason without blocking the others. When some projects
+have access records but a configured project has none, that project fails read
+sync while the provider may still report partial capability.
 
-If at least one project profile exists but a configured project has no matching
-profile token, that project fails read sync with
-`gitlabProjectProfileTokenMissing`. Provider capability may still be `partial`
-when at least one configured project remains readable.
+GitLab issues import with title, description, assignee, labels, link, created
+and updated times, source state, closed time when available, project and a
+source snapshot.
 
-GitLab issues import as Oratorio issues with:
+GitLab merge requests import as review targets with title, description,
+assignees and reviewers when useful, labels, link, source and target branch,
+draft state, created and updated times, source state, closed or merged time
+when available, head commit, diff refs when available, project and a source
+snapshot.
 
-- title;
-- description;
-- assignee;
-- labels;
-- web URL;
-- source created and updated times;
-- source lifecycle state;
-- closed time when available;
-- project key;
-- source snapshot.
+GitLab's opened, closed and merged states map to Oratorio's open, closed and
+merged; anything else is unknown.
 
-GitLab merge requests import as Oratorio review targets with:
+Detail hydration loads context that does not belong in every board sync: issue
+and merge request notes, merge request discussions, relevant system notes, the
+current diff refs and, when available, the detailed merge status.
 
-- title;
-- description;
-- assignees and reviewers when useful to source context;
-- labels;
-- web URL;
-- source branch;
-- target branch;
-- draft state;
-- source created and updated times;
-- source lifecycle state;
-- closed or merged time when available;
-- head SHA;
-- diff refs when available;
-- project key;
-- source snapshot.
+Imported context is source context, never Oratorio operator feedback.
 
-GitLab source state maps to Oratorio source state:
-
-| GitLab state | Oratorio source state |
-| --- | --- |
-| `opened` | `open` |
-| `closed` | `closed` |
-| `merged` | `merged` |
-| anything else | `unknown` |
-
-Details hydrate loads source context that should not be part of every board
-sync:
-
-- issue notes;
-- merge request notes;
-- merge request discussions;
-- relevant system notes;
-- current merge request diff refs;
-- current detailed merge status when available.
-
-Imported source context uses source visibility and must not be treated as
-Oratorio operator feedback.
-
-Closed GitLab issues and closed or merged GitLab merge requests are archived
-when no Oratorio run is active. If a source item reopens and the archive reason
-was source-driven, Oratorio reopens it to `discovered`. Manual archive remains
-operator-owned and must not be undone by GitLab sync.
+Closed issues and closed or merged merge requests are archived when no run is
+active. If a source item reopens after a source-driven archive, Oratorio
+returns it to Discovered. A manual archive stays operator-owned and is never
+undone by sync.
 
 ### 3.3 Webhooks
 
-GitLab webhooks enqueue provider sync jobs. They do not directly mutate Tasks.
+GitLab webhooks queue provider sync jobs; they never change tasks directly.
 
-Supported webhook verification modes:
+Verification uses the access record of the project named in the payload:
+GitLab's Standard Webhooks signature when signing headers are present, then
+GitLab's secret token. A project without a configured secret rejects the
+delivery as forbidden. Verification may be disabled only through the
+provider-level local-development bypass.
 
-- Standard Webhooks signing token verification when GitLab sends signing
-  headers;
-- GitLab secret-token verification through `X-Gitlab-Token`;
-- disabled verification only when explicitly enabled for local development.
-
-Webhook verification is selected from the profile matching the webhook payload's
-project path. Signing headers are verified first when present, then
-`X-Gitlab-Token` is checked. Missing profile secrets reject with `403`. The
-local unsafe bypass remains a provider-level local-development setting.
-
-Supported event families include issues, merge requests, notes, and pushes.
-Events outside configured projects are ignored with an audit-visible diagnostic
-when feasible.
+Supported events are issues, merge requests, notes and pushes. Events outside
+configured projects are ignored, with an audit-visible diagnostic when
+feasible.
 
 ### 3.4 Decisions, Review Drafts, and Statuses
 
-GitLab write capability is available only when:
+GitLab writes are possible only when GitLab is configured, writes are enabled,
+the target project is configured and has a token, and the task is GitLab-backed
+with a valid project and number. When a gate fails, Oratorio records a failed
+source write with a stable reason; the task decision and review draft are not
+rolled back.
 
-- GitLab is configured;
-- writes are enabled;
-- the target project is configured;
-- the target project has a project profile token;
-- the target Task is GitLab-backed and has a valid project path plus iid.
-
-If a gate fails, Oratorio records a failed source write with a stable error.
-Task decision state and review draft state are not rolled back.
-
-Decision write mapping:
+Decision writes:
 
 | Oratorio item | Operator action | GitLab write |
 | --- | --- | --- |
-| Issue | `approve`, `requestChanges`, or `reject` | issue note |
-| Merge request | `approve` | MR note plus commit status `success` |
-| Merge request | `requestChanges` | MR note plus commit status `failed` |
-| Merge request | `reject` | MR note plus commit status `failed` |
-| Merge request | `reReview` | no GitLab write |
-| Local task | any decision | no external source write |
+| Issue | Approve, Request changes or Reject | Issue note |
+| Merge request | Approve | MR note plus `oratorio/review` commit status success |
+| Merge request | Request changes | MR note plus `oratorio/review` commit status failed |
+| Merge request | Reject | MR note plus `oratorio/review` commit status failed |
+| Merge request | Re-review | No GitLab write |
+| Local task | Any decision | No external write |
 
-The commit status name is:
+The commit status targets the merge request's current head. Without a known
+head the status write fails on its own; the note may still succeed as a
+separately audited write.
 
-```text
-oratorio/review
-```
+GitLab's merge request approval API is not part of the baseline. If it is ever
+used, it must be a separate explicit capability, since eligibility, tier,
+re-authentication and author or committer rules vary by instance.
 
-The status target SHA is the current GitLab merge request head SHA. If no head
-SHA is available, the status write fails independently; a note write may still
-succeed as a separate audited write.
+Review draft submission is provider-neutral; GitLab-specific behavior happens
+in validation and publication.
 
-GitLab MR Approval API is not part of the baseline. If later enabled, it must
-be a separate explicit provider capability because eligibility, tier support,
-password re-authentication, and author/committer restrictions vary by GitLab
-configuration.
+Anchor validation uses the merge request's current diff refs (base, start and
+head commits), the old and new path, and the old or new line. A right-side
+finding anchors to the new line, a left-side finding to the old line. Renamed
+files are checked against both paths; new files accept only new-side anchors;
+deleted files only old-side anchors. Invalid findings are skipped with
+warnings and never published as misleading overview notes.
 
-Review Draft submission remains source-neutral. GitLab-specific behavior
-happens during validation and publication.
+A successful review run's draft is published automatically ([Oratorio
+Design §6.1](oratorio-design.md#61-structured-review-suggestions)):
 
-GitLab diff anchor validation uses current merge request diff metadata:
+- a summary-only draft publishes as one merge request note;
+- each accepted inline finding becomes one GitLab discussion or draft note;
+- a concrete suggestion is emitted only when Oratorio has resolved its
+  existing text to an exact, unique new-side range that GitLab can render
+  safely; multi-line replacements use GitLab's offset-aware suggestion form so
+  a discussion anchored on the last new-side line covers the preceding lines;
+- comment-only findings carry no suggestion and keep their reason in Oratorio
+  for audit;
+- every write links back to the draft.
 
-- `base_sha`;
-- `start_sha`;
-- `head_sha`;
-- old path and new path;
-- old line or new line.
-
-Oratorio draft side maps as:
-
-| Oratorio side | GitLab position |
-| --- | --- |
-| `RIGHT` | `new_line` |
-| `LEFT` | `old_line` |
-
-For renamed files, validation uses both old path and new path. For new files,
-only new-side anchors are valid. For deleted files, only old-side anchors are
-valid. Invalid comments are skipped with warnings and must never be published
-as misleading overview notes.
-
-Publication rules:
-
-- summary-only drafts publish as one merge request note;
-- each accepted inline finding creates one GitLab-visible discussion or draft
-  note;
-- replace-based suggestions are emitted only when Oratorio has resolved
-  `suggestion.oldText` to an exact, unique new-side diff range that GitLab can
-  render safely;
-- multi-line suggestion replacements use GitLab's offset-aware suggestion fence
-  form (`suggestion:-N+M`) so a discussion anchored at the final new-side line
-  can cover preceding changed lines;
-- accepted comment-only findings omit suggestion fences and carry their
-  `commentOnly.reason` in Oratorio for operator audit;
-- every source write links back to the Oratorio draft;
-- successful publication makes the draft immutable;
-- failed publication leaves the draft retryable.
-
-Draft auto-publish is allowed only when:
-
-- the project is in the provider-specific publish allowlist;
-- the draft has no warnings or skipped comments;
-- current MR head SHA matches the reviewed head SHA;
-- write capability is available;
-- diff refs are current.
-
-Auto-publish never approves, requests changes, merges, closes, resolves the
-Oratorio Task, or resolves GitLab discussions.
+On top of the shared gates, publication also requires the merge request's
+current head to match the reviewed head and its diff refs to be current. A
+blocked or failed publication is a failed source write the operator can retry
+or discard; a published draft is immutable. Publication never approves,
+requests changes, merges, closes, records an Oratorio decision or resolves
+GitLab discussions; discussions are resolved only through finding resolution
+([Oratorio Design §6.4](oratorio-design.md#64-review-finding-resolution)).
 
 ### 3.5 Implementation Delivery
 
 GitLab implementation delivery is eligible when:
 
-- the run purpose is `implementation`;
-- the item is a GitLab issue or an Oratorio local task;
-- the item is not a GitLab merge request;
-- the item has or can infer exactly one GitLab source project route;
-- GitLab writes are enabled;
-- the target GitLab project has a project profile token;
-- managed worktrees are enabled and the run has a ready managed worktree;
-- the managed worktree has a non-empty diff;
-- the delivery policy permits manual delivery or automatic review target
-  delivery.
+- the run is an implementation run;
+- the item is a GitLab issue or an Oratorio local task, never a merge request;
+- the item has, or can infer, exactly one GitLab project route;
+- GitLab writes are enabled and the project has a token;
+- managed worktrees are enabled, the run's worktree is ready and its diff is
+  not empty;
+- the delivery policy allows manual or automatic delivery.
 
-GitLab merge requests remain review targets. They must not be mutated by
-implementation runs.
+Merge requests remain review targets and are never changed by implementation
+runs.
 
-Delivery flow:
+Delivery:
 
-1. Verify eligibility and clear prior delivery errors.
-2. Compute changed files from the managed worktree.
-3. Create a local commit with the operator-reviewed commit message.
-4. Push the current HEAD to a GitLab branch under the Oratorio branch namespace.
-5. Create a GitLab merge request with the operator-reviewed title and body.
-6. Upsert the generated merge request as a GitLab-backed Oratorio Task.
-7. Link the generated merge request to the originating issue or local task.
+1. Check eligibility and clear earlier delivery errors.
+2. Compute the changed files from the managed worktree.
+3. Commit locally with the reviewed commit message.
+4. Push to a branch under the Oratorio branch prefix.
+5. Open a merge request with the reviewed title and body.
+6. Add the merge request as a GitLab-backed task.
+7. Link it to the originating issue or local task.
 8. Mark the implementation draft delivered.
 
-Each side effect has a source write record:
+The local commit, branch push and merge request creation are each a source
+write. If a later step fails, earlier writes stay succeeded and the draft
+records the failed step. Retry re-checks current state, reuses completed steps
+and retries only what remains, and never duplicates a pushed branch or merge
+request that an earlier write already created. Retrying a failed merge request
+creation goes through this delivery retry, not the generic note or status
+retry.
 
-- local commit;
-- branch push;
-- review target creation.
+The merge request uses the Oratorio implementation branch as source; the task's
+branch, otherwise the project's default branch when known, otherwise `main`,
+as target; the reviewed title; the reviewed body plus a reference to the
+origin when available; and is not a draft merge request.
 
-If a later step fails, completed prior write records remain succeeded and the
-draft records the failed step. Retry re-validates current state and must not
-duplicate source-visible objects when a prior audit record identifies an
-existing pushed branch or merge request.
-Implementation delivery retry is step-aware: if the local commit or branch push
-already succeeded, Oratorio reuses those audit records and retries only the
-remaining review target creation step. Retrying the failed review target
-creation source write follows the same delivery retry path rather than the
-generic note/status source-write retry path.
+Generated merge requests start as Discovered review targets. Approving the
+originating task accepts the handoff; it never approves or merges the
+generated merge request.
 
-GitLab merge request creation uses:
-
-- source branch: the Oratorio-generated implementation branch;
-- target branch: the Task branch when present, otherwise the provider project's
-  default branch when known, otherwise `main`;
-- title: operator-reviewed proposed PR/MR title;
-- description: operator-reviewed proposed body plus origin reference when
-  available;
-- draft state: false by default unless a later policy explicitly introduces
-  draft merge requests.
-
-Generated merge requests start as `discovered` review targets. Approving the
-originating implementation Task accepts the handoff; it does not approve or
-merge the generated merge request.
-
-Delivery failures surface stable errors for missing route, ambiguous local-task
-route, missing credentials, invalid managed worktree, empty diff, invalid
-branch name, local commit failure, branch push failure, GitLab merge request
-creation failure, generated Task upsert conflict, and insufficient token
-permission.
+Delivery reports a stable reason for a missing route, an ambiguous local task
+route, missing credentials, an invalid worktree, an empty diff, an invalid
+branch name, a failed commit, push or merge request creation, a conflict adding
+the generated task, and insufficient token permission.
 
 ## 4. Desktop Settings and Operator UX
 
-Source-neutral clients distinguish GitLab projects and MRs from GitHub repositories and PRs. Configuration exposes the endpoint, project routes, read/write/webhook capability, per-project credential presence and observed sync failures.
+Clients distinguish GitLab projects and merge requests from GitHub repositories
+and pull requests. Settings shows the endpoint, project routes, read, write and
+webhook capability, per-project credential presence and observed sync failures.
 
-GitLab credentials use one-shot replace, clear and unchanged semantics and are never echoed. Profiles persist while their project is configured or routed on the current instance; removing both removes the secrets on the next configuration save. Changing the endpoint host clears prior-instance profiles. Saved changes apply without a server restart.
+GitLab credentials can be replaced, cleared or left unchanged, and are never
+shown. A project's access record lives as long as its project is configured or
+routed on the current instance; removing both removes its secrets on the next
+save. Changing the endpoint host clears the previous instance's access
+records. Saved changes apply without a restart.
 
-Auto Review uses the shared first-enable baseline and head-SHA re-review policy once read sync is available. Review and publication allowlists use canonical project keys. Provider-specific layout belongs to the consuming UI.
+Auto Review uses the shared first-enable baseline and head-change re-review
+once read sync is available. Repository lists use canonical project keys.
 
 ## 5. Diagnostics, Security, and Operations
 
-Diagnostics report the endpoint and derived API URL without userinfo/query/fragment, provider and per-project credential presence, read/write/webhook capability and recent sync/write failures. They follow the parent's redacted audit contract; unknown provider fields fail validation.
+Diagnostics report the endpoint and derived API address without credentials,
+query or fragment, provider and per-project credential presence, read, write
+and webhook capability, and recent sync and write failures. They follow the
+parent's redacted audit contract; unknown provider settings fail validation.
 
 ## 6. Configuration Invariants
 
-- Project paths are normalized without truncating subgroups.
-- Canonical GitLab project keys include provider and instance.
-- The API URL is derived from the configured endpoint.
-- Settings writes GitLab credentials only through `ProjectProfiles[]`.
-- Changing the endpoint instance requires corresponding workspace routes and
-  automation allowlists to use the new canonical project keys.
+- Project paths are normalized without dropping subgroups.
+- Canonical project keys include provider and instance.
+- The API address is derived from the endpoint.
+- Settings writes GitLab credentials only through per-project access records.
+- Changing the instance requires workspace routes and automation lists to use
+  the new canonical project keys.

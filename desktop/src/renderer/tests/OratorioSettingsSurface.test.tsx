@@ -110,7 +110,6 @@ describe('OratorioSettingsSurface', () => {
     expect(screen.getByText('Any matching label prevents implementation auto-dispatch.')).toBeInTheDocument()
     expect(screen.getByText('How completed implementation drafts are delivered.')).toBeInTheDocument()
     expect(screen.getByText('Projects reviewed automatically when PRs / MRs change.')).toBeInTheDocument()
-    expect(screen.getByText('Projects where completed review drafts are published automatically.')).toBeInTheDocument()
     expect(screen.getByText('Projects where review feedback starts another implementation round.')).toBeInTheDocument()
     expect(screen.queryByText('No projects selected')).not.toBeInTheDocument()
     expect(screen.getAllByText('oratorio:auto')).toHaveLength(1)
@@ -314,7 +313,6 @@ describe('OratorioSettingsSurface', () => {
                 'github:enterprise.example/example-org/sample-app',
                 'github:github.com/example-org/sample-service'
               ],
-              autoReviewPublishRepositories: ['github:github.com/example-org/sample-app'],
               autoFollowUpRepositories: ['example-org/sample-app']
             }
           }
@@ -347,7 +345,6 @@ describe('OratorioSettingsSurface', () => {
       'github:enterprise.example/example-org/sample-app',
       'github:github.com/example-org/sample-service'
     ])
-    expect(save.body.configuration.automation.autoReviewPublishRepositories).toEqual([])
     expect(save.body.configuration.automation.autoFollowUpRepositories).toEqual([])
   })
 
@@ -367,7 +364,6 @@ describe('OratorioSettingsSurface', () => {
       },
       automation: {
         autoReviewRepositories: ['github:github.com/example-org/sample-app'],
-        autoReviewPublishRepositories: ['github:github.com/example-org/sample-app'],
         autoFollowUpRepositories: ['github:github.com/example-org/sample-app']
       }
     }
@@ -410,7 +406,6 @@ describe('OratorioSettingsSurface', () => {
       expect(saves[1].body.configuration.gitHub.repositories).toEqual([])
       expect(saves[1].body.configuration.dotCraft.repositoryWorkspaceRoutes).toEqual([])
       expect(saves[1].body.configuration.automation.autoReviewRepositories).toEqual([])
-      expect(saves[1].body.configuration.automation.autoReviewPublishRepositories).toEqual([])
       expect(saves[1].body.configuration.automation.autoFollowUpRepositories).toEqual([])
     }, { timeout: 2000 })
   })

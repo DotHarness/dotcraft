@@ -166,7 +166,6 @@ function RootSettings({ controller, syncingProjects, onNavigate, onNavigateProje
     </SettingsGroup>
     <SettingsGroup title={t('review')} description={t('reviewDescription')}>
       <AllowlistRow label={t('automaticReview')} description={t('automaticReviewDescription')} values={c.autoReview} projects={c.projects} onChange={(values) => controller.change('autoReview', values)} onManage={() => onDialog({ kind: 'allowlist', listKey: 'autoReview' })} />
-      <AllowlistRow label={t('publishDrafts')} description={t('publishDraftsDescription')} values={c.draftPublish} projects={c.projects} onChange={(values) => controller.change('draftPublish', values)} onManage={() => onDialog({ kind: 'allowlist', listKey: 'draftPublish' })} />
       <AllowlistRow label={t('automaticFollowUp')} description={t('automaticFollowUpDescription')} values={c.followUp} projects={c.projects} onChange={(values) => controller.change('followUp', values)} onManage={() => onDialog({ kind: 'allowlist', listKey: 'followUp' })} />
       <SettingsRow label={t('maxFollowUp')} description={t('maxFollowUpDescription')} control={<FieldControl><NumberStepper value={c.maxFollowUpRounds} min={1} max={20} label={t('maxFollowUp')} onChange={(value) => controller.change('maxFollowUpRounds', value)} /></FieldControl>} />
     </SettingsGroup>

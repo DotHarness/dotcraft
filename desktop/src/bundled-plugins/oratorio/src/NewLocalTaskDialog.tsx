@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { FilePlus2, Plus, X } from 'lucide-react'
 import { Button, Combobox, Input, ModalHeader, Select, Textarea } from './ui'
-import type { OratorioTask } from './oratorio-model'
+import { repositoryName, type OratorioTask } from './oratorio-model'
 import { useOratorioLocalTaskT } from './oratorio-local-task-i18n'
 import './oratorio-new-local-task.css'
 
@@ -82,7 +82,7 @@ export function NewLocalTaskDialog({ tasks, onCancel, onCreate }: NewLocalTaskDi
             <span>{t('repository')}</span>
             <Select value={repository} onValueChange={setRepository} ariaLabel={t('repository')} adaptiveWidth={false} options={[
               { value: '', label: t('noRepository') },
-              ...repositories.map((value) => ({ value, label: value })),
+              ...repositories.map((value) => ({ value, label: repositoryName(value) })),
             ]} />
           </label>
           <div className="ora-new-task__field ora-new-task__field--wide">

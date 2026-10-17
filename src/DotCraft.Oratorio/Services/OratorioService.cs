@@ -97,9 +97,9 @@ public sealed class OratorioService(
 
         var take = Math.Clamp(limit ?? 50, 1, 100);
         var offset = ParseOffsetCursor(cursor);
-        var page = await query.Skip(offset).Take(take + 1).Select(x => x.ToSummaryDto()).ToListAsync(ct);
+        var page = await query.Skip(offset).Take(take + 1).ToListAsync(ct);
         var nextCursor = page.Count > take ? EncodeOffsetCursor(offset + take) : null;
-        var items = page.Take(take).ToList();
+        var items = await ToSummaryDtosAsync(page.Take(take).ToList(), ct);
         return new ItemListResponse(items, nextCursor);
     }
 
@@ -154,10 +154,9 @@ public sealed class OratorioService(
             .Where(x => affectedIds.Contains(x.ItemId))
             .OrderBy(x => x.BoardSortOrder)
             .ThenByDescending(x => x.UpdatedAt)
-            .Select(x => x.ToSummaryDto())
             .ToListAsync(ct);
 
-        return new TaskReorderResponse(tasks);
+        return new TaskReorderResponse(await ToSummaryDtosAsync(tasks, ct));
     }
 
     public async Task<ItemDetailResponse> AddCommentByIdAsync(string itemId, CommentRequest request, CancellationToken ct)
@@ -433,7 +432,43 @@ public sealed class OratorioService(
             .Select(x => x.ToDto())
             .FirstOrDefaultAsync(ct);
 
-        return new ItemDetailResponse(item.ToDto(), rounds, runs, comments, decisions, timeline, sourceWrites, reviewDrafts, implementationDrafts, followUpDrafts, discussionTurns, sourceSnapshot);
+        var latestResults = await LoadLatestResultsAsync([item.ItemId], ct);
+        return new ItemDetailResponse(item.ToDto(latestResults.GetValueOrDefault(item.ItemId)), rounds, runs, comments, decisions, timeline, sourceWrites, reviewDrafts, implementationDrafts, followUpDrafts, discussionTurns, sourceSnapshot);
+    }
+
+    private async Task<IReadOnlyList<ItemSummaryDto>> ToSummaryDtosAsync(IReadOnlyList<OratorioItem> items, CancellationToken ct)
+    {
+        var latestResults = await LoadLatestResultsAsync(items.Select(x => x.ItemId).ToArray(), ct);
+        return items.Select(x => x.ToSummaryDto(latestResults.GetValueOrDefault(x.ItemId))).ToList();
+    }
+
+    private async Task<Dictionary<string, LatestResult>> LoadLatestResultsAsync(string[] itemIds, CancellationToken ct)
+    {
+        var reviews = await db.ReviewDrafts.AsNoTracking()
+            .Where(x => itemIds.Contains(x.ItemId) && x.Status != ReviewDraftStatus.Discarded)
+            .Select(x => new { x.ItemId, x.CreatedAt, Findings = x.MajorCount + x.MinorCount > 0 })
+            .ToListAsync(ct);
+        var implementations = await db.ImplementationDrafts.AsNoTracking()
+            .Where(x => itemIds.Contains(x.ItemId))
+            .Select(x => new { x.ItemId, x.CreatedAt, x.Status })
+            .ToListAsync(ct);
+        var followUpItemIds = await db.FollowUpDrafts.AsNoTracking()
+            .Where(x => itemIds.Contains(x.ItemId) && x.Status == FollowUpDraftStatus.Draft)
+            .Select(x => x.ItemId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        var results = reviews
+            .Select(x => (x.ItemId, x.CreatedAt, Result: x.Findings ? LatestResult.Findings : LatestResult.NoIssues))
+            .Concat(implementations.Select(x => (x.ItemId, x.CreatedAt, Result: x.Status == ImplementationDraftStatus.Delivered ? LatestResult.Delivered : LatestResult.ChangesReady)))
+            .GroupBy(x => x.ItemId)
+            .ToDictionary(x => x.Key, x => x.MaxBy(y => y.CreatedAt).Result);
+        foreach (var itemId in followUpItemIds)
+        {
+            results[itemId] = LatestResult.FollowUps;
+        }
+
+        return results;
     }
 
     private void PublishTaskUpdated(OratorioItem item) =>

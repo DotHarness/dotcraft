@@ -191,6 +191,14 @@ export interface InlineDiffProps {
   readonly after: string;
 }
 
+export interface MarkdownProps {
+  readonly content: string;
+}
+
+export interface UserAvatarProps {
+  readonly size?: number;
+}
+
 export interface AgentAvatarProps {
   readonly name: string;
   readonly size?: number;
@@ -325,7 +333,9 @@ export interface DesktopPluginUiComponents {
   readonly SettingsGroup: ComponentType<SettingsGroupProps>;
   readonly SettingsRow: ComponentType<SettingsRowProps>;
   readonly InlineDiff: ComponentType<InlineDiffProps>;
+  readonly Markdown: ComponentType<MarkdownProps>;
   readonly AgentAvatar: ComponentType<AgentAvatarProps>;
+  readonly UserAvatar: ComponentType<UserAvatarProps>;
   readonly Menu: ComponentType<MenuProps>;
   readonly SplitButton: ComponentType<SplitButtonProps>;
   readonly CatalogPage: ComponentType<CatalogPageProps>;

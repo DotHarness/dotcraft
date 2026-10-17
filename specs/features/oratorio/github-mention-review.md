@@ -2,15 +2,14 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.7.8 |
+| Version | 0.8.10 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-17 |
 | Parent Spec | [Oratorio Design](./oratorio-design.md) |
 
-This document defines the product and behavior contract for triggering an
-Oratorio pull request review from a GitHub PR conversation comment. It is a
-narrow extension of the existing GitHub source, review-analysis, review draft,
-and source-write contracts.
+This document defines how a GitHub pull request conversation comment requests
+an Oratorio review. It is a narrow extension of the GitHub source, review
+analysis, review draft and source write contracts.
 
 Reference material:
 
@@ -20,259 +19,206 @@ Reference material:
 
 ## 1. Overview
 
-An authorized repository collaborator can request an Oratorio review from a
-configured GitHub pull request by posting:
+An authorized collaborator can request an Oratorio review of a configured
+GitHub pull request by commenting:
 
 ```text
 @dotcraft-ai review
 ```
 
-The same command may carry a one-time review focus:
+The command may carry a one-time review focus:
 
 ```text
 @dotcraft-ai review for security regressions
 ```
 
-Oratorio verifies and records the command, synchronizes the exact pull request,
-and dispatches the existing read-only `reviewAnalysis` workflow against the
-current pull request head. A successful safe draft is published as a standard
-GitHub `COMMENT` review.
+Oratorio verifies and records the command, syncs that exact pull request, and
+runs the ordinary read-only review against its current head. Like every
+successful review, the result is published automatically as a GitHub `COMMENT`
+review.
 
-`dotcraft-ai` is the fixed public agent-facing account used to address the
-command. It is separate from the GitHub App bot that receives the webhook and
-publishes the review.
+`dotcraft-ai` is the fixed public account used to address the command. It is
+separate from the GitHub App bot that receives the webhook and publishes the
+review.
 
 ## 2. Goal
 
-The feature makes GitHub the entry point for an on-demand Oratorio review
-without introducing a second review engine or requiring the requester to open
-the DotCraft Desktop board.
+GitHub becomes an entry point for an on-demand review, without a second review
+engine and without the requester opening the DotCraft Desktop board.
 
-The completed behavior must:
+The feature must:
 
 - recognize one typed `review` command through an extensible command parser;
-- accept commands only from verified GitHub PR comment webhooks;
+- accept commands only from verified GitHub pull request comment webhooks;
 - serve only repositories that already have Oratorio repository and workspace
   configuration;
 - process commands durably and idempotently;
-- reuse the existing PR synchronization, AppServer review, review draft, check
-  run, and GitHub source-write paths;
-- publish mention-triggered results as non-decision `COMMENT` reviews when the
-  existing automatic-publication safety gates pass.
+- reuse the existing pull request sync, review run, review draft, check run and
+  source write paths, including automatic review publication.
 
 ## 3. Scope
 
-The first version supports:
+Supported:
 
-- GitHub `issue_comment` events with action `created`;
-- top-level comments in the conversation of an open pull request;
-- the `review` command and its optional `for <focus>` argument;
-- GitHub-hosted repositories already present in Oratorio's configured
-  repositories and repository-to-workspace mappings;
-- durable command intake, exact-PR synchronization, review dispatch, and
-  automatic review publication;
-- existing Oratorio run, review draft, source-write, check-run, retry, and
-  timeline surfaces.
+- newly created top-level comments in the conversation of an open pull
+  request;
+- the `review` command with its optional `for <focus>`;
+- GitHub repositories already configured in Oratorio with a workspace mapping;
+- durable command intake, exact pull request sync, review dispatch and
+  publication;
+- the existing run, review draft, source write, check run, retry and timeline
+  surfaces.
 
 ## 4. Non-goals
 
-The first version does not provide:
+Not provided:
 
 - commands other than `review`;
 - free-form `@dotcraft-ai` chat or implementation commands;
-- comment edit or deletion handling;
-- issue comments outside pull requests, PR review summaries, or inline review
-  comments as command sources;
-- support for repositories that are merely visible to a GitHub App
-  installation but are not configured in Oratorio;
-- workspace discovery, setup links, managed clone, webhook relay, or cloud
+- handling of edited or deleted comments;
+- issue comments outside pull requests, pull request review summaries or
+  inline review comments as command sources;
+- repositories merely visible to the GitHub App installation but not
+  configured in Oratorio;
+- workspace discovery, setup links, managed clones, webhook relay or cloud
   execution;
-- a reaction, acknowledgement comment, failure comment, or new Desktop command
-  UI;
+- reactions, acknowledgement or failure comments, or a new Desktop command UI;
 - GitLab mention commands;
-- implicit approval, requested changes, merge, close, commit, or push behavior.
+- implicit approval, requested changes, merge, close, commit or push.
 
 ## 5. Command Contract
 
 ### 5.1 Grammar
 
-After trimming leading and trailing whitespace, the complete comment must match
-one of:
+After trimming surrounding whitespace, the whole comment must be one of:
 
 ```text
 @dotcraft-ai review
 @dotcraft-ai review for <focus>
 ```
 
-The mention and `review` verb are case-insensitive. Internal whitespace between
-tokens may contain one or more spaces or tabs. The focus:
+The mention and the `review` verb are case-insensitive, and tokens may be
+separated by any run of spaces or tabs. The focus is optional, keeps its case
+after trimming, must not be empty when `for` is present, stays on the command's
+line, and is at most 500 characters.
 
-- is optional;
-- preserves its original case after trimming;
-- must be non-empty when `for` is present;
-- must remain on the same line as the command;
-- must not exceed 500 Unicode characters.
+Comments with extra lines, prose before the mention, unsupported arguments, or
+text after `review` not introduced by `for` are invalid.
 
-Comments containing additional lines, prose before the mention, unsupported
-arguments, or text after `review` that is not introduced by `for` are invalid.
-
-The command handle is fixed to `dotcraft-ai` in the first version and is not a
-deployment setting. The account does not need to be a collaborator or prior
-participant in the repository. GitHub may omit it from mention autocomplete in
-that case, so users may need to type the complete handle manually.
+The handle is fixed to `dotcraft-ai`; it is not a deployment setting. The
+account need not be a collaborator or prior participant, so GitHub may not
+autocomplete it and users may have to type it in full.
 
 ### 5.2 Parser Result
 
-Command parsing is independent of webhook routing and returns one of:
+Parsing is independent of webhook routing. A comment is either not a command
+(not addressed to Oratorio), invalid (addressed to Oratorio but breaking the
+grammar), unsupported (a recognizable but unsupported verb), or a parsed
+`review` command with its optional focus.
 
-- `notCommand`: the comment is not addressed to Oratorio;
-- `invalid`: the comment is addressed to Oratorio but violates the grammar;
-- `unsupported`: the comment has a syntactically recognizable but unsupported
-  verb;
-- `parsed`: the comment contains the supported `review` command and optional
-  focus.
+A parsed command has a typed kind; adding a verb extends the parser and the
+command dispatcher rather than adding another text comparison to webhook
+handling.
 
-The parsed result carries a typed command kind. The first version defines only
-`review`; adding a later verb must extend the parser and command dispatcher
-rather than add another body comparison to webhook handling.
-
-Invalid, unsupported, and unrelated comments do not create a run and receive no
-GitHub reply.
+Invalid, unsupported and unrelated comments create no run and get no GitHub
+reply.
 
 ## 6. Webhook Intake and Authorization
 
-Command recognition requires all of the following:
+A command is recognized only from a signed GitHub issue comment webhook for a
+newly created comment on a pull request in a repository with a valid owner and
+name, verified against the configured webhook secret. Recognition reads the raw
+comment text; it does not depend on GitHub rendering the handle as a mention,
+notifying the account, or treating `dotcraft-ai` as a collaborator.
 
-- `X-GitHub-Event` is `issue_comment`;
-- payload action is `created`;
-- the payload contains `issue.pull_request`;
-- the payload repository has a valid `owner/name`;
-- the webhook signature is valid for the configured GitHub webhook secret.
-
-Recognition operates on the raw `comment.body` delivered by GitHub. It does not
-depend on GitHub rendering the handle as a mention, sending an account
-notification, or reporting `dotcraft-ai` as a repository collaborator.
-
-A recognized, parsed command is persisted for audit and then queued only when:
+A recognized command is recorded and then queued only when:
 
 - the sender is not a bot;
-- `comment.author_association` is `OWNER`, `MEMBER`, or `COLLABORATOR`;
-- the repository is listed in Oratorio's GitHub repositories;
-- an equivalent repository-to-workspace mapping exists.
+- the commenter's association with the repository is owner, member or
+  collaborator;
+- the repository is one of Oratorio's GitHub repositories;
+- the repository has a workspace mapping.
 
-Commands that fail one of these eligibility checks are persisted as rejected
-and do not create a run.
+A command failing any of these is recorded as rejected and creates no run.
 
-Command-capable webhook intake fails closed. If the webhook secret is absent,
-the request returns service unavailable with stable code
-`githubWebhookSecretRequired`. An invalid signature returns forbidden. No
-command is accepted in either case.
+Command intake fails closed. Without a configured webhook secret the request is
+refused as service unavailable with a stable reason; an invalid signature is
+refused as forbidden. No command is accepted in either case.
 
-The association check is the first-version authorization boundary. It
-intentionally excludes unaffiliated contributors and does not call GitHub's
-collaborator permission API.
+The association check is the authorization boundary. It deliberately excludes
+unaffiliated contributors and does not query GitHub's collaborator permission
+API.
 
-Non-command GitHub webhook events retain the existing repository synchronization
-behavior. A parsed mention command uses targeted command processing and must not
-depend on or enqueue a repository-wide open-item scan.
+Other GitHub webhook events keep the ordinary repository sync. A parsed command
+is processed for its pull request only and never triggers a repository-wide
+scan.
 
 ## 7. Durable Command Lifecycle
 
-Every recognized, parsed command is persisted before the webhook returns. The
-record contains:
+Every recognized command is recorded before the webhook answers, with its
+GitHub delivery and comment, repository and pull request, actor and
+association, command and focus, status, attempts, linked run, error and times.
 
-- GitHub delivery and comment identity;
-- repository and pull request number;
-- actor and author association;
-- typed command and optional focus;
-- status, attempt information, linked run, error information, and timestamps.
+A command is **Queued** (accepted, waiting), **Dispatched** (linked to a review
+run), **Rejected** (refused by a permanent eligibility or authorization rule) or
+**Failed** (processing ended without dispatch).
 
-Command status is one of:
+A comment is recorded at most once; a redelivery returns the existing command
+and never creates another run.
 
-- `queued`: accepted and waiting for processing;
-- `dispatched`: linked to an Oratorio review run;
-- `rejected`: denied by a permanent eligibility or authorization rule;
-- `failed`: processing ended without dispatch.
-
-GitHub comment identity is unique. A redelivery of the same comment returns the
-existing command and must not create another run.
-
-The webhook returns `202 Accepted` after a queued command is durable. Rejected,
-invalid, unsupported, or unrelated comments do not enqueue work and return a
-successful no-op response unless the request itself is malformed or fails
-verification.
+The webhook answers as accepted once a queued command is stored. Rejected,
+invalid, unsupported and unrelated comments queue nothing and get a successful
+no-op answer, unless the request is malformed or fails verification.
 
 A background processor handles queued commands. Transient GitHub read failures
-are attempted at most three times: the initial attempt, then retries after
-approximately 5 seconds and 30 seconds. Permanent validation, configuration, or
-lifecycle errors fail immediately with a stable error code.
+are tried at most three times: immediately, then after about 5 and 30 seconds.
+Permanent validation, configuration or lifecycle errors fail at once with a
+stable reason.
 
 ## 8. Target Synchronization and Dispatch
 
-Before dispatch, Oratorio reads and upserts the exact pull request identified by
-the signed payload. It must not trust the webhook's head SHA as the execution
-target and must not scan all open repository items to find the pull request.
+Before dispatch Oratorio reads and updates the exact pull request named by the
+signed payload. It never trusts the webhook's head as the target and never
+scans all open items to find the pull request.
 
-Dispatch uses:
+The run is an ordinary AppServer review analysis run on the current synced
+head, in the configured workspace, with the managed worktree and read-only
+review rules. It is marked as triggered by a GitHub mention, and the focus
+becomes its dispatch note and operator input. Creating the run and binding the
+command to it happen atomically.
 
-- AppServer runner mode;
-- `reviewAnalysis` purpose;
-- the current synchronized pull request head as the target head SHA;
-- the existing configured repository workspace;
-- the existing managed worktree and read-only review contract;
-- dispatch trigger `githubMentionReview`;
-- the optional focus as the dispatch note and operator input.
+If the same pull request and head already have an active review run, a new
+valid command may bind to it instead of starting another. Any other active run
+fails the command with a stable reason. Once no compatible run is active, a new
+comment may request another review even when the head is unchanged.
 
-Run creation and command-to-run binding are atomic.
-
-If the same pull request and head already have an active `reviewAnalysis` run, a
-new valid command may bind to that active run instead of creating a duplicate.
-An incompatible active run fails with `activeRunExists`. Once no compatible run
-is active, a distinct new comment may request another review even when the head
-SHA has not changed.
-
-All ordinary Oratorio lifecycle restrictions continue to apply. Closed, merged,
-archived, rejected, or otherwise non-dispatchable targets are not reopened or
-overridden by a GitHub comment.
+Ordinary lifecycle rules still apply. A comment never reopens or overrides a
+closed, merged, archived, rejected or otherwise non-dispatchable target.
 
 ## 9. Review Publication
 
-A successful `githubMentionReview` run expresses an authorized source
-publication intent. Its accepted review draft is eligible for automatic
-publication independently of the general Auto Review publication switch and
-repository allowlist.
+A mention-triggered review publishes exactly like any other review ([Oratorio
+Design §6.1](oratorio-design.md#61-structured-review-suggestions)): on success
+its draft becomes one GitHub `COMMENT` review with the summary and accepted
+inline findings, never an approving or changes-requested review, and never a
+merge or branch change. The usual gates apply — GitHub writes and App
+authentication available, the current head matching the analyzed head, valid
+anchors and suggestion ranges, no warnings or skipped findings. A blocked or
+failed publication keeps the draft and its failed source write; no separate
+failure comment is posted on GitHub.
 
-Mention publication still requires:
+## 10. Constraints
 
-- GitHub writes and GitHub App authentication to be enabled;
-- a current target head matching the analyzed head;
-- valid commentable diff anchors and suggestion ranges;
-- no warnings or skipped comments that block existing automatic publication;
-- every other existing review draft automatic-publication safety gate.
-
-Publication always creates a GitHub `COMMENT` review containing the summary and
-accepted inline findings. It never creates an `APPROVE` or
-`REQUEST_CHANGES` review and never changes merge or branch state.
-
-When publication is blocked or fails, Oratorio preserves the existing draft and
-source-write failure records. The first version does not add a separate GitHub
-failure reply.
-
-## 10. Constraints and Compatibility
-
-- The existing webhook route remains stable; command requests add a
-  command-accepted response shape while ordinary webhook sync responses remain
-  compatible.
-- The run API adds the string dispatch trigger `githubMentionReview`.
-- Existing manual dispatch, Auto Review, review draft publication, GitLab
-  integration, and Desktop routes retain their behavior.
-- The feature adds no configuration surface. Repository, workspace, GitHub
-  write, App authentication, and webhook secret configuration reuse existing
-  settings.
-- GitHub App configuration must subscribe to issue comments and retain the
-  permissions already required to read pull requests, read contents, publish
-  pull request reviews, and write check runs.
-- The `dotcraft-ai` command identity remains separate from the installed GitHub
-  App bot identity. Review writes continue to be attributed to the App.
-- Command records are backend audit state and are not exposed through a new
-  first-version API or Desktop view.
+- The GitHub webhook endpoint is unchanged; command requests get a
+  command-accepted answer and ordinary sync events keep theirs.
+- Manual dispatch, Auto Review, review publication, GitLab and Desktop
+  behavior are unchanged.
+- The feature adds no settings; it reuses repository, workspace, GitHub write,
+  App authentication and webhook secret configuration.
+- The GitHub App must subscribe to issue comments and keep the permissions to
+  read pull requests and contents, publish pull request reviews and write check
+  runs.
+- The `dotcraft-ai` handle stays separate from the App bot; reviews are
+  attributed to the App.
+- Command records are backend audit state, not exposed through the API or
+  Desktop.

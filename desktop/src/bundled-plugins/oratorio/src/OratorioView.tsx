@@ -1,23 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DesktopPluginOratorioBoardEvent, DesktopPluginViewProps } from '@dotcraft/plugin'
-import { OratorioBoard, type OratorioBoardState } from './OratorioBoard'
+import { OratorioBoard, type BoardTaskAction, type OratorioBoardState } from './OratorioBoard'
 import { oratorioClient } from './oratorio-client'
 import { mapItemDetail, mapItemSummary } from './oratorio-mappers'
-import type { OratorioTask, TaskStage } from './oratorio-model'
+import type { OratorioTask } from './oratorio-model'
 import { OratorioTaskDetail } from './OratorioTaskDetail'
-import type { QuickActionId } from './oratorio-workflow'
 import { consumeOratorioNavigation, onOratorioNavigation, requestOratorioNavigation, type OratorioNavigationTarget } from './oratorio-navigation'
 import { loadOratorioSourcePresence } from './settings/oratorio-settings-service'
+import { useOratorioI18n, type OratorioTranslate } from './oratorio-i18n'
 import './oratorio.css'
 
 const defaultBoardState: OratorioBoardState = { mode: 'active', query: '', repository: 'all', assignee: 'all', selectedTaskId: null, scrollTop: 0 }
-let retainedViewState: { board: OratorioBoardState; detailTaskId: string | null; stage: TaskStage; focus?: 'discussion' } = { board: defaultBoardState, detailTaskId: null, stage: 'review' }
+let retainedViewState: { board: OratorioBoardState; detailTaskId: string | null } = { board: defaultBoardState, detailTaskId: null }
 
 export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
+  const { t } = useOratorioI18n()
+  const translate = useRef(t)
+  translate.current = t
   const [tasks, setTasks] = useState<OratorioTask[]>([])
   const [selectedTask, setSelectedTask] = useState<OratorioTask | null>(null)
-  const [selectedStage, setSelectedStage] = useState<TaskStage>(retainedViewState.stage)
-  const [selectedFocus, setSelectedFocus] = useState<'discussion' | undefined>(retainedViewState.focus)
   const [serviceError, setServiceError] = useState(false)
   const [loading, setLoading] = useState(true)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -36,7 +37,7 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
       setServiceError(false)
       if (mapped.length === 0) setSourcesConfigured(await loadOratorioSourcePresence().catch(() => null))
     } catch { setServiceError(true) } finally {
-      if (options?.initial) setLoading(false)
+      setLoading(false)
     }
   }, [])
 
@@ -68,7 +69,7 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
     void host.oratorio.getContext().then(() => { if (active) void loadBoard({ initial: true }) }).catch(() => { if (active) setServiceError(true) })
     const unsubscribe = host.oratorio.onEvent((event) => {
       if (event.type === 'board-event' && event.event?.type.startsWith('drawer/')) {
-        const activity = liveActivity(event.event)
+        const activity = liveActivity(event.event, translate.current)
         if (event.event.runId && activity) {
           const update = (task: OratorioTask): OratorioTask => {
             if (!task.run || task.run.runId !== event.event?.runId) return task
@@ -100,7 +101,7 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
     const task = tasks.find((item) => item.id === restoreId)
     if (!task) return
     restoreStarted.current = true
-    void openDetail(task, retainedViewState.stage, { focus: retainedViewState.focus })
+    void openDetail(task)
   }, [tasks])
 
   useEffect(() => {
@@ -116,9 +117,9 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
     return onOratorioNavigation(navigate)
   }, [tasks])
 
-  async function openDetail(task: OratorioTask, stage: TaskStage = 'review', options?: { focus?: 'discussion' }): Promise<void> {
-    retainedViewState = { ...retainedViewState, detailTaskId: task.id, stage, focus: options?.focus }
-    setSelectedTask(task); setSelectedStage(stage); setSelectedFocus(options?.focus)
+  async function openDetail(task: OratorioTask): Promise<void> {
+    retainedViewState = { ...retainedViewState, detailTaskId: task.id }
+    setSelectedTask(task)
     try { await refreshDetail(task.id) } catch { setServiceError(true) }
   }
 
@@ -130,21 +131,23 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
     if (task.run?.threadId && task.run.workspacePath) void host.navigation.openThread(task.run.threadId, task.run.workspacePath)
   }
 
-  async function performTaskAction(task: OratorioTask, action: QuickActionId, note?: string): Promise<OratorioTask> {
-    const route = action === 'cancel-run' ? 'cancel-run' : action === 'request-changes' ? 'request-changes' : action === 're-review' ? 'rereview' : ['retry', 'implement', 'auto-target', 'review-only', 'dispatch'].includes(action) ? 'dispatch' : action
-    const implementation = action === 'implement' || action === 'auto-target'
-    const body = route === 'dispatch' ? { mode: 'appServer', workMode: implementation ? 'implementation' : 'reviewAnalysis', deliveryPolicy: action === 'auto-target' ? 'autoPr' : 'manualDelivery', note } : { body: note }
-    const result = await oratorioClient.itemAction(task.id, route, body)
+  async function performTaskAction(task: OratorioTask, action: BoardTaskAction): Promise<OratorioTask> {
+    const body = action === 'dispatch' ? { mode: 'appServer', workMode: 'reviewAnalysis', deliveryPolicy: 'manualDelivery' } : {}
+    const result = await oratorioClient.itemAction(task.id, action, body)
     const updated = mapItemDetail(result)
     setTasks((current) => current.map((item) => item.id === updated.id ? updated : item))
     if (selectedTask?.id === updated.id) setSelectedTask(updated)
     return updated
   }
 
-  if (selectedTask) return <OratorioTaskDetail task={selectedTask} initialStage={selectedStage} initialFocus={selectedFocus} onStageChange={(stage) => { retainedViewState = { ...retainedViewState, stage }; setSelectedStage(stage) }} onBack={() => { retainedViewState = { ...retainedViewState, detailTaskId: null, focus: undefined }; setSelectedTask(null) }} onOpenThread={() => openThread(selectedTask)} onTaskChange={(task) => { setSelectedTask(task); setTasks((current) => current.map((item) => item.id === task.id ? task : item)) }} />
+  async function retry(): Promise<void> {
+    await host.oratorio.retry().catch(() => undefined)
+    await loadBoard()
+  }
 
-  return <>
-    {serviceError ? <div className="oratorio-service-alert" role="alert">Oratorio is unavailable. <button type="button" onClick={() => void host.oratorio.retry().then(() => loadBoard({ initial: true }))}>Retry</button></div> : null}
+  if (selectedTask) return <div className="ora-view"><OratorioTaskDetail task={selectedTask} onBack={() => { retainedViewState = { ...retainedViewState, detailTaskId: null }; setSelectedTask(null) }} onOpenThread={() => openThread(selectedTask)} onTaskChange={(task) => { setSelectedTask(task); setTasks((current) => current.map((item) => item.id === task.id ? task : item)) }} /></div>
+
+  return <div className="ora-view">
     <OratorioBoard
       presentation={serviceError ? 'error' : loading ? 'loading' : tasks.length === 0 ? (sourcesConfigured === false ? 'unconfigured' : 'empty') : 'ready'}
       tasks={tasks}
@@ -156,6 +159,7 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
       onOpenSettings={openSettings}
       onConnectSource={(provider) => { requestOratorioNavigation({ kind: 'settings', section: 'connect', provider }); host.navigation.openSettingsPage('oratorio') }}
       onOpenThread={openThread}
+      onRetry={retry}
       onSync={async () => { const results = await Promise.allSettled(['github', 'gitlab'].map((provider) => oratorioClient.sync(provider))); if (results.every((result) => result.status === 'rejected')) throw new Error('oratorio.sync_failed'); await loadBoard() }}
       onCreateTask={async (draft) => mapItemSummary((await oratorioClient.createLocalTask(draft)).item)}
       hasMore={Boolean(nextCursor)}
@@ -163,16 +167,16 @@ export function OratorioView({ host }: DesktopPluginViewProps): JSX.Element {
       onReorder={async (task, column) => { const columnIndex = ['todo', 'in-progress', 'in-review', 'done'].indexOf(column); await oratorioClient.reorder({ updates: [{ taskId: task.id, sortOrder: columnIndex * 1000 }] }) }}
       onTaskAction={performTaskAction}
       onLoadTaskDetail={(task) => oratorioClient.task(task.id).then(mapItemDetail)}
-      onOpenDetail={(task, stage, options) => void openDetail(task, stage, options)}
+      onOpenDetail={(task) => void openDetail(task)}
     />
-  </>
+  </div>
 }
-function liveActivity(event: DesktopPluginOratorioBoardEvent): string | null {
+function liveActivity(event: DesktopPluginOratorioBoardEvent, t: OratorioTranslate): string | null {
   if (event.type === 'drawer/run/status' && ['succeeded', 'completed', 'failed', 'cancelled', 'timedOut'].includes(event.payload?.status ?? '')) return null
   if (event.type !== 'drawer/item.started' && event.type !== 'drawer/item.delta') return null
-  const verb = event.payload?.type === 'agentMessage' ? 'Writing'
-    : event.payload?.type === 'reasoning' || event.payload?.type === 'reasoningContent' ? 'Thinking'
-      : event.payload?.type === 'commandExecution' ? 'Running command'
-        : event.payload?.type === 'toolCall' ? 'Using tool' : 'Working'
+  const verb = t(event.payload?.type === 'agentMessage' ? 'activityWriting'
+    : event.payload?.type === 'reasoning' || event.payload?.type === 'reasoningContent' ? 'activityThinking'
+      : event.payload?.type === 'commandExecution' ? 'activityRunningCommand'
+        : event.payload?.type === 'toolCall' ? 'activityUsingTool' : 'activityWorking')
   return event.payload?.text ? `${verb} · ${event.payload.text}` : verb
 }

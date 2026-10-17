@@ -7,7 +7,7 @@ namespace DotCraft.Oratorio.Api;
 
 public static class Mapping
 {
-    public static ItemSummaryDto ToSummaryDto(this OratorioItem item) =>
+    public static ItemSummaryDto ToSummaryDto(this OratorioItem item, LatestResult latestResult) =>
         new(
             item.ItemId,
             item.Source,
@@ -41,9 +41,10 @@ public static class Mapping
             item.GeneratedFromDraftId,
             item.ShortId,
             TaskStatusMapping.Project(item.State),
-            item.BoardSortOrder);
+            item.BoardSortOrder,
+            latestResult);
 
-    public static ItemDto ToDto(this OratorioItem item) =>
+    public static ItemDto ToDto(this OratorioItem item, LatestResult latestResult) =>
         new(
             item.ItemId,
             item.WorkspaceId,
@@ -80,7 +81,8 @@ public static class Mapping
             item.GeneratedFromDraftId,
             item.ShortId,
             TaskStatusMapping.Project(item.State),
-            item.BoardSortOrder);
+            item.BoardSortOrder,
+            latestResult);
 
     public static RoundDto ToDto(this OratorioRound round) =>
         new(round.RoundId, round.RoundNumber, round.Status, round.Summary, round.CreatedAt, round.CompletedAt);

@@ -1,0 +1,16 @@
+.markdown ul {
+  list-style: disc;
+}
+
+.markdown ol {
+  list-style: decimal;
+}
+
+.markdown :is(h1, h2, h3, h4, h5, h6) {
+  font-size: var(--type-ui-size) !important;
+  line-height: var(--type-ui-line-height) !important;
+}
+
+.markdown :is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0 !important;
+}

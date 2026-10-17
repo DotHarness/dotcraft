@@ -32,7 +32,6 @@ const PUT_PATHS = [
   /^\/api\/v1\/sources\/(?:github|gitlab)\/sync-schedule$/
 ]
 const PATCH_PATHS = [
-  /^\/api\/v1\/review-drafts\/[^/?]+$/,
   /^\/api\/v1\/follow-up-drafts\/[^/?]+$/
 ]
 

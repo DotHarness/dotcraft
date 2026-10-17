@@ -1,7 +1,7 @@
 export type ApprovalPolicy = 'autoApprove' | 'deny'
 export type DeliveryPolicy = 'manualDelivery' | 'autoPr'
 export type SourceProvider = 'github' | 'gitlab'
-export type ReviewListKey = 'autoReview' | 'draftPublish' | 'followUp'
+export type ReviewListKey = 'autoReview' | 'followUp'
 export type SecretMode = 'unchanged' | 'replace' | 'clear'
 export type GitLabTokenKind = 'accessToken' | 'personalAccessToken' | 'groupAccessToken'
 export type GitLabProjectSecretKey = 'webhookSecret' | 'webhookSigningToken'
@@ -81,7 +81,6 @@ export interface OratorioSettingsConfig {
   maxImplementationTurns: number
   deliveryPolicy: DeliveryPolicy
   autoReview: string[]
-  draftPublish: string[]
   followUp: string[]
   maxFollowUpRounds: number
   github: GitHubProviderConfig
@@ -97,7 +96,7 @@ export function createDefaultOratorioSettings(): OratorioSettingsConfig {
     maxRetryBackoffSeconds: 300, stallTimeoutSeconds: 300, succeededWorktreeRetentionHours: 24,
     failedWorktreeRetentionHours: 168, worktreeCleanupEnabled: true, worktreeCleanupIntervalSeconds: 60,
     autoDispatchEnabled: false, allowedLabels: [], blockedLabels: [],
-    maxImplementationTurns: 3, deliveryPolicy: 'manualDelivery', autoReview: [], draftPublish: [], followUp: [], maxFollowUpRounds: 5,
+    maxImplementationTurns: 3, deliveryPolicy: 'manualDelivery', autoReview: [], followUp: [], maxFollowUpRounds: 5,
     github: {
       endpoint: 'https://api.github.com', appId: '', writesEnabled: false, syncIntervalSeconds: null, profiles: [],
       secrets: {

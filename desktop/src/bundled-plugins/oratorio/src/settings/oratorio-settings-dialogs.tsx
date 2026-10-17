@@ -31,7 +31,7 @@ export function AllowlistDialog({ listKey, values, projects, onClose, onApply }:
 }) {
   const t = useOratorioSettingsT()
   const [draft, setDraft] = useState(values)
-  const title = listKey === 'autoReview' ? t('automaticReview') : listKey === 'draftPublish' ? t('publishDrafts') : t('automaticFollowUp')
+  const title = listKey === 'autoReview' ? t('automaticReview') : t('automaticFollowUp')
   const projectOptions = useMemo(() => buildOratorioProjectDisplayOptions(projects), [projects])
   return <DialogFrame ariaLabel={title} onClose={onClose}>
     <ModalHeader icon={<ShieldCheck size={18} />} title={title} description={t('selectProjects')} onClose={onClose} closeLabel={t('close')} />

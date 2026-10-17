@@ -634,13 +634,15 @@ if (!result.isError) showItems(result.structuredContent);
 | 分组 | 组件 |
 |---|---|
 | **控件** | `Button`、`IconButton`、`SplitButton`、`Menu`、`Input`、`Textarea`、`Select`、`SegmentedControl`、`Combobox`、`Checkbox`、`PillSwitch`、`Slider` |
-| **展示** | `Spinner`、`Skeleton`、`ActionTooltip`、`ModalHeader`、`InlineDiff`、`AgentAvatar` |
+| **展示** | `Spinner`、`Skeleton`、`ActionTooltip`、`ModalHeader`、`InlineDiff`、`Markdown`、`AgentAvatar`、`UserAvatar` |
 | **Settings 布局** | `SettingsPanelShell`、`SettingsBreadcrumb`、`SettingsGroup`、`SettingsRow` |
 | **目录页布局** | `CatalogPage`、`CatalogSection`、`CatalogToolbarButton` |
 
 `CatalogPage` 让主视图使用与 Desktop 插件页、智能体页相同的页面框架：传入 `title`，可选传入顶栏 `actions`（刷新这类仅图标的命令用 `CatalogToolbarButton`，主要操作用 `Button` 或 `SplitButton`），可选传入 `search` 与 `filters`，再用 `CatalogSection` 把各组内容作为 children 渲染。每个筛选组都把不筛选的选项放在第一位。
 
 `AgentAvatar` 绘制 Desktop 为某个 agent 显示的角色。把 SubAgent 的 `nickname` 作为 `name` 传入，可选传入 `size` 与 `animated`，你的插件就会画出与 Subagents 标签页相同的角色。该组件由 Desktop 提供，不要自行打包 avatar 包。
+
+`UserAvatar` 绘制 Desktop 用户自己在 Profile 里的头像，可选传入 `size`。用在用户自己写的内容旁边（比如他们的评论），让它和 Desktop 里看起来一致。
 
 报告所选值的控件——`Select`、`Combobox`、`SegmentedControl`——回调名为 `onValueChange`，无障碍名称来自 `ariaLabel`。布尔开关——`Checkbox`、`PillSwitch`——回调名为 `onChange`。
 
