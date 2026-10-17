@@ -123,7 +123,7 @@ public sealed class AgentToolsModelOverrideTests : IDisposable
     private async Task<SessionThread> GetChildAsync(SubAgentSessionContext context)
     {
         var edge = Assert.Single(await _sessionService.ListSubAgentChildrenAsync(context.ParentThread.Id, includeClosed: true));
-        await SubAgentSessionControl.WaitAgentAsync(_sessionService, edge.ChildThreadId, timeoutSeconds: 5, CancellationToken.None);
+        await _sessionService.WaitForTaskEndingAsync(edge.AgentPath!);
         return await _sessionService.GetThreadAsync(edge.ChildThreadId);
     }
 

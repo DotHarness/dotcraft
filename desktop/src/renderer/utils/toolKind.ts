@@ -10,7 +10,8 @@ export type ToolKind =
   | 'write' | 'edit'
   | 'exec' | 'writeStdin' | 'shell'
   | 'webSearch' | 'webFetch' | 'toolSearch'
-  | 'spawnAgent' | 'waitAgent' | 'sendMessage' | 'followupTask' | 'listAgents' | 'closeAgent'
+  | 'spawnAgent' | 'sendMessage' | 'listAgents'
+  | 'taskStop'
   | 'lsp' | 'requestUserInput' | 'commitSuggest' | 'createPlan'
   | 'todoWrite' | 'updateTodos' | 'todo'
   | 'skillManage' | 'skillView'
@@ -26,11 +27,8 @@ const WORKFLOW_TOOL_NAME = 'Workflow'
 
 const SUBAGENT_KINDS: Readonly<Record<string, ToolKind>> = {
   spawn: 'spawnAgent',
-  wait: 'waitAgent',
   sendMessage: 'sendMessage',
-  followupTask: 'followupTask',
-  list: 'listAgents',
-  close: 'closeAgent'
+  list: 'listAgents'
 }
 
 export function resolveToolKind(item: ToolKindSource): ToolKind | null {
@@ -53,6 +51,8 @@ export function resolveToolKind(item: ToolKindSource): ToolKind | null {
       return operation === 'todoWrite' || operation === 'updateTodos' ? operation : 'todo'
     case 'subagent':
       return typeof operation === 'string' ? SUBAGENT_KINDS[operation] ?? null : null
+    case 'task':
+      return 'taskStop'
     case 'lsp':
     case 'requestUserInput':
     case 'commitSuggest':

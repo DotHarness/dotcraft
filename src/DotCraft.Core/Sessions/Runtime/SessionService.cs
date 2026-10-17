@@ -107,7 +107,8 @@ public sealed partial class SessionService(
     DotCraftPaths? dotCraftPaths = null,
     ILoggerFactory? loggerFactory = null,
     IEnumerable<ISessionRuntimeRefresher>? runtimeRefreshers = null,
-    IEnumerable<IToolSnapshotFinalizer>? toolSnapshotFinalizers = null)
+    IEnumerable<IToolSnapshotFinalizer>? toolSnapshotFinalizers = null,
+    IEnumerable<IBackgroundTaskKind>? backgroundTaskKinds = null)
     : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IThreadSystemNoticeService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private sealed record PreparedContextTokenEstimate(

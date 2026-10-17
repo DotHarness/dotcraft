@@ -1,3 +1,5 @@
+using DotCraft.Sessions;
+
 namespace DotCraft.Tools;
 
 /// <summary>
@@ -12,9 +14,13 @@ public static class AgentControlToolPolicy
     [
         nameof(AgentTools.SpawnAgent),
         nameof(AgentTools.SendMessage),
-        nameof(AgentTools.FollowupTask),
-        nameof(AgentTools.WaitAgent),
         nameof(AgentTools.ListAgents),
-        nameof(AgentTools.CloseAgent)
+        nameof(BackgroundTaskTools.TaskStop)
     ];
+
+    /// <summary>Returns true when a call needs Agent-control authority; <c>TaskStop</c> needs it only for Agent tasks.</summary>
+    public static bool Governs(string toolName, string? taskId) =>
+        string.Equals(toolName, nameof(BackgroundTaskTools.TaskStop), StringComparison.Ordinal)
+            ? !string.IsNullOrWhiteSpace(taskId) && BackgroundTaskKinds.Of(taskId.Trim()) == BackgroundTaskKinds.Agent
+            : AllToolNames.Contains(toolName, StringComparer.Ordinal);
 }

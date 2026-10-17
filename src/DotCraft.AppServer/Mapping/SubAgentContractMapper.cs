@@ -134,8 +134,7 @@ internal static class SubAgentContractMapper
 
     public static Contract.SubAgentSettings ToContract(
         bool resumeEnabled,
-        IReadOnlyDictionary<string, ModelPreference> providerPreferences,
-        SubAgentWaitAgentTimeoutOptions waitTimeouts) => new()
+        IReadOnlyDictionary<string, ModelPreference> providerPreferences) => new()
     {
         ExternalCliSessionResumeEnabled = resumeEnabled,
         ProviderPreferences = providerPreferences.Count == 0
@@ -144,10 +143,7 @@ internal static class SubAgentContractMapper
                 providerPreferences.ToDictionary(
                     pair => pair.Key,
                     pair => ThreadConfigurationContractMapper.ToContract(pair.Value),
-                    StringComparer.Ordinal)),
-        MinWaitTimeoutMs = waitTimeouts.MinTimeoutMs,
-        DefaultWaitTimeoutMs = waitTimeouts.DefaultTimeoutMs,
-        MaxWaitTimeoutMs = waitTimeouts.MaxTimeoutMs
+                    StringComparer.Ordinal))
     };
 
     public static Dictionary<string, ModelPreference>? FromContract(

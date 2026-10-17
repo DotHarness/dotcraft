@@ -1496,9 +1496,10 @@ automation — and nothing more. When the origin has somewhere to go the line is
 quiet action and lifts to `--text-secondary` on hover; an origin with no
 destination stays inert, so a target that goes nowhere never looks reachable.
 
-A turn with no bubble, started by a background command's notice, carries its origin
-on its activity boundary instead: a 13px terminal icon, 6px before the timing label
-and in its colour. The icon and timing name the command and how it ended on hover; the icon itself stays neutral whatever the outcome, like a failed tool row. The icon is a quiet action that lifts to `--text-primary` on hover and reveals the command in the conversation; the timing still toggles the disclosure. The boundary keeps
+A turn with no bubble, started by the notification that a background task ended, carries its origin
+on its activity boundary instead: a 13px icon of the task's kind — terminal for a command, and
+the robot or workflow glyph the detail panel's tabs use for a subagent or workflow — 6px before the timing label
+and in its colour. The icon and timing name the task and how it ended on hover; the icon itself stays neutral whatever the outcome, like a failed tool row. The icon is a quiet action that lifts to `--text-primary` on hover and reveals the tool call that started the task in the conversation; the timing still toggles the disclosure. The boundary keeps
 its single row, rule and disclosure, so a woken turn reads as a peer of the turn above
 it rather than a second header for the same reply.
 
@@ -1546,6 +1547,7 @@ ellipsizes, however long the command.
 |---|---|
 | Command run | terminal |
 | Interrupted command | stop |
+| Stopped background task | stop |
 | Declined command | shield, `--warning` |
 | File or skill read | open book |
 | Text search | magnifying glass |

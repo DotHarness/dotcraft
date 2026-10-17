@@ -377,6 +377,7 @@ export function getToolRowIcon(
     if (item.errorCode === 'tool_cancelled' || item.executionStatus === 'cancelled') return { icon: CircleStop }
     return { icon: SquareTerminal }
   }
+  if (kind === 'taskStop') return { icon: CircleStop }
   if (resolveMemoryOperation(item) === 'update') return { icon: Brain }
   const exploreIcon = kind ? EXPLORE_ICONS[kind] : undefined
   if (exploreIcon) return { icon: exploreIcon }

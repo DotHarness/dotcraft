@@ -123,13 +123,10 @@ public sealed class ConfigurationServiceApplyTests
             "ProjectDocMaxBytes",
             "Permissions.DefaultApprovalPolicy",
             "PromptSuggestions.Enabled",
-            "SubAgent.DefaultWaitTimeoutMs",
             "SubAgent.DisabledProfiles",
             "SubAgent.EnableExternalCliSessionResume",
             "SubAgent.MaxConcurrentSubAgents",
             "SubAgent.MaxDepth",
-            "SubAgent.MaxWaitTimeoutMs",
-            "SubAgent.MinWaitTimeoutMs",
             "Tools.Shell.Policy.Rules",
             "WelcomeSuggestions.Enabled"
         ];

@@ -1,7 +1,14 @@
 import { create } from 'zustand'
-import type { ConversationTurn } from '../types/conversation'
+import type { ConversationItem, ConversationTurn } from '../types/conversation'
+import { parseToolResultObject } from '../utils/toolCallDisplay'
+import { resolveToolKind } from '../utils/toolKind'
+import { parseWorkflowRunId } from '../components/workflow/WorkflowToolCard'
 
-type ToolCallRevealMatch = { callId: string } | { terminalSessionId: string }
+export type ToolCallRevealMatch =
+  | { callId: string }
+  | { terminalSessionId: string }
+  | { agentPath: string }
+  | { workflowRunId: string }
 
 interface ToolCallRevealRequest {
   threadId: string
@@ -40,12 +47,19 @@ export function findToolCallRevealTarget(
 ): ToolCallRevealTarget | null {
   const { match } = request
   for (const turn of turns) {
-    const item = turn.items.find((candidate) => candidate.toolCallId != null && ('callId' in match
-      ? candidate.toolCallId === match.callId
-      : candidate.terminalSessionId === match.terminalSessionId))
+    const item = turn.items.find((candidate) => candidate.toolCallId != null && matchesToolCall(candidate, match))
     if (item?.toolCallId) return { threadId: request.threadId, turnId: turn.id, callId: item.toolCallId, nonce: request.nonce }
   }
   return null
+}
+
+function matchesToolCall(item: ConversationItem, match: ToolCallRevealMatch): boolean {
+  if ('callId' in match) return item.toolCallId === match.callId
+  if ('terminalSessionId' in match) return item.terminalSessionId === match.terminalSessionId
+  if ('agentPath' in match) {
+    return resolveToolKind(item) === 'spawnAgent' && parseToolResultObject(item.result)?.agentPath === match.agentPath
+  }
+  return parseWorkflowRunId(item.toolName ?? '', item.result) === match.workflowRunId
 }
 
 export function useToolCallRevealTarget<T>(select: (target: ToolCallRevealTarget) => T | null): T | null {

@@ -389,9 +389,22 @@ public sealed partial class SessionService
             {
                 if (boundary == StreamingGuidanceBoundary.TurnStart)
                 {
+                    var notifications = await PrepareGuidanceInputsAsync(
+                        admittedRuntime, turn, drainCt, queuedTaskNotificationsOnly: true);
+                    var startInbox = await AcquireMailboxInboxAsync(drainCt);
                     var initial = new List<ChatMessage>();
-                    if (await AcquireMailboxInboxAsync(drainCt) is { } startInbox
-                        && await TryDrainSubAgentMailboxMessageAsync(startInbox, drainCt) is { } initialMailbox)
+                    try
+                    {
+                        initial.AddRange(await AdmitGuidanceInputsAsync(admittedRuntime, turn, eventChannel, NextItemSeq,
+                            FinalizeStreamingAgentMessage, FinalizeStreamingReasoning, turnModelHistory!, notifications, drainCt));
+                    }
+                    catch
+                    {
+                        startInbox?.Lease.Dispose();
+                        throw;
+                    }
+                    if (startInbox is { } heldStartInbox
+                        && await TryDrainSubAgentMailboxMessageAsync(heldStartInbox, drainCt) is { } initialMailbox)
                         initial.Add(initialMailbox);
                     if (DrainBoardInput(boardInbox, thread, turn, eventChannel, NextItemSeq,
                         FinalizeStreamingAgentMessage, FinalizeStreamingReasoning, turnModelHistory!) is { } initialBoard)

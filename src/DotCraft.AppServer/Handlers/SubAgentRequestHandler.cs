@@ -57,17 +57,8 @@ internal sealed class SubAgentRequestHandler(
         var hasResumeEnabled = p.ExternalCliSessionResumeEnabled.IsSet
             && p.ExternalCliSessionResumeEnabled.Value.HasValue;
         var hasProviderPreferences = p.ProviderPreferences.IsSet;
-        var hasMinWaitTimeoutMs = p.MinWaitTimeoutMs.IsSet;
-        var hasDefaultWaitTimeoutMs = p.DefaultWaitTimeoutMs.IsSet;
-        var hasMaxWaitTimeoutMs = p.MaxWaitTimeoutMs.IsSet;
-        if (!hasResumeEnabled
-            && !hasProviderPreferences
-            && !hasMinWaitTimeoutMs
-            && !hasDefaultWaitTimeoutMs
-            && !hasMaxWaitTimeoutMs)
-        {
-            throw AppServerErrors.InvalidParams("At least one of 'externalCliSessionResumeEnabled', 'providerPreferences', 'minWaitTimeoutMs', 'defaultWaitTimeoutMs', or 'maxWaitTimeoutMs' is required.");
-        }
+        if (!hasResumeEnabled && !hasProviderPreferences)
+            throw AppServerErrors.InvalidParams("At least one of 'externalCliSessionResumeEnabled' or 'providerPreferences' is required.");
 
         var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
         var nextResumeEnabled = hasResumeEnabled
@@ -91,19 +82,11 @@ internal sealed class SubAgentRequestHandler(
 
             }
         }
-        var nextWaitAgentTimeouts = new SubAgentWaitAgentTimeoutOptions(
-            hasMinWaitTimeoutMs ? RequireInteger(p.MinWaitTimeoutMs, "minWaitTimeoutMs") : state.WaitAgentTimeouts.MinTimeoutMs,
-            hasDefaultWaitTimeoutMs ? RequireInteger(p.DefaultWaitTimeoutMs, "defaultWaitTimeoutMs") : state.WaitAgentTimeouts.DefaultTimeoutMs,
-            hasMaxWaitTimeoutMs ? RequireInteger(p.MaxWaitTimeoutMs, "maxWaitTimeoutMs") : state.WaitAgentTimeouts.MaxTimeoutMs);
-        var waitAgentTimeoutErrors = SubAgentWaitAgentTimeoutOptions.Validate(nextWaitAgentTimeouts);
-        if (waitAgentTimeoutErrors.Count > 0)
-            throw AppServerErrors.InvalidParams(string.Join(" ", waitAgentTimeoutErrors));
 
         SubAgentProfilesPersistence.SaveWorkspaceState(
             workspaceCraftPath!,
             state.DisabledProfiles,
             nextResumeEnabled,
-            nextWaitAgentTimeouts,
             state.Profiles,
             hasProviderPreferences ? nextProviderPreferences : null);
         runtimeConfig.RefreshCurrentSubAgentConfig();
@@ -117,8 +100,7 @@ internal sealed class SubAgentRequestHandler(
             {
                 Settings = SubAgentContractMapper.ToContract(
                     nextResumeEnabled,
-                    nextProviderPreferences,
-                    nextWaitAgentTimeouts)
+                    nextProviderPreferences)
             }));
     }
 
@@ -154,7 +136,6 @@ internal sealed class SubAgentRequestHandler(
             workspaceCraftPath!,
             disabled,
             state.EnableExternalCliSessionResume,
-            state.WaitAgentTimeouts,
             state.Profiles,
             state.ProviderPreferences);
         runtimeConfig.RefreshCurrentSubAgentConfig();
@@ -197,7 +178,6 @@ internal sealed class SubAgentRequestHandler(
             workspaceCraftPath!,
             state.DisabledProfiles,
             state.EnableExternalCliSessionResume,
-            state.WaitAgentTimeouts,
             profiles,
             state.ProviderPreferences);
         runtimeConfig.RefreshCurrentSubAgentConfig();
@@ -240,7 +220,6 @@ internal sealed class SubAgentRequestHandler(
             workspaceCraftPath!,
             disabled,
             state.EnableExternalCliSessionResume,
-            state.WaitAgentTimeouts,
             workspaceProfiles,
             state.ProviderPreferences);
         runtimeConfig.RefreshCurrentSubAgentConfig();
@@ -466,8 +445,7 @@ internal sealed class SubAgentRequestHandler(
             Profiles = profiles,
             Settings = SubAgentContractMapper.ToContract(
                 state.EnableExternalCliSessionResume,
-                state.ProviderPreferences,
-                state.WaitAgentTimeouts)
+                state.ProviderPreferences)
         };
     }
 
@@ -561,15 +539,6 @@ internal sealed class SubAgentRequestHandler(
         }
 
         return result;
-    }
-
-    private static int RequireInteger(
-        Protocol.Optional<int?> value,
-        string fieldName)
-    {
-        if (!value.IsSet || !value.Value.HasValue)
-            throw AppServerErrors.InvalidParams($"'{fieldName}' must be an integer.");
-        return value.Value.Value;
     }
 
     private static SubAgentFollowupDeliveryMode ParseDeliveryMode(string? value)

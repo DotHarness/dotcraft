@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Security;
+using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 
@@ -42,7 +43,7 @@ internal sealed class RemoteRoutableToolRuntime(
             throw new RemoteToolHostException(ToolErrorCodes.InputInvalid, "'target' must be 'local' or 'remote'.");
         }
 
-        if (target == "local" || TargetsMemoryStore(context, arguments))
+        if (target == "local" || TargetsMemoryStore(context, arguments) || TargetsAgentTask(arguments))
             return context with { ExecutionLocation = new("local", context.WorkspacePath) };
         if (_remoteClient.TryGetRoute(context.ThreadId, out var route))
         {
@@ -53,6 +54,12 @@ internal sealed class RemoteRoutableToolRuntime(
             throw new RemoteToolHostException(RemoteToolErrorCodes.LeaseLost, "No remote workspace is connected.");
         return context with { ExecutionLocation = new("local", context.WorkspacePath) };
     }
+
+    private bool TargetsAgentTask(JsonObject arguments) =>
+        _definition.Id is { Kind: ToolSourceKind.CoreNative, SourceId: "core-native", SourceToolId.Value: nameof(BackgroundTaskTools.TaskStop) }
+        && arguments["taskId"] is JsonValue value
+        && value.TryGetValue<string>(out var taskId)
+        && BackgroundTaskKinds.Of(taskId.Trim()) != BackgroundTaskKinds.Shell;
 
     private bool TargetsMemoryStore(ToolInvocationContext context, JsonObject arguments) =>
         memoryStoreDirectory is not null
@@ -111,7 +118,7 @@ internal static class RemoteToolRegistrationRouter
             }
 
             var targetDescription = registration.Definition.Id is
-            { Kind: ToolSourceKind.CoreNative, SourceId: "core-native", SourceToolId.Value: "WriteStdin" }
+            { Kind: ToolSourceKind.CoreNative, SourceId: "core-native", SourceToolId.Value: "WriteStdin" or "TaskStop" }
                 ? "Use the target of the Exec call that created the terminal."
                 : null;
             var projectedDefinition = RpcToolSchemaPostProcessor.Process(registration.Definition, targetDescription);

@@ -15009,17 +15009,8 @@
       "title": "SubAgentSettings",
       "type": "object",
       "properties": {
-        "defaultWaitTimeoutMs": {
-          "type": "integer"
-        },
         "externalCliSessionResumeEnabled": {
           "type": "boolean"
-        },
-        "maxWaitTimeoutMs": {
-          "type": "integer"
-        },
-        "minWaitTimeoutMs": {
-          "type": "integer"
         },
         "providerPreferences": {
           "anyOf": [
@@ -15041,40 +15032,10 @@
       "title": "SubAgentSettingsUpdateParams",
       "type": "object",
       "properties": {
-        "defaultWaitTimeoutMs": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "externalCliSessionResumeEnabled": {
           "anyOf": [
             {
               "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "maxWaitTimeoutMs": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "minWaitTimeoutMs": {
-          "anyOf": [
-            {
-              "type": "integer"
             },
             {
               "type": "null"

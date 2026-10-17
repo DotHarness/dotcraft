@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
-import { getActivityElapsedMs, getTerminalWake, getTurnActivityState } from '../components/conversation/turnActivityModel'
+import { getActivityElapsedMs, getTaskWake, getTurnActivityState } from '../components/conversation/turnActivityModel'
 
 const start = '2026-01-01T12:00:00Z'
 const finalStart = '2026-01-01T12:00:12Z'
@@ -38,13 +38,21 @@ describe('turn activity lifecycle', () => {
     expect(getActivityElapsedMs(start, start)).toBe(0)
   })
 
-  it('reads the background command and its outcome only for a turn its notice started', () => {
-    const notice: ConversationItem = { id: 'notice', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'terminal', triggerLabel: 'npm run build', triggerStatus: 'failed', text: 'Background command finished (exit code 2): npm run build', createdAt: start }
+  it('reads the background task and its outcome only for a turn its notification started', () => {
+    const notice: ConversationItem = { id: 'notice', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'terminal', triggerLabel: 'npm run build', triggerRefId: 'term_1', triggerStatus: 'failed', text: 'Background command finished (exit code 2): npm run build', createdAt: start }
     const prompt: ConversationItem = { id: 'prompt', type: 'userMessage', status: 'completed', text: 'Run the build', createdAt: start }
-    expect(getTerminalWake({ ...turn, items: [notice, commentary] })).toEqual({ command: 'npm run build', status: 'failed' })
-    expect(getTerminalWake({ ...turn, items: [{ ...notice, triggerLabel: undefined, triggerStatus: undefined }] })).toEqual({ command: '', status: undefined })
-    expect(getTerminalWake({ ...turn, items: [prompt, { ...notice, deliveryMode: 'guidance' }] })).toBeNull()
-    expect(getTerminalWake({ ...turn, items: [{ ...notice, deliveryMode: 'guidance' }] })).toBeNull()
-    expect(getTerminalWake({ ...turn, items: [commentary] })).toBeNull()
+    expect(getTaskWake({ ...turn, items: [notice, commentary] })).toEqual({ kind: 'terminal', label: 'npm run build', status: 'failed', taskId: 'term_1' })
+    expect(getTaskWake({ ...turn, items: [{ ...notice, triggerLabel: undefined, triggerStatus: undefined }] })).toMatchObject({ kind: 'terminal', label: '', status: undefined })
+    expect(getTaskWake({ ...turn, items: [prompt, { ...notice, deliveryMode: 'guidance' }] })).toBeNull()
+    expect(getTaskWake({ ...turn, items: [{ ...notice, deliveryMode: 'guidance' }] })).toBeNull()
+    expect(getTaskWake({ ...turn, items: [commentary] })).toBeNull()
+  })
+
+  it('reads subagent and workflow notifications, but not other workflow inputs', () => {
+    const subagent: ConversationItem = { id: 'agent', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'subagent', triggerLabel: 'reviewer', triggerRefId: '/root/reviewer', triggerStatus: 'completed', text: 'Subagent reviewer finished', createdAt: start }
+    const workflow: ConversationItem = { id: 'workflow', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'workflow', triggerLabel: 'review-change', triggerRefId: 'run_1', triggerStatus: 'stopped', text: 'Workflow review-change was stopped', createdAt: start }
+    expect(getTaskWake({ ...turn, items: [subagent] })).toEqual({ kind: 'subagent', label: 'reviewer', status: 'completed', taskId: '/root/reviewer' })
+    expect(getTaskWake({ ...turn, items: [workflow] })).toEqual({ kind: 'workflow', label: 'review-change', status: 'stopped', taskId: 'run_1' })
+    expect(getTaskWake({ ...turn, items: [{ ...workflow, triggerStatus: undefined }] })).toBeNull()
   })
 })

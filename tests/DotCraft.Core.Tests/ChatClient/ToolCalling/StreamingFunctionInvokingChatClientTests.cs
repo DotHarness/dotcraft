@@ -288,11 +288,11 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         };
         var drained = false;
         const string notification = """
-            Message Type: FINAL_ANSWER
+            Message Type: MESSAGE
             Task name: /root
             Sender: /root/worker
             Payload:
-            {"agentPath":"/root/worker","status":{"completed":"done"}}
+            The review is done.
             """;
 
         using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext

@@ -2,7 +2,7 @@ import { useMemo, useState, type JSX, type ReactNode } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { isSubAgentChildClosed, isTerminalSubAgentStatus, type SubAgentChild, type SubAgentDiscovery } from '../../stores/subAgentStore'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
-import { findSubAgentChild, type SubAgentScope } from '../../utils/subAgentIdentity'
+import { findSubAgentChild } from '../../utils/subAgentIdentity'
 import { openSubAgent } from '../../utils/subAgentNavigation'
 import type { ConversationItem } from '../../types/conversation'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -16,13 +16,13 @@ const VISIBLE_CHIPS = 3
 
 export interface SubAgentChipDisplay {
   id: string
+  callId?: string
   name: string
   prompt: string
   childThreadId: string | null
   agentPath: string | null
   pending: boolean
   failed: boolean
-  scope: SubAgentScope
   resultStatus: string | null
 }
 
@@ -51,7 +51,7 @@ export function SubAgentChips({
 
   const { lookup, discovery } = useSubAgentLookup(parentThreadId, parsedDisplays.length > 0)
   const resolved = parsedDisplays.map((display) => {
-    const child = findSubAgentChild(lookup, display.childThreadId, display.agentPath, display.scope)
+    const child = findSubAgentChild(lookup, display.childThreadId, display.agentPath, 'children')
     const name = child?.nickname ?? display.name
     return { ...display, name, child }
   })
@@ -153,6 +153,7 @@ function SubAgentName({ display, open }: { display: SubAgentChipDisplay; open: (
       <button
         type="button"
         className="dc-subagent-name"
+        data-call-id={display.callId}
         onClick={open}
         aria-label={label}
       >
@@ -167,8 +168,7 @@ export function getSubAgentChipDisplay(item: ConversationItem): SubAgentChipDisp
   const plan = presentationId && resolveDesktopPluginToolRenderer(presentationId)
     ? null
     : resolveCoreToolRenderPlan(item)
-  const operation = plan?.options.operation
-  if (plan?.family !== 'subagent' || (operation !== 'spawn' && operation !== 'followupTask')) return null
+  if (plan?.family !== 'subagent' || plan.options.operation !== 'spawn') return null
 
   const parsed = parseToolResultObject(item.result)
   const args = item.arguments
@@ -192,13 +192,13 @@ export function getSubAgentChipDisplay(item: ConversationItem): SubAgentChipDisp
 
   return {
     id: item.id,
+    callId: item.toolCallId,
     name,
     prompt: truncatePrompt(prompt, 180),
     childThreadId,
     agentPath,
     pending: item.status !== 'completed' || item.result == null,
     failed: isToolExecutionFailure(item),
-    scope: operation === 'spawn' ? 'children' : 'tree',
     resultStatus: getString(parsed, 'status')
   }
 }

@@ -431,17 +431,23 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         IDictionary<string, JsonElement>? arguments,
         RemoteInvocationMeta invocation)
     {
-        if (!string.Equals(toolName, "WriteStdin", StringComparison.Ordinal))
+        var argumentName = toolName switch
+        {
+            "WriteStdin" => "sessionId",
+            "TaskStop" => "taskId",
+            _ => null
+        };
+        if (argumentName is null)
             return;
         var sessionId = arguments is not null
-            && arguments.TryGetValue("sessionId", out var value)
+            && arguments.TryGetValue(argumentName, out var value)
             && value.ValueKind == JsonValueKind.String
                 ? value.GetString()
                 : null;
         if (sessionId is null || !_leaseTerminals.IsBound(invocation.LeaseId, sessionId))
             throw new RemoteToolHostException(
                 RemoteToolErrorCodes.RemotePolicyDenied,
-                "WriteStdin accepts only background terminals created by an approved Exec in this lease.",
+                $"{toolName} accepts only background terminals created by an approved Exec in this lease.",
                 invocation.InvocationId);
     }
 

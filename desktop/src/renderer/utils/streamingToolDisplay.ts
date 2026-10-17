@@ -11,6 +11,7 @@ import {
 } from './toolCallDisplay'
 import { resolveMemoryOperation, resolveToolKind, resolveToolOperation, type ToolKindSource } from './toolKind'
 import { formatNodeReplLabel } from './nodeReplToolDisplay'
+import { formatTaskStopRunningLabel } from './taskStopDisplay'
 
 /**
  * Parsed preview extracted from the streaming JSON delta for a tool call.
@@ -189,16 +190,12 @@ export function getStreamingToolDisplay(
           : translate(locale, 'toolCall.streaming.workflow')
       }
     }
-    case 'waitAgent':
-      return subAgentLabel(locale, 'toolCall.subAgent.waiting')
     case 'sendMessage':
       return subAgentLabel(locale, 'toolCall.subAgent.sendingMessage')
-    case 'followupTask':
-      return subAgentLabel(locale, 'toolCall.subAgent.followingUp')
     case 'listAgents':
       return { label: translate(locale, 'toolCall.subAgent.listing') }
-    case 'closeAgent':
-      return subAgentLabel(locale, 'toolCall.subAgent.closing')
+    case 'taskStop':
+      return { label: formatTaskStopRunningLabel(extractPartialJsonStringValue(rawArgs, 'taskId'), locale) }
     case 'lsp': {
       const op = extractPartialJsonStringValue(rawArgs, 'operation')
       const filePath = extractPartialJsonStringValue(rawArgs, 'filePath')

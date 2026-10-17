@@ -12,9 +12,10 @@ interface WorkflowToolCardProps {
   threadId: string
   runId: string
   createdAt?: string
+  callId?: string
 }
 
-export function WorkflowToolCard({ threadId, runId, createdAt }: WorkflowToolCardProps): JSX.Element {
+export function WorkflowToolCard({ threadId, runId, createdAt, callId }: WorkflowToolCardProps): JSX.Element {
   const t = useT()
   const entries = useWorkflowRunStore((state) => state.entries)
   const load = useWorkflowRunStore((state) => state.load)
@@ -37,6 +38,7 @@ export function WorkflowToolCard({ threadId, runId, createdAt }: WorkflowToolCar
   return (
     <section
       className="dc-workflow-tool-card"
+      data-call-id={callId}
       aria-label={t(status === 'running' ? 'workflow.card.running' : 'workflow.card.finished', { name })}
     >
       <div className="dc-workflow-tool-card__header">

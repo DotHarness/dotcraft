@@ -39,17 +39,13 @@ const SUBAGENT_SPAWN: CoreFixturePresentation = {
   presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
   options: { operation: 'spawn' }
 }
-const SUBAGENT_WAIT: CoreFixturePresentation = {
-  presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
-  options: { operation: 'wait' }
-}
 const SUBAGENT_MESSAGE: CoreFixturePresentation = {
   presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
   options: { operation: 'sendMessage' }
 }
-const SUBAGENT_FOLLOWUP: CoreFixturePresentation = {
-  presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
-  options: { operation: 'followupTask' }
+const TASK_STOP: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.task,
+  options: { operation: 'stop', kind: 'shell' }
 }
 const SUBAGENT_LIST: CoreFixturePresentation = {
   presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
@@ -153,24 +149,36 @@ describe('planToolRunRender', () => {
   })
 
   it('treats completed tool calls without tool results as live only while the turn is running', () => {
-    const pending = makeItem(SUBAGENT_WAIT, 'WaitAgent', 'wait-1', {
-      arguments: { agentNickname: 'Reviewer' }
+    const pending = makeItem(SUBAGENT_MESSAGE, 'SendMessage', 'message-1', {
+      arguments: { target: '/root/reviewer' }
     })
 
     expect(isToolItemLive(pending)).toBe(false)
     expect(isToolItemLive(pending, { turnRunning: true })).toBe(true)
   })
 
-  it('groups settled spawns and follow-ups separately, keeping a starting spawn on the line', () => {
+  it('groups settled spawns, keeping a starting spawn on the line', () => {
     expect(shape([
       makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '1'),
       makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '2', { status: 'started' }),
-      makeItem(SUBAGENT_FOLLOWUP, 'FollowupTask', '3'),
-      makeItem(SUBAGENT_FOLLOWUP, 'FollowupTask', '4'),
-      makeItem(SUBAGENT_MESSAGE, 'SendMessage', '5')
+      makeItem(SUBAGENT_MESSAGE, 'SendMessage', '3')
     ])).toEqual([
       ['subagents', ['1', '2']],
-      ['subagents', ['3', '4']],
+      ['single', '3']
+    ])
+  })
+
+  it('keeps a stopped background task on its own row between grouped calls', () => {
+    expect(shape([
+      makeItem(EXPLORE, 'ReadFile', '1'),
+      makeItem(EXPLORE, 'ReadFile', '2'),
+      makeItem(TASK_STOP, 'TaskStop', '3'),
+      makeItem(TASK_STOP, 'TaskStop', '4'),
+      makeItem(EXPLORE, 'ReadFile', '5')
+    ])).toEqual([
+      ['group', ['1', '2']],
+      ['single', '3'],
+      ['single', '4'],
       ['single', '5']
     ])
   })

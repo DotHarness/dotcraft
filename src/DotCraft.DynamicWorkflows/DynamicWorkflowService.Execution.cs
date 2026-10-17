@@ -448,6 +448,7 @@ public sealed partial class DynamicWorkflowService
 
     private async Task CompleteAsync(ActiveRun active, string status, JsonNode? result, string? error, bool notify)
     {
+        notify = notify && active.Latch.TryClaimNotification();
         await UpdateStateAsync(active, state => state with
         {
             Status = status,
@@ -466,71 +467,65 @@ public sealed partial class DynamicWorkflowService
         var session = _sessionService!;
         var parent = await session.GetThreadAsync(active.State.ParentThreadId, CancellationToken.None).ConfigureAwait(false);
         var alreadyDelivered = parent.QueuedInputs.Any(input =>
-                string.Equals(input.TriggerKind, "workflow", StringComparison.Ordinal)
+                string.Equals(input.TriggerKind, WorkflowTriggerKind, StringComparison.Ordinal)
                 && string.Equals(input.TriggerRefId, active.State.RunId, StringComparison.Ordinal))
             || parent.Turns.SelectMany(static turn => turn.Items).Any(item =>
                 item.AsUserMessage is { } message
-                && string.Equals(message.TriggerKind, "workflow", StringComparison.Ordinal)
+                && string.Equals(message.TriggerKind, WorkflowTriggerKind, StringComparison.Ordinal)
                 && string.Equals(message.TriggerRefId, active.State.RunId, StringComparison.Ordinal));
         if (alreadyDelivered)
         {
             await UpdateStateAsync(active, state => state with { NotificationStatus = "queued" }, CancellationToken.None).ConfigureAwait(false);
             return;
         }
-        var (summary, content) = BuildParentNotification(active.State, store.GetRunDirectory(active.State.RunId));
-        using var trigger = TurnTriggerScope.Set(new TurnTriggerInfo
-        {
-            Kind = "workflow",
-            Label = active.State.Name,
-            RefId = active.State.RunId
-        });
-        var queued = await session.EnqueueTurnInputAsync(
-            active.State.ParentThreadId,
-            [new TextContent(content)],
-            ct: CancellationToken.None,
-            inputSnapshot: new SessionInputSnapshot
-            {
-                DisplayText = summary,
-                NativeInputParts = [new SessionInputPart { Type = "text", Text = summary }],
-                MaterializedInputParts = [new SessionInputPart { Type = "text", Text = content }]
-            }).ConfigureAwait(false);
+        var notifications = session as IBackgroundTaskNotifications
+            ?? throw new InvalidOperationException("Session service does not deliver background task notifications.");
+        var queuedId = await notifications.NotifyBackgroundTaskEndedAsync(
+            BuildTaskEnding(active.State, store.GetRunDirectory(active.State.RunId), active.Latch),
+            CancellationToken.None).ConfigureAwait(false);
         await UpdateStateAsync(active, state => state with
         {
             NotificationStatus = "queued",
-            NotificationInputId = queued.Id
+            NotificationInputId = queuedId
         }, CancellationToken.None).ConfigureAwait(false);
-        await session.TryStartNextQueuedTurnAsync(active.State.ParentThreadId, CancellationToken.None).ConfigureAwait(false);
     }
 
-    internal static (string Summary, string Content) BuildParentNotification(DynamicWorkflowRun run, string runDirectory)
+    private const string WorkflowTriggerKind = "workflow";
+
+    internal static BackgroundTaskEnding BuildTaskEnding(DynamicWorkflowRun run, string runDirectory, BackgroundTaskLatch? latch)
     {
-        var outcome = run.Status switch
+        var status = run.Status switch
         {
-            DynamicWorkflowStatuses.Succeeded => "finished",
-            DynamicWorkflowStatuses.Stopped => "was stopped",
-            _ => run.Status
+            DynamicWorkflowStatuses.Succeeded => BackgroundTaskStatus.Completed,
+            DynamicWorkflowStatuses.Stopped => BackgroundTaskStatus.Stopped,
+            _ => BackgroundTaskStatus.Failed
         };
-        var details = new JsonObject
+        var stoppedByUser = BackgroundTaskLatch.IsUserStop(status, latch);
+        return new BackgroundTaskEnding
         {
-            ["runId"] = run.RunId,
-            ["name"] = run.Name,
-            ["status"] = run.Status,
-            ["runDirectory"] = runDirectory
+            TaskId = run.RunId,
+            Kind = BackgroundTaskKinds.Workflow,
+            OwnerThreadId = run.ParentThreadId,
+            StartTurnId = run.ParentTurnId,
+            Label = run.Name,
+            Status = status,
+            KindStatus = run.Status,
+            Summary = run.Status switch
+            {
+                DynamicWorkflowStatuses.Succeeded => $"Workflow \"{run.Name}\" succeeded",
+                DynamicWorkflowStatuses.Stopped => stoppedByUser ? $"Workflow \"{run.Name}\" was stopped by the user" : $"Workflow \"{run.Name}\" was stopped",
+                DynamicWorkflowStatuses.Failed => $"Workflow \"{run.Name}\" failed",
+                _ => $"Workflow \"{run.Name}\" ended with status {run.Status}"
+            },
+            OutputPath = runDirectory,
+            Result = run.Status switch
+            {
+                DynamicWorkflowStatuses.Succeeded => run.Result?.ToJsonString(),
+                DynamicWorkflowStatuses.Stopped => null,
+                _ => run.Error
+            },
+            StoppedByUser = stoppedByUser
         };
-        if (run.Status == DynamicWorkflowStatuses.Succeeded)
-            details["result"] = run.Result?.DeepClone();
-        else
-            details["error"] = run.Error;
-        var summary = $"Workflow {run.Name} {outcome}.";
-        return (summary, $"""
-            {summary}
-            <system-reminder>
-            DotCraft sent this notification because a background workflow you launched reached a terminal state. It is not a message from the user.
-            <workflow_notification>
-            {details.ToJsonString()}
-            </workflow_notification>
-            </system-reminder>
-            """);
     }
 
     private async Task UpdateUsageAsync(ActiveRun active, long inputTokens, long outputTokens, CancellationToken cancellationToken) =>

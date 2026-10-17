@@ -646,12 +646,6 @@ public sealed partial class AppConfig
         [ConfigField(Min = 1, Hint = "milliseconds a foreground command runs before it continues in the background")]
         public int ForegroundBudgetMs { get; set; } = 120000;
 
-        [ConfigField(Hint = "wake | off")]
-        public string CompletionDelivery { get; set; } = "wake";
-
-        [ConfigField(Min = 0)]
-        public int MaxConsecutiveWakes { get; set; } = 3;
-
         [ConfigField(Min = 1)]
         public int MaxSessionsPerThread { get; set; } = 8;
 
@@ -672,6 +666,16 @@ public sealed partial class AppConfig
 
         [ConfigField(Min = 1, Hint = "characters")]
         public int DefaultReadMaxOutputChars { get; set; } = 10000;
+    }
+
+    [ConfigSection("Tools.BackgroundTasks", DisplayName = "Tools > Background Tasks", Order = 21)]
+    public sealed class BackgroundTasksConfig
+    {
+        [ConfigField(Hint = "wake | off")]
+        public string CompletionDelivery { get; set; } = "wake";
+
+        [ConfigField(Min = 0)]
+        public int MaxConsecutiveWakes { get; set; } = 3;
     }
 
     [ConfigSection("Tools.Web", DisplayName = "Tools > Web", Order = 22)]
@@ -791,6 +795,8 @@ public sealed partial class AppConfig
         public FileToolsConfig File { get; set; } = new();
 
         public ShellToolsConfig Shell { get; set; } = new();
+
+        public BackgroundTasksConfig BackgroundTasks { get; set; } = new();
 
         public WebToolsConfig Web { get; set; } = new();
 
@@ -1007,24 +1013,6 @@ public sealed partial class AppConfig
         /// </summary>
         [ConfigField(Ignore = true)]
         public Dictionary<string, ModelPreference> ProviderPreferences { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-
-        /// <summary>
-        /// Minimum accepted <c>WaitAgent.timeoutMs</c> value in milliseconds.
-        /// </summary>
-        [ConfigField(Min = SubAgentWaitAgentTimeoutOptions.HardMinTimeoutMs, Max = SubAgentWaitAgentTimeoutOptions.HardMaxTimeoutMs, Hint = "Minimum WaitAgent timeout in milliseconds.", Reload = ReloadBehavior.Hot, HasReload = true)]
-        public int MinWaitTimeoutMs { get; set; } = SubAgentWaitAgentTimeoutOptions.BuiltInMinTimeoutMs;
-
-        /// <summary>
-        /// Default <c>WaitAgent.timeoutMs</c> value used when omitted.
-        /// </summary>
-        [ConfigField(Min = SubAgentWaitAgentTimeoutOptions.HardMinTimeoutMs, Max = SubAgentWaitAgentTimeoutOptions.HardMaxTimeoutMs, Hint = "Default WaitAgent timeout in milliseconds.", Reload = ReloadBehavior.Hot, HasReload = true)]
-        public int DefaultWaitTimeoutMs { get; set; } = SubAgentWaitAgentTimeoutOptions.BuiltInDefaultTimeoutMs;
-
-        /// <summary>
-        /// Maximum accepted <c>WaitAgent.timeoutMs</c> value in milliseconds.
-        /// </summary>
-        [ConfigField(Min = SubAgentWaitAgentTimeoutOptions.HardMinTimeoutMs, Max = SubAgentWaitAgentTimeoutOptions.HardMaxTimeoutMs, Hint = "Maximum WaitAgent timeout in milliseconds.", Reload = ReloadBehavior.Hot, HasReload = true)]
-        public int MaxWaitTimeoutMs { get; set; } = SubAgentWaitAgentTimeoutOptions.BuiltInMaxTimeoutMs;
 
         /// <summary>
         /// Maximum allowed depth for session-backed SubAgent spawning. The first child has depth 1.

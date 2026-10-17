@@ -24,7 +24,6 @@ public sealed class PromptBuilder(
     string? roleInstructions = null,
     string? developerInstructions = null,
     IContextPageManager? contextPageManager = null,
-    SubAgentWaitAgentTimeoutOptions? subAgentWaitAgentTimeoutOptions = null,
     string? originChannel = null,
     IReadOnlyList<string>? workspaceRoots = null,
     ILogger<PromptBuilder>? logger = null,
@@ -51,7 +50,6 @@ public sealed class PromptBuilder(
         RoleInstructions = roleInstructions,
         DeveloperInstructions = developerInstructions,
         ContextPageManager = contextPageManager,
-        SubAgentWaitAgentTimeoutOptions = subAgentWaitAgentTimeoutOptions,
         // Must be the same view the section list is resolved from, or sections evaluate against foreign sources.
         Contributions = ResolveView(contributions),
         Logger = logger ?? NullLogger<PromptBuilder>.Instance

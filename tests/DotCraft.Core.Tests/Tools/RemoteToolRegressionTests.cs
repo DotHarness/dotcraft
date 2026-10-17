@@ -87,6 +87,29 @@ public sealed class RemoteToolRegressionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RemoteTerminalStopsThroughTaskStop()
+    {
+        var started = await Invoke("Exec", new()
+        {
+            ["command"] = "Start-Sleep -Seconds 60",
+            ["shell"] = "pwsh", ["runInBackground"] = true, ["yieldTimeMs"] = 1
+        });
+        var session = started.Content!.Split('\n').Single(line => line.StartsWith("Session ID:", StringComparison.Ordinal))["Session ID:".Length..].Trim();
+
+        var unbound = await Invoke("TaskStop", new() { ["taskId"] = "term_000000000000" });
+        var stopped = await Invoke("TaskStop", new() { ["taskId"] = session });
+        var read = await Invoke("WriteStdin", new() { ["sessionId"] = session, ["input"] = "" });
+
+        Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, unbound.Error?.Code);
+        Assert.True(stopped.Success, stopped.Error?.Message);
+        var result = JsonNode.Parse(stopped.Content!)!;
+        Assert.Equal(session, result["taskId"]!.GetValue<string>());
+        Assert.Equal("shell", result["kind"]!.GetValue<string>());
+        Assert.Equal("stopped", result["status"]!.GetValue<string>());
+        Assert.Contains("Status: killed", read.Content);
+    }
+
+    [Fact]
     public async Task MissingAndOccupiedDownloadsExposeServerCause()
     {
         var missing = await _client.TransferAsync("agent-thread", new("download", "local.txt", "missing.txt"), Local);

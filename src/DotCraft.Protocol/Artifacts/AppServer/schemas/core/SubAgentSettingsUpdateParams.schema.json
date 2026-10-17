@@ -4,40 +4,10 @@
   "title": "SubAgentSettingsUpdateParams",
   "type": "object",
   "properties": {
-    "defaultWaitTimeoutMs": {
-      "anyOf": [
-        {
-          "type": "integer"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "externalCliSessionResumeEnabled": {
       "anyOf": [
         {
           "type": "boolean"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "maxWaitTimeoutMs": {
-      "anyOf": [
-        {
-          "type": "integer"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "minWaitTimeoutMs": {
-      "anyOf": [
-        {
-          "type": "integer"
         },
         {
           "type": "null"

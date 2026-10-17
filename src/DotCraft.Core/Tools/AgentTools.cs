@@ -16,7 +16,6 @@ public sealed class AgentTools(
     int maxSubAgentDepth = 1,
     ModelPreference? subAgentPreference = null,
     AppConfig? appConfig = null,
-    SubAgentWaitAgentTimeoutOptions? waitAgentTimeoutOptions = null,
     int maxConcurrentSubAgents = 16,
     SubAgentModelCatalogSnapshot? modelCatalogSnapshot = null,
     string? inheritedModel = null)
@@ -76,62 +75,26 @@ public sealed class AgentTools(
             waitForCompletion: false,
             subAgentCoordinator,
             cancellationToken);
+        result.Message ??= "The subagent is working in the background. You will be notified when it finishes; do not predict its result.";
         return SerializeResult(result);
     }
 
-    [Description("Send a mailbox message to another agent path without starting a target turn.")]
+    [Description("Send a message to another agent. A subagent you spawned starts or continues work on it, even after it finished or was stopped. Other agents receive it in their mailbox without starting a turn.")]
     [Tool]
     [ToolPresentation("core.subagent", Operation = "sendMessage")]
     public async Task<string> SendMessage(
         [Description("Agent path target. Relative targets resolve from the current agent path; absolute targets start with /root.")] string target,
-        [Description("Message to place in the target agent mailbox.")] string message,
+        [Description("Message or task for the target agent.")] string message,
         CancellationToken cancellationToken = default)
     {
         var sessionContext = SubAgentSessionScope.Current
             ?? throw new InvalidOperationException("SendMessage is available only inside a Session Core turn.");
-        var result = await SubAgentSessionControl.SendMessageAsync(
-            sessionContext,
-            target,
-            message,
-            cancellationToken);
-        return SerializeResult(result);
-    }
-
-    [Description("Start a follow-up task for an agent path. Pending mailbox messages for the target are delivered as context.")]
-    [Tool]
-    [ToolPresentation("core.subagent", Operation = "followupTask")]
-    public async Task<string> FollowupTask(
-        [Description("Agent path target. Relative targets resolve from the current agent path; absolute targets start with /root.")] string target,
-        [Description("Task prompt for the target agent turn.")] string message,
-        [Description("How to handle a target that is already running: queue starts the task after the active turn, steer injects same-turn guidance for running native SubAgents. Defaults to queue.")] SubAgentFollowupDeliveryMode deliveryMode = SubAgentFollowupDeliveryMode.Queue,
-        CancellationToken cancellationToken = default)
-    {
-        var sessionContext = SubAgentSessionScope.Current
-            ?? throw new InvalidOperationException("FollowupTask is available only inside a Session Core turn.");
-        var result = await SubAgentSessionControl.FollowupTaskAsync(
+        var result = await SubAgentSessionControl.SendAgentMessageAsync(
             sessionContext,
             target,
             message,
             subAgentCoordinator,
-            cancellationToken,
-            deliveryMode);
-        return SerializeResult(result);
-    }
-
-    [Description("Wait for a mailbox or SubAgent graph status change.")]
-    [Tool]
-    [ToolPresentation("core.subagent", Operation = "wait")]
-    public async Task<string> WaitAgent(
-        [Description("Optional timeout in milliseconds. Uses the configured default and must be within the configured range.")] int? timeoutMs = null,
-        CancellationToken cancellationToken = default)
-    {
-        var sessionContext = SubAgentSessionScope.Current
-            ?? throw new InvalidOperationException("WaitAgent is available only inside a Session Core turn.");
-        var result = await SubAgentSessionControl.WaitAgentAsync(
-            sessionContext,
-            timeoutMs,
-            cancellationToken,
-            waitAgentTimeoutOptions);
+            cancellationToken);
         return SerializeResult(result);
     }
 
@@ -147,22 +110,6 @@ public sealed class AgentTools(
         var result = await SubAgentSessionControl.ListAgentsAsync(
             sessionContext,
             pathPrefix,
-            cancellationToken);
-        return SerializeResult(result);
-    }
-
-    [Description("Close a SubAgent path and cancel its active turn if one is running.")]
-    [Tool]
-    [ToolPresentation("core.subagent", Operation = "close")]
-    public async Task<string> CloseAgent(
-        [Description("Agent path target. Relative targets resolve from the current agent path; absolute targets start with /root.")] string target,
-        CancellationToken cancellationToken = default)
-    {
-        var sessionContext = SubAgentSessionScope.Current
-            ?? throw new InvalidOperationException("CloseAgent is available only inside a Session Core turn.");
-        var result = await SubAgentSessionControl.CloseAgentAsync(
-            sessionContext,
-            target,
             cancellationToken);
         return SerializeResult(result);
     }

@@ -209,6 +209,7 @@ public static partial class SubAgentSessionControl
         TurnTriggerInfo? triggerInfo,
         Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? lifecycleHook,
         CancellationToken childLifetime,
+        string? parentTurnId,
         CancellationToken ct)
     {
         var childThreadId = child.Id;
@@ -257,7 +258,7 @@ public static partial class SubAgentSessionControl
                 dispatchStarted);
         }
 
-        var runningChild = new RunningChild(parentThreadId, childCts, completion);
+        var runningChild = new RunningChild(parentThreadId, childCts, completion, parentTurnId, childLifetime);
         RunningChildren[childThreadId] = runningChild;
         _ = ObserveChildCompletionAsync(sessionService, childThreadId, runningChild, lifecycleHook);
         await using (ct.Register(childCts.Cancel))
@@ -278,6 +279,61 @@ public static partial class SubAgentSessionControl
             SupportsSendMessage = source?.SupportsSendMessage ?? true,
             SupportsFollowupTask = source?.SupportsFollowupTask ?? true,
             SupportsClose = resultCapabilities.SupportsClose
+        };
+    }
+
+    /// <summary>
+    /// Tracks a native child Turn started from the child's own queue as a running child, so its parent
+    /// is notified when it ends. Returns false when the Thread is not a native child.
+    /// </summary>
+    internal static bool TryObserveQueuedChildTurn(
+        ISessionService sessionService,
+        SessionThread child,
+        IAsyncEnumerable<SessionEvent> events)
+    {
+        var source = child.Source.SubAgent;
+        if (source == null || !IsNativeRuntime(child))
+            return false;
+
+        var cancellation = new CancellationTokenSource();
+        var runningChild = new RunningChild(
+            source.ParentThreadId ?? child.ChannelContext ?? string.Empty,
+            cancellation,
+            ObserveQueuedChildTurnAsync(sessionService, child.Id, events, cancellation.Token));
+        RunningChildren[child.Id] = runningChild;
+        _ = ObserveChildCompletionAsync(sessionService, child.Id, runningChild, lifecycleHook: null);
+        return true;
+    }
+
+    private static async Task<SubAgentRunResult> ObserveQueuedChildTurnAsync(
+        ISessionService sessionService,
+        string childThreadId,
+        IAsyncEnumerable<SessionEvent> events,
+        CancellationToken stop)
+    {
+        await Task.Yield();
+        SessionTurn? finalTurn = null;
+        CancellationTokenRegistration? registration = null;
+        try
+        {
+            await foreach (var ev in events.WithCancellation(CancellationToken.None))
+            {
+                if (ev.EventType == SessionEventType.TurnStarted && registration == null && ev.TurnId is { } turnId)
+                    registration = stop.Register(() => _ = sessionService.CancelTurnAsync(childThreadId, turnId, CancellationToken.None));
+                if (ev.EventType is SessionEventType.TurnCompleted or SessionEventType.TurnCancelled or SessionEventType.TurnFailed)
+                    finalTurn = ev.TurnPayload;
+            }
+        }
+        finally
+        {
+            registration?.Dispose();
+        }
+
+        return new SubAgentRunResult
+        {
+            ThreadId = childThreadId,
+            Status = finalTurn?.Status.ToString().ToLowerInvariant() ?? "completed",
+            Message = ExtractFinalAgentText(finalTurn)
         };
     }
 

@@ -18948,29 +18948,8 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "defaultWaitTimeoutMs",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
           "name": "externalCliSessionResumeEnabled",
           "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "maxWaitTimeoutMs",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "minWaitTimeoutMs",
-          "type": "integer",
           "required": false,
           "nullable": false,
           "const": null
@@ -18994,29 +18973,8 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "defaultWaitTimeoutMs",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "externalCliSessionResumeEnabled",
           "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "maxWaitTimeoutMs",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "minWaitTimeoutMs",
-          "type": "integer",
           "required": false,
           "nullable": true,
           "const": null

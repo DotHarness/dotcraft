@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
-using System.Text;
-using DotCraft.Sessions.Wire;
+using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using Microsoft.Extensions.Logging;
 
@@ -8,10 +7,6 @@ namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
-    internal const string TerminalTriggerKind = "terminal";
-    internal const string TerminalWaitingForInputStatus = "waitingForInput";
-    private const int TerminalLabelMaxChars = 80;
-
     private readonly ConcurrentDictionary<string, ForegroundHandOverSignal> _foregroundHandOver = new(StringComparer.Ordinal);
     private readonly object _terminalNoticeSync = new();
     private Task _terminalNoticeChain = Task.CompletedTask;
@@ -38,167 +33,73 @@ public sealed partial class SessionService
             return;
         }
 
+        BackgroundTaskLatch? latch = null;
+        if (evt.EventType == BackgroundTerminalEventTypes.CompletionNotice
+            && _terminalStopLatches.TryRemove(evt.Terminal.SessionId, out latch)
+            && !latch.TryClaimNotification())
+        {
+            return;
+        }
+
+        var ending = ToTaskEnding(evt.Terminal, latch);
         lock (_terminalNoticeSync)
             _terminalNoticeChain = _terminalNoticeChain.ContinueWith(
-                _ => DeliverTerminalNoticeAsync(evt.Terminal),
+                _ => DeliverTerminalNoticeAsync(ending),
                 CancellationToken.None,
                 TaskContinuationOptions.None,
                 TaskScheduler.Default).Unwrap();
     }
 
-    private async Task DeliverTerminalNoticeAsync(BackgroundTerminalSnapshot terminal)
+    private async Task DeliverTerminalNoticeAsync(BackgroundTaskEnding ending)
     {
         try
         {
-            var settings = (_appConfigMonitor?.Current ?? AgentFactory.RuntimeContext.Config).Tools.Shell.Background;
-            if (!string.Equals(settings.CompletionDelivery, "wake", StringComparison.OrdinalIgnoreCase))
-                return;
-
-            var thread = await GetOrLoadThreadAsync(terminal.ThreadId, CancellationToken.None).ConfigureAwait(false);
-            if (thread.Status != ThreadStatus.Active)
-                return;
-
-            var queued = await InvokeThreadCommandAsync(
-                terminal.ThreadId,
-                ct => EnqueueTerminalNoticeAsync(terminal, Math.Max(0, settings.MaxConsecutiveWakes), ct),
-                CancellationToken.None).ConfigureAwait(false);
-            if (queued)
-                await TryStartNextQueuedTurnAsync(terminal.ThreadId, CancellationToken.None).ConfigureAwait(false);
+            await NotifyBackgroundTaskEndedAsync(ending, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Failed to deliver completion notice for terminal {SessionId} to thread {ThreadId}",
-                terminal.SessionId, terminal.ThreadId);
+            logger?.LogWarning(ex, "Failed to deliver notification for terminal {SessionId} to thread {ThreadId}",
+                ending.TaskId, ending.OwnerThreadId);
         }
     }
 
-    private async Task<bool> EnqueueTerminalNoticeAsync(BackgroundTerminalSnapshot terminal, int maxConsecutiveWakes, CancellationToken ct)
+    private static BackgroundTaskEnding ToTaskEnding(BackgroundTerminalSnapshot terminal, BackgroundTaskLatch? latch)
     {
-        var thread = await GetOrLoadThreadAsync(terminal.ThreadId, ct).ConfigureAwait(false);
-        IReadOnlyList<QueuedTurnInput> queueSnapshot;
-        bool idle;
-        using (await AcquireThreadQueueLockAsync(terminal.ThreadId, ct).ConfigureAwait(false))
+        var task = BackgroundTaskTools.ToTask(terminal);
+        var stalled = terminal.WaitingForInput;
+        var stoppedByUser = !stalled && BackgroundTaskLatch.IsUserStop(task.Status, latch);
+        return new BackgroundTaskEnding
         {
-            if (_runtimeRegistry.TryGetThread(terminal.ThreadId, out var cachedThread))
-                thread = cachedThread;
-            if (thread.Status != ThreadStatus.Active)
-                return false;
-
-            var activeTurn = thread.Turns.LastOrDefault(static turn =>
-                turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
-            idle = activeTurn == null;
-            if (idle && CountTrailingTerminalWakes(thread) >= maxConsecutiveWakes)
-            {
-                logger?.LogInformation(
-                    "Skipped completion notice for terminal {SessionId}: thread {ThreadId} reached its consecutive wake limit",
-                    terminal.SessionId, thread.Id);
-                return false;
-            }
-
-            var displayText = BuildTerminalNoticeDisplayText(terminal);
-            var queue = thread.QueuedInputs.ToList();
-            queue.Add(new QueuedTurnInput
-            {
-                Id = SessionIdGenerator.NewQueuedInputId(),
-                ThreadId = thread.Id,
-                NativeInputParts = [new SessionInputPart { Type = "text", Text = displayText }],
-                MaterializedInputParts = [new SessionInputPart { Type = "text", Text = BuildTerminalNoticeModelText(terminal) }],
-                DisplayText = displayText,
-                Status = idle ? "queued" : "guidancePending",
-                CreatedAt = DateTimeOffset.UtcNow,
-                ReadyAfterTurnId = activeTurn?.Id,
-                TriggerKind = TerminalTriggerKind,
-                TriggerLabel = ShortenTerminalCommand(terminal.Command),
-                TriggerRefId = terminal.SessionId,
-                TriggerStatus = terminal.WaitingForInput ? TerminalWaitingForInputStatus : terminal.Status
-            });
-            thread.QueuedInputs = queue;
-            thread.LastActiveAt = DateTimeOffset.UtcNow;
-            await PersistThreadWithMaterializationAsync(thread, ct).ConfigureAwait(false);
-            queueSnapshot = queue.ToList();
-        }
-
-        PublishQueueUpdated(thread.Id, queueSnapshot);
-        return idle;
+            TaskId = terminal.SessionId,
+            Kind = BackgroundTaskKinds.Shell,
+            OwnerThreadId = terminal.ThreadId,
+            StartTurnId = terminal.TurnId,
+            Label = task.Label,
+            Status = stalled ? BackgroundTaskStatus.WaitingForInput : task.Status,
+            KindStatus = stalled ? BackgroundTaskStatus.WaitingForInput : terminal.Status,
+            Summary = BuildTerminalSummary(terminal, task.Label, stoppedByUser),
+            ExitCode = stalled ? null : terminal.ExitCode,
+            OutputPath = terminal.OutputPath,
+            Result = stalled && !string.IsNullOrEmpty(terminal.Output) ? terminal.Output : null,
+            StoppedByUser = stoppedByUser,
+            StdinOpen = terminal.Interactive
+        };
     }
 
-    private static int CountTrailingTerminalWakes(SessionThread thread)
+    private static string BuildTerminalSummary(BackgroundTerminalSnapshot terminal, string command, bool stoppedByUser)
     {
-        var count = 0;
-        for (var i = thread.Turns.Count - 1; i >= 0; i--)
-        {
-            if (!string.Equals(thread.Turns[i].Input?.AsUserMessage?.TriggerKind, TerminalTriggerKind, StringComparison.Ordinal))
-                break;
-            count++;
-        }
-        return count;
-    }
-
-    private static bool IsTerminalNotice(QueuedTurnInput input) =>
-        string.Equals(input.TriggerKind, TerminalTriggerKind, StringComparison.Ordinal);
-
-    private static string ShortenTerminalCommand(string command)
-    {
-        var singleLine = string.Join(' ', command.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-        return singleLine.Length <= TerminalLabelMaxChars ? singleLine : singleLine[..(TerminalLabelMaxChars - 3)] + "...";
-    }
-
-    private static string BuildTerminalNoticeDisplayText(BackgroundTerminalSnapshot terminal)
-    {
-        var command = ShortenTerminalCommand(terminal.Command);
+        var prefix = $"Background command \"{command}\"";
         if (terminal.WaitingForInput)
-            return $"Background command is waiting for input: {command}";
-        if (terminal.Status == BackgroundTerminalStatus.Killed)
-            return $"Background command stopped by the user: {command}";
-        var outcome = terminal.ExitCode is { } exitCode ? $"exit code {exitCode}" : terminal.Status;
-        return $"Background command finished ({outcome}): {command}";
-    }
-
-    private static string BuildTerminalNoticeModelText(BackgroundTerminalSnapshot terminal)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("<terminal_notification>");
-        if (terminal.WaitingForInput)
-            sb.AppendLine($"Background terminal {terminal.SessionId} appears to be waiting for input.");
-        else if (terminal.Status == BackgroundTerminalStatus.Killed)
+            return $"{prefix} appears to be waiting for interactive input";
+        return terminal.Status switch
         {
-            // Model stops send no notice and shutdown suppresses notices, so a killed notice is a client stop.
-            sb.AppendLine($"The user stopped background terminal {terminal.SessionId} after {FormatWallTime(terminal.WallTimeMs)}.");
-            sb.AppendLine("This is not a failure of the command, so there is nothing in it to debug. Do not start it again unless the user asks.");
-        }
-        else
-        {
-            sb.Append($"Background terminal {terminal.SessionId} finished with status {terminal.Status}");
-            if (terminal.ExitCode is { } exitCode)
-                sb.Append($" and exit code {exitCode}");
-            sb.AppendLine($" after {FormatWallTime(terminal.WallTimeMs)}.");
-        }
-        sb.AppendLine($"Command: {ShortenTerminalCommand(terminal.Command)}");
-        sb.AppendLine($"Output log: {terminal.OutputPath}");
-        if (string.IsNullOrEmpty(terminal.Output))
-            sb.AppendLine("No unread output.");
-        else
-        {
-            if (terminal.Truncated || terminal.Lossy)
-                sb.AppendLine($"Last {terminal.Output.Length} of {terminal.OriginalOutputChars} unread chars. WriteStdin with empty input returns all of them:");
-            else
-                sb.AppendLine("Unread output:");
-            sb.AppendLine(terminal.Output);
-        }
-        if (terminal.WaitingForInput)
-            sb.AppendLine(terminal.Interactive
-                ? "Answer the prompt with WriteStdin, or send Ctrl+C to stop the command."
-                : "Its stdin is closed. Send Ctrl+C with WriteStdin to stop it, then rerun it with piped input or a non-interactive option.");
-        sb.Append("</terminal_notification>");
-        return sb.ToString();
-    }
-
-    private static string FormatWallTime(long milliseconds)
-    {
-        var time = TimeSpan.FromMilliseconds(Math.Max(0, milliseconds));
-        return time.TotalMinutes >= 1
-            ? $"{(int)time.TotalMinutes}m {time.Seconds}s"
-            : $"{time.TotalSeconds:0.#}s";
+            BackgroundTerminalStatus.Completed when terminal.ExitCode is { } exitCode => $"{prefix} completed (exit code {exitCode})",
+            BackgroundTerminalStatus.Failed when terminal.ExitCode is { } exitCode => $"{prefix} failed with exit code {exitCode}",
+            BackgroundTerminalStatus.Killed => stoppedByUser ? $"{prefix} was stopped by the user" : $"{prefix} was stopped",
+            BackgroundTerminalStatus.TimedOut => $"{prefix} timed out",
+            BackgroundTerminalStatus.Lost => $"{prefix} was lost",
+            _ => $"{prefix} ended with status {terminal.Status}"
+        };
     }
 
     private IDisposable RegisterForegroundHandOver(string turnId)

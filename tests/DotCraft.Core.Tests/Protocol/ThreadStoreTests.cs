@@ -1187,11 +1187,11 @@ public sealed class ThreadStoreTests : IDisposable
         AddTurnWithMessages(thread, "hello", "before mailbox", TurnStatus.Completed);
         var turn = thread.Turns[0];
         const string notification = """
-            Message Type: FINAL_ANSWER
+            Message Type: MESSAGE
             Task name: /root
             Sender: /root/inspect
             Payload:
-            {"agentPath":"/root/inspect","status":{"completed":"done"}}
+            The review is done.
             """;
         turn.Items.Add(new SessionItem
         {

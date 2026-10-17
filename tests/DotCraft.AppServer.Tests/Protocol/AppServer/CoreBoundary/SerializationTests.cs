@@ -308,7 +308,7 @@ public class SerializationTests
             new ToolExecutionPayload
             {
                 CallId = "call_abc",
-                ToolName = "WaitAgent",
+                ToolName = "ListAgents",
                 Status = "completed",
                 Success = true,
                 DurationMs = 1234,
@@ -320,7 +320,7 @@ public class SerializationTests
         var payload = deserialized.AsToolExecution;
         Assert.NotNull(payload);
         Assert.Equal("call_abc", payload.CallId);
-        Assert.Equal("WaitAgent", payload.ToolName);
+        Assert.Equal("ListAgents", payload.ToolName);
         Assert.Equal("completed", payload.Status);
         Assert.True(payload.Success);
         Assert.Equal(1234, payload.DurationMs);

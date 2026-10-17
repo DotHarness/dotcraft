@@ -56,9 +56,9 @@ describe('getStreamingToolDisplay', () => {
     expect(display.label).not.toContain('rm -rf')
   })
 
-  it('does not expose WaitAgent child thread ids', () => {
-    const display = getStreamingToolDisplay(tool('WaitAgent'),
-      '{"childThreadId":"thread_20260503_child"',
+  it('does not expose SendMessage targets', () => {
+    const display = getStreamingToolDisplay(tool('SendMessage'),
+      '{"target":"thread_20260503_child"',
       'en'
     )
     expect(display.label).not.toContain('thread_20260503_child')

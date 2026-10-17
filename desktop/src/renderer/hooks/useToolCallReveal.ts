@@ -3,7 +3,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { loadThreadHistoryGap, useThreadHistoryStore } from '../stores/threadHistoryStore'
 import { useThreadStore } from '../stores/threadStore'
 import { addToast } from '../stores/toastStore'
-import { findToolCallRevealTarget, finishToolCallReveal, useToolCallRevealStore } from '../stores/toolCallRevealStore'
+import { findToolCallRevealTarget, finishToolCallReveal, useToolCallRevealStore, type ToolCallRevealMatch } from '../stores/toolCallRevealStore'
 import { useT } from '../contexts/LocaleContext'
 import { prefersReducedMotion } from '../utils/appearance'
 
@@ -19,6 +19,12 @@ const FLASH_TIMING: KeyframeAnimationOptions = { duration: 1400, easing: 'cubic-
 function findRendered(container: HTMLElement | null, attribute: 'callId' | 'turnId', value: string): HTMLElement | undefined {
   const selector = attribute === 'callId' ? '[data-call-id]' : '[data-turn-id]'
   return [...(container?.querySelectorAll<HTMLElement>(selector) ?? [])].find((node) => node.dataset[attribute] === value)
+}
+
+function unavailableMessageKey(match: ToolCallRevealMatch): string {
+  if ('agentPath' in match) return 'conversation.revealSubagentUnavailable'
+  if ('workflowRunId' in match) return 'conversation.revealWorkflowUnavailable'
+  return 'conversation.revealCommandUnavailable'
 }
 
 export function useToolCallReveal(container: RefObject<HTMLDivElement | null>): void {
@@ -39,7 +45,7 @@ export function useToolCallReveal(container: RefObject<HTMLDivElement | null>): 
     }
     const newestGap = gaps[gaps.length - 1]
     if (!newestGap) {
-      addToast(t('conversation.revealCommandUnavailable'), 'error')
+      addToast(t(unavailableMessageKey(request.match)), 'error')
       finishToolCallReveal(request.nonce)
       return
     }

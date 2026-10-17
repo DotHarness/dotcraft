@@ -18,11 +18,11 @@ public static partial class SubAgentSessionControl
             requireOpen: false,
             ct);
         if (resolved.Path.IsRoot)
-            throw new InvalidOperationException("CloseAgent target cannot be '/root'.");
+            throw new InvalidOperationException("Close target cannot be '/root'.");
 
         var senderPath = GetCurrentAgentPath(context.ParentThread);
         if (string.Equals(senderPath.Value, resolved.Path.Value, StringComparison.Ordinal))
-            throw new InvalidOperationException("CloseAgent target cannot be the current agent.");
+            throw new InvalidOperationException("Close target cannot be the current agent.");
 
         var wasAlreadyClosed = string.Equals(resolved.Edge?.Status, ThreadSpawnEdgeStatus.Closed, StringComparison.Ordinal);
         var hadRunningObserver = RunningChildren.ContainsKey(resolved.ThreadId);
@@ -51,7 +51,7 @@ public static partial class SubAgentSessionControl
     {
         var child = await sessionService.GetThreadAsync(childThreadId, ct);
         var parentThreadId = child.Source.SubAgent?.ParentThreadId ?? child.ChannelContext;
-        child = await CancelActiveChildTurnForCloseAsync(sessionService, childThreadId, child, ct);
+        child = await CancelActiveChildTurnAsync(sessionService, childThreadId, child, ct);
         MarkNativeProgressCompletedForClose(child);
 
         if (!string.IsNullOrWhiteSpace(parentThreadId))
@@ -102,7 +102,7 @@ public static partial class SubAgentSessionControl
         progress.IsCompleted = true;
     }
 
-    private static async Task<SessionThread> CancelActiveChildTurnForCloseAsync(
+    private static async Task<SessionThread> CancelActiveChildTurnAsync(
         ISessionService sessionService,
         string childThreadId,
         SessionThread child,
@@ -113,7 +113,7 @@ public static partial class SubAgentSessionControl
             try
             {
                 await running.Cancellation.CancelAsync();
-                await running.Completion.WaitAsync(CloseAgentCancellationWait, ct);
+                await running.Completion.WaitAsync(ChildCancellationWait, ct);
             }
             catch (TimeoutException)
             {
@@ -204,7 +204,7 @@ public static partial class SubAgentSessionControl
             if (evictable == null)
                 throw new InvalidOperationException(
                     $"Subagent concurrency limit reached: up to {cap} agents can be active at once. "
-                    + "Close a running agent with CloseAgent before spawning another.");
+                    + "Stop a running agent with TaskStop before spawning another.");
 
             await CloseAgentAsync(context.SessionService, evictable.ChildThreadId, ct);
         }

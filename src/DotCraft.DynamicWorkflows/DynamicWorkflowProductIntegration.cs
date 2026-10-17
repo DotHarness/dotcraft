@@ -215,7 +215,7 @@ public sealed class DynamicWorkflowToolSource(
             ["name"] = run.Name,
             ["status"] = run.Status,
             ["scriptPath"] = run.ScriptPath,
-            ["message"] = "The workflow runs in the background. Its result arrives later as a separate workflow notification. Briefly tell the user what you launched and end your turn; do not wait for, poll, or predict its result."
+            ["message"] = "The workflow is running in the background. You will be notified when it finishes; do not predict its result."
         }.ToJsonString();
     }
 }

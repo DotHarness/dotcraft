@@ -325,7 +325,9 @@ public sealed partial class SessionService
 
                     var queue = thread.QueuedInputs.ToList();
                     var removedLegacyBudgetGuidance = queue.RemoveAll(IsLegacyGoalBudgetGuidanceInput) > 0;
-                    var queueIndex = queue.FindIndex(q => string.Equals(q.Status, "queued", StringComparison.Ordinal));
+                    var notificationsMayWake = owner.MayWakeForTaskNotifications(thread);
+                    var queueIndex = queue.FindIndex(q => string.Equals(q.Status, "queued", StringComparison.Ordinal)
+                        && (notificationsMayWake || !IsTaskNotification(q)));
                     if (queueIndex < 0
                         || thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
                         || (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Maintenance != null))
@@ -379,6 +381,8 @@ public sealed partial class SessionService
                     },
                     ct);
                 var events = eventChannel.ReadAllAsync(ct);
+                if (SubAgentSessionControl.TryObserveQueuedChildTurn(owner, thread, events))
+                    return;
 
                 _ = Task.Run(async () =>
                 {

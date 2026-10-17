@@ -91,28 +91,23 @@ public sealed class BackgroundTerminalModelReadTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StopRequests_NotifyOnlyWhenTheClientStopsTheTerminal()
+    public async Task EndOfTextInput_IsOrdinaryInputThatLeavesTheTerminalRunning()
     {
-        var byModel = await Service.StartAsync(Request(LongCommand()) with
+        var started = await Service.StartAsync(Request(LongCommand()) with
         {
             RunInBackground = true,
             YieldTimeMs = 100,
-            NotifyOnCompletion = true
-        });
-        var byClient = await Service.StartAsync(Request(LongCommand()) with
-        {
-            RunInBackground = true,
-            YieldTimeMs = 100,
+            Interactive = true,
             NotifyOnCompletion = true
         });
 
-        var stopped = await Service.InteractAsync(byModel.SessionId, "\u0003", 1000);
-        await Service.StopAsync(byClient.SessionId);
+        var written = await Service.InteractAsync(started.SessionId, ((char)3).ToString(), 300);
+        await Service.StopAsync(started.SessionId);
         await Task.Delay(300);
 
-        Assert.Equal(BackgroundTerminalStatus.Killed, stopped.Status);
+        Assert.Equal(BackgroundTerminalStatus.Running, written.Status);
         var notice = Assert.Single(Notices());
-        Assert.Equal(byClient.SessionId, notice.Terminal.SessionId);
+        Assert.Equal(started.SessionId, notice.Terminal.SessionId);
         Assert.Equal(BackgroundTerminalStatus.Killed, notice.Terminal.Status);
     }
 

@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.8.10 |
 | **Status** | Living |
-| **Date** | 2026-10-16 |
+| **Date** | 2026-10-17 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -242,15 +242,41 @@ Fields:
 - `ReadyAfterTurnId` (string, nullable)
   - Active Turn ID observed when the input was queued.
 - `TriggerKind` (string, nullable)
-  - Present when the queued input was synthesized by a server/app mechanism rather than typed by a human. Examples include `goal`, `automation`, `app`, or `team`.
+  - Present when the queued input was synthesized by a server/app mechanism rather than typed by a human. Examples include `goal`, `automation`, `app`, `team`, and the task notification kinds `terminal`, `subagent`, and `workflow`.
 - `TriggerLabel` (string, nullable)
   - Optional human-readable source label.
 - `TriggerRefId` (string, nullable)
   - Optional stable source id for client-side click-through or audit correlation.
+- `TriggerStatus` (string, nullable)
+  - State of the source when the input was created. Set only on task notifications.
 - `DeliveryBindingId` (string, nullable)
   - Optional App Binding id that owns the default output delivery target for the future Turn.
 
 When a queued input starts a future Turn, Session Core must copy trigger metadata, the queued input id, and any default delivery binding id into the persisted `UserMessagePayload`. When a queued input is promoted into current-turn guidance, the guidance `UserMessage` item must preserve the same trigger metadata. Before guidance is admitted into the active Turn, a client may change the queued input's desired status back to `"queued"` without changing its input payload, metadata, or queue position. Once admission atomically persists the guidance `UserMessage` and removes the queued input, the input is no longer retractable.
+
+##### Task notifications
+
+A task notification is a queued input with `triggerKind` `terminal`, `subagent`, or `workflow`,
+created by Session Core when a background task ends or a shell task stalls (see
+[Background Tasks](background-tasks.md) §5). Each runtime claims the ending through the task's
+notification latch and hands it to one Session Core delivery path:
+
+- While the owner Thread has an active Turn, the notification is added as `guidancePending` for that
+  Turn and is drained at its next sampling boundary. It does not preempt a model request, does not hand
+  over a waiting foreground `Exec`, and skips `UserPromptSubmit` hooks. If the Turn ends first, it
+  becomes queued input like other undrained guidance.
+- Otherwise it is added as `queued`. When the owner Thread is Active and idle and the notification may
+  wake it, the next queued Turn is started.
+- Every Turn, whatever started it, admits all `queued` task notifications as guidance before its
+  first sampling request, so notifications that end together, or that were held, reach the model with
+  that Turn's input.
+- `Tools.BackgroundTasks.CompletionDelivery = off` keeps notifications queued without starting a
+  Turn. With `wake`, a Thread whose last `Tools.BackgroundTasks.MaxConsecutiveWakes` Turns were each
+  started by a task notification and each started another background task is not woken: the
+  notification stays queued. Choosing the next queued Turn skips task notifications that may not
+  wake the Thread.
+- A notification is never dropped. On a Thread that is not Active it stays queued for the Thread's
+  next Turn.
 
 Queued-input materialization is a local-only operation. Inline `image` parts contain base64 `data:image/...` URLs and are decoded without network access; `localImage` parts are read from their persisted local paths. Rebuilding model-visible history from a Turn's input snapshot (forks, interruption, or a Turn without stored model history) reads `localImage` files the same way and frames them as at Turn start; a file that can no longer be read becomes the text `[localImage:<path>]`. Session Core must never dereference HTTP or HTTPS image URLs while starting a queued Turn or admitting current-Turn guidance. A queued snapshot containing such a URL is materialized as the text `image content omitted because remote image URLs are not supported`, while the remaining parts continue normally.
 
@@ -401,10 +427,10 @@ Each Item type has a specific payload structure:
       "fileName": string   // Optional original filename
     }
   ],
-  "triggerKind": string,   // Optional trigger marker: "automation" | "goal" | "app" | "mcpApp" | "team" | "subagentFollowupTask" | "subagentMailbox" | "subagentInput" | "terminal"
+  "triggerKind": string,   // Optional trigger marker: "automation" | "goal" | "app" | "mcpApp" | "team" | "subagentFollowupTask" | "subagentMailbox" | "subagentInput" | "terminal" | "subagent" | "workflow"
   "triggerLabel": string,  // Optional human-readable source label (e.g. automation name, task title, agent label)
   "triggerRefId": string,  // Optional routing/audit id for click-through when supported (e.g. automation id, task id, agent path)
-  "triggerStatus": string  // Optional state of the source when the message was created (background terminal notices only)
+  "triggerStatus": string  // Optional state of the source when the message was created (task notifications only)
 }
 ```
 
@@ -412,7 +438,7 @@ Each Item type has a specific payload structure:
 
 `nativeInputParts` is authoritative for history rendering and editor rehydration when present. `materializedInputParts` captures the exact prompt/image snapshot that Session Core received after transport-side input materialization. `text` supports compatibility and preview generation; it is not the source of truth for user-message reconstruction.
 
-The optional `triggerKind` trio is populated by Session Core when a turn is submitted with an active trigger scope. Server-side runners set that scope so automation-synthesized messages carry a stable marker that clients can use to render an "automation-sourced" affordance and route click-through to the originating job or task. Goal continuation turns use `triggerKind = "goal"`, `triggerLabel = "Goal continuation"`, and `triggerRefId = internal goal id`. Session-backed SubAgent turns set `triggerKind = "subagentFollowupTask"` for follow-up task turns, `triggerKind = "subagentInput"` for direct/resumable external input, and mailbox drain items use `triggerKind = "subagentMailbox"`; mailbox drain items are internal/model-visible notifications rather than user-authored bubbles, and their `triggerRefId` is an agent path for audit/display and is not necessarily a client-navigable thread id. Background terminal notices use `triggerKind = "terminal"` (see the `CommandExecution` hand-over rules); like mailbox drain items they are model-visible notifications that clients do not present as user input. Fields are absent when the turn originates from a real user input.
+The optional `triggerKind` trio is populated by Session Core when a turn is submitted with an active trigger scope. Server-side runners set that scope so automation-synthesized messages carry a stable marker that clients can use to render an "automation-sourced" affordance and route click-through to the originating job or task. Goal continuation turns use `triggerKind = "goal"`, `triggerLabel = "Goal continuation"`, and `triggerRefId = internal goal id`. Session-backed SubAgent turns set `triggerKind = "subagentFollowupTask"` for turns a parent starts or queues with `SendMessage`, `triggerKind = "subagentInput"` for direct/resumable external input, and mailbox drain items use `triggerKind = "subagentMailbox"`; mailbox drain items are internal/model-visible notifications rather than user-authored bubbles, and their `triggerRefId` is an agent path for audit/display and is not necessarily a client-navigable thread id. Task notifications use `triggerKind = "terminal"`, `"subagent"`, or `"workflow"` with the task label, task id, and kind-specific final status (see [Task notifications](#task-notifications)); like mailbox drain items they are model-visible notifications that clients do not present as user input. Fields are absent when the turn originates from a real user input.
 
 #### AgentMessage
 
@@ -707,48 +733,26 @@ process exits or times out. While a foreground `Exec` of a regular Turn waits,
 guidance admitted for that Turn hands the process over at once, so the guidance
 reaches the model at the next sampling boundary instead of after the command.
 
-A terminal handed to the model while still running is armed for a completion
-notice. When it exits, Session Core delivers one notice to the Thread that
+A terminal handed to the model while still running is a `shell` background task.
+When it exits, Session Core delivers one task notification to the Thread that
 started it, unless the model already received the terminal's final status from
-`Exec` or `WriteStdin`, or stopped it through `WriteStdin`. A stop requested by
-a client still produces a notice. The notice is a queued input with
-`triggerKind = "terminal"`, `triggerLabel` set to the shortened command,
-`triggerRefId` set to the terminal session ID, and `triggerStatus` set to the
-terminal's final status (`completed`, `failed`, `killed`, `timedOut`, or `lost`),
-or to `waitingForInput` for a stall notice. Its display text is a one-line
-summary; its materialized text gives the status, exit code, wall time, the
-output log path, and at most 2,000 characters from the end of the output the
-model has not read. A `killed` notice comes only from a client stop, so its
-materialized text says the user stopped the command, that this is not a failure
-of the command, and that the model should not start it again unless asked. A
-notice never moves the model read cursor, so output in a notice that is dropped
-stays readable through `WriteStdin`.
-
-- While the Thread has an active Turn, the notice is added as `guidancePending`
-  for that Turn and is drained at its next sampling boundary. It does not
-  preempt a model request, does not hand over another waiting foreground
-  `Exec`, and skips `UserPromptSubmit` hooks. If the Turn ends first, it
-  becomes queued input like other undrained guidance.
-- While the Thread is idle, the notice is queued and the next queued Turn is
-  started.
-- When the Thread is not Active, the notice is dropped. Completions that occur
-  together are delivered as separate queued inputs in completion order.
-- `Tools.Shell.Background.CompletionDelivery` selects `wake` (the default) or
-  `off`. With `wake`, an idle Thread whose last
-  `Tools.Shell.Background.MaxConsecutiveWakes` Turns (3) were all started by
-  terminal notices is not woken again; the notice is dropped and the terminal
-  stays readable through `WriteStdin`.
-- Terminals of a Remote Tool Host route do not produce notices; the model reads
-  them through `WriteStdin`.
+`Exec`, `WriteStdin`, or `TaskStop`. The envelope, trigger fields, delivery, and
+wake limits are defined by [Background Tasks](background-tasks.md) §5 and
+[Task notifications](#task-notifications). For a terminal, `triggerLabel` is the
+shortened command, `triggerRefId` is the terminal session ID, and
+`triggerStatus` is the terminal's final status (`completed`, `failed`, `killed`,
+`timedOut`, or `lost`), or `waitingForInput` for a stall. The notification's
+`output_file` is the output log; only a stall notification carries a `result`,
+at most 2,000 characters from the end of the output the model has not read. A
+notification never moves the
+model read cursor, so that output stays readable through `WriteStdin`.
+Terminals of a Remote Tool Host route do not notify; the model reads them
+through `WriteStdin` and stops them with `TaskStop` on the same route.
 
 A stall reported by the terminal watchdog (see Tools Architecture §7.3) for an
-armed terminal delivers a stall notice through the same rules and trigger
-fields. Its materialized text says the process appears to be waiting for
-input and gives at most 2,000 characters from the end of the unread output.
-It tells the model to answer through `WriteStdin` when the terminal keeps
-stdin open, and otherwise to stop it and rerun the command with piped input or
-a non-interactive option. A stall notice does not settle the terminal, so its
-completion notice still follows.
+armed terminal delivers a stall notification through the same path. A stall
+notification does not settle the terminal, so its completion notification still
+follows.
 
 A command handed over after its yield time, with or without `runInBackground`,
 keeps its Item in progress, records the terminal `sessionId` on it, and
@@ -760,6 +764,13 @@ a thread is loaded, such an Item still in progress on a finished Turn whose
 terminal is no longer running, for example after a host restart, is completed
 from the terminal's final state, or with `status = "lost"` when the terminal is
 unknown, and the result is persisted.
+
+Input to `WriteStdin` that is only Ctrl+C (end-of-text) is ordinary input: it
+does not stop the process or settle the terminal. The model stops a terminal
+with `TaskStop`, which resolves `term_` ids through the Session Core task
+registry (see [Background Tasks](background-tasks.md) §3) and accepts only
+terminals started by the calling Thread. On a Remote Tool Host route it runs on
+the Host, as `WriteStdin` does (see [Remote Tool Host](remote-tool-host.md) §12).
 
 `WriteStdin` keeps its `ToolCall` and `ToolResult` Items, which carry the model
 history and the persisted record of what was written. Clients present that input
@@ -1638,9 +1649,9 @@ The domain history and exact model history are intentionally distinct durable re
 
 The active model/tool loop maintains an ordered history of initial input, model responses, tool results, and admitted steering and passive input. History updates and output events are separate execution outputs. Delivered input remains available to subsequent Turns, cold loading, and recovery export.
 
-Running input enters the loop at one pre-sampling drain point. The first sample of a Turn admits only passive mailbox input. After a tool round, the next sample first runs pre-sampling preparation, including compaction, and then drains, so admitted input always follows any compaction baseline verbatim. After a final answer, the loop continues only while user guidance is pending, up to a fixed limit per model request; it runs the same preparation and drain, and ends without sampling again if the drain admits no guidance. Stream-failure reissues and provider-managed continuations do not drain, except after an instant interrupt described below. A drain acquires the thread's SubAgent inbox lock before the queue lock, the same order SubAgent follow-up delivery uses. Every drain appends, in order: goal steering, each admitted guidance input followed by its hook context, subagent mailbox input, and world-state changes. The prompt request snapshot used for context estimates and reactive compaction is captured from the final request after the drain, so it includes the admitted input.
+Running input enters the loop at one pre-sampling drain point. The first sample of a Turn admits only passive mailbox input and queued task notifications. After a tool round, the next sample first runs pre-sampling preparation, including compaction, and then drains, so admitted input always follows any compaction baseline verbatim. After a final answer, the loop continues only while user guidance is pending, up to a fixed limit per model request; it runs the same preparation and drain, and ends without sampling again if the drain admits no guidance. Stream-failure reissues and provider-managed continuations do not drain, except after an instant interrupt described below. A drain acquires the thread's SubAgent inbox lock before the queue lock, the same order SubAgent follow-up delivery uses. Every drain appends, in order: goal steering, each admitted guidance input followed by its hook context, subagent mailbox input, and world-state changes. The prompt request snapshot used for context estimates and reactive compaction is captured from the final request after the drain, so it includes the admitted input.
 
-When `InstantInterruptEnabled` is on (the default), pending user guidance also preempts the current model request while that request has produced no effective output (assistant text, reasoning text, or a tool call) and while the loop waits before a stream-failure reissue. Only `guidancePending` input for the Turn that is neither a SubAgent follow-up task nor a legacy goal-budget input triggers preemption; goal steering, SubAgent mailbox, world state, and queued input do not. Preemption cancels only the provider request, discards its partial updates and any provider-native output recorded for it, does not consume the stream-retry budget, and reissues the request after the same preparation and drain that follow a tool round. A request that already produced effective output is not preempted; its guidance waits for the next drain point. When the option is off, guidance never preempts a request.
+When `InstantInterruptEnabled` is on (the default), pending user guidance also preempts the current model request while that request has produced no effective output (assistant text, reasoning text, or a tool call) and while the loop waits before a stream-failure reissue. Only `guidancePending` input for the Turn that is neither a SubAgent follow-up task, a task notification, nor a legacy goal-budget input triggers preemption; goal steering, SubAgent mailbox, world state, and queued input do not. Preemption cancels only the provider request, discards its partial updates and any provider-native output recorded for it, does not consume the stream-retry budget, and reissues the request after the same preparation and drain that follow a tool round. A request that already produced effective output is not preempted; its guidance waits for the next drain point. When the option is off, guidance never preempts a request.
 
 Session Core persists the ordered model-history prefix containing an input before consuming its queue entry or confirming communication delivery. Each admitted input has one identity record linking its input ID, Item ID, and Turn ID in model-message metadata. Restart reconciliation uses persisted history and these identities to complete interrupted delivery confirmation. A history write failure stops execution and leaves delivery unconfirmed.
 
@@ -1883,7 +1894,7 @@ Interactive adapters present the request in their native UI. A client may automa
 
 `SendUserMessageAsync` is exposed by default to top-level Agent and Plan threads, except Internal and SubAgent child threads. It validates a non-empty message, persists and broadcasts an `AgentMessage` with `deliveryMode = "async"`, returns `{ "accepted": true }`, and lets the current model/tool loop continue.
 
-The `clock` namespace is exposed by default to ordinary Session Core agent threads, including native SubAgents but excluding Internal threads. `clock/CurrentTime` returns the current UTC time. `clock/Sleep` accepts `durationMs` from 1 millisecond through 12 hours and records a `Sleep` Item for the wait lifecycle. Sleep completes after the requested duration, Turn cancellation, or an active-Turn steer/mailbox signal. The runtime subscribes before rechecking pending input so input arriving at the subscription boundary cannot be lost. After Sleep returns, the existing safe-boundary drain admits steer and mailbox content before the next model sample.
+The `clock` namespace is exposed by default to ordinary Session Core agent threads, including native SubAgents but excluding Internal threads. `clock/CurrentTime` returns the current UTC time. `clock/Sleep` accepts `durationMs` from 1 millisecond through 12 hours and records a `Sleep` Item for the wait lifecycle. Sleep completes after the requested duration, Turn cancellation, or an active-Turn steer, mailbox, or task notification signal. The runtime subscribes before rechecking pending input so input arriving at the subscription boundary cannot be lost. After Sleep returns, the existing safe-boundary drain admits steer, mailbox, and notification content before the next model sample.
 
 Prompt composition describes the choice only when the corresponding tools are available: use `RequestUserInput` when a structured answer blocks further work, use `SendUserMessageAsync` when the agent can continue independent authorized work, and use `clock/Sleep` after asking when no independent work remains. An asynchronous message must not be repeated in the final answer. These tools never create a Goal or change Goal continuation behavior.
 
@@ -2171,7 +2182,7 @@ when cancellation occurs before session initialization or no interruption marker
 
 Bidirectional capabilities are outside the session model.
 
-The Session Protocol models conversation state and turn execution. It does not model transport-specific request/response features such as IDE filesystem access, terminal control, extension calls, or API-specific REST flows. Those remain tool- or channel-level concerns. Background terminals follow the same boundary: Session Core records the observable `CommandExecution` Item for the originating tool call, while AppServer exposes live terminal snapshots and output deltas to terminal-capable clients. The model-facing shell surface stays minimal (`Exec` plus `WriteStdin`, where empty stdin polls output); terminal listing, direct reads, stopping, and cleanup are AppServer/control-plane capabilities.
+The Session Protocol models conversation state and turn execution. It does not model transport-specific request/response features such as IDE filesystem access, terminal control, extension calls, or API-specific REST flows. Those remain tool- or channel-level concerns. Background terminals follow the same boundary: Session Core records the observable `CommandExecution` Item for the originating tool call, while AppServer exposes live terminal snapshots and output deltas to terminal-capable clients. The model-facing shell surface stays minimal (`Exec` plus `WriteStdin`, where empty stdin polls output, and `TaskStop` to stop a terminal); terminal listing, direct reads, client stops, and cleanup are AppServer/control-plane capabilities.
 
 The design rule is simple:
 

@@ -149,7 +149,6 @@ public sealed class CoreToolSource(
             maxSubAgentDepth: config.SubAgent.MaxDepth,
             subAgentPreference: subAgentPreference,
             appConfig: config,
-            waitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent),
             maxConcurrentSubAgents: config.SubAgent.MaxConcurrentSubAgents,
             modelCatalogSnapshot: context.SubAgentModelCatalogSnapshot,
             inheritedModel: context.EffectiveMainModel);
@@ -157,6 +156,7 @@ public sealed class CoreToolSource(
 
         var boardTools = new AgentMessageBoardTools();
         tools.AddRange(GeneratedToolFunctions.All(boardTools));
+        tools.AddRange(GeneratedToolFunctions.All(new BackgroundTaskTools()));
 
         // File tools
         var fileTools = new FileTools(

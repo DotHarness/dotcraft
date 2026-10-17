@@ -249,11 +249,7 @@ public static class ServiceRegistration
         foreach (var note in hiddenBuiltInNotes)
             logger?.LogInformation("SubAgent profile configuration note: {ConfigurationNote}", note);
 
-        var waitAgentTimeoutErrors = SubAgentWaitAgentTimeoutOptions.Validate(config.SubAgent);
-        foreach (var error in waitAgentTimeoutErrors)
-            logger?.LogError("SubAgent wait timeout configuration error: {ValidationError}", error);
-
-        return isValid && waitAgentTimeoutErrors.Count == 0;
+        return isValid;
     }
 }
 

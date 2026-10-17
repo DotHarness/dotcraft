@@ -437,10 +437,8 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         {
             AIFunctionFactory.Create(agentTools.SpawnAgent),
             AIFunctionFactory.Create(agentTools.SendMessage),
-            AIFunctionFactory.Create(agentTools.FollowupTask),
-            AIFunctionFactory.Create(agentTools.WaitAgent),
             AIFunctionFactory.Create(agentTools.ListAgents),
-            AIFunctionFactory.Create(agentTools.CloseAgent)
+            AIFunctionFactory.Create(new BackgroundTaskTools().TaskStop)
         };
 
         var optOut = AgentFactory.BuildStreamOptOutToolNames(agentControlTools);

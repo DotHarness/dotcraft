@@ -81,7 +81,20 @@ describe('turn layout', () => {
     expect(reading.map((entry) => entry.kind)).toEqual(['user', 'activity', 'tool', 'tool'])
   })
 
-  it('marks a stopped turn and drops reasoning that never finished', () => {
+  it('leaves background task notices out of the user messages', () => {
+    const items = [
+      item('userMessage', { text: 'Run the build' }),
+      item('userMessage', { text: 'Background command finished (exit code 0): npm test', deliveryMode: 'queued', triggerKind: 'terminal', triggerRefId: 'term-1' }),
+      item('userMessage', { text: 'Subagent reviewer finished', deliveryMode: 'queued', triggerKind: 'subagent', triggerRefId: 'agent-1' }),
+      item('userMessage', { text: 'Workflow review finished.', deliveryMode: 'queued', triggerKind: 'workflow', triggerRefId: 'run-1', triggerStatus: 'succeeded' }),
+      item('userMessage', { text: 'Run the review workflow', triggerKind: 'workflow', triggerRefId: 'run-2' }),
+      item('agentMessage', { text: 'All done.', phase: 'final' }),
+    ]
+    const transcript = buildTranscript(history(items, 'completed'))
+    expect(transcript.filter((entry) => entry.kind === 'user')).toMatchObject([{ text: 'Run the build' }, { text: 'Run the review workflow' }])
+  })
+
+    it('marks a stopped turn and drops reasoning that never finished', () => {
     const items = [item('userMessage', { text: 'Go' }), item('reasoningContent', { text: 'Hmm' }, { status: 'started', completedAt: null })]
     expect(buildTranscript(history(items, 'cancelled'))).toMatchObject([{ kind: 'user' }, { kind: 'activity', status: 'stopped' }])
   })

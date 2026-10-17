@@ -219,7 +219,8 @@ public static partial class SubAgentSessionControl
             startup.Completion = completion;
             await using (ct.Register(childCts.Cancel))
                 await startup.Admission.Task.ConfigureAwait(false);
-            var runningChild = new RunningChild(context.ParentThread.Id, childCts, completion);
+            var runningChild = new RunningChild(
+                context.ParentThread.Id, childCts, completion, context.ParentTurnId, context.ParentTurnCancellation ?? default);
             RunningChildren[childThread.Id] = runningChild;
             _ = ObserveChildCompletionAsync(context.SessionService, childThread.Id, runningChild, context.LifecycleHook);
 

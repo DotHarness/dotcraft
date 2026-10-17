@@ -61,7 +61,7 @@ public sealed class SubAgentSpawnOptions
     /// <summary>Optional stable purpose used by host integrations to specialize child behavior.</summary>
     public string? Purpose { get; set; }
 
-    /// <summary>When true, the host consumes the child's result and its completion is not posted to the parent mailbox.</summary>
+    /// <summary>When true, the host consumes the child's result and the parent is not notified when the child finishes.</summary>
     public bool SilentCompletion { get; set; }
 
     /// <summary>Optional callback invoked after child creation and before its first Turn starts.</summary>
@@ -164,13 +164,6 @@ public sealed class SubAgentControlResult
     public bool SupportsClose { get; set; } = true;
 }
 
-public sealed class SubAgentWaitResult
-{
-    public string Status { get; set; } = string.Empty;
-
-    public bool TimedOut { get; set; }
-}
-
 public sealed class SubAgentListResult
 {
     public IReadOnlyList<SubAgentListItem> Data { get; set; } = [];
@@ -210,18 +203,25 @@ public enum SubAgentFollowupDeliveryMode
 
 public static partial class SubAgentSessionControl
 {
-    private static readonly TimeSpan CloseAgentCancellationWait = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ChildCancellationWait = TimeSpan.FromSeconds(5);
     internal const string SubAgentFollowupTriggerKind = "subagentFollowupTask";
     private const string SubAgentInputTriggerKind = "subagentInput";
 
     private sealed class RunningChild(
         string parentThreadId,
         CancellationTokenSource cancellation,
-        Task<SubAgentRunResult> completion)
+        Task<SubAgentRunResult> completion,
+        string? parentTurnId = null,
+        CancellationToken parentTurnLifetime = default)
     {
         public string ParentThreadId { get; } = parentThreadId;
         public CancellationTokenSource Cancellation { get; } = cancellation;
         public Task<SubAgentRunResult> Completion { get; } = completion;
+        public BackgroundTaskLatch Latch { get; } = new();
+
+        public string? ParentTurnId { get; } = parentTurnId;
+
+        public CancellationToken ParentTurnLifetime { get; } = parentTurnLifetime;
     }
 
     private static readonly ConcurrentDictionary<string, RunningChild> RunningChildren = new(StringComparer.Ordinal);

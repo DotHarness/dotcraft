@@ -57,6 +57,8 @@ import { normalizeNodeReplTitle } from '../../utils/nodeReplToolDisplay'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { SubAgentToolResultCard, getSubAgentToolDisplay, formatSubAgentRunningLabel } from './SubAgentToolResultCard'
 import { BoardToolCard } from './BoardToolCard'
+import { TaskStopToolRow } from './TaskStopToolRow'
+import { getTaskStopDisplay } from '../../utils/taskStopDisplay'
 import type { BoardOperation } from '../../utils/boardToolDisplay'
 import {
   formatRequestUserInputResultLines,
@@ -414,7 +416,12 @@ export const ToolCallCard = memo(function ToolCallCard({
 
   const workflowRunId = !isRunning ? parseWorkflowRunId(toolName, item.result) : null
   if (workflowRunId && threadId) {
-    return <WorkflowToolCard threadId={threadId} runId={workflowRunId} createdAt={item.createdAt} />
+    return <WorkflowToolCard threadId={threadId} runId={workflowRunId} createdAt={item.createdAt} callId={item.toolCallId} />
+  }
+
+  const taskStopDisplay = rendererFamily === 'task' ? getTaskStopDisplay(item, isRunning, locale) : null
+  if (taskStopDisplay) {
+    return <TaskStopToolRow item={item} display={taskStopDisplay} running={isRunning} />
   }
 
   const subAgentDisplay = !isRunning && rendererFamily === 'subagent'

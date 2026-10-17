@@ -540,6 +540,28 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
                 new Dictionary<string, object?> { ["sessionId"] = "term_1", ["input"] = "" })).Kind);
     }
 
+    [Theory]
+    [InlineData("explorer", "term_1", ModeToolPolicyDecisionKind.Allow)]
+    [InlineData("explorer", "worker", ModeToolPolicyDecisionKind.DenyRecoverable)]
+    [InlineData("default", "term_1", ModeToolPolicyDecisionKind.Allow)]
+    [InlineData("default", "/root/worker", ModeToolPolicyDecisionKind.DenyRecoverable)]
+    [InlineData("worker", "/root/worker/helper", ModeToolPolicyDecisionKind.Allow)]
+    public void SubAgentRole_GatesTaskStopOnAgentsByAgentControlOnly(
+        string role,
+        string taskId,
+        ModeToolPolicyDecisionKind expected)
+    {
+        var context = CreateContext(source: SubAgentSource(role, depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            expected,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "TaskStop",
+                new Dictionary<string, object?> { ["taskId"] = taskId })).Kind);
+    }
+
     [Fact]
     public void SubAgentWorker_KeepsShellUnrestricted()
     {
@@ -642,7 +664,7 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             ModeToolPolicyDecisionKind.Allow,
             policy.EvaluateCall(new FunctionCallContent(
                 "call-2",
-                nameof(AgentTools.WaitAgent),
+                nameof(AgentTools.ListAgents),
                 new Dictionary<string, object?>())).Kind);
     }
 

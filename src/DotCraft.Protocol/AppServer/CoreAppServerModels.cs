@@ -4911,21 +4911,9 @@ public sealed class SubAgentProgressNotification : ExtensibleJsonObject
 /// <summary>Executable wire contract for SubAgentSettingsUpdateParams.</summary>
 public sealed class SubAgentSettingsUpdateParams : ExtensibleJsonObject
 {
-    [JsonPropertyName("defaultWaitTimeoutMs")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> DefaultWaitTimeoutMs { get; init; }
-
     [JsonPropertyName("externalCliSessionResumeEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool?> ExternalCliSessionResumeEnabled { get; init; }
-
-    [JsonPropertyName("maxWaitTimeoutMs")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> MaxWaitTimeoutMs { get; init; }
-
-    [JsonPropertyName("minWaitTimeoutMs")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> MinWaitTimeoutMs { get; init; }
 
     [JsonPropertyName("providerPreferences")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4945,21 +4933,9 @@ public sealed class SubAgentSettingsUpdateResult : ExtensibleJsonObject
 /// <summary>Executable wire contract for SubAgentSettings.</summary>
 public sealed class SubAgentSettings : ExtensibleJsonObject
 {
-    [JsonPropertyName("defaultWaitTimeoutMs")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> DefaultWaitTimeoutMs { get; init; }
-
     [JsonPropertyName("externalCliSessionResumeEnabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> ExternalCliSessionResumeEnabled { get; init; }
-
-    [JsonPropertyName("maxWaitTimeoutMs")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> MaxWaitTimeoutMs { get; init; }
-
-    [JsonPropertyName("minWaitTimeoutMs")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int> MinWaitTimeoutMs { get; init; }
 
     [JsonPropertyName("providerPreferences")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

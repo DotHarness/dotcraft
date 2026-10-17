@@ -28,7 +28,7 @@ public sealed class UserCoordinationTools
 
     [GeneratedTool]
     [ToolPresentation("core.sleep")]
-    [Description("Wait for the requested duration, or return early when steer or mailbox input arrives for the active turn.")]
+    [Description("Wait for the requested duration, or return early when steer, mailbox, or background task notification input arrives for the active turn.")]
     public async Task<string> Sleep(
         [Description("Duration in milliseconds from 1 through 43200000.")] int durationMs,
         CancellationToken cancellationToken = default)

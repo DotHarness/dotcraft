@@ -16,10 +16,6 @@ const SUBAGENT_SPAWN: CoreFixturePresentation = {
   presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
   options: { operation: 'spawn' }
 }
-const SUBAGENT_FOLLOWUP: CoreFixturePresentation = {
-  presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
-  options: { operation: 'followupTask' }
-}
 
 function makeToolCallItem(
   id: string,
@@ -164,175 +160,29 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
     expect(screen.queryByText(/childThreadId/)).toBeNull()
   })
 
-  it('renders a single FollowupTask as an ungrouped Updated agent row', () => {
-    const item = makeToolCallItem(
-      'followup-1',
-      'followup-call-1',
-      'FollowupTask',
-      '2026-05-03T09:59:00.000Z',
-      SUBAGENT_FOLLOWUP
-    )
-    item.arguments = { target: '/root/reviewer', message: 'Check the updated tests' }
-    item.result = JSON.stringify({
-      agentPath: '/root/reviewer',
-      agentNickname: 'Reviewer',
-      agentRole: 'explorer',
-      status: 'running'
-    })
-
-    const text = renderBlock({
-      id: 'turn-single-followup',
-      threadId: 'thread-1',
-      status: 'completed',
-      startedAt: '2026-05-03T09:58:00.000Z',
-      items: [item]
-    })
-
-    expect(text).toContain('Updated Reviewer')
-    expect(text).not.toContain('Updated 1 agents')
-  })
-
-  it('groups consecutive FollowupTask calls as inline chips', () => {
-    const items = ['Reviewer', 'Researcher'].map((name, index) => {
-      const item = makeToolCallItem(
-        `followup-${index}`,
-        `followup-call-${index}`,
-        'FollowupTask',
-        `2026-05-03T10:00:0${index}.000Z`,
-        SUBAGENT_FOLLOWUP
-      )
-      item.arguments = {
-        target: `/root/${name.toLowerCase()}`,
-        message: `Update ${name} instructions`
-      }
-      item.result = JSON.stringify({
-        agentPath: `/root/${name.toLowerCase()}`,
-        agentNickname: name,
-        agentRole: 'explorer',
-        status: 'running'
-      })
-      return item
-    })
-
-    render(
-      <LocaleProvider>
-        <AgentResponseBlock turn={{
-          id: 'turn-followup-group',
-          threadId: 'thread-1',
-          status: 'completed',
-          startedAt: '2026-05-03T10:00:00.000Z',
-          items
-        }} />
-      </LocaleProvider>
-    )
-
-    expect(screen.getByTestId('subagent-chips')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Reviewer/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Researcher/ })).toBeInTheDocument()
-  })
-
-  it('hides a pending WaitAgent row from the transcript', () => {
-    const turn: ConversationTurn = {
-      id: 'turn-wait-running',
-      threadId: 'thread-1',
-      status: 'running',
-      startedAt: '2026-05-03T10:00:00.000Z',
-      items: [
-        {
-          id: 'tool-wait',
-          type: 'toolCall',
-          status: 'completed',
-          toolCallId: 'call-wait',
-          toolName: 'WaitAgent',
-          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
-          presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
-          arguments: { childThreadId: 'thread_child', agentNickname: 'Reviewer' },
-          createdAt: '2026-05-03T10:00:01.000Z'
-        }
-      ]
-    }
-
-    const { container } = render(
-      <LocaleProvider>
-        <AgentResponseBlock turn={turn} isRunning />
-      </LocaleProvider>
-    )
-
-    expect(container.querySelector('[data-running-shimmer]')).toBeNull()
-    expect(container.textContent).not.toContain('Waiting for')
-  })
-
-  it('hides historical WaitAgent calls when toolResult is missing', () => {
-    const turn: ConversationTurn = {
-      id: 'turn-wait-history',
-      threadId: 'thread-1',
-      status: 'completed',
-      startedAt: '2026-05-03T10:00:00.000Z',
-      items: [
-        {
-          id: 'tool-wait-history',
-          type: 'toolCall',
-          status: 'completed',
-          toolCallId: 'call-wait-history',
-          toolName: 'WaitAgent',
-          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
-          presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
-          arguments: { childThreadId: 'thread_child', agentNickname: 'Reviewer' },
-          createdAt: '2026-05-03T10:00:01.000Z'
-        }
-      ]
-    }
-
-    const { container } = render(
-      <LocaleProvider>
-        <AgentResponseBlock turn={turn} />
-      </LocaleProvider>
-    )
-
-    expect(container.querySelector('[data-running-shimmer]')).toBeNull()
-    expect(container.textContent).not.toContain('Wait')
-  })
-
-  it('hides WaitAgent failures and normal SubAgent controls but preserves targeted failures', () => {
-    const hiddenWait = makeToolCallItem('wait', 'wait-call', 'WaitAgent', '2026-05-03T10:00:01.000Z', {
-      presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
-      options: { operation: 'wait' }
-    })
-    hiddenWait.result = JSON.stringify({ status: 'timeout', timedOut: true })
-
-    const hiddenFailedWait = makeToolCallItem('failed-wait', 'failed-wait-call', 'WaitAgent', '2026-05-03T10:00:01.500Z', {
-      presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
-      options: { operation: 'wait' }
-    })
-    hiddenFailedWait.success = false
-    hiddenFailedWait.arguments = { timeoutMs: 1000 }
-    hiddenFailedWait.result = 'timeoutMs must be at least 15000. (Parameter \'timeoutMs\')'
-
+  it('hides successful SubAgent messages but preserves targeted failures', () => {
     const hiddenMessage = makeToolCallItem('message', 'message-call', 'SendMessage', '2026-05-03T10:00:02.000Z', {
       presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
       options: { operation: 'sendMessage' }
     })
     hiddenMessage.result = JSON.stringify({ status: 'sent', agentNickname: 'Reviewer' })
 
-    const failedClose = makeToolCallItem('close', 'close-call', 'CloseAgent', '2026-05-03T10:00:03.000Z', {
+    const failedMessage = makeToolCallItem('failed-message', 'failed-message-call', 'SendMessage', '2026-05-03T10:00:03.000Z', {
       presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
-      options: { operation: 'close' }
+      options: { operation: 'sendMessage' }
     })
-    failedClose.success = false
-    failedClose.arguments = { target: '/root/reviewer' }
-    failedClose.result = JSON.stringify({ status: 'failed', agentNickname: 'Reviewer', error: 'Close failed' })
+    failedMessage.success = false
+    failedMessage.arguments = { target: '/root/reviewer' }
+    failedMessage.result = JSON.stringify({ status: 'failed', agentNickname: 'Reviewer', error: 'Send failed' })
 
     const text = renderBlock({
       id: 'turn-hidden-controls',
       threadId: 'thread-1',
       status: 'completed',
       startedAt: '2026-05-03T10:00:00.000Z',
-      items: [hiddenWait, hiddenFailedWait, hiddenMessage, failedClose]
+      items: [hiddenMessage, failedMessage]
     })
 
-    expect(text).not.toContain('Wait timed out')
-    expect(text).not.toContain('agent failed')
-    expect(text).not.toContain('timeoutMs must be at least 15000')
     expect(text).not.toContain('Sent message')
     expect(text).toContain('Reviewer failed')
   })

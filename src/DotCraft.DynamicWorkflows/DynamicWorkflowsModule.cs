@@ -50,6 +50,9 @@ public sealed partial class DynamicWorkflowsModule : ModuleBase, IToolSourceModu
         services.AddSingleton<ISessionServiceConsumer>(sp => sp.GetRequiredService<DynamicWorkflowService>());
         services.AddSingleton<ISessionServiceConsumer>(sp => sp.GetRequiredService<DynamicWorkflowProjectionService>());
         services.AddSingleton<IThreadLifecycleObserver>(sp => sp.GetRequiredService<DynamicWorkflowService>());
+        services.AddSingleton<IBackgroundTaskKind>(sp => new DynamicWorkflowTaskKind(
+            sp.GetRequiredService<DynamicWorkflowService>(),
+            sp.GetRequiredService<DynamicWorkflowStore>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ISubAgentGuidanceProvider, DynamicWorkflowSubAgentGuidance>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptCommandProvider, DynamicWorkflowCommandProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IWorldStateSection, DynamicWorkflowSection>());

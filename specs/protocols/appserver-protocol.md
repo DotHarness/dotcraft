@@ -473,7 +473,7 @@ Rules:
     "allow": ["ReadFile", "GrepFiles"],
     "deny": ["WriteFile"],
     "agentControl": "allowList",
-    "allowedAgentControlTools": ["WaitAgent"]
+    "allowedAgentControlTools": ["ListAgents"]
   },
   "mcpPolicy": {
     "servers": ["catalog-readonly"],
@@ -1356,10 +1356,10 @@ The server reads a `localImage` file and gives the model the image framed by the
 | `status` | string | `"queued"` or `"guidancePending"`. |
 | `createdAt` | string | UTC timestamp. |
 | `readyAfterTurnId` | string? | Active turn observed when the input was queued. |
-| `triggerKind` | string? | Present when the queued input was synthesized by a server/app mechanism rather than typed by a human. Examples include `"goal"`, `"automation"`, `"automation"`, `"app"`, `"team"`, `"subagentFollowupTask"`, `"subagentMailbox"`, `"subagentInput"`, or `"terminal"` (a model-facing background terminal notice whose `triggerRefId` is the terminal session ID; clients should not present it as user input). |
+| `triggerKind` | string? | Present when the queued input was synthesized by a server/app mechanism rather than typed by a human. Examples include `"goal"`, `"automation"`, `"app"`, `"team"`, `"subagentFollowupTask"`, `"subagentMailbox"`, `"subagentInput"`, or a task notification kind: `"terminal"`, `"subagent"`, or `"workflow"` (a model-facing notification that a background command, SubAgent, or Workflow ended, whose `triggerRefId` is the task id; clients should not present it as user input). |
 | `triggerLabel` | string? | Optional human-readable source label. |
 | `triggerRefId` | string? | Optional stable source id for client-side click-through or audit correlation. |
-| `triggerStatus` | string? | Optional state of the source when the input was created. For `"terminal"` notices it is the terminal's final status (`"completed"`, `"failed"`, `"killed"`, `"timedOut"`, `"lost"`) or `"waitingForInput"` for a stall notice. |
+| `triggerStatus` | string? | State of the source when the input was created, set only on task notifications. For `"terminal"` it is the terminal's final status (`"completed"`, `"failed"`, `"killed"`, `"timedOut"`, `"lost"`) or `"waitingForInput"` for a stall; for `"subagent"` it is the child Turn status (`"completed"`, `"failed"`, `"cancelled"`); for `"workflow"` it is the run status (`"succeeded"`, `"failed"`, `"stopped"`). |
 
 When a queued input later starts a Turn or is promoted into current-Turn guidance, the resulting `userMessage` item preserves `triggerKind`, `triggerLabel`, `triggerRefId`, and `triggerStatus`.
 
@@ -1718,7 +1718,7 @@ The server SHOULD broadcast this notification only when the effective snapshot a
 
 Forward-compatibility rule: future server versions may add additional fields under `runtime`. Clients MUST ignore unknown fields.
 
-A `CreatePlan` call is successful when its call id has a matching successful tool result in the same Turn. Tool calls or assistant output that follow the successful `CreatePlan` in that Turn do not clear plan confirmation; in particular, lifecycle cleanup such as `CloseAgent` may run after the plan is saved. A later Turn replaces this state, and its `turn/start` clears the pending confirmation before that Turn finishes.
+A `CreatePlan` call is successful when its call id has a matching successful tool result in the same Turn. Tool calls or assistant output that follow the successful `CreatePlan` in that Turn do not clear plan confirmation; in particular, lifecycle cleanup such as `TaskStop` may run after the plan is saved. A later Turn replaces this state, and its `turn/start` clears the pending confirmation before that Turn finishes.
 
 ### 6.2 Turn Notifications
 
@@ -1862,7 +1862,7 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 
 | `item.type` | Wire-specific notes |
 |-------------|---------------------|
-| `userMessage` | Payload shape matches Session Core; property names are camelCase and nullable fields are omitted when absent. `text` is a display field derived from the native input parts, not the sole source of truth. When present, `nativeInputParts` is authoritative for history rendering and `materializedInputParts` captures the exact snapshot sent to the model. Optional `deliveryMode` (`"normal"` / `"queued"` / `"guidance"` / `"subagentMailbox"`) lets clients distinguish direct input, queued input that later became a Turn, active-Turn guidance, and internal SubAgent mailbox delivery. Optional nullable `sentAsGoal` is `true` when the message was submitted as the thread goal. Optional `triggerKind` (`"automation"` / `"goal"` / `"app"` / `"mcpApp"` / `"workflow"` / `"subagentFollowupTask"` / `"subagentMailbox"` / `"subagentInput"` / `"terminal"`), `triggerLabel`, `triggerRefId`, and, for `"terminal"` notices, `triggerStatus` are emitted when the turn was synthesized by an automation, goal continuation, authorized app mechanism, MCP App view, workflow, SubAgent coordination mechanism, or background terminal completion notice rather than typed by a human. Clients may render a source affordance and route click-through when the source has a client surface, but `subagentMailbox` items are internal/model-visible notifications and should not render as parent-thread user bubbles or child-agent reply bubbles. SubAgent `triggerRefId` values are agent paths and should not be treated as thread ids. |
+| `userMessage` | Payload shape matches Session Core; property names are camelCase and nullable fields are omitted when absent. `text` is a display field derived from the native input parts, not the sole source of truth. When present, `nativeInputParts` is authoritative for history rendering and `materializedInputParts` captures the exact snapshot sent to the model. Optional `deliveryMode` (`"normal"` / `"queued"` / `"guidance"` / `"subagentMailbox"`) lets clients distinguish direct input, queued input that later became a Turn, active-Turn guidance, and internal SubAgent mailbox delivery. Optional nullable `sentAsGoal` is `true` when the message was submitted as the thread goal. Optional `triggerKind` (`"automation"` / `"goal"` / `"app"` / `"mcpApp"` / `"workflow"` / `"subagentFollowupTask"` / `"subagentMailbox"` / `"subagentInput"` / `"terminal"` / `"subagent"`), `triggerLabel`, `triggerRefId`, and, for task notifications (`"terminal"`, `"subagent"`, `"workflow"` with `triggerStatus`), `triggerStatus` are emitted when the turn was synthesized by an automation, goal continuation, authorized app mechanism, MCP App view, workflow, SubAgent coordination mechanism, or background task notification rather than typed by a human. Task notifications are model-visible and should not render as user bubbles. Clients may render a source affordance and route click-through when the source has a client surface, but `subagentMailbox` items are internal/model-visible notifications and should not render as parent-thread user bubbles or child-agent reply bubbles. SubAgent `triggerRefId` values are agent paths and should not be treated as thread ids. |
 | `agentMessage` | Text deltas stream through `item/agentMessage/delta`; snapshots still use the canonical payload schema. Optional `deliveryMode = "async"` identifies a model-initiated user message emitted during a running Turn. It is delivered immediately, does not complete the Turn, is excluded from final-text aggregation, and is not restored into model-visible assistant history. |
 | `reasoningContent` | Reasoning deltas stream through `item/reasoning/delta`; snapshots still use the canonical payload schema. |
 | `toolCall` | Native, plugin, and managed channel calls use the standard payload. It includes optional canonical `namespace`, canonical local `toolName`, required `providerFlatName`, `arguments`, and `callId`; payloads may additionally carry `definitionId`, `sourceKind`, safe `sourceToolId`, and plugin `pluginId`/`functionId` provenance. When argument construction is streamed, clients receive `item/toolCall/argumentsDelta` between `item/started` and `item/completed`. |
@@ -3219,7 +3219,8 @@ persisted. Calling pause on an already paused run is idempotent.
 
 Stop accepts a running or paused run. The response waits for the stopped state and terminal event to
 persist. Calling stop on an already stopped run is idempotent. Normal exactly-once Workflow parent
-continuation remains independent of this response.
+continuation remains independent of this response; its task notification reports the run as stopped
+by the user.
 
 #### `workflow/run/resume`
 
@@ -6222,10 +6223,7 @@ Returns all builtin profiles plus workspace-defined custom profiles for the curr
         "reasoning": { "enabled": false, "effort": "medium", "output": "full" },
         "speed": "standard"
       }
-    },
-    "minWaitTimeoutMs": 15000,
-    "defaultWaitTimeoutMs": 60000,
-    "maxWaitTimeoutMs": 3600000
+    }
   },
   "profiles": []
 }
@@ -6233,7 +6231,6 @@ Returns all builtin profiles plus workspace-defined custom profiles for the curr
 
 `settings.externalCliSessionResumeEnabled` is the workspace-scoped toggle that controls whether supported external CLI profiles may reuse saved external session ids.
 `settings.providerPreferences` contains complete native SubAgent preferences keyed by provider id. A missing entry inherits the parent thread's complete MainAgent preference.
-`settings.minWaitTimeoutMs`, `settings.defaultWaitTimeoutMs`, and `settings.maxWaitTimeoutMs` define the configured `WaitAgent(timeoutMs?)` range in milliseconds. Omitted `timeoutMs` uses the default; explicit values outside the configured range are rejected rather than clamped.
 The default SubAgent depth limit is `1`, so root threads can spawn first-level SubAgents but child SubAgents cannot recursively call `SpawnAgent` unless the workspace raises the limit and the selected role exposes Agent control.
 
 ### 24.5 `subagent/settings/update`
@@ -6251,19 +6248,15 @@ Update workspace-level SubAgent settings.
       "reasoning": { "enabled": true, "effort": "high", "output": "full" },
       "speed": "fast"
     }
-  },
-  "minWaitTimeoutMs": 15000,
-  "defaultWaitTimeoutMs": 60000,
-  "maxWaitTimeoutMs": 3600000
+  }
 }
 ```
 
 **Semantics**:
 
-- clients may send `externalCliSessionResumeEnabled`, `providerPreferences`, any `*WaitTimeoutMs` field, or a combination; at least one supported field is required
+- clients may send `externalCliSessionResumeEnabled`, `providerPreferences`, or both; at least one supported field is required
 - `providerPreferences` replaces the whole workspace map; an empty map clears it
 - each record is normalized as a complete unit; an invalid model, reasoning selection or speed value rejects the request without writing
-- each `*WaitTimeoutMs` value must be between `0` and `3600000`, and the resulting triple must satisfy `min <= default <= max`
 - the resume toggle affects only profiles whose effective definition has `supportsResume=true`
 - clearing or changing these settings does not delete existing saved external session ids
 - on success, the server emits `config/changed` (see [Section 25.5](#255-configchanged)) with `source: "subagent/settings/update"` and `regions: ["subagent"]`
@@ -6436,9 +6429,9 @@ The result is a `SubAgentControlResult`. The same result envelope is returned by
 
 Internal child-thread ids and runtime-resume flags are not serialized in this result.
 
-Path-addressable child turn completion writes a typed `FINAL_ANSWER` communication for the direct parent agent path. Ordinary mailbox messages use `MESSAGE`, and follow-up tasks use `NEW_TASK`; all three render a structured model envelope while retaining the existing user-role materialization. The completion communication is model-visible inside an accepting parent turn at the next sampling boundary and is persisted as a `userMessage` with `deliveryMode = "subagentMailbox"` and `triggerKind = "subagentMailbox"`. If it arrives after the parent answer boundary, it remains pending for the next turn unless explicit steering reopens delivery. Clients should preserve these items for history/model reconstruction but should not render them as user-authored parent-thread bubbles or as visible child-agent reply bubbles. AppServer child listing remains a graph/status surface and does not expose child final text.
+Ordinary mailbox messages use `MESSAGE` and follow-up tasks use `NEW_TASK`; both render a structured model envelope while retaining the existing user-role materialization, and delivered mailbox input is persisted as a `userMessage` with `deliveryMode = "subagentMailbox"` and `triggerKind = "subagentMailbox"`. Clients should preserve these items for history/model reconstruction but should not render them as user-authored parent-thread bubbles or as visible child-agent reply bubbles. When a path-addressable child Turn ends, the direct parent receives a task notification with `triggerKind = "subagent"`, `triggerRefId` set to the child agent path, and `triggerStatus` set to the child Turn status (see [Background Tasks](../architecture/background-tasks.md) §5); a child closed through `subagent/close` while running is reported to the parent as stopped by the user. AppServer child listing remains a graph/status surface and does not expose child final text.
 
-`WaitAgent` activity is isolated to the caller's root Agent tree and includes mailbox, graph, and explicit steer changes. Its public result shape remains `{ status, timedOut }`; no cursor or message content is exposed. Mailbox delivery is serialized per target path so sampling and `subagent/followupTask` cannot consume the same pending entry concurrently.
+Mailbox delivery is serialized per target path so sampling and `subagent/followupTask` cannot consume the same pending entry concurrently.
 
 #### `subagent/followupTask`
 
