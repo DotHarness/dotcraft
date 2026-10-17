@@ -232,6 +232,7 @@ export interface ConversationItem {
     | 'subagentMailbox'
     | 'subagentInput'
     | 'terminal'
+    | 'subagent'
   /** Optional human-readable label for the automation source (e.g. automation name). */
   triggerLabel?: string
   /** Optional routing id for client-side click-through (e.g. automation id). */
@@ -297,6 +298,7 @@ export interface QueuedTurnInput {
   triggerKind?: Exclude<ConversationItem['triggerKind'], 'thread'>
   triggerLabel?: string
   triggerRefId?: string
+  triggerStatus?: string
   sentAsGoal?: boolean
 }
 
@@ -819,7 +821,8 @@ function normalizeTriggerKind(
     normalized === 'goal' ||
     normalized === 'app' ||
     normalized === 'workflow' ||
-    normalized === 'terminal'
+    normalized === 'terminal' ||
+    normalized === 'subagent'
   ) {
     return normalized
   }

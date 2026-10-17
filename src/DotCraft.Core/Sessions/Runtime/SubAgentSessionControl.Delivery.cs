@@ -55,6 +55,56 @@ public static partial class SubAgentSessionControl
         };
     }
 
+    private const string ContinuedChildMessage =
+        "You will be notified when the subagent finishes.";
+
+    /// <summary>
+    /// The model's <c>SendMessage</c>: a descendant target receives the message as a task, any other path as a passive mailbox message.
+    /// </summary>
+    public static async Task<SubAgentControlResult> SendAgentMessageAsync(
+        SubAgentSessionContext context,
+        string target,
+        string message,
+        SubAgentCoordinator? coordinator,
+        CancellationToken ct)
+    {
+        var callerPath = GetCurrentAgentPath(context.ParentThread);
+        var targetPath = callerPath.Resolve(NormalizeRequired(target, nameof(target)));
+        if (targetPath == callerPath || !targetPath.IsSameOrDescendantOf(callerPath))
+            return await SendMessageAsync(context, target, message, ct);
+
+        var resolved = await ResolveAgentTargetAsync(
+            context.SessionService,
+            context.ParentThread,
+            context.RootThreadId,
+            targetPath.Value,
+            requireOpen: true,
+            ct);
+        var native = IsNativeRuntime(resolved.Thread);
+        if (!native && resolved.Edge?.SupportsFollowupTask == false)
+            throw new InvalidOperationException($"Subagent '{resolved.Path.Value}' cannot be continued; its runtime does not accept new tasks.");
+
+        SubAgentControlResult result;
+        if (native && GetActiveTurn(resolved.Thread) != null)
+        {
+            try
+            {
+                result = await FollowupTaskAsync(context, targetPath.Value, message, coordinator, ct, SubAgentFollowupDeliveryMode.Steer);
+            }
+            catch (InvalidOperationException)
+            {
+                result = await FollowupTaskAsync(context, targetPath.Value, message, coordinator, ct);
+            }
+        }
+        else
+        {
+            result = await FollowupTaskAsync(context, targetPath.Value, message, coordinator, ct);
+        }
+
+        result.Message ??= ContinuedChildMessage;
+        return result;
+    }
+
     public static async Task<SubAgentControlResult> FollowupTaskAsync(
         SubAgentSessionContext context,
         string target,
@@ -140,6 +190,7 @@ public static partial class SubAgentSessionControl
                     CreateSubAgentTrigger(SubAgentFollowupTriggerKind, BuildFollowupTriggerLabel(resolved), resolved.Path.Value),
                     context.LifecycleHook,
                     context.ParentTurnCancellation ?? ct,
+                    NormalizeOptional(context.ParentTurnId),
                     ct);
             }
 
@@ -192,6 +243,7 @@ public static partial class SubAgentSessionControl
             CreateSubAgentTrigger(SubAgentInputTriggerKind, BuildChildTriggerLabel(child), child.Source.SubAgent?.AgentPath),
             lifecycleHook,
             ct,
+            parentTurnId: null,
             ct);
     }
 

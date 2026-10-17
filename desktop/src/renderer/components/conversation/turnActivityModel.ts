@@ -1,4 +1,5 @@
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
+import { isBackgroundTaskNotice } from '../../utils/visibleUserMessage'
 
 export type TurnActivityStatus = 'working' | 'worked' | 'stopped'
 
@@ -24,15 +25,24 @@ export function getTurnActivityState(turn: ConversationTurn, items: Conversation
   }
 }
 
-export interface TerminalWake {
-  command: string
+export type TaskWakeKind = 'terminal' | 'subagent' | 'workflow'
+
+export interface TaskWake {
+  kind: TaskWakeKind
+  label: string
   status?: string
+  taskId?: string
 }
 
-export function getTerminalWake(turn: ConversationTurn): TerminalWake | null {
+export function getTaskWake(turn: ConversationTurn): TaskWake | null {
   const input = turn.items.find((item) => item.type === 'userMessage')
-  if (input?.triggerKind !== 'terminal' || input.deliveryMode === 'guidance') return null
-  return { command: input.triggerLabel?.trim() ?? '', status: input.triggerStatus }
+  if (!input || input.deliveryMode === 'guidance' || !isBackgroundTaskNotice(input)) return null
+  return {
+    kind: input.triggerKind as TaskWakeKind,
+    label: input.triggerLabel?.trim() ?? '',
+    status: input.triggerStatus,
+    taskId: input.triggerRefId
+  }
 }
 
 export function getActivityElapsedMs(startedAt: string | undefined, endedAt: string | undefined): number | undefined {

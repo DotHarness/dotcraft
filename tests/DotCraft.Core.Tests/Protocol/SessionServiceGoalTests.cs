@@ -139,7 +139,7 @@ public sealed class SessionServiceGoalTests : IDisposable
         Assert.Equal(ThreadGoalStatus.BudgetLimited, goal.Status);
         Assert.Equal(1, chatClient.StreamingCallCount);
         var loadedThread = await service.GetThreadAsync(thread.Id);
-        Assert.DoesNotContain(loadedThread.QueuedInputs, IsGoalBudgetQueuedInput);
+        Assert.Empty(loadedThread.QueuedInputs);
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public sealed class SessionServiceGoalTests : IDisposable
         Assert.Equal(10, goal.TokensUsed.TotalTokens);
         Assert.Equal(1, chatClient.StreamingCallCount);
         var loadedThread = await service.GetThreadAsync(thread.Id);
-        Assert.DoesNotContain(loadedThread.QueuedInputs, IsGoalBudgetQueuedInput);
+        Assert.Empty(loadedThread.QueuedInputs);
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public sealed class SessionServiceGoalTests : IDisposable
             && MessageText(message).Contains("budget_limited", StringComparison.Ordinal)
             && MessageText(message).Contains("Stay in budget", StringComparison.Ordinal));
         var loadedThread = await service.GetThreadAsync(thread.Id);
-        Assert.DoesNotContain(loadedThread.QueuedInputs, IsGoalBudgetQueuedInput);
+        Assert.Empty(loadedThread.QueuedInputs);
     }
 
     [Fact]
@@ -359,47 +359,6 @@ public sealed class SessionServiceGoalTests : IDisposable
         Assert.DoesNotContain(chatClient.CapturedRequests.SelectMany(request => request), message =>
             message.Role == ChatRole.System
             && MessageText(message).Contains("budget_limited", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task TryStartNextQueuedTurnAsync_RemovesLegacyGoalBudgetQueuedInput()
-    {
-        var chatClient = new RecordingUsageChatClient([
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("should not run")])
-        ]);
-        await using var agentFactory = CreateAgentFactory(chatClient, config =>
-            config.Goals = new AppConfig.GoalsConfig { AutoContinueEnabled = false });
-        var service = CreateService(agentFactory, chatClient);
-        var thread = await service.CreateThreadAsync(new SessionIdentity
-        {
-            ChannelName = "test",
-            UserId = "user1",
-            WorkspacePath = _tempDir
-        });
-        using (TurnTriggerScope.Set(new TurnTriggerInfo
-        {
-            Kind = "goal",
-            Label = "Goal budget reached",
-            RefId = "goal_legacy"
-        }))
-        {
-            await service.EnqueueTurnInputAsync(
-                thread.Id,
-                [new TextContent("legacy budget guidance")],
-                inputSnapshot: new SessionInputSnapshot
-                {
-                    DisplayText = "Goal budget reached",
-                    NativeInputParts = [new SessionInputPart { Type = "text", Text = "Goal budget reached" }],
-                    MaterializedInputParts = [new SessionInputPart { Type = "text", Text = "legacy budget guidance" }]
-                });
-        }
-
-        await service.TryStartNextQueuedTurnAsync(thread.Id);
-
-        var loadedThread = await service.GetThreadAsync(thread.Id);
-        Assert.Empty(loadedThread.QueuedInputs);
-        Assert.Empty(loadedThread.Turns);
-        Assert.Equal(0, chatClient.StreamingCallCount);
     }
 
     [Fact]
@@ -786,11 +745,6 @@ public sealed class SessionServiceGoalTests : IDisposable
 
     private static string MessageText(ChatMessage message) =>
         string.Concat(message.Contents.OfType<TextContent>().Select(content => content.Text));
-
-    private static bool IsGoalBudgetQueuedInput(QueuedTurnInput input) =>
-        string.Equals(input.TriggerKind, "goal", StringComparison.Ordinal)
-        && (string.Equals(input.TriggerLabel, "Goal budget reached", StringComparison.Ordinal)
-            || string.Equals(input.DisplayText, "Goal budget reached", StringComparison.Ordinal));
 
     private static async Task DrainAsync(IAsyncEnumerable<SessionEvent> events)
     {

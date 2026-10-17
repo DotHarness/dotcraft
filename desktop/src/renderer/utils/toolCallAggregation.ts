@@ -19,7 +19,7 @@ interface ToolItemLiveContext {
 
 type ToolRunRole = 'grouped' | 'own' | 'subagent' | 'images'
 
-const OWN_ROW_FAMILIES = new Set(['createPlan', 'automation', 'agentBuilder', 'requestUserInput'])
+const OWN_ROW_FAMILIES = new Set(['createPlan', 'automation', 'agentBuilder', 'requestUserInput', 'task'])
 
 function getToolRunRole(item: ConversationItem): ToolRunRole {
   if (item.type === 'mcpToolCall' && item.status === 'completed' && item.mcpAppAvailable === true) return 'own'
@@ -29,13 +29,9 @@ function getToolRunRole(item: ConversationItem): ToolRunRole {
   const plan = resolveCoreToolRenderPlan(item)
   if (plan?.family === 'readFile' && item.contentItems?.some((content) => content.type === 'image')) return 'images'
   if (plan?.family === 'subagent') {
-    return plan.options.operation === 'spawn' || plan.options.operation === 'followupTask' ? 'subagent' : 'own'
+    return plan.options.operation === 'spawn' ? 'subagent' : 'own'
   }
   return plan && OWN_ROW_FAMILIES.has(plan.family) ? 'own' : 'grouped'
-}
-
-function getSubAgentGroupOperation(item: ConversationItem): unknown {
-  return resolveCoreFallbackPlan(item)?.options.operation
 }
 
 function isToolCallAwaitingResult(item: ConversationItem): boolean {
@@ -135,8 +131,7 @@ export function planToolRunRender(
     flushSegment(false)
 
     const items = [item]
-    const joins = (next: ConversationItem): boolean => !isReasoning(next) && getToolRunRole(next) === role
-      && (role === 'images' || (role === 'subagent' && getSubAgentGroupOperation(next) === getSubAgentGroupOperation(item)))
+    const joins = (next: ConversationItem): boolean => role !== 'own' && !isReasoning(next) && getToolRunRole(next) === role
     while (i + 1 < run.length && joins(run[i + 1])) items.push(run[++i])
     entries.push(role === 'images' ? { kind: 'images', items }
       : items.length > 1 ? { kind: 'subagents', items }

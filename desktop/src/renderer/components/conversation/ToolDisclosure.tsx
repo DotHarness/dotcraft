@@ -10,6 +10,7 @@ interface ToolDisclosureProps {
   icon?: ToolRowIcon
   accessory?: ReactNode
   onHoverChange?: (hovered: boolean) => void
+  callId?: string
   children?: ReactNode
 }
 
@@ -26,6 +27,7 @@ export function ToolDisclosure({
   icon,
   accessory,
   onHoverChange,
+  callId,
   children
 }: ToolDisclosureProps): JSX.Element {
   // Children mount in the same commit that sets `open`, so the first expansion still
@@ -48,7 +50,7 @@ export function ToolDisclosure({
 
   if (!expandable) {
     return (
-      <div className="dc-tool-row-static" data-testid="tool-row" data-expandable="false" {...hoverProps}>
+      <div className="dc-tool-row-static" data-testid="tool-row" data-expandable="false" data-call-id={callId} {...hoverProps}>
         <span className="dc-tool-row-title" data-testid="tool-row-title-group">
           {leadingIcon}
           <span className="dc-tool-row-text">{title}</span>
@@ -62,6 +64,7 @@ export function ToolDisclosure({
     <details
       className="dc-tool-row"
       open={expanded}
+      data-call-id={callId}
     >
       <summary
         data-testid="tool-row"

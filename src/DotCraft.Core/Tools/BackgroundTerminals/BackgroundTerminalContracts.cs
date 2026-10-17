@@ -146,8 +146,7 @@ public interface IBackgroundTerminalService
 
     /// <summary>
     /// Model-facing exchange: writes optional input, waits, and returns only output after the model's
-    /// read cursor. Input of only end-of-text and line endings stops the terminal instead. A match of
-    /// <paramref name="waitFor"/> in unread output ends the wait early.
+    /// read cursor. A match of <paramref name="waitFor"/> in unread output ends the wait early.
     /// </summary>
     Task<BackgroundTerminalSnapshot> InteractAsync(string sessionId, string input, int waitMs, int? maxOutputChars = null, Regex? waitFor = null, CancellationToken ct = default);
 

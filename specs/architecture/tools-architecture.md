@@ -4,7 +4,7 @@
 |---|---|
 | Version | 0.8.10 |
 | Status | Living |
-| Date | 2026-10-16 |
+| Date | 2026-10-17 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 
 ## 1. Purpose
@@ -392,14 +392,15 @@ and moves the cursor to the end. When the retained buffer no longer holds the st
 output, the result marks the gap and names the complete log. Empty `WriteStdin` input waits for
 `yieldTimeMs` (30 seconds by default, capped by `Tools.Shell.Background.MaxYieldTimeMs`) and returns early when the process exits. It reads
 final output and exit code after completion or recovery, until retention expires. Nonempty input
-to an exited terminal fails. Input consisting only of end-of-text (`\u0003`) and line endings
-stops the terminal's process tree and returns its final output; such a model-requested stop
-does not produce a completion notice. Client terminal reads and writes keep returning the full
-bounded snapshot and do not move the model cursor.
+to an exited terminal fails. End-of-text (`\u0003`) is written like any other input; it does not
+stop the process. The model stops a terminal with `TaskStop` (see
+[Background Tasks](background-tasks.md) §4.1), which stops its process tree; a terminal that
+exits within the `TaskStop` wait produces no completion notification. Client terminal reads and writes
+keep returning the full bounded snapshot and do not move the model cursor.
 
 `Exec` rejects a command whose first segment is only a delay of two seconds or more: `sleep N`,
 `Start-Sleep N` in any of its seconds or milliseconds forms, or `timeout /t N`. The error
-directs the model to `runInBackground` and the completion notice. Delays under two seconds,
+directs the model to `runInBackground` and the completion notification. Delays under two seconds,
 delays inside a larger script, and `runInBackground` commands are not rejected.
 
 `Exec` and `WriteStdin` accept `waitFor`, a .NET regular expression matched against output the
@@ -419,8 +420,8 @@ without such a line is checked again only after another full interval. A stall i
 until the terminal produces more output. The report publishes `terminal/stalled` with the
 bounded snapshot. It ends a waiting `WriteStdin`, whose result says the process appears to be
 waiting for input. When no model call is waiting and the terminal is armed for a completion
-notice, it delivers a stall notice (see Session Core). The stall notice leaves the terminal armed
-for its completion notice.
+notification, it delivers a stall task notification (see [Background Tasks](background-tasks.md) §5).
+The stall notification leaves the terminal armed for its completion notification.
 
 An exited process releases its active entry even if metadata persistence fails. Its in-memory final
 snapshot remains readable; metadata failures are diagnosed without changing the known exit code.

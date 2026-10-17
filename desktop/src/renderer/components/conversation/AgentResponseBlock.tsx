@@ -8,7 +8,7 @@ import { ToolCallCard, type ShellRuntimeScope } from './ToolCallCard'
 import { hasAvailableMcpApp } from './McpAppView'
 import { AgentMessage } from './AgentMessage'
 import { TurnActivitySummary } from './TurnActivitySummary'
-import { getTerminalWake, getTurnActivityState } from './turnActivityModel'
+import { getTaskWake, getTurnActivityState } from './turnActivityModel'
 import { TurnCompletionSummary } from './TurnCompletionSummary'
 import { TurnArtifacts } from './TurnArtifacts'
 import { TurnThreadActions } from './TurnThreadActions'
@@ -29,7 +29,9 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
 import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { ToolDisclosure } from './ToolDisclosure'
+import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
 import { useTranscriptItemDiffs } from './transcriptDiffs'
+import { isBackgroundTaskNotice } from '../../utils/visibleUserMessage'
 import { getSubAgentChipDisplay } from './SubAgentChips'
 import { SubAgentGroupChips } from './SubAgentGroupChips'
 import { useLocale } from '../../contexts/LocaleContext'
@@ -203,7 +205,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
           kind: 'tool',
           node: <ImageGenerationEntry item={item} />
         })
-      } else if (item.type === 'userMessage' && item.deliveryMode === 'guidance' && item.triggerKind !== 'terminal') {
+      } else if (item.type === 'userMessage' && item.deliveryMode === 'guidance' && !isBackgroundTaskNotice(item)) {
         nodes.push({
           key: item.id,
           kind: 'user',
@@ -319,7 +321,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         collapsible={collapsesIntermediate}
         threadId={turn.threadId} turnId={turn.id}
         startedAt={turn.startedAt} completedAt={activity.completedAt}
-        terminalWake={getTerminalWake(turn)}
+        taskWake={getTaskWake(turn)}
       >
         {intermediateNodes.length > 0 ? <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-tool-assistant-gap)" /> : null}
       </TurnActivitySummary>
@@ -488,11 +490,9 @@ function renderAggregatedEntry(
 ): ReactNode {
   if (entry.kind === 'single') {
     const images = getToolOutputImages([entry.item])
-    // A lone follow-up keeps its own row: it updates an agent rather than introducing one.
-    const isLoneSpawn = resolveCoreFallbackPlan(entry.item)?.options.operation === 'spawn'
     return (
       <ToolEntryWithOutputs key={entry.item.id} images={images}>
-        {isLoneSpawn && getSubAgentChipDisplay(entry.item) != null ? (
+        {getSubAgentChipDisplay(entry.item) != null ? (
           <SubAgentGroupChips
             items={[entry.item]}
             threadId={threadId}
@@ -599,6 +599,11 @@ function ToolActivityRow({
   const locale = useLocale()
   const itemDiffs = useTranscriptItemDiffs()
   const [expanded, setExpanded] = useState(false)
+  const revealNonce = useToolCallRevealTarget((target) =>
+    target.threadId === threadId && items.some((item) => item.toolCallId === target.callId) ? target.nonce : null)
+  useEffect(() => {
+    if (revealNonce != null) setExpanded(true)
+  }, [revealNonce])
   const tools = items.filter((item) => item.type !== 'reasoningContent')
   const liveTool = active ? tools.findLast((item) => isToolItemLive(item, { turnRunning })) : undefined
   const working = liveTool != null || thinkingLabel != null
@@ -772,11 +777,7 @@ function isDefaultRenderableItem(item: ConversationItem): boolean {
   const plan = resolveCoreFallbackPlan(item)
   if (plan?.family === 'todo') return false
   if (plan?.family === 'subagent') {
-    const operation = plan.options.operation
-    if (operation === 'wait') return false
-    if (operation !== 'spawn' && operation !== 'followupTask' && !isToolExecutionFailure(item)) {
-      return false
-    }
+    if (plan.options.operation !== 'spawn' && !isToolExecutionFailure(item)) return false
   }
   return (
     (item.type !== 'userMessage' || item.deliveryMode === 'guidance')

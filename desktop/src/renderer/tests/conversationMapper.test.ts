@@ -149,6 +149,26 @@ describe('wireItemToConversationItem — nested payload format (thread/read)', (
     expect(item.triggerStatus).toBe('failed')
   })
 
+  it('keeps the subagent trigger of a subagent completion notice', () => {
+    const item = wireItemToConversationItem({
+      id: 'i-subagent',
+      type: 'userMessage',
+      status: 'completed',
+      payloadKind: 'userMessage',
+      payload: {
+        text: 'Subagent reviewer finished',
+        deliveryMode: 'queued',
+        triggerKind: 'subagent',
+        triggerLabel: 'reviewer',
+        triggerRefId: 'agent-1',
+        triggerStatus: 'completed'
+      },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+    expect(item.triggerKind).toBe('subagent')
+    expect(item.triggerRefId).toBe('agent-1')
+  })
+
   it('strips trailing system reminders from userMessage payload text', () => {
     const item = wireItemToConversationItem({
       id: 'i2-runtime',

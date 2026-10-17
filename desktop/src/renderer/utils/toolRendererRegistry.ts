@@ -9,6 +9,7 @@ export type ToolRendererFamily =
   | 'skillManage'
   | 'skillView'
   | 'subagent'
+  | 'task'
   | 'board'
   | 'shell'
   | 'fileWrite'
@@ -129,6 +130,11 @@ function hasOperation(...allowed: readonly string[]) {
   )
 }
 
+function isTaskStop(options: Readonly<Record<string, unknown>>): boolean {
+  const { kind, ...rest } = options
+  return hasOperation('stop')(rest) && (kind === undefined || kind === 'shell' || kind === 'agent' || kind === 'workflow')
+}
+
 /** Items persisted before these families named an operation carry no options. */
 function hasOptionalOperation(...allowed: readonly string[]) {
   const named = hasOperation(...allowed)
@@ -152,6 +158,7 @@ export const CORE_TOOL_PRESENTATION_IDS = {
   skillManage: 'core.skill-manage',
   skillView: 'core.skill-view',
   subagent: 'core.subagent',
+  task: 'core.task',
   board: 'core.board',
   shell: 'core.shell',
   fileWrite: 'core.file-write',
@@ -177,7 +184,8 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   registration(CORE_TOOL_PRESENTATION_IDS.skillView, 'skillView', { mode: 'standalone' }),
   registration(CORE_TOOL_PRESENTATION_IDS.subagent, 'subagent', {
     mode: 'standalone', groupCategory: 'subagent'
-  }, hasOperation('spawn', 'wait', 'sendMessage', 'followupTask', 'list', 'close')),
+  }, hasOperation('spawn', 'sendMessage', 'list')),
+  registration(CORE_TOOL_PRESENTATION_IDS.task, 'task', { mode: 'standalone' }, isTaskStop),
   registration(CORE_TOOL_PRESENTATION_IDS.board, 'board', {
     mode: 'standalone', groupCategory: 'board'
   }, hasOperation(...BOARD_OPERATIONS)),

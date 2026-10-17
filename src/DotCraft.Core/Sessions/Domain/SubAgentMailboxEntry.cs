@@ -18,14 +18,12 @@ internal static class SubAgentCommunicationMessageType
 {
     public const string Message = "MESSAGE";
     public const string NewTask = "NEW_TASK";
-    public const string FinalAnswer = "FINAL_ANSWER";
 
     public static string RequireValid(string? value) =>
         value switch
         {
             Message => Message,
             NewTask => NewTask,
-            FinalAnswer => FinalAnswer,
             _ => throw new InvalidOperationException(
                 $"Unsupported SubAgent communication message type '{value ?? "<null>"}'.")
         };
@@ -74,7 +72,7 @@ public sealed class SubAgentMailboxEntry
 
     public string Message { get; set; } = string.Empty;
 
-    /// <summary>Structured communication type: MESSAGE, NEW_TASK, or FINAL_ANSWER.</summary>
+    /// <summary>Structured communication type: MESSAGE or NEW_TASK.</summary>
     public string MessageType { get; set; } = SubAgentCommunicationMessageType.Message;
 
     /// <summary>Trusted originating Turn id when the communication was created.</summary>

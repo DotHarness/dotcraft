@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.GeneratedTools.Core;
@@ -15,7 +16,7 @@ namespace DotCraft.Tests.Sessions.Protocol;
 
 public sealed class SessionTerminalNoticeTests : IAsyncLifetime
 {
-    private const string NoticeTag = "<terminal_notification>";
+    private const string NoticeTag = "<task_notification>";
 
     private readonly string _tempDir = Path.Combine(
         Directory.GetCurrentDirectory(),
@@ -49,6 +50,7 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
         Assert.StartsWith("term_", woken.TriggerRefId);
         Assert.Equal(BackgroundTerminalStatus.Completed, woken.TriggerStatus);
         var notice = Assert.Single(chatClient.ReceivedNotices);
+        Assert.Contains($"<task_id>{woken.TriggerRefId}</task_id>", notice);
         Assert.Contains("notice-tail", notice);
         Assert.Contains("exit code 0", notice);
     }
@@ -66,8 +68,7 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
 
         Assert.Equal(BackgroundTerminalStatus.Killed, thread.Turns[1].Input?.AsUserMessage?.TriggerStatus);
         var notice = Assert.Single(chatClient.ReceivedNotices);
-        Assert.Contains("The user stopped", notice);
-        Assert.Contains("Do not start it again", notice);
+        Assert.Contains("was stopped by the user", notice);
     }
 
     [Fact]
@@ -88,32 +89,53 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task IdleThread_IsNotWokenPastTheConsecutiveWakeLimit()
+    public async Task TaskStop_StopsTheTerminalAndNoNoticeFollows()
     {
-        var chatClient = new NoticeAwareChatClient(DelayedEchoCommand("limited"), keepWorking: false);
-        await using var harness = await CreateHarnessAsync(chatClient, maxConsecutiveWakes: 0);
-        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        harness.Terminals.TerminalEvent += evt =>
-        {
-            if (evt.EventType == "completed")
-                completed.TrySetResult();
-        };
+        var chatClient = new StopAfterStartChatClient(LongRunningCommand());
+        await using var harness = await CreateHarnessAsync(chatClient);
 
         await harness.RunTurnAsync();
-        await completed.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        await Task.Delay(500);
         await harness.Service.DrainTerminalNoticesAsync();
 
         var thread = await harness.Service.GetThreadAsync(harness.ThreadId);
-        Assert.Single(thread.Turns);
+        var turn = Assert.Single(thread.Turns);
         Assert.Empty(thread.QueuedInputs);
-        Assert.Empty(chatClient.ReceivedNotices);
+        Assert.DoesNotContain(turn.Items, item => item.AsUserMessage?.TriggerKind == SessionService.TerminalTriggerKind);
+        var call = Assert.Single(turn.Items, item => item.AsToolCall?.ToolName == "TaskStop").AsToolCall!;
+        Assert.Equal("shell", call.Presentation?.Options?["kind"]?.GetValue<string>());
+        using var result = JsonDocument.Parse(Assert.Single(turn.Items, item => item.AsToolResult?.ToolName == "TaskStop").AsToolResult!.Result);
+        Assert.Equal("shell", result.RootElement.GetProperty("kind").GetString());
+        Assert.Equal("stopped", result.RootElement.GetProperty("status").GetString());
+        var terminal = Assert.Single(await harness.Terminals.ListAsync(harness.ThreadId));
+        Assert.Equal(terminal.SessionId, result.RootElement.GetProperty("taskId").GetString());
+        Assert.Equal(BackgroundTerminalStatus.Killed, terminal.Status);
     }
 
-    private async Task<Harness> CreateHarnessAsync(NoticeAwareChatClient chatClient, int maxConsecutiveWakes = 3)
+    [Fact]
+    public async Task TaskStop_RejectsATerminalStartedByAnotherThread()
+    {
+        var chatClient = new NoticeAwareChatClient(LongRunningCommand(), keepWorking: false);
+        await using var harness = await CreateHarnessAsync(chatClient);
+        await harness.RunTurnAsync();
+        var running = Assert.Single(await harness.Terminals.ListAsync(harness.ThreadId));
+        var other = await harness.Service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "user",
+            WorkspacePath = _tempDir
+        });
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            harness.Service.BackgroundTasks.StopAsync(new BackgroundTaskCaller(other, other.Id), running.SessionId));
+
+        Assert.Equal(BackgroundTerminalStatus.Running, (await harness.Terminals.ReadAsync(running.SessionId)).Status);
+    }
+
+    private async Task<Harness> CreateHarnessAsync(IChatClient chatClient)
     {
         var terminals = new BackgroundTerminalService(_tempDir, new AppConfig.ShellBackgroundConfig());
         var config = AppConfigTestFactory.CreateOpenAI();
-        config.Tools.Shell.Background.MaxConsecutiveWakes = maxConsecutiveWakes;
         var recorder = new ToolInvocationRecorderRouter();
         var agentFactory = new AgentFactory(
             dotcraftPath: _tempDir,
@@ -203,6 +225,7 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
         protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
         {
             yield return GeneratedToolFunctions.ShellTools_Exec(shellTools);
+            yield return GeneratedToolFunctions.BackgroundTaskTools_TaskStop(new BackgroundTaskTools());
         }
     }
 
@@ -261,6 +284,57 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
             }
 
             yield return new ChatResponseUpdate(ChatRole.Assistant, "done");
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class StopAfterStartChatClient(string command) : IChatClient
+    {
+        private int _calls;
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "unused")));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.Yield();
+            var messages = chatMessages.ToList();
+            switch (Interlocked.Increment(ref _calls))
+            {
+                case 1:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [
+                        new FunctionCallContent("call-build", "Exec", new Dictionary<string, object?>
+                        {
+                            ["command"] = command,
+                            ["runInBackground"] = true,
+                            ["yieldTimeMs"] = 100
+                        })
+                    ]);
+                    break;
+                case 2:
+                    var started = messages.SelectMany(message => message.Contents).OfType<FunctionResultContent>().Single().Result?.ToString() ?? string.Empty;
+                    var sessionId = System.Text.RegularExpressions.Regex.Match(started, "term_[0-9a-f]{12}").Value;
+                    yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [
+                        new FunctionCallContent("call-stop", "TaskStop", new Dictionary<string, object?> { ["taskId"] = sessionId })
+                    ]);
+                    break;
+                default:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, "done");
+                    break;
+            }
         }
 
         public object? GetService(Type serviceType, object? serviceKey = null) => null;

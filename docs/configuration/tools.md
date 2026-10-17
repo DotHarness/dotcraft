@@ -20,8 +20,6 @@ Limits and switches for the built-in tools. What the agent may touch is set in [
 | `Tools.Shell.Background.ForegroundBudgetMs` | How long the agent waits for a command before it continues in the background. A message you send while it waits moves it to the background at once | `120000` |
 | `Tools.Shell.Background.DefaultYieldTimeMs` | Default wait before a command started in the background returns its session | `10000` |
 | `Tools.Shell.Background.MaxYieldTimeMs` | Maximum wait for a background command to return, and for a background-session read or write | `300000` |
-| `Tools.Shell.Background.CompletionDelivery` | `wake` tells the agent when a background command it is waiting on finishes, starting a new turn if the thread is idle. `off` leaves the agent to check the command itself | `wake` |
-| `Tools.Shell.Background.MaxConsecutiveWakes` | Maximum turns in a row that finished background commands can start on their own before the agent waits for you | `3` |
 | `Tools.Shell.Background.MaxSessionsPerThread` | Maximum concurrent background terminals per thread | `8` |
 | `Tools.Shell.Background.MaxSessionsPerWorkspace` | Maximum concurrent background terminals in one workspace | `32` |
 | `Tools.Shell.Background.IdleTimeoutSeconds` | Reserved; not currently enforced by the background terminal service | `1800` |
@@ -29,6 +27,15 @@ Limits and switches for the built-in tools. What the agent may touch is set in [
 | `Tools.Shell.Background.OutputRetentionDays` | Retention window for completed or lost terminal metadata and output; running terminals are excluded | `7` |
 | `Tools.Shell.Background.StallWatchdogSeconds` | Seconds of silence after a prompt-like line, such as `(y/n)`, before a running command is reported as waiting for input. `0` turns this off | `45` |
 | `Tools.Shell.Background.DefaultReadMaxOutputChars` | Default maximum characters returned in a terminal snapshot | `10000` |
+
+## Background tasks
+
+Background commands, subagents, and workflows report back to the agent when they finish.
+
+| Field | Description | Default |
+|---|---|---|
+| `Tools.BackgroundTasks.CompletionDelivery` | `wake` tells the agent when a background command, subagent, or workflow it started finishes, starting a new turn if the thread is idle. `off` holds the notice until the agent's next turn | `wake` |
+| `Tools.BackgroundTasks.MaxConsecutiveWakes` | How many turns in a row finished background work can start on its own when each of those turns starts more background work. After that, the notice waits for your next message | `3` |
 
 ## Web
 

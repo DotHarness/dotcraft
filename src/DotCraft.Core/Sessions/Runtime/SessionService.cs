@@ -107,7 +107,8 @@ public sealed partial class SessionService(
     DotCraftPaths? dotCraftPaths = null,
     ILoggerFactory? loggerFactory = null,
     IEnumerable<ISessionRuntimeRefresher>? runtimeRefreshers = null,
-    IEnumerable<IToolSnapshotFinalizer>? toolSnapshotFinalizers = null)
+    IEnumerable<IToolSnapshotFinalizer>? toolSnapshotFinalizers = null,
+    IEnumerable<IBackgroundTaskKind>? backgroundTaskKinds = null)
     : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IThreadSystemNoticeService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private sealed record PreparedContextTokenEstimate(
@@ -458,11 +459,6 @@ public sealed partial class SessionService(
             throw new ArgumentException("threadId is required.", nameof(threadId));
         return normalized;
     }
-
-    private static bool IsLegacyGoalBudgetGuidanceInput(QueuedTurnInput input) =>
-        string.Equals(input.TriggerKind, "goal", StringComparison.Ordinal)
-        && (string.Equals(input.TriggerLabel, "Goal budget reached", StringComparison.Ordinal)
-            || string.Equals(input.DisplayText, "Goal budget reached", StringComparison.Ordinal));
 
     // =========================================================================
     // Thread lifecycle

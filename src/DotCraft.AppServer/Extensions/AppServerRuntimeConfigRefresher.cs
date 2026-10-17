@@ -26,9 +26,6 @@ internal sealed class AppServerRuntimeConfigRefresher(
                 pair => pair.Key,
                 pair => ModelPreferenceRules.Clone(pair.Value),
                 StringComparer.OrdinalIgnoreCase),
-            MinWaitTimeoutMs = mergedConfig.SubAgent.MinWaitTimeoutMs,
-            DefaultWaitTimeoutMs = mergedConfig.SubAgent.DefaultWaitTimeoutMs,
-            MaxWaitTimeoutMs = mergedConfig.SubAgent.MaxWaitTimeoutMs,
             MaxDepth = mergedConfig.SubAgent.MaxDepth,
             MaxConcurrentSubAgents = mergedConfig.SubAgent.MaxConcurrentSubAgents,
             Roles = [.. mergedConfig.SubAgent.Roles.Select(role => role.Clone())]

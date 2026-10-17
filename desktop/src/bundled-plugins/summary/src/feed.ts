@@ -17,6 +17,7 @@ export interface SummaryPlan {
 export interface SummaryTerminal {
   readonly sessionId: string
   readonly command: string
+  readonly callId: string | null
 }
 
 export interface SummaryState {
@@ -32,6 +33,7 @@ interface TerminalSnapshot {
   readonly sessionId?: string
   readonly threadId?: string
   readonly turnId?: string | null
+  readonly callId?: string | null
   readonly command?: string
   readonly status?: string
 }
@@ -49,7 +51,7 @@ export function startSummaryFeed(
   const pendingItems: SummaryItem[] = []
   let reconcileInFlight = false
   let reconcileQueued = false
-  const runningTerminals = new Map<string, { command: string; turnId: string | null }>()
+  const runningTerminals = new Map<string, { command: string; turnId: string | null; callId: string | null }>()
   const endedTerminals = new Set<string>()
   let activeTurnId: string | null = null
   let runtimeReceived = false
@@ -88,14 +90,14 @@ export function startSummaryFeed(
   const publishTerminals = (): void => publish({
     terminals: [...runningTerminals]
       .filter(([, terminal]) => !activeTurnId || terminal.turnId !== activeTurnId)
-      .map(([sessionId, terminal]) => ({ sessionId, command: terminal.command }))
+      .map(([sessionId, terminal]) => ({ sessionId, command: terminal.command, callId: terminal.callId }))
   })
 
   const trackTerminal = (terminal: TerminalSnapshot | undefined, ended = false): boolean => {
     const sessionId = terminal?.sessionId
     if (!terminal || !sessionId || terminal.threadId !== threadId || endedTerminals.has(sessionId)) return false
     if (!ended && terminal.status === 'running') {
-      runningTerminals.set(sessionId, { command: terminal.command ?? '', turnId: terminal.turnId ?? null })
+      runningTerminals.set(sessionId, { command: terminal.command ?? '', turnId: terminal.turnId ?? null, callId: terminal.callId ?? null })
     } else {
       endedTerminals.add(sessionId)
       runningTerminals.delete(sessionId)

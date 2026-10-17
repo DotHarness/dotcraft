@@ -48,7 +48,7 @@ describe('PlanApprovalComposer', () => {
       })
   })
 
-  it('renders in ConversationPanel when CloseAgent follows a successful CreatePlan', async () => {
+  it('renders in ConversationPanel when a later tool call follows a successful CreatePlan', async () => {
     useConnectionStore.setState({
       status: 'connected',
       capabilities: { modelCatalogManagement: true, workspaceConfigManagement: true }
@@ -92,7 +92,7 @@ describe('PlanApprovalComposer', () => {
             id: 'item-close',
             type: 'toolCall',
             status: 'completed',
-            toolName: 'CloseAgent',
+            toolName: 'ListAgents',
             toolCallId: 'call-close',
             success: true
           }

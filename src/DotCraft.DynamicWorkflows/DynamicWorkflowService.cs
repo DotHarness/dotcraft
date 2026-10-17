@@ -27,6 +27,7 @@ public sealed partial class DynamicWorkflowService(
         public SemaphoreSlim Capacity { get; } = new(state.Limits.MaxConcurrency, state.Limits.MaxConcurrency);
         public SemaphoreSlim Gate { get; } = new(1, 1);
         public SemaphoreSlim JournalGate { get; } = new(1, 1);
+        public BackgroundTaskLatch Latch { get; } = new();
         public ManagedChildProcess? Worker;
         public Task? Execution;
         public int AgentCalls;
@@ -49,6 +50,9 @@ public sealed partial class DynamicWorkflowService(
     public event Action<DynamicWorkflowRunChanged>? RunChanged;
 
     internal bool IsRunFromCurrentInstance(string runId) => _runsFromThisInstance.ContainsKey(runId);
+
+    internal BackgroundTaskLatch? GetStopLatch(string runId) =>
+        _active.TryGetValue(runId, out var active) ? active.Latch : null;
 
     public void SetSessionService(ISessionService service) =>
         _sessionService = service ?? throw new ArgumentNullException(nameof(service));
@@ -182,7 +186,15 @@ public sealed partial class DynamicWorkflowService(
     public Task StopRunAsync(string runId, CancellationToken cancellationToken = default) =>
         CancelWithStatusAsync(runId, DynamicWorkflowStatuses.Stopped, "Workflow was stopped.", cancellationToken);
 
-    private async Task CancelWithStatusAsync(string runId, string status, string error, CancellationToken cancellationToken)
+    internal Task StopRunForModelAsync(string runId, CancellationToken cancellationToken) =>
+        CancelWithStatusAsync(runId, DynamicWorkflowStatuses.Stopped, "Workflow was stopped.", cancellationToken, notifyParent: false);
+
+    private async Task CancelWithStatusAsync(
+        string runId,
+        string status,
+        string error,
+        CancellationToken cancellationToken,
+        bool notifyParent = true)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (_active.TryGetValue(runId, out var active))
@@ -203,11 +215,12 @@ public sealed partial class DynamicWorkflowService(
                 Status = DynamicWorkflowStatuses.Stopped,
                 CompletedAt = DateTimeOffset.UtcNow,
                 Error = error,
-                NotificationStatus = "pending"
+                NotificationStatus = notifyParent ? "pending" : "notApplicable"
             };
             await store.WriteStateAsync(stopped, cancellationToken).ConfigureAwait(false);
             await store.AppendJournalAsync(runId, "run.stopped", new JsonObject { ["error"] = error }, cancellationToken).ConfigureAwait(false);
             PublishChanged(stopped, "control");
+            if (!notifyParent) return;
             var pending = new ActiveRun(stopped);
             try { await NotifyParentAsync(pending).ConfigureAwait(false); }
             finally

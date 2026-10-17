@@ -239,7 +239,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             return false;
         }
 
-        if (AgentControlToolPolicy.AllToolNames.Contains(toolName, StringComparer.Ordinal))
+        if (AgentControlToolPolicy.Governs(toolName, TryGetStringArgument(arguments, "taskId")))
         {
             if (role.AgentControlToolAccess == AgentControlToolAccess.Disabled)
             {

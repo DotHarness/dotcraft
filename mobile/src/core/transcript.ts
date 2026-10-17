@@ -91,6 +91,11 @@ const CATEGORIES: Record<string, ToolCategory> = {
 
 const DONE = new Set(['completed', 'failed', 'cancelled'])
 
+function isBackgroundTaskNotice(payload: Record<string, unknown>): boolean {
+  const kind = str(payload.triggerKind)
+  return kind === 'terminal' || kind === 'subagent' || (kind === 'workflow' && !!str(payload.triggerStatus))
+}
+
 export interface PlanTodo {
   content: string
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
@@ -544,7 +549,7 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
     switch (item.type) {
       case 'userMessage': {
         const mode = str(payload.deliveryMode)
-        if (mode === 'subagentMailbox') break
+        if (mode === 'subagentMailbox' || isBackgroundTaskNotice(payload)) break
         const value = str(payload.text)
         const images = userImages(payload.nativeInputParts)
         if (value || images.length > 0) {

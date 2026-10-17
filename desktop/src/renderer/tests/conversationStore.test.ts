@@ -65,7 +65,7 @@ describe('selectLatestCreatePlanTurnId', () => {
           id: 'item-close',
           type: 'toolCall',
           status: 'completed',
-          toolName: 'CloseAgent', ...coreToolFields('CloseAgent'),
+          toolName: 'ListAgents', ...coreToolFields('ListAgents'),
           toolCallId: 'call-close',
           success: true
         },
@@ -991,7 +991,7 @@ describe('turn lifecycle', () => {
         type: 'toolCall',
         payload: {
           callId: 'wait-1',
-          toolName: 'WaitAgent', ...coreToolFields('WaitAgent'),
+          toolName: 'SendMessage', ...coreToolFields('SendMessage'),
           arguments: { childThreadId: 'thread_child' }
         }
       }
@@ -1005,7 +1005,7 @@ describe('turn lifecycle', () => {
         completedAt: '2026-04-25T10:00:02.000Z',
         payload: {
           callId: 'wait-1',
-          toolName: 'WaitAgent', ...coreToolFields('WaitAgent'),
+          toolName: 'SendMessage', ...coreToolFields('SendMessage'),
           status: 'completed',
           success: true,
           durationMs: 1200,

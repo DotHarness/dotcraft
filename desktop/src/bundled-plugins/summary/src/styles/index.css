@@ -210,6 +210,23 @@
   transition: opacity 100ms ease;
 }
 
+.conversation-summary-row-item {
+  position: relative;
+}
+
+.conversation-summary-row-item > .conversation-summary-row {
+  padding-right: 38px;
+}
+
+.conversation-summary-row-item > .conversation-summary-row__trailing {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  margin: 0;
+  transform: translateY(-50%);
+}
+
+.conversation-summary-row-item:hover > .conversation-summary-row__trailing,
 .conversation-summary-row:hover .conversation-summary-row__trailing,
 .conversation-summary-row__trailing:has(:focus-visible),
 .conversation-summary-row__trailing:has([aria-busy='true']) {

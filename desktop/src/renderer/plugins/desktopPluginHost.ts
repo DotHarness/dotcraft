@@ -16,6 +16,7 @@ import { requestConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useAutomationsStore } from '../stores/automationsStore'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
+import { requestToolCallReveal } from '../stores/toolCallRevealStore'
 import { removeToast, showToast } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
@@ -226,6 +227,11 @@ export function createDesktopPluginHost(
       openAutomation(automationId) {
         useAutomationsStore.getState().selectAutomation(automationId)
         useUIStore.getState().setActiveMainView('automations')
+      },
+      revealToolCall(threadId, callId) {
+        requestToolCallReveal(threadId, { callId })
+        if (useThreadStore.getState().activeThreadId === threadId) useUIStore.getState().setActiveMainView('conversation')
+        else void host.navigation.openThread(threadId)
       },
       onOpenUrl(listener) {
         return own(

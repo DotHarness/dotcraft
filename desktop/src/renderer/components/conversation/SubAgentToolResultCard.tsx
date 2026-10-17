@@ -137,7 +137,6 @@ export function getSubAgentToolDisplay(
   lookup: SubAgentLookupSources
 ): SubAgentToolDisplay | null {
   if (!isSubAgentOperation(operation)) return null
-  if (operation === 'wait' && result === undefined) return null
   const parsed = parseToolResultObject(result)
   const profile = getString(parsed, 'profileName') ?? getString(args, 'profile')
   const runtimeType = getString(parsed, 'runtimeType')
@@ -153,22 +152,13 @@ export function getSubAgentToolDisplay(
   const resolvedAgentPath = matchedChild?.agentPath ?? agentPath ?? null
   const status = getString(parsed, 'status')?.toLowerCase()
   const error = getString(parsed, 'error') ?? getString(parsed, 'message')
-  const message = operation === 'wait'
-    ? getString(parsed, 'message') ?? getString(parsed, 'result')
-    : null
   const resolvedName = resolveSubAgentDisplayName(parsed, args, childThreadId, resolvedAgentPath, matchedChild)
   const label = resolvedName ?? translate(locale, 'toolCall.subAgent.agent')
   const prompt = operation === 'spawn'
     ? getString(args, 'message') ?? getString(args, 'agentPrompt')
     : null
-  const isTimeout = operation === 'wait'
-    && (status === 'timeout' || isTimeoutMessage(error) || isTimeoutMessage(message))
-  const failed = !isTimeout && (!success || status === 'failed')
-  const titleKey = isTimeout
-    ? 'toolCall.subAgent.timeout'
-    : !success || status === 'failed'
-      ? 'toolCall.subAgent.failed'
-      : getSubAgentCompletedTitleKey(operation)
+  const failed = !success || status === 'failed'
+  const titleKey = failed ? 'toolCall.subAgent.failed' : getSubAgentCompletedTitleKey(operation)
   return {
     titleKey,
     name: label,
@@ -176,11 +166,7 @@ export function getSubAgentToolDisplay(
     meta: formatSubAgentMeta({ agentRole, profileName: profile, runtimeType }),
     prompt: prompt ? truncateSubAgentPrompt(prompt, 120) : null,
     child: matchedChild,
-    message: isTimeout
-      ? (message && !isTimeoutMessage(message) ? message : null)
-      : !success && error
-        ? error
-        : message,
+    message: !success && error ? error : null,
     failed
   }
 }
@@ -208,26 +194,16 @@ export function formatSubAgentRunningLabel(
     ?? translate(locale, 'toolCall.subAgent.agent')
   const key = operation === 'spawn'
     ? 'toolCall.subAgent.starting'
-    : operation === 'wait'
-      ? 'toolCall.subAgent.waiting'
-      : getSubAgentRunningTitleKey(operation)
+    : operation === 'sendMessage'
+      ? 'toolCall.subAgent.sendingMessage'
+      : 'toolCall.subAgent.listing'
   return translate(locale, key, { name: label })
 }
 
 function getSubAgentCompletedTitleKey(operation: SubAgentOperation): string {
   if (operation === 'spawn') return 'toolCall.subAgent.spawned'
-  if (operation === 'wait') return 'toolCall.subAgent.waited'
   if (operation === 'sendMessage') return 'toolCall.subAgent.sentMessage'
-  if (operation === 'followupTask') return 'toolCall.subAgent.followedUp'
-  if (operation === 'list') return 'toolCall.subAgent.listed'
-  return 'toolCall.subAgent.closed'
-}
-
-function getSubAgentRunningTitleKey(operation: SubAgentOperation): string {
-  if (operation === 'sendMessage') return 'toolCall.subAgent.sendingMessage'
-  if (operation === 'followupTask') return 'toolCall.subAgent.followingUp'
-  if (operation === 'list') return 'toolCall.subAgent.listing'
-  return 'toolCall.subAgent.closing'
+  return 'toolCall.subAgent.listed'
 }
 
 function resolveSubAgentDisplayName(
@@ -269,21 +245,10 @@ function isThreadIdLike(value: string, childThreadId: string | null | undefined)
     || /^thread[_-]/i.test(normalized)
 }
 
-function isTimeoutMessage(value: string | null): boolean {
-  if (!value) return false
-  const normalized = value.toLowerCase()
-  return normalized.includes('timed out') || normalized.includes('timeout')
-}
-
-type SubAgentOperation = 'spawn' | 'wait' | 'sendMessage' | 'followupTask' | 'list' | 'close'
+type SubAgentOperation = 'spawn' | 'sendMessage' | 'list'
 
 function isSubAgentOperation(operation: unknown): operation is SubAgentOperation {
-  return operation === 'spawn'
-    || operation === 'wait'
-    || operation === 'sendMessage'
-    || operation === 'followupTask'
-    || operation === 'list'
-    || operation === 'close'
+  return operation === 'spawn' || operation === 'sendMessage' || operation === 'list'
 }
 
 function getString(source: Record<string, unknown> | undefined, key: string): string | null {

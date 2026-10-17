@@ -217,7 +217,7 @@ public sealed class SessionWireModelsTests
             Payload = new ToolExecutionPayload
             {
                 CallId = "call_1",
-                ToolName = "WaitAgent",
+                ToolName = "ListAgents",
                 Status = "completed",
                 Success = true,
                 DurationMs = 1000,
@@ -233,7 +233,7 @@ public sealed class SessionWireModelsTests
         using var doc = System.Text.Json.JsonDocument.Parse(payloadJson);
         var root = doc.RootElement;
         Assert.Equal("call_1", root.GetProperty("callId").GetString());
-        Assert.Equal("WaitAgent", root.GetProperty("toolName").GetString());
+        Assert.Equal("ListAgents", root.GetProperty("toolName").GetString());
         Assert.Equal("completed", root.GetProperty("status").GetString());
         Assert.True(root.GetProperty("success").GetBoolean());
         Assert.Equal(1000, root.GetProperty("durationMs").GetInt64());

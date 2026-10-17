@@ -3823,19 +3823,13 @@ export interface SubAgentProgressNotification {
 }
 
 export interface SubAgentSettings {
-  defaultWaitTimeoutMs?: number;
   externalCliSessionResumeEnabled?: boolean;
-  maxWaitTimeoutMs?: number;
-  minWaitTimeoutMs?: number;
   providerPreferences?: Record<string, ModelPreference> | null;
   [key: string]: unknown;
 }
 
 export interface SubAgentSettingsUpdateParams {
-  defaultWaitTimeoutMs?: number | null;
   externalCliSessionResumeEnabled?: boolean | null;
-  maxWaitTimeoutMs?: number | null;
-  minWaitTimeoutMs?: number | null;
   providerPreferences?: Record<string, ModelPreference> | null;
   [key: string]: unknown;
 }

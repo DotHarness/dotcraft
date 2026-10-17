@@ -849,14 +849,10 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         var result = response.RootElement.GetProperty("result");
         Assert.Equal("running", result.GetProperty("status").GetString());
         Assert.Equal("/root/worker", result.GetProperty("agentPath").GetString());
-        var waited = await SubAgentSessionControl.WaitAgentAsync(
-            harness.Service,
-            child.Id,
-            timeoutSeconds: 5,
-            CancellationToken.None);
+        var waited = await harness.Service.WaitForTaskEndingAsync("/root/worker");
         var pending = await harness.Service.ListPendingSubAgentMailboxAsync(parent.Id, "/root/worker");
 
-        Assert.Equal("followed", waited.Message);
+        Assert.Equal("followed", waited.Result);
         Assert.Empty(pending);
         Assert.Contains("mailbox note", runtime.LastRequest?.Task, StringComparison.Ordinal);
         Assert.Contains("continue work", runtime.LastRequest?.Task, StringComparison.Ordinal);

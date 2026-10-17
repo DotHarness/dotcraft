@@ -49,9 +49,6 @@ internal sealed class PromptSectionSources
     /// <summary>Gets the manager that pins prompt-cache-stable pages, when one is active.</summary>
     internal IContextPageManager? ContextPageManager { get; init; }
 
-    /// <summary>Gets the <c>WaitAgent</c> timeout bounds quoted in the SubAgent lifecycle section.</summary>
-    internal SubAgentWaitAgentTimeoutOptions? SubAgentWaitAgentTimeoutOptions { get; init; }
-
     internal required IContributionView Contributions { get; init; }
 
     internal required ILogger Logger { get; init; }

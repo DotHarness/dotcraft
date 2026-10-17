@@ -2994,9 +2994,9 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
         {
             yield return AIFunctionFactory.Create(
-                () => "Agent closed.",
-                name: "CloseAgent",
-                description: "Close a completed child agent.");
+                () => "Scratch removed.",
+                name: "CleanUpScratch",
+                description: "Remove scratch files.");
         }
     }
 
@@ -3039,7 +3039,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
                     [
                         new FunctionCallContent(
                             "call-close",
-                            "CloseAgent",
+                            "CleanUpScratch",
                             new Dictionary<string, object?>())
                     ]);
                     break;

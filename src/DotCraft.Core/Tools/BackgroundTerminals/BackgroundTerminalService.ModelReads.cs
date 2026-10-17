@@ -25,14 +25,6 @@ public sealed partial class BackgroundTerminalService
             _ = GetMetadata(sessionId);
         var state = ModelReadStateFor(sessionId);
 
-        if (IsStopRequest(input))
-        {
-            state.Settle();
-            if (active != null)
-                await KillAsync(active, BackgroundTerminalStatus.Killed, ct).ConfigureAwait(false);
-            return await ReadForModelAsync(sessionId, active, state, limit, ct).ConfigureAwait(false);
-        }
-
         if (input.Length > 0)
         {
             if (active == null)
@@ -83,12 +75,6 @@ public sealed partial class BackgroundTerminalService
 
     private TerminalModelReadState ModelReadStateFor(string sessionId) =>
         _modelReads.GetOrAdd(sessionId, static _ => new TerminalModelReadState());
-
-    private static bool IsStopRequest(string input)
-    {
-        var trimmed = input.Trim('\r', '\n');
-        return trimmed.Length > 0 && trimmed.All(static c => c == '\u0003');
-    }
 
     private async Task<BackgroundTerminalSnapshot> ReadForModelAsync(
         string sessionId,

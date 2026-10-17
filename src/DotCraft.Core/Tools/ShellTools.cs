@@ -115,7 +115,7 @@ public sealed class ShellTools
             cancellationToken);
     }
 
-    [Description("Write input to a background terminal session and return the output produced since your last read. Send Ctrl+C alone to stop the process.")]
+    [Description("Write input to a background terminal session and return the output produced since your last read.")]
     [Tool(MaxResultChars = 30_000)]
     [ToolPresentation("core.shell", Operation = "writeStdin")]
     [ToolRpc]
@@ -148,8 +148,7 @@ public sealed class ShellTools
                 waitPattern,
                 cancellationToken);
             await EmitTerminalInteractionAsync(snapshot, input);
-            var stopRequested = input.Trim('\r', '\n', EndOfText).Length == 0 && input.Contains(EndOfText);
-            return SnapshotResult(snapshot, FormatInteraction(snapshot, waitPattern != null), killedIsSuccess: stopRequested);
+            return SnapshotResult(snapshot, FormatInteraction(snapshot, waitPattern != null));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -161,8 +160,6 @@ public sealed class ShellTools
             return ToolExecutionResult.Failed(error, error.Message);
         }
     }
-
-    private const char EndOfText = '\u0003';
 
     private static bool TryCompileWaitFor(string? pattern, out Regex? regex, out ToolExecutionResult? error)
     {
@@ -193,9 +190,8 @@ public sealed class ShellTools
             sb.AppendLine("The process appears to be waiting for input.");
     }
 
-    // Empty input polls for output and a lone end-of-text is an interrupt; neither is a command.
     private static bool RequiresStdinAuthorization(string input) =>
-        input.Trim('\r', '\n', EndOfText).Length > 0;
+        input.Trim('\r', '\n').Length > 0;
 
     private async Task<ToolExecutionResult> ExecWithBackgroundTerminalServiceAsync(
         string command,
@@ -346,11 +342,10 @@ public sealed class ShellTools
         }
     }
 
-    private static ToolExecutionResult SnapshotResult(BackgroundTerminalSnapshot snapshot, string content, bool killedIsSuccess = false)
+    private static ToolExecutionResult SnapshotResult(BackgroundTerminalSnapshot snapshot, string content)
     {
         if (snapshot.Status is BackgroundTerminalStatus.Running or BackgroundTerminalStatus.Completed
-            || snapshot.Status == BackgroundTerminalStatus.Failed && snapshot.ExitCode.HasValue
-            || snapshot.Status == BackgroundTerminalStatus.Killed && killedIsSuccess)
+            || snapshot.Status == BackgroundTerminalStatus.Failed && snapshot.ExitCode.HasValue)
             return ToolExecutionResult.Succeeded(
                 content,
                 ToolInvocationScope.Current?.Origin?.Kind == ToolInvocationOrigin.CodeModeKind

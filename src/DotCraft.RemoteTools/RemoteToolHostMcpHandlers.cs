@@ -156,7 +156,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             var toolName = registration.Definition.Name.ToString();
             using var activity = _activity?.Begin(peerId, toolName, ReadCommandPreview(request.Params.Arguments));
             _activity?.CountCall(SessionId, invocation.ThreadId, invocation.TurnId);
-            RequireBoundTerminal(toolName, request.Params.Arguments, invocation);
+            await RequireBoundTerminalAsync(toolName, request.Params.Arguments, invocation, runtime, cancellationToken).ConfigureAwait(false);
             var approval = new HostInvocationApprovalService.Invocation(
                 peer, invocation.InvocationId, workspacePath, _approvalPresenter, cancellationToken);
             using var approvalScope = HostInvocationApprovalService.Begin(approval);
@@ -426,22 +426,38 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
         return command.Length <= 120 ? command : command[..120];
     }
 
-    private void RequireBoundTerminal(
+    private async Task RequireBoundTerminalAsync(
         string toolName,
         IDictionary<string, JsonElement>? arguments,
-        RemoteInvocationMeta invocation)
+        RemoteInvocationMeta invocation,
+        HostWorkspaceRuntime runtime,
+        CancellationToken ct)
     {
-        if (!string.Equals(toolName, "WriteStdin", StringComparison.Ordinal))
+        var argumentName = toolName switch
+        {
+            "WriteStdin" => "sessionId",
+            "TaskStop" => "taskId",
+            _ => null
+        };
+        if (argumentName is null)
             return;
         var sessionId = arguments is not null
-            && arguments.TryGetValue("sessionId", out var value)
+            && arguments.TryGetValue(argumentName, out var value)
             && value.ValueKind == JsonValueKind.String
                 ? value.GetString()
                 : null;
         if (sessionId is null || !_leaseTerminals.IsBound(invocation.LeaseId, sessionId))
             throw new RemoteToolHostException(
                 RemoteToolErrorCodes.RemotePolicyDenied,
-                "WriteStdin accepts only background terminals created by an approved Exec in this lease.",
+                $"{toolName} accepts only background terminals created by an approved Exec in this lease.",
+                invocation.InvocationId);
+        if (toolName != "TaskStop")
+            return;
+        var terminal = await runtime.Terminals.ReadAsync(sessionId, maxOutputChars: 0, ct: ct).ConfigureAwait(false);
+        if (!string.Equals(terminal.ThreadId, invocation.ThreadId, StringComparison.Ordinal))
+            throw new RemoteToolHostException(
+                RemoteToolErrorCodes.RemotePolicyDenied,
+                "TaskStop accepts only background terminals started by the calling thread.",
                 invocation.InvocationId);
     }
 

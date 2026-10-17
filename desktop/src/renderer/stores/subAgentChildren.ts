@@ -117,7 +117,7 @@ export function isTerminalSubAgentStatus(status: string | null | undefined): boo
     || normalized === 'canceled'
 }
 
-/** True when the subagent's spawn edge has been closed (by CloseAgent or residency reclaim). */
+/** True when the subagent's spawn edge has been closed (by `subagent/close` or residency reclaim). */
 export function isSubAgentChildClosed(child: SubAgentChild): boolean {
   return child.status.trim().toLowerCase() === 'closed'
 }

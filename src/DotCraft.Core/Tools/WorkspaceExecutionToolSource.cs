@@ -75,6 +75,7 @@ public sealed class WorkspaceExecutionToolSource(
             context.WorkspaceRoots,
             ShellPolicySource.ForWorkspace(config.Tools.Shell.Policy.ToRules(), context.DataPath));
         tools.AddRange(GeneratedToolFunctions.All(shellTools));
+        tools.AddRange(GeneratedToolFunctions.All(new BackgroundTaskTools(backgroundTerminalService)));
 
         return tools;
     }

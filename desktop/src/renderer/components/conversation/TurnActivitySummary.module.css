@@ -23,25 +23,45 @@
   text-align: left;
 }
 
-button.header {
+.toggle,
+.originButton {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   transition: color var(--duration-fast) var(--ease-standard);
 }
 
-button.header:hover {
+.toggle {
+  flex: 1;
+  gap: 6px;
+}
+
+.originButton {
+  flex: none;
+  border-radius: 3px;
+}
+
+.toggle:hover,
+.originButton:hover:not(:disabled) {
   color: var(--text-primary);
 }
 
-button.header:focus-visible {
+.originButton:disabled {
+  cursor: default;
+}
+
+.toggle:focus-visible,
+.originButton:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
   outline-offset: 2px;
   color: var(--text-primary);
-}
-
-.origin {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .chevron {

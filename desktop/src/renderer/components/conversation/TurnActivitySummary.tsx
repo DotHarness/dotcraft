@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { SquareTerminal } from 'lucide-react'
-import { getActivityElapsedMs, type TerminalWake, type TurnActivityStatus } from './turnActivityModel'
+import { Bot, SquareTerminal, Workflow } from 'lucide-react'
+import { getActivityElapsedMs, type TaskWake, type TaskWakeKind, type TurnActivityStatus } from './turnActivityModel'
 import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import type { AppLocale } from '../../../shared/locales/types'
 import { turnStopKey, useTurnStopStore } from '../../stores/turnStopStore'
+import { requestToolCallReveal, useToolCallRevealTarget, type ToolCallRevealMatch } from '../../stores/toolCallRevealStore'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import styles from './TurnActivitySummary.module.css'
@@ -19,16 +20,18 @@ interface TurnActivitySummaryProps {
   turnId: string
   startedAt?: string
   completedAt?: string
-  terminalWake?: TerminalWake | null
+  taskWake?: TaskWake | null
 }
 
-export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, status, collapsible = false, terminalWake, children }: TurnActivitySummaryProps): JSX.Element {
+export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, status, collapsible = false, taskWake, children }: TurnActivitySummaryProps): JSX.Element {
   const locale = useLocale()
   const byUser = useTurnStopStore(state => state.requested.has(turnStopKey(threadId, turnId)))
   const [expanded, setExpanded] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const headerRef = useRef<HTMLButtonElement>(null)
   const open = !collapsible || expanded
+  const revealNonce = useToolCallRevealTarget((target) =>
+    target.threadId === threadId && target.turnId === turnId ? target.nonce : null)
   const mounted = useRef(open)
   if (open) mounted.current = true
 
@@ -38,41 +41,58 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
   }, [status, startedAt, completedAt])
+
+  useEffect(() => {
+    if (revealNonce != null) setExpanded(true)
+  }, [revealNonce])
   const elapsed = getActivityElapsedMs(startedAt, completedAt ?? (status === 'working' ? new Date(now).toISOString() : undefined))
   const key = status === 'stopped' ? byUser ? 'conversation.stopped' : 'conversation.interrupted'
     : status === 'working' ? 'conversation.working' : 'conversation.worked'
   const hasDuration = elapsed != null && (status !== 'working' || elapsed >= 1000)
   const label = translate(locale, hasDuration ? `${key}${status === 'stopped' ? 'After' : 'For'}` : key,
     { duration: elapsed == null ? '' : formatActivityDuration(elapsed, locale) })
-  const origin = terminalWake ? terminalWakeLabel(locale, terminalWake) : null
+  const origin = taskWake ? taskWakeLabel(locale, taskWake) : null
   const accessibleName = origin ? `${label} · ${origin}` : undefined
-  const labelContent = origin ? (
+  const labelContent = origin
+    ? <ActionTooltip label={origin} multiline><span>{label}</span></ActionTooltip>
+    : <span>{label}</span>
+  const OriginIcon = taskWake ? TASK_WAKE_ICONS[taskWake.kind] : null
+  const taskId = taskWake?.taskId
+  const originButton = taskWake && origin && OriginIcon ? (
     <ActionTooltip label={origin} multiline>
-      <span className={styles.origin}>
-        <SquareTerminal size={13} strokeWidth={1.8} aria-hidden />
-        <span>{label}</span>
-      </span>
+      <button
+        type="button"
+        className={styles.originButton}
+        aria-label={translate(locale, TASK_WAKE_COPY[taskWake.kind].show)}
+        disabled={!taskId}
+        onClick={() => { if (taskId) requestToolCallReveal(threadId, taskRevealMatch(taskWake.kind, taskId)) }}
+      >
+        <OriginIcon size={13} strokeWidth={1.8} aria-hidden />
+      </button>
     </ActionTooltip>
-  ) : <span>{label}</span>
+  ) : null
 
   return <div className={styles.summary}>
     {collapsible && children ? (
-      <button
-        ref={headerRef}
-        type="button"
-        className={styles.header}
-        aria-expanded={expanded}
-        aria-label={accessibleName}
-        onClick={() => {
-          if (headerRef.current) anchorScroll(headerRef.current)
-          setExpanded(value => !value)
-        }}
-      >
-        {labelContent}
-        <span className={styles.chevron} aria-hidden><DisclosureChevron expanded={expanded} /></span>
-      </button>
+      <div className={styles.header}>
+        {originButton}
+        <button
+          ref={headerRef}
+          type="button"
+          className={styles.toggle}
+          aria-expanded={expanded}
+          aria-label={accessibleName}
+          onClick={() => {
+            if (headerRef.current) anchorScroll(headerRef.current)
+            setExpanded(value => !value)
+          }}
+        >
+          {labelContent}
+          <span className={styles.chevron} aria-hidden><DisclosureChevron expanded={expanded} /></span>
+        </button>
+      </div>
     ) : (
-      <div className={styles.header} role="status" aria-label={accessibleName}>{labelContent}</div>
+      <div className={styles.header} role="status" aria-label={accessibleName}>{originButton}{labelContent}</div>
     )}
     {children ? (
       <div className={styles.body} data-open={open ? 'true' : undefined} inert={!open}>
@@ -82,16 +102,61 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
   </div>
 }
 
-const TERMINAL_WAKE_KEYS: Record<string, string> = {
-  completed: 'conversation.backgroundCommandFinished',
-  failed: 'conversation.backgroundCommandFailed',
-  killed: 'conversation.backgroundCommandStopped',
-  waitingForInput: 'conversation.backgroundCommandWaitingForInput'
+const TASK_WAKE_ICONS: Record<TaskWakeKind, typeof SquareTerminal> = {
+  terminal: SquareTerminal,
+  subagent: Bot,
+  workflow: Workflow
 }
 
-function terminalWakeLabel(locale: AppLocale, { command, status }: TerminalWake): string {
-  if (!command) return translate(locale, 'conversation.startedByBackgroundCommandGeneric')
-  return translate(locale, (status && TERMINAL_WAKE_KEYS[status]) || 'conversation.startedByBackgroundCommand', { command })
+const TASK_WAKE_COPY: Record<TaskWakeKind, { param: string; show: string; started: string; generic: string; statuses: Record<string, string> }> = {
+  terminal: {
+    param: 'command',
+    show: 'conversation.showBackgroundCommand',
+    started: 'conversation.startedByBackgroundCommand',
+    generic: 'conversation.startedByBackgroundCommandGeneric',
+    statuses: {
+      completed: 'conversation.backgroundCommandFinished',
+      failed: 'conversation.backgroundCommandFailed',
+      killed: 'conversation.backgroundCommandStopped',
+      waitingForInput: 'conversation.backgroundCommandWaitingForInput'
+    }
+  },
+  subagent: {
+    param: 'name',
+    show: 'conversation.showSubagent',
+    started: 'conversation.startedBySubagent',
+    generic: 'conversation.startedBySubagentGeneric',
+    statuses: {
+      completed: 'conversation.subagentFinished',
+      failed: 'conversation.subagentFailed',
+      cancelled: 'conversation.subagentStopped'
+    }
+  },
+  workflow: {
+    param: 'name',
+    show: 'conversation.showWorkflow',
+    started: 'conversation.startedByWorkflow',
+    generic: 'conversation.startedByWorkflowGeneric',
+    statuses: {
+      succeeded: 'conversation.workflowFinished',
+      failed: 'conversation.workflowFailed',
+      cancelled: 'conversation.workflowFailed',
+      interrupted: 'conversation.workflowFailed',
+      stopped: 'conversation.workflowStopped'
+    }
+  }
+}
+
+function taskWakeLabel(locale: AppLocale, { kind, label, status }: TaskWake): string {
+  const copy = TASK_WAKE_COPY[kind]
+  if (!label) return translate(locale, copy.generic)
+  return translate(locale, (status && copy.statuses[status]) || copy.started, { [copy.param]: label })
+}
+
+function taskRevealMatch(kind: TaskWakeKind, taskId: string): ToolCallRevealMatch {
+  if (kind === 'subagent') return { agentPath: taskId }
+  if (kind === 'workflow') return { workflowRunId: taskId }
+  return { terminalSessionId: taskId }
 }
 
 function anchorScroll(element: HTMLElement): void {

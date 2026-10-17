@@ -705,7 +705,6 @@ public sealed class AgentFactory : IAsyncDisposable
                 roleInstructions: promptInputs.RoleInstructions,
                 developerInstructions: promptInputs.DeveloperInstructions,
                 contextPageManager: ctx.ContextPageManager,
-                subAgentWaitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(ctx.Config.SubAgent),
                 threadId: ctx.CurrentThreadId,
                 originChannel: ctx.CurrentOriginChannel,
                 workspaceRoots: ctx.WorkspaceRoots,

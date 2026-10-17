@@ -9,9 +9,6 @@
 | `SubAgent.MaxDepth` | session-backed subagent 的最大生成深度。第一级 subagent 深度为 `1` | `1` |
 | `SubAgent.MaxConcurrentSubAgents` | 同一根线程子树内同时驻留的 session-backed subagent 上限。超出时自动关闭最旧的空闲 subagent，若驻留的 subagent 全部仍在运行则本次 spawn 失败 | `16` |
 | `SubAgent.ProviderPreferences` | 按父线程 provider 保存的完整原生 subagent 偏好。缺少对应项时继承该线程完整的 MainAgent 偏好 | `{}` |
-| `SubAgent.MinWaitTimeoutMs` | `WaitAgent.timeoutMs` 接受的最小值，单位毫秒 | `15000` |
-| `SubAgent.DefaultWaitTimeoutMs` | `WaitAgent` 调用未传 timeout 时使用的默认毫秒数 | `60000` |
-| `SubAgent.MaxWaitTimeoutMs` | `WaitAgent.timeoutMs` 接受的最大值，单位毫秒 | `3600000` |
 | `SubAgent.EnableExternalCliSessionResume` | 是否允许支持 resume 的 external CLI profile 复用已保存外部会话 | `false` |
 | `SubAgent.DisabledProfiles` | 当前工作区隐藏和禁用的 subagent profile 名称列表 | `[]` |
 | `SubAgent.Roles` | 工作区自定义 subagent role。同名条目覆盖内置 role | `[]` |

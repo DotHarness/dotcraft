@@ -690,8 +690,6 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
     {
         if (SpawnEdgeHandler != null) await SpawnEdgeHandler(edge, ct);
         await _store.UpsertThreadSpawnEdgeAsync(edge, ct);
-        var child = await GetOrLoadAsync(edge.ChildThreadId, ct);
-        _subAgentCommunicationRuntime.PublishGraph(ResolveRootThreadId(child));
     }
 
     public async Task SetThreadSpawnEdgeStatusAsync(
@@ -701,8 +699,6 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
         CancellationToken ct = default)
     {
         await _store.SetThreadSpawnEdgeStatusAsync(parentThreadId, childThreadId, status, ct);
-        var child = await GetOrLoadAsync(childThreadId, ct);
-        _subAgentCommunicationRuntime.PublishGraph(ResolveRootThreadId(child));
     }
 
     public Task<IReadOnlyList<ThreadSpawnEdge>> ListSubAgentChildrenAsync(

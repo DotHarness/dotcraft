@@ -1,4 +1,4 @@
-using System.Text.Json.Nodes;
+using System.Diagnostics;
 using DotCraft.Hooks;
 
 namespace DotCraft.Sessions;
@@ -95,97 +95,78 @@ public static partial class SubAgentSessionControl
             };
         }
 
+        await RunLifecycleHookAsync(
+            lifecycleHook,
+            HookEvent.SubagentStop,
+            sessionService,
+            childThreadId,
+            result.Status,
+            result.Message,
+            CancellationToken.None).ConfigureAwait(false);
+
+        var notify = runningChild.Latch.TryClaimNotification();
+        RunningChildren.TryRemove(KeyValuePair.Create(childThreadId, runningChild));
+        runningChild.Cancellation.Dispose();
+        if (!notify)
+            return;
         try
         {
-            await RunLifecycleHookAsync(
-                lifecycleHook,
-                HookEvent.SubagentStop,
-                sessionService,
-                childThreadId,
-                result.Status,
-                result.Message,
-                CancellationToken.None).ConfigureAwait(false);
-
-            await AddSubAgentCompletionNotificationAsync(
-                sessionService,
-                childThreadId,
-                result,
-                CancellationToken.None).ConfigureAwait(false);
+            await NotifyParentOfCompletionAsync(sessionService, childThreadId, runningChild, result).ConfigureAwait(false);
         }
-        catch
+        catch (Exception ex)
         {
-            // Completion cleanup and graph wakeups must still run if persistence is unavailable.
-        }
-        finally
-        {
-            RunningChildren.TryRemove(KeyValuePair.Create(childThreadId, runningChild));
-            runningChild.Cancellation.Dispose();
+            Trace.TraceError("Subagent completion notification failed for {0}: {1}", childThreadId, ex);
         }
     }
 
-    private static async Task AddSubAgentCompletionNotificationAsync(
+    private const string CancelledMessage = "Subagent was cancelled.";
+
+    private static async Task NotifyParentOfCompletionAsync(
         ISessionService sessionService,
         string childThreadId,
-        SubAgentRunResult result,
-        CancellationToken ct)
+        RunningChild runningChild,
+        SubAgentRunResult result)
     {
-        var status = NormalizeCompletionNotificationStatus(result.Status);
-        if (status == null)
-            return;
-
-        var child = await sessionService.GetThreadAsync(childThreadId, ct).ConfigureAwait(false);
-        var source = child.Source.SubAgent;
-        if (source == null
-            || source.SilentCompletion
-            || string.IsNullOrWhiteSpace(source.RootThreadId)
-            || !AgentPath.TryParse(source.AgentPath, out var childPath)
-            || string.IsNullOrWhiteSpace(childPath.ParentValue))
+        var kindStatus = NormalizeOptional(result.Status)?.ToLowerInvariant();
+        var status = kindStatus switch
         {
-            return;
-        }
-
-        var terminalTurnId = child.Turns.LastOrDefault()?.Id;
-        var communication = new SubAgentCommunication
-        {
-            Id = NewMailboxEntryId(),
-            RootThreadId = source.RootThreadId,
-            AuthorAgentPath = childPath.Value,
-            RecipientAgentPath = childPath.ParentValue!,
-            MessageType = SubAgentCommunicationMessageType.FinalAnswer,
-            Payload = BuildSubAgentCompletionPayload(childPath.Value, status, result.Message),
-            ParentTurnId = terminalTurnId,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-        await sessionService.AddSubAgentMailboxEntryAsync(
-            SubAgentMailboxEntry.FromCommunication(communication),
-            ct).ConfigureAwait(false);
-    }
-
-    private static string? NormalizeCompletionNotificationStatus(string? status)
-    {
-        var normalized = NormalizeOptional(status)?.ToLowerInvariant();
-        return normalized switch
-        {
-            "completed" => "completed",
-            "failed" => "failed",
-            "cancelled" => "cancelled",
+            "completed" => BackgroundTaskStatus.Completed,
+            "failed" => BackgroundTaskStatus.Failed,
+            "cancelled" => BackgroundTaskStatus.Stopped,
             _ => null
         };
-    }
+        if (status == null || sessionService is not IBackgroundTaskNotifications notifications)
+            return;
 
-    private static string BuildSubAgentCompletionPayload(
-        string agentPath,
-        string status,
-        string? message)
-    {
-        var payload = new JsonObject
+        var child = await sessionService.GetThreadAsync(childThreadId, CancellationToken.None).ConfigureAwait(false);
+        var source = child.Source.SubAgent;
+        var parentThreadId = NormalizeOptional(source?.ParentThreadId) ?? NormalizeOptional(runningChild.ParentThreadId);
+        var path = NormalizeOptional(source?.AgentPath);
+        if (source == null || source.SilentCompletion || parentThreadId == null || path == null)
+            return;
+
+        var label = NormalizeOptional(source.AgentNickname) ?? NormalizeOptional(child.DisplayName) ?? path;
+        var cascaded = status == BackgroundTaskStatus.Stopped && runningChild.ParentTurnLifetime.IsCancellationRequested;
+        var message = NormalizeOptional(result.Message);
+        var stoppedByUser = BackgroundTaskLatch.IsUserStop(status, runningChild.Latch);
+        await notifications.NotifyBackgroundTaskEndedAsync(new BackgroundTaskEnding
         {
-            ["agentPath"] = agentPath,
-            ["status"] = new JsonObject
+            TaskId = path,
+            Kind = BackgroundTaskKinds.Agent,
+            OwnerThreadId = parentThreadId,
+            StartTurnId = runningChild.ParentTurnId,
+            Label = label,
+            Status = status,
+            KindStatus = kindStatus!,
+            Summary = status switch
             {
-                [status] = message ?? string.Empty
-            }
-        };
-        return payload.ToJsonString();
+                BackgroundTaskStatus.Completed => $"Subagent {label} finished",
+                BackgroundTaskStatus.Failed => $"Subagent {label} failed",
+                _ => stoppedByUser ? $"Subagent {label} was stopped by the user" : $"Subagent {label} was stopped"
+            },
+            Result = message == CancelledMessage ? null : message,
+            StoppedByUser = stoppedByUser,
+            MayWake = !cascaded
+        }, CancellationToken.None).ConfigureAwait(false);
     }
 }

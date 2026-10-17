@@ -7,8 +7,9 @@ import { GLYPH, Row, Section } from './SummaryRows'
 
 const STOP_GLYPH = { size: 14, strokeWidth: 1.75 } as const
 
-export function BackgroundProcessesSection({ host, terminals, strings }: {
+export function BackgroundProcessesSection({ host, threadId, terminals, strings }: {
   host: DesktopPluginHost
+  threadId: string
   terminals: readonly SummaryTerminal[]
   strings: SummaryStrings
 }): JSX.Element | null {
@@ -32,12 +33,14 @@ export function BackgroundProcessesSection({ host, terminals, strings }: {
       {terminals.map((terminal) => {
         const firstLine = terminal.command.split(/\r?\n/, 1)[0]?.trim()
         const busy = stopping === terminal.sessionId
+        const callId = terminal.callId
         return (
           <Row
             key={terminal.sessionId}
             leading={<SquareTerminal {...GLYPH} />}
             label={firstLine || strings.backgroundTerminal}
             title={terminal.command || undefined}
+            onClick={callId ? () => host.navigation.revealToolCall(threadId, callId) : undefined}
             trailing={(
               <IconButton
                 size={24}

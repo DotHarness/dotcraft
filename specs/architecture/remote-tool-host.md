@@ -4,7 +4,7 @@
 |---|---|
 | Version | 0.8.10 |
 | Status | Draft |
-| Date | 2026-10-16 |
+| Date | 2026-10-17 |
 | Parent | [Tool Architecture](tools-architecture.md) |
 
 ## 1. Purpose
@@ -84,7 +84,7 @@ The initial Core RPC-eligible set is:
 
 - `ReadFile`, `WriteFile`, `EditFile`, `GrepFiles`, and `FindFiles`;
 - `LSP`;
-- `Exec` and `WriteStdin`.
+- `Exec`, `WriteStdin`, and `TaskStop` for shell tasks.
 
 `WebSearch`, `web.run`, and `WebFetch` remain Agent-local because connecting a workspace MUST NOT implicitly
 change network egress, DNS, proxy, or search-provider configuration. Remote network access is a
@@ -647,7 +647,9 @@ routing argument is removed from the copied execution arguments.
 The dispatcher captures the execution location after input validation and before policy, hooks,
 and approval. Runtime execution validates the captured route and never resolves a different one.
 Approvals interpret paths on the selected machine. Results identify their execution location;
-local spill paths require local reads. WriteStdin uses the same target as the originating Exec.
+local spill paths require local reads. WriteStdin and `TaskStop` on a terminal session ID use the same
+target as the originating Exec, and the Host accepts only terminals that an Exec created in the same
+lease; `TaskStop` also requires the terminal to belong to the calling thread. `TaskStop` on an Agent path or a Workflow run ID always runs on the Agent, whatever the route.
 
 `RemoteToolHost.Transfer(direction, localPath, remotePath, overwrite = false)` copies a file or
 directory between the Agent and current remote workspace. Direction is `upload` or `download`.

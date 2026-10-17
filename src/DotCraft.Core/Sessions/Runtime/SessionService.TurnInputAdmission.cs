@@ -18,7 +18,7 @@ public sealed partial class SessionService
     {
         using (await AcquireThreadQueueLockAsync(thread.Id, ct))
             return thread.QueuedInputs.Any(input =>
-                IsPendingGuidance(input, turnId) && !IsLegacyGoalBudgetGuidanceInput(input));
+                IsPendingGuidance(input, turnId));
     }
 
     private async Task<bool> HasPendingInstantInterruptAsync(SessionThread thread, string turnId, CancellationToken ct)
@@ -26,20 +26,19 @@ public sealed partial class SessionService
         using (await AcquireThreadQueueLockAsync(thread.Id, ct))
             return thread.QueuedInputs.Any(input =>
                 IsPendingGuidance(input, turnId)
-                && !IsLegacyGoalBudgetGuidanceInput(input)
                 && !string.Equals(input.TriggerKind, SubAgentSessionControl.SubAgentFollowupTriggerKind, StringComparison.Ordinal)
-                && !IsTerminalNotice(input));
+                && !IsTaskNotification(input));
     }
 
     private async Task<IReadOnlyList<PreparedGuidance>> PrepareGuidanceInputsAsync(
-        ThreadRuntime runtime, SessionTurn turn, CancellationToken drainCt)
+        ThreadRuntime runtime, SessionTurn turn, CancellationToken drainCt, bool queuedTaskNotificationsOnly = false)
     {
         var thread = runtime.Thread;
         if (!_runtimeRegistry.IsCurrent(thread.Id, runtime))
             return [];
 
         var pending = await runtime.Commands.InvokeAsync(
-            commandCt => ListPendingGuidanceAsync(thread, turn.Id, commandCt),
+            commandCt => ListPendingGuidanceAsync(thread, turn.Id, queuedTaskNotificationsOnly, commandCt),
             drainCt);
         var prepared = new List<PreparedGuidance>();
         if (pending.Count > 0)
@@ -57,7 +56,7 @@ public sealed partial class SessionService
                 ? queued.DisplayText
                 : SessionWireMapper.BuildDisplayText(queued.NativeInputParts);
             var hook = string.Equals(queued.TriggerKind, SubAgentSessionControl.SubAgentFollowupTriggerKind, StringComparison.Ordinal)
-                || IsTerminalNotice(queued)
+                || IsTaskNotification(queued)
                 ? new HookResult()
                 : await RunPromptLifecycleHookAsync(
                     HookEvent.UserPromptSubmit,
@@ -89,14 +88,25 @@ public sealed partial class SessionService
     }
 
     private async Task<IReadOnlyList<QueuedTurnInput>> ListPendingGuidanceAsync(
-        SessionThread thread, string turnId, CancellationToken ct)
+        SessionThread thread, string turnId, bool queuedTaskNotificationsOnly, CancellationToken ct)
     {
         List<QueuedTurnInput> pending;
         IReadOnlyList<QueuedTurnInput>? cleanupSnapshot = null;
         using (await AcquireThreadQueueLockAsync(thread.Id, ct))
         {
             var queue = thread.QueuedInputs.ToList();
-            if (queue.RemoveAll(IsLegacyGoalBudgetGuidanceInput) > 0)
+            var changed = false;
+            if (queuedTaskNotificationsOnly)
+            {
+                for (var i = 0; i < queue.Count; i++)
+                {
+                    if (!string.Equals(queue[i].Status, "queued", StringComparison.Ordinal) || !IsTaskNotification(queue[i]))
+                        continue;
+                    queue[i] = queue[i] with { Status = "guidancePending", ReadyAfterTurnId = turnId };
+                    changed = true;
+                }
+            }
+            if (changed)
             {
                 thread.QueuedInputs = queue;
                 thread.LastActiveAt = DateTimeOffset.UtcNow;
@@ -104,7 +114,9 @@ public sealed partial class SessionService
                 cleanupSnapshot = queue.ToList();
             }
 
-            pending = queue.Where(input => IsPendingGuidance(input, turnId)).ToList();
+            pending = queue
+                .Where(input => IsPendingGuidance(input, turnId) && (!queuedTaskNotificationsOnly || IsTaskNotification(input)))
+                .ToList();
         }
         if (cleanupSnapshot != null)
             PublishQueueUpdated(thread.Id, cleanupSnapshot);

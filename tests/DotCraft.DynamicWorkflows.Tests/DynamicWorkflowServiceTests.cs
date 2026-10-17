@@ -16,37 +16,11 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "dotcraft-workflow-service-tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void ParentNotification_ShowsSummaryAndMarksDetailsAsSystemContent()
-    {
-        var run = new DynamicWorkflowRun
-        {
-            RunId = "run_1",
-            AttemptId = "attempt_001",
-            Name = "review",
-            ParentThreadId = "thread_parent",
-            ParentTurnId = "turn_001",
-            ScriptPath = "script.js",
-            ScriptHash = "hash",
-            Status = DynamicWorkflowStatuses.Succeeded,
-            CreatedAt = DateTimeOffset.UnixEpoch,
-            Result = new JsonObject { ["findings"] = 2 }
-        };
-
-        var (summary, content) = DynamicWorkflowService.BuildParentNotification(run, "runs/run_1");
-
-        Assert.Equal("Workflow review finished.", summary);
-        Assert.StartsWith(summary + "\n<system-reminder>", content.ReplaceLineEndings("\n"));
-        Assert.Contains("\"result\":{\"findings\":2}", content);
-        Assert.Contains("\"runDirectory\":\"runs/run_1\"", content);
-        Assert.EndsWith("</system-reminder>", content);
-    }
-
-    [Fact]
     public async Task StartInline_RunsInBackgroundPersistsTerminalStateAndQueuesOnce()
     {
         _ = typeof(CommandLineArgs).Assembly;
         var store = new DynamicWorkflowStore(Path.Combine(_root, ".craft"));
-        var session = DispatchProxy.Create<ISessionService, SessionServiceProxy>();
+        var session = DispatchProxy.Create<INotifyingSessionService, SessionServiceProxy>();
         var proxy = (SessionServiceProxy)(object)session;
         proxy.Thread = new SessionThread
         {
@@ -88,12 +62,13 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
         Assert.True(completed?.Result?["ok"]?.GetValue<bool>());
         Assert.Equal("queued", completed?.NotificationStatus);
         Assert.Equal("queued_test", completed?.NotificationInputId);
-        for (var attempt = 0; attempt < 20 && proxy.TryStartCalls == 0; attempt++)
-            await Task.Delay(25);
         Assert.Equal(1, proxy.EnqueueCalls);
-        Assert.Equal(1, proxy.TryStartCalls);
-        Assert.Equal("workflow", proxy.Trigger?.Kind);
-        Assert.Equal(started.RunId, proxy.Trigger?.RefId);
+        Assert.Equal(BackgroundTaskKinds.Workflow, proxy.LastEnding?.Kind);
+        Assert.Equal(started.RunId, proxy.LastEnding?.TaskId);
+        Assert.Equal(BackgroundTaskStatus.Completed, proxy.LastEnding?.Status);
+        Assert.Equal(store.GetRunDirectory(started.RunId), proxy.LastEnding?.OutputPath);
+        Assert.Contains("\"ok\":true", proxy.LastEnding?.Result);
+        Assert.False(proxy.LastEnding?.StoppedByUser);
         Assert.True(File.Exists(Path.Combine(store.GetRunDirectory(started.RunId), "state.json")));
         Assert.True(File.Exists(Path.Combine(store.GetRunDirectory(started.RunId), "journal.jsonl")));
 
@@ -107,7 +82,7 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
     {
         _ = typeof(CommandLineArgs).Assembly;
         var store = new DynamicWorkflowStore(Path.Combine(_root, ".craft"));
-        var session = DispatchProxy.Create<ISessionService, SessionServiceProxy>();
+        var session = DispatchProxy.Create<INotifyingSessionService, SessionServiceProxy>();
         var proxy = (SessionServiceProxy)(object)session;
         proxy.Thread = new SessionThread
         {
@@ -168,11 +143,74 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task TaskStop_StopsRunningAndPausedRunsWithoutNotifyingAndKeepsThemResumable()
+    {
+        _ = typeof(CommandLineArgs).Assembly;
+        var store = new DynamicWorkflowStore(Path.Combine(_root, ".craft"));
+        var session = DispatchProxy.Create<INotifyingSessionService, SessionServiceProxy>();
+        var proxy = (SessionServiceProxy)(object)session;
+        proxy.Thread = new SessionThread
+        {
+            Id = "thread_parent",
+            WorkspacePath = _root,
+            OriginChannel = "test",
+            Turns = [new SessionTurn { Id = "turn_001", ThreadId = "thread_parent", Status = TurnStatus.Completed }]
+        };
+        var service = new DynamicWorkflowService(
+            _root, store, new DynamicWorkflowParser(), new StructuredWorkflowResultRegistry(),
+            new ManagedChildProcessFactory(), new DotCraft.Configuration.AppConfig(), [],
+            NullLogger<DynamicWorkflowService>.Instance);
+        service.SetSessionService(session);
+        await service.StartAsync();
+        var tasks = new BackgroundTaskRegistry([new DynamicWorkflowTaskKind(service, store)]);
+        var caller = new BackgroundTaskCaller(proxy.Thread, proxy.Thread.Id);
+        DynamicWorkflowStartRequest Request() => new()
+        {
+            ParentThreadId = proxy.Thread.Id,
+            ParentTurnId = "turn_001",
+            Script = "export const meta = { name: 'stoppable', description: 'Stop test' }; while (true) {}",
+            LimitsOverride = new DynamicWorkflowLimits { MaxStatements = int.MaxValue, RunTimeout = TimeSpan.FromSeconds(30) }
+        };
+        try
+        {
+            var running = await service.StartInlineAsync(Request());
+            var foreign = new SessionThread { Id = "thread_other", WorkspacePath = _root, OriginChannel = "test" };
+            await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+                tasks.StopAsync(new BackgroundTaskCaller(foreign, foreign.Id), running.RunId));
+
+            var stopped = await tasks.StopAsync(caller, running.RunId);
+
+            Assert.Equal(BackgroundTaskKinds.Workflow, stopped.Kind);
+            Assert.Equal("stoppable", stopped.Label);
+            Assert.Equal(BackgroundTaskStatus.Stopped, stopped.Status);
+            Assert.Equal("notApplicable", (await service.GetRunAsync(running.RunId))?.NotificationStatus);
+
+            var paused = await service.StartInlineAsync(Request());
+            await service.PauseAsync(paused.RunId);
+            Assert.Equal(BackgroundTaskStatus.Stopped, (await tasks.StopAsync(caller, paused.RunId)).Status);
+            var pausedThenStopped = await service.GetRunAsync(paused.RunId);
+            Assert.Equal(DynamicWorkflowStatuses.Stopped, pausedThenStopped?.Status);
+            Assert.Equal("notApplicable", pausedThenStopped?.NotificationStatus);
+            Assert.Equal(0, proxy.EnqueueCalls);
+
+            var resumed = await service.ResumeAsync(running.RunId, proxy.Thread.Id, "turn_001");
+            await service.StopRunAsync(resumed.RunId);
+            Assert.Equal(1, proxy.EnqueueCalls);
+            Assert.Equal(BackgroundTaskStatus.Stopped, proxy.LastEnding?.Status);
+            Assert.True(proxy.LastEnding?.StoppedByUser);
+        }
+        finally
+        {
+            await service.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task PauseAndResume_CreateLinkedRunWithinCurrentServerInstance()
     {
         _ = typeof(CommandLineArgs).Assembly;
         var store = new DynamicWorkflowStore(Path.Combine(_root, ".craft"));
-        var session = DispatchProxy.Create<ISessionService, SessionServiceProxy>();
+        var session = DispatchProxy.Create<INotifyingSessionService, SessionServiceProxy>();
         var proxy = (SessionServiceProxy)(object)session;
         proxy.Thread = new SessionThread
         {
@@ -317,7 +355,7 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
     {
         _ = typeof(CommandLineArgs).Assembly;
         var store = new DynamicWorkflowStore(Path.Combine(_root, ".craft"));
-        var session = DispatchProxy.Create<ISessionService, SessionServiceProxy>();
+        var session = DispatchProxy.Create<INotifyingSessionService, SessionServiceProxy>();
         var proxy = (SessionServiceProxy)(object)session;
         proxy.Thread = new SessionThread
         {
@@ -390,8 +428,7 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
         public Dictionary<string, SessionThread> Children { get; } = new(StringComparer.Ordinal);
         public List<ThreadSpawnEdge> SpawnEdges { get; } = [];
         public int EnqueueCalls { get; private set; }
-        public int TryStartCalls { get; private set; }
-        public TurnTriggerInfo? Trigger { get; private set; }
+        public BackgroundTaskEnding? LastEnding { get; private set; }
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => targetMethod?.Name switch
         {
@@ -402,8 +439,7 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
             nameof(ISessionService.SetThreadSpawnEdgeStatusAsync) => SetSpawnEdgeStatus(args),
             nameof(ISessionService.SubmitInputAsync) => CompleteInput(),
             nameof(ISessionService.AddSubAgentMailboxEntryAsync) => Task.CompletedTask,
-            nameof(ISessionService.EnqueueTurnInputAsync) => Enqueue(args),
-            nameof(ISessionService.TryStartNextQueuedTurnAsync) => StartNext(),
+            nameof(IBackgroundTaskNotifications.NotifyBackgroundTaskEndedAsync) => Notify(args),
             _ => throw new NotSupportedException($"Unexpected Session method '{targetMethod?.Name}'.")
         };
 
@@ -473,24 +509,16 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
             yield return new SessionEvent { EventType = SessionEventType.TurnStarted };
         }
 
-        private Task<QueuedTurnInput> Enqueue(object?[]? args)
+        private Task<string?> Notify(object?[]? args)
         {
             EnqueueCalls++;
-            Trigger = TurnTriggerScope.Current;
-            return Task.FromResult(new QueuedTurnInput
-            {
-                Id = "queued_test",
-                ThreadId = Thread.Id,
-                TriggerKind = Trigger?.Kind,
-                TriggerRefId = Trigger?.RefId
-            });
+            LastEnding = (BackgroundTaskEnding)args![0]!;
+            return Task.FromResult<string?>("queued_test");
         }
+    }
 
-        private Task StartNext()
-        {
-            TryStartCalls++;
-            return Task.CompletedTask;
-        }
+    public interface INotifyingSessionService : ISessionService, IBackgroundTaskNotifications
+    {
     }
 
     private sealed class NullTransport : IAppServerTransport

@@ -4,17 +4,8 @@
   "title": "SubAgentSettings",
   "type": "object",
   "properties": {
-    "defaultWaitTimeoutMs": {
-      "type": "integer"
-    },
     "externalCliSessionResumeEnabled": {
       "type": "boolean"
-    },
-    "maxWaitTimeoutMs": {
-      "type": "integer"
-    },
-    "minWaitTimeoutMs": {
-      "type": "integer"
     },
     "providerPreferences": {
       "anyOf": [

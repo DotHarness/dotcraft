@@ -83,7 +83,7 @@ public class ToolProfileAndApprovalPolicyTests
                 Allow = ["ReadFile", "GrepFiles"],
                 Deny = ["WriteFile"],
                 AgentControl = "allowList",
-                AllowedAgentControlTools = ["WaitAgent"]
+                AllowedAgentControlTools = ["ListAgents"]
             },
             McpPolicy = new ThreadMcpPolicy
             {
@@ -121,7 +121,7 @@ public class ToolProfileAndApprovalPolicyTests
         Assert.Equal(["ReadFile", "GrepFiles"], roundTrip.ToolPolicy!.Allow!);
         Assert.Equal(["WriteFile"], roundTrip.ToolPolicy.Deny!);
         Assert.Equal("allowList", roundTrip.ToolPolicy.AgentControl);
-        Assert.Equal(["WaitAgent"], roundTrip.ToolPolicy.AllowedAgentControlTools!);
+        Assert.Equal(["ListAgents"], roundTrip.ToolPolicy.AllowedAgentControlTools!);
         Assert.Equal(["github-readonly"], roundTrip.McpPolicy!.Servers!);
         Assert.Equal(["mcp__github-readonly__get_*"], roundTrip.McpPolicy.Tools!.Allow!);
         Assert.Equal(["*write*"], roundTrip.McpPolicy.Tools.Deny!);

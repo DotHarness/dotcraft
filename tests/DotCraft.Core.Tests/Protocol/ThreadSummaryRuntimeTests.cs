@@ -85,8 +85,8 @@ public sealed class ThreadSummaryRuntimeTests
             "turn_001",
             CreateToolCall("turn_001", "item_001", "call_plan", "CreatePlan"),
             CreateToolResult("turn_001", "item_002", "call_plan", "CreatePlan", success: true),
-            CreateToolCall("turn_001", "item_003", "call_close", "CloseAgent"),
-            CreateToolResult("turn_001", "item_004", "call_close", "CloseAgent", success: true)));
+            CreateToolCall("turn_001", "item_003", "call_stop", "TaskStop"),
+            CreateToolResult("turn_001", "item_004", "call_stop", "TaskStop", success: true)));
 
         var summary = ThreadSummary.FromThread(thread);
 

@@ -9,9 +9,6 @@ For the concept and everyday use, read [Subagents](../guide/subagents).
 | `SubAgent.MaxDepth` | Maximum spawn depth for session-backed subagents. The first child is depth `1` | `1` |
 | `SubAgent.MaxConcurrentSubAgents` | Maximum resident session-backed subagents inside one root thread's subtree. Exceeding it auto-closes the oldest idle subagent, and the spawn fails instead when every resident subagent is still running | `16` |
 | `SubAgent.ProviderPreferences` | Complete native subagent preferences keyed by the parent thread provider. A missing entry inherits that thread's complete MainAgent preference | `{}` |
-| `SubAgent.MinWaitTimeoutMs` | Minimum accepted `WaitAgent.timeoutMs` value in milliseconds | `15000` |
-| `SubAgent.DefaultWaitTimeoutMs` | `WaitAgent.timeoutMs` used when the tool call omits a timeout | `60000` |
-| `SubAgent.MaxWaitTimeoutMs` | Maximum accepted `WaitAgent.timeoutMs` value in milliseconds | `3600000` |
 | `SubAgent.EnableExternalCliSessionResume` | Allows external CLI profiles that support resume to reuse saved external sessions | `false` |
 | `SubAgent.DisabledProfiles` | Subagent profile names hidden and disabled for this workspace | `[]` |
 | `SubAgent.Roles` | Workspace-defined subagent roles. Entries with built-in names override built-in roles | `[]` |

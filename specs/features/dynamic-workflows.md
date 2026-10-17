@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.7.10 |
 | **Status** | Draft |
-| **Date** | 2026-10-02 |
+| **Date** | 2026-10-17 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [SubAgent Core](subagents.md), [Tool Architecture](../architecture/tools-architecture.md), [Prompt Cache](../architecture/prompt-cache.md), [Model Options](model-options.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define the runtime, persistence, AppServer control, and Desktop presentation contracts for
@@ -136,10 +136,9 @@ After persistence and worker launch, the tool returns immediately:
 }
 ```
 
-`message` tells the Agent that the result arrives later as a separate notification and that it should
-briefly tell the user what it launched and end the Turn without waiting for, polling, or predicting the
-result. The parent Turn continues normally after the launch; the Workflow runs in the background, and
-its terminal state resumes the parent through the queued-turn contract in §8. A failed launch remains a
+`message` tells the Agent that the run is in the background, that it will be notified when it
+finishes, and not to predict its result. The parent Turn continues normally after the launch; the Workflow runs in the background, and
+its terminal state reaches the parent as a task notification (§8.6). A failed launch remains a
 normal tool error, so the Agent may recover or retry.
 
 ## 4. JavaScript Runtime Contract
@@ -343,7 +342,9 @@ source validation, approval, or parent notification.
 Runs use `running`, `paused`, `stopped`, `succeeded`, `failed`, or `interrupted`. Pause and stop both
 cancel active children and the worker and retain the completed replay prefix. Their product meaning
 differs, but both are resumable within the current AppServer lifetime. AppServer shutdown marks active
-runs `interrupted` after cancelling owned work.
+runs `interrupted` after cancelling owned work. The model stops a running or paused run with
+`TaskStop` and its run id; only the run's parent Thread may, and the stop follows the
+`workflow/run/stop` rules, so the run becomes `stopped` and stays resumable.
 
 `cancelled` is an internal cleanup outcome and is not a public resumable status. Public controls use
 these rules:
@@ -441,21 +442,19 @@ state and never starts an Agent Turn.
 
 ### 8.6 Parent Continuation
 
-Exactly one terminal notification is enqueued for `succeeded`, `failed`, or `stopped`:
+Exactly one `workflow` task notification is delivered for `succeeded`, `failed`, or `stopped`, except
+for a run the model stopped with `TaskStop` that settles within the stop wait. That stop result carries
+the final status, so the run records no pending notification. A run that settles after the wait
+notifies as usual. The notification uses the envelope and delivery of
+[Background Tasks](../architecture/background-tasks.md) §5: `triggerKind = "workflow"`, `triggerLabel`
+is the Workflow name, `triggerRefId` is the run id, and `triggerStatus` is the run status. Its
+`output_file` is the run directory and its `result` is the run result for `succeeded`, or the error
+otherwise. A run stopped through `workflow/run/stop` is reported as stopped by the user.
 
-```json
-{
-  "triggerKind": "workflow",
-  "triggerRefId": "run_..."
-}
-```
-
-The queued input displays a one-line summary such as `Workflow review finished.`. The model-visible
-content follows that line with a `<system-reminder>` block stating that DotCraft, not the user, sent the
-notification, and a `<workflow_notification>` JSON object carrying `runId`, `name`, `status`,
-`runDirectory`, and either `result` (succeeded) or `error`. If the parent thread is idle, Session Core
-starts the queued turn automatically. If it is busy, the notification waits in the existing FIFO queue. Journaled delivery
-state prevents duplicate continuation after reconnect or reconciliation.
+The display line is `Workflow review-change finished`, `Workflow review-change failed`, or
+`Workflow review-change was stopped by the user`. While the parent has an active Turn, the
+notification is drained at its next sampling boundary; while the parent is idle, it starts a Turn.
+Journaled delivery state prevents duplicate continuation after reconnect or reconciliation.
 
 ## 9. Limits and Cancellation
 
@@ -532,6 +531,9 @@ The Workflow Detail tab:
 
 - uses the shared Workflow icon in its Detail Panel tab chrome;
 - displays the workflow name and metadata description, without a logo or aggregate progress subtitle;
+- states a stopped or failed run's outcome as one quiet notice under the header: a stopped run reads
+  "Stopped after {elapsed}" with the neutral stopped glyph, a failed or interrupted run shows its error
+  with an alert glyph, and a completed run shows none;
 - shows the complete phase graph with nested Agents and neutral status icons;
 - applies the shared running gradient to current phase detail;
 - shows each Agent's total tokens and tool-call count, appending elapsed time only after the Agent is

@@ -62,6 +62,7 @@ describe('turn navigation index', () => {
       user('m1', 'mailbox', { deliveryMode: 'subagentMailbox' }),
       user('m2', 'mailbox trigger', { triggerKind: 'subagentMailbox' }),
       user('t1', 'Background command finished (exit code 0): npm test', { triggerKind: 'terminal' }),
+      user('s1', 'Subagent reviewer finished', { triggerKind: 'subagent' }),
       agent('a3', 'final for second'),
       user('u3', '')
     ])

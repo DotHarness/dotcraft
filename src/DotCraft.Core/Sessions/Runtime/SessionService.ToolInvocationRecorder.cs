@@ -38,8 +38,11 @@ public sealed partial class SessionService
             // Ahead of this invocation, so a pending notice never splits a call from its result.
             RecordQueuedSystemNotices(context, turnRuntime, turn, channel);
             var existing = turn.Items.LastOrDefault(candidate => HasCallId(candidate, context.CallId));
-            // Only this projection carries the memory mark, so a call already projected while streaming is announced again.
-            emitStarted = existing is null || !HasTrustedProjection(existing) || memory is not null;
+            // Only this projection carries options derived from arguments, so a call already projected while streaming is announced again.
+            emitStarted = existing is null
+                || !HasTrustedProjection(existing)
+                || memory is not null
+                || ResolveTaskPresentationKind(registration.Definition.Presentation, arguments) is not null;
             item = existing ?? new SessionItem
             {
                 Id = SessionIdGenerator.NewItemId(
@@ -321,7 +324,7 @@ public sealed partial class SessionService
     {
         item.Status = ItemStatus.Started;
         item.CompletedAt = null;
-        var presentation = ToSessionPresentation(registration.Definition.Presentation, memory);
+        var presentation = ToSessionPresentation(registration.Definition.Presentation, memory, arguments);
         switch (registration.ProjectionShape)
         {
             case ToolProjectionShape.McpLifecycle:
@@ -440,7 +443,8 @@ public sealed partial class SessionService
 
     private static ToolPresentationPayload? ToSessionPresentation(
         ToolPresentationDescriptor? presentation,
-        string? memory = null)
+        string? memory = null,
+        JsonObject? arguments = null)
     {
         if (presentation is null)
             return null;
@@ -449,6 +453,8 @@ public sealed partial class SessionService
             options[name] = JsonNode.Parse(value.GetRawText());
         if (memory is not null)
             options[MemoryPresentationOption] = memory;
+        if (ResolveTaskPresentationKind(presentation, arguments) is { } taskKind)
+            options[TaskKindPresentationOption] = taskKind;
         return new ToolPresentationPayload
         {
             PresentationId = presentation.Id.Value,

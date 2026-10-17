@@ -218,6 +218,7 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         var requestInputTools = new RequestUserInputTools();
         var goalMethods = new GoalToolMethods();
         var agentTools = new AgentTools();
+        var backgroundTaskTools = new BackgroundTaskTools();
         var searchTool = new ToolSearchTool(new DeferredToolRegistry(
         [
             AIFunctionFactory.Create(() => "ok", name: "DeferredExample", description: "Deferred example.")
@@ -247,10 +248,8 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             Pair(GeneratedToolFunctions.GoalToolMethods_UpdateGoal(goalMethods), AIFunctionFactory.Create(goalMethods.UpdateGoal)),
             Pair(GeneratedToolFunctions.AgentTools_SpawnAgent(agentTools), AIFunctionFactory.Create(agentTools.SpawnAgent)),
             Pair(GeneratedToolFunctions.AgentTools_SendMessage(agentTools), AIFunctionFactory.Create(agentTools.SendMessage)),
-            Pair(GeneratedToolFunctions.AgentTools_FollowupTask(agentTools), AIFunctionFactory.Create(agentTools.FollowupTask)),
-            Pair(GeneratedToolFunctions.AgentTools_WaitAgent(agentTools), AIFunctionFactory.Create(agentTools.WaitAgent)),
             Pair(GeneratedToolFunctions.AgentTools_ListAgents(agentTools), AIFunctionFactory.Create(agentTools.ListAgents)),
-            Pair(GeneratedToolFunctions.AgentTools_CloseAgent(agentTools), AIFunctionFactory.Create(agentTools.CloseAgent)),
+            Pair(GeneratedToolFunctions.BackgroundTaskTools_TaskStop(backgroundTaskTools), AIFunctionFactory.Create(backgroundTaskTools.TaskStop)),
             Pair(GeneratedToolFunctions.ToolSearchTool_SearchTools(searchTool), AIFunctionFactory.Create(searchTool.SearchTools)),
             Pair(GeneratedToolFunctions.WelcomeSuggestionToolMethods_EmitWelcomeSuggestions(welcomeMethods), AIFunctionFactory.Create(welcomeMethods.EmitWelcomeSuggestions)),
             Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentName(builderMethods), AIFunctionFactory.Create(builderMethods.SetAgentName)),

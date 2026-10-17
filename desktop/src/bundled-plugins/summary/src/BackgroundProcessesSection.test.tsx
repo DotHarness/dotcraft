@@ -30,12 +30,29 @@ describe('Summary background processes section', () => {
     const stop = startSummaryFeed(host, 't1', (next) => { state = next })
     await waitFor(() => expect(state!.terminals).toHaveLength(1))
 
-    render(<BackgroundProcessesSection host={host} terminals={state!.terminals} strings={stringsFor('en')} />)
+    render(<BackgroundProcessesSection host={host} threadId="t1" terminals={state!.terminals} strings={stringsFor('en')} />)
     fireEvent.click(screen.getByRole('button', { name: 'Stop all background terminals' }))
 
     await waitFor(() => expect(request).toHaveBeenCalledWith('terminal/stop', { sessionId: 'dev-server' }))
     expect(request).not.toHaveBeenCalledWith('terminal/stop', { sessionId: 'build' })
     expect(request.mock.calls.some(([method]) => method === 'terminal/clean')).toBe(false)
     stop()
+  })
+
+  it('reveals the command that started a terminal when its row is clicked', async () => {
+    const revealToolCall = vi.fn()
+    const host = {
+      appServer: { request: vi.fn(), onNotification: vi.fn(() => () => {}) },
+      navigation: { revealToolCall },
+      ui: { showToast: vi.fn() }
+    } as unknown as DesktopPluginHost
+    render(<BackgroundProcessesSection
+      host={host}
+      threadId="t1"
+      terminals={[{ sessionId: 'dev-server', command: 'npm run dev', callId: 'call-dev' }]}
+      strings={stringsFor('en')}
+    />)
+    fireEvent.click(screen.getByRole('button', { name: /npm run dev/ }))
+    expect(revealToolCall).toHaveBeenCalledWith('t1', 'call-dev')
   })
 })

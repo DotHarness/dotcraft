@@ -52,8 +52,8 @@ describe('source conversation rendering and navigation', () => {
 
   it('uses the same scoped identity for a single control row and its click target', () => {
     seedCollidingAgents()
-    const item = makeSpawn('followup', { toolName: 'FollowupTask',
-      presentation: { presentationId: 'core.subagent', options: { operation: 'followupTask' } },
+    const item = makeSpawn('message', { toolName: 'SendMessage',
+      presentation: { presentationId: 'core.subagent', options: { operation: 'sendMessage' } },
       arguments: { target: '/root/review_core', message: 'Continue' } })
     render(<LocaleProvider><ToolCallCard threadId="parent-B" turnId="turn-B" item={item} /></LocaleProvider>)
     expect(screen.queryByText('Core A')).toBeNull()

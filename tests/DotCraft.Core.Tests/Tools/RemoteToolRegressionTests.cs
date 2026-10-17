@@ -87,6 +87,47 @@ public sealed class RemoteToolRegressionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RemoteTerminalStopsThroughTaskStop()
+    {
+        var started = await Invoke("Exec", new()
+        {
+            ["command"] = "Start-Sleep -Seconds 60",
+            ["shell"] = "pwsh", ["runInBackground"] = true, ["yieldTimeMs"] = 1
+        });
+        var session = started.Content!.Split('\n').Single(line => line.StartsWith("Session ID:", StringComparison.Ordinal))["Session ID:".Length..].Trim();
+
+        var unbound = await Invoke("TaskStop", new() { ["taskId"] = "term_000000000000" });
+        var stopped = await Invoke("TaskStop", new() { ["taskId"] = session });
+        var read = await Invoke("WriteStdin", new() { ["sessionId"] = session, ["input"] = "" });
+
+        Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, unbound.Error?.Code);
+        Assert.True(stopped.Success, stopped.Error?.Message);
+        var result = JsonNode.Parse(stopped.Content!)!;
+        Assert.Equal(session, result["taskId"]!.GetValue<string>());
+        Assert.Equal("shell", result["kind"]!.GetValue<string>());
+        Assert.Equal("stopped", result["status"]!.GetValue<string>());
+        Assert.Contains("Status: killed", read.Content);
+    }
+
+    [Fact]
+    public async Task TaskStopRejectsATerminalOfAnotherThreadOnTheSameLease()
+    {
+        var started = await Invoke("Exec", new()
+        {
+            ["command"] = "Start-Sleep -Seconds 60",
+            ["shell"] = "pwsh", ["runInBackground"] = true, ["yieldTimeMs"] = 1
+        });
+        var session = started.Content!.Split('\n').Single(line => line.StartsWith("Session ID:", StringComparison.Ordinal))["Session ID:".Length..].Trim();
+
+        Assert.True(_client.TryForkRoute("agent-thread", "sibling-thread"));
+        var foreign = await InvokeAs("sibling-thread", "TaskStop", new() { ["taskId"] = session });
+        var own = await Invoke("TaskStop", new() { ["taskId"] = session });
+
+        Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, foreign.Error?.Code);
+        Assert.True(own.Success, own.Error?.Message);
+    }
+
+    [Fact]
     public async Task MissingAndOccupiedDownloadsExposeServerCause()
     {
         var missing = await _client.TransferAsync("agent-thread", new("download", "local.txt", "missing.txt"), Local);
@@ -183,11 +224,14 @@ public sealed class RemoteToolRegressionTests : IAsyncLifetime
         Assert.False(File.Exists(Path.Combine(_local.Path, "copy", "b.txt")));
     }
 
-    private async Task<ToolExecutionResult> Invoke(string name, JsonObject arguments, CancellationToken ct = default)
+    private Task<ToolExecutionResult> Invoke(string name, JsonObject arguments, CancellationToken ct = default) =>
+        InvokeAs("agent-thread", name, arguments, ct);
+
+    private async Task<ToolExecutionResult> InvokeAs(string threadId, string name, JsonObject arguments, CancellationToken ct = default)
     {
         var tool = _registrations.Single(item => item.Definition.Name.Name == name);
         return await _client.InvokeAsync(_route, tool.Definition, RemoteToolContractHasher.Compute(tool.Definition),
-            new("agent-thread", "turn", "call-" + Guid.NewGuid().ToString("N"), ToolInvocationAudience.Model,
+            new(threadId, "turn", "call-" + Guid.NewGuid().ToString("N"), ToolInvocationAudience.Model,
                 tool.Definition.Name, tool.Definition.Id, tool.Binding.Id, 1, DateTimeOffset.UtcNow, WorkspacePath: _local.Path), arguments, ct);
     }
 }

@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.8.0 |
 | **Status** | Living |
-| **Date** | 2026-10-13 |
+| **Date** | 2026-10-17 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Prompt Composition](../architecture/prompt-composition.md), [Prompt Cache](../architecture/prompt-cache.md), [Model Options](model-options.md), [Tool Architecture](../architecture/tools-architecture.md) |
 | **Related Specs** | [Agent Profiles](agent-profiles.md) |
 
@@ -89,8 +89,8 @@ Session Core creates a SubAgent in this order:
 6. Materialize and persist the selected parent context and inheritable runtime bindings.
 7. Persist the spawn edge, emit the SubAgent start lifecycle hook, and submit the initial task to
    the child runtime. Confirm startup only after durable input admission.
-8. Persist terminal Turn state, update progress, and deliver a `FINAL_ANSWER` communication to the
-   direct parent when the child Turn finishes.
+8. Persist terminal Turn state, update progress, and deliver an `agent` task notification to the
+   direct parent when the child Turn finishes (see [Background Tasks](../architecture/background-tasks.md) §5).
 
 The child thread exists before its first Turn starts. Clients and module-owned observers may navigate
 or correlate the child as soon as creation is persisted.
@@ -120,7 +120,7 @@ requires both a higher configured limit and a role that permits Agent control.
 
 `SubAgent.MaxConcurrentSubAgents` bounds open resident children within one root tree. Before spawning,
 Session Core may close the oldest idle child to make room. It never evicts a running child; spawning
-fails when every resident child is active.
+fails when every resident child is active. A child the model stopped with `TaskStop` is idle and can be evicted.
 
 ## 4. Runtime paths
 
@@ -236,7 +236,7 @@ A role may define:
 
 Native child tools use the normal session tool-construction path. The child inherits the parent's tool
 allow/deny boundary, then applies role restrictions. Role restrictions narrow authority and cannot
-bypass the parent's approval service, approval context, or workspace policy. Tool reachability and shell access are independent gates: omitted shell access means `full`, while `readOnly` also rejects stdin writes but still lets `WriteStdin` with empty input poll a running command. The default role denies Agent control; explorer permits read-only exploration, and worker permits writes and Agent control within the depth limit.
+bypass the parent's approval service, approval context, or workspace policy. Tool reachability and shell access are independent gates: omitted shell access means `full`, while `readOnly` also rejects stdin writes but still lets `WriteStdin` with empty input poll a running command. The default role denies Agent control; explorer permits read-only exploration, and worker permits writes and Agent control within the depth limit. `TaskStop` on an Agent path requires Agent-control authority, which an allow-list grants by naming `TaskStop`. Stopping the child's own shell tasks needs no Agent-control authority.
 
 Role instructions are stored as a thread context item after inherited history and before the initial
 task. Changing or clearing native role instructions establishes an explicit history replacement boundary before sampling. Invocation-specific task data belongs in the task input rather than stable base instructions.
@@ -250,29 +250,39 @@ SubAgent communication uses durable envelopes scoped to one root Agent tree:
 
 | Operation | Behavior |
 |-----------|----------|
-| `SendMessage` | Writes a passive `MESSAGE` to another open Agent path without starting a Turn. |
-| `FollowupTask` | Delivers a `NEW_TASK`; starts an idle child, queues behind an active Turn, or steers a running native Turn when requested and still admissible. |
-| `WaitAgent` | Waits for mailbox, graph, or steering activity and returns status/timeout state rather than duplicating the child result. |
+| `SendMessage` | To a descendant: delivers a `NEW_TASK` that starts the child when it is idle or stopped, steers a running native child, or runs after an external child's active Turn. To any other open path: writes a passive `MESSAGE` that never starts a Turn. |
 | `ListAgents` | Returns the caller-visible SubAgent tree and current lifecycle state. |
-| `CloseAgent` | Cancels active owned work, closes the spawn edge, and archives the child subtree. |
+| `TaskStop` | Given a descendant's Agent path, cancels the child's active Turn and leaves it open. Returns the child's settled status and last agent message. |
 
-When an open child is idle, `FollowupTask` resumes the same child thread with its stored role, profile,
-runtime, model configuration, workspace, and path. It does not create a replacement child. A running
-child uses FIFO queueing by default. Steering is supported only for a running native child and fails if
-the active Turn changes before guidance is admitted.
+When `SendMessage` targets an idle or stopped descendant, it resumes the same child thread with its
+stored role, profile, runtime, model configuration, workspace, and path, and pending mailbox messages
+for the child are delivered with the task. It does not create a replacement child. A running native
+child receives the message at its next sampling boundary; if that Turn ends before admitting it, the
+message runs as the child's next Turn. A running external child runs it after the active Turn. An
+external child whose spawn edge does not support follow-up tasks (`supportsFollowupTask = false`)
+cannot be continued, and `SendMessage` to it fails. A target whose spawn edge was closed fails.
 
-There is no distinct persisted SubAgent pause state. Cancelling or completing an active Turn leaves an
-open child available for a later task; closing the Agent ends that reusable relationship.
+There is no distinct persisted SubAgent pause state. Cancelling, stopping, or completing an active Turn
+leaves an open child available for a later task, and `SendMessage` continues a stopped child. Clients
+close a child through `subagent/close`, which cancels active owned work, closes the spawn edge, and
+archives the child subtree; the model has no close tool.
 
-Communication envelopes carry `id`, `rootThreadId`, author and recipient paths, `messageType`, payload, parent-Turn provenance and creation time. Types are `MESSAGE`, `NEW_TASK` and `FINAL_ANSWER`; older entries without type/provenance read as `MESSAGE` with no parent Turn. Rendering uses user-role materialized context, not a new public Item or user-authored conversation bubble.
+Communication envelopes carry `id`, `rootThreadId`, author and recipient paths, `messageType`, payload, parent-Turn provenance and creation time. Types are `MESSAGE` and `NEW_TASK`; older entries without type/provenance read as `MESSAGE` with no parent Turn. Rendering uses user-role materialized context, not a new public Item or user-authored conversation bubble.
 
 Delivery is serialized per root and recipient. Pending messages may enter sampling or tool boundaries while the Turn accepts mailbox input. After the final answer, late passive messages wait for the next Turn; explicit guidance steering can reopen admission. Internal goal steering is not mailbox activity. Persisted delivery status is not an exactly-once guarantee across process failure.
 
-`WaitAgent` observes only the caller's root tree. Its optional millisecond timeout uses configured default/minimum/maximum values; out-of-range values fail rather than clamp. `ListAgents` reports `/root` and open path-addressable children with the latest Turn's lifecycle state, or `idle` when no Turn exists.
+`ListAgents` reports `/root` and open path-addressable children with the latest Turn's lifecycle state, or `idle` when no Turn exists.
 
-The terminal `FINAL_ANSWER` mailbox entry records the direct child result and Turn provenance. A host
-that consumes the child result itself spawns the child with silent completion, persisted in
-`ThreadSource.SubAgent`; such a child posts no `FINAL_ANSWER` entry to its parent. Passive
+A child's result reaches its direct parent as an `agent` task notification whose `result` is the
+child's final agent message (see [Background Tasks](../architecture/background-tasks.md) §5). The
+parent is notified whether it is running or idle, and an idle parent is woken. Every child Turn
+notifies when it ends, including one the child starts from its own queue, such as a held message or
+a notification of the child's own background task. A host that consumes
+the child result itself spawns the child with silent completion, persisted in
+`ThreadSource.SubAgent`; such a child sends no notification to its parent. A Turn cancelled by
+`TaskStop` that ends within the stop wait sends none either, because the stop result already carries
+its outcome. A Turn of a child that is cancelled because the parent's Turn was cancelled notifies the
+parent as a user stop without starting a parent Turn. Passive
 messages are marked delivered only after their materialized input is persisted with a submitted,
 queued, or steered task.
 
@@ -319,7 +329,7 @@ scalar values. The following limits apply to the tool contract:
 A post becomes durable before best-effort notification. A notice carries metadata and at most 150
 characters of preview. It can reach only the recipient's current active Turn while that Turn accepts
 collaboration input. Delivery must not start idle Agents, load execution resources or retain notices
-for future Turns. Pending notices are bounded and may wake `WaitAgent` or `Sleep`. Final-answer
+for future Turns. Pending notices are bounded and may wake `Sleep`. Final-answer
 admission closure, cancellation and Turn termination discard undelivered notices; callers read the
 board to catch up.
 
@@ -330,7 +340,7 @@ operation name (`createChannel`, `getChannels`, `listThreads`, `searchPosts`, `r
 `readPost`, `subscribe`, `unsubscribe` or `post`). Notice failure must not fail a committed post.
 Storage errors return a stable code and English fallback without resetting board data or preventing
 unrelated work. `SendMessage` retains directed
-durable delivery; `FollowupTask` retains task startup and continuation.
+durable delivery, task startup, and continuation.
 
 ## 9. Persistence, recovery, and ownership
 

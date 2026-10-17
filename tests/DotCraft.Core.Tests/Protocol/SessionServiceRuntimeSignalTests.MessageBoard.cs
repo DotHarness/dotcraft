@@ -148,28 +148,6 @@ public sealed partial class SessionServiceRuntimeSignalTests
     }
 
     [Fact]
-    public async Task MessageBoard_AlreadyPendingNoticeInterruptsWaitAgent()
-    {
-        SessionService service = null!;
-        SessionThread worker = null!;
-        using var client = new CoordinationToolCallChatClient("WaitAgent",
-            new Dictionary<string, object?> { ["timeoutMs"] = 15000 },
-            () => BoardCall(service, worker, new("post", ChannelName: "work", Text: "pending finding")));
-        await using var factory = CreateAgentFactory(client, [new BoardTestToolSource()]);
-        service = CreateService(factory, client, useStreamingFunctionInvoker: true);
-        var root = await service.CreateThreadAsync(MakeIdentity());
-        worker = await BoardChild(service, root, "worker");
-        await BoardCall(service, root, new("createChannel", ChannelName: "work"));
-        await service.RefreshThreadAgentAsync(root.Id);
-        await DrainAsync(service.SubmitInputAsync(root.Id, [new TextContent("wait for finding")])).WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(TurnStatus.Completed, Assert.Single(root.Turns).Status);
-        Assert.Contains(client.FollowUpMessages, message => message.Text.Contains("pending finding", StringComparison.Ordinal));
-        var result = Assert.Single(client.FollowUpMessages.SelectMany(message => message.Contents).OfType<FunctionResultContent>());
-        using var json = JsonDocument.Parse(result.Result!.ToString()!);
-        Assert.Equal("changed", json.RootElement.GetProperty("status").GetString());
-    }
-
-    [Fact]
     public async Task MessageBoard_ColdResumeRecoversConsumedNoticeWithoutFutureDelivery()
     {
         using var client = new RecordingChatClient("done");
@@ -305,7 +283,6 @@ public sealed partial class SessionServiceRuntimeSignalTests
         protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
         {
             var tools = new AgentMessageBoardTools();
-            yield return GeneratedToolFunctions.AgentTools_WaitAgent(new AgentTools());
             yield return GeneratedToolFunctions.AgentMessageBoardTools_BoardPost(tools);
             yield return GeneratedToolFunctions.AgentMessageBoardTools_BoardCreateChannel(tools);
             yield return GeneratedToolFunctions.AgentMessageBoardTools_BoardGetChannels(tools);

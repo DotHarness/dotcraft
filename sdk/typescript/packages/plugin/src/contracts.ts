@@ -214,6 +214,8 @@ export interface DesktopPluginNavigation {
   listOpenTargets(): Promise<DesktopPluginOpenTarget[]>;
   openDetailPanel(tab: DesktopPluginDetailPanelTab): void;
   openAutomation(automationId: string): void;
+  /** Opens the thread and reveals the tool item with this call id in its conversation. */
+  revealToolCall(threadId: string, callId: string): void;
   onOpenUrl(listener: (url: string) => boolean): DesktopPluginDispose;
 }
 
