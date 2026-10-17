@@ -51,6 +51,11 @@ internal static class ConfigJsonPath
         return segments.ToArray();
     }
 
+    public static string Join(params IEnumerable<string> segments) =>
+        string.Join('.', segments.Select(segment => segment.IndexOfAny(['.', '"', '\\']) < 0
+            ? segment
+            : "\"" + segment.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\""));
+
     public static bool TryGet(JsonObject root, IReadOnlyList<string> path, out JsonNode? value)
     {
         value = null;

@@ -51,6 +51,5 @@ describe('Settings OAuth editor', () => {
     expect(await screen.findByRole('button', { name: /Sign out/ })).toBeInTheDocument()
     expect(sendRequest).not.toHaveBeenCalledWith('config/value/write', expect.objectContaining({ keyPath: 'ProviderId' }), expect.anything())
     expect(sendRequest).not.toHaveBeenCalledWith('config/batchWrite', expect.anything(), expect.anything())
-    expect(sendRequest).not.toHaveBeenCalledWith('provider/create', expect.anything(), expect.anything())
   })
 })

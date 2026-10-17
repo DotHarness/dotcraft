@@ -90,7 +90,7 @@ public sealed class AppServerOpenAiAuthStatusTests
         return response.RootElement.GetProperty("result");
     }
 
-    private sealed class FakeOpenAIAuthService : IOpenAIAuthService
+    internal sealed class FakeOpenAIAuthService : IOpenAIAuthService
     {
         public List<bool> TokenRequests { get; } = [];
 

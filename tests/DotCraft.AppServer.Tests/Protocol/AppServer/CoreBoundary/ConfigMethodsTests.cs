@@ -98,6 +98,30 @@ public sealed class ConfigMethodsTests : IDisposable
     }
 
     [Fact]
+    public async Task ValueWrite_SensitiveField_StoresSecretWithoutReturningIt()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _craftPath);
+        using var bridge = ConfigChangedTests.AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(Methods.ConfigValueWrite, Edit("DashBoard.Password", "\"dashboard-secret\"")));
+
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        Assert.All(sent, message => Assert.DoesNotContain("dashboard-secret", message.RootElement.GetRawText()));
+        ConfigChangedTests.AssertSingleConfigChanged(sent, Methods.ConfigValueWrite, "DashBoard.Password");
+        Assert.Equal("dashboard-secret", ReadWorkspaceConfig().RootElement.GetProperty("DashBoard").GetProperty("Password").GetString());
+
+        var read = await SendAsync(harness, Methods.ConfigRead, new JsonObject { ["includeLayers"] = true });
+        Assert.Equal("***", read.GetProperty("config").GetProperty("DashBoard").GetProperty("Password").GetString());
+        Assert.Equal("***", read.GetProperty("layers")[1].GetProperty("config").GetProperty("DashBoard").GetProperty("Password").GetString());
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(Methods.ConfigValueWrite, Edit("DashBoard.Password", "\"***\"")));
+
+        AppServerTestHarness.AssertIsSuccessResponse(Assert.Single(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5))));
+        Assert.Equal("dashboard-secret", ReadWorkspaceConfig().RootElement.GetProperty("DashBoard").GetProperty("Password").GetString());
+    }
+
+    [Fact]
     public async Task ValueWrite_NullValue_RemovesKeyAndRestoresDefault()
     {
         await File.WriteAllTextAsync(_workspaceConfigPath, """{ "InstantInterruptEnabled": false, "Theme": "dark" }""");
@@ -142,6 +166,7 @@ public sealed class ConfigMethodsTests : IDisposable
     public async Task ValueWrite_ProviderSelection_InvalidatesThreadAgentsOnlyWhenChanged()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _craftPath);
+        WriteUserConfig(harness, """{ "Providers": { "anthropic-main": { "Protocol": "anthropic" } } }""");
         using var bridge = ConfigChangedTests.AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 

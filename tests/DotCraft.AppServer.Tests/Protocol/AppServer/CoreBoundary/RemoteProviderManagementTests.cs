@@ -10,9 +10,6 @@ public sealed class RemoteProviderManagementTests : IDisposable
     private readonly string _root = Directory.CreateTempSubdirectory("remote-provider-").FullName;
     public void Dispose() => Directory.Delete(_root, true);
     [Theory]
-    [InlineData("provider/create")]
-    [InlineData("provider/update")]
-    [InlineData("provider/delete")]
     [InlineData("auth/openai/login")]
     [InlineData("auth/openai/logout")]
     public async Task ManagedRuntimeRejectsUpstreamManagement(string method)
@@ -21,9 +18,41 @@ public sealed class RemoteProviderManagementTests : IDisposable
         harness.Monitor.Current.ModelService = new AppConfig.ModelServiceConfig
             { Endpoint = "https://models.example/model-service", Token = "client-test" };
         await harness.InitializeAsync();
-        await harness.ExecuteRequestAsync(harness.BuildRequest(method, new { id = "primary", providerId = "primary" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(method, new { providerId = "primary" }));
         var response = Assert.Single(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         Assert.Equal(AppServerErrors.InvalidRequestCode, response.RootElement.GetProperty("error").GetProperty("code").GetInt32());
+    }
+
+    [Fact]
+    public async Task ConfigWritesCannotEditOrReplaceServiceManagedProviders()
+    {
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _root);
+        var config = harness.Monitor.Current;
+        config.ModelService = new AppConfig.ModelServiceConfig
+            { Endpoint = "https://models.example/model-service", Token = "client-test" };
+        var managed = new AppConfig.ModelProviderConfig { Protocol = ModelProviderProtocols.OpenAIResponses };
+        config.Providers = new(StringComparer.OrdinalIgnoreCase) { ["primary"] = managed };
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest("config/batchWrite", new
+        {
+            edits = new[] { new { keyPath = "Providers.local", value = new { ApiKey = "sk-local" }, mergeStrategy = "replace" } }
+        }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest("config/batchWrite", new
+        {
+            edits = new object[]
+            {
+                new { keyPath = "ProviderId", value = "primary", mergeStrategy = "replace" },
+                new { keyPath = "InstantInterruptEnabled", value = false, mergeStrategy = "replace" }
+            }
+        }));
+
+        var responses = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        AppServerTestHarness.AssertConfigWriteError(responses[0], "configValidationError");
+        CoreAppServerTestHarness.AssertIsSuccessResponse(responses[1]);
+        Assert.Same(managed, Assert.Single(config.Providers).Value);
+        Assert.Equal("primary", config.ProviderId);
+        Assert.False(File.Exists(config.GlobalConfigPath));
     }
 
     [Fact]

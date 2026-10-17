@@ -14838,130 +14838,6 @@
       "variants": []
     },
     {
-      "id": "core.ProviderCreateParams",
-      "name": "ProviderCreateParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ProviderCreateParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "apiKey",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "authMethod",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "displayName",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "endPoint",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "id",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "maxOutputTokens",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "networkTimeoutSeconds",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "protocol",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "streamIdleTimeoutMs",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "streamMaxRetries",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "supportsImageGeneration",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ProviderDeleteParams",
-      "name": "ProviderDeleteParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ProviderDeleteParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "id",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ProviderDeleteResult",
-      "name": "ProviderDeleteResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ProviderDeleteResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "deleted",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.ProviderInfo",
       "name": "ProviderInfo",
       "module": "core",
@@ -15127,24 +15003,6 @@
       "variants": []
     },
     {
-      "id": "core.ProviderMutationResult",
-      "name": "ProviderMutationResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ProviderMutationResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "provider",
-          "type": "core.ProviderInfo",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.ProviderTestParams",
       "name": "ProviderTestParams",
       "module": "core",
@@ -15259,94 +15117,6 @@
           "type": "boolean",
           "required": false,
           "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ProviderUpdateParams",
-      "name": "ProviderUpdateParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ProviderUpdateParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "apiKey",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "authMethod",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "displayName",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "endPoint",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "id",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "maxOutputTokens",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "networkTimeoutSeconds",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "protocol",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "streamIdleTimeoutMs",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "streamMaxRetries",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "supportsImageGeneration",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
           "const": null
         }
       ],
@@ -30640,46 +30410,6 @@
       "stability": "stable"
     },
     {
-      "name": "provider/create",
-      "descriptorMember": "ProviderCreate",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.ProviderCreateParams",
-      "resultType": "core.ProviderMutationResult",
-      "module": "core",
-      "capability": "providerManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "provider/delete",
-      "descriptorMember": "ProviderDelete",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.ProviderDeleteParams",
-      "resultType": "core.ProviderDeleteResult",
-      "module": "core",
-      "capability": "providerManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
       "name": "provider/list",
       "descriptorMember": "ProviderList",
       "kind": "request",
@@ -30706,26 +30436,6 @@
       "direction": "clientToServer",
       "paramsType": "core.ProviderTestParams",
       "resultType": "core.ProviderTestResult",
-      "module": "core",
-      "capability": "providerManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "provider/update",
-      "descriptorMember": "ProviderUpdate",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.ProviderUpdateParams",
-      "resultType": "core.ProviderMutationResult",
       "module": "core",
       "capability": "providerManagement",
       "scope": "connection",

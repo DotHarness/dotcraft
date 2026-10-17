@@ -260,60 +260,6 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     }
 
     /// <summary>
-    /// Creates a personal model provider entry.
-    /// </summary>
-    public async Task<Contract.ProviderInfo> ProviderCreateAsync(Contract.ProviderCreateParams provider, CancellationToken ct = default)
-    {
-        var doc = await SendRequestAsync(
-            Protocol.AppServer.AppServerMethodNames.ProviderCreate,
-            provider,
-            ct: ct);
-
-        ThrowIfError(doc, "provider/create");
-
-        var result = doc.RootElement.GetProperty("result");
-        var response = JsonSerializer.Deserialize<Contract.ProviderMutationResult>(
-            result.GetRawText(), Protocol.AppServerContractJson.Options);
-        return response?.Provider is { IsSet: true } created ? created.Value ?? new Contract.ProviderInfo() : new Contract.ProviderInfo();
-    }
-
-    /// <summary>
-    /// Updates a personal model provider entry.
-    /// </summary>
-    public async Task<Contract.ProviderInfo> ProviderUpdateAsync(Contract.ProviderUpdateParams provider, CancellationToken ct = default)
-    {
-        var doc = await SendRequestAsync(
-            Protocol.AppServer.AppServerMethodNames.ProviderUpdate,
-            provider,
-            ct: ct);
-
-        ThrowIfError(doc, "provider/update");
-
-        var result = doc.RootElement.GetProperty("result");
-        var response = JsonSerializer.Deserialize<Contract.ProviderMutationResult>(
-            result.GetRawText(), Protocol.AppServerContractJson.Options);
-        return response?.Provider is { IsSet: true } updated ? updated.Value ?? new Contract.ProviderInfo() : new Contract.ProviderInfo();
-    }
-
-    /// <summary>
-    /// Deletes a personal model provider entry.
-    /// </summary>
-    public async Task<bool> ProviderDeleteAsync(string id, CancellationToken ct = default)
-    {
-        var doc = await SendRequestAsync(
-            Protocol.AppServer.AppServerMethodNames.ProviderDelete,
-            new Contract.ProviderDeleteParams { Id = id },
-            ct: ct);
-
-        ThrowIfError(doc, "provider/delete");
-
-        var result = doc.RootElement.GetProperty("result");
-        var response = JsonSerializer.Deserialize<Contract.ProviderDeleteResult>(
-            result.GetRawText(), Protocol.AppServerContractJson.Options);
-        return response?.Deleted is { IsSet: true } deleted && deleted.Value;
-    }
-
-    /// <summary>
     /// Tests a persisted or draft personal model provider through the provider-neutral probe contract.
     /// </summary>
     public async Task<Contract.ProviderTestResult> ProviderTestAsync(Contract.ProviderTestParams provider, CancellationToken ct = default)

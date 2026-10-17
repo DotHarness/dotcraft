@@ -67,7 +67,6 @@ public sealed class ConfigurationServiceWriteTests
     [InlineData("Tools.Lsp", "{}", null, null, ConfigWriteErrorCode.ConfigSchemaUnknownKey)]
     [InlineData("ProviderPreferences.", "{}", null, null, ConfigWriteErrorCode.ConfigSchemaUnknownKey)]
     [InlineData("ProviderPreferences.\"open", "{}", null, null, ConfigWriteErrorCode.ConfigSchemaUnknownKey)]
-    [InlineData("DashBoard.Password", "\"secret\"", null, null, ConfigWriteErrorCode.ConfigValidationError)]
     [InlineData("InstantInterruptEnabled", "\"yes\"", null, null, ConfigWriteErrorCode.ConfigValidationError)]
     [InlineData("Tools.Web.SearchMaxResults", "50", null, null, ConfigWriteErrorCode.ConfigValidationError)]
     [InlineData("Logging.MinLevel", "\"Loud\"", null, null, ConfigWriteErrorCode.ConfigValidationError)]

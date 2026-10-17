@@ -3,10 +3,11 @@
   font-size: 12px;
   color: var(--text-dimmed);
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   column-gap: 14px;
-  row-gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .clause {

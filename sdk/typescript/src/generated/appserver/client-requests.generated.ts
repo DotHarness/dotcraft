@@ -128,11 +128,8 @@ export interface ClientRequestMethods {
   "plugin/skill/read": { params: Models.PluginSkillReadParams; result: Models.PluginSkillReadResult };
   "plugin/view": { params: Models.PluginViewParams; result: Models.PluginViewResult };
   "profile/insights": { params: Models.ProfileInsightsParams; result: Models.ProfileInsightsResult };
-  "provider/create": { params: Models.ProviderCreateParams; result: Models.ProviderMutationResult };
-  "provider/delete": { params: Models.ProviderDeleteParams; result: Models.ProviderDeleteResult };
   "provider/list": { params: Models.ProviderListParams; result: Models.ProviderListResult };
   "provider/test": { params: Models.ProviderTestParams; result: Models.ProviderTestResult };
-  "provider/update": { params: Models.ProviderUpdateParams; result: Models.ProviderMutationResult };
   "remoteToolHost/connect": { params: Models.RemoteToolHostConnectParams; result: Models.RemoteToolHostConnectResult };
   "remoteToolHost/disconnect": { params: Models.RemoteToolHostDisconnectParams; result: Models.RemoteToolHostDisconnectResult };
   "remoteToolHost/list": { params: Models.RemoteToolHostListParams; result: Models.RemoteToolHostListResult };

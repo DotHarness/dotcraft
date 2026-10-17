@@ -197,7 +197,7 @@ public sealed class AppServerRequestHandler(
         new ProviderRequestHandler(
             transport,
             WorkspaceConfig,
-            RuntimeConfig,
+            services.Configuration,
             services.WorkspaceCraftPath,
             services.AppConfigMonitor,
             services.ModelProviderRegistry,

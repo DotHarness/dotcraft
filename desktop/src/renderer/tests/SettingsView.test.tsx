@@ -90,6 +90,12 @@ function expectWrite(keyPath: string, value: unknown): void {
   )
 }
 
+function expectProviderWrite(id: string, value: unknown, mergeStrategy: 'replace' | 'upsert'): void {
+  expect(appServerSendRequest).toHaveBeenCalledWith('config/batchWrite', {
+    edits: [{ keyPath: `Providers.${id}`, value, mergeStrategy }]
+  }, 20_000)
+}
+
 function expectBatchWrite(edits: Record<string, unknown>): void {
   expect(appServerSendRequest).toHaveBeenCalledWith('config/batchWrite', {
     edits: Object.entries(edits).map(([keyPath, value]) => ({ keyPath, value, mergeStrategy: 'replace' }))
@@ -926,10 +932,7 @@ describe('SettingsView', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Create provider' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('provider/create', expect.objectContaining({
-        id: 'responses-main',
-        protocol: 'openai-chat-completions'
-      }), 20_000)
+      expectProviderWrite('responses-main', expect.objectContaining({ Protocol: 'openai-chat-completions' }), 'replace')
     })
   })
 
@@ -949,23 +952,64 @@ describe('SettingsView', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Create provider' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('provider/create', expect.objectContaining({
-        id: 'responses-main',
-        protocol: 'openai-responses',
-        supportsImageGeneration: true
-      }), 20_000)
+      expectProviderWrite('responses-main', expect.objectContaining({
+        Protocol: 'openai-responses',
+        SupportsImageGeneration: true
+      }), 'replace')
     })
   })
 
-  it('sends image generation off when updating a Responses provider', async () => {
+  it('writes only changed provider fields and leaves an untouched key out of the update', async () => {
+    enableProviderManagement()
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit provider OpenAI Responses' }))
+
+    const imageGenerationSwitch = await screen.findByRole('switch', { name: 'Support Image Generation' })
+    expect(imageGenerationSwitch).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(imageGenerationSwitch)
+    fireEvent.change(screen.getByLabelText('Display name'), { target: { value: '' } })
+
+    appServerSendRequest.mockClear()
+    fireEvent.click(await screen.findByRole('button', { name: 'Update provider' }))
+
+    await waitFor(() => {
+      expectProviderWrite('openai-responses', { DisplayName: null, SupportsImageGeneration: false }, 'upsert')
+    })
+    expect(appServerSendRequest).toHaveBeenCalledWith('provider/list', {}, 20_000)
+  })
+
+  it('rejects a new provider id that the provider list already shows', async () => {
+    enableProviderManagement()
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'New provider' }))
+    fireEvent.change(await screen.findByLabelText('Provider id'), { target: { value: 'anthropic-main' } })
+    appServerSendRequest.mockClear()
+    fireEvent.click(await screen.findByRole('button', { name: 'Create provider' }))
+
+    await waitFor(() => {
+      expect(useToastStore.getState().toasts).toEqual(
+        expect.arrayContaining([expect.objectContaining({ type: 'warning' })])
+      )
+    })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('config/batchWrite', expect.anything(), expect.anything())
+  })
+
+  it('creates a provider against the user layer version', async () => {
     enableProviderManagement()
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
-      if (method === 'provider/list') {
+      if (method === 'config/read' && params?.includeLayers === true) {
         return {
-          providers: providerListResult.providers.map((provider) => provider.id === 'openai-responses'
-            ? { ...provider, supportsImageGeneration: false }
-            : provider)
+          config: structuredClone(serverConfig),
+          origins: {},
+          layers: [
+            { name: { type: 'user', file: 'C:\Users\me\.craft\config.json' }, version: 'sha256:user', config: {} },
+            { name: { type: 'workspace', file: 'C:\sample\workspace\.craft\config.json' }, version: 'sha256:workspace', config: {} }
+          ]
         }
       }
       return defaultSendRequest?.(method, params)
@@ -973,21 +1017,41 @@ describe('SettingsView', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit provider OpenAI Responses' }))
-
-    const imageGenerationSwitch = await screen.findByRole('switch', { name: 'Support Image Generation' })
-    expect(imageGenerationSwitch).toHaveAttribute('aria-checked', 'false')
-    expect(screen.queryByRole('button', { name: 'Auto' })).not.toBeInTheDocument()
-
-    appServerSendRequest.mockClear()
-    fireEvent.click(await screen.findByRole('button', { name: 'Update provider' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'New provider' }))
+    fireEvent.change(await screen.findByLabelText('Provider id'), { target: { value: 'router' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Create provider' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('provider/update', expect.objectContaining({
-        id: 'openai-responses',
-        supportsImageGeneration: false
-      }), 20_000)
+      expect(appServerSendRequest).toHaveBeenCalledWith('config/batchWrite', {
+        edits: [{ keyPath: 'Providers.router', value: expect.objectContaining({ Protocol: 'openai-responses' }), mergeStrategy: 'replace' }],
+        expectedVersion: 'sha256:user'
+      }, 20_000)
     })
+  })
+
+  it('deletes a provider by writing null and keeps the editor for the selected provider', async () => {
+    enableProviderManagement()
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit provider Anthropic' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+    await waitFor(() => expectProviderWrite('anthropic-main', null, 'replace'))
+    await waitFor(() => expect(screen.queryByLabelText('Provider id')).not.toBeInTheDocument())
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit provider OpenAI' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+    await waitFor(() => {
+      expect(useToastStore.getState().toasts).toEqual(
+        expect.arrayContaining([expect.objectContaining({ type: 'warning' })])
+      )
+    })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith(
+      'config/batchWrite',
+      expect.objectContaining({ edits: [expect.objectContaining({ keyPath: 'Providers.openai' })] }),
+      expect.anything()
+    )
+    expect(screen.getByLabelText('Provider id')).toHaveValue('openai')
   })
 
   it('locks id and displayName to canonical values when ChatGPT subscription auth is selected', async () => {
@@ -1031,51 +1095,6 @@ describe('SettingsView', () => {
     expect(idInput).not.toHaveAttribute('readonly')
     expect(displayNameInput).not.toHaveAttribute('readonly')
   })
-
-  it('shows the ChatGPT plan tier on the provider card instead of "No API key"', async () => {
-    enableProviderManagement()
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'provider/list') {
-        return {
-          providers: [
-            {
-              id: 'openai',
-              displayName: 'OpenAI (ChatGPT)',
-              protocol: 'openai-responses',
-              hasApiKey: false,
-              endPoint: '',
-              networkTimeoutSeconds: null,
-              authMethod: 'chatgptOAuth',
-              chatGptAccountId: 'acct_abcd1234',
-              chatGptPlanType: 'plus'
-            },
-            {
-              id: 'openai-no-plan',
-              displayName: 'Pending ChatGPT',
-              protocol: 'openai-responses',
-              hasApiKey: false,
-              endPoint: '',
-              networkTimeoutSeconds: null,
-              authMethod: 'chatgptOAuth',
-              chatGptAccountId: null,
-              chatGptPlanType: null
-            }
-          ]
-        }
-      }
-      return null
-    })
-    renderView()
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
-    const plusRow = await screen.findByRole('button', { name: 'Use provider OpenAI (ChatGPT)' })
-    expect(within(plusRow).getByText('ChatGPT · Plus')).toBeInTheDocument()
-    expect(within(plusRow).queryByText('No API key')).not.toBeInTheDocument()
-
-    const notSignedRow = await screen.findByRole('button', { name: 'Use provider Pending ChatGPT' })
-    expect(within(notSignedRow).getByText('ChatGPT · Not signed in')).toBeInTheDocument()
-  })
-
 
   it('uses provider rows to apply the workspace provider without a restart banner', async () => {
     enableProviderManagement()

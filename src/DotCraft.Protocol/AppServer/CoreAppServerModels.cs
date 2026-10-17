@@ -3653,73 +3653,6 @@ public sealed class ProviderCapabilities : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ProviderCreateParams.</summary>
-public sealed class ProviderCreateParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("apiKey")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ApiKey { get; init; }
-
-    [JsonPropertyName("authMethod")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> AuthMethod { get; init; }
-
-    [JsonPropertyName("displayName")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> DisplayName { get; init; }
-
-    [JsonPropertyName("endPoint")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> EndPoint { get; init; }
-
-    [JsonPropertyName("id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Id { get; init; }
-
-    [JsonPropertyName("maxOutputTokens")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> MaxOutputTokens { get; init; }
-
-    [JsonPropertyName("networkTimeoutSeconds")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> NetworkTimeoutSeconds { get; init; }
-
-    [JsonPropertyName("protocol")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Protocol { get; init; }
-
-    [JsonPropertyName("streamIdleTimeoutMs")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> StreamIdleTimeoutMs { get; init; }
-
-    [JsonPropertyName("streamMaxRetries")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> StreamMaxRetries { get; init; }
-
-    [JsonPropertyName("supportsImageGeneration")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> SupportsImageGeneration { get; init; }
-
-}
-
-/// <summary>Executable wire contract for ProviderDeleteParams.</summary>
-public sealed class ProviderDeleteParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Id { get; init; }
-
-}
-
-/// <summary>Executable wire contract for ProviderDeleteResult.</summary>
-public sealed class ProviderDeleteResult : ExtensibleJsonObject
-{
-    [JsonPropertyName("deleted")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Deleted { get; init; }
-
-}
-
 /// <summary>Executable wire contract for ProviderInfo.</summary>
 public sealed partial class ProviderInfo : ExtensibleJsonObject
 {
@@ -3799,15 +3732,6 @@ public sealed partial class ProviderListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ProviderMutationResult.</summary>
-public sealed class ProviderMutationResult : ExtensibleJsonObject
-{
-    [JsonPropertyName("provider")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ProviderInfo> Provider { get; init; }
-
-}
-
 /// <summary>Executable wire contract for ProviderTestParams.</summary>
 public sealed class ProviderTestParams : ExtensibleJsonObject
 {
@@ -3871,55 +3795,6 @@ public sealed class ProviderTestResult : ExtensibleJsonObject
     [JsonPropertyName("success")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Success { get; init; }
-
-}
-
-/// <summary>Executable wire contract for ProviderUpdateParams.</summary>
-public sealed class ProviderUpdateParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("apiKey")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ApiKey { get; init; }
-
-    [JsonPropertyName("authMethod")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> AuthMethod { get; init; }
-
-    [JsonPropertyName("displayName")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> DisplayName { get; init; }
-
-    [JsonPropertyName("endPoint")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> EndPoint { get; init; }
-
-    [JsonPropertyName("id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Id { get; init; }
-
-    [JsonPropertyName("maxOutputTokens")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> MaxOutputTokens { get; init; }
-
-    [JsonPropertyName("networkTimeoutSeconds")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> NetworkTimeoutSeconds { get; init; }
-
-    [JsonPropertyName("protocol")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Protocol { get; init; }
-
-    [JsonPropertyName("streamIdleTimeoutMs")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> StreamIdleTimeoutMs { get; init; }
-
-    [JsonPropertyName("streamMaxRetries")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> StreamMaxRetries { get; init; }
-
-    [JsonPropertyName("supportsImageGeneration")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> SupportsImageGeneration { get; init; }
 
 }
 

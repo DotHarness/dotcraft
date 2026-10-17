@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.5 |
+| Version | 0.8.10 |
 | Status | Living |
-| Date | 2026-10-12 |
+| Date | 2026-10-17 |
 
 DotCraft natively supports authenticating outgoing model requests against a user's ChatGPT
 subscription (Plus, Pro, Team, Business, Enterprise, Edu) as an alternative to the standard
@@ -402,7 +402,24 @@ Per-provider entry in `~/.craft/config.json`:
 
 `AuthMethod` is either `apiKey` (default) or `chatgptOAuth`. `ChatGptAccountId` /
 `ChatGptPlanType` are read-only metadata populated by the login flow and shown in the UI; users
-should not edit them by hand.
+should not edit them by hand. `chatgptOAuth` requires an OpenAI protocol.
+
+### Provider binding
+
+Login binds the selected provider, `openai` unless the caller names another id, to the signed-in
+account: it sets `AuthMethod` to `chatgptOAuth`, `Protocol` to `openai-responses`, and
+`ChatGptAccountId` / `ChatGptPlanType` from the account, removing either when the account omits it,
+and creates the provider when it is absent. When the user layer has no `ProviderId`, login also
+selects the bound provider; when the provider has no remembered model, it records a manual
+preference for the default subscription model. Logout sets `AuthMethod` to `apiKey` and removes the
+account metadata; it leaves the provider and its selection in place.
+
+Inside a workspace runtime, `auth/openai/login` and `auth/openai/logout` apply the binding as one
+write through the [configuration service](configuration.md) to the user layer, so it follows the
+provider rules, takes effect for new Turns, and announces `config/changed` with the method name as
+`source`. A rejected login binding keeps the saved tokens and reports the failure; logout clears
+tokens even when its binding cannot be written. The CLI commands below run without a workspace
+runtime and write the same binding to the user configuration file directly.
 
 ## Usage / rate-limit telemetry
 
