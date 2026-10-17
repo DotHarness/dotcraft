@@ -91,9 +91,9 @@ function expectWrite(keyPath: string, value: unknown): void {
 }
 
 function expectProviderWrite(id: string, value: unknown, mergeStrategy: 'replace' | 'upsert'): void {
-  expect(appServerSendRequest).toHaveBeenCalledWith('config/batchWrite', {
+  expect(appServerSendRequest).toHaveBeenCalledWith('config/batchWrite', expect.objectContaining({
     edits: [{ keyPath: `Providers.${id}`, value, mergeStrategy }]
-  }, 20_000)
+  }), 20_000)
 }
 
 function expectBatchWrite(edits: Record<string, unknown>): void {
@@ -212,7 +212,13 @@ describe('SettingsView', () => {
     settingsSet.mockResolvedValue(undefined)
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
       if (method === 'config/read') {
-        return { config: structuredClone(serverConfig), origins: {} }
+        return {
+          config: structuredClone(serverConfig),
+          origins: {},
+          ...(params?.includeLayers === true
+            ? { layers: [{ name: { type: 'user' }, version: 'sha256:user', config: structuredClone(serverConfig) }] }
+            : {})
+        }
       }
       if (method === 'config/value/write' || method === 'config/batchWrite') {
         const edits = method === 'config/batchWrite'

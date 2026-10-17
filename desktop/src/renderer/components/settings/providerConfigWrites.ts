@@ -59,11 +59,27 @@ export function providerUpdateValue(previous: ProviderInfoWire, fields: Provider
   return value
 }
 
-async function readUserLayerVersion(): Promise<string | undefined> {
+export class ProviderExistsError extends Error {
+  constructor(readonly providerId: string) {
+    super(`Provider '${providerId}' already exists.`)
+  }
+}
+
+async function readVersionWithoutProvider(id: string): Promise<string> {
   const result = await window.api.appServer.sendRequest('config/read', { includeLayers: true }, PROVIDER_WRITE_TIMEOUT_MS) as {
-    layers?: Array<{ name?: { type?: string }; version?: string }>
+    layers?: Array<{ name?: { type?: string }; version?: string; config?: Record<string, JsonValue> }>
   } | null
-  return result?.layers?.find((layer) => layer.name?.type === 'user')?.version
+  const layer = result?.layers?.find((entry) => entry.name?.type === 'user')
+  if (!layer?.version || !layer.config) throw new Error('The user configuration could not be read.')
+  const providers = Object.entries(layer.config).find(([key]) => key.toLowerCase() === 'providers')?.[1]
+  const expected = id.toLowerCase()
+  if (
+    providers && typeof providers === 'object' && !Array.isArray(providers) &&
+    Object.keys(providers).some((key) => key.toLowerCase() === expected)
+  ) {
+    throw new ProviderExistsError(id)
+  }
+  return layer.version
 }
 
 async function writeProviderEntry(
@@ -79,7 +95,7 @@ async function writeProviderEntry(
 }
 
 export async function createProvider(id: string, fields: ProviderFields): Promise<void> {
-  await writeProviderEntry(id, providerCreateValue(fields), 'replace', await readUserLayerVersion())
+  await writeProviderEntry(id, providerCreateValue(fields), 'replace', await readVersionWithoutProvider(id))
 }
 
 export async function updateProvider(previous: ProviderInfoWire, fields: ProviderFields): Promise<void> {

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { providerUpdateValue, type ProviderFields } from '../components/settings/providerConfigWrites'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createProvider, ProviderExistsError, providerUpdateValue, type ProviderFields } from '../components/settings/providerConfigWrites'
 import type { ProviderInfoWire } from '../components/settings/providerInfo'
 
 const stored: ProviderInfoWire = {
@@ -35,5 +35,35 @@ describe('provider update edits', () => {
   it('clears the stored key when the provider switches to subscription sign-in', () => {
     expect(providerUpdateValue(stored, { ...unchanged, authMethod: 'chatgptOAuth', apiKey: 'ignored' }))
       .toEqual({ AuthMethod: 'chatgptOAuth', ApiKey: null })
+  })
+})
+
+describe('provider create', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function stubConfigRead(userConfig: Record<string, unknown>) {
+    const sendRequest = vi.fn(async (method: string) => method === 'config/read'
+      ? { layers: [{ name: { type: 'user' }, version: 'v1', config: userConfig }] }
+      : {})
+    vi.stubGlobal('window', { api: { appServer: { sendRequest } } })
+    return sendRequest
+  }
+
+  it('refuses an id that the fresh configuration already holds', async () => {
+    const sendRequest = stubConfigRead({ Providers: { WORK: { Protocol: 'openai-responses' } } })
+    await expect(createProvider('work', unchanged)).rejects.toBeInstanceOf(ProviderExistsError)
+    expect(sendRequest).not.toHaveBeenCalledWith('config/batchWrite', expect.anything(), expect.anything())
+  })
+
+  it('writes against the version of the snapshot it checked', async () => {
+    const sendRequest = stubConfigRead({ Providers: { other: { Protocol: 'openai-responses' } } })
+    await createProvider('work', unchanged)
+    expect(sendRequest).toHaveBeenCalledWith(
+      'config/batchWrite',
+      expect.objectContaining({ expectedVersion: 'v1' }),
+      expect.anything()
+    )
   })
 })

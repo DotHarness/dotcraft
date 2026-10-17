@@ -1,5 +1,5 @@
 import { normalizeProviderList, type ProviderInfoWire } from './providerInfo'
-import { createProvider, deleteProvider, providerIdExists, updateProvider, type ProviderFields } from './providerConfigWrites'
+import { createProvider, deleteProvider, ProviderExistsError, providerIdExists, updateProvider, type ProviderFields } from './providerConfigWrites'
 import { BrowserDownloadsSettings } from './BrowserDownloadsSettings'
 import { BrowserDownloadHistory } from './BrowserDownloadHistory'
 import { ChatGptOAuthPanel } from './ChatGptOAuthPanel'
@@ -1072,6 +1072,10 @@ export function SettingsView({
       await reloadProviders()
       closeProviderEditor()
     } catch (err) {
+      if (err instanceof ProviderExistsError) {
+        addToast(t('settings.llm.toast.providerIdExists', { providerId: err.providerId }), 'warning')
+        return
+      }
       addToast(t('settings.llm.toast.saveProviderFailed', {
         error: err instanceof Error ? err.message : String(err)
       }), 'error')
