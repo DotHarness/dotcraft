@@ -28,7 +28,7 @@ public sealed class ConfigCliRunnerTests : IDisposable
 
         Assert.Equal(0, exitCode);
         Assert.Equal("select", field.GetProperty("type").GetString());
-        Assert.Equal("processRestart", field.GetProperty("reload").GetString());
+        Assert.Equal("subsystemRestart", field.GetProperty("reload").GetString());
         Assert.Equal(
             new[] { "Tools", "Web" },
             section.GetProperty("path").EnumerateArray().Select(v => v.GetString()).ToArray());
