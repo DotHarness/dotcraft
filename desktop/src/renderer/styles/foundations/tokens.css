@@ -15,12 +15,12 @@
   --font-body: var(--font-sans-default);
   --font-sans: var(--font-sans-default);
   --font-mono: var(--font-mono-default);
-
-  --animate-spinner: 1000ms;
-  --animate-cursor-blink: 800ms;
 }
 
 :root {
+  --animate-spinner: 1000ms;
+  --animate-cursor-blink: 800ms;
+
   /* The seed. themeDerive.ts writes these inline only where a custom theme differs,
      so an uncustomized app resolves entirely from this stylesheet. --contrast-k is
      normalizeContrast(60, 'dark'); every percentage below is solved against it. */
