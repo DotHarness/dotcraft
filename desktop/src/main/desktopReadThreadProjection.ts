@@ -131,6 +131,10 @@ function projectItem(item: JsonObject, includeOutputs: boolean, maxChars: number
       copy(['callId', 'status', 'revisedPrompt', 'savedPath', 'mediaType', 'errorCode', 'errorMessage',
         'saveStatus', 'saveErrorCode', 'savedHostId', 'savedWorkspaceId'])
       break
+    case 'webSearch':
+      copy(['callId', 'status', 'query', 'action', 'errorMessage'])
+      output('output', payload.output)
+      break
     case 'sleep':
       copy(['durationMs'])
       break

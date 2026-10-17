@@ -13,6 +13,7 @@ export type ItemType =
   | 'commandExecution'
   | 'toolExecution'
   | 'imageGeneration'
+  | 'webSearch'
   | 'toolCall'
   | 'dynamicToolCall'
   | 'mcpToolCall'
@@ -109,6 +110,21 @@ export interface RemoteFileTransferProgress {
   currentFile?: string
 }
 
+export interface WebSearchAction {
+  type: 'search' | 'openPage' | 'findInPage' | 'other'
+  query?: string
+  queries?: string[]
+  url?: string
+  pattern?: string
+}
+
+export interface WebSearchInfo {
+  status: 'inProgress' | 'completed' | 'failed'
+  query: string
+  action: WebSearchAction | null
+  results: Record<string, unknown>[]
+}
+
 /**
  * Uses optional discriminated fields rather than a full union to keep rendering
  * code straightforward when mapping wire payloads.
@@ -160,6 +176,7 @@ export interface ConversationItem {
   saveErrorCode?: string
   savedHostId?: string
   savedWorkspaceId?: string
+  webSearch?: WebSearchInfo
 
   /** Tool call arguments from item/started payload for toolCall items */
   arguments?: Record<string, unknown>
@@ -308,6 +325,8 @@ const CONVERSATION_ITEM_TYPE_ALIASES: Record<string, ItemType> = {
   ToolExecution: 'toolExecution',
   imageGeneration: 'imageGeneration',
   ImageGeneration: 'imageGeneration',
+  webSearch: 'webSearch',
+  WebSearch: 'webSearch',
   toolCall: 'toolCall',
   ToolCall: 'toolCall',
   dynamicToolCall: 'dynamicToolCall',
@@ -678,7 +697,7 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
       ?? (payload.status as ConversationItem['executionStatus'] | undefined),
     terminalSessionId: type === 'commandExecution' ? (payload.sessionId as string | undefined) : undefined,
     imageGenerationStatus: type === 'imageGeneration'
-      ? normalizeImageGenerationStatus((raw.imageGenerationStatus as unknown) ?? (payload.status as unknown))
+      ? normalizeLifecycleStatus((raw.imageGenerationStatus as unknown) ?? (payload.status as unknown))
       : undefined,
     revisedPrompt: type === 'imageGeneration'
       ? ((raw.revisedPrompt as string | undefined) ?? (payload.revisedPrompt as string | undefined))
@@ -701,6 +720,7 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
     savedWorkspaceId: type === 'imageGeneration'
       ? ((raw.savedWorkspaceId as string | undefined) ?? (payload.savedWorkspaceId as string | undefined))
       : undefined,
+    webSearch: type === 'webSearch' ? mapWebSearch(raw, payload) : undefined,
     resultPreview: (raw.resultPreview as string | undefined)
       ?? (payload.resultPreview as string | undefined),
     arguments: (raw.arguments as Record<string, unknown> | undefined)
@@ -821,7 +841,42 @@ function normalizeDeliveryMode(value: unknown): 'normal' | 'queued' | 'guidance'
   return undefined
 }
 
-function normalizeImageGenerationStatus(
+function mapWebSearch(raw: Record<string, unknown>, payload: Record<string, unknown>): WebSearchInfo {
+  const status = normalizeLifecycleStatus(payload.status) ?? 'inProgress'
+  const query = payload.query ?? raw.query
+  const results = payload.results ?? raw.results
+  return {
+    status,
+    query: typeof query === 'string' ? query : '',
+    action: normalizeWebSearchAction(payload.action ?? raw.action),
+    results: Array.isArray(results)
+      ? results.filter((entry): entry is Record<string, unknown> =>
+        entry != null && typeof entry === 'object' && !Array.isArray(entry))
+      : []
+  }
+}
+
+function normalizeWebSearchAction(value: unknown): WebSearchAction | null {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Record<string, unknown>
+  const text = (field: unknown): string | undefined => typeof field === 'string' ? field : undefined
+  switch (raw.type) {
+    case 'search': {
+      const queries = Array.isArray(raw.queries)
+        ? raw.queries.filter((entry): entry is string => typeof entry === 'string')
+        : undefined
+      return { type: 'search', query: text(raw.query), queries }
+    }
+    case 'openPage':
+      return { type: 'openPage', url: text(raw.url) }
+    case 'findInPage':
+      return { type: 'findInPage', url: text(raw.url), pattern: text(raw.pattern) }
+    default:
+      return { type: 'other' }
+  }
+}
+
+function normalizeLifecycleStatus(
   value: unknown
 ): ConversationItem['imageGenerationStatus'] | undefined {
   if (value === 'inProgress' || value === 'completed' || value === 'failed') return value

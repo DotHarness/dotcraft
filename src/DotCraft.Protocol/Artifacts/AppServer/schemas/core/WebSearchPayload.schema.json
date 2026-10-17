@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/WebSearchPayload.schema.json",
+  "title": "WebSearchPayload",
+  "type": "object",
+  "properties": {
+    "action": {
+      "anyOf": [
+        {
+          "$ref": "./WebSearchAction.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "arguments": {},
+    "callId": {
+      "type": "string"
+    },
+    "errorMessage": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "output": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "query": {
+      "type": "string"
+    },
+    "results": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {}
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "action",
+    "callId",
+    "query",
+    "results",
+    "status"
+  ]
+}

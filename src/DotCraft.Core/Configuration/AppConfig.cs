@@ -683,11 +683,11 @@ public sealed partial class AppConfig
         [ConfigField(Min = 0)]
         public int MaxChars { get; set; } = 50000;
 
-        /// <summary>
-        /// Request timeout in seconds (default: 300).
-        /// </summary>
-        [ConfigField(Min = 0, Hint = "seconds")]
-        public int Timeout { get; set; } = 300;
+        [ConfigField(Min = 1, Hint = "seconds")]
+        public int Timeout { get; set; } = 30;
+
+        [ConfigField(Min = 1, Hint = "bytes")]
+        public long MaxResponseBytes { get; set; } = 5_000_000;
 
         /// <summary>
         /// Default maximum number of search results to return (default: 5, range: 1-10).
@@ -698,8 +698,11 @@ public sealed partial class AppConfig
         /// <summary>
         /// Search provider: "Bing" (globally accessible) or "Exa" (AI-optimized, free via MCP).
         /// </summary>
-        [ConfigField(FieldType = "select", Options = ["Exa", "Bing"])]
+        [ConfigField(FieldType = "select", Options = ["Exa", "Bing"], Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.ThreadAgents)]
         public string SearchProvider { get; set; } = WebSearchProvider.Exa;
+
+        [ConfigField(Sensitive = true, Hint = "Exa API key; empty uses EXA_API_KEY or the free rate-limited endpoint", Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.ThreadAgents)]
+        public string ExaApiKey { get; set; } = string.Empty;
     }
 
     [ConfigSection("Tools.Lsp", DisplayName = "Tools > LSP", Order = 24)]

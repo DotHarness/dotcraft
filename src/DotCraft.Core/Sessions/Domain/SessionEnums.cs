@@ -29,6 +29,7 @@ public enum ItemType
     CommandExecution,
     ToolExecution,
     ImageGeneration,
+    WebSearch,
     ToolCall,
     McpToolCall,
     DynamicToolCall,

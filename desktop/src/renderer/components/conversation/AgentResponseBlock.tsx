@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { memo, useEffect, useRef, useState, type ComponentProps, type CSSProperties, type ReactNode } from 'react'
 import { Image as ImageIcon } from 'lucide-react'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
 import { isToolLikeItemType } from '../../types/conversation'
@@ -17,6 +17,8 @@ import { ApprovalCard } from './ApprovalCard'
 import { SystemNoticeBlock } from './SystemNoticeBlock'
 import { UserMessageBlock } from './UserMessageBlock'
 import { ImageGenerationStatus } from './ImageGenerationStatus'
+import { WebSearchItemRow } from './WebSearchItemRow'
+import { useWebCitationSources } from './useWebCitationSources'
 import { getToolOutputImages, ToolOutputImageGallery, useGeneratedOutputImage, type ToolOutputImageItem } from './ToolOutputImageGallery'
 import { planToolRunRender } from '../../utils/toolCallAggregation'
 import type { AggregatedToolCall } from '../../utils/toolCallAggregation'
@@ -105,6 +107,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   const locale = useLocale()
   const activeItemId =
     activeItemIdOverride !== undefined ? activeItemIdOverride : activeItemIdFromStore
+  const citationSources = useWebCitationSources(turn, streamingMessage)
 
   const trimHistoricalToolContent = historicalToolContentMode === 'trimmed'
   const hydratedItems = trimHistoricalToolContent ? turn.items : hydrateToolCallItems(turn.items)
@@ -236,6 +239,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
               threadId={turn.threadId}
               turnId={turn.id}
               itemId={item.id}
+              citations={citationSources}
               streaming={isLiveStreaming}
               turnRunning={isRunning}
               createdAt={item.createdAt}
@@ -497,7 +501,7 @@ function renderAggregatedEntry(
             shellRuntimeScope={shellRuntimeScope}
           />
         ) : (
-          <ToolCallCard
+          <ToolItemRow
             item={entry.item}
             threadId={threadId}
             turnId={turnId}
@@ -520,6 +524,10 @@ function renderAggregatedEntry(
       />
     </ToolEntryWithOutputs>
   )
+}
+
+function ToolItemRow(props: ComponentProps<typeof ToolCallCard>): JSX.Element {
+  return props.item.type === 'webSearch' ? <WebSearchItemRow item={props.item} /> : <ToolCallCard {...props} />
 }
 
 function ImageViewRow({ items }: { items: ConversationItem[] }): JSX.Element {
@@ -611,7 +619,7 @@ function ToolActivityRow({
       <div className="dc-tool-children">
         {items.map((item) => item.type === 'reasoningContent' ? renderReasoning(item) : (
           <ToolEntryWithOutputs key={item.id} images={getToolOutputImages([item])}>
-            <ToolCallCard item={item} threadId={threadId} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
+            <ToolItemRow item={item} threadId={threadId} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
           </ToolEntryWithOutputs>
         ))}
       </div>
@@ -652,8 +660,12 @@ function useHeldRowHeader(header: RowHeader, hold: boolean): RowHeader {
   return hold ? held : header
 }
 
+function isToolRowItem(item: ConversationItem): boolean {
+  return isToolLikeItemType(item.type) || item.type === 'webSearch'
+}
+
 function isToolRunItem(item: ConversationItem): boolean {
-  return isToolLikeItemType(item.type) || item.type === 'reasoningContent'
+  return isToolRowItem(item) || item.type === 'reasoningContent'
 }
 
 function resolveCoreFallbackPlan(item: ConversationItem) {
@@ -839,7 +851,7 @@ function shouldRenderIdleThinkingFallback({
     if (item.type === 'agentMessage' && item.status === 'streaming' && item.id === activeItemId) {
       return streamingMessage.trim().length > 0 && !streamingMessageStalled
     }
-    if (isToolLikeItemType(item.type) && isToolItemLive(item, { turnRunning: true })) {
+    if (isToolRowItem(item) && isToolItemLive(item, { turnRunning: true })) {
       return true
     }
     if (
@@ -864,7 +876,7 @@ function isActivitySliceClosed(items: ConversationItem[]): boolean {
     if (
       item.type === 'reasoningContent'
       || item.type === 'userMessage'
-      || isToolLikeItemType(item.type)
+      || isToolRowItem(item)
       || item.type === 'imageGeneration'
       || item.type === 'approvalCard'
     ) {

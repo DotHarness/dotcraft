@@ -6,7 +6,7 @@ export interface SummaryItem {
   readonly payload: Readonly<Record<string, unknown>>
 }
 
-export type SourceKind = 'web' | 'file' | 'skill' | 'mcp'
+export type SourceKind = 'file' | 'skill' | 'mcp' | 'web'
 
 export interface Source {
   readonly kind: SourceKind
@@ -15,7 +15,7 @@ export interface Source {
   readonly target: string | null
 }
 
-const SOURCE_ITEM_TYPES = new Set(['toolCall', 'toolResult', 'mcpToolCall'])
+const SOURCE_ITEM_TYPES = new Set(['toolCall', 'toolResult', 'mcpToolCall', 'webSearch'])
 
 export function isSourceItemType(type: string): boolean {
   return SOURCE_ITEM_TYPES.has(type)
@@ -36,35 +36,62 @@ export function toSummaryItem(value: unknown, turnId?: string | null): SummaryIt
   }
 }
 
-export function hasFileChanges(items: readonly SummaryItem[]): boolean {
-  return items.some((item) => {
-    if (item.type !== 'toolResult') return false
-    const content = item.payload.structuredContent ?? item.payload.structuredResult
-    return isRecord(content) && content.kind === 'fileChange' && Array.isArray(content.changes) && content.changes.length > 0
-  })
+export interface ChangeTotals {
+  readonly additions: number
+  readonly deletions: number
+}
+
+export function changeTotals(
+  items: readonly SummaryItem[],
+  turnDiffs: ReadonlyMap<string, ChangeTotals> = new Map()
+): ChangeTotals | null {
+  const turns = new Map<string, ChangeTotals>()
+  for (const item of items) {
+    const content = item.type === 'toolResult' ? item.payload.structuredContent : null
+    if (!isRecord(content) || content.kind !== 'fileChange' || !Array.isArray(content.changes)) continue
+    for (const change of content.changes) {
+      if (!isRecord(change)) continue
+      const current = turns.get(item.turnId) ?? { additions: 0, deletions: 0 }
+      turns.set(item.turnId, {
+        additions: current.additions + countOf(change.additions),
+        deletions: current.deletions + countOf(change.deletions)
+      })
+    }
+  }
+  if (turns.size === 0) return null
+  let additions = 0
+  let deletions = 0
+  for (const [turnId, calls] of turns) {
+    const totals = turnDiffs.get(turnId) ?? calls
+    additions += totals.additions
+    deletions += totals.deletions
+  }
+  return { additions, deletions }
+}
+
+export function diffTotals(diff: string): ChangeTotals | null {
+  let additions = 0
+  let deletions = 0
+  let inHunk = false
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('diff --git ')) inHunk = false
+    else if (line.startsWith('@@')) inHunk = true
+    else if (inHunk && line.startsWith('+')) additions += 1
+    else if (inHunk && line.startsWith('-')) deletions += 1
+  }
+  return additions > 0 || deletions > 0 ? { additions, deletions } : null
 }
 
 export function extractSources(items: readonly SummaryItem[], workspacePath: string | null): Source[] {
   const calls = new Map<string, { kind: SourceToolKind | null; args: Record<string, unknown> }>()
   const sources: Source[] = []
-  const positions = new Map<string, number>()
-  const untitled = new Set<string>()
+  const keys = new Set<string>()
 
-  const add = (source: Source, provisional = false): void => {
+  const add = (source: Source): void => {
     const key = `${source.kind}:${source.id}`
-    const position = positions.get(key)
-    if (position === undefined) {
-      positions.set(key, sources.length)
-      sources.push(source)
-      if (provisional) untitled.add(key)
-    } else if (!provisional && untitled.delete(key)) {
-      sources[position] = source
-    }
-  }
-
-  const addWeb = (rawUrl: string, title: string | null): void => {
-    const url = normalizeUrl(rawUrl)
-    if (url) add({ kind: 'web', id: url, title: title ?? domainOf(url), target: url }, title === null)
+    if (keys.has(key)) return
+    keys.add(key)
+    sources.push(source)
   }
 
   for (const item of items) {
@@ -91,11 +118,10 @@ export function extractSources(items: readonly SummaryItem[], workspacePath: str
     const result = typeof payload.result === 'string' ? payload.result : ''
     const succeeded = payload.success !== false
 
-    if (kind === 'webSearch') {
-      for (const row of webSearchRows(result)) addWeb(row.url, row.title)
-    } else if (kind === 'webFetch') {
+    if (kind === 'webFetch') {
       const url = stringOf(args.url)
-      if (succeeded && url) addWeb(url, null)
+      const normalized = url ? normalizeUrl(url) : null
+      if (succeeded && normalized) add({ kind: 'web', id: normalized, title: domainOf(normalized), target: normalized })
     } else if (kind === 'read') {
       const path = stringOf(args.path)
       if (succeeded && path) {
@@ -110,6 +136,11 @@ export function extractSources(items: readonly SummaryItem[], workspacePath: str
   }
 
   return sources
+}
+
+export function hasWebSearch(items: readonly SummaryItem[]): boolean {
+  return items.some((item) => item.type === 'webSearch'
+    || (item.type === 'toolCall' && sourceKindOf(item.payload) === 'webSearch'))
 }
 
 export interface TurnMark {
@@ -131,26 +162,6 @@ export function rolledBackTurns(
     if (complete || Date.parse(item.createdAt) > boundary) removed.add(item.turnId)
   }
   return removed
-}
-
-function webSearchRows(result: string): Array<{ url: string; title: string | null }> {
-  let root: unknown
-  try {
-    root = JSON.parse(result.trim())
-    if (typeof root === 'string') root = JSON.parse(root)
-  } catch {
-    return []
-  }
-  if (!isRecord(root) || root.error != null || !Array.isArray(root.results)) return []
-  const rows: Array<{ url: string; title: string | null }> = []
-  for (const entry of root.results) {
-    if (!isRecord(entry)) continue
-    const url = entry.url != null ? String(entry.url).trim() : ''
-    if (!url) continue
-    const title = entry.title != null ? String(entry.title).trim() : ''
-    rows.push({ url, title: title || null })
-  }
-  return rows
 }
 
 function skillLoaded(result: string): boolean {
@@ -206,6 +217,10 @@ function sourceKindOf(payload: Record<string, unknown>): SourceToolKind | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function countOf(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
 function stringOf(value: unknown): string | null {

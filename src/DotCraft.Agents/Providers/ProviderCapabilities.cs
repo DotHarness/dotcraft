@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
 
@@ -121,6 +122,23 @@ public sealed class ProviderImageException(string message, string? imagegenReque
 {
     public string? ImagegenRequestId { get; } = imagegenRequestId;
 }
+
+public interface IProviderWebSearch
+{
+    Task<ProviderWebSearchResult> SearchAsync(
+        EffectiveModelRuntime runtime,
+        ProviderWebSearchRequest request,
+        CancellationToken cancellationToken);
+}
+
+public sealed record ProviderWebSearchRequest(
+    string Id,
+    JsonArray Input,
+    JsonObject Commands);
+
+public sealed record ProviderWebSearchResult(
+    string Output,
+    JsonArray Results);
 
 /// <summary>Executes provider-native history compaction for one configured model runtime.</summary>
 public interface IProviderNativeCompactor

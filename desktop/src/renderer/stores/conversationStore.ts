@@ -1870,6 +1870,19 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           return { ...t, items: upsertItemById(t.items, newItem) }
         })
       }))
+    } else if (type === 'webSearch') {
+      const mappedItem = wireItemToConversationItem(item)
+      const newItem: ConversationItem = {
+        ...mappedItem,
+        status: mappedItem.webSearch?.status === 'inProgress' ? 'started' : 'completed'
+      }
+      set((state) => ({
+        turns: state.turns.map((t) => {
+          if (t.id !== turnId) return t
+          if (t.items.some((candidate) => candidate.id === newItem.id && candidate.status === 'completed')) return t
+          return { ...t, items: upsertItemById(t.items, newItem) }
+        })
+      }))
     } else if (isToolLikeItemType(type)) {
       const baseItem = buildToolLikeItem(item, type, 'started')
       set((state) => {
@@ -2415,7 +2428,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           ? applyCompactedNoticeToContextUsage(s.contextUsage, notice)
           : s.contextUsage
       }))
-    } else if (type === 'imageGeneration') {
+    } else if (type === 'imageGeneration' || type === 'webSearch') {
       const completedItem: ConversationItem = {
         ...wireItemToConversationItem(item),
         status: 'completed'

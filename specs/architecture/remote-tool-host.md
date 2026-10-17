@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.7 |
+| Version | 0.8.10 |
 | Status | Draft |
-| Date | 2026-10-14 |
+| Date | 2026-10-16 |
 | Parent | [Tool Architecture](tools-architecture.md) |
 
 ## 1. Purpose
@@ -86,7 +86,7 @@ The initial Core RPC-eligible set is:
 - `LSP`;
 - `Exec` and `WriteStdin`.
 
-`WebSearch` and `WebFetch` remain Agent-local because connecting a workspace MUST NOT implicitly
+`WebSearch`, `web.run`, and `WebFetch` remain Agent-local because connecting a workspace MUST NOT implicitly
 change network egress, DNS, proxy, or search-provider configuration. Remote network access is a
 separate capability and is not part of this profile.
 

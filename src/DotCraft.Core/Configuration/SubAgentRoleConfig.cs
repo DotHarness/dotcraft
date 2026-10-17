@@ -190,6 +190,7 @@ You may use agent-control tools only when they are exposed by the current depth 
                 "FindFiles",
                 "LSP",
                 "WebSearch",
+                "web__run",
                 "WebFetch",
                 "SkillView",
                 "BoardCreateChannel",

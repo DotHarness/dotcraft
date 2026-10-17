@@ -14,6 +14,7 @@ export interface SummaryStrings {
   readonly scheduled: string
   readonly plan: string
   readonly sources: string
+  readonly webSearch: string
   readonly working: string
   readonly done: string
   readonly openSubagents: string
@@ -29,6 +30,7 @@ export interface SummaryStrings {
   readonly changeEnvironment: string
   readonly openTerminal: string
   readonly setUpEnvironment: string
+  readonly fixEnvironment: string
   readonly backgroundProcesses: string
   readonly backgroundTerminal: string
   readonly stopBackgroundTerminals: string
@@ -48,6 +50,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     scheduled: 'Scheduled tasks',
     plan: 'Plan',
     sources: 'Sources',
+    webSearch: 'Web search',
     working: '{count} working',
     done: '{count} done',
     openSubagents: 'Open subagents',
@@ -63,6 +66,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     changeEnvironment: 'Change environment',
     openTerminal: 'Open terminal',
     setUpEnvironment: 'Set up local environment',
+    fixEnvironment: 'Fix local environment',
     backgroundProcesses: 'Background processes',
     backgroundTerminal: 'Background terminal',
     stopBackgroundTerminals: 'Stop all background terminals',
@@ -80,6 +84,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     scheduled: '定时任务',
     plan: '计划',
     sources: '来源',
+    webSearch: '网页搜索',
     working: '{count} 个进行中',
     done: '{count} 个已完成',
     openSubagents: '打开子智能体',
@@ -95,6 +100,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     changeEnvironment: '更换环境',
     openTerminal: '打开终端',
     setUpEnvironment: '设置本地环境',
+    fixEnvironment: '修复本地环境',
     backgroundProcesses: '后台进程',
     backgroundTerminal: '后台终端',
     stopBackgroundTerminals: '停止所有后台终端',
@@ -112,6 +118,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     scheduled: 'スケジュール済みタスク',
     plan: 'プラン',
     sources: 'ソース',
+    webSearch: 'ウェブ検索',
     working: '{count} 件作業中',
     done: '{count} 件完了',
     openSubagents: 'サブエージェントを開く',
@@ -127,6 +134,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     changeEnvironment: '環境を変更',
     openTerminal: 'ターミナルを開く',
     setUpEnvironment: 'ローカル環境をセットアップ',
+    fixEnvironment: 'ローカル環境を修正',
     backgroundProcesses: 'バックグラウンドプロセス',
     backgroundTerminal: 'バックグラウンドターミナル',
     stopBackgroundTerminals: 'すべてのバックグラウンドターミナルを停止',
@@ -144,6 +152,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     scheduled: '예약된 작업',
     plan: '계획',
     sources: '출처',
+    webSearch: '웹 검색',
     working: '{count}개 작업 중',
     done: '{count}개 완료',
     openSubagents: '하위 에이전트 열기',
@@ -159,6 +168,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     changeEnvironment: '환경 변경',
     openTerminal: '터미널 열기',
     setUpEnvironment: '로컬 환경 설정',
+    fixEnvironment: '로컬 환경 수정',
     backgroundProcesses: '백그라운드 프로세스',
     backgroundTerminal: '백그라운드 터미널',
     stopBackgroundTerminals: '모든 백그라운드 터미널 중지',
@@ -176,6 +186,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     scheduled: 'Tareas programadas',
     plan: 'Plan',
     sources: 'Fuentes',
+    webSearch: 'Búsqueda web',
     working: '{count} trabajando',
     done: '{count} terminados',
     openSubagents: 'Abrir subagentes',
@@ -191,6 +202,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     changeEnvironment: 'Cambiar de entorno',
     openTerminal: 'Abrir terminal',
     setUpEnvironment: 'Configurar entorno local',
+    fixEnvironment: 'Corregir entorno local',
     backgroundProcesses: 'Procesos en segundo plano',
     backgroundTerminal: 'Terminal en segundo plano',
     stopBackgroundTerminals: 'Detener todas las terminales en segundo plano',
@@ -208,6 +220,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     scheduled: 'Tâches planifiées',
     plan: 'Plan',
     sources: 'Sources',
+    webSearch: 'Recherche web',
     working: '{count} en cours',
     done: '{count} terminés',
     openSubagents: 'Ouvrir les sous-agents',
@@ -223,6 +236,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     changeEnvironment: 'Changer d’environnement',
     openTerminal: 'Ouvrir un terminal',
     setUpEnvironment: 'Configurer l’environnement local',
+    fixEnvironment: 'Corriger l’environnement local',
     backgroundProcesses: 'Processus en arrière-plan',
     backgroundTerminal: 'Terminal en arrière-plan',
     stopBackgroundTerminals: 'Arrêter tous les terminaux en arrière-plan',
@@ -240,6 +254,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     scheduled: 'Geplante Aufgaben',
     plan: 'Plan',
     sources: 'Quellen',
+    webSearch: 'Websuche',
     working: '{count} in Arbeit',
     done: '{count} fertig',
     openSubagents: 'Subagenten öffnen',
@@ -255,6 +270,7 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     changeEnvironment: 'Umgebung wechseln',
     openTerminal: 'Terminal öffnen',
     setUpEnvironment: 'Lokale Umgebung einrichten',
+    fixEnvironment: 'Lokale Umgebung reparieren',
     backgroundProcesses: 'Hintergrundprozesse',
     backgroundTerminal: 'Hintergrundterminal',
     stopBackgroundTerminals: 'Alle Hintergrundterminals beenden',

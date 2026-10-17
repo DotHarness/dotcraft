@@ -1,3 +1,4 @@
+using DotCraft.Agents;
 using DotCraft.Contributions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -150,7 +151,10 @@ public sealed class MicroCompactor
             foreach (var content in msg.Contents)
             {
                 if (content is FunctionCallContent fc && !string.IsNullOrEmpty(fc.CallId))
-                    callIdToIsCompactable[fc.CallId] = IsCompactable(fc.Name);
+                    callIdToIsCompactable[fc.CallId] = IsCompactable(
+                        ProviderFunctionCallMetadata.TryGetNamespace(fc, out var toolNamespace)
+                            ? $"{toolNamespace}__{fc.Name}"
+                            : fc.Name);
             }
         }
 

@@ -25865,6 +25865,119 @@
       "variants": []
     },
     {
+      "id": "core.WebSearchAction",
+      "name": "WebSearchAction",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WebSearchAction.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "pattern",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "queries",
+          "type": "array<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "url",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WebSearchPayload",
+      "name": "WebSearchPayload",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WebSearchPayload.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "action",
+          "type": "core.WebSearchAction",
+          "required": true,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "arguments",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "callId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "errorMessage",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "output",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "results",
+          "type": "array<json>",
+          "required": true,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.WelcomeSuggestionItem",
       "name": "WelcomeSuggestionItem",
       "module": "core",
@@ -27025,6 +27138,10 @@
     {
       "kind": "userMessage",
       "type": "core.UserMessagePayload"
+    },
+    {
+      "kind": "webSearch",
+      "type": "core.WebSearchPayload"
     }
   ],
   "methods": [

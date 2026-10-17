@@ -314,6 +314,7 @@
   --shortcut-bg: var(--bg-tertiary);
   --shortcut-border: var(--border-default);
   --shortcut-text: var(--text-secondary);
+  --z-popover: 9999;
   --z-tooltip: 40000;
 
   /* Conversation + detail panel top chrome (aligned horizontal rule) */

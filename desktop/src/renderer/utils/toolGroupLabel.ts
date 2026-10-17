@@ -7,6 +7,7 @@ import { getStreamingToolDisplay } from './streamingToolDisplay'
 import { collectMemoryFileNames, formatMemoryUpdatedLabel } from './memoryToolDisplay'
 import { isBoardReadOperation } from './boardToolDisplay'
 import { formatNodeReplSurfaceLabel, getNodeReplSurface } from './nodeReplToolDisplay'
+import { formatWebSearchLabel } from './webSearchDisplay'
 
 function getPathArgument(item: ConversationItem): string {
   const args = item.arguments
@@ -71,6 +72,7 @@ const PART_ORDER: readonly ActivityPart[] = ['browser', 'chrome', 'computer', 's
 
 function getActivityPart(item: ConversationItem): ActivityPart | null {
   if (item.type === 'reasoningContent') return null
+  if (item.type === 'webSearch') return 'search'
   const memory = resolveMemoryOperation(item)
   if (memory === 'update') return 'memory'
   if (memory === 'recall') return 'recall'
@@ -147,6 +149,7 @@ export function getToolGroupIconItem(items: readonly ConversationItem[]): Conver
 }
 
 export function formatActiveToolLabel(item: ConversationItem, locale: AppLocale): string {
+  if (item.type === 'webSearch') return formatWebSearchLabel(item, locale)
   const preview = item.argumentsPreview ?? (item.arguments ? JSON.stringify(item.arguments) : null)
   return getStreamingToolDisplay(item, preview, locale).label
 }

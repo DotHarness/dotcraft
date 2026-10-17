@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractSources, hasFileChanges, rolledBackTurns, toSummaryItem, type SummaryItem } from './sources'
+import { changeTotals, diffTotals, extractSources, hasWebSearch, rolledBackTurns, toSummaryItem, type SummaryItem } from './sources'
 
 let counter = 0
 
@@ -31,12 +31,7 @@ function result(callId: string, toolName: string, text: string, success = true):
 
 describe('Summary sources', () => {
   it('lists every kind in one first-use order without duplicates within a kind', () => {
-    const search = JSON.stringify({
-      results: [
-        { title: 'Guide', url: 'https://example.com/guide#intro' },
-        { title: 'Other', url: 'https://www.example.org/a' }
-      ]
-    })
+    const search = JSON.stringify({ results: [{ title: 'Guide', url: 'https://example.com/guide' }] })
     const sources = extractSources([
       item('mcpToolCall', { callId: 'm1', server: 'tracker' }),
       call('c1', 'WebFetch', { url: 'https://example.com/guide' }),
@@ -52,44 +47,25 @@ describe('Summary sources', () => {
       call('c7', 'SkillView', { name: 'release-notes' }),
       result('c7', 'SkillView', '# Release notes'),
       call('m3', 'list_issues', {}, { source: { kind: 'Mcp', sourceId: 'tracker' } }),
+      item('webSearch', { callId: 'w1', status: 'completed', results: [{ ref_id: 'turn0search0', url: 'https://example.org' }] }),
       item('mcpToolCall', { callId: 'm4', server: 'wiki' })
     ], '/work')
 
     expect(sources).toEqual([
       { kind: 'mcp', id: 'tracker', title: 'tracker', target: null },
-      { kind: 'web', id: 'https://example.com/guide', title: 'Guide', target: 'https://example.com/guide' },
+      { kind: 'web', id: 'https://example.com/guide', title: 'example.com', target: 'https://example.com/guide' },
       { kind: 'file', id: 'src/app/main.ts', title: 'main.ts', target: '/work/src/app/main.ts' },
-      { kind: 'web', id: 'https://www.example.org/a', title: 'Other', target: 'https://www.example.org/a' },
       { kind: 'skill', id: 'release-notes', title: 'release-notes', target: null },
       { kind: 'mcp', id: 'wiki', title: 'wiki', target: null }
     ])
   })
 
-  it('keeps a row position and replaces a domain fallback with a title learned later', () => {
-    const sources = extractSources([
-      call('c1', 'WebFetch', { url: 'https://www.example.com/a' }),
-      result('c1', 'WebFetch', '{}'),
-      call('c2', 'WebFetch', { url: 'https://example.com/b' }),
-      result('c2', 'WebFetch', '{}'),
-      call('c3', 'WebSearch', { query: 'a' }),
-      result('c3', 'WebSearch', JSON.stringify({ results: [{ title: 'Page A', url: 'https://www.example.com/a' }] })),
-      call('c4', 'WebSearch', { query: 'a' }),
-      result('c4', 'WebSearch', JSON.stringify({ results: [{ title: 'Renamed', url: 'https://www.example.com/a' }] }))
-    ], null)
-
-    expect(sources.map((source) => source.title)).toEqual(['Page A', 'example.com'])
-  })
-
-  it('ignores failed reads, missing skills, and failed searches', () => {
+  it('ignores failed reads and missing skills', () => {
     const sources = extractSources([
       call('c1', 'ReadFile', { path: 'missing.ts' }),
       result('c1', 'ReadFile', 'File not found', false),
       call('c2', 'SkillView', { name: 'ghost' }),
-      result('c2', 'SkillView', "Skill 'ghost' not found."),
-      call('c3', 'WebSearch', { query: 'x' }),
-      result('c3', 'WebSearch', JSON.stringify({ error: 'rate limited' })),
-      call('c4', 'WebFetch', { url: 'https://example.com' }),
-      result('c4', 'WebFetch', '{"error":"timeout"}', false)
+      result('c2', 'SkillView', "Skill 'ghost' not found.")
     ], null)
 
     expect(sources).toEqual([])
@@ -97,18 +73,64 @@ describe('Summary sources', () => {
 
   it('accepts only source item types from the wire', () => {
     expect(toSummaryItem({ id: 'a', type: 'agentMessage', payload: {} }, 't1')).toBeNull()
+    expect(toSummaryItem({ id: 'w', type: 'webSearch', payload: {} }, 't1')?.type).toBe('webSearch')
     expect(toSummaryItem({ id: 'a', type: 'toolCall', payload: { callId: 'c' }, createdAt: '2026-10-01T00:00:00Z' }, 't1'))
       .toEqual({ id: 'a', turnId: 't1', type: 'toolCall', createdAt: '2026-10-01T00:00:00Z', payload: { callId: 'c' } })
   })
 })
 
+describe('Summary web search', () => {
+  it('marks a thread that searched the web', () => {
+    expect(hasWebSearch([item('webSearch', { callId: 'w', status: 'inProgress', query: '', action: null, results: null })])).toBe(true)
+    expect(hasWebSearch([call('c1', 'WebSearch', { query: 'dotnet 10' })])).toBe(true)
+  })
+
+  it('ignores threads without a web search', () => {
+    expect(hasWebSearch([])).toBe(false)
+    expect(hasWebSearch([
+      call('c1', 'WebFetch', { url: 'https://example.com' }),
+      result('c1', 'WebFetch', '{"status":200}'),
+      call('c2', 'ReadFile', { path: 'a.ts' })
+    ])).toBe(false)
+  })
+})
+
 describe('Summary changes', () => {
-  it('detects a thread that changed a file from its tool results', () => {
-    const change = { kind: 'fileChange', changes: [{ path: 'a.ts', kind: 'update', additions: 1, deletions: 0 }] }
-    expect(hasFileChanges([call('c1', 'ReadFile', { path: 'a.ts' }), result('c1', 'ReadFile', 'x')])).toBe(false)
-    expect(hasFileChanges([item('toolResult', { callId: 'c2', toolName: 'EditFile', structuredContent: { kind: 'fileChange', changes: [] } })]))
-      .toBe(false)
-    expect(hasFileChanges([item('toolResult', { callId: 'c3', toolName: 'EditFile', structuredContent: change })])).toBe(true)
+  const edit = (callId: string, changes: unknown[]): SummaryItem =>
+    item('toolResult', { callId, toolName: 'EditFile', structuredContent: { kind: 'fileChange', changes } })
+
+  it('totals the changed lines of every file change in the thread', () => {
+    expect(changeTotals([
+      edit('c1', [{ path: 'a.ts', kind: 'update', additions: 4, deletions: 1 }]),
+      call('c2', 'ReadFile', { path: 'a.ts' }),
+      result('c2', 'ReadFile', 'x'),
+      edit('c3', [{ path: 'a.ts', kind: 'update', additions: 2, deletions: 3 }]),
+      edit('c4', [{ path: 'b.ts', kind: 'add', additions: 10, deletions: 0 }])
+    ])).toEqual({ additions: 16, deletions: 4 })
+  })
+
+  it("uses a turn's live diff in place of its per-call totals", () => {
+    const later = item('toolResult', {
+      callId: 'c3',
+      toolName: 'EditFile',
+      structuredContent: { kind: 'fileChange', changes: [{ path: 'b.ts', kind: 'update', additions: 2, deletions: 0 }] }
+    }, 'turn-2')
+    expect(changeTotals([
+      edit('c1', [{ path: 'notes.md', kind: 'add', additions: 5, deletions: 0 }]),
+      edit('c2', [{ path: 'notes.md', kind: 'update', additions: 1, deletions: 1 }]),
+      later
+    ], new Map([['turn-1', { additions: 5, deletions: 0 }]]))).toEqual({ additions: 7, deletions: 0 })
+  })
+
+  it('counts added and removed lines inside diff hunks only', () => {
+    const diff = ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '@@ -1,2 +1,3 @@', ' keep', '-old', '+new', '+more'].join('\n')
+    expect(diffTotals(diff)).toEqual({ additions: 2, deletions: 1 })
+    expect(diffTotals('')).toBeNull()
+  })
+
+  it('reports no changes when nothing was written', () => {
+    expect(changeTotals([call('c1', 'ReadFile', { path: 'a.ts' }), result('c1', 'ReadFile', 'x')])).toBeNull()
+    expect(changeTotals([edit('c2', [])])).toBeNull()
   })
 })
 

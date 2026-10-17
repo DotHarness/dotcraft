@@ -213,6 +213,14 @@ public sealed partial class SessionService
                 startedItem.Payload = ImageGenerationProjection.Completed(imageStarted, result);
                 channel.EmitItemCompleted(startedItem);
                 break;
+            case ToolProjectionShape.WebSearch:
+                if (startedItem.Payload is not WebSearchPayload webSearchStarted)
+                    return;
+                startedItem.Status = ItemStatus.Completed;
+                startedItem.CompletedAt = completedAt;
+                startedItem.Payload = WebSearchProjection.Completed(webSearchStarted, result);
+                channel.EmitItemCompleted(startedItem);
+                break;
             case ToolProjectionShape.StandardPair:
                 startedItem.Status = ItemStatus.Completed;
                 startedItem.CompletedAt ??= completedAt;
@@ -298,6 +306,7 @@ public sealed partial class SessionService
         McpToolCallPayload payload => !string.IsNullOrWhiteSpace(payload.ToolDefinitionId),
         DynamicToolCallPayload payload => !string.IsNullOrWhiteSpace(payload.ToolDefinitionId),
         ImageGenerationPayload => true,
+        WebSearchPayload => true,
         _ => false
     };
 
@@ -360,6 +369,10 @@ public sealed partial class SessionService
                 item.Type = ItemType.ImageGeneration;
                 item.Payload = ImageGenerationProjection.Started(callId, arguments);
                 break;
+            case ToolProjectionShape.WebSearch:
+                item.Type = ItemType.WebSearch;
+                item.Payload = WebSearchProjection.Started(callId, arguments);
+                break;
             case ToolProjectionShape.StandardPair:
                 item.Type = ItemType.ToolCall;
                 item.FreeformCall = registration.Definition.FreeformInput is not null;
@@ -407,6 +420,7 @@ public sealed partial class SessionService
         McpToolCallPayload payload => string.Equals(payload.CallId, callId, StringComparison.Ordinal),
         DynamicToolCallPayload payload => string.Equals(payload.CallId, callId, StringComparison.Ordinal),
         ImageGenerationPayload payload => string.Equals(payload.CallId, callId, StringComparison.Ordinal),
+        WebSearchPayload payload => string.Equals(payload.CallId, callId, StringComparison.Ordinal),
         _ => false
     };
 

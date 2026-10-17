@@ -84,6 +84,7 @@ import { DreamsPanel } from './panels/memory/DreamsPanel'
 import { MemorySettingsGroup } from './panels/memory/MemorySettingsGroup'
 import { useDreamsSettings } from './panels/memory/useDreamsSettings'
 import { ImageGenerationSettingsGroup } from './panels/imageGeneration/ImageGenerationSettingsGroup'
+import { WebSearchSettingsGroup } from './panels/webSearch/WebSearchSettingsGroup'
 import { canProviderCreateImages } from './panels/imageGeneration/imageGenerationModel'
 import { CodeModeSettingsGroup } from './panels/codeMode/CodeModeSettingsGroup'
 import { InstantInterruptRow } from './panels/instantInterrupt/InstantInterruptRow'
@@ -2126,6 +2127,8 @@ export function SettingsView({
                       onEditProvider={providerEditingEnabled ? startEditProvider : undefined}
                       onAddProvider={providerEditingEnabled ? startCreateProvider : undefined}
                     />
+
+                    <WebSearchSettingsGroup />
 
                     <SettingsGroup
                       title={t('settings.llm.providersTitle')}

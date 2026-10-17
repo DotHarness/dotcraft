@@ -1,7 +1,9 @@
 import { useEffect, useState, type CSSProperties, type JSX } from 'react'
-import { useT } from '../../contexts/LocaleContext'
+import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { ChatGptUsageSnapshot, ChatGptUsageWindow } from '../../stores/providersStore'
+import { formatPlanName } from '../../utils/chatgptPlan'
 import {
+  formatCreditsBalance,
   shapeChatGptUsageWindows,
   type ChatGptUsageWindowKind
 } from '../../utils/chatgptUsageWindows'
@@ -15,6 +17,7 @@ const POPOVER_WIDTH = 280
 
 export function ChatGptUsagePopover({ usage, onClose: _onClose }: ChatGptUsagePopoverProps): JSX.Element {
   const t = useT()
+  const locale = useLocale()
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -31,21 +34,23 @@ export function ChatGptUsagePopover({ usage, onClose: _onClose }: ChatGptUsagePo
     )
   }
 
-  const planLabel = formatPlanLabel(usage.planType, t)
+  const planName = formatPlanName(usage.planType)
   const displayWindows = shapeChatGptUsageWindows(usage)
   const hasSupplementalUsage = usage.credits?.hasCredits === true || usage.limitReachedKind != null
   return (
     <div style={containerStyle()} role="dialog" aria-label={t('composer.chatgptUsage.title')}>
       <div style={headerRowStyle()}>
         <div style={headerTextStyle()}>
-          <span style={titleStyle()}>{t('composer.chatgptUsage.title')}</span>
+          <span style={titleStyle()}>
+            {t('composer.chatgptUsage.title')}
+            {planName ? <span style={planNameStyle()}> {planName}</span> : null}
+          </span>
           {usage.fetchedAt && (
             <span style={subtitleStyle()}>
               {t('composer.chatgptUsage.lastFetched', { time: formatRelative(usage.fetchedAt, now, t) })}
             </span>
           )}
         </div>
-        <span style={planTagStyle()}>{planLabel}</span>
       </div>
       <div style={dividerStyle()} />
 
@@ -69,7 +74,7 @@ export function ChatGptUsagePopover({ usage, onClose: _onClose }: ChatGptUsagePo
           <span style={{ fontVariantNumeric: 'tabular-nums' }}>
             {usage.credits.unlimited
               ? t('composer.chatgptUsage.creditsUnlimited')
-              : usage.credits.balance ?? '—'}
+              : usage.credits.balance != null ? formatCreditsBalance(usage.credits.balance, locale) : '—'}
           </span>
         </div>
       )}
@@ -133,19 +138,6 @@ function colorForRemaining(remaining: number): string {
   return 'var(--success, #3fb950)'
 }
 
-function formatPlanLabel(plan: string | null, t: (key: string) => string): string {
-  switch (plan?.toLowerCase()) {
-    case 'free': return t('composer.chatgptBadge.plan.free')
-    case 'plus': return t('composer.chatgptBadge.plan.plus')
-    case 'pro': return t('composer.chatgptBadge.plan.pro')
-    case 'business': return t('composer.chatgptBadge.plan.business')
-    case 'enterprise': return t('composer.chatgptBadge.plan.enterprise')
-    case 'edu':
-    case 'education': return t('composer.chatgptBadge.plan.edu')
-    default: return t('composer.chatgptBadge.plan.unknown')
-  }
-}
-
 function formatDuration(ms: number, t: (key: string, vars?: Record<string, string | number>) => string): string {
   if (ms <= 0) return t('composer.chatgptUsage.duration.now')
   const totalSeconds = Math.floor(ms / 1000)
@@ -204,15 +196,8 @@ function titleStyle(): CSSProperties {
   return { fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }
 }
 
-function planTagStyle(): CSSProperties {
-  return {
-    fontSize: 11,
-    padding: '2px 8px',
-    borderRadius: 999,
-    border: '1px solid var(--border-default)',
-    background: 'var(--bg-primary)',
-    color: 'var(--text-secondary)'
-  }
+function planNameStyle(): CSSProperties {
+  return { fontWeight: 400, color: 'var(--text-secondary)' }
 }
 
 function windowRowStyle(): CSSProperties {

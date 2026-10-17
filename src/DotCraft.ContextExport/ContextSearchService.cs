@@ -335,6 +335,11 @@ public sealed class ContextSearchService
                 AppendSearchField(builder, "generation_status", image.Status);
                 AppendSearchField(builder, "prompt", image.RevisedPrompt);
                 break;
+            case ItemType.WebSearch when item.AsWebSearch is { } webSearch:
+                AppendSearchField(builder, "search_status", webSearch.Status);
+                AppendSearchField(builder, "query", webSearch.Query);
+                AppendSearchField(builder, "error", webSearch.ErrorMessage);
+                break;
             case ItemType.ToolCall when item.AsToolCall is { } toolCall:
                 AppendSearchField(builder, "namespace", toolCall.Namespace);
                 AppendSearchField(builder, "tool", toolCall.ToolName);

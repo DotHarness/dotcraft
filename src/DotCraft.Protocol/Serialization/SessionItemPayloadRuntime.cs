@@ -28,7 +28,8 @@ public static class SessionItemPayloadCatalog
         new("toolResult", typeof(ToolResultPayload)),
         new("userInputRequest", typeof(UserInputRequestPayload)),
         new("userInputResponse", typeof(UserInputResponsePayload)),
-        new("userMessage", typeof(UserMessagePayload))
+        new("userMessage", typeof(UserMessagePayload)),
+        new("webSearch", typeof(WebSearchPayload))
     ];
 
     private static readonly IReadOnlyDictionary<string, Type> Types = new ReadOnlyDictionary<string, Type>(

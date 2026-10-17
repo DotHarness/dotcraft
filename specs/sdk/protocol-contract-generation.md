@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.10 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-16 |
 | **Parent Specs** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 Purpose: define the executable AppServer wire contract, typed RPC catalog, deterministic contract artifacts, and generated low-level bindings shared by the .NET and TypeScript SDKs.
@@ -161,7 +161,7 @@ Custom converters are prohibited unless the contract system has an explicit sche
 
 `SessionItem.payload` remains an optional opaque JSON value so clients can retain unknown future payloads. `SessionItem.payloadKind` selects a named canonical payload DTO when the kind is known. The executable Contracts assembly owns one payload catalog; generators, parsers, and SDKs must not maintain independent kind-to-type maps.
 
-The canonical catalog contains `userMessage`, `agentMessage`, `reasoningContent`, `commandExecution`, `toolExecution`, `imageGeneration`, `toolCall`, `mcpToolCall`, `dynamicToolCall`, `toolResult`, `approvalRequest`, `approvalResponse`, `userInputRequest`, `userInputResponse`, `error`, and `systemNotice`.
+The canonical catalog contains `userMessage`, `agentMessage`, `reasoningContent`, `commandExecution`, `toolExecution`, `imageGeneration`, `webSearch`, `toolCall`, `mcpToolCall`, `dynamicToolCall`, `toolResult`, `approvalRequest`, `approvalResponse`, `userInputRequest`, `userInputResponse`, `error`, and `systemNotice`.
 
 Canonical payload DTOs are extensible objects and preserve unknown fields. Parsing has these outcomes:
 

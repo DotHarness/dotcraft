@@ -35,9 +35,17 @@ Limits and switches for the built-in tools. What the agent may touch is set in [
 | Field | Description | Default |
 |---|---|---|
 | `Tools.Web.MaxChars` | Max chars for web fetch | `50000` |
-| `Tools.Web.Timeout` | Web request timeout in seconds | `300` |
+| `Tools.Web.Timeout` | Web request timeout in seconds | `30` |
+| `Tools.Web.MaxResponseBytes` | Max bytes read from a fetched page; longer pages are truncated | `5000000` |
 | `Tools.Web.SearchMaxResults` | Default search result count | `5` |
 | `Tools.Web.SearchProvider` | `Bing` / `Exa` | `Exa` |
+| `Tools.Web.ExaApiKey` | Your Exa API key; empty uses `EXA_API_KEY`, and without either Exa search uses the free, rate-limited endpoint | `""` |
+
+In Desktop, choose the search service and enter your Exa API key under **Settings → Model providers → Web search**.
+
+### Web search with a ChatGPT subscription
+
+When the conversation uses a provider that [signs in with ChatGPT](./models#sign-in-with-chatgpt), web search runs through your subscription's search service as the `web.run` tool instead of `WebSearch`. It can search, open and read pages, and look up finance, weather, sports, and time data, and the answer cites the pages it used. `Tools.Web.SearchProvider`, `Tools.Web.ExaApiKey`, and `Tools.Web.SearchMaxResults` do not apply to it. `WebFetch` is unchanged and keeps using the settings above.
 
 ## Tool results
 

@@ -200,12 +200,10 @@ public sealed class CoreToolSource(
         tools.AddRange(GeneratedToolFunctions.All(shellTools));
 
         // Web tools
-        var webTools = new WebTools(
-            config.Tools.Web.MaxChars,
-            config.Tools.Web.Timeout,
-            config.Tools.Web.SearchMaxResults,
-            config.Tools.Web.SearchProvider);
-        tools.AddRange(GeneratedToolFunctions.All(webTools));
+        var webTools = new WebTools(config.Tools.Web);
+        var hostedWebSearch = WebSearchToolSource.IsSupportedRuntime(mainRuntime);
+        tools.AddRange(GeneratedToolFunctions.All(webTools)
+            .Where(tool => !hostedWebSearch || tool.Name != nameof(WebTools.WebSearch)));
 
         var target = SkillVariantStore.CreateTarget(
             context.EffectiveMainModel,

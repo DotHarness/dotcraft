@@ -70,6 +70,31 @@ public sealed class ConfigurationServiceApplyTests
     }
 
     [Fact]
+    public async Task Write_WebSearchSettings_RebuildsThreadAgents()
+    {
+        using var fixture = new ConfigurationServiceFixture();
+        IReadOnlyList<string>? keyPaths = null;
+        fixture.Service.RegisterSubsystemHandler(ConfigurationSubsystems.ThreadAgents, (changed, _) =>
+        {
+            keyPaths = changed;
+            return Task.CompletedTask;
+        });
+
+        await fixture.Service.WriteAsync(
+            [
+                ConfigurationServiceFixture.Edit("Tools.Web.SearchProvider", "\"Bing\""),
+                ConfigurationServiceFixture.Edit("Tools.Web.ExaApiKey", "\"exa-test\"")
+            ],
+            filePath: null,
+            expectedVersion: null,
+            source: "test");
+
+        Assert.NotNull(keyPaths);
+        Assert.Equal(["Tools.Web.ExaApiKey", "Tools.Web.SearchProvider"], keyPaths.Order(StringComparer.Ordinal));
+        Assert.Equal("Bing", fixture.Monitor.Current.Tools.Web.SearchProvider);
+    }
+
+    [Fact]
     public async Task Write_WithoutEffectiveChange_RaisesNoEventAndRunsNoHandler()
     {
         using var fixture = new ConfigurationServiceFixture();

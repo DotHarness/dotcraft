@@ -368,8 +368,9 @@ export interface ToolRowIcon {
 }
 
 export function getToolRowIcon(
-  item: Pick<ConversationItem, 'toolName' | 'presentation' | 'source' | 'errorCode' | 'executionStatus'>
+  item: Pick<ConversationItem, 'type' | 'toolName' | 'presentation' | 'source' | 'errorCode' | 'executionStatus'>
 ): ToolRowIcon {
+  if (item.type === 'webSearch') return { icon: Globe }
   const kind = resolveToolKind(item)
   if (isShellCommandKind(kind)) {
     if (item.errorCode === 'tool_approval_rejected') return { icon: ShieldAlert, tone: 'warning' }

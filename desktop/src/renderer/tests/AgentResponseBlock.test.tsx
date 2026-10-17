@@ -962,63 +962,6 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
     expect(screen.getByText('Called FollowupTool')).toBeInTheDocument()
     expect(screen.queryByText('agent done')).toBeNull()
   })
-
-  it('keeps WebSearch child tool headers but removes duplicate expanded copy above the table', () => {
-    const makeSearchItem = (
-      id: string,
-      query: string,
-      title: string,
-      url: string,
-      createdAt: string
-    ): ConversationItem => ({
-      id,
-      type: 'toolCall',
-      status: 'completed',
-      toolCallId: id,
-      toolName: 'WebSearch', ...coreToolFields('WebSearch'),
-          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebSearch' },
-          presentation: { presentationId: 'core.web', options: { operation: 'search' } },
-      arguments: { query },
-      result: JSON.stringify({
-        query,
-        results: [{ title, url }]
-      }),
-      success: true,
-      createdAt
-    })
-
-    const turn: ConversationTurn = {
-      id: 'turn-web-group',
-      threadId: 'thread-1',
-      status: 'completed',
-      startedAt: '2026-04-18T11:15:00.000Z',
-      items: [
-        makeSearchItem('web-1', 'large graph visualization', 'First result', 'https://example.com/first', '2026-04-18T11:15:01.000Z'),
-        makeSearchItem('web-2', 'react flow performance', 'Second result', 'https://example.com/second', '2026-04-18T11:15:02.000Z')
-      ]
-    }
-
-    render(
-      <LocaleProvider>
-        <AgentResponseBlock turn={turn} />
-      </LocaleProvider>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: /Searched the web/ }))
-
-    const firstToolTitle = screen.getByRole('button', { name: 'Searched "large graph visualization"' })
-    const secondToolTitle = screen.getByRole('button', { name: 'Searched "react flow performance"' })
-    expect(firstToolTitle).toBeInTheDocument()
-    expect(secondToolTitle).toBeInTheDocument()
-    expect(screen.queryByRole('columnheader', { name: 'Title' })).toBeNull()
-
-    fireEvent.click(firstToolTitle)
-
-    expect(screen.getAllByRole('columnheader', { name: 'Title' })).toHaveLength(1)
-    expect(screen.getByRole('button', { name: 'First result' })).toBeInTheDocument()
-    expect(screen.queryByText('Web search')).toBeNull()
-    expect(screen.getAllByText('Searched "large graph visualization"')).toHaveLength(1)
-  })
 })
 
 describe('AgentResponseBlock reasoning timeline rendering', () => {

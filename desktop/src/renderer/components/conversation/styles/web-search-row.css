@@ -1,0 +1,95 @@
+.dc-web-search-row {
+  --dc-web-search-label: color-mix(in srgb, var(--text-tertiary) 90%, transparent);
+  --dc-web-search-detail: color-mix(in srgb, var(--text-tertiary) 80%, transparent);
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.dc-web-search-row :is(.dc-tool-row-static, .dc-tool-row > summary) {
+  color: var(--dc-web-search-label);
+}
+
+.dc-web-search-summary__label,
+.dc-web-search-summary__detail {
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.dc-web-search-summary__label {
+  color: var(--dc-web-search-label);
+}
+
+.dc-web-search-summary__detail {
+  color: var(--dc-web-search-detail);
+}
+
+.dc-web-search-row :is(.dc-tool-row-static, .dc-tool-row > summary):hover,
+.dc-web-search-row :is(.dc-tool-row-static, .dc-tool-row > summary):hover :is(.dc-web-search-summary__label, .dc-web-search-summary__detail),
+.dc-web-search-row .dc-tool-row > summary:focus-visible :is(.dc-web-search-summary__label, .dc-web-search-summary__detail) {
+  color: var(--text-primary);
+}
+
+.dc-web-search-row .dc-tool-row[open] > summary:not(:hover),
+.dc-web-search-row .dc-tool-row[open] > summary:not(:hover) :is(.dc-web-search-summary__label, .dc-web-search-summary__detail) {
+  color: var(--text-secondary);
+}
+
+.dc-web-search-error {
+  font-family: var(--font-mono);
+  font-size: var(--conversation-secondary-size);
+  line-height: var(--conversation-line-height);
+}
+
+.dc-web-search-sources {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  list-style: none;
+}
+
+.dc-web-search-sources > li {
+  min-width: 0;
+}
+
+.dc-web-search-source {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+  padding: 1px 0;
+  color: var(--text-dimmed);
+  font-size: var(--conversation-secondary-size);
+  line-height: var(--conversation-line-height);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.dc-web-search-source__domain {
+  flex-shrink: 0;
+  max-width: 40%;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.dc-web-search-source__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-web-search-source:hover,
+.dc-web-search-source:hover .dc-web-search-source__domain {
+  color: var(--text-primary);
+}
+
+.dc-web-search-source:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+  color: var(--text-primary);
+}

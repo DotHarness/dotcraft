@@ -5191,6 +5191,27 @@ export interface VisualizationWidgetStateUpdatedNotification {
   [key: string]: unknown;
 }
 
+export interface WebSearchAction {
+  pattern?: string | null;
+  queries?: string[] | null;
+  query?: string | null;
+  type: string;
+  url?: string | null;
+  [key: string]: unknown;
+}
+
+export interface WebSearchPayload {
+  action: WebSearchAction | null;
+  arguments?: JsonValue;
+  callId: string;
+  errorMessage?: string | null;
+  output?: string | null;
+  query: string;
+  results: JsonValue[] | null;
+  status: string;
+  [key: string]: unknown;
+}
+
 export interface WelcomeSuggestionItem {
   prompt?: string;
   reason?: string;

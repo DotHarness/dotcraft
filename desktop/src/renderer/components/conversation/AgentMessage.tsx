@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { GitBranch } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -15,12 +15,14 @@ import { canForkThread, canForkWorktree, runThreadFork, type ThreadForkMode } fr
 import { formatMessageTime } from '../../utils/messageTime'
 import { ForkChoiceDialog } from './ForkChoiceDialog'
 import { DesktopPluginMessageActions } from '../desktopPlugins/DesktopPluginActions'
+import { formatWebCitations, NO_WEB_CITATION_SOURCES, type WebCitationSources } from '../../utils/webCitations'
 
 interface AgentMessageProps {
   text: string
   threadId?: string
   turnId?: string
   itemId?: string
+  citations?: WebCitationSources
   streaming?: boolean
   turnRunning?: boolean
   createdAt?: string
@@ -37,6 +39,7 @@ export function AgentMessage({
   threadId,
   turnId,
   itemId,
+  citations = NO_WEB_CITATION_SOURCES,
   streaming = false,
   turnRunning = false,
   createdAt,
@@ -54,7 +57,12 @@ export function AgentMessage({
   const forkAvailable = !readOnly && canForkThread(capabilities) && Boolean(threadId && turnId)
   const worktreeForkAvailable = canForkWorktree(capabilities)
   const sentTime = formatMessageTime(createdAt)
-  const displayText = useTypewriterReveal(text, streaming)
+  const renderedText = useMemo(
+    () => formatWebCitations(text, citations, 'display', streaming),
+    [citations, streaming, text]
+  )
+  const copyText = useMemo(() => formatWebCitations(text, citations, 'copy'), [citations, text])
+  const displayText = useTypewriterReveal(renderedText, streaming)
 
   function handleContextMenu(event: React.MouseEvent<HTMLDivElement>): void {
     if (event.defaultPrevented || (event.target instanceof Element &&
@@ -130,7 +138,7 @@ export function AgentMessage({
           }}
         >
           <MessageCopyButton
-            getText={() => assistantMessageCopyText(text)}
+            getText={() => assistantMessageCopyText(copyText)}
             visible={actionsVisible && text.length > 0}
             disabled={streaming || text.length === 0}
             wrapperStyle={{
@@ -169,7 +177,7 @@ export function AgentMessage({
                 id: itemId,
                 threadId,
                 turnId,
-                text,
+                text: copyText,
                 createdAt
               }}
             />

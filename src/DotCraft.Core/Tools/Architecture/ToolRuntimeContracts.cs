@@ -139,7 +139,8 @@ public enum ToolProjectionShape
     /// <summary>A single Runtime Dynamic lifecycle item updated from started to terminal.</summary>
     DynamicLifecycle,
     /// <summary>A single image generation item updated from started to terminal.</summary>
-    ImageGeneration
+    ImageGeneration,
+    WebSearch
 }
 
 /// <summary>The source-neutral planning join between a definition and runtime binding.</summary>

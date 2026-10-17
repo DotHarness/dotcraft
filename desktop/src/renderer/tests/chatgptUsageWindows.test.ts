@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatGptUsageSnapshot, ChatGptUsageWindow } from '../stores/providersStore'
 import {
+  formatCreditsBalance,
   classifyChatGptUsageWindow,
   shapeChatGptUsageWindows
 } from '../utils/chatgptUsageWindows'
@@ -64,3 +65,16 @@ function windowWithDuration(windowSeconds: number): ChatGptUsageWindow {
     resetAt: '2099-01-01T00:00:00.000Z'
   }
 }
+
+describe('Credits balance formatting', () => {
+  it('drops trailing zeros and groups digits for the locale', () => {
+    expect(formatCreditsBalance('62500.0000000000', 'en')).toBe('62,500')
+    expect(formatCreditsBalance('12.3456', 'en')).toBe('12.35')
+    expect(formatCreditsBalance('62500.5', 'de')).toBe('62.500,5')
+  })
+
+  it('keeps a balance that is not a number as sent', () => {
+    expect(formatCreditsBalance('n/a', 'en')).toBe('n/a')
+    expect(formatCreditsBalance('', 'en')).toBe('')
+  })
+})

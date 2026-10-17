@@ -7,6 +7,7 @@ using SessionItem = DotCraft.Sessions.SessionItem;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 using ImageGenerationPayload = DotCraft.Sessions.ImageGenerationPayload;
+using WebSearchPayload = DotCraft.Sessions.WebSearchPayload;
 using ToolExecutionPayload = DotCraft.Sessions.ToolExecutionPayload;
 using UserInputRequestPayload = DotCraft.Sessions.UserInputRequestPayload;
 using Xunit;
@@ -277,6 +278,58 @@ public sealed class SessionWireModelsTests
         Assert.Equal("AQID", root.GetProperty("result").GetString());
         Assert.Equal("image/png", root.GetProperty("mediaType").GetString());
         Assert.Equal("<workspace>/.craft/generated_images/thread_1/ig_1.png", root.GetProperty("savedPath").GetString());
+    }
+
+    [Fact]
+    public void ToWire_WebSearchItem_SerializesNullActionAndResultsUntilCompleted()
+    {
+        var started = new SessionItem
+        {
+            Id = "item_1",
+            TurnId = "turn_1",
+            Type = ItemType.WebSearch,
+            Status = ItemStatus.Started,
+            CreatedAt = new DateTimeOffset(2026, 10, 16, 10, 0, 0, TimeSpan.Zero),
+            Payload = new WebSearchPayload
+            {
+                CallId = "ws_1",
+                Arguments = new System.Text.Json.Nodes.JsonObject { ["search_query"] = new System.Text.Json.Nodes.JsonArray() }
+            }
+        };
+        var completed = new SessionItem
+        {
+            Id = "item_1",
+            TurnId = "turn_1",
+            Type = ItemType.WebSearch,
+            Status = ItemStatus.Completed,
+            CreatedAt = started.CreatedAt,
+            Payload = new WebSearchPayload
+            {
+                CallId = "ws_1",
+                Status = "completed",
+                Query = "a ...",
+                Action = new System.Text.Json.Nodes.JsonObject
+                {
+                    ["type"] = "search",
+                    ["query"] = null,
+                    ["queries"] = new System.Text.Json.Nodes.JsonArray("a", "b")
+                },
+                Results = [new System.Text.Json.Nodes.JsonObject { ["url"] = "https://example.com" }],
+                Arguments = new System.Text.Json.Nodes.JsonObject(),
+                Output = "model text"
+            }
+        };
+
+        var startedWire = started.ToWire();
+        var completedWire = completed.ToWire();
+
+        Assert.Equal("webSearch", startedWire.PayloadKind);
+        Assert.Equal(
+            """{"callId":"ws_1","status":"inProgress","query":"","action":null,"results":null,"arguments":{"search_query":[]}}""",
+            JsonSerializer.Serialize(startedWire.Payload, startedWire.Payload!.GetType(), SessionWireJsonOptions.Default));
+        Assert.Equal(
+            """{"callId":"ws_1","status":"completed","query":"a ...","action":{"type":"search","query":null,"queries":["a","b"]},"results":[{"url":"https://example.com"}],"arguments":{},"output":"model text"}""",
+            JsonSerializer.Serialize(completedWire.Payload, completedWire.Payload!.GetType(), SessionWireJsonOptions.Default));
     }
 
     private static SessionThread BuildThread(TurnStatus turnStatus)

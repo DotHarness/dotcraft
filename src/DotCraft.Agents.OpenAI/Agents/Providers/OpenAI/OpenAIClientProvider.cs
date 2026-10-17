@@ -20,6 +20,7 @@ public sealed partial class OpenAIClientProvider :
     IModelProvider,
     IProviderRuntimeIdentityResolver,
     IProviderImageGeneration,
+    IProviderWebSearch,
     IProviderNativeCompactorFactory,
     IProviderHistorySessionFactory,
     IModelCatalogProvider,
@@ -33,6 +34,7 @@ public sealed partial class OpenAIClientProvider :
         ModelProviderProtocols.OpenAIResponses
     ]);
     private static readonly HttpClient SharedChatGptHttpClient = new() { Timeout = Timeout.InfiniteTimeSpan };
+    private const int WebSearchMaxOutputTokens = 10000;
 
     private readonly ConcurrentDictionary<OpenAIClientKey, OpenAIClient> _openAIClients = new();
     private readonly ConcurrentDictionary<OpenAIChatClientKey, ChatClient> _openAIChatClients = new();

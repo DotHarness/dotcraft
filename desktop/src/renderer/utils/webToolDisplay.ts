@@ -6,27 +6,16 @@ export type WebToolKind = Extract<ToolKind, 'webSearch' | 'webFetch' | 'toolSear
 export interface WebSearchResultRow {
   title: string
   url: string
-  snippet?: string
-  author?: string
-  publishedDate?: string
   domain: string
-  linkLabel: string
 }
 
 export type WebSearchResultDisplay =
-  | { kind: 'results'; query?: string; provider?: string; rows: WebSearchResultRow[] }
+  | { kind: 'results'; rows: WebSearchResultRow[] }
   | { kind: 'empty'; message: string }
   | { kind: 'error'; message: string }
 
 export function isWebToolKind(kind: ToolKind | null): kind is WebToolKind {
   return kind === 'webSearch' || kind === 'webFetch' || kind === 'toolSearch'
-}
-
-export function truncate(s: string, max: number): string {
-  if (max <= 0) return ''
-  const chars = [...s]
-  if (chars.length <= max) return s
-  return chars.slice(0, max).join('') + '…'
 }
 
 /** Accept string fields only so mistyped values use the generic invocation fallback. */
@@ -98,57 +87,6 @@ function hostFromUrl(url: string): string {
   }
 }
 
-function displayUrl(url: string): string {
-  const domain = hostFromUrl(url)
-  if (domain) return domain
-  return truncate(url, 80)
-}
-
-function formatIntGrouped(n: number): string {
-  return n.toLocaleString('en-US', { maximumFractionDigits: 0 })
-}
-
-function jsonNumberToInt(v: unknown): number | null {
-  if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v)
-  return null
-}
-
-/** Structured result lines; null falls back to the generic raw preview. */
-export function formatResultSummary(kind: WebToolKind, result: string | undefined): string[] | null {
-  const trimmed = result?.trim() ?? ''
-  if (trimmed === '') return null
-
-  if (kind === 'toolSearch') {
-    return parseToolSearchResultSummary(trimmed)
-  }
-
-  if (kind === 'webSearch') {
-    const parsed = parseWebSearchResultDisplay(result)
-    if (!parsed) return null
-    if (parsed.kind === 'error') return [`Error: ${parsed.message}`]
-    if (parsed.kind === 'empty') return [parsed.message]
-
-    const count = parsed.rows.length
-    const lines: string[] = []
-    lines.push(`${count} result${count === 1 ? '' : 's'}:`)
-    for (let i = 0; i < parsed.rows.length; i++) {
-      const row = parsed.rows[i]!
-      const titleText = truncate(row.title || row.url || '?', 70)
-      lines.push(row.domain ? `${i + 1}. ${titleText} — ${row.domain}` : `${i + 1}. ${titleText}`)
-    }
-    return lines
-  }
-
-  let root: unknown
-  try {
-    root = JSON.parse(trimmed) as unknown
-  } catch {
-    return null
-  }
-  root = peelJsonStringWrapper(root)
-  return parseWebFetchResult(root)
-}
-
 export function formatToolSearchCompletedLabel(
   result: string | undefined,
   locale: AppLocale
@@ -194,8 +132,17 @@ function parseWebSearchResult(root: unknown): WebSearchResultDisplay | null {
     return { kind: 'empty', message: 'No results found.' }
   }
 
+  const rows = toWebSearchResultRows(resultsProp)
+  if (rows.length === 0) {
+    return { kind: 'empty', message: 'No results found.' }
+  }
+
+  return { kind: 'results', rows }
+}
+
+export function toWebSearchResultRows(entries: readonly unknown[]): WebSearchResultRow[] {
   const rows: WebSearchResultRow[] = []
-  for (const item of resultsProp) {
+  for (const item of entries) {
     if (item === null || typeof item !== 'object' || Array.isArray(item)) {
       continue
     }
@@ -204,98 +151,15 @@ function parseWebSearchResult(root: unknown): WebSearchResultDisplay | null {
     if (!url) continue
 
     const title = row.title != null ? String(row.title).trim() : ''
-    const snippet = row.snippet != null ? String(row.snippet).trim() : ''
-    const author = row.author != null ? String(row.author).trim() : ''
-    const publishedDate = row.publishedDate != null ? String(row.publishedDate).trim() : ''
-    const domain = hostFromUrl(url)
-    rows.push({
-      title: title || domain || url,
-      url,
-      ...(snippet ? { snippet } : {}),
-      ...(author ? { author } : {}),
-      ...(publishedDate ? { publishedDate } : {}),
-      domain,
-      linkLabel: displayUrl(url)
-    })
+    const domain = hostFromUrl(url).replace(/^www\./iu, '')
+    rows.push({ title: title || domain || url, url, domain: domain || url })
   }
-
-  if (rows.length === 0) {
-    return { kind: 'empty', message: 'No results found.' }
-  }
-
-  return {
-    kind: 'results',
-    query: typeof obj.query === 'string' ? obj.query : undefined,
-    provider: typeof obj.provider === 'string' ? obj.provider : undefined,
-    rows
-  }
-}
-
-function parseWebFetchResult(root: unknown): string[] | null {
-  if (root === null || typeof root !== 'object' || Array.isArray(root)) return null
-  const obj = root as Record<string, unknown>
-
-  if ('error' in obj && obj.error != null) {
-    const msg = String(obj.error).trim()
-    return msg ? [`Error: ${msg}`] : null
-  }
-
-  const parts: string[] = []
-
-  const status = jsonNumberToInt(obj.status)
-  if (status !== null) parts.push(String(status))
-
-  const len = obj.length
-  if (typeof len === 'number' && Number.isFinite(len)) {
-    parts.push(`${formatIntGrouped(Math.trunc(len))} chars`)
-  }
-
-  if (obj.extractor != null) {
-    const ext = String(obj.extractor).trim()
-    if (ext) parts.push(ext)
-  }
-
-  if (obj.truncated === true) {
-    parts.push('truncated')
-  }
-
-  if (parts.length === 0) return null
-  return [parts.join(' · ')]
+  return rows
 }
 
 interface ToolSearchDisplayTool {
   name: string
   description?: string
-}
-
-function parseToolSearchResultSummary(result: string): string[] | null {
-  const fromJson = parseToolSearchJsonResult(result)
-  if (fromJson) return fromJson
-  return parseToolSearchTextResult(result)
-}
-
-function parseToolSearchJsonResult(result: string): string[] | null {
-  let root: unknown
-  try {
-    root = JSON.parse(result) as unknown
-  } catch {
-    return null
-  }
-  root = peelJsonStringWrapper(root)
-
-  if (root === null || typeof root !== 'object' || Array.isArray(root)) return null
-  const toolsValue = (root as Record<string, unknown>).tools
-  if (!Array.isArray(toolsValue)) return null
-
-  const tools = collectToolSearchTools(toolsValue)
-  if (tools.length === 0) return ['No matching tools found.']
-
-  return [
-    `Found ${tools.length} matching tool(s):`,
-    ...tools.map((tool) =>
-      tool.description ? `- ${tool.name}: ${tool.description}` : `- ${tool.name}`
-    )
-  ]
 }
 
 function collectToolSearchTools(
@@ -322,21 +186,6 @@ function collectToolSearchTools(
     tools.push(description ? { name: displayName, description } : { name: displayName })
   }
   return tools
-}
-
-function parseToolSearchTextResult(result: string): string[] | null {
-  const lines = result
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .filter((line) => !line.startsWith('You can call these tools directly'))
-
-  if (lines.length === 0) return null
-  const first = lines[0]!
-  if (/^(Found \d+ matching tool\(s\):?|No matching tools found\.?)$/i.test(first)) {
-    return [first, ...lines.slice(1)]
-  }
-  return lines
 }
 
 function extractToolSearchResultCount(result: string | undefined): number | null {
@@ -368,16 +217,4 @@ function extractToolSearchResultCount(result: string | undefined): number | null
 
   const bulletCount = lines.filter((line) => line.startsWith('- ')).length
   return bulletCount > 0 ? bulletCount : null
-}
-
-export function getWebToolSectionLabel(kind: WebToolKind, locale: AppLocale): string {
-  if (kind === 'webSearch') return translate(locale, 'toolCall.webSearch.section')
-  if (kind === 'webFetch') return translate(locale, 'toolCall.webFetch.section')
-  return translate(locale, 'toolCall.searchTools.section')
-}
-
-export function getWebToolIcon(kind: WebToolKind): string {
-  if (kind === 'webSearch') return '🔍'
-  if (kind === 'webFetch') return '🌐'
-  return '🔧'
 }

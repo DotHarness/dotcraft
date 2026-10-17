@@ -240,6 +240,9 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 Paths.UserData.RootPath,
                 remoteToolHostClient,
                 Services.GetService<ILoggerFactory>()?.CreateLogger<ImageGenerationToolSource>()), ContributionOrigin.Builtin));
+            toolSources.Add(new CollectedToolSource(
+                new WebSearchToolSource(Config, chatClientRegistry),
+                ContributionOrigin.Builtin));
             if (nodeReplProxy != null)
             {
                 toolSources.Add(new CollectedToolSource(

@@ -6,6 +6,7 @@ export function Row({
   leading,
   label,
   inline,
+  meta,
   title,
   ariaExpanded,
   muted,
@@ -15,6 +16,7 @@ export function Row({
   leading: ReactNode
   label: string
   inline?: string
+  meta?: ReactNode
   title?: string
   ariaExpanded?: boolean
   muted?: boolean
@@ -26,6 +28,7 @@ export function Row({
       <span className="conversation-summary-row__leading" aria-hidden="true">{leading}</span>
       <span className="conversation-summary-row__label" title={trailing ? title : undefined}>{label}</span>
       {inline ? <span className="conversation-summary-row__inline">{inline}</span> : null}
+      {meta ? <span className="conversation-summary-row__meta">{meta}</span> : null}
     </>
   )
   if (!onClick) {

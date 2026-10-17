@@ -267,6 +267,15 @@ public sealed class ContextExportService
                     AppendMetadata(sb, "Error", imageGeneration.ErrorMessage!);
                 break;
 
+            case ItemType.WebSearch when item.AsWebSearch is { } webSearch:
+                AppendMetadata(sb, "Call Id", webSearch.CallId);
+                AppendMetadata(sb, "Status", webSearch.Status);
+                if (!string.IsNullOrWhiteSpace(webSearch.Query))
+                    AppendMetadata(sb, "Query", webSearch.Query);
+                if (!string.IsNullOrWhiteSpace(webSearch.ErrorMessage))
+                    AppendMetadata(sb, "Error", webSearch.ErrorMessage!);
+                break;
+
             case ItemType.ToolCall when item.AsToolCall is { } toolCall:
                 AppendMetadata(sb, "Tool", toolCall.ToolName);
                 AppendMetadata(sb, "Call Id", toolCall.CallId);
@@ -525,6 +534,7 @@ public sealed class ContextExportService
         ItemType.CommandExecution => "Command",
         ItemType.ToolExecution => "Tool Execution",
         ItemType.ImageGeneration => "Image Generation",
+        ItemType.WebSearch => "Web Search",
         ItemType.ToolCall => "Tool Call",
         ItemType.DynamicToolCall => "Dynamic Tool Call",
         ItemType.ToolResult => "Tool Result",
