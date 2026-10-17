@@ -3023,31 +3023,6 @@ export interface ProviderCapabilities {
   [key: string]: unknown;
 }
 
-export interface ProviderCreateParams {
-  apiKey?: string;
-  authMethod?: string | null;
-  displayName?: string;
-  endPoint?: string;
-  id?: string;
-  maxOutputTokens?: number | null;
-  networkTimeoutSeconds?: number | null;
-  protocol?: string;
-  streamIdleTimeoutMs?: number | null;
-  streamMaxRetries?: number | null;
-  supportsImageGeneration?: boolean | null;
-  [key: string]: unknown;
-}
-
-export interface ProviderDeleteParams {
-  id?: string;
-  [key: string]: unknown;
-}
-
-export interface ProviderDeleteResult {
-  deleted?: boolean;
-  [key: string]: unknown;
-}
-
 export interface ProviderInfo {
   apiKey?: string | null;
   authMethod?: string;
@@ -3079,11 +3054,6 @@ export interface ProviderListResult {
   [key: string]: unknown;
 }
 
-export interface ProviderMutationResult {
-  provider?: ProviderInfo;
-  [key: string]: unknown;
-}
-
 export interface ProviderTestParams {
   apiKey?: string | null;
   endPoint?: string | null;
@@ -3103,21 +3073,6 @@ export interface ProviderTestResult {
   protocol?: string;
   providerId?: string | null;
   success?: boolean;
-  [key: string]: unknown;
-}
-
-export interface ProviderUpdateParams {
-  apiKey?: string | null;
-  authMethod?: string | null;
-  displayName?: string | null;
-  endPoint?: string | null;
-  id?: string;
-  maxOutputTokens?: number | null;
-  networkTimeoutSeconds?: number | null;
-  protocol?: string | null;
-  streamIdleTimeoutMs?: number | null;
-  streamMaxRetries?: number | null;
-  supportsImageGeneration?: boolean | null;
   [key: string]: unknown;
 }
 

@@ -12,24 +12,6 @@ internal sealed class AppServerRuntimeConfigRefresher(
     string? workspaceCraftPath,
     WorkspaceConfigEditor workspaceConfig)
 {
-    public void RefreshCurrentLlmConfig()
-    {
-        if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
-            return;
-
-        var mergedConfig = workspaceConfig.LoadCurrentMergedConfig();
-        appConfigMonitor.Current.ProviderId = mergedConfig.ProviderId;
-        appConfigMonitor.Current.ProviderPreferences = mergedConfig.ProviderPreferences.ToDictionary(
-            pair => pair.Key,
-            pair => ModelPreferenceRules.Clone(pair.Value),
-            StringComparer.OrdinalIgnoreCase);
-        appConfigMonitor.Current.NetworkTimeoutSeconds = mergedConfig.NetworkTimeoutSeconds;
-        appConfigMonitor.Current.Providers = mergedConfig.Providers.ToDictionary(
-            pair => pair.Key,
-            pair => pair.Value.Clone(),
-            StringComparer.OrdinalIgnoreCase);
-    }
-
     public void RefreshCurrentSubAgentConfig()
     {
         if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))

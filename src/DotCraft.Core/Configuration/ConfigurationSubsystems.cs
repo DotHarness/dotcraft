@@ -46,6 +46,11 @@ public static class ConfigurationSubsystems
             candidate.Dreams.Interval > TimeSpan.Zero ? null : "'Dreams.Interval' must be a positive duration.");
         configuration.RegisterValidator("ProviderPreferences", candidate =>
             ValidateProviderPreferences(monitor.Current, candidate));
+        configuration.RegisterValidator(ProviderConfiguration.KeyPath, (previous, candidate) =>
+            ProviderConfiguration.ValidateProviders(previous, candidate)
+            ?? ProviderConfiguration.ValidateSelection(previous, candidate, monitor.Current));
+        configuration.RegisterValidator("ProviderId", (previous, candidate) =>
+            ProviderConfiguration.ValidateSelection(previous, candidate, monitor.Current));
     }
 
     private static string? ValidateProviderPreferences(AppConfig runtime, AppConfig candidate)

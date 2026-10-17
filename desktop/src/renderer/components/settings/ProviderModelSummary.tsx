@@ -7,8 +7,7 @@ import type { ModelPreference, ModelPreferenceReasoningEffort } from '../../../s
 
 interface ProviderModelSummaryProps {
   main: ModelPreference | null
-  /** Omit where no sub-agent preference exists; `null` means it inherits the main model. */
-  subAgent?: ModelPreference | null
+  subAgent?: ModelPreference
   mainLabel?: string
 }
 
@@ -23,7 +22,6 @@ const reasoningLabelKeys: Record<ModelPreferenceReasoningEffort, MessageKey> = {
 
 export function ProviderModelSummary({ main, subAgent, mainLabel }: ProviderModelSummaryProps): JSX.Element | null {
   const t = useT()
-  const pairsWithSubAgent = subAgent !== undefined
   if (!main && !subAgent) return null
 
   const reasoningLabel = (preference: ModelPreference): string | null =>
@@ -53,13 +51,7 @@ export function ProviderModelSummary({ main, subAgent, mainLabel }: ProviderMode
   return (
     <div className={styles.row}>
       {main && preferenceClause(mainLabel ?? t('settings.llm.providerSummaryMain'), main)}
-      {pairsWithSubAgent && (subAgent
-        ? preferenceClause(t('settings.llm.providerSummarySubAgent'), subAgent)
-        : clause(
-          t('settings.llm.providerSummarySubAgent'),
-          t('settings.llm.providerSummarySubAgentInherit'),
-          false
-        ))}
+      {subAgent && preferenceClause(t('settings.llm.providerSummarySubAgent'), subAgent)}
     </div>
   )
 }

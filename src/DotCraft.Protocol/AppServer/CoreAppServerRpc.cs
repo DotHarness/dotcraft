@@ -153,15 +153,9 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<ProfileInsightsParams, ProfileInsightsResult> ProfileInsights = new("profile/insights", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
-    public static readonly RpcRequest<ProviderCreateParams, ProviderMutationResult> ProviderCreate = new("provider/create", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "providerManagement", errors: CommonErrors);
-
-    public static readonly RpcRequest<ProviderDeleteParams, ProviderDeleteResult> ProviderDelete = new("provider/delete", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "providerManagement", errors: CommonErrors);
-
     public static readonly RpcRequest<ProviderListParams, ProviderListResult> ProviderList = new("provider/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "providerManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<ProviderTestParams, ProviderTestResult> ProviderTest = new("provider/test", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "providerManagement", errors: CommonErrors);
-
-    public static readonly RpcRequest<ProviderUpdateParams, ProviderMutationResult> ProviderUpdate = new("provider/update", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "providerManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<RemoteToolHostConnectParams, RemoteToolHostConnectResult> RemoteToolHostConnect = new("remoteToolHost/connect", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "remoteToolHost", errors: RemoteToolHostErrors);
 

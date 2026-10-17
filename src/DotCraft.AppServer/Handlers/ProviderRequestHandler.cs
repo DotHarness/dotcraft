@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
@@ -13,7 +12,7 @@ namespace DotCraft.AppServer;
 internal sealed class ProviderRequestHandler(
     IAppServerTransport transport,
     WorkspaceConfigEditor workspaceConfig,
-    AppServerRuntimeConfigRefresher runtimeConfig,
+    ConfigurationService? configuration,
     string? workspaceCraftPath,
     IAppConfigMonitor? appConfigMonitor,
     ModelProviderRegistry? modelProviderRegistry,
@@ -22,9 +21,6 @@ internal sealed class ProviderRequestHandler(
     public void RegisterMethods(AppServerMethodTable table)
     {
         table.Map(Protocol.AppServer.AppServerRpc.ProviderList, HandleProviderListAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.ProviderCreate, HandleProviderCreateAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.ProviderUpdate, HandleProviderUpdateAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.ProviderDelete, HandleProviderDeleteAsync);
         table.Map(Protocol.AppServer.AppServerRpc.ProviderTest, HandleProviderTestAsync);
         table.Map(Protocol.AppServer.AppServerRpc.ModelList, HandleModelListAsync);
         table.Map(Protocol.AppServer.AppServerRpc.AuthOpenAiStatus, HandleAuthOpenAiStatusAsync);
@@ -46,197 +42,6 @@ internal sealed class ProviderRequestHandler(
             Providers = new Protocol.Optional<IReadOnlyList<Contract.ProviderInfo>>(
                 ProviderContractMapper.BuildProviderInfos(config))
         });
-    }
-
-    private Task<object?> HandleProviderCreateAsync(AppServerTypedRequest<Contract.ProviderCreateParams> request, CancellationToken ct)
-    {
-        EnsureLocallyManaged();
-        _ = ct;
-        EnsureProviderManagementAvailable();
-        var msg = request.Message;
-        if (!msg.Params.HasValue || msg.Params.Value.ValueKind != JsonValueKind.Object)
-            throw AppServerErrors.InvalidParams("'id' is required.");
-        var paramsElement = msg.Params.Value;
-        var p = request.Params;
-        var id = NormalizeProviderId(ValueOrDefault(p.Id));
-        var protocol = NormalizeProviderProtocol(ValueOrDefault(p.Protocol));
-        ValidateProviderPayload(
-            id,
-            protocol,
-            ValueOrDefault(p.EndPoint),
-            ValueOrDefault(p.NetworkTimeoutSeconds),
-            ValueOrDefault(p.MaxOutputTokens),
-            ValueOrDefault(p.StreamMaxRetries),
-            ValueOrDefault(p.StreamIdleTimeoutMs));
-
-        var configPath = workspaceConfig.RequirePersonalConfigPath("provider configuration persistence");
-        AtomicConfigDocument.Update(configPath, root =>
-        {
-            var providers = AtomicConfigDocument.Object(root, "Providers");
-            if (AtomicConfigDocument.Key(providers, id) != null)
-                throw AppServerErrors.InvalidParams($"Provider '{id}' already exists.");
-
-            var provider = new JsonObject();
-            providers[id] = provider;
-            var createAuthMethod = ModelProviderAuthMethods.Normalize(ValueOrDefault(p.AuthMethod));
-            var supportsImageGeneration = TryGetCaseInsensitiveProperty(paramsElement, "supportsImageGeneration", out var supportsImageGenerationEl)
-                ? ParseBoolean(supportsImageGenerationEl, "supportsImageGeneration")
-                : ModelProviderResolver.ResolveImageGenerationSupport(new AppConfig.ModelProviderConfig
-                {
-                    Protocol = protocol,
-                    EndPoint = ValueOrDefault(p.EndPoint) ?? string.Empty,
-                    AuthMethod = createAuthMethod
-                });
-            WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "DisplayName", NormalizeOptionalString(ValueOrDefault(p.DisplayName)) ?? id);
-            WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "Protocol", protocol);
-            WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "ApiKey", NormalizeOptionalString(ValueOrDefault(p.ApiKey)));
-            WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "EndPoint", NormalizeOptionalString(ValueOrDefault(p.EndPoint)));
-            WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "NetworkTimeoutSeconds", NormalizeNetworkTimeout(ValueOrDefault(p.NetworkTimeoutSeconds)));
-            WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "MaxOutputTokens", NormalizeMaxOutputTokens(ValueOrDefault(p.MaxOutputTokens)));
-            WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "StreamMaxRetries", NormalizeStreamMaxRetries(ValueOrDefault(p.StreamMaxRetries)));
-            WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "StreamIdleTimeoutMs", NormalizeStreamIdleTimeoutMs(ValueOrDefault(p.StreamIdleTimeoutMs)));
-            WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "SupportsImageGeneration", supportsImageGeneration);
-            WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "AuthMethod",
-                createAuthMethod == ModelProviderAuthMethods.ApiKey ? null : createAuthMethod);
-        });
-
-        runtimeConfig.RefreshCurrentLlmConfig();
-        runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(Protocol.AppServer.AppServerMethodNames.ProviderCreate, [ConfigChangeRegions.ProviderRegistry]);
-
-        var current = workspaceConfig.LoadCurrentMergedConfig();
-        return Task.FromResult<object?>(new Contract.ProviderMutationResult
-        {
-            Provider = ProviderContractMapper.BuildProviderInfo(id, current.Providers[id])
-        });
-    }
-
-    private Task<object?> HandleProviderUpdateAsync(AppServerTypedRequest<Contract.ProviderUpdateParams> request, CancellationToken ct)
-    {
-        EnsureLocallyManaged();
-        _ = ct;
-        EnsureProviderManagementAvailable();
-        var msg = request.Message;
-        if (!msg.Params.HasValue || msg.Params.Value.ValueKind != JsonValueKind.Object)
-            throw AppServerErrors.InvalidParams("'id' is required.");
-
-        var p = request.Params;
-        var id = NormalizeProviderId(ValueOrDefault(p.Id));
-
-        var configPath = workspaceConfig.RequirePersonalConfigPath("provider configuration persistence");
-        var existingKey = id;
-        AtomicConfigDocument.Update(configPath, root =>
-        {
-            var providers = AtomicConfigDocument.Value(root, "Providers") as JsonObject
-                ?? throw AppServerErrors.InvalidParams($"Provider '{id}' is not configured.");
-            existingKey = AtomicConfigDocument.Key(providers, id)
-                ?? throw AppServerErrors.InvalidParams($"Provider '{id}' is not configured.");
-            if (providers[existingKey] is not JsonObject provider)
-                throw AppServerErrors.InvalidParams($"Provider '{id}' is not an object.");
-
-            var protocolKey = AtomicConfigDocument.Key(provider, "Protocol");
-            var persistedProtocol = ReadConfigStringValue(provider, protocolKey);
-            var currentProtocol = NormalizeProviderProtocol(persistedProtocol ?? ModelProviderProtocols.OpenAI);
-            var protocol = currentProtocol;
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "protocol", out var protocolEl))
-                protocol = NormalizeProviderProtocol(ParseNullableString(protocolEl, "protocol"));
-            var endPoint = ReadConfigStringValue(provider, AtomicConfigDocument.Key(provider, "EndPoint"));
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "endPoint", out var endPointEl))
-                endPoint = NormalizeOptionalString(ParseNullableString(endPointEl, "endPoint"));
-            int? timeout = ReadConfigIntegerValue(provider, AtomicConfigDocument.Key(provider, "NetworkTimeoutSeconds"));
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "networkTimeoutSeconds", out var timeoutEl))
-                timeout = ParseNullableInteger(timeoutEl, "networkTimeoutSeconds");
-            int? maxOutputTokens = ReadConfigIntegerValue(provider, AtomicConfigDocument.Key(provider, "MaxOutputTokens"));
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "maxOutputTokens", out var maxOutputTokensEl))
-                maxOutputTokens = ParseNullableInteger(maxOutputTokensEl, "maxOutputTokens");
-            int? streamMaxRetries = ReadConfigIntegerValue(provider, AtomicConfigDocument.Key(provider, "StreamMaxRetries"));
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "streamMaxRetries", out var streamMaxRetriesEl))
-                streamMaxRetries = ParseNullableInteger(streamMaxRetriesEl, "streamMaxRetries");
-            int? streamIdleTimeoutMs = ReadConfigIntegerValue(provider, AtomicConfigDocument.Key(provider, "StreamIdleTimeoutMs"));
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "streamIdleTimeoutMs", out var streamIdleTimeoutMsEl))
-                streamIdleTimeoutMs = ParseNullableInteger(streamIdleTimeoutMsEl, "streamIdleTimeoutMs");
-
-            ValidateProviderPayload(id, protocol, endPoint, timeout, maxOutputTokens, streamMaxRetries, streamIdleTimeoutMs);
-
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "displayName", out var displayNameEl))
-                WorkspaceConfigEditor.UpsertOrRemoveValue(provider, AtomicConfigDocument.Key(provider, "DisplayName"), "DisplayName",
-                    NormalizeOptionalString(ParseNullableString(displayNameEl, "displayName")) ?? id);
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "protocol", out _)
-                || !string.Equals(persistedProtocol, protocol, StringComparison.Ordinal))
-            {
-                WorkspaceConfigEditor.UpsertOrRemoveValue(provider, protocolKey, "Protocol", protocol);
-            }
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "apiKey", out var apiKeyEl))
-                WorkspaceConfigEditor.UpsertOrRemoveValue(provider, AtomicConfigDocument.Key(provider, "ApiKey"), "ApiKey",
-                    NormalizeOptionalString(ParseNullableString(apiKeyEl, "apiKey")));
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "endPoint", out _))
-                WorkspaceConfigEditor.UpsertOrRemoveValue(provider, AtomicConfigDocument.Key(provider, "EndPoint"), "EndPoint", endPoint);
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "networkTimeoutSeconds", out _))
-                WorkspaceConfigEditor.UpsertOrRemoveValue(provider, AtomicConfigDocument.Key(provider, "NetworkTimeoutSeconds"), "NetworkTimeoutSeconds",
-                    NormalizeNetworkTimeout(timeout));
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "maxOutputTokens", out _))
-                WorkspaceConfigEditor.UpsertOrRemoveValue(provider, AtomicConfigDocument.Key(provider, "MaxOutputTokens"), "MaxOutputTokens",
-                    NormalizeMaxOutputTokens(maxOutputTokens));
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "streamMaxRetries", out _))
-                WorkspaceConfigEditor.UpsertOrRemoveValue(provider, AtomicConfigDocument.Key(provider, "StreamMaxRetries"), "StreamMaxRetries",
-                    NormalizeStreamMaxRetries(streamMaxRetries));
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "streamIdleTimeoutMs", out _))
-                WorkspaceConfigEditor.UpsertOrRemoveValue(provider, AtomicConfigDocument.Key(provider, "StreamIdleTimeoutMs"), "StreamIdleTimeoutMs",
-                    NormalizeStreamIdleTimeoutMs(streamIdleTimeoutMs));
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "supportsImageGeneration", out var supportsImageGenerationEl))
-                WorkspaceConfigEditor.UpsertOrRemoveValue(provider, AtomicConfigDocument.Key(provider, "SupportsImageGeneration"), "SupportsImageGeneration",
-                    ParseBoolean(supportsImageGenerationEl, "supportsImageGeneration"));
-            if (TryGetCaseInsensitiveProperty(msg.Params.Value, "authMethod", out var authMethodEl))
-            {
-                var updatedAuthMethod = ModelProviderAuthMethods.Normalize(ParseNullableString(authMethodEl, "authMethod"));
-                WorkspaceConfigEditor.UpsertOrRemoveValue(provider, AtomicConfigDocument.Key(provider, "AuthMethod"), "AuthMethod",
-                    updatedAuthMethod == ModelProviderAuthMethods.ApiKey ? null : updatedAuthMethod);
-            }
-        });
-
-        runtimeConfig.RefreshCurrentLlmConfig();
-        runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(Protocol.AppServer.AppServerMethodNames.ProviderUpdate, [ConfigChangeRegions.ProviderRegistry]);
-
-        var current = workspaceConfig.LoadCurrentMergedConfig();
-        return Task.FromResult<object?>(new Contract.ProviderMutationResult
-        {
-            Provider = ProviderContractMapper.BuildProviderInfo(existingKey, current.Providers[existingKey])
-        });
-    }
-
-    private Task<object?> HandleProviderDeleteAsync(AppServerTypedRequest<Contract.ProviderDeleteParams> request, CancellationToken ct)
-    {
-        EnsureLocallyManaged();
-        _ = ct;
-        EnsureProviderManagementAvailable();
-        var p = request.Params;
-        var id = NormalizeProviderId(ValueOrDefault(p.Id));
-
-        var current = workspaceConfig.LoadCurrentMergedConfig();
-        if (string.Equals(current.ProviderId, id, StringComparison.OrdinalIgnoreCase))
-            throw AppServerErrors.InvalidParams($"Provider '{id}' is selected by the active workspace.");
-
-        var configPath = workspaceConfig.RequirePersonalConfigPath("provider configuration persistence");
-        var removed = false;
-        AtomicConfigDocument.Update(configPath, root =>
-        {
-            if (AtomicConfigDocument.Value(root, "Providers") is not JsonObject providers)
-                return;
-            if (AtomicConfigDocument.Key(providers, id) is { } existingKey)
-                removed = providers.Remove(existingKey);
-            if (providers.Count == 0)
-                root.Remove(AtomicConfigDocument.Key(root, "Providers")!);
-        });
-
-        if (removed)
-        {
-            runtimeConfig.RefreshCurrentLlmConfig();
-            runtimeConfig.InvalidateThreadAgents();
-            appConfigMonitor?.NotifyChanged(Protocol.AppServer.AppServerMethodNames.ProviderDelete, [ConfigChangeRegions.ProviderRegistry]);
-        }
-
-        return Task.FromResult<object?>(new Contract.ProviderDeleteResult { Deleted = removed });
     }
 
     private async Task<object?> HandleModelListAsync(AppServerTypedRequest<Contract.ModelListParams> request, CancellationToken ct)
@@ -297,7 +102,6 @@ internal sealed class ProviderRequestHandler(
             EnsureLocallyManaged();
             var protocol = NormalizeProviderProtocol(ValueOrDefault(p.Protocol));
             ValidateProviderPayload(
-                "__provider_test__",
                 protocol,
                 ValueOrDefault(p.EndPoint),
                 ValueOrDefault(p.NetworkTimeoutSeconds),
@@ -316,10 +120,10 @@ internal sealed class ProviderRequestHandler(
                         Protocol = protocol,
                         ApiKey = NormalizeOptionalString(ValueOrDefault(p.ApiKey)) ?? string.Empty,
                         EndPoint = NormalizeOptionalString(ValueOrDefault(p.EndPoint)) ?? string.Empty,
-                        NetworkTimeoutSeconds = NormalizeNetworkTimeout(ValueOrDefault(p.NetworkTimeoutSeconds)),
-                        MaxOutputTokens = NormalizeMaxOutputTokens(ValueOrDefault(p.MaxOutputTokens)),
-                        StreamMaxRetries = NormalizeStreamMaxRetries(ValueOrDefault(p.StreamMaxRetries)),
-                        StreamIdleTimeoutMs = NormalizeStreamIdleTimeoutMs(ValueOrDefault(p.StreamIdleTimeoutMs))
+                        NetworkTimeoutSeconds = ValueOrDefault(p.NetworkTimeoutSeconds),
+                        MaxOutputTokens = ValueOrDefault(p.MaxOutputTokens),
+                        StreamMaxRetries = ValueOrDefault(p.StreamMaxRetries),
+                        StreamIdleTimeoutMs = ValueOrDefault(p.StreamIdleTimeoutMs)
                     }
                 }
             };
@@ -411,20 +215,15 @@ internal sealed class ProviderRequestHandler(
 
         try
         {
-            OpenAIAuthBindingPersistence.BindProviderToOAuth(
-                providerId,
-                status,
-                workspaceConfig.EffectiveGlobalConfigPath
-                ?? throw new InvalidOperationException("UserDataPath is required for OpenAI authentication persistence."));
+            await WriteBindingAsync(
+                user => OpenAIAuthBindingPersistence.BindEdits(user, providerId, status),
+                Protocol.AppServer.AppServerMethodNames.AuthOpenAiLogin,
+                ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             throw AppServerErrors.InvalidRequest($"Login succeeded but provider config could not be updated: {ex.Message}");
         }
-
-        runtimeConfig.RefreshCurrentLlmConfig();
-        runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(Protocol.AppServer.AppServerMethodNames.AuthOpenAiLogin, [ConfigChangeRegions.ProviderRegistry]);
 
         return BuildAuthStatusResult(status, providerId);
     }
@@ -443,19 +242,15 @@ internal sealed class ProviderRequestHandler(
         await auth.LogoutAsync(ct).ConfigureAwait(false);
         try
         {
-            OpenAIAuthBindingPersistence.UnbindProvider(
-                providerId,
-                workspaceConfig.EffectiveGlobalConfigPath
-                ?? throw new InvalidOperationException("UserDataPath is required for OpenAI authentication persistence."));
+            await WriteBindingAsync(
+                user => OpenAIAuthBindingPersistence.UnbindEdits(user, providerId),
+                Protocol.AppServer.AppServerMethodNames.AuthOpenAiLogout,
+                ct).ConfigureAwait(false);
         }
         catch (Exception)
         {
             // Best-effort: OAuth tokens are already deleted, which is the user's primary intent.
         }
-
-        runtimeConfig.RefreshCurrentLlmConfig();
-        runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(Protocol.AppServer.AppServerMethodNames.AuthOpenAiLogout, [ConfigChangeRegions.ProviderRegistry]);
 
         return new Contract.AuthOpenAiStatusResult { LoggedIn = false, ProviderId = providerId };
     }
@@ -515,18 +310,19 @@ internal sealed class ProviderRequestHandler(
     private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
-    private static string NormalizeProviderId(string? id)
+    private async Task WriteBindingAsync(
+        Func<JsonObject, IReadOnlyList<ConfigEdit>> buildEdits,
+        string source,
+        CancellationToken ct)
     {
-        var normalized = NormalizeOptionalString(id);
-        if (string.IsNullOrWhiteSpace(normalized))
-            throw AppServerErrors.InvalidParams("'id' is required.");
-        if (normalized.IndexOfAny(['/', '\\', ':']) >= 0)
-            throw AppServerErrors.InvalidParams("'id' must not contain '/', '\\', or ':'.");
-        return normalized;
+        var service = configuration ?? throw new InvalidOperationException("Workspace configuration is not available.");
+        var user = service.Read(includeLayers: true).Layers![0];
+        var edits = buildEdits(user.Config);
+        if (edits.Count > 0)
+            await service.WriteAsync(edits, service.UserConfigPath, user.Layer.Version, source, ct).ConfigureAwait(false);
     }
 
     private static void ValidateProviderPayload(
-        string id,
         string protocol,
         string? endPoint,
         int? networkTimeoutSeconds,
@@ -534,7 +330,6 @@ internal sealed class ProviderRequestHandler(
         int? streamMaxRetries,
         int? streamIdleTimeoutMs)
     {
-        _ = id;
         _ = NormalizeProviderProtocol(protocol);
         if (networkTimeoutSeconds.HasValue && networkTimeoutSeconds.Value < 1)
             throw AppServerErrors.InvalidParams("'networkTimeoutSeconds' must be greater than zero.");
@@ -548,15 +343,6 @@ internal sealed class ProviderRequestHandler(
         if (!string.IsNullOrWhiteSpace(endPoint) && !Uri.TryCreate(endPoint, UriKind.Absolute, out _))
             throw AppServerErrors.InvalidParams("'endPoint' must be an absolute URI.");
     }
-
-    private static int? NormalizeNetworkTimeout(int? value) => value.HasValue ? Math.Max(1, value.Value) : null;
-
-    private static int? NormalizeMaxOutputTokens(int? value) => value.HasValue ? Math.Max(1, value.Value) : null;
-
-    private static int? NormalizeStreamMaxRetries(int? value) =>
-        value.HasValue ? Math.Clamp(value.Value, 0, ModelProviderDefaults.MaxStreamMaxRetries) : null;
-
-    private static int? NormalizeStreamIdleTimeoutMs(int? value) => value.HasValue ? Math.Max(1, value.Value) : null;
 
     private static string NormalizeProviderProtocol(string? protocol)
     {
@@ -574,83 +360,6 @@ internal sealed class ProviderRequestHandler(
     {
         var trimmed = value?.Trim();
         return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
-    }
-
-    private static string? ParseNullableString(JsonElement element, string fieldName)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.Null => null,
-            JsonValueKind.String => element.GetString(),
-            _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be a string or null.")
-        };
-    }
-
-    private static int? ParseNullableInteger(JsonElement element, string fieldName)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.Null => null,
-            JsonValueKind.Number when element.TryGetInt32(out var value) => value,
-            _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be an integer or null.")
-        };
-    }
-
-    private static bool ParseBoolean(JsonElement element, string fieldName)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be a boolean.")
-        };
-    }
-
-    private static string? ReadConfigStringValue(JsonObject? root, string? key)
-    {
-        if (root == null || string.IsNullOrEmpty(key))
-            return null;
-        if (!root.TryGetPropertyValue(key, out var node) || node == null)
-            return null;
-        if (node is not JsonValue value)
-            return null;
-        return value.TryGetValue<string>(out var result) ? result : null;
-    }
-
-    private static int? ReadConfigIntegerValue(JsonObject? root, string? key)
-    {
-        if (root == null || string.IsNullOrEmpty(key))
-            return null;
-        if (!root.TryGetPropertyValue(key, out var node) || node == null)
-            return null;
-        if (node is not JsonValue value)
-            return null;
-        if (value.TryGetValue<int>(out var result))
-            return result;
-        if (value.TryGetValue<long>(out var longResult) && longResult is >= int.MinValue and <= int.MaxValue)
-            return (int)longResult;
-        return null;
-    }
-
-    private static bool TryGetCaseInsensitiveProperty(JsonElement obj, string expectedName, out JsonElement value)
-    {
-        if (obj.ValueKind != JsonValueKind.Object)
-        {
-            value = default;
-            return false;
-        }
-
-        foreach (var prop in obj.EnumerateObject())
-        {
-            if (string.Equals(prop.Name, expectedName, StringComparison.OrdinalIgnoreCase))
-            {
-                value = prop.Value;
-                return true;
-            }
-        }
-
-        value = default;
-        return false;
     }
 
     private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>

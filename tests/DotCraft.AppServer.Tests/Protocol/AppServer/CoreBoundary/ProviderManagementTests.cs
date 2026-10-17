@@ -35,175 +35,7 @@ public sealed class ProviderManagementTests : IDisposable
     }
 
     [Fact]
-    public async Task ProviderCreate_WritesPersonalConfigRedactsSecretAndEmitsProviderRegistryRegion()
-    {
-        var events = new List<AppConfigChangedEventArgs>();
-        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        harness.Monitor.Changed += OnChanged;
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, new
-        {
-            id = "anthropic-main",
-            displayName = "Anthropic Main",
-            protocol = "anthropic",
-            apiKey = "sk-ant-test",
-            endPoint = "https://api.anthropic.com",
-            networkTimeoutSeconds = 180,
-            maxOutputTokens = 64000,
-            streamMaxRetries = 3,
-            streamIdleTimeoutMs = 120000
-        }));
-
-        var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        var provider = response.RootElement.GetProperty("result").GetProperty("provider");
-        Assert.Equal("anthropic-main", provider.GetProperty("id").GetString());
-        Assert.Equal("Anthropic Main", provider.GetProperty("displayName").GetString());
-        Assert.Equal("anthropic", provider.GetProperty("protocol").GetString());
-        Assert.Equal("********", provider.GetProperty("apiKey").GetString());
-        Assert.True(provider.GetProperty("hasApiKey").GetBoolean());
-        Assert.Equal("https://api.anthropic.com", provider.GetProperty("endPoint").GetString());
-        Assert.Equal(180, provider.GetProperty("networkTimeoutSeconds").GetInt32());
-        Assert.Equal(64000, provider.GetProperty("maxOutputTokens").GetInt32());
-        Assert.Equal(3, provider.GetProperty("streamMaxRetries").GetInt32());
-        Assert.Equal(120000, provider.GetProperty("streamIdleTimeoutMs").GetInt32());
-        Assert.False(provider.GetProperty("capabilities").GetProperty("rawMetadataPassthrough").GetBoolean());
-
-        var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
-        var persisted = personal.RootElement.GetProperty("Providers").GetProperty("anthropic-main");
-        Assert.Equal("sk-ant-test", persisted.GetProperty("ApiKey").GetString());
-        Assert.Equal("anthropic", persisted.GetProperty("Protocol").GetString());
-        Assert.Equal(64000, persisted.GetProperty("MaxOutputTokens").GetInt32());
-        Assert.Equal(3, persisted.GetProperty("StreamMaxRetries").GetInt32());
-        Assert.Equal(120000, persisted.GetProperty("StreamIdleTimeoutMs").GetInt32());
-
-        var change = Assert.Single(events);
-        Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, change.Source);
-        Assert.Contains(ConfigChangeRegions.ProviderRegistry, change.Regions);
-        harness.Monitor.Changed -= OnChanged;
-
-        void OnChanged(object? sender, AppConfigChangedEventArgs change) => events.Add(change);
-    }
-
-    [Fact]
-    public async Task ProviderCreate_AllowsOpenAiProviderWithoutEndpoint()
-    {
-        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, new
-        {
-            id = "openai-api",
-            displayName = "OpenAI",
-            protocol = "openai-chat-completions",
-            apiKey = "sk-openai",
-            endPoint = ""
-        }));
-
-        var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        var provider = response.RootElement.GetProperty("result").GetProperty("provider");
-        Assert.Equal("openai-api", provider.GetProperty("id").GetString());
-        Assert.Equal(ModelProviderProtocols.OpenAIChatCompletions, provider.GetProperty("protocol").GetString());
-        Assert.Equal("", provider.GetProperty("endPoint").GetString());
-
-        var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
-        var persisted = personal.RootElement.GetProperty("Providers").GetProperty("openai-api");
-        Assert.Equal(ModelProviderProtocols.OpenAIChatCompletions, persisted.GetProperty("Protocol").GetString());
-        Assert.False(persisted.TryGetProperty("EndPoint", out _));
-    }
-
-    [Fact]
-    public async Task ProviderCreate_OpenAIResponsesReportsNativeDeferredCapability()
-    {
-        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, new
-        {
-            id = "openai-responses",
-            displayName = "OpenAI Responses",
-            protocol = ModelProviderProtocols.OpenAIResponses,
-            apiKey = "sk-openai",
-            endPoint = ""
-        }));
-
-        var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        var provider = response.RootElement.GetProperty("result").GetProperty("provider");
-        Assert.Equal(ModelProviderProtocols.OpenAIResponses, provider.GetProperty("protocol").GetString());
-        Assert.True(provider.GetProperty("capabilities").GetProperty("responsesApi").GetBoolean());
-        Assert.True(provider.GetProperty("capabilities").GetProperty("nativeDeferredToolLoading").GetBoolean());
-        Assert.True(provider.GetProperty("supportsImageGeneration").GetBoolean());
-
-        var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
-        var persisted = personal.RootElement.GetProperty("Providers").GetProperty("openai-responses");
-        Assert.Equal(ModelProviderProtocols.OpenAIResponses, persisted.GetProperty("Protocol").GetString());
-        Assert.True(persisted.GetProperty("SupportsImageGeneration").GetBoolean());
-    }
-
-    [Fact]
-    public async Task ProviderCreate_CustomResponsesEndpointDefaultsImageGenerationOff()
-    {
-        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, new
-        {
-            id = "custom-responses",
-            displayName = "Custom Responses",
-            protocol = ModelProviderProtocols.OpenAIResponses,
-            apiKey = "sk-openai",
-            endPoint = "https://openai-compatible.example/v1"
-        }));
-
-        var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        var provider = response.RootElement.GetProperty("result").GetProperty("provider");
-        Assert.False(provider.GetProperty("supportsImageGeneration").GetBoolean());
-
-        var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
-        var persisted = personal.RootElement.GetProperty("Providers").GetProperty("custom-responses");
-        Assert.False(persisted.GetProperty("SupportsImageGeneration").GetBoolean());
-    }
-
-    [Fact]
-    public async Task ProviderCreate_PersistsImageGenerationOverride()
-    {
-        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, new
-        {
-            id = "responses-on",
-            displayName = "Responses On",
-            protocol = ModelProviderProtocols.OpenAIResponses,
-            apiKey = "sk-openai",
-            supportsImageGeneration = true
-        }));
-
-        var enabledResponse = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        var enabledProvider = enabledResponse.RootElement.GetProperty("result").GetProperty("provider");
-        Assert.True(enabledProvider.GetProperty("supportsImageGeneration").GetBoolean());
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, new
-        {
-            id = "responses-off",
-            displayName = "Responses Off",
-            protocol = ModelProviderProtocols.OpenAIResponses,
-            apiKey = "sk-openai",
-            supportsImageGeneration = false
-        }));
-
-        var disabledResponse = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        var disabledProvider = disabledResponse.RootElement.GetProperty("result").GetProperty("provider");
-        Assert.False(disabledProvider.GetProperty("supportsImageGeneration").GetBoolean());
-
-        var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
-        var providers = personal.RootElement.GetProperty("Providers");
-        Assert.True(providers.GetProperty("responses-on").GetProperty("SupportsImageGeneration").GetBoolean());
-        Assert.False(providers.GetProperty("responses-off").GetProperty("SupportsImageGeneration").GetBoolean());
-    }
-
-    [Fact]
-    public async Task ProviderUpdate_PreservesImageGenerationAndRejectsNull()
+    public async Task ProviderList_ResolvesDefaultsFromStoredFieldsAndRedactsKeys()
     {
         using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await WritePersonalConfigAsync(
@@ -211,134 +43,178 @@ public sealed class ProviderManagementTests : IDisposable
             """
             {
               "Providers": {
-                "openai-responses": {
-                  "DisplayName": "OpenAI Responses",
-                  "Protocol": "openai-responses",
-                  "ApiKey": "old-key",
+                "minimal": { "ApiKey": "sk-minimal" },
+                "official-responses": { "Protocol": "OpenAI-Responses", "ApiKey": "sk-openai" },
+                "custom-responses": { "Protocol": "openai-responses", "EndPoint": "https://openai-compatible.example/v1" },
+                "responses-off": { "Protocol": "openai-responses", "SupportsImageGeneration": false },
+                "anthropic-main": {
+                  "DisplayName": "Anthropic Main",
+                  "Protocol": "anthropic",
+                  "ApiKey": "sk-ant-test",
+                  "NetworkTimeoutSeconds": 180,
+                  "MaxOutputTokens": 64000,
+                  "StreamMaxRetries": 3,
+                  "StreamIdleTimeoutMs": 120000
+                }
+              }
+            }
+            """);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderList, new { }));
+
+        var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
+        Assert.DoesNotContain("sk-", response.RootElement.GetRawText());
+        var providers = response.RootElement.GetProperty("result").GetProperty("providers").EnumerateArray()
+            .ToDictionary(provider => provider.GetProperty("id").GetString()!);
+
+        var minimal = providers["minimal"];
+        Assert.Equal("minimal", minimal.GetProperty("displayName").GetString());
+        Assert.Equal(ModelProviderProtocols.OpenAIChatCompletions, minimal.GetProperty("protocol").GetString());
+        Assert.Equal(ModelProviderAuthMethods.ApiKey, minimal.GetProperty("authMethod").GetString());
+        Assert.True(minimal.GetProperty("supportsImageGeneration").GetBoolean());
+
+        var official = providers["official-responses"];
+        Assert.Equal(ModelProviderProtocols.OpenAIResponses, official.GetProperty("protocol").GetString());
+        Assert.True(official.GetProperty("capabilities").GetProperty("responsesApi").GetBoolean());
+        Assert.True(official.GetProperty("capabilities").GetProperty("nativeDeferredToolLoading").GetBoolean());
+        Assert.True(official.GetProperty("supportsImageGeneration").GetBoolean());
+        Assert.False(providers["custom-responses"].GetProperty("supportsImageGeneration").GetBoolean());
+        Assert.False(providers["responses-off"].GetProperty("supportsImageGeneration").GetBoolean());
+
+        var anthropic = providers["anthropic-main"];
+        Assert.True(anthropic.GetProperty("hasApiKey").GetBoolean());
+        Assert.Equal(180, anthropic.GetProperty("networkTimeoutSeconds").GetInt32());
+        Assert.Equal(64000, anthropic.GetProperty("maxOutputTokens").GetInt32());
+        Assert.Equal(3, anthropic.GetProperty("streamMaxRetries").GetInt32());
+        Assert.Equal(120000, anthropic.GetProperty("streamIdleTimeoutMs").GetInt32());
+    }
+
+    [Fact]
+    public async Task ConfigBatchWrite_ProviderUpsert_KeepsMaskedKeyAndRemovesClearedFields()
+    {
+        var events = new List<AppConfigChangedEventArgs>();
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await WritePersonalConfigAsync(
+            harness,
+            """
+            {
+              "Providers": {
+                "Router": {
+                  "DisplayName": "Router",
+                  "EndPoint": "https://router.example/v1",
+                  "ApiKey": "sk-router",
                   "SupportsImageGeneration": true
                 }
               }
             }
             """);
         await harness.InitializeAsync();
+        harness.Monitor.Changed += (_, change) => events.Add(change);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderUpdate, new
-        {
-            id = "openai-responses",
-            displayName = "Renamed Responses"
-        }));
-
-        var preservedResponse = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        var preservedProvider = preservedResponse.RootElement.GetProperty("result").GetProperty("provider");
-        Assert.True(preservedProvider.GetProperty("supportsImageGeneration").GetBoolean());
-
-        var personalAfterPreserve = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
-        Assert.True(personalAfterPreserve.RootElement
-            .GetProperty("Providers")
-            .GetProperty("openai-responses")
-            .GetProperty("SupportsImageGeneration")
-            .GetBoolean());
-
-        var nullParams = new JsonObject
-        {
-            ["id"] = "openai-responses",
-            ["supportsImageGeneration"] = null
-        };
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderUpdate, nullParams));
-
-        var nullResponse = Assert.Single(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        CoreAppServerTestHarness.AssertIsErrorResponse(nullResponse, AppServerErrors.InvalidParamsCode);
-
-        var personalAfterNull = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
-        Assert.True(personalAfterNull.RootElement
-            .GetProperty("Providers")
-            .GetProperty("openai-responses")
-            .GetProperty("SupportsImageGeneration")
-            .GetBoolean());
-    }
-
-    [Fact]
-    public async Task ProviderUpdate_UpdatesPersonalProviderAndRedactsResponse()
-    {
-        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await WritePersonalConfigAsync(
-            harness,
-            """
-            {
-              "Providers": {
-                "openrouter": {
-                  "DisplayName": "Old Router",
-                  "Protocol": "openai-chat-completions",
-                  "ApiKey": "old-key",
-                  "EndPoint": "https://old.example/v1"
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigBatchWrite,
+            JsonNode.Parse("""
+                {
+                  "edits": [
+                    {
+                      "keyPath": "Providers.Router",
+                      "value": { "ApiKey": "***", "DisplayName": null, "EndPoint": "https://openrouter.ai/api/v1", "StreamMaxRetries": 2 },
+                      "mergeStrategy": "upsert"
+                    }
+                  ]
                 }
-              }
-            }
-            """);
-        await harness.InitializeAsync();
+                """)));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigBatchWrite,
+            JsonNode.Parse("""
+                { "edits": [{ "keyPath": "Providers.Router.SupportsImageGeneration", "value": false, "mergeStrategy": "replace" }] }
+                """)));
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderUpdate, new
-        {
-            id = "openrouter",
-            displayName = "OpenRouter",
-            apiKey = "new-key",
-            endPoint = "https://openrouter.ai/api/v1",
-            networkTimeoutSeconds = 90,
-            maxOutputTokens = 4096,
-            streamMaxRetries = 2,
-            streamIdleTimeoutMs = 90000
-        }));
-
-        var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        var provider = response.RootElement.GetProperty("result").GetProperty("provider");
-        Assert.Equal("OpenRouter", provider.GetProperty("displayName").GetString());
-        Assert.Equal("********", provider.GetProperty("apiKey").GetString());
-        Assert.Equal("https://openrouter.ai/api/v1", provider.GetProperty("endPoint").GetString());
-        Assert.Equal(90, provider.GetProperty("networkTimeoutSeconds").GetInt32());
-        Assert.Equal(4096, provider.GetProperty("maxOutputTokens").GetInt32());
-        Assert.Equal(2, provider.GetProperty("streamMaxRetries").GetInt32());
-        Assert.Equal(90000, provider.GetProperty("streamIdleTimeoutMs").GetInt32());
-
+        var responses = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        Assert.All(responses, response => AssertSingleResult([response]));
         var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
-        var persisted = personal.RootElement.GetProperty("Providers").GetProperty("openrouter");
-        Assert.Equal("new-key", persisted.GetProperty("ApiKey").GetString());
-        Assert.Equal(ModelProviderProtocols.OpenAIChatCompletions, persisted.GetProperty("Protocol").GetString());
+        var persisted = personal.RootElement.GetProperty("Providers").GetProperty("Router");
+        Assert.Equal("sk-router", persisted.GetProperty("ApiKey").GetString());
+        Assert.False(persisted.TryGetProperty("DisplayName", out _));
         Assert.Equal("https://openrouter.ai/api/v1", persisted.GetProperty("EndPoint").GetString());
-        Assert.Equal(4096, persisted.GetProperty("MaxOutputTokens").GetInt32());
         Assert.Equal(2, persisted.GetProperty("StreamMaxRetries").GetInt32());
-        Assert.Equal(90000, persisted.GetProperty("StreamIdleTimeoutMs").GetInt32());
+        Assert.False(persisted.GetProperty("SupportsImageGeneration").GetBoolean());
+        Assert.Equal(2, events.Count);
+        Assert.All(events, change => Assert.Equal(["Providers", ConfigChangeRegions.ProviderRegistry], change.Regions));
     }
 
     [Fact]
-    public async Task ProviderDelete_RefusesProviderSelectedByWorkspace()
+    public async Task ConfigBatchWrite_NullProviderEntry_DeletesItCaseInsensitively()
     {
-        await File.WriteAllTextAsync(
-            Path.Combine(_workspaceCraftPath, "config.json"),
-            """
-            {
-              "ProviderId": "anthropic-main",
-              "Model": "claude-sonnet-4-5"
-            }
-            """);
         using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await WritePersonalConfigAsync(
-            harness,
-            """
-            {
-              "Providers": {
-                "anthropic-main": {
-                  "Protocol": "anthropic",
-                  "ApiKey": "sk-ant-test"
-                }
-              }
-            }
-            """);
+        await WritePersonalConfigAsync(harness, """{ "Theme": "dark", "Providers": { "old": { "ApiKey": "sk-old" } } }""");
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderDelete, new { id = "anthropic-main" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigBatchWrite,
+            JsonNode.Parse("""{ "edits": [{ "keyPath": "Providers.OLD", "value": null, "mergeStrategy": "replace" }] }""")));
 
-        var response = Assert.Single(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        CoreAppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
+        var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
+        Assert.False(personal.RootElement.TryGetProperty("Providers", out _));
+        Assert.Equal("dark", personal.RootElement.GetProperty("Theme").GetString());
+        Assert.Empty(harness.Monitor.Current.Providers);
+    }
+
+    [Fact]
+    public async Task ConfigBatchWrite_DeletingTheSelectedProvider_FailsAndKeepsTheFile()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_workspaceCraftPath, "config.json"), """{ "ProviderId": "anthropic-main" }""");
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await WritePersonalConfigAsync(harness, """{ "Providers": { "anthropic-main": { "Protocol": "anthropic", "ApiKey": "sk-ant-test" } } }""");
+        await harness.InitializeAsync();
+        var before = await File.ReadAllBytesAsync(harness.Monitor.Current.GlobalConfigPath!);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigBatchWrite,
+            JsonNode.Parse("""{ "edits": [{ "keyPath": "Providers.anthropic-main", "value": null, "mergeStrategy": "replace" }] }""")));
+
+        AppServerTestHarness.AssertConfigWriteError(
+            Assert.Single(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5))),
+            "configValidationError");
+        Assert.Equal(before, await File.ReadAllBytesAsync(harness.Monitor.Current.GlobalConfigPath!));
+    }
+
+    [Fact]
+    public async Task ConfigBatchWrite_ProviderEntry_CreatesItInTheUserLayerForProviderList()
+    {
+        var events = new List<AppConfigChangedEventArgs>();
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+        harness.Monitor.Changed += (_, change) => events.Add(change);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigBatchWrite,
+            JsonNode.Parse("""
+                {
+                  "edits": [
+                    { "keyPath": "Providers.p1", "value": { "Protocol": "anthropic", "ApiKey": "sk-p1" }, "mergeStrategy": "replace" }
+                  ]
+                }
+                """)));
+
+        var written = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
+        Assert.DoesNotContain("sk-p1", written.RootElement.GetRawText());
+        var change = Assert.Single(events);
+        Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigBatchWrite, change.Source);
+        Assert.Equal(["Providers", ConfigChangeRegions.ProviderRegistry], change.Regions);
+        var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
+        Assert.Equal("sk-p1", personal.RootElement.GetProperty("Providers").GetProperty("p1").GetProperty("ApiKey").GetString());
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderList, new { }));
+
+        var listed = Assert.Single(
+            AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)))
+                .RootElement.GetProperty("result").GetProperty("providers").EnumerateArray());
+        Assert.Equal("p1", listed.GetProperty("displayName").GetString());
+        Assert.True(listed.GetProperty("hasApiKey").GetBoolean());
+        Assert.Equal("sk-p1", harness.Monitor.Current.Providers["p1"].ApiKey);
     }
 
     [Fact]
@@ -391,7 +267,6 @@ public sealed class ProviderManagementTests : IDisposable
         Assert.Equal("old-key", provider.GetProperty("ApiKey").GetString());
         Assert.False(provider.TryGetProperty("EndPoint", out _));
     }
-
 
     [Fact]
     public async Task ProviderList_IncludesExplicitProvidersOnly()

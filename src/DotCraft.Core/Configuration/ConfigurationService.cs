@@ -18,7 +18,7 @@ public sealed class ConfigurationService
     private readonly SemaphoreSlim _writeGate = new(1, 1);
     private readonly Dictionary<string, Func<IReadOnlyList<string>, CancellationToken, Task>> _subsystemHandlers =
         new(StringComparer.Ordinal);
-    private readonly Dictionary<string, Func<AppConfig, string?>> _validators = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Func<AppConfig, AppConfig, string?>> _validators = new(StringComparer.Ordinal);
 
     public ConfigurationService(
         IConfigDescriptorRegistry registry,
@@ -40,10 +40,15 @@ public sealed class ConfigurationService
             ConfigJsonPath.Set(_defaults, ConfigJsonPath.Split(field.KeyPath), Serialize(field, field.DefaultValue));
     }
 
+    public string UserConfigPath => _userConfigPath;
+
     public void RegisterSubsystemHandler(string subsystemKey, Func<IReadOnlyList<string>, CancellationToken, Task> handler) =>
         _subsystemHandlers[subsystemKey] = handler;
 
     public void RegisterValidator(string keyPath, Func<AppConfig, string?> validator) =>
+        _validators[keyPath] = (_, candidate) => validator(candidate);
+
+    public void RegisterValidator(string keyPath, Func<AppConfig, AppConfig, string?> validator) =>
         _validators[keyPath] = validator;
 
     public ConfigReadResult Read(bool includeLayers = false)
@@ -76,7 +81,7 @@ public sealed class ConfigurationService
         string source,
         CancellationToken cancellationToken = default)
     {
-        var target = ResolveTarget(filePath);
+        var target = ResolveWriteTarget(edits, filePath);
         return await CommitAsync(target, source, current =>
         {
             var currentVersion = ConfigJsonPath.Version(current);
@@ -93,7 +98,10 @@ public sealed class ConfigurationService
 
             var edited = (JsonObject)current.DeepClone();
             for (var i = 0; i < edits.Count; i++)
-                ApplyEdit(edited, paths[i], edits[i]);
+            {
+                if (RestoreMaskedEdit(current, paths[i], edits[i]) is { } edit)
+                    ApplyEdit(edited, paths[i], edit);
+            }
 
             return new LayerEdit(edited, edits.Select(e => e.KeyPath).ToArray());
         }, cancellationToken).ConfigureAwait(false);
@@ -108,6 +116,13 @@ public sealed class ConfigurationService
         {
             var replacement = (JsonObject)document.DeepClone();
             RestoreMasked(replacement, current);
+            if (!JsonNode.DeepEquals(
+                    AtomicConfigDocument.Value(current, ProviderConfiguration.KeyPath),
+                    AtomicConfigDocument.Value(replacement, ProviderConfiguration.KeyPath)))
+            {
+                CheckProviderTarget(layer);
+            }
+
             return new LayerEdit(replacement, null);
         }, cancellationToken);
 
@@ -134,7 +149,7 @@ public sealed class ConfigurationService
             finally
             {
                 if (changedKeyPaths.Length > 0)
-                    _monitor.NotifyChanged(source, changedKeyPaths);
+                    _monitor.NotifyChanged(source, ChangeRegions(changedKeyPaths));
             }
 
             return new ConfigWriteResult(
@@ -160,7 +175,7 @@ public sealed class ConfigurationService
         var previous = TryBuild(previousUser, previousWorkspace) ?? _monitor.Current;
         var next = Build(user, workspace);
         var changed = Diff(previous, next);
-        Validate(next, changed, editedKeyPaths ?? changed.Select(c => c.Field.KeyPath).ToArray());
+        Validate(previous, next, changed, editedKeyPaths ?? changed.Select(c => c.Field.KeyPath).ToArray());
 
         var version = ConfigJsonPath.Version(current);
         if (!JsonNode.DeepEquals(current, edited))
@@ -183,7 +198,7 @@ public sealed class ConfigurationService
                 foreach (var (key, value) in obj.ToArray())
                 {
                     var existing = current is JsonObject currentObject ? AtomicConfigDocument.Value(currentObject, key) : null;
-                    if (value is JsonValue scalar && scalar.TryGetValue<string>(out var text) && text == "***")
+                    if (IsMask(value))
                     {
                         if (existing is null)
                             obj.Remove(key);
@@ -204,6 +219,23 @@ public sealed class ConfigurationService
         }
     }
 
+    private static ConfigEdit? RestoreMaskedEdit(JsonObject current, string[] path, ConfigEdit edit)
+    {
+        if (edit.Value is null)
+            return edit;
+
+        ConfigJsonPath.TryGet(current, path, out var existing);
+        if (IsMask(edit.Value))
+            return existing is null ? null : edit with { Value = existing };
+
+        var value = edit.Value.DeepClone();
+        RestoreMasked(value, existing);
+        return edit with { Value = value };
+    }
+
+    private static bool IsMask(JsonNode? node) =>
+        node is JsonValue scalar && scalar.TryGetValue<string>(out var text) && text == "***";
+
     private string[] ResolveEditPath(ConfigEdit edit)
     {
         string[] path;
@@ -216,17 +248,8 @@ public sealed class ConfigurationService
             throw new ConfigWriteException(ConfigWriteErrorCode.ConfigSchemaUnknownKey, ex.Message);
         }
 
-        if (_fieldsByKeyPath.TryGetValue(edit.KeyPath, out var field))
-        {
-            if (field.Sensitive)
-            {
-                throw new ConfigWriteException(
-                    ConfigWriteErrorCode.ConfigValidationError,
-                    $"'{edit.KeyPath}' is sensitive and cannot be written as a configuration value.");
-            }
-
+        if (_fieldsByKeyPath.ContainsKey(edit.KeyPath))
             return path;
-        }
 
         if (path.All(segment => segment.Length > 0)
             && _objectFields.Any(f => edit.KeyPath.StartsWith(f.KeyPath + ".", StringComparison.Ordinal)))
@@ -261,8 +284,12 @@ public sealed class ConfigurationService
     private List<(ConfigFieldDescriptor Field, object? Value)> Diff(AppConfig previous, AppConfig next)
     {
         var changed = new List<(ConfigFieldDescriptor, object?)>();
+        var remoteProviders = IsRemoteManaged;
         foreach (var field in _fields)
         {
+            if (remoteProviders && field.KeyPath == ProviderConfiguration.KeyPath)
+                continue;
+
             var before = TrySerialize(field, previous);
             object? value;
             JsonNode? after;
@@ -298,6 +325,7 @@ public sealed class ConfigurationService
     }
 
     private void Validate(
+        AppConfig previous,
         AppConfig candidate,
         IEnumerable<(ConfigFieldDescriptor Field, object? Value)> changed,
         IReadOnlyList<string> editedKeyPaths)
@@ -311,7 +339,7 @@ public sealed class ConfigurationService
         foreach (var (keyPath, validator) in _validators)
         {
             if (editedKeyPaths.Any(p => p == keyPath || p.StartsWith(keyPath + ".", StringComparison.Ordinal))
-                && validator(candidate) is { } error)
+                && validator(previous, candidate) is { } error)
             {
                 throw ValidationError(error);
             }
@@ -373,6 +401,36 @@ public sealed class ConfigurationService
                 await handler(group.Select(f => f.KeyPath).ToArray(), cancellationToken).ConfigureAwait(false);
         }
     }
+
+    private bool IsRemoteManaged => _monitor.Current.ModelService != null;
+
+    private ConfigLayerType ResolveWriteTarget(IReadOnlyList<ConfigEdit> edits, string? filePath)
+    {
+        var providerEdits = edits.Count(e => ProviderConfiguration.IsProviderKeyPath(e.KeyPath));
+        if (providerEdits == 0)
+            return ResolveTarget(filePath);
+        if (IsRemoteManaged)
+            throw ValidationError(ProviderConfiguration.RemoteManagedMessage);
+        if (filePath == null && providerEdits < edits.Count)
+            throw ValidationError("A write that mixes 'Providers' edits with other keys must name the user layer.");
+
+        var target = filePath == null ? ConfigLayerType.User : ResolveTarget(filePath);
+        CheckProviderTarget(target);
+        return target;
+    }
+
+    private void CheckProviderTarget(ConfigLayerType target)
+    {
+        if (IsRemoteManaged)
+            throw ValidationError(ProviderConfiguration.RemoteManagedMessage);
+        if (target != ConfigLayerType.User)
+            throw ValidationError("'Providers' can only be written to the user layer.");
+    }
+
+    private static IReadOnlyList<string> ChangeRegions(string[] changedKeyPaths) =>
+        changedKeyPaths.Contains(ProviderConfiguration.KeyPath)
+            ? [.. changedKeyPaths, ConfigChangeRegions.ProviderRegistry]
+            : changedKeyPaths;
 
     private ConfigLayerType ResolveTarget(string? filePath)
     {

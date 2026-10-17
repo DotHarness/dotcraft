@@ -1,10 +1,12 @@
 import { normalizeProviderList, type ProviderInfoWire } from './providerInfo'
+import { createProvider, deleteProvider, ProviderExistsError, providerIdExists, updateProvider, type ProviderFields } from './providerConfigWrites'
 import { BrowserDownloadsSettings } from './BrowserDownloadsSettings'
 import { BrowserDownloadHistory } from './BrowserDownloadHistory'
 import { ChatGptOAuthPanel } from './ChatGptOAuthPanel'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import {
   Hand,
+  Image as ImageIcon,
   ListChecks,
   MessageCircle,
   OctagonAlert,
@@ -127,7 +129,6 @@ import type {
 } from '../../../preload/api'
 import type { ConfigChangedPayload } from '../../utils/configChanged'
 import { slugProviderId, uniqueProviderId } from '../../utils/providerId'
-import { formatPlanLabel } from '../../utils/chatgptPlan'
 import { isSessionImportAvailable } from '../../utils/sessionImport'
 import { providerPreferenceEdit, resolveWorkspaceProviderFromConfig } from '../../utils/workspaceCoreConfig'
 import {
@@ -542,9 +543,7 @@ export function SettingsView({
       ? providers.find((provider) => provider.id === providerEditorId) ?? null
       : null
   const providerEditorIsNew = providerEditorId === '__new__'
-  const canDeleteProviderInEditor =
-    providerEditorProvider != null &&
-    providerEditorProvider.id !== selectedProviderId
+  const providerEditingEnabled = providerManagementEnabled && configManagementEnabled && !providersManagedRemotely
   const providersCountLabel = providers.length === 1
     ? t('settings.llm.providersCount.one', { count: providers.length })
     : t('settings.llm.providersCount.other', { count: providers.length })
@@ -1033,43 +1032,33 @@ export function SettingsView({
       addToast(t('settings.llm.toast.providerIdRequired'), 'warning')
       return
     }
+    const editing = providerEditorProvider
+    if (editing == null && providerIdExists(providers, id)) {
+      addToast(t('settings.llm.toast.providerIdExists', { providerId: id }), 'warning')
+      return
+    }
     setSavingProvider(true)
     try {
-      const timeout = providerDraft.networkTimeoutSeconds.trim()
-        ? Number(providerDraft.networkTimeoutSeconds.trim())
-        : null
-      const supportsImageGeneration = canConfigureImageGeneration(providerDraft)
-        ? providerDraft.supportsImageGeneration
-        : false
-      if (providerEditorProvider != null) {
-        const editing = providerEditorProvider
-        const payload: Record<string, unknown> = {
-          id: editing.id,
-          displayName: providerDraft.displayName.trim() || id,
-          protocol: providerDraft.protocol,
-          endPoint: providerDraft.endPoint.trim() || null,
-          networkTimeoutSeconds: timeout,
-          supportsImageGeneration,
-          authMethod: providerDraft.authMethod
-        }
-        if (!(editing?.hasApiKey === true && providerDraft.apiKey === '********')) {
-          payload.apiKey = providerDraft.authMethod === 'chatgptOAuth'
-            ? null
-            : providerDraft.apiKey.trim() || null
-        }
-        await window.api.appServer.sendRequest('provider/update', payload, 20_000)
+      const fields: ProviderFields = {
+        displayName: providerDraft.displayName.trim(),
+        protocol: providerDraft.protocol,
+        authMethod: providerDraft.authMethod,
+        apiKey: editing?.hasApiKey === true && providerDraft.apiKey === '********'
+          ? null
+          : providerDraft.apiKey.trim(),
+        endPoint: providerDraft.endPoint.trim(),
+        networkTimeoutSeconds: providerDraft.networkTimeoutSeconds.trim()
+          ? Number(providerDraft.networkTimeoutSeconds.trim())
+          : null,
+        supportsImageGeneration: canConfigureImageGeneration(providerDraft)
+          ? providerDraft.supportsImageGeneration
+          : null
+      }
+      if (editing != null) {
+        await updateProvider(editing, fields)
         addToast(t('settings.llm.toast.providerUpdated'), 'success')
       } else {
-        await window.api.appServer.sendRequest('provider/create', {
-          id,
-          displayName: providerDraft.displayName.trim() || id,
-          protocol: providerDraft.protocol,
-          apiKey: providerDraft.authMethod === 'chatgptOAuth' ? '' : providerDraft.apiKey.trim(),
-          endPoint: providerDraft.endPoint.trim(),
-          networkTimeoutSeconds: timeout,
-          supportsImageGeneration,
-          authMethod: providerDraft.authMethod
-        }, 20_000)
+        await createProvider(id, fields)
         addToast(t('settings.llm.toast.providerCreated'), 'success')
         // Auto-activate the new provider unless the workspace already has a usable selection.
         // Mirrors the backend's "only-if-empty" semantics from BindProviderToOAuth and avoids
@@ -1083,6 +1072,10 @@ export function SettingsView({
       await reloadProviders()
       closeProviderEditor()
     } catch (err) {
+      if (err instanceof ProviderExistsError) {
+        addToast(t('settings.llm.toast.providerIdExists', { providerId: err.providerId }), 'warning')
+        return
+      }
       addToast(t('settings.llm.toast.saveProviderFailed', {
         error: err instanceof Error ? err.message : String(err)
       }), 'error')
@@ -1092,10 +1085,13 @@ export function SettingsView({
   }
 
   async function handleProviderDelete(provider: ProviderInfoWire): Promise<void> {
-    if (provider.id === selectedProviderId) return
+    if (provider.id.toLowerCase() === selectedProviderId.trim().toLowerCase()) {
+      addToast(t('settings.llm.toast.providerInUse'), 'warning')
+      return
+    }
     setDeletingProvider(true)
     try {
-      await window.api.appServer.sendRequest('provider/delete', { id: provider.id }, 20_000)
+      await deleteProvider(provider.id)
       addToast(t('settings.llm.toast.providerDeleted'), 'success')
       await reloadProviders()
       if (providerEditorId === provider.id) closeProviderEditor()
@@ -1993,7 +1989,7 @@ export function SettingsView({
                       <Button
                         variant="primary"
                         onClick={startCreateProvider}
-                        disabled={!providerManagementEnabled || providersManagedRemotely}
+                        disabled={!providerEditingEnabled}
                         iconLeft={<Plus size={14} aria-hidden="true" />}
                       >
                         {t('settings.llm.addProvider')}
@@ -2127,8 +2123,8 @@ export function SettingsView({
                       providers={providers}
                       providersLoading={providersLoading}
                       workspaceProviderId={selectedProviderId}
-                      onEditProvider={providersManagedRemotely ? undefined : startEditProvider}
-                      onAddProvider={providersManagedRemotely ? undefined : startCreateProvider}
+                      onEditProvider={providerEditingEnabled ? startEditProvider : undefined}
+                      onAddProvider={providerEditingEnabled ? startCreateProvider : undefined}
                     />
 
                     <SettingsGroup
@@ -2194,51 +2190,60 @@ export function SettingsView({
                               }}
                               style={providerRowStyle(active)}
                             >
-                              <ProviderProtocolIcon protocol={provider.protocol} size={30} />
+                              <ActionTooltip label={providerDetails(provider, t)}>
+                                <span style={{ display: 'inline-flex', flexShrink: 0 }}>
+                                  <ProviderProtocolIcon protocol={provider.protocol} size={30} />
+                                </span>
+                              </ActionTooltip>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                  <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                  <div style={{
+                                    flexShrink: 0,
+                                    maxWidth: '60%',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    fontSize: '15px',
+                                    fontWeight: 600,
+                                    color: 'var(--text-primary)'
+                                  }}>
                                     {provider.displayName}
                                   </div>
-                                </div>
-                                <div
-                                  style={{
-                                    marginTop: '5px',
-                                    fontSize: '12px',
-                                    color: 'var(--text-dimmed)',
-                                    display: 'flex',
-                                    flexWrap: 'wrap',
-                                    gap: '6px'
-                                  }}
-                                >
-                                  <span>
-                                    {provider.managedBy === 'modelService'
-                                      ? t(provider.isAuthenticated ? 'settings.llm.managedByService' : 'settings.llm.serviceAuthenticationRequired')
-                                      : provider.authMethod === 'chatgptOAuth'
-                                      ? provider.chatGptPlanType
-                                        ? t('settings.llm.providerChatGptStatus', { plan: formatPlanLabel(provider.chatGptPlanType, t) })
-                                        : t('settings.llm.providerChatGptNotSignedIn')
-                                      : provider.hasApiKey
-                                        ? t('settings.llm.providerKeyConfigured')
-                                        : t('settings.llm.providerKeyMissing')}
-                                  </span>
-                                  <span aria-hidden>·</span>
-                                  <span>{providerProtocolLabel(provider.protocol)}</span>
-                                  <span aria-hidden>·</span>
-                                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {provider.endPoint || t('settings.llm.providerDefaultEndpoint')}
-                                  </span>
                                   {canProviderCreateImages(provider) && (
-                                    <>
-                                      <span aria-hidden>·</span>
-                                      <span>{t('settings.llm.imageGeneration.createsImages')}</span>
-                                    </>
+                                    <ActionTooltip label={t('settings.llm.imageGeneration.createsImages')}>
+                                      <span
+                                        role="img"
+                                        aria-label={t('settings.llm.imageGeneration.createsImages')}
+                                        style={{ display: 'inline-flex', flexShrink: 0, color: 'var(--text-dimmed)' }}
+                                      >
+                                        <ImageIcon aria-hidden size={14} strokeWidth={1.75} />
+                                      </span>
+                                    </ActionTooltip>
+                                  )}
+                                  {providerProblem(provider, t) && (
+                                    <span style={{
+                                      flex: 1,
+                                      minWidth: 0,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                      fontSize: '12px',
+                                      color: 'var(--warning-text)'
+                                    }}>
+                                      {providerProblem(provider, t)}
+                                    </span>
                                   )}
                                 </div>
-                                <ProviderModelSummary
-                                  main={rememberedMainAgentPreference}
-                                  subAgent={rememberedSubAgentPreference}
-                                />
+                                {rememberedMainAgentPreference || rememberedSubAgentPreference ? (
+                                  <ProviderModelSummary
+                                    main={rememberedMainAgentPreference}
+                                    subAgent={rememberedSubAgentPreference ?? undefined}
+                                  />
+                                ) : (
+                                  <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
+                                    {t('settings.llm.providerSummaryNoModel')}
+                                  </div>
+                                )}
                               </div>
                               <span
                                 onClick={(event) => event.stopPropagation()}
@@ -2249,7 +2254,7 @@ export function SettingsView({
                                   icon={<Pencil size={15} />}
                                   label={t('settings.llm.editProviderAria', { name: provider.displayName })}
                                   tooltipLabel={t('settings.llm.editTitle')}
-                                  disabled={providersManagedRemotely}
+                                  disabled={!providerEditingEnabled}
                                   onClick={() => startEditProvider(provider)}
                                 />
                               </span>
@@ -2549,7 +2554,7 @@ export function SettingsView({
 
                     <div style={providerFooterStyle()}>
                       <div style={{ flex: '1 1 260px', minWidth: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        {canDeleteProviderInEditor && providerEditorProvider && (
+                        {providerEditorProvider && (
                           <Button
                             variant="danger"
                             onClick={() => void handleProviderDelete(providerEditorProvider)}
@@ -3194,4 +3199,22 @@ export function SettingsView({
       )}
     </div>
   )
+}
+
+function providerProblem(provider: ProviderInfoWire, t: ReturnType<typeof useT>): string | null {
+  if (provider.managedBy === 'modelService') {
+    return provider.isAuthenticated ? null : t('settings.llm.serviceAuthenticationRequired')
+  }
+  if (provider.authMethod === 'chatgptOAuth') {
+    return provider.chatGptPlanType ? null : t('settings.llm.providerChatGptNotSignedIn')
+  }
+  return provider.hasApiKey ? null : t('settings.llm.providerKeyMissing')
+}
+
+function providerDetails(provider: ProviderInfoWire, t: ReturnType<typeof useT>): string {
+  return [
+    providerProtocolLabel(provider.protocol),
+    provider.endPoint.trim() || null,
+    provider.managedBy === 'modelService' && provider.isAuthenticated ? t('settings.llm.managedByService') : null
+  ].filter(Boolean).join(' · ')
 }

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.8 |
+| **Version** | 0.8.10 |
 | **Status** | Living |
-| **Date** | 2026-10-15 |
+| **Date** | 2026-10-17 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
 
@@ -41,7 +41,7 @@ Serialized shapes are defined by the [AppServer JSON Schema](../../src/DotCraft.
 - [23. External Channel Management Methods](#23-external-channel-management-methods)
 - [23A. Agent Profile Management Methods](#23a-agent-profile-management-methods)
 - [24. SubAgent Profile Management Methods](#24-subagent-profile-management-methods)
-- [25. Workspace Config Methods](#25-workspace-config-methods)
+- [25. Configuration Methods](#25-configuration-methods)
 - [25A. Source Control Methods](#25a-source-control-methods)
 - [25B. File System Methods](#25b-file-system-methods)
 - [25C. Command Execution Methods](#25c-command-execution-methods)
@@ -295,7 +295,7 @@ Built-in channels and external adapters share the delivery and tool-call contrac
 | `capabilities.toolCatalog` | boolean | Server supports the built-in tool catalog method (`tool/list`). Always `true` for servers built on this protocol version; the catalog is derived from server reflection and has no workspace dependency. |
 | `capabilities.commandManagement` | boolean | Server supports command management methods (`command/list`, `command/execute`). |
 | `capabilities.channelStatus` | boolean | Server supports the channel runtime status method (`channel/status`). |
-| `capabilities.providerManagement` | boolean | Server supports personal model provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`). |
+| `capabilities.providerManagement` | boolean | Server supports the provider view and probe methods (`provider/list`, `provider/test`). Providers are edited through configuration writes, gated by `workspaceConfigManagement`. |
 | `capabilities.modelCatalogManagement` | boolean | Server supports model catalog methods (`model/list`). |
 | `capabilities.workspaceConfigManagement` | boolean | Server supports configuration methods (`config/schema`, `config/read`, `config/value/write`, `config/batchWrite`). |
 | `capabilities.sourceControlManagement` | boolean | Server supports workspace source control binding methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`) and source-control provider extensions advertised by `sourceControl/get.capabilities`, such as Perforce pending changelist selection/preparation. |
@@ -4937,15 +4937,16 @@ Clients must check `capabilities.channelStatus` before calling `channel/status`.
 
 ### 21.1 Scope
 
-These methods expose personal model provider management and provider model discovery. Provider records are personal configuration; workspace configuration only selects a provider id and model id.
+These methods list and probe model providers and discover provider models. Provider records are personal configuration under the `Providers` key and are created, edited, and deleted through configuration writes ([Section 25.4](#254-configuration-writes)); workspace configuration only selects a provider id and model id.
 
 With a remote model service, provider records come from that service. They carry
 `managedBy: "modelService"` and `isAuthenticated`, and expose no upstream credentials.
-Listing, testing an existing provider, and selecting models remain available. Provider
-creation, mutation, draft testing, and subscription login/logout return an InvalidRequest
-with the management location. Clients show the service-managed state and disable these actions.
+Listing, testing an existing provider, and selecting models remain available. Draft testing
+and subscription login/logout return an InvalidRequest with the management location, and
+configuration writes under `Providers` fail with `configValidationError`. Clients show the
+service-managed state and disable these actions.
 
-Clients must check `capabilities.providerManagement` before calling any `provider/*` method and `capabilities.modelCatalogManagement` before calling `model/list`. If absent or `false`, the server returns `-32601` (Method not found).
+Clients must check `capabilities.providerManagement` before calling `provider/list` or `provider/test` and `capabilities.modelCatalogManagement` before calling `model/list`. If absent or `false`, the server returns `-32601` (Method not found).
 
 ### 21.2 `ProviderInfo` Wire DTO
 
@@ -4992,25 +4993,11 @@ Additional capability flags include:
 | `responsesApi` | boolean | Whether the provider protocol uses the OpenAI Responses API surface. |
 | `nativeDeferredToolLoading` | boolean | Whether native deferred tool loading is protocol-valid for this provider. It is valid for OpenAI Responses and Anthropic beta tool-reference providers. |
 
-### 21.3 Provider Management Methods
+### 21.3 Provider Methods
 
-`provider/list` returns explicit personal providers with secrets redacted. Only configured personal providers are returned; the server never synthesizes one.
+`provider/list` returns the configured personal providers, or with a remote model service the providers it manages, as `ProviderInfo` records with secrets redacted and defaults resolved: a missing display name is the id, the protocol is canonical, and `supportsImageGeneration` is the effective value. The server never synthesizes a provider that neither the configuration nor a remote model service defines.
 
-`provider/create` params:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | string | yes | Stable provider id. `openai` is allowed as an explicit personal provider id. |
-| `displayName` | string | no | User-facing label. Defaults to `id`. |
-| `protocol` | string | yes | `openai-chat-completions`, `openai-responses`, or `anthropic`. |
-| `apiKey` | string | no | Provider credential or secret reference. |
-| `endPoint` | string | no | Provider base URL. Empty values use the protocol's official default endpoint. |
-| `networkTimeoutSeconds` | integer? | no | Timeout override; must be greater than zero. |
-| `streamMaxRetries` | integer? | no | Stream reconnection retry budget; `0` disables stream retry and values above `100` are rejected. |
-| `streamIdleTimeoutMs` | integer? | no | Per-stream idle timeout in milliseconds; must be greater than zero. |
-| `supportsImageGeneration` | boolean | no | Whether this provider serves the OpenAI Images API. When omitted on create, ChatGPT OAuth and API-key providers on the official OpenAI endpoint default to `true`; other endpoints default to `false`. |
-
-`provider/update` accepts `id` plus any mutable provider fields from `provider/create`. Omitted fields are unchanged. Passing `supportsImageGeneration: null` is invalid; pass `true` or `false` to change the setting. `provider/delete` accepts `{ "id": "..." }` and removes a provider only when the active workspace selection would not be broken.
+Providers have no mutation methods. They are created, edited, and deleted with `config/value/write` or `config/batchWrite` on `Providers.<id>` and `Providers.<id>.<Field>`, always in the user layer; see [Section 25.4](#254-configuration-writes) for the rules and an example. A client creating a provider checks the ids from `provider/list` and may pass `expectedVersion` so it does not overwrite a concurrent edit.
 
 `provider/test` performs a low-cost provider-neutral probe by attempting model listing. It never performs a hidden chat-completion request. Params may reference a persisted provider:
 
@@ -5045,7 +5032,7 @@ The result shape mirrors model-list success and error handling:
 
 `EndpointNotSupported` is a normal setup outcome. Clients must still allow saving the provider and manually entering a model id. Provider test responses must not include raw credentials.
 
-Provider mutations emit `config/changed` with region `providers`.
+A configuration write that changes `Providers` emits `config/changed` whose `regions` include the key path `Providers` and the domain tag `providers`.
 
 ### 21.4 `ModelCatalogItem` Wire DTO
 
@@ -5156,7 +5143,7 @@ identity, which refreshes on the next call. `provider/test` always queries the e
 
 ### 21.6 Capability Advertisement
 
-Clients must check `capabilities.providerManagement` before calling provider management methods and `capabilities.modelCatalogManagement` before calling `model/list`.
+Clients must check `capabilities.providerManagement` before calling `provider/list` or `provider/test`, `capabilities.modelCatalogManagement` before calling `model/list`, and `capabilities.workspaceConfigManagement` before editing providers.
 
 ## 22. MCP Management Methods
 
@@ -6486,7 +6473,7 @@ Params:
 
 ### 25.1 Scope
 
-These methods read and change the configuration of the server the client is connected to, addressing fields by key path. The configuration model — layers, descriptors, validation, and how a change takes effect — is defined in [Configuration](../architecture/configuration.md). Per-thread overrides stay in `thread/config/update`. Domain operations that persist configuration as a side effect (`provider/*`, skills, plugins, MCP, hooks, external channels, SubAgent settings, source control) keep their own methods.
+These methods read and change the configuration of the server the client is connected to, addressing fields by key path. The configuration model — layers, descriptors, validation, and how a change takes effect — is defined in [Configuration](../architecture/configuration.md). Per-thread overrides stay in `thread/config/update`. Model providers are configuration under `Providers` and are edited only through these methods. Domain operations that persist configuration as a side effect (skills, plugins, MCP, hooks, external channels, SubAgent settings, source control) keep their own methods.
 
 Clients must check `capabilities.workspaceConfigManagement` in `initialize` before calling `config/schema`, `config/read`, `config/value/write`, or `config/batchWrite`. If absent or `false`, the server returns `-32601` (Method not found).
 
@@ -6577,7 +6564,9 @@ Return the effective configuration, the layer each configured field comes from, 
 
 A layer `name` is `{ "type": "user" | "workspace", "file": <absolute path> }`. A layer `version` is `sha256:` followed by the hex digest of the layer's JSON with sorted keys; a missing file has the version of an empty object.
 
-Values of sensitive fields are masked as `"***"` in `config` and in every layer.
+Non-empty sensitive values are masked as `"***"` in `config` and in every layer. A value is sensitive when its field is marked sensitive in `config/schema` or its key names a secret: a key ending in `ApiKey`, `Token`, `Secret`, or `Password`, an `Authorization` key, or any value of a `Headers`, `EnvironmentVariables`, or `Env` map, at any depth, for example `Providers.<id>.ApiKey`.
+
+`Providers` appears in `config` and in the user layer with the values stored in the files; resolved provider defaults are reported by `provider/list`, not here.
 
 ### 25.4 Configuration Writes
 
@@ -6592,9 +6581,9 @@ Write one key path to one layer.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `keyPath` | string | yes | Dot-joined on-disk property names from the root, for example `Tools.CodeMode.Mode`. A path inside an object-valued field, such as `ProviderPreferences.openai`, is also accepted. A segment that contains `.`, `"` or `\` is written in double quotes with `\` escaping, for example `ProviderPreferences."openai.personal"`. |
-| `value` | any JSON | yes | The new value. `null` removes the key from the target layer and prunes parent objects left empty. |
+| `value` | any JSON | yes | The new value. `null` removes the key from the target layer and prunes parent objects left empty. A `"***"` string as the value or as a nested object member keeps the value stored at that path before the write; a `"***"` array element is kept as written. |
 | `mergeStrategy` | string | yes | `replace` sets the value; `upsert` deep-merges an object value into the existing object. |
-| `filePath` | string \| null | no | A layer `file` from `config/read`. Omitted or `null` targets the workspace layer. |
+| `filePath` | string \| null | no | A layer `file` from `config/read`. Omitted or `null` targets the workspace layer, or the user layer when the key path is under `Providers`. |
 | `expectedVersion` | string \| null | no | When set, the write fails unless the target layer still has this version. |
 
 **Result**:
@@ -6633,7 +6622,7 @@ Apply several edits to one layer atomically.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `edits` | array | yes | Edits of the form `{ keyPath, value, mergeStrategy }`, applied in order. |
-| `filePath` | string \| null | no | As in `config/value/write`. |
+| `filePath` | string \| null | no | As in `config/value/write`. Omitted or `null` targets the user layer when every edit is under `Providers`; a batch mixing `Providers` edits with other keys must name the user layer or is rejected with `configValidationError`. |
 | `expectedVersion` | string \| null | no | As in `config/value/write`. |
 
 **Result**: the same shape as `config/value/write`.
@@ -6642,9 +6631,73 @@ Apply several edits to one layer atomically.
 
 - A write updates the in-process configuration before the response, so a following `config/read` and later Turns observe it. How each changed field takes effect follows its `reload` metadata from `config/schema`.
 - Only fields whose effective value changes are checked against their bounds and options; an existing invalid value elsewhere does not block an unrelated write. The whole configuration must still deserialize.
-- Sensitive fields cannot be written through these methods; they are changed through their domain methods, for example `provider/update`.
+- Sensitive values (see [Section 25.3](#253-configread)) are write-only. A write may set or replace them; reads keep masking them. Writing `"***"` leaves the stored value unchanged, `null` removes it, and any other value replaces it. No result, error message, or `config/changed` notification contains a sensitive value.
 - The server preserves unrelated content of the target file.
 - A write that changes at least one effective value emits `config/changed` (see [Section 25.5](#255-configchanged)) with `source` set to the method name and `regions` listing the changed key paths. A write that changes no effective value emits nothing.
+
+#### Providers
+
+`Providers` maps a provider id to a provider object with the fields `DisplayName`, `Protocol`, `ApiKey`, `AuthMethod`, `ChatGptAccountId`, `ChatGptPlanType`, `EndPoint`, `NetworkTimeoutSeconds`, `MaxOutputTokens`, `StreamMaxRetries`, `StreamIdleTimeoutMs`, `SupportsImageGeneration`, and `SupportsFreeformTools`. Writing `Providers.<id>` or `Providers.<id>.<Field>` creates or edits a provider, and writing `null` to `Providers.<id>` deletes it. Provider ids compare case-insensitively.
+
+- Provider edits are persisted to the user layer. A request with an edit under `Providers` whose `filePath` names any other layer fails with `configValidationError`.
+- While a remote model service manages providers, any edit under `Providers` fails with `configValidationError`.
+- Each provider entry the write changes must have an id that is non-empty and contains no `/`, `\`, or `:`; a `Protocol`, when set, of `openai-chat-completions`, `openai-responses`, or `anthropic`; an absolute-URI `EndPoint` when non-empty; positive `NetworkTimeoutSeconds`, `MaxOutputTokens`, and `StreamIdleTimeoutMs`; a `StreamMaxRetries` from `0` to `100`; and an `AuthMethod`, when set, of `apiKey` or `chatgptOAuth`, where `chatgptOAuth` requires an OpenAI protocol.
+- After a write that edits `ProviderId` or anything under `Providers`, a non-empty effective `ProviderId` must name a defined provider, or, while a remote model service manages providers, one that service manages. Deleting the selected provider, or selecting an unavailable one, fails with `configValidationError`.
+- Omitted fields are resolved when the configuration is applied, as `provider/list` reports them; the server does not write defaults into the file.
+- A change to `Providers` takes effect for new Turns, model listing, and provider tests without a restart, and its `config/changed` lists the key path `Providers` and the domain tag `providers`.
+
+Create a provider and set its key:
+
+```json
+{
+  "method": "config/batchWrite",
+  "params": {
+    "edits": [
+      {
+        "keyPath": "Providers.anthropic",
+        "value": {
+          "DisplayName": "Anthropic",
+          "Protocol": "anthropic",
+          "ApiKey": "sk-ant-…",
+          "EndPoint": "https://api.anthropic.com"
+        },
+        "mergeStrategy": "replace"
+      }
+    ],
+    "expectedVersion": "sha256:9a02…"
+  }
+}
+```
+
+Edit it without touching the key, by sending the masked value back or leaving the key out of an `upsert`:
+
+```json
+{
+  "method": "config/batchWrite",
+  "params": {
+    "edits": [
+      {
+        "keyPath": "Providers.anthropic",
+        "value": { "DisplayName": "Anthropic (work)", "ApiKey": "***", "StreamMaxRetries": 3 },
+        "mergeStrategy": "upsert"
+      }
+    ]
+  }
+}
+```
+
+Delete it:
+
+```json
+{
+  "method": "config/batchWrite",
+  "params": {
+    "edits": [{ "keyPath": "Providers.anthropic", "value": null, "mergeStrategy": "replace" }]
+  }
+}
+```
+
+Each request targets the user layer, and a successful one emits `config/changed` with `regions` `["Providers", "providers"]`.
 
 #### Write Errors
 
@@ -6654,7 +6707,7 @@ A rejected write leaves the file unchanged and returns a JSON-RPC `-32600` (Inva
 |------------------------|-------|
 | `configLayerReadonly` | `filePath` is not the user or workspace layer file. |
 | `configVersionConflict` | `expectedVersion` differs from the target layer's current version. |
-| `configValidationError` | The candidate configuration does not deserialize, a changed field violates its type, bounds, or options, a semantic rule for an edited key path fails, or the key path names a sensitive field. |
+| `configValidationError` | The candidate configuration does not deserialize, a changed field violates its type, bounds, or options, a semantic rule for an edited key path fails, a `Providers` edit names a layer other than the user layer, or a `Providers` edit is made while a remote model service manages providers. |
 | `configSchemaUnknownKey` | The key path names no configuration field and is not inside an object-valued field. |
 
 The error `message` is English fallback text. An unknown `mergeStrategy` returns `-32602` (Invalid params).
@@ -6681,7 +6734,7 @@ Server notification emitted after a successful configuration change.
 | `regions` | string[] | For `config/value/write` and `config/batchWrite`, the changed configuration key paths. For domain operations, coarse domain tags. |
 | `changedAt` | string (ISO-8601) | Server-side UTC timestamp when the change event was emitted. |
 
-Domain tags: `providers`, `skills`, `plugins`, `plugins.config`, `memory`, `lsp`, `mcp`, `hooks`, `externalChannel`, `subagent`, and `sourceControl`.
+Domain tags: `providers`, `skills`, `plugins`, `plugins.config`, `memory`, `lsp`, `mcp`, `hooks`, `externalChannel`, `subagent`, and `sourceControl`. `providers` accompanies the key path `Providers` whenever a configuration change, including the provider binding of `auth/openai/login` and `auth/openai/logout`, changes the provider set.
 
 Semantics:
 
@@ -7654,6 +7707,8 @@ These methods project [OpenAI subscription authentication](../architecture/opena
 | `auth/openai/usage/updated` | server notification | Announces a changed usage snapshot after polling, login, or logout. |
 
 The blocking login request allows at least 15 minutes for interactive authorization.
+
+Login and logout persist the provider binding as one configuration write to the user layer, subject to the provider rules of [Section 25.4](#254-configuration-writes). A login whose binding is rejected keeps its tokens and returns an InvalidRequest that names the failure; a logout clears tokens even when its binding write fails. A binding that changes configuration emits `config/changed` with `source` set to the method name and `regions` listing the changed key paths and `providers`.
 
 Status accepts optional `includeToken` and `refreshToken`. The latter forces refresh before answering; otherwise proactive refresh applies. `authToken` is returned only for an explicit `includeToken: true` request when the host holds credentials locally. A model-service connection reports remote sign-in state without returning credentials. Refresh failure returns the usual sign-in state without `authToken`. Clients use a returned token only for their own ChatGPT backend requests and must not persist or log it.
 

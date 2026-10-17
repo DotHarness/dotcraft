@@ -28,11 +28,11 @@ Desktop 按照改动如何变成运行态，把设置分成三层：
 | External Channel | 外部通道相关配置 | 子系统重启 |
 | Connection / Local AppServer | `connectionMode = local`、本地 AppServer 二进制路径、本地 WebSocket 监听配置 | Hub 托管的本地 AppServer 可 Apply & Restart |
 | Connection / Remote AppServer | `connectionMode = remote`、远程 WebSocket URL、token | 先用草稿 URL/token 完成 WebSocket initialize 探测，成功后保存并切换。不会重启远端 AppServer |
-| Model providers | `Providers[id]`、`ProviderId`、`ProviderPreferences`、`SubAgent.ProviderPreferences` | Desktop / AppServer 通过 Provider 管理接口即时刷新新会话默认值 |
+| Model providers | `Providers[id]`、`ProviderId`、`ProviderPreferences`、`SubAgent.ProviderPreferences` | 即时生效。Provider 的变更是对个人配置的配置写入，新的 Turn、模型列表和 Provider 测试无需重启即使用新值 |
 
 说明：
 
-- Desktop 的模型设置页管理 Provider 注册表。凭证与端点只属于 `Providers[id]`。
+- Desktop 的模型设置页通过写入个人配置中的 `Providers[id]` 来创建、编辑和删除 Provider。凭证与端点只属于 `Providers[id]`。删除工作区当前选中的 Provider 会被拒绝。
 - 修改工作区 `ProviderId` 或 `ProviderPreferences` 只刷新新线程的默认值。已有线程保留创建时的模型、思考程度、速率和上下文窗口快照，除非该线程自己的 composer 原子更新完整偏好。
 - 工作区文件保存 `ProviderId` 和按 provider 区分的完整偏好覆盖。Provider 凭证保留在个人 `Providers[id]` 注册表中。
 - Remote AppServer 的生命周期由用户或远端环境管理。Desktop 只测试连接并切换，不提供 remote restart。

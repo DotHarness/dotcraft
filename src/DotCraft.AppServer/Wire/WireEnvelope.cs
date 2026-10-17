@@ -337,9 +337,6 @@ public sealed class ServerCapabilitySnapshot
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ModelCatalogManagement { get; set; }
 
-    /// <summary>
-    /// Server supports personal model provider management methods (<c>provider/list</c>, <c>provider/create</c>, <c>provider/test</c>, etc.).
-    /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ProviderManagement { get; set; }
 

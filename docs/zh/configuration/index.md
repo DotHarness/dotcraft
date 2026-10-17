@@ -34,7 +34,7 @@ dotcraft config show --json
 
 ## 从客户端修改配置
 
-AppServer 客户端按 key path 修改设置，而不是直接编辑文件。`config/read` 返回遮蔽了敏感值的生效配置，也可以同时返回用户层和工作区层。`config/value/write` 修改一个 key path，例如 `Tools.CodeMode.Mode`，`config/batchWrite` 一次把多处修改写入同一层。写入默认落在工作区层，指定用户层的文件路径时才写入用户层。凭据不走这条路径，由 Provider 相关方法负责。参数和错误码见 [AppServer 协议](../extend/protocols/appserver)。
+AppServer 客户端按 key path 修改设置，而不是直接编辑文件。`config/read` 返回遮蔽了敏感值的生效配置，也可以同时返回用户层和工作区层。`config/value/write` 修改一个 key path，例如 `Tools.CodeMode.Mode`，`config/batchWrite` 一次把多处修改写入同一层。写入默认落在工作区层，指定用户层的文件路径时才写入用户层。API Key、Token、密码等敏感值只能写入、不能读回：写入会保存新值，`config/read` 将其显示为 `***`，把 `***` 原样写回则保留已存储的值。模型 Provider 的定义仍通过 Provider 相关方法修改。参数和错误码见 [AppServer 协议](../extend/protocols/appserver)。
 
 服务端在保存前校验写入：结果必须仍能加载为配置，每个变更字段都要满足其类型、范围和可选值。被拒绝的写入不会改动文件。通过校验的写入会按各字段的重载方式更新正在运行的 AppServer，并通过 `config/changed` 广播变更的 key path。
 

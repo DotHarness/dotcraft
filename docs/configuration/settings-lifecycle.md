@@ -28,11 +28,11 @@ The group's action names its tier: live-apply groups take effect on save, and re
 | External Channel | External channel related configuration | Subsystem restart |
 | Connection / Local AppServer | `connectionMode = local`, local AppServer binary path, local WebSocket listener config | Hub-managed local AppServer can Apply & Restart |
 | Connection / Remote AppServer | `connectionMode = remote`, remote WebSocket URL, token | Probe the draft URL/token through WebSocket initialize, then save and switch after success. No remote AppServer restart |
-| Model providers | `Providers[id]`, `ProviderId`, `ProviderPreferences`, `SubAgent.ProviderPreferences` | Desktop / AppServer refresh new-session defaults through provider management APIs |
+| Model providers | `Providers[id]`, `ProviderId`, `ProviderPreferences`, `SubAgent.ProviderPreferences` | Live apply. Provider changes are configuration writes to your personal configuration; new turns, model lists, and provider tests use them without a restart |
 
 Notes:
 
-- The Desktop model page manages the provider registry. Credentials and endpoints belong only to `Providers[id]`.
+- The Desktop model page creates, edits, and deletes providers by writing `Providers[id]` in your personal configuration. Credentials and endpoints belong only to `Providers[id]`. Deleting the provider the workspace has selected is rejected.
 - Changing workspace `ProviderId` or `ProviderPreferences` refreshes new-thread defaults only. Existing threads keep the model, reasoning, speed, and context-window snapshot captured at creation, unless their own composer atomically changes the complete preference.
 - Workspace files save `ProviderId` and provider-specific complete preference overrides. Provider credentials stay in the personal `Providers[id]` registry.
 - A Remote AppServer is owned by the user or the remote environment. Desktop tests and switches the connection, and offers no remote restart.

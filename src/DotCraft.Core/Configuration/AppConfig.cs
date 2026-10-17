@@ -50,7 +50,7 @@ public sealed partial class AppConfig
     /// Personal provider registry. Workspaces select providers by <see cref="ProviderId"/>.
     /// Credentials and endpoints live here, not in workspace root config.
     /// </summary>
-    [ConfigField(Ignore = true)]
+    [ConfigField(Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.ThreadAgents)]
     public Dictionary<string, ModelProviderConfig> Providers { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>

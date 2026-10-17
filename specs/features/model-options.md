@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.8.10 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-17 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md) |
 
 Purpose: define the provider-neutral, model-aware options that control how DotCraft runs a selected
@@ -311,9 +311,14 @@ segmented control in the row offering `Inherit` and `Custom`. Inherit removes th
 record and disables the field; Custom clones the current MainAgent preference before editing. Setup is
 one centered wizard screen, configures MainAgent only, and leaves SubAgent inheritance untouched.
 
-Each provider row in `Provider list` summarises its remembered preferences as two clauses, `Main` and
-`Subagent`, each naming the model and reasoning effort. Fast inference reads as a bolt before the model name; Standard adds nothing. A provider
-without a SubAgent record shows `Inherits main model` as its `Subagent` value.
+Each provider row in `Provider list` always takes two lines. The first holds the provider name, an
+image glyph with a tooltip when the provider can create images, and a warning-coloured sign-in
+problem when there is one, such as a missing API key or a subscription that is not signed in. The
+second names the remembered preferences: a `Main` clause with the model and reasoning effort, and a
+`Subagent` clause only when the provider has a SubAgent record, kept to one truncated line. Fast
+inference reads as a bolt before the model name; Standard adds nothing. A provider without
+remembered preferences shows a dimmed `No model chosen yet` placeholder instead. Protocol and
+endpoint are not shown on the row; they appear in the tooltip of the provider icon.
 
 ## 7. Compatibility and Errors
 

@@ -116,7 +116,7 @@ describe('useSettingsWorkspaceConfigChangeEffects', () => {
 
     rerender(
       <HookHost
-        change={{ source: 'provider/update', regions: ['providers'], changedAt: '2026-04-19T10:15:03Z' }}
+        change={{ source: 'config/batchWrite', regions: ['Providers', 'providers'], changedAt: '2026-04-19T10:15:03Z' }}
         changeSeq={1}
       />
     )

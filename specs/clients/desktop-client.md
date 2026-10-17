@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.8 |
+| **Version** | 0.8.10 |
 | **Status** | Living |
-| **Date** | 2026-10-15 |
+| **Date** | 2026-10-17 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Machines over SSH](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Remote Screen View](../features/remote-screen-view.md), [Satellite](satellite.md), [DotCraft Mobile](mobile.md), [Desktop In-App Browser](../features/desktop-inapp-browser.md), [Multi-Folder Projects](../features/multi-folder-projects.md), [Session Import](../features/session-import.md), [Turn Navigation](../features/turn-navigation.md) |
 
@@ -1058,8 +1058,10 @@ Required behavior:
 - Desktop follows the three-tier configuration model: live-apply fields, subsystem-restart fields, and process-restart fields.
 - Configuration controls require `capabilities.workspaceConfigManagement`. Desktop reads the connected server's effective configuration with `config/read` and writes key paths with `config/value/write`, or `config/batchWrite` when several change together, for local, SSH-managed, and manually configured remote connections alike; it never reads configuration files. A control applies its change optimistically and restores the previous value with an error when the write fails.
 - When `providerManagement` is available, Desktop exposes provider-aware model settings:
-  - personal providers can be created, edited, tested, and deleted from Settings;
-  - `openai` is a normal explicit provider id and can be created, selected, edited, and deleted like other providers when it is not the active workspace selection;
+  - personal providers are listed with `provider/list` and can be created, edited, tested, and deleted from Settings;
+  - the provider editor saves with `config/batchWrite` on `Providers.<id>` in the user layer: create and edit write the provider's fields, an untouched API key is sent as `***` or left out of an `upsert`, and delete writes `null` to `Providers.<id>`; per-provider toggles such as image generation write their `Providers.<id>.<Field>` key the same way;
+  - the editor rejects a new provider id that `provider/list` already shows before saving, and passes the user layer's `expectedVersion` so a save does not overwrite a concurrent edit;
+  - `openai` is a normal explicit provider id and can be created, selected, edited, and deleted like other providers when it is not the active workspace selection; the server rejects deleting the selected provider;
   - provider credentials and endpoints are personal config, while workspace saves write `ProviderId` and the selected provider's `ProviderPreferences.<id>` entry;
   - each preference contains model, reasoning, and speed selections; a workspace record atomically overrides the personal record for the same provider;
   - MainAgent and SubAgent use the shared ModelPicker menu under `Main model` and `Subagent model`; the Workspace preferences group owns the catalog refresh action in its header;
