@@ -776,6 +776,11 @@ class TabHandle {
     }, timeoutMs)))
   }
 
+  async focusedEval(expression) {
+    const result = await this.api.executeUnhandledCommand({ type: 'focused_frame_evaluate', tab_id: this.numericId, expression })
+    return resultSizeGuard(asObject(result).value)
+  }
+
   async refresh() {
     const found = (await this.api.getTabs()).map(normalizeTabInfo).find((tab) => tab.id === this.numericId)
     if (found) this.info = found

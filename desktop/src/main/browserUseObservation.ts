@@ -24,7 +24,8 @@ export function browserObservationSource(playwrightSource: string): string {
 function installObservation(injected: any, semantics: any): void {
   const host = window as any
   const nodes = new Map<string, Element>()
-  let generation = 0
+  const refs = new WeakMap<Element, string>()
+  let nextRef = 0
   const normalize = (value: unknown): string => String(value ?? '').replace(/\s+/g, ' ').trim()
   const state = (element: Element, name: string): boolean => injected.elementState(element, name).matches
   const box = (element: Element): { x: number; y: number; width: number; height: number } => {
@@ -52,12 +53,15 @@ function installObservation(injected: any, semantics: any): void {
     }
     return true
   }
+  const selectorOf = (element: Element): string => {
+    const tagName = element.tagName.toLowerCase()
+    try { return injected.generateSelectorSimple(element) || tagName } catch { return tagName }
+  }
   const info = (element: Element, index: number): any => {
     const tagName = element.tagName.toLowerCase()
     const name = semantics.getElementAccessibleName(element, false)
     const text = normalize((element as HTMLElement).innerText ?? element.textContent)
-    let selector = tagName
-    try { selector = injected.generateSelectorSimple(element) || tagName } catch { /* Detached elements have no selector. */ }
+    const selector = selectorOf(element)
     return {
       index, tagName, tag: tagName, role: semantics.getAriaRole(element) || '', name,
       text, visibleText: text, ariaName: name, selector, visible: visible(element),
@@ -79,7 +83,7 @@ function installObservation(injected: any, semantics: any): void {
         const matches = query(selector, root)
         if (matches.length !== 1) throw new Error('Strict mode violation: frameLocator must resolve to one frame.')
         const frame = matches[0] as HTMLIFrameElement
-        if (!frame.contentDocument) throw new Error('UnsupportedApi: cross-origin frameLocator is not supported.')
+        if (!frame.contentDocument) throw new Error('Frame is not accessible from this document.')
         root = frame.contentDocument
       }
     }
@@ -106,31 +110,58 @@ function installObservation(injected: any, semantics: any): void {
     }
     return [...new Set(result)]
   }
-  const snapshot = (): any => {
-    generation++
+  let opaqueFrames: Element[] = []
+  const snapshot = (options: any = {}): any => {
     nodes.clear()
+    opaqueFrames = []
+    const limit = Number.isInteger(options.limit) ? options.limit : 200
     const elements: any[] = []
     const aria: string[] = []
-    const visit = (root: Document | ShadowRoot): void => {
+    const frames: any[] = []
+    const visit = (root: Document | ShadowRoot, frameSelectors: string[]): void => {
       const body = root.nodeType === 9 ? (root as Document).body : null
       if (body) aria.push(injected.ariaSnapshot(body, { mode: 'default' }))
       for (const element of Array.from(root.querySelectorAll('*')) as Element[]) {
         if (!visible(element)) continue
         const role = semantics.getAriaRole(element)
-        if (role && !['generic', 'none', 'presentation'].includes(role) && elements.length < 200) {
-          const ref = `s${generation}e${elements.length + 1}`
+        if (role && !['generic', 'none', 'presentation'].includes(role) && elements.length < limit) {
+          let ref = refs.get(element)
+          if (!ref) {
+            ref = `e${++nextRef}`
+            refs.set(element, ref)
+          }
           nodes.set(ref, element)
-          elements.push({ ...info(element, elements.length), ref, node_id: ref })
+          elements.push({ ...info(element, elements.length), ref, node_id: ref, ...(frameSelectors.length ? { frameSelectors } : {}) })
         }
-        if (element.shadowRoot) visit(element.shadowRoot)
-        if (element.tagName === 'IFRAME') {
+        if (element.shadowRoot) visit(element.shadowRoot, frameSelectors)
+        if (element.tagName === 'IFRAME' || element.tagName === 'FRAME') {
           const frame = element as HTMLIFrameElement
-          if (frame.contentDocument) visit(frame.contentDocument)
+          const selectors = [...frameSelectors, selectorOf(frame)]
+          if (frame.contentDocument) {
+            visit(frame.contentDocument, selectors)
+          } else {
+            opaqueFrames.push(frame)
+            frames.push({ src: frame.src || '', name: semantics.getElementAccessibleName(frame, false), frameSelectors: selectors })
+          }
         }
       }
     }
-    visit(document)
-    return { title: document.title, url: location.href, bodyText: normalize(document.body?.innerText).slice(0, 4000), accessibilitySnapshot: aria.join('\n'), elements }
+    visit(document, [])
+    return {
+      title: document.title, url: location.href, bodyText: normalize(document.body?.innerText).slice(0, 4000),
+      accessibilitySnapshot: aria.join('\n'), elements, frames
+    }
+  }
+  const frameRoute = (frameSelectors: string[]): any => {
+    let root: Document = document
+    for (let index = 0; index < frameSelectors.length; index++) {
+      const matches = query(frameSelectors[index], root)
+      if (matches.length !== 1) throw new Error('Strict mode violation: frameLocator must resolve to one frame.')
+      const frame = matches[0] as HTMLIFrameElement
+      if (!frame.contentDocument) return { consumed: index + 1, frame }
+      root = frame.contentDocument
+    }
+    return null
   }
   const ensure = (element: Element, names: string[]): void => {
     for (const name of names) {
@@ -204,6 +235,8 @@ function installObservation(injected: any, semantics: any): void {
   }
   host.__dotcraftBrowserUseSnapshot = snapshot
   host.__dotcraftBrowserUseLocator = operation
+  host.__dotcraftBrowserUseOpaqueFrame = (index: number) => opaqueFrames[index] ?? null
+  host.__dotcraftBrowserUseFrameRoute = frameRoute
   host.__dotcraftBrowserUseNode = (id: string) => {
     const element = nodes.get(id)
     if (!element?.isConnected) throw new Error('NodeStale: take a fresh visible DOM snapshot.')
