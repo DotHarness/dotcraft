@@ -2198,7 +2198,7 @@ bottom of the page, carrying the footer with no rule or surface change. Copy ove
 The [Welcome backdrop](#welcome-backdrop)'s character field lies over both
 colour fields, covering the same area and fading with it, and clears under the
 top band and above the footer so their labels stay clean. It keeps that
-section's wind, pointer, click ripple, pacing, and fallback rules, with three
+section's wind, pointer, click, pacing, and fallback rules, with three
 changes for the colour field. Characters take the other theme's field tone, deep
 blue in the light theme and pale blue in the dark one, so they stay in the
 field's hue instead of greying it. Their strength is set against the field's own
