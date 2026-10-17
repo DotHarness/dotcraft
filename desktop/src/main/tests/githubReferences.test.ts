@@ -3,24 +3,24 @@ import { createGithubReferenceService, parseGithubRemoteUrl } from '../githubRef
 
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
 
-const target = { owner: 'DotHarness', repo: 'dotcraft', kind: 'pull' as const, number: 404 }
+const target = { owner: 'OctoOrg', repo: 'sample-app', kind: 'pull' as const, number: 42 }
 
 function pullNode(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     __typename: 'PullRequest',
-    number: 404,
-    title: 'Show Oratorio tasks as one page',
+    number: 42,
+    title: 'Add a settings page',
     state: 'OPEN',
     isDraft: false,
     createdAt: '2026-10-17T08:43:00Z',
-    url: 'https://github.com/DotHarness/dotcraft/pull/404',
-    author: { login: 'AkiKurisu' },
+    url: 'https://github.com/OctoOrg/sample-app/pull/42',
+    author: { login: 'octo-dev' },
     additions: 3575,
     deletions: 3716,
     changedFiles: 64,
     reviewDecision: null,
     mergeable: 'MERGEABLE',
-    headRepositoryOwner: { login: 'DotHarness' },
+    headRepositoryOwner: { login: 'OctoOrg' },
     commits: { nodes: [] },
     ...overrides
   }
@@ -69,7 +69,7 @@ function setup(options: {
     return next
   })
   const runGh = vi.fn(options.runGh ?? (async () => 'gho_token\n'))
-  const readOrigin = vi.fn(async () => (options.origin === undefined ? 'git@github.com:DotHarness/dotcraft.git' : options.origin))
+  const readOrigin = vi.fn(async () => (options.origin === undefined ? 'git@github.com:OctoOrg/sample-app.git' : options.origin))
   const service = createGithubReferenceService({ fetch, runGh, readOrigin, now: () => clock })
   return {
     service,
@@ -101,7 +101,7 @@ describe('github reference summaries', () => {
 
   it('derives issue states from state and reason', async () => {
     const issue = (state: string, stateReason: string | null) => ({
-      __typename: 'Issue', number: 404, title: 'Issue', state, stateReason, createdAt: '2026-10-01T00:00:00Z', author: null
+      __typename: 'Issue', number: 42, title: 'Issue', state, stateReason, createdAt: '2026-10-01T00:00:00Z', author: null
     })
     const { service } = setup({
       responses: [summaryResponse(issue('OPEN', null))]
@@ -128,6 +128,8 @@ describe('github reference summaries', () => {
       .toEqual({ state: 'pending', passed: 5, failed: 0, total: 8 })
     expect(await checks([['SUCCESS', 4]], [['SUCCESS', 2]]))
       .toEqual({ state: 'passing', passed: 6, failed: 0, total: 6 })
+    expect(await checks([['STALE', 1]]))
+      .toEqual({ state: 'failing', passed: 0, failed: 1, total: 1 })
     expect(await checks([]))
       .toEqual({ state: 'none', passed: 0, failed: 0, total: 0 })
   })
@@ -194,7 +196,7 @@ describe('github reference summaries', () => {
     })
     const [first, second] = await Promise.all([
       env.service.getReferenceSummary(target),
-      env.service.getReferenceSummary({ ...target, owner: 'dotharness' })
+      env.service.getReferenceSummary({ ...target, owner: 'octoorg' })
     ])
     expect(first).toEqual(second)
     expect(env.fetch).toHaveBeenCalledTimes(1)
@@ -222,64 +224,64 @@ describe('github branch pull requests', () => {
   it('prefers an open pull request over a more recent closed one', async () => {
     const env = setup({
       responses: [branchResponse([
-        pullNode({ number: 410, state: 'MERGED' }),
-        pullNode({ number: 404, state: 'OPEN' })
+        pullNode({ number: 48, state: 'MERGED' }),
+        pullNode({ number: 42, state: 'OPEN' })
       ])]
     })
-    expect(await env.service.getBranchPullRequest('F:/work/dotcraft', 'feat/one-page'))
-      .toMatchObject({ status: 'ready', ref: { number: 404, state: 'open', owner: 'DotHarness', repo: 'dotcraft' } })
+    expect(await env.service.getBranchPullRequest('F:/work/sample-app', 'feat/settings-page'))
+      .toMatchObject({ status: 'ready', ref: { number: 42, state: 'open', owner: 'OctoOrg', repo: 'sample-app' } })
     const body = JSON.parse(String(env.fetch.mock.calls[0][1]?.body))
-    expect(body.variables).toEqual({ owner: 'DotHarness', name: 'dotcraft', branch: 'feat/one-page' })
+    expect(body.variables).toEqual({ owner: 'OctoOrg', name: 'sample-app', branch: 'feat/settings-page' })
   })
 
   it('falls back to the most recent pull request when none is open', async () => {
     const env = setup({
-      responses: [branchResponse([pullNode({ number: 410, state: 'CLOSED' }), pullNode({ number: 404, state: 'MERGED' })])]
+      responses: [branchResponse([pullNode({ number: 48, state: 'CLOSED' }), pullNode({ number: 42, state: 'MERGED' })])]
     })
-    expect(await env.service.getBranchPullRequest('F:/work/dotcraft', 'main'))
-      .toMatchObject({ status: 'ready', ref: { number: 410, state: 'closed' } })
+    expect(await env.service.getBranchPullRequest('F:/work/sample-app', 'main'))
+      .toMatchObject({ status: 'ready', ref: { number: 48, state: 'closed' } })
   })
 
   it('ignores pull requests whose head lives in another owner’s fork', async () => {
     const env = setup({
       responses: [branchResponse([pullNode({ number: 411, headRepositoryOwner: { login: 'someone-else' } })])]
     })
-    expect(await env.service.getBranchPullRequest('F:/work/dotcraft', 'main')).toEqual({ status: 'none' })
+    expect(await env.service.getBranchPullRequest('F:/work/sample-app', 'main')).toEqual({ status: 'none' })
   })
 
   it('looks nothing up without a GitHub origin or a branch', async () => {
-    const elsewhere = setup({ origin: 'https://gitlab.com/DotHarness/dotcraft.git' })
-    expect(await elsewhere.service.getBranchPullRequest('F:/work/dotcraft', 'main')).toEqual({ status: 'none' })
+    const elsewhere = setup({ origin: 'https://gitlab.com/OctoOrg/sample-app.git' })
+    expect(await elsewhere.service.getBranchPullRequest('F:/work/sample-app', 'main')).toEqual({ status: 'none' })
     const noOrigin = setup({ origin: null })
-    expect(await noOrigin.service.getBranchPullRequest('F:/work/dotcraft', 'main')).toEqual({ status: 'none' })
+    expect(await noOrigin.service.getBranchPullRequest('F:/work/sample-app', 'main')).toEqual({ status: 'none' })
     const noBranch = setup()
-    expect(await noBranch.service.getBranchPullRequest('F:/work/dotcraft', '  ')).toEqual({ status: 'none' })
+    expect(await noBranch.service.getBranchPullRequest('F:/work/sample-app', '  ')).toEqual({ status: 'none' })
     for (const env of [elsewhere, noOrigin, noBranch]) expect(env.fetch).not.toHaveBeenCalled()
   })
 
   it('shares one cached lookup per origin and branch', async () => {
     const env = setup({ responses: [branchResponse([pullNode()])] })
-    await env.service.getBranchPullRequest('F:/work/dotcraft', 'main')
-    await env.service.getBranchPullRequest('F:/work/dotcraft/.craft/worktrees/a', 'main')
+    await env.service.getBranchPullRequest('F:/work/sample-app', 'main')
+    await env.service.getBranchPullRequest('F:/work/sample-app/.craft/worktrees/a', 'main')
     expect(env.fetch).toHaveBeenCalledTimes(1)
   })
 })
 
 describe('parseGithubRemoteUrl', () => {
   it('reads https and ssh GitHub remotes', () => {
-    const expected = { owner: 'DotHarness', repo: 'dotcraft' }
-    expect(parseGithubRemoteUrl('https://github.com/DotHarness/dotcraft.git')).toEqual(expected)
-    expect(parseGithubRemoteUrl('https://user:token@github.com/DotHarness/dotcraft')).toEqual(expected)
-    expect(parseGithubRemoteUrl('git@github.com:DotHarness/dotcraft.git')).toEqual(expected)
-    expect(parseGithubRemoteUrl('ssh://git@github.com/DotHarness/dotcraft.git')).toEqual(expected)
-    expect(parseGithubRemoteUrl('ssh://git@github.com:22/DotHarness/dotcraft/')).toEqual(expected)
+    const expected = { owner: 'OctoOrg', repo: 'sample-app' }
+    expect(parseGithubRemoteUrl('https://github.com/OctoOrg/sample-app.git')).toEqual(expected)
+    expect(parseGithubRemoteUrl('https://user:token@github.com/OctoOrg/sample-app')).toEqual(expected)
+    expect(parseGithubRemoteUrl('git@github.com:OctoOrg/sample-app.git')).toEqual(expected)
+    expect(parseGithubRemoteUrl('ssh://git@github.com/OctoOrg/sample-app.git')).toEqual(expected)
+    expect(parseGithubRemoteUrl('ssh://git@github.com:22/OctoOrg/sample-app/')).toEqual(expected)
   })
 
   it('rejects other hosts and malformed paths', () => {
-    expect(parseGithubRemoteUrl('https://gitlab.com/DotHarness/dotcraft.git')).toBeNull()
-    expect(parseGithubRemoteUrl('https://github.com.evil.example/DotHarness/dotcraft')).toBeNull()
-    expect(parseGithubRemoteUrl('https://github.com/DotHarness')).toBeNull()
-    expect(parseGithubRemoteUrl('git@github.com:DotHarness/../x.git')).toBeNull()
+    expect(parseGithubRemoteUrl('https://gitlab.com/OctoOrg/sample-app.git')).toBeNull()
+    expect(parseGithubRemoteUrl('https://github.com.evil.example/OctoOrg/sample-app')).toBeNull()
+    expect(parseGithubRemoteUrl('https://github.com/OctoOrg')).toBeNull()
+    expect(parseGithubRemoteUrl('git@github.com:OctoOrg/../x.git')).toBeNull()
     expect(parseGithubRemoteUrl('')).toBeNull()
   })
 })

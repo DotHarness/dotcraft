@@ -1,6 +1,6 @@
-import { useEffect, type JSX, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, type JSX, type MouseEvent } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
-import { useBranchPullRequest, useGithubRefStore } from '../../../stores/githubRefStore'
+import { useBranchPullRequest, useGithubRefStore, type GithubRefLoad } from '../../../stores/githubRefStore'
 import { githubRefUrl } from '../../../../shared/githubReferences'
 import { GithubRefGlyph, pullRequestLabel } from './githubRefState'
 import { openGithubLink } from './openGithubLink'
@@ -17,11 +17,16 @@ export function BranchPullRequestPill({ gitPath, branch }: { gitPath: string; br
   const openLink = (url: string, event: MouseEvent<HTMLElement>): void => {
     void openGithubLink(url, event, t)
   }
+  const load = useMemo<GithubRefLoad>(() => (pull ? { status: 'ready', ref: pull } : { status: 'loading' }), [pull])
+  const revalidate = useCallback(() => {
+    if (branch) void useGithubRefStore.getState().ensureBranchPull(gitPath, branch)
+  }, [branch, gitPath])
   const { anchorProps, card } = useGithubRefHoverCard<HTMLButtonElement>({
-    load: pull ? { status: 'ready', ref: pull } : { status: 'loading' },
+    load,
     label,
     preferredSide: 'above',
-    onOpenLink: openLink
+    onOpenLink: openLink,
+    onOpen: revalidate
   })
 
   useEffect(() => {

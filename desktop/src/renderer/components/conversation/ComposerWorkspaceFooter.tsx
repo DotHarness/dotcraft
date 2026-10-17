@@ -7,6 +7,7 @@ import { useConnectionStore } from '../../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../../stores/gitStore'
 import { changelistLabel, usePerforceChangelistStore, type PerforceChangelistEntry, type PerforceChangelistSnapshot } from '../../stores/perforceChangelistStore'
 import { useSourceControlStore } from '../../stores/sourceControlStore'
+import { useGithubRefStore } from '../../stores/githubRefStore'
 import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
@@ -180,6 +181,9 @@ export function ComposerWorkspaceFooter({
     : gitPathState?.status ?? 'checking'
   const branches = gitPathState?.snapshot ?? null
   const branchControlsReady = gitAvailability === 'available' && branches != null
+  const welcomePullBranch = variant === 'welcome' && mode === 'local' && gitAvailability === 'available'
+    ? branches?.current ?? null
+    : null
   const canUseWorktrees = capabilities?.gitWorktrees === true && !remoteWorkspace && branchControlsReady
   const localWorkspacePath = thread?.worktree?.workspacePath || thread?.workspacePath || branchActionPath
   const selectedBaseRef = baseRef || currentBranchLabel(branches)
@@ -212,6 +216,10 @@ export function ComposerWorkspaceFooter({
   useEffect(() => {
     ensureSourceControl(branchActionPath, sourceControlEnabled)
   }, [branchActionPath, ensureSourceControl, sourceControlEnabled])
+
+  useEffect(() => {
+    if (welcomePullBranch) void useGithubRefStore.getState().ensureBranchPull(branchActionPath, welcomePullBranch)
+  }, [branchActionPath, welcomePullBranch])
 
   useEffect(() => {
     if (!isPerforceWorkspace || !thread?.id) return

@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useState, type FocusEvent, type MouseEvent, type ReactPortal } from 'react'
+import { useEffect, useId, useLayoutEffect, useState, type FocusEvent, type MouseEvent, type ReactPortal } from 'react'
 import { createPortal } from 'react-dom'
 import { useTransientOverlay } from '../../../hooks/useTransientOverlay'
 import type { GithubRefLoad } from '../../../stores/githubRefStore'
@@ -38,12 +38,14 @@ export function useGithubRefHoverCard<A extends HTMLElement>({
   load,
   label,
   preferredSide = 'below',
-  onOpenLink
+  onOpenLink,
+  onOpen
 }: {
   load: GithubRefLoad
   label: string
   preferredSide?: GithubRefCardSide
   onOpenLink: (url: string, event: MouseEvent<HTMLElement>) => void
+  onOpen?: () => void
 }): {
   anchorProps: {
     ref: React.RefObject<A | null>
@@ -73,13 +75,20 @@ export function useGithubRefHoverCard<A extends HTMLElement>({
     const anchor = anchorRef.current
     const card = overlayRef.current
     if (!anchor || !card) return
-    setPosition(placeGithubRefCard(
+    const next = placeGithubRefCard(
       anchor.getBoundingClientRect(),
       card.offsetHeight,
       { width: window.innerWidth, height: window.innerHeight },
       preferredSide
-    ))
+    )
+    setPosition((current) =>
+      current.left === next.left && current.top === next.top && current.side === next.side ? current : next
+    )
   }, [visible, load, anchorRef, overlayRef, preferredSide])
+
+  useEffect(() => {
+    if (visible) onOpen?.()
+  }, [visible, onOpen])
 
   const anchorProps = {
     ref: anchorRef,

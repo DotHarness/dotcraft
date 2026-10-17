@@ -1,8 +1,8 @@
-import type { AnchorHTMLAttributes, JSX, MouseEvent } from 'react'
+import { useCallback, type AnchorHTMLAttributes, type JSX, type MouseEvent } from 'react'
 import { CircleDot, GitPullRequest } from 'lucide-react'
 import { useT } from '../../../contexts/LocaleContext'
 import { useConversationStore } from '../../../stores/conversationStore'
-import { useGithubRefLoad, useWorkspaceGithubRepo } from '../../../stores/githubRefStore'
+import { useGithubRefLoad, useGithubRefStore, useWorkspaceGithubRepo } from '../../../stores/githubRefStore'
 import {
   githubRefShortLabel,
   truncateGithubRefTitle,
@@ -35,7 +35,11 @@ export function GithubReferenceChip({
   const labelled = usesGithubRefLabel(text, href, target)
   const shortLabel = githubRefShortLabel(target, workspaceRepo)
   const ariaLabel = [state ? t(state.labelKey) : null, shortLabel, known?.title].filter(Boolean).join(' · ')
-  const { anchorProps, card } = useGithubRefHoverCard<HTMLAnchorElement>({ load, label: ariaLabel, onOpenLink })
+  const { owner, repo, kind, number } = target
+  const revalidate = useCallback(() => {
+    void useGithubRefStore.getState().ensureRef({ owner, repo, kind, number })
+  }, [kind, number, owner, repo])
+  const { anchorProps, card } = useGithubRefHoverCard<HTMLAnchorElement>({ load, label: ariaLabel, onOpenLink, onOpen: revalidate })
 
   return (
     <>
