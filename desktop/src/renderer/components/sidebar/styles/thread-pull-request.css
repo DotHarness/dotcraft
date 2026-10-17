@@ -1,0 +1,39 @@
+.dc-thread-pull-glyph {
+  --gh-glyph-surface: var(--bg-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.sidebar-entry-details-card button.dc-thread-pull-row {
+  width: calc(100% - 8px);
+  margin: 0 4px;
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.sidebar-entry-details-card button.dc-thread-pull-row:hover,
+.sidebar-entry-details-card button.dc-thread-pull-row:focus-visible {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.sidebar-entry-details-card button.dc-thread-pull-row:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: -2px;
+}
+
+.dc-thread-pull-row > .dc-gh-glyph {
+  --gh-glyph-surface: var(--glass-surface-strong);
+}
+
+.dc-thread-pull-row:last-child {
+  margin-bottom: 4px;
+}

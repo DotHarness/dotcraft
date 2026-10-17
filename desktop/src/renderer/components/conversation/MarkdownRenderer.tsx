@@ -1,6 +1,4 @@
 import { createContext, memo, useContext, useEffect, useMemo, useState, type ComponentProps } from 'react'
-import { Globe, Link2 } from 'lucide-react'
-import { FileTypeIcon } from '../ui/FileTypeIcon'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Extension as FromMarkdownExtension } from 'mdast-util-from-markdown'
@@ -10,16 +8,9 @@ import type { Components, ExtraProps, Options as MarkdownOptions } from 'react-m
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { openConversationLink } from '../../utils/conversationDeepLink'
-import { basename } from '../../utils/path'
-import { referenceLocation } from '../../utils/referencePaths'
-import type { OpenTargetLocation } from '../../../shared/openTargets'
-import { isBareFileLocationLinkTarget, resolveConversationLink } from '../../../shared/viewer/linkResolver'
-import { ActionTooltip } from '../ui/ActionTooltip'
-import { ReferencePathContextMenu } from './ReferencePathContextMenu'
-import type { ContextMenuPosition } from '../ui/ContextMenu'
+import { isBareFileLocationLinkTarget } from '../../../shared/viewer/linkResolver'
+import { InlineReferenceLink } from './InlineReferenceLink'
 import { CodeBlock, HighlightedCode } from './MarkdownCodeBlock'
-import { extractText } from './markdownText'
 import { tableCellMinWidths } from './markdownTable'
 import { mathSyntax } from './mathSyntax'
 import { copySelectionWithMathSource } from './mathCopy'
@@ -367,127 +358,6 @@ function MarkdownTableCell({ children, node, style, ...props }: ComponentProps<'
   )
 }
 
-type InlineReferenceKind = 'file' | 'browser' | 'external'
-
-function InlineReferenceLink({
-  href,
-  children,
-  workspacePath,
-  remoteWorkspaceActive,
-  activeThreadId,
-  linkMode,
-  t,
-  ...props
-}: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
-  workspacePath: string
-  remoteWorkspaceActive: boolean
-  activeThreadId: string | null
-  linkMode: 'conversation' | 'external'
-  t: (key: string) => string
-}): JSX.Element {
-  const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string; location: OpenTargetLocation | null } | null>(null)
-  const presentation = useMemo(
-    () => getInlineReferencePresentation(href, workspacePath, extractText(children)),
-    [children, href, workspacePath]
-  )
-
-  async function handleClick(event: React.MouseEvent<HTMLAnchorElement>): Promise<void> {
-    event.preventDefault()
-    if (linkMode === 'conversation' && event.detail !== 0 && selectionOverlapsReference(event.currentTarget)) return
-    if (!href) return
-    if (linkMode === 'external') {
-      const externalUrl = resolveExternalMarkdownUrl(href)
-      if (!externalUrl) return
-      try {
-        await window.api.shell.openExternal(externalUrl)
-      } catch {
-        // Ignore external handler failures in read-only markdown previews.
-      }
-      return
-    }
-    if (!href || !workspacePath || !activeThreadId) return
-    if (remoteWorkspaceActive && presentation.kind === 'file') return
-    await openConversationLink({
-      target: href,
-      workspacePath,
-      threadId: activeThreadId,
-      forceNew: event.ctrlKey || event.metaKey,
-      t
-    })
-  }
-
-  function handleContextMenu(event: React.MouseEvent<HTMLAnchorElement>): void {
-    if (remoteWorkspaceActive) return
-    if (linkMode !== 'conversation' || !presentation.absolutePath) return
-    event.preventDefault()
-    event.stopPropagation()
-    setContextMenu({
-      position: { x: event.clientX, y: event.clientY },
-      targetPath: presentation.absolutePath,
-      location: presentation.location ?? null
-    })
-  }
-
-  const NonFileIcon = presentation.kind === 'browser' ? Globe : Link2
-
-  const anchor = (
-    <a
-        href={href}
-        onClick={(event) => { void handleClick(event) }}
-        onContextMenu={handleContextMenu}
-        draggable={linkMode === 'conversation' ? false : undefined}
-        onDragStart={linkMode === 'conversation' ? (event) => event.preventDefault() : undefined}
-        data-conversation-reference={linkMode === 'conversation' ? '' : undefined}
-        data-inline-reference-kind={presentation.kind}
-        // Shares the .dc-ref rules with the composer pills and user-message refs.
-        className={`dc-ref ${presentation.kind === 'file' ? 'dc-ref-file' : 'dc-ref-link'}`}
-        style={{
-          margin: '0 4px',
-          maxWidth: 'min(100%, var(--inline-reference-max-width))',
-          cursor: href ? 'pointer' : 'default'
-        }}
-        {...props}
-      >
-        {presentation.kind === 'file'
-          ? <FileTypeIcon path={presentation.absolutePath ?? presentation.label} size={12} style={{ display: 'inline-block' }} />
-          : <NonFileIcon size={12} strokeWidth={2.1} aria-hidden />}
-        <span>{presentation.label}</span>
-      </a>
-  )
-
-  return (
-    <>
-      {presentation.title ? (
-        <ActionTooltip
-          label={presentation.title}
-          wrapperClassName={linkMode === 'conversation' ? 'dc-conversation-reference-tooltip' : undefined}
-        >
-          {anchor}
-        </ActionTooltip>
-      ) : (
-        anchor
-      )}
-      {contextMenu && (
-        <ReferencePathContextMenu
-          position={contextMenu.position}
-          targetPath={contextMenu.targetPath}
-          location={contextMenu.location}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
-    </>
-  )
-}
-
-function selectionOverlapsReference(anchor: HTMLAnchorElement): boolean {
-  const selection = anchor.ownerDocument.getSelection()
-  if (!selection || selection.isCollapsed) return false
-  for (let index = 0; index < selection.rangeCount; index++) {
-    if (selection.getRangeAt(index).intersectsNode(anchor)) return true
-  }
-  return false
-}
-
 function markdownUrlTransform(url: string, key: string): string | null | undefined {
   const trimmed = url.trim()
   if (key === 'href' && (isLocalFileLinkTarget(trimmed) || isBareFileLocationLinkTarget(trimmed))) return trimmed
@@ -500,87 +370,6 @@ function isLocalFileLinkTarget(value: string): boolean {
     value.startsWith('/') ||
     value.startsWith('\\') ||
     /^%5C/i.test(value)
-}
-
-function resolveExternalMarkdownUrl(href: string): string | null {
-  try {
-    const parsed = new URL(href)
-    if (
-      parsed.protocol === 'http:' ||
-      parsed.protocol === 'https:' ||
-      parsed.protocol === 'mailto:' ||
-      parsed.protocol === 'tel:'
-    ) {
-      return parsed.href
-    }
-  } catch {
-    return null
-  }
-  return null
-}
-
-function getInlineReferencePresentation(
-  href: string | undefined,
-  workspacePath: string,
-  childrenText: string
-): { kind: InlineReferenceKind; label: string; title: string; absolutePath?: string; location?: OpenTargetLocation | null } {
-  const rawHref = href?.trim() ?? ''
-  const childLabel = childrenText.trim()
-  const hasCustomLabel = childLabel.length > 0 && childLabel !== rawHref
-  const resolution = rawHref
-    ? resolveConversationLink({ target: rawHref, workspacePath: workspacePath || '' })
-    : { kind: 'reject' as const }
-
-  if (resolution.kind === 'file') {
-    return {
-      kind: 'file',
-      label: hasCustomLabel ? childLabel : basename(resolution.absolutePath),
-      title: rawHref || resolution.absolutePath,
-      ...(isAbsoluteLocalPath(resolution.absolutePath)
-        ? { absolutePath: resolution.absolutePath, location: referenceLocation(resolution.hint) }
-        : {})
-    }
-  }
-
-  if (resolution.kind === 'browser') {
-    return {
-      kind: 'browser',
-      label: hasCustomLabel ? childLabel : shortenUrlForDisplay(resolution.url),
-      title: rawHref || resolution.url
-    }
-  }
-
-  if (resolution.kind === 'external') {
-    return {
-      kind: 'external',
-      label: hasCustomLabel ? childLabel : shortenUrlForDisplay(resolution.url),
-      title: rawHref || resolution.url
-    }
-  }
-
-  return {
-    kind: 'external',
-    label: childLabel || rawHref,
-    title: rawHref || childLabel
-  }
-}
-
-function isAbsoluteLocalPath(value: string): boolean {
-  return /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('/') || value.startsWith('\\\\')
-}
-
-function shortenUrlForDisplay(rawUrl: string): string {
-  try {
-    const parsed = new URL(rawUrl)
-    const path = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/+$/, '')
-    if (!path) return parsed.hostname
-    const compactPath = path.length <= 18
-      ? path
-      : `/${path.split('/').filter(Boolean)[0] ?? ''}`
-    return compactPath ? `${parsed.hostname}${compactPath}` : parsed.hostname
-  } catch {
-    return rawUrl
-  }
 }
 
 const markdownContainerStyle: React.CSSProperties = {

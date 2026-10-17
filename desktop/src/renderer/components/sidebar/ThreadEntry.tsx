@@ -26,6 +26,7 @@ import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { threadOriginBadge, useThreadEntryDetails, workspacePathName } from './ThreadEntryDetails'
+import { ThreadPullRequestGlyph } from './ThreadPullRequest'
 import { useRememberRowSelection, useThreadRowSelected } from './threadRowSelection'
 import { buildWorkspaceOpenDeepLink } from '../../../shared/desktopDeepLink'
 import { buildOpenInSubmenu, useOpenTargets } from '../../utils/openTargets'
@@ -116,6 +117,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     relativeTime,
     origin: threadOriginBadge({ thread, isSubAgent, t })
   })
+  const detailsInteractive = threadDetails.pull != null
+  const worktreePull = thread.worktree?.branchName ? threadDetails.pull : null
   const canPin = !isSubAgent && thread.status !== 'archived'
   const isPinned = canPin && pinnedThreadIds.includes(thread.id)
   const showPendingApprovalBadge = !isActive && hasPendingApproval
@@ -264,6 +267,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         width={240}
         content={threadDetails.content}
         onOpen={threadDetails.onOpen}
+        interactive={detailsInteractive}
         disabled={renaming || Boolean(dragKind)}
         wrapperStyle={{ width: '100%' }}
       >
@@ -312,6 +316,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         }}
         containerProps={{
           'aria-current': selected ? 'true' : undefined,
+          tabIndex: detailsInteractive ? 0 : undefined,
+          'aria-label': detailsInteractive ? displayName : undefined,
           onClick: handleClick,
           onContextMenu: handleContextMenu,
           draggable: !renaming,
@@ -487,6 +493,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                     <span className="dc-status-indicator__dot" data-tone="success" />
                   </span>
                 </ActionTooltip>
+              ) : worktreePull ? (
+                <ThreadPullRequestGlyph pull={worktreePull} />
               ) : null}
             </span>
           </span>

@@ -34,6 +34,7 @@ html[data-theme="light"] {
   --info: #2563eb;
   --ref-base: #4a6fc9;
   --ref-skill: #835dbc;
+  --git-merged: #8250df;
   /* Deeper orange for legibility on the light surface (see dark-theme note). */
   --permission-full-access: #c2601f;
 

@@ -82,6 +82,7 @@
   /* Near the text lightness on purpose: a chip has to read as text, not as a link. */
   --ref-base: #b5ccfc;
   --ref-skill: #d3c2f5;
+  --git-merged: #b48cff;
   /* Full-access (auto-approve) permission state: a warmer orange than the --warning
      yellow. Used only on the composer approval pill + small option icons to flag risk. */
   --permission-full-access: #e8924f;
