@@ -129,8 +129,12 @@ describe('bundled browser client with cross-origin frames', () => {
     expect(snapshot.bodyText).toContain('Cross site text')
     expect(snapshot.bodyText).toContain('Same site text')
     expect(snapshot.accessibilitySnapshot).toContain('Pay now')
-    expect(snapshot.accessibilitySnapshot).toContain('Code')
+    expect(snapshot.accessibilitySnapshot).toContain('[frameSelectors=["#cross"]]')
+    expect(snapshot.accessibilitySnapshot).toContain('[frameSelectors=["#samesite"]]')
+    expect(snapshot.elements.find((element: any) => element.name === 'Code').frameSelectors).toEqual(['#samesite'])
+    expect(snapshot.elements.find((element: any) => element.name === 'Parent heading').frameSelectors).toBeUndefined()
     const pay = snapshot.elements.find((element: any) => element.name === 'Pay now')
+    expect(pay.frameSelectors).toEqual(['#cross'])
     const frame = (await page.locator('#cross').boundingBox())!
     expect(pay.boundingBox.x).toBeGreaterThanOrEqual(frame.x)
     expect(pay.boundingBox.y).toBeGreaterThanOrEqual(frame.y)
@@ -139,8 +143,10 @@ describe('bundled browser client with cross-origin frames', () => {
 
   it('acts inside cross-origin frames through locators and DOM-CUA ids', async () => {
     await evaluate(`
-      await tab.playwright.frameLocator('#samesite').getByLabel('Code').fill('42');
-      await tab.playwright.frameLocator('#cross').getByRole('button', { name: 'Confirm' }).click();
+      const before = JSON.parse(await tab.playwright.domSnapshot()).elements;
+      const scope = (name) => before.find(node => node.name === name).frameSelectors.reduce((frame, selector) => frame.frameLocator(selector), tab.playwright);
+      await scope('Code').getByLabel('Code').fill('42');
+      await scope('Confirm').getByRole('button', { name: 'Confirm' }).click();
       const nodes = JSON.parse(await tab.playwright.domSnapshot()).elements;
       await tab.dom_cua.click({ node_id: nodes.find(node => node.name === 'Pay now').ref });
       true;

@@ -261,6 +261,7 @@ interface BrowserUseElementMatch {
   enabled: boolean
   visibleText: string
   ariaName: string
+  frameSelectors?: string[]
   boundingBox: {
     x: number
     y: number
@@ -2579,7 +2580,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       timeoutMs: this.operationTimeoutMs()
     })
     const refTargets = new Map<string, BrowserFrameTarget>([['', TOP_FRAME_TARGET]])
-    const snapshot = await this.frameSnapshot(tab, TOP_FRAME_TARGET, '', BROWSER_USE_SNAPSHOT_ELEMENT_LIMIT, refTargets)
+    const snapshot = await this.frameSnapshot(tab, TOP_FRAME_TARGET, '', [], BROWSER_USE_SNAPSHOT_ELEMENT_LIMIT, refTargets)
     tab.frames.setRefTargets(refTargets)
     const elements = snapshot.elements.map((element, index) => ({ ...element, index }))
     const accessibilitySnapshot = snapshot.accessibilitySnapshot || this.formatAccessibilitySnapshot(elements)
@@ -2596,6 +2597,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     tab: BrowserUseTabRuntime,
     target: BrowserFrameTarget,
     prefix: string,
+    frameSelectors: string[],
     limit: number,
     refTargets: Map<string, BrowserFrameTarget>
   ): Promise<ReturnType<BrowserUseManager['normalizeSnapshotPayload']>> {
@@ -2607,27 +2609,33 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       true,
       target)
     const snapshot = this.normalizeSnapshotPayload(rawSnapshot)
-    snapshot.elements = snapshot.elements.map(element => element.boundingBox
-      ? { ...element, boundingBox: offsetPoint(element.boundingBox, target.offset) }
-      : element)
+    snapshot.elements = snapshot.elements.map(element => {
+      const selectors = [...frameSelectors, ...(element.frameSelectors ?? [])]
+      return {
+        ...element,
+        ...(element.boundingBox ? { boundingBox: offsetPoint(element.boundingBox, target.offset) } : {}),
+        ...(selectors.length ? { frameSelectors: selectors } : {})
+      }
+    })
     const frames = (rawSnapshot as { frames?: unknown } | null)?.frames
     if (!Array.isArray(frames)) return snapshot
     for (let index = 0; index < frames.length && refTargets.size <= BROWSER_USE_SNAPSHOT_FRAME_LIMIT; index++) {
-      const frame = (frames[index] ?? {}) as { src?: unknown; name?: unknown }
-      const label = this.stringValue(frame.name) || this.stringValue(frame.src)
+      const frame = (frames[index] ?? {}) as { src?: unknown; name?: unknown; frameSelectors?: unknown }
+      const childSelectors = [...frameSelectors, ...(Array.isArray(frame.frameSelectors) ? frame.frameSelectors.map(String) : [])]
+      const label = `${JSON.stringify(this.stringValue(frame.name) || this.stringValue(frame.src))} [frameSelectors=${JSON.stringify(childSelectors)}]`
       const childPrefix = `${prefix}f${index + 1}`
       try {
         const child = await this.frameTargetForHandle(tab, target, `window.__dotcraftBrowserUseOpaqueFrame(${index})`)
         if (!child) continue
         refTargets.set(childPrefix, child)
-        const childSnapshot = await this.frameSnapshot(tab, child, childPrefix, limit - snapshot.elements.length, refTargets)
+        const childSnapshot = await this.frameSnapshot(tab, child, childPrefix, childSelectors, limit - snapshot.elements.length, refTargets)
         snapshot.elements.push(...childSnapshot.elements)
         const childTree = childSnapshot.accessibilitySnapshot.split('\n').map(line => `  ${line}`).join('\n')
-        snapshot.accessibilitySnapshot += `\n- iframe ${JSON.stringify(label)}:\n${childTree}`
+        snapshot.accessibilitySnapshot += `\n- iframe ${label}:\n${childTree}`
         snapshot.bodyText = `${snapshot.bodyText}\n${childSnapshot.bodyText}`.trim().slice(0, 4000)
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error)
-        snapshot.accessibilitySnapshot += `\n- iframe ${JSON.stringify(label)}: unavailable (${reason})`
+        snapshot.accessibilitySnapshot += `\n- iframe ${label}: unavailable (${reason})`
       }
     }
     return snapshot
@@ -2767,7 +2775,8 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       enabled: obj.enabled !== false,
       visibleText: this.stringValue(obj.visibleText ?? text),
       ariaName: this.stringValue(obj.ariaName ?? name),
-      boundingBox
+      boundingBox,
+      ...(Array.isArray(obj.frameSelectors) ? { frameSelectors: obj.frameSelectors.map(String) } : {})
     }
   }
 

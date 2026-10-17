@@ -95,6 +95,8 @@ describe('bundled browser client with a real page', () => {
     expect(snapshot.elements.find((element: any) => element.name === 'Disabled field').enabled).toBe(false)
     expect(snapshot.elements.find((element: any) => element.name === 'Disabled aria').enabled).toBe(false)
     expect(snapshot.accessibilitySnapshot).toContain('Accessible title')
+    expect(snapshot.elements.find((element: any) => element.name === 'Frame action').frameSelectors).toEqual(['#frame'])
+    expect(snapshot.elements.find((element: any) => element.name === 'Shadow action').frameSelectors).toBeUndefined()
   })
 
   it('uses the same semantics for locator actions and fresh opaque DOM-CUA ids', async () => {

@@ -52,12 +52,15 @@ function installObservation(injected: any, semantics: any): void {
     }
     return true
   }
+  const selectorOf = (element: Element): string => {
+    const tagName = element.tagName.toLowerCase()
+    try { return injected.generateSelectorSimple(element) || tagName } catch { return tagName }
+  }
   const info = (element: Element, index: number): any => {
     const tagName = element.tagName.toLowerCase()
     const name = semantics.getElementAccessibleName(element, false)
     const text = normalize((element as HTMLElement).innerText ?? element.textContent)
-    let selector = tagName
-    try { selector = injected.generateSelectorSimple(element) || tagName } catch { /* Detached elements have no selector. */ }
+    const selector = selectorOf(element)
     return {
       index, tagName, tag: tagName, role: semantics.getAriaRole(element) || '', name,
       text, visibleText: text, ariaName: name, selector, visible: visible(element),
@@ -115,7 +118,8 @@ function installObservation(injected: any, semantics: any): void {
     const limit = Number.isInteger(options.limit) ? options.limit : 200
     const elements: any[] = []
     const aria: string[] = []
-    const visit = (root: Document | ShadowRoot): void => {
+    const frames: any[] = []
+    const visit = (root: Document | ShadowRoot, frameSelectors: string[]): void => {
       const body = root.nodeType === 9 ? (root as Document).body : null
       if (body) aria.push(injected.ariaSnapshot(body, { mode: 'default' }))
       for (const element of Array.from(root.querySelectorAll('*')) as Element[]) {
@@ -124,21 +128,25 @@ function installObservation(injected: any, semantics: any): void {
         if (role && !['generic', 'none', 'presentation'].includes(role) && elements.length < limit) {
           const ref = `${prefix}s${generation}e${elements.length + 1}`
           nodes.set(ref, element)
-          elements.push({ ...info(element, elements.length), ref, node_id: ref })
+          elements.push({ ...info(element, elements.length), ref, node_id: ref, ...(frameSelectors.length ? { frameSelectors } : {}) })
         }
-        if (element.shadowRoot) visit(element.shadowRoot)
+        if (element.shadowRoot) visit(element.shadowRoot, frameSelectors)
         if (element.tagName === 'IFRAME' || element.tagName === 'FRAME') {
           const frame = element as HTMLIFrameElement
-          if (frame.contentDocument) visit(frame.contentDocument)
-          else opaqueFrames.push(frame)
+          const selectors = [...frameSelectors, selectorOf(frame)]
+          if (frame.contentDocument) {
+            visit(frame.contentDocument, selectors)
+          } else {
+            opaqueFrames.push(frame)
+            frames.push({ src: frame.src || '', name: semantics.getElementAccessibleName(frame, false), frameSelectors: selectors })
+          }
         }
       }
     }
-    visit(document)
+    visit(document, [])
     return {
       title: document.title, url: location.href, bodyText: normalize(document.body?.innerText).slice(0, 4000),
-      accessibilitySnapshot: aria.join('\n'), elements,
-      frames: opaqueFrames.map(frame => ({ src: frame.src || '', name: semantics.getElementAccessibleName(frame, false) }))
+      accessibilitySnapshot: aria.join('\n'), elements, frames
     }
   }
   const frameRoute = (frameSelectors: string[]): any => {
