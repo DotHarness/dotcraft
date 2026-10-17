@@ -222,7 +222,7 @@ async function clipboardPage({ action, items, replace, credentialField }) {
 }
 
 async function runClipboardPage(tab, args) {
-  const result = await tab.eval(`(async () => {
+  const result = await tab.focusedEval(`(async () => {
     try {
       return { ok: true, value: await (${clipboardPage.toString()})(${JSON.stringify(args)}) };
     } catch (error) {

@@ -10,6 +10,14 @@ import {
 import { viewerBrowserManager } from './viewerBrowser'
 import { BrowserScreenshot, type BrowserScreenshotContext } from './browserScreenshot'
 import { BrowserTabLifecycle, readBrowserTurnNotification } from './browserTabLifecycle'
+import {
+  BrowserFrameSessions,
+  FRAME_AUTO_ATTACH,
+  TOP_FRAME_TARGET,
+  offsetPoint,
+  type BrowserFrameSend,
+  type BrowserFrameTarget
+} from './browserUseFrames'
 import { browserObservationSource } from './browserUseObservation'
 import { BrowserUseViewports, normalizeViewportSize, type ViewportSize } from './browserUseViewport'
 import type { AppSettings } from './settings'
@@ -40,6 +48,19 @@ const BROWSER_USE_BLANK_TAB_READY_TIMEOUT_MS = 5_000
 const BROWSER_USE_NETWORK_IDLE_QUIET_MS = 500
 const BROWSER_USE_INPUT_METHODS = new Set(['Input.dispatchMouseEvent', 'Input.dispatchKeyEvent', 'Input.insertText'])
 const BROWSER_USE_MAX_RESULT_BYTES = 1024 * 1024
+const BROWSER_USE_SNAPSHOT_ELEMENT_LIMIT = 200
+const BROWSER_USE_SNAPSHOT_FRAME_LIMIT = 16
+const FRAME_OBJECT_GROUP = 'dotcraft-browser-use-frames'
+const FOCUSED_OPAQUE_FRAME_SOURCE = `(() => {
+  const walk = root => {
+    const element = root.activeElement
+    if (!element) return null
+    if (element.shadowRoot) return walk(element.shadowRoot)
+    if (element.tagName !== 'IFRAME' && element.tagName !== 'FRAME') return null
+    return element.contentDocument ? walk(element.contentDocument) : element
+  }
+  return walk(document)
+})()`
 const BROWSER_USE_BROWSER_CAPABILITIES = [
   {
     id: 'viewport',
@@ -124,6 +145,7 @@ interface BrowserUseTabRuntime {
   exposedToRenderer?: boolean
   cdpAttached?: boolean
   targetSessions: Map<string, string>
+  frames: BrowserFrameSessions
   backendQueue?: Promise<void>
   debuggerMessageHandler?: (...args: unknown[]) => void
   debuggerDetachHandler?: (...args: unknown[]) => void
@@ -1121,15 +1143,15 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         return {}
       case 'playwright_locator_operation': {
         const tab = this.backendTabForCommand(runtime, params)
-        await this.ensurePlaywrightInjected(tab)
-        const value = await this.executeJavaScript<unknown>(tab,
-          `window.__dotcraftBrowserUseLocator(${JSON.stringify(params.descriptor)}, ${JSON.stringify(params.operation)}, ${JSON.stringify(params.payload ?? {})})`, 'locator.operation')
-        return { value }
+        return { value: await this.locatorOperation(tab, params.descriptor, params.operation, params.payload) }
       }
-      case 'dom_cua_node_info': {
+      case 'dom_cua_node_info':
+        return await this.domCuaNodeInfo(this.backendTabForCommand(runtime, params), params.node_id)
+      case 'focused_frame_evaluate': {
         const tab = this.backendTabForCommand(runtime, params)
-        await this.ensurePlaywrightInjected(tab)
-        return await this.executeJavaScript(tab, `window.__dotcraftBrowserUseNode(${JSON.stringify(params.node_id)})`, 'domCua.node')
+        if (typeof params.expression !== 'string') throw BrowserUseBackendError.invalidArgument('focused_frame_evaluate requires an expression.')
+        const target = await this.focusedFrameTarget(tab)
+        return { value: await this.executeJavaScript(tab, params.expression, 'focusedFrame.evaluate', true, target) }
       }
       case 'playwright_dom_snapshot':
         return await this.backendPlaywrightDomSnapshot(runtime, params)
@@ -1691,6 +1713,10 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     if (this.attachDebugger(tab)) this.viewports.attached(tab)
   }
 
+  private frameSend(tab: BrowserUseTabRuntime): BrowserFrameSend {
+    return async (method, params, sessionId) => await this.cdpCommand(tab, method, params, sessionId)
+  }
+
   private attachDebugger(tab: BrowserUseTabRuntime): boolean {
     const wc = this.webContentsFor(tab.owner, tab.id)
     const debuggerApi = wc.debugger as Electron.Debugger & {
@@ -1714,6 +1740,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         tab.cdpAttached = false
         this.screenshots.reset(wc)
         tab.targetSessions.clear()
+        tab.frames.clear()
         this.emitCdpEvent(tab, 'Inspector.detached', {
           reason: this.stringFromDebuggerArgs(args) ?? 'detached'
         })
@@ -1727,6 +1754,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       }
       wc.on('did-fail-load', tab.webContentsFailLoadHandler)
     }
+    if (fresh) debuggerApi.sendCommand('Target.setAutoAttach', FRAME_AUTO_ATTACH).catch(() => {})
     return fresh
   }
 
@@ -1755,6 +1783,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       tab.debuggerDetachHandler = undefined
       tab.webContentsFailLoadHandler = undefined
       tab.targetSessions.clear()
+      tab.frames.clear()
     }
   }
 
@@ -1773,7 +1802,10 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       const targetId = typeof params.targetId === 'string' ? params.targetId : undefined
       if (targetId) tab.targetSessions.delete(targetId)
     }
-    if (this.screenshots.consumesEvent(this.webContentsFor(tab.owner, tab.id), method, params, sessionId)) return
+    const wc = this.webContentsFor(tab.owner, tab.id)
+    tab.frames.handleEvent(async (frameMethod, frameParams, frameSessionId) =>
+      await wc.debugger.sendCommand(frameMethod, frameParams, frameSessionId), method, params)
+    if (this.screenshots.consumesEvent(wc, method, params, sessionId)) return
     this.emitCdpEvent(tab, method, params, sessionId)
   }
 
@@ -2111,28 +2143,58 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     }), timeoutMs)
   }
 
-  private executeJavaScript<T = unknown>(
+  private async executeJavaScript<T = unknown>(
     tab: BrowserUseTabRuntime,
     source: string,
     operation: string,
-    userGesture = true
+    userGesture = true,
+    target: BrowserFrameTarget = TOP_FRAME_TARGET
   ): Promise<T> {
+    const result = await this.evaluateInFrame<T>(tab, target, source, operation, { returnByValue: true, userGesture })
+    if (result.unserializableValue != null) return result.unserializableValue as T
+    return result.value as T
+  }
+
+  private async evaluateFrameHandle(
+    tab: BrowserUseTabRuntime,
+    target: BrowserFrameTarget,
+    source: string,
+    operation: string
+  ): Promise<string | undefined> {
+    const result = await this.evaluateInFrame(tab, target, source, operation, {
+      returnByValue: false,
+      userGesture: false,
+      objectGroup: FRAME_OBJECT_GROUP
+    })
+    return result.objectId
+  }
+
+  private async releaseFrameHandles(tab: BrowserUseTabRuntime, target: BrowserFrameTarget): Promise<void> {
+    await this.cdpCommand(tab, 'Runtime.releaseObjectGroup', { objectGroup: FRAME_OBJECT_GROUP }, target.sessionId).catch(() => {})
+  }
+
+  private evaluateInFrame<T = unknown>(
+    tab: BrowserUseTabRuntime,
+    target: BrowserFrameTarget,
+    source: string,
+    operation: string,
+    options: { returnByValue: boolean; userGesture: boolean; objectGroup?: string }
+  ): Promise<{ value?: T; unserializableValue?: string; objectId?: string }> {
     return this.withBrowserOperation(
       tab,
       operation,
       async () => {
-        const result = await this.cdpCommand<{
-          result?: { value?: T; unserializableValue?: string }
+        const result = await tab.frames.evaluate(this.frameSend(tab), target, {
+          expression: source,
+          awaitPromise: true,
+          ...options
+        }) as {
+          result?: { value?: T; unserializableValue?: string; objectId?: string }
           exceptionDetails?: {
             text?: string
             exception?: { description?: string; value?: unknown }
           }
-        }>(tab, 'Runtime.evaluate', {
-          expression: source,
-          awaitPromise: true,
-          returnByValue: true,
-          userGesture
-        })
+        }
         if (result.exceptionDetails) {
           const details = result.exceptionDetails
           const message = details.exception?.description ||
@@ -2141,10 +2203,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
             `JavaScript evaluation failed during ${operation}`
           throw new Error(message)
         }
-        if (result.result?.unserializableValue != null) {
-          return result.result.unserializableValue as T
-        }
-        return result.result?.value as T
+        return result.result ?? {}
       })
   }
 
@@ -2270,7 +2329,8 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       clipboardItems: [],
       userOwned,
       exposedToRenderer: userOwned,
-      targetSessions: new Map()
+      targetSessions: new Map(),
+      frames: new BrowserFrameSessions()
     }
     runtime.tabs.set(id, tab)
 
@@ -2518,20 +2578,122 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       requireContent: true,
       timeoutMs: this.operationTimeoutMs()
     })
-    await this.ensurePlaywrightInjected(tab)
-    const rawSnapshot = await this.executeJavaScript<unknown>(
-      tab,
-      'window.__dotcraftBrowserUseSnapshot()',
-      'domSnapshot')
-    const snapshot = this.normalizeSnapshotPayload(rawSnapshot)
-    const accessibilitySnapshot = snapshot.accessibilitySnapshot || this.formatAccessibilitySnapshot(snapshot.elements)
+    const refTargets = new Map<string, BrowserFrameTarget>([['', TOP_FRAME_TARGET]])
+    const snapshot = await this.frameSnapshot(tab, TOP_FRAME_TARGET, '', BROWSER_USE_SNAPSHOT_ELEMENT_LIMIT, refTargets)
+    tab.frames.setRefTargets(refTargets)
+    const elements = snapshot.elements.map((element, index) => ({ ...element, index }))
+    const accessibilitySnapshot = snapshot.accessibilitySnapshot || this.formatAccessibilitySnapshot(elements)
     return JSON.stringify({
       title: snapshot.title,
       url: snapshot.url,
       bodyText: snapshot.bodyText,
       accessibilitySnapshot,
-      elements: snapshot.elements
+      elements
     }, null, 2)
+  }
+
+  private async frameSnapshot(
+    tab: BrowserUseTabRuntime,
+    target: BrowserFrameTarget,
+    prefix: string,
+    limit: number,
+    refTargets: Map<string, BrowserFrameTarget>
+  ): Promise<ReturnType<BrowserUseManager['normalizeSnapshotPayload']>> {
+    await this.ensurePlaywrightInjected(tab, target)
+    const rawSnapshot = await this.executeJavaScript<unknown>(
+      tab,
+      `window.__dotcraftBrowserUseSnapshot(${JSON.stringify({ prefix, limit })})`,
+      'domSnapshot',
+      true,
+      target)
+    const snapshot = this.normalizeSnapshotPayload(rawSnapshot)
+    snapshot.elements = snapshot.elements.map(element => element.boundingBox
+      ? { ...element, boundingBox: offsetPoint(element.boundingBox, target.offset) }
+      : element)
+    const frames = (rawSnapshot as { frames?: unknown } | null)?.frames
+    if (!Array.isArray(frames)) return snapshot
+    for (let index = 0; index < frames.length && refTargets.size <= BROWSER_USE_SNAPSHOT_FRAME_LIMIT; index++) {
+      const frame = (frames[index] ?? {}) as { src?: unknown; name?: unknown }
+      const label = this.stringValue(frame.name) || this.stringValue(frame.src)
+      const childPrefix = `${prefix}f${index + 1}`
+      try {
+        const child = await this.frameTargetForHandle(tab, target, `window.__dotcraftBrowserUseOpaqueFrame(${index})`)
+        if (!child) continue
+        refTargets.set(childPrefix, child)
+        const childSnapshot = await this.frameSnapshot(tab, child, childPrefix, limit - snapshot.elements.length, refTargets)
+        snapshot.elements.push(...childSnapshot.elements)
+        const childTree = childSnapshot.accessibilitySnapshot.split('\n').map(line => `  ${line}`).join('\n')
+        snapshot.accessibilitySnapshot += `\n- iframe ${JSON.stringify(label)}:\n${childTree}`
+        snapshot.bodyText = `${snapshot.bodyText}\n${childSnapshot.bodyText}`.trim().slice(0, 4000)
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error)
+        snapshot.accessibilitySnapshot += `\n- iframe ${JSON.stringify(label)}: unavailable (${reason})`
+      }
+    }
+    return snapshot
+  }
+
+  private async frameTargetForHandle(
+    tab: BrowserUseTabRuntime,
+    parent: BrowserFrameTarget,
+    source: string
+  ): Promise<BrowserFrameTarget | null> {
+    try {
+      const objectId = await this.evaluateFrameHandle(tab, parent, source, 'frame.resolve')
+      return objectId ? await tab.frames.childTarget(this.frameSend(tab), parent, objectId) : null
+    } finally {
+      await this.releaseFrameHandles(tab, parent)
+    }
+  }
+
+  private async locatorOperation(
+    tab: BrowserUseTabRuntime,
+    descriptor: unknown,
+    operation: unknown,
+    payload: unknown
+  ): Promise<unknown> {
+    let target = TOP_FRAME_TARGET
+    let scoped = descriptor && typeof descriptor === 'object' ? descriptor as Record<string, unknown> : {}
+    for (;;) {
+      await this.ensurePlaywrightInjected(tab, target)
+      const frameSelectors = Array.isArray(scoped.frameSelectors) ? scoped.frameSelectors : []
+      if (!frameSelectors.length) break
+      const consumed = await this.executeJavaScript<number | null>(tab,
+        `window.__dotcraftBrowserUseFrameRoute(${JSON.stringify(frameSelectors)})?.consumed ?? null`, 'locator.frame', false, target)
+      if (consumed == null) break
+      const child = await this.frameTargetForHandle(tab, target,
+        `window.__dotcraftBrowserUseFrameRoute(${JSON.stringify(frameSelectors)})?.frame ?? null`)
+      if (!child) throw new Error('Strict mode violation: frameLocator must resolve to one frame.')
+      target = child
+      scoped = { ...scoped, frameSelectors: frameSelectors.slice(consumed) }
+    }
+    const value = await this.executeJavaScript<unknown>(tab,
+      `window.__dotcraftBrowserUseLocator(${JSON.stringify(scoped)}, ${JSON.stringify(operation)}, ${JSON.stringify(payload ?? {})})`,
+      'locator.operation', true, target)
+    if (operation === 'prepareClick' && value && typeof value === 'object') {
+      return offsetPoint(value as { x: number; y: number }, target.offset)
+    }
+    if (operation === 'resolve' && Array.isArray(value)) {
+      return value.map(item => item?.boundingBox ? { ...item, boundingBox: offsetPoint(item.boundingBox, target.offset) } : item)
+    }
+    return value
+  }
+
+  private async focusedFrameTarget(tab: BrowserUseTabRuntime): Promise<BrowserFrameTarget> {
+    let target = TOP_FRAME_TARGET
+    for (;;) {
+      const child = await this.frameTargetForHandle(tab, target, FOCUSED_OPAQUE_FRAME_SOURCE)
+      if (!child) return target
+      target = child
+    }
+  }
+
+  private async domCuaNodeInfo(tab: BrowserUseTabRuntime, nodeId: unknown): Promise<unknown> {
+    const target = tab.frames.targetForRef(String(nodeId ?? ''))
+    await this.ensurePlaywrightInjected(tab, target)
+    const info = await this.executeJavaScript<{ boundingBox?: { x: number; y: number } } | null>(tab,
+      `window.__dotcraftBrowserUseNode(${JSON.stringify(nodeId)})`, 'domCua.node', true, target)
+    return info?.boundingBox ? { ...info, boundingBox: offsetPoint(info.boundingBox, target.offset) } : info
   }
 
   private normalizeSnapshotPayload(rawSnapshot: unknown): {
@@ -2632,14 +2794,16 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').slice(0, 160)
   }
 
-  private async ensurePlaywrightInjected(tab: BrowserUseTabRuntime): Promise<void> {
+  private async ensurePlaywrightInjected(tab: BrowserUseTabRuntime, target: BrowserFrameTarget = TOP_FRAME_TARGET): Promise<void> {
     const installed = await this.executeJavaScript<boolean>(
       tab,
-      'Boolean(window.__dotcraftBrowserUseSnapshot && window.__dotcraftBrowserUseLocator && window.__dotcraftBrowserUseNode)',
-      'playwright.inject.check').catch(() => false)
+      'Boolean(window.__dotcraftBrowserUseSnapshot && window.__dotcraftBrowserUseLocator && window.__dotcraftBrowserUseNode && window.__dotcraftBrowserUseFrameRoute)',
+      'playwright.inject.check',
+      true,
+      target).catch(() => false)
     if (installed === true) return
 
-    await this.executeJavaScript(tab, browserObservationSource(playwrightInjectedScriptSource), 'playwright.inject')
+    await this.executeJavaScript(tab, browserObservationSource(playwrightInjectedScriptSource), 'playwright.inject', true, target)
   }
 
   private devLogs(tab: BrowserUseTabRuntime, options?: { filter?: string; levels?: string[]; limit?: number }): BrowserUseLogEntry[] {

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.10 |
+| **Version** | 0.8.10 |
 | **Status** | Living |
-| **Date** | 2026-10-01 |
+| **Date** | 2026-10-18 |
 | **Parent Specs** | [Chrome Browser Runtime](chrome-browser-runtime.md) |
 
 Purpose: define the behavior contract for DotCraft Desktop's embedded in-app browser automation runtime. The runtime is exposed to AppServer as `desktop-iab` and presents a browser-use compatible `iab` backend inside the thread-bound Node REPL.
@@ -208,6 +208,8 @@ Tab ids exposed through backend primitives must be stable numeric ids scoped to 
 
 Target-scoped CDP sessions are available only when Electron debugger can attach the target and returns a concrete `sessionId`. Unsupported frame or OOPIF targets must fail with `UnsupportedApi` rather than silently succeeding or routing commands to the top-level page.
 
+When the top-level debugger attaches, and for every frame session it reports, Desktop enables `Target.setAutoAttach` with `flatten`, an `iframe` filter, and no wait for the debugger. Each auto-attached frame session is the execution target for its out-of-process frame. A cross-origin frame that shares its parent's process is reached through an isolated world created for its frame id in the parent's session; a world that no longer exists is recreated once.
+
 ## 8. Tab Ownership and Finalize
 
 Each session tracks tab ownership:
@@ -263,10 +265,10 @@ Requirements:
 - Unsupported APIs fail with `UnsupportedApi` and a stable English fallback message instead of being absent, hanging, or silently ignored.
 - `browser.tabs.list()` and `browser.user.openTabs()` must return serializable `TabInfo` objects, not live tab handles. Callers must use `browser.tabs.get(info.id)` or `browser.user.claimTab(info)` before invoking tab methods.
 - `browser.tabs.selected()` returns the active automation tab handle when one exists, and `undefined` when no tab is selected. It must not implicitly create a new tab.
-- The supported reference-client subset includes `tabs.new/selected/list/get/content/finalize`, `browser.user.openTabs/claimTab`, browser `visibility` and `viewport` capabilities, `tab.goto/back/forward/reload/title/url`, screenshots, virtual clipboard `readText/writeText/read/write`, `playwright.evaluate(fnOrExpression, arg?, options?)`, `domSnapshot`, `waitForURL`, real `waitForLoadState`, `waitForTimeout`, `expectNavigation`, common locator reads and actions, `locator.all()` cached reads, `locator.filter()`, `locator.and()`, `locator.or()`, scoped `locator(selector, options)` filters, `getByRole/Text/Label/Placeholder/TestId`, same-origin `frameLocator`, coordinate CUA actions, DOM-CUA visible-node actions, `pageAssets.list/bundle`, and page-defined WebMCP tools through `tab.capabilities.get("webmcp")` only when the current page advertises them.
+- The supported reference-client subset includes `tabs.new/selected/list/get/content/finalize`, `browser.user.openTabs/claimTab`, browser `visibility` and `viewport` capabilities, `tab.goto/back/forward/reload/title/url`, screenshots, virtual clipboard `readText/writeText/read/write`, `playwright.evaluate(fnOrExpression, arg?, options?)`, `domSnapshot`, `waitForURL`, real `waitForLoadState`, `waitForTimeout`, `expectNavigation`, common locator reads and actions, `locator.all()` cached reads, `locator.filter()`, `locator.and()`, `locator.or()`, scoped `locator(selector, options)` filters, `getByRole/Text/Label/Placeholder/TestId`, `frameLocator` for same-origin, cross-origin, and out-of-process frames, coordinate CUA actions, DOM-CUA visible-node actions, `pageAssets.list/bundle`, and page-defined WebMCP tools through `tab.capabilities.get("webmcp")` only when the current page advertises them.
 - `tabs.new(url?)` is a Desktop IAB compatibility extension. When a URL is supplied, it must trigger at most one backend navigation and must not be followed by a second client-side `goto(url)`.
 - `tab.screenshot()` must use the dedicated backend screenshot command so screenshot failures have browser operation context. Generic `executeCdp(Page.captureScreenshot)` remains available only as a low-level backend primitive.
-- `executeUnhandledCommand` handles only the commands the bundled browser client sends: tab marks, browser visibility and viewport, tabs content, dev logs, screenshots, clipboard, DOM snapshot, load-state waits, locator operations, DOM-CUA node info, and tab close, back, forward, and reload. `tab_content_export` and every other command type fail with `UnsupportedApi`.
+- `executeUnhandledCommand` handles only the commands the bundled browser client sends: tab marks, browser visibility and viewport, tabs content, dev logs, screenshots, clipboard, DOM snapshot, load-state waits, locator operations, DOM-CUA node info, focused-frame evaluation, and tab close, back, forward, and reload. `tab_content_export` and every other command type fail with `UnsupportedApi`.
 - Playwright-compatible helpers exposed by the browser client must be backed by CDP primitives where practical, including locator actions, `getBy*` helpers, title, URL, and bounded evaluate helpers.
 - `playwright.evaluate(fnOrExpression, arg?, options?)` is model-facing bounded page evaluation. It may read page state and compute bounded results, but must reject common navigation, DOM mutation, storage mutation, network-send, scroll, click, focus, and form side effects. Interaction side effects belong to locators, CUA, DOM-CUA, navigation, or wait helpers.
 - When a Playwright-compatible helper cannot be implemented safely in IAB, the Browser skill must not claim it as supported.
@@ -274,6 +276,10 @@ Requirements:
 - `pageAssets.bundle()` remains the supported automation file-transfer download path. It uses the browser client's file-transfer prompt, Desktop IAB approval handling, and safe temp output; it does not enable ordinary Agent download APIs.
 - WebMCP support is a current-page capability limited to tools explicitly exposed through `navigator.modelContext`. `tab.capabilities.list()` must omit `webmcp` unless the current page exposes usable `getTools` and `executeTool` functions. Desktop IAB must not synthesize tools from hidden browser state, extension storage, cookies, or local profile data.
 - `domSnapshot()` returns a string payload through the bundled browser client from the host's shared observation implementation. Snapshot and DOM-CUA identifiers refer to the same observed elements and are opaque to callers. Callers that need structured fields must parse JSON explicitly. JSON snapshots must order top-level fields as `title`, `url`, `bodyText`, `accessibilitySnapshot`, then `elements` so model-facing orientation data appears before full element arrays.
+- Snapshots, locators, and DOM-CUA reach every frame. A frame the page cannot enter is read through its frame execution target; its elements follow the parent's elements, its accessibility tree follows the parent's as an indented `- iframe "<name or src>":` entry, and its body text is appended to `bodyText` within the 4000-character bound. A frame that cannot be read is recorded as `- iframe "<name or src>": unavailable (<reason>)` and never fails the snapshot. Snapshots read at most 200 elements and 16 such frames.
+- Bounding boxes and locator click points from any frame are in top-level viewport CSS pixels: a frame's offset is the content-box origin of its owner element in the parent's session coordinates.
+- `frameLocator` scopes resolve in the page until they reach a frame the page cannot enter, then continue inside that frame's execution target with the remaining selectors.
+- Virtual clipboard copy, cut, and paste act in the focused frame: Desktop follows the active element through frames the page cannot enter and runs the clipboard step in that frame's execution target.
 - `waitForLoadState` must observe the Desktop backend load state and must not be implemented as a client-side no-op.
 - Page text, DOM snapshots, console logs, and evaluate results must be size-limited before crossing the REPL boundary.
 - `ResultTooLarge` includes the configured limit and coarse size metadata when known, but never includes the oversized content.

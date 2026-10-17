@@ -388,6 +388,7 @@ export function createFakeBrowserManager(options: {
         if (params.type === 'playwright_locator_operation') {
           return { value: evaluateExpression('__dotcraftBrowserUseClientLocator ' + JSON.stringify(params.descriptor) + JSON.stringify(params.operation) + JSON.stringify(params.payload), backendTabs[0]) }
         }
+        if (params.type === 'focused_frame_evaluate') return { value: evaluateExpression(String(params.expression ?? ''), backendTabs[0]) }
         if (params.type === 'playwright_dom_snapshot') return { dom_snapshot: JSON.stringify({ title: 'Test Page', url: backendTabs[0]?.url, elements: [{ node_id: '42', ref: '42', role: 'button', name: 'Save', selector: 'button', visible: true, enabled: true }] }) }
         if (params.type === 'dom_cua_node_info') {
           if (staleDomNodeIds.has(Number(params.node_id))) throw BrowserUseBackendError.nodeStale(Number(params.node_id))

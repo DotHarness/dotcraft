@@ -72,9 +72,9 @@ ${body}` })
   })
 
   const inputMethods = (browserManager: FakeBrowser) => browserManager.inputSequence.map((entry) => entry.type ?? entry.method)
-  const pasteExpressions = (browserManager: FakeBrowser) => browserManager.cdpCommands
-    .filter((command) => command.method === 'Runtime.evaluate')
-    .map((command) => String((command.commandParams as { expression?: string }).expression))
+  const pasteExpressions = (browserManager: FakeBrowser) => browserManager.unhandledCommands
+    .filter((command) => command.type === 'focused_frame_evaluate')
+    .map((command) => String(command.expression))
     .filter((expression) => expression.includes('ClipboardEvent'))
 
   it('moves the cursor before CDP pointer input for move, click, and double click', async () => {

@@ -301,7 +301,9 @@ describe('BrowserUseManager viewport', () => {
 
     await call('executeCdp', { method: 'Runtime.evaluate', params: { expression: '1' }, target: { tabId: tab.id } })
     expect(h.sent.map(item => item.method)).toEqual([
+      'Target.setAutoAttach',
       'Emulation.setDeviceMetricsOverride',
+      'Target.setAutoAttach',
       'Emulation.setDeviceMetricsOverride',
       'Runtime.evaluate'
     ])
@@ -318,12 +320,12 @@ describe('BrowserUseManager viewport', () => {
     await flush()
     const evaluate = call('executeCdp', { method: 'Runtime.evaluate', params: { expression: '1' }, target: { tabId: tab.id } })
     await flush()
-    expect(h.sent.map(item => item.method)).toEqual(['Emulation.setDeviceMetricsOverride'])
+    expect(h.sent.map(item => item.method)).toEqual(['Target.setAutoAttach', 'Emulation.setDeviceMetricsOverride'])
     expect(done).not.toHaveBeenCalled()
 
     open()
     await Promise.all([set, evaluate])
-    expect(h.sent.map(item => item.method)).toEqual(['Emulation.setDeviceMetricsOverride', 'Runtime.evaluate'])
+    expect(h.sent.map(item => item.method)).toEqual(['Target.setAutoAttach', 'Emulation.setDeviceMetricsOverride', 'Runtime.evaluate'])
     expect(done).toHaveBeenCalled()
   })
 })

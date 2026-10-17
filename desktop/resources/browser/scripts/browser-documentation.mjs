@@ -20,7 +20,7 @@ tab.goto(url), back(), forward(), reload(), close(), title(), and url() navigate
     text: `# Observation and locators
 tab.playwright is a supported Playwright subset, not a full page object.
 await tab.playwright.domSnapshot() returns a JSON string with title, url, bodyText, accessibilitySnapshot, and elements. Parse it once when structured fields are needed; use elements only to build locators.
-Snapshots include open Shadow DOM and same-origin frames. Cross-origin frame interaction is unavailable.
+Snapshots include open Shadow DOM and frames, including cross-origin frames. Use frameLocator(selector) for controls inside a frame, and chain frameLocator() calls for nested frames.
 Use tab.playwright.getByRole(role, { name, exact }), getByText(text, { exact }), getByLabel(text, { exact }), getByPlaceholder(text, { exact }), getByTestId(id), locator(selector), and frameLocator(selector). getByRole names are strings.
 Locators support count(), all(), first(), last(), nth(index), filter({ has, hasNot, hasText, hasNotText, visible }), and()/or(), and scoped locators.
 Reads: allTextContents(), textContent(), innerText(), getAttribute(name), isVisible(), isEnabled(). getAttribute() reads one element; a locator that matches several fails in strict mode.
@@ -157,7 +157,7 @@ export function browserDocumentation(info) {
   const included = available.filter(topic => topic.mode === 'included').map(topic => topic.text)
   const lookup = available.filter(topic => topic.mode === 'lookup')
     .map(topic => `- agent.documentation.get(${JSON.stringify(topic.name)}): ${topic.description}`)
-  return `# ${info.name || 'DotCraft In-App Browser'}\n\n${included.join('\n\n')}\n\n## More documentation\n${lookup.join('\n')}\n\nOnly the documented API is supported. Downloads, file uploads, file choosers, browsing history, and cross-origin frame interaction are unavailable.`
+  return `# ${info.name || 'DotCraft In-App Browser'}\n\n${included.join('\n\n')}\n\n## More documentation\n${lookup.join('\n')}\n\nOnly the documented API is supported. Downloads, file uploads, file choosers, and browsing history are unavailable.`
 }
 
 export function browserTopic(info, name) {

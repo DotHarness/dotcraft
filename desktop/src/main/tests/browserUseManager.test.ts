@@ -1352,6 +1352,7 @@ describe('BrowserUseManager IAB backend', () => {
 
     const sent = (wc.debugger.sendCommand as ReturnType<typeof vi.fn>).mock.calls.map(([method, params]) => [method, params])
     expect(sent).toEqual([
+      ['Target.setAutoAttach', { autoAttach: true, flatten: true, waitForDebuggerOnStart: false, filter: [{ type: 'iframe', exclude: false }] }],
       ['Emulation.setFocusEmulationEnabled', { enabled: true }],
       ['Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 2 }],
       ['Emulation.setFocusEmulationEnabled', { enabled: true }],
