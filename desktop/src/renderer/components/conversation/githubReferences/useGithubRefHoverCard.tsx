@@ -3,9 +3,11 @@ import { createPortal } from 'react-dom'
 import { useTransientOverlay } from '../../../hooks/useTransientOverlay'
 import type { GithubRefLoad } from '../../../stores/githubRefStore'
 import { DETAILS_CARD_CLOSE_DELAY_MS, DETAILS_CARD_OPEN_DELAY_MS } from '../../sidebar/SidebarEntryDetailsCard'
+import { ComposerOverlapBand, useComposerOverlapBandHeight } from '../useComposerOverlapBand'
 import { GithubRefCardBody } from './GithubRefCard'
 
 const CARD_GAP = 6
+const CARD_RADIUS = 10
 const CARD_WIDTH = 360
 const VIEWPORT_PADDING = 8
 
@@ -39,13 +41,15 @@ export function useGithubRefHoverCard<A extends HTMLElement>({
   label,
   preferredSide = 'below',
   onOpenLink,
-  onOpen
+  onOpen,
+  overComposer = false
 }: {
   load: GithubRefLoad
   label: string
   preferredSide?: GithubRefCardSide
   onOpenLink: (url: string, event: MouseEvent<HTMLElement>) => void
   onOpen?: () => void
+  overComposer?: boolean
 }): {
   anchorProps: {
     ref: React.RefObject<A | null>
@@ -69,9 +73,13 @@ export function useGithubRefHoverCard<A extends HTMLElement>({
     top: 0,
     side: preferredSide
   })
+  const [placed, setPlaced] = useState(false)
 
   useLayoutEffect(() => {
-    if (!visible) return
+    if (!visible) {
+      setPlaced(false)
+      return
+    }
     const anchor = anchorRef.current
     const card = overlayRef.current
     if (!anchor || !card) return
@@ -84,7 +92,10 @@ export function useGithubRefHoverCard<A extends HTMLElement>({
     setPosition((current) =>
       current.left === next.left && current.top === next.top && current.side === next.side ? current : next
     )
+    setPlaced(true)
   }, [visible, load, anchorRef, overlayRef, preferredSide])
+
+  const overlapBandHeight = useComposerOverlapBandHeight(overlayRef, placed && overComposer, anchorRef)
 
   useEffect(() => {
     if (visible) onOpen?.()
@@ -118,6 +129,7 @@ export function useGithubRefHoverCard<A extends HTMLElement>({
           onMouseEnter={cancelClose}
           onMouseLeave={scheduleClose}
         >
+          {overComposer && <ComposerOverlapBand height={overlapBandHeight} radius={CARD_RADIUS} />}
           <GithubRefCardBody load={load} onOpenLink={onOpenLink} />
         </div>,
         document.body

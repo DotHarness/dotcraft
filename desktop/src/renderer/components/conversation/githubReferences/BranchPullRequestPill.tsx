@@ -26,7 +26,8 @@ export function BranchPullRequestPill({ gitPath, branch }: { gitPath: string; br
     label,
     preferredSide: 'above',
     onOpenLink: openLink,
-    onOpen: revalidate
+    onOpen: revalidate,
+    overComposer: true
   })
 
   useEffect(() => {
