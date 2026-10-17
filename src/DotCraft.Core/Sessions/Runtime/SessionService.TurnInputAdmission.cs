@@ -18,7 +18,7 @@ public sealed partial class SessionService
     {
         using (await AcquireThreadQueueLockAsync(thread.Id, ct))
             return thread.QueuedInputs.Any(input =>
-                IsPendingGuidance(input, turnId) && !IsLegacyGoalBudgetGuidanceInput(input));
+                IsPendingGuidance(input, turnId));
     }
 
     private async Task<bool> HasPendingInstantInterruptAsync(SessionThread thread, string turnId, CancellationToken ct)
@@ -26,7 +26,6 @@ public sealed partial class SessionService
         using (await AcquireThreadQueueLockAsync(thread.Id, ct))
             return thread.QueuedInputs.Any(input =>
                 IsPendingGuidance(input, turnId)
-                && !IsLegacyGoalBudgetGuidanceInput(input)
                 && !string.Equals(input.TriggerKind, SubAgentSessionControl.SubAgentFollowupTriggerKind, StringComparison.Ordinal)
                 && !IsTaskNotification(input));
     }
@@ -96,7 +95,7 @@ public sealed partial class SessionService
         using (await AcquireThreadQueueLockAsync(thread.Id, ct))
         {
             var queue = thread.QueuedInputs.ToList();
-            var changed = queue.RemoveAll(IsLegacyGoalBudgetGuidanceInput) > 0;
+            var changed = false;
             if (queuedTaskNotificationsOnly)
             {
                 for (var i = 0; i < queue.Count; i++)

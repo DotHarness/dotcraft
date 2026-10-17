@@ -516,13 +516,6 @@ public sealed partial class SessionService
                     for (var i = queue.Count - 1; i >= 0; i--)
                     {
                         var queued = queue[i];
-                        if (IsLegacyGoalBudgetGuidanceInput(queued))
-                        {
-                            queue.RemoveAt(i);
-                            changed = true;
-                            continue;
-                        }
-
                         if (!string.Equals(queued.Status, "guidancePending", StringComparison.Ordinal) ||
                             !string.Equals(queued.ReadyAfterTurnId, turn.Id, StringComparison.Ordinal))
                         {

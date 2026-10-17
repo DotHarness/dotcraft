@@ -460,11 +460,6 @@ public sealed partial class SessionService(
         return normalized;
     }
 
-    private static bool IsLegacyGoalBudgetGuidanceInput(QueuedTurnInput input) =>
-        string.Equals(input.TriggerKind, "goal", StringComparison.Ordinal)
-        && (string.Equals(input.TriggerLabel, "Goal budget reached", StringComparison.Ordinal)
-            || string.Equals(input.DisplayText, "Goal budget reached", StringComparison.Ordinal));
-
     // =========================================================================
     // Thread lifecycle
     // =========================================================================
