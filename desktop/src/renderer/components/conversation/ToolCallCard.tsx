@@ -69,6 +69,7 @@ import { toAbsoluteWorkspacePath } from '../../utils/workspacePaths'
 import { FileDiffStats } from './FileDiffStats'
 import { parseWorkflowRunId, WorkflowToolCard } from '../workflow/WorkflowToolCard'
 import { WebSearchToolRow } from './WebSearchItemRow'
+import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
 
 export type ShellRuntimeScope = 'conversation' | 'review' | 'none'
 
@@ -363,6 +364,12 @@ export const ToolCallCard = memo(function ToolCallCard({
     if (!canExpand) setExpanded(false)
   }, [canExpand])
 
+  const revealNonce = useToolCallRevealTarget((target) =>
+    target.threadId === threadId && target.callId === item.toolCallId ? target.nonce : null)
+  useEffect(() => {
+    if (revealNonce != null && canExpand) setExpanded(true)
+  }, [revealNonce, canExpand])
+
   if (!isRunning && hasAvailableMcpApp(item)) {
     return <McpAppView item={item} threadId={threadId} turnId={turnId} />
   }
@@ -468,6 +475,7 @@ export const ToolCallCard = memo(function ToolCallCard({
         onToggle={toggleExpand}
         expandable={canExpandWhileRunning}
         onHoverChange={setHovered}
+        callId={item.toolCallId}
         icon={rowIcon}
         title={remoteToolHostRow?.title ?? runningTitle}
         accessory={runningAccessory}
@@ -600,6 +608,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       onToggle={toggleExpand}
       expandable={canExpandCompleted}
       onHoverChange={setHovered}
+      callId={item.toolCallId}
       icon={rowIcon}
       title={remoteToolHostRow?.title ?? completedTitle}
       accessory={completedAccessory}

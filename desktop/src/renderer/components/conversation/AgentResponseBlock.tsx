@@ -29,6 +29,7 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
 import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { ToolDisclosure } from './ToolDisclosure'
+import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
 import { useTranscriptItemDiffs } from './transcriptDiffs'
 import { getSubAgentChipDisplay } from './SubAgentChips'
 import { SubAgentGroupChips } from './SubAgentGroupChips'
@@ -599,6 +600,11 @@ function ToolActivityRow({
   const locale = useLocale()
   const itemDiffs = useTranscriptItemDiffs()
   const [expanded, setExpanded] = useState(false)
+  const revealNonce = useToolCallRevealTarget((target) =>
+    target.threadId === threadId && items.some((item) => item.toolCallId === target.callId) ? target.nonce : null)
+  useEffect(() => {
+    if (revealNonce != null) setExpanded(true)
+  }, [revealNonce])
   const tools = items.filter((item) => item.type !== 'reasoningContent')
   const liveTool = active ? tools.findLast((item) => isToolItemLive(item, { turnRunning })) : undefined
   const working = liveTool != null || thinkingLabel != null

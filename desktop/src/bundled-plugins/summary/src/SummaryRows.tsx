@@ -31,16 +31,17 @@ export function Row({
       {meta ? <span className="conversation-summary-row__meta">{meta}</span> : null}
     </>
   )
+  const trailingSlot = trailing ? <span className="conversation-summary-row__trailing">{trailing}</span> : null
   if (!onClick) {
     return (
       <li className="conversation-summary-row" title={trailing ? undefined : title}>
         {content}
-        {trailing ? <span className="conversation-summary-row__trailing">{trailing}</span> : null}
+        {trailingSlot}
       </li>
     )
   }
   return (
-    <li>
+    <li className={trailing ? 'conversation-summary-row-item' : undefined}>
       <button
         type="button"
         className="conversation-summary-row conversation-summary-row--action"
@@ -51,6 +52,7 @@ export function Row({
       >
         {content}
       </button>
+      {trailingSlot}
     </li>
   )
 }

@@ -27,12 +27,13 @@ export function getTurnActivityState(turn: ConversationTurn, items: Conversation
 export interface TerminalWake {
   command: string
   status?: string
+  terminalId?: string
 }
 
 export function getTerminalWake(turn: ConversationTurn): TerminalWake | null {
   const input = turn.items.find((item) => item.type === 'userMessage')
   if (input?.triggerKind !== 'terminal' || input.deliveryMode === 'guidance') return null
-  return { command: input.triggerLabel?.trim() ?? '', status: input.triggerStatus }
+  return { command: input.triggerLabel?.trim() ?? '', status: input.triggerStatus, terminalId: input.triggerRefId }
 }
 
 export function getActivityElapsedMs(startedAt: string | undefined, endedAt: string | undefined): number | undefined {

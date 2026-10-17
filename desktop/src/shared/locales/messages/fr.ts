@@ -106,6 +106,8 @@ export const MESSAGES_FR = {
   "conversation.backgroundCommandFailed": "Échec de la commande en arrière-plan : {{command}}",
   "conversation.backgroundCommandStopped": "Commande en arrière-plan arrêtée : {{command}}",
   "conversation.backgroundCommandWaitingForInput": "Commande en arrière-plan en attente de saisie : {{command}}",
+  "conversation.showBackgroundCommand": "Afficher la commande",
+  "conversation.revealCommandUnavailable": "Cette commande n’est plus dans la conversation",
   "threadArchive.confirmRunning.title": "Arrêter et archiver cette discussion ?",
   "threadArchive.confirmRunning.message": "L’archivage arrêtera le travail en cours. Vous pourrez restaurer la discussion dans les paramètres.",
   "threadArchive.confirmRunning.confirm": "Arrêter et archiver",

@@ -106,6 +106,8 @@ export const MESSAGES_KO = {
   "conversation.backgroundCommandFailed": "백그라운드 명령 실패: {{command}}",
   "conversation.backgroundCommandStopped": "백그라운드 명령 중지됨: {{command}}",
   "conversation.backgroundCommandWaitingForInput": "백그라운드 명령 입력 대기 중: {{command}}",
+  "conversation.showBackgroundCommand": "명령 보기",
+  "conversation.revealCommandUnavailable": "이 명령은 더 이상 대화에 없습니다",
   "threadArchive.confirmRunning.title": "이 대화를 중지하고 보관할까요?",
   "threadArchive.confirmRunning.message": "보관하면 진행 중인 작업이 중지됩니다. 나중에 설정에서 대화를 복원할 수 있습니다.",
   "threadArchive.confirmRunning.confirm": "중지하고 보관",

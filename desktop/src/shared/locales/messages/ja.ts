@@ -106,6 +106,8 @@ export const MESSAGES_JA = {
   "conversation.backgroundCommandFailed": "バックグラウンドコマンドが失敗: {{command}}",
   "conversation.backgroundCommandStopped": "バックグラウンドコマンドを停止: {{command}}",
   "conversation.backgroundCommandWaitingForInput": "バックグラウンドコマンドが入力待ち: {{command}}",
+  "conversation.showBackgroundCommand": "コマンドを表示",
+  "conversation.revealCommandUnavailable": "このコマンドは会話に残っていません",
   "threadArchive.confirmRunning.title": "このチャットを停止してアーカイブしますか？",
   "threadArchive.confirmRunning.message": "アーカイブすると進行中の作業が停止します。チャットは後で設定から復元できます。",
   "threadArchive.confirmRunning.confirm": "停止してアーカイブ",

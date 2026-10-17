@@ -5,6 +5,7 @@ import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import type { AppLocale } from '../../../shared/locales/types'
 import { turnStopKey, useTurnStopStore } from '../../stores/turnStopStore'
+import { requestToolCallReveal, useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import styles from './TurnActivitySummary.module.css'
@@ -29,6 +30,8 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
   const [now, setNow] = useState(() => Date.now())
   const headerRef = useRef<HTMLButtonElement>(null)
   const open = !collapsible || expanded
+  const revealNonce = useToolCallRevealTarget((target) =>
+    target.threadId === threadId && target.turnId === turnId ? target.nonce : null)
   const mounted = useRef(open)
   if (open) mounted.current = true
 
@@ -38,6 +41,10 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
   }, [status, startedAt, completedAt])
+
+  useEffect(() => {
+    if (revealNonce != null) setExpanded(true)
+  }, [revealNonce])
   const elapsed = getActivityElapsedMs(startedAt, completedAt ?? (status === 'working' ? new Date(now).toISOString() : undefined))
   const key = status === 'stopped' ? byUser ? 'conversation.stopped' : 'conversation.interrupted'
     : status === 'working' ? 'conversation.working' : 'conversation.worked'
@@ -46,33 +53,45 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
     { duration: elapsed == null ? '' : formatActivityDuration(elapsed, locale) })
   const origin = terminalWake ? terminalWakeLabel(locale, terminalWake) : null
   const accessibleName = origin ? `${label} · ${origin}` : undefined
-  const labelContent = origin ? (
+  const labelContent = origin
+    ? <ActionTooltip label={origin} multiline><span>{label}</span></ActionTooltip>
+    : <span>{label}</span>
+  const terminalId = terminalWake?.terminalId
+  const originButton = origin ? (
     <ActionTooltip label={origin} multiline>
-      <span className={styles.origin}>
+      <button
+        type="button"
+        className={styles.originButton}
+        aria-label={translate(locale, 'conversation.showBackgroundCommand')}
+        disabled={!terminalId}
+        onClick={() => { if (terminalId) requestToolCallReveal(threadId, { terminalSessionId: terminalId }) }}
+      >
         <SquareTerminal size={13} strokeWidth={1.8} aria-hidden />
-        <span>{label}</span>
-      </span>
+      </button>
     </ActionTooltip>
-  ) : <span>{label}</span>
+  ) : null
 
   return <div className={styles.summary}>
     {collapsible && children ? (
-      <button
-        ref={headerRef}
-        type="button"
-        className={styles.header}
-        aria-expanded={expanded}
-        aria-label={accessibleName}
-        onClick={() => {
-          if (headerRef.current) anchorScroll(headerRef.current)
-          setExpanded(value => !value)
-        }}
-      >
-        {labelContent}
-        <span className={styles.chevron} aria-hidden><DisclosureChevron expanded={expanded} /></span>
-      </button>
+      <div className={styles.header}>
+        {originButton}
+        <button
+          ref={headerRef}
+          type="button"
+          className={styles.toggle}
+          aria-expanded={expanded}
+          aria-label={accessibleName}
+          onClick={() => {
+            if (headerRef.current) anchorScroll(headerRef.current)
+            setExpanded(value => !value)
+          }}
+        >
+          {labelContent}
+          <span className={styles.chevron} aria-hidden><DisclosureChevron expanded={expanded} /></span>
+        </button>
+      </div>
     ) : (
-      <div className={styles.header} role="status" aria-label={accessibleName}>{labelContent}</div>
+      <div className={styles.header} role="status" aria-label={accessibleName}>{originButton}{labelContent}</div>
     )}
     {children ? (
       <div className={styles.body} data-open={open ? 'true' : undefined} inert={!open}>

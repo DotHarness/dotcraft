@@ -145,7 +145,7 @@ describe('Summary feed', () => {
     })
     let state: SummaryState | null = null
     const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
-    const running = { sessionId: 'x', threadId: 'thread-1', turnId: 't1', command: 'npm run dev', status: 'running' }
+    const running = { sessionId: 'x', threadId: 'thread-1', turnId: 't1', callId: 'call-dev', command: 'npm run dev', status: 'running' }
 
     notify('terminal/completed', { terminal: { ...running, status: 'killed' } })
     releaseList({ terminals: [running] })
@@ -154,7 +154,7 @@ describe('Summary feed', () => {
 
     notify('terminal/started', { terminal: { ...running, sessionId: 'y' } })
     notify('terminal/started', { terminal: { ...running, sessionId: 'z', threadId: 'thread-2' } })
-    expect(state!.terminals).toEqual([{ sessionId: 'y', command: 'npm run dev' }])
+    expect(state!.terminals).toEqual([{ sessionId: 'y', command: 'npm run dev', callId: 'call-dev' }])
 
     notify('terminal/completed', { terminal: { ...running, sessionId: 'y', status: 'completed' } })
     expect(state!.terminals).toEqual([])

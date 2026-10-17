@@ -106,6 +106,8 @@ export const MESSAGES_ZH_HANS = {
   "conversation.backgroundCommandFailed": "后台命令失败：{{command}}",
   "conversation.backgroundCommandStopped": "后台命令已停止：{{command}}",
   "conversation.backgroundCommandWaitingForInput": "后台命令等待输入：{{command}}",
+  "conversation.showBackgroundCommand": "定位到命令",
+  "conversation.revealCommandUnavailable": "该命令已不在对话中",
   "threadArchive.confirmRunning.title": "停止并归档此会话？",
   "threadArchive.confirmRunning.message": "归档将停止正在进行的工作。你之后可以在设置中恢复此会话。",
   "threadArchive.confirmRunning.confirm": "停止并归档",

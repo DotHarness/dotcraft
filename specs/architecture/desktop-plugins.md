@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.8.5 |
+| Version | 0.8.10 |
 | Status | Living |
 | Date | 2026-10-12 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
@@ -367,7 +367,7 @@ interface DesktopPluginSubAgent {
 
 ### Navigation
 
-`navigation` opens product destinations. `openExternal(url)` opens an `http` or `https` URL in the user's default browser and handles a `dotcraft:` link inside Desktop exactly as if the operating system had delivered it; it rejects other schemes. A plugin adds or opens a project and starts a chat with a prefilled message through `dotcraft://threads/new` ([Desktop client §5.2](../clients/desktop-client.md#52-start-a-new-conversation)). `openFile(path)` opens a workspace file in the Detail Panel file viewer. `openDetailPanel(tab)` opens the current thread's Detail Panel on `changes`, `plan`, or `subagents`. `openAutomation(automationId)` opens that automation in the Automations view. `openMainView` remains limited to the plugin's own main views.
+`navigation` opens product destinations. `openExternal(url)` opens an `http` or `https` URL in the user's default browser and handles a `dotcraft:` link inside Desktop exactly as if the operating system had delivered it; it rejects other schemes. A plugin adds or opens a project and starts a chat with a prefilled message through `dotcraft://threads/new` ([Desktop client §5.2](../clients/desktop-client.md#52-start-a-new-conversation)). `openFile(path)` opens a workspace file in the Detail Panel file viewer. `openDetailPanel(tab)` opens the current thread's Detail Panel on `changes`, `plan`, or `subagents`. `openAutomation(automationId)` opens that automation in the Automations view. `revealToolCall(threadId, callId)` opens that thread and reveals the tool item with that call id in the conversation, as described in [Desktop client](../clients/desktop-client.md); a background terminal's `callId` names the `Exec` call that started it. `openMainView` remains limited to the plugin's own main views.
 
 `openPath(path, { target?, line?, column? })` opens a local path in another app ([Desktop client
 §5.17](../clients/desktop-client.md#517-open-in-another-app)). `target` is an id returned by

@@ -104,6 +104,8 @@ export const MESSAGES_EN = {
   "conversation.backgroundCommandFailed": "Background command failed: {{command}}",
   "conversation.backgroundCommandStopped": "Background command stopped: {{command}}",
   "conversation.backgroundCommandWaitingForInput": "Background command waiting for input: {{command}}",
+  "conversation.showBackgroundCommand": "Show the command",
+  "conversation.revealCommandUnavailable": "This command is no longer in the conversation",
   "threadArchive.confirmRunning.title": "Stop and archive this chat?",
   "threadArchive.confirmRunning.message": "Archiving will stop any ongoing work. You can restore the chat later in settings.",
   "threadArchive.confirmRunning.confirm": "Stop and archive",

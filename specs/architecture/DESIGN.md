@@ -1498,7 +1498,7 @@ destination stays inert, so a target that goes nowhere never looks reachable.
 
 A turn with no bubble, started by a background command's notice, carries its origin
 on its activity boundary instead: a 13px terminal icon, 6px before the timing label
-and in its colour. The icon and timing name the command and how it ended on hover; the icon itself stays neutral whatever the outcome, like a failed tool row. The boundary keeps
+and in its colour. The icon and timing name the command and how it ended on hover; the icon itself stays neutral whatever the outcome, like a failed tool row. The icon is a quiet action that lifts to `--text-primary` on hover and reveals the command in the conversation; the timing still toggles the disclosure. The boundary keeps
 its single row, rule and disclosure, so a woken turn reads as a peer of the turn above
 it rather than a second header for the same reply.
 
@@ -1954,7 +1954,8 @@ Content beside the conversation stays quieter than the conversation itself. The 
   - **Motion:** when a shell panel leaves too little room for the pinned summary, it starts fading and sliding out as that panel opens, not after the stream finishes narrowing. Keep the outgoing card mounted only through its exit, non-interactive and hidden from assistive technology. Preserve the pin preference and reverse an interrupted exit when room returns. Reduced motion removes the slide and completes the exit immediately.
   - **Header:** the workspace name at ui size and medium weight.
   - **Sections:** a secondary-size title in muted text with no count. Sections are separated by a hairline.
-  - **Rows:** single-line at ui size, with a 16px leading glyph and no trailing meta except the Changes row's line totals. Action rows take the standard hover fill. A row's trailing icon action stays hidden until the row is hovered or the action has keyboard focus.
+  - **Rows:** single-line at ui size, with a 16px leading glyph and no trailing meta except the Changes row's line totals. Action rows take the standard hover fill. A row's trailing icon action stays hidden until the row is hovered or the action has keyboard focus. A row that both opens something and has a trailing action keeps them as sibling controls, so the trailing action never sits inside the row's button.
+  - **Revealed item:** a transcript item revealed from a side surface is centred in the stream and flashed once with a `--text-primary` 10% fill that fades over 1.4s on `--ease-expand`.
   - **Environment section:** the Changes row comes first, with right-aligned `+N` in `--success` and `-M` in `--error` at secondary size with tabular numbers; a zero side is omitted. The header's trailing actions are the primary Run icon button and an ellipsis Actions menu, which holds every other environment command, including set-up, fixing a broken environment file, and opening a terminal. The section never adds rows for the environment itself.
   - **Web search source:** a thread that searched the web gets one plain `Web search` row with the globe glyph after the other sources, never one row per search result or query; it carries no count, does not expand or open anything, and takes one of the three rows before `View all`. Pages read with web fetch stay ordinary page sources.
 - **Avatar stacks.** Overlapping agent avatars carry a 1.5px ring of the card surface. A muted row also mutes its avatars.

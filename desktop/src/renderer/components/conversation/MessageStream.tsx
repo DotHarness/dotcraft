@@ -1,4 +1,5 @@
 import { useAutomationRunReveal } from '../../hooks/useAutomationRunReveal'
+import { useToolCallReveal } from '../../hooks/useToolCallReveal'
 import { collectConversationImages, ConversationImagesContext, type GalleryImage } from './imagePreview/galleryImages'
 import { collectConversationVisualizations, ConversationVisualizationsContext, type VisualizationEntry } from './visualizationGallery'
 import { useHistoryGapLoading } from '../../hooks/useHistoryGapLoading'
@@ -157,6 +158,7 @@ function MessageStreamContent(): JSX.Element {
 
   const { scrollRef, showScrollButton, scrollToBottom } = useAutoScroll(contentLength)
   useAutomationRunReveal(scrollRef)
+  useToolCallReveal(scrollRef)
   useHistoryGapLoading(scrollRef, historyGaps, turns.length)
   // The dock floats over the bottom of the scroll region, so its height is reserved
   // below the last message and the scroll-to-bottom button is lifted by the same amount.

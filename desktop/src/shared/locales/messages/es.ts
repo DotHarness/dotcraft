@@ -106,6 +106,8 @@ export const MESSAGES_ES = {
   "conversation.backgroundCommandFailed": "Comando en segundo plano fallido: {{command}}",
   "conversation.backgroundCommandStopped": "Comando en segundo plano detenido: {{command}}",
   "conversation.backgroundCommandWaitingForInput": "Comando en segundo plano esperando entrada: {{command}}",
+  "conversation.showBackgroundCommand": "Mostrar el comando",
+  "conversation.revealCommandUnavailable": "Este comando ya no está en la conversación",
   "threadArchive.confirmRunning.title": "¿Detener y archivar este chat?",
   "threadArchive.confirmRunning.message": "Archivar detendrá el trabajo en curso. Puedes restaurar el chat más tarde en la configuración.",
   "threadArchive.confirmRunning.confirm": "Detener y archivar",

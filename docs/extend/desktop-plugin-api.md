@@ -552,6 +552,7 @@ host.subagents.onChange(threadId, render);
 | `openFile(path)` | A workspace file in the Detail Panel file viewer. A relative path resolves against the current thread's workspace. |
 | `openDetailPanel(tab)` | The current thread's Detail Panel on `changes`, `plan`, or `subagents`. |
 | `openAutomation(automationId)` | That automation in the Automations view. |
+| `revealToolCall(threadId, callId)` | That thread, scrolled to the tool call with that call id, opened and briefly highlighted. A background terminal's `callId` names the command that started it. |
 | `openExternal(url)` | An http(s) URL in the user's default browser, or a `dotcraft:` link inside Desktop. Other schemes are rejected. |
 | `openPath(path, options?)` | A local file or folder in another installed app. See [Open a path in another app](#open-a-path-in-another-app). |
 

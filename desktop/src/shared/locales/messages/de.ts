@@ -106,6 +106,8 @@ export const MESSAGES_DE = {
   "conversation.backgroundCommandFailed": "Hintergrundbefehl fehlgeschlagen: {{command}}",
   "conversation.backgroundCommandStopped": "Hintergrundbefehl gestoppt: {{command}}",
   "conversation.backgroundCommandWaitingForInput": "Hintergrundbefehl wartet auf Eingabe: {{command}}",
+  "conversation.showBackgroundCommand": "Befehl anzeigen",
+  "conversation.revealCommandUnavailable": "Dieser Befehl ist nicht mehr in der Unterhaltung",
   "threadArchive.confirmRunning.title": "Diesen Chat stoppen und archivieren?",
   "threadArchive.confirmRunning.message": "Beim Archivieren wird die laufende Arbeit gestoppt. Du kannst den Chat später in den Einstellungen wiederherstellen.",
   "threadArchive.confirmRunning.confirm": "Stoppen und archivieren",
