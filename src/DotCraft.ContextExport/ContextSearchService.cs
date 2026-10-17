@@ -338,6 +338,7 @@ public sealed class ContextSearchService
             case ItemType.WebSearch when item.AsWebSearch is { } webSearch:
                 AppendSearchField(builder, "search_status", webSearch.Status);
                 AppendSearchField(builder, "query", webSearch.Query);
+                AppendSearchField(builder, "result", webSearch.Output);
                 AppendSearchField(builder, "error", webSearch.ErrorMessage);
                 break;
             case ItemType.ToolCall when item.AsToolCall is { } toolCall:

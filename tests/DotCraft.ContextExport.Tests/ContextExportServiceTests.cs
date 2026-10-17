@@ -12,6 +12,7 @@ using ToolExecutionPayload = DotCraft.Sessions.ToolExecutionPayload;
 using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;
 using UserInputRequestPayload = DotCraft.Sessions.UserInputRequestPayload;
 using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using WebSearchPayload = DotCraft.Sessions.WebSearchPayload;
 using Xunit;
 
 namespace DotCraft.ContextExport.Tests;
@@ -575,6 +576,45 @@ public sealed class ContextExportServiceTests : IDisposable
                 Query = query,
                 Limit = 5
             });
+    }
+
+    [Fact]
+    public async Task SearchAsync_RolloutSearch_FindsTextReturnedByWebSearch()
+    {
+        const string pageMarker = "WEB_SEARCH_PAGE_MARKER";
+
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "look it up", "found it");
+        var turn = thread.Turns[0];
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.WebSearch,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new WebSearchPayload
+            {
+                CallId = "call_web_search",
+                Status = "completed",
+                Query = "release notes",
+                Output = $"[0] Release notes {pageMarker}"
+            }
+        });
+
+        await _threadStore.SaveThreadAsync(thread);
+        await _fixture.AppendTurnStateAsync(thread, turn);
+
+        var result = await new ContextSearchService().SearchAsync(new ContextSearchOptions
+        {
+            WorkspacePath = _workspace,
+            Query = pageMarker,
+            Limit = 5
+        });
+
+        var hit = Assert.Single(result.Hits);
+        Assert.Contains(hit.Evidence, evidence => evidence.Source == "rollout");
     }
 
     [Fact]
