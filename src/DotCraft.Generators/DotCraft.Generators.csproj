@@ -10,7 +10,7 @@
     <!-- NuGet package metadata -->
     <PackageId>DotCraft.Generators</PackageId>
     <PackageVersion>1.0.0</PackageVersion>
-    <Authors>DotCraft</Authors>
+    <Authors>DotHarness</Authors>
 
     <!-- Source generator settings -->
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
