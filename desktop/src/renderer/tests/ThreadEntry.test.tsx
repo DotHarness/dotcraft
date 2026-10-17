@@ -43,7 +43,7 @@ function renderThreadEntry(thread: ThreadSummary): void {
 /** The origin badge lives in the hover card, so tests have to open it first. */
 async function openDetailsCard(): Promise<HTMLElement> {
   fireEvent.focus(screen.getByTestId('thread-entry-thread-1').parentElement!)
-  return await screen.findByRole('tooltip')
+  return await screen.findByRole('dialog')
 }
 
 describe('ThreadEntry', () => {
@@ -109,10 +109,10 @@ describe('ThreadEntry', () => {
 
     fireEvent.focus(screen.getByTestId('thread-entry-thread-1').parentElement!)
 
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Optimize workspace cleanup')
-    expect(screen.getByRole('tooltip')).toHaveTextContent('sample-project')
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Optimize workspace cleanup')
+    expect(screen.getByRole('dialog')).toHaveTextContent('sample-project')
     await waitFor(() => {
-      expect(screen.getByRole('tooltip')).toHaveTextContent('main')
+      expect(screen.getByRole('dialog')).toHaveTextContent('main')
     })
     expect(gitInspectHead).toHaveBeenCalledWith('C:\\fixtures\\sample-project')
   })
@@ -129,7 +129,7 @@ describe('ThreadEntry', () => {
 
     fireEvent.focus(screen.getByTestId('thread-entry-thread-1').parentElement!)
 
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('feature/details-card')
+    expect(await screen.findByRole('dialog')).toHaveTextContent('feature/details-card')
     expect(gitInspectHead).not.toHaveBeenCalled()
   })
 
@@ -138,7 +138,7 @@ describe('ThreadEntry', () => {
 
     fireEvent.focus(screen.getByTestId('thread-entry-thread-1').parentElement!)
 
-    const card = await screen.findByRole('tooltip')
+    const card = await screen.findByRole('dialog')
     expect(within(card).queryByLabelText(/^Origin channel:/)).not.toBeInTheDocument()
   })
 

@@ -3,7 +3,6 @@ import { useShallow } from 'zustand/react/shallow'
 import {
   AlertCircle,
   Archive,
-  ArrowUpRight,
   Cloud,
   CircleDashed,
   ExternalLink,
@@ -41,6 +40,7 @@ import { ThreadEntry } from './ThreadEntry'
 import { useAddProjectFlow } from '../projects/AddProject'
 import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
+import { SidebarEntryDetailsActionRow } from './SidebarEntryDetailsActionRow'
 import { ReadonlyThreadRow } from './ReadonlyThreadRow'
 import { canOpenSshProject, sshProjectRef, useSshProjectMachine } from './sshRemoteProject'
 import { useSshMachinesStore } from '../../stores/sshMachinesStore'
@@ -872,7 +872,7 @@ function ProjectHeader({
       ) : (
         <>
           {detailFolders.map((folder) => (
-            <ProjectDetailsActionRow
+            <SidebarEntryDetailsActionRow
               key={folder}
               icon={<Folder size={14} strokeWidth={1.8} aria-hidden />}
               label={folder}
@@ -883,7 +883,7 @@ function ProjectHeader({
             />
           ))}
           <div className="sidebar-entry-details-divider" />
-          <ProjectDetailsActionRow
+          <SidebarEntryDetailsActionRow
             icon={<Settings size={14} strokeWidth={1.8} aria-hidden />}
             label={t('projectsRail.editProject')}
             ariaLabel={t('projectsRail.editProject')}
@@ -1152,42 +1152,6 @@ function ProjectErrorIndicator({ label }: { label: string }): JSX.Element {
         </span>
       </ActionTooltip>
     </span>
-  )
-}
-
-function ProjectDetailsActionRow({
-  icon,
-  label,
-  title,
-  ariaLabel,
-  affordance = false,
-  onClick
-}: {
-  icon: ReactNode
-  label: string
-  title?: string
-  ariaLabel: string
-  affordance?: boolean
-  onClick: () => void
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      className="sidebar-entry-details-row sidebar-entry-details-action-row"
-      aria-label={ariaLabel}
-      title={title}
-      onClick={onClick}
-    >
-      {icon}
-      <span>{label}</span>
-      {affordance && (
-        <ArrowUpRight
-          className="sidebar-entry-details-action-row__affordance"
-          size={14}
-          aria-hidden
-        />
-      )}
-    </button>
   )
 }
 

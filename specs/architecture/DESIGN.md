@@ -1632,9 +1632,10 @@ A branch's pull request uses the same vocabulary away from prose. In the compose
 context row it follows the branch control as a pill of the same shape — the state
 glyph and `#N`, no title — and its card opens above it, drawing the composer overlap
 hairline where it covers the composer card, as every popup from that row does. A
-sidebar thread row shows the glyph alone in its status slot, and the thread's details card lists `#N · title` under
-the branch row as a full-width row that takes the `--bg-tertiary` hover fill; a card
-carrying that row is a place the pointer can enter. Checks ride on the glyph as a dot
+sidebar thread row shows the glyph alone in its status slot, and the thread's details
+card lists `#N · title` under the branch row as the details card's own action row, with
+its trailing open affordance. A thread's details card is always a place the pointer can
+enter, whether or not it carries that row. Checks ride on the glyph as a dot
 cut into its lower trailing corner: `--success-text` passed, `--error-text` failing,
 `--warning-text` running, and no dot when there are none or the pull request is merged
 or closed. The glyph keeps the dot inside its own box, drawing the icon two pixels

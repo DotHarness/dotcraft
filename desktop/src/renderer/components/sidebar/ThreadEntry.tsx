@@ -117,7 +117,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     relativeTime,
     origin: threadOriginBadge({ thread, isSubAgent, t })
   })
-  const detailsInteractive = threadDetails.pull != null
   const worktreePull = thread.worktree?.branchName ? threadDetails.pull : null
   const canPin = !isSubAgent && thread.status !== 'archived'
   const isPinned = canPin && pinnedThreadIds.includes(thread.id)
@@ -267,7 +266,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         width={240}
         content={threadDetails.content}
         onOpen={threadDetails.onOpen}
-        interactive={detailsInteractive}
+        interactive
         disabled={renaming || Boolean(dragKind)}
         wrapperStyle={{ width: '100%' }}
       >
@@ -316,8 +315,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         }}
         containerProps={{
           'aria-current': selected ? 'true' : undefined,
-          tabIndex: detailsInteractive ? 0 : undefined,
-          'aria-label': detailsInteractive ? displayName : undefined,
+          tabIndex: 0,
+          'aria-label': displayName,
           onClick: handleClick,
           onContextMenu: handleContextMenu,
           draggable: !renaming,

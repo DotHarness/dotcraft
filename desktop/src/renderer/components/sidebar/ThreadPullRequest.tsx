@@ -4,6 +4,7 @@ import { githubRefUrl, truncateGithubRefTitle, type GithubPullSummary } from '..
 import { GithubRefGlyph, pullRequestLabel } from '../conversation/githubReferences/githubRefState'
 import { openGithubLink } from '../conversation/githubReferences/openGithubLink'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { SidebarEntryDetailsActionRow } from './SidebarEntryDetailsActionRow'
 
 export function ThreadPullRequestGlyph({ pull }: { pull: GithubPullSummary }): JSX.Element {
   const t = useT()
@@ -20,17 +21,16 @@ export function ThreadPullRequestGlyph({ pull }: { pull: GithubPullSummary }): J
 export function ThreadPullRequestRow({ pull }: { pull: GithubPullSummary }): JSX.Element {
   const t = useT()
   return (
-    <button
-      type="button"
-      className="sidebar-entry-details-row dc-thread-pull-row"
-      aria-label={pullRequestLabel(pull, t)}
+    <SidebarEntryDetailsActionRow
+      icon={<GithubRefGlyph refData={pull} size={14} />}
+      label={`#${pull.number} · ${truncateGithubRefTitle(pull.title)}`}
+      title={pull.title}
+      ariaLabel={pullRequestLabel(pull, t)}
+      affordance
       onClick={(event) => {
         event.stopPropagation()
         void openGithubLink(githubRefUrl(pull), event, t)
       }}
-    >
-      <GithubRefGlyph refData={pull} size={16} />
-      <span>#{pull.number} · {truncateGithubRefTitle(pull.title)}</span>
-    </button>
+    />
   )
 }

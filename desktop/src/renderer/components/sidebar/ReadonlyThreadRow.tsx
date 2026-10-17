@@ -163,7 +163,7 @@ export function ReadonlyThreadRow({
       width={240}
       content={threadDetails.content}
       onOpen={threadDetails.onOpen}
-      interactive={threadDetails.pull != null}
+      interactive
       wrapperStyle={{ width: '100%' }}
     >
       <ThreadRowLayout
@@ -246,8 +246,8 @@ export function ReadonlyThreadRow({
         hoverable
         containerStyle={{ cursor: 'pointer', textAlign: 'left' }}
         containerProps={{
-          tabIndex: threadDetails.pull ? 0 : undefined,
-          'aria-label': threadDetails.pull ? displayName : undefined,
+          tabIndex: 0,
+          'aria-label': displayName,
           onClick: () => void openThread(),
           onContextMenu: (event) => {
             event.preventDefault()
