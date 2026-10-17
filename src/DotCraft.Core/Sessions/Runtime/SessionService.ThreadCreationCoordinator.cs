@@ -540,7 +540,11 @@ public sealed partial class SessionService
         private static List<SessionTurn> DeepCloneTurns(IReadOnlyList<SessionTurn> turns)
         {
             var json = JsonSerializer.Serialize(turns, SessionJsonOptions.Default);
-            return JsonSerializer.Deserialize<List<SessionTurn>>(json, SessionJsonOptions.Default) ?? [];
+            var cloned = JsonSerializer.Deserialize<List<SessionTurn>>(json, SessionJsonOptions.Default) ?? [];
+            // A running source Turn can be mid-append, which serializes its newest item slot as null.
+            foreach (var turn in cloned)
+                turn.Items.RemoveAll(static item => item is null);
+            return cloned;
         }
 
         private static List<SessionTurn> SelectForkTurnPrefix(
