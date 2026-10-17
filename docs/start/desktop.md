@@ -87,9 +87,9 @@ The JSON is `{ "target": "custom:review", "path": "<absolute path>", "location":
 
 ## Run project commands
 
-Save the commands you keep typing in a project, such as starting the dev server, running the tests, or opening the project in Unity, as actions and run them from the conversation. They live in the **Environment** section of the **Summary** beside a local conversation. The button with an action's icon runs the action you ran most recently, **Actions** lists every action, and **Open terminal** opens a terminal in the project folder. Each action runs in its own terminal tab, named after the action, and running it again restarts that tab.
+Save the commands you keep typing in a project, such as starting the dev server, running the tests, or opening the project in Unity, as actions and run them from the conversation. They live in the **Environment** section of the **Summary** beside a local conversation. The button with an action's icon runs the action you ran most recently, and the **Actions** menu lists every action and has **Open terminal** for a terminal in the project folder. Each action runs in its own terminal tab, named after the action, and running it again restarts that tab.
 
-To add the first action, choose **Set up local environment**, enter a name, an icon, and the command, and save. Desktop writes `.craft/environments/environment.json` in the project and runs the action. Add more from **Actions → Add action**.
+To add the first action, choose **Actions → Set up local environment**, enter a name, an icon, and the command, and save. Desktop writes `.craft/environments/environment.json` in the project and runs the action. Add more from **Actions → Add action**.
 
 ### Edit actions in the file
 
@@ -114,7 +114,7 @@ Each JSON file in `.craft/environments/` is one environment, a named set of acti
 | `command` | Entered in the terminal, in the folder that contains the environment's `.craft` folder |
 | `platform` | `win32`, `darwin`, or `linux`. The action then appears only on that system |
 
-The project's own `environment.json` is used by default. When there are several environments, pick one from **Actions → Change environment**. Desktop remembers the choice for the project. A file that can't be read shows the problem in the Environment section. Select it to open the file.
+The project's own `environment.json` is used by default. When there are several environments, pick one from **Actions → Change environment**. Desktop remembers the choice for the project. When the file can't be read, choose **Actions → Fix local environment** to open it.
 
 ## See where your tokens go
 

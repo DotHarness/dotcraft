@@ -2,21 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   formatInvocationDisplay,
   invocationNeedsCallingPrefix,
-  parseWebSearchResultDisplay,
-  truncate
+  parseWebSearchResultDisplay
 } from '../utils/webToolDisplay'
-
-describe('truncate', () => {
-  it('leaves short strings unchanged', () => {
-    expect(truncate('abc', 80)).toBe('abc')
-  })
-
-  it('truncates long strings with ellipsis', () => {
-    const s = 'a'.repeat(100)
-    expect(truncate(s, 80).length).toBe(81)
-    expect(truncate(s, 80).endsWith('…')).toBe(true)
-  })
-})
 
 describe('formatInvocationDisplay', () => {
   it('preserves complete invocation values for layout-level truncation', () => {
@@ -39,38 +26,24 @@ describe('invocationNeedsCallingPrefix', () => {
 })
 
 describe('parseWebSearchResultDisplay', () => {
-  it('parses structured WebSearch rows for table rendering', () => {
+  it('parses structured WebSearch rows into sources', () => {
     const json = JSON.stringify({
       query: 'q',
       provider: 'exa',
       results: [
-        {
-          title: 'DotCraft Docs',
-          url: 'https://docs.dotcraft.ai/start',
-          snippet: 'Guide',
-          author: 'DotCraft',
-          publishedDate: '2026-04-01'
-        }
+        { title: 'DotCraft Docs', url: 'https://docs.dotcraft.ai/start', snippet: 'Guide' },
+        { url: 'https://www.example.com/a' },
+        { title: 'No url' }
       ]
     })
 
-    const parsed = parseWebSearchResultDisplay(json)
-
-    expect(parsed?.kind).toBe('results')
-    if (parsed?.kind === 'results') {
-      expect(parsed.query).toBe('q')
-      expect(parsed.provider).toBe('exa')
-      expect(parsed.rows).toHaveLength(1)
-      expect(parsed.rows[0]).toMatchObject({
-        title: 'DotCraft Docs',
-        url: 'https://docs.dotcraft.ai/start',
-        snippet: 'Guide',
-        author: 'DotCraft',
-        publishedDate: '2026-04-01',
-        domain: 'docs.dotcraft.ai',
-        linkLabel: 'docs.dotcraft.ai'
-      })
-    }
+    expect(parseWebSearchResultDisplay(json)).toEqual({
+      kind: 'results',
+      rows: [
+        { title: 'DotCraft Docs', url: 'https://docs.dotcraft.ai/start', domain: 'docs.dotcraft.ai' },
+        { title: 'example.com', url: 'https://www.example.com/a', domain: 'example.com' }
+      ]
+    })
   })
 
   it('passes through message-only no-result payloads', () => {

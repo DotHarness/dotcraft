@@ -17,6 +17,7 @@ import { collectConversationImages, ConversationImagesContext } from '../convers
 import { ScrollToBottomButton } from '../conversation/ScrollToBottomButton'
 import { TurnChangesCard } from '../conversation/TurnCompletionSummary'
 import { TranscriptTurn } from '../conversation/TranscriptTurn'
+import { TranscriptTurnsContext } from '../conversation/useWebCitationSources'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { IconButton } from '../ui/IconButton'
 import { Skeleton } from '../ui/Skeleton'
@@ -123,19 +124,21 @@ function SubagentTranscript({
           <p className={styles.notice}>{t('subagentsPanel.transcriptUnavailable')}</p>
         ) : (
           <ConversationImagesContext.Provider value={getConversationImages}>
-            {turns.map((turn, index) => {
-              const isLastTurn = index === turns.length - 1
-              return (
-                <SubagentTurn
-                  key={turn.id}
-                  childThreadId={childThreadId}
-                  turn={turn}
-                  isLastTurn={isLastTurn}
-                  running={running && isLastTurn}
-                  live={isLastTurn ? live : null}
-                />
-              )
-            })}
+            <TranscriptTurnsContext.Provider value={turns}>
+              {turns.map((turn, index) => {
+                const isLastTurn = index === turns.length - 1
+                return (
+                  <SubagentTurn
+                    key={turn.id}
+                    childThreadId={childThreadId}
+                    turn={turn}
+                    isLastTurn={isLastTurn}
+                    running={running && isLastTurn}
+                    live={isLastTurn ? live : null}
+                  />
+                )
+              })}
+            </TranscriptTurnsContext.Provider>
           </ConversationImagesContext.Provider>
         )}
       </div>

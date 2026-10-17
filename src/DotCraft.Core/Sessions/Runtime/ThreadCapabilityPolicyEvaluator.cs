@@ -164,11 +164,11 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 
         var runtimeManaged = registration.Definition.PolicyScope == ToolPolicyScope.RuntimeManaged;
         var reason = string.Empty;
+        var policyName = registration.ProviderFlatNameOverride
+            ?? ProviderToolProjector.Project([registration.Definition.Name])[registration.Definition.Name];
         if (!runtimeManaged && registration.Definition.Id.Kind != ToolSourceKind.Mcp)
         {
             var reserved = IsRuntimeReservedToolName(name);
-            var policyName = registration.ProviderFlatNameOverride
-                ?? ProviderToolProjector.Project([registration.Definition.Name])[registration.Definition.Name];
             if (!AllowsToolName(policyName, reserved, out reason))
                 return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
         }
@@ -198,7 +198,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             StringComparer.Ordinal));
         if (!AllowsSkillInvocation(name, invocationArguments, out reason))
             return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
-        if (!AllowsSubAgentRole(name, invocationArguments, out reason))
+        if (!AllowsSubAgentRole(policyName, invocationArguments, out reason))
             return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
 
         return ToolDispatchDecision.Allow;

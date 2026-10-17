@@ -4,6 +4,7 @@ import type { ListedTurnPosition } from '../../../stores/threadHistoryStore'
 import { isOptimisticUserMessage } from '../../../stores/optimisticMessages'
 import { isVisibleUserMessage } from '../../../utils/visibleUserMessage'
 import { stripSystemReminderBlocks } from '../../../utils/systemReminderText'
+import { stripWebCitations } from '../../../utils/webCitations'
 import { deriveTurnOutputs, type TurnOutput } from './turnOutputs'
 
 const PREVIEW_TEXT_LIMIT = 240
@@ -49,7 +50,7 @@ export function deriveTurnEntries(items: readonly ConversationItem[]): EntryCont
         bookmarkable: !isOptimisticUserMessage(item)
       })
     } else if (item.type === 'agentMessage' && entries.length > 0) {
-      entries[entries.length - 1].response = item.text ?? ''
+      entries[entries.length - 1].response = stripWebCitations(item.text ?? '')
     }
   }
   return entries

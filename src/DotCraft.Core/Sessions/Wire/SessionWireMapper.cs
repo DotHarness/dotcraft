@@ -347,6 +347,7 @@ public static class SessionWireMapper
             CommandExecutionPayload => "commandExecution",
             ToolExecutionPayload => "toolExecution",
             ImageGenerationPayload => "imageGeneration",
+            WebSearchPayload => "webSearch",
             ApprovalRequestPayload => "approvalRequest",
             ApprovalResponsePayload => "approvalResponse",
             UserInputRequestPayload => "userInputRequest",

@@ -14,6 +14,7 @@ using SessionThread = DotCraft.Sessions.SessionThread;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
 using ImageGenerationPayload = DotCraft.Sessions.ImageGenerationPayload;
+using WebSearchPayload = DotCraft.Sessions.WebSearchPayload;
 using McpToolCallPayload = DotCraft.Sessions.McpToolCallPayload;
 using ReasoningContentPayload = DotCraft.Sessions.ReasoningContentPayload;
 using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
@@ -1088,6 +1089,53 @@ public sealed class ThreadStoreTests : IDisposable
             "/workspace/.craft/generated_images/thread/ig_new.png",
             Assert.IsType<TextContent>(output[1]).Text,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LoadOrCreateSessionAsync_ReplaysWebSearchItemAsWebRunCallWithOriginalArgumentsAndOutput()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "hello", "searched", TurnStatus.Completed);
+        var turn = thread.Turns[0];
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.WebSearch,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new WebSearchPayload
+            {
+                CallId = "ws_1",
+                Status = "completed",
+                Query = "dotnet",
+                Action = new JsonObject { ["type"] = "search", ["query"] = "dotnet", ["queries"] = null },
+                Results = [new JsonObject { ["ref_id"] = "turn0search0" }],
+                Arguments = new JsonObject { ["search_query"] = new JsonArray(new JsonObject { ["q"] = "dotnet" }) },
+                Output = "Result citeturn0search0"
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
+        var loaded = await _store.LoadThreadAsync(thread.Id);
+        var persisted = Assert.IsType<WebSearchPayload>(
+            loaded!.Turns[0].Items.Single(item => item.Type == ItemType.WebSearch).Payload);
+        Assert.Equal("Result citeturn0search0", persisted.Output);
+        Assert.Equal("dotnet", persisted.Arguments!["search_query"]![0]!["q"]!.GetValue<string>());
+
+        var session = await _store.LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+
+        Assert.True(session.TryGetInMemoryChatHistory(
+            out var chatHistory,
+            jsonSerializerOptions: SessionPersistenceJsonOptions.Default));
+        var contents = chatHistory.SelectMany(message => message.Contents).ToList();
+        var call = contents.OfType<FunctionCallContent>().Single(content => content.CallId == "ws_1");
+        Assert.Equal("run", call.Name);
+        Assert.Equal("web", call.AdditionalProperties!["namespace"]);
+        Assert.Equal("""[{"q":"dotnet"}]""", JsonSerializer.Serialize(call.Arguments!["search_query"]));
+        var result = contents.OfType<FunctionResultContent>().Single(content => content.CallId == "ws_1");
+        Assert.Equal("Result citeturn0search0", result.Result?.ToString());
     }
 
     [Fact]

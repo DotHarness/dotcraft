@@ -34,6 +34,7 @@ public static class CompactableToolNames
         "FindFiles",
         "WebFetch",
         "WebSearch",
+        "web__run",
     };
 
     /// <summary>

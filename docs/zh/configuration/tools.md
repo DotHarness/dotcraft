@@ -35,9 +35,17 @@
 | 配置项 | 说明 | 默认值 |
 |---|---|---|
 | `Tools.Web.MaxChars` | Web 抓取最大字符数 | `50000` |
-| `Tools.Web.Timeout` | Web 请求超时时间（秒） | `300` |
+| `Tools.Web.Timeout` | Web 请求超时时间（秒） | `30` |
+| `Tools.Web.MaxResponseBytes` | Web 抓取最多读取的字节数，超出部分会被截断 | `5000000` |
 | `Tools.Web.SearchMaxResults` | 联网搜索默认返回结果数 | `5` |
 | `Tools.Web.SearchProvider` | 搜索引擎提供商：`Bing` / `Exa` | `Exa` |
+| `Tools.Web.ExaApiKey` | 你的 Exa API Key。为空时读取 `EXA_API_KEY`，两者都没有时 Exa 搜索使用有频率限制的免费接口 | `""` |
+
+在 Desktop 中，可以在 **设置 → 模型提供商 → 联网搜索** 中选择搜索服务并填写 Exa API Key。
+
+### 使用 ChatGPT 订阅联网搜索
+
+当对话使用[通过 ChatGPT 登录](./models#使用-chatgpt-登录)的提供商时，联网搜索改由你的订阅自带的搜索服务完成，工具为 `web.run`，不再提供 `WebSearch`。它可以搜索、打开并阅读网页，查询金融、天气、体育和时间信息，回答中会引用所用的网页。`Tools.Web.SearchProvider`、`Tools.Web.ExaApiKey` 和 `Tools.Web.SearchMaxResults` 对它不生效。`WebFetch` 不受影响，继续使用上表中的配置。
 
 ## 工具结果
 

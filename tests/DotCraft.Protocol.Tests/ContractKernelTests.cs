@@ -225,6 +225,7 @@ public sealed class ContractKernelTests
             ["commandExecution"] = """{"command":"pwd","workingDirectory":"/tmp","source":"host","status":"completed","aggregatedOutput":"/tmp"}""",
             ["toolExecution"] = """{"callId":"call_1","toolName":"shell","status":"completed"}""",
             ["imageGeneration"] = """{"callId":"call_1","status":"completed","mediaType":"image/png"}""",
+            ["webSearch"] = """{"callId":"call_1","status":"completed","query":"q","action":{"type":"search","query":"q","queries":null},"results":[{"url":"https://example.com"}]}""",
             ["toolCall"] = """{"toolName":"shell","providerFlatName":"shell","callId":"call_1"}""",
             ["dynamicToolCall"] = """{"toolName":"lookup","providerFlatName":"lookup","callId":"call_1","status":"completed"}""",
             ["mcpToolCall"] = """{"toolName":"read","providerFlatName":"mcp__read","server":"docs","origin":"workspace","sourceToolId":"read","callId":"call_1","status":"completed"}""",

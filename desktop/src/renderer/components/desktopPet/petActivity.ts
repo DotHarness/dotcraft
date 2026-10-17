@@ -9,6 +9,7 @@ import { formatCollapsedToolLabel } from '../../utils/toolCallDisplay'
 import { getStreamingToolDisplay } from '../../utils/streamingToolDisplay'
 import { isCodeModeExecItem } from '../../utils/codeModeExec'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
+import { stripWebCitations } from '../../utils/webCitations'
 
 export const PET_LINE_MAX = 60
 export const PET_TITLE_MAX = 48
@@ -106,13 +107,14 @@ function runningLine(input: PetActivityInput, turn: ConversationTurn): string {
   const { locale } = input
   const live = liveToolLine(turn, locale)
   if (live) return flattenPetLine(live)
-  if (input.streamingMessage.trim()) return firstSentence(input.streamingMessage, PET_LINE_MAX)
+  const streamingMessage = stripWebCitations(input.streamingMessage, true)
+  if (streamingMessage.trim()) return firstSentence(streamingMessage, PET_LINE_MAX)
   if (input.streamingReasoning.trim()) return firstSentence(input.streamingReasoning, PET_LINE_MAX)
   for (let index = turn.items.length - 1; index >= 0; index -= 1) {
     const item = turn.items[index]
     if (isToolLikeItemType(item.type) && !isCodeModeExecItem(item)) return flattenPetLine(formatCollapsedToolLabel(item, item.arguments, locale))
     if (item.type === 'reasoningContent' && item.reasoning?.trim()) return firstSentence(item.reasoning, PET_LINE_MAX)
-    if (item.type === 'agentMessage' && item.text?.trim()) return firstSentence(item.text, PET_LINE_MAX)
+    if (item.type === 'agentMessage' && item.text?.trim()) return firstSentence(stripWebCitations(item.text), PET_LINE_MAX)
   }
   return translate(locale, 'desktopPet.status.thinking')
 }
@@ -142,7 +144,7 @@ function resolveLine(
   }
   if (turn?.status === 'cancelled') return { line: translate(locale, 'desktopPet.status.stopped'), lineTone: 'neutral' }
   if (turn?.status === 'completed') {
-    const summary = firstSentence(newest(turn, 'agentMessage', 'text'), PET_LINE_MAX)
+    const summary = firstSentence(stripWebCitations(newest(turn, 'agentMessage', 'text')), PET_LINE_MAX)
     return status === 'review'
       ? { line: summary || translate(locale, 'desktopPet.status.review'), lineTone: 'success' }
       : { line: summary, lineTone: 'neutral' }

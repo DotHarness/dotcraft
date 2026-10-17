@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Agents.Remote;
 using DotCraft.Configuration;
@@ -114,6 +115,33 @@ public sealed class ModelServiceTransportTests
         Assert.Equal(["/v1/images/generations", "/v1/images/edits"], operations);
         Assert.Equal("image-model", fixture.Access.Call!.Context.Model);
         Assert.Equal("images/edits", fixture.Access.Call.Context.Operation);
+    }
+
+    [Fact]
+    public async Task NativeWebSearchUsesTheRemoteTransport()
+    {
+        string? path = null;
+        string? userAgent = null;
+        await using var fixture = await Fixture.CreateAsync(request =>
+        {
+            path = request.RequestUri!.AbsolutePath;
+            userAgent = request.Headers.UserAgent.ToString();
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"output":"found","results":[]}""", Encoding.UTF8, "application/json")
+            });
+        });
+        var provider = new OpenAIClientProvider(httpTransport: fixture.Transport);
+        var runtime = new EffectiveModelRuntime("primary", "chat-model", ModelProviderProtocols.OpenAIResponses,
+            "Primary", "", "https://upstream.example/v1", 30, null,
+            ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses),
+            AuthMethod: ModelProviderAuthMethods.ChatGptOAuth, IsRemote: true);
+        var result = await ((IProviderWebSearch)provider).SearchAsync(
+            runtime, new ProviderWebSearchRequest("thread", [], new JsonObject()), default);
+        Assert.Equal("found", result.Output);
+        Assert.Equal("/v1/alpha/search", path);
+        Assert.False(string.IsNullOrEmpty(userAgent));
+        Assert.Equal("alpha/search", fixture.Access.Call!.Context.Operation);
     }
 
     [Fact]

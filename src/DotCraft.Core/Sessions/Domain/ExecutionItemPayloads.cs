@@ -149,6 +149,27 @@ public sealed record ImageGenerationPayload
     public string? GenerationId { get; init; }
 }
 
+public sealed record WebSearchPayload
+{
+    public string CallId { get; init; } = string.Empty;
+
+    public string Status { get; init; } = "inProgress";
+
+    public string Query { get; init; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public JsonObject? Action { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public JsonArray? Results { get; init; }
+
+    public string? ErrorMessage { get; init; }
+
+    public JsonObject? Arguments { get; init; }
+
+    public string? Output { get; init; }
+}
+
 /// <summary>
 /// Delta payload emitted while tool-call arguments are still streaming.
 /// </summary>

@@ -197,7 +197,8 @@ internal sealed class ModelServiceProxy(
             ? (method, operation) is ("GET", "v1/models") or ("POST", "v1/messages")
             : (method, operation) is ("GET", "models") or ("POST", "chat/completions")
                 or ("POST", "responses") or ("POST", "responses/compact")
-                or ("POST", "images/generations") or ("POST", "images/edits");
+                or ("POST", "images/generations") or ("POST", "images/edits")
+                or ("POST", "alpha/search");
 
     private static Task ErrorAsync(HttpContext context, int status, string code, string message)
     {

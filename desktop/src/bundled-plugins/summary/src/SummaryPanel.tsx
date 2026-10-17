@@ -1,21 +1,21 @@
 import { AgentAvatar, type DesktopPluginHost } from '@dotcraft/plugin'
-import { Box, ChevronUp, Clock, FileDiff, FileText, Globe, Lightbulb, Link, Server } from 'lucide-react'
+import { Box, ChevronUp, Clock, FileText, Globe, Lightbulb, Link, Server } from 'lucide-react'
 import { useEffect, useMemo, useState, type JSX } from 'react'
 import { BackgroundProcessesSection } from './BackgroundProcessesSection'
 import { EnvironmentSection } from './EnvironmentSection'
 import { startSummaryFeed, type SummaryAutomation, type SummaryState } from './feed'
 import { fill, stringsFor, type SummaryStrings } from './i18n'
-import { extractSources, hasFileChanges, type Source, type SourceKind } from './sources'
+import { changeTotals, extractSources, hasWebSearch, type Source, type SourceKind } from './sources'
 import { GLYPH, Row, Section } from './SummaryRows'
 
 const SOURCE_LIMIT = 3
 const AVATAR_LIMIT = 4
 
-const SOURCE_GLYPHS: Record<SourceKind, typeof Globe> = {
-  web: Globe,
+const SOURCE_GLYPHS: Record<SourceKind, typeof FileText> = {
   file: FileText,
   skill: Box,
-  mcp: Server
+  mcp: Server,
+  web: Globe
 }
 
 function useSummaryState(host: DesktopPluginHost, threadId: string): SummaryState | null {
@@ -89,23 +89,26 @@ function workspaceName(workspacePath: string | null): string | null {
   return name || null
 }
 
-function SourceRows({ host, sources, strings }: {
+function SourceRows({ host, sources, webSearch, strings }: {
   host: DesktopPluginHost
   sources: readonly Source[]
+  webSearch: boolean
   strings: SummaryStrings
 }): JSX.Element {
   const [expanded, setExpanded] = useState(false)
-  const visible = expanded ? sources : sources.slice(0, SOURCE_LIMIT)
+  const rows = webSearch ? [...sources, null] : sources
+  const visible = expanded ? rows : rows.slice(0, SOURCE_LIMIT)
   const open = (source: Source): (() => void) | undefined => {
     const target = source.target
     if (!target) return undefined
-    if (source.kind === 'web') return () => void host.navigation.openExternal(target)
     if (source.kind === 'file') return () => void host.navigation.openFile(target)
+    if (source.kind === 'web') return () => void host.navigation.openExternal(target)
     return undefined
   }
   return (
     <>
       {visible.map((source) => {
+        if (!source) return <Row key="web-search" leading={<Globe {...GLYPH} />} label={strings.webSearch} />
         const Glyph = SOURCE_GLYPHS[source.kind]
         return (
           <Row
@@ -117,7 +120,7 @@ function SourceRows({ host, sources, strings }: {
           />
         )
       })}
-      {sources.length > SOURCE_LIMIT ? (
+      {rows.length > SOURCE_LIMIT ? (
         <Row
           leading={expanded ? <ChevronUp {...GLYPH} /> : <Link {...GLYPH} />}
           label={expanded ? strings.showLess : strings.viewAll}
@@ -146,7 +149,9 @@ export function SummaryPanel({
   const strings = stringsFor(locale)
   const items = state?.items
   const sources = useMemo(() => extractSources(items ?? [], workspacePath), [items, workspacePath])
-  const changed = useMemo(() => hasFileChanges(items ?? []), [items])
+  const webSearch = useMemo(() => hasWebSearch(items ?? []), [items])
+  const turnDiffs = state?.turnDiffs
+  const changes = useMemo(() => changeTotals(items ?? [], turnDiffs), [items, turnDiffs])
   const header = (
     <header className="conversation-summary__header">{workspaceName(workspacePath) ?? strings.panelLabel}</header>
   )
@@ -155,23 +160,13 @@ export function SummaryPanel({
 
   const plan = state.plan
   const planLabel = plan ? plan.title || fill(strings.progressCount, { done: plan.done, total: plan.total }) : ''
-  const empty = !changed && !plan && state.subagents.length === 0 && state.automations.length === 0
-    && state.terminals.length === 0 && sources.length === 0
+  const empty = !changes && !plan && state.subagents.length === 0 && state.automations.length === 0
+    && state.terminals.length === 0 && sources.length === 0 && !webSearch
 
   return (
     <div className="conversation-summary" data-variant={variant}>
       {header}
       {empty ? <p className="conversation-summary__empty">{strings.empty}</p> : null}
-
-      {changed ? (
-        <Section>
-          <Row
-            leading={<FileDiff {...GLYPH} />}
-            label={strings.changes}
-            onClick={() => host.navigation.openDetailPanel('changes')}
-          />
-        </Section>
-      ) : null}
 
       {plan ? (
         <Section title={plan.title ? strings.plan : strings.progress}>
@@ -207,13 +202,13 @@ export function SummaryPanel({
         </Section>
       ) : null}
 
-      {sources.length > 0 ? (
+      {sources.length > 0 || webSearch ? (
         <Section title={strings.sources}>
-          <SourceRows host={host} sources={sources} strings={strings} />
+          <SourceRows host={host} sources={sources} webSearch={webSearch} strings={strings} />
         </Section>
       ) : null}
 
-      <EnvironmentSection host={host} threadId={threadId} workspacePath={workspacePath} strings={strings} />
+      <EnvironmentSection host={host} threadId={threadId} workspacePath={workspacePath} changes={changes} strings={strings} />
     </div>
   )
 }

@@ -51,3 +51,10 @@ function rank(kind: ChatGptUsageWindowKind): number {
     case 'secondary': return 3
   }
 }
+
+export function formatCreditsBalance(balance: string, locale: string): string {
+  const value = Number(balance)
+  return balance.trim() !== '' && Number.isFinite(value)
+    ? value.toLocaleString(locale, { maximumFractionDigits: 2 })
+    : balance
+}

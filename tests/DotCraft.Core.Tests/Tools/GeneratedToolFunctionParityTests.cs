@@ -192,6 +192,14 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         Assert.DoesNotContain("cancellationToken", function.JsonSchema.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void WebTools_CancellationToken_IsNotInModelSchema()
+    {
+        var webTools = new WebTools();
+        Assert.DoesNotContain("cancellationToken", GeneratedToolFunctions.WebTools_WebSearch(webTools).JsonSchema.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("cancellationToken", GeneratedToolFunctions.WebTools_WebFetch(webTools).JsonSchema.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
     private IReadOnlyList<FunctionPair> CreateSchemaParityPairs()
     {
         var fileTools = new FileTools(_tempRoot, requireApprovalOutsideWorkspace: false);

@@ -16,6 +16,7 @@ using ApprovalResponsePayload = DotCraft.Sessions.ApprovalResponsePayload;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using ErrorPayload = DotCraft.Sessions.ErrorPayload;
 using ImageGenerationPayload = DotCraft.Sessions.ImageGenerationPayload;
+using WebSearchPayload = DotCraft.Sessions.WebSearchPayload;
 using ReasoningContentPayload = DotCraft.Sessions.ReasoningContentPayload;
 using SystemNoticePayload = DotCraft.Sessions.SystemNoticePayload;
 using ThreadSummary = DotCraft.Sessions.ThreadSummary;
@@ -349,6 +350,35 @@ public class SerializationTests
         Assert.Equal("AQID", payload.Result);
         Assert.Equal("image/png", payload.MediaType);
         Assert.Equal("<workspace>/.craft/generated_images/thread/ig_abc.png", payload.SavedPath);
+    }
+
+    [Fact]
+    public void SessionItem_WebSearch_MapsToTheTypedContractPayload()
+    {
+        var item = BuildItem(ItemType.WebSearch, ItemStatus.Completed,
+            new WebSearchPayload
+            {
+                CallId = "ws_abc",
+                Status = "completed",
+                Query = "https://example.com/a",
+                Action = new JsonObject { ["type"] = "openPage", ["url"] = "https://example.com/a" },
+                Results = [new JsonObject { ["domain"] = "example.com", ["ref_id"] = "turn1fetch0" }],
+                Arguments = new JsonObject { ["open"] = new JsonArray(new JsonObject { ["ref_id"] = "https://example.com/a" }) },
+                Output = "page text"
+            });
+
+        Assert.Equal("page text", RoundTrip(item).AsWebSearch!.Output);
+        var contract = AppServerContractMapper.ToContract(item.ToWire());
+        Assert.Equal("webSearch", contract.PayloadKind);
+        Assert.True(DotCraft.Protocol.SessionItemPayloadParser.Parse(contract)
+            .TryGet<DotCraft.Protocol.AppServer.WebSearchPayload>(out var payload));
+        Assert.Equal("ws_abc", payload!.CallId);
+        Assert.Equal("completed", payload.Status);
+        Assert.Equal("openPage", payload.Action!.Type);
+        Assert.Equal("https://example.com/a", payload.Action.Url);
+        Assert.Equal("https://example.com/a", payload.Query);
+        Assert.Equal("example.com", Assert.Single(payload.Results!).GetProperty("domain").GetString());
+        Assert.Equal("page text", payload.Output);
     }
 
     [Fact]

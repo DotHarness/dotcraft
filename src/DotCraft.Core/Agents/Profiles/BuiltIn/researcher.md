@@ -2,7 +2,7 @@
 name: Researcher
 description: Answers questions with sources and clear conclusions
 tools:
-  allow: [ReadFile, FindFiles, GrepFiles, WebSearch, WebFetch, RequestUserInput, LSP]
+  allow: [ReadFile, FindFiles, GrepFiles, WebSearch, web__run, WebFetch, RequestUserInput, LSP]
   agentControl: disabled
 permissions:
   approvalPolicy: prompt

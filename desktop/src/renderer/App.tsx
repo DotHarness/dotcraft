@@ -108,6 +108,7 @@ import { readThreadHistoryHead } from './utils/threadHistory'
 import { applyThreadHistoryHead, beginThreadHistory } from './stores/threadHistoryStore'
 import { interruptTurn } from './utils/interruptTurn'
 import { normalizeRemoteFileTransferProgress } from './utils/remoteToolHostDisplay'
+import { collectWebCitationSources, formatWebCitations } from './utils/webCitations'
 import {
   createThreadSubscriptionOperationQueue,
   isSameThreadSubscriptionTarget,
@@ -2596,7 +2597,8 @@ export function App(): JSX.Element {
           for (let j = items.length - 1; j >= 0; j--) {
             const item = items[j]
             if (item.type === 'agentMessage' && item.text) {
-              navigator.clipboard.writeText(item.text).then(() => {
+              const text = formatWebCitations(item.text, collectWebCitationSources(turns.slice(0, i + 1)), 'copy')
+              navigator.clipboard.writeText(text).then(() => {
                 addToast(translate(localeRef.current, 'toast.copied'), 'success', 2000)
               }).catch(() => {})
               return

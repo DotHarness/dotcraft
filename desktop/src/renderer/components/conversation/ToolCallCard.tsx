@@ -6,14 +6,9 @@ import { useConversationStore } from '../../stores/conversationStore'
 
 import {
   formatInvocationDisplay,
-  formatResultSummary,
   formatToolSearchCompletedLabel,
-  getWebToolIcon,
-  getWebToolSectionLabel,
   invocationNeedsCallingPrefix,
-  isWebToolKind,
-  parseWebSearchResultDisplay,
-  type WebSearchResultRow
+  isWebToolKind
 } from '../../utils/webToolDisplay'
 import { FileResultHeader, InlineDiffView } from './InlineDiffView'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -43,8 +38,6 @@ import { RemoteFileTransferResult } from './RemoteFileTransferResult'
 import { parseRemoteToolHostCatalog } from '../../utils/remoteToolHostDisplay'
 import { AnsiPre } from './AnsiPre'
 import { stripAnsi } from '../../utils/ansi'
-import { useViewerTabStore } from '../../stores/viewerTabStore'
-import { openConversationLink } from '../../utils/conversationDeepLink'
 import type { FileDiff } from '../../types/toolCall'
 import {
   buildSkillManageDiff,
@@ -75,6 +68,7 @@ import { DesktopPluginToolRendererOutlet } from '../desktopPlugins/DesktopPlugin
 import { toAbsoluteWorkspacePath } from '../../utils/workspacePaths'
 import { FileDiffStats } from './FileDiffStats'
 import { parseWorkflowRunId, WorkflowToolCard } from '../workflow/WorkflowToolCard'
+import { WebSearchToolRow } from './WebSearchItemRow'
 
 export type ShellRuntimeScope = 'conversation' | 'review' | 'none'
 
@@ -395,6 +389,10 @@ export const ToolCallCard = memo(function ToolCallCard({
     )
   }
 
+  if (rendererFamily === 'web' && rendererOperation === 'search') {
+    return <WebSearchToolRow item={item} running={isRunning} success={success} />
+  }
+
   if (resolveMemoryOperation(item) === 'update' && (isRunning || !isToolExecutionFailure(item))) {
     return <MemoryUpdateCard items={[item]} running={isRunning} />
   }
@@ -538,10 +536,6 @@ export const ToolCallCard = memo(function ToolCallCard({
   const failedPreview = hasFailurePreview
     ? stripAnsi(failurePreviewSource.slice(0, 512)).trim()
     : ''
-  const hasFlushWebSearchTable =
-    rendererFamily === 'web'
-    && rendererOperation === 'search'
-    && parseWebSearchResultDisplay(item.result)?.kind === 'results'
   const hasInlineFileDiff = isStreamingFileTool && !!renderableFileDiff
   const hasFlushReadFile = rendererFamily === 'readFile'
   const completedExpanded = canExpandCompleted && expanded
@@ -613,7 +607,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       <div
         data-testid="tool-expanded-content"
         className="dc-tool-panel-surface"
-        data-padded={hasFlushWebSearchTable || hasInlineFileDiff || hasFlushReadFile || !!renderableSkillManageDiff ? 'false' : 'true'}
+        data-padded={hasInlineFileDiff || hasFlushReadFile || !!renderableSkillManageDiff ? 'false' : 'true'}
       >
         {remoteTransfer ? (
           <RemoteFileTransferResult display={remoteTransfer} locale={locale} />
@@ -761,43 +755,6 @@ function ExpandedContent({
     }
   }
 
-  if (rendererFamily === 'web') {
-    if (rendererOptions?.operation === 'search') {
-      const parsedSearch = parseWebSearchResultDisplay(result)
-      if (parsedSearch?.kind === 'results') {
-        return <WebSearchResultsTable rows={parsedSearch.rows} locale={locale} />
-      }
-    }
-
-    const webKind = rendererOptions?.operation === 'fetch' ? 'webFetch' : 'webSearch'
-    const lines = formatResultSummary(webKind, result)
-    const inv = formatInvocationDisplay(webKind, args, locale)
-    const section = getWebToolSectionLabel(webKind, locale)
-    const icon = getWebToolIcon(webKind)
-    const errPrefix = 'Error: '
-
-    if (lines && lines.length > 0) {
-      return (
-        <div className="selectable" style={{ fontSize: 'var(--conversation-secondary-size)', lineHeight: 'var(--conversation-line-height)', color: 'var(--text-secondary)' }}>
-          <div style={{ color: 'var(--text-dimmed)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span aria-hidden>{icon}</span>
-            <span>{section}</span>
-          </div>
-          {inv && (
-            <div style={{ color: 'var(--text-dimmed)', marginBottom: '8px' }}>
-              {inv}
-            </div>
-          )}
-          {lines.map((line, i) => (
-            <div key={i} style={{ color: line.startsWith(errPrefix) ? 'var(--error)' : 'var(--text-secondary)', fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {line}
-            </div>
-          ))}
-        </div>
-      )
-    }
-  }
-
   if (rendererFamily === 'shell') {
     const output = result ?? ''
 
@@ -879,144 +836,6 @@ function RequestUserInputResultList({ lines }: { lines: RequestUserInputResultLi
         </div>
       ))}
     </div>
-  )
-}
-
-export function WebSearchResultsTable({
-  rows,
-  locale
-}: {
-  rows: WebSearchResultRow[]
-  locale: AppLocale
-}): JSX.Element {
-  const workspacePath = useConversationStore((s) => s.workspacePath)
-  const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
-
-  const openResult = (url: string): void => {
-    if (!workspacePath || !currentThreadId) return
-    void openConversationLink({
-      target: url,
-      workspacePath,
-      threadId: currentThreadId,
-      t: (key) => translate(locale, key)
-    })
-  }
-
-  return (
-    <div
-      style={{
-        overflow: 'hidden',
-        border: 'none',
-        borderRadius: 0
-      }}
-    >
-      <table
-        style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          tableLayout: 'fixed',
-          fontSize: 'var(--conversation-secondary-size)'
-        }}
-      >
-        <thead>
-          <tr style={{ background: 'var(--bg-tertiary)', color: 'var(--text-dimmed)' }}>
-            <th
-              scope="col"
-              style={{
-                width: '64%',
-                padding: '6px 8px',
-                textAlign: 'left',
-                fontWeight: 500,
-                borderBottom: '1px solid var(--border-default)'
-              }}
-            >
-              {translate(locale, 'toolCall.webSearch.tableTitle')}
-            </th>
-            <th
-              scope="col"
-              style={{
-                width: '36%',
-                padding: '6px 8px',
-                textAlign: 'left',
-                fontWeight: 500,
-                borderBottom: '1px solid var(--border-default)'
-              }}
-            >
-              {translate(locale, 'toolCall.webSearch.tableLink')}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr
-              key={`${row.url}-${index}`}
-              style={{
-                borderTop: index === 0 ? 'none' : '1px solid var(--border-default)'
-              }}
-            >
-              <WebSearchResultCell
-                label={row.title}
-                title={row.url}
-                onClick={() => openResult(row.url)}
-              />
-              <WebSearchResultCell
-                label={row.linkLabel}
-                title={row.url}
-                onClick={() => openResult(row.url)}
-                monospace
-              />
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function WebSearchResultCell({
-  label,
-  title,
-  onClick,
-  monospace = false
-}: {
-  label: string
-  title: string
-  onClick: () => void
-  monospace?: boolean
-}): JSX.Element {
-  return (
-    <td style={{ padding: 0, minWidth: 0 }}>
-      <ActionTooltip label={title} wrapperStyle={{ display: 'block', width: '100%', minWidth: 0, overflow: 'hidden' }}>
-      <button
-        type="button"
-        onClick={onClick}
-        style={{
-          width: '100%',
-          minHeight: '30px',
-          padding: '5px 8px',
-          border: 'none',
-          background: 'transparent',
-          color: 'var(--text-secondary)',
-          cursor: 'pointer',
-          textAlign: 'left',
-          fontFamily: monospace ? 'var(--font-mono)' : 'inherit',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap'
-        }}
-        onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover, rgba(255,255,255,0.06))'
-          ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'
-        }}
-        onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
-          ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'
-        }}
-      >
-        {label}
-      </button>
-      </ActionTooltip>
-    </td>
   )
 }
 

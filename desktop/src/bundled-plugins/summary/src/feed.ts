@@ -1,5 +1,5 @@
 import type { DesktopPluginHost, DesktopPluginSubAgent } from '@dotcraft/plugin'
-import { rolledBackTurns, toSummaryItem, type SummaryItem } from './sources'
+import { diffTotals, rolledBackTurns, toSummaryItem, type ChangeTotals, type SummaryItem } from './sources'
 
 export interface SummaryAutomation {
   readonly id: string
@@ -24,6 +24,7 @@ export interface SummaryState {
   readonly automations: readonly SummaryAutomation[]
   readonly plan: SummaryPlan | null
   readonly items: readonly SummaryItem[]
+  readonly turnDiffs: ReadonlyMap<string, ChangeTotals>
   readonly terminals: readonly SummaryTerminal[]
 }
 
@@ -57,6 +58,7 @@ export function startSummaryFeed(
     automations: [],
     plan: null,
     items: [],
+    turnDiffs: new Map(),
     terminals: []
   }
 
@@ -69,11 +71,12 @@ export function startSummaryFeed(
   const addItems = (incoming: readonly SummaryItem[]): void => {
     if (incoming.length === 0) return
     const next = [...state.items]
-    const positions = new Map(next.map((item, index) => [item.id, index]))
+    const keyOf = (item: SummaryItem): string => `${item.turnId}:${item.id}`
+    const positions = new Map(next.map((item, index) => [keyOf(item), index]))
     for (const item of incoming) {
-      const position = positions.get(item.id)
+      const position = positions.get(keyOf(item))
       if (position === undefined) {
-        positions.set(item.id, next.length)
+        positions.set(keyOf(item), next.length)
         next.push(item)
       } else {
         next[position] = item
@@ -206,6 +209,15 @@ export function startSummaryFeed(
     else pendingItems.push(item)
   })
 
+  const stopTurnDiff = host.appServer.onNotification('turn/diff/updated', (params) => {
+    if (params.threadId !== threadId) return
+    const totals = diffTotals(params.diff ?? '')
+    const next = new Map(state.turnDiffs)
+    if (totals) next.set(params.turnId, totals)
+    else next.delete(params.turnId)
+    publish({ turnDiffs: next })
+  })
+
   const stopPlan = host.appServer.onNotification('plan/updated', (params) => {
     if (params.threadId !== threadId) return
     publish({ plan: toPlan(params) })
@@ -258,6 +270,7 @@ export function startSummaryFeed(
     disposed = true
     stopSubAgents()
     stopItems()
+    stopTurnDiff()
     stopPlan()
     stopAutomations()
     stopTurnStarted()

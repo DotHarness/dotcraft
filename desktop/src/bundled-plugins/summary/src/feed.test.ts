@@ -51,6 +51,25 @@ describe('Summary feed', () => {
     stop()
   })
 
+  it('keeps items of different turns that share an item id', async () => {
+    const { host, notify } = createHost({
+      'thread/items/list': () => ({
+        data: [{ turnId: 't1', item: wireItem('item_001', 't1', '2026-10-01T10:00:00Z') }],
+        nextCursor: null
+      }),
+      'thread/read': () => ({ thread: { plan: null } }),
+      'automation/list': () => ({ automations: [] })
+    })
+    let state: SummaryState | null = null
+    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    await settle()
+
+    notify('item/completed', { threadId: 'thread-1', turnId: 't2', item: wireItem('item_001', 't2', '2026-10-01T10:05:00Z') })
+
+    expect(state!.items.map((item) => item.turnId)).toEqual(['t1', 't2'])
+    stop()
+  })
+
   it('counts a to-do list without a plan as progress, leaving out cancelled steps', async () => {
     const { host, notify } = createHost({ 'thread/read': () => ({ thread: { plan: null } }) })
     let state: SummaryState | null = null

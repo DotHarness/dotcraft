@@ -269,6 +269,62 @@ public sealed class ImageGenerationPayload : ExtensibleJsonObject
     public string? GenerationId { get; init; }
 }
 
+public sealed class WebSearchPayload : ExtensibleJsonObject
+{
+    [JsonPropertyName("callId")]
+    public required string CallId { get; init; }
+
+    [JsonPropertyName("status")]
+    public required string Status { get; init; }
+
+    [JsonPropertyName("query")]
+    public required string Query { get; init; }
+
+    [JsonPropertyName("action")]
+    [JsonRequired]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public WebSearchAction? Action { get; init; }
+
+    [JsonPropertyName("results")]
+    [JsonRequired]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public IReadOnlyList<JsonElement>? Results { get; init; }
+
+    [JsonPropertyName("errorMessage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ErrorMessage { get; init; }
+
+    [JsonPropertyName("arguments")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Arguments { get; init; }
+
+    [JsonPropertyName("output")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Output { get; init; }
+}
+
+public sealed class WebSearchAction : ExtensibleJsonObject
+{
+    [JsonPropertyName("type")]
+    public required string Type { get; init; }
+
+    [JsonPropertyName("query")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Query { get; init; }
+
+    [JsonPropertyName("queries")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? Queries { get; init; }
+
+    [JsonPropertyName("url")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Url { get; init; }
+
+    [JsonPropertyName("pattern")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Pattern { get; init; }
+}
+
 /// <summary>Safe persisted provenance for a tool definition.</summary>
 public sealed class ToolSourceProvenancePayload : ExtensibleJsonObject
 {

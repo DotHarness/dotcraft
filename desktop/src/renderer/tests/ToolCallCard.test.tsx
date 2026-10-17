@@ -773,46 +773,6 @@ describe('ToolCallCard shell rendering', () => {
     vi.useRealTimers()
   })
 
-  it('renders completed WebSearch results as a clickable table that opens the internal browser', () => {
-    const item: ConversationItem = {
-      id: 'tool-web-search-table',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'WebSearch', ...coreToolFields('WebSearch'),
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebSearch' },
-      presentation: { presentationId: 'core.web', options: { operation: 'search' } },
-      toolCallId: 'websearch-table-1',
-      arguments: { query: 'dotcraft docs' },
-      result: JSON.stringify({
-        query: 'dotcraft docs',
-        provider: 'exa',
-        results: [
-          { title: 'DotCraft Docs', url: 'https://docs.dotcraft.ai/start', snippet: 'Guide' },
-          { title: 'GitHub', url: 'https://github.com/DotHarness/dotcraft' }
-        ]
-      }),
-      success: true,
-      createdAt: new Date().toISOString()
-    }
-
-    useConversationStore.setState({ workspacePath: 'X:\\fixtures\\workspace' })
-    useViewerTabStore.getState().onThreadSwitched('thread-1')
-    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
-
-    fireEvent.click(screen.getByTestId('tool-row'))
-
-    expect(screen.getAllByRole('columnheader')).toHaveLength(2)
-    expect(screen.getAllByRole('button').length).toBeGreaterThan(1)
-
-    fireEvent.click(screen.getAllByRole('button')[1])
-
-    const threadState = useViewerTabStore.getState().getThreadState('thread-1')
-    expect(threadState.tabs).toHaveLength(1)
-    expect(threadState.tabs[0]?.kind).toBeTruthy()
-    expect(threadState.tabs[0]?.currentUrl).toBeTruthy()
-    expect(threadState.activeTabId).toBe(threadState.tabs[0]?.id)
-  })
-
   it('renders completed native SearchTools with count and discovered tools', () => {
     const item: ConversationItem = {
       id: 'tool-native-tool-search',

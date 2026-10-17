@@ -391,6 +391,20 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             policy.EvaluateCall(new FunctionCallContent("call-2", "ReadFile", new Dictionary<string, object?>())).Kind);
     }
 
+    [Fact]
+    public void SubAgentExplorer_MatchesNamespacedToolsByProviderFlatName()
+    {
+        var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.True(policy.EvaluateRegistration(
+            Registration(new ToolName("web", "run"), ToolSourceKind.CoreNative, "web-search"),
+            []).Allowed);
+        Assert.False(policy.EvaluateRegistration(
+            Registration(new ToolName("image_gen", "imagegen"), ToolSourceKind.CoreNative, "image-generation"),
+            []).Allowed);
+    }
+
     [Theory]
     [InlineData("git diff --stat")]
     [InlineData("git --no-pager diff")]

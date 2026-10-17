@@ -956,6 +956,13 @@ public sealed partial class ThreadStore : IAsyncDisposable
                 FlushAssistantSegment(history, assistantBuilder);
                 history.Add(imageGenerationResult);
             }
+            else if (item.Type == ItemType.WebSearch &&
+                     TryBuildWebSearchToolHistory(item, out var webSearchCall, out var webSearchResult))
+            {
+                assistantBuilder.AddToolCall(webSearchCall);
+                FlushAssistantSegment(history, assistantBuilder);
+                history.Add(webSearchResult);
+            }
         }
 
         FlushAssistantSegment(history, assistantBuilder);

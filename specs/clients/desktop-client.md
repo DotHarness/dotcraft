@@ -841,16 +841,21 @@ in a terminal from the conversation. Actions are available for local workspaces.
   `platform` is shown only on that platform. Strings are trimmed and actions with an empty name or
   command are dropped. A file that cannot be parsed or validated is listed as an environment that
   needs attention, with the reason.
-- **Environment section.** The Summary card beside a local conversation has an "Environment" section.
-  Its header holds:
+- **Environment section.** The Summary card beside a conversation has an "Environment" section.
+  Its first row, "Changes", appears once the conversation has changed files. It shows the
+  conversation's added and removed line totals and opens the Changes panel. In a local workspace the
+  section header holds:
   - the primary action as an icon button labelled "Run: {action}";
-  - an "Actions" menu listing each action with its icon, followed by "Add action" and, when more
-    than one environment exists, "Change environment";
-  - "Open terminal", which opens a terminal tab at the workspace root.
+  - an "Actions" menu. It lists each action of the chosen environment with its icon, then
+    "Add action"; then "Change environment" when more than one environment exists; then
+    "Open terminal", which opens a terminal tab at the workspace root.
 
   Actions are ordered by most recent run in this project; the most recent is primary. Without any
-  environment the header offers "Set up local environment", which opens the add-action dialog. The
-  chosen environment and the run order are remembered per project on this device.
+  environment the menu offers "Set up local environment" in place of the actions, which opens the
+  add-action dialog. When the chosen environment needs attention the menu offers
+  "Fix local environment", which opens its file. Without project actions the section shows only the
+  Changes row, and without changes only the header. The chosen environment and the run order are
+  remembered per project on this device.
 - **Running.** Running an action opens or focuses the conversation's terminal tab for that
   environment and action, titled with the action's name. Each run restarts that tab's shell in the
   folder that contains the environment's `.craft` folder and enters the command in the shell's own
@@ -1060,7 +1065,7 @@ Required behavior:
 - When `providerManagement` is available, Desktop exposes provider-aware model settings:
   - personal providers are listed with `provider/list` and can be created, edited, tested, and deleted from Settings;
   - the provider editor saves with `config/batchWrite` on `Providers.<id>` in the user layer: create and edit write the provider's fields, an untouched API key is sent as `***` or left out of an `upsert`, and delete writes `null` to `Providers.<id>`; per-provider toggles such as image generation write their `Providers.<id>.<Field>` key the same way;
-  - the editor rejects a new provider id that `provider/list` already shows before saving, and passes the user layer's `expectedVersion` so a save does not overwrite a concurrent edit;
+  - the editor rejects a new provider id that `provider/list` shows or that the user layer it writes against already holds, and passes that layer's `expectedVersion` so a save does not overwrite a concurrent edit;
   - `openai` is a normal explicit provider id and can be created, selected, edited, and deleted like other providers when it is not the active workspace selection; the server rejects deleting the selected provider;
   - provider credentials and endpoints are personal config, while workspace saves write `ProviderId` and the selected provider's `ProviderPreferences.<id>` entry;
   - each preference contains model, reasoning, and speed selections; a workspace record atomically overrides the personal record for the same provider;
@@ -1068,7 +1073,8 @@ Required behavior:
   - SubAgent displays an inline `Inherit`/`Custom` switch. Inherit removes the provider-specific SubAgent record; Custom starts from the current MainAgent preference;
   - each provider row summarises its remembered preferences as `Main` and `Subagent` clauses naming model and reasoning effort, and marks Fast inference with a bolt before the model name;
   - provider testing uses `provider/test` and must not perform hidden chat-completion requests;
-  - unsupported model listing remains a recoverable setup state with manual model entry.
+  - unsupported model listing remains a recoverable setup state with manual model entry;
+  - a `Web search` group chooses `Tools.Web.SearchProvider` (`Exa` or `Bing`) and sets `Tools.Web.ExaApiKey` as a write-only secret: the key row appears only while Exa is chosen, a stored key shows as a fixed mask, and emptying the field clears it. Both fields take effect from the next turn.
 - Settings actions are group-scoped (for example Apply, Restart, or Apply & Restart) based on the tier semantics of that group. There is no page-level Save/Cancel footer.
 - The Connections settings page is one entry with a segmented control that separates connection kinds by direction: **Workspace** (how this Desktop connects to the workspace runtime), **Satellites** (other PCs the user's agent can run tools on, §6.11), **Share this PC** (who may run tools on this PC through the local Satellite runtime, §6.11), **SSH** (machines this PC reaches over SSH, §6.10), and **Phones** (phones that may control this computer, §6.15). Each segment owns its own model, list, and single primary action; segments never share state or rows. Segments whose backing capability is absent show a setup state rather than disappearing, except that Share this PC may be hidden when no Satellite runtime state exists on the machine.
 - The Workspace segment distinguishes lifecycle ownership:

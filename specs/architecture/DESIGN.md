@@ -1,5 +1,5 @@
 ---
-version: "0.8.8"
+version: "0.8.10"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
@@ -1079,6 +1079,11 @@ palettes share one overlay language:
 - a single solid, opaque elevated surface shared by every floating menu so they
   look identical regardless of backdrop;
 - no gradient or translucency on the menu surface;
+- menus and popovers share one stacking layer (`--z-popover`); whichever opened last
+  sits on top, so a menu opened from a popover always covers it, and only
+  tooltips (`--z-tooltip`) rise above that layer;
+- a popover anchored near a panel edge opens toward the panel's interior so it
+  is never clipped by the panel or the sidebar;
 - ordinary menu frames are borderless;
 - shadow/elevation separates the overlay from the background;
 - a submenu, flyout, or stacked overlay carries one `1px var(--glass-border)`
@@ -1552,6 +1557,15 @@ ellipsizes, however long the command.
 | Discussion board read or change | speech bubbles |
 | Any other tool | wrench |
 
+A web search row, whether a web search item or the built-in search tool, is one
+two-tone line: `Searched the web` (`Searching the web` while it runs, under the
+running shimmer) in tertiary text at 90%, then ` for` and the query, URL, or
+pattern in tertiary at 80%, both lifting to `--text-primary` on hover. A completed
+search with results expands to a quiet source list, one line per source with the
+domain in `--text-secondary` before the title in `--text-dimmed`, each opening
+like a conversation link, with no table, header, or borders; a search without results does not
+expand, and a failed one takes the `Failed:` label and expands to its error.
+
 ### Inline reference chips
 
 File, command, skill, link, scheduled-task, and profile references — in the
@@ -1940,7 +1954,9 @@ Content beside the conversation stays quieter than the conversation itself. The 
   - **Motion:** when a shell panel leaves too little room for the pinned summary, it starts fading and sliding out as that panel opens, not after the stream finishes narrowing. Keep the outgoing card mounted only through its exit, non-interactive and hidden from assistive technology. Preserve the pin preference and reverse an interrupted exit when room returns. Reduced motion removes the slide and completes the exit immediately.
   - **Header:** the workspace name at ui size and medium weight.
   - **Sections:** a secondary-size title in muted text with no count. Sections are separated by a hairline.
-  - **Rows:** single-line at ui size, with a 16px leading glyph and no trailing meta. Action rows take the standard hover fill. A row's trailing icon action stays hidden until the row is hovered or the action has keyboard focus.
+  - **Rows:** single-line at ui size, with a 16px leading glyph and no trailing meta except the Changes row's line totals. Action rows take the standard hover fill. A row's trailing icon action stays hidden until the row is hovered or the action has keyboard focus.
+  - **Environment section:** the Changes row comes first, with right-aligned `+N` in `--success` and `-M` in `--error` at secondary size with tabular numbers; a zero side is omitted. The header's trailing actions are the primary Run icon button and an ellipsis Actions menu, which holds every other environment command, including set-up, fixing a broken environment file, and opening a terminal. The section never adds rows for the environment itself.
+  - **Web search source:** a thread that searched the web gets one plain `Web search` row with the globe glyph after the other sources, never one row per search result or query; it carries no count, does not expand or open anything, and takes one of the three rows before `View all`. Pages read with web fetch stay ordinary page sources.
 - **Avatar stacks.** Overlapping agent avatars carry a 1.5px ring of the card surface. A muted row also mutes its avatars.
 
 ## Viewers and editors

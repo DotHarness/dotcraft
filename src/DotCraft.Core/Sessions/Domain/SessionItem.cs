@@ -70,6 +70,10 @@ public sealed class SessionItem
         Payload as ImageGenerationPayload;
 
     [JsonIgnore]
+    public WebSearchPayload? AsWebSearch =>
+        Payload as WebSearchPayload;
+
+    [JsonIgnore]
     public ToolCallPayload? AsToolCall =>
         Payload as ToolCallPayload;
 

@@ -36,7 +36,7 @@
 
 .conversation-summary-popover {
   position: fixed;
-  z-index: calc(var(--z-tooltip) - 1);
+  z-index: var(--z-popover);
   box-sizing: border-box;
   overflow-y: auto;
   border-radius: 16px;
@@ -182,6 +182,24 @@
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-line-height);
   font-variant-numeric: tabular-nums;
+}
+
+.conversation-summary-row__meta {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  margin-left: auto;
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  font-variant-numeric: tabular-nums;
+}
+
+.conversation-summary-row__added {
+  color: var(--success);
+}
+
+.conversation-summary-row__removed {
+  color: var(--error);
 }
 
 .conversation-summary-row__trailing {

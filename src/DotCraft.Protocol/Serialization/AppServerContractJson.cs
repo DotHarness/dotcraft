@@ -73,6 +73,8 @@ public static class AppServerContractJson
 [JsonSerializable(typeof(CommandExecutionPayload))]
 [JsonSerializable(typeof(ToolExecutionPayload))]
 [JsonSerializable(typeof(ImageGenerationPayload))]
+[JsonSerializable(typeof(WebSearchPayload))]
+[JsonSerializable(typeof(WebSearchAction))]
 [JsonSerializable(typeof(ToolSourceProvenancePayload))]
 [JsonSerializable(typeof(ToolPresentationPayload))]
 [JsonSerializable(typeof(ToolCallPayload))]

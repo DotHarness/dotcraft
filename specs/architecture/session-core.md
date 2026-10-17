@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.5 |
+| **Version** | 0.8.10 |
 | **Status** | Living |
-| **Date** | 2026-10-15 |
+| **Date** | 2026-10-16 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -333,6 +333,7 @@ Fields:
   - `CommandExecution` — Server-observed shell execution projection for `Exec`-style tools. Payload includes command metadata and aggregated output for persistence, history summaries, and non-terminal-capable fallback rendering.
   - `ToolExecution` — Server-observed runtime lifecycle for a normal tool invocation. Payload includes call id, tool name, status, duration, and optional preview/error text.
   - `ImageGeneration` — Lifecycle of the `image_gen.imagegen` tool. Payload includes call id, in-progress/completed/failed status, prompt, generated image bytes when available, saved path, backend request and generation ids, and error text.
+  - `WebSearch` — Lifecycle of the `web.run` tool. Payload includes call id, in-progress/completed/failed status, a display query, the action derived from the commands, the search service's result objects, the call arguments, the text returned to the model, and error text.
   - `ToolCall` — Agent invokes a native or plugin tool, including managed channel tools. Payload includes canonical namespace/name, arguments, call id, definition identity, and safe provenance.
   - `McpToolCall` — MCP invocation lifecycle item preserving raw MCP result fields under audience rules plus separately normalized model content.
   - `DynamicToolCall` — Runtime Dynamic callback lifecycle item with canonical namespace/name, separate call/item ids, status, duration, normalized content, structured content, and stable failure data.
@@ -498,6 +499,23 @@ always carries the authoritative argument object.
 ```
 
 `ImageGeneration` is the specialized projection of the `image_gen.imagegen` tool defined in [Tool Architecture](tools-architecture.md). It starts when the dispatcher records the call and completes once from the tool result; it has no companion `ToolCall` or `ToolResult`. Completed image bytes are saved under `.craft/generated_images/{threadId}/{callId}.png`, or in the captured remote workspace; the payload also carries base64 bytes for wire clients. The payload also records the backend image request id and the image's generation id when the provider returns them; a failed request keeps the request id. When model history is rebuilt from items, each terminal `ImageGeneration` item replays as an `image_gen.imagegen` call whose result is the image and saved-path hint, or the failure text.
+
+#### WebSearch
+
+```
+{
+  "callId": string,        // Tool call id
+  "status": string,        // "inProgress", "completed", or "failed"
+  "query": string,         // Display summary of the action; empty while in progress
+  "action": object | null, // { "type": "search" | "openPage" | "findInPage" | "other", ... }; null while in progress
+  "results": array | null, // Search service result objects, opaque to clients; null until completed
+  "errorMessage": string,  // Optional human-readable failure message
+  "arguments": object,     // Call arguments as the model sent them
+  "output": string         // Terminal text returned to the model
+}
+```
+
+`WebSearch` is the specialized projection of the `web.run` tool defined in [Tool Architecture](tools-architecture.md). It starts when the dispatcher records the call and completes once from the tool result; it has no companion `ToolCall` or `ToolResult`. The action and query are derived from the call's commands as defined in the [AppServer protocol item table](../protocols/appserver-protocol.md). When model history is rebuilt from items, each terminal `WebSearch` item replays as a `web.run` call with its `arguments` whose result is its `output`, or the failure text.
 
 #### McpToolCall
 
@@ -1054,6 +1072,7 @@ resume, or read operations.
     - Items like `ToolResult`, `ApprovalRequest`, `ApprovalResponse`, `UserInputRequest`, `UserInputResponse`, `Error` are created with their full payload and immediately completed.
     - `ToolCall` is usually completed directly, but hosts may expose an intermediate streaming preview of argument construction before the final completed payload is persisted.
     - `ImageGeneration` starts when the `image_gen.imagegen` call is recorded and completes with inline image data or a visible failure payload.
+    - `WebSearch` starts when the `web.run` call is recorded and completes with the action, query, and results, or a visible failure payload.
     - `McpToolCall` and `DynamicToolCall` start with `status = "inProgress"` and nullable/absent `success`, then complete once with a terminal completed/failed payload.
 
 **Invariants**:
@@ -1077,7 +1096,7 @@ A typical Turn produces Items in this order:
 ```
 1. UserMessage (input)
 2. [ReasoningContent] (if model exposes thinking)
-3. [ToolCall → ToolResult | ImageGeneration | McpToolCall | DynamicToolCall]* (zero or more tool invocations)
+3. [ToolCall → ToolResult | ImageGeneration | WebSearch | McpToolCall | DynamicToolCall]* (zero or more tool invocations)
    3a. [ApprovalRequest → ApprovalResponse] (within a tool call, if approval needed)
    3b. [UserInputRequest → UserInputResponse] (if the agent needs a structured user decision before continuing)
 4. AgentMessage (final response, streamed)

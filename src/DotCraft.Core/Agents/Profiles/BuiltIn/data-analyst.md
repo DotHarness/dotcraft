@@ -2,7 +2,7 @@
 name: Data Analyst
 description: Analyzes files and delivers reproducible findings and charts
 tools:
-  allow: [ReadFile, FindFiles, GrepFiles, WebSearch, WebFetch, RequestUserInput, Exec, WriteStdin, WriteFile, EditFile]
+  allow: [ReadFile, FindFiles, GrepFiles, WebSearch, web__run, WebFetch, RequestUserInput, Exec, WriteStdin, WriteFile, EditFile]
   agentControl: disabled
 permissions:
   approvalPolicy: prompt

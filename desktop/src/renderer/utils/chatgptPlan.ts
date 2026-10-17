@@ -1,24 +1,25 @@
-/** Input is the raw tier from `auth/openai/status` or `auth/openai/usage`. */
-export function formatPlanLabel(
-  plan: string | null | undefined,
-  t: (key: string) => string
-): string {
+const PLAN_NAMES: Record<string, string> = {
+  free: 'Free',
+  go: 'Go',
+  plus: 'Plus',
+  prolite: 'Pro 100',
+  pro: 'Pro 200',
+  promax: 'Pro 500',
+  team: 'Business',
+  self_serve_business_usage_based: 'Business',
+  self_serve_business_prolite: 'Business Premium',
+  business: 'Enterprise',
+  enterprise: 'Enterprise',
+  enterprise_cbp_usage_based: 'Enterprise',
+  enterprise_cbp_automation: 'Enterprise (Automation)',
+  edu: 'Edu',
+  education: 'Edu',
+  edu_plus: 'Edu Plus',
+  edu_pro: 'Edu Pro'
+}
+
+export function formatPlanName(plan: string | null | undefined): string | null {
   const raw = plan?.trim().toLowerCase()
-  switch (raw) {
-    case 'free':
-      return t('composer.chatgptBadge.plan.free')
-    case 'plus':
-      return t('composer.chatgptBadge.plan.plus')
-    case 'pro':
-      return t('composer.chatgptBadge.plan.pro')
-    case 'business':
-      return t('composer.chatgptBadge.plan.business')
-    case 'enterprise':
-      return t('composer.chatgptBadge.plan.enterprise')
-    case 'edu':
-    case 'education':
-      return t('composer.chatgptBadge.plan.edu')
-    default:
-      return t('composer.chatgptBadge.plan.unknown')
-  }
+  if (!raw || raw === 'unknown') return null
+  return PLAN_NAMES[raw] ?? raw.charAt(0).toUpperCase() + raw.slice(1)
 }

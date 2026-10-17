@@ -16,6 +16,7 @@ import { RequestUserInputComposer } from '../conversation/RequestUserInputCompos
 import { ScrollToBottomButton } from '../conversation/ScrollToBottomButton'
 import { ConversationColumn } from '../conversation/ConversationColumn'
 import { TranscriptTurn } from '../conversation/TranscriptTurn'
+import { TranscriptTurnsContext } from '../conversation/useWebCitationSources'
 import { Button } from '../ui/Button'
 import styles from './SideChat.module.css'
 
@@ -139,22 +140,24 @@ function SideChatTranscript({ chat, running }: { chat: SideChat; running: boolea
           </div>
         ) : (
           <ConversationImagesContext.Provider value={getConversationImages}>
-            <ConversationColumn className="dc-conversation-column-stack">
-              {turns.map((turn, index) => {
-                const isLastTurn = index === turns.length - 1
-                return (
-                  <TranscriptTurn
-                    key={turn.id}
-                    threadId={chat.threadId ?? chat.key}
-                    turn={turn}
-                    isLastTurn={isLastTurn}
-                    running={running && isLastTurn}
-                    live={isLastTurn ? live : null}
-                    renderTurnCompletion={NO_TURN_COMPLETION}
-                  />
-                )
-              })}
-            </ConversationColumn>
+            <TranscriptTurnsContext.Provider value={turns}>
+              <ConversationColumn className="dc-conversation-column-stack">
+                {turns.map((turn, index) => {
+                  const isLastTurn = index === turns.length - 1
+                  return (
+                    <TranscriptTurn
+                      key={turn.id}
+                      threadId={chat.threadId ?? chat.key}
+                      turn={turn}
+                      isLastTurn={isLastTurn}
+                      running={running && isLastTurn}
+                      live={isLastTurn ? live : null}
+                      renderTurnCompletion={NO_TURN_COMPLETION}
+                    />
+                  )
+                })}
+              </ConversationColumn>
+            </TranscriptTurnsContext.Provider>
           </ConversationImagesContext.Provider>
         )}
       </div>

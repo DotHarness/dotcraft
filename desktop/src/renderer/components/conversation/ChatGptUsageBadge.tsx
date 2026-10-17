@@ -10,7 +10,7 @@ import {
   useChatGptUsage,
   type ProviderSummary
 } from '../../stores/providersStore'
-import { formatPlanLabel } from '../../utils/chatgptPlan'
+import { formatPlanName } from '../../utils/chatgptPlan'
 import {
   shapeChatGptUsageWindows,
   type ChatGptUsageDisplayWindow,
@@ -54,14 +54,14 @@ export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Ele
 
   if (!provider) return null
 
-  const planLabel = formatPlanLabel(provider.chatGptPlanType ?? usage?.planType ?? null, t)
+  const planName = formatPlanName(provider.chatGptPlanType ?? usage?.planType ?? null)
   const displayWindows = shapeChatGptUsageWindows(usage)
   const pressuredWindow = selectPressuredWindow(displayWindows)
   const remaining = remainingPercent(pressuredWindow?.window ?? null)
   const accentColor = colorForRemaining(remaining)
   const tooltipLabel = formatUsageTooltipLabel(displayWindows, t)
 
-  const ariaParts = [t('composer.chatgptBadge.label'), planLabel]
+  const ariaParts = [[t('composer.chatgptBadge.label'), planName].filter(Boolean).join(' ')]
   for (const display of displayWindows) {
     ariaParts.push(formatUsageAriaLabel(display.kind, remainingPercent(display.window) ?? 0, t))
   }
@@ -208,7 +208,7 @@ function popoverWrapperStyle(): CSSProperties {
   return {
     position: 'absolute',
     bottom: 'calc(100% + 8px)',
-    right: 0,
+    left: 0,
     zIndex: 20
   }
 }

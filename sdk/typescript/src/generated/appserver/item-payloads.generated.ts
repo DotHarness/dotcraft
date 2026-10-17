@@ -20,6 +20,7 @@ export interface SessionItemPayloadMap {
   "userInputRequest": Models.UserInputRequestPayload;
   "userInputResponse": Models.UserInputResponsePayload;
   "userMessage": Models.UserMessagePayload;
+  "webSearch": Models.WebSearchPayload;
 }
 
 export type KnownSessionItemPayloadKind = keyof SessionItemPayloadMap;
@@ -49,6 +50,7 @@ export const SESSION_ITEM_PAYLOAD_KINDS = [
   "userInputRequest",
   "userInputResponse",
   "userMessage",
+  "webSearch",
 ] as const satisfies readonly KnownSessionItemPayloadKind[];
 
 const knownPayloadKinds = new Set<string>(SESSION_ITEM_PAYLOAD_KINDS);

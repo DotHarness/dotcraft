@@ -69,33 +69,81 @@ public sealed partial class OpenAIClientProvider
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(TimeSpan.FromSeconds(NormalizeNetworkTimeoutSeconds(runtime.NetworkTimeoutSeconds)));
 
-        var response = await SendImageRequestAsync(requestUri, runtime, json, request.TurnId, forceRefresh: false, timeoutCts.Token)
+        var response = await PostJsonAsync(requestUri, runtime, json, request.TurnId, timeoutCts.Token)
             .ConfigureAwait(false);
-        if (runtime.IsChatGptOAuth && !runtime.IsRemote && response.StatusCode == HttpStatusCode.Unauthorized)
-        {
-            response.Dispose();
-            response = await SendImageRequestAsync(requestUri, runtime, json, request.TurnId, forceRefresh: true, timeoutCts.Token)
-                .ConfigureAwait(false);
-        }
-
         return await ReadImageResponseAsync(response, timeoutCts.Token).ConfigureAwait(false);
     }
 
-    private async Task<HttpResponseMessage> SendImageRequestAsync(
+    async Task<ProviderWebSearchResult> IProviderWebSearch.SearchAsync(
+        EffectiveModelRuntime runtime,
+        ProviderWebSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        ArgumentNullException.ThrowIfNull(request);
+        if (!runtime.IsOpenAICompatible || !runtime.IsChatGptOAuth)
+            throw new ArgumentException($"Provider '{runtime.ProviderId}' does not offer hosted web search.", nameof(runtime));
+        if (!Uri.TryCreate(runtime.EndPoint, UriKind.Absolute, out var endpoint))
+            throw new ArgumentException("Endpoint must be an absolute URI.", nameof(runtime));
+
+        var model = NormalizeRequiredModel(runtime.Model);
+        using var pipeline = ProviderPipelineOptionsScope.Push(new ProviderPipelineOptions(
+            runtime with { Model = model }, null, null, false, "standard", false, null));
+        var json = new JsonObject
+        {
+            ["id"] = request.Id,
+            ["model"] = model,
+            ["input"] = request.Input.DeepClone(),
+            ["commands"] = request.Commands.DeepClone(),
+            ["settings"] = new JsonObject
+            {
+                ["allowed_callers"] = new JsonArray("direct"),
+                ["external_web_access"] = true
+            },
+            ["max_output_tokens"] = WebSearchMaxOutputTokens
+        }.ToJsonString();
+        var requestUri = new Uri(new Uri(endpoint.ToString().TrimEnd('/') + "/"), "alpha/search");
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(NormalizeNetworkTimeoutSeconds(runtime.NetworkTimeoutSeconds)));
+
+        var response = await PostJsonAsync(requestUri, runtime, json, imageTurnId: null, timeoutCts.Token)
+            .ConfigureAwait(false);
+        return await ReadWebSearchResponseAsync(response, timeoutCts.Token).ConfigureAwait(false);
+    }
+
+    private async Task<HttpResponseMessage> PostJsonAsync(
         Uri requestUri,
         EffectiveModelRuntime runtime,
         string json,
-        string? turnId,
+        string? imageTurnId,
+        CancellationToken cancellationToken)
+    {
+        var response = await SendJsonRequestAsync(requestUri, runtime, json, imageTurnId, forceRefresh: false, cancellationToken)
+            .ConfigureAwait(false);
+        if (!runtime.IsChatGptOAuth || runtime.IsRemote || response.StatusCode != HttpStatusCode.Unauthorized)
+            return response;
+
+        response.Dispose();
+        return await SendJsonRequestAsync(requestUri, runtime, json, imageTurnId, forceRefresh: true, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<HttpResponseMessage> SendJsonRequestAsync(
+        Uri requestUri,
+        EffectiveModelRuntime runtime,
+        string json,
+        string? imageTurnId,
         bool forceRefresh,
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.TryAddWithoutValidation("User-Agent", DotCraftUserAgentPipelinePolicy.UserAgentValue);
-        if (!string.IsNullOrEmpty(turnId))
-            request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.ImageTurnIdHeader, turnId);
+        if (!string.IsNullOrEmpty(imageTurnId))
+            request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.ImageTurnIdHeader, imageTurnId);
         request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.OriginatorHeader, OpenAIAuthConstants.Originator);
-        await ApplyImageAuthHeadersAsync(request, runtime, forceRefresh, cancellationToken).ConfigureAwait(false);
+        await ApplyAuthHeadersAsync(request, runtime, forceRefresh, cancellationToken).ConfigureAwait(false);
         request.Content = new StringContent(json, Encoding.UTF8, "application/json");
         return await HttpClientFor(runtime).SendAsync(
             request,
@@ -103,7 +151,7 @@ public sealed partial class OpenAIClientProvider
             cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task ApplyImageAuthHeadersAsync(
+    private async Task ApplyAuthHeadersAsync(
         HttpRequestMessage request,
         EffectiveModelRuntime runtime,
         bool forceRefresh,
@@ -196,6 +244,48 @@ public sealed partial class OpenAIClientProvider
             {
                 throw new ProviderImageException("Images API returned invalid image data.", requestId, ex);
             }
+        }
+    }
+
+    private static async Task<ProviderWebSearchResult> ReadWebSearchResponseAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        using (response)
+        {
+            var body = response.Content is null
+                ? string.Empty
+                : await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var snippet = body.Length > 1000 ? body[..1000] : body;
+                throw new HttpRequestException(
+                    $"Web search request failed with HTTP {(int)response.StatusCode}: {snippet}",
+                    null,
+                    response.StatusCode);
+            }
+
+            JsonObject? root;
+            try
+            {
+                root = JsonNode.Parse(body) as JsonObject;
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidOperationException("Web search returned an invalid response.", ex);
+            }
+
+            if (root?["output"] is not JsonValue outputValue || !outputValue.TryGetValue<string>(out var output))
+                throw new InvalidOperationException("Web search returned no output.");
+
+            var results = new JsonArray();
+            if (root["results"] is JsonArray entries)
+            {
+                foreach (var entry in entries.OfType<JsonObject>())
+                    results.Add(entry.DeepClone());
+            }
+
+            return new ProviderWebSearchResult(output, results);
         }
     }
 
