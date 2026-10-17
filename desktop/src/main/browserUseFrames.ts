@@ -3,16 +3,40 @@ export interface BrowserFramePoint {
   y: number
 }
 
-export interface BrowserFrameTarget {
+export interface BrowserFrameBox extends BrowserFramePoint {
+  width: number
+  height: number
+}
+
+export interface BrowserFrameContext {
   sessionId?: string
   frameId?: string
-  offset: BrowserFramePoint
-  sessionOffset: BrowserFramePoint
+}
+
+interface BrowserFrameHop {
+  frameId: string
+  parent: BrowserFrameContext
+  child: BrowserFrameContext
+}
+
+export interface BrowserFrameTarget extends BrowserFrameContext {
+  hops: BrowserFrameHop[]
+}
+
+export interface BrowserFrameMapping {
+  point<T extends BrowserFramePoint>(point: T): T
+  box<T extends BrowserFrameBox>(box: T): T
+}
+
+interface BrowserFrameNode {
+  target: BrowserFrameTarget
+  documentKey: string
+  localRef: string
 }
 
 export type BrowserFrameSend = (method: string, params: Record<string, unknown>, sessionId?: string) => Promise<unknown>
 
-export const TOP_FRAME_TARGET: BrowserFrameTarget = { offset: { x: 0, y: 0 }, sessionOffset: { x: 0, y: 0 } }
+export const TOP_FRAME_TARGET: BrowserFrameTarget = { hops: [] }
 
 export const FRAME_AUTO_ATTACH = {
   autoAttach: true,
@@ -22,15 +46,28 @@ export const FRAME_AUTO_ATTACH = {
 }
 
 const WORLD_NAME = 'dotcraft-browser-use'
+const MAX_REMEMBERED_NODE_IDS = 5000
 
-export function offsetPoint<T extends BrowserFramePoint>(point: T, offset: BrowserFramePoint): T {
-  return { ...point, x: point.x + offset.x, y: point.y + offset.y }
+const IDENTITY_MAPPING: BrowserFrameMapping = { point: point => point, box: box => box }
+
+function mapThroughQuad(quad: number[], size: { width: number; height: number }, point: BrowserFramePoint): BrowserFramePoint {
+  const width = size.width > 0 ? size.width : quad[2] - quad[0]
+  const height = size.height > 0 ? size.height : quad[7] - quad[1]
+  const s = width ? point.x / width : 0
+  const a = height ? point.y / height : 0
+  return {
+    x: quad[0] + s * (quad[2] - quad[0]) + a * (quad[6] - quad[0]),
+    y: quad[1] + s * (quad[3] - quad[1]) + a * (quad[7] - quad[1])
+  }
 }
 
 export class BrowserFrameSessions {
   private readonly sessionsByFrame = new Map<string, string>()
   private readonly worlds = new Map<string, number>()
-  private refTargets = new Map<string, BrowserFrameTarget>()
+  private mainDocumentKey = ''
+  private nextNodeId = 1
+  private readonly nodeIds = new Map<string, string>()
+  private readonly nodes = new Map<string, BrowserFrameNode>()
 
   handleEvent(send: BrowserFrameSend, method: string, params: Record<string, unknown>): void {
     if (method === 'Target.attachedToTarget') {
@@ -53,24 +90,91 @@ export class BrowserFrameSessions {
   clear(): void {
     this.sessionsByFrame.clear()
     this.worlds.clear()
-    this.refTargets.clear()
+    this.nodes.clear()
   }
 
   async childTarget(send: BrowserFrameSend, parent: BrowserFrameTarget, frameObjectId: string): Promise<BrowserFrameTarget> {
-    const [described, box] = await Promise.all([
-      send('DOM.describeNode', { objectId: frameObjectId }, parent.sessionId),
-      send('DOM.getBoxModel', { objectId: frameObjectId }, parent.sessionId)
-    ]) as [{ node?: { frameId?: string } }, { model?: { content?: number[] } }]
+    const described = await send('DOM.describeNode', { objectId: frameObjectId }, parent.sessionId) as { node?: { frameId?: string } }
     const frameId = described.node?.frameId
-    const content = box.model?.content
-    if (!frameId || !content) throw new Error('Frame element has no rendered frame.')
-    const offset = { x: parent.sessionOffset.x + content[0], y: parent.sessionOffset.y + content[1] }
-    const sessionId = this.sessionsByFrame.get(frameId)
-    if (sessionId) return { sessionId, offset, sessionOffset: offset }
-    return { sessionId: parent.sessionId, frameId, offset, sessionOffset: parent.sessionOffset }
+    if (!frameId) throw new Error('Frame element has no frame.')
+    const frameSessionId = this.sessionsByFrame.get(frameId)
+    const child: BrowserFrameContext = frameSessionId ? { sessionId: frameSessionId } : { sessionId: parent.sessionId, frameId }
+    const hop: BrowserFrameHop = { frameId, parent: { sessionId: parent.sessionId, frameId: parent.frameId }, child }
+    const last = parent.hops.at(-1)
+    const hops = last && last.parent.sessionId === parent.sessionId ? [...parent.hops.slice(0, -1), hop] : [...parent.hops, hop]
+    return { ...child, hops }
   }
 
-  async evaluate(send: BrowserFrameSend, target: BrowserFrameTarget, params: Record<string, unknown>): Promise<unknown> {
+  async mapping(send: BrowserFrameSend, target: BrowserFrameTarget): Promise<BrowserFrameMapping> {
+    if (!target.hops.length) return IDENTITY_MAPPING
+    const layers = await Promise.all(target.hops.map(async hop => {
+      const owner = await send('DOM.getFrameOwner', { frameId: hop.frameId }, hop.parent.sessionId) as { backendNodeId: number }
+      const [box, size] = await Promise.all([
+        send('DOM.getBoxModel', { backendNodeId: owner.backendNodeId }, hop.parent.sessionId) as Promise<{ model: { content: number[] } }>,
+        this.evaluate(send, hop.child, { expression: '({ width: innerWidth, height: innerHeight })', returnByValue: true }) as
+          Promise<{ result?: { value?: { width: number; height: number } } }>
+      ])
+      return { quad: box.model.content, size: size.result?.value ?? { width: 0, height: 0 } }
+    }))
+    const point = <T extends BrowserFramePoint>(input: T): T => {
+      let mapped: BrowserFramePoint = input
+      for (let index = layers.length - 1; index >= 0; index--) mapped = mapThroughQuad(layers[index].quad, layers[index].size, mapped)
+      return { ...input, x: mapped.x, y: mapped.y }
+    }
+    return {
+      point,
+      box: <T extends BrowserFrameBox>(input: T): T => {
+        const corners = [
+          point({ x: input.x, y: input.y }), point({ x: input.x + input.width, y: input.y }),
+          point({ x: input.x, y: input.y + input.height }), point({ x: input.x + input.width, y: input.y + input.height })
+        ]
+        const xs = corners.map(corner => corner.x)
+        const ys = corners.map(corner => corner.y)
+        const x = Math.min(...xs)
+        const y = Math.min(...ys)
+        return { ...input, x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y }
+      }
+    }
+  }
+
+  async documentKey(send: BrowserFrameSend, context: BrowserFrameContext): Promise<string> {
+    type FrameTree = { frame?: { id?: string; loaderId?: string }; childFrames?: FrameTree[] }
+    const { frameTree } = await send('Page.getFrameTree', {}, context.sessionId) as { frameTree?: FrameTree }
+    const find = (tree: FrameTree | undefined): FrameTree['frame'] => {
+      if (!tree?.frame) return undefined
+      if (!context.frameId || tree.frame.id === context.frameId) return tree.frame
+      for (const child of tree.childFrames ?? []) {
+        const found = find(child)
+        if (found) return found
+      }
+      return undefined
+    }
+    const frame = find(frameTree)
+    return `${frame?.id ?? context.frameId ?? ''}:${frame?.loaderId ?? ''}`
+  }
+
+  beginSnapshot(mainDocumentKey: string): void {
+    if (mainDocumentKey !== this.mainDocumentKey || this.nodeIds.size > MAX_REMEMBERED_NODE_IDS) this.nodeIds.clear()
+    this.mainDocumentKey = mainDocumentKey
+    this.nodes.clear()
+  }
+
+  nodeId(target: BrowserFrameTarget, documentKey: string, localRef: string): string {
+    const key = `${documentKey}:${localRef}`
+    let id = this.nodeIds.get(key)
+    if (!id) {
+      id = String(this.nextNodeId++)
+      this.nodeIds.set(key, id)
+    }
+    this.nodes.set(id, { target, documentKey, localRef })
+    return id
+  }
+
+  node(id: string): BrowserFrameNode | undefined {
+    return this.nodes.get(id)
+  }
+
+  async evaluate(send: BrowserFrameSend, target: BrowserFrameContext, params: Record<string, unknown>): Promise<unknown> {
     if (!target.frameId) return await send('Runtime.evaluate', params, target.sessionId)
     const key = `${target.sessionId ?? ''}:${target.frameId}`
     for (let attempt = 0; ; attempt++) {
@@ -91,14 +195,5 @@ export class BrowserFrameSessions {
         if (attempt > 0 || !/context/i.test(error instanceof Error ? error.message : String(error))) throw error
       }
     }
-  }
-
-  setRefTargets(targets: Map<string, BrowserFrameTarget>): void {
-    this.refTargets = targets
-  }
-
-  targetForRef(ref: string): BrowserFrameTarget {
-    const prefix = /^((?:f\d+)*)s\d+e\d+$/.exec(ref)?.[1] ?? ''
-    return this.refTargets.get(prefix) ?? TOP_FRAME_TARGET
   }
 }

@@ -44,10 +44,14 @@ describe('bundled browser client with cross-origin frames', () => {
   beforeAll(async () => {
     const crossSite = await serve(`<p>Cross site text</p><button onclick="this.textContent='Paid'">Pay now</button><button onclick="this.textContent='Confirmed'">Confirm</button>`)
     const sameSite = await serve(`<p>Same site text</p><label for="code">Code</label><input id="code">`)
+    const scaled = await serve(`<button style="margin-left:200px;width:120px" onclick="this.textContent='Scaled done'">Scaled action</button>`)
+    const far = await serve(`<button onclick="this.textContent='Far done'">Far action</button><button onclick="this.textContent='Far second done'">Far second</button>`)
     const parent = await serve(`<title>Frames fixture</title><h1>Parent heading</h1>
       <iframe id="cross" style="margin:40px" src="http://localhost:${crossSite.port}/"></iframe>
-      <iframe id="samesite" src="http://127.0.0.1:${sameSite.port}/"></iframe>`)
-    servers.push(crossSite.server, sameSite.server, parent.server)
+      <iframe id="samesite" src="http://127.0.0.1:${sameSite.port}/"></iframe>
+      <iframe id="scaled" style="width:400px;height:200px;transform:scale(0.5);transform-origin:0 0" src="http://localhost:${scaled.port}/"></iframe>
+      <iframe id="far" style="display:block;margin-top:2000px" src="http://localhost:${far.port}/"></iframe>`)
+    servers.push(crossSite.server, sameSite.server, scaled.server, far.server, parent.server)
     const debuggingPort = await freePort()
     browser = await chromium.launch({ headless: true, args: [`--remote-debugging-port=${debuggingPort}`, '--site-per-process'] })
     page = await browser.newPage()
@@ -55,9 +59,12 @@ describe('bundled browser client with cross-origin frames', () => {
     await page.goto(parentUrl)
     await page.frameLocator('#cross').getByRole('button', { name: 'Confirm' }).waitFor()
     await page.frameLocator('#samesite').getByLabel('Code').waitFor()
+    await page.frameLocator('#scaled').getByRole('button').waitFor()
+    await page.frameLocator('#far').getByRole('button', { name: 'Far second' }).waitFor({ state: 'attached' })
 
     const targets = await (await fetch(`http://127.0.0.1:${debuggingPort}/json/list`)).json() as Array<{ type: string; url: string; webSocketDebuggerUrl: string }>
-    expect(targets.filter(target => target.type === 'iframe').map(target => target.url)).toEqual([`http://localhost:${crossSite.port}/`])
+    expect(targets.filter(target => target.type === 'iframe').map(target => target.url).sort())
+      .toEqual([crossSite.port, scaled.port, far.port].map(port => `http://localhost:${port}/`).sort())
     socket = new WebSocket(targets.find(target => target.type === 'page' && target.url === parentUrl)!.webSocketDebuggerUrl)
     await new Promise(resolve => socket.once('open', resolve))
     const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>()
@@ -155,5 +162,37 @@ describe('bundled browser client with cross-origin frames', () => {
     expect(await page.frameLocator('#cross').getByRole('button').first().innerText()).toBe('Paid')
     expect(await page.frameLocator('#cross').getByRole('button').last().innerText()).toBe('Confirmed')
     expect(await evaluate(`JSON.stringify(await tab.playwright.frameLocator('#cross').getByRole('button', { name: 'Paid' }).innerText())`)).toBe('Paid')
+  })
+
+  it('maps scaled and scrolled frames at action time', async () => {
+    const result = await evaluate(`
+      const elements = JSON.parse(await tab.playwright.domSnapshot()).elements;
+      const scaledBox = elements.find(node => node.name === 'Scaled action').boundingBox;
+      await tab.playwright.frameLocator('#scaled').getByRole('button', { name: 'Scaled action' }).click();
+      await tab.playwright.frameLocator('#far').getByRole('button', { name: 'Far action' }).click();
+      JSON.stringify({ scaledBox, farSecond: elements.find(node => node.name === 'Far second').ref });
+    `)
+    expect(result.scaledBox.width).toBeCloseTo(60, 0)
+    expect(await page.frameLocator('#scaled').getByRole('button').innerText()).toBe('Scaled done')
+    expect(await page.frameLocator('#far').getByRole('button').first().innerText()).toBe('Far done')
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await evaluate(`await tab.dom_cua.click({ node_id: ${JSON.stringify(result.farSecond)} }); true`)
+    expect(await page.frameLocator('#far').getByRole('button').last().innerText()).toBe('Far second done')
+  })
+
+  it('keeps node ids per document and retires them when a frame loads a new document', async () => {
+    const payNow = `JSON.stringify(JSON.parse(await tab.playwright.domSnapshot()).elements.find(node => node.name === 'Paid' || node.name === 'Pay now').ref)`
+    const before = await evaluate(payNow)
+    expect(await evaluate(payNow)).toBe(before)
+    await page.locator('#cross').evaluate((frame: any) => { frame.src = `${frame.src}?v=2` })
+    await page.frameLocator('#cross').getByRole('button', { name: 'Pay now' }).waitFor()
+    const after = await evaluate(payNow)
+    expect(after).not.toBe(before)
+    const stale = await evaluate(`
+      let message = '';
+      try { await tab.dom_cua.click({ node_id: ${JSON.stringify(before)} }); } catch (error) { message = String(error); }
+      JSON.stringify(message);
+    `)
+    expect(stale).toContain('NodeStale')
   })
 })

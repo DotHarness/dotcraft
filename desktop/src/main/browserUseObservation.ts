@@ -24,7 +24,8 @@ export function browserObservationSource(playwrightSource: string): string {
 function installObservation(injected: any, semantics: any): void {
   const host = window as any
   const nodes = new Map<string, Element>()
-  let generation = 0
+  const refs = new WeakMap<Element, string>()
+  let nextRef = 0
   const normalize = (value: unknown): string => String(value ?? '').replace(/\s+/g, ' ').trim()
   const state = (element: Element, name: string): boolean => injected.elementState(element, name).matches
   const box = (element: Element): { x: number; y: number; width: number; height: number } => {
@@ -111,10 +112,8 @@ function installObservation(injected: any, semantics: any): void {
   }
   let opaqueFrames: Element[] = []
   const snapshot = (options: any = {}): any => {
-    generation++
     nodes.clear()
     opaqueFrames = []
-    const prefix = String(options.prefix ?? '')
     const limit = Number.isInteger(options.limit) ? options.limit : 200
     const elements: any[] = []
     const aria: string[] = []
@@ -126,7 +125,11 @@ function installObservation(injected: any, semantics: any): void {
         if (!visible(element)) continue
         const role = semantics.getAriaRole(element)
         if (role && !['generic', 'none', 'presentation'].includes(role) && elements.length < limit) {
-          const ref = `${prefix}s${generation}e${elements.length + 1}`
+          let ref = refs.get(element)
+          if (!ref) {
+            ref = `e${++nextRef}`
+            refs.set(element, ref)
+          }
           nodes.set(ref, element)
           elements.push({ ...info(element, elements.length), ref, node_id: ref, ...(frameSelectors.length ? { frameSelectors } : {}) })
         }

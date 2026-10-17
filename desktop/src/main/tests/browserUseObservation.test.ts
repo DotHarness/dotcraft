@@ -135,16 +135,23 @@ describe('bundled browser client with a real page', () => {
     expect(result.documentation).not.toContain('browserAuth.request')
   })
 
-  it('refreshes opaque ids and reports disabled/hidden state through the client', async () => {
+  it('keeps opaque ids for the same element, retires replaced ones, and reports disabled/hidden state through the client', async () => {
+    const old = await evaluate(`JSON.stringify(JSON.parse(await tab.playwright.domSnapshot()).elements.find(node => node.name === 'Save nested').ref)`)
+    const kept = await evaluate(String.raw`
+      const visible = await tab.dom_cua.get_visible_dom();
+      JSON.stringify(visible.split('\n').find(line => line.includes('Save nested')).match(/node_id=([^ ]+)/)[1]);
+    `)
+    expect(kept).toBe(old)
+    await page.locator('#save').evaluate(button => button.replaceWith(button.cloneNode(true)))
     const result = await evaluate(String.raw`
-      const old = JSON.parse(await tab.playwright.domSnapshot()).elements.find(node => node.name === 'Save nested').ref;
       const visible = await tab.dom_cua.get_visible_dom();
       const fresh = visible.split('\n').find(line => line.includes('Save nested')).match(/node_id=([^ ]+)/)[1];
       await tab.dom_cua.click({ node_id: fresh });
       let stale = '';
-      try { await tab.dom_cua.click({ node_id: old }); } catch (error) { stale = String(error); }
-      ({ stale, hidden: await tab.playwright.locator('button[hidden]').isVisible(), disabled: await tab.playwright.getByRole('button', { name: 'Disabled field' }).isEnabled() });
+      try { await tab.dom_cua.click({ node_id: ${JSON.stringify(old)} }); } catch (error) { stale = String(error); }
+      ({ fresh, stale, hidden: await tab.playwright.locator('button[hidden]').isVisible(), disabled: await tab.playwright.getByRole('button', { name: 'Disabled field' }).isEnabled() });
     `)
+    expect(result.fresh).not.toBe(old)
     expect(result.stale).toContain('NodeStale')
     expect(result.hidden).toBe(false)
     expect(result.disabled).toBe(false)

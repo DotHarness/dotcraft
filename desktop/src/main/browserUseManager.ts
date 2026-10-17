@@ -14,7 +14,6 @@ import {
   BrowserFrameSessions,
   FRAME_AUTO_ATTACH,
   TOP_FRAME_TARGET,
-  offsetPoint,
   type BrowserFrameSend,
   type BrowserFrameTarget
 } from './browserUseFrames'
@@ -2579,9 +2578,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       requireContent: true,
       timeoutMs: this.operationTimeoutMs()
     })
-    const refTargets = new Map<string, BrowserFrameTarget>([['', TOP_FRAME_TARGET]])
-    const snapshot = await this.frameSnapshot(tab, TOP_FRAME_TARGET, '', [], BROWSER_USE_SNAPSHOT_ELEMENT_LIMIT, refTargets)
-    tab.frames.setRefTargets(refTargets)
+    const snapshot = await this.frameSnapshot(tab, TOP_FRAME_TARGET, [], BROWSER_USE_SNAPSHOT_ELEMENT_LIMIT, { frames: 0 })
     const elements = snapshot.elements.map((element, index) => ({ ...element, index }))
     const accessibilitySnapshot = snapshot.accessibilitySnapshot || this.formatAccessibilitySnapshot(elements)
     return JSON.stringify({
@@ -2596,39 +2593,43 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   private async frameSnapshot(
     tab: BrowserUseTabRuntime,
     target: BrowserFrameTarget,
-    prefix: string,
     frameSelectors: string[],
     limit: number,
-    refTargets: Map<string, BrowserFrameTarget>
+    budget: { frames: number }
   ): Promise<ReturnType<BrowserUseManager['normalizeSnapshotPayload']>> {
+    const send = this.frameSend(tab)
+    const documentKey = await tab.frames.documentKey(send, target)
+    if (!target.hops.length) tab.frames.beginSnapshot(documentKey)
     await this.ensurePlaywrightInjected(tab, target)
     const rawSnapshot = await this.executeJavaScript<unknown>(
       tab,
-      `window.__dotcraftBrowserUseSnapshot(${JSON.stringify({ prefix, limit })})`,
+      `window.__dotcraftBrowserUseSnapshot(${JSON.stringify({ limit })})`,
       'domSnapshot',
       true,
       target)
     const snapshot = this.normalizeSnapshotPayload(rawSnapshot)
+    const mapping = await tab.frames.mapping(send, target)
     snapshot.elements = snapshot.elements.map(element => {
       const selectors = [...frameSelectors, ...(element.frameSelectors ?? [])]
+      const ref = element.ref ? tab.frames.nodeId(target, documentKey, element.ref) : undefined
       return {
         ...element,
-        ...(element.boundingBox ? { boundingBox: offsetPoint(element.boundingBox, target.offset) } : {}),
+        ref,
+        ...(element.boundingBox ? { boundingBox: mapping.box(element.boundingBox) } : {}),
         ...(selectors.length ? { frameSelectors: selectors } : {})
       }
     })
     const frames = (rawSnapshot as { frames?: unknown } | null)?.frames
     if (!Array.isArray(frames)) return snapshot
-    for (let index = 0; index < frames.length && refTargets.size <= BROWSER_USE_SNAPSHOT_FRAME_LIMIT; index++) {
+    for (let index = 0; index < frames.length && budget.frames < BROWSER_USE_SNAPSHOT_FRAME_LIMIT; index++) {
       const frame = (frames[index] ?? {}) as { src?: unknown; name?: unknown; frameSelectors?: unknown }
       const childSelectors = [...frameSelectors, ...(Array.isArray(frame.frameSelectors) ? frame.frameSelectors.map(String) : [])]
       const label = `${JSON.stringify(this.stringValue(frame.name) || this.stringValue(frame.src))} [frameSelectors=${JSON.stringify(childSelectors)}]`
-      const childPrefix = `${prefix}f${index + 1}`
       try {
         const child = await this.frameTargetForHandle(tab, target, `window.__dotcraftBrowserUseOpaqueFrame(${index})`)
         if (!child) continue
-        refTargets.set(childPrefix, child)
-        const childSnapshot = await this.frameSnapshot(tab, child, childPrefix, childSelectors, limit - snapshot.elements.length, refTargets)
+        budget.frames++
+        const childSnapshot = await this.frameSnapshot(tab, child, childSelectors, limit - snapshot.elements.length, budget)
         snapshot.elements.push(...childSnapshot.elements)
         const childTree = childSnapshot.accessibilitySnapshot.split('\n').map(line => `  ${line}`).join('\n')
         snapshot.accessibilitySnapshot += `\n- iframe ${label}:\n${childTree}`
@@ -2679,10 +2680,11 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       `window.__dotcraftBrowserUseLocator(${JSON.stringify(scoped)}, ${JSON.stringify(operation)}, ${JSON.stringify(payload ?? {})})`,
       'locator.operation', true, target)
     if (operation === 'prepareClick' && value && typeof value === 'object') {
-      return offsetPoint(value as { x: number; y: number }, target.offset)
+      return (await tab.frames.mapping(this.frameSend(tab), target)).point(value as { x: number; y: number })
     }
     if (operation === 'resolve' && Array.isArray(value)) {
-      return value.map(item => item?.boundingBox ? { ...item, boundingBox: offsetPoint(item.boundingBox, target.offset) } : item)
+      const mapping = await tab.frames.mapping(this.frameSend(tab), target)
+      return value.map(item => item?.boundingBox ? { ...item, boundingBox: mapping.box(item.boundingBox) } : item)
     }
     return value
   }
@@ -2697,11 +2699,16 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   }
 
   private async domCuaNodeInfo(tab: BrowserUseTabRuntime, nodeId: unknown): Promise<unknown> {
-    const target = tab.frames.targetForRef(String(nodeId ?? ''))
-    await this.ensurePlaywrightInjected(tab, target)
-    const info = await this.executeJavaScript<{ boundingBox?: { x: number; y: number } } | null>(tab,
-      `window.__dotcraftBrowserUseNode(${JSON.stringify(nodeId)})`, 'domCua.node', true, target)
-    return info?.boundingBox ? { ...info, boundingBox: offsetPoint(info.boundingBox, target.offset) } : info
+    const node = tab.frames.node(String(nodeId ?? ''))
+    const send = this.frameSend(tab)
+    if (!node || await tab.frames.documentKey(send, node.target) !== node.documentKey) {
+      throw BrowserUseBackendError.nodeStale(nodeId)
+    }
+    await this.ensurePlaywrightInjected(tab, node.target)
+    const info = await this.executeJavaScript<{ boundingBox?: { x: number; y: number; width: number; height: number } } | null>(tab,
+      `window.__dotcraftBrowserUseNode(${JSON.stringify(node.localRef)})`, 'domCua.node', true, node.target)
+    if (!info?.boundingBox) return info
+    return { ...info, boundingBox: (await tab.frames.mapping(send, node.target)).box(info.boundingBox) }
   }
 
   private normalizeSnapshotPayload(rawSnapshot: unknown): {
