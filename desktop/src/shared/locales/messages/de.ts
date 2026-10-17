@@ -1563,7 +1563,7 @@ export const MESSAGES_DE = {
   'settings.llm.useProviderAria': 'Verwenden Sie den Anbieter {{name}}',
   'settings.llm.editProviderAria': 'Anbieter {{name}} bearbeiten',
   'settings.llm.providerKeyMissing': 'Kein API-Schlüssel',
-  'settings.llm.providerChatGptStatus': 'ChatGPT',
+  'settings.llm.providerSummaryNoModel': 'Noch kein Modell gewählt',
   'settings.llm.providerChatGptNotSignedIn': 'ChatGPT · Not signed in',
   'settings.llm.newTitle': 'Neuer Anbieter',
   'settings.llm.editTitle': 'Anbieter bearbeiten',

@@ -2190,7 +2190,11 @@ export function SettingsView({
                               }}
                               style={providerRowStyle(active)}
                             >
-                              <ProviderProtocolIcon protocol={provider.protocol} size={30} />
+                              <ActionTooltip label={providerDetails(provider, t)}>
+                                <span style={{ display: 'inline-flex', flexShrink: 0 }}>
+                                  <ProviderProtocolIcon protocol={provider.protocol} size={30} />
+                                </span>
+                              </ActionTooltip>
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                                   <div style={{
@@ -2216,27 +2220,30 @@ export function SettingsView({
                                       </span>
                                     </ActionTooltip>
                                   )}
-                                  <span style={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    fontSize: '12px',
-                                    color: 'var(--text-dimmed)'
-                                  }}>
-                                    {providerSummaryParts(provider, t).map((part, index) => (
-                                      <span key={part.text}>
-                                        {index > 0 && <span aria-hidden>{' · '}</span>}
-                                        <span style={part.warning ? { color: 'var(--warning-text)' } : undefined}>{part.text}</span>
-                                      </span>
-                                    ))}
-                                  </span>
+                                  {providerProblem(provider, t) && (
+                                    <span style={{
+                                      flex: 1,
+                                      minWidth: 0,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                      fontSize: '12px',
+                                      color: 'var(--warning-text)'
+                                    }}>
+                                      {providerProblem(provider, t)}
+                                    </span>
+                                  )}
                                 </div>
-                                <ProviderModelSummary
-                                  main={rememberedMainAgentPreference}
-                                  subAgent={rememberedSubAgentPreference ?? undefined}
-                                />
+                                {rememberedMainAgentPreference || rememberedSubAgentPreference ? (
+                                  <ProviderModelSummary
+                                    main={rememberedMainAgentPreference}
+                                    subAgent={rememberedSubAgentPreference ?? undefined}
+                                  />
+                                ) : (
+                                  <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
+                                    {t('settings.llm.providerSummaryNoModel')}
+                                  </div>
+                                )}
                               </div>
                               <span
                                 onClick={(event) => event.stopPropagation()}
@@ -3194,36 +3201,20 @@ export function SettingsView({
   )
 }
 
-function providerSummaryParts(
-  provider: ProviderInfoWire,
-  t: ReturnType<typeof useT>
-): Array<{ text: string; warning?: boolean }> {
-  const parts: Array<{ text: string; warning?: boolean }> = []
+function providerProblem(provider: ProviderInfoWire, t: ReturnType<typeof useT>): string | null {
   if (provider.managedBy === 'modelService') {
-    parts.push({
-      text: t(provider.isAuthenticated ? 'settings.llm.managedByService' : 'settings.llm.serviceAuthenticationRequired'),
-      warning: !provider.isAuthenticated
-    })
-  } else if (provider.authMethod === 'chatgptOAuth') {
-    parts.push(provider.chatGptPlanType
-      ? { text: t('settings.llm.providerChatGptStatus') }
-      : { text: t('settings.llm.providerChatGptNotSignedIn'), warning: true })
-    return parts
-  } else if (!provider.hasApiKey) {
-    parts.push({ text: t('settings.llm.providerKeyMissing'), warning: true })
+    return provider.isAuthenticated ? null : t('settings.llm.serviceAuthenticationRequired')
   }
-  parts.push({ text: providerProtocolLabel(provider.protocol) })
-  const host = endpointHost(provider.endPoint)
-  if (host) parts.push({ text: host })
-  return parts
+  if (provider.authMethod === 'chatgptOAuth') {
+    return provider.chatGptPlanType ? null : t('settings.llm.providerChatGptNotSignedIn')
+  }
+  return provider.hasApiKey ? null : t('settings.llm.providerKeyMissing')
 }
 
-function endpointHost(endPoint: string): string | null {
-  const trimmed = endPoint.trim()
-  if (!trimmed) return null
-  try {
-    return new URL(trimmed).host
-  } catch {
-    return trimmed
-  }
+function providerDetails(provider: ProviderInfoWire, t: ReturnType<typeof useT>): string {
+  return [
+    providerProtocolLabel(provider.protocol),
+    provider.endPoint.trim() || null,
+    provider.managedBy === 'modelService' && provider.isAuthenticated ? t('settings.llm.managedByService') : null
+  ].filter(Boolean).join(' · ')
 }

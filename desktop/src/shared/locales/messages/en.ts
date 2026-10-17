@@ -1381,7 +1381,7 @@ export const MESSAGES_EN = {
   'settings.llm.useProviderAria': 'Use provider {{name}}',
   'settings.llm.editProviderAria': 'Edit provider {{name}}',
   'settings.llm.providerKeyMissing': 'No API key',
-  'settings.llm.providerChatGptStatus': 'ChatGPT',
+  'settings.llm.providerSummaryNoModel': 'No model chosen yet',
   'settings.llm.providerChatGptNotSignedIn': 'ChatGPT · Not signed in',
   'settings.llm.newTitle': 'New provider',
   'settings.llm.editTitle': 'Edit provider',

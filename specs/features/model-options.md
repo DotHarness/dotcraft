@@ -311,14 +311,14 @@ segmented control in the row offering `Inherit` and `Custom`. Inherit removes th
 record and disables the field; Custom clones the current MainAgent preference before editing. Setup is
 one centered wizard screen, configures MainAgent only, and leaves SubAgent inheritance untouched.
 
-Each provider row in `Provider list` takes at most two lines. The first holds the provider name, an
-image glyph with a tooltip when the provider can create images, and its details as dimmed text
-truncated to the line: `ChatGPT` for a subscription provider, without its plan, or a sign-in problem such as a missing API key (a
-configured key adds nothing), the protocol (omitted for a subscription provider), and the endpoint
-host when it is not the official default. A second line appears only when the provider has
-remembered preferences: a `Main` clause naming the model and reasoning effort, and a `Subagent`
-clause only when the provider has a SubAgent record, kept to one truncated line. Fast inference reads
-as a bolt before the model name; Standard adds nothing.
+Each provider row in `Provider list` always takes two lines. The first holds the provider name, an
+image glyph with a tooltip when the provider can create images, and a warning-coloured sign-in
+problem when there is one, such as a missing API key or a subscription that is not signed in. The
+second names the remembered preferences: a `Main` clause with the model and reasoning effort, and a
+`Subagent` clause only when the provider has a SubAgent record, kept to one truncated line. Fast
+inference reads as a bolt before the model name; Standard adds nothing. A provider without
+remembered preferences shows a dimmed `No model chosen yet` placeholder instead. Protocol and
+endpoint are not shown on the row; they appear in the tooltip of the provider icon.
 
 ## 7. Compatibility and Errors
 

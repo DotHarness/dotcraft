@@ -1506,7 +1506,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.llm.useProviderAria': '使用提供商 {{name}}',
   'settings.llm.editProviderAria': '编辑提供商 {{name}}',
   'settings.llm.providerKeyMissing': '未配置 API 密钥',
-  'settings.llm.providerChatGptStatus': 'ChatGPT',
+  'settings.llm.providerSummaryNoModel': '尚未选择模型',
   'settings.llm.providerChatGptNotSignedIn': 'ChatGPT · 未登录',
   'settings.llm.newTitle': '新建提供商',
   'settings.llm.editTitle': '编辑提供商',

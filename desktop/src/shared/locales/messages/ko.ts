@@ -1565,7 +1565,7 @@ export const MESSAGES_KO = {
   'settings.llm.useProviderAria': '제공업체 {{name}} 사용',
   'settings.llm.editProviderAria': '제공업체 수정 {{name}}',
   'settings.llm.providerKeyMissing': 'API 키 없음',
-  'settings.llm.providerChatGptStatus': 'ChatGPT',
+  'settings.llm.providerSummaryNoModel': '아직 모델을 선택하지 않음',
   'settings.llm.providerChatGptNotSignedIn': 'ChatGPT · Not signed in',
   'settings.llm.newTitle': '새로운 제공업체',
   'settings.llm.editTitle': '제공업체 수정',

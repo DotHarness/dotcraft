@@ -1563,7 +1563,7 @@ export const MESSAGES_JA = {
   'settings.llm.useProviderAria': 'プロバイダー {{name}} を使用する',
   'settings.llm.editProviderAria': 'プロバイダー {{name}} を編集します',
   'settings.llm.providerKeyMissing': 'API キーがありません',
-  'settings.llm.providerChatGptStatus': 'ChatGPT',
+  'settings.llm.providerSummaryNoModel': 'モデルはまだ選択されていません',
   'settings.llm.providerChatGptNotSignedIn': 'ChatGPT · Not signed in',
   'settings.llm.newTitle': '新しいプロバイダー',
   'settings.llm.editTitle': 'プロバイダーの編集',
