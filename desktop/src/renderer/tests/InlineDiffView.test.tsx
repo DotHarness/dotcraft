@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { InlineDiffView } from '../components/conversation/InlineDiffView'
+import { LocaleProvider } from '../contexts/LocaleContext'
 import type { FileDiff } from '../types/toolCall'
 
 const baseDiff: FileDiff = {
@@ -29,11 +30,13 @@ const baseDiff: FileDiff = {
 describe('InlineDiffView', () => {
   it('renders compact headers with basename and full path tooltip', async () => {
     render(
-      <InlineDiffView
-        diff={baseDiff}
-        variant="embedded"
-        headerMode="compact"
-      />
+      <LocaleProvider loadSettings={false}>
+        <InlineDiffView
+          diff={baseDiff}
+          variant="embedded"
+          headerMode="compact"
+        />
+      </LocaleProvider>
     )
 
     const filename = screen.getByText('AgentTools.cs')
@@ -52,13 +55,15 @@ describe('InlineDiffView', () => {
     })
 
     render(
-      <InlineDiffView
-        diff={baseDiff}
-        variant="embedded"
-        headerMode="compact"
-        presentation="conversation-file-tool"
-        resolvedPath="F:/workspace/src/deep/AgentTools.cs"
-      />
+      <LocaleProvider loadSettings={false}>
+        <InlineDiffView
+          diff={baseDiff}
+          variant="embedded"
+          headerMode="compact"
+          presentation="conversation-file-tool"
+          resolvedPath="F:/workspace/src/deep/AgentTools.cs"
+        />
+      </LocaleProvider>
     )
 
     expect(screen.getByTestId('file-result-header')).toHaveTextContent('AgentTools.cs+1-1')

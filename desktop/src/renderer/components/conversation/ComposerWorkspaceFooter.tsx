@@ -35,6 +35,7 @@ import {
   branchNameError,
   normalizeBranchName
 } from './ComposerWorkspaceFooterDialogs'
+import { BranchPullRequestPill } from './githubReferences/BranchPullRequestPill'
 import css from './ComposerWorkspaceFooter.module.css'
 
 export type ComposerWorkspaceMode = 'local' | 'worktree'
@@ -601,6 +602,7 @@ export function ComposerWorkspaceFooter({
           </div>
         )}
       </div>
+      {isThread && <BranchPullRequestPill gitPath={branchActionPath} branch={branches?.current ?? null} />}
 
       {createOpen && createPortal(
         <CreateBranchDialog

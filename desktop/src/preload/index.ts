@@ -1,4 +1,5 @@
 import type { TextContextMenuRequest } from '../shared/textContextMenu'
+import type { GithubBranchPullResult, GithubRefResult, GithubRefTarget, GithubRepo } from '../shared/githubReferences'
 import type { BrowserHostApi, BrowserHostEvent } from '../shared/viewer/browserHost'
 import type { PastedTextContext } from '../shared/composerContext'
 import type { ChatsFolderInfo } from '../shared/chatFolders'
@@ -902,6 +903,18 @@ const api = {
     },
     createAndCheckoutBranch(workspacePath: string, branchName: string): Promise<void> {
       return ipcRenderer.invoke('git:createAndCheckoutBranch', workspacePath, branchName)
+    }
+  },
+
+  github: {
+    getReferenceSummary(target: GithubRefTarget): Promise<GithubRefResult> {
+      return ipcRenderer.invoke('github:getReferenceSummary', target)
+    },
+    getBranchPullRequest(workspacePath: string, branch: string): Promise<GithubBranchPullResult> {
+      return ipcRenderer.invoke('github:getBranchPullRequest', workspacePath, branch)
+    },
+    getWorkspaceRepo(workspacePath: string): Promise<GithubRepo | null> {
+      return ipcRenderer.invoke('github:getWorkspaceRepo', workspacePath)
     }
   },
 

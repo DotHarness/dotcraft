@@ -13,6 +13,8 @@ import { resolveTaskCompletionNotificationMode } from './settings'
 import type { GitHeadInspection } from '../shared/gitHead'
 import type { GitApplyPatchOptions } from '../shared/gitApply'
 import { runGitCommand } from './gitCommand'
+import { githubReferences } from './githubReferences'
+import type { GithubBranchPullResult, GithubRefResult, GithubRefTarget, GithubRepo } from '../shared/githubReferences'
 import { applyGitPatch } from './gitApplyPatch'
 import { sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import type { VisualizationCaptureRect } from '../shared/visualization'
@@ -1366,6 +1368,20 @@ export function registerIpcHandlers(
       return { kind: 'none' }
     }
   })
+  handleSafe('github:getReferenceSummary', (_event, target: GithubRefTarget): Promise<GithubRefResult> =>
+    githubReferences.getReferenceSummary(target)
+  )
+  handleSafe('github:getBranchPullRequest', (_event, wsPath: string, branch: string): Promise<GithubBranchPullResult> =>
+    githubReferences.getBranchPullRequest(
+      assertGitInspectionPath(wsPath, workspacePath, callbacks?.getLocalProjectPaths() ?? [], mainLocale(callbacks)),
+      branch
+    )
+  )
+  handleSafe('github:getWorkspaceRepo', (_event, wsPath: string): Promise<GithubRepo | null> =>
+    githubReferences.getWorkspaceGithubRepo(
+      assertGitInspectionPath(wsPath, workspacePath, callbacks?.getLocalProjectPaths() ?? [], mainLocale(callbacks))
+    )
+  )
   handleSafe('git:listBranches', async (_event, wsPath: string): Promise<GitBranchListResult> => {
     const locale = mainLocale(callbacks)
     const gitWorkspacePath = assertGitWorkspacePath(wsPath, workspacePath, locale)
@@ -2376,6 +2392,9 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('git:listBranches')
   ipcMain.removeHandler('git:checkoutBranch')
   ipcMain.removeHandler('git:createAndCheckoutBranch')
+  ipcMain.removeHandler('github:getReferenceSummary')
+  ipcMain.removeHandler('github:getBranchPullRequest')
+  ipcMain.removeHandler('github:getWorkspaceRepo')
   ipcMain.removeHandler('workspace:pick-folder')
   ipcMain.removeHandler('workspace:create-local-project')
   ipcMain.removeHandler('workspace:switch')

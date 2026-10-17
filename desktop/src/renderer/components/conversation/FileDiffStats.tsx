@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { useLocale } from '../../contexts/LocaleContext'
 
 export type FileDiffStatsTone = 'semantic' | 'inherit' | 'dimmed'
 
@@ -17,6 +18,7 @@ export function FileDiffStats({
   testId,
   style
 }: FileDiffStatsProps): JSX.Element | null {
+  const locale = useLocale()
   if (additions <= 0 && deletions <= 0) return null
 
   const additionColor = tone === 'semantic'
@@ -45,8 +47,8 @@ export function FileDiffStats({
         ...style
       }}
     >
-      {additions > 0 && <span style={{ color: additionColor }}>+{additions}</span>}
-      {deletions > 0 && <span style={{ color: deletionColor }}>-{deletions}</span>}
+      {additions > 0 && <span style={{ color: additionColor }}>+{additions.toLocaleString(locale)}</span>}
+      {deletions > 0 && <span style={{ color: deletionColor }}>-{deletions.toLocaleString(locale)}</span>}
     </span>
   )
 }

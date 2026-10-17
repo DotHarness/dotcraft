@@ -1,12 +1,15 @@
-import { useCallback, type JSX, type ReactNode } from 'react'
+import { useCallback, useState, type JSX, type ReactNode } from 'react'
 import { Folder, GitBranch } from 'lucide-react'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import type { ThreadSummary } from '../../types/thread'
 import { normalizeGitPathKey } from '../../stores/gitStore'
 import { useGitHeadStore } from '../../stores/gitHeadStore'
+import { useBranchPullRequest, useGithubRefStore } from '../../stores/githubRefStore'
+import type { GithubPullSummary } from '../../../shared/githubReferences'
 import { importedThreadSourceLabel } from '../../utils/sessionImport'
 import { ChannelIconBadge } from '../ui/channelMeta'
 import { Skeleton } from '../ui/Skeleton'
+import { ThreadPullRequestRow } from './ThreadPullRequest'
 
 /** Threads started from Desktop itself carry no badge. */
 export function threadOriginBadge({
@@ -85,7 +88,7 @@ export function useThreadEntryDetails({
   projectName: string | null
   relativeTime: string
   origin?: ReactNode
-}): { content: JSX.Element; onOpen: () => void } {
+}): { content: JSX.Element; onOpen: () => void; pull: GithubPullSummary | null } {
   const worktreeBranch = thread.worktree?.branchName?.trim() || null
   const gitPath = (
     thread.effectiveWorkspacePath
@@ -94,12 +97,18 @@ export function useThreadEntryDetails({
     || project?.path
     || ''
   ).trim()
-  const canInspectGit = Boolean(gitPath && !worktreeBranch && project?.kind !== 'remote' && project?.kind !== 'chat')
+  const localGit = Boolean(gitPath && project?.kind !== 'remote' && project?.kind !== 'chat')
+  const canInspectGit = localGit && !worktreeBranch
   const gitPathKey = canInspectGit ? normalizeGitPathKey(gitPath) : ''
   const head = useGitHeadStore((state) => gitPathKey ? state.byPath[gitPathKey] : undefined)
+  const pullBranch = worktreeBranch || (head?.inspection?.kind === 'branch' ? head.inspection.label : null)
+  const [opened, setOpened] = useState(false)
+  const pull = useBranchPullRequest(gitPath, pullBranch, localGit && (opened || Boolean(worktreeBranch)))
   const ensureHead = useCallback(() => {
+    setOpened(true)
     if (canInspectGit) void useGitHeadStore.getState().ensure(gitPath)
-  }, [canInspectGit, gitPath])
+    if (localGit && pullBranch) void useGithubRefStore.getState().ensureBranchPull(gitPath, pullBranch)
+  }, [canInspectGit, gitPath, localGit, pullBranch])
   const branchLabel = worktreeBranch || (
     head?.inspection?.kind === 'branch'
       ? head.inspection.label
@@ -112,6 +121,7 @@ export function useThreadEntryDetails({
 
   return {
     onOpen: ensureHead,
+    pull,
     content: (
       <>
         <div
@@ -142,6 +152,7 @@ export function useThreadEntryDetails({
             <span>{branchLabel}</span>
           </div>
         ) : null}
+        {!checking && pull && <ThreadPullRequestRow pull={pull} />}
       </>
     )
   }

@@ -11,6 +11,7 @@
 @import "../components/conversation/styles/composer-controls.css";
 @import "../components/conversation/styles/model-picker.css";
 @import "../components/conversation/styles/reference-chips.css";
+@import "../components/conversation/styles/github-references.css";
 @import "../components/conversation/styles/message-stream.css";
 @import "../components/conversation/styles/conversation-aside.css";
 @import "../components/conversation/styles/tool-disclosure.css";
@@ -66,6 +67,7 @@
 @import "./shared/pointer.css";
 @import "../components/sidebar/styles/appearance.css";
 @import "../components/sidebar/styles/thread-row.css";
+@import "../components/sidebar/styles/thread-pull-request.css";
 @import "../components/desktopPlugins/styles/overlay-seat.css";
 
 @import "../components/automations/automations.css";

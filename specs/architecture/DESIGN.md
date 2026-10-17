@@ -30,6 +30,7 @@ colors:
   error-text: "var(--error-text)"
   info-text: "var(--info-text)"
   ref-skill: "var(--ref-skill)"
+  git-merged: "var(--git-merged)"
   permission-full-access: "var(--permission-full-access)"
   glass-surface-strong: "var(--glass-surface-strong)"
   background-activity-dock-background: "var(--background-activity-dock-background)"
@@ -1595,6 +1596,50 @@ afterwards. Keyboard focus is the only state that draws a ring, through the shar
 `focus-visible` outline, because it is the only one the reader cannot otherwise
 locate. A reference never paints a ring from a focus event, which a mouse click
 fires too.
+
+### GitHub references
+
+A link to a github.com pull request or issue is a reference like any other link: the
+same frameless chip, the same `--ref-base` label, the same hover and focus rules. Two
+things change. The icon names the item's state — open, draft, approved, changes
+requested, merge conflicts, merged, or closed for a pull request; open, closed, or not
+planned for an issue — and is the one part of the chip drawn in that state's colour.
+The label is `#N · title` for an item in the workspace's own repository and
+`owner/repo#N · title` for any other, with the title cut at a word boundary near 32
+characters and set at regular weight so the number stays the anchor. A link whose
+author wrote their own text keeps that text and gains only the state icon. Until the
+state is known the chip shows a neutral pull request icon and the number alone.
+
+State colours reuse the status reading tokens: open and approved `--success-text`,
+closed and changes requested `--error-text`, merge conflicts `--warning-text`, draft
+and not planned `--text-dimmed`, and merged — the one state the status palette has no
+hue for — `--git-merged`. They are identity accents in the sense of Identity and data
+colors and never spread past the icon and the card's state badge.
+
+Resting on the chip opens a hover card below it, mirroring above when the viewport
+has no room, after the details card's open delay and with its close grace. It is an
+ordinary elevated overlay, borderless, 360px wide, and a place the pointer can travel
+to. Its header carries a state badge — icon and label on a 16% mix of the state colour,
+draft and not planned on `--bg-tertiary` instead — then `owner/repo #N`, then the
+item's age in the compact relative form at the trailing edge. The title follows at
+body size and semibold, clamped to two lines. The footer names the author with a 16px
+avatar and, for a pull request, closes with the diff stats and file count at the
+trailing edge. Loading draws the card's own shape in skeletons; a missing GitHub CLI,
+a signed-out CLI, a rate limit, or any other failure collapses the card to one muted
+line with an icon saying what to do. Every link in the card opens where the chip does.
+
+A branch's pull request uses the same vocabulary away from prose. In the composer's
+context row it follows the branch control as a pill of the same shape — the state
+glyph and `#N`, no title — and its card opens above it. A sidebar thread row shows the
+glyph alone in its status slot, and the thread's details card lists `#N · title` under
+the branch row as a full-width row that takes the `--bg-tertiary` hover fill; a card
+carrying that row is a place the pointer can enter. Checks ride on the glyph as a dot
+cut into its lower trailing corner: `--success-text` passed, `--error-text` failing,
+`--warning-text` running, and no dot when there are none or the pull request is merged
+or closed. The glyph keeps the dot inside its own box, drawing the icon two pixels
+smaller to make room, because the slots it sits in clip their overflow. The card adds
+one line between title and footer naming the checks' state, with `passed/total`
+dimmed at the trailing edge.
 
 ### Markdown tables
 

@@ -17,8 +17,8 @@ import {
 import { createPortal } from 'react-dom'
 import { useTransientOverlay } from '../../hooks/useTransientOverlay'
 
-const OPEN_DELAY_MS = 320
-const CLOSE_DELAY_MS = 120
+export const DETAILS_CARD_OPEN_DELAY_MS = 320
+export const DETAILS_CARD_CLOSE_DELAY_MS = 120
 const VIEWPORT_PADDING = 8
 const CARD_OVERLAP = 8
 
@@ -75,8 +75,8 @@ export function SidebarEntryDetailsCard({
   } = useTransientOverlay<HTMLDivElement, HTMLDivElement>({
     disabled,
     interactive,
-    openDelayMs: OPEN_DELAY_MS,
-    closeDelayMs: CLOSE_DELAY_MS
+    openDelayMs: DETAILS_CARD_OPEN_DELAY_MS,
+    closeDelayMs: DETAILS_CARD_CLOSE_DELAY_MS
   })
   const [position, setPosition] = useState<SidebarEntryDetailsPlacement>({
     left: 0,
