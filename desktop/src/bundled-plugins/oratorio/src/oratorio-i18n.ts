@@ -115,7 +115,6 @@ const rows = {
   countSuggestions: ['{n} suggestions', '{n} 条建议', '提案 {n} 件', '제안 {n}건', '{n} sugerencias', '{n} suggestions', '{n} Vorschläge'],
   severityMajor: ['Major', '严重', '重大', '중대', 'Grave', 'Majeur', 'Schwerwiegend'],
   severityMinor: ['Minor', '次要', '軽微', '경미', 'Menor', 'Mineur', 'Geringfügig'],
-  severitySuggestion: ['Suggestion', '建议', '提案', '제안', 'Sugerencia', 'Suggestion', 'Vorschlag'],
   resolutionFixed: ['Fixed', '已修复', '修正済み', '수정됨', 'Corregido', 'Corrigé', 'Behoben'],
   resolutionDismissed: ['Dismissed', '已忽略', '却下', '무시됨', 'Descartado', 'Ignoré', 'Verworfen'],
   discard: ['Discard', '丢弃', '破棄', '폐기', 'Descartar', 'Abandonner', 'Verwerfen'],

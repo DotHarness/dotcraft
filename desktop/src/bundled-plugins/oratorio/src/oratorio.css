@@ -205,9 +205,8 @@
 .ora-finding > header > strong { min-width: 0; font-size: var(--type-ui-size); font-weight: var(--type-heading-weight); line-height: var(--type-ui-line-height); overflow-wrap: anywhere; }
 .ora-finding > header > code { min-width: 0; flex-basis: 100%; overflow: hidden; color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-secondary-size); line-height: var(--type-secondary-line-height); text-overflow: ellipsis; white-space: nowrap; }
 .ora-finding__severity { display: inline-flex; flex: none; align-items: center; gap: 6px; color: var(--text-secondary); font-size: var(--type-ui-size); line-height: var(--type-ui-line-height); }
-.ora-finding__severity::before { width: 8px; height: 8px; border-radius: 999px; background: var(--text-dimmed); content: ''; }
-.ora-finding__severity[data-severity='major']::before { background: var(--error); }
-.ora-finding__severity[data-severity='minor']::before { background: var(--warning); }
+.ora-finding__severity::before { width: 8px; height: 8px; border-radius: 999px; background: var(--warning); content: ''; }
+.ora-finding__severity[data-major]::before { background: var(--error); }
 .ora-finding > footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .ora-finding--resolved { padding: 0 12px 10px; }
 .ora-finding--resolved > header { align-items: center; color: var(--text-secondary); }

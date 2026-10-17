@@ -370,7 +370,9 @@ follows the main column.
 and `Reject` as one radio group, an optional comment field (required for
 `Request changes`), and `Cancel` with `Submit review`, which turns danger for
 `Reject`. Escape or a click outside closes it. The decision then appears in
-Activity, and the status menu shows the new state.
+Activity, and the status menu shows the new state. A submission that fails
+keeps the popover open with the operator's comment, and the composer keeps its
+text the same way.
 
 ### 5.6 Empty states
 

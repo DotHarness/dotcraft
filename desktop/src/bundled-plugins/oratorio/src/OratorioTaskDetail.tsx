@@ -12,7 +12,7 @@ import { Button, IconButton, InlineDiff, Markdown, Menu, Spinner, SplitButton, T
 import { oratorioHost, showOratorioToast } from './runtime'
 
 type Tone = 'error' | 'success' | 'info' | 'warning' | 'neutral'
-type Mutate = (key: string, operation: Promise<ItemDetailResponse>, message: string) => Promise<void>
+type Mutate = (key: string, operation: Promise<ItemDetailResponse>, message: string) => Promise<boolean>
 interface PartProps { task: OratorioTask; detail: ItemDetailResponse; busy: string | null; mutate: Mutate }
 type Decision = 'approve' | 'request-changes' | 'reject'
 
@@ -36,14 +36,16 @@ export function OratorioTaskDetail({ task, presentation = 'page', closeOnEscape 
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [drawer, closeOnEscape, onBack])
 
-  async function mutate(key: string, operation: Promise<ItemDetailResponse>, message: string): Promise<void> {
-    if (busy) return
+  async function mutate(key: string, operation: Promise<ItemDetailResponse>, message: string): Promise<boolean> {
+    if (busy) return false
     setBusy(key)
     try {
       onTaskChange(mapItemDetail(await operation))
       showOratorioToast({ message, tone: 'success' })
+      return true
     } catch (error) {
       showOratorioToast({ message: error instanceof Error ? error.message : t('actionRejected'), tone: 'error' })
+      return false
     } finally {
       setBusy(null)
     }
@@ -213,7 +215,7 @@ function ReviewPopover({ task, busy, mutate }: PartProps) {
   const submit = () => {
     if (blocked) return
     const chosen = DECISIONS.find((entry) => entry.id === decision)!
-    void mutate(decision, oratorioClient.itemAction(task.id, decision, { body: note.trim() }), t(chosen.toast)).then(() => { setOpen(false); setNote(''); setDecision('approve') })
+    void mutate(decision, oratorioClient.itemAction(task.id, decision, { body: note.trim() }), t(chosen.toast)).then((saved) => { if (saved) { setOpen(false); setNote(''); setDecision('approve') } })
   }
 
   return <span className="ora-popover-anchor" ref={anchor}>
@@ -277,7 +279,7 @@ function Activity(props: PartProps) {
   function addComment(): void {
     const body = comment.trim()
     if (!body || busy) return
-    void mutate('comment', oratorioClient.addComment(task.id, body, task.round), t('toastCommentAdded')).then(() => setComment(''))
+    void mutate('comment', oratorioClient.addComment(task.id, body, task.round), t('toastCommentAdded')).then((saved) => { if (saved) setComment('') })
   }
 
   return <section className="ora-activity" aria-label={t('sectionActivity')}>
@@ -291,7 +293,7 @@ function Activity(props: PartProps) {
       onSubmit={addComment}
       actions={<>
         <Button variant="secondary" size="sm" disabled={!comment.trim()} loading={busy === 'comment'} onClick={addComment}>{t('addComment')}</Button>
-        <Button variant="primary" size="sm" iconLeft={<Send size={13} />} disabled={!comment.trim() || discussionBusy} loading={busy === 'ask'} onClick={() => { const body = comment.trim(); void mutate('ask', oratorioClient.askAgent(task.id, body, task.round), t('toastDiscussionStarted')).then(() => setComment('')) }}>{t('askAgent')}</Button>
+        <Button variant="primary" size="sm" iconLeft={<Send size={13} />} disabled={!comment.trim() || discussionBusy} loading={busy === 'ask'} onClick={() => { const body = comment.trim(); void mutate('ask', oratorioClient.askAgent(task.id, body, task.round), t('toastDiscussionStarted')).then((saved) => { if (saved) setComment('') }) }}>{t('askAgent')}</Button>
       </>}
     />
   </section>
@@ -377,9 +379,9 @@ function ReviewDraftCard({ draft, write, busy, mutate }: { draft: ReviewDraftDto
   const open = draft.comments.filter((finding) => finding.resolutionState === 'open')
   const resolved = draft.comments.filter((finding) => finding.resolutionState !== 'open')
   const meta = [
-    countLabel(t, open.filter((finding) => finding.severity === 'major').length, 'countMajor', 'countMajor'),
-    countLabel(t, open.filter((finding) => finding.severity === 'minor').length, 'countMinor', 'countMinor'),
-    countLabel(t, open.filter((finding) => finding.severity !== 'major' && finding.severity !== 'minor').length, 'countSuggestion', 'countSuggestions'),
+    countLabel(t, open.filter((finding) => finding.severity === 'RED').length, 'countMajor', 'countMajor'),
+    countLabel(t, open.filter((finding) => finding.severity !== 'RED').length, 'countMinor', 'countMinor'),
+    countLabel(t, open.filter((finding) => finding.suggestionReplacement != null).length, 'countSuggestion', 'countSuggestions'),
   ].filter(Boolean).join(' · ')
   const failed = draft.status === 'publishFailed'
   const actions = failed ? <>
@@ -404,7 +406,7 @@ function Finding({ draft, finding, busy, mutate }: { draft: ReviewDraftDto; find
   const key = `finding-${finding.draftCommentId}`
   return <section className="ora-finding">
     <header>
-      <span className="ora-finding__severity" data-severity={finding.severity}>{t(severityKey(finding.severity))}</span>
+      <span className="ora-finding__severity" data-major={finding.severity === 'RED' || undefined}>{t(finding.severity === 'RED' ? 'severityMajor' : 'severityMinor')}</span>
       <strong>{finding.title}</strong>
       <code title={`${finding.path}:${finding.line}`}>{finding.path}:{finding.line}</code>
     </header>
@@ -527,11 +529,6 @@ function runStatusKey(status: RunDto['status']): OratorioMessageKey {
   }
 }
 
-function severityKey(severity: string): OratorioMessageKey {
-  if (severity === 'major') return 'severityMajor'
-  if (severity === 'minor') return 'severityMinor'
-  return 'severitySuggestion'
-}
 
 function decisionEventKey(decision: DecisionDto['decision']): OratorioMessageKey {
   switch (decision) {
