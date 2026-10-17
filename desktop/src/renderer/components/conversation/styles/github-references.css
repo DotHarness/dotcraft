@@ -214,7 +214,6 @@
 
 .dc-gh-card__checks[data-checks='passing'] svg { color: var(--success-text); }
 .dc-gh-card__checks[data-checks='failing'] svg { color: var(--error-text); }
-.dc-gh-card__checks[data-checks='pending'] svg { color: var(--warning-text); }
 
 .dc-gh-card__checks-count {
   margin-left: auto;

@@ -1,16 +1,24 @@
 import { useEffect, useState, type JSX, type MouseEvent, type ReactNode } from 'react'
-import { CircleCheck, CircleX, CloudOff, Download, Gauge, KeyRound, LoaderCircle } from 'lucide-react'
+import { CircleCheck, CircleX, CloudOff, Download, Gauge, KeyRound } from 'lucide-react'
 import { useLocale, useT } from '../../../contexts/LocaleContext'
 import type { GithubRefLoad } from '../../../stores/githubRefStore'
 import { formatRelativeTime } from '../../../utils/relativeTime'
-import { githubRefUrl, type GithubRefError, type GithubRefSummary } from '../../../../shared/githubReferences'
+import { githubRefUrl, type GithubChecks, type GithubRefError, type GithubRefSummary } from '../../../../shared/githubReferences'
 import { Skeleton } from '../../ui/Skeleton'
+import { Spinner } from '../../ui/Spinner'
 import { FileDiffStats } from '../FileDiffStats'
 import { checksLabel, githubRefState, liveChecks } from './githubRefState'
 
 type OpenLink = (url: string, event: MouseEvent<HTMLElement>) => void
 
-const CHECK_ICONS = { passing: CircleCheck, failing: CircleX, pending: LoaderCircle, none: CircleCheck }
+const CHECK_ICONS = { passing: CircleCheck, failing: CircleX }
+
+function ChecksIcon({ state }: { state: GithubChecks['state'] }): JSX.Element | null {
+  if (state === 'pending') return <Spinner size={14} />
+  if (state === 'none') return null
+  const Icon = CHECK_ICONS[state]
+  return <Icon size={14} strokeWidth={1.9} aria-hidden />
+}
 
 const ERROR_ICONS = { notInstalled: Download, auth: KeyRound, rateLimit: Gauge, unavailable: CloudOff } satisfies Record<GithubRefError, unknown>
 
@@ -72,7 +80,6 @@ function ReadyBody({ refData, onOpenLink }: { refData: GithubRefSummary; onOpenL
   const { Icon, tone, labelKey } = githubRefState(refData)
   const url = githubRefUrl(refData)
   const checks = liveChecks(refData)
-  const ChecksIcon = checks ? CHECK_ICONS[checks.state] : null
   return (
     <>
       <div className="dc-gh-card__header">
@@ -91,9 +98,9 @@ function ReadyBody({ refData, onOpenLink }: { refData: GithubRefSummary; onOpenL
       <CardLink href={url} className="dc-gh-card__title" onOpenLink={onOpenLink}>
         {refData.title}
       </CardLink>
-      {checks && ChecksIcon && (
+      {checks && (
         <div className="dc-gh-card__checks" data-checks={checks.state}>
-          <ChecksIcon size={14} strokeWidth={1.9} aria-hidden />
+          <ChecksIcon state={checks.state} />
           <span>{checksLabel(checks, t)}</span>
           <span className="dc-gh-card__checks-count">
             {t('githubRef.checksCount', { passed: checks.passed, total: checks.total })}

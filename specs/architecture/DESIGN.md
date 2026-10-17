@@ -1639,7 +1639,8 @@ cut into its lower trailing corner: `--success-text` passed, `--error-text` fail
 or closed. The glyph keeps the dot inside its own box, drawing the icon two pixels
 smaller to make room, because the slots it sits in clip their overflow. The card adds
 one line between title and footer naming the checks' state, with `passed/total`
-dimmed at the trailing edge.
+dimmed at the trailing edge; while checks run, that line leads with the shared
+`Spinner` rather than a coloured icon.
 
 ### Markdown tables
 
