@@ -1,3 +1,4 @@
+import { act } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
@@ -6,6 +7,7 @@ import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
 import { withTestCorePresentation } from './testToolPresentation'
 import { installDesktopApiMock } from './desktopApiMock'
+import { useToolCallRevealStore } from '../stores/toolCallRevealStore'
 
 interface CoreFixturePresentation {
   presentationId: string
@@ -158,6 +160,38 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
     // The prompt rides the chip's tooltip rather than taking a line of its own.
     expect(screen.queryByText('Inspect Settings diagnostics output')).toBeNull()
     expect(screen.queryByText(/childThreadId/)).toBeNull()
+  })
+
+  it('shows a folded spawn chip when a reveal targets it', () => {
+    const names = ['Kepler', 'Lagrange', 'Noether', 'Hopper']
+    const turn: ConversationTurn = {
+      id: 'turn-spawn-many',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-04-18T10:01:00.000Z',
+      items: names.map((name, index) => ({
+        id: `spawn-${index + 1}`,
+        type: 'toolCall',
+        status: 'completed',
+        toolCallId: `spawn-call-${index + 1}`,
+        toolName: 'SpawnAgent',
+        source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SpawnAgent' },
+        presentation: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
+        arguments: { agentPrompt: `Task for ${name}`, agentNickname: name },
+        result: JSON.stringify({ childThreadId: `thread_${name}`, agentNickname: name, status: 'running' }),
+        success: true,
+        createdAt: `2026-04-18T10:01:0${index + 1}.000Z`
+      }))
+    }
+    useToolCallRevealStore.setState({ request: null, target: null })
+    render(<LocaleProvider><AgentResponseBlock turn={turn} /></LocaleProvider>)
+    expect(screen.queryByRole('button', { name: /Hopper/ })).toBeNull()
+
+    act(() => {
+      useToolCallRevealStore.setState({ target: { threadId: 'thread-1', turnId: 'turn-spawn-many', callId: 'spawn-call-4', nonce: 1 } })
+    })
+
+    expect(screen.getByRole('button', { name: /Hopper/ })).toBeInTheDocument()
   })
 
   it('hides successful SubAgent messages but preserves targeted failures', () => {

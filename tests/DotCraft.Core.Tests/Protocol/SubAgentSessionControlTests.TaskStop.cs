@@ -46,6 +46,39 @@ public sealed partial class SubAgentSessionControlTests
     }
 
     [Fact]
+    public async Task TaskStop_WaitsForASlowExternalCancellationBeforeReportingStopped()
+    {
+        var cancellationGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "unused")
+        {
+            PendingResult = new TaskCompletionSource<DotCraft.Agents.SubAgentRunResult>(
+                TaskCreationOptions.RunContinuationsAsynchronously),
+            CancellationGate = cancellationGate
+        };
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+        await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions { AgentPrompt = "inspect code", TaskName = "inspect", ProfileName = "cli-run" },
+            waitForCompletion: false,
+            coordinator,
+            CancellationToken.None);
+
+        var stopping = Tasks().StopAsync(Caller(context), "inspect");
+        await Task.Delay(TimeSpan.FromSeconds(6));
+
+        Assert.False(stopping.IsCompleted);
+        Assert.Equal(BackgroundTaskStatus.Running, (await Tasks().FindAsync(Caller(context), "inspect")).Status);
+
+        cancellationGate.SetResult();
+        var stopped = await stopping;
+        await Task.Delay(200);
+
+        Assert.Equal(BackgroundTaskStatus.Stopped, stopped.Status);
+        Assert.Empty(_sessionService.TaskEndings);
+    }
+
+    [Fact]
     public async Task CloseFromClient_NotifiesTheParentThatTheUserStoppedTheChild()
     {
         var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "unused")

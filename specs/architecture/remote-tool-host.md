@@ -649,7 +649,7 @@ and approval. Runtime execution validates the captured route and never resolves 
 Approvals interpret paths on the selected machine. Results identify their execution location;
 local spill paths require local reads. WriteStdin and `TaskStop` on a terminal session ID use the same
 target as the originating Exec, and the Host accepts only terminals that an Exec created in the same
-lease. `TaskStop` on an Agent path or a Workflow run ID always runs on the Agent, whatever the route.
+lease; `TaskStop` also requires the terminal to belong to the calling thread. `TaskStop` on an Agent path or a Workflow run ID always runs on the Agent, whatever the route.
 
 `RemoteToolHost.Transfer(direction, localPath, remotePath, overwrite = false)` copies a file or
 directory between the Agent and current remote workspace. Direction is `upload` or `download`.

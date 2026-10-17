@@ -2118,6 +2118,8 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
 
         public TaskCompletionSource<DotCraft.Agents.SubAgentRunResult>? PendingResult { get; set; }
 
+        public TaskCompletionSource? CancellationGate { get; init; }
+
         public SubAgentLaunchContext? LastLaunchContext { get; private set; }
 
         public SubAgentTaskRequest? LastRequest { get; private set; }
@@ -2139,7 +2141,7 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         {
             LastRequest = request;
             if (PendingResult != null)
-                return PendingResult.Task.WaitAsync(cancellationToken);
+                return WaitForPendingResultAsync(PendingResult.Task, cancellationToken);
             if (WaitForCancellation)
                 return WaitForCancellationAsync(cancellationToken);
 
@@ -2149,6 +2151,21 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
                 TokensUsed = tokens,
                 SessionId = ResultSessionId
             });
+        }
+
+        private async Task<DotCraft.Agents.SubAgentRunResult> WaitForPendingResultAsync(
+            Task<DotCraft.Agents.SubAgentRunResult> pending,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                return await pending.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (CancellationGate != null)
+            {
+                await CancellationGate.Task;
+                throw;
+            }
         }
 
         private async Task<DotCraft.Agents.SubAgentRunResult> WaitForCancellationAsync(CancellationToken cancellationToken)

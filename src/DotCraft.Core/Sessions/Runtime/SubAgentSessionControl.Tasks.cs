@@ -40,7 +40,7 @@ public static partial class SubAgentSessionControl
 
         var child = resolved.Thread;
         RunningChildren.TryGetValue(child.Id, out var running);
-        var (status, kindStatus) = ResolveTaskStatus(child, resolved.Edge, running != null);
+        var (status, kindStatus) = ResolveTaskStatus(child, resolved.Edge, running is { Completion.IsCompleted: false });
         return new BackgroundTask
         {
             TaskId = resolved.Path.Value,
@@ -68,7 +68,26 @@ public static partial class SubAgentSessionControl
             task.TaskId,
             requireOpen: false,
             ct).ConfigureAwait(false)).Thread;
-        await CancelActiveChildTurnAsync(sessionService, child.Id, child, ct).ConfigureAwait(false);
+        if (!RunningChildren.TryGetValue(child.Id, out var running))
+        {
+            await CancelActiveChildTurnAsync(sessionService, child.Id, child, ct).ConfigureAwait(false);
+            return;
+        }
+        try
+        {
+            await running.Cancellation.CancelAsync().ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+        try
+        {
+            await running.Completion.WaitAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+        }
     }
 
     private static (string Status, string KindStatus) ResolveTaskStatus(SessionThread child, ThreadSpawnEdge? edge, bool running)

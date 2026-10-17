@@ -1,8 +1,9 @@
-import { useMemo, useState, type JSX, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type JSX, type ReactNode } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { isSubAgentChildClosed, isTerminalSubAgentStatus, type SubAgentChild, type SubAgentDiscovery } from '../../stores/subAgentStore'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { findSubAgentChild } from '../../utils/subAgentIdentity'
+import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
 import { openSubAgent } from '../../utils/subAgentNavigation'
 import type { ConversationItem } from '../../types/conversation'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -48,6 +49,14 @@ export function SubAgentChips({
     () => items.map(getSubAgentChipDisplay).filter((entry): entry is SubAgentChipDisplay => entry != null),
     [items]
   )
+  const revealNonce = useToolCallRevealTarget((target) =>
+    target.threadId === parentThreadId
+      && parsedDisplays.slice(VISIBLE_CHIPS).some((display) => display.callId === target.callId)
+      ? target.nonce
+      : null)
+  useEffect(() => {
+    if (revealNonce != null) setShowAll(true)
+  }, [revealNonce])
 
   const { lookup, discovery } = useSubAgentLookup(parentThreadId, parsedDisplays.length > 0)
   const resolved = parsedDisplays.map((display) => {
