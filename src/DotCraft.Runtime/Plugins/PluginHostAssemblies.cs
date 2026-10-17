@@ -12,6 +12,7 @@ internal static class PluginHostAssemblies
     private static readonly FrozenSet<string> SharedPackages = new[]
     {
         "DiffPlex",
+        "HtmlAgilityPack",
         "Microsoft.Extensions.AI",
         "Microsoft.Extensions.AI.Abstractions",
         "Microsoft.Extensions.DependencyInjection",
@@ -25,6 +26,7 @@ internal static class PluginHostAssemblies
         "Microsoft.Data.Sqlite",
         "ModelContextProtocol",
         "ModelContextProtocol.Core",
+        "ReverseMarkdown",
         "System.Management.Automation",
         "TimeZoneConverter",
         "YamlDotNet"
