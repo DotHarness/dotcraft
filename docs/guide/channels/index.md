@@ -61,11 +61,11 @@ Send a command as its own message. Commands run right away, even while the agent
 | `/init` | Create an `AGENTS.md` file with instructions for DotCraft. Admins only. |
 | `/debug` | Toggle debug mode. Admins only. |
 
-`/new` and `/resume` stop the current work before they switch conversations. `/compact` and `/init` run only when the agent is idle; otherwise the bot says it is busy. The workspace's own custom commands work in chats too.
+`/new` and `/resume` stop the current work before they switch conversations. `/compact` and `/init` run only when the agent is idle; otherwise the bot says it is busy. Commands also work while the bot is waiting for your answer to a question, so `/stop` is never taken as the answer. The workspace's own custom commands work in chats too.
 
 When a command offers choices, such as the models `/model` lists, Feishu and Telegram show them as buttons. Other platforms show a numbered list with the command to send for each choice. Telegram also fills its command menu, showing each sender only the commands they can use.
 
-To answer a pending approval by text, reply `/approve`, `/approve session` to allow the same kind of action for the rest of the conversation, or `/deny`. Each platform's own reply keywords and buttons work as well.
+To answer a pending approval by text, reply `/approve`, `/approve session` to allow the same kind of action for the rest of the conversation, or `/deny`. These replies answer only your own approval, the one raised by work you asked for, so in a group nobody can approve for someone else this way. Each platform's own reply keywords and buttons work as well.
 
 Admin commands are limited to the senders in the channel's admin list. Set it with `adminUsers` in the [Channel configuration](../../configuration/channels); with an empty list, nobody in the chat can run admin commands. Weixin has no admin list: only the bot's owner can reach it, so every Weixin sender can run admin commands.
 
@@ -77,7 +77,7 @@ Ask the agent in a chat to do something on a schedule, and the automation it cre
 
 In a Desktop conversation, type `/bind` and pick a connected channel. DotCraft shows a command such as `/bind 482913`. Send it in the chat you want within 10 minutes. Messages from that chat then go into the conversation, and the agent sends its replies there.
 
-The binding applies only to that chat; other chats keep their own conversations. To stop, choose **Stop continuing in …** from the conversation's **⋯** menu, or type `/unbind`.
+The binding applies only to that chat; other chats keep their own conversations. While it lasts, the chat stays on that conversation: `/new`, `/sessions` and `/resume` reply that the chat is bound and change nothing. To stop, choose **Stop continuing in …** from the conversation's **⋯** menu, or type `/unbind`.
 
 ## Before you open a bot to a group
 
