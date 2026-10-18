@@ -44,7 +44,6 @@ dotcraft exec --remote ws://server:9100/ws --token my-secret "Summarize this wor
 | `dotcraft exec resume <thread-id> <prompt>` | Add a task to an existing thread |
 | `dotcraft exec resume --last <prompt>` | Add a task to the workspace's most recently active thread |
 | `dotcraft exec interrupt <thread-id>` | Stop the running task of a thread |
-| `dotcraft exec interrupt` | Stop the only exec task running in the workspace |
 | `dotcraft app-server` | Start AppServer (defaults to stdio) |
 | `--listen <URL>` | AppServer transport, used with `app-server` |
 | `--remote <URL>` | Client connection to a remote AppServer, used with `exec` or ACP |
@@ -79,7 +78,7 @@ Exit codes: `0` when the task completed, `1` when it failed or exec could not ru
 
 Exec never prompts for approval. Operations that need approval follow the thread's approval policy, and a new exec thread uses the workspace's default policy. When the workspace default is `autoApprove`, those operations run. Otherwise they are declined, the task continues, and the exit code follows the task's outcome. With `--auto-approve`, the thread's approval policy becomes `autoApprove`, except for commands that the safety rules forbid.
 
-Exec waits for the task with no time limit of its own. Ctrl+C asks the AppServer to stop the task, waits until it stops, and exits `1`. A task whose exec was killed keeps running on the AppServer. `dotcraft exec interrupt` stops it. Without a thread id, it stops the only exec task running in the workspace, and lists the running tasks' ids when there are several. It exits `0` when it stopped a task or found none running, and `1` when several are running, the thread does not exist, or the AppServer cannot be reached. A Hub that exec started keeps running after exec exits, even when exec's whole process tree is killed.
+Exec waits for the task with no time limit of its own. Ctrl+C asks the AppServer to stop the task, waits until it stops, and exits `1`. A task whose exec was killed keeps running on the AppServer. `dotcraft exec interrupt <thread-id>` stops it and exits `0` whether it stopped a task or found none running, or `1` when the thread does not exist or the AppServer cannot be reached. A Hub that exec started keeps running after exec exits, even when exec's whole process tree is killed.
 
 ### `--json` events
 
@@ -110,7 +109,7 @@ A cancelled task ends without a `turn.*` event. Each `item` has an `id`, a `type
 ```bash
 dotcraft exec --json "Fix the failing test" | jq -c 'select(.type == "item.completed") | .item.type'
 dotcraft exec -o answer.md --auto-approve "Update the changelog"
-dotcraft exec interrupt
+dotcraft exec interrupt <thread-id>
 ```
 
 ### `--listen` URL schemes

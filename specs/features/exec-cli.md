@@ -35,7 +35,7 @@ A caller that cannot be modified relies on this command alone. One example is an
 - No running outside a DotCraft workspace.
 - No MCP server.
 - No AppServer protocol additions. Exec uses existing methods and fields only.
-- No job listing or result cache.
+- No job store, job listing, or result cache.
 - No agent profile or provider selection in this version.
 
 ## 4. Command Contract
@@ -43,7 +43,7 @@ A caller that cannot be modified relies on this command alone. One example is an
 ```text
 dotcraft exec [options] [PROMPT | -]
 dotcraft exec resume [options] (THREAD_ID | --last) [PROMPT | -]
-dotcraft exec interrupt [-C DIR] [--remote URL [--token TOKEN]] [THREAD_ID]
+dotcraft exec interrupt [-C DIR] [--remote URL [--token TOKEN]] THREAD_ID
 ```
 
 **Prompt input:**
@@ -75,7 +75,7 @@ With `resume`, `-m` and `--auto-approve` take effect through `thread/config/upda
 | `1` | Any of: the Turn failed or was cancelled; the directory is not a DotCraft workspace; no thread matched; exec could not reach or use the AppServer. |
 | `2` | Usage error, before any thread is created. |
 
-`exec interrupt` exits `0` when it interrupted a running Turn or found none to interrupt. It exits `1` when it cannot reach the AppServer, the thread does not exist, or more than one exec Turn is running and no thread id was given.
+`exec interrupt` exits `0` when it interrupted a running Turn or found none. It exits `1` when it cannot reach the AppServer or the thread does not exist.
 
 ## 5. Workspace And Thread Identity
 
@@ -188,8 +188,6 @@ User-input requests receive empty answers, as the protocol defines for clients t
 - **Waiting.** Exec waits for the Turn's terminal notification, with no time limit of its own.
 - **Ctrl+C / SIGINT.** Exec sends `turn/interrupt` for its running Turn, keeps waiting for the terminal notification, then exits `1`.
 - **Killed without a chance to interrupt.** The Turn keeps running on the AppServer, because Turn execution outlives the submitting connection. `dotcraft exec interrupt` stops it. It resolves the workspace as in §5, then finds the thread's running Turn and sends `turn/interrupt`.
-- **Running-task records.** When its Turn starts, exec writes `{ threadId, turnId }` to `.craft/tmp/exec/<threadId>.json` in the workspace. It removes the record when it sees the Turn's terminal notification. A record left by an exec that was killed stays until `exec interrupt` finds it stale.
-- **Interrupt without a thread id.** `exec interrupt` reads those records. It keeps each one whose thread still runs the recorded Turn (`runtime.activeTurnId`), and removes the rest. With exactly one left, it interrupts that Turn. With none, it says so and exits `0`. With several, it lists their thread ids and exits `1`, so the caller picks one. Only Turns that exec started are candidates, so a Turn another client started on the same thread is never stopped, and ephemeral threads are found too.
 - **Hub lifetime.** A Hub or AppServer that exec started keeps running after exec exits, whether exec finished normally, was interrupted, or had its process tree terminated. Exec starts the Hub through a short-lived launcher that detaches it into its own session (Unix) or without a console (Windows) and exits, so the Hub is neither a descendant of exec nor reached by exec's console signals.
 
 ## 9. Constraints And Compatibility

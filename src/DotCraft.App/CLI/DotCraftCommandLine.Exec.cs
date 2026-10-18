@@ -128,10 +128,9 @@ public static partial class DotCraftCommandLine
         var workspaceDirectory = WorkspaceDirectoryOption();
         var remote = RemoteOption();
         var token = TokenOption();
-        var threadId = new Argument<string?>("thread-id")
+        var threadId = new Argument<string>("thread-id")
         {
-            Description = "Thread whose running turn to stop. Omit it to stop the only running exec task in this workspace.",
-            Arity = ArgumentArity.ZeroOrOne
+            Description = "Thread whose running turn to stop."
         };
         var command = new Command("interrupt", "Stop the running turn of a thread.")
         {
@@ -151,7 +150,7 @@ public static partial class DotCraftCommandLine
             var workspace = Path.GetFullPath(parseResult.GetValue(workspaceDirectory) ?? Directory.GetCurrentDirectory());
             return await ExecInterrupt.RunAsync(
                 Path.TrimEndingDirectorySeparator(workspace),
-                parseResult.GetValue(threadId),
+                parseResult.GetValue(threadId)!,
                 new CommandLineArgs
                 {
                     Mode = CommandLineArgs.RunMode.Exec,
