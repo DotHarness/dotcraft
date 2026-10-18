@@ -20,8 +20,9 @@ optional origin, createdAt, updatedAt and nullable nextRunAt (UTC ISO timestamps
 Runs auto-approve their tool calls. Under workspaceScope, file and shell tools are refused
 outside the run's workspace; under fullAuto, access outside it is auto-approved.
 Origin preserves channel, userId, groupId and deliveryTarget independently of execution.
-An origin captured from a chat also preserves that chat's kind (chatKind) and label (chatLabel);
-such an origin is a channel origin. The host captures origin; models cannot impersonate a creator
+An origin with a channel and a deliveryTarget is a channel origin. An origin captured from a chat
+may also describe that chat's kind (chatKind) and label (chatLabel); without a kind, the run's chat
+is an unspecified chat. The host captures origin; models cannot impersonate a creator
 or change the chat a run speaks to.
 
 Completed is a server-owned terminal state for a one-shot definition after its attempt.

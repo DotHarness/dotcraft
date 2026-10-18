@@ -96,7 +96,7 @@ public sealed partial class AutomationService
             using var channelScope = origin == null ? null : ChannelSessionScope.Set(new ChannelSessionInfo
             {
                 Channel = origin.Channel, UserId = origin.UserId, GroupId = origin.GroupId, DefaultDeliveryTarget = origin.DeliveryTarget,
-                Chat = origin.IsChat ? new ChannelChatDescriptor(origin.ChatKind!, origin.ChatLabel, ChannelChatMemberships.Shared) : null
+                Chat = origin.Chat
             });
             var completed = false;
             await foreach (var evt in client.SubmitTurnAsync(threadId, prompt, timeout.Token,

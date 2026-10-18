@@ -112,7 +112,7 @@ internal sealed class TurnRequestHandler(
             initialTurnTcs.TrySetResult(initialTurn);
         }
 
-        using var channelScope = await CreateChannelScopeAsync(sender, p.ThreadId);
+        using var channelScope = ChannelSessionScope.Set(await ResolveChannelSessionAsync(sender, p.ThreadId));
 
         await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
         if (p.Cwd != null || p.RuntimeWorkspaceRoots != null)
@@ -265,7 +265,7 @@ internal sealed class TurnRequestHandler(
         var materializedInput = await PrepareTurnInputAsync(input, p.ThreadId, ct);
         RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
-        using var channelScope = await CreateChannelScopeAsync(sender, p.ThreadId);
+        using var channelScope = ChannelSessionScope.Set(await ResolveChannelSessionAsync(sender, p.ThreadId));
         await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
         var queued = await sessionService.EnqueueTurnInputAsync(
             p.ThreadId,
@@ -305,7 +305,7 @@ internal sealed class TurnRequestHandler(
         var materializedInput = await PrepareTurnInputAsync(input, threadId, ct);
         RecordSkillReferences(threadId, materializedInput.NativeInputParts);
 
-        using var channelScope = await CreateChannelScopeAsync(sender, threadId);
+        using var channelScope = ChannelSessionScope.Set(await ResolveChannelSessionAsync(sender, threadId));
         await sessionService.EnsureThreadLoadedAsync(threadId, ct);
         var turnId = await sessionService.SteerTurnAsync(
             threadId,
@@ -491,9 +491,9 @@ internal sealed class TurnRequestHandler(
         };
     }
 
-    private async Task<IDisposable> CreateChannelScopeAsync(SenderContext? sender, string threadId)
+    private async Task<ChannelSessionInfo> ResolveChannelSessionAsync(SenderContext? sender, string threadId)
     {
-        var channelScopeInfo = connection.IsChannelAdapter
+        return connection.IsChannelAdapter
             ? new ChannelSessionInfo
             {
                 Channel = connection.ChannelAdapterName ?? "external",
@@ -507,8 +507,6 @@ internal sealed class TurnRequestHandler(
                 Channel = connection.HasAcpExtensions ? "acp" : "cli",
                 UserId = connection.ClientInfo?.Name ?? "anonymous"
             };
-
-        return ChannelSessionScope.Set(channelScopeInfo);
     }
 
     private sealed class PreparedTurnInput

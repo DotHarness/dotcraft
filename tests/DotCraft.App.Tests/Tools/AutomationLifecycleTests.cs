@@ -175,14 +175,14 @@ public sealed class AutomationLifecycleTests : IDisposable
         var delivered = 0;
         service.DeliverAsync = (_, _, _) => { delivered++; return Task.CompletedTask; };
         client.DuringTurn = thread => {
-            Assert.Equal("group:g", ChannelSessionScope.Current?.DefaultDeliveryTarget);
+            Assert.Equal("g", ChannelSessionScope.Current?.GroupId);
             service.ReportOutcome(thread, "turn-1", "Unchanged", false);
         };
         await service.StartAsync();
         try
         {
             var definition = await service.CreateAsync(Input() with { Status = "paused", NotificationPolicy = "important" },
-                new() { Channel = "qq", UserId = "u", GroupId = "g", DeliveryTarget = "group:g" });
+                new() { Channel = "qq", UserId = "u", GroupId = "g" });
             var run = await Finish(service, await service.RunAsync(definition.Id));
             Assert.Equal("succeeded", run.Status); Assert.Equal("skipped", run.DeliveryStatus); Assert.Equal(0, delivered);
             Assert.Equal("Unchanged", run.Summary);

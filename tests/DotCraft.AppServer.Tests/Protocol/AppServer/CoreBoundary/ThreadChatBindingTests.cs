@@ -32,6 +32,33 @@ public sealed class ThreadChatBindingTests : IDisposable
     }
 
     [Fact]
+    public async Task TurnStartFromAnAdapter_RunsInTheThreadsChannelScope()
+    {
+        await InitializeAdapterAsync();
+        var threadId = await StartThreadAsync(new { kind = "group", label = "Release team", membership = "shared" });
+        ChannelSessionInfo? observed = null;
+        _h.Service.SubmitInputHandler = (id, _, _) =>
+        {
+            observed = ChannelSessionScope.Current;
+            return CoreAppServerTestHarness.BuildTurnEventSequence(id);
+        };
+
+        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
+        {
+            threadId,
+            input = new[] { new { type = "text", text = "remind us every morning" } },
+            sender = new { senderId = "alice", senderName = "Alice", senderRole = "user", groupId = "-100" }
+        }));
+        await _h.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(10));
+
+        Assert.NotNull(observed);
+        Assert.Equal("telegram", observed!.Channel);
+        Assert.Equal("alice", observed.UserId);
+        Assert.Equal("-100", observed.DefaultDeliveryTarget);
+        Assert.Equal("Release team", observed.Chat?.Label);
+    }
+
+    [Fact]
     public async Task ChatFromANonAdapterConnection_IsRejected()
     {
         await _h.InitializeAsync();

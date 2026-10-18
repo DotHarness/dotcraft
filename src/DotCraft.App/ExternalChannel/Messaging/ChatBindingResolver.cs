@@ -89,7 +89,7 @@ internal sealed class ChatBindingResolver(
         return new ChatBinding(
             runtime.Name,
             origin.DeliveryTarget!,
-            new ChannelChatDescriptor(origin.ChatKind!, origin.ChatLabel, ChannelChatMemberships.Shared),
+            origin.Chat,
             RefusesOtherChats: automation.ApprovalPolicy != "fullAuto");
     }
 

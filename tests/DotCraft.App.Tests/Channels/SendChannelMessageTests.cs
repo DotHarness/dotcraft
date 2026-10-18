@@ -110,6 +110,24 @@ public sealed class SendChannelMessageTests : IDisposable
     }
 
     [Fact]
+    public async Task ChannelOriginWithoutChatKind_StillBindsTheRunToTheOriginChat()
+    {
+        var automations = Automations();
+        var definition = await CreateAutomationAsync(automations, "independent", "workspaceScope", chatKind: null);
+        var provider = new SendChannelMessageToolProvider(new ChatBindingResolver(_registry, automations: automations));
+        var runThread = new SessionThread
+        {
+            Id = "run-thread", OriginChannel = AutomationService.RunChannel, ChannelContext = definition.Id, WorkspacePath = _workspace
+        };
+
+        var runtime = (await RegistrationAsync(provider, runThread)).Binding.Runtime;
+        var result = await runtime.InvokeAsync(Context("call-1", runThread.Id), Args("""{ "text": "build is green" }"""));
+
+        Assert.True(result.Success);
+        Assert.Equal("chat-9", Assert.Single(_telegram.Deliveries).Target);
+    }
+
+    [Fact]
     public async Task ThreadModeRun_SpeaksToTheTargetThreadsOwnChat()
     {
         var automations = Automations();
@@ -433,7 +451,8 @@ public sealed class SendChannelMessageTests : IDisposable
         new DotCraftPaths(_workspace, Path.Combine(_workspace, ".craft"), null),
         NullLogger<AutomationService>.Instance);
 
-    private static Task<AutomationDefinition> CreateAutomationAsync(AutomationService automations, string executionMode, string approvalPolicy) =>
+    private static Task<AutomationDefinition> CreateAutomationAsync(
+        AutomationService automations, string executionMode, string approvalPolicy, string? chatKind = ChannelChatKinds.Group) =>
         automations.CreateAsync(
             new AutomationInput
             {
@@ -443,7 +462,7 @@ public sealed class SendChannelMessageTests : IDisposable
             },
             new AutomationOrigin
             {
-                Channel = "telegram", UserId = "u", DeliveryTarget = "chat-9", ChatKind = ChannelChatKinds.Group, ChatLabel = "Ops"
+                Channel = "telegram", UserId = "u", DeliveryTarget = "chat-9", ChatKind = chatKind, ChatLabel = "Ops"
             });
 
     private SendChannelMessageRuntime Runtime() =>
