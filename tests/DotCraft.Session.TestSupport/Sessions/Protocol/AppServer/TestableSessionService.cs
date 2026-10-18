@@ -249,25 +249,6 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
         await _store.SaveThreadAsync(thread, ct);
     }
 
-    public async Task<ThreadResetResult> ResetConversationAsync(
-        SessionIdentity identity,
-        ThreadConfiguration? config = null,
-        HistoryMode historyMode = HistoryMode.Server,
-        string? displayName = null,
-        CancellationToken ct = default)
-    {
-        var active = await FindThreadsAsync(identity, includeArchived: false, crossChannelOrigins: null, ct);
-        var archived = new List<string>();
-        foreach (var summary in active.Where(s => s.Status == ThreadStatus.Active))
-        {
-            await ArchiveThreadAsync(summary.Id, ct);
-            archived.Add(summary.Id);
-        }
-
-        var thread = await CreateThreadAsync(identity, config, historyMode, displayName: displayName, ct: ct);
-        return new ThreadResetResult { Thread = thread, ArchivedThreadIds = archived, CreatedLazily = true };
-    }
-
     public async Task<SessionThread> ForkThreadAsync(
         string threadId,
         ThreadForkOptions? options = null,

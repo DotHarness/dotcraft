@@ -47,6 +47,8 @@ public sealed class BackgroundTaskTools(IBackgroundTerminalService? executionTer
         },
         KindStatus = terminal.Status,
         OutputPath = terminal.OutputPath,
+        StartedAt = terminal.StartedAt,
+        EndedAt = terminal.CompletedAt,
         Latch = latch
     };
 

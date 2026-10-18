@@ -17,7 +17,7 @@ public sealed record SenderContext
     public string SenderName { get; init; } = string.Empty;
 
     /// <summary>
-    /// Permission role: "admin", "whitelisted", "unauthorized".
+    /// Permission role: "admin" or "user".
     /// </summary>
     public string SenderRole { get; init; } = string.Empty;
 

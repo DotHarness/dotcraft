@@ -105,7 +105,7 @@ test("WeixinAdapter accepts channel bind codes for user context", async () => {
       request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
     };
     commandRouter: {
-      routeBeforeQueue: () => Promise<"enqueue" | "handled">;
+      run: () => Promise<void>;
     };
     onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
     handleMessage: (opts: Record<string, unknown>) => Promise<void>;
@@ -113,7 +113,7 @@ test("WeixinAdapter accepts channel bind codes for user context", async () => {
   const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
   const deliveries: Array<{ target: string; content: string; metadata: Record<string, unknown> }> = [];
 
-  adapter.commandRouter.routeBeforeQueue = async () => {
+  adapter.commandRouter.run = async () => {
     throw new Error("bind command should not reach command routing");
   };
   adapter.client.request = async (method, params) => {

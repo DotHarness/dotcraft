@@ -520,7 +520,7 @@ The high-level application API does not automatically interpret user text that s
 
 Applications that want built-in command semantics should call `command/execute` through the wire API or implement their own UI command layer.
 
-Channel adapters route slash commands through `CommandRouter`.
+Channel adapters route slash commands through `CommandRouter`: only names and aliases from `command/list` are commands ([External Channel Adapter](../protocols/external-channel-adapter.md#104-commands)).
 
 ### 12.4 Skill Mentions
 
@@ -738,11 +738,14 @@ onActivity(turn: ChannelTurn, activity: TurnItemActivity): Promise<void>;
 onTurnRetrying(turn: ChannelTurn): Promise<void>;
 onTurnEnded(turn: ChannelTurn, outcome: ChannelTurnOutcome): Promise<void>;
 onThreadContextBound(threadId: string, channelContext: string): void;
-onThreadsArchived(identityKey: string, archivedThreadIds: string[]): void;
+onCurrentThreadChanged(previousThreadId: string | undefined, threadId: string, channelContext: string): void;
+renderCommandChoices(target: string, choices: CommandChoice[], context: CommandChoiceContext): Promise<void>;
 getRuntimeAdditionalContext(): Record<string, RuntimeAdditionalContextEntry> | undefined;
 ```
 
 `ChannelTurn` carries `threadId`, `turnId` and `channelContext`. The Turn hooks fire only for Turns the adapter started with `turn/start`; input steered or queued into another Turn produces none. They observe activity only: no hook receives `agentMessage` text, reasoning, plans or generated images. `onTurnRetrying` fires for `system/event` with `kind = "streamError"`. `onTurnEnded` fires once per started Turn with `completed`, `failed` (with the error, for logs only), `cancelled`, or `disconnected` when the event stream ends without a terminal event. The default `onTurnEnded` delivers one generic failure notice without diagnostic detail through `onDeliver` for a `failed` outcome; an adapter that shows a status card overrides it.
+
+`onCurrentThreadChanged` fires when a command result switches the conversation to another thread. `renderCommandChoices` presents a command result's choices after its message; the default delivers a numbered list showing each choice's command through `onDeliver`, and adapters with buttons or cards override it and execute the selected choice with `executeCommandChoice`. The runtime accepts `/approve`, `/approve session` and `/deny` as plain-text approval replies alongside the reply keywords; adapters that collect approvals with buttons resolve the same replies through `parseApprovalReplyDecision`.
 
 Override `getRuntimeAdditionalContext` to bind compact adapter-owned application context through `thread/start.additionalContext`. The Channel runtime keeps the binding for active Thread reuse and restores it with one `thread/resume` after the AppServer connection is replaced.
 

@@ -2,7 +2,6 @@ export {
   ApprovalDispatcher,
   ChannelMessageQueue,
   ChannelToolDispatcher,
-  CommandRouter,
   ModuleConfigLoader,
   ModuleLifecycleState,
   ThreadResolver,
@@ -15,6 +14,12 @@ export {
   withStdioRuntimeDefaults,
   withWebSocketRuntimeDefaults,
 } from "./channelRuntime.js";
+export { CommandRouter } from "./commandRouter.js";
+export type {
+  CommandChoiceContext,
+  CommandRouterOptions,
+  CommandRunRequest,
+} from "./commandRouter.js";
 export { DeliveryDispatcher } from "./deliveryDispatcher.js";
 export { activityKindForItemType, consumeTurnStream } from "./turnStream.js";
 export type { TurnStreamHandlers } from "./turnStream.js";
@@ -26,9 +31,6 @@ export type {
   ChannelMessageQueueOptions,
   ChannelSenderContext,
   ChannelToolDispatcherOptions,
-  CommandRouteBeforeQueueResult,
-  CommandRouteForTurnResult,
-  CommandRouterOptions,
   LoadJsonConfigResult,
   ModuleConfigLoadResult,
   ModuleConfigLoaderOptions,

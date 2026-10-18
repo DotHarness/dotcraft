@@ -4637,8 +4637,8 @@ Client-local UX commands are intentionally outside this registry surface and do 
   "name": "/new",
   "aliases": [],
   "descriptionKey": "cmd.new",
-  "fallbackDescription": "Create a new conversation",
-  "description": "Create a new conversation",
+  "fallbackDescription": "Archive this thread and start a new one",
+  "description": "Archive this thread and start a new one",
   "category": "builtin",
   "requiresAdmin": false
 }
@@ -4678,8 +4678,8 @@ Clients that build a composer slash-command picker for `commandRef` insertion sh
       "name": "/new",
       "aliases": [],
       "descriptionKey": "cmd.new",
-      "fallbackDescription": "Create a new session",
-      "description": "Create a new session",
+      "fallbackDescription": "Archive this thread and start a new one",
+      "description": "Archive this thread and start a new one",
       "category": "builtin",
       "requiresAdmin": false
     },
@@ -4721,18 +4721,29 @@ Built-in slash commands must be invoked through this method (or equivalent dedic
   "message": "Started a new conversation.",
   "isMarkdown": false,
   "expandedPrompt": null,
-  "sessionReset": true,
   "thread": {
     "id": "thread_20260414_ab12cd"
   },
-  "archivedThreadIds": ["thread_20260414_old001"],
-  "createdLazily": true
+  "choices": null
 }
 ```
 
+| Field | Type | Description |
+|-------|------|-------------|
+| `handled` | boolean | Whether the server handled the command. |
+| `message` | string \| null | Short plain-text reply for the caller to show. |
+| `isMarkdown` | boolean | Whether `message` is Markdown. |
+| `expandedPrompt` | string \| null | Prompt text the command expanded into. |
+| `thread` | Thread \| null | The conversation's new current thread, when the command changed it. |
+| `choices` | CommandChoice[] \| null | Selectable follow-ups, each `{ "label": string, "command": string }`. |
+
 When `expandedPrompt` is non-null, the command resolved to a prompt expansion and the caller may submit that text with `turn/start`.
 
-When `sessionReset` is `true` (for `/new`), clients should switch their active thread pointer to `thread.id` immediately. `createdLazily = true` means the new thread id is valid, but its thread file may not be materialized on disk until the first turn is submitted.
+When `thread` is present, the caller switches its current thread for the conversation to `thread.id` immediately. `/new` and `/resume` return it. A thread `/new` creates may not be materialized on disk until its first Turn.
+
+A `choices` entry's `command` is a complete slash command; selecting the choice executes it with `command/execute` as if the sender had typed it. Choices accompany `message` and do not replace it.
+
+Each built-in command has a busy behavior the server applies while the thread has an active Turn: `run` executes, `interruptFirst` cancels the active Turn and then executes, and `reject` answers with a busy message without executing. Admin-only commands (`requiresAdmin`) fail with `CommandPermissionDenied` unless `sender.senderRole` is `"admin"`; a request without `sender` from a connection that is not a channel adapter acts as an admin. The in-chat command set and each command's busy behavior are defined in [Channel Messaging and Commands](../features/channel-messaging.md) §12.
 
 ### 19.5 Error Codes
 

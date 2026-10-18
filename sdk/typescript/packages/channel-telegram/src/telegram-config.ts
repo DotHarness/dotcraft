@@ -8,6 +8,7 @@ export interface TelegramConfig {
     httpsProxy?: string;
     approvalTimeoutMs?: number;
     pollTimeoutMs?: number;
+    adminUsers?: Array<number | string>;
   };
 }
 

@@ -728,16 +728,25 @@ public sealed class CommandExecuteParams : ExtensibleJsonObject
 
 }
 
+/// <summary>Executable wire contract for CommandChoice.</summary>
+public sealed class CommandChoice : ExtensibleJsonObject
+{
+    [JsonPropertyName("command")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Command { get; init; }
+
+    [JsonPropertyName("label")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Label { get; init; }
+
+}
+
 /// <summary>Executable wire contract for CommandExecuteResult.</summary>
 public sealed class CommandExecuteResult : ExtensibleJsonObject
 {
-    [JsonPropertyName("archivedThreadIds")]
+    [JsonPropertyName("choices")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<string>?> ArchivedThreadIds { get; init; }
-
-    [JsonPropertyName("createdLazily")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> CreatedLazily { get; init; }
+    public Optional<IReadOnlyList<CommandChoice>?> Choices { get; init; }
 
     [JsonPropertyName("expandedPrompt")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -754,10 +763,6 @@ public sealed class CommandExecuteResult : ExtensibleJsonObject
     [JsonPropertyName("message")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Message { get; init; }
-
-    [JsonPropertyName("sessionReset")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> SessionReset { get; init; }
 
     [JsonPropertyName("thread")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

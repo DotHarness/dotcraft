@@ -219,12 +219,6 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     }
   }
 
-  protected override onThreadsArchived(_identityKey: string, archivedThreadIds: string[]): void {
-    for (const threadId of archivedThreadIds) {
-      this.threadContextMap.delete(threadId);
-    }
-  }
-
   override async onDeliver(target: string, content: string, _metadata: Record<string, unknown>): Promise<boolean> {
     const result = await sendQQMessage(this.requireOneBot(), target, { kind: "text", text: content });
     return result.delivered;
@@ -403,7 +397,8 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     if (!isBindCode && isGroup && this.requireMentionInGroups && !this.isAtSelf(evt, segments)) {
       return;
     }
-    if (await this.approvalReplies.remindIfPending(approver)) {
+    if (this.approvalReplies.hasPending(approver) && !(await this.isCommand(rawText))) {
+      await this.approvalReplies.remindIfPending(approver);
       return;
     }
 

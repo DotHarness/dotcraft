@@ -1,12 +1,8 @@
 using DotCraft.Commands.Core;
 using DotCraft.Text;
-using DotCraft.Sessions;
 
 namespace DotCraft.Commands.Handlers;
 
-/// <summary>
-/// Handles /new command to archive existing threads for an identity and switch to a fresh thread.
-/// </summary>
 public sealed class NewCommandHandler : ICommandHandler
 {
     /// <inheritdoc />
@@ -15,31 +11,12 @@ public sealed class NewCommandHandler : ICommandHandler
     /// <inheritdoc />
     public async Task<CommandResult> HandleAsync(CommandContext context, ICommandResponder responder)
     {
-        ThreadResetResult? reset = null;
-        if (context.SessionService != null)
-        {
-            var identity = new SessionIdentity
-            {
-                ChannelName = context.Source.ToLowerInvariant(),
-                UserId = context.UserId,
-                ChannelContext = context.ChannelContext,
-                WorkspacePath = context.WorkspacePath
-            };
+        if (context.SessionService is not { } sessions)
+            return CommandResult.HandledResult(FallbackText.CommandServiceUnavailable);
 
-            reset = await context.SessionService.ResetConversationAsync(identity);
-            context.AgentFactory?.RemoveTokenTracker(context.SessionId);
-            context.AgentFactory?.RemoveTokenTracker(reset.Thread.Id);
-        }
-
-        await responder.SendTextAsync(FallbackText.CommandNewCleared);
-        if (reset != null)
-        {
-            return CommandResult.SessionResetResult(
-                reset.Thread.Id,
-                reset.ArchivedThreadIds,
-                reset.CreatedLazily);
-        }
-
-        return CommandResult.HandledResult();
+        var current = await sessions.GetThreadAsync(context.SessionId);
+        var thread = await sessions.CreateThreadAsync(CommandThreads.IdentityOf(current));
+        await sessions.ArchiveThreadAsync(current.Id);
+        return CommandResult.SwitchThread(thread.Id, FallbackText.CommandNewStarted);
     }
 }

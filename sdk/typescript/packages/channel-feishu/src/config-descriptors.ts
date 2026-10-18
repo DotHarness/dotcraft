@@ -136,6 +136,25 @@ export const configDescriptors: ConfigDescriptor[] = [
     defaultValue: "DotCraft",
   },
   {
+    key: "feishu.adminUsers",
+    displayLabel: "Admin Users",
+    description: "Feishu user open_ids with admin permissions.",
+    localizedDisplayLabel: {
+      en: "Admin Users",
+      "zh-Hans": "管理员用户",
+    },
+    localizedDescription: {
+      en: "Feishu user open_ids with admin permissions.",
+      "zh-Hans": "拥有管理员权限的飞书用户 open_id。",
+    },
+    required: false,
+    dataKind: "list",
+    masked: false,
+    interactiveSetupOnly: false,
+    group: "configuration",
+    defaultValue: [],
+  },
+  {
     key: "feishu.approvalTimeoutMs",
     displayLabel: "Approval Timeout (ms)",
     description: "Timeout before approval requests auto-cancel.",

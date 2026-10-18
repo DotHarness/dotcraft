@@ -17,8 +17,9 @@ import type {
   ChannelToolDescriptor,
 } from "./capability.js";
 import type {
-  AppBindingRequestGetResult,
   AppBinding,
+  CommandChoice,
+  CommandInfo,
   InputPart,
   RuntimeAdditionalContextEntry,
   SenderContext,
@@ -31,7 +32,6 @@ import {
   ApprovalDispatcher,
   ChannelMessageQueue,
   ChannelToolDispatcher,
-  CommandRouter,
   ModuleLifecycleState,
   ThreadResolver,
   UserInputDispatcher,
@@ -39,6 +39,7 @@ import {
   type ChannelAdapterMessageOptions,
   type ThreadResolveEvent,
 } from "./channelRuntime.js";
+import { CommandRouter, type CommandChoiceContext, type CommandRunRequest } from "./commandRouter.js";
 import { DeliveryDispatcher } from "./deliveryDispatcher.js";
 import type { LifecycleStatus, ModuleError } from "./lifecycle.js";
 import {
@@ -48,7 +49,6 @@ import {
   type TurnItemActivity,
 } from "./turnStream.js";
 
-/** Queued inbound message; skipCommand skips slash handling for expanded prompts. */
 export type ChannelAdapterMessageOpts = ChannelAdapterMessageOptions;
 
 const CHANNEL_REQUEST_START_FAILED_CODE = "channelRequestStartFailed";
@@ -106,13 +106,10 @@ export abstract class ChannelAdapter {
     });
     this.commandRouter = new CommandRouter({
       client: () => this.client,
-      threadResolver: this.threadResolver,
-      identityKey: (userId, channelContext) => this.identityKey(userId, channelContext),
-      getDefaultWorkspacePath: () => this.defaultWorkspacePath,
       deliver: (target, content, metadata) => this.onDeliver(target, content, metadata),
       enqueueMessage: (opts) => this.enqueueMessage(opts),
-      onThreadContextBound: (threadId, channelContext) => this.onThreadContextBound(threadId, channelContext),
-      onThreadsArchived: (identityKey, archivedThreadIds) => this.onThreadsArchived(identityKey, archivedThreadIds),
+      switchThread: (thread, request) => this.switchCurrentThread(thread, request),
+      renderChoices: (target, choices, context) => this.renderCommandChoices(target, choices, context),
     });
     this.approvalDispatcher = new ApprovalDispatcher({
       client: () => this.client,
@@ -198,8 +195,22 @@ export abstract class ChannelAdapter {
     await this.sendGenericNotice(turn.channelContext, CHANNEL_TURN_FAILED_MESSAGE, CHANNEL_TURN_FAILED_CODE);
   }
 
-  /** Called after the thread is resolved for an inbound message (e.g. map threadId → chat target). */
   protected onThreadContextBound(_threadId: string, _channelContext: string): void {}
+
+  protected onCurrentThreadChanged(
+    _previousThreadId: string | undefined,
+    _threadId: string,
+    _channelContext: string,
+  ): void {}
+
+  protected async renderCommandChoices(
+    target: string,
+    choices: CommandChoice[],
+    _context: CommandChoiceContext,
+  ): Promise<void> {
+    const lines = choices.map((choice, index) => `${index + 1}. ${choice.label || choice.command}: ${choice.command}`);
+    await this.onDeliver(target, lines.join("\n"), {});
+  }
 
   /** Returns compact application context bound to Threads owned by this adapter. */
   protected getRuntimeAdditionalContext(): Record<string, RuntimeAdditionalContextEntry> | undefined {
@@ -229,7 +240,9 @@ export abstract class ChannelAdapter {
     this.threadResolver.invalidateConnectionBoundRuntime();
     this.clientStateUnsubscribe?.();
     this.clientStateUnsubscribe = this.client.onStateChanged((state) => {
-      if (state === "reconnecting") this.threadResolver.invalidateConnectionBoundRuntime();
+      if (state !== "reconnecting") return;
+      this.threadResolver.invalidateConnectionBoundRuntime();
+      this.commandRouter.invalidate();
     });
     await this.client.connect();
     await this.client.start();
@@ -255,6 +268,8 @@ export abstract class ChannelAdapter {
       },
     });
     this.running = true;
+    this.commandRouter.invalidate();
+    void this.commandRouter.refresh();
     this.setStatus("ready");
 
     console.info(`ChannelAdapter '${this.channelName}' started (client: ${this.clientName} ${this.clientVersion})`);
@@ -277,14 +292,51 @@ export abstract class ChannelAdapter {
       if (await this.tryAcceptChannelBinding(opts, sender, channelContext, bindCode)) return;
     }
 
-    const sender = buildChannelSender(opts, channelContext);
-    if (this.buildChannelTarget(opts, sender, channelContext)) {
-      this.enqueueMessage(opts);
+    if (!opts.skipCommand && await this.commandRouter.isCommand(opts.text)) {
+      await this.runCommand(opts);
       return;
     }
+    this.enqueueMessage(opts);
+  }
 
-    const result = await this.commandRouter.routeBeforeQueue(opts);
-    if (result === "enqueue") this.enqueueMessage(opts);
+  protected async isCommand(text: string): Promise<boolean> {
+    return await this.commandRouter.isCommand(text);
+  }
+
+  protected async listCommands(): Promise<CommandInfo[]> {
+    return await this.commandRouter.listCommands();
+  }
+
+  protected async executeCommandChoice(
+    command: string,
+    opts: Omit<ChannelAdapterMessageOpts, "text" | "inputParts" | "skipCommand">,
+  ): Promise<void> {
+    await this.runCommand({ ...opts, text: command });
+  }
+
+  private async runCommand(opts: ChannelAdapterMessageOpts): Promise<void> {
+    const channelContext = opts.channelContext ?? "";
+    const sender = buildChannelSender(opts, channelContext);
+    try {
+      const { threadId } = await this.resolveConversationThread(opts, sender);
+      await this.commandRouter.run({ opts, threadId, sender });
+    } catch (error) {
+      console.error(`[${this.channelName}] command failed:`, error);
+      await this.sendGenericNotice(channelContext, CHANNEL_REQUEST_START_FAILED_MESSAGE, CHANNEL_REQUEST_START_FAILED_CODE);
+    }
+  }
+
+  private async switchCurrentThread(thread: SessionThread, request: CommandRunRequest): Promise<void> {
+    const channelContext = request.opts.channelContext ?? "";
+    const identityKey = this.identityKey(request.opts.userId, channelContext);
+    const previousThreadId = this.threadResolver.getCachedThreadId(identityKey);
+    await this.client.threadResume(thread.id, {
+      additionalContext: this.getRuntimeAdditionalContext(),
+      chat: this.getChatDescriptor(request.opts, channelContext),
+    });
+    this.threadResolver.setCachedThread(identityKey, thread.id);
+    this.onThreadContextBound(thread.id, channelContext);
+    if (previousThreadId !== thread.id) this.onCurrentThreadChanged(previousThreadId, thread.id, channelContext);
   }
 
   protected getChannelBindingAppId(): string {
@@ -356,7 +408,6 @@ export abstract class ChannelAdapter {
       if (!binding.threadId) throw new Error("Accepted channel binding omitted its thread id.");
       const identityKey = this.identityKey(opts.userId, channelContext);
       this.threadResolver.setCachedThread(identityKey, binding.threadId);
-      this.threadResolver.clearFreshThread(identityKey);
       this.onThreadContextBound(binding.threadId, channelContext);
       await this.onChannelBindingAccepted(binding, target, opts);
     } catch (error) {
@@ -376,38 +427,6 @@ export abstract class ChannelAdapter {
 
   protected identityKey(userId: string, channelContext: string): string {
     return `${userId}:${channelContext}`;
-  }
-
-  protected async resetIdentityThreads(userId: string, channelContext = ""): Promise<string[]> {
-    const identityKey = this.identityKey(userId, channelContext);
-    return await this.threadResolver.resetIdentityThreads({
-      identityKey,
-      userId,
-      channelContext,
-      workspacePath: this.defaultWorkspacePath,
-    });
-  }
-
-  protected onThreadsArchived(_identityKey: string, _archivedThreadIds: string[]): void {
-    // Default no-op for adapters without per-thread local state.
-  }
-
-  protected async applyCommandResetResult(
-    identityKey: string,
-    userId: string,
-    channelContext: string,
-    workspacePath: string,
-    commandName: string,
-    commandResult: Record<string, unknown>,
-  ): Promise<void> {
-    await this.commandRouter.applyCommandResetResult({
-      identityKey,
-      userId,
-      channelContext,
-      workspacePath,
-      commandName,
-      commandResult,
-    });
   }
 
   protected async recoverThreadAfterNotActive(
@@ -437,51 +456,18 @@ export abstract class ChannelAdapter {
     let accepted = false;
 
     try {
-      const channelTarget = this.buildChannelTarget(opts, sender, channelContext);
-      const channelBinding = channelTarget
-        ? await this.resolveChannelBindingForMessage(channelTarget)
-        : null;
+      const { thread, threadId, binding, chat } = await this.resolveConversationThread(opts, sender);
+      const input = opts.inputParts?.length ? opts.inputParts : [textPart(opts.text)];
 
-      const chat = this.getChatDescriptor(opts, channelContext);
-      let thread: SessionThread | null = null;
-      let threadId: string;
-      if (!channelBinding) {
-        thread = await this.getOrCreateThread(
-          identityKey,
-          opts.userId,
-          channelContext,
-          workspacePath,
-          chat,
-        );
-        threadId = thread.id;
-      } else {
-        if (!channelBinding.threadId) throw new Error("Resolved channel binding omitted its thread id.");
-        threadId = channelBinding.threadId;
-        this.threadMap.set(identityKey, threadId);
-      }
-      this.onThreadContextBound(threadId, channelContext);
-
-      const commandRoute = await this.commandRouter.routeForTurn({
-        identityKey,
-        opts,
-        threadId,
-        sender,
-        workspacePath,
-      });
-      if (commandRoute.kind === "handled") return;
-
-      const turnOpts = commandRoute.opts;
-      const input = turnOpts.inputParts?.length ? turnOpts.inputParts : [textPart(turnOpts.text)];
-
-      if (!thread) {
-        await this.enqueueChannelBoundInput(channelBinding!, input, turnOpts, sender);
+      if (binding) {
+        await this.enqueueChannelBoundInput(binding, input, opts, sender);
         return;
       }
 
-      await this.submitInput(thread, input, sender, channelContext, async () => {
+      await this.submitInput(thread!, input, sender, channelContext, async () => {
         const recovered = await this.recoverThreadAfterNotActive(
           identityKey,
-          turnOpts.userId,
+          opts.userId,
           channelContext,
           workspacePath,
           threadId,
@@ -499,6 +485,35 @@ export abstract class ChannelAdapter {
       );
       throw error;
     }
+  }
+
+  private async resolveConversationThread(
+    opts: ChannelAdapterMessageOpts,
+    sender: SenderContext,
+  ): Promise<{ thread: SessionThread | null; threadId: string; binding: AppBinding | null; chat: ChannelChatDescriptor }> {
+    const channelContext = opts.channelContext ?? "";
+    const identityKey = this.identityKey(opts.userId, channelContext);
+    const channelTarget = this.buildChannelTarget(opts, sender, channelContext);
+    const binding = channelTarget ? await this.resolveChannelBindingForMessage(channelTarget) : null;
+    const chat = this.getChatDescriptor(opts, channelContext);
+    let thread: SessionThread | null = null;
+    let threadId: string;
+    if (binding) {
+      if (!binding.threadId) throw new Error("Resolved channel binding omitted its thread id.");
+      threadId = binding.threadId;
+      this.threadMap.set(identityKey, threadId);
+    } else {
+      thread = await this.getOrCreateThread(
+        identityKey,
+        opts.userId,
+        channelContext,
+        opts.workspacePath ?? this.defaultWorkspacePath,
+        chat,
+      );
+      threadId = thread.id;
+    }
+    this.onThreadContextBound(threadId, channelContext);
+    return { thread, threadId, binding, chat };
   }
 
   private async submitInput(
@@ -663,9 +678,5 @@ export abstract class ChannelAdapter {
       workspacePath,
       chat,
     });
-  }
-
-  async newThread(userId: string, channelContext = ""): Promise<void> {
-    await this.resetIdentityThreads(userId, channelContext);
   }
 }

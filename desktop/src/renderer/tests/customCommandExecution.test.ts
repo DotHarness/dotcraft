@@ -86,26 +86,4 @@ describe('resolveCustomCommandExecution', () => {
     expect(result.message).toBe('Command executed')
     expect(result.isMarkdown).toBe(true)
   })
-
-  it('surfaces session reset thread metadata', async () => {
-    const sendRequest = vi.fn().mockResolvedValue({
-      handled: true,
-      sessionReset: true,
-      createdLazily: true,
-      thread: {
-        id: 'thread-new'
-      },
-      expandedPrompt: 'run on new thread'
-    })
-    const result = await resolveCustomCommandExecution({
-      text: '/code-review',
-      threadId: 'thread-1',
-      commands: CUSTOM_COMMANDS,
-      sendRequest
-    })
-    expect(result.sessionResetThreadId).toBe('thread-new')
-    expect(result.sessionResetThreadSummary?.id).toBe('thread-new')
-    expect(result.createdLazily).toBe(true)
-    expect(result.textForTurn).toBe('run on new thread')
-  })
 })

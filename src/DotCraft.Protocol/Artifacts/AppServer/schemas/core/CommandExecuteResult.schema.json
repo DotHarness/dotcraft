@@ -4,23 +4,13 @@
   "title": "CommandExecuteResult",
   "type": "object",
   "properties": {
-    "archivedThreadIds": {
+    "choices": {
       "anyOf": [
         {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "./CommandChoice.schema.json"
           }
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "createdLazily": {
-      "anyOf": [
-        {
-          "type": "boolean"
         },
         {
           "type": "null"
@@ -52,9 +42,6 @@
           "type": "null"
         }
       ]
-    },
-    "sessionReset": {
-      "type": "boolean"
     },
     "thread": {
       "anyOf": [

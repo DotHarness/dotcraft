@@ -46,11 +46,6 @@ import { buildTextMessageReq, sendMessage } from "./weixin-api.js";
 import { deliverWeixinMessage, weixinDeliveryCapabilities } from "./weixin-delivery.js";
 import { WeixinMediaSender } from "./weixin-media.js";
 
-/** Telegram-style /new: start a fresh thread (strict match, case-insensitive). */
-function isNewCommand(text: string): boolean {
-  return /^\s*\/new\s*$/i.test(text.trim());
-}
-
 function hasUsableCredentials(credentials: WeixinCredentials | null | undefined): credentials is WeixinCredentials {
   if (!credentials) return false;
   return Boolean(credentials.botToken?.trim() && credentials.ilinkBotId?.trim());
@@ -373,13 +368,6 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
-  private cancelPendingUserInputIfAny(userId: string): void {
-    const pending = this.userInputWaiters.get(userId);
-    if (!pending) return;
-    this.userInputWaiters.delete(userId);
-    pending.resolve(emptyUserInputResponse());
-  }
-
   async onDeliver(target: string, content: string, _metadata: Record<string, unknown>): Promise<boolean> {
     try {
       await this.sendWeixinText(target, content);
@@ -561,17 +549,12 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
         .trim() ?? "";
 
     const approver = { channelContext: from, userId: from };
-    if (isNewCommand(text)) {
-      this.approvalReplies.cancel(approver);
-      this.cancelPendingUserInputIfAny(from);
-      await this.newThread(from, from);
-      await this.sendWeixinText(from, "已开启新对话，请直接输入消息。");
-      return;
-    }
-
     if (this.approvalReplies.tryResolve(approver, text)) return;
     if (await this.tryHandleUserInputReply(from, text)) return;
-    if (await this.approvalReplies.remindIfPending(approver)) return;
+    if (this.approvalReplies.hasPending(approver) && !(await this.isCommand(text))) {
+      await this.approvalReplies.remindIfPending(approver);
+      return;
+    }
 
     const name = from;
     // Fire-and-forget so the monitor loop can continue polling for approval replies

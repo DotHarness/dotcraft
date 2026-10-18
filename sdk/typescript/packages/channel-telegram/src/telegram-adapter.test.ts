@@ -3,7 +3,6 @@ import test from "node:test";
 
 import {
   TelegramAdapter,
-  buildTelegramBotCommands,
   isTelegramConflictError,
 } from "./telegram-adapter.js";
 
@@ -15,25 +14,149 @@ async function waitUntil(predicate: () => boolean): Promise<void> {
   assert.equal(predicate(), true);
 }
 
-test("buildTelegramBotCommands keeps defaults and filters unsupported names", async () => {
-  const commands = await buildTelegramBotCommands(async () => [
-    { name: "/deploy", description: "Deploy the current change." },
-    { name: "INVALID-NAME", description: "Should be skipped." },
-    { name: "help", description: "Duplicate built-in command." },
-  ]);
+type CommandTestAdapter = {
+  client: Record<string, unknown>;
+  bot: { api: Record<string, (...args: never[]) => Promise<unknown>> };
+  adminUsers: Set<string>;
+  botUsername: string | undefined;
+  threadContextMap: Map<string, string>;
+  handleMessage: (opts: Record<string, unknown>) => Promise<void>;
+  handleIncomingText: (ctx: Record<string, unknown>) => Promise<void>;
+  handleApprovalCallback: (ctx: Record<string, unknown>) => Promise<void>;
+  publishCommandMenus: (bot: unknown) => Promise<void>;
+  onApprovalRequest: (request: Record<string, unknown>) => Promise<string>;
+  renderCommandChoices: (target: string, choices: Array<Record<string, string>>, context: unknown) => Promise<void>;
+  executeCommandChoice: (command: string, opts: Record<string, unknown>) => Promise<void>;
+};
 
-  assert.deepEqual(commands, [
-    { command: "new", description: "Start a new conversation" },
-    { command: "help", description: "Show available commands" },
-    { command: "deploy", description: "Deploy the current change." },
+function textUpdate(fromId: number, chatId: number, text: string): Record<string, unknown> {
+  return {
+    from: { id: fromId, first_name: `User ${fromId}` },
+    chatId,
+    chat: { id: chatId, type: chatId < 0 ? "supergroup" : "private" },
+    msg: { text },
+  };
+}
+
+test("TelegramAdapter publishes admin-only commands only in admin chat scopes", async () => {
+  const adapter = new TelegramAdapter() as unknown as CommandTestAdapter;
+  const published: Array<{ scope: Record<string, unknown>; commands: string[] }> = [];
+  adapter.adminUsers = new Set(["42"]);
+  adapter.client.commandList = async () => [
+    { name: "/new", description: "Start a new conversation", requiresAdmin: false },
+    { name: "/model", description: "Choose the model", requiresAdmin: true },
+    { name: "/code-review", description: "Not a valid Telegram name", requiresAdmin: false },
+  ];
+  const bot = {
+    api: {
+      async setMyCommands(commands: Array<{ command: string }>, other: { scope: Record<string, unknown> }) {
+        published.push({ scope: other.scope, commands: commands.map(({ command }) => command) });
+        return true;
+      },
+    },
+  };
+
+  await adapter.publishCommandMenus(bot);
+
+  assert.deepEqual(published, [
+    { scope: { type: "default" }, commands: ["new"] },
+    { scope: { type: "all_private_chats" }, commands: ["new"] },
+    { scope: { type: "all_group_chats" }, commands: ["new"] },
+    { scope: { type: "chat", chat_id: 42 }, commands: ["new", "model"] },
   ]);
 });
 
-test("buildTelegramBotCommands exposes the host automation command", async () => {
-  const commands = await buildTelegramBotCommands(async () => [
-    { name: "/automate", description: "Manage automations" },
-  ]);
-  assert.ok(commands.some(({ command }) => command === "automate"));
+test("TelegramAdapter marks only configured admins as admin and strips the bot mention from commands", async () => {
+  const adapter = new TelegramAdapter() as unknown as CommandTestAdapter;
+  const handled: Array<Record<string, unknown>> = [];
+  adapter.adminUsers = new Set(["42"]);
+  adapter.botUsername = "DotCraftBot";
+  adapter.handleMessage = async (opts) => {
+    handled.push(opts);
+  };
+
+  await adapter.handleIncomingText(textUpdate(42, -100, "/stop@DotCraftBot all"));
+  await adapter.handleIncomingText(textUpdate(7, -100, "/stop@OtherBot"));
+
+  assert.deepEqual(handled.map((opts) => opts.text), ["/stop all", "/stop@OtherBot"]);
+  assert.deepEqual(
+    handled.map((opts) => (opts.senderExtra as Record<string, unknown>).senderRole),
+    ["admin", "user"],
+  );
+});
+
+test("TelegramAdapter resolves a chat's pending approval from slash aliases only", async () => {
+  const adapter = new TelegramAdapter() as unknown as CommandTestAdapter;
+  const forwarded: string[] = [];
+  const edits: string[] = [];
+  adapter.bot = {
+    api: {
+      sendMessage: async () => ({ message_id: 7 }),
+      editMessageReplyMarkup: async () => true,
+      editMessageText: async (_chatId: never, _messageId: never, text: never) => {
+        edits.push(text);
+        return true;
+      },
+    },
+  };
+  adapter.threadContextMap.set("thread-1", "-100");
+  adapter.handleMessage = async (opts) => {
+    forwarded.push(String(opts.text));
+  };
+
+  const decision = adapter.onApprovalRequest({ threadId: "thread-1", requestId: "req-1", operation: "rm" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await adapter.handleIncomingText(textUpdate(7, -200, "/approve session"));
+  await adapter.handleIncomingText(textUpdate(7, -100, "yes"));
+  await adapter.handleIncomingText(textUpdate(7, -100, "/approve session"));
+
+  assert.equal(await decision, "acceptForSession");
+  assert.deepEqual(forwarded, ["/approve session", "yes"]);
+  assert.equal(edits.length, 1);
+});
+
+test("TelegramAdapter runs a selected choice for the selecting user and clears the keyboard", async () => {
+  const adapter = new TelegramAdapter() as unknown as CommandTestAdapter;
+  const sent: Array<{ chatId: unknown; options?: Record<string, unknown> }> = [];
+  const executed: Array<{ command: string; opts: Record<string, unknown> }> = [];
+  const edited: unknown[] = [];
+  adapter.adminUsers = new Set(["42"]);
+  adapter.bot = {
+    api: {
+      sendMessage: async (chatId: never, _text: never, options: never) => {
+        sent.push({ chatId, options });
+        return { message_id: 9 };
+      },
+      editMessageText: async (chatId: never) => {
+        edited.push(chatId);
+        return true;
+      },
+    },
+  };
+  adapter.executeCommandChoice = async (command, opts) => {
+    executed.push({ command, opts });
+  };
+
+  await adapter.renderCommandChoices("-100", [
+    { label: "GPT-5", command: "/model gpt-5" },
+    { label: "Mini", command: "/model mini" },
+  ], {});
+  const keyboard = sent[0]?.options?.reply_markup as { inline_keyboard: Array<Array<{ callback_data: string }>> };
+  const data = keyboard.inline_keyboard[1]![0]!.callback_data;
+  assert.ok(Buffer.byteLength(data) <= 64);
+
+  const callback = (fromId: number) => ({
+    from: { id: fromId, first_name: "Ada" },
+    callbackQuery: { data, message: { message_id: 9, chat: { id: -100 } } },
+    answerCallbackQuery: async () => true,
+  });
+  await adapter.handleApprovalCallback(callback(42));
+  await adapter.handleApprovalCallback(callback(42));
+
+  assert.deepEqual(executed.map(({ command }) => command), ["/model mini"]);
+  assert.equal((executed[0]?.opts.senderExtra as Record<string, unknown>).senderRole, "admin");
+  assert.equal(executed[0]?.opts.channelContext, "-100");
+  assert.deepEqual(edited, [-100]);
 });
 
 test("TelegramAdapter builds channel binding target from chat context", () => {
@@ -80,7 +203,7 @@ test("TelegramAdapter accepts channel bind codes for chat context", async () => 
       request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
     };
     commandRouter: {
-      routeBeforeQueue: () => Promise<"enqueue" | "handled">;
+      run: () => Promise<void>;
     };
     onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
     handleMessage: (opts: Record<string, unknown>) => Promise<void>;
@@ -88,7 +211,7 @@ test("TelegramAdapter accepts channel bind codes for chat context", async () => 
   const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
   const deliveries: Array<{ target: string; content: string; metadata: Record<string, unknown> }> = [];
 
-  adapter.commandRouter.routeBeforeQueue = async () => {
+  adapter.commandRouter.run = async () => {
     throw new Error("bind command should not reach command routing");
   };
   adapter.client.request = async (method, params) => {

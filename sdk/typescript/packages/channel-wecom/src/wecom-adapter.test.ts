@@ -21,8 +21,8 @@ test("WeComPermissionService classifies admins, whitelisted users, chats, and un
   });
 
   assert.equal(permissions.getUserRole("admin"), "admin");
-  assert.equal(permissions.getUserRole("user"), "whitelisted");
-  assert.equal(permissions.getUserRole("someone", "chat"), "whitelisted");
+  assert.equal(permissions.getUserRole("user"), "user");
+  assert.equal(permissions.getUserRole("someone", "chat"), "user");
   assert.equal(permissions.getUserRole("someone", "other"), "unauthorized");
 });
 
@@ -172,6 +172,7 @@ test("WeComAdapter answers sends to unreachable targets with UnsupportedTarget",
 
 test("WeComAdapter reports the sender's direct chat once they have messaged the bot directly", async () => {
   const adapter = new WeComAdapter() as unknown as {
+    permission: WeComPermissionService;
     handleMessage: (opts: Record<string, unknown>) => Promise<void>;
     getChatDescriptor: (opts: Record<string, unknown>, channelContext: string) => Record<string, unknown>;
     runInboundMessage: (
@@ -183,6 +184,7 @@ test("WeComAdapter reports the sender's direct chat once they have messaged the 
     ) => Promise<void>;
   };
   const captured: Record<string, unknown>[] = [];
+  adapter.permission = new WeComPermissionService({ whitelistedUsers: ["u1"] });
   adapter.handleMessage = async (opts) => {
     captured.push(opts);
   };
@@ -292,11 +294,12 @@ test("WeComAdapter builds channel binding target from chat context", () => {
 
 test("WeComAdapter accepts channel bind codes before forwarding to the agent", async () => {
   const adapter = new WeComAdapter() as unknown as {
+    permission: WeComPermissionService;
     client: {
       request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
     };
     commandRouter: {
-      routeBeforeQueue: () => Promise<"enqueue" | "handled">;
+      run: () => Promise<void>;
     };
     onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
     handleTextMessage: (
@@ -308,7 +311,8 @@ test("WeComAdapter accepts channel bind codes before forwarding to the agent", a
   const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
   const deliveries: Array<{ target: string; content: string; metadata: Record<string, unknown> }> = [];
 
-  adapter.commandRouter.routeBeforeQueue = async () => {
+  adapter.permission = new WeComPermissionService({ whitelistedUsers: ["u1"] });
+  adapter.commandRouter.run = async () => {
     throw new Error("bind command should not reach command routing");
   };
   adapter.client.request = async (method, params) => {
@@ -374,6 +378,8 @@ test("WeComAdapter accepts channel bind codes before forwarding to the agent", a
 });
 
 type WeComApprovalTestAdapter = {
+  client: { commandList: () => Promise<Record<string, unknown>[]> };
+  permission: WeComPermissionService;
   approvalTimeoutMs: number;
   threadContextMap: Map<string, string>;
   lastSenderByContext: Map<string, string>;
@@ -401,6 +407,8 @@ function createWeComApprovalTestAdapter(): {
       pushed.push({ target, content });
     },
   });
+  adapter.permission = new WeComPermissionService({ whitelistedUsers: ["u1", "u2"] });
+  adapter.client.commandList = async () => [{ name: "/new", aliases: [] }];
   adapter.handleMessage = async (opts) => {
     forwarded.push(opts);
   };
@@ -424,18 +432,33 @@ test("WeComAdapter resolves approvals only for the matching sender and chat", as
   assert.equal(await first, "cancel");
 });
 
-test("WeComAdapter holds other messages from the approver while an approval is pending", async () => {
+test("WeComAdapter holds the approver's messages except commands while an approval is pending", async () => {
   const { adapter, pushed, forwarded } = createWeComApprovalTestAdapter();
   const decision = adapter.approvalReplies.wait("req-1", { channelContext: "chat:chat-1", userId: "u1" }, 10_000);
 
   await adapter.handleTextMessage(["/new"], { userId: "u1", name: "User One", alias: "" }, chatPusher("chat-1"));
+  await adapter.handleTextMessage(["later"], { userId: "u1", name: "User One", alias: "" }, chatPusher("chat-1"));
   await adapter.handleTextMessage(["hello"], { userId: "u2", name: "User Two", alias: "" }, chatPusher("chat-1"));
 
   assert.deepEqual(pushed, [{ target: "chat:chat-1", content: APPROVAL_REPLY_PENDING_NOTICE }]);
-  assert.deepEqual(forwarded.map((opts) => opts.text), ["hello"]);
+  assert.deepEqual(forwarded.map((opts) => opts.text), ["/new", "hello"]);
 
   await adapter.handleTextMessage(["拒绝"], { userId: "u1", name: "User One", alias: "" }, chatPusher("chat-1"));
   assert.equal(await decision, "decline");
+});
+
+test("WeComAdapter forwards whitelisted senders as users and drops unauthorized senders", async () => {
+  const { adapter, forwarded } = createWeComApprovalTestAdapter();
+  adapter.permission = new WeComPermissionService({ adminUsers: ["boss"], whitelistedUsers: ["u1"] });
+
+  await adapter.handleTextMessage(["hi"], { userId: "boss", name: "Boss", alias: "" }, chatPusher("chat-1"));
+  await adapter.handleTextMessage(["hi"], { userId: "u1", name: "User One", alias: "" }, chatPusher("chat-1"));
+  await adapter.handleTextMessage(["hi"], { userId: "stranger", name: "Stranger", alias: "" }, chatPusher("chat-1"));
+
+  assert.deepEqual(
+    forwarded.map((opts) => (opts.sender as Record<string, unknown>).senderRole),
+    ["admin", "user"],
+  );
 });
 
 test("WeComAdapter tells the approver when an approval times out", async () => {

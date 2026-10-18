@@ -51,6 +51,8 @@ export type { InputPart, SenderContext } from "@dotcraft/sdk";
 export type {
   AppBinding,
   AppBindingRequestGetResult,
+  CommandChoice,
+  CommandInfo,
   DynamicToolCallResult,
   DynamicToolContentItem,
   RuntimeAdditionalContextEntry,
@@ -69,7 +71,7 @@ export {
   ApprovalReplyTracker,
   parseApprovalReplyDecision,
 } from "./approvalReplies.js";
-export type { ApprovalReplyRecipient, ApprovalReplyTrackerOptions } from "./approvalReplies.js";
+export type { ApprovalReplyParseOptions, ApprovalReplyRecipient, ApprovalReplyTrackerOptions } from "./approvalReplies.js";
 export {
   buildUserInputPrompt,
   canUseNativeSingleChoiceUserInput,
@@ -90,3 +92,4 @@ export type {
   UserInputResponse,
 } from "./userInput.js";
 export type { ChannelTurn, ChannelTurnOutcome, TurnItemActivity } from "./turnStream.js";
+export type { CommandChoiceContext } from "./commandRouter.js";

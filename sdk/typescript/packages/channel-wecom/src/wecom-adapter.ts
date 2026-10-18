@@ -233,12 +233,6 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     if (channelContext) this.threadContextMap.set(threadId, channelContext);
   }
 
-  protected override onThreadsArchived(_identityKey: string, archivedThreadIds: string[]): void {
-    for (const threadId of archivedThreadIds) {
-      this.threadContextMap.delete(threadId);
-    }
-  }
-
   override async onDeliver(target: string, content: string, _metadata: Record<string, unknown>): Promise<boolean> {
     try {
       const pusher = this.createPusher(target);
@@ -435,7 +429,14 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
   ): Promise<void> {
     const chatId = pusher.getChatId();
     const channelContext = `chat:${chatId}`;
-    if (await this.approvalReplies.remindIfPending({ channelContext, userId: from.userId })) {
+    const role = this.permission.getUserRole(from.userId, chatId);
+    if (role === "unauthorized") {
+      console.info(`[wecom] unauthorized user ${from.userId} ignored`);
+      return;
+    }
+    const approver = { channelContext, userId: from.userId };
+    if (this.approvalReplies.hasPending(approver) && !(await this.isCommand(text))) {
+      await this.approvalReplies.remindIfPending(approver);
       return;
     }
     const senderName = from.name || from.alias || from.userId;
@@ -443,7 +444,6 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     const chatKind = chatType === WeComChatType.Single ? "direct" : "group";
     this.chatKindByContext.set(channelContext, chatKind);
     if (chatKind === "direct" && from.userId) this.directChatByUser.set(from.userId, channelContext);
-    const role = this.permission.getUserRole(from.userId, chatId);
     await this.handleMessage({
       userId: channelContext,
       userName: senderName,

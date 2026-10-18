@@ -17,6 +17,23 @@ public sealed partial class SessionService
     internal Task<BackgroundTask> StopBackgroundTaskAsync(SubAgentSessionContext context, string taskId, CancellationToken ct) =>
         BackgroundTasks.StopAsync(new BackgroundTaskCaller(context.ParentThread, context.RootThreadId), taskId, ct);
 
+    public async Task<IReadOnlyList<BackgroundTask>> ListBackgroundTasksAsync(string threadId, CancellationToken ct = default) =>
+        await BackgroundTasks.ListAsync(await UserTaskCallerAsync(threadId, ct).ConfigureAwait(false), ct).ConfigureAwait(false);
+
+    /// <inheritdoc/>
+    public async Task<BackgroundTask> StopBackgroundTaskAsync(string threadId, string taskId, CancellationToken ct = default) =>
+        await BackgroundTasks.StopAsync(
+            await UserTaskCallerAsync(threadId, ct).ConfigureAwait(false),
+            taskId,
+            ct,
+            BackgroundTaskRegistry.UserStopOrigin).ConfigureAwait(false);
+
+    private async Task<BackgroundTaskCaller> UserTaskCallerAsync(string threadId, CancellationToken ct)
+    {
+        var thread = await GetOrLoadThreadAsync(threadId, ct).ConfigureAwait(false);
+        return new BackgroundTaskCaller(thread, thread.Source.SubAgent?.RootThreadId ?? thread.Id);
+    }
+
     private const string TaskPresentationId = "core.task";
     private const string TaskKindPresentationOption = "kind";
 
@@ -53,6 +70,18 @@ public sealed partial class SessionService
                 terminal.Status == BackgroundTerminalStatus.Running
                     ? owner._terminalStopLatches.GetOrAdd(terminal.SessionId, static _ => new BackgroundTaskLatch())
                     : null);
+        }
+
+        public async Task<IReadOnlyList<BackgroundTask>> ListAsync(BackgroundTaskCaller caller, CancellationToken ct)
+        {
+            if (owner.BackgroundTerminalService is not { } terminals)
+                return [];
+            var listed = await terminals.ListAsync(caller.Thread.Id, ct).ConfigureAwait(false);
+            return listed.Select(terminal => BackgroundTaskTools.ToTask(
+                terminal,
+                terminal.Status == BackgroundTerminalStatus.Running
+                    ? owner._terminalStopLatches.GetOrAdd(terminal.SessionId, static _ => new BackgroundTaskLatch())
+                    : null)).ToArray();
         }
 
         public Task StopAsync(BackgroundTask task, CancellationToken ct) =>

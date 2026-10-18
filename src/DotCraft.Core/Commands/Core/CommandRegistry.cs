@@ -176,6 +176,8 @@ public sealed class CommandRegistry
                     return CommandResult.HandledResult();
                 }
 
+                if (!await ApplyBusyBehaviorAsync(registration.Busy, context))
+                    return CommandResult.HandledResult(FallbackText.CommandBusy);
             }
 
             return await handler.HandleAsync(context, responder);
@@ -203,6 +205,21 @@ public sealed class CommandRegistry
         var msg = CommandHelper.FormatUnknownCommandMessage(rawText, [.. GetKnownCommands(context.SessionId)]);
         await responder.SendTextAsync(msg);
         return CommandResult.HandledResult();
+    }
+
+    private static async Task<bool> ApplyBusyBehaviorAsync(CommandBusyBehavior busy, CommandContext context)
+    {
+        if (busy == CommandBusyBehavior.Run || context.SessionService is not { } sessions)
+            return true;
+
+        var thread = await sessions.GetThreadAsync(context.SessionId);
+        if (CommandThreads.ActiveTurn(thread) is not { } active)
+            return true;
+        if (busy == CommandBusyBehavior.Reject)
+            return false;
+
+        await sessions.CancelTurnAsync(thread.Id, active.Id);
+        return true;
     }
 
     /// <summary>
@@ -262,19 +279,51 @@ public sealed class CommandRegistry
         registry.RegisterHandler(new NewCommandHandler(), new CommandRegistration
         {
             Name = "/new",
-            DescriptionKey = "cmd.new"
-        });
-        registry.RegisterHandler(new DebugCommandHandler(), new CommandRegistration
-        {
-            Name = "/debug",
-            RequiresAdmin = true,
-            DescriptionKey = "cmd.debug"
+            DescriptionKey = "cmd.new",
+            Busy = CommandBusyBehavior.InterruptFirst
         });
         registry.RegisterHandler(new StopCommandHandler(), new CommandRegistration
         {
             Name = "/stop",
-            RequiresAdmin = true,
             DescriptionKey = "command.stop.description"
+        });
+        registry.RegisterHandler(new TasksCommandHandler(), new CommandRegistration
+        {
+            Name = "/tasks",
+            DescriptionKey = "command.tasks.description"
+        });
+        registry.RegisterHandler(new StatusCommandHandler(), new CommandRegistration
+        {
+            Name = "/status",
+            DescriptionKey = "command.status.description"
+        });
+        registry.RegisterHandler(new ModelCommandHandler(), new CommandRegistration
+        {
+            Name = "/model",
+            RequiresAdmin = true,
+            DescriptionKey = "command.model.description"
+        });
+        registry.RegisterHandler(new ModeCommandHandler(), new CommandRegistration
+        {
+            Name = "/mode",
+            DescriptionKey = "command.mode.description"
+        });
+        registry.RegisterHandler(new SessionsCommandHandler(), new CommandRegistration
+        {
+            Name = "/sessions",
+            DescriptionKey = "command.sessions.description"
+        });
+        registry.RegisterHandler(new ResumeCommandHandler(), new CommandRegistration
+        {
+            Name = "/resume",
+            DescriptionKey = "command.resume.description",
+            Busy = CommandBusyBehavior.InterruptFirst
+        });
+        registry.RegisterHandler(new CompactCommandHandler(), new CommandRegistration
+        {
+            Name = "/compact",
+            DescriptionKey = "command.compact.description",
+            Busy = CommandBusyBehavior.Reject
         });
         registry.RegisterHandler(new HelpCommandHandler(), new CommandRegistration
         {
@@ -284,7 +333,15 @@ public sealed class CommandRegistry
         registry.RegisterHandler(new InitCommandHandler(), new CommandRegistration
         {
             Name = "/init",
-            DescriptionKey = "cmd.init"
+            RequiresAdmin = true,
+            DescriptionKey = "cmd.init",
+            Busy = CommandBusyBehavior.Reject
+        });
+        registry.RegisterHandler(new DebugCommandHandler(), new CommandRegistration
+        {
+            Name = "/debug",
+            RequiresAdmin = true,
+            DescriptionKey = "cmd.debug"
         });
 
         return registry;
@@ -359,6 +416,14 @@ public sealed record CommandRegistration
     public string? FallbackDescription { get; init; }
     public string Category { get; init; } = "builtin";
     public bool RequiresAdmin { get; init; }
+    public CommandBusyBehavior Busy { get; init; } = CommandBusyBehavior.Run;
+}
+
+public enum CommandBusyBehavior
+{
+    Run,
+    InterruptFirst,
+    Reject
 }
 
 /// <summary>

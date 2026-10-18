@@ -15,6 +15,7 @@ export interface FeishuConfig {
     approvalTimeoutMs?: number;
     groupMentionRequired?: boolean;
     ackReactionEmoji?: string;
+    adminUsers?: string[];
     cli?: {
       enabled?: boolean;
       /** Feishu user scopes to request; an empty list keeps the CLI on Bot identity only. */

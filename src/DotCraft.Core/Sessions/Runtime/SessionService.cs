@@ -481,15 +481,6 @@ public sealed partial class SessionService(
         _runtimeRegistry.TryGetThread(threadId, out var thread) && ThreadVisibility.IsHidden(thread);
 
     /// <inheritdoc/>
-    public async Task<ThreadResetResult> ResetConversationAsync(
-        SessionIdentity identity,
-        ThreadConfiguration? config = null,
-        HistoryMode historyMode = HistoryMode.Server,
-        string? displayName = null,
-        CancellationToken ct = default)
-        => await ThreadCreation.ResetConversationAsync(identity, config, historyMode, displayName, ct);
-
-    /// <inheritdoc/>
     public async Task<SessionThread> ForkThreadAsync(
         string threadId,
         ThreadForkOptions? options = null,

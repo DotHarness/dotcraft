@@ -8,6 +8,7 @@ public sealed class AutomationCommandHandler(AutomationService service) : IComma
     public CommandRegistration Metadata => new()
     {
         Name = "/automate",
+        RequiresAdmin = true,
         DescriptionKey = "command.automate.description",
         FallbackDescription = "Manage scheduled automations"
     };

@@ -154,7 +154,7 @@ This section defines the protocol-level obligations that any conforming external
 - The adapter **must** send `initialize` as the first message on connection, with `capabilities.channelAdapter` present.
 - The adapter **must** send the `initialized` notification after receiving the `initialize` response before making any other requests.
 - `channelAdapter.channelName` **must** match the channel name declared in server-side configuration.
-- `channelAdapter.displayName` **must** name the platform as people know it, for example `Telegram`.
+- `channelAdapter.displayName` **must** name the platform as people know it.
 - `channelAdapter.deliveryCapabilities` **must** declare `text` and `targets`, and a `media` entry for every attachment kind its `ext/channel/send` delivers. `targets` **must** describe only chats the adapter can actually reach.
 - `channelAdapter.channelTools`, when present, **must** be declared during `initialize`; they are not loaded from server-side `ExternalChannels` configuration.
 - A companion executable used by a `channelTool` **must** be resolved, configured, started, cancelled, and drained by the adapter; AppServer must not acquire product-specific process knowledge from the declaration.
@@ -179,10 +179,21 @@ This section defines the protocol-level obligations that any conforming external
 
 - The adapter **must** populate `SenderContext` in `turn/start` with at minimum `senderId` and `senderName`. This enables correct attribution in the turn's `initiator` record and cross-channel audit logging.
 - The adapter is responsible for permission checks before forwarding a message to DotCraft. DotCraft trusts the `SenderContext` presented by the adapter.
+- The adapter sets `senderRole = "admin"` only for senders on its configured admin list and forwards every other permitted sender as `"user"`. An adapter whose platform lets only the bot's owner reach it has no admin list and forwards every sender as `"admin"`. It drops messages from senders it does not permit without forwarding them.
 - The adapter **should** set `directTarget` to the sender's direct chat in its `ext/channel/send` target syntax whenever it can deliver there, including for messages that arrive in a group.
 - The `groupId` field identifies the group a message came from and is omitted for direct chats. The default delivery target of a Turn, captured as the origin of an automation created during it, is the thread's `channelContext`.
 
-### 10.4 Server-to-Client Requests
+### 10.4 Commands
+
+- A message is a command only when its first word is the name or alias of a command `command/list` returns. Any other text, including text such as a path that starts with `/`, is ordinary input.
+- The adapter runs a command with `command/execute` on the conversation's current thread as soon as it arrives. Commands bypass the adapter's per-conversation message queue, whether or not a Turn is active and whether or not the adapter has already resolved the thread; the adapter resolves the thread first when it has none cached. A command arriving while an approval is pending for the sender is executed, not answered with the approval reminder.
+- When a result carries `thread`, the adapter makes it the conversation's current thread and resumes it with the conversation's `chat` before forwarding further input to it.
+- When a result carries `expandedPrompt`, the adapter submits the sender's original text as a `commandRef` input like any other inbound message.
+- The adapter shows `message`, followed by `choices` when present: with buttons or cards when the platform has interactive controls, where selecting one executes its `command` for the selecting sender, otherwise as a numbered list that shows each choice's `command`.
+- An adapter whose platform has a native command menu fills it from `command/list`, showing commands with `requiresAdmin` only to admins. Where the platform scopes menus by chat or chat kind, the adapter uses those scopes; where it cannot scope a menu to the senders allowed to use a command, that command is left out of the menu.
+- Adapter-local commands are limited to platform setup, such as `/bind` and adapter-owned account authorization. Conversation lifecycle commands such as `/new` are server commands.
+
+### 10.5 Server-to-Client Requests
 
 The adapter **must** handle the following server-initiated requests:
 
@@ -195,7 +206,7 @@ The adapter **must** handle the following server-initiated requests:
 
 The adapter **must not** ignore these requests. An unanswered approval stays pending until a client answers it or its turn ends ([AppServer Protocol](appserver-protocol.md) §7.6); an unanswered heartbeat marks the connection unhealthy.
 
-### 10.5 Connection Lifecycle (WebSocket Mode)
+### 10.6 Connection Lifecycle (WebSocket Mode)
 
 - The adapter is responsible for reconnecting after a disconnection. It should use exponential backoff.
 - After reconnection, the adapter **must** re-perform the full `initialize` / `initialized` handshake.
@@ -216,7 +227,8 @@ The adapter plays the client role in the [AppServer approval flow](appserver-pro
 - The adapter **must** map the platform's callback identifier to the Wire Protocol `request.id` and send the JSON-RPC response when the user responds.
 - Multiple approval requests may be in flight on different threads simultaneously. The callback-to-request mapping **must** be per-request, not global.
 - The server has no approval timeout. When a request resolves without the adapter's answer, for example because its turn ended, the adapter receives `item/approval/resolved` and should clean up its pending approval UI.
-- An adapter that collects decisions from plain-text replies accepts each reply keyword with or without a leading `/`. While an approval is pending for a sender in a conversation, that sender's other messages in the conversation are not forwarded; the adapter answers each with a short reminder of the accepted replies. When the adapter's own approval wait expires, it responds `cancel` and tells the approver that the approval timed out.
+- Every adapter accepts `/approve`, `/approve session` and `/deny` from the sender as answers to that sender's pending approval in the conversation, mapping them to `accept`, `acceptForSession` and `decline`, in addition to its buttons or reply keywords. These replies are not registry commands.
+- An adapter that collects decisions from plain-text replies accepts each reply keyword with or without a leading `/`. While an approval is pending for a sender in a conversation, that sender's other messages in the conversation are not forwarded, except commands (§10.4); the adapter answers each with a short reminder of the accepted replies. When the adapter's own approval wait expires, it responds `cancel` and tells the approver that the approval timed out.
 
 ### 11.3 Decision Values
 

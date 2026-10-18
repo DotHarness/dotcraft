@@ -80,3 +80,30 @@ test("ApprovalReplyTracker cancels on timeout and tells the approver", async () 
   assert.deepEqual(notices, [{ recipient: approver, text: APPROVAL_REPLY_TIMEOUT_NOTICE }]);
   assert.equal(tracker.tryResolve(approver, "yes"), false);
 });
+
+test("ApprovalReplyTracker resolves the sender's pending approval from slash aliases", async () => {
+  const { tracker } = createTracker();
+  const approver = { channelContext: "group:1", userId: "10" };
+
+  const session = tracker.wait("req-1", approver, 10_000);
+  assert.equal(tracker.tryResolve(approver, "/approve session"), true);
+  assert.equal(await session, "acceptForSession");
+
+  const accepted = tracker.wait("req-2", approver, 10_000);
+  assert.equal(tracker.tryResolve(approver, "/approve"), true);
+  assert.equal(await accepted, "accept");
+
+  const declined = tracker.wait("req-3", approver, 10_000);
+  assert.equal(tracker.tryResolve(approver, "/deny"), true);
+  assert.equal(await declined, "decline");
+});
+
+test("parseApprovalReplyDecision can match only the slash aliases", () => {
+  const options = { slashAliasesOnly: true };
+  assert.equal(parseApprovalReplyDecision("/approve", options), "accept");
+  assert.equal(parseApprovalReplyDecision("/Approve  Session", options), "acceptForSession");
+  assert.equal(parseApprovalReplyDecision("/deny", options), "decline");
+  assert.equal(parseApprovalReplyDecision("approve", options), null);
+  assert.equal(parseApprovalReplyDecision("yes", options), null);
+  assert.equal(parseApprovalReplyDecision("/yes", options), null);
+});

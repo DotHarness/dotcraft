@@ -1,4 +1,6 @@
+using DotCraft.Agents;
 using DotCraft.Commands.Core;
+using DotCraft.Configuration;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
@@ -11,6 +13,8 @@ internal sealed class CommandRequestHandler(
     ISessionService sessionService,
     AppServerConnection connection,
     string? workspaceCraftPath,
+    Func<AppConfig?> currentConfig,
+    ModelProviderRegistry? modelProviders,
     Func<SessionThread, CancellationToken, Task<SessionWireThread>> enrichThreadAsync) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
@@ -75,68 +79,48 @@ internal sealed class CommandRequestHandler(
 
         var commandName = ExtractCommandName(command);
         var registration = commandRegistry.GetRegistration(commandName);
-
-        if (registration != null && !IsSenderAllowed(registration, sender))
+        var isAdmin = sender == null
+            ? !connection.IsChannelAdapter
+            : string.Equals(Read(sender.SenderRole), "admin", StringComparison.OrdinalIgnoreCase);
+        if (registration is { RequiresAdmin: true } && !isAdmin)
             throw AppServerErrors.CommandPermissionDenied(commandName);
 
-        var thread = await sessionService.GetThreadAsync(threadId, ct);
+        await sessionService.GetThreadAsync(threadId, ct);
         var rawText = BuildRawText(command, arguments);
-        var senderId = Read(sender?.SenderId) ?? thread.UserId ?? connection.ClientInfo?.Name ?? "anonymous";
-        var senderName = Read(sender?.SenderName) ?? thread.UserId ?? connection.ClientInfo?.Name ?? "anonymous";
-        var source = string.IsNullOrWhiteSpace(thread.OriginChannel)
-            ? (connection.IsChannelAdapter ? connection.ChannelAdapterName ?? "external" : "appserver")
-            : thread.OriginChannel;
-
         var context = new CommandContext
         {
             SessionId = threadId,
             RawText = rawText,
-            UserId = senderId,
-            UserName = senderName,
-            IsAdmin = string.Equals(Read(sender?.SenderRole), "admin", StringComparison.OrdinalIgnoreCase),
-            Source = source,
-            GroupId = Read(sender?.GroupId),
-            ChannelContext = thread.ChannelContext,
-            WorkspacePath = thread.WorkspacePath,
+            IsAdmin = isAdmin,
             SessionService = sessionService,
-            CommandRegistry = commandRegistry
+            CommandRegistry = commandRegistry,
+            Config = currentConfig(),
+            ModelProviders = modelProviders
         };
 
         var responder = new BufferedCommandResponder();
         var result = await commandRegistry.TryExecuteAsync(rawText, context, responder);
-        SessionWireThread? resetThread = null;
-        if (!string.IsNullOrWhiteSpace(result.NewThreadId))
-        {
-            try
-            {
-                var freshThread = await sessionService.GetThreadAsync(result.NewThreadId, ct);
-                resetThread = await enrichThreadAsync(freshThread, ct);
-            }
-            catch
-            {
-                // Best-effort enrichment for command/execute response.
-            }
-        }
+        SessionWireThread? switched = null;
+        if (!string.IsNullOrWhiteSpace(result.ThreadId))
+            switched = await enrichThreadAsync(await sessionService.GetThreadAsync(result.ThreadId, ct), ct);
 
         return new Contract.CommandExecuteResult
         {
             Handled = result.Handled,
-            Message = responder.Message ?? result.Message,
+            Message = JoinMessages(responder.Message, result.Message),
             IsMarkdown = responder.IsMarkdown || result.IsMarkdown,
             ExpandedPrompt = result.ExpandedPrompt,
-            SessionReset = result.SessionReset,
-            Thread = resetThread is null ? null : AppServerContractMapper.ToContract(resetThread),
-            ArchivedThreadIds = new Protocol.Optional<IReadOnlyList<string>?>(result.ArchivedThreadIds?.ToArray()),
-            CreatedLazily = result.CreatedLazily
+            Thread = switched is null ? null : AppServerContractMapper.ToContract(switched),
+            Choices = result.Choices is { Count: > 0 } choices
+                ? choices.Select(static choice => new Contract.CommandChoice { Label = choice.Label, Command = choice.Command }).ToArray()
+                : null
         };
     }
 
-    private static bool IsSenderAllowed(CommandRegistration registration, Contract.SenderContext? sender)
-    {
-        if (!registration.RequiresAdmin)
-            return true;
-        return string.Equals(Read(sender?.SenderRole), "admin", StringComparison.OrdinalIgnoreCase);
-    }
+    private static string? JoinMessages(string? responded, string? returned) =>
+        string.IsNullOrWhiteSpace(responded) ? returned
+        : string.IsNullOrWhiteSpace(returned) ? responded
+        : $"{responded}{Environment.NewLine}{returned}";
 
     private static string ExtractCommandName(string rawCommand)
     {

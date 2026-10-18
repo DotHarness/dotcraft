@@ -30,14 +30,6 @@ public interface ISessionService
         ThreadSource? source = null,
         bool ephemeral = false);
 
-    /// <summary>Archives reusable threads for an identity and creates a new Thread.</summary>
-    Task<ThreadResetResult> ResetConversationAsync(
-        SessionIdentity identity,
-        ThreadConfiguration? config = null,
-        HistoryMode historyMode = HistoryMode.Server,
-        string? displayName = null,
-        CancellationToken ct = default);
-
     /// <summary>Forks a Thread at an optional history point.</summary>
     Task<SessionThread> ForkThreadAsync(
         string threadId,
@@ -292,6 +284,13 @@ public interface ISessionService
 
     /// <summary>Terminates all background terminals owned by a Thread.</summary>
     Task CleanBackgroundTerminalsAsync(string threadId, CancellationToken ct = default);
+
+    Task<IReadOnlyList<BackgroundTask>> ListBackgroundTasksAsync(string threadId, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<BackgroundTask>>([]);
+
+    /// <summary>Stops a background task the Thread owns on behalf of the user and waits a bounded time for it to settle.</summary>
+    Task<BackgroundTask> StopBackgroundTaskAsync(string threadId, string taskId, CancellationToken ct = default) =>
+        throw new NotSupportedException("Background tasks are not supported by this session service.");
 
     /// <summary>
     /// Removes Turns from the end of a Thread without reverting tool side effects.

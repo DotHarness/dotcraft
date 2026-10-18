@@ -6,7 +6,7 @@ namespace DotCraft.Tests.Commands;
 public sealed class CommandDescriptionTests
 {
     [Theory]
-    [InlineData("cmd.new", "Module fallback", "Create a new session")]
+    [InlineData("cmd.help", "Module fallback", "Show help information")]
     [InlineData("module.command.description", "Module fallback", "Module fallback")]
     [InlineData("", "Module fallback", "Module fallback")]
     [InlineData("module.command.description", null, "/module-command")]

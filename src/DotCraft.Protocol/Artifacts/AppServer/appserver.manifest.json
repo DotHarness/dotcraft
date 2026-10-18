@@ -5953,6 +5953,31 @@
       "variants": []
     },
     {
+      "id": "core.CommandChoice",
+      "name": "CommandChoice",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/CommandChoice.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "command",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.CommandExecParams",
       "name": "CommandExecParams",
       "module": "core",
@@ -6078,15 +6103,8 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "archivedThreadIds",
-          "type": "array<string>",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "createdLazily",
-          "type": "boolean",
+          "name": "choices",
+          "type": "array<core.CommandChoice>",
           "required": false,
           "nullable": true,
           "const": null
@@ -6117,13 +6135,6 @@
           "type": "string",
           "required": false,
           "nullable": true,
-          "const": null
-        },
-        {
-          "name": "sessionReset",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
           "const": null
         },
         {

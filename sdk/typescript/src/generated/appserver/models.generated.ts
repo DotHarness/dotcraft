@@ -1210,6 +1210,12 @@ export interface ClientInfo {
   [key: string]: unknown;
 }
 
+export interface CommandChoice {
+  command?: string;
+  label?: string;
+  [key: string]: unknown;
+}
+
 export interface CommandExecParams {
   command: string[];
   cwd?: string;
@@ -1235,13 +1241,11 @@ export interface CommandExecuteParams {
 }
 
 export interface CommandExecuteResult {
-  archivedThreadIds?: string[] | null;
-  createdLazily?: boolean | null;
+  choices?: CommandChoice[] | null;
   expandedPrompt?: string | null;
   handled?: boolean;
   isMarkdown?: boolean;
   message?: string | null;
-  sessionReset?: boolean;
   thread?: SessionThread | null;
   [key: string]: unknown;
 }

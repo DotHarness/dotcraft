@@ -4,7 +4,11 @@ import {
   DECISION_CANCEL,
   DECISION_DECLINE,
 } from "@dotcraft/channel";
-import { canUseNativeSingleChoiceUserInput, normalizeUserInputQuestions } from "@dotcraft/channel";
+import {
+  canUseNativeSingleChoiceUserInput,
+  normalizeUserInputQuestions,
+  type CommandChoice,
+} from "@dotcraft/channel";
 import {
   CARD_LOCALES,
   cardText,
@@ -211,8 +215,15 @@ export function buildUserInputResolvedCard(params: {
   return buildV2Card(cardText("inputReceivedTitle"), "green", [markdownElement(body)]);
 }
 
-export function buildNewConversationCard(): Record<string, unknown> {
-  return buildV2Card(cardText("newConversationTitle"), "blue", [markdownElement(cardText("newConversationBody"))]);
+export function buildCommandChoicesCard(choices: CommandChoice[], channelContext: string): Record<string, unknown> {
+  const buttons = choices.map((choice, index) => ({
+    tag: "button",
+    element_id: `command_choice_${index}`,
+    text: { tag: "plain_text", content: (choice.label || choice.command || "").slice(0, 64) },
+    type: "default",
+    behaviors: [{ type: "callback", value: { kind: "command", command: choice.command, channelContext } }],
+  }));
+  return buildV2Card(cardText("commandChoicesTitle"), "blue", buttons);
 }
 
 const AUTH_NOTICE_TEMPLATES = {

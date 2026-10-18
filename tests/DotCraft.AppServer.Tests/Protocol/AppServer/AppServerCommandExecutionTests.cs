@@ -46,8 +46,9 @@ public sealed class AppServerCommandExecutionTests : IDisposable
             .EnumerateArray()
             .First(e => e.GetProperty("name").GetString() == "/new");
         Assert.Equal("cmd.new", newCommand.GetProperty("descriptionKey").GetString());
-        Assert.Equal("Create a new session", newCommand.GetProperty("fallbackDescription").GetString());
-        Assert.Equal("Create a new session", newCommand.GetProperty("description").GetString());
+        Assert.Equal(
+            newCommand.GetProperty("fallbackDescription").GetString(),
+            newCommand.GetProperty("description").GetString());
     }
 
     [Fact]
@@ -203,7 +204,7 @@ public sealed class AppServerCommandExecutionTests : IDisposable
     }
 
     [Fact]
-    public async Task CommandExecute_New_ReturnsSessionResetPayloadAndFreshThread()
+    public async Task CommandExecute_New_ReturnsTheNewCurrentThreadAndArchivesTheOldOne()
     {
         var existing = await _h.Service.CreateThreadAsync(_h.Identity);
 
@@ -219,12 +220,6 @@ public sealed class AppServerCommandExecutionTests : IDisposable
 
         var result = response.RootElement.GetProperty("result");
         Assert.True(result.GetProperty("handled").GetBoolean());
-        Assert.True(result.GetProperty("sessionReset").GetBoolean());
-        Assert.True(result.GetProperty("createdLazily").GetBoolean());
-
-        var archived = result.GetProperty("archivedThreadIds");
-        Assert.Contains(archived.EnumerateArray().Select(e => e.GetString()), id => id == existing.Id);
-
         var newThread = result.GetProperty("thread");
         var newThreadId = newThread.GetProperty("id").GetString();
         Assert.False(string.IsNullOrWhiteSpace(newThreadId));
@@ -233,5 +228,41 @@ public sealed class AppServerCommandExecutionTests : IDisposable
 
         var oldThread = await _h.Service.GetThreadAsync(existing.Id);
         Assert.Equal(ThreadStatus.Archived, oldThread.Status);
+    }
+
+    [Fact]
+    public async Task CommandExecute_AdminCommandFromAUserSender_IsDenied()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandExecute, new
+        {
+            threadId = thread.Id,
+            command = "/model",
+            sender = new { senderId = "user-1", senderName = "User", senderRole = "user" }
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(response, -32061);
+    }
+
+    [Fact]
+    public async Task CommandExecute_ModeChoices_AreReturnedOnTheWire()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandExecute, new
+        {
+            threadId = thread.Id,
+            command = "/mode"
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var commands = response.RootElement.GetProperty("result").GetProperty("choices")
+            .EnumerateArray()
+            .Select(static choice => choice.GetProperty("command").GetString())
+            .ToArray();
+        Assert.Contains("/mode plan", commands);
     }
 }

@@ -77,30 +77,6 @@ public sealed partial class SessionService
             return thread;
         }
 
-        public async Task<ThreadResetResult> ResetConversationAsync(
-            SessionIdentity identity,
-            ThreadConfiguration? config,
-            HistoryMode historyMode,
-            string? displayName,
-            CancellationToken ct)
-        {
-            var summaries = await owner.FindThreadsAsync(identity, includeArchived: false, crossChannelOrigins: null, ct);
-            var archivedIds = new List<string>();
-            foreach (var summary in summaries.Where(s => s.Status == ThreadStatus.Active))
-            {
-                await owner.ArchiveThreadAsync(summary.Id, ct);
-                archivedIds.Add(summary.Id);
-            }
-
-            var thread = await owner.CreateThreadAsync(identity, config, historyMode, displayName: displayName, ct: ct);
-            return new ThreadResetResult
-            {
-                Thread = thread,
-                ArchivedThreadIds = archivedIds,
-                CreatedLazily = true
-            };
-        }
-
         public async Task<SessionThread> ForkAsync(
             string threadId,
             ThreadForkOptions? options,

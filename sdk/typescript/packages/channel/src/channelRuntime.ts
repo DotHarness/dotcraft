@@ -5,7 +5,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { JsonRpcError } from "@dotcraft/sdk/wire";
 import { commandRefPart } from "@dotcraft/sdk";
 import type {
   InputPart,
@@ -160,13 +159,10 @@ export class ChannelMessageQueue {
 }
 
 export type ThreadResolveEventAction =
-  | "force_fresh_created"
   | "cache_hit"
   | "cache_invalidated"
   | "listed_active"
   | "created"
-  | "archived"
-  | "archive_failed"
   | "recovered_stale_active"
   | "recovered_listed_active"
   | "recovered_created";
@@ -202,7 +198,7 @@ export class ThreadResolver {
   readonly threadMap: Map<string, string>;
   private readonly client: ClientProvider;
   private readonly channelName: string;
-  private readonly forceFreshThreadIdentities = new Set<string>();
+  private readonly resolving = new Map<string, Promise<SessionThread>>();
   private readonly getRuntimeAdditionalContext?: () => Record<string, RuntimeAdditionalContextEntry> | undefined;
   private readonly onEvent?: (event: ThreadResolveEvent) => void;
 
@@ -230,62 +226,21 @@ export class ThreadResolver {
     this.threadMap.delete(identityKey);
   }
 
-  markFreshThread(identityKey: string): void {
-    this.forceFreshThreadIdentities.add(identityKey);
-  }
-
-  clearFreshThread(identityKey: string): void {
-    this.forceFreshThreadIdentities.delete(identityKey);
-  }
-
-  async resetIdentityThreads(lookup: ThreadIdentityLookup): Promise<string[]> {
-    const client = resolveClient(this.client);
-    const archivedIds = new Set<string>();
-    const cachedThreadId = this.threadMap.get(lookup.identityKey);
-    if (cachedThreadId) archivedIds.add(cachedThreadId);
-
-    const threads = await client.threadList({
-      channelName: this.channelName,
-      userId: lookup.userId,
-      channelContext: lookup.channelContext,
-      workspacePath: lookup.workspacePath,
-    });
-    for (const thread of threads) {
-      if (thread.status === "active") archivedIds.add(thread.id);
-    }
-
-    for (const threadId of archivedIds) {
-      try {
-        await client.threadArchive(threadId);
-        this.emit({ action: "archived", ...lookup, threadId });
-      } catch (error) {
-        this.emit({ action: "archive_failed", ...lookup, threadId, error });
-      }
-    }
-
-    this.threadMap.delete(lookup.identityKey);
-    this.forceFreshThreadIdentities.add(lookup.identityKey);
-    return [...archivedIds];
-  }
-
   async getOrCreateThread(lookup: ThreadIdentityLookup): Promise<SessionThread> {
+    const pending = this.resolving.get(lookup.identityKey);
+    if (pending) return await pending;
+    const resolving = this.resolveThread(lookup);
+    this.resolving.set(lookup.identityKey, resolving);
+    try {
+      return await resolving;
+    } finally {
+      if (this.resolving.get(lookup.identityKey) === resolving) this.resolving.delete(lookup.identityKey);
+    }
+  }
+
+  private async resolveThread(lookup: ThreadIdentityLookup): Promise<SessionThread> {
     const client = resolveClient(this.client);
     const additionalContext = this.getRuntimeAdditionalContext?.();
-
-    if (this.forceFreshThreadIdentities.has(lookup.identityKey)) {
-      const thread = await client.threadStart({
-        channelName: this.channelName,
-        userId: lookup.userId,
-        channelContext: lookup.channelContext,
-        workspacePath: lookup.workspacePath,
-        additionalContext,
-        chat: lookup.chat,
-      });
-      this.threadMap.set(lookup.identityKey, thread.id);
-      this.forceFreshThreadIdentities.delete(lookup.identityKey);
-      this.emit({ action: "force_fresh_created", ...lookup, threadId: thread.id });
-      return thread;
-    }
 
     const threadId = this.threadMap.get(lookup.identityKey);
     if (threadId) {
@@ -381,203 +336,6 @@ export class ThreadResolver {
 
   private emit(event: ThreadResolveEvent): void {
     this.onEvent?.(event);
-  }
-}
-
-export type CommandRouteBeforeQueueResult = "handled" | "enqueue";
-export type CommandRouteForTurnResult =
-  | { kind: "handled" }
-  | { kind: "continue"; opts: ChannelAdapterMessageOptions };
-
-export interface CommandRouterOptions {
-  client: ClientProvider;
-  threadResolver: ThreadResolver;
-  identityKey: (userId: string, channelContext: string) => string;
-  getDefaultWorkspacePath: () => string;
-  deliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
-  enqueueMessage: (opts: ChannelAdapterMessageOptions) => void;
-  onThreadContextBound?: (threadId: string, channelContext: string) => void;
-  onThreadsArchived?: (identityKey: string, archivedThreadIds: string[]) => void;
-}
-
-export class CommandRouter {
-  private readonly client: ClientProvider;
-  private readonly threadResolver: ThreadResolver;
-  private readonly identityKey: (userId: string, channelContext: string) => string;
-  private readonly getDefaultWorkspacePath: () => string;
-  private readonly deliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
-  private readonly enqueueMessage: (opts: ChannelAdapterMessageOptions) => void;
-  private readonly onThreadContextBound?: (threadId: string, channelContext: string) => void;
-  private readonly onThreadsArchived?: (identityKey: string, archivedThreadIds: string[]) => void;
-
-  constructor(options: CommandRouterOptions) {
-    this.client = options.client;
-    this.threadResolver = options.threadResolver;
-    this.identityKey = options.identityKey;
-    this.getDefaultWorkspacePath = options.getDefaultWorkspacePath;
-    this.deliver = options.deliver;
-    this.enqueueMessage = options.enqueueMessage;
-    this.onThreadContextBound = options.onThreadContextBound;
-    this.onThreadsArchived = options.onThreadsArchived;
-  }
-
-  async routeBeforeQueue(opts: ChannelAdapterMessageOptions): Promise<CommandRouteBeforeQueueResult> {
-    if (opts.skipCommand) return "enqueue";
-    const trimmedText = opts.text.trim();
-    if (!trimmedText.startsWith("/")) return "enqueue";
-
-    const channelContext = opts.channelContext ?? "";
-    const identityKey = this.identityKey(opts.userId, channelContext);
-    const threadId = this.threadResolver.getCachedThreadId(identityKey);
-    if (!threadId) return "enqueue";
-
-    const parts = trimmedText.split(/\s+/);
-    const sender = buildChannelSender(opts, channelContext);
-    try {
-      const commandResult = await resolveClient(this.client).commandExecute({
-        threadId,
-        command: parts[0] ?? "",
-        arguments: parts.length > 1 ? parts.slice(1) : undefined,
-        sender,
-      });
-      const expanded = commandResult.expandedPrompt as string | undefined;
-      if (expanded) {
-        this.enqueueMessage({
-          ...opts,
-          inputParts: replaceLeadingSlashTextWithCommandRef(opts.inputParts, trimmedText),
-          skipCommand: true,
-        });
-        return "handled";
-      }
-      if (Boolean(commandResult.handled)) {
-        await this.applyCommandResetResult({
-          identityKey,
-          userId: opts.userId,
-          channelContext,
-          workspacePath: opts.workspacePath ?? this.getDefaultWorkspacePath(),
-          commandName: parts[0] ?? "",
-          commandResult,
-        });
-        const commandMessage = commandResult.message as string | undefined;
-        if (commandMessage) {
-          await this.deliver(channelContext, commandMessage, {});
-        }
-        return "handled";
-      }
-      return "handled";
-    } catch (error) {
-      if (error instanceof JsonRpcError) {
-        await this.deliver(channelContext, error.message || String(error), {});
-        return "handled";
-      }
-      throw error;
-    }
-  }
-
-  async routeForTurn(args: {
-    identityKey: string;
-    opts: ChannelAdapterMessageOptions;
-    threadId: string;
-    sender: Record<string, unknown>;
-    workspacePath: string;
-  }): Promise<CommandRouteForTurnResult> {
-    const trimmedText = args.opts.text.trim();
-    if (!trimmedText.startsWith("/") || args.opts.skipCommand) {
-      return { kind: "continue", opts: args.opts };
-    }
-
-    const commandParts = trimmedText.split(/\s+/);
-    const commandName = commandParts[0] ?? "";
-    const commandArguments = commandParts.length > 1 ? commandParts.slice(1) : undefined;
-    try {
-      const commandResult = await resolveClient(this.client).commandExecute({
-        threadId: args.threadId,
-        command: commandName,
-        arguments: commandArguments,
-        sender: args.sender,
-      });
-      const expandedPrompt = commandResult.expandedPrompt as string | undefined;
-      if (expandedPrompt) {
-        return {
-          kind: "continue",
-          opts: {
-            ...args.opts,
-            inputParts: replaceLeadingSlashTextWithCommandRef(args.opts.inputParts, trimmedText),
-          },
-        };
-      }
-      if (Boolean(commandResult.handled)) {
-        await this.applyCommandResetResult({
-          identityKey: args.identityKey,
-          userId: args.opts.userId,
-          channelContext: args.opts.channelContext ?? "",
-          workspacePath: args.workspacePath,
-          commandName,
-          commandResult,
-        });
-        const commandMessage = commandResult.message as string | undefined;
-        if (commandMessage) {
-          await this.deliver(args.opts.channelContext ?? "", commandMessage, {});
-        }
-        return { kind: "handled" };
-      }
-      return { kind: "continue", opts: args.opts };
-    } catch (error) {
-      if (error instanceof JsonRpcError) {
-        await this.deliver(args.opts.channelContext ?? "", error.message || String(error), {});
-        return { kind: "handled" };
-      }
-      throw error;
-    }
-  }
-
-  async applyCommandResetResult(args: {
-    identityKey: string;
-    userId: string;
-    channelContext: string;
-    workspacePath: string;
-    commandName: string;
-    commandResult: Record<string, unknown>;
-  }): Promise<void> {
-    const normalizedCommand = args.commandName.trim().toLowerCase();
-    const archivedThreadIds = Array.isArray(args.commandResult.archivedThreadIds)
-      ? args.commandResult.archivedThreadIds.map((v) => String(v))
-      : [];
-    if (archivedThreadIds.length > 0) {
-      this.onThreadsArchived?.(args.identityKey, archivedThreadIds);
-    }
-
-    const resetThreadWire = args.commandResult.thread as Record<string, unknown> | undefined;
-    const sessionReset = Boolean(args.commandResult.sessionReset) || Boolean(resetThreadWire);
-    if (sessionReset) {
-      if (resetThreadWire) {
-        const resetThreadId = typeof resetThreadWire.id === "string" ? resetThreadWire.id : null;
-        if (!resetThreadId) throw new Error("Session reset response omitted its thread id.");
-        this.threadResolver.setCachedThread(args.identityKey, resetThreadId);
-        this.threadResolver.clearFreshThread(args.identityKey);
-        this.onThreadContextBound?.(resetThreadId, args.channelContext);
-      } else {
-        this.threadResolver.deleteCachedThread(args.identityKey);
-        this.threadResolver.markFreshThread(args.identityKey);
-      }
-      return;
-    }
-
-    if (normalizedCommand === "/new") {
-      await this.threadResolver.resetIdentityThreads({
-        identityKey: args.identityKey,
-        userId: args.userId,
-        channelContext: args.channelContext,
-        workspacePath: args.workspacePath,
-      });
-      const thread = await this.threadResolver.getOrCreateThread({
-        identityKey: args.identityKey,
-        userId: args.userId,
-        channelContext: args.channelContext,
-        workspacePath: args.workspacePath,
-      });
-      this.onThreadContextBound?.(thread.id, args.channelContext);
-    }
   }
 }
 

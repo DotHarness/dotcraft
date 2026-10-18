@@ -776,25 +776,6 @@ internal sealed class FakeSessionService : ISessionService, ISubAgentThreadLifec
         return thread;
     }
 
-    public async Task<ThreadResetResult> ResetConversationAsync(
-        SessionIdentity identity,
-        ThreadConfiguration? config = null,
-        HistoryMode historyMode = HistoryMode.Server,
-        string? displayName = null,
-        CancellationToken ct = default)
-    {
-        var existing = await FindThreadsAsync(identity, includeArchived: false, crossChannelOrigins: null, ct);
-        var archived = new List<string>();
-        foreach (var summary in existing.Where(s => s.Status == ThreadStatus.Active))
-        {
-            await ArchiveThreadAsync(summary.Id, ct);
-            archived.Add(summary.Id);
-        }
-
-        var thread = await CreateThreadAsync(identity, config, historyMode, displayName: displayName, ct: ct);
-        return new ThreadResetResult { Thread = thread, ArchivedThreadIds = archived, CreatedLazily = true };
-    }
-
     public async Task ArchiveThreadAsync(string threadId, CancellationToken ct = default)
     {
         var root = await GetOrLoadAsync(threadId, ct);

@@ -2115,7 +2115,7 @@ Permission evaluation is an adapter boundary. Session Core does not interpret ch
 SenderContext
 ├── SenderId: string           // Individual user ID
 ├── SenderName: string         // Display name
-├── SenderRole: string         // "admin", "whitelisted", "unauthorized"
+├── SenderRole: string         // "admin" or "user"
 └── GroupId: string            // Group/chat ID for group sessions (nullable)
 ```
 

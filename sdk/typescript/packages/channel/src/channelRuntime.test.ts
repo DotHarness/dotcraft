@@ -10,14 +10,12 @@ import {
   ApprovalDispatcher,
   ChannelMessageQueue,
   ChannelToolDispatcher,
-  CommandRouter,
   ModuleConfigLoader,
   ModuleLifecycleState,
   ThreadResolver,
   UserInputDispatcher,
 } from "./channelRuntime.js";
 import { DeliveryDispatcher } from "./deliveryDispatcher.js";
-import { JsonRpcError } from "@dotcraft/sdk/wire";
 import type { SessionThread } from "@dotcraft/sdk/contracts";
 import type { RuntimeAdditionalContextEntry } from "@dotcraft/sdk/contracts";
 import { makeThread } from "./test-contract-fixtures.js";
@@ -56,7 +54,6 @@ async function waitUntil(predicate: () => boolean): Promise<void> {
 
 class FakeRuntimeClient {
   readonly threads = new Map<string, SessionThread>();
-  readonly archived: string[] = [];
   readonly events: string[] = [];
   readonly notificationHandlers = new Map<string, NotificationHandler>();
   readonly requestHandlers = new Map<string, ServerRequestHandler>();
@@ -65,8 +62,7 @@ class FakeRuntimeClient {
   listResult: SessionThread[] = [];
   readFailures = new Set<string>();
   nextStartedId = "thread-created";
-  commandResult: Record<string, unknown> = {};
-  commandError: unknown = null;
+  listGate: Promise<void> | null = null;
 
   async threadRead(threadId: string): Promise<SessionThread> {
     this.events.push(`read:${threadId}`);
@@ -86,6 +82,7 @@ class FakeRuntimeClient {
 
   async threadList(_params: Record<string, unknown>): Promise<SessionThread[]> {
     this.events.push("list");
+    if (this.listGate) await this.listGate;
     return this.listResult;
   }
 
@@ -97,16 +94,6 @@ class FakeRuntimeClient {
     return thread;
   }
 
-  async threadArchive(threadId: string): Promise<void> {
-    this.events.push(`archive:${threadId}`);
-    this.archived.push(threadId);
-  }
-
-  async commandExecute(_params: Record<string, unknown>): Promise<Record<string, unknown>> {
-    this.events.push("command");
-    if (this.commandError) throw this.commandError;
-    return this.commandResult;
-  }
 
   registerHandler(method: string, fn: NotificationHandler): void {
     this.notificationHandlers.set(method, fn);
@@ -252,7 +239,7 @@ test("ChannelMessageQueue continues after a job error", async () => {
   assert.deepEqual(errors, ["u"]);
 });
 
-test("ThreadResolver resolves cache, list reuse, fresh reset, and not-active recovery", async () => {
+test("ThreadResolver resolves cache, list reuse, and not-active recovery", async () => {
   const fake = new FakeRuntimeClient();
   fake.threads.set("cached", makeThread("cached", "active"));
   fake.threads.set("listed", makeThread("listed", "active"));
@@ -281,22 +268,6 @@ test("ThreadResolver resolves cache, list reuse, fresh reset, and not-active rec
     workspacePath: "/w",
   })).id, "listed");
 
-  resolver.setCachedThread("u:fresh", "cached");
-  fake.listResult = [makeThread("cached", "active"), makeThread("old-active", "active")];
-  const archived = await resolver.resetIdentityThreads({
-    identityKey: "u:fresh",
-    userId: "u",
-    channelContext: "fresh",
-    workspacePath: "/w",
-  });
-  fake.nextStartedId = "thread-fresh";
-  assert.equal((await resolver.getOrCreateThread({
-    identityKey: "u:fresh",
-    userId: "u",
-    channelContext: "fresh",
-    workspacePath: "/w",
-  })).id, "thread-fresh");
-
   fake.readFailures.add("stale");
   fake.threads.set("recover-active", makeThread("recover-active", "active"));
   fake.listResult = [makeThread("recover-active", "active")];
@@ -307,17 +278,28 @@ test("ThreadResolver resolves cache, list reuse, fresh reset, and not-active rec
     workspacePath: "/w",
   }, "stale")).id, "recover-active");
 
-  assert.deepEqual(archived, ["cached", "old-active"]);
-  assert.deepEqual(fake.archived, ["cached", "old-active"]);
   assert.deepEqual(eventsSeen, [
     "cache_hit",
     "cache_invalidated",
     "listed_active",
-    "archived",
-    "archived",
-    "force_fresh_created",
     "recovered_listed_active",
   ]);
+});
+
+test("ThreadResolver shares one resolution between concurrent callers for an identity", async () => {
+  const fake = new FakeRuntimeClient();
+  const gate = deferred();
+  fake.listGate = gate.promise;
+  const resolver = new ThreadResolver({ client: asWire(fake), channelName: "test" });
+  const lookup = { identityKey: "u:c", userId: "u", channelContext: "c", workspacePath: "/w" };
+
+  const first = resolver.getOrCreateThread(lookup);
+  const second = resolver.getOrCreateThread(lookup);
+  gate.resolve();
+
+  assert.equal((await first).id, "thread-created");
+  assert.equal((await second).id, "thread-created");
+  assert.equal(fake.startParams.length, 1);
 });
 
 test("ThreadResolver binds runtime context and chat once and restores them after connection replacement", async () => {
@@ -354,113 +336,6 @@ test("ThreadResolver binds runtime context and chat once and restores them after
     threadId: created.id,
     params: { additionalContext, chat },
   }]);
-});
-
-test("CommandRouter executes automation commands without creating an agent turn", async () => {
-  const fake = new FakeRuntimeClient();
-  const resolver = new ThreadResolver({ client: asWire(fake), channelName: "test" });
-  const requests: Record<string, unknown>[] = [];
-  const delivered: Array<{ target: string; text: string }> = [];
-  fake.commandExecute = async (params) => {
-    requests.push(params);
-    return { handled: true, message: "Automation paused" };
-  };
-  const router = new CommandRouter({
-    client: asWire(fake),
-    threadResolver: resolver,
-    identityKey: (userId, context) => `${userId}:${context}`,
-    getDefaultWorkspacePath: () => "/w",
-    deliver: async (target, text) => {
-      delivered.push({ target, text });
-      return true;
-    },
-    enqueueMessage: () => assert.fail("Management must not enqueue an agent turn"),
-  });
-  const opts = { userId: "u", userName: "User", text: "/automate pause a1", channelContext: "group:42" };
-  resolver.setCachedThread("u:group:42", "thread-1");
-  assert.equal(await router.routeBeforeQueue(opts), "handled");
-  assert.deepEqual(await router.routeForTurn({
-    identityKey: "u:group:42", opts, threadId: "thread-1",
-    sender: { senderId: "u", senderName: "User", groupId: "group:42" }, workspacePath: "/w",
-  }), { kind: "handled" });
-  assert.equal(requests.length, 2);
-  for (const request of requests) {
-    assert.equal(request.command, "/automate");
-    assert.deepEqual(request.arguments, ["pause", "a1"]);
-    assert.equal((request.sender as Record<string, unknown>).groupId, "group:42");
-  }
-  assert.deepEqual(delivered, [
-    { target: "group:42", text: "Automation paused" },
-    { target: "group:42", text: "Automation paused" },
-  ]);
-});
-
-test("CommandRouter handles expanded prompts, reset payloads, and JsonRpcError delivery", async () => {
-  const fake = new FakeRuntimeClient();
-  const resolver = new ThreadResolver({ client: asWire(fake), channelName: "test" });
-  const enqueued: unknown[] = [];
-  const delivered: string[] = [];
-  const archived: string[][] = [];
-  const bound: string[] = [];
-  const router = new CommandRouter({
-    client: asWire(fake),
-    threadResolver: resolver,
-    identityKey: (userId, channelContext) => `${userId}:${channelContext}`,
-    getDefaultWorkspacePath: () => "/w",
-    deliver: async (_target, content) => {
-      delivered.push(content);
-      return true;
-    },
-    enqueueMessage: (opts) => enqueued.push(opts),
-    onThreadsArchived: (_identityKey, ids) => archived.push(ids),
-    onThreadContextBound: (threadId) => bound.push(threadId),
-  });
-
-  resolver.setCachedThread("u:c", "thread-1");
-  fake.commandResult = { expandedPrompt: "expanded" };
-  assert.equal(await router.routeBeforeQueue({
-    userId: "u",
-    userName: "User",
-    text: "/sum now",
-    channelContext: "c",
-  }), "handled");
-  assert.deepEqual(enqueued, [{
-    userId: "u",
-    userName: "User",
-    text: "/sum now",
-    channelContext: "c",
-    inputParts: [{ type: "commandRef", name: "sum", rawText: "/sum now", argsText: "now" }],
-    skipCommand: true,
-  }]);
-
-  fake.commandResult = {
-    handled: true,
-    message: "new session",
-    sessionReset: true,
-    thread: { id: "thread-2", status: "active" },
-    archivedThreadIds: ["thread-1"],
-  };
-  assert.deepEqual(await router.routeForTurn({
-    identityKey: "u:c",
-    opts: { userId: "u", userName: "User", text: "/new", channelContext: "c" },
-    threadId: "thread-1",
-    sender: { senderId: "u", senderName: "User" },
-    workspacePath: "/w",
-  }), { kind: "handled" });
-  assert.equal(resolver.getCachedThreadId("u:c"), "thread-2");
-  assert.deepEqual(delivered, ["new session"]);
-  assert.deepEqual(archived, [["thread-1"]]);
-  assert.deepEqual(bound, ["thread-2"]);
-
-  fake.commandError = new JsonRpcError(-32000, "Command failed");
-  assert.deepEqual(await router.routeForTurn({
-    identityKey: "u:c",
-    opts: { userId: "u", userName: "User", text: "/bad", channelContext: "c" },
-    threadId: "thread-2",
-    sender: { senderId: "u", senderName: "User" },
-    workspacePath: "/w",
-  }), { kind: "handled" });
-  assert.deepEqual(delivered, ["new session", "Command failed"]);
 });
 
 test("dispatchers register approval, user-input, delivery, tool, and heartbeat handlers", async () => {

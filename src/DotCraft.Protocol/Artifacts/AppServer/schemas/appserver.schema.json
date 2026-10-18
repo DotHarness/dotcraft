@@ -4799,6 +4799,19 @@
         "version"
       ]
     },
+    "CommandChoice": {
+      "title": "CommandChoice",
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
     "CommandExecParams": {
       "title": "CommandExecParams",
       "type": "object",
@@ -4898,23 +4911,13 @@
       "title": "CommandExecuteResult",
       "type": "object",
       "properties": {
-        "archivedThreadIds": {
+        "choices": {
           "anyOf": [
             {
               "type": "array",
               "items": {
-                "type": "string"
+                "$ref": "#/$defs/CommandChoice"
               }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "createdLazily": {
-          "anyOf": [
-            {
-              "type": "boolean"
             },
             {
               "type": "null"
@@ -4946,9 +4949,6 @@
               "type": "null"
             }
           ]
-        },
-        "sessionReset": {
-          "type": "boolean"
         },
         "thread": {
           "anyOf": [

@@ -1,4 +1,3 @@
-import type { ThreadSummary } from '../types/thread'
 import type { CustomCommandInfo } from '../hooks/useCustomCommandCatalog'
 
 interface CommandExecuteWireResult {
@@ -6,10 +5,6 @@ interface CommandExecuteWireResult {
   message?: string | null
   isMarkdown?: boolean
   expandedPrompt?: string | null
-  sessionReset?: boolean
-  thread?: Partial<ThreadSummary> | null
-  archivedThreadIds?: string[] | null
-  createdLazily?: boolean | null
 }
 
 interface ResolveCustomCommandExecutionArgs {
@@ -25,10 +20,6 @@ export interface ResolveCustomCommandExecutionResult {
   textForTurn: string
   message: string | null
   isMarkdown: boolean
-  sessionResetThreadId: string | null
-  sessionResetThreadSummary: ThreadSummary | null
-  archivedThreadIds: string[]
-  createdLazily: boolean | null
 }
 
 function parseCommandInvocation(text: string): { commandToken: string; arguments: string[] } | null {
@@ -64,22 +55,6 @@ function findMatchingCustomCommand(token: string, commands: CustomCommandInfo[])
   return null
 }
 
-function toThreadSummary(raw: Partial<ThreadSummary> | null | undefined): ThreadSummary | null {
-  const id = typeof raw?.id === 'string' ? raw.id.trim() : ''
-  if (!id) return null
-  const now = new Date().toISOString()
-  return {
-    id,
-    displayName: typeof raw?.displayName === 'string' ? raw.displayName : null,
-    status: raw?.status === 'archived' ? 'archived' : 'active',
-    originChannel: typeof raw?.originChannel === 'string' && raw.originChannel.trim() !== ''
-      ? raw.originChannel
-      : 'appserver',
-    createdAt: typeof raw?.createdAt === 'string' ? raw.createdAt : now,
-    lastActiveAt: typeof raw?.lastActiveAt === 'string' ? raw.lastActiveAt : now
-  }
-}
-
 export async function resolveCustomCommandExecution({
   text,
   threadId,
@@ -93,11 +68,7 @@ export async function resolveCustomCommandExecution({
       shouldSendTurn: true,
       textForTurn: text,
       message: null,
-      isMarkdown: false,
-      sessionResetThreadId: null,
-      sessionResetThreadSummary: null,
-      archivedThreadIds: [],
-      createdLazily: null
+      isMarkdown: false
     }
   }
   const matched = findMatchingCustomCommand(invocation.commandToken, commands)
@@ -107,11 +78,7 @@ export async function resolveCustomCommandExecution({
       shouldSendTurn: true,
       textForTurn: text,
       message: null,
-      isMarkdown: false,
-      sessionResetThreadId: null,
-      sessionResetThreadSummary: null,
-      archivedThreadIds: [],
-      createdLazily: null
+      isMarkdown: false
     }
   }
 
@@ -126,7 +93,6 @@ export async function resolveCustomCommandExecution({
       : null
   const handled = rawResult.handled !== false
   const shouldSendTurn = handled && expandedPrompt !== null
-  const resetThreadSummary = rawResult.sessionReset ? toThreadSummary(rawResult.thread ?? null) : null
   return {
     matchedCustomCommand: true,
     shouldSendTurn,
@@ -134,10 +100,6 @@ export async function resolveCustomCommandExecution({
     message: typeof rawResult.message === 'string' && rawResult.message.trim() !== ''
       ? rawResult.message
       : null,
-    isMarkdown: rawResult.isMarkdown === true,
-    sessionResetThreadId: resetThreadSummary?.id ?? null,
-    sessionResetThreadSummary: resetThreadSummary,
-    archivedThreadIds: Array.isArray(rawResult.archivedThreadIds) ? rawResult.archivedThreadIds : [],
-    createdLazily: typeof rawResult.createdLazily === 'boolean' ? rawResult.createdLazily : null
+    isMarkdown: rawResult.isMarkdown === true
   }
 }

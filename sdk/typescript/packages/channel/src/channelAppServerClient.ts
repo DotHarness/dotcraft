@@ -3,6 +3,8 @@
 import { DotCraftWireClient, JsonRpcMessage, type NotificationHandler } from "@dotcraft/sdk/wire";
 import type {
   ClientRequestMethods,
+  CommandExecuteResult,
+  CommandInfo,
   RuntimeAdditionalContextEntry,
   SessionThread,
   SessionTurn,
@@ -127,16 +129,16 @@ export class ChannelAppServerClient extends DotCraftWireClient {
     return result.turnId;
   }
 
-  async commandList(): Promise<Record<string, unknown>[]> {
-    const result = await this.request("command/list", {}) as Record<string, unknown>;
-    return (result.commands as Record<string, unknown>[]) ?? [];
+  async commandList(): Promise<CommandInfo[]> {
+    const result = await this.request("command/list", {});
+    return result.commands ?? [];
   }
 
-  async commandExecute(params: { threadId: string; command: string; arguments?: string[]; sender?: Record<string, unknown> | null }): Promise<Record<string, unknown>> {
+  async commandExecute(params: { threadId: string; command: string; arguments?: string[]; sender?: Record<string, unknown> | null }): Promise<CommandExecuteResult> {
     const payload: Record<string, unknown> = { threadId: params.threadId, command: params.command };
     if (params.arguments) payload.arguments = params.arguments;
     if (params.sender) payload.sender = params.sender;
-    return await this.request("command/execute", payload) as Record<string, unknown>;
+    return await this.request("command/execute", payload as ClientRequestMethods["command/execute"]["params"]);
   }
 
   streamEvents(threadId: string, terminalMethods: readonly string[] = ["turn/completed", "turn/failed", "turn/cancelled"]): AsyncIterableIterator<JsonRpcMessage> {

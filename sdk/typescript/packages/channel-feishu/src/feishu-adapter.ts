@@ -1,8 +1,9 @@
 import {
-  DECISION_CANCEL,
   DECISION_DECLINE,
-  textPart,
+  parseApprovalReplyDecision,
   type ChannelTarget,
+  type CommandChoice,
+  type CommandChoiceContext,
 } from "@dotcraft/channel";
 import {
   WebSocketTransport,
@@ -30,11 +31,9 @@ import {
   type UserInputResponse,
   type WorkspaceContext,
 } from "@dotcraft/channel";
+import { FeishuApprovalCards } from "./approval-cards.js";
 import {
-  buildApprovalCard,
-  buildApprovalResolvedCard,
-  buildApprovalTimeoutCard,
-  buildNewConversationCard,
+  buildCommandChoicesCard,
   buildUserAuthCard,
   buildUserAuthNoticeCard,
   buildUserInputCard,
@@ -43,12 +42,16 @@ import {
   type QuestionPosition,
 } from "./card-builder.js";
 import { updateCard } from "./card-sender.js";
+import {
+  commandChoiceMessageOptions,
+  feishuMessageOptions,
+  parseCommandChoiceSelection,
+} from "./command-choices.js";
 import { FEISHU_DELIVERY_CAPABILITIES, FeishuChannelSender } from "./channel-send.js";
 import { FeishuChatInfoCache } from "./chat-info-cache.js";
 import {
   conversationTargetBase,
   describeConversation,
-  directConversationTarget,
   formatConversationTarget,
   parseConversationTarget,
 } from "./conversation-target.js";
@@ -108,6 +111,10 @@ export function validateFeishuConfig(rawConfig: unknown): asserts rawConfig is F
   if (cli?.enabled !== undefined && typeof cli.enabled !== "boolean") {
     throw new ConfigValidationError("feishu.cli.enabled must be a boolean.", ["feishu.cli.enabled"]);
   }
+  if (feishu.adminUsers !== undefined
+      && (!Array.isArray(feishu.adminUsers) || feishu.adminUsers.some((id) => typeof id !== "string"))) {
+    throw new ConfigValidationError("feishu.adminUsers must be a string array.", ["feishu.adminUsers"]);
+  }
   if (cli?.userScopes !== undefined
       && (!Array.isArray(cli.userScopes) || cli.userScopes.some((scope) => typeof scope !== "string"))) {
     throw new ConfigValidationError("feishu.cli.userScopes must be a string array.", ["feishu.cli.userScopes"]);
@@ -120,7 +127,7 @@ export function validateFeishuConfig(rawConfig: unknown): asserts rawConfig is F
 export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   private feishu: FeishuClient | undefined;
   private cardTitle = "DotCraft";
-  private approvalTimeoutMs = 120000;
+  private adminUsers = new Set<string>();
   private cliTool: FeishuCliTool | undefined;
   private userIdentity: FeishuUserIdentity | undefined;
   private eventAbortController: AbortController | undefined;
@@ -138,17 +145,11 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     updateCard: (messageId, card) => updateCard(this.getFeishuClient(), messageId, card),
     loadingIconImgKey: () => this.loadingIcon?.imgKey() ?? Promise.resolve(undefined),
   });
-  private readonly approvalWaiters = new Map<
-    string,
-    {
-      resolve: (decision: string) => void;
-      timer: ReturnType<typeof setTimeout>;
-      threadId: string;
-      channelTarget: string;
-      messageId: string;
-      timeoutSeconds: number;
-    }
-  >();
+  private readonly approvals = new FeishuApprovalCards({
+    sendCard: (target, card) => this.router.sendCard(target, card),
+    updateCard: (messageId, card) => updateCard(this.getFeishuClient(), messageId, card),
+    cardTitle: () => this.cardTitle,
+  });
   private readonly userInputWaiters = new Map<
     string,
     {
@@ -198,7 +199,8 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
 
     const config = this.loadedConfig;
     this.cardTitle = config.feishu.cardTitle ?? "DotCraft";
-    this.approvalTimeoutMs = config.feishu.approvalTimeoutMs ?? 120000;
+    this.approvals.timeoutMs = config.feishu.approvalTimeoutMs ?? 120000;
+    this.adminUsers = new Set((config.feishu.adminUsers ?? []).map((id) => id.trim()));
     this.feishu = new FeishuClient(config.feishu);
     const stateDir = resolveModuleStatePath(context);
     this.loadingIcon = new FeishuLoadingIcon(this.feishu, { stateDir });
@@ -369,10 +371,6 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   async onApprovalRequest(request: Record<string, unknown>): Promise<string> {
     const requestId = String(request.requestId ?? "");
     const threadId = String(request.threadId ?? "");
-    const approvalType = String(request.approvalType ?? "");
-    const operation = String(request.operation ?? "");
-    const target = String(request.target ?? "");
-    const reason = String(request.reason ?? "");
     const channelTarget = this.threadContextMap.get(threadId);
     if (!channelTarget || !requestId) {
       logWarn("approval.request.invalid_context", {
@@ -381,66 +379,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       });
       return DECISION_DECLINE;
     }
-
-    const timeoutSeconds = Math.max(1, Math.round(this.approvalTimeoutMs / 1000));
-    const card = buildApprovalCard({
-      requestId,
-      approvalType,
-      operation,
-      target,
-      reason,
-      timeoutSeconds,
-      cardTitle: this.cardTitle,
-    });
-    const sent = await this.router.sendCard(channelTarget, card);
-    logInfo("approval.card_sent", {
-      requestId: shortId(requestId),
-      threadId: shortId(threadId),
-      timeoutSec: timeoutSeconds,
-      channelTarget: shortId(channelTarget),
-      messageId: shortId(sent.messageId),
-    });
-
-    return new Promise<string>((resolve) => {
-      const timer = setTimeout(() => {
-        const waiter = this.approvalWaiters.get(requestId);
-        this.approvalWaiters.delete(requestId);
-        if (waiter?.messageId) {
-          void this.tryUpdateApprovalCard(waiter.messageId, buildApprovalTimeoutCard({ requestId, timeoutSeconds }));
-        }
-        logWarn("approval.timeout", {
-          requestId: shortId(requestId),
-          decision: DECISION_CANCEL,
-        });
-        resolve(DECISION_CANCEL);
-      }, this.approvalTimeoutMs);
-      this.approvalWaiters.set(requestId, {
-        resolve: (decision: string) => {
-          clearTimeout(timer);
-          const waiter = this.approvalWaiters.get(requestId);
-          this.approvalWaiters.delete(requestId);
-          if (waiter?.messageId) {
-            void this.tryUpdateApprovalCard(
-              waiter.messageId,
-              buildApprovalResolvedCard({
-                requestId,
-                decision,
-              }),
-            );
-          }
-          logInfo("approval.resolved", {
-            requestId: shortId(requestId),
-            decision,
-          });
-          resolve(decision);
-        },
-        timer,
-        threadId,
-        channelTarget,
-        messageId: sent.messageId,
-        timeoutSeconds,
-      });
-    });
+    return await this.approvals.request(channelTarget, request);
   }
 
   protected override async onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse> {
@@ -521,20 +460,6 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     });
   }
 
-  private async tryUpdateApprovalCard(messageId: string, card: Record<string, unknown>): Promise<void> {
-    try {
-      await updateCard(this.getFeishuClient(), messageId, card);
-      logInfo("approval.card_updated", {
-        messageId: shortId(messageId),
-      });
-    } catch (error) {
-      logWarn("approval.card_update_failed", {
-        messageId: shortId(messageId),
-        message: errorMessage(error),
-      });
-    }
-  }
-
   protected override async onTurnStarted(turn: ChannelTurn): Promise<void> {
     this.statusCards.start(turn);
   }
@@ -572,8 +497,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     if (
       event.action === "cache_hit" ||
       event.action === "listed_active" ||
-      event.action === "created" ||
-      event.action === "force_fresh_created"
+      event.action === "created"
     ) {
       logInfo("thread.resolve_action", {
         action: event.action,
@@ -594,38 +518,51 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     if (await this.tryResolvePendingUserInputFromText(message.channelContext, message.text)) {
       return;
     }
+    const approvalDecision = parseApprovalReplyDecision(message.text, { slashAliasesOnly: true });
+    if (approvalDecision && this.approvals.resolveInChat(message.channelContext, approvalDecision)) {
+      return;
+    }
     if (isUserAuthCommand(message.text)) {
       await this.handleUserAuthCommand(message);
       return;
     }
-    if (isNewCommand(message.text)) {
-      await this.newThread(message.threadUserId, message.channelContext);
-      await this.router.sendCard(
-        message.channelContext,
-        buildNewConversationCard(),
-      );
-      logInfo("inbound.command.new_thread", {
-        messageId: shortId(message.messageId),
-        channelContext: shortId(message.channelContext),
-      });
-      return;
-    }
 
     await this.handleMessage({
-      userId: message.threadUserId,
-      userName: message.userName,
+      ...feishuMessageOptions(
+        { senderId: message.userId, senderName: message.userName, senderRole: this.senderRole(message.userId) },
+        { threadUserId: message.threadUserId, channelContext: message.channelContext, isGroup: message.chatType === "group" },
+      ),
       text: message.text,
-      channelContext: message.channelContext,
       workspacePath: this.defaultWorkspacePath,
-      sender: {
-        senderId: message.userId,
-        senderName: message.userName,
-        ...(message.chatType === "group" ? { groupId: message.channelContext } : {}),
-      },
       inputParts: message.parts.length ? message.parts : undefined,
-      omitSenderGroupId: message.chatType !== "group",
-      directTarget: directConversationTarget(message.userId),
     });
+  }
+
+  protected override async renderCommandChoices(
+    target: string,
+    choices: CommandChoice[],
+    _context: CommandChoiceContext,
+  ): Promise<void> {
+    await this.router.sendCard(target, buildCommandChoicesCard(choices, target));
+  }
+
+  private senderRole(openId: string): "admin" | "user" {
+    return this.adminUsers.has(openId) ? "admin" : "user";
+  }
+
+  private handleCommandChoiceAction(event: FeishuCardActionEvent, value: Record<string, unknown>): boolean {
+    const selection = parseCommandChoiceSelection(event, value);
+    if (!selection) {
+      logWarn("command_choice.action_invalid", {
+        openMessageId: shortId(String(event.context?.open_message_id ?? "")),
+      });
+      return false;
+    }
+    void this.executeCommandChoice(
+      selection.command,
+      commandChoiceMessageOptions(selection, this.senderRole(selection.operatorId)),
+    );
+    return true;
   }
 
   /** Authorization binds one operator account, so it only runs where the sender is unambiguous. */
@@ -757,6 +694,9 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     if (value?.kind === "userInput") {
       return this.handleUserInputCardAction(event, value);
     }
+    if (value?.kind === "command") {
+      return this.handleCommandChoiceAction(event, value);
+    }
     if (!value || value.kind !== "approval") {
       const kindStr =
         value && typeof value === "object" && "kind" in value
@@ -767,32 +707,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       });
       return false;
     }
-    const requestId = String(value.requestId ?? "");
-    const decision = String(value.decision ?? "");
-    const waiter = this.approvalWaiters.get(requestId);
-    if (!waiter) {
-      logWarn("approval.action_no_waiter", {
-        requestId: shortId(requestId),
-        openMessageId: shortId(String(event.context?.open_message_id ?? "")),
-      });
-      return false;
-    }
-    const openMessageId = String(event.context?.open_message_id ?? "");
-    if (openMessageId && waiter.messageId && openMessageId !== waiter.messageId) {
-      logWarn("approval.action_message_mismatch", {
-        requestId: shortId(requestId),
-        expectedMessageId: shortId(waiter.messageId),
-        actualMessageId: shortId(openMessageId),
-      });
-      return false;
-    }
-    waiter.resolve(decision || DECISION_CANCEL);
-    logInfo("approval.action_resolved", {
-      requestId: shortId(requestId),
-      decision: decision || DECISION_CANCEL,
-      messageId: shortId(openMessageId || waiter.messageId),
-    });
-    return true;
+    return this.approvals.handleAction(event, value);
   }
 
   hasPendingUserInput(channelContext: string): boolean {
@@ -906,18 +821,13 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     }
   }
 
-  protected override onThreadsArchived(_identityKey: string, archivedThreadIds: string[]): void {
-    for (const threadId of archivedThreadIds) {
-      const channelContext = this.threadContextMap.get(threadId);
-      if (channelContext) this.router.forget(channelContext);
-      this.threadContextMap.delete(threadId);
-    }
-  }
-
-  override async newThread(userId: string, channelContext = ""): Promise<void> {
-    const identityKey = this.identityKey(userId, channelContext);
-    const archivedIds = await this.resetIdentityThreads(userId, channelContext);
-    this.onThreadsArchived(identityKey, archivedIds);
+  protected override onCurrentThreadChanged(
+    previousThreadId: string | undefined,
+    _threadId: string,
+    channelContext: string,
+  ): void {
+    if (previousThreadId) this.threadContextMap.delete(previousThreadId);
+    this.router.forget(channelContext);
   }
 }
 
@@ -933,10 +843,6 @@ function parseFeishuChannelTarget(channelContext: string): {
     conversationId: target.id,
     deliveryTarget: formatConversationTarget(target),
   };
-}
-
-function isNewCommand(text: string): boolean {
-  return /^\s*\/new\s*$/i.test(text.trim());
 }
 
 function isUserAuthCommand(text: string): boolean {
