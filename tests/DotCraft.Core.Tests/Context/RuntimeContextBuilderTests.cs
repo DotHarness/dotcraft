@@ -55,6 +55,18 @@ public sealed class RuntimeContextBuilderTests
     }
 
     [Fact]
+    public void BuildBlock_NamesTheAutomationThatStartedTheTurn()
+    {
+        var automation = RuntimeContextBuilder.BuildBlock(
+            trigger: new TurnTriggerInfo { Kind = "automation", Label = "Daily report" });
+        var goal = RuntimeContextBuilder.BuildBlock(
+            trigger: new TurnTriggerInfo { Kind = "goal", Label = "Goal continuation" });
+
+        Assert.Contains("Trigger: automation \"Daily report\"", automation, StringComparison.Ordinal);
+        Assert.Null(goal);
+    }
+
+    [Fact]
     public void BuildBlock_OmitsWorkspaceRequestSourceForLocalDesktopInitiator()
     {
         var workspace = Path.GetFullPath(Directory.GetCurrentDirectory());
@@ -81,11 +93,13 @@ public sealed class RuntimeContextBuilderTests
                 UserName = "Alice",
                 UserRole = "admin",
                 ChannelContext = "group:123456",
-                GroupId = "123456"
+                GroupId = "123456",
+                DirectTarget = "user:10001"
             },
             workspacePath: Directory.GetCurrentDirectory());
 
         Assert.Contains("## Request Source", block, StringComparison.Ordinal);
+        Assert.Contains("SenderAddress: qq:user:10001", block, StringComparison.Ordinal);
         Assert.Contains("Channel: qq", block, StringComparison.Ordinal);
         Assert.Contains("Conversation: group:123456", block, StringComparison.Ordinal);
         Assert.Contains("SenderName: Alice", block, StringComparison.Ordinal);

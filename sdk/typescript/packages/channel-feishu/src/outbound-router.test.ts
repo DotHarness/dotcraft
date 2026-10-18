@@ -14,11 +14,6 @@ class FakeOutboundClient implements OutboundClient {
     return { messageId: "om_created", chatId: target };
   }
 
-  async sendCardKitReference(target: string, _cardId: string): Promise<FeishuSendResult> {
-    this.calls.push({ method: "create.cardkit", target });
-    return { messageId: "om_created_cardkit", chatId: target };
-  }
-
   async sendFile(target: string, _file: { fileName: string; data: Buffer }): Promise<FeishuSendResult & { fileKey: string }> {
     this.calls.push({ method: "create.file", target });
     return { messageId: "om_created_file", chatId: target, fileKey: "fk" };
@@ -33,12 +28,6 @@ class FakeOutboundClient implements OutboundClient {
     this.reject(messageId);
     this.calls.push({ method: "reply.card", target: messageId, replyInThread });
     return { messageId: "om_replied", chatId: "oc_chat" };
-  }
-
-  async replyCardKitReference(messageId: string, _cardId: string, replyInThread: boolean): Promise<FeishuSendResult> {
-    this.reject(messageId);
-    this.calls.push({ method: "reply.cardkit", target: messageId, replyInThread });
-    return { messageId: "om_replied_cardkit", chatId: "oc_chat" };
   }
 
   async replyFile(
@@ -73,10 +62,10 @@ test("router creates messages at the chat root for plain groups and DMs", async 
   router.noteInbound("group:oc_1", "om_in");
 
   await router.sendCard("group:oc_1", { schema: "2.0" });
-  await router.sendCardKit("dm:ou_1", "card-1");
+  await router.sendCard("dm:ou_1", { schema: "2.0" });
   await router.sendFile("group:oc_1", { fileName: "a.txt", data: Buffer.from("x") });
 
-  assert.deepEqual(client.calls.map((call) => call.method), ["create.card", "create.cardkit", "create.file"]);
+  assert.deepEqual(client.calls.map((call) => call.method), ["create.card", "create.card", "create.file"]);
   assert.ok(client.calls.every((call) => call.replyInThread === undefined));
 });
 
@@ -87,11 +76,11 @@ test("router replies to the latest inbound anchor inside a topic", async () => {
   router.noteInbound(target, "om_first");
   router.noteInbound(target, "om_latest");
 
-  await router.sendCardKit(target, "card-1");
+  await router.sendFile(target, { fileName: "a.txt", data: Buffer.from("x") });
   await router.sendCard(target, { schema: "2.0" });
 
   assert.deepEqual(client.calls, [
-    { method: "reply.cardkit", target: "om_latest", replyInThread: true },
+    { method: "reply.file", target: "om_latest", replyInThread: true },
     { method: "reply.card", target: "om_latest", replyInThread: true },
   ]);
 });

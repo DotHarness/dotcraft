@@ -2,7 +2,6 @@ import { HttpsProxyAgent } from "https-proxy-agent";
 import {
   Bot,
   GrammyError,
-  HttpError,
   InlineKeyboard,
   type Context,
 } from "grammy";
@@ -16,6 +15,7 @@ import {
 import {
   ConfigValidationError,
   ModuleChannelAdapter,
+  parseApprovalReplyDecision,
   buildUserInputPrompt,
   canUseNativeSingleChoiceUserInput,
   emptyUserInputResponse,
@@ -26,36 +26,30 @@ import {
   userInputResponseForSingleChoice,
   userInputResponseFromText,
   type ModuleError,
-  type ChannelToolDescriptor,
+  type ChannelChatDescriptor,
+  type ChannelDeliveryCapabilities,
   type ChannelAdapterMessageOpts,
+  type ChannelTurn,
+  type ChannelTurnOutcome,
+  type CommandChoice,
+  type CommandChoiceContext,
   type UserInputResponse,
   type WorkspaceContext,
 } from "@dotcraft/channel";
 
-import { markdownToTelegramHtml, splitTelegramMessage } from "./formatting.js";
 import {
-  TelegramMediaError,
-  TelegramMediaTools,
-  type TelegramApiLike,
-} from "./telegram-media-tools.js";
+  TELEGRAM_DELIVERY_CAPABILITIES,
+  describeTelegramError,
+  parseTargetChatId,
+  sendTelegramMessage,
+  sendTelegramText,
+} from "./telegram-delivery.js";
+import type { TelegramApiLike } from "./telegram-media.js";
 import type { TelegramConfig } from "./telegram-config.js";
+import { TelegramApprovals, escapeHtml } from "./telegram-approvals.js";
+import { TelegramCommandChoices, buildTelegramCommandMenus, stripBotMention } from "./telegram-commands.js";
 
-const APPROVAL_BUTTONS = [
-  { decision: "accept", label: "\u2705 Approve" },
-  { decision: "acceptForSession", label: "\u2705 Approve (this session)" },
-  { decision: "decline", label: "\u274C Decline" },
-  { decision: "cancel", label: "\u{1F6D1} Cancel turn" },
-] as const;
-
-export const DEFAULT_BOT_COMMANDS = [
-  { command: "new", description: "Start a new conversation" },
-  { command: "help", description: "Show available commands" },
-] as const;
-
-type PendingApproval = {
-  resolve: (decision: string) => void;
-  timer: ReturnType<typeof setTimeout>;
-};
+type TelegramUser = { id: number; first_name?: string; username?: string };
 
 type PendingUserInput = {
   request: Record<string, unknown>;
@@ -87,45 +81,15 @@ export function validateTelegramConfig(rawConfig: unknown): asserts rawConfig is
     fields.push("telegram.botToken");
   }
 
+  if (telegram.adminUsers !== undefined
+      && (!Array.isArray(telegram.adminUsers)
+        || telegram.adminUsers.some((id) => !/^\d+$/.test(String(id).trim())))) {
+    throw new ConfigValidationError("telegram.adminUsers must be a list of Telegram user IDs.", ["telegram.adminUsers"]);
+  }
+
   if (fields.length > 0) {
     throw new ConfigValidationError(`Missing required fields: ${fields.join(", ")}`, fields);
   }
-}
-
-export async function buildTelegramBotCommands(
-  commandList: () => Promise<Record<string, unknown>[]>,
-): Promise<Array<{ command: string; description: string }>> {
-  const merged = new Map<string, string>();
-  for (const item of DEFAULT_BOT_COMMANDS) {
-    merged.set(item.command, item.description);
-  }
-
-  const commands = await commandList();
-  for (const item of commands) {
-    const name = String(item.name ?? "").trim().replace(/^\//, "").toLowerCase();
-    if (!name || name.length > 32 || !/^[a-z0-9_]+$/.test(name)) {
-      continue;
-    }
-
-    const description = String(item.description ?? "DotCraft command").trim() || "DotCraft command";
-    if (!merged.has(name)) {
-      merged.set(name, description.slice(0, 256));
-    }
-  }
-
-  return [...merged.entries()].map(([command, description]) => ({ command, description }));
-}
-
-export function parseTargetChatId(target: string): number | null {
-  const raw = String(target).trim();
-  if (!raw) return null;
-  const normalized = raw.startsWith("group:")
-    ? raw.slice("group:".length)
-    : raw.startsWith("user:")
-      ? raw.slice("user:".length)
-      : raw;
-  const parsed = Number(normalized);
-  return Number.isInteger(parsed) ? parsed : null;
 }
 
 export function isTelegramConflictError(error: unknown): boolean {
@@ -146,16 +110,18 @@ export function isTelegramConflictError(error: unknown): boolean {
 
 export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
   private bot: Bot | null = null;
-  private readonly mediaTools = new TelegramMediaTools();
   private readonly threadContextMap = new Map<string, string>();
-  private readonly typingTasks = new Map<string, Promise<void>>();
+  private readonly chatTitles = new Map<string, string>();
+  private readonly typingTurns = new Map<string, Set<string>>();
   private readonly typingAbortControllers = new Map<string, AbortController>();
-  private readonly pendingApprovals = new Map<string, PendingApproval>();
+  private readonly approvals = new TelegramApprovals(() => this.requireBot().api);
   private readonly pendingUserInputs = new Map<string, PendingUserInput>();
   private readonly pendingUserInputByChat = new Map<string, string>();
   private nextUserInputToken = 1;
+  private readonly commandChoices = new TelegramCommandChoices();
+  private adminUsers = new Set<string>();
+  private botUsername: string | undefined;
   private pollingPromise: Promise<void> | null = null;
-  private approvalTimeoutMs = 120_000;
   private pollTimeoutSeconds = 30;
 
   constructor() {
@@ -212,12 +178,20 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
     };
   }
 
-  protected override getDeliveryCapabilities(): Record<string, unknown> | null {
-    return this.mediaTools.getDeliveryCapabilities();
+  protected override getDisplayName(): string {
+    return "Telegram";
   }
 
-  protected override getChannelTools(): ChannelToolDescriptor[] | null {
-    return this.mediaTools.getChannelTools();
+  protected override getDeliveryCapabilities(): ChannelDeliveryCapabilities {
+    return TELEGRAM_DELIVERY_CAPABILITIES;
+  }
+
+  protected override getChatDescriptor(opts: ChannelAdapterMessageOpts, channelContext: string): ChannelChatDescriptor {
+    const chatId = parseTargetChatId(channelContext);
+    if (chatId !== null && chatId < 0) {
+      return { kind: "group", label: this.chatTitles.get(String(chatId)), membership: "sender" };
+    }
+    return { kind: "direct", label: opts.userName, membership: "shared" };
   }
 
   override async startWithContext(context: WorkspaceContext): Promise<void> {
@@ -228,8 +202,9 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
     }
 
     const config = this.loadedConfig;
-    this.approvalTimeoutMs = config.telegram.approvalTimeoutMs ?? 120_000;
+    this.approvals.timeoutMs = config.telegram.approvalTimeoutMs ?? 120_000;
     this.pollTimeoutSeconds = Math.max(1, Math.ceil((config.telegram.pollTimeoutMs ?? 30_000) / 1000));
+    this.adminUsers = new Set((config.telegram.adminUsers ?? []).map((id) => String(id).trim()));
 
     try {
       const bot = this.createBot(config);
@@ -237,10 +212,10 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
       this.installBotHandlers(bot);
 
       const me = await bot.api.getMe();
+      this.botUsername = me.username;
       console.info(`[telegram] bot @${me.username ?? me.first_name} connected`);
 
-      const commands = await buildTelegramBotCommands(() => this.client.commandList());
-      await bot.api.setMyCommands(commands);
+      await this.publishCommandMenus(bot);
       await this.waitForPollingSession(bot);
 
       this.pollingPromise = bot.start({
@@ -259,7 +234,7 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
   }
 
   override async stop(): Promise<void> {
-    this.resolveAllPendingApprovals("cancel");
+    this.approvals.resolveAll("cancel");
     this.resolveAllPendingUserInputs(emptyUserInputResponse());
     this.stopAllTyping();
 
@@ -281,9 +256,28 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
     }
   }
 
-  protected override onThreadsArchived(_identityKey: string, archivedThreadIds: string[]): void {
-    for (const threadId of archivedThreadIds) {
-      this.threadContextMap.delete(threadId);
+  protected override async renderCommandChoices(
+    target: string,
+    choices: CommandChoice[],
+    _context: CommandChoiceContext,
+  ): Promise<void> {
+    const chatId = parseTargetChatId(target);
+    if (chatId === null) {
+      console.error(`[telegram] invalid choices target: ${target}`);
+      return;
+    }
+    await this.requireBot().api.sendMessage(chatId, "Choose an option:", {
+      reply_markup: this.commandChoices.keyboard(chatId, choices),
+    });
+  }
+
+  private async publishCommandMenus(bot: Bot): Promise<void> {
+    for (const menu of buildTelegramCommandMenus(await this.listCommands(), this.adminUsers)) {
+      try {
+        await bot.api.setMyCommands(menu.commands, { scope: menu.scope });
+      } catch (error) {
+        console.warn(`[telegram] setMyCommands failed for scope ${menu.scope.type}: ${describeTelegramError(error)}`);
+      }
     }
   }
 
@@ -295,128 +289,27 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
       return false;
     }
 
-    this.stopTyping(String(chatId));
-    await this.sendText(bot.api as TelegramApiLike, chatId, content);
+    await sendTelegramText(bot.api as TelegramApiLike, chatId, content);
     return true;
   }
 
   protected override async onSend(
     target: string,
     message: Record<string, unknown>,
-    metadata: Record<string, unknown>,
+    _metadata: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    const kind = String(message.kind ?? "");
-    if (kind === "text") {
-      return await super.onSend(target, message, metadata);
-    }
-
-    const chatId = parseTargetChatId(target);
-    if (chatId === null) {
-      return {
-        delivered: false,
-        errorCode: "AdapterDeliveryFailed",
-        errorMessage: `Invalid Telegram target '${target}'.`,
-      };
-    }
-
-    try {
-      return await this.mediaTools.sendStructuredMessage(this.requireBot().api as TelegramApiLike, chatId, message, metadata);
-    } catch (error) {
-      if (error instanceof TelegramMediaError) {
-        return {
-          delivered: false,
-          errorCode: error.code,
-          errorMessage: error.message,
-        };
-      }
-      return {
-        delivered: false,
-        errorCode: "AdapterDeliveryFailed",
-        errorMessage: describeTelegramError(error),
-      };
-    }
-  }
-
-  protected override async onToolCall(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const tool = String(request.tool ?? "");
-    const args = asRecord(request.arguments);
-    const context = asRecord(request.context);
-    const target = String(context.channelContext ?? context.groupId ?? "");
-    const chatId = parseTargetChatId(target);
-    if (chatId === null) {
-      return {
-        success: false,
-        errorCode: "MissingChatContext",
-        errorMessage: "Current tool call does not contain a Telegram chat target.",
-      };
-    }
-
-    try {
-      return await this.mediaTools.executeToolCall(this.requireBot().api as TelegramApiLike, tool, chatId, args);
-    } catch (error) {
-      if (error instanceof TelegramMediaError) {
-        return {
-          success: false,
-          errorCode: error.code,
-          errorMessage: error.message,
-        };
-      }
-      return {
-        success: false,
-        errorCode: "AdapterToolCallFailed",
-        errorMessage: describeTelegramError(error),
-      };
-    }
+    return await sendTelegramMessage((this.bot?.api ?? null) as TelegramApiLike | null, target, message);
   }
 
   override async onApprovalRequest(request: Record<string, unknown>): Promise<string> {
     const threadId = String(request.threadId ?? "");
-    const approvalType = String(request.approvalType ?? "");
-    const operation = String(request.operation ?? "");
-    const reason = String(request.reason ?? "");
-    const requestId = String(request.requestId ?? "");
-
     const chatTarget = this.threadContextMap.get(threadId);
     const chatId = chatTarget ? parseTargetChatId(chatTarget) : null;
     if (chatId === null) {
       console.warn(`[telegram] cannot find chat for thread ${threadId}; auto-declining approval`);
       return "decline";
     }
-
-    const keyboard = new InlineKeyboard();
-    for (const button of APPROVAL_BUTTONS) {
-      keyboard.text(button.label, `approval:${requestId}:${button.decision}`).row();
-    }
-
-    const prompt =
-      "<b>Agent approval required</b>\n" +
-      `Type: <code>${escapeHtml(approvalType)}</code>\n` +
-      `Operation: <code>${escapeHtml(operation)}</code>\n` +
-      `Reason: ${escapeHtml(reason)}`;
-
-    await this.requireBot().api.sendMessage(chatId, prompt, {
-      parse_mode: "HTML",
-      reply_markup: keyboard,
-    });
-
-    const decision = await new Promise<string>((resolveDecision) => {
-      const prefix = `approval:${requestId}`;
-      const timer = setTimeout(() => {
-        this.pendingApprovals.delete(prefix);
-        resolveDecision("cancel");
-      }, this.approvalTimeoutMs);
-
-      this.pendingApprovals.set(prefix, {
-        resolve: (value) => {
-          clearTimeout(timer);
-          this.pendingApprovals.delete(prefix);
-          resolveDecision(value);
-        },
-        timer,
-      });
-    });
-
-    return decision;
+    return await this.approvals.request(chatId, request, this.approvalSender(request));
   }
 
   protected override async onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse> {
@@ -489,56 +382,28 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
     return questionCount > 1 ? `${base} (${questionIndex + 1}/${questionCount})` : base;
   }
 
-  protected override async onSegmentCompleted(
-    _threadId: string,
-    _turnId: string,
-    segmentText: string,
-    isFinal: boolean,
-    channelContext: string,
-  ): Promise<void> {
-    const chatId = parseTargetChatId(channelContext);
-    if (chatId === null) {
-      return;
-    }
-
-    await this.sendText(this.requireBot().api as TelegramApiLike, chatId, segmentText);
-    if (isFinal) {
-      this.stopTyping(String(chatId));
-    }
+  protected override async onTurnStarted(turn: ChannelTurn): Promise<void> {
+    const chatId = parseTargetChatId(turn.channelContext);
+    if (chatId === null) return;
+    const key = String(chatId);
+    const turns = this.typingTurns.get(key) ?? new Set<string>();
+    turns.add(turn.turnId);
+    this.typingTurns.set(key, turns);
+    if (turns.size === 1) this.startTyping(key);
   }
 
-  protected override async onTurnCompleted(
-    _threadId: string,
-    _turnId: string,
-    replyText: string,
-    channelContext: string,
-    segmentsWereDelivered: boolean,
-  ): Promise<void> {
-    const chatId = parseTargetChatId(channelContext);
-    if (chatId === null) {
-      return;
+  protected override async onTurnEnded(turn: ChannelTurn, outcome: ChannelTurnOutcome): Promise<void> {
+    const chatId = parseTargetChatId(turn.channelContext);
+    if (chatId !== null) {
+      const key = String(chatId);
+      const turns = this.typingTurns.get(key);
+      turns?.delete(turn.turnId);
+      if (!turns?.size) {
+        this.typingTurns.delete(key);
+        this.stopTyping(key);
+      }
     }
-
-    this.stopTyping(String(chatId));
-    if (!segmentsWereDelivered && replyText) {
-      await this.sendText(this.requireBot().api as TelegramApiLike, chatId, replyText);
-    }
-  }
-
-  protected override async onTurnFailed(threadId: string, turnId: string, error: string): Promise<void> {
-    const channelContext = this.threadContextMap.get(threadId);
-    if (channelContext) {
-      this.stopTyping(channelContext);
-    }
-    console.error(`[telegram] turn ${turnId} failed: ${error}`);
-  }
-
-  protected override async onTurnCancelled(threadId: string, turnId: string): Promise<void> {
-    const channelContext = this.threadContextMap.get(threadId);
-    if (channelContext) {
-      this.stopTyping(channelContext);
-    }
-    console.info(`[telegram] turn ${turnId} cancelled`);
+    await super.onTurnEnded(turn, outcome);
   }
 
   private createBot(config: TelegramConfig): Bot {
@@ -576,18 +441,28 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
     }
 
     const chatId = ctx.chatId;
-    const text = String(ctx.msg.text ?? "");
+    if (ctx.chat && "title" in ctx.chat && ctx.chat.title) {
+      this.chatTitles.set(String(chatId), ctx.chat.title);
+    }
+    const text = stripBotMention(String(ctx.msg.text ?? ""), this.botUsername);
+    const approvalDecision = parseApprovalReplyDecision(text, { slashAliasesOnly: true });
+    if (approvalDecision && await this.approvals.resolveInChat(chatId, String(ctx.from.id), approvalDecision)) {
+      return;
+    }
     if (await this.tryHandlePendingUserInputText(String(chatId), text)) {
       return;
     }
-    this.startTyping(String(chatId));
-    await this.handleMessage({
-      userId: String(ctx.from.id),
-      userName: ctx.from.first_name || ctx.from.username || String(ctx.from.id),
-      text,
+    await this.handleMessage({ ...this.messageOptsFor(ctx.from, chatId), text });
+  }
+
+  private messageOptsFor(from: TelegramUser, chatId: number): Omit<ChannelAdapterMessageOpts, "text"> {
+    return {
+      userId: String(from.id),
+      userName: from.first_name || from.username || String(from.id),
       channelContext: String(chatId),
-      senderExtra: { senderRole: "admin" },
-    });
+      directTarget: String(from.id),
+      senderExtra: { senderRole: this.adminUsers.has(String(from.id)) ? "admin" : "user" },
+    };
   }
 
   private async handleApprovalCallback(ctx: Context): Promise<void> {
@@ -601,38 +476,39 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
       await this.handleUserInputCallback(ctx, parts[1] ?? "", Number(parts[2]));
       return;
     }
+    if (parts.length === 3 && parts[0] === "cmd") {
+      await this.handleCommandChoiceCallback(ctx, parts[1] ?? "", Number(parts[2]));
+      return;
+    }
 
     if (parts.length !== 3 || parts[0] !== "approval") {
       return;
     }
 
-    const prefix = `${parts[0]}:${parts[1]}`;
-    const decision = parts[2] ?? "cancel";
-    const pending = this.pendingApprovals.get(prefix);
-    if (pending) {
-      pending.resolve(decision);
-    }
-
     const message = ctx.callbackQuery.message;
-    if (!message || !("message_id" in message) || !("chat" in message)) {
-      return;
-    }
+    await this.approvals.resolveFromButton(
+      parts[1] ?? "",
+      parts[2] ?? "cancel",
+      message && "message_id" in message && "chat" in message
+        ? { chatId: message.chat.id, messageId: message.message_id, text: "text" in message ? String(message.text ?? "") : "" }
+        : undefined,
+    );
+  }
 
-    const chosenLabel = APPROVAL_BUTTONS.find((button) => button.decision === decision)?.label ?? decision;
-    try {
-      await this.requireBot().api.editMessageReplyMarkup(message.chat.id, message.message_id, {
-        reply_markup: undefined,
-      });
-      const text = "text" in message ? escapeHtml(String(message.text ?? "")) : "";
-      await this.requireBot().api.editMessageText(
-        message.chat.id,
-        message.message_id,
-        `${text}\n\n<i>Decision: ${escapeHtml(chosenLabel)}</i>`,
-        { parse_mode: "HTML" },
-      );
-    } catch {
-      // Ignore edit failures for stale/deleted messages.
-    }
+  private async handleCommandChoiceCallback(ctx: Context, token: string, index: number): Promise<void> {
+    const message = ctx.callbackQuery?.message;
+    if (!ctx.from || !message || !("chat" in message) || !Number.isInteger(index)) return;
+    const chatId = message.chat.id;
+    const choice = this.commandChoices.take(token, chatId, index);
+    if (!choice) return;
+
+    await this.requireBot().api.editMessageText(
+      chatId,
+      message.message_id,
+      `<i>Selected: ${escapeHtml(choice.label || choice.command || "")}</i>`,
+      { parse_mode: "HTML", reply_markup: undefined },
+    ).catch(() => undefined);
+    await this.executeCommandChoice(String(choice.command), this.messageOptsFor(ctx.from, chatId));
   }
 
   private async handleUserInputCallback(ctx: Context, token: string, optionIndex: number): Promise<void> {
@@ -675,6 +551,7 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
       this.pendingUserInputByChat.delete(chatTarget);
       return false;
     }
+    if (await this.isCommand(text)) return false;
 
     const response = userInputResponseFromText(pending.request, text);
     if (!response) {
@@ -722,7 +599,7 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
 
   private async handleStartupFailure(error: unknown): Promise<void> {
     this.stopAllTyping();
-    this.resolveAllPendingApprovals("cancel");
+    this.approvals.resolveAll("cancel");
     this.bot = null;
     const message = describeTelegramError(error);
     await super.stop();
@@ -731,7 +608,7 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
 
   private async handlePollingFailure(error: unknown): Promise<void> {
     this.stopAllTyping();
-    this.resolveAllPendingApprovals("cancel");
+    this.approvals.resolveAll("cancel");
     this.bot = null;
     await super.stop();
     this.setStatus("stopped", this.runtimeError("unexpectedRuntimeFailure", describeTelegramError(error)));
@@ -745,34 +622,15 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
     };
   }
 
-  private async sendText(api: TelegramApiLike, chatId: number, content: string): Promise<void> {
-    if (!content) {
-      return;
-    }
-
-    for (const chunk of splitTelegramMessage(content)) {
-      try {
-        const html = markdownToTelegramHtml(chunk);
-        await api.sendMessage(chatId, html, { parse_mode: "HTML" });
-      } catch (error) {
-        console.warn(`[telegram] html send failed, retrying as plain text: ${describeTelegramError(error)}`);
-        await api.sendMessage(chatId, chunk);
-      }
-    }
-  }
-
   private startTyping(chatId: string): void {
     this.stopTyping(chatId);
     const controller = new AbortController();
     this.typingAbortControllers.set(chatId, controller);
-    const task = this.typingLoop(chatId, controller.signal).finally(() => {
-      const current = this.typingAbortControllers.get(chatId);
-      if (current === controller) {
+    void this.typingLoop(chatId, controller.signal).finally(() => {
+      if (this.typingAbortControllers.get(chatId) === controller) {
         this.typingAbortControllers.delete(chatId);
       }
-      this.typingTasks.delete(chatId);
     });
-    this.typingTasks.set(chatId, task);
   }
 
   private stopTyping(chatId: string): void {
@@ -785,6 +643,7 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
       controller.abort();
     }
     this.typingAbortControllers.clear();
+    this.typingTurns.clear();
   }
 
   private async typingLoop(chatId: string, signal: AbortSignal): Promise<void> {
@@ -801,14 +660,6 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
       if (!signal.aborted) {
         console.debug(`[telegram] typing indicator error for ${chatId}: ${describeTelegramError(error)}`);
       }
-    }
-  }
-
-  private resolveAllPendingApprovals(decision: string): void {
-    for (const [key, pending] of this.pendingApprovals) {
-      clearTimeout(pending.timer);
-      pending.resolve(decision);
-      this.pendingApprovals.delete(key);
     }
   }
 
@@ -858,25 +709,4 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
     };
     signal?.addEventListener("abort", onAbort, { once: true });
   });
-}
-
-function escapeHtml(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
-
-function describeTelegramError(error: unknown): string {
-  if (error instanceof GrammyError) {
-    const code =
-      typeof (error as unknown as { error_code?: unknown }).error_code === "number"
-        ? Number((error as unknown as { error_code?: unknown }).error_code)
-        : undefined;
-    return code ? `[${code}] ${error.description}` : error.description;
-  }
-  if (error instanceof HttpError) {
-    return error.message;
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return String(error);
 }

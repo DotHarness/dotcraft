@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.7 |
+| **Version** | 0.8.10 |
 | **Status** | Draft |
-| **Date** | 2026-10-14 |
+| **Date** | 2026-10-18 |
 
 Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, App Binding, and AppServer clients.
 
@@ -243,7 +243,7 @@ Turn input may include:
 - runtime reminder context.
 
 Runtime reminders belong to the current turn. They carry only facts that belong to the message being
-sent: who sent it, the conversation it arrived in, the context the sending client bound to it, and
+sent: who sent it or the automation that started the turn, the conversation it arrived in, the context the sending client bound to it, and
 counters that move on their own such as consumed tokens, remaining budget, and elapsed time.
 
 State that persists across turns — the environment, the current mode and the actions it allows, an

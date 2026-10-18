@@ -3252,6 +3252,26 @@
         "channel": {
           "type": "string"
         },
+        "chatKind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chatLabel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "deliveryTarget": {
           "anyOf": [
             {
@@ -3924,29 +3944,17 @@
           ]
         },
         "deliveryCapabilities": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ChannelDeliveryCapabilities"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/ChannelDeliveryCapabilities"
         },
-        "deliverySupport": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "displayName": {
+          "type": "string"
         }
       },
       "additionalProperties": true,
       "required": [
-        "channelName"
+        "channelName",
+        "deliveryCapabilities",
+        "displayName"
       ]
     },
     "ChannelBindingAcceptParams": {
@@ -4033,6 +4041,33 @@
       },
       "additionalProperties": true
     },
+    "ChannelChat": {
+      "title": "ChannelChat",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "membership": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "membership"
+      ]
+    },
     "ChannelDeliveryCapabilities": {
       "title": "ChannelDeliveryCapabilities",
       "type": "object",
@@ -4047,18 +4082,18 @@
             }
           ]
         },
-        "structuredDelivery": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "targets": {
+          "$ref": "#/$defs/ChannelTargetCapability"
+        },
+        "text": {
+          "$ref": "#/$defs/ChannelTextCapability"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "targets",
+        "text"
+      ]
     },
     "ChannelInfo": {
       "title": "ChannelInfo",
@@ -4415,6 +4450,36 @@
       },
       "additionalProperties": true
     },
+    "ChannelTargetCapability": {
+      "title": "ChannelTargetCapability",
+      "type": "object",
+      "properties": {
+        "direct": {
+          "type": "string"
+        },
+        "group": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "direct",
+        "group"
+      ]
+    },
+    "ChannelTextCapability": {
+      "title": "ChannelTextCapability",
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "format"
+      ]
+    },
     "ChannelToolApprovalDescriptor": {
       "title": "ChannelToolApprovalDescriptor",
       "type": "object",
@@ -4734,6 +4799,19 @@
         "version"
       ]
     },
+    "CommandChoice": {
+      "title": "CommandChoice",
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
     "CommandExecParams": {
       "title": "CommandExecParams",
       "type": "object",
@@ -4833,23 +4911,13 @@
       "title": "CommandExecuteResult",
       "type": "object",
       "properties": {
-        "archivedThreadIds": {
+        "choices": {
           "anyOf": [
             {
               "type": "array",
               "items": {
-                "type": "string"
+                "$ref": "#/$defs/CommandChoice"
               }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "createdLazily": {
-          "anyOf": [
-            {
-              "type": "boolean"
             },
             {
               "type": "null"
@@ -4881,9 +4949,6 @@
               "type": "null"
             }
           ]
-        },
-        "sessionReset": {
-          "type": "boolean"
         },
         "thread": {
           "anyOf": [
@@ -6320,6 +6385,9 @@
       "title": "ExtChannelSendParams",
       "type": "object",
       "properties": {
+        "deliveryId": {
+          "type": "string"
+        },
         "message": {
           "$ref": "#/$defs/ChannelOutboundMessage"
         },
@@ -12044,16 +12112,6 @@
           "type": "string",
           "format": "date-time"
         },
-        "deliveryBindingId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "displayText": {
           "type": "string"
         },
@@ -12660,6 +12718,16 @@
       "title": "SenderContext",
       "type": "object",
       "properties": {
+        "directTarget": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "groupId": {
           "anyOf": [
             {
@@ -17650,6 +17718,16 @@
             }
           ]
         },
+        "chat": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelChat"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "cwd": {
           "anyOf": [
             {
@@ -18096,6 +18174,16 @@
               "additionalProperties": {
                 "$ref": "#/$defs/RuntimeAdditionalContextEntry"
               }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chat": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelChat"
             },
             {
               "type": "null"
@@ -20814,16 +20902,6 @@
           ]
         },
         "clientUserMessageId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "deliveryBindingId": {
           "anyOf": [
             {
               "type": "string"

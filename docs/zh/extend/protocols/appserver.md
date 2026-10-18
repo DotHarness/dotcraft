@@ -398,6 +398,84 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 
 如果 client 在 `initialize` 中声明 `approvalSupport: false`，server 不会向它发送审批请求，它发起的 turn 中的审批会立即按 thread 的审批策略处理。富 UI client 应保持 `approvalSupport: true`。
 
+`approvalType` 表示资源类型：`shell`、`file`、`computerUse`、`channelMessage`，或由工具贡献的其他类型。`channelMessage` 请求是要把消息发到 thread 自身会话之外的聊天。它的 `operation` 为 `send`，`target` 是聊天地址 `<channelName>:<target>`，`acceptForSession` 会覆盖之后发往同一地址的消息。
+
+## 命令
+
+`command/list` 返回 server 的命令，包含 `name`、`aliases`、`description` 和 `requiresAdmin`。`command/execute` 在某个 thread 上执行一条命令：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "method": "command/execute",
+  "params": {
+    "threadId": "thread_20260316_x7k2m4",
+    "command": "/model",
+    "sender": { "senderId": "user-456", "senderName": "Alice", "senderRole": "admin" }
+  }
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "result": {
+    "handled": true,
+    "message": "Current model: gpt-5",
+    "isMarkdown": false,
+    "expandedPrompt": null,
+    "thread": null,
+    "choices": [
+      { "label": "gpt-5-mini", "command": "/model gpt-5-mini" }
+    ]
+  }
+}
+```
+
+| 字段 | 说明 |
+|-------|-------------|
+| `message` | 展示给调用方的简短回复。`isMarkdown` 表示它是否为 Markdown。 |
+| `expandedPrompt` | 自定义命令展开得到的提示词。用 `turn/start` 提交。 |
+| `thread` | 会话新的当前 thread，由 `/new`、`/resume` 等命令返回。立即切换到 `thread.id`。 |
+| `choices` | 可选的后续操作。每个 `command` 都是完整命令，选中后就像发送者亲手输入一样执行 `command/execute`。 |
+
+thread 上有活动 turn 时，每个内置命令要么直接执行，要么先取消 turn 再执行，要么回复 thread 正忙。带 `requiresAdmin` 的命令只在 `sender.senderRole` 为 `"admin"` 时执行，否则返回 `CommandPermissionDenied`。来自非渠道适配器连接、且不带 `sender` 的请求按管理员处理。
+
+## 渠道适配器
+
+渠道适配器在 `initialize` 时通过 `capabilities.channelAdapter` 声明自己：
+
+```json
+{
+  "channelAdapter": {
+    "channelName": "telegram",
+    "displayName": "Telegram",
+    "deliveryCapabilities": {
+      "text": { "format": "markdown" },
+      "targets": { "group": true, "direct": "knownOnly" },
+      "media": {
+        "image": { "maxBytes": 10485760, "supportsHostPath": true, "supportsUrl": true, "supportsBase64": true, "supportsCaption": true },
+        "file": { "maxBytes": 52428800, "supportsHostPath": true, "supportsUrl": true, "supportsBase64": true, "supportsCaption": true }
+      }
+    },
+    "channelTools": []
+  }
+}
+```
+
+- `displayName` 是平台的产品名称，会展示给 Agent 和各个 client。
+- 平台渲染 Markdown 时 `text.format` 为 `markdown`，无论是原生渲染还是由 adapter 转换，否则为 `plain`。一条平台消息放不下的文本由 adapter 拆分。
+- `targets.group` 表示 adapter 能否发到 thread 自身会话之外的群。`targets.direct` 为 `any`、`knownOnly`（仅限给 Bot 发过消息的用户）或 `none`。
+- `media` 列出 adapter 能投递的附件类型（`image`、`file`、`audio`、`video`）及其限制。未列出的类型不受支持。
+
+能力在连接存续期间固定不变。每个 adapter 都提供 `ext/channel/send`。
+
+adapter 在 `thread/start` 和 `thread/resume` 上发送 `chat`，描述 thread 对应的聊天，例如 `{ "kind": "group", "label": "Release team", "membership": "shared" }`。`kind` 为 `direct`、`group` 或 `topic`。每个被转发成员的消息都进入 thread 时，`membership` 为 `shared`，thread 只收一位发送者的消息时为 `sender`。thread 的 `channelContext` 就是该聊天的投递目标。只有渠道适配器连接可以发送 `chat`。绑定关系保存在连接上，adapter 重连后要重新发送。不带 `chat` 的 `thread/resume` 保留现有绑定。
+
+Agent 只能通过 `SendChannelMessage` 工具触达聊天，server 用 `ext/channel/send` 逐段投递。每个请求都带有 `deliveryId`，由 server 根据 turn、工具调用和分段序号生成。收到重复的 `deliveryId` 时直接返回首次投递的结果，不再重复发出。无法触达的目标返回 `UnsupportedTarget`。adapter 不会自行把 `agentMessage` 文本或其他 item 发到聊天里。
+
 ## API 概览
 
 下面是 AppServer client 常用的方法族。
@@ -411,7 +489,7 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 | Tools | `tool/list` | 内置工具目录（名称、描述、Plan 模式可用性），用于 agent profile 的工具选择器。 |
 | Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `plugin/setTrusted` | 插件发现、详情、安装、移除、启用状态与 .NET trust 管理。 |
 | 插件市场 | `marketplace/add`, `marketplace/refresh`, `marketplace/remove` | 用户管理的插件目录来源。 |
-| Commands | `command/list`, `command/execute` | 自定义命令发现和执行。 |
+| Commands | `command/list`, `command/execute` | 命令发现和执行。见[命令](#命令)。 |
 | Models | `model/list` | 模型目录。 |
 | MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/test`, `mcpServerStatus/list` | MCP 配置和状态。 |
 | External channels | `externalChannel/list`, `externalChannel/upsert` | 外部 channel 配置。 |

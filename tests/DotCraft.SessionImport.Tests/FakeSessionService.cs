@@ -117,7 +117,6 @@ internal sealed class FakeSessionService : ISessionService
 
     public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null, bool ephemeral = false) => throw new NotSupportedException();
 
-    public Task<ThreadResetResult> ResetConversationAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? displayName = null, CancellationToken ct = default) => throw new NotSupportedException();
 
     public Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default) => throw new NotSupportedException();
 

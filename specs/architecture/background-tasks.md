@@ -133,7 +133,10 @@ exactly one notification to its owner, unless the task is already `notified`:
 - a Workflow child with silent completion ended, because its run consumes the result.
 
 A client stop (`terminal/stop`, `turn/interrupt` on a SubAgent child, `subagent/close`,
-`workflow/run/stop`) still notifies and records the stop origin as `user`. A shell stall (see [Tool Architecture](tools-architecture.md) §7.3) sends a
+`workflow/run/stop`) still notifies and records the stop origin as `user`. A stop requested through
+the `/stop all` or `/tasks stop` command ([Channel Messaging and Commands](../features/channel-messaging.md) §12.2)
+goes through the task registry with stop origin `user`; like `TaskStop`, a task that settles within
+the wait owes no notification, because the command's reply reports it. A shell stall (see [Tool Architecture](tools-architecture.md) §7.3) sends a
 notification without settling the task; its completion notification still follows.
 
 ### 5.2 Envelope

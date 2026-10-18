@@ -17,7 +17,7 @@ public sealed record SenderContext
     public string SenderName { get; init; } = string.Empty;
 
     /// <summary>
-    /// Permission role: "admin", "whitelisted", "unauthorized".
+    /// Permission role: "admin" or "user".
     /// </summary>
     public string SenderRole { get; init; } = string.Empty;
 
@@ -25,4 +25,6 @@ public sealed record SenderContext
     /// Group or chat ID for group sessions. Null for direct/private sessions.
     /// </summary>
     public string? GroupId { get; init; }
+
+    public string? DirectTarget { get; init; }
 }

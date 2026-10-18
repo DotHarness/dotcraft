@@ -5,6 +5,7 @@ import {
   conversationTargetBase,
   conversationTargetThreadKey,
   deriveConversationTarget,
+  describeConversation,
   formatConversationTarget,
   needsThreadCapabilityLookup,
   parseConversationTarget,
@@ -26,14 +27,17 @@ function groupEvent(message: Partial<FeishuMessageEvent["message"]>): FeishuMess
   };
 }
 
-test("conversation targets round-trip and keep plain group/dm targets unchanged", () => {
+test("conversation targets round-trip and reject anything outside the group/dm syntax", () => {
   assert.equal(formatConversationTarget({ kind: "group", id: "oc_1" }), "group:oc_1");
   assert.equal(formatConversationTarget({ kind: "group", id: "oc_1", threadKey: "om_root" }), "group:oc_1/thread:om_root");
   assert.deepEqual(parseConversationTarget("group:oc_1"), { kind: "group", id: "oc_1" });
   assert.deepEqual(parseConversationTarget("group:oc_1/thread:om_root"), { kind: "group", id: "oc_1", threadKey: "om_root" });
   assert.deepEqual(parseConversationTarget("dm:ou_1"), { kind: "dm", id: "ou_1" });
-  assert.deepEqual(parseConversationTarget("oc_bare"), { kind: "group", id: "oc_bare" });
+  assert.equal(parseConversationTarget("oc_bare"), null);
   assert.equal(parseConversationTarget("group:"), null);
+  assert.equal(parseConversationTarget("group:My Team"), null);
+  assert.equal(parseConversationTarget("dm:ou_1/thread:om_root"), null);
+  assert.equal(parseConversationTarget("dm:on_union"), null);
   assert.equal(conversationTargetBase("group:oc_1/thread:om_root"), "group:oc_1");
   assert.equal(conversationTargetBase(conversationTargetBase("group:oc_1/thread:om_root")), "group:oc_1");
   assert.equal(conversationTargetThreadKey("group:oc_1/thread:om_root"), "om_root");
@@ -76,4 +80,14 @@ test("deriveConversationTarget partitions group messages by topic", () => {
     deriveConversationTarget(groupEvent({ chat_type: "p2p", thread_id: "omt" }), "ou_sender", true),
     { channelContext: "dm:ou_sender", threadUserId: "ou_sender" },
   );
+});
+
+test("each derived conversation describes the chat its thread is keyed by", () => {
+  const topic = deriveConversationTarget(groupEvent({ message_id: "om_root", thread_id: "omt_topic" }), "ou_sender", false);
+  const group = deriveConversationTarget(groupEvent({}), "ou_sender", false);
+  const direct = deriveConversationTarget(groupEvent({ chat_type: "p2p" }), "ou_sender", false);
+
+  assert.deepEqual(describeConversation(topic.channelContext), { kind: "topic", membership: "shared" });
+  assert.deepEqual(describeConversation(group.channelContext), { kind: "group", membership: "shared" });
+  assert.deepEqual(describeConversation(direct.channelContext), { kind: "direct", membership: "shared" });
 });

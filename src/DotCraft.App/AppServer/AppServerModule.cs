@@ -1,7 +1,9 @@
 using DotCraft.Channels;
 using DotCraft.Context;
+using DotCraft.Context.WorldState;
 using DotCraft.Configuration;
 using DotCraft.ExternalChannel;
+using DotCraft.ExternalChannel.Messaging;
 using DotCraft.Hosting;
 using DotCraft.Modules;
 using DotCraft.Plugins;
@@ -49,6 +51,9 @@ public sealed partial class AppServerModule : ModuleBase, IModuleHostComposition
         services.TryAddSingleton(sp => new MessageRouter(sp.GetRequiredService<IChannelRuntimeRegistry>()));
         services.TryAddSingleton<ExternalChannelRegistry>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginToolSourceProvider, ExternalChannelToolProvider>());
+        services.TryAddSingleton<ChatBindingResolver>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginToolSourceProvider, SendChannelMessageToolProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IWorldStateSection, ChannelChatSection>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, WireRuntimeAdditionalContextSystemPromptProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, DotCraft.CLI.TerminalVisualizationInstructionsPromptProvider>());
         services.TryAddSingleton<IAppServerChannelRunnerFactory, DefaultAppServerChannelRunnerFactory>();

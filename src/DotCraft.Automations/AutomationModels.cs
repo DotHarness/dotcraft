@@ -1,5 +1,7 @@
+using DotCraft.Channels;
 using DotCraft.Sessions;
 using System.ComponentModel;
+using System.Text.Json.Serialization;
 
 namespace DotCraft.Automations;
 
@@ -45,6 +47,21 @@ public sealed record AutomationOrigin
     public string UserId { get; init; } = "";
     public string? GroupId { get; init; }
     public string? DeliveryTarget { get; init; }
+    public string? ChatKind { get; init; }
+    public string? ChatLabel { get; init; }
+
+    [JsonIgnore]
+    public bool IsChat => !string.IsNullOrWhiteSpace(Channel) && !string.IsNullOrWhiteSpace(DeliveryTarget);
+
+    [JsonIgnore]
+    public ChannelChatDescriptor? Chat =>
+        IsChat ? new ChannelChatDescriptor(ChatKind ?? string.Empty, ChatLabel, ChannelChatMemberships.Shared) : null;
+
+    public static AutomationOrigin? Capture(ChannelSessionInfo? source) => source == null ? null : new()
+    {
+        Channel = source.Channel, UserId = source.UserId, GroupId = source.GroupId, DeliveryTarget = source.DefaultDeliveryTarget,
+        ChatKind = source.Chat?.Kind, ChatLabel = source.Chat?.Label
+    };
 }
 
 /// <summary>One execution attempt and its independently tracked delivery.</summary>

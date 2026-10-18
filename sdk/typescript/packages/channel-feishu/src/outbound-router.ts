@@ -1,16 +1,14 @@
 import { conversationTargetBase, conversationTargetThreadKey } from "./conversation-target.js";
 import type { FeishuClient } from "./feishu-client.js";
-import { FeishuApiError, type FeishuSendResult } from "./feishu-types.js";
+import { FeishuApiError, type FeishuFileMessageType, type FeishuSendResult } from "./feishu-types.js";
 import { errorMessage, logWarn, shortId } from "./logging.js";
 
 export type OutboundClient = Pick<
   FeishuClient,
   | "sendInteractiveCard"
-  | "sendCardKitReference"
   | "sendFile"
   | "sendImage"
   | "replyInteractiveCard"
-  | "replyCardKitReference"
   | "replyFile"
   | "replyImage"
 >;
@@ -49,19 +47,15 @@ export class FeishuOutboundRouter {
     );
   }
 
-  async sendCardKit(target: string, cardId: string): Promise<FeishuSendResult> {
+  async sendFile(
+    target: string,
+    file: OutboundFile,
+    messageType: FeishuFileMessageType = "file",
+  ): Promise<FeishuSendResult & { fileKey: string }> {
     return await this.route(
       target,
-      (anchor) => this.client.replyCardKitReference(anchor, cardId, true),
-      (base) => this.client.sendCardKitReference(base, cardId),
-    );
-  }
-
-  async sendFile(target: string, file: OutboundFile): Promise<FeishuSendResult & { fileKey: string }> {
-    return await this.route(
-      target,
-      (anchor) => this.client.replyFile(anchor, file, true),
-      (base) => this.client.sendFile(base, file),
+      (anchor) => this.client.replyFile(anchor, file, true, messageType),
+      (base) => this.client.sendFile(base, file, messageType),
     );
   }
 

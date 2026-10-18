@@ -1,6 +1,8 @@
+using DotCraft.Channels;
 using DotCraft.GenerativeUi;
 using DotCraft.Visualizations;
 using DotCraft.Sessions;
+using Contract = DotCraft.Protocol.AppServer;
 using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.AppServer;
@@ -64,6 +66,26 @@ internal sealed class AppServerThreadBinder(
     {
         visualizationRuntimeRegistry?.BindThread(thread, transport, connection);
         generativeUiRuntimeRegistry?.BindThread(thread.Id, connection);
+    }
+
+    public ChannelChatDescriptor? ValidateChat(Contract.ChannelChat? chat)
+    {
+        if (chat == null)
+            return null;
+        if (!connection.IsChannelAdapter)
+            throw AppServerErrors.InvalidParams("chat is accepted only from a channel adapter connection.");
+        if (chat.Kind is not (ChannelChatKinds.Direct or ChannelChatKinds.Group or ChannelChatKinds.Topic))
+            throw AppServerErrors.InvalidParams("chat.kind must be 'direct', 'group', or 'topic'.");
+        if (chat.Membership is not (ChannelChatMemberships.Shared or ChannelChatMemberships.Sender))
+            throw AppServerErrors.InvalidParams("chat.membership must be 'shared' or 'sender'.");
+        var label = string.IsNullOrWhiteSpace(chat.Label) ? null : chat.Label.Trim();
+        return new ChannelChatDescriptor(chat.Kind, label, chat.Membership);
+    }
+
+    public void BindChat(string threadId, ChannelChatDescriptor? chat)
+    {
+        if (chat != null)
+            connection.BindThreadChat(threadId, chat);
     }
 
     public void ForkAdditionalContext(string parentThreadId, string childThreadId)

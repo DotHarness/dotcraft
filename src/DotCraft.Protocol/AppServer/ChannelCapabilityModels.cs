@@ -49,16 +49,45 @@ public sealed class ChannelToolApprovalDescriptor : ExtensibleJsonObject
     public string? OperationArgument { get; init; }
 }
 
-/// <summary>Structured delivery support advertised by a channel adapter.</summary>
 public sealed class ChannelDeliveryCapabilities : ExtensibleJsonObject
 {
-    [JsonPropertyName("structuredDelivery")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? StructuredDelivery { get; init; }
+    [JsonPropertyName("text")]
+    public required ChannelTextCapability Text { get; init; }
+
+    [JsonPropertyName("targets")]
+    public required ChannelTargetCapability Targets { get; init; }
 
     [JsonPropertyName("media")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ChannelMediaCapabilitySet? Media { get; init; }
+}
+
+public sealed class ChannelTextCapability : ExtensibleJsonObject
+{
+    [JsonPropertyName("format")]
+    public required string Format { get; init; }
+}
+
+public sealed class ChannelTargetCapability : ExtensibleJsonObject
+{
+    [JsonPropertyName("group")]
+    public required bool Group { get; init; }
+
+    [JsonPropertyName("direct")]
+    public required string Direct { get; init; }
+}
+
+public sealed class ChannelChat : ExtensibleJsonObject
+{
+    [JsonPropertyName("kind")]
+    public required string Kind { get; init; }
+
+    [JsonPropertyName("label")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Label { get; init; }
+
+    [JsonPropertyName("membership")]
+    public required string Membership { get; init; }
 }
 
 /// <summary>Per-media-kind delivery constraints.</summary>

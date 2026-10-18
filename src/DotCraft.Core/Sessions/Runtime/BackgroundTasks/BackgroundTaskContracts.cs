@@ -44,6 +44,10 @@ public sealed record BackgroundTask
 
     public string? LastAgentMessage { get; init; }
 
+    public DateTimeOffset? StartedAt { get; init; }
+
+    public DateTimeOffset? EndedAt { get; init; }
+
     public BackgroundTaskLatch? Latch { get; init; }
 }
 
@@ -112,6 +116,8 @@ public interface IBackgroundTaskKind
 
     /// <summary>Returns the task when <paramref name="caller"/> may control it, otherwise null.</summary>
     Task<BackgroundTask?> FindAsync(BackgroundTaskCaller caller, string taskId, CancellationToken ct);
+
+    Task<IReadOnlyList<BackgroundTask>> ListAsync(BackgroundTaskCaller caller, CancellationToken ct);
 
     /// <summary>Stops the task and returns once it has settled; a task that already ended is left unchanged.</summary>
     Task StopAsync(BackgroundTask task, CancellationToken ct);

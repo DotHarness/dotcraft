@@ -59,6 +59,8 @@ import { SubAgentToolResultCard, getSubAgentToolDisplay, formatSubAgentRunningLa
 import { BoardToolCard } from './BoardToolCard'
 import { TaskStopToolRow } from './TaskStopToolRow'
 import { getTaskStopDisplay } from '../../utils/taskStopDisplay'
+import { ChannelMessageToolRow } from './ChannelMessageToolRow'
+import { getChannelMessageDisplay } from '../../utils/channelMessageDisplay'
 import type { BoardOperation } from '../../utils/boardToolDisplay'
 import {
   formatRequestUserInputResultLines,
@@ -422,6 +424,10 @@ export const ToolCallCard = memo(function ToolCallCard({
   const taskStopDisplay = rendererFamily === 'task' ? getTaskStopDisplay(item, isRunning, locale) : null
   if (taskStopDisplay) {
     return <TaskStopToolRow item={item} display={taskStopDisplay} running={isRunning} />
+  }
+
+  if (rendererFamily === 'channel') {
+    return <ChannelMessageToolRow item={item} display={getChannelMessageDisplay(item, isRunning, locale)} running={isRunning} locale={locale} />
   }
 
   const subAgentDisplay = !isRunning && rendererFamily === 'subagent'

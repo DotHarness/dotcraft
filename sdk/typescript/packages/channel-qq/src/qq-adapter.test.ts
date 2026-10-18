@@ -20,8 +20,8 @@ test("QQPermissionService classifies admins, users, groups, and unauthorized use
   });
 
   assert.equal(permissions.getUserRole(1), "admin");
-  assert.equal(permissions.getUserRole(2), "whitelisted");
-  assert.equal(permissions.getUserRole(3, 10), "whitelisted");
+  assert.equal(permissions.getUserRole(2), "user");
+  assert.equal(permissions.getUserRole(3, 10), "user");
   assert.equal(permissions.getUserRole(3, 11), "unauthorized");
 });
 
@@ -56,6 +56,7 @@ test("QQAdapter uses group thread identity and real sender context", async () =>
     groupId: "group:123",
   });
   assert.equal(groupOpts.omitSenderGroupId, false);
+  assert.equal(groupOpts.directTarget, "user:456");
 
   const secondGroupOpts = await captureHandleMessageOptions({
     post_type: "message",
@@ -91,6 +92,37 @@ test("QQAdapter uses group thread identity and real sender context", async () =>
     senderRole: "admin",
   });
   assert.equal(privateOpts.omitSenderGroupId, true);
+  assert.equal(privateOpts.directTarget, "user:456");
+});
+
+test("QQAdapter forwards whitelisted senders as users and drops unauthorized senders", async () => {
+  const adapter = new QQAdapter() as unknown as {
+    permission: QQPermissionService;
+    requireMentionInGroups: boolean;
+    handleMessage: (opts: Record<string, unknown>) => Promise<void>;
+    handleOneBotMessage: (evt: OneBotMessageEvent) => Promise<void>;
+  };
+  const forwarded: Record<string, unknown>[] = [];
+  adapter.permission = new QQPermissionService({ adminUsers: [1], whitelistedUsers: [2] });
+  adapter.requireMentionInGroups = false;
+  adapter.handleMessage = async (opts) => {
+    forwarded.push(opts);
+  };
+  const privateText = (userId: number): OneBotMessageEvent => ({
+    post_type: "message",
+    message_type: "private",
+    user_id: userId,
+    message: [{ type: "text", data: { text: "hello" } }],
+  });
+
+  await adapter.handleOneBotMessage(privateText(1));
+  await adapter.handleOneBotMessage(privateText(2));
+  await adapter.handleOneBotMessage(privateText(3));
+
+  assert.deepEqual(
+    forwarded.map((opts) => (opts.sender as Record<string, unknown>).senderRole),
+    ["admin", "user"],
+  );
 });
 
 test("QQAdapter builds channel binding targets from native QQ context", () => {
@@ -162,7 +194,7 @@ test("QQAdapter accepts channel bind codes before group mention gating", async (
       request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
     };
     commandRouter: {
-      routeBeforeQueue: () => Promise<"enqueue" | "handled">;
+      run: () => Promise<void>;
     };
     onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
     handleOneBotMessage: (evt: OneBotMessageEvent) => Promise<void>;
@@ -172,7 +204,7 @@ test("QQAdapter accepts channel bind codes before group mention gating", async (
 
   adapter.permission = new QQPermissionService({ adminUsers: [456] });
   adapter.requireMentionInGroups = true;
-  adapter.commandRouter.routeBeforeQueue = async () => {
+  adapter.commandRouter.run = async () => {
     throw new Error("bind command should not reach command routing");
   };
   adapter.client.request = async (method, params) => {
@@ -241,6 +273,7 @@ test("QQAdapter accepts channel bind codes before group mention gating", async (
 });
 
 type ApprovalTestAdapter = {
+  client: { commandList: () => Promise<Record<string, unknown>[]> };
   oneBot: { sendAction: (action: Record<string, unknown>) => Promise<Record<string, unknown>> } | null;
   permission: QQPermissionService;
   approvalTimeoutMs: number;
@@ -267,6 +300,7 @@ function createApprovalTestAdapter(): {
     },
   };
   adapter.permission = new QQPermissionService({ adminUsers: [10, 20, 456, 789] });
+  adapter.client.commandList = async () => [{ name: "/new", aliases: [] }];
   adapter.handleMessage = async (opts) => {
     forwarded.push(opts);
   };
@@ -301,16 +335,16 @@ test("QQAdapter resolves approvals only for the matching sender and chat", async
   assert.equal(await first, "cancel");
 });
 
-test("QQAdapter holds other messages from the approver while an approval is pending", async () => {
+test("QQAdapter holds the approver's messages except commands while an approval is pending", async () => {
   const { adapter, sentTexts, forwarded } = createApprovalTestAdapter();
   const decision = adapter.approvalReplies.wait("req-1", { channelContext: "group:123", userId: "456" }, 10_000);
 
   await adapter.handleOneBotMessage(groupText(456, 123, "/new", true));
-  await adapter.handleOneBotMessage(groupText(456, 123, "chatting with friends"));
+  await adapter.handleOneBotMessage(groupText(456, 123, "chatting with friends", true));
   await adapter.handleOneBotMessage(groupText(789, 123, "hello bot", true));
 
   assert.deepEqual(sentTexts, [APPROVAL_REPLY_PENDING_NOTICE]);
-  assert.deepEqual(forwarded.map((opts) => opts.text), ["hello bot"]);
+  assert.deepEqual(forwarded.map((opts) => opts.text), ["/new", "hello bot"]);
 
   await adapter.handleOneBotMessage(groupText(456, 123, "/no"));
   assert.equal(await decision, "decline");

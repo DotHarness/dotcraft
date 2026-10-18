@@ -16,16 +16,5 @@ export {
 export { QQPermissionService, normalizeId, normalizeIds, type QQUserRole } from "./permission.js";
 export { QQAdapter, validateQQConfig } from "./qq-adapter.js";
 export type { QQConfig } from "./qq-config.js";
-export {
-  QQMediaError,
-  QQMediaTools,
-  QQ_SEND_GROUP_IMAGE_TOOL,
-  QQ_SEND_GROUP_VIDEO_TOOL,
-  QQ_SEND_GROUP_VOICE_TOOL,
-  QQ_SEND_PRIVATE_IMAGE_TOOL,
-  QQ_SEND_PRIVATE_VIDEO_TOOL,
-  QQ_SEND_PRIVATE_VOICE_TOOL,
-  QQ_UPLOAD_GROUP_FILE_TOOL,
-  QQ_UPLOAD_PRIVATE_FILE_TOOL,
-} from "./qq-media-tools.js";
+export { QQMediaError, qqDeliveryCapabilities, sendQQMessage, type QQDeliveryResult } from "./qq-send.js";
 export { channelContextForQQEvent, parseQQTarget } from "./target.js";

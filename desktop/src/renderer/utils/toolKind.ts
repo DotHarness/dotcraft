@@ -12,6 +12,7 @@ export type ToolKind =
   | 'webSearch' | 'webFetch' | 'toolSearch'
   | 'spawnAgent' | 'sendMessage' | 'listAgents'
   | 'taskStop'
+  | 'channelMessage'
   | 'lsp' | 'requestUserInput' | 'commitSuggest' | 'createPlan'
   | 'todoWrite' | 'updateTodos' | 'todo'
   | 'skillManage' | 'skillView'
@@ -53,6 +54,8 @@ export function resolveToolKind(item: ToolKindSource): ToolKind | null {
       return typeof operation === 'string' ? SUBAGENT_KINDS[operation] ?? null : null
     case 'task':
       return 'taskStop'
+    case 'channel':
+      return 'channelMessage'
     case 'lsp':
     case 'requestUserInput':
     case 'commitSuggest':

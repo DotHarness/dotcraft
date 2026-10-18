@@ -12,7 +12,7 @@ export async function saveInboundImage(craftPath: string, bytes: Uint8Array, med
   return { ...localImagePart(path), mimeType: mediaType, fileName };
 }
 
-export function imageFileExtension(mediaType: string): string {
+function imageFileExtension(mediaType: string): string {
   switch (mediaType.toLowerCase()) {
     case "image/jpeg":
     case "image/jpg":

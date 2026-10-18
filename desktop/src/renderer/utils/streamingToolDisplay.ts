@@ -12,6 +12,7 @@ import {
 import { resolveMemoryOperation, resolveToolKind, resolveToolOperation, type ToolKindSource } from './toolKind'
 import { formatNodeReplLabel } from './nodeReplToolDisplay'
 import { formatTaskStopRunningLabel } from './taskStopDisplay'
+import { formatChannelMessageRunningLabel } from './channelMessageDisplay'
 
 /**
  * Parsed preview extracted from the streaming JSON delta for a tool call.
@@ -196,6 +197,8 @@ export function getStreamingToolDisplay(
       return { label: translate(locale, 'toolCall.subAgent.listing') }
     case 'taskStop':
       return { label: formatTaskStopRunningLabel(extractPartialJsonStringValue(rawArgs, 'taskId'), locale) }
+    case 'channelMessage':
+      return { label: formatChannelMessageRunningLabel(locale) }
     case 'lsp': {
       const op = extractPartialJsonStringValue(rawArgs, 'operation')
       const filePath = extractPartialJsonStringValue(rawArgs, 'filePath')

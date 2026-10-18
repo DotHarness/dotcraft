@@ -4,6 +4,16 @@
   "title": "SenderContext",
   "type": "object",
   "properties": {
+    "directTarget": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "groupId": {
       "anyOf": [
         {

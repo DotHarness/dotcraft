@@ -36,6 +36,7 @@ const CORE_TOOL_PRESENTATIONS: Readonly<Record<string, readonly [string, string?
   SendMessage: ['core.subagent', 'sendMessage'],
   ListAgents: ['core.subagent', 'list'],
   TaskStop: ['core.task', 'stop'],
+  SendChannelMessage: ['core.channel'],
   CreatePlan: ['core.create-plan'],
   TodoWrite: ['core.todo', 'todoWrite'],
   UpdateTodos: ['core.todo', 'updateTodos'],

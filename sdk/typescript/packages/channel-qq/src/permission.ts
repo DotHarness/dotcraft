@@ -1,4 +1,4 @@
-export type QQUserRole = "unauthorized" | "whitelisted" | "admin";
+export type QQUserRole = "unauthorized" | "user" | "admin";
 
 export interface QQPermissionConfig {
   adminUsers?: Array<number | string>;
@@ -21,8 +21,8 @@ export class QQPermissionService {
     const user = normalizeId(userId);
     const group = groupId === undefined || groupId === null || groupId === "" ? "" : normalizeId(groupId);
     if (this.adminUsers.has(user)) return "admin";
-    if (this.whitelistedUsers.has(user)) return "whitelisted";
-    if (group && this.whitelistedGroups.has(group)) return "whitelisted";
+    if (this.whitelistedUsers.has(user)) return "user";
+    if (group && this.whitelistedGroups.has(group)) return "user";
     return "unauthorized";
   }
 }

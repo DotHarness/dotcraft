@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.8 |
+| Version | 0.8.10 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-18 |
 | Related specs | [Tools architecture](../architecture/tools-architecture.md), [AppServer protocol](appserver-protocol.md), [Session Core](../architecture/session-core.md) |
 
 App Binding is DotCraft's application connection and thread-authorization control plane. It does not define, attach, execute, or present tools. Ordinary application capabilities come from one binding-scoped MCP session; interactive presentation uses MCP Apps. Channel bindings authorize a conversation target whose operations are exposed by a managed native tool source.
@@ -189,11 +189,11 @@ The channel adapter is authenticated by its AppServer channel identity. It resol
 
 When `app/channelBinding/accept` activates a binding, DotCraft appends a persistent `systemNotice` item to the bound thread with `kind = "channel"` and `reason = "bound"`. When `thread/appBindings/revoke` revokes a channel binding that had a verified target, it appends the same notice with `reason = "unbound"`. Both carry `channelName` (the canonical channel name) and `targetName` (the target display label, falling back to the conversation id). The notice follows Session Core placement: the running Turn, otherwise the latest completed Turn; a thread with no Turn records nothing.
 
-A managed channel `IToolSource` contributes Plugin Native registrations for active/offline channel bindings. Canonical identity retains the channel namespace and source tool name. Its authority reference includes the binding revision and verified target.
+A managed channel `IToolSource` contributes Plugin Native registrations for every channel binding that keeps a verified target and is not revoked (active, offline, syncing, needsConfirmation), from the channel's current or last declared tools. The registrations stay schema-stable across those states for prompt-cache stability (Section 6.3); they dispatch only while the binding is active and the declaring adapter connection is attached. Canonical identity retains the channel namespace and source tool name. Its authority reference includes the binding revision and verified target.
 
 Target-like fields such as `target`, `deliveryTarget`, `chatId`, `groupId`, and `conversationId` are reserved. A channel descriptor that exposes one at the top level is rejected. Invocation also rejects case or alias variants before dispatch. The verified delivery target is injected only into trusted channel call context.
 
-Explicit channel tools and final assistant delivery resolve the same binding revision and target. Channel unavailability retains the authority and stable offline tools but returns a stable unavailable error. Revocation blocks both tool and final-reply routing.
+A bound thread delivers to its channel binding only through `SendChannelMessage`; the assistant's replies are not delivered to the bound conversation. The tool stays registered in every binding state that keeps a verified target, so a binding going offline keeps the thread's tools unchanged (Section 6.3). It resolves the binding revision and verified target at call time and fails with a stable unavailable error unless the binding is active then. Channel tools resolve the same revision and target. Channel unavailability retains the authority and stable offline tools but returns a stable unavailable error. Revocation makes later sends and channel tool calls fail and removes `SendChannelMessage` from the thread's tools.
 
 Threads created by inbound channels retain their independent Origin Channel authority and tool source. They neither require App Binding nor merge with a Desktop channel binding by display name.
 

@@ -33,7 +33,7 @@ public interface IChannelService : IAsyncDisposable, IChannelRuntime
 
     /// <summary>
     /// Returns the list of delivery targets for admin notifications (e.g. scheduled task results).
-    /// Each target is passed to <see cref="IChannelRuntime.DeliverAsync(string,ChannelDeliveryMessage,object?,CancellationToken)"/>
+    /// Each target is passed to <see cref="IChannelRuntime.DeliverAsync(string,ChannelDeliveryMessage,object?,string?,CancellationToken)"/>
     /// with a text message when broadcasting to admins.
     /// Return an empty list if this channel does not support admin notifications.
     /// </summary>

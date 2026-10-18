@@ -10,7 +10,7 @@
 
 | 层级 | 职责 |
 | --- | --- |
-| **渠道适配器** | 连接 AppServer、解析 thread、运行 turn、处理审批并投递平台消息。 |
+| **渠道适配器** | 连接 AppServer、解析 thread、转发消息和命令、处理审批、投递 Agent 发出的内容，并显示聊天活动。 |
 | **渠道模块** | 描述具体实现、提供配置元数据、创建适配器实例，并向宿主报告生命周期状态。 |
 
 适配器需要模块级配置与生命周期支持时，继承 `ModuleChannelAdapter`。可由宿主加载的包还需要从根入口导出模块契约，并提供用于发现的 `manifest.json`。
@@ -63,7 +63,6 @@ export const manifest: ModuleManifest = {
   requiresInteractiveSetup: false,
   capabilitySummary: {
     hasChannelTools: false,
-    hasStructuredDelivery: false,
     requiresInteractiveSetup: false,
     capabilitySetMayVaryByEnvironment: false,
   },

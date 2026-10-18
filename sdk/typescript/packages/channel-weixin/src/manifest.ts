@@ -32,8 +32,7 @@ export const manifest: ModuleManifest = {
   supportedTransports: ["websocket"],
   requiresInteractiveSetup: true,
   capabilitySummary: {
-    hasChannelTools: true,
-    hasStructuredDelivery: true,
+    hasChannelTools: false,
     requiresInteractiveSetup: true,
     capabilitySetMayVaryByEnvironment: false,
   },

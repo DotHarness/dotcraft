@@ -44,9 +44,46 @@ public static class FallbackText
     public static string ViewAllCommands => Format("command.view_all");
     public static string CommandPermissionDenied => Format("command.permission_denied");
     public static string CommandServiceUnavailable => Format("command.service_unavailable");
-    public static string CommandNewCleared => Format("command.new.cleared");
+    public static string CommandBusy => Format("command.busy");
+    public static string CommandConversationBound => Format("command.conversation_bound");
+    public static string CommandNewStarted => Format("command.new.started");
     public static string CommandStopNoActiveRun => Format("command.stop.no_active_run");
     public static string CommandStopStopped => Format("command.stop.stopped");
+    public static string CommandStopAllStopped(int queued, int tasks) => Format("command.stop.all_stopped", queued, tasks);
+    public static string CommandTasksTitle => Format("command.tasks.title");
+    public static string CommandTasksEmpty => Format("command.tasks.empty");
+    public static string CommandTasksUsage => Format("command.tasks.usage");
+    public static string CommandTasksNotFound(string number) => Format("command.tasks.not_found", number);
+    public static string CommandTasksStopChoice(string label) => Format("command.tasks.stop_choice", label);
+    public static string CommandTasksStopped(string label, string status) => Format("command.tasks.stopped", label, status);
+    public static string CommandStatusTitle(string title) => Format("command.status.title", title);
+    public static string CommandStatusState(string state) => Format("command.status.state", state);
+    public static string CommandStatusStateIdle => Format("command.status.state.idle");
+    public static string CommandStatusStateRunning => Format("command.status.state.running");
+    public static string CommandStatusStateWaitingApproval => Format("command.status.state.waiting_approval");
+    public static string CommandStatusStateWaitingInput => Format("command.status.state.waiting_input");
+    public static string CommandStatusModel(string model) => Format("command.status.model", model);
+    public static string CommandStatusMode(string mode) => Format("command.status.mode", mode);
+    public static string CommandStatusContext(string tokens, string window) => Format("command.status.context", tokens, window);
+    public static string CommandStatusQueued(int count) => Format("command.status.queued", count);
+    public static string CommandStatusTasks(int count) => Format("command.status.tasks", count);
+    public static string CommandStatusApprovals(int count) => Format("command.status.approvals", count);
+    public static string CommandStatusUnknown => Format("command.status.unknown");
+    public static string CommandModelCurrent(string model) => Format("command.model.current", model);
+    public static string CommandModelUnavailable(string reason) => Format("command.model.unavailable", reason);
+    public static string CommandModelUnknown(string model) => Format("command.model.unknown", model);
+    public static string CommandModelSet(string model) => Format("command.model.set", model);
+    public static string CommandModeCurrent(string mode) => Format("command.mode.current", mode);
+    public static string CommandModeSet(string mode) => Format("command.mode.set", mode);
+    public static string CommandModeUsage => Format("command.mode.usage");
+    public static string CommandSessionsTitle => Format("command.sessions.title");
+    public static string CommandSessionsCurrent => Format("command.sessions.current");
+    public static string CommandSessionsArchived => Format("command.sessions.archived");
+    public static string CommandSessionsAge(string elapsed) => Format("command.sessions.age", elapsed);
+    public static string CommandResumeUsage => Format("command.resume.usage");
+    public static string CommandResumeAlreadyCurrent => Format("command.resume.already_current");
+    public static string CommandResumeResumed(string title) => Format("command.resume.resumed", title);
+    public static string CommandCompactResult(string outcome) => Format("command.compact.result", outcome);
     public static string CommandHelpTitle => Format("command.help.title");
     public static string CommandHelpCustomSection => Format("command.help.custom_section");
     public static string CommandHelpAdminSuffix => Format("command.help.admin_suffix");
@@ -78,7 +115,7 @@ public static class FallbackText
 {
   "cmd.help": "Show help information",
   "cmd.init": "Create an AGENTS.md file with instructions for DotCraft",
-  "cmd.new": "Create a new session",
+  "cmd.new": "Archive this thread and start a new one",
   "cmd.debug": "Toggle debug mode",
   "init.initializing": "Initializing DotCraft workspace...",
   "init.failed_short": "Initialization failed",
@@ -100,10 +137,54 @@ public static class FallbackText
   "command.view_all": "Type /help to see all available commands.",
   "command.permission_denied": "Permission denied. This command is available to administrators only.",
   "command.service_unavailable": "The service required by this command is unavailable.",
-  "command.new.cleared": "Session cleared. Starting a new conversation.",
-  "command.stop.description": "Stop the current agent run",
+  "command.busy": "This conversation is busy. Try again when the current run finishes, or send /stop.",
+  "command.conversation_bound": "This chat is bound to a DotCraft conversation. Unbind it in DotCraft before switching conversations.",
+  "command.new.started": "Started a new conversation.",
+  "command.stop.description": "Stop the current run; /stop all also clears queued messages and stops background tasks",
   "command.stop.no_active_run": "There is no active agent run.",
   "command.stop.stopped": "Agent stopped.",
+  "command.stop.all_stopped": "Stopped everything: the current run, {0} queued message(s) and {1} background task(s).",
+  "command.tasks.description": "List background tasks, or stop one with /tasks stop <n>",
+  "command.tasks.title": "Background tasks:",
+  "command.tasks.empty": "No background tasks.",
+  "command.tasks.usage": "Usage: /tasks or /tasks stop <n>",
+  "command.tasks.not_found": "There is no background task {0}. Send /tasks to list them.",
+  "command.tasks.stop_choice": "Stop {0}",
+  "command.tasks.stopped": "{0}: {1}",
+  "command.status.description": "Show what this conversation is doing",
+  "command.status.title": "Thread: {0}",
+  "command.status.state": "State: {0}",
+  "command.status.state.idle": "idle",
+  "command.status.state.running": "running",
+  "command.status.state.waiting_approval": "waiting for approval",
+  "command.status.state.waiting_input": "waiting for input",
+  "command.status.model": "Model: {0}",
+  "command.status.mode": "Mode: {0}",
+  "command.status.context": "Context: {0} / {1} tokens",
+  "command.status.queued": "Queued messages: {0}",
+  "command.status.tasks": "Running background tasks: {0}",
+  "command.status.approvals": "Pending approvals: {0}",
+  "command.status.unknown": "unknown",
+  "command.model.description": "Show the available models, or switch with /model <model>",
+  "command.model.current": "Current model: {0}",
+  "command.model.unavailable": "Couldn't list models: {0}",
+  "command.model.unknown": "{0} is not one of this provider's models. Send /model to list them.",
+  "command.model.set": "Later turns will use {0}.",
+  "command.mode.description": "Show the mode, or switch with /mode agent or /mode plan",
+  "command.mode.current": "Mode: {0}",
+  "command.mode.set": "Mode set to {0}.",
+  "command.mode.usage": "Usage: /mode [agent|plan]",
+  "command.sessions.description": "List this conversation's recent threads",
+  "command.sessions.title": "Recent threads:",
+  "command.sessions.current": "current",
+  "command.sessions.archived": "archived",
+  "command.sessions.age": "{0} ago",
+  "command.resume.description": "Switch to a thread from /sessions with /resume <n>",
+  "command.resume.usage": "Usage: /resume <n>. Send /sessions to list threads.",
+  "command.resume.already_current": "That thread is already the current one.",
+  "command.resume.resumed": "Switched to {0}.",
+  "command.compact.description": "Compact this conversation's context",
+  "command.compact.result": "Compaction finished: {0}.",
   "command.help.title": "Available commands:",
   "command.help.custom_section": "Custom commands:",
   "command.help.admin_suffix": "(admin)",

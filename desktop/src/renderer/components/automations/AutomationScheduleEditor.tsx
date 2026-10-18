@@ -14,7 +14,7 @@ export function AutomationScheduleEditor({
 }: {
   value: AutomationSchedule
   onChange(value: AutomationSchedule): void
-  notificationPolicy: AutomationInput['notificationPolicy']
+  notificationPolicy?: AutomationInput['notificationPolicy']
   onNotificationPolicyChange(value: AutomationInput['notificationPolicy']): void
 }): JSX.Element {
   const t = useT()
@@ -73,9 +73,11 @@ export function AutomationScheduleEditor({
             <TimeSelect hour={value.hour ?? 9} minute={value.minute ?? 0} ariaLabel={t('automation.time')} onChange={(hour, minute) => set({ hour, minute })} />
           </SettingRow>
         ) : null}
-        <SettingRow label={t('automation.notifications')}>
-          <Select appearance="frameless" adaptiveWidth={false} value={notificationPolicy} options={notificationOptions} ariaLabel={t('automation.notifications')} onValueChange={onNotificationPolicyChange} />
-        </SettingRow>
+        {notificationPolicy ? (
+          <SettingRow label={t('automation.notifications')}>
+            <Select appearance="frameless" adaptiveWidth={false} value={notificationPolicy} options={notificationOptions} ariaLabel={t('automation.notifications')} onValueChange={onNotificationPolicyChange} />
+          </SettingRow>
+        ) : null}
       </div>
     </section>
   )

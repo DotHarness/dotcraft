@@ -54,6 +54,14 @@ public sealed class AutomationOrigin
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DeliveryTarget { get; init; } = null;
 
+    [JsonPropertyName("chatKind")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ChatKind { get; init; } = null;
+
+    [JsonPropertyName("chatLabel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ChatLabel { get; init; } = null;
+
 }
 
 /// <summary>Unified automation contract for AutomationInput.</summary>

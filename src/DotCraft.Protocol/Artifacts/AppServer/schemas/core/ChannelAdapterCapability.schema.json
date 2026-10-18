@@ -21,28 +21,16 @@
       ]
     },
     "deliveryCapabilities": {
-      "anyOf": [
-        {
-          "$ref": "./ChannelDeliveryCapabilities.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "$ref": "./ChannelDeliveryCapabilities.schema.json"
     },
-    "deliverySupport": {
-      "anyOf": [
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        }
-      ]
+    "displayName": {
+      "type": "string"
     }
   },
   "additionalProperties": true,
   "required": [
-    "channelName"
+    "channelName",
+    "deliveryCapabilities",
+    "displayName"
   ]
 }

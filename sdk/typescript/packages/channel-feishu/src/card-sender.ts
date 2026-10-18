@@ -8,11 +8,12 @@ export async function sendReplyCards(
   target: string,
   replyText: string,
   cardTitle?: string,
-): Promise<void> {
-  const cards = buildReplyCards(replyText, cardTitle);
-  for (const card of cards) {
-    await router.sendCard(target, card);
+): Promise<FeishuSendResult[]> {
+  const sent: FeishuSendResult[] = [];
+  for (const card of buildReplyCards(replyText, cardTitle)) {
+    sent.push(await router.sendCard(target, card));
   }
+  return sent;
 }
 
 export async function updateCard(
@@ -21,20 +22,6 @@ export async function updateCard(
   card: Record<string, unknown>,
 ): Promise<void> {
   await client.updateInteractiveCard(messageId, card);
-}
-
-export async function createOrUpdateCard(
-  client: FeishuClient,
-  router: FeishuOutboundRouter,
-  target: string,
-  card: Record<string, unknown>,
-  messageId = "",
-): Promise<{ messageId: string }> {
-  if (messageId) {
-    await updateCard(client, messageId, card);
-    return { messageId };
-  }
-  return await router.sendCard(target, card);
 }
 
 export type { FeishuSendResult };

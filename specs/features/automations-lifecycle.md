@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.6 |
+| Version | 0.8.10 |
 | Status | Living |
-| Date | 2026-10-13 |
+| Date | 2026-10-18 |
 
 Automations is the single workspace capability for scheduled agent work. The optional
 DotCraft.Automations module owns storage, scheduling, execution, presets and delivery.
@@ -20,7 +20,10 @@ optional origin, createdAt, updatedAt and nullable nextRunAt (UTC ISO timestamps
 Runs auto-approve their tool calls. Under workspaceScope, file and shell tools are refused
 outside the run's workspace; under fullAuto, access outside it is auto-approved.
 Origin preserves channel, userId, groupId and deliveryTarget independently of execution.
-The host captures origin; models cannot impersonate a creator.
+An origin with a channel and a deliveryTarget is a channel origin. An origin captured from a chat
+may also describe that chat's kind (chatKind) and label (chatLabel); without a kind, the run's chat
+is an unspecified chat. The host captures origin; models cannot impersonate a creator
+or change the chat a run speaks to.
 
 Completed is a server-owned terminal state for a one-shot definition after its attempt.
 Create and update inputs accept active or paused only. A completed definition is read-only;
@@ -78,7 +81,8 @@ uses the same JSON representation as AppServer: `schedule.at` is an ISO 8601
 The model-visible action, lifecycle, execution, workspace, approval, notification and
 schedule-kind fields are closed enums. Text and numeric bounds are expressed in the
 schema as well as enforced by the service.
-`notificationPolicy` belongs to the nested editable automation definition. At the
+`notificationPolicy` belongs to the nested editable automation definition and applies only to
+definitions without a channel origin. At the
 model-tool boundary, blank optional identifiers are treated as omitted, omitted modes
 use their declared defaults, and thread mode without a target binds
 the trusted thread from the tool planning snapshot. AppServer validation remains strict.
@@ -112,7 +116,11 @@ Follow-ups default to thread mode and continue the specified conversation. Indep
 runs create a new conversation each time and name the automation as their memory scope,
 so successive runs share one long-term memory that the agent maintains, rather
 than a reported field. They capture memory extraction as disabled. Thread mode carries continuity in the target conversation and
-names no scope. Record exact turn ids. Git workspaces default to a fresh worktree per
+names no scope. Independent run conversations record the automation id as their channel context.
+A channel-origin run conversation is bound to the origin chat
+([Channel Messaging](channel-messaging.md) §4.1); a thread-mode run uses the target conversation's
+own chat binding. An independent channel-origin run sends to other chats only under fullAuto;
+under workspaceScope such sends are refused. Record exact turn ids. Git workspaces default to a fresh worktree per
 run; non-Git use project mode. Reported summaries have a hard size limit.
 Explicit worktree provisioning failure is an error, never a silent fallback. Missing or
 archived targets and missing profiles fail clearly. Bound threads inherit capabilities;
@@ -125,11 +133,21 @@ worktree retention remains available.
 
 ## Delivery and user experience
 
-Follow-ups default to important notifications, independent runs to all results. Failures
-qualify for notification. An optional structured outcome may mark unchanged successful
-work as non-important; missing importance is conservatively important. Every run persists.
-MessageRouter uses saved origin and existing channel delivery formats, including group
-targets. Persist the execution terminal state before attempting delivery. Delivery failure is
+Every run persists. A channel-origin run speaks to its origin chat only through
+`SendChannelMessage`, and decides itself whether there is anything to say. The host delivers
+nothing after a successful channel-origin run. When a channel-origin run fails, times out or is
+interrupted, the host sends one fixed failure notice naming the automation to the origin chat,
+because the agent can no longer send. A run cancelled because its definition was paused before
+dispatch sends nothing. The summary of a channel-origin run is its last agent message; reported
+outcomes do not apply. For channel-origin runs, deliveryStatus is sent when the failure notice was
+delivered, skipped for a successful run, and failed when the notice could not be delivered.
+
+Runs without a channel origin keep the Desktop result notification. Follow-ups default to
+important notifications, independent runs to all results. Failures qualify for notification.
+An optional structured outcome may mark unchanged successful work as non-important; missing
+importance is conservatively important.
+
+Persist the execution terminal state before attempting delivery. Delivery failure is
 distinct from execution failure and cannot replay agent work. If the host stops during
 delivery, recovery marks the pending delivery as failed without resending or rerunning.
 
@@ -139,7 +157,8 @@ skill teaches the unified Automation tool and is available only when that tool i
 The Automations page does not insert an intermediate creation banner. Manual creation and
 editing share a detail panel:
 editable title, prompt, detail rows, frequency rows and advanced settings. Dirty drafts
-show Save/Cancel; failed saves preserve drafts. Fields depend on execution mode. Presets
+show Save/Cancel; failed saves preserve drafts. Fields depend on execution mode; channel-origin
+definitions show no notification setting. Presets
 contain name, prompt and optional defaults and seed conversation without creating a job.
 The browse surface uses the DotCraft catalog title and search/filter controls. Existing
 definitions precede suggestions when present; the empty surface leads with suggestions.

@@ -28,14 +28,15 @@ public sealed class MemoryIndexSectionTests : IDisposable
     }
 
     [Fact]
-    public void MemoryDisabled_ContributesNeitherTextNorBaseline()
+    public void MemoryDisabled_ContributesNoTextAndEnablingShowsTheIndex()
     {
         WriteIndex(Branches);
 
-        var render = _world.RenderFull(Context(memory: null));
+        var disabled = _world.RenderFull(Context(memory: null));
+        Assert.Null(MemoryTextOrNull(disabled));
 
-        Assert.DoesNotContain(render.Fragments, static fragment => fragment.SectionId == MemoryIndexSection.SectionId);
-        Assert.False(render.Snapshot.TryGetSection(MemoryIndexSection.SectionId, out _));
+        var enabled = _world.Render(Context(), disabled.Snapshot, sectionIdsInHistory: null);
+        Assert.Contains(Branches, MemoryText(enabled), StringComparison.Ordinal);
     }
 
     [Fact]

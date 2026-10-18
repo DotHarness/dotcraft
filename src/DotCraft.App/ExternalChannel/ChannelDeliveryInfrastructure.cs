@@ -62,6 +62,7 @@ internal interface IChannelMessageDispatcher
         string target,
         ChannelDeliveryMessage message,
         object? metadata,
+        string deliveryId,
         CancellationToken cancellationToken = default);
 }
 
@@ -385,15 +386,9 @@ internal sealed class ExternalChannelMessageDispatcher(
         string target,
         ChannelDeliveryMessage message,
         object? metadata,
+        string deliveryId,
         CancellationToken cancellationToken = default)
     {
-        if (!connection.SupportsStructuredDelivery)
-        {
-            return Failure(
-                "UnsupportedDeliveryKind",
-                $"Channel '{channelName}' does not advertise structured delivery for '{message.Kind}'.");
-        }
-
         if (string.Equals(message.Kind, "text", StringComparison.OrdinalIgnoreCase))
         {
             try
@@ -401,6 +396,7 @@ internal sealed class ExternalChannelMessageDispatcher(
                 var request = new ChannelDeliveryRequest
                 {
                     Target = target,
+                    DeliveryId = deliveryId,
                     Message = message,
                     Metadata = metadata
                 };
@@ -443,6 +439,7 @@ internal sealed class ExternalChannelMessageDispatcher(
             var request = new ChannelDeliveryRequest
             {
                 Target = target,
+                DeliveryId = deliveryId,
                 Message = new ChannelDeliveryMessage
                 {
                     Kind = message.Kind,

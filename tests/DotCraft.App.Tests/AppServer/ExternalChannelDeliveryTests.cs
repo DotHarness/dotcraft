@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
+using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Channels;
 using DotCraft.Configuration;
@@ -74,7 +75,6 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             EmptyModelProviders);
         var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
         AttachFakeAdapter(host, transport, CreateAdapterConnection(
-            structuredDelivery: true,
             fileConstraints: new ChannelMediaConstraintSnapshot { SupportsHostPath = true }));
 
         var result = await host.DeliverAsync("group:1", new ChannelDeliveryMessage
@@ -290,7 +290,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
         var transport = new StubTransport();
-        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraintSnapshot
+        var connection = CreateAdapterConnection(fileConstraints: new ChannelMediaConstraintSnapshot
         {
             SupportsUrl = false,
             SupportsBase64 = true
@@ -310,7 +310,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
                     Url = "https://example.com/file.pdf"
                 }
             },
-            metadata: null);
+            metadata: null,
+            deliveryId: "d1");
 
         Assert.False(result.Delivered);
         Assert.Equal("UnsupportedMediaSource", result.ErrorCode);
@@ -323,7 +324,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
         var transport = new StubTransport();
-        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraintSnapshot
+        var connection = CreateAdapterConnection(fileConstraints: new ChannelMediaConstraintSnapshot
         {
             SupportsUrl = true,
             MaxBytes = 1024
@@ -343,7 +344,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
                     Url = "https://example.com/file.pdf"
                 }
             },
-            metadata: null);
+            metadata: null,
+            deliveryId: "d1");
 
         Assert.False(result.Delivered);
         Assert.Equal("MediaResolutionFailed", result.ErrorCode);
@@ -358,7 +360,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var resolver = CreateResolver(store, mediaRoot);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
         var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
-        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraintSnapshot
+        var connection = CreateAdapterConnection(fileConstraints: new ChannelMediaConstraintSnapshot
         {
             SupportsBase64 = true
         });
@@ -378,7 +380,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
                     DataBase64 = Convert.ToBase64String("hello"u8.ToArray())
                 }
             },
-            metadata: null);
+            metadata: null,
+            deliveryId: "d1");
 
         Assert.True(result.Delivered);
         var tmpDir = Path.Combine(mediaRoot, "tmp");
@@ -386,65 +389,13 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     }
 
     [Fact]
-    public async Task ExternalChannelMessageDispatcher_TextDelivery_RequiresUnifiedSendCapabilities()
-    {
-        var transport = new StubTransport(new ChannelDeliveryResult { Delivered = false });
-        var store = new InMemoryChannelMediaArtifactStore();
-        var resolver = CreateResolver(store, _tempDir);
-        var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
-        var connection = CreateAdapterConnection(structuredDelivery: false, fileConstraints: null);
-
-        var result = await dispatcher.DeliverAsync(
-            transport,
-            connection,
-            "telegram",
-            "group:1",
-            new ChannelDeliveryMessage
-            {
-                Kind = "text",
-                Text = "hello"
-            },
-            metadata: null);
-
-        Assert.False(result.Delivered);
-        Assert.Equal("UnsupportedDeliveryKind", result.ErrorCode);
-        Assert.Null(transport.LastMethod);
-    }
-
-    [Fact]
-    public async Task ExternalChannelMessageDispatcher_TextDelivery_IsRejectedWithoutStructuredCapabilities()
+    public async Task ExternalChannelMessageDispatcher_TextDelivery_SendsWithDeliveryId()
     {
         var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
         var store = new InMemoryChannelMediaArtifactStore();
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
-        var connection = CreateAdapterConnection(structuredDelivery: false, fileConstraints: null);
-
-        var result = await dispatcher.DeliverAsync(
-            transport,
-            connection,
-            "telegram",
-            "group:1",
-            new ChannelDeliveryMessage
-            {
-                Kind = "text",
-                Text = "hello"
-            },
-            metadata: null);
-
-        Assert.False(result.Delivered);
-        Assert.Equal("UnsupportedDeliveryKind", result.ErrorCode);
-        Assert.Null(transport.LastMethod);
-    }
-
-    [Fact]
-    public async Task ExternalChannelMessageDispatcher_StructuredAdapter_UsesSendForText()
-    {
-        var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
-        var store = new InMemoryChannelMediaArtifactStore();
-        var resolver = CreateResolver(store, _tempDir);
-        var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
-        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraintSnapshot
+        var connection = CreateAdapterConnection(fileConstraints: new ChannelMediaConstraintSnapshot
         {
             SupportsBase64 = true
         });
@@ -459,10 +410,13 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
                 Kind = "text",
                 Text = "hello"
             },
-            metadata: null);
+            metadata: null,
+            deliveryId: "d1");
 
         Assert.True(result.Delivered);
         Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.ExtChannelSend, transport.LastMethod);
+        var sent = JsonSerializer.SerializeToElement(transport.LastParams, SessionWireJsonOptions.Default);
+        Assert.Equal("d1", sent.GetProperty("deliveryId").GetString());
     }
 
     [Fact]
@@ -472,7 +426,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var store = new InMemoryChannelMediaArtifactStore();
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
-        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: null);
+        var connection = CreateAdapterConnection(fileConstraints: null);
 
         var result = await dispatcher.DeliverAsync(
             transport,
@@ -488,7 +442,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
                     Url = "https://example.com/voice.mp3"
                 }
             },
-            metadata: null);
+            metadata: null,
+            deliveryId: "d1");
 
         Assert.False(result.Delivered);
         Assert.Equal("UnsupportedDeliveryKind", result.ErrorCode);
@@ -808,8 +763,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             [
                 new ChannelToolSpec
                 {
-                    Name = "TelegramSendDocumentToCurrentChat",
-                    Description = "Send a document to the current Telegram chat.",
+                    Name = "TelegramExportChatHistory",
+                    Description = "Export the current Telegram chat history to a file.",
                     RequiresChatContext = true,
                     InputSchema = new JsonObject
                     {
@@ -845,7 +800,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             1);
         var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync([source], planning);
         var definition = Assert.Single(snapshot.ModelVisibleDefinitions);
-        Assert.Equal(new ToolName("external_channel", "TelegramSendDocumentToCurrentChat"), definition.Name);
+        Assert.Equal(new ToolName("external_channel", "TelegramExportChatHistory"), definition.Name);
         Assert.Equal("external-channel:telegram", definition.Id.SourceId);
 
         var providerName = snapshot.ProviderFlatNames[definition.Name];
@@ -944,6 +899,85 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     }
 
     [Fact]
+    public async Task ExternalChannelToolSource_DisconnectKeepsTheDeclaredToolsAndFailsDispatch()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("feishu");
+        registry.Register("feishu", host);
+        var transport = new StubTransport(new ChannelToolInvocationResult { Success = true });
+        var connection = CreateToolAdapterConnection("feishu", [ReadResourceTool()]);
+        AttachFakeAdapter(host, transport, connection);
+        var thread = new SessionThread
+        {
+            Id = "thread_disconnect",
+            WorkspacePath = _tempDir,
+            OriginChannel = "feishu",
+            ChannelContext = "chat_1",
+            Status = ThreadStatus.Active
+        };
+        var provider = new ExternalChannelToolProvider(registry);
+        var connected = await SnapshotAsync(Assert.Single(provider.CreateToolSourcesForThread(thread)), thread.Id);
+
+        DetachFakeAdapter(host, connection);
+        var disconnected = await SnapshotAsync(Assert.Single(provider.CreateToolSourcesForThread(thread)), thread.Id);
+        var definition = Assert.Single(disconnected.ModelVisibleDefinitions);
+        var result = await new ToolDispatcher().DispatchAsync(
+            disconnected,
+            definition.Name,
+            [],
+            new ToolInvocationRequest(thread.Id, "turn_1", "call_offline", ToolInvocationAudience.Model));
+
+        Assert.Equal(Assert.Single(connected.ModelVisibleDefinitions).Name, definition.Name);
+        Assert.False(result.Success);
+        Assert.Null(transport.LastMethod);
+    }
+
+    [Fact]
+    public async Task ManagedChannelToolSource_KeepsToolsWhileTheBindingIsOfflineAndDropsThemOnRevoke()
+    {
+        var dataPath = Path.Combine(_tempDir, ".craft");
+        var bindings = new AppBindingService();
+        var request = bindings.CreateChannelRequest(dataPath, "desktop-thread", "feishu", "local");
+        var binding = bindings.AcceptChannel(dataPath, "feishu", new ChannelBindingAcceptCommand
+        {
+            Code = request.Code,
+            Target = new ChannelTarget
+            {
+                ChannelName = "feishu",
+                ConversationKind = "group",
+                ConversationId = "oc_1",
+                DeliveryTarget = "group:oc_1",
+                DisplayName = "Release team"
+            }
+        });
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("feishu");
+        registry.Register("feishu", host);
+        var transport = new StubTransport(new ChannelToolInvocationResult { Success = true });
+        AttachFakeAdapter(host, transport, CreateToolAdapterConnection("feishu", [ReadResourceTool()]));
+        var source = new ManagedChannelToolSource(bindings, registry, new ChannelToolRegistrationService());
+        var active = await SnapshotAsync(source, "desktop-thread");
+
+        bindings.MarkUnavailable(dataPath, binding.BindingId, "adapterDisconnected");
+        var offline = await SnapshotAsync(source, "desktop-thread");
+        var definition = Assert.Single(offline.ModelVisibleDefinitions);
+        var result = await new ToolDispatcher().DispatchAsync(
+            offline,
+            definition.Name,
+            [],
+            new ToolInvocationRequest("desktop-thread", "turn_1", "call_offline", ToolInvocationAudience.Model));
+        bindings.RevokeBinding(dataPath, "desktop-thread", binding.BindingId, "local");
+        var revoked = await SnapshotAsync(source, "desktop-thread");
+
+        var shown = Assert.Single(active.ModelVisibleDefinitions);
+        Assert.Equal(shown.Name, definition.Name);
+        Assert.Equal(shown.InputSchema.GetRawText(), definition.InputSchema.GetRawText());
+        Assert.False(result.Success);
+        Assert.Null(transport.LastMethod);
+        Assert.Empty(revoked.ModelVisibleDefinitions);
+    }
+
+    [Fact]
     public void ExternalChannelToolSource_WhenPluginDisabled_ReturnsNoSources()
     {
         var registry = new ExternalChannelRegistry();
@@ -953,8 +987,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             [
                 new ChannelToolSpec
                 {
-                    Name = "TelegramSendDocumentToCurrentChat",
-                    Description = "Send a document.",
+                    Name = "TelegramExportChatHistory",
+                    Description = "Export the chat history.",
                     InputSchema = new JsonObject { ["type"] = "object" }
                 }
             ]));
@@ -1247,7 +1281,6 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     }
 
     private static AppServerConnection CreateAdapterConnection(
-        bool structuredDelivery,
         ChannelMediaConstraintSnapshot? fileConstraints)
     {
         var connection = new AppServerConnection();
@@ -1258,16 +1291,14 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
                 ChannelAdapter = new ChannelAdapterRuntimeCapability
                 {
                     ChannelName = "telegram",
-                    DeliveryCapabilities = structuredDelivery
-                        ? new ChannelDeliveryCapabilitySnapshot
+                    DisplayName = "Telegram",
+                    DeliveryCapabilities = new ChannelDeliveryCapabilitySnapshot
+                    {
+                        Media = new ChannelMediaCapabilitySnapshot
                         {
-                            StructuredDelivery = true,
-                            Media = new ChannelMediaCapabilitySnapshot
-                            {
-                                File = fileConstraints
-                            }
+                            File = fileConstraints
                         }
-                        : null
+                    }
                 }
             });
         connection.MarkClientReady();
@@ -1398,6 +1429,23 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             }
         };
     }
+
+    private static ChannelToolSpec ReadResourceTool() => new()
+    {
+        Name = "ExternalReadResource",
+        Description = "Read an external resource.",
+        InputSchema = new JsonObject { ["type"] = "object" }
+    };
+
+    private ValueTask<EffectiveToolSnapshot> SnapshotAsync(IToolSource source, string threadId) =>
+        new EffectiveToolSnapshotBuilder().BuildAsync(
+            [source],
+            new ToolPlanningContext(threadId, "turn_1", _tempDir, Path.Combine(_tempDir, ".craft"), "default", null, [], 1));
+
+    private static void DetachFakeAdapter(ExternalChannelHost host, AppServerConnection connection) =>
+        typeof(ExternalChannelHost)
+            .GetMethod("ClearCurrentSession", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(host, [connection]);
 
     private static void AttachFakeAdapter(
         ExternalChannelHost host,
@@ -1654,7 +1702,6 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         public Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
         public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null, bool ephemeral = false) => throw new NotImplementedException();
-        public Task<ThreadResetResult> ResetConversationAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? displayName = null, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task ArchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task UnarchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();

@@ -61,6 +61,8 @@ Standalone adapters read `dotcraft.wsUrl` and `dotcraft.token` from their adapte
 
 Every TypeScript channel config has a `dotcraft` section and a platform section. Desktop hides `dotcraft.*` fields in the UI and supplies them automatically for managed modules.
 
+The QQ, WeCom, Feishu, and Telegram sections have an `adminUsers` list. Only senders on it can run admin commands such as `/model`, `/automate`, `/init`, and `/debug`; everyone else the channel lets through chats as an ordinary user. With an empty list, admin commands are unavailable in the chat. A Weixin bot is reachable only by its owner, so Weixin has no admin list and every Weixin sender can run admin commands. On QQ and WeCom, the allowlists decide who reaches the bot at all, and messages from anyone outside them are ignored.
+
 ### QQ
 
 ```json
@@ -89,7 +91,7 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
 | `qq.host` | OneBot reverse WebSocket listen host. | `127.0.0.1` |
 | `qq.port` | OneBot reverse WebSocket listen port. | `6700` |
 | `qq.accessToken` | Optional OneBot access token. Must match NapCat when set. | Empty |
-| `qq.adminUsers` | QQ user IDs with admin permission. | `[]` |
+| `qq.adminUsers` | QQ user IDs that can run admin commands. Admins can always chat with DotCraft. | `[]` |
 | `qq.whitelistedUsers` | QQ user IDs allowed to chat with DotCraft. | `[]` |
 | `qq.whitelistedGroups` | QQ group IDs whose members may chat with DotCraft. | `[]` |
 | `qq.approvalTimeoutMs` | Approval timeout in milliseconds. | `60000` |
@@ -133,7 +135,7 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
 | `wecom.tls.keyPath` | TLS private key path for direct HTTPS callback serving. | Empty |
 | `wecom.robots` | Robot callback credentials: `path`, `token`, and `aesKey`. | `[]` |
 | `wecom.defaultRobot` | Default Token and EncodingAESKey used when a robot-specific entry omits them. | Empty |
-| `wecom.adminUsers` | WeCom UserIds with admin permission. | `[]` |
+| `wecom.adminUsers` | WeCom UserIds that can run admin commands. Admins can always chat with DotCraft. | `[]` |
 | `wecom.whitelistedUsers` | WeCom UserIds allowed to chat with DotCraft. | `[]` |
 | `wecom.whitelistedChats` | WeCom ChatIds allowed to chat with DotCraft. | `[]` |
 | `wecom.approvalTimeoutMs` | Approval timeout in milliseconds. | `60000` |
@@ -154,9 +156,7 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
     "approvalTimeoutMs": 120000,
     "groupMentionRequired": true,
     "ackReactionEmoji": "GLANCE",
-    "streaming": {
-      "enabled": true
-    },
+    "adminUsers": ["ou_your_open_id"],
     "cli": {
       "enabled": false
     }
@@ -173,14 +173,13 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
 | `feishu.verificationToken` | Optional verification token for event payloads that require it. | Empty |
 | `feishu.encryptKey` | Optional encrypt key for encrypted event payloads. | Empty |
 | `feishu.brand` | Service environment: `feishu` or `lark`. | `feishu` |
-| `feishu.cardTitle` | Title shown on reply, progress, and approval cards. | `DotCraft` |
+| `feishu.cardTitle` | Title shown on message, status, and approval cards. | `DotCraft` |
 | `feishu.approvalTimeoutMs` | Approval timeout in milliseconds. | `120000` |
 | `feishu.groupMentionRequired` | Require @mention in Feishu groups. | `true` |
 | `feishu.ackReactionEmoji` | Emoji type used to acknowledge handled messages. | `GLANCE` |
+| `feishu.adminUsers` | Feishu user open_ids that can run admin commands. | `[]` |
 | `feishu.cli.enabled` | Expose the bundled official Feishu CLI to Threads created by this Channel. | `false` |
 | `feishu.cli.userScopes` | Feishu user scopes requested when authorizing an account for read-only personal access. Empty keeps every command on the bot identity. | Empty |
-| `feishu.debug.adapterStream` | Enable adapter stream debug logs. | `false` |
-| `feishu.debug.textMerge` | Enable text merge debug logs. | `false` |
 
 When `feishu.cli.enabled` is `true`, Feishu-origin Threads receive the `FeishuCli` tool. Every invocation requests approval. The adapter exchanges its configured app credentials for a cached tenant access token and runs the bundled CLI as the bot. The CLI child receives the App ID and an access token, never the App Secret.
 
@@ -200,6 +199,7 @@ The bundled CLI runs only through `FeishuCli`, never from a shell. CLI file argu
   },
   "telegram": {
     "botToken": "123456:telegram-bot-token",
+    "adminUsers": [123456789],
     "httpsProxy": "",
     "approvalTimeoutMs": 120000,
     "pollTimeoutMs": 30000
@@ -212,6 +212,7 @@ The bundled CLI runs only through `FeishuCli`, never from a shell. CLI file argu
 | `dotcraft.wsUrl` | AppServer WebSocket endpoint for standalone adapters. Desktop-managed runtime overrides this value. | `ws://127.0.0.1:9100/ws` |
 | `dotcraft.token` | AppServer WebSocket token for standalone adapters. Desktop-managed runtime overrides this value. | Empty |
 | `telegram.botToken` | Bot token issued by BotFather. | Required |
+| `telegram.adminUsers` | Numeric Telegram user IDs that can run admin commands. They also see admin commands in the bot's command menu. | `[]` |
 | `telegram.httpsProxy` | Optional HTTPS proxy for Telegram Bot API requests. | Empty |
 | `telegram.approvalTimeoutMs` | Approval timeout in milliseconds. | `120000` |
 | `telegram.pollTimeoutMs` | Telegram long-poll timeout in milliseconds. | `30000` |

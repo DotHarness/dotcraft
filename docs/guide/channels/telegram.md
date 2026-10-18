@@ -12,7 +12,7 @@ Connect a Telegram bot to DotCraft as a [channel](./) with a BotFather token. No
 
    ![Connect the Telegram channel from its details page](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/telegram-detail.png)
 
-6. Paste the bot token, then review the optional proxy and timeout settings.
+6. Paste the bot token. Add your numeric Telegram user ID to **Admin Users** if you want to run admin commands such as `/model`, then review the optional proxy and timeout settings.
 
    ![Configure the Telegram bot in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/telegram-configuration.png)
 
@@ -41,10 +41,10 @@ With Telegram privacy mode enabled, the bot may only receive commands, replies, 
 
 ## What works after setup
 
-- DotCraft answers direct messages and group messages that Telegram delivers to the bot.
-- `/new` starts a fresh DotCraft conversation and `/help` lists the available commands. The workspace's own slash commands also appear in the Telegram command menu.
-- Approval and user-input prompts use Telegram inline buttons when possible.
-- File and image delivery are available through channel delivery tools.
+- DotCraft answers direct messages and group messages that Telegram delivers to the bot. In a group, each member has their own conversation with the agent.
+- The agent sends formatted text, images, files, audio, and video. The bot shows that it is typing while the agent works.
+- The Telegram command menu lists the [chat commands](./#commands-in-a-chat) each sender can use, including the workspace's own commands. Admin commands appear only for the users in **Admin Users**.
+- Approvals, user-input prompts, and command choices such as the models `/model` lists use Telegram inline buttons.
 - Only one DotCraft instance can use the same bot token at a time.
 
 ## Related docs

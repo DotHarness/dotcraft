@@ -21,9 +21,6 @@ internal sealed class VisualizationStateSection(VisualizationWidgetStateStore st
     public JsonNode? Snapshot(WorldStateContext context)
     {
         var contents = store.LoadModelContents(context.Thread.Id);
-        if (contents.Count == 0)
-            return null;
-
         var values = new JsonObject();
         foreach (var content in contents)
         {

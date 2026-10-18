@@ -33,7 +33,6 @@ export const manifest: ModuleManifest = {
   requiresInteractiveSetup: false,
   capabilitySummary: {
     hasChannelTools: true,
-    hasStructuredDelivery: true,
     requiresInteractiveSetup: false,
     capabilitySetMayVaryByEnvironment: true,
   },

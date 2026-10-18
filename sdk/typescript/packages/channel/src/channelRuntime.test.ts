@@ -10,15 +10,12 @@ import {
   ApprovalDispatcher,
   ChannelMessageQueue,
   ChannelToolDispatcher,
-  CommandRouter,
-  DeliveryDispatcher,
   ModuleConfigLoader,
   ModuleLifecycleState,
   ThreadResolver,
-  TurnStreamReducer,
   UserInputDispatcher,
 } from "./channelRuntime.js";
-import { JsonRpcError, JsonRpcMessage } from "@dotcraft/sdk/wire";
+import { DeliveryDispatcher } from "./deliveryDispatcher.js";
 import type { SessionThread } from "@dotcraft/sdk/contracts";
 import type { RuntimeAdditionalContextEntry } from "@dotcraft/sdk/contracts";
 import { makeThread } from "./test-contract-fixtures.js";
@@ -55,15 +52,8 @@ async function waitUntil(predicate: () => boolean): Promise<void> {
   assert.equal(predicate(), true);
 }
 
-async function* events(items: Array<{ method: string; params?: Record<string, unknown> }>): AsyncIterableIterator<JsonRpcMessage> {
-  for (const item of items) {
-    yield JsonRpcMessage.fromDict(item);
-  }
-}
-
 class FakeRuntimeClient {
   readonly threads = new Map<string, SessionThread>();
-  readonly archived: string[] = [];
   readonly events: string[] = [];
   readonly notificationHandlers = new Map<string, NotificationHandler>();
   readonly requestHandlers = new Map<string, ServerRequestHandler>();
@@ -72,8 +62,7 @@ class FakeRuntimeClient {
   listResult: SessionThread[] = [];
   readFailures = new Set<string>();
   nextStartedId = "thread-created";
-  commandResult: Record<string, unknown> = {};
-  commandError: unknown = null;
+  listGate: Promise<void> | null = null;
 
   async threadRead(threadId: string): Promise<SessionThread> {
     this.events.push(`read:${threadId}`);
@@ -93,6 +82,7 @@ class FakeRuntimeClient {
 
   async threadList(_params: Record<string, unknown>): Promise<SessionThread[]> {
     this.events.push("list");
+    if (this.listGate) await this.listGate;
     return this.listResult;
   }
 
@@ -104,16 +94,6 @@ class FakeRuntimeClient {
     return thread;
   }
 
-  async threadArchive(threadId: string): Promise<void> {
-    this.events.push(`archive:${threadId}`);
-    this.archived.push(threadId);
-  }
-
-  async commandExecute(_params: Record<string, unknown>): Promise<Record<string, unknown>> {
-    this.events.push("command");
-    if (this.commandError) throw this.commandError;
-    return this.commandResult;
-  }
 
   registerHandler(method: string, fn: NotificationHandler): void {
     this.notificationHandlers.set(method, fn);
@@ -259,7 +239,7 @@ test("ChannelMessageQueue continues after a job error", async () => {
   assert.deepEqual(errors, ["u"]);
 });
 
-test("ThreadResolver resolves cache, list reuse, fresh reset, and not-active recovery", async () => {
+test("ThreadResolver resolves cache, list reuse, and not-active recovery", async () => {
   const fake = new FakeRuntimeClient();
   fake.threads.set("cached", makeThread("cached", "active"));
   fake.threads.set("listed", makeThread("listed", "active"));
@@ -288,22 +268,6 @@ test("ThreadResolver resolves cache, list reuse, fresh reset, and not-active rec
     workspacePath: "/w",
   })).id, "listed");
 
-  resolver.setCachedThread("u:fresh", "cached");
-  fake.listResult = [makeThread("cached", "active"), makeThread("old-active", "active")];
-  const archived = await resolver.resetIdentityThreads({
-    identityKey: "u:fresh",
-    userId: "u",
-    channelContext: "fresh",
-    workspacePath: "/w",
-  });
-  fake.nextStartedId = "thread-fresh";
-  assert.equal((await resolver.getOrCreateThread({
-    identityKey: "u:fresh",
-    userId: "u",
-    channelContext: "fresh",
-    workspacePath: "/w",
-  })).id, "thread-fresh");
-
   fake.readFailures.add("stale");
   fake.threads.set("recover-active", makeThread("recover-active", "active"));
   fake.listResult = [makeThread("recover-active", "active")];
@@ -314,20 +278,31 @@ test("ThreadResolver resolves cache, list reuse, fresh reset, and not-active rec
     workspacePath: "/w",
   }, "stale")).id, "recover-active");
 
-  assert.deepEqual(archived, ["cached", "old-active"]);
-  assert.deepEqual(fake.archived, ["cached", "old-active"]);
   assert.deepEqual(eventsSeen, [
     "cache_hit",
     "cache_invalidated",
     "listed_active",
-    "archived",
-    "archived",
-    "force_fresh_created",
     "recovered_listed_active",
   ]);
 });
 
-test("ThreadResolver binds runtime context once and restores it after connection replacement", async () => {
+test("ThreadResolver shares one resolution between concurrent callers for an identity", async () => {
+  const fake = new FakeRuntimeClient();
+  const gate = deferred();
+  fake.listGate = gate.promise;
+  const resolver = new ThreadResolver({ client: asWire(fake), channelName: "test" });
+  const lookup = { identityKey: "u:c", userId: "u", channelContext: "c", workspacePath: "/w" };
+
+  const first = resolver.getOrCreateThread(lookup);
+  const second = resolver.getOrCreateThread(lookup);
+  gate.resolve();
+
+  assert.equal((await first).id, "thread-created");
+  assert.equal((await second).id, "thread-created");
+  assert.equal(fake.startParams.length, 1);
+});
+
+test("ThreadResolver binds runtime context and chat once and restores them after connection replacement", async () => {
   const fake = new FakeRuntimeClient();
   const additionalContext: Record<string, RuntimeAdditionalContextEntry> = {
     "test.runtime": { kind: "application", value: "Use the test runtime." },
@@ -337,15 +312,18 @@ test("ThreadResolver binds runtime context once and restores it after connection
     channelName: "test",
     getRuntimeAdditionalContext: () => additionalContext,
   });
+  const chat = { kind: "group", label: "Team", membership: "shared" } as const;
   const lookup = {
     identityKey: "u:c",
     userId: "u",
     channelContext: "c",
     workspacePath: "/w",
+    chat,
   };
 
   const created = await resolver.getOrCreateThread(lookup);
   assert.deepEqual(fake.startParams[0]?.additionalContext, additionalContext);
+  assert.deepEqual(fake.startParams[0]?.chat, chat);
 
   await resolver.getOrCreateThread(lookup);
   assert.deepEqual(fake.events, ["list", "start", `read:${created.id}`]);
@@ -356,389 +334,8 @@ test("ThreadResolver binds runtime context once and restores it after connection
   await resolver.getOrCreateThread(lookup);
   assert.deepEqual(fake.resumeParams, [{
     threadId: created.id,
-    params: { additionalContext },
+    params: { additionalContext, chat },
   }]);
-});
-
-test("CommandRouter executes automation commands without creating an agent turn", async () => {
-  const fake = new FakeRuntimeClient();
-  const resolver = new ThreadResolver({ client: asWire(fake), channelName: "test" });
-  const requests: Record<string, unknown>[] = [];
-  const delivered: Array<{ target: string; text: string }> = [];
-  fake.commandExecute = async (params) => {
-    requests.push(params);
-    return { handled: true, message: "Automation paused" };
-  };
-  const router = new CommandRouter({
-    client: asWire(fake),
-    threadResolver: resolver,
-    identityKey: (userId, context) => `${userId}:${context}`,
-    getDefaultWorkspacePath: () => "/w",
-    deliver: async (target, text) => {
-      delivered.push({ target, text });
-      return true;
-    },
-    enqueueMessage: () => assert.fail("Management must not enqueue an agent turn"),
-  });
-  const opts = { userId: "u", userName: "User", text: "/automate pause a1", channelContext: "group:42" };
-  resolver.setCachedThread("u:group:42", "thread-1");
-  assert.equal(await router.routeBeforeQueue(opts), "handled");
-  assert.deepEqual(await router.routeForTurn({
-    identityKey: "u:group:42", opts, threadId: "thread-1",
-    sender: { senderId: "u", senderName: "User", groupId: "group:42" }, workspacePath: "/w",
-  }), { kind: "handled" });
-  assert.equal(requests.length, 2);
-  for (const request of requests) {
-    assert.equal(request.command, "/automate");
-    assert.deepEqual(request.arguments, ["pause", "a1"]);
-    assert.equal((request.sender as Record<string, unknown>).groupId, "group:42");
-  }
-  assert.deepEqual(delivered, [
-    { target: "group:42", text: "Automation paused" },
-    { target: "group:42", text: "Automation paused" },
-  ]);
-});
-
-test("CommandRouter handles expanded prompts, reset payloads, and JsonRpcError delivery", async () => {
-  const fake = new FakeRuntimeClient();
-  const resolver = new ThreadResolver({ client: asWire(fake), channelName: "test" });
-  const enqueued: unknown[] = [];
-  const delivered: string[] = [];
-  const archived: string[][] = [];
-  const bound: string[] = [];
-  const router = new CommandRouter({
-    client: asWire(fake),
-    threadResolver: resolver,
-    identityKey: (userId, channelContext) => `${userId}:${channelContext}`,
-    getDefaultWorkspacePath: () => "/w",
-    deliver: async (_target, content) => {
-      delivered.push(content);
-      return true;
-    },
-    enqueueMessage: (opts) => enqueued.push(opts),
-    onThreadsArchived: (_identityKey, ids) => archived.push(ids),
-    onThreadContextBound: (threadId) => bound.push(threadId),
-  });
-
-  resolver.setCachedThread("u:c", "thread-1");
-  fake.commandResult = { expandedPrompt: "expanded" };
-  assert.equal(await router.routeBeforeQueue({
-    userId: "u",
-    userName: "User",
-    text: "/sum now",
-    channelContext: "c",
-  }), "handled");
-  assert.deepEqual(enqueued, [{
-    userId: "u",
-    userName: "User",
-    text: "/sum now",
-    channelContext: "c",
-    inputParts: [{ type: "commandRef", name: "sum", rawText: "/sum now", argsText: "now" }],
-    skipCommand: true,
-  }]);
-
-  fake.commandResult = {
-    handled: true,
-    message: "new session",
-    sessionReset: true,
-    thread: { id: "thread-2", status: "active" },
-    archivedThreadIds: ["thread-1"],
-  };
-  assert.deepEqual(await router.routeForTurn({
-    identityKey: "u:c",
-    opts: { userId: "u", userName: "User", text: "/new", channelContext: "c" },
-    threadId: "thread-1",
-    sender: { senderId: "u", senderName: "User" },
-    workspacePath: "/w",
-  }), { kind: "handled" });
-  assert.equal(resolver.getCachedThreadId("u:c"), "thread-2");
-  assert.deepEqual(delivered, ["new session"]);
-  assert.deepEqual(archived, [["thread-1"]]);
-  assert.deepEqual(bound, ["thread-2"]);
-
-  fake.commandError = new JsonRpcError(-32000, "Command failed");
-  assert.deepEqual(await router.routeForTurn({
-    identityKey: "u:c",
-    opts: { userId: "u", userName: "User", text: "/bad", channelContext: "c" },
-    threadId: "thread-2",
-    sender: { senderId: "u", senderName: "User" },
-    workspacePath: "/w",
-  }), { kind: "handled" });
-  assert.deepEqual(delivered, ["new session", "Command failed"]);
-});
-
-test("TurnStreamReducer preserves segment boundaries and final results", async () => {
-  const reducer = new TurnStreamReducer();
-  const segments: Array<{ text: string; isFinal: boolean }> = [];
-  const completed: Array<{ reply: string; segmentsWereDelivered: boolean }> = [];
-
-  await reducer.consume(events([
-    { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "a", delta: "before " } },
-    { method: "item/started", params: { threadId: "t", item: { id: "tool", type: "toolCall" } } },
-    { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "b", delta: "af" } },
-    {
-      method: "item/completed",
-      params: { threadId: "t", item: { id: "b", type: "agentMessage", payload: { text: "after" } } },
-    },
-    {
-      method: "turn/completed",
-      params: {
-        threadId: "t",
-        turn: {
-          items: [
-            { id: "a", type: "agentMessage", payload: { text: "before " } },
-            { id: "b", type: "agentMessage", payload: { text: "after" } },
-          ],
-        },
-      },
-    },
-  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
-    onSegmentCompleted: async (_threadId, _turnId, text, isFinal) => {
-      segments.push({ text, isFinal });
-    },
-    onTurnCompleted: async (_threadId, _turnId, reply, _channelContext, segmentsWereDelivered) => {
-      completed.push({ reply, segmentsWereDelivered });
-    },
-    onTurnFailed: async () => {},
-    onTurnCancelled: async () => {},
-  });
-
-  assert.deepEqual(segments, [
-    { text: "before ", isFinal: false },
-    { text: "after", isFinal: true },
-  ]);
-  assert.deepEqual(completed, [{ reply: "before after", segmentsWereDelivered: true }]);
-});
-
-test("TurnStreamReducer reports ordered reply progress and isolates progress hook failures", async () => {
-  const progress: Array<{ parts: readonly string[]; isFinal: boolean }> = [];
-  const completed: string[] = [];
-  let calls = 0;
-
-  await new TurnStreamReducer().consume(events([
-    { method: "item/agentMessage/delta", params: { itemId: "a", delta: "intro" } },
-    { method: "item/started", params: { item: { id: "tool", type: "toolCall" } } },
-    { method: "item/agentMessage/delta", params: { itemId: "b", delta: "# He" } },
-    {
-      method: "item/completed",
-      params: { item: { id: "b", type: "agentMessage", payload: { text: "# Heading" } } },
-    },
-    {
-      method: "turn/completed",
-      params: {
-        turn: {
-          items: [
-            { id: "a", type: "agentMessage", payload: { text: "intro" } },
-            { id: "b", type: "agentMessage", payload: { text: "# Heading" } },
-          ],
-        },
-      },
-    },
-  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
-    onReplyProgress: async (_threadId, _turnId, parts, isFinal) => {
-      calls += 1;
-      if (calls === 1) throw new Error("progress unavailable");
-      progress.push({ parts: [...parts], isFinal });
-    },
-    onSegmentCompleted: async () => {},
-    onTurnCompleted: async (_threadId, _turnId, reply) => {
-      completed.push(reply);
-    },
-    onTurnFailed: async () => {},
-    onTurnCancelled: async () => {},
-  });
-
-  assert.deepEqual(progress, [
-    { parts: ["intro", "# He"], isFinal: false },
-    { parts: ["intro", "# Heading"], isFinal: false },
-    { parts: ["intro", "# Heading"], isFinal: true },
-  ]);
-  assert.deepEqual(completed, ["intro# Heading"]);
-});
-
-test("TurnStreamReducer reports item activity for every lifecycle edge and isolates hook failures", async () => {
-  const activity: string[] = [];
-  const completed: string[] = [];
-  let calls = 0;
-
-  await new TurnStreamReducer().consume(events([
-    { method: "item/started", params: { item: { id: "think-1", type: "reasoningContent" } } },
-    { method: "item/completed", params: { item: { id: "think-1", type: "reasoningContent" } } },
-    { method: "item/started", params: { item: { id: "tool-1", type: "toolCall" } } },
-    { method: "item/completed", params: { item: { id: "tool-1", type: "toolCall" } } },
-    { method: "item/started", params: { item: { id: "result-1", type: "toolResult" } } },
-    { method: "item/completed", params: { item: { id: "result-1", type: "toolResult" } } },
-    { method: "item/started", params: { item: { id: "tool-2", type: "toolCall" } } },
-    { method: "item/started", params: { item: { id: "note", type: "approvalRequest" } } },
-    { method: "item/started", params: { item: { id: "a", type: "agentMessage" } } },
-    { method: "item/agentMessage/delta", params: { itemId: "a", delta: "done" } },
-    { method: "item/completed", params: { item: { id: "a", type: "agentMessage", payload: { text: "done" } } } },
-    { method: "turn/completed", params: { turn: { items: [{ id: "a", type: "agentMessage", payload: { text: "done" } }] } } },
-  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
-    onActivity: async (_threadId, _turnId, item) => {
-      calls += 1;
-      if (calls === 1) throw new Error("activity sink unavailable");
-      activity.push(`${item.kind}:${item.phase}:${item.itemId}`);
-    },
-    onSegmentCompleted: async () => {},
-    onTurnCompleted: async (_threadId, _turnId, reply) => {
-      completed.push(reply);
-    },
-    onTurnFailed: async () => {},
-    onTurnCancelled: async () => {},
-  });
-
-  assert.deepEqual(activity, [
-    "reasoning:completed:think-1",
-    "tool:started:tool-1",
-    "tool:completed:tool-1",
-    "tool:started:result-1",
-    "tool:completed:result-1",
-    "tool:started:tool-2",
-    "text:started:a",
-    "text:completed:a",
-  ]);
-  assert.deepEqual(completed, ["done"]);
-});
-
-test("TurnStreamReducer aligns final progress by AgentMessage id when early deltas were missed", async () => {
-  const finalProgress: Array<readonly string[]> = [];
-
-  await new TurnStreamReducer().consume(events([
-    { method: "item/agentMessage/delta", params: { itemId: "b", delta: "second" } },
-    {
-      method: "turn/completed",
-      params: {
-        turn: {
-          items: [
-            { id: "a", type: "agentMessage", payload: { text: "first" } },
-            { id: "b", type: "agentMessage", payload: { text: "second" } },
-          ],
-        },
-      },
-    },
-  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
-    onReplyProgress: async (_threadId, _turnId, parts, isFinal) => {
-      if (isFinal) finalProgress.push([...parts]);
-    },
-    onSegmentCompleted: async () => {},
-    onTurnCompleted: async () => {},
-    onTurnFailed: async () => {},
-    onTurnCancelled: async () => {},
-  });
-
-  assert.deepEqual(finalProgress, [["first", "second"]]);
-});
-
-test("TurnStreamReducer preserves failed segment tails for final delivery", async () => {
-  const reducer = new TurnStreamReducer();
-  const segments: Array<{ text: string; isFinal: boolean }> = [];
-  const completed: Array<{ reply: string; segmentsWereDelivered: boolean }> = [];
-
-  await reducer.consume(events([
-    { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "a", delta: "before " } },
-    { method: "item/started", params: { threadId: "t", item: { id: "tool", type: "toolCall" } } },
-    {
-      method: "item/completed",
-      params: { threadId: "t", item: { id: "a", type: "agentMessage", payload: { text: "before " } } },
-    },
-    { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "b", delta: "after" } },
-    {
-      method: "turn/completed",
-      params: {
-        threadId: "t",
-        turn: {
-          items: [
-            { id: "a", type: "agentMessage", payload: { text: "before " } },
-            { id: "b", type: "agentMessage", payload: { text: "after" } },
-          ],
-        },
-      },
-    },
-  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
-    onSegmentCompleted: async (_threadId, _turnId, text, isFinal) => {
-      segments.push({ text, isFinal });
-      return isFinal;
-    },
-    onTurnCompleted: async (_threadId, _turnId, reply, _channelContext, segmentsWereDelivered) => {
-      completed.push({ reply, segmentsWereDelivered });
-    },
-    onTurnFailed: async () => {},
-    onTurnCancelled: async () => {},
-  });
-
-  assert.deepEqual(segments, [
-    { text: "before ", isFinal: false },
-    { text: "before after", isFinal: true },
-  ]);
-  assert.deepEqual(completed, [{ reply: "before after", segmentsWereDelivered: true }]);
-});
-
-test("TurnStreamReducer allows full-reply fallback when final segment delivery fails", async () => {
-  const completed: Array<{ reply: string; segmentsWereDelivered: boolean }> = [];
-  const segments: string[] = [];
-
-  await new TurnStreamReducer().consume(events([
-    {
-      method: "turn/completed",
-      params: { threadId: "t", turn: { items: [{ id: "a", type: "agentMessage", payload: { text: "from snapshot" } }] } },
-    },
-  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
-    onSegmentCompleted: async (_threadId, _turnId, text) => {
-      segments.push(text);
-      return false;
-    },
-    onTurnCompleted: async (_threadId, _turnId, reply, _channelContext, segmentsWereDelivered) => {
-      completed.push({ reply, segmentsWereDelivered });
-    },
-    onTurnFailed: async () => {},
-    onTurnCancelled: async () => {},
-  });
-
-  assert.deepEqual(segments, ["from snapshot"]);
-  assert.deepEqual(completed, [{ reply: "from snapshot", segmentsWereDelivered: false }]);
-});
-
-test("TurnStreamReducer handles orphan deltas, snapshot-only turns, failures, and cancellation", async () => {
-  const snapshotReducer = new TurnStreamReducer();
-  const snapshotSegments: string[] = [];
-  await snapshotReducer.consume(events([
-    {
-      method: "turn/completed",
-      params: { threadId: "t", turn: { items: [{ type: "agentMessage", payload: { text: "from snapshot" } }] } },
-    },
-  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
-    onSegmentCompleted: async (_threadId, _turnId, text) => {
-      snapshotSegments.push(text);
-    },
-    onTurnCompleted: async () => {},
-    onTurnFailed: async () => {},
-    onTurnCancelled: async () => {},
-  });
-  assert.deepEqual(snapshotSegments, ["from snapshot"]);
-
-  const terminalEvents: string[] = [];
-  await new TurnStreamReducer().consume(events([
-    { method: "turn/failed", params: { threadId: "t", turn: { error: "boom" } } },
-  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
-    onSegmentCompleted: async () => {},
-    onTurnCompleted: async () => {},
-    onTurnFailed: async (_threadId, _turnId, error) => {
-      terminalEvents.push(`failed:${error}`);
-    },
-    onTurnCancelled: async () => {},
-  });
-  await new TurnStreamReducer().consume(events([
-    { method: "turn/cancelled", params: { threadId: "t" } },
-  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
-    onSegmentCompleted: async () => {},
-    onTurnCompleted: async () => {},
-    onTurnFailed: async () => {},
-    onTurnCancelled: async () => {
-      terminalEvents.push("cancelled");
-    },
-  });
-  assert.deepEqual(terminalEvents, ["failed:boom", "cancelled"]);
 });
 
 test("dispatchers register approval, user-input, delivery, tool, and heartbeat handlers", async () => {
@@ -773,6 +370,7 @@ test("dispatchers register approval, user-input, delivery, tool, and heartbeat h
   }), { answers: { choice: { answers: ["B"] } } });
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/send")?.("s1", {
     target: "chat",
+    deliveryId: "d1",
     message: { kind: "image" },
     metadata: {},
   }), { delivered: true, kind: "image" });
@@ -782,6 +380,48 @@ test("dispatchers register approval, user-input, delivery, tool, and heartbeat h
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/heartbeat")?.("h1", {}), {});
 
   assert.deepEqual(errors, []);
+});
+
+test("delivery dispatcher answers a repeated delivery id with the first result without sending again", async () => {
+  const fake = new FakeRuntimeClient();
+  const sent: string[] = [];
+  new DeliveryDispatcher({
+    client: asWire(fake),
+    onSend: async (target) => {
+      sent.push(target);
+      return { delivered: true, remoteMessageId: `m${sent.length}` };
+    },
+  }).register();
+  const send = fake.requestHandlers.get("ext/channel/send")!;
+  const params = { target: "chat", deliveryId: "d1", message: { kind: "text", text: "hi" } };
+
+  const [first, concurrent] = await Promise.all([send("s1", params), send("s2", params)]);
+  const retried = await send("s3", params);
+  const other = await send("s4", { ...params, deliveryId: "d2" });
+
+  assert.deepEqual(sent, ["chat", "chat"]);
+  assert.deepEqual(first, { delivered: true, remoteMessageId: "m1" });
+  assert.deepEqual(concurrent, first);
+  assert.deepEqual(retried, first);
+  assert.deepEqual(other, { delivered: true, remoteMessageId: "m2" });
+});
+
+test("delivery dispatcher sends again after a failed delivery with the same id", async () => {
+  const fake = new FakeRuntimeClient();
+  let attempts = 0;
+  new DeliveryDispatcher({
+    client: asWire(fake),
+    onSend: async () => {
+      attempts += 1;
+      return attempts === 1 ? { delivered: false, errorCode: "AdapterDeliveryFailed" } : { delivered: true };
+    },
+  }).register();
+  const send = fake.requestHandlers.get("ext/channel/send")!;
+  const params = { target: "chat", deliveryId: "d1", message: { kind: "text", text: "hi" } };
+
+  assert.deepEqual(await send("s1", params), { delivered: false, errorCode: "AdapterDeliveryFailed" });
+  assert.deepEqual(await send("s2", params), { delivered: true });
+  assert.equal(attempts, 2);
 });
 
 test("dispatchers preserve exception fallback shapes", async () => {
@@ -821,7 +461,7 @@ test("dispatchers preserve exception fallback shapes", async () => {
   assert.deepEqual(await fake.requestHandlers.get("item/tool/requestUserInput")?.("input", {}), {
     answers: {},
   });
-  assert.deepEqual(await fake.requestHandlers.get("ext/channel/send")?.("s1", {}), {
+  assert.deepEqual(await fake.requestHandlers.get("ext/channel/send")?.("s1", { deliveryId: "d1" }), {
     delivered: false,
     errorCode: "AdapterDeliveryFailed",
     errorMessage: "Error: send failed",
@@ -945,88 +585,4 @@ test("ModuleConfigLoader applies managed WebSocket runtime endpoint overrides", 
     else process.env.DOTCRAFT_CHANNEL_WS_TOKEN = previousToken;
     await rm(dir, { recursive: true, force: true });
   }
-});
-
-test("TurnStreamReducer delivers completed generated images after the pending text segment", async () => {
-  const calls: string[] = [];
-  const images: Array<Record<string, unknown>> = [];
-  await new TurnStreamReducer().consume(events([
-    { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "a", delta: "Here it is:" } },
-    { method: "item/completed", params: { threadId: "t", item: { id: "a", type: "agentMessage", payload: { text: "Here it is:" } } } },
-    {
-      method: "item/completed",
-      params: {
-        threadId: "t",
-        item: { id: "img-pending", type: "imageGeneration", payload: { callId: "ig_0", status: "inProgress" } },
-      },
-    },
-    {
-      method: "item/completed",
-      params: {
-        threadId: "t",
-        item: { id: "img-empty", type: "imageGeneration", payload: { callId: "ig_1", status: "completed", result: "" } },
-      },
-    },
-    {
-      method: "item/completed",
-      params: {
-        threadId: "t",
-        item: {
-          id: "img",
-          type: "imageGeneration",
-          payload: { callId: "ig_2", status: "completed", result: "aGVsbG8=", mediaType: "image/webp", savedPath: "/host/only.webp" },
-        },
-      },
-    },
-    { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "b", delta: " Done." } },
-    { method: "turn/completed", params: { threadId: "t", turn: { items: [] } } },
-  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
-    onSegmentCompleted: async (_threadId, _turnId, text, isFinal) => {
-      calls.push(`segment:${text}:${isFinal}`);
-    },
-    onGeneratedImage: async (_threadId, _turnId, image, channelContext) => {
-      calls.push(`image:${image.callId}:${channelContext}`);
-      images.push({ ...image });
-    },
-    onTurnCompleted: async () => {
-      calls.push("completed");
-    },
-    onTurnFailed: async () => {},
-    onTurnCancelled: async () => {},
-  });
-
-  assert.deepEqual(calls, [
-    "segment:Here it is::false",
-    "image:ig_2:c",
-    "segment: Done.:true",
-    "completed",
-  ]);
-  assert.deepEqual(images, [{ itemId: "img", callId: "ig_2", mediaType: "image/webp", dataBase64: "aGVsbG8=" }]);
-});
-
-test("TurnStreamReducer keeps consuming the turn when generated image delivery throws", async () => {
-  const completed: string[] = [];
-  await new TurnStreamReducer().consume(events([
-    {
-      method: "item/completed",
-      params: {
-        threadId: "t",
-        item: { id: "img", type: "imageGeneration", payload: { callId: "ig", status: "completed", result: "aGVsbG8=" } },
-      },
-    },
-    { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "a", delta: "after" } },
-    { method: "turn/completed", params: { threadId: "t", turn: { items: [] } } },
-  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
-    onSegmentCompleted: async () => {},
-    onGeneratedImage: async () => {
-      throw new Error("upload failed");
-    },
-    onTurnCompleted: async (_threadId, _turnId, reply) => {
-      completed.push(reply);
-    },
-    onTurnFailed: async () => {},
-    onTurnCancelled: async () => {},
-  });
-
-  assert.deepEqual(completed, ["after"]);
 });

@@ -1,4 +1,4 @@
-const CARD_TEXT_LIMIT = 3200;
+export const CARD_TEXT_LIMIT = 3200;
 
 export function normalizeMarkdownForFeishu(markdown: string): string {
   return normalizeMarkdownForFeishuV2(markdown);

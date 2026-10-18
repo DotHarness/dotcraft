@@ -13,7 +13,7 @@ Connect a Feishu or Lark bot to DotCraft as a [channel](./) with a self-built ap
 
    ![Connect the Feishu channel from its details page](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/feishu-detail.png)
 
-7. Paste the App ID and App Secret, then review the platform and group-message settings.
+7. Paste the App ID and App Secret. Add the open_id of each person who should run admin commands such as `/model` to **Admin Users**, then review the platform and group-message settings.
 
    ![Configure the Feishu bot in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/feishu-configuration.png)
 
@@ -27,11 +27,10 @@ In the Feishu developer console:
 
 1. Add the bot to the chats where DotCraft should respond.
 2. Grant message event permissions so DotCraft can receive bot messages.
-3. Grant message send permissions so DotCraft can reply with cards.
-4. Grant `cardkit:card:write` (**Create and update cards**) so replies can stream with the native typewriter effect.
-5. Grant resource permission if users will send images or files to DotCraft.
-6. Grant chat metadata permission if the bot needs group context.
-7. Grant reaction permission if you want DotCraft to mark handled messages with a reaction.
+3. Grant message send permissions so the agent can send messages and DotCraft can post approval and status cards.
+4. Grant resource permission if users will send images or files to DotCraft, or the agent will send them.
+5. Grant chat metadata permission if the bot needs group context.
+6. Grant reaction permission if you want DotCraft to mark handled messages with a reaction.
 
 Publish or release the app in the target tenant before testing in group chats. Tenant policy can still block events or message sends even when scopes are selected.
 
@@ -47,8 +46,10 @@ Publish or release the app in the target tenant before testing in group chats. T
 
 - Direct messages are handled without a mention.
 - Group messages require an @mention by default.
-- Mention the bot inside a topic and DotCraft replies in that topic; conversations in different topics stay separate.
-- DotCraft can acknowledge handled messages with the configured reaction.
+- Mention the bot inside a topic and the conversation stays in that topic; conversations in different topics stay separate.
+- The agent sends formatted text as cards, plus images, files, audio, and video.
+- DotCraft marks each message it picks up with the configured reaction. When the work runs longer than 20 seconds, a status card shows its progress and ends as done, failed, or stopped.
+- Approvals and command choices, such as the models `/model` lists, appear as card buttons.
 - Card text follows your Feishu display language: Chinese, English, Japanese, Korean, Spanish, French, and German.
 - Image and file input can be downloaded when the app has resource permission.
 

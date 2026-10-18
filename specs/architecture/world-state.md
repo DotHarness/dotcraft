@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.7 |
+| **Version** | 0.8.10 |
 | **Status** | Draft |
-| **Date** | 2026-10-14 |
+| **Date** | 2026-10-18 |
 | **Parent Specs** | [Prompt Composition](prompt-composition.md) |
 
 Purpose: define the model-visible state DotCraft re-sends only when it changes — what counts as a
@@ -29,9 +29,9 @@ A **section** owns one coherent piece of that state. A section has:
 
 State qualifies as a section when it persists across turns and the model must be told when it moves:
 the environment the agent runs in, the active mode and the actions that mode allows, an active goal's
-identity and status, the availability of a capability such as a remote tool host, the model-visible
-state saved by a visualization, the memory index, the Skills the agent may use, and equivalent
-state contributed by a plugin.
+identity and status, the availability of a capability such as a remote tool host, the chat a channel
+conversation is connected to, the model-visible state saved by a visualization, the memory index,
+the Skills the agent may use, and equivalent state contributed by a plugin.
 
 The following are not sections and stay in the turn's own reminder:
 
@@ -56,6 +56,11 @@ when previously visible instructions disappear. Legacy marked items without a sn
 A snapshot must not serialize to null, because null marks removal in a merge patch. Null members of
 a snapshot object are stripped before comparison, so a snapshot compares equal to the value restored
 from a patch. Normalization is the runtime's job, not a section's.
+
+A section whose facts are unavailable takes no snapshot. The step skips it: nothing is rendered and
+its baseline entry stays at what the model was last shown, so a source that drops out and returns
+unchanged is not restated. A section that is switched off or has nothing to show takes an explicit
+snapshot of that state, such as an empty object, and renders against it like any other change.
 
 ## 2. Previous state
 
@@ -140,7 +145,7 @@ loader reports a change.
 
 | Condition | Behaviour |
 |-----------|-----------|
-| A section fails to snapshot | It contributes no baseline entry and the turn continues. |
+| A section fails to snapshot | It is treated as taking no snapshot (§1.2), the turn continues, and the diagnosis names it. |
 | A section fails to render | It contributes no text, the baseline keeps what the model was last told so the next step retries, the turn continues, and the diagnosis names it. |
 | A section reports an unusable or duplicate id | It is skipped and the turn continues. |
 | Recording the baseline fails | The turn continues; the next record is computed from the last one that succeeded. |

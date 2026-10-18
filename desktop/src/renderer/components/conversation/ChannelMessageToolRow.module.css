@@ -1,0 +1,24 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.text,
+.error {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.attachments {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.error {
+  color: var(--error);
+}

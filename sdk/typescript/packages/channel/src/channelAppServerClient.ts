@@ -3,12 +3,15 @@
 import { DotCraftWireClient, JsonRpcMessage, type NotificationHandler } from "@dotcraft/sdk/wire";
 import type {
   ClientRequestMethods,
+  CommandExecuteResult,
+  CommandInfo,
   RuntimeAdditionalContextEntry,
   SessionThread,
   SessionTurn,
   ThreadListResult,
   ThreadSummary,
 } from "@dotcraft/sdk/contracts";
+import type { ChannelChatDescriptor } from "./capability.js";
 
 export class ChannelAppServerClient extends DotCraftWireClient {
   override async initialize(opts: Parameters<DotCraftWireClient["initialize"]>[0]) {
@@ -31,6 +34,7 @@ export class ChannelAppServerClient extends DotCraftWireClient {
     config?: Record<string, unknown> | null;
     dynamicTools?: unknown[] | null;
     additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
+    chat?: ChannelChatDescriptor | null;
   }): Promise<SessionThread> {
     const identity: Record<string, unknown> = { channelName: params.channelName, userId: params.userId };
     if (params.workspacePath) identity.workspacePath = params.workspacePath;
@@ -40,6 +44,7 @@ export class ChannelAppServerClient extends DotCraftWireClient {
     if (params.config) payload.config = params.config;
     if (params.dynamicTools != null) payload.dynamicTools = params.dynamicTools;
     if (params.additionalContext) payload.additionalContext = params.additionalContext;
+    if (params.chat) payload.chat = params.chat;
     const result = await this.request("thread/start", payload as ClientRequestMethods["thread/start"]["params"]);
     return result.thread;
   }
@@ -47,10 +52,12 @@ export class ChannelAppServerClient extends DotCraftWireClient {
   async threadResume(threadId: string, params?: {
     dynamicTools?: unknown[] | null;
     additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
+    chat?: ChannelChatDescriptor | null;
   }): Promise<SessionThread> {
     const payload: Record<string, unknown> = { threadId };
     if (params?.dynamicTools != null) payload.dynamicTools = params.dynamicTools;
     if (params?.additionalContext != null) payload.additionalContext = params.additionalContext;
+    if (params?.chat != null) payload.chat = params.chat;
     const result = await this.request("thread/resume", payload as ClientRequestMethods["thread/resume"]["params"]);
     return result.thread;
   }
@@ -115,16 +122,23 @@ export class ChannelAppServerClient extends DotCraftWireClient {
     return await this.request("turn/enqueue", payload as ClientRequestMethods["turn/enqueue"]["params"]) as Record<string, unknown>;
   }
 
-  async commandList(): Promise<Record<string, unknown>[]> {
-    const result = await this.request("command/list", {}) as Record<string, unknown>;
-    return (result.commands as Record<string, unknown>[]) ?? [];
+  async turnSteer(threadId: string, expectedTurnId: string, input: Record<string, unknown>[], sender?: Record<string, unknown> | null): Promise<string> {
+    const payload: Record<string, unknown> = { threadId, expectedTurnId, input };
+    if (sender) payload.sender = sender;
+    const result = await this.request("turn/steer", payload as ClientRequestMethods["turn/steer"]["params"]);
+    return result.turnId;
   }
 
-  async commandExecute(params: { threadId: string; command: string; arguments?: string[]; sender?: Record<string, unknown> | null }): Promise<Record<string, unknown>> {
+  async commandList(): Promise<CommandInfo[]> {
+    const result = await this.request("command/list", {});
+    return result.commands ?? [];
+  }
+
+  async commandExecute(params: { threadId: string; command: string; arguments?: string[]; sender?: Record<string, unknown> | null }): Promise<CommandExecuteResult> {
     const payload: Record<string, unknown> = { threadId: params.threadId, command: params.command };
     if (params.arguments) payload.arguments = params.arguments;
     if (params.sender) payload.sender = params.sender;
-    return await this.request("command/execute", payload) as Record<string, unknown>;
+    return await this.request("command/execute", payload as ClientRequestMethods["command/execute"]["params"]);
   }
 
   streamEvents(threadId: string, terminalMethods: readonly string[] = ["turn/completed", "turn/failed", "turn/cancelled"]): AsyncIterableIterator<JsonRpcMessage> {

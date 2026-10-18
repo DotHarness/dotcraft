@@ -17,10 +17,25 @@ internal sealed class DynamicWorkflowTaskKind(DynamicWorkflowService service, Dy
         {
             return null;
         }
-        if (run == null || !string.Equals(run.ParentThreadId, caller.Thread.Id, StringComparison.Ordinal))
-            return null;
+        return run == null || !string.Equals(run.ParentThreadId, caller.Thread.Id, StringComparison.Ordinal)
+            ? null
+            : ToTask(run);
+    }
 
-        return new BackgroundTask
+    public async Task<IReadOnlyList<BackgroundTask>> ListAsync(BackgroundTaskCaller caller, CancellationToken ct)
+    {
+        var tasks = new List<BackgroundTask>();
+        foreach (var runId in store.EnumerateRunIds().ToArray())
+        {
+            var run = await service.GetRunAsync(runId, ct).ConfigureAwait(false);
+            if (run != null && string.Equals(run.ParentThreadId, caller.Thread.Id, StringComparison.Ordinal))
+                tasks.Add(ToTask(run));
+        }
+        return tasks;
+    }
+
+    private BackgroundTask ToTask(DynamicWorkflowRun run) =>
+        new BackgroundTask
         {
             TaskId = run.RunId,
             Kind = Kind,
@@ -36,9 +51,10 @@ internal sealed class DynamicWorkflowTaskKind(DynamicWorkflowService service, Dy
             },
             KindStatus = run.Status,
             OutputPath = store.GetRunDirectory(run.RunId),
+            StartedAt = run.StartedAt ?? run.CreatedAt,
+            EndedAt = run.CompletedAt,
             Latch = service.GetStopLatch(run.RunId)
         };
-    }
 
     public Task StopAsync(BackgroundTask task, CancellationToken ct) =>
         task.KindStatus is DynamicWorkflowStatuses.Running or DynamicWorkflowStatuses.Paused

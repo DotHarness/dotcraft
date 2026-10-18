@@ -47,6 +47,7 @@ const TASK_STOP: CoreFixturePresentation = {
   presentationId: CORE_TOOL_PRESENTATION_IDS.task,
   options: { operation: 'stop', kind: 'shell' }
 }
+const CHANNEL_MESSAGE: CoreFixturePresentation = { presentationId: CORE_TOOL_PRESENTATION_IDS.channel }
 const SUBAGENT_LIST: CoreFixturePresentation = {
   presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
   options: { operation: 'list' }
@@ -180,6 +181,20 @@ describe('planToolRunRender', () => {
       ['single', '3'],
       ['single', '4'],
       ['single', '5']
+    ])
+  })
+
+  it('ends a group with a channel message, failed or not', () => {
+    expect(shape([
+      makeItem(EXPLORE, 'ReadFile', '1'),
+      makeItem(EXPLORE, 'ReadFile', '2'),
+      makeItem(CHANNEL_MESSAGE, 'SendChannelMessage', '3', { success: false }),
+      makeItem(EXPLORE, 'ReadFile', '4'),
+      makeItem(EXPLORE, 'ReadFile', '5')
+    ])).toEqual([
+      ['group', ['1', '2']],
+      ['single', '3'],
+      ['group', ['4', '5']]
     ])
   })
 

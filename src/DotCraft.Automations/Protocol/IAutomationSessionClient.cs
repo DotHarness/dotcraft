@@ -7,7 +7,7 @@ public interface IAutomationSessionClient
 {
     string DataPath { get; }
     string? UserDataPath { get; }
-    Task<string> CreateThreadAsync(string channelName, string userId, ThreadConfiguration config, CancellationToken ct, string? displayName = null);
+    Task<string> CreateThreadAsync(string channelName, string userId, string? channelContext, ThreadConfiguration config, CancellationToken ct, string? displayName = null);
     Task<ThreadWorktreeInfo> EnsureRunWorktreeAsync(string threadId, string runId, CancellationToken ct);
     Task<SessionThread?> TryGetThreadAsync(string threadId, CancellationToken ct);
     IAsyncEnumerable<SessionEvent> SubmitTurnAsync(string threadId, string message, CancellationToken ct, TurnTriggerInfo? trigger = null,

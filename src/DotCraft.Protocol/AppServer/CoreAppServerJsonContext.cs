@@ -41,6 +41,7 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.ChannelListResult))]
 [JsonSerializable(typeof(AppServer.ChannelStatusInfo))]
 [JsonSerializable(typeof(AppServer.ChannelStatusResult))]
+[JsonSerializable(typeof(AppServer.CommandChoice))]
 [JsonSerializable(typeof(AppServer.CommandExecParams))]
 [JsonSerializable(typeof(AppServer.CommandExecResult))]
 [JsonSerializable(typeof(AppServer.CommandExecuteParams))]

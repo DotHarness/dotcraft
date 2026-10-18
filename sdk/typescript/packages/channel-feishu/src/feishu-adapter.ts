@@ -1,12 +1,12 @@
 import {
-  DECISION_CANCEL,
   DECISION_DECLINE,
-  textPart,
+  parseApprovalReplyDecision,
   type ChannelTarget,
+  type CommandChoice,
+  type CommandChoiceContext,
 } from "@dotcraft/channel";
 import {
   WebSocketTransport,
-  configureTextMergeDebug,
   type ThreadResolveEvent,
 } from "@dotcraft/channel/runtime";
 import {
@@ -20,19 +20,20 @@ import {
   splitUserInputRequestByQuestion,
   userInputResponseForSingleChoice,
   userInputResponseFromText,
+  type ChannelChatDescriptor,
+  type ChannelDeliveryCapabilities,
   type ChannelToolDescriptor,
   type ChannelAdapterMessageOpts,
+  type ChannelTurn,
+  type ChannelTurnOutcome,
   type TurnItemActivity,
   type ModuleError,
   type UserInputResponse,
   type WorkspaceContext,
 } from "@dotcraft/channel";
+import { FeishuApprovalCards } from "./approval-cards.js";
 import {
-  buildApprovalCard,
-  buildApprovalResolvedCard,
-  buildApprovalTimeoutCard,
-  buildNewConversationCard,
-  buildTranscriptCard,
+  buildCommandChoicesCard,
   buildUserAuthCard,
   buildUserAuthNoticeCard,
   buildUserInputCard,
@@ -40,9 +41,20 @@ import {
   type FeishuUserAuthNotice,
   type QuestionPosition,
 } from "./card-builder.js";
-import { createOrUpdateCard, sendReplyCards, updateCard } from "./card-sender.js";
+import { updateCard } from "./card-sender.js";
+import {
+  commandChoiceMessageOptions,
+  feishuMessageOptions,
+  parseCommandChoiceSelection,
+} from "./command-choices.js";
+import { FEISHU_DELIVERY_CAPABILITIES, FeishuChannelSender } from "./channel-send.js";
 import { FeishuChatInfoCache } from "./chat-info-cache.js";
-import { conversationTargetBase } from "./conversation-target.js";
+import {
+  conversationTargetBase,
+  describeConversation,
+  formatConversationTarget,
+  parseConversationTarget,
+} from "./conversation-target.js";
 import { createFeishuEventHandlers } from "./event-handler.js";
 import {
   type FeishuCardActionEvent,
@@ -59,14 +71,13 @@ import {
 import { FeishuLoadingIcon } from "./loading-icon.js";
 import { FeishuMediaDelivery } from "./media-delivery.js";
 import { FeishuOutboundRouter } from "./outbound-router.js";
-import { TurnCardController } from "./turn-card-controller.js";
+import { FeishuStatusCards } from "./status-card.js";
 import {
   FeishuCliTool,
   getFeishuCliRuntimeAdditionalContext,
   getFeishuCliToolDescriptors,
 } from "./feishu-cli-tool.js";
-import { errorMessage, logError, logInfo, logWarn, shortId } from "./logging.js";
-import { composeTranscriptMarkdown } from "./transcript.js";
+import { errorMessage, logInfo, logWarn, shortId } from "./logging.js";
 
 export function validateFeishuConfig(rawConfig: unknown): asserts rawConfig is FeishuConfig {
   const fields: string[] = [];
@@ -100,6 +111,10 @@ export function validateFeishuConfig(rawConfig: unknown): asserts rawConfig is F
   if (cli?.enabled !== undefined && typeof cli.enabled !== "boolean") {
     throw new ConfigValidationError("feishu.cli.enabled must be a boolean.", ["feishu.cli.enabled"]);
   }
+  if (feishu.adminUsers !== undefined
+      && (!Array.isArray(feishu.adminUsers) || feishu.adminUsers.some((id) => typeof id !== "string"))) {
+    throw new ConfigValidationError("feishu.adminUsers must be a string array.", ["feishu.adminUsers"]);
+  }
   if (cli?.userScopes !== undefined
       && (!Array.isArray(cli.userScopes) || cli.userScopes.some((scope) => typeof scope !== "string"))) {
     throw new ConfigValidationError("feishu.cli.userScopes must be a string array.", ["feishu.cli.userScopes"]);
@@ -112,33 +127,29 @@ export function validateFeishuConfig(rawConfig: unknown): asserts rawConfig is F
 export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   private feishu: FeishuClient | undefined;
   private cardTitle = "DotCraft";
-  private approvalTimeoutMs = 120000;
+  private adminUsers = new Set<string>();
   private cliTool: FeishuCliTool | undefined;
   private userIdentity: FeishuUserIdentity | undefined;
   private eventAbortController: AbortController | undefined;
   private loadingIcon: FeishuLoadingIcon | undefined;
-  private statusTimings: { textStallMs?: number; statusSettleMs?: number } | undefined;
   private readonly router = new FeishuOutboundRouter(() => this.getFeishuClient());
   private readonly media = new FeishuMediaDelivery(this.router);
-  private readonly threadContextMap = new Map<string, string>();
-  private readonly turnCards = new TurnCardController({
-    client: () => this.getFeishuClient(),
+  private readonly sender = new FeishuChannelSender({
+    router: this.router,
+    media: this.media,
     cardTitle: () => this.cardTitle,
-    deliverCard: (target, cardId) => this.router.sendCardKit(target, cardId),
-    statusIconImgKey: () => this.loadingIcon?.imgKey() ?? Promise.resolve(undefined),
-    statusTimings: () => this.statusTimings,
   });
-  private readonly approvalWaiters = new Map<
-    string,
-    {
-      resolve: (decision: string) => void;
-      timer: ReturnType<typeof setTimeout>;
-      threadId: string;
-      channelTarget: string;
-      messageId: string;
-      timeoutSeconds: number;
-    }
-  >();
+  private readonly threadContextMap = new Map<string, string>();
+  private readonly statusCards = new FeishuStatusCards({
+    sendCard: (target, card) => this.router.sendCard(target, card),
+    updateCard: (messageId, card) => updateCard(this.getFeishuClient(), messageId, card),
+    loadingIconImgKey: () => this.loadingIcon?.imgKey() ?? Promise.resolve(undefined),
+  });
+  private readonly approvals = new FeishuApprovalCards({
+    sendCard: (target, card) => this.router.sendCard(target, card),
+    updateCard: (messageId, card) => updateCard(this.getFeishuClient(), messageId, card),
+    cardTitle: () => this.cardTitle,
+  });
   private readonly userInputWaiters = new Map<
     string,
     {
@@ -157,7 +168,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       "feishu",
       "dotcraft-feishu",
       "0.1.0",
-      ["item/reasoning/delta", "subagent/progress", "item/usage/delta", "system/event", "plan/updated"],
+      ["item/reasoning/delta", "subagent/progress", "item/usage/delta", "plan/updated"],
     );
   }
 
@@ -188,8 +199,8 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
 
     const config = this.loadedConfig;
     this.cardTitle = config.feishu.cardTitle ?? "DotCraft";
-    this.approvalTimeoutMs = config.feishu.approvalTimeoutMs ?? 120000;
-    configureTextMergeDebug(config.feishu.debug?.textMerge);
+    this.approvals.timeoutMs = config.feishu.approvalTimeoutMs ?? 120000;
+    this.adminUsers = new Set((config.feishu.adminUsers ?? []).map((id) => id.trim()));
     this.feishu = new FeishuClient(config.feishu);
     const stateDir = resolveModuleStatePath(context);
     this.loadingIcon = new FeishuLoadingIcon(this.feishu, { stateDir });
@@ -236,7 +247,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     this.eventAbortController?.abort();
     this.eventAbortController = undefined;
     this.feishu?.stopEventStream();
-    await this.turnCards.stopAll();
+    await this.statusCards.stopAll();
     await super.stop();
   }
 
@@ -289,32 +300,23 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   }
 
   async onDeliver(target: string, content: string, _metadata: Record<string, unknown>): Promise<boolean> {
-    logInfo("outbound.deliver.start", {
-      target: shortId(target),
-      contentChars: content.length,
-    });
-    try {
-      await sendReplyCards(this.router, target, content, this.cardTitle);
-      logInfo("outbound.deliver.success", {
-        target: shortId(target),
-      });
-      return true;
-    } catch (error) {
-      logError("outbound.deliver.failed", {
-        target: shortId(target),
-        message: errorMessage(error),
-      });
-      return false;
-    }
+    return (await this.sender.sendText(target, content)).delivered === true;
   }
 
-  protected getDeliveryCapabilities(): Record<string, unknown> | null {
-    return this.media.getDeliveryCapabilities();
+  protected getDisplayName(): string {
+    return "Feishu";
+  }
+
+  protected getDeliveryCapabilities(): ChannelDeliveryCapabilities {
+    return FEISHU_DELIVERY_CAPABILITIES;
+  }
+
+  protected getChatDescriptor(_opts: ChannelAdapterMessageOpts, channelContext: string): ChannelChatDescriptor {
+    return describeConversation(channelContext);
   }
 
   protected override getChannelTools(): ChannelToolDescriptor[] | null {
-    const tools: ChannelToolDescriptor[] = this.media.getChannelTools();
-    tools.push(...getFeishuCliToolDescriptors(this.loadedConfig?.feishu.cli?.enabled === true));
+    const tools: ChannelToolDescriptor[] = getFeishuCliToolDescriptors(this.loadedConfig?.feishu.cli?.enabled === true);
     if (this.userIdentity?.isConfigured() === true) {
       tools.push({
         name: "FeishuAuthorizeUser",
@@ -336,14 +338,9 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   protected override async onSend(
     target: string,
     message: Record<string, unknown>,
-    metadata: Record<string, unknown>,
+    _metadata: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    const kind = String(message.kind ?? "");
-    if (kind === "text") {
-      return await super.onSend(target, message, metadata);
-    }
-
-    return await this.media.send(target, message);
+    return await this.sender.send(target, message);
   }
 
   protected override async onToolCall(
@@ -352,7 +349,6 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     const tool = String(request.tool ?? "");
     const args = (request.arguments as Record<string, unknown>) ?? {};
     const context = (request.context as Record<string, unknown>) ?? {};
-    const target = String(context.channelContext ?? context.groupId ?? "");
     if (tool === "FeishuCli") {
       return this.cliTool
         ? await this.cliTool.invoke(args)
@@ -365,32 +361,16 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     if (tool === "FeishuAuthorizeUser") {
       return await this.authorizeUserFromTool(String(context.senderId ?? ""));
     }
-    if (!this.media.handlesTool(tool)) {
-      return {
-        success: false,
-        errorCode: "UnsupportedTool",
-        errorMessage: `Unknown tool '${tool}'.`,
-      };
-    }
-
-    if (!target) {
-      return {
-        success: false,
-        errorCode: "MissingChatContext",
-        errorMessage: "Current tool call does not contain a Feishu chat target.",
-      };
-    }
-
-    return await this.media.executeToolCall(tool, target, args);
+    return {
+      success: false,
+      errorCode: "UnsupportedTool",
+      errorMessage: `Unknown tool '${tool}'.`,
+    };
   }
 
   async onApprovalRequest(request: Record<string, unknown>): Promise<string> {
     const requestId = String(request.requestId ?? "");
     const threadId = String(request.threadId ?? "");
-    const approvalType = String(request.approvalType ?? "");
-    const operation = String(request.operation ?? "");
-    const target = String(request.target ?? "");
-    const reason = String(request.reason ?? "");
     const channelTarget = this.threadContextMap.get(threadId);
     if (!channelTarget || !requestId) {
       logWarn("approval.request.invalid_context", {
@@ -399,66 +379,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       });
       return DECISION_DECLINE;
     }
-
-    const timeoutSeconds = Math.max(1, Math.round(this.approvalTimeoutMs / 1000));
-    const card = buildApprovalCard({
-      requestId,
-      approvalType,
-      operation,
-      target,
-      reason,
-      timeoutSeconds,
-      cardTitle: this.cardTitle,
-    });
-    const sent = await this.router.sendCard(channelTarget, card);
-    logInfo("approval.card_sent", {
-      requestId: shortId(requestId),
-      threadId: shortId(threadId),
-      timeoutSec: timeoutSeconds,
-      channelTarget: shortId(channelTarget),
-      messageId: shortId(sent.messageId),
-    });
-
-    return new Promise<string>((resolve) => {
-      const timer = setTimeout(() => {
-        const waiter = this.approvalWaiters.get(requestId);
-        this.approvalWaiters.delete(requestId);
-        if (waiter?.messageId) {
-          void this.tryUpdateApprovalCard(waiter.messageId, buildApprovalTimeoutCard({ requestId, timeoutSeconds }));
-        }
-        logWarn("approval.timeout", {
-          requestId: shortId(requestId),
-          decision: DECISION_CANCEL,
-        });
-        resolve(DECISION_CANCEL);
-      }, this.approvalTimeoutMs);
-      this.approvalWaiters.set(requestId, {
-        resolve: (decision: string) => {
-          clearTimeout(timer);
-          const waiter = this.approvalWaiters.get(requestId);
-          this.approvalWaiters.delete(requestId);
-          if (waiter?.messageId) {
-            void this.tryUpdateApprovalCard(
-              waiter.messageId,
-              buildApprovalResolvedCard({
-                requestId,
-                decision,
-              }),
-            );
-          }
-          logInfo("approval.resolved", {
-            requestId: shortId(requestId),
-            decision,
-          });
-          resolve(decision);
-        },
-        timer,
-        threadId,
-        channelTarget,
-        messageId: sent.messageId,
-        timeoutSeconds,
-      });
-    });
+    return await this.approvals.request(channelTarget, request, this.approvalSender(request));
   }
 
   protected override async onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse> {
@@ -539,141 +460,26 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     });
   }
 
-  private async tryUpdateApprovalCard(messageId: string, card: Record<string, unknown>): Promise<void> {
-    try {
-      await updateCard(this.getFeishuClient(), messageId, card);
-      logInfo("approval.card_updated", {
-        messageId: shortId(messageId),
-      });
-    } catch (error) {
-      logWarn("approval.card_update_failed", {
-        messageId: shortId(messageId),
-        message: errorMessage(error),
-      });
-    }
+  protected override async onTurnStarted(turn: ChannelTurn): Promise<void> {
+    this.statusCards.start(turn);
   }
 
-  private async upsertTurnTranscriptCard(
-    threadId: string,
-    turnId: string,
-    channelTarget: string,
-    transcriptText: string,
-    isFinal: boolean,
-  ): Promise<void> {
-    const state = this.turnCards.getOrInit(threadId, turnId, channelTarget);
-    state.accumulatedText = transcriptText;
-    state.mode = "fallback";
-    this.turnCards.markActive(threadId, turnId, channelTarget);
-    const card = buildTranscriptCard(state.accumulatedText, isFinal, this.cardTitle);
-    const sent = await createOrUpdateCard(
-      this.getFeishuClient(),
-      this.router,
-      channelTarget,
-      card,
-      state.messageId,
-    );
-    state.messageId = sent.messageId;
-    if (isFinal) {
-      this.turnCards.clear(threadId, turnId);
-    }
+  protected override async onActivity(turn: ChannelTurn, _activity: TurnItemActivity): Promise<void> {
+    this.statusCards.working(turn);
   }
 
-  protected override async onSegmentCompleted(
-    threadId: string,
-    turnId: string,
-    segmentText: string,
-    isFinal: boolean,
-    channelContext: string,
-  ): Promise<void> {
-    if (!segmentText.trim()) return;
-    logInfo(isFinal ? "turn.completed_segment" : "turn.progress", {
-      threadId: shortId(threadId),
-      turnId: shortId(turnId),
-      replyChars: segmentText.length,
-      isFinal,
+  protected override async onTurnRetrying(turn: ChannelTurn): Promise<void> {
+    this.statusCards.retrying(turn);
+  }
+
+  protected override async onTurnEnded(turn: ChannelTurn, outcome: ChannelTurnOutcome): Promise<void> {
+    (outcome.status === "failed" ? logWarn : logInfo)("turn.ended", {
+      threadId: shortId(turn.threadId),
+      turnId: shortId(turn.turnId),
+      status: outcome.status,
+      ...(outcome.status === "failed" ? { error: outcome.error } : {}),
     });
-    const state = this.turnCards.getOrInit(threadId, turnId, channelContext);
-    if (state.mode === "native" || state.mode === "nativeFinalized") return;
-    const transcriptText = state.hasProgress
-      ? state.accumulatedText
-      : composeTranscriptMarkdown([state.accumulatedText, segmentText]);
-    await this.upsertTurnTranscriptCard(threadId, turnId, channelContext, transcriptText, isFinal);
-  }
-
-  protected override async onReplyProgress(
-    threadId: string,
-    turnId: string,
-    replyParts: readonly string[],
-    isFinal: boolean,
-    channelContext: string,
-  ): Promise<void> {
-    const state = this.turnCards.getOrInit(threadId, turnId, channelContext);
-    state.accumulatedText = composeTranscriptMarkdown(replyParts);
-    state.hasProgress = true;
-    this.turnCards.markActive(threadId, turnId, channelContext);
-
-    if (state.mode === "fallback" || !state.accumulatedText.trim()) return;
-    if (isFinal) {
-      if (state.mode !== "native" || !state.streamer) return;
-      const completed = await state.streamer.complete(state.accumulatedText);
-      state.mode = completed ? "nativeFinalized" : "fallback";
-      return;
-    }
-
-    const streamer = await this.turnCards.ensureStreamer(state, threadId, turnId);
-    const updated = await streamer.update(state.accumulatedText);
-    state.mode = updated || streamer.hasVisibleCard ? "native" : "fallback";
-  }
-
-  protected override async consumeTurnEventStream(
-    eventStream: Parameters<ModuleChannelAdapter["consumeTurnEventStream"]>[0],
-    threadId: string,
-    turnId: string,
-    channelContext: string,
-  ): Promise<void> {
-    await this.turnCards.beginTurn(threadId, turnId, channelContext);
-    try {
-      await super.consumeTurnEventStream(eventStream, threadId, turnId, channelContext);
-    } finally {
-      await this.turnCards.endTurn(threadId, turnId);
-    }
-  }
-
-  protected override async onTurnCompleted(
-    threadId: string,
-    turnId: string,
-    replyText: string,
-    channelContext: string,
-    segmentsWereDelivered: boolean,
-  ): Promise<void> {
-    if (!replyText.trim() || segmentsWereDelivered) {
-      await this.turnCards.endTurn(threadId, turnId);
-      return;
-    }
-    const state = this.turnCards.get(threadId, turnId);
-    const transcriptText = state?.accumulatedText.trim() ? state.accumulatedText : replyText;
-    await this.upsertTurnTranscriptCard(threadId, turnId, channelContext, transcriptText, true);
-  }
-
-  protected override async onTurnFailed(threadId: string, turnId: string, error: string): Promise<void> {
-    await this.turnCards.endTurn(threadId, turnId);
-    await super.onTurnFailed(threadId, turnId, error);
-  }
-
-  protected override async onTurnCancelled(threadId: string, turnId: string): Promise<void> {
-    await this.turnCards.endTurn(threadId, turnId);
-    await super.onTurnCancelled(threadId, turnId);
-  }
-
-  protected override async onActivity(
-    threadId: string,
-    turnId: string,
-    activity: TurnItemActivity,
-    _channelContext: string,
-  ): Promise<void> {
-    const state = this.turnCards.get(threadId, turnId);
-    if (state?.mode !== "native") return;
-    state.streamer?.noteActivity(activity);
+    await this.statusCards.end(turn, outcome);
   }
 
   protected override onThreadContextBound(threadId: string, channelContext: string): void {
@@ -691,8 +497,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     if (
       event.action === "cache_hit" ||
       event.action === "listed_active" ||
-      event.action === "created" ||
-      event.action === "force_fresh_created"
+      event.action === "created"
     ) {
       logInfo("thread.resolve_action", {
         action: event.action,
@@ -710,40 +515,50 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       topic: message.threadKey ? shortId(message.threadKey) : "",
     });
     this.router.noteInbound(message.channelContext, message.messageId);
-    if (await this.tryResolvePendingUserInputFromText(message.channelContext, message.text)) {
+    if (await this.tryHandleReply(message)) {
       return;
     }
     if (isUserAuthCommand(message.text)) {
       await this.handleUserAuthCommand(message);
       return;
     }
-    if (isNewCommand(message.text)) {
-      await this.newThread(message.threadUserId, message.channelContext);
-      await this.router.sendCard(
-        message.channelContext,
-        buildNewConversationCard(),
-      );
-      logInfo("inbound.command.new_thread", {
-        messageId: shortId(message.messageId),
-        channelContext: shortId(message.channelContext),
-      });
-      return;
-    }
 
     await this.handleMessage({
-      userId: message.threadUserId,
-      userName: message.userName,
+      ...feishuMessageOptions(
+        { senderId: message.userId, senderName: message.userName, senderRole: this.senderRole(message.userId) },
+        { threadUserId: message.threadUserId, channelContext: message.channelContext, isGroup: message.chatType === "group" },
+      ),
       text: message.text,
-      channelContext: message.channelContext,
       workspacePath: this.defaultWorkspacePath,
-      sender: {
-        senderId: message.userId,
-        senderName: message.userName,
-        ...(message.chatType === "group" ? { groupId: message.channelContext } : {}),
-      },
       inputParts: message.parts.length ? message.parts : undefined,
-      omitSenderGroupId: message.chatType !== "group",
     });
+  }
+
+  protected override async renderCommandChoices(
+    target: string,
+    choices: CommandChoice[],
+    _context: CommandChoiceContext,
+  ): Promise<void> {
+    await this.router.sendCard(target, buildCommandChoicesCard(choices, target));
+  }
+
+  private senderRole(openId: string): "admin" | "user" {
+    return this.adminUsers.has(openId) ? "admin" : "user";
+  }
+
+  private handleCommandChoiceAction(event: FeishuCardActionEvent, value: Record<string, unknown>): boolean {
+    const selection = parseCommandChoiceSelection(event, value);
+    if (!selection) {
+      logWarn("command_choice.action_invalid", {
+        openMessageId: shortId(String(event.context?.open_message_id ?? "")),
+      });
+      return false;
+    }
+    void this.executeCommandChoice(
+      selection.command,
+      commandChoiceMessageOptions(selection, this.senderRole(selection.operatorId)),
+    );
+    return true;
   }
 
   /** Authorization binds one operator account, so it only runs where the sender is unambiguous. */
@@ -875,6 +690,9 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     if (value?.kind === "userInput") {
       return this.handleUserInputCardAction(event, value);
     }
+    if (value?.kind === "command") {
+      return this.handleCommandChoiceAction(event, value);
+    }
     if (!value || value.kind !== "approval") {
       const kindStr =
         value && typeof value === "object" && "kind" in value
@@ -885,32 +703,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       });
       return false;
     }
-    const requestId = String(value.requestId ?? "");
-    const decision = String(value.decision ?? "");
-    const waiter = this.approvalWaiters.get(requestId);
-    if (!waiter) {
-      logWarn("approval.action_no_waiter", {
-        requestId: shortId(requestId),
-        openMessageId: shortId(String(event.context?.open_message_id ?? "")),
-      });
-      return false;
-    }
-    const openMessageId = String(event.context?.open_message_id ?? "");
-    if (openMessageId && waiter.messageId && openMessageId !== waiter.messageId) {
-      logWarn("approval.action_message_mismatch", {
-        requestId: shortId(requestId),
-        expectedMessageId: shortId(waiter.messageId),
-        actualMessageId: shortId(openMessageId),
-      });
-      return false;
-    }
-    waiter.resolve(decision || DECISION_CANCEL);
-    logInfo("approval.action_resolved", {
-      requestId: shortId(requestId),
-      decision: decision || DECISION_CANCEL,
-      messageId: shortId(openMessageId || waiter.messageId),
-    });
-    return true;
+    return this.approvals.handleAction(event, value);
   }
 
   hasPendingUserInput(channelContext: string): boolean {
@@ -918,6 +711,14 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   }
 
   async tryHandlePendingUserInputMessage(message: ParsedInboundMessage): Promise<boolean> {
+    return await this.tryHandleReply(message);
+  }
+
+  private async tryHandleReply(message: ParsedInboundMessage): Promise<boolean> {
+    const approvalDecision = parseApprovalReplyDecision(message.text, { slashAliasesOnly: true });
+    if (approvalDecision && this.approvals.resolveInChat(message.channelContext, message.userId, approvalDecision)) {
+      return true;
+    }
     return await this.tryResolvePendingUserInputFromText(message.channelContext, message.text);
   }
 
@@ -957,6 +758,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       this.userInputRequestByChannelTarget.delete(channelTarget);
       return false;
     }
+    if (await this.isCommand(text)) return false;
 
     const response = userInputResponseFromText(waiter.request, text);
     if (!response) {
@@ -1024,19 +826,13 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     }
   }
 
-  protected override onThreadsArchived(_identityKey: string, archivedThreadIds: string[]): void {
-    for (const threadId of archivedThreadIds) {
-      const channelContext = this.threadContextMap.get(threadId);
-      if (channelContext) this.router.forget(channelContext);
-      this.threadContextMap.delete(threadId);
-      this.turnCards.clearThread(threadId);
-    }
-  }
-
-  override async newThread(userId: string, channelContext = ""): Promise<void> {
-    const identityKey = this.identityKey(userId, channelContext);
-    const archivedIds = await this.resetIdentityThreads(userId, channelContext);
-    this.onThreadsArchived(identityKey, archivedIds);
+  protected override onCurrentThreadChanged(
+    previousThreadId: string | undefined,
+    _threadId: string,
+    channelContext: string,
+  ): void {
+    if (previousThreadId) this.threadContextMap.delete(previousThreadId);
+    this.router.forget(channelContext);
   }
 }
 
@@ -1045,21 +841,13 @@ function parseFeishuChannelTarget(channelContext: string): {
   conversationId: string;
   deliveryTarget: string;
 } | null {
-  const target = channelContext.trim();
+  const target = parseConversationTarget(channelContext);
   if (!target) return null;
-  if (target.startsWith("group:")) {
-    const id = target.slice("group:".length).trim();
-    return id ? { conversationKind: "group", conversationId: id, deliveryTarget: target } : null;
-  }
-  if (target.startsWith("dm:")) {
-    const id = target.slice("dm:".length).trim();
-    return id ? { conversationKind: "user", conversationId: id, deliveryTarget: target } : null;
-  }
-  return { conversationKind: "group", conversationId: target, deliveryTarget: target };
-}
-
-function isNewCommand(text: string): boolean {
-  return /^\s*\/new\s*$/i.test(text.trim());
+  return {
+    conversationKind: target.kind === "dm" ? "user" : "group",
+    conversationId: target.id,
+    deliveryTarget: formatConversationTarget(target),
+  };
 }
 
 function isUserAuthCommand(text: string): boolean {

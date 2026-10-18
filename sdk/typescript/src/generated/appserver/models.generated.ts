@@ -887,6 +887,8 @@ export interface AutomationListResult {
 
 export interface AutomationOrigin {
   channel: string;
+  chatKind?: string | null;
+  chatLabel?: string | null;
   deliveryTarget?: string | null;
   groupId?: string | null;
   userId: string;
@@ -1022,8 +1024,8 @@ export interface BrowserUseCapability {
 export interface ChannelAdapterCapability {
   channelName: string;
   channelTools?: ChannelToolDescriptor[] | null;
-  deliveryCapabilities?: ChannelDeliveryCapabilities | null;
-  deliverySupport?: boolean | null;
+  deliveryCapabilities: ChannelDeliveryCapabilities;
+  displayName: string;
   [key: string]: unknown;
 }
 
@@ -1058,9 +1060,17 @@ export interface ChannelBoundBy {
   [key: string]: unknown;
 }
 
+export interface ChannelChat {
+  kind: string;
+  label?: string | null;
+  membership: string;
+  [key: string]: unknown;
+}
+
 export interface ChannelDeliveryCapabilities {
   media?: ChannelMediaCapabilitySet | null;
-  structuredDelivery?: boolean | null;
+  targets: ChannelTargetCapability;
+  text: ChannelTextCapability;
   [key: string]: unknown;
 }
 
@@ -1139,6 +1149,17 @@ export interface ChannelTarget {
   [key: string]: unknown;
 }
 
+export interface ChannelTargetCapability {
+  direct: string;
+  group: boolean;
+  [key: string]: unknown;
+}
+
+export interface ChannelTextCapability {
+  format: string;
+  [key: string]: unknown;
+}
+
 export interface ChannelToolApprovalDescriptor {
   kind: string;
   operation?: string | null;
@@ -1189,6 +1210,12 @@ export interface ClientInfo {
   [key: string]: unknown;
 }
 
+export interface CommandChoice {
+  command?: string;
+  label?: string;
+  [key: string]: unknown;
+}
+
 export interface CommandExecParams {
   command: string[];
   cwd?: string;
@@ -1214,13 +1241,11 @@ export interface CommandExecuteParams {
 }
 
 export interface CommandExecuteResult {
-  archivedThreadIds?: string[] | null;
-  createdLazily?: boolean | null;
+  choices?: CommandChoice[] | null;
   expandedPrompt?: string | null;
   handled?: boolean;
   isMarkdown?: boolean;
   message?: string | null;
-  sessionReset?: boolean;
   thread?: SessionThread | null;
   [key: string]: unknown;
 }
@@ -1560,6 +1585,7 @@ export interface ErrorPayload {
 }
 
 export interface ExtChannelSendParams {
+  deliveryId?: string;
   message?: ChannelOutboundMessage;
   metadata?: JsonValue;
   target?: string;
@@ -3079,7 +3105,6 @@ export interface ProviderTestResult {
 export interface QueuedTurnInput {
   clientUserMessageId?: string | null;
   createdAt: string;
-  deliveryBindingId?: string | null;
   displayText: string;
   id: string;
   materializedInputParts: InputPart[];
@@ -3239,6 +3264,7 @@ export interface RuntimeDynamicToolNamespace {
 }
 
 export interface SenderContext {
+  directTarget?: string | null;
   groupId?: string | null;
   senderId: string;
   senderName: string;
@@ -4415,6 +4441,7 @@ export interface ThreadRenamedNotification {
 
 export interface ThreadResumeParams {
   additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
+  chat?: ChannelChat | null;
   cwd?: string | null;
   dynamicTools?: RuntimeDynamicToolDeclaration[] | null;
   runtimeWorkspaceRoots?: string[] | null;
@@ -4511,6 +4538,7 @@ export interface ThreadSpawnEdge {
 
 export interface ThreadStartParams {
   additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
+  chat?: ChannelChat | null;
   config?: ThreadConfiguration | null;
   cwd?: string | null;
   displayName?: string | null;
@@ -5132,7 +5160,6 @@ export interface UserMessagePayload {
   channelContext?: string | null;
   channelName?: string | null;
   clientUserMessageId?: string | null;
-  deliveryBindingId?: string | null;
   deliveryMode?: string | null;
   groupId?: string | null;
   images?: UserMessageImage[] | null;

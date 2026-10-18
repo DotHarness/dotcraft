@@ -1,5 +1,5 @@
 export { ChannelAdapter } from "./adapter.js";
-export type { ChannelAdapterMessageOpts, ChannelAdapterOptions } from "./adapter.js";
+export type { ChannelAdapterMessageOpts } from "./adapter.js";
 export { ModuleChannelAdapter } from "./moduleAdapter.js";
 export type {
   LauncherDescriptor,
@@ -22,8 +22,14 @@ export type {
 export type { LifecycleStatus, ModuleError, ModuleErrorCode } from "./lifecycle.js";
 export type {
   CapabilitySummary,
+  ChannelChatDescriptor,
+  ChannelChatKind,
+  ChannelChatMembership,
+  ChannelDeliveryCapabilities,
+  ChannelDirectReach,
+  ChannelMediaConstraints,
+  ChannelTextFormat,
   ChannelToolDescriptor,
-  DeliveryCapabilityDescriptor,
   ToolApprovalDescriptor,
   ToolInvocationContext,
   ToolInvocationResult,
@@ -45,6 +51,8 @@ export type { InputPart, SenderContext } from "@dotcraft/sdk";
 export type {
   AppBinding,
   AppBindingRequestGetResult,
+  CommandChoice,
+  CommandInfo,
   DynamicToolCallResult,
   DynamicToolContentItem,
   RuntimeAdditionalContextEntry,
@@ -63,7 +71,7 @@ export {
   ApprovalReplyTracker,
   parseApprovalReplyDecision,
 } from "./approvalReplies.js";
-export type { ApprovalReplyRecipient, ApprovalReplyTrackerOptions } from "./approvalReplies.js";
+export type { ApprovalReplyParseOptions, ApprovalReplyRecipient, ApprovalReplyTrackerOptions } from "./approvalReplies.js";
 export {
   buildUserInputPrompt,
   canUseNativeSingleChoiceUserInput,
@@ -83,4 +91,5 @@ export type {
   UserInputQuestionRequest,
   UserInputResponse,
 } from "./userInput.js";
-export type { GeneratedImage, TurnItemActivity } from "./channelRuntime.js";
+export type { ChannelTurn, ChannelTurnOutcome, TurnItemActivity } from "./turnStream.js";
+export type { CommandChoiceContext } from "./commandRouter.js";

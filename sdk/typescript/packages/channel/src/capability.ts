@@ -5,7 +5,6 @@ import type { JsonValue } from "@dotcraft/sdk/contracts";
 
 export interface CapabilitySummary {
   hasChannelTools: boolean;
-  hasStructuredDelivery: boolean;
   requiresInteractiveSetup: boolean;
   capabilitySetMayVaryByEnvironment: boolean;
 }
@@ -46,11 +45,40 @@ export interface ChannelToolDescriptor {
   deferLoading?: boolean;
 }
 
-export interface DeliveryCapabilityDescriptor {
-  supportedKinds: string[];
-  supportsGroupDelivery: boolean;
-  supportsDirectDelivery: boolean;
-}
+export type ChannelTextFormat = "plain" | "markdown";
+
+export type ChannelDirectReach = "any" | "knownOnly" | "none";
+
+export type ChannelMediaConstraints = {
+  maxBytes?: number;
+  allowedMimeTypes?: string[];
+  allowedExtensions?: string[];
+  supportsHostPath?: boolean;
+  supportsUrl?: boolean;
+  supportsBase64?: boolean;
+  supportsCaption?: boolean;
+};
+
+export type ChannelDeliveryCapabilities = {
+  text: { format: ChannelTextFormat };
+  targets: { group: boolean; direct: ChannelDirectReach };
+  media?: {
+    image?: ChannelMediaConstraints;
+    file?: ChannelMediaConstraints;
+    audio?: ChannelMediaConstraints;
+    video?: ChannelMediaConstraints;
+  };
+};
+
+export type ChannelChatKind = "direct" | "group" | "topic";
+
+export type ChannelChatMembership = "shared" | "sender";
+
+export type ChannelChatDescriptor = {
+  kind: ChannelChatKind;
+  label?: string;
+  membership: ChannelChatMembership;
+};
 
 export interface ToolInvocationContext {
   tool: string;

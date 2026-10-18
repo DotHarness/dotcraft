@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.1 |
+| **Version** | 0.8.10 |
 | **Status** | Living |
-| **Date** | 2026-10-03 |
+| **Date** | 2026-10-18 |
 | **Parent Spec** | [AppServer Protocol](appserver-protocol.md) (Section 15) |
 
 Purpose: Define the architecture, protocol extensions, configuration model, and behavioral contract that allow social channel adapters written in any language to integrate with DotCraft as first-class channels, preserving per-platform capabilities such as the Approval flow.
@@ -63,7 +63,7 @@ DotCraft spawns the adapter as a child process but the adapter still connects ba
 
 External channel adapters extend the standard `initialize` params with a `channelAdapter` capability object. When this object is present, the server treats the connection as a channel adapter and registers it with `ExternalChannelHost`.
 
-The descriptor and delivery-capability shapes are defined by [AppServer initialization](appserver-protocol.md#32-initialize). An adapter supplies its configured `channelName`, optional delivery capabilities, and optional connection-owned `channelTools`.
+The descriptor and delivery-capability shapes are defined by [AppServer initialization](appserver-protocol.md#32-initialize). An adapter supplies its configured `channelName`, its platform `displayName`, its delivery capabilities, and optional connection-owned `channelTools`.
 
 When `channelAdapter` is present, the server records the channel name on the connection. The server responds with the standard `initialize` result (see appserver-protocol.md §3.2). No additional fields are added to the response in v1.
 
@@ -73,7 +73,7 @@ If the `channelName` is not recognized in the server configuration, the server c
 
 `channelAdapter` is an additive field. Existing clients that do not send it are treated as regular AppServer clients (e.g. CLI, VS Code extension) and are not registered as channel adapters.
 
-`channelTools` is also additive. Adapters that omit it behave like delivery-only integrations and will never receive `ext/channel/toolCall`.
+Every adapter serves `ext/channel/send`. `channelTools` is optional; an adapter that omits it never receives `ext/channel/toolCall`.
 
 ## 6. Channel-Specific Server Methods
 
@@ -81,7 +81,7 @@ These are server-to-client extension methods (under the `ext/channel/` namespace
 
 ### 6.1 `ext/channel/send`
 
-Adapters implement the [AppServer structured delivery contract](appserver-protocol.md#1121-extchannelsend). Delivery capability negotiation applies to text and media; the server does not downgrade unsupported media to a text-only method.
+Adapters implement the [AppServer structured delivery contract](appserver-protocol.md#1121-extchannelsend). Delivery capability negotiation applies to text and media; the server does not downgrade unsupported media to a text-only method. An adapter remembers recent `deliveryId` values and answers a repeated id with the first delivery's result without posting again.
 
 ### 6.2 `ext/channel/toolCall`
 
@@ -109,7 +109,7 @@ The host routes delivery and tool calls, monitors heartbeat responsiveness, and 
 
 The host starts or accepts the configured transport and waits for `initialize` / `initialized` before publishing the adapter as ready. Stopping closes the connection and terminates only a process owned by the host.
 
-An initialized adapter connection becomes the host's current tool binding after the adapter sends `initialized`. The binding owns the connection's immutable `channelTools` declarations and server-to-adapter tool-call route. Disconnecting clears that binding; a reconnect creates a new binding even when it attaches to the same `ExternalChannelHost`.
+An initialized adapter connection becomes the host's current tool binding after the adapter sends `initialized`. The binding owns the connection's immutable `channelTools` declarations and server-to-adapter tool-call route. Disconnecting clears that binding; a reconnect creates a new binding even when it attaches to the same `ExternalChannelHost`. While no connection is attached, threads keep the declarations of the last initialized connection in their tool lists, so an adapter restart does not change them; dispatch through those registrations fails as unavailable.
 
 An adapter may implement a `channelTool` directly or delegate its execution to a bounded companion process that it owns. In both cases the declaration, route, approval metadata, configuration, and execution authority remain connection-owned. A companion child process does not become an AppServer service and cannot outlive or bypass the declaring connection lease.
 
@@ -154,6 +154,8 @@ This section defines the protocol-level obligations that any conforming external
 - The adapter **must** send `initialize` as the first message on connection, with `capabilities.channelAdapter` present.
 - The adapter **must** send the `initialized` notification after receiving the `initialize` response before making any other requests.
 - `channelAdapter.channelName` **must** match the channel name declared in server-side configuration.
+- `channelAdapter.displayName` **must** name the platform as people know it.
+- `channelAdapter.deliveryCapabilities` **must** declare `text` and `targets`, and a `media` entry for every attachment kind its `ext/channel/send` delivers. `targets` **must** describe only chats the adapter can actually reach.
 - `channelAdapter.channelTools`, when present, **must** be declared during `initialize`; they are not loaded from server-side `ExternalChannels` configuration.
 - A companion executable used by a `channelTool` **must** be resolved, configured, started, cancelled, and drained by the adapter; AppServer must not acquire product-specific process knowledge from the declaration.
 - `capabilities.approvalSupport` **must** be `true` if the adapter will handle approval requests. If set to `false`, the server auto-resolves approvals using workspace defaults and the adapter will never receive `item/approval/request`.
@@ -163,34 +165,49 @@ This section defines the protocol-level obligations that any conforming external
 
 - The adapter is responsible for mapping platform identities to `SessionIdentity`. The `channelName` field in `SessionIdentity` **must** match the adapter's declared `channelName`.
 - The adapter **must** use `thread/list` to locate existing threads for a given identity before creating a new one with `thread/start`. Creating duplicate threads for the same identity is a logical error.
-- The adapter **must not** call `turn/start` on a thread that already has a running turn. The server rejects this with `-32012`. The adapter should serialize user messages per thread or inform the user that the agent is busy.
+- A thread's `channelContext` **must** be a target the adapter's `ext/channel/send` accepts: the chat the thread's messages come from, never a sender's direct chat when the messages come from a group.
+- The adapter **must** send `chat` ([AppServer Protocol](appserver-protocol.md#4103-channel-chat)) when it starts or resumes a thread, with the chat's kind, its label when the platform provides one, and the thread's membership. It resumes a thread it reuses after connecting, so the binding exists on the current connection.
+- Inbound input for a thread with an active regular Turn goes to that Turn with `turn/steer`, using the active Turn ID the adapter observed. When the active Turn cannot accept steering, or blocking thread maintenance is active, the adapter queues the input with `turn/enqueue`. Otherwise it starts a Turn with `turn/start`. When `turn/start` is rejected with `TurnInProgress` (`-32012`) because another Turn started first, the adapter steers the input into that Turn instead. The adapter does not retry or delay `turn/start` while a Turn runs.
 - An inbound platform image is downloaded by the adapter, saved with a unique file name under the workspace's `.craft/attachments/images/`, and submitted as a `localImage` part, so the agent can reach the file by path after the Turn. The adapter never deletes it; Session Core owns the file's lifetime like any workspace-managed attachment. Platform image URLs are never forwarded.
 - A platform reaction or similar acknowledgement only confirms that the inbound event was received; it does not indicate that a DotCraft turn was created.
 - If request startup fails before `turn/start` returns a Turn ID, the adapter **must** send exactly one generic failure notification to the originating channel context. The notification must not contain the original server exception or other diagnostic details; those details belong only in channel logs. Once a Turn ID has been returned, the normal Turn event stream owns terminal status and the adapter must not emit this startup-failure notification.
-- An adapter that renders live reply progress may observe `item/agentMessage/delta` and completed AgentMessage snapshots without treating that observation as successful delivery. Progress rendering must preserve AgentMessage boundaries, may coalesce updates to satisfy platform limits, and must reconcile against the completed Turn snapshot before finalizing the platform response.
-- A progress-rendering failure must not interrupt Turn event consumption. The adapter must either continue with its negotiated segment delivery path or deliver the authoritative completed reply once. Platform-specific progress APIs and fallback behavior remain adapter concerns and do not add Wire fields.
-- A completed `imageGeneration` Item with a non-empty base64 `result` is part of the reply. The adapter delivers it to the originating channel context after any reply text that preceded it, as an `image` when the platform can show one and as a `file` attachment otherwise. The adapter uses the base64 `result`, never `savedPath`, which names a path on the server host. A delivery failure is logged and does not interrupt Turn event consumption.
+- The adapter does not deliver `agentMessage` text, reasoning, plans, generated images or any other Item to the chat. People in the chat see only what the agent sends through `SendChannelMessage`.
+- The adapter may show activity it owns: an acknowledgement reaction once an inbound message is accepted and, for a Turn it started, a typing indicator while the Turn runs and a status card. A status card is posted in the originating chat only when the Turn is still running 20 seconds after it started. It shows `working`, is patched without notification to `retrying` while the server retries the model stream (`system/event` with `kind = "streamError"`) and back to `working` when work resumes, and settles on `done`, `failed`, or `stopped` for a cancelled Turn, with the elapsed time, when the Turn ends. The card is never withdrawn. A Turn that completes or is cancelled within 20 seconds produces none; one that fails within 20 seconds posts the card directly as `failed`. Activity is never reported to the model.
+- An adapter that shows no status card sends exactly one short generic notice to the originating chat when a Turn it started fails. The notice carries no diagnostic detail, and a cancelled Turn produces none.
 
 ### 10.3 Sender Context
 
 - The adapter **must** populate `SenderContext` in `turn/start` with at minimum `senderId` and `senderName`. This enables correct attribution in the turn's `initiator` record and cross-channel audit logging.
 - The adapter is responsible for permission checks before forwarding a message to DotCraft. DotCraft trusts the `SenderContext` presented by the adapter.
-- The `groupId` field **must** be set to the platform-specific delivery target for the current chat or group (e.g. the Telegram `chat_id`). The server uses this value as the default delivery target when an automation is created during the turn: the host captures the origin delivery target from `SenderContext.groupId`. Adapters that participate in unified delivery must therefore ensure `groupId` contains a value that their `ext/channel/send` implementation can accept as `target`. If no meaningful group context exists, omit `groupId`; the server will fall back to `senderId` instead.
+- The adapter sets `senderRole = "admin"` only for senders on its configured admin list and forwards every other permitted sender as `"user"`. An adapter whose platform lets only the bot's owner reach it has no admin list and forwards every sender as `"admin"`. It drops messages from senders it does not permit without forwarding them.
+- The adapter **should** set `directTarget` to the sender's direct chat in its `ext/channel/send` target syntax whenever it can deliver there, including for messages that arrive in a group.
+- The `groupId` field identifies the group a message came from and is omitted for direct chats. The default delivery target of a Turn, captured as the origin of an automation created during it, is the thread's `channelContext`.
 
-### 10.4 Server-to-Client Requests
+### 10.4 Commands
+
+- A message is a command only when its first word is the name or alias of a command `command/list` returns. Any other text, including text such as a path that starts with `/`, is ordinary input.
+- The adapter runs a command with `command/execute` on the conversation's current thread as soon as it arrives. Commands bypass the adapter's per-conversation message queue, whether or not a Turn is active and whether or not the adapter has already resolved the thread; the adapter resolves the thread first when it has none cached. A command arriving while an approval is pending for the sender is executed, not answered with the approval reminder.
+- The adapter handles each inbound message in this order: an answer to the sender's pending approval, including the slash replies (§11.2); then a command; then an answer to a pending user-input question; then ordinary input. A command never answers a pending question.
+- When a result carries `thread`, the adapter makes it the conversation's current thread and resumes it with the conversation's `chat` before forwarding further input to it.
+- When a result carries `expandedPrompt`, the adapter submits the sender's original text as a `commandRef` input like any other inbound message.
+- The adapter shows `message`, followed by `choices` when present: with buttons or cards when the platform has interactive controls, where selecting one executes its `command` for the selecting sender, otherwise as a numbered list that shows each choice's `command`.
+- An adapter whose platform has a native command menu fills it from `command/list`, showing commands with `requiresAdmin` only to admins. Where the platform scopes menus by chat or chat kind, the adapter uses those scopes; where it cannot scope a menu to the senders allowed to use a command, that command is left out of the menu.
+- Adapter-local commands are limited to platform setup, such as `/bind` and adapter-owned account authorization. Conversation lifecycle commands such as `/new` are server commands.
+
+### 10.5 Server-to-Client Requests
 
 The adapter **must** handle the following server-initiated requests:
 
 | Method | Required behavior |
 |--------|-------------------|
 | `item/approval/request` | Present platform-native approval UI; respond with `{ "decision": "..." }`. See §11. |
-| `ext/channel/send` | Deliver a structured `message` payload to `target`; validate `message.kind` and source forms against the adapter's advertised capabilities. |
+| `ext/channel/send` | Deliver a structured `message` payload to `target`; validate `message.kind` and source forms against the adapter's advertised capabilities; answer an unreachable or malformed `target` with `UnsupportedTarget`; answer a repeated `deliveryId` with the first result. |
 | `ext/channel/toolCall` | Execute a previously declared `channelTools` entry after any server-side gating implied by descriptor metadata; return structured success/failure data without mutating the declared tool set. |
 | `ext/channel/heartbeat` | Respond immediately with `{}`. |
 
 The adapter **must not** ignore these requests. An unanswered approval stays pending until a client answers it or its turn ends ([AppServer Protocol](appserver-protocol.md) §7.6); an unanswered heartbeat marks the connection unhealthy.
 
-### 10.5 Connection Lifecycle (WebSocket Mode)
+### 10.6 Connection Lifecycle (WebSocket Mode)
 
 - The adapter is responsible for reconnecting after a disconnection. It should use exponential backoff.
 - After reconnection, the adapter **must** re-perform the full `initialize` / `initialized` handshake.
@@ -211,7 +228,9 @@ The adapter plays the client role in the [AppServer approval flow](appserver-pro
 - The adapter **must** map the platform's callback identifier to the Wire Protocol `request.id` and send the JSON-RPC response when the user responds.
 - Multiple approval requests may be in flight on different threads simultaneously. The callback-to-request mapping **must** be per-request, not global.
 - The server has no approval timeout. When a request resolves without the adapter's answer, for example because its turn ended, the adapter receives `item/approval/resolved` and should clean up its pending approval UI.
-- An adapter that collects decisions from plain-text replies accepts each reply keyword with or without a leading `/`. While an approval is pending for a sender in a conversation, that sender's other messages in the conversation are not forwarded; the adapter answers each with a short reminder of the accepted replies. When the adapter's own approval wait expires, it responds `cancel` and tells the approver that the approval timed out.
+- Every adapter accepts `/approve`, `/approve session` and `/deny` from the sender as answers to that sender's pending approval in the conversation, mapping them to `accept`, `acceptForSession` and `decline`, in addition to its buttons or reply keywords. These replies are not registry commands.
+- An approval belongs to the sender who started the Turn that raised it. In a thread that holds one sender's messages, such as a direct chat or a group thread per sender, it belongs to that sender. The slash replies never answer another sender's approval; buttons answer the approval they were posted for.
+- An adapter that collects decisions from plain-text replies accepts each reply keyword with or without a leading `/`. While an approval is pending for a sender in a conversation, that sender's other messages in the conversation are not forwarded, except commands (§10.4); the adapter answers each with a short reminder of the accepted replies. When the adapter's own approval wait expires, it responds `cancel` and tells the approver that the approval timed out.
 
 ### 11.3 Decision Values
 

@@ -34,16 +34,6 @@
         }
       ]
     },
-    "deliveryBindingId": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "deliveryMode": {
       "anyOf": [
         {

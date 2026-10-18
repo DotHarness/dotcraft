@@ -60,7 +60,6 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
 
         ultra.Source = ThreadSource.ForSubAgent(new SubAgentThreadSource { Purpose = "dynamicWorkflow" });
         Assert.Null(section.RenderDiff(context, PreviousSectionState.Absent));
-        Assert.Null(section.Snapshot(context));
     }
 
     [Fact]

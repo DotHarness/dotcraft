@@ -398,6 +398,84 @@ Approval requests do not expire, and they belong to the thread rather than to on
 
 If a client declares `approvalSupport: false` during `initialize`, the server never sends it approval requests, and approvals in turns that client starts resolve immediately from the thread's approval policy. Rich UI clients should keep `approvalSupport: true`.
 
+`approvalType` names the resource kind: `shell`, `file`, `computerUse`, `channelMessage`, or a kind contributed by a tool. A `channelMessage` request asks to send a message to a chat other than the thread's own. Its `operation` is `send`, its `target` is the chat address `<channelName>:<target>`, and `acceptForSession` covers later sends to the same address.
+
+## Commands
+
+`command/list` returns the server's commands with their `name`, `aliases`, `description`, and `requiresAdmin`. `command/execute` runs one on a thread:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "method": "command/execute",
+  "params": {
+    "threadId": "thread_20260316_x7k2m4",
+    "command": "/model",
+    "sender": { "senderId": "user-456", "senderName": "Alice", "senderRole": "admin" }
+  }
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "result": {
+    "handled": true,
+    "message": "Current model: gpt-5",
+    "isMarkdown": false,
+    "expandedPrompt": null,
+    "thread": null,
+    "choices": [
+      { "label": "gpt-5-mini", "command": "/model gpt-5-mini" }
+    ]
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `message` | Short reply to show the caller. `isMarkdown` says whether it is Markdown. |
+| `expandedPrompt` | Prompt text a custom command expanded into. Submit it with `turn/start`. |
+| `thread` | The conversation's new current thread, returned by commands such as `/new` and `/resume`. Switch to `thread.id` immediately. |
+| `choices` | Selectable follow-ups. Each `command` is a complete command; selecting it runs `command/execute` as if the sender had typed it. |
+
+While the thread has an active turn, each built-in command either runs, cancels the turn first, or answers that the thread is busy. Commands with `requiresAdmin` fail with `CommandPermissionDenied` unless `sender.senderRole` is `"admin"`. A request without `sender` from a connection that is not a channel adapter acts as an admin.
+
+## Channel adapters
+
+A channel adapter declares itself during `initialize` with `capabilities.channelAdapter`:
+
+```json
+{
+  "channelAdapter": {
+    "channelName": "telegram",
+    "displayName": "Telegram",
+    "deliveryCapabilities": {
+      "text": { "format": "markdown" },
+      "targets": { "group": true, "direct": "knownOnly" },
+      "media": {
+        "image": { "maxBytes": 10485760, "supportsHostPath": true, "supportsUrl": true, "supportsBase64": true, "supportsCaption": true },
+        "file": { "maxBytes": 52428800, "supportsHostPath": true, "supportsUrl": true, "supportsBase64": true, "supportsCaption": true }
+      }
+    },
+    "channelTools": []
+  }
+}
+```
+
+- `displayName` is the platform's product name, shown to the agent and in clients.
+- `text.format` is `markdown` when the platform renders Markdown, natively or after the adapter converts it, and `plain` otherwise. The adapter splits text too long for one platform message.
+- `targets.group` says whether the adapter can send to a group other than a thread's own chat. `targets.direct` is `any`, `knownOnly` for users who have messaged the bot, or `none`.
+- `media` lists the attachment kinds the adapter delivers (`image`, `file`, `audio`, `video`) and their limits. An absent kind is unsupported.
+
+Capabilities are fixed for the lifetime of the connection. Every adapter serves `ext/channel/send`.
+
+An adapter sends `chat` on `thread/start` and `thread/resume` to describe the chat a thread speaks to, such as `{ "kind": "group", "label": "Release team", "membership": "shared" }`. `kind` is `direct`, `group`, or `topic`. `membership` is `shared` when every forwarded member's messages arrive in the thread and `sender` when the thread holds one sender's messages. The thread's `channelContext` is the chat's delivery target. Only channel adapter connections may send `chat`. The binding lives on the connection, so the adapter sends it again after reconnecting; `thread/resume` without `chat` keeps the existing binding.
+
+The agent reaches the chat only through the `SendChannelMessage` tool, which the server delivers part by part with `ext/channel/send`. Each request carries a `deliveryId`; the server derives it from the turn, the tool call, and the part's index. Answer a repeated `deliveryId` with the first delivery's result without posting again, and answer a target you cannot reach with `UnsupportedTarget`. Adapters do not post `agentMessage` text or any other item to the chat themselves.
+
 ## API overview
 
 The table below covers common method families used by AppServer clients.
@@ -411,7 +489,7 @@ The table below covers common method families used by AppServer clients.
 | Tools | `tool/list` | Built-in tool catalog (name, description, Plan-mode availability) for agent profile tool pickers. |
 | Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `plugin/setTrusted` | Plugin discovery, detail, installation, removal, enablement, and .NET trust management. |
 | Plugin marketplaces | `marketplace/add`, `marketplace/refresh`, `marketplace/remove` | User-managed plugin catalog sources. |
-| Commands | `command/list`, `command/execute` | Custom command discovery and execution. |
+| Commands | `command/list`, `command/execute` | Command discovery and execution. See [Commands](#commands). |
 | Models | `model/list` | Model catalog. |
 | MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/test`, `mcpServerStatus/list` | MCP configuration and status. |
 | External channels | `externalChannel/list`, `externalChannel/upsert` | External channel configuration. |

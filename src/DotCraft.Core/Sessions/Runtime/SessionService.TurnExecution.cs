@@ -68,7 +68,8 @@ public sealed partial class SessionService
                 UserName = sender?.SenderName,
                 UserRole = sender?.SenderRole,
                 ChannelContext = turnChannelContext,
-                GroupId = sender?.GroupId ?? channelInfo?.GroupId
+                GroupId = sender?.GroupId ?? channelInfo?.GroupId,
+                DirectTarget = sender?.DirectTarget
             }
         };
 
@@ -108,7 +109,6 @@ public sealed partial class SessionService
                 TriggerRefId = triggerInfo?.RefId,
                 TriggerStatus = triggerInfo?.Status,
                 QueuedInputId = inputSnapshot?.QueuedInputId,
-                DeliveryBindingId = inputSnapshot?.DeliveryBindingId,
                 SentAsGoal = inputSnapshot?.SentAsGoal
             }
         };
@@ -1189,7 +1189,10 @@ public sealed partial class SessionService
                         thread.WorkspacePath,
                         threadGoalForContext,
                         agentFactory.RuntimeContext.Contributions?
-                            .Resolve<IChatContextProvider>(threadId)));
+                            .Resolve<IChatContextProvider>(threadId),
+                        turn.Input?.AsUserMessage is { TriggerKind: { } triggerKind } triggeredInput
+                            ? new TurnTriggerInfo { Kind = triggerKind, Label = triggeredInput.TriggerLabel }
+                            : null));
 
                 using var commandExecutionScope = CommandExecutionRuntimeScope.Set(
                     new CommandExecutionRuntimeContext

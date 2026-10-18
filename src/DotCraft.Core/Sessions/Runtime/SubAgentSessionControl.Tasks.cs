@@ -41,6 +41,7 @@ public static partial class SubAgentSessionControl
         var child = resolved.Thread;
         RunningChildren.TryGetValue(child.Id, out var running);
         var (status, kindStatus) = ResolveTaskStatus(child, resolved.Edge, running is { Completion.IsCompleted: false });
+        var latest = child.Turns.LastOrDefault();
         return new BackgroundTask
         {
             TaskId = resolved.Path.Value,
@@ -54,8 +55,26 @@ public static partial class SubAgentSessionControl
                 .SelectMany(static turn => turn.Items)
                 .LastOrDefault(static item => !string.IsNullOrWhiteSpace(item.AsAgentMessage?.Text))
                 ?.AsAgentMessage!.Text,
+            StartedAt = child.CreatedAt,
+            EndedAt = status == BackgroundTaskStatus.Running ? null : latest?.CompletedAt,
             Latch = running?.Latch
         };
+    }
+
+    internal static async Task<IReadOnlyList<BackgroundTask>> ListAgentTasksAsync(
+        ISessionService sessionService,
+        BackgroundTaskCaller caller,
+        CancellationToken ct)
+    {
+        var tasks = new List<BackgroundTask>();
+        foreach (var edge in await sessionService.ListSubAgentChildrenAsync(caller.Thread.Id, includeClosed: true, ct).ConfigureAwait(false))
+        {
+            if (string.IsNullOrWhiteSpace(edge.AgentPath))
+                continue;
+            if (await FindAgentTaskAsync(sessionService, caller, edge.AgentPath, ct).ConfigureAwait(false) is { } task)
+                tasks.Add(task);
+        }
+        return tasks;
     }
 
     internal static async Task StopAgentTaskAsync(ISessionService sessionService, BackgroundTask task, CancellationToken ct)
@@ -131,6 +150,9 @@ internal sealed class SubAgentTaskKind(ISessionService sessionService) : IBackgr
 
     public Task<BackgroundTask?> FindAsync(BackgroundTaskCaller caller, string taskId, CancellationToken ct) =>
         SubAgentSessionControl.FindAgentTaskAsync(sessionService, caller, taskId, ct);
+
+    public Task<IReadOnlyList<BackgroundTask>> ListAsync(BackgroundTaskCaller caller, CancellationToken ct) =>
+        SubAgentSessionControl.ListAgentTasksAsync(sessionService, caller, ct);
 
     public Task StopAsync(BackgroundTask task, CancellationToken ct) =>
         SubAgentSessionControl.StopAgentTaskAsync(sessionService, task, ct);

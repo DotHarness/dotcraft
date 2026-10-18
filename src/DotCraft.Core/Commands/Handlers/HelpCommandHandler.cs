@@ -4,24 +4,20 @@ using DotCraft.Text;
 
 namespace DotCraft.Commands.Handlers;
 
-/// <summary>
-/// Handles /help command to display available commands.
-/// </summary>
 public sealed class HelpCommandHandler : ICommandHandler
 {
     /// <inheritdoc />
     public string[] Commands => ["/help"];
-    
+
     /// <inheritdoc />
-    public async Task<CommandResult> HandleAsync(CommandContext context, ICommandResponder responder)
+    public Task<CommandResult> HandleAsync(CommandContext context, ICommandResponder responder)
     {
         if (context.CommandRegistry == null)
-        {
-            await responder.SendTextAsync("/help is unavailable.");
-            return CommandResult.HandledResult();
-        }
+            return Task.FromResult(CommandResult.HandledResult(FallbackText.CommandServiceUnavailable));
 
-        var commands = context.CommandRegistry.ListCommands(context);
+        var commands = context.CommandRegistry.ListCommands(context)
+            .Where(command => context.IsAdmin || !command.RequiresAdmin)
+            .ToList();
         var builtins = commands.Where(c => !string.Equals(c.Category, "custom", StringComparison.OrdinalIgnoreCase)).ToList();
         var customs = commands.Where(c => string.Equals(c.Category, "custom", StringComparison.OrdinalIgnoreCase)).ToList();
 
@@ -41,8 +37,7 @@ public sealed class HelpCommandHandler : ICommandHandler
             foreach (var command in customs)
                 sb.AppendLine($"{command.Name} - {command.Description}");
         }
-        
-        await responder.SendTextAsync(sb.ToString().TrimEnd());
-        return CommandResult.HandledResult();
+
+        return Task.FromResult(CommandResult.HandledResult(sb.ToString().TrimEnd()));
     }
 }

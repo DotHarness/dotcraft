@@ -107,12 +107,6 @@ public sealed record UserMessagePayload
     public string? QueuedInputId { get; init; }
 
     /// <summary>
-    /// Thread app binding id that should receive this turn's default assistant delivery.
-    /// Only populated for app/channel binding initiated turns.
-    /// </summary>
-    public string? DeliveryBindingId { get; init; }
-
-    /// <summary>
     /// True when this user message established the thread goal — the objective was submitted
     /// "as a goal". Durable provenance for the client "sent as goal" badge
     /// (see specs/features/goal.md §7.5). Null/false for ordinary messages; clients must
@@ -152,11 +146,6 @@ public sealed record SessionInputSnapshot
     /// Queued input id when this snapshot represents a dequeued input.
     /// </summary>
     public string? QueuedInputId { get; init; }
-
-    /// <summary>
-    /// Thread app binding id that should receive this turn's default assistant delivery.
-    /// </summary>
-    public string? DeliveryBindingId { get; init; }
 
     /// <summary>
     /// True when this submission establishes the thread goal; persisted onto the resulting
@@ -207,11 +196,6 @@ public sealed record QueuedTurnInput
     public string? TriggerRefId { get; init; }
 
     public string? TriggerStatus { get; init; }
-
-    /// <summary>
-    /// Thread app binding id that should receive this queued input's default assistant delivery.
-    /// </summary>
-    public string? DeliveryBindingId { get; init; }
 
     /// <summary>
     /// True when this queued input was originally submitted as the thread goal objective.

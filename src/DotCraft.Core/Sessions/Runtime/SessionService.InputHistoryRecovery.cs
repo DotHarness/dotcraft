@@ -42,7 +42,6 @@ public sealed partial class SessionService
                             GroupId = input.Sender?.GroupId ?? turn.Initiator?.GroupId,
                             TriggerKind = input.TriggerKind, TriggerLabel = input.TriggerLabel,
                             TriggerRefId = input.TriggerRefId, TriggerStatus = input.TriggerStatus, QueuedInputId = input.Id,
-                            DeliveryBindingId = input.DeliveryBindingId,
                             Images = images.Count > 0 ? images : null
                         }
                     });

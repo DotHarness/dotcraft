@@ -217,7 +217,6 @@ public sealed class SessionContractParityTests
                     TriggerKind = "automation",
                     TriggerLabel = "Fixture",
                     TriggerRefId = "trigger_001",
-                    DeliveryBindingId = "binding_001",
                     SentAsGoal = true
                 }
             ],

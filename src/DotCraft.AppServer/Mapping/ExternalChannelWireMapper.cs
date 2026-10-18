@@ -45,6 +45,7 @@ public static class ExternalChannelWireMapper
     public static Contract.ExtChannelSendParams ToContract(ChannelDeliveryRequest value) => new()
     {
         Target = value.Target,
+        DeliveryId = value.DeliveryId,
         Message = new Contract.ChannelOutboundMessage
         {
             Kind = value.Message.Kind,

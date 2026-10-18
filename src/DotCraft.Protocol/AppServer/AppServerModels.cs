@@ -23,13 +23,11 @@ public sealed class ChannelAdapterCapability : ExtensibleJsonObject
     [JsonPropertyName("channelName")]
     public required string ChannelName { get; init; }
 
-    [JsonPropertyName("deliverySupport")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? DeliverySupport { get; init; }
+    [JsonPropertyName("displayName")]
+    public required string DisplayName { get; init; }
 
     [JsonPropertyName("deliveryCapabilities")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ChannelDeliveryCapabilities? DeliveryCapabilities { get; init; }
+    public required ChannelDeliveryCapabilities DeliveryCapabilities { get; init; }
 
     [JsonPropertyName("channelTools")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -578,6 +576,10 @@ public sealed class ThreadStartParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; init; }
 
+    [JsonPropertyName("chat")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ChannelChat? Chat { get; init; }
+
     [JsonPropertyName("historyMode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? HistoryMode { get; init; }
@@ -616,6 +618,10 @@ public sealed class ThreadResumeParams : ExtensibleJsonObject
     [JsonPropertyName("additionalContext")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; init; }
+
+    [JsonPropertyName("chat")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ChannelChat? Chat { get; init; }
 }
 
 /// <summary>Parameters for exporting a Thread recovery snapshot.</summary>
@@ -826,6 +832,10 @@ public sealed class SenderContext : ExtensibleJsonObject
     [JsonPropertyName("groupId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? GroupId { get; init; }
+
+    [JsonPropertyName("directTarget")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DirectTarget { get; init; }
 }
 
 /// <summary>Durable actor metadata describing who initiated a turn.</summary>
@@ -1573,10 +1583,6 @@ public sealed class QueuedTurnInput : ExtensibleJsonObject
     [JsonPropertyName("triggerStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? TriggerStatus { get; init; }
-
-    [JsonPropertyName("deliveryBindingId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? DeliveryBindingId { get; init; }
 
     [JsonPropertyName("sentAsGoal")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

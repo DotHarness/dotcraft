@@ -11,62 +11,51 @@ import {
   type Transport,
 } from "@dotcraft/sdk/wire";
 import { textPart } from "@dotcraft/sdk";
-import { imageFileExtension } from "./inboundImage.js";
-import type { ChannelToolDescriptor } from "./capability.js";
 import type {
-  AppBindingRequestGetResult,
+  ChannelChatDescriptor,
+  ChannelDeliveryCapabilities,
+  ChannelToolDescriptor,
+} from "./capability.js";
+import type {
   AppBinding,
+  CommandChoice,
+  CommandInfo,
   InputPart,
   RuntimeAdditionalContextEntry,
   SenderContext,
   SessionThread,
   SessionTurn,
   ChannelTarget,
+  ThreadRuntimeState,
 } from "@dotcraft/sdk/contracts";
 import {
-
   ApprovalDispatcher,
-
   ChannelMessageQueue,
-
   ChannelToolDispatcher,
-
-  CommandRouter,
-
-  DeliveryDispatcher,
-
   ModuleLifecycleState,
-
   ThreadResolver,
-
-  TurnStreamReducer,
-
   UserInputDispatcher,
-
   buildChannelSender,
-
   type ChannelAdapterMessageOptions,
-
-  type GeneratedImage,
-
   type ThreadResolveEvent,
-
-  type TurnItemActivity,
 } from "./channelRuntime.js";
+import { CommandRouter, type CommandChoiceContext, type CommandRunRequest } from "./commandRouter.js";
+import { DeliveryDispatcher } from "./deliveryDispatcher.js";
 import type { LifecycleStatus, ModuleError } from "./lifecycle.js";
+import {
+  consumeTurnStream,
+  type ChannelTurn,
+  type ChannelTurnOutcome,
+  type TurnItemActivity,
+} from "./turnStream.js";
 
-/** Queued inbound message; skipCommand skips slash handling for expanded prompts. */
 export type ChannelAdapterMessageOpts = ChannelAdapterMessageOptions;
-
-/** Optional construction-time settings for {@link ChannelAdapter}. */
-export type ChannelAdapterOptions = {
-  /** When `true`, enables stderr trace logs for `consumeTurnEventStream`. Omitted or `false` disables. */
-  debugStream?: boolean;
-};
 
 const CHANNEL_REQUEST_START_FAILED_CODE = "channelRequestStartFailed";
 const CHANNEL_REQUEST_START_FAILED_MESSAGE =
   "DotCraft couldn't start this request. Please try again or check the channel logs.";
+const CHANNEL_TURN_FAILED_CODE = "channelTurnFailed";
+const CHANNEL_TURN_FAILED_MESSAGE = "DotCraft couldn't finish this request. Please try again.";
 
 export abstract class ChannelAdapter {
   protected client: ChannelAppServerClient;
@@ -74,15 +63,14 @@ export abstract class ChannelAdapter {
   private readonly clientName: string;
   private readonly clientVersion: string;
   private readonly optOutNotifications: string[];
-  /** See {@link ChannelAdapterOptions.debugStream}. */
-  private readonly adapterStreamDebug: boolean | undefined;
   private clientStateUnsubscribe: (() => void) | undefined;
 
   protected readonly threadMap = new Map<string, string>();
+  private readonly turnSenders = new Map<string, string>();
+  private readonly threadSenders = new Map<string, string>();
   protected readonly threadResolver: ThreadResolver;
   private readonly messageQueue: ChannelMessageQueue;
   private readonly commandRouter: CommandRouter;
-  private readonly streamReducer: TurnStreamReducer;
   private readonly approvalDispatcher: ApprovalDispatcher;
   private readonly userInputDispatcher: UserInputDispatcher;
   private readonly deliveryDispatcher: DeliveryDispatcher;
@@ -99,14 +87,12 @@ export abstract class ChannelAdapter {
     clientName: string,
     clientVersion: string,
     optOutNotifications: string[] = [],
-    options?: ChannelAdapterOptions,
   ) {
     this.client = new ChannelAppServerClient(transport, { autoReconnect: true });
     this.channelName = channelName;
     this.clientName = clientName;
     this.clientVersion = clientVersion;
     this.optOutNotifications = optOutNotifications;
-    this.adapterStreamDebug = options?.debugStream;
     this.threadResolver = new ThreadResolver({
       client: () => this.client,
       channelName: this.channelName,
@@ -122,16 +108,10 @@ export abstract class ChannelAdapter {
     });
     this.commandRouter = new CommandRouter({
       client: () => this.client,
-      threadResolver: this.threadResolver,
-      identityKey: (userId, channelContext) => this.identityKey(userId, channelContext),
-      getDefaultWorkspacePath: () => this.defaultWorkspacePath,
       deliver: (target, content, metadata) => this.onDeliver(target, content, metadata),
       enqueueMessage: (opts) => this.enqueueMessage(opts),
-      onThreadContextBound: (threadId, channelContext) => this.onThreadContextBound(threadId, channelContext),
-      onThreadsArchived: (identityKey, archivedThreadIds) => this.onThreadsArchived(identityKey, archivedThreadIds),
-    });
-    this.streamReducer = new TurnStreamReducer({
-      debug: (message, data) => this.debugAdapterStreamLog(message, data),
+      switchThread: (thread, request) => this.switchCurrentThread(thread, request),
+      renderChoices: (target, choices, context) => this.renderCommandChoices(target, choices, context),
     });
     this.approvalDispatcher = new ApprovalDispatcher({
       client: () => this.client,
@@ -149,20 +129,6 @@ export abstract class ChannelAdapter {
       client: () => this.client,
       onToolCall: (params) => this.onToolCall(params),
     });
-  }
-
-  /** Stream debug is enabled only when `ChannelAdapterOptions.debugStream` is `true`. */
-  protected isAdapterStreamDebugEnabled(): boolean {
-    return this.adapterStreamDebug === true;
-  }
-
-  protected debugAdapterStreamLog(
-    message: string,
-    data: Record<string, unknown> | (() => Record<string, unknown>),
-  ): void {
-    if (!this.isAdapterStreamDebugEnabled()) return;
-    const payload = typeof data === "function" ? data() : data;
-    console.error(`[dotcraft-sdk:adapter-stream] ${message}`, payload);
   }
 
   abstract onDeliver(target: string, content: string, metadata: Record<string, unknown>): Promise<boolean>;
@@ -193,9 +159,14 @@ export abstract class ChannelAdapter {
     };
   }
 
-  protected getDeliveryCapabilities(): Record<string, unknown> | null {
-    return null;
-  }
+  protected abstract getDisplayName(): string;
+
+  protected abstract getDeliveryCapabilities(): ChannelDeliveryCapabilities;
+
+  protected abstract getChatDescriptor(
+    opts: ChannelAdapterMessageOpts,
+    channelContext: string,
+  ): ChannelChatDescriptor;
 
   protected getChannelTools(): ChannelToolDescriptor[] | null {
     return null;
@@ -211,96 +182,37 @@ export abstract class ChannelAdapter {
     };
   }
 
-  /**
-   * @param segmentsWereDelivered When true, progressive segments were already shown (e.g. tool
-   *   boundaries); default implementation skips sending the full reply again to avoid duplicates.
-   */
-  protected async onTurnCompleted(
-    threadId: string,
-    turnId: string,
-    replyText: string,
-    channelContext: string,
-    segmentsWereDelivered: boolean,
-  ): Promise<void> {
-    if (segmentsWereDelivered) return;
-    if (replyText) await this.onDeliver(channelContext, replyText, {});
-  }
+  protected async onTurnStarted(_turn: ChannelTurn): Promise<void> {}
 
-  protected async onTurnFailed(threadId: string, turnId: string, error: string): Promise<void> {
-    console.error(`Turn ${turnId} failed on thread ${threadId}: ${error}`);
-  }
+  protected async onActivity(_turn: ChannelTurn, _activity: TurnItemActivity): Promise<void> {}
 
-  protected async onTurnCancelled(threadId: string, turnId: string): Promise<void> {
-    console.info(`Turn ${turnId} cancelled on thread ${threadId}`);
-  }
+  protected async onTurnRetrying(_turn: ChannelTurn): Promise<void> {}
 
-  protected async onSegmentCompleted(
-    _threadId: string,
-    _turnId: string,
-    _segmentText: string,
-    _isFinal: boolean,
-    _channelContext: string,
-  ): Promise<boolean | void> {
-    // Default no-op; adapters can override for progressive delivery.
-  }
-
-  protected async onGeneratedImage(
-    threadId: string,
-    turnId: string,
-    image: GeneratedImage,
-    channelContext: string,
-  ): Promise<void> {
-    if (!channelContext) return;
-    const kind = this.supportsInlineImageDelivery(image) ? "image" : "file";
-    const fileName = `${image.callId || image.itemId || "generated-image"}${imageFileExtension(image.mediaType)}`;
-    const message = {
-      kind,
-      fileName,
-      mediaType: image.mediaType,
-      source: { kind: "dataBase64", dataBase64: image.dataBase64, fileName, mediaType: image.mediaType },
-    };
-    try {
-      const result = await this.onSend(channelContext, message, { origin: "imageGeneration", threadId, turnId });
-      if (!result.delivered) {
-        console.error(
-          `[${this.channelName}] generated image delivery failed: ${String(result.errorCode ?? "")} ${String(result.errorMessage ?? "")}`.trim(),
-        );
-      }
-    } catch (error) {
-      console.error(`[${this.channelName}] generated image delivery failed:`, error);
+  protected async onTurnEnded(turn: ChannelTurn, outcome: ChannelTurnOutcome): Promise<void> {
+    if (outcome.status !== "failed") {
+      console.info(`Turn ${turn.turnId} ${outcome.status} on thread ${turn.threadId}`);
+      return;
     }
+    console.error(`Turn ${turn.turnId} failed on thread ${turn.threadId}: ${outcome.error}`);
+    await this.sendGenericNotice(turn.channelContext, CHANNEL_TURN_FAILED_MESSAGE, CHANNEL_TURN_FAILED_CODE);
   }
 
-  private supportsInlineImageDelivery(image: GeneratedImage): boolean {
-    const media = (this.getDeliveryCapabilities()?.media ?? {}) as Record<string, unknown>;
-    const capability = media.image as Record<string, unknown> | undefined;
-    if (!capability || capability.supportsBase64 === false) return false;
-    const maxBytes = typeof capability.maxBytes === "number" ? capability.maxBytes : undefined;
-    return maxBytes === undefined || base64ByteLength(image.dataBase64) <= maxBytes;
-  }
-
-  /** Observes item lifecycle (text, reasoning, tool) so adapters can show a live status. */
-  protected async onActivity(
-    _threadId: string,
-    _turnId: string,
-    _activity: TurnItemActivity,
-    _channelContext: string,
-  ): Promise<void> {}
-
-  /**
-   * Observes the current ordered AgentMessage text without marking it delivered. Adapters may
-   * coalesce these updates for platform-native progress UI.
-   */
-  protected async onReplyProgress(
-    _threadId: string,
-    _turnId: string,
-    _replyParts: readonly string[],
-    _isFinal: boolean,
-    _channelContext: string,
-  ): Promise<void> {}
-
-  /** Called after the thread is resolved for an inbound message (e.g. map threadId → chat target). */
   protected onThreadContextBound(_threadId: string, _channelContext: string): void {}
+
+  protected onCurrentThreadChanged(
+    _previousThreadId: string | undefined,
+    _threadId: string,
+    _channelContext: string,
+  ): void {}
+
+  protected async renderCommandChoices(
+    target: string,
+    choices: CommandChoice[],
+    _context: CommandChoiceContext,
+  ): Promise<void> {
+    const lines = choices.map((choice, index) => `${index + 1}. ${choice.label || choice.command}: ${choice.command}`);
+    await this.onDeliver(target, lines.join("\n"), {});
+  }
 
   /** Returns compact application context bound to Threads owned by this adapter. */
   protected getRuntimeAdditionalContext(): Record<string, RuntimeAdditionalContextEntry> | undefined {
@@ -330,7 +242,9 @@ export abstract class ChannelAdapter {
     this.threadResolver.invalidateConnectionBoundRuntime();
     this.clientStateUnsubscribe?.();
     this.clientStateUnsubscribe = this.client.onStateChanged((state) => {
-      if (state === "reconnecting") this.threadResolver.invalidateConnectionBoundRuntime();
+      if (state !== "reconnecting") return;
+      this.threadResolver.invalidateConnectionBoundRuntime();
+      this.commandRouter.invalidate();
     });
     await this.client.connect();
     await this.client.start();
@@ -343,17 +257,21 @@ export abstract class ChannelAdapter {
       clientVersion: this.clientVersion,
       approvalSupport: true,
       requestUserInputSupport: true,
-      streamingSupport: true,
+      streamingSupport: false,
       optOutNotifications: this.optOutNotifications,
-      channelName: this.channelName,
-      deliverySupport: true,
-      deliveryCapabilities: this.getDeliveryCapabilities(),
-      channelTools: (this.getChannelTools() ?? []).map((tool) => ({
-        ...tool,
-        requiresChatContext: tool.requiresChatContext ?? false,
-      })),
+      channelAdapter: {
+        channelName: this.channelName,
+        displayName: this.getDisplayName(),
+        deliveryCapabilities: this.getDeliveryCapabilities(),
+        channelTools: (this.getChannelTools() ?? []).map((tool) => ({
+          ...tool,
+          requiresChatContext: tool.requiresChatContext ?? false,
+        })),
+      },
     });
     this.running = true;
+    this.commandRouter.invalidate();
+    void this.commandRouter.refresh();
     this.setStatus("ready");
 
     console.info(`ChannelAdapter '${this.channelName}' started (client: ${this.clientName} ${this.clientVersion})`);
@@ -376,14 +294,55 @@ export abstract class ChannelAdapter {
       if (await this.tryAcceptChannelBinding(opts, sender, channelContext, bindCode)) return;
     }
 
-    const sender = buildChannelSender(opts, channelContext);
-    if (this.buildChannelTarget(opts, sender, channelContext)) {
-      this.enqueueMessage(opts);
+    if (!opts.skipCommand && await this.commandRouter.isCommand(opts.text)) {
+      await this.runCommand(opts);
       return;
     }
+    this.enqueueMessage(opts);
+  }
 
-    const result = await this.commandRouter.routeBeforeQueue(opts);
-    if (result === "enqueue") this.enqueueMessage(opts);
+  protected approvalSender(request: Record<string, unknown>): string | undefined {
+    return this.turnSenders.get(String(request.turnId ?? "")) ?? this.threadSenders.get(String(request.threadId ?? ""));
+  }
+
+  protected async isCommand(text: string): Promise<boolean> {
+    return await this.commandRouter.isCommand(text);
+  }
+
+  protected async listCommands(): Promise<CommandInfo[]> {
+    return await this.commandRouter.listCommands();
+  }
+
+  protected async executeCommandChoice(
+    command: string,
+    opts: Omit<ChannelAdapterMessageOpts, "text" | "inputParts" | "skipCommand">,
+  ): Promise<void> {
+    await this.runCommand({ ...opts, text: command });
+  }
+
+  private async runCommand(opts: ChannelAdapterMessageOpts): Promise<void> {
+    const channelContext = opts.channelContext ?? "";
+    const sender = buildChannelSender(opts, channelContext);
+    try {
+      const { threadId } = await this.resolveConversationThread(opts, sender);
+      await this.commandRouter.run({ opts, threadId, sender });
+    } catch (error) {
+      console.error(`[${this.channelName}] command failed:`, error);
+      await this.sendGenericNotice(channelContext, CHANNEL_REQUEST_START_FAILED_MESSAGE, CHANNEL_REQUEST_START_FAILED_CODE);
+    }
+  }
+
+  private async switchCurrentThread(thread: SessionThread, request: CommandRunRequest): Promise<void> {
+    const channelContext = request.opts.channelContext ?? "";
+    const identityKey = this.identityKey(request.opts.userId, channelContext);
+    const previousThreadId = this.threadResolver.getCachedThreadId(identityKey);
+    await this.client.threadResume(thread.id, {
+      additionalContext: this.getRuntimeAdditionalContext(),
+      chat: this.getChatDescriptor(request.opts, channelContext),
+    });
+    this.threadResolver.setCachedThread(identityKey, thread.id);
+    this.onThreadContextBound(thread.id, channelContext);
+    if (previousThreadId !== thread.id) this.onCurrentThreadChanged(previousThreadId, thread.id, channelContext);
   }
 
   protected getChannelBindingAppId(): string {
@@ -455,7 +414,6 @@ export abstract class ChannelAdapter {
       if (!binding.threadId) throw new Error("Accepted channel binding omitted its thread id.");
       const identityKey = this.identityKey(opts.userId, channelContext);
       this.threadResolver.setCachedThread(identityKey, binding.threadId);
-      this.threadResolver.clearFreshThread(identityKey);
       this.onThreadContextBound(binding.threadId, channelContext);
       await this.onChannelBindingAccepted(binding, target, opts);
     } catch (error) {
@@ -465,10 +423,6 @@ export abstract class ChannelAdapter {
     return true;
   }
 
-  /**
-   * Schedule a message for serial processing (one turn at a time per identity).
-   * Does not wait for the turn to complete.
-   */
   protected enqueueMessage(opts: ChannelAdapterMessageOpts): void {
     const channelContext = opts.channelContext ?? "";
     const identityKey = this.identityKey(opts.userId, channelContext);
@@ -481,50 +435,20 @@ export abstract class ChannelAdapter {
     return `${userId}:${channelContext}`;
   }
 
-  protected async resetIdentityThreads(userId: string, channelContext = ""): Promise<string[]> {
-    const identityKey = this.identityKey(userId, channelContext);
-    return await this.threadResolver.resetIdentityThreads({
-      identityKey,
-      userId,
-      channelContext,
-      workspacePath: this.defaultWorkspacePath,
-    });
-  }
-
-  protected onThreadsArchived(_identityKey: string, _archivedThreadIds: string[]): void {
-    // Default no-op for adapters without per-thread local state.
-  }
-
-  protected async applyCommandResetResult(
-    identityKey: string,
-    userId: string,
-    channelContext: string,
-    workspacePath: string,
-    commandName: string,
-    commandResult: Record<string, unknown>,
-  ): Promise<void> {
-    await this.commandRouter.applyCommandResetResult({
-      identityKey,
-      userId,
-      channelContext,
-      workspacePath,
-      commandName,
-      commandResult,
-    });
-  }
-
   protected async recoverThreadAfterNotActive(
     identityKey: string,
     userId: string,
     channelContext: string,
     workspacePath: string,
     staleThreadId: string,
+    chat?: ChannelChatDescriptor,
   ): Promise<SessionThread> {
     return await this.threadResolver.recoverThreadAfterNotActive({
       identityKey,
       userId,
       channelContext,
       workspacePath,
+      chat,
     }, staleThreadId);
   }
 
@@ -535,109 +459,165 @@ export abstract class ChannelAdapter {
     const channelContext = opts.channelContext ?? "";
     const workspacePath = opts.workspacePath ?? this.defaultWorkspacePath;
     const sender = buildChannelSender(opts, channelContext);
-    let turnStarted = false;
+    let accepted = false;
 
     try {
-      const channelTarget = this.buildChannelTarget(opts, sender, channelContext);
-      const channelBinding = channelTarget
-        ? await this.resolveChannelBindingForMessage(channelTarget)
-        : null;
+      const { thread, threadId, binding, chat } = await this.resolveConversationThread(opts, sender);
+      const input = opts.inputParts?.length ? opts.inputParts : [textPart(opts.text)];
 
-      let threadId: string;
-      if (!channelBinding) {
-        const thread = await this.getOrCreateThread(
+      if (binding) {
+        await this.enqueueChannelBoundInput(binding, input, opts, sender);
+        return;
+      }
+
+      await this.submitInput(thread!, input, sender, channelContext, async () => {
+        const recovered = await this.recoverThreadAfterNotActive(
           identityKey,
           opts.userId,
           channelContext,
           workspacePath,
+          threadId,
+          chat,
         );
-        threadId = thread.id;
-      } else {
-        if (!channelBinding.threadId) throw new Error("Resolved channel binding omitted its thread id.");
-        threadId = channelBinding.threadId;
-        this.threadMap.set(identityKey, threadId);
-      }
-      this.onThreadContextBound(threadId, channelContext);
-
-      const commandRoute = await this.commandRouter.routeForTurn({
-        identityKey,
-        opts,
-        threadId,
-        sender,
-        workspacePath,
+        this.onThreadContextBound(recovered.id, channelContext);
+        return recovered;
       });
-      if (commandRoute.kind === "handled") return;
-
-      const turnOpts = commandRoute.opts;
-      const input = turnOpts.inputParts?.length ? turnOpts.inputParts : [textPart(turnOpts.text)];
-
-      if (channelBinding) {
-        await this.enqueueChannelBoundInput(channelBinding, input, turnOpts, sender);
-        return;
-      }
-
-      const eventStream = this.client.streamEvents(threadId);
-      let turn: SessionTurn;
-      try {
-        turn = await this.client.turnStart(threadId, input, sender);
-        turnStarted = true;
-      } catch (e) {
-        await eventStream.return?.();
-        if (e instanceof JsonRpcError && e.rpcCode === ERR_TURN_IN_PROGRESS) {
-          await new Promise((r) => setTimeout(r, 1000));
-          this.enqueueMessage(turnOpts);
-          return;
-        }
-        if (e instanceof JsonRpcError && e.rpcCode === ERR_THREAD_NOT_ACTIVE) {
-          const recovered = await this.recoverThreadAfterNotActive(
-            identityKey,
-            turnOpts.userId,
-            channelContext,
-            workspacePath,
-            threadId,
-          );
-          this.onThreadContextBound(recovered.id, channelContext);
-          const stream2 = this.client.streamEvents(recovered.id);
-          try {
-            turn = await this.client.turnStart(recovered.id, input, sender);
-            turnStarted = true;
-          } catch (err) {
-            await stream2.return?.();
-            throw err;
-          }
-          await this.consumeTurnEventStream(stream2, recovered.id, turn.id, channelContext);
-          return;
-        }
-        throw e;
-      }
-
-      await this.consumeTurnEventStream(eventStream, threadId, turn.id, channelContext);
+      accepted = true;
     } catch (error) {
-      if (!turnStarted) await this.notifyRequestStartFailed(channelContext);
+      if (!accepted) await this.sendGenericNotice(
+        channelContext,
+        CHANNEL_REQUEST_START_FAILED_MESSAGE,
+        CHANNEL_REQUEST_START_FAILED_CODE,
+      );
       throw error;
     }
   }
 
-  private async notifyRequestStartFailed(channelContext: string): Promise<void> {
+  private async resolveConversationThread(
+    opts: ChannelAdapterMessageOpts,
+    sender: SenderContext,
+  ): Promise<{ thread: SessionThread | null; threadId: string; binding: AppBinding | null; chat: ChannelChatDescriptor }> {
+    const channelContext = opts.channelContext ?? "";
+    const identityKey = this.identityKey(opts.userId, channelContext);
+    const channelTarget = this.buildChannelTarget(opts, sender, channelContext);
+    const binding = channelTarget ? await this.resolveChannelBindingForMessage(channelTarget) : null;
+    const chat = this.getChatDescriptor(opts, channelContext);
+    let thread: SessionThread | null = null;
+    let threadId: string;
+    if (binding) {
+      if (!binding.threadId) throw new Error("Resolved channel binding omitted its thread id.");
+      threadId = binding.threadId;
+      this.threadMap.set(identityKey, threadId);
+    } else {
+      thread = await this.getOrCreateThread(
+        identityKey,
+        opts.userId,
+        channelContext,
+        opts.workspacePath ?? this.defaultWorkspacePath,
+        chat,
+      );
+      threadId = thread.id;
+    }
+    if (chat.kind === "direct" || chat.membership === "sender") this.threadSenders.set(threadId, String(sender.senderId));
+    this.onThreadContextBound(threadId, channelContext);
+    return { thread, threadId, binding, chat };
+  }
+
+  private async submitInput(
+    thread: SessionThread,
+    input: InputPart[],
+    sender: SenderContext,
+    channelContext: string,
+    recover?: () => Promise<SessionThread>,
+  ): Promise<void> {
+    if (thread.runtime?.activeTurnId || thread.runtime?.maintenanceKind) {
+      if (await this.addToActiveTurn(thread.id, thread.runtime, input, sender)) return;
+      const latest = await this.client.threadRead(thread.id);
+      if (latest.runtime?.activeTurnId || latest.runtime?.maintenanceKind) {
+        await this.client.turnEnqueue(thread.id, input, sender);
+        return;
+      }
+      thread = latest;
+    }
+
+    const eventStream = this.client.streamEvents(thread.id);
+    let turn: SessionTurn;
+    try {
+      turn = await this.client.turnStart(thread.id, input, sender);
+    } catch (error) {
+      await eventStream.return?.();
+      if (error instanceof JsonRpcError && error.rpcCode === ERR_TURN_IN_PROGRESS) {
+        const latest = await this.client.threadRead(thread.id);
+        if (!(await this.addToActiveTurn(thread.id, latest.runtime, input, sender)))
+          await this.client.turnEnqueue(thread.id, input, sender);
+        return;
+      }
+      if (recover && error instanceof JsonRpcError && error.rpcCode === ERR_THREAD_NOT_ACTIVE) {
+        await this.submitInput(await recover(), input, sender, channelContext);
+        return;
+      }
+      throw error;
+    }
+
+    this.turnSenders.set(turn.id, String(sender.senderId));
+    void this.runTurn(eventStream, { threadId: thread.id, turnId: turn.id, channelContext });
+  }
+
+  private async addToActiveTurn(
+    threadId: string,
+    runtime: ThreadRuntimeState | undefined,
+    input: InputPart[],
+    sender: SenderContext,
+  ): Promise<boolean> {
+    if (runtime?.maintenanceKind) {
+      await this.client.turnEnqueue(threadId, input, sender);
+      return true;
+    }
+    const activeTurnId = runtime?.activeTurnId;
+    if (!activeTurnId) return false;
+    try {
+      await this.client.turnSteer(threadId, activeTurnId, input, sender);
+      return true;
+    } catch (error) {
+      if (!(error instanceof JsonRpcError)) throw error;
+      return false;
+    }
+  }
+
+  private async runTurn(eventStream: AsyncIterableIterator<JsonRpcMessage>, turn: ChannelTurn): Promise<void> {
+    const reportHookError = (hook: string, error: unknown): void => {
+      console.error(`[${this.channelName}] ${hook} failed for turn ${turn.turnId}:`, error);
+    };
+    let outcome: ChannelTurnOutcome = { status: "disconnected" };
+    try {
+      await this.onTurnStarted(turn).catch((error) => reportHookError("onTurnStarted", error));
+      outcome = await consumeTurnStream(eventStream, turn, {
+        onActivity: (current, activity) => this.onActivity(current, activity),
+        onTurnRetrying: (current) => this.onTurnRetrying(current),
+        onHandlerError: reportHookError,
+      });
+    } catch (error) {
+      console.error(`[${this.channelName}] event stream for turn ${turn.turnId} failed:`, error);
+    } finally {
+      await eventStream.return?.();
+    }
+    await this.onTurnEnded(turn, outcome).catch((error) => reportHookError("onTurnEnded", error));
+    this.turnSenders.delete(turn.turnId);
+  }
+
+  private async sendGenericNotice(channelContext: string, message: string, failureCode: string): Promise<void> {
     if (!channelContext) {
-      console.error(`[${this.channelName}] cannot deliver request-start failure: channel context is empty`);
+      console.error(`[${this.channelName}] cannot deliver ${failureCode}: channel context is empty`);
       return;
     }
 
     try {
-      const delivered = await this.onDeliver(
-        channelContext,
-        CHANNEL_REQUEST_START_FAILED_MESSAGE,
-        { failureCode: CHANNEL_REQUEST_START_FAILED_CODE },
-      );
+      const delivered = await this.onDeliver(channelContext, message, { failureCode });
       if (!delivered) {
-        console.error(`[${this.channelName}] request-start failure notification was not delivered`);
+        console.error(`[${this.channelName}] ${failureCode} notice was not delivered`);
       }
     } catch (deliveryError) {
-      console.error(
-        `[${this.channelName}] failed to deliver request-start failure notification:`,
-        deliveryError,
-      );
+      console.error(`[${this.channelName}] failed to deliver ${failureCode} notice:`, deliveryError);
     }
   }
 
@@ -693,52 +673,19 @@ export abstract class ChannelAdapter {
     ].join(":");
   }
 
-  /**
-   * Runs the streaming loop for an already-started turn. Separated so callers can subscribe
-   * to events before {@link ChannelAppServerClient.turnStart}.
-   */
-  protected async consumeTurnEventStream(
-    eventStream: AsyncIterableIterator<JsonRpcMessage>,
-    threadId: string,
-    turnId: string,
-    channelContext: string,
-  ): Promise<void> {
-    await this.streamReducer.consume(
-      eventStream,
-      { threadId, turnId, channelContext },
-      {
-        onActivity: (...args) => this.onActivity(...args),
-        onReplyProgress: (...args) => this.onReplyProgress(...args),
-        onSegmentCompleted: (...args) => this.onSegmentCompleted(...args),
-        onTurnCompleted: (...args) => this.onTurnCompleted(...args),
-        onGeneratedImage: (...args) => this.onGeneratedImage(...args),
-        onTurnFailed: (...args) => this.onTurnFailed(...args),
-        onTurnCancelled: (...args) => this.onTurnCancelled(...args),
-      },
-    );
-  }
-
   protected async getOrCreateThread(
     identityKey: string,
     userId: string,
     channelContext: string,
     workspacePath: string,
+    chat?: ChannelChatDescriptor,
   ): Promise<SessionThread> {
     return await this.threadResolver.getOrCreateThread({
       identityKey,
       userId,
       channelContext,
       workspacePath,
+      chat,
     });
   }
-
-  async newThread(userId: string, channelContext = ""): Promise<void> {
-    await this.resetIdentityThreads(userId, channelContext);
-  }
-}
-
-function base64ByteLength(dataBase64: string): number {
-  const compact = dataBase64.replace(/\s+/g, "");
-  const padding = compact.endsWith("==") ? 2 : compact.endsWith("=") ? 1 : 0;
-  return Math.floor((compact.length * 3) / 4) - padding;
 }

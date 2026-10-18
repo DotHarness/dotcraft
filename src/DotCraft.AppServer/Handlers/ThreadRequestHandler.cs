@@ -81,6 +81,7 @@ internal sealed partial class ThreadRequestHandler(
         var dynamicTools = WorktreeContractMapper.ToDynamicTools(p.DynamicTools);
         var additionalContext = WorktreeContractMapper.ToAdditionalContext(p.AdditionalContext);
         threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext);
+        var chat = threadBinder.ValidateChat(p.Chat);
 
         var identity = NormalizeIdentityWorkspace(WorktreeContractMapper.ToDomain(p.Identity)!);
         var config = p.Config is null ? null : ThreadConfigurationContractMapper.FromContract(p.Config);
@@ -123,6 +124,7 @@ internal sealed partial class ThreadRequestHandler(
         }
 
         threadBinder.BindThreadAssets(thread);
+        threadBinder.BindChat(thread.Id, chat);
 
         var instructionSources = await sessionService.GetInstructionSourcesAsync(thread.Id, ct);
         var startedWire = await threadProjector.ProjectAsync(thread, false, false, ct);
@@ -219,6 +221,7 @@ internal sealed partial class ThreadRequestHandler(
         var dynamicTools = WorktreeContractMapper.ToDynamicTools(p.DynamicTools);
         var additionalContext = WorktreeContractMapper.ToAdditionalContext(p.AdditionalContext);
         threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext);
+        var chat = threadBinder.ValidateChat(p.Chat);
 
         var thread = await sessionService.ResumeThreadAsync(p.ThreadId, ct);
         if (p.Cwd != null || p.RuntimeWorkspaceRoots != null)
@@ -230,6 +233,7 @@ internal sealed partial class ThreadRequestHandler(
                 ct);
         }
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
+        threadBinder.BindChat(thread.Id, chat);
 
         var resumedBy = connection.ClientInfo?.Name ?? "appserver";
         var instructionSources = await sessionService.GetInstructionSourcesAsync(thread.Id, ct);

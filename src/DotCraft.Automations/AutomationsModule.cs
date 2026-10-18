@@ -23,5 +23,5 @@ public sealed partial class AutomationsModule : ModuleBase, ISessionChannelModul
         services.AddSingleton<ICommandHandler, AutomationCommandHandler>();
     }
     public IEnumerable<IToolSource> GetToolSources(IServiceProvider services) => [services.GetRequiredService<AutomationToolSource>()];
-    public IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() => [new("automations", "system")];
+    public IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() => [new(AutomationService.RunChannel, "system")];
 }

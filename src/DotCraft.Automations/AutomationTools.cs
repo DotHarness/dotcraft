@@ -44,9 +44,7 @@ public sealed class AutomationTools(AutomationService service, string? planningT
             var input = Normalize(automation);
             if (input.ExecutionMode == "thread" && input.TargetThreadId == null)
                 input = input with { TargetThreadId = context?.ThreadId ?? planningThreadId };
-            var source = ChannelSessionScope.Current;
-            var origin = source == null ? null : new AutomationOrigin { Channel = source.Channel, UserId = source.UserId, GroupId = source.GroupId, DeliveryTarget = source.DefaultDeliveryTarget };
-            return Result(action, await service.CreateAsync(input, origin, cancellationToken));
+            return Result(action, await service.CreateAsync(input, AutomationOrigin.Capture(ChannelSessionScope.Current), cancellationToken));
         }
         if (string.IsNullOrWhiteSpace(automationId)) throw new ArgumentException("automation.idRequired");
         var current = await service.ReadAsync(automationId, cancellationToken);

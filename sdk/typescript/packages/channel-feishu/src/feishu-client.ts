@@ -3,7 +3,6 @@ import { readFile } from "node:fs/promises";
 
 import * as Lark from "@larksuiteoapi/node-sdk";
 
-import type { LocalizedText } from "./card-locales.js";
 import { conversationTargetBase } from "./conversation-target.js";
 import type {
   FeishuApiErrorKind,
@@ -14,6 +13,7 @@ import type {
   FeishuConfig,
   FeishuBotInfo,
   FeishuCardActionEvent,
+  FeishuFileMessageType,
   FeishuListChatMessagesOptions,
   FeishuMessageEvent,
   FeishuReplyOptions,
@@ -409,45 +409,6 @@ export class FeishuClient {
     };
   }
 
-  async createCardKitInstance(card: Record<string, unknown>): Promise<string> {
-    assertCardPayloadShape(card);
-    const response = await this.callSdk(
-      () =>
-        this.sdk.cardkit.v1.card.create({
-          data: {
-            type: "card_json",
-            data: JSON.stringify(card),
-          },
-        }),
-      "Failed to create Feishu CardKit card",
-    );
-    const cardId = String(response.data?.card_id ?? "");
-    if (!cardId) throw new Error("Feishu CardKit response did not include card_id.");
-    return cardId;
-  }
-
-  async sendCardKitReference(target: string, cardId: string): Promise<FeishuSendResult> {
-    const { receiveId, receiveIdType } = this.resolveTarget(target);
-    const response = await this.callSdk(
-      () =>
-        this.sdk.im.message.create({
-          params: {
-            receive_id_type: receiveIdType as never,
-          },
-          data: {
-            receive_id: receiveId,
-            msg_type: "interactive",
-            content: JSON.stringify({ type: "card", data: { card_id: cardId } }),
-          },
-        }),
-      "Failed to send Feishu CardKit card",
-    );
-    return {
-      messageId: String(response.data?.message_id ?? ""),
-      chatId: String(response.data?.chat_id ?? ""),
-    };
-  }
-
   async replyInteractiveCard(
     messageId: string,
     card: Record<string, unknown>,
@@ -457,23 +418,15 @@ export class FeishuClient {
     return await this.replyWithContent(messageId, "interactive", JSON.stringify(card), replyInThread);
   }
 
-  async replyCardKitReference(messageId: string, cardId: string, replyInThread: boolean): Promise<FeishuSendResult> {
-    return await this.replyWithContent(
-      messageId,
-      "interactive",
-      JSON.stringify({ type: "card", data: { card_id: cardId } }),
-      replyInThread,
-    );
-  }
-
   async replyFile(
     messageId: string,
     file: { fileName: string; data: Buffer; mediaType?: string },
     replyInThread: boolean,
+    messageType: FeishuFileMessageType = "file",
   ): Promise<FeishuSendResult & { fileKey: string }> {
     assertFilePayload(file);
-    const fileKey = await this.uploadFile(file.fileName, file.data, file.mediaType);
-    const result = await this.replyWithContent(messageId, "file", JSON.stringify({ file_key: fileKey }), replyInThread);
+    const fileKey = await this.uploadFile(file.fileName, file.data, file.mediaType, messageType);
+    const result = await this.replyWithContent(messageId, messageType, JSON.stringify({ file_key: fileKey }), replyInThread);
     return { ...result, fileKey };
   }
 
@@ -515,18 +468,6 @@ export class FeishuClient {
     };
   }
 
-  // Feishu only lets a bot recall its own messages within 24 hours.
-  async recallMessage(messageId: string): Promise<void> {
-    const normalizedMessageId = messageId.trim();
-    if (!normalizedMessageId) {
-      throw new TypeError("Feishu message recall requires a messageId.");
-    }
-    await this.callSdk(
-      () => this.sdk.im.message.delete({ path: { message_id: normalizedMessageId } }),
-      "Failed to recall Feishu message",
-    );
-  }
-
   async uploadImage(data: Buffer): Promise<string> {
     if (data.length === 0) {
       throw new TypeError("Feishu image upload does not support empty images.");
@@ -549,116 +490,6 @@ export class FeishuClient {
       chatMode: String(response.data?.chat_mode ?? ""),
       groupMessageType: String(response.data?.group_message_type ?? ""),
     };
-  }
-
-  async updateCardKitElement(
-    cardId: string,
-    elementId: string,
-    content: string,
-    sequence: number,
-  ): Promise<void> {
-    await this.callSdk(
-      () =>
-        this.sdk.cardkit.v1.cardElement.content({
-          path: { card_id: cardId, element_id: elementId },
-          data: {
-            content,
-            sequence,
-            uuid: `content_${cardId}_${sequence}`,
-          },
-        }),
-      "Failed to update Feishu CardKit content",
-    );
-  }
-
-  async patchCardKitElement(
-    cardId: string,
-    elementId: string,
-    partialElement: Record<string, unknown>,
-    sequence: number,
-  ): Promise<void> {
-    await this.callSdk(
-      () =>
-        this.sdk.cardkit.v1.cardElement.patch({
-          path: { card_id: cardId, element_id: elementId },
-          data: {
-            partial_element: JSON.stringify(partialElement),
-            sequence,
-            uuid: `patch_${cardId}_${sequence}`,
-          },
-        }),
-      "Failed to patch Feishu CardKit element",
-    );
-  }
-
-  async appendCardKitElement(cardId: string, element: Record<string, unknown>, sequence: number): Promise<void> {
-    await this.callSdk(
-      () =>
-        this.sdk.cardkit.v1.cardElement.create({
-          path: { card_id: cardId },
-          data: {
-            type: "append",
-            elements: JSON.stringify([element]),
-            sequence,
-            uuid: `append_${cardId}_${sequence}`,
-          },
-        }),
-      "Failed to append Feishu CardKit element",
-    );
-  }
-
-  async deleteCardKitElement(cardId: string, elementId: string, sequence: number): Promise<void> {
-    await this.callSdk(
-      () =>
-        this.sdk.cardkit.v1.cardElement.delete({
-          path: { card_id: cardId, element_id: elementId },
-          data: {
-            sequence,
-            uuid: `delete_${cardId}_${sequence}`,
-          },
-        }),
-      "Failed to delete Feishu CardKit element",
-    );
-  }
-
-  async finalizeCardKitInstance(cardId: string, sequence: number, summary: LocalizedText): Promise<void> {
-    await this.callSdk(
-      () =>
-        this.sdk.cardkit.v1.card.settings({
-          path: { card_id: cardId },
-          data: {
-            settings: JSON.stringify({
-              config: {
-                streaming_mode: false,
-                summary,
-              },
-            }),
-            sequence,
-            uuid: `settings_${cardId}_${sequence}`,
-          },
-        }),
-      "Failed to finalize Feishu CardKit card",
-    );
-  }
-
-  async replaceCardKitInstance(
-    cardId: string,
-    card: Record<string, unknown>,
-    sequence: number,
-  ): Promise<void> {
-    assertCardPayloadShape(card);
-    await this.callSdk(
-      () =>
-        this.sdk.cardkit.v1.card.update({
-          path: { card_id: cardId },
-          data: {
-            card: { type: "card_json", data: JSON.stringify(card) },
-            sequence,
-            uuid: `replace_${cardId}_${sequence}`,
-          },
-        }),
-      "Failed to replace Feishu CardKit card",
-    );
   }
 
   async addMessageReaction(messageId: string, emojiType: string): Promise<void> {
@@ -711,11 +542,12 @@ export class FeishuClient {
       data: Buffer;
       mediaType?: string;
     },
+    messageType: FeishuFileMessageType = "file",
   ): Promise<FeishuSendResult & { fileKey: string }> {
     assertFilePayload(file);
-    const fileKey = await this.uploadFile(file.fileName, file.data, file.mediaType);
+    const fileKey = await this.uploadFile(file.fileName, file.data, file.mediaType, messageType);
     const { receiveId, receiveIdType } = this.resolveTarget(target);
-    const response = await this.sendMessage(receiveId, receiveIdType, "file", {
+    const response = await this.sendMessage(receiveId, receiveIdType, messageType, {
       file_key: fileKey,
     });
     const responseData = (response.data as Record<string, unknown> | undefined) ?? {};
@@ -781,10 +613,15 @@ export class FeishuClient {
     };
   }
 
-  private async uploadFile(fileName: string, data: Buffer, mediaType?: string): Promise<string> {
+  private async uploadFile(
+    fileName: string,
+    data: Buffer,
+    mediaType: string | undefined,
+    messageType: FeishuFileMessageType,
+  ): Promise<string> {
     const token = await this.getTenantAccessToken();
     const formData = new FormData();
-    formData.set("file_type", toFeishuFileType(fileName, mediaType));
+    formData.set("file_type", toFeishuFileType(fileName, mediaType, messageType));
     formData.set("file_name", fileName);
     formData.set("file", new Blob([data], { type: mediaType ?? inferMediaType(fileName) }), fileName);
 
@@ -1184,7 +1021,9 @@ function resolveApiBaseUrl(brand?: FeishuConfig["feishu"]["brand"]): string {
   return "https://open.larksuite.com";
 }
 
-function toFeishuFileType(fileName: string, mediaType?: string): string {
+function toFeishuFileType(fileName: string, mediaType: string | undefined, messageType: FeishuFileMessageType): string {
+  if (messageType === "audio") return "opus";
+  if (messageType === "media") return "mp4";
   const extension = path.extname(fileName).toLowerCase();
   if (mediaType === "application/pdf" || extension === ".pdf") return "pdf";
   if (extension === ".doc" || extension === ".docx") return "doc";

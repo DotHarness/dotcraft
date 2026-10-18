@@ -1,4 +1,4 @@
-export type WeComUserRole = "unauthorized" | "whitelisted" | "admin";
+export type WeComUserRole = "unauthorized" | "user" | "admin";
 
 export interface WeComPermissionConfig {
   adminUsers?: string[];
@@ -21,8 +21,8 @@ export class WeComPermissionService {
     const user = normalizeId(userId);
     const chat = chatId ? normalizeId(chatId) : "";
     if (this.adminUsers.has(user)) return "admin";
-    if (this.whitelistedUsers.has(user)) return "whitelisted";
-    if (chat && this.whitelistedChats.has(chat)) return "whitelisted";
+    if (this.whitelistedUsers.has(user)) return "user";
+    if (chat && this.whitelistedChats.has(chat)) return "user";
     return "unauthorized";
   }
 }

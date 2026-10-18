@@ -9,19 +9,31 @@ export const APPROVAL_REPLY_PENDING_NOTICE =
   "当前有待审批的操作，请回复 同意/yes、同意全部/yes all 或 拒绝/no。";
 export const APPROVAL_REPLY_TIMEOUT_NOTICE = "审批已超时，操作已取消。";
 
-const ACCEPT_FOR_SESSION_REPLIES = new Set(["同意全部", "允许全部", "yes all", "approve all", "y all"]);
+const ACCEPT_FOR_SESSION_REPLIES = new Set(["同意全部", "允许全部", "yes all", "approve all", "y all", "approve session"]);
 const ACCEPT_REPLIES = new Set(["同意", "允许", "yes", "y", "approve"]);
 const DECLINE_REPLIES = new Set(["拒绝", "不同意", "no", "n", "reject", "deny"]);
 const CANCEL_REPLIES = new Set(["取消", "cancel"]);
+const SLASH_ALIASES = new Map([
+  ["approve", DECISION_ACCEPT],
+  ["approve session", DECISION_ACCEPT_FOR_SESSION],
+  ["deny", DECISION_DECLINE],
+]);
 
-export function parseApprovalReplyDecision(text: string): string | null {
-  const reply = text
-    .trim()
+export interface ApprovalReplyParseOptions {
+  slashAliasesOnly?: boolean;
+}
+
+export function parseApprovalReplyDecision(text: string, options: ApprovalReplyParseOptions = {}): string | null {
+  const trimmed = text.trim();
+  const reply = trimmed
     .replace(/^[/／]/, "")
     .trim()
     .replace(/\s+/g, " ")
     .toLowerCase();
   if (!reply) return null;
+  if (options.slashAliasesOnly) {
+    return /^[/／]/.test(trimmed) ? SLASH_ALIASES.get(reply) ?? null : null;
+  }
 
   if (ACCEPT_FOR_SESSION_REPLIES.has(reply) || /(?<!不)(同意|允许)全部/.test(reply)) {
     return DECISION_ACCEPT_FOR_SESSION;
@@ -79,6 +91,10 @@ export class ApprovalReplyTracker {
     if (!entry) return false;
     entry.resolve(decision);
     return true;
+  }
+
+  hasPending(recipient: ApprovalReplyRecipient): boolean {
+    return this.find(recipient) !== undefined;
   }
 
   async remindIfPending(recipient: ApprovalReplyRecipient): Promise<boolean> {

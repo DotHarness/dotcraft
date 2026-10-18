@@ -166,7 +166,6 @@ public sealed class WorldStateSectionTests
     public void SessionStartHookSection_StaysSilentWithoutHookContext()
     {
         Assert.Null(RenderFull(new SessionStartHookSection(), Context()));
-        Assert.Null(new SessionStartHookSection().Snapshot(Context()));
     }
 
     [Fact]
@@ -248,6 +247,27 @@ public sealed class WorldStateSectionTests
     }
 
     [Fact]
+    public void WorldState_KeepsTheBaselineOfASectionWhoseFactsAreUnavailable()
+    {
+        var section = new FlakySection();
+        var world = WorldStateComposer.Build([section]);
+        var delivered = world.RenderFull(Context()).Snapshot;
+        Assert.True(delivered.TryGetSection(FlakySection.SectionId, out var shown));
+
+        section.Unavailable = true;
+        var skipped = world.Render(Context(), delivered, sectionIdsInHistory: null);
+
+        Assert.DoesNotContain(skipped.Fragments, fragment => fragment.SectionId == FlakySection.SectionId);
+        Assert.True(skipped.Snapshot.TryGetSection(FlakySection.SectionId, out var kept));
+        Assert.True(JsonNode.DeepEquals(shown, kept));
+
+        section.Unavailable = false;
+        var restored = world.Render(Context(), skipped.Snapshot, sectionIdsInHistory: null);
+
+        Assert.DoesNotContain(restored.Fragments, fragment => fragment.SectionId == FlakySection.SectionId);
+    }
+
+    [Fact]
     public void WorldState_RejectsADuplicateSectionIdWithoutFailingTheTurn()
     {
         var world = WorldStateComposer.Build([new DuplicateModeSection()]);
@@ -311,9 +331,12 @@ public sealed class WorldStateSectionTests
 
         public bool Throws { get; set; }
 
+        public bool Unavailable { get; set; }
+
         public string Id => SectionId;
 
-        public JsonNode? Snapshot(WorldStateContext context) => new JsonObject { ["value"] = Value };
+        public JsonNode? Snapshot(WorldStateContext context) =>
+            Unavailable ? null : new JsonObject { ["value"] = Value };
 
         public string? RenderDiff(WorldStateContext context, PreviousSectionState previous) =>
             Throws ? throw new InvalidOperationException("boom") : $"## Flaky {Value}";

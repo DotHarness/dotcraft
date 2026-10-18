@@ -44,24 +44,19 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
     private readonly IAppConfigMonitor _appConfigMonitor;
     private readonly SkillsLoader? _skillsLoader;
     private readonly IReadOnlyList<string>? _builtInPluginSourceRoots;
-    private readonly ChannelDeliveryCoordinator? _channelDeliveryCoordinator;
 
     public AppBindingProtocolExtension(
         AppBindingService controlPlane,
         AppBindingCoordinator coordinator,
         IAppConfigMonitor appConfigMonitor,
         SkillsLoader? skillsLoader = null,
-        IReadOnlyList<string>? builtInPluginSourceRoots = null,
-        Channels.IChannelRuntimeRegistry? channelRuntimeRegistry = null)
+        IReadOnlyList<string>? builtInPluginSourceRoots = null)
     {
         _controlPlane = controlPlane;
         _coordinator = coordinator;
         _appConfigMonitor = appConfigMonitor;
         _skillsLoader = skillsLoader;
         _builtInPluginSourceRoots = builtInPluginSourceRoots;
-        _channelDeliveryCoordinator = channelRuntimeRegistry == null
-            ? null
-            : new ChannelDeliveryCoordinator(controlPlane, channelRuntimeRegistry);
     }
 
     public IReadOnlyCollection<string> Methods { get; } =
@@ -508,13 +503,8 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                             NativeInputParts = nativeInput,
                             MaterializedInputParts = nativeInput,
                             DisplayText = AppBindingContractMapper.Read(parameters.DisplayText)
-                                ?? SessionWireMapper.BuildDisplayText(nativeInput),
-                            DeliveryBindingId = binding.Kind == "channel" ? binding.BindingId : null
+                                ?? SessionWireMapper.BuildDisplayText(nativeInput)
                         });
-                    if (binding.Kind == "channel")
-                        _channelDeliveryCoordinator?.StartQueuedTurnDelivery(context.SessionService, craftPath,
-                            binding.ThreadId, binding.BindingId, queued.Id, binding.AuthorityRevision,
-                            context.CancellationToken);
                     if (string.Equals(
                         AppBindingContractMapper.Read(parameters.StartPolicy),
                         AppThreadInputStartPolicies.RunWhenIdle,

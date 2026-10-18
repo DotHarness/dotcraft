@@ -60,14 +60,14 @@ public sealed class ExternalChannelRequestHandlerFactoryTests : IDisposable
         using var executed = await ReadResponseAsync(transport, 3);
         var result = executed.RootElement.GetProperty("result");
         Assert.True(result.GetProperty("handled").GetBoolean());
-        Assert.Equal("pause a1 group:42", result.GetProperty("message").GetString());
+        Assert.Equal("pause a1 False", result.GetProperty("message").GetString());
     }
 
     private sealed class AutomationTestCommand : ICommandHandler
     {
         public string[] Commands => ["/automate"];
         public Task<CommandResult> HandleAsync(CommandContext context, ICommandResponder responder) =>
-            Task.FromResult(CommandResult.HandledResult($"{string.Join(' ', context.Arguments)} {context.GroupId}"));
+            Task.FromResult(CommandResult.HandledResult($"{string.Join(' ', context.Arguments)} {context.IsAdmin}"));
     }
 
     [Fact]
