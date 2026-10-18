@@ -1,4 +1,6 @@
 using System.Globalization;
+using DotCraft.AppBinding;
+using DotCraft.Commands.Core;
 using DotCraft.Sessions;
 
 namespace DotCraft.Commands.Handlers;
@@ -10,6 +12,13 @@ internal static class CommandThreads
     public static SessionTurn? ActiveTurn(SessionThread thread) =>
         thread.Turns.LastOrDefault(static turn =>
             turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
+
+    public static bool IsBoundToChat(CommandContext context) =>
+        context.AppBindings is { } bindings
+        && !string.IsNullOrWhiteSpace(context.WorkspaceCraftPath)
+        && Directory.Exists(context.WorkspaceCraftPath)
+        && bindings.ListThreadBindings(context.WorkspaceCraftPath, context.SessionId)
+            .Any(static binding => binding.ChannelTarget != null && binding.State != AppBindingStates.Revoked);
 
     public static SessionIdentity IdentityOf(SessionThread thread) => new()
     {

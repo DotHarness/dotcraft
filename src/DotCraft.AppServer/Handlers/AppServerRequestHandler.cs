@@ -215,6 +215,7 @@ public sealed class AppServerRequestHandler(
             services.WorkspaceCraftPath,
             () => services.AppConfigMonitor?.Current ?? WorkspaceConfig.LoadCurrentMergedConfig(),
             services.ModelProviderRegistry,
+            services.AppBindingService,
             (thread, token) => ThreadProjector.EnrichAsync(thread.ToWire(), thread, token)),
         new ThreadRecoveryRequestHandler(sessionService),
         new ThreadRequestHandler(sessionService, connection, transport, ResponseWriter, ThreadBinder, ThreadProjector, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProfileResolver, services.StreamDebugLogger, services.LoggerFactory?.CreateLogger<ThreadRequestHandler>()),

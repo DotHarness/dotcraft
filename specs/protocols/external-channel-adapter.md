@@ -187,6 +187,7 @@ This section defines the protocol-level obligations that any conforming external
 
 - A message is a command only when its first word is the name or alias of a command `command/list` returns. Any other text, including text such as a path that starts with `/`, is ordinary input.
 - The adapter runs a command with `command/execute` on the conversation's current thread as soon as it arrives. Commands bypass the adapter's per-conversation message queue, whether or not a Turn is active and whether or not the adapter has already resolved the thread; the adapter resolves the thread first when it has none cached. A command arriving while an approval is pending for the sender is executed, not answered with the approval reminder.
+- The adapter handles each inbound message in this order: an answer to the sender's pending approval, including the slash replies (§11.2); then a command; then an answer to a pending user-input question; then ordinary input. A command never answers a pending question.
 - When a result carries `thread`, the adapter makes it the conversation's current thread and resumes it with the conversation's `chat` before forwarding further input to it.
 - When a result carries `expandedPrompt`, the adapter submits the sender's original text as a `commandRef` input like any other inbound message.
 - The adapter shows `message`, followed by `choices` when present: with buttons or cards when the platform has interactive controls, where selecting one executes its `command` for the selecting sender, otherwise as a numbered list that shows each choice's `command`.
@@ -228,6 +229,7 @@ The adapter plays the client role in the [AppServer approval flow](appserver-pro
 - Multiple approval requests may be in flight on different threads simultaneously. The callback-to-request mapping **must** be per-request, not global.
 - The server has no approval timeout. When a request resolves without the adapter's answer, for example because its turn ended, the adapter receives `item/approval/resolved` and should clean up its pending approval UI.
 - Every adapter accepts `/approve`, `/approve session` and `/deny` from the sender as answers to that sender's pending approval in the conversation, mapping them to `accept`, `acceptForSession` and `decline`, in addition to its buttons or reply keywords. These replies are not registry commands.
+- An approval belongs to the sender who started the Turn that raised it. In a thread that holds one sender's messages, such as a direct chat or a group thread per sender, it belongs to that sender. The slash replies never answer another sender's approval; buttons answer the approval they were posted for.
 - An adapter that collects decisions from plain-text replies accepts each reply keyword with or without a leading `/`. While an approval is pending for a sender in a conversation, that sender's other messages in the conversation are not forwarded, except commands (§10.4); the adapter answers each with a short reminder of the accepted replies. When the adapter's own approval wait expires, it responds `cancel` and tells the approver that the approval timed out.
 
 ### 11.3 Decision Values

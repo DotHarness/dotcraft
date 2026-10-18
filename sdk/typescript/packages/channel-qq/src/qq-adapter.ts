@@ -495,6 +495,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
       if (pending.userId !== userId || pending.channelContext !== channelContext) {
         continue;
       }
+      if (await this.isCommand(text)) return false;
 
       const response = userInputResponseFromText(pending.request, text);
       if (!response) {

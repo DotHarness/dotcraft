@@ -66,6 +66,8 @@ export abstract class ChannelAdapter {
   private clientStateUnsubscribe: (() => void) | undefined;
 
   protected readonly threadMap = new Map<string, string>();
+  private readonly turnSenders = new Map<string, string>();
+  private readonly threadSenders = new Map<string, string>();
   protected readonly threadResolver: ThreadResolver;
   private readonly messageQueue: ChannelMessageQueue;
   private readonly commandRouter: CommandRouter;
@@ -299,6 +301,10 @@ export abstract class ChannelAdapter {
     this.enqueueMessage(opts);
   }
 
+  protected approvalSender(request: Record<string, unknown>): string | undefined {
+    return this.turnSenders.get(String(request.turnId ?? "")) ?? this.threadSenders.get(String(request.threadId ?? ""));
+  }
+
   protected async isCommand(text: string): Promise<boolean> {
     return await this.commandRouter.isCommand(text);
   }
@@ -512,6 +518,7 @@ export abstract class ChannelAdapter {
       );
       threadId = thread.id;
     }
+    if (chat.kind === "direct" || chat.membership === "sender") this.threadSenders.set(threadId, String(sender.senderId));
     this.onThreadContextBound(threadId, channelContext);
     return { thread, threadId, binding, chat };
   }
@@ -552,6 +559,7 @@ export abstract class ChannelAdapter {
       throw error;
     }
 
+    this.turnSenders.set(turn.id, String(sender.senderId));
     void this.runTurn(eventStream, { threadId: thread.id, turnId: turn.id, channelContext });
   }
 
@@ -594,6 +602,7 @@ export abstract class ChannelAdapter {
       await eventStream.return?.();
     }
     await this.onTurnEnded(turn, outcome).catch((error) => reportHookError("onTurnEnded", error));
+    this.turnSenders.delete(turn.turnId);
   }
 
   private async sendGenericNotice(channelContext: string, message: string, failureCode: string): Promise<void> {

@@ -7,6 +7,7 @@ import { errorMessage, logInfo, logWarn, shortId } from "./logging.js";
 type ApprovalWaiter = {
   resolve: (decision: string) => void;
   channelTarget: string;
+  senderId?: string;
   messageId: string;
 };
 
@@ -22,7 +23,7 @@ export class FeishuApprovalCards {
 
   constructor(private readonly options: FeishuApprovalCardsOptions) {}
 
-  async request(channelTarget: string, request: Record<string, unknown>): Promise<string> {
+  async request(channelTarget: string, request: Record<string, unknown>, senderId?: string): Promise<string> {
     const requestId = String(request.requestId ?? "");
     const threadId = String(request.threadId ?? "");
     const timeoutSeconds = Math.max(1, Math.round(this.timeoutMs / 1000));
@@ -72,6 +73,7 @@ export class FeishuApprovalCards {
           resolve(decision);
         },
         channelTarget,
+        senderId,
         messageId: sent.messageId,
       });
     });
@@ -106,8 +108,10 @@ export class FeishuApprovalCards {
     return true;
   }
 
-  resolveInChat(channelTarget: string, decision: string): boolean {
-    const waiter = [...this.waiters.values()].find((entry) => entry.channelTarget === channelTarget);
+  resolveInChat(channelTarget: string, senderId: string, decision: string): boolean {
+    const waiter = [...this.waiters.values()].find(
+      (entry) => entry.channelTarget === channelTarget && entry.senderId === senderId,
+    );
     waiter?.resolve(decision);
     return waiter !== undefined;
   }

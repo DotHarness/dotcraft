@@ -572,7 +572,7 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
 
   private async tryHandleUserInputReply(userId: string, text: string): Promise<boolean> {
     const pending = this.userInputWaiters.get(userId);
-    if (!pending) return false;
+    if (!pending || await this.isCommand(text)) return false;
     const response = userInputResponseFromText(pending.request, text);
     if (!response) {
       await this.sendWeixinText(userId, buildUserInputPrompt(pending.request, { title: pending.promptTitle }));

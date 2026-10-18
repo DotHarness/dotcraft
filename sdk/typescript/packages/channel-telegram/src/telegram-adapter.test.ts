@@ -25,6 +25,9 @@ type CommandTestAdapter = {
   handleApprovalCallback: (ctx: Record<string, unknown>) => Promise<void>;
   publishCommandMenus: (bot: unknown) => Promise<void>;
   onApprovalRequest: (request: Record<string, unknown>) => Promise<string>;
+  onUserInputRequest: (request: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  running: boolean;
+  startTyping: (chatId: string) => void;
   renderCommandChoices: (target: string, choices: Array<Record<string, string>>, context: unknown) => Promise<void>;
   executeCommandChoice: (command: string, opts: Record<string, unknown>) => Promise<void>;
 };
@@ -85,35 +88,88 @@ test("TelegramAdapter marks only configured admins as admin and strips the bot m
   );
 });
 
-test("TelegramAdapter resolves a chat's pending approval from slash aliases only", async () => {
+function routeThroughFakeServer(adapter: CommandTestAdapter): {
+  started: Array<{ threadId: string; senderId: unknown }>;
+  executed: Array<Record<string, unknown>>;
+} {
+  const started: Array<{ threadId: string; senderId: unknown }> = [];
+  const executed: Array<Record<string, unknown>> = [];
+  let threads = 0;
+  adapter.running = true;
+  adapter.startTyping = () => undefined;
+  adapter.client.commandList = async () => [{ name: "/stop", aliases: [] }];
+  adapter.client.threadList = async () => [];
+  adapter.client.threadStart = async () => ({ id: `thread-${++threads}`, status: "active" });
+  adapter.client.request = async (method: string) => {
+    if (method === "app/channelBinding/resolve") return { binding: null };
+    throw new Error(`unexpected request ${method}`);
+  };
+  adapter.client.streamEvents = () => ({
+    next: () => new Promise(() => undefined),
+    return: async () => ({ done: true, value: undefined }),
+    [Symbol.asyncIterator]() {
+      return this;
+    },
+  });
+  adapter.client.turnStart = async (threadId: string, _input: unknown, sender: Record<string, unknown>) => {
+    started.push({ threadId, senderId: sender.senderId });
+    return { id: `turn-${threadId}`, threadId, status: "running" };
+  };
+  adapter.client.commandExecute = async (params: Record<string, unknown>) => {
+    executed.push(params);
+    return { handled: true };
+  };
+  return { started, executed };
+}
+
+test("TelegramAdapter slash approval aliases answer only the sending member's own approval", async () => {
   const adapter = new TelegramAdapter() as unknown as CommandTestAdapter;
-  const forwarded: string[] = [];
-  const edits: string[] = [];
   adapter.bot = {
     api: {
       sendMessage: async () => ({ message_id: 7 }),
       editMessageReplyMarkup: async () => true,
-      editMessageText: async (_chatId: never, _messageId: never, text: never) => {
-        edits.push(text);
-        return true;
-      },
+      editMessageText: async () => true,
     },
   };
-  adapter.threadContextMap.set("thread-1", "-100");
-  adapter.handleMessage = async (opts) => {
-    forwarded.push(String(opts.text));
+  const { started } = routeThroughFakeServer(adapter);
+  await adapter.handleIncomingText(textUpdate(7, -100, "clean the build folder"));
+  await adapter.handleIncomingText(textUpdate(8, -100, "push the release tag"));
+  await waitUntil(() => started.length === 2);
+  const turnOf = (senderId: string) => {
+    const turn = started.find((entry) => entry.senderId === senderId)!;
+    return { threadId: turn.threadId, turnId: `turn-${turn.threadId}` };
   };
 
-  const decision = adapter.onApprovalRequest({ threadId: "thread-1", requestId: "req-1", operation: "rm" });
+  const alice = adapter.onApprovalRequest({ ...turnOf("7"), requestId: "req-a", operation: "rm" });
+  const bob = adapter.onApprovalRequest({ ...turnOf("8"), requestId: "req-b", operation: "git push" });
   await new Promise((resolve) => setTimeout(resolve, 0));
-  await adapter.handleIncomingText(textUpdate(7, -200, "/approve session"));
-  await adapter.handleIncomingText(textUpdate(7, -100, "yes"));
+  await adapter.handleIncomingText(textUpdate(8, -100, "/deny"));
   await adapter.handleIncomingText(textUpdate(7, -100, "/approve session"));
 
-  assert.equal(await decision, "acceptForSession");
-  assert.deepEqual(forwarded, ["/approve session", "yes"]);
-  assert.equal(edits.length, 1);
+  assert.equal(await bob, "decline");
+  assert.equal(await alice, "acceptForSession");
 });
+
+for (const [kind, question, reply, expected] of [
+  ["free-text", { id: "name", header: "Name", question: "What should the branch be called?" }, "release-1", "release-1"],
+  ["fixed-choice", { id: "mode", header: "Mode", question: "Which mode?", options: [{ label: "Auto" }, { label: "Manual" }] }, "2", "Manual"],
+] as const) {
+  test(`TelegramAdapter routes /stop to the command router while a ${kind} question is pending`, async () => {
+    const adapter = new TelegramAdapter() as unknown as CommandTestAdapter;
+    adapter.bot = { api: { sendMessage: async () => ({ message_id: 1 }) } };
+    const { executed } = routeThroughFakeServer(adapter);
+    adapter.threadContextMap.set("thread-1", "123");
+    const answer = adapter.onUserInputRequest({ threadId: "thread-1", requestId: "req-1", questions: [question] });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    await adapter.handleIncomingText(textUpdate(123, 123, "/stop"));
+    await waitUntil(() => executed.length === 1);
+    await adapter.handleIncomingText(textUpdate(123, 123, reply));
+
+    assert.equal(executed[0]?.command, "/stop");
+    assert.deepEqual(await answer, { answers: { [question.id]: { answers: [expected] } } });
+  });
+}
 
 test("TelegramAdapter runs a selected choice for the selecting user and clears the keyboard", async () => {
   const adapter = new TelegramAdapter() as unknown as CommandTestAdapter;

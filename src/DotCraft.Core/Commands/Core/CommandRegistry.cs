@@ -176,6 +176,9 @@ public sealed class CommandRegistry
                     return CommandResult.HandledResult();
                 }
 
+                if (registration.SwitchesConversation && CommandThreads.IsBoundToChat(context))
+                    return CommandResult.HandledResult(FallbackText.CommandConversationBound);
+
                 if (!await ApplyBusyBehaviorAsync(registration.Busy, context))
                     return CommandResult.HandledResult(FallbackText.CommandBusy);
             }
@@ -280,7 +283,8 @@ public sealed class CommandRegistry
         {
             Name = "/new",
             DescriptionKey = "cmd.new",
-            Busy = CommandBusyBehavior.InterruptFirst
+            Busy = CommandBusyBehavior.InterruptFirst,
+            SwitchesConversation = true
         });
         registry.RegisterHandler(new StopCommandHandler(), new CommandRegistration
         {
@@ -311,13 +315,15 @@ public sealed class CommandRegistry
         registry.RegisterHandler(new SessionsCommandHandler(), new CommandRegistration
         {
             Name = "/sessions",
-            DescriptionKey = "command.sessions.description"
+            DescriptionKey = "command.sessions.description",
+            SwitchesConversation = true
         });
         registry.RegisterHandler(new ResumeCommandHandler(), new CommandRegistration
         {
             Name = "/resume",
             DescriptionKey = "command.resume.description",
-            Busy = CommandBusyBehavior.InterruptFirst
+            Busy = CommandBusyBehavior.InterruptFirst,
+            SwitchesConversation = true
         });
         registry.RegisterHandler(new CompactCommandHandler(), new CommandRegistration
         {
@@ -417,6 +423,7 @@ public sealed record CommandRegistration
     public string Category { get; init; } = "builtin";
     public bool RequiresAdmin { get; init; }
     public CommandBusyBehavior Busy { get; init; } = CommandBusyBehavior.Run;
+    public bool SwitchesConversation { get; init; }
 }
 
 public enum CommandBusyBehavior

@@ -45,6 +45,7 @@ public static class FallbackText
     public static string CommandPermissionDenied => Format("command.permission_denied");
     public static string CommandServiceUnavailable => Format("command.service_unavailable");
     public static string CommandBusy => Format("command.busy");
+    public static string CommandConversationBound => Format("command.conversation_bound");
     public static string CommandNewStarted => Format("command.new.started");
     public static string CommandStopNoActiveRun => Format("command.stop.no_active_run");
     public static string CommandStopStopped => Format("command.stop.stopped");
@@ -137,6 +138,7 @@ public static class FallbackText
   "command.permission_denied": "Permission denied. This command is available to administrators only.",
   "command.service_unavailable": "The service required by this command is unavailable.",
   "command.busy": "This conversation is busy. Try again when the current run finishes, or send /stop.",
+  "command.conversation_bound": "This chat is bound to a DotCraft conversation. Unbind it in DotCraft before switching conversations.",
   "command.new.started": "Started a new conversation.",
   "command.stop.description": "Stop the current run; /stop all also clears queued messages and stops background tasks",
   "command.stop.no_active_run": "There is no active agent run.",

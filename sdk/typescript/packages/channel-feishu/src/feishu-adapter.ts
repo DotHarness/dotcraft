@@ -379,7 +379,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       });
       return DECISION_DECLINE;
     }
-    return await this.approvals.request(channelTarget, request);
+    return await this.approvals.request(channelTarget, request, this.approvalSender(request));
   }
 
   protected override async onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse> {
@@ -515,11 +515,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       topic: message.threadKey ? shortId(message.threadKey) : "",
     });
     this.router.noteInbound(message.channelContext, message.messageId);
-    if (await this.tryResolvePendingUserInputFromText(message.channelContext, message.text)) {
-      return;
-    }
-    const approvalDecision = parseApprovalReplyDecision(message.text, { slashAliasesOnly: true });
-    if (approvalDecision && this.approvals.resolveInChat(message.channelContext, approvalDecision)) {
+    if (await this.tryHandleReply(message)) {
       return;
     }
     if (isUserAuthCommand(message.text)) {
@@ -715,6 +711,14 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   }
 
   async tryHandlePendingUserInputMessage(message: ParsedInboundMessage): Promise<boolean> {
+    return await this.tryHandleReply(message);
+  }
+
+  private async tryHandleReply(message: ParsedInboundMessage): Promise<boolean> {
+    const approvalDecision = parseApprovalReplyDecision(message.text, { slashAliasesOnly: true });
+    if (approvalDecision && this.approvals.resolveInChat(message.channelContext, message.userId, approvalDecision)) {
+      return true;
+    }
     return await this.tryResolvePendingUserInputFromText(message.channelContext, message.text);
   }
 
@@ -754,6 +758,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       this.userInputRequestByChannelTarget.delete(channelTarget);
       return false;
     }
+    if (await this.isCommand(text)) return false;
 
     const response = userInputResponseFromText(waiter.request, text);
     if (!response) {

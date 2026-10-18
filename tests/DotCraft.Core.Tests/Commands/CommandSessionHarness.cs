@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.AppBinding;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.GeneratedTools.Core;
@@ -47,6 +48,10 @@ internal sealed class CommandSessionHarness : IAsyncDisposable
     public AppConfig Config { get; }
 
     public SessionIdentity Identity { get; }
+
+    public AppBindingService AppBindings { get; } = new();
+
+    public string CraftPath => _root;
 
     public static CommandSessionHarness Create(params string[] catalogModels)
     {
@@ -130,7 +135,9 @@ internal sealed class CommandSessionHarness : IAsyncDisposable
                 SessionService = Service,
                 CommandRegistry = _commands,
                 Config = Config,
-                ModelProviders = _models
+                ModelProviders = _models,
+                AppBindings = AppBindings,
+                WorkspaceCraftPath = _root
             },
             new NullResponder());
 

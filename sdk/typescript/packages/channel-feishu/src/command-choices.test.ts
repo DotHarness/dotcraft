@@ -14,6 +14,8 @@ type CommandTestAdapter = {
   handleInboundMessage: (message: ParsedInboundMessage) => Promise<void>;
   handleCardAction: (event: Record<string, unknown>) => boolean;
   renderCommandChoices: (target: string, choices: Array<Record<string, string>>, context: unknown) => Promise<void>;
+  onApprovalRequest: (request: Record<string, unknown>) => Promise<string>;
+  running: boolean;
 };
 
 function createAdapter(): { adapter: CommandTestAdapter; executed: Array<Record<string, unknown>>; cards: Array<Record<string, unknown>> } {
@@ -92,24 +94,41 @@ test("Feishu choice cards run the selected command for the operator", async () =
   }), false);
 });
 
-test("Feishu /approve aliases resolve the chat's pending approval card", async () => {
+test("Feishu /approve aliases answer only the approval of the member who started the turn", async () => {
   const { adapter } = createAdapter();
-  const forwarded: string[] = [];
-  adapter.handleMessage = async (opts) => {
-    forwarded.push(String(opts.text));
+  const steered: Array<Record<string, unknown>> = [];
+  let turnStarted = false;
+  adapter.running = true;
+  adapter.client.streamEvents = () => ({
+    next: () => new Promise(() => undefined),
+    return: async () => ({ done: true, value: undefined }),
+    [Symbol.asyncIterator]() {
+      return this;
+    },
+  });
+  adapter.client.turnStart = async (threadId: string) => {
+    turnStarted = true;
+    return { id: "turn-1", threadId, status: "running" };
   };
-  const originalWarn = console.warn;
-  console.warn = () => {};
-  try {
-    const decision = adapter.approvals.request("group:oc_team", { requestId: "req-1", operation: "rm" });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+  adapter.client.threadRead = async () => ({ id: "thread-1", status: "active", runtime: { activeTurnId: "turn-1" } });
+  adapter.client.turnSteer = async (_threadId: string, _turnId: string, _input: unknown, sender: Record<string, unknown>) => {
+    steered.push(sender);
+    return "turn-1";
+  };
 
-    await adapter.handleInboundMessage(groupMessage("ou_member", "yes"));
-    await adapter.handleInboundMessage(groupMessage("ou_member", "/deny"));
-
-    assert.equal(await decision, "decline");
-    assert.deepEqual(forwarded, ["yes"]);
-  } finally {
-    console.warn = originalWarn;
+  await adapter.handleInboundMessage(groupMessage("ou_alice", "deploy the release"));
+  for (let i = 0; i < 50 && !turnStarted; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
   }
+  const decision = adapter.onApprovalRequest({ threadId: "thread-1", turnId: "turn-1", requestId: "req-1", operation: "rm" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  await adapter.handleInboundMessage(groupMessage("ou_bob", "/approve"));
+  for (let i = 0; i < 50 && steered.length === 0; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  await adapter.handleInboundMessage(groupMessage("ou_alice", "/deny"));
+
+  assert.equal(await decision, "decline");
+  assert.deepEqual(steered.map((sender) => sender.senderId), ["ou_bob"]);
 });

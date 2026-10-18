@@ -18,6 +18,7 @@ type PendingApproval = {
   resolve: (decision: string) => void;
   timer: ReturnType<typeof setTimeout>;
   chatId: number;
+  senderId?: string;
   messageId?: number;
   prompt: string;
 };
@@ -32,7 +33,7 @@ export class TelegramApprovals {
 
   constructor(private readonly api: () => TelegramApprovalApi) {}
 
-  async request(chatId: number, request: Record<string, unknown>): Promise<string> {
+  async request(chatId: number, request: Record<string, unknown>, senderId?: string): Promise<string> {
     const requestId = String(request.requestId ?? "");
     const keyboard = new InlineKeyboard();
     for (const button of APPROVAL_BUTTONS) {
@@ -59,6 +60,7 @@ export class TelegramApprovals {
         },
         timer,
         chatId,
+        senderId,
         messageId: (sent as { message_id?: number } | undefined)?.message_id,
         prompt,
       });
@@ -77,8 +79,8 @@ export class TelegramApprovals {
     }
   }
 
-  async resolveInChat(chatId: number, decision: string): Promise<boolean> {
-    const pending = [...this.pending.values()].find((entry) => entry.chatId === chatId);
+  async resolveInChat(chatId: number, senderId: string, decision: string): Promise<boolean> {
+    const pending = [...this.pending.values()].find((entry) => entry.chatId === chatId && entry.senderId === senderId);
     if (!pending) return false;
     pending.resolve(decision);
     if (pending.messageId !== undefined) {

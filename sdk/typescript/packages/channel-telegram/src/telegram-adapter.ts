@@ -309,7 +309,7 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
       console.warn(`[telegram] cannot find chat for thread ${threadId}; auto-declining approval`);
       return "decline";
     }
-    return await this.approvals.request(chatId, request);
+    return await this.approvals.request(chatId, request, this.approvalSender(request));
   }
 
   protected override async onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse> {
@@ -446,7 +446,7 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
     }
     const text = stripBotMention(String(ctx.msg.text ?? ""), this.botUsername);
     const approvalDecision = parseApprovalReplyDecision(text, { slashAliasesOnly: true });
-    if (approvalDecision && await this.approvals.resolveInChat(chatId, approvalDecision)) {
+    if (approvalDecision && await this.approvals.resolveInChat(chatId, String(ctx.from.id), approvalDecision)) {
       return;
     }
     if (await this.tryHandlePendingUserInputText(String(chatId), text)) {
@@ -551,6 +551,7 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
       this.pendingUserInputByChat.delete(chatTarget);
       return false;
     }
+    if (await this.isCommand(text)) return false;
 
     const response = userInputResponseFromText(pending.request, text);
     if (!response) {

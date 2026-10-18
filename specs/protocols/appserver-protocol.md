@@ -4739,7 +4739,7 @@ Built-in slash commands must be invoked through this method (or equivalent dedic
 
 When `expandedPrompt` is non-null, the command resolved to a prompt expansion and the caller may submit that text with `turn/start`.
 
-When `thread` is present, the caller switches its current thread for the conversation to `thread.id` immediately. `/new` and `/resume` return it. A thread `/new` creates may not be materialized on disk until its first Turn.
+When `thread` is present, the caller switches its current thread for the conversation to `thread.id` immediately. `/new` and `/resume` return it. A thread `/new` creates may not be materialized on disk until its first Turn. On a thread with a non-revoked [App Binding](app-binding.md) channel binding, `/new`, `/resume` and `/sessions` change nothing and answer that the chat is bound to a DotCraft conversation and must be unbound in DotCraft first.
 
 A `choices` entry's `command` is a complete slash command; selecting the choice executes it with `command/execute` as if the sender had typed it. Choices accompany `message` and do not replace it.
 

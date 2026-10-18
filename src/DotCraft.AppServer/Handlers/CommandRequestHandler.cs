@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.AppBinding;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using Contract = DotCraft.Protocol.AppServer;
@@ -15,6 +16,7 @@ internal sealed class CommandRequestHandler(
     string? workspaceCraftPath,
     Func<AppConfig?> currentConfig,
     ModelProviderRegistry? modelProviders,
+    AppBindingService? appBindings,
     Func<SessionThread, CancellationToken, Task<SessionWireThread>> enrichThreadAsync) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
@@ -95,7 +97,9 @@ internal sealed class CommandRequestHandler(
             SessionService = sessionService,
             CommandRegistry = commandRegistry,
             Config = currentConfig(),
-            ModelProviders = modelProviders
+            ModelProviders = modelProviders,
+            AppBindings = appBindings,
+            WorkspaceCraftPath = workspaceCraftPath
         };
 
         var responder = new BufferedCommandResponder();
