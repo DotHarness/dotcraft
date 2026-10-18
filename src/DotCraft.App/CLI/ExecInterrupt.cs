@@ -28,7 +28,25 @@ internal static class ExecInterrupt
                 ct).ConfigureAwait(false);
             var wire = connection.Wire;
 
-            threadId ??= await ExecThreads.FindLatestAsync(wire, ct).ConfigureAwait(false);
+            if (threadId is null)
+            {
+                var running = await ExecThreads.FindRunningAsync(wire, ct).ConfigureAwait(false);
+                if (running.Count == 0)
+                {
+                    await Console.Error.WriteLineAsync("[CLI] No exec task is running in this workspace.").ConfigureAwait(false);
+                    return 0;
+                }
+
+                if (running.Count > 1)
+                {
+                    await Console.Error.WriteLineAsync(
+                        $"More than one exec task is running. Pass one of these thread ids: {string.Join(", ", running)}").ConfigureAwait(false);
+                    return 1;
+                }
+
+                threadId = running[0];
+            }
+
             var thread = await ExecThreads.ReadAsync(wire, threadId, ct).ConfigureAwait(false);
             var turnId = thread.TryGetProperty("runtime", out var runtime)
                 ? OneShotNotification.ReadString(runtime, "activeTurnId")

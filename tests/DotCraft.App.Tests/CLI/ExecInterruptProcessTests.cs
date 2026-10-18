@@ -20,21 +20,53 @@ public sealed class ExecInterruptProcessTests : ExecProcessTestBase
     }
 
     [Fact]
-    public async Task Interrupt_Last_InterruptsTheMostRecentThread()
+    public async Task Interrupt_NoThreadId_InterruptsTheOnlyRunningExecTask()
     {
         await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions
         {
-            ListedThreadIds = ["thread_7"],
+            ListedThreadIds = ["thread_6", "thread_7"],
+            RunningThreadIds = ["thread_7"],
             ActiveTurnId = "turn_3"
         });
 
-        var result = await RunExecAsync(server, ["interrupt", "--last"]);
+        var result = await RunExecAsync(server, ["interrupt"]);
 
         Assert.Equal(0, result.ExitCode);
-        Assert.Equal("workspace", Assert.Single(server.ParamsOf("thread/list"))["scope"]!.GetValue<string>());
+        var list = Assert.Single(server.ParamsOf("thread/list"));
+        Assert.Equal("workspace", list["scope"]!.GetValue<string>());
+        Assert.Equal("cli", list["channelName"]!.GetValue<string>());
         var interrupt = Assert.Single(server.ParamsOf("turn/interrupt"));
         Assert.Equal("thread_7", interrupt["threadId"]!.GetValue<string>());
         Assert.Equal("turn_3", interrupt["turnId"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Interrupt_NoThreadIdWithSeveralRunning_ListsThemAndExitsOne()
+    {
+        await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions
+        {
+            ListedThreadIds = ["thread_6", "thread_7"],
+            RunningThreadIds = ["thread_6", "thread_7"],
+            ActiveTurnId = "turn_3"
+        });
+
+        var result = await RunExecAsync(server, ["interrupt"]);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("thread_6", result.StandardError, StringComparison.Ordinal);
+        Assert.Contains("thread_7", result.StandardError, StringComparison.Ordinal);
+        Assert.Empty(server.ParamsOf("turn/interrupt"));
+    }
+
+    [Fact]
+    public async Task Interrupt_NoThreadIdWithNothingRunning_ExitsZero()
+    {
+        await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions { ListedThreadIds = ["thread_6"] });
+
+        var result = await RunExecAsync(server, ["interrupt"]);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Empty(server.ParamsOf("turn/interrupt"));
     }
 
     [Fact]
@@ -65,7 +97,7 @@ public sealed class ExecInterruptProcessTests : ExecProcessTestBase
     {
         await using var server = await ExecFakeAppServer.StartAsync();
 
-        var result = await RunExecAsync(server, ["interrupt", "--last"], workingDirectory: CreateDirectory("elsewhere"));
+        var result = await RunExecAsync(server, ["interrupt"], workingDirectory: CreateDirectory("elsewhere"));
 
         Assert.Equal(1, result.ExitCode);
         Assert.Empty(server.Requests);
