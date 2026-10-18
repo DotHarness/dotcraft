@@ -94,6 +94,7 @@ function agentBody(agent: FakeAgent): Record<string, unknown> {
       createdAt: agent.createdAt,
       lastActiveAt: agent.updatedAt,
       source: { kind: 'subagent' },
+      configuration: { model: 'atlas-2' },
       runtime: {
         running: agent.running,
         busy: agent.running,
@@ -203,6 +204,22 @@ export class FakeBackground {
     Object.assign(run, { status: 'succeeded', completedAt: stamp() })
     this.updated(run, 'terminal')
     this.host.workflowFinished(run)
+  }
+
+  reportUsage(childThreadId: string, totalTokens: number): void {
+    const agent = this.agents.find((entry) => entry.childThreadId === childThreadId)
+    if (!agent) return
+    const usage = { totalTokens, inputTokens: totalTokens, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 0, reasoningOutputTokens: 0 }
+    this.host.notify(agent.parentThreadId, 'thread/tokenUsage/updated', {
+      threadId: childThreadId,
+      turnId: `turn_${childThreadId}`,
+      tokenUsage: { total: usage, last: usage },
+    })
+  }
+
+  touchAgent(childThreadId: string): void {
+    const agent = this.agents.find((entry) => entry.childThreadId === childThreadId)
+    if (agent) this.host.notify(agent.parentThreadId, 'subagent/graph/changed', { parentThreadId: agent.parentThreadId, childThreadId })
   }
 
   finishTerminal(sessionId: string): void {

@@ -72,6 +72,15 @@ function turnTokens(usage: { inputTokens?: number; outputTokens?: number; totalT
   return usage.totalTokens ?? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0)
 }
 
+function usageReadKey(child: SubAgentChild): string {
+  return `${child.threadSummary?.lastActiveAt ?? ''}:${isSubAgentChildRunning(child)}`
+}
+
+function laterUsage(current: number | null, next: number): number {
+  return current == null ? next : Math.max(current, next)
+}
+
+const usageReads = new Map<string, string>()
 const requests = new Map<string, ChildRequest>()
 const lifetimes = new Map<string, object>()
 function lifetime(parentThreadId: string): object {
@@ -221,8 +230,9 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     if (!parentThreadId) return
     const token = lifetime(parentThreadId)
     const targets = (get().childrenByParent.get(parentThreadId) ?? [])
-      .filter((child) => child.isPlaceholder !== true && child.usedTokens == null)
+      .filter((child) => child.isPlaceholder !== true && usageReads.get(child.childThreadId) !== usageReadKey(child))
     if (targets.length === 0) return
+    for (const child of targets) usageReads.set(child.childThreadId, usageReadKey(child))
     const totals = new Map<string, number>()
     await Promise.all(targets.map(async (child) => {
       try {
@@ -241,7 +251,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
         } while (cursor)
         totals.set(child.childThreadId, total)
       } catch {
-        return
+        usageReads.delete(child.childThreadId)
       }
     }))
     if (totals.size === 0 || lifetimes.get(parentThreadId) !== token) return
@@ -251,7 +261,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       const childrenByParent = new Map(state.childrenByParent)
       childrenByParent.set(parentThreadId, current.map((child) => {
         const total = totals.get(child.childThreadId)
-        return total === undefined || child.usedTokens != null ? child : { ...child, usedTokens: total }
+        return total === undefined ? child : { ...child, usedTokens: laterUsage(child.usedTokens, total) }
       }))
       return { childrenByParent }
     })
@@ -265,7 +275,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
         if (!children.some((child) => child.childThreadId === childThreadId)) continue
         changed = true
         childrenByParent.set(parentThreadId, children.map((child) =>
-          child.childThreadId === childThreadId ? { ...child, usedTokens } : child))
+          child.childThreadId === childThreadId ? { ...child, usedTokens: laterUsage(child.usedTokens, usedTokens) } : child))
       }
       return changed ? { childrenByParent } : state
     })
@@ -367,6 +377,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
   reset() {
     lifetimes.clear()
     requests.clear()
+    usageReads.clear()
     set({
       childrenByParent: new Map(),
       discoveryByParent: new Map(),

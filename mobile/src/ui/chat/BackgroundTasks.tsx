@@ -84,6 +84,7 @@ function TaskCard({ task, now, onStop }: { task: BackgroundTask; now: number; on
     t(KIND[task.kind].label),
     ...(span !== null ? [duration(span)] : []),
     ...(task.status === 'stopped' ? [t('tasks.stopped')] : task.status === 'failed' ? [t('state.failed')] : []),
+    ...(task.kind === 'agent' && task.model ? [task.model] : []),
     ...(task.kind === 'agent' && task.tokens ? [t('tasks.tokens', { count: compactCount(task.tokens) })] : []),
   ].join(' · ')
   const stop = () => {

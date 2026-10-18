@@ -15,7 +15,7 @@ interface TaskBase {
 
 export type BackgroundTask =
   | (TaskBase & { kind: 'shell'; turnId: string | null; output: string | null })
-  | (TaskBase & { kind: 'agent'; role: string | null; activeTurnId: string | null; tokens: number | null })
+  | (TaskBase & { kind: 'agent'; role: string | null; model: string | null; activeTurnId: string | null; tokens: number | null })
   | (TaskBase & { kind: 'workflow'; agents: number })
 
 export type TaskSources = Partial<Record<TaskSource, BackgroundTask[]>>
@@ -81,6 +81,7 @@ export function agentTask({ edge, thread }: SubAgentChild, lastTurnStatus: strin
     endedAt: running ? null : (edge.updatedAt ?? thread?.lastActiveAt ?? null),
     stop: running ? id : null,
     role: [edge.agentRole, edge.profileName].filter(Boolean).join(' · ') || null,
+    model: thread?.configuration?.model || null,
     activeTurnId: running ? (runtime?.activeTurnId ?? null) : null,
     tokens,
   }

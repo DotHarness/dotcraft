@@ -1845,17 +1845,18 @@ public sealed partial class SessionService
                                                 turnOutputTokens: outputTokens,
                                                 turnLlmCalls: llmCallCount,
                                                 contextUsage: contextUsage);
+                                            turn.TokenUsage = CombineTurnUsage(
+                                                inputTokens,
+                                                outputTokens,
+                                                cachedInputTokens,
+                                                cacheWriteInputTokens,
+                                                reasoningOutputTokens,
+                                                llmCallCount,
+                                                tokenTracker);
                                             PublishThreadTokenUsage(
                                                 thread,
                                                 turn,
-                                                CombineTurnUsage(
-                                                    inputTokens,
-                                                    outputTokens,
-                                                    cachedInputTokens,
-                                                    cacheWriteInputTokens,
-                                                    reasoningOutputTokens,
-                                                    llmCallCount,
-                                                    tokenTracker),
+                                                turn.TokenUsage,
                                                 requestUsage,
                                                 contextUsage.ContextWindow > 0 ? contextUsage.ContextWindow : null);
                                             await RecordGoalUsageAsync(

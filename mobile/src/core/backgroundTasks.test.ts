@@ -93,7 +93,16 @@ describe('background tasks', () => {
     )
 
     const auditor = running.find((task) => task.id === 'thread_schema_auditor')!
-    expect(auditor.kind === 'agent' && auditor.tokens).toBe(275_300)
+    expect(auditor.kind === 'agent' && [auditor.model, auditor.tokens]).toEqual(['atlas-2', 275_300])
+
+    const tokensOf = () => chatTasks(state().tasks[key]).running.find((task) => task.id === 'thread_schema_auditor')
+    computer.background.reportUsage('thread_schema_auditor', 301_000)
+    await waitFor(() => { const task = tokensOf(); return task?.kind === 'agent' && task.tokens === 301_000 })
+    const refreshes = computer.calls.filter((call) => call.method === 'subagent/children/list').length
+    computer.background.touchAgent('thread_schema_auditor')
+    await waitFor(() => computer.calls.filter((call) => call.method === 'subagent/children/list').length > refreshes)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(tokensOf()).toMatchObject({ tokens: 301_000 })
     await harness.link().stopTask(key, auditor)
     await waitFor(() => chatTasks(state().tasks[key]).completed.some((task) => task.id === 'thread_schema_auditor'))
     expect(chatTasks(state().tasks[key]).completed.find((task) => task.id === 'thread_schema_auditor')?.status).toBe('stopped')

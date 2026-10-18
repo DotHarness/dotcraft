@@ -219,6 +219,11 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               </FileViewerContext.Provider>
               {decision ? (
                 <View style={styles.decision}>
+                  {tasks.running.length > 0 ? (
+                    <View style={[styles.pills, styles.decisionPills]}>
+                      <TasksPill count={tasks.running.length} onPress={() => setTasksOpen(true)} />
+                    </View>
+                  ) : null}
                   <DecisionCard key={decision.requestId} decision={decision} count={decisions.length} disabled={!ready} actions={actions} />
                 </View>
               ) : null}
@@ -329,4 +334,5 @@ const styles = StyleSheet.create({
   transcript: { flexGrow: 1, gap: 14, paddingTop: BAR_HEIGHT + 20, paddingHorizontal: metrics.gutter, paddingBottom: 16 },
   decision: { marginTop: 'auto' },
   pills: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  decisionPills: { marginBottom: 12 },
 })

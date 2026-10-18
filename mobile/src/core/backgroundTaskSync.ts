@@ -144,7 +144,13 @@ export class BackgroundTaskSync {
         const { data } = await this.client.request('subagent/children/list', { parentThreadId: threadId, includeThreads: true })
         const children = data ?? []
         const turns = await Promise.all(children.map((child) => this.childTurnsOf(child)))
-        const tasks = children.flatMap((child, index) => agentTask(child, turns[index]?.status ?? null, turns[index]?.tokens ?? null) ?? [])
+        const listed = this.tasksOf(threadId, source)
+        const tasks = children.flatMap((child, index) => {
+          const current = listed?.find((task) => task.id === child.edge?.childThreadId)
+          const live = current?.kind === 'agent' ? current.tokens : null
+          const tokens = turns[index] ? Math.max(turns[index].tokens, live ?? 0) : live
+          return agentTask(child, turns[index]?.status ?? null, tokens) ?? []
+        })
         this.set(threadId, source, mergeAgents(this.tasksOf(threadId, source), tasks))
         return
       }
@@ -166,7 +172,7 @@ export class BackgroundTaskSync {
     for (const [key, sources] of Object.entries(this.store.getState().tasks)) {
       const task = sources.agent?.find((entry) => entry.id === childThreadId)
       if (!key.startsWith(prefix) || task?.kind !== 'agent') continue
-      this.set(key.slice(prefix.length), 'agent', upsertTask(sources.agent, { ...task, tokens }))
+      this.set(key.slice(prefix.length), 'agent', upsertTask(sources.agent, { ...task, tokens: Math.max(task.tokens ?? 0, tokens) }))
     }
   }
 

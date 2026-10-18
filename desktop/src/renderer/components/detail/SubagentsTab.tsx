@@ -68,10 +68,7 @@ function SubagentList({ parentThreadId }: { parentThreadId: string | null }): JS
   const [closedOpen, setClosedOpen] = useState(false)
 
   useEffect(() => {
-    if (!parentThreadId) return
-    if (children.some((child) => child.isPlaceholder !== true && child.usedTokens == null)) {
-      void fetchUsage(parentThreadId)
-    }
+    if (parentThreadId) void fetchUsage(parentThreadId)
   }, [parentThreadId, children, fetchUsage])
 
   const hasRunningSubagent = children.some(isSubAgentChildRunning)

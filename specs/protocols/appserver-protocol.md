@@ -2267,7 +2267,9 @@ input plus output.
 - Emitted for every thread, SubAgent child threads included, once per LLM iteration, from the same
   usage as that iteration's `item/usage/delta`; the two travel separately, so clients do not rely on
   their order. An external SubAgent runtime reports once, when its Turn completes.
-- `total` after a Turn ends equals the sum of `tokenUsage` over the thread's persisted Turns.
+- `total` after a Turn ends, whether it completed, was cancelled, or failed, equals the sum of
+  `tokenUsage` over the thread's persisted Turns; a running Turn's `tokenUsage` already holds the
+  usage reported so far.
   Clients take their starting value from that sum and replace it with `total` from each
   notification.
 - Delivered to connections subscribed to the thread and, for a SubAgent child thread, to connections

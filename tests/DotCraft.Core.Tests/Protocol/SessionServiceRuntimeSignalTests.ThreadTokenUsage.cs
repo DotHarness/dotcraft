@@ -59,6 +59,26 @@ public sealed partial class SessionServiceRuntimeSignalTests
     }
 
     [Fact]
+    public async Task SubmitInputAsync_KeepsReportedUsageOnATurnThatEndsEarly()
+    {
+        IChatClient chatClient = new ThrowingAfterUpdatesChatClient(
+            [UsageUpdate(requestIndex: 1, input: 120, output: 12, cachedInput: 30)],
+            new InvalidOperationException("boom"));
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient);
+        var updates = new ConcurrentQueue<ThreadTokenUsageUpdate>();
+        svc.ThreadTokenUsageUpdatedForBroadcast = updates.Enqueue;
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("work")]));
+
+        var turn = Assert.Single((await svc.GetThreadAsync(thread.Id)).Turns);
+        Assert.Equal(TurnStatus.Failed, turn.Status);
+        Assert.Equal(132, turn.TokenUsage?.TotalTokens);
+        Assert.Equal(132, Assert.Single(updates).Total.TotalTokens);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_SubAgentChildThreadTokenUsageNamesItsParent()
     {
         IChatClient chatClient = new FakeChatClient(

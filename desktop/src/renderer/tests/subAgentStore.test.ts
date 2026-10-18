@@ -788,6 +788,23 @@ describe('subAgentStore', () => {
 
     useSubAgentStore.getState().updateChildUsage('child-1', 4200)
     expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0].usedTokens).toBe(4200)
+
+    appServerSendRequest.mockClear()
+    await useSubAgentStore.getState().fetchUsage('parent-1')
+    expect(appServerSendRequest).not.toHaveBeenCalled()
+  })
+
+  it('reads usage again once a child finishes while keeping a newer live total', async () => {
+    useSubAgentStore.getState().setChildren('parent-1', [makeRunningChild()])
+    appServerSendRequest.mockResolvedValueOnce({ data: [{ id: 't1', tokenUsage: { totalTokens: 500 } }], nextCursor: null })
+    await useSubAgentStore.getState().fetchUsage('parent-1')
+    useSubAgentStore.getState().updateChildUsage('child-1', 900)
+
+    useSubAgentStore.getState().updateChildRuntime('child-1', { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false })
+    appServerSendRequest.mockResolvedValueOnce({ data: [{ id: 't1', tokenUsage: { totalTokens: 700 } }], nextCursor: null })
+    await useSubAgentStore.getState().fetchUsage('parent-1')
+    expect(appServerSendRequest).toHaveBeenLastCalledWith('thread/turns/list', expect.objectContaining({ threadId: 'child-1' }))
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0].usedTokens).toBe(900)
   })
 
   it('marks a child completed and clears current tool when runtime stops', () => {
