@@ -152,8 +152,8 @@ public sealed class BackgroundTerminalWaitAndStallTests : IAsyncLifetime
 
     private static string PromptCommand() =>
         OperatingSystem.IsWindows()
-            ? "[Console]::Out.Write('Overwrite existing file? (y/n) '); Start-Sleep -Seconds 30"
-            : "printf 'Overwrite existing file? (y/n) '; sleep 30";
+            ? "Start-Sleep -Milliseconds 500; [Console]::Out.Write('Overwrite existing file? (y/n) '); Start-Sleep -Seconds 30"
+            : "sleep 0.5; printf 'Overwrite existing file? (y/n) '; sleep 30";
 
     private static string SilentCommand() =>
         OperatingSystem.IsWindows() ? "Write-Output started; Start-Sleep -Seconds 30" : "echo started; sleep 30";
