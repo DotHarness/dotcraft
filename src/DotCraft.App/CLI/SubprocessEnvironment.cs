@@ -37,7 +37,7 @@ internal static class SubprocessEnvironment
         });
 
         // Redirect Console.Out to stderr (catches any raw Console.WriteLine calls).
-        Console.SetOut(new StreamWriter(Console.OpenStandardError(), Encoding.UTF8) { AutoFlush = true });
+        Console.SetOut(new StreamWriter(Console.OpenStandardError(), new UTF8Encoding(false)) { AutoFlush = true });
 
         // Ignore Ctrl+C / SIGINT in the subprocess.
         //

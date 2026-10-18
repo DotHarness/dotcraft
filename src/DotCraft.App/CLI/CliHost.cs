@@ -36,7 +36,10 @@ public sealed class CliHost(
             var result = await RunOneShotAsync(wire, prompt, cancellationToken).ConfigureAwait(false);
 
             if (!string.IsNullOrEmpty(result.Text))
-                await Console.Out.WriteLineAsync(result.Text).ConfigureAwait(false);
+            {
+                await using var stdout = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false));
+                await stdout.WriteLineAsync(result.Text).ConfigureAwait(false);
+            }
 
             if (!result.Success)
             {
@@ -138,7 +141,9 @@ public sealed class CliHost(
         wire.RegisterThreadChannel(threadId);
 
         var output = new StringBuilder();
+        string? completedText = null;
         var approvalRequested = false;
+        var terminal = false;
         string? terminalError = null;
 
         wire.ServerRequestHandler = async request =>
@@ -188,14 +193,24 @@ public sealed class CliHost(
                         if (!string.IsNullOrWhiteSpace(notification.Text))
                             await Console.Error.WriteLineAsync(notification.Text).ConfigureAwait(false);
                         break;
+                    case OneShotNotificationKind.Completed:
+                        terminal = true;
+                        completedText = notification.Text;
+                        break;
                     case OneShotNotificationKind.Failed:
+                        terminal = true;
                         terminalError = notification.Text ?? "Turn failed.";
                         break;
                     case OneShotNotificationKind.Cancelled:
+                        terminal = true;
                         terminalError = "Turn cancelled.";
                         break;
                 }
             }
+
+            ct.ThrowIfCancellationRequested();
+            if (!terminal)
+                await InterruptTurnAsync(wire, threadId, turnId).ConfigureAwait(false);
         }
         finally
         {
@@ -203,13 +218,34 @@ public sealed class CliHost(
             wire.UnregisterThreadChannel(threadId);
         }
 
+        var text = string.IsNullOrEmpty(completedText) ? output.ToString() : completedText;
+
+        if (!terminal)
+            return new OneShotResult(false, text, "Timed out waiting for the turn to finish.");
+
         if (approvalRequested)
-            return new OneShotResult(false, output.ToString(), "Approval required; dotcraft exec declined the request.");
+            return new OneShotResult(false, text, "Approval required; dotcraft exec declined the request.");
 
         if (!string.IsNullOrWhiteSpace(terminalError))
-            return new OneShotResult(false, output.ToString(), terminalError);
+            return new OneShotResult(false, text, terminalError);
 
-        return new OneShotResult(true, output.ToString(), null);
+        return new OneShotResult(true, text, null);
+    }
+
+    private static async Task InterruptTurnAsync(AppServerWireClient wire, string threadId, string turnId)
+    {
+        try
+        {
+            await wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnInterrupt, new
+            {
+                threadId,
+                turnId
+            }, timeout: TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            await Console.Error.WriteLineAsync($"[CLI] Failed to interrupt the timed-out turn: {ex.Message}").ConfigureAwait(false);
+        }
     }
 
     private async Task<string> CreateThreadAsync(AppServerWireClient wire, CancellationToken ct)
@@ -239,6 +275,7 @@ internal enum OneShotNotificationKind
     AgentDelta,
     AgentCompleted,
     Progress,
+    Completed,
     Failed,
     Cancelled
 }
@@ -259,6 +296,10 @@ internal sealed record OneShotNotification(OneShotNotificationKind Kind, string?
             DotCraft.Protocol.AppServer.AppServerMethodNames.AgentMessageDelta => new OneShotNotification(
                 OneShotNotificationKind.AgentDelta,
                 hasParams && @params.TryGetProperty("delta", out var delta) ? delta.GetString() : null),
+
+            DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted => new OneShotNotification(
+                OneShotNotificationKind.Completed,
+                hasParams ? ReadFinalText(@params) : null),
 
             DotCraft.Protocol.AppServer.AppServerMethodNames.TurnFailed => new OneShotNotification(
                 OneShotNotificationKind.Failed,
@@ -306,17 +347,46 @@ internal sealed record OneShotNotification(OneShotNotificationKind Kind, string?
 
         var type = item.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
         if (type == "agentMessage")
-        {
-            var text = item.TryGetProperty("text", out var textEl) && textEl.ValueKind == JsonValueKind.String
-                ? textEl.GetString()
-                : null;
-            return new OneShotNotification(OneShotNotificationKind.AgentCompleted, text);
-        }
+            return new OneShotNotification(OneShotNotificationKind.AgentCompleted, ReadAgentMessageText(item));
 
         if (type is not ("toolExecution" or "toolResult" or "commandExecution"))
             return new OneShotNotification(OneShotNotificationKind.Ignored, null);
 
         return new OneShotNotification(OneShotNotificationKind.Progress, $"[CLI] Completed {type}.");
+    }
+
+    private static string? ReadFinalText(JsonElement @params)
+    {
+        if (!@params.TryGetProperty("turn", out var turn)
+            || !turn.TryGetProperty("items", out var items)
+            || items.ValueKind != JsonValueKind.Array)
+            return null;
+
+        string? last = null;
+        foreach (var item in items.EnumerateArray())
+        {
+            if (!item.TryGetProperty("type", out var type) || type.GetString() != "agentMessage")
+                continue;
+            var text = ReadAgentMessageText(item);
+            if (!string.IsNullOrEmpty(text))
+                last = text;
+        }
+
+        return last;
+    }
+
+    private static string? ReadAgentMessageText(JsonElement item)
+    {
+        if (!item.TryGetProperty("payload", out var payload) || payload.ValueKind != JsonValueKind.Object)
+            return null;
+        if (payload.TryGetProperty("deliveryMode", out var mode)
+            && mode.ValueKind == JsonValueKind.String
+            && mode.GetString() == "async")
+            return null;
+
+        return payload.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String
+            ? text.GetString()
+            : null;
     }
 
     private static OneShotNotification ReadSystemEvent(JsonElement @params, bool hasParams)
