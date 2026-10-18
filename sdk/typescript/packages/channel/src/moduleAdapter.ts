@@ -2,7 +2,7 @@
  * Module-aware ChannelAdapter runtime helpers and base class.
  */
 
-import { ChannelAdapter, type ChannelAdapterOptions } from "./adapter.js";
+import { ChannelAdapter } from "./adapter.js";
 import { ChannelAppServerClient } from "./channelAppServerClient.js";
 import type { ModuleError, ModuleErrorCode } from "./lifecycle.js";
 import type { WorkspaceContext } from "./module.js";
@@ -31,9 +31,8 @@ export abstract class ModuleChannelAdapter<TConfig = unknown> extends ChannelAda
     clientName: string,
     clientVersion: string,
     optOutNotifications: string[] = [],
-    options?: ChannelAdapterOptions,
   ) {
-    super(new PlaceholderTransport(), channelName, clientName, clientVersion, optOutNotifications, options);
+    super(new PlaceholderTransport(), channelName, clientName, clientVersion, optOutNotifications);
   }
 
   protected getConfigFileName(context: WorkspaceContext): string {

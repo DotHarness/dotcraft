@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.8.10 |
 | **Status** | Living |
-| **Date** | 2026-10-17 |
+| **Date** | 2026-10-18 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -249,10 +249,8 @@ Fields:
   - Optional stable source id for client-side click-through or audit correlation.
 - `TriggerStatus` (string, nullable)
   - State of the source when the input was created. Set only on task notifications.
-- `DeliveryBindingId` (string, nullable)
-  - Optional App Binding id that owns the default output delivery target for the future Turn.
 
-When a queued input starts a future Turn, Session Core must copy trigger metadata, the queued input id, and any default delivery binding id into the persisted `UserMessagePayload`. When a queued input is promoted into current-turn guidance, the guidance `UserMessage` item must preserve the same trigger metadata. Before guidance is admitted into the active Turn, a client may change the queued input's desired status back to `"queued"` without changing its input payload, metadata, or queue position. Once admission atomically persists the guidance `UserMessage` and removes the queued input, the input is no longer retractable.
+When a queued input starts a future Turn, Session Core must copy trigger metadata and the queued input id into the persisted `UserMessagePayload`. When a queued input is promoted into current-turn guidance, the guidance `UserMessage` item must preserve the same trigger metadata. Before guidance is admitted into the active Turn, a client may change the queued input's desired status back to `"queued"` without changing its input payload, metadata, or queue position. Once admission atomically persists the guidance `UserMessage` and removes the queued input, the input is no longer retractable.
 
 ##### Task notifications
 
@@ -1418,7 +1416,7 @@ The `content` parameter accepts multimodal input (text, images, etc.) as a list 
 
 `UserMessagePayload.DeliveryMode` is optional and indicates how the user message entered the conversation: `"normal"` (or omitted) for a direct Turn start, `"queued"` for a queued input that later became a Turn, and `"guidance"` for a user request appended to an active Turn.
 
-`UserMessagePayload.QueuedInputId` stores the queue record that produced the message when available. `UserMessagePayload.DeliveryBindingId` stores the App Binding id that should receive the default assistant output for that Turn; direct Desktop-originated input leaves it empty.
+`UserMessagePayload.QueuedInputId` stores the queue record that produced the message when available.
 
 `AgentMessagePayload.DeliveryMode` is optional. `"async"` marks a model-initiated message sent to the user while the Turn continues. Session Core persists and broadcasts the Item immediately, but excludes its text when rebuilding model-visible assistant history and when aggregating the Turn's final answer. The ordinary `ToolCall` and `ToolResult` for the invocation remain model-visible.
 

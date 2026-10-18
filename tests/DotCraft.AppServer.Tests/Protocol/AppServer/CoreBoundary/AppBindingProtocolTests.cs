@@ -245,7 +245,19 @@ public sealed class AppBindingProtocolTests : IDisposable
             DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize, new
             {
                 clientInfo = new { name = "qq-adapter", version = "1.0.0" },
-                capabilities = new { channelAdapter = new { channelName = "qq" } }
+                capabilities = new
+                {
+                    channelAdapter = new
+                    {
+                        channelName = "qq",
+                        displayName = "QQ",
+                        deliveryCapabilities = new
+                        {
+                            text = new { format = "plain" },
+                            targets = new { group = true, direct = "any" }
+                        }
+                    }
+                }
             }));
         using (var initialized = await ReadSuccessResponseAsync(channel.Transport))
             AppServerTestHarness.AssertIsSuccessResponse(initialized);

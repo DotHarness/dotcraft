@@ -3,12 +3,9 @@ export {
   ChannelMessageQueue,
   ChannelToolDispatcher,
   CommandRouter,
-  DefaultSegmentBoundaryPolicy,
-  DeliveryDispatcher,
   ModuleConfigLoader,
   ModuleLifecycleState,
   ThreadResolver,
-  TurnStreamReducer,
   UserInputDispatcher,
   applyChannelRuntimeDefaults,
   buildChannelSender,
@@ -18,6 +15,10 @@ export {
   withStdioRuntimeDefaults,
   withWebSocketRuntimeDefaults,
 } from "./channelRuntime.js";
+export { DeliveryDispatcher } from "./deliveryDispatcher.js";
+export { activityKindForItemType, consumeTurnStream } from "./turnStream.js";
+export type { TurnStreamHandlers } from "./turnStream.js";
+export type { DeliveryDispatcherOptions } from "./deliveryDispatcher.js";
 export type {
   ApprovalDispatcherOptions,
   ChannelAdapterMessageOptions,
@@ -28,21 +29,13 @@ export type {
   CommandRouteBeforeQueueResult,
   CommandRouteForTurnResult,
   CommandRouterOptions,
-  DeliveryDispatcherOptions,
-  GeneratedImage,
   LoadJsonConfigResult,
   ModuleConfigLoadResult,
   ModuleConfigLoaderOptions,
-  SegmentBoundaryPolicy,
   ThreadIdentityLookup,
   ThreadResolveEvent,
   ThreadResolveEventAction,
   ThreadResolverOptions,
-  TurnItemActivity,
-  TurnStreamContext,
-  TurnStreamDebugLogger,
-  TurnStreamReducerHandlers,
-  TurnStreamReducerOptions,
   UserInputDispatcherOptions,
 } from "./channelRuntime.js";
 export {
@@ -64,8 +57,6 @@ export type {
   UserInputQuestionRequest,
   UserInputResponse,
 } from "./userInput.js";
-export { getDeliveredFrontier } from "./deliveredFrontier.js";
-export { shouldFlushSegmentOnItemStarted } from "./segmentBoundaries.js";
 export { ChannelAppServerClient } from "./channelAppServerClient.js";
 export {
   StdioTransport,
@@ -80,9 +71,3 @@ export type {
   Transport,
   WebSocketTransportOptions,
 } from "@dotcraft/sdk/wire";
-export {
-  configureTextMergeDebug,
-  extractAgentReplyTextFromTurnCompletedParams,
-  extractAgentReplyTextsFromTurnCompletedParams,
-  mergeReplyTextFromDeltaAndSnapshot,
-} from "./turnReply.js";

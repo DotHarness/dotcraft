@@ -1,3 +1,5 @@
+import type { ChannelChatDescriptor } from "@dotcraft/channel";
+
 import type { FeishuMessageEvent } from "./feishu-types.js";
 
 const THREAD_SEPARATOR = "/thread:";
@@ -14,22 +16,22 @@ export function formatConversationTarget(target: FeishuConversationTarget): stri
 }
 
 export function parseConversationTarget(raw: string): FeishuConversationTarget | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  const separatorIndex = trimmed.indexOf(THREAD_SEPARATOR);
-  const base = separatorIndex >= 0 ? trimmed.slice(0, separatorIndex) : trimmed;
-  const threadKey = separatorIndex >= 0 ? trimmed.slice(separatorIndex + THREAD_SEPARATOR.length) : "";
+  const match = /^(?:group:(oc_[\w-]+)(?:\/thread:(om_[\w-]+))?|dm:(ou_[\w-]+))$/.exec(raw.trim());
+  if (!match) return null;
+  const [, groupId, threadKey, openId] = match;
+  if (openId) return { kind: "dm", id: openId };
+  return threadKey ? { kind: "group", id: groupId, threadKey } : { kind: "group", id: groupId };
+}
 
-  let kind: FeishuConversationTarget["kind"] = "group";
-  let id = base;
-  if (base.startsWith("group:")) {
-    id = base.slice("group:".length);
-  } else if (base.startsWith("dm:")) {
-    kind = "dm";
-    id = base.slice("dm:".length);
-  }
-  if (!id) return null;
-  return threadKey ? { kind, id, threadKey } : { kind, id };
+export function directConversationTarget(openId: string): string | undefined {
+  const target = formatConversationTarget({ kind: "dm", id: openId });
+  return parseConversationTarget(target) ? target : undefined;
+}
+
+export function describeConversation(channelContext: string): ChannelChatDescriptor {
+  const target = parseConversationTarget(channelContext);
+  const kind = target?.kind === "dm" ? "direct" : target?.threadKey ? "topic" : "group";
+  return { kind, membership: "shared" };
 }
 
 export function conversationTargetBase(raw: string): string {

@@ -58,7 +58,7 @@ public sealed class WorldState
         foreach (var section in _sections)
         {
             var id = section.Id;
-            var snapshot = Snapshot(section, context);
+            var snapshot = Snapshot(section, context, faults);
 
             PreviousSectionState state;
             if (previous != null && previous.TryGetSection(id, out var value))
@@ -67,6 +67,13 @@ public sealed class WorldState
                 state = PreviousSectionState.Unknown;
             else
                 state = PreviousSectionState.Absent;
+
+            if (snapshot == null)
+            {
+                Record(id, state.TryGetKnown(out var stored) ? stored : null);
+                silent.Add(id);
+                continue;
+            }
 
             if (state.TryGetKnown(out var known) && JsonNode.DeepEquals(known, snapshot))
             {
@@ -105,7 +112,7 @@ public sealed class WorldState
         return new WorldStateRender(fragments, silent, faults, WorldStateSnapshot.FromSections(snapshots));
     }
 
-    private JsonNode? Snapshot(IWorldStateSection section, WorldStateContext context)
+    private JsonNode? Snapshot(IWorldStateSection section, WorldStateContext context, List<WorldStateSectionFault> faults)
     {
         JsonNode? raw;
         try
@@ -115,6 +122,7 @@ public sealed class WorldState
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger?.LogWarning(ex, "World-state section {SectionId} failed to snapshot.", section.Id);
+            faults.Add(new WorldStateSectionFault(section.Id, "snapshot_failed"));
             return null;
         }
 

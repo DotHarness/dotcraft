@@ -1256,6 +1256,10 @@ public sealed class ChannelOutboundMessage : ExtensibleJsonObject
 [ContractModule("external-channel")]
 public sealed class ExtChannelSendParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("deliveryId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> DeliveryId { get; init; }
+
     [JsonPropertyName("message")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ChannelOutboundMessage> Message { get; init; }

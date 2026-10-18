@@ -17,7 +17,7 @@ internal sealed class SkillsSection : IWorldStateSection
     public JsonNode? Snapshot(WorldStateContext context)
     {
         if (context.Skills is not { } read)
-            return null;
+            return new JsonObject();
 
         var entries = new JsonObject();
         foreach (var skill in read())

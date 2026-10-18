@@ -14,16 +14,16 @@
         }
       ]
     },
-    "structuredDelivery": {
-      "anyOf": [
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        }
-      ]
+    "targets": {
+      "$ref": "./ChannelTargetCapability.schema.json"
+    },
+    "text": {
+      "$ref": "./ChannelTextCapability.schema.json"
     }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "required": [
+    "targets",
+    "text"
+  ]
 }

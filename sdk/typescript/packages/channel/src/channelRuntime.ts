@@ -5,8 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { NotificationHandler, ServerRequestHandler } from "@dotcraft/sdk/wire";
-import { JsonRpcError, JsonRpcMessage } from "@dotcraft/sdk/wire";
+import { JsonRpcError } from "@dotcraft/sdk/wire";
 import { commandRefPart } from "@dotcraft/sdk";
 import type {
   InputPart,
@@ -15,33 +14,15 @@ import type {
   SessionThread,
 } from "@dotcraft/sdk/contracts";
 import type { ChannelAppServerClient } from "./channelAppServerClient.js";
+import type { ChannelChatDescriptor } from "./capability.js";
 import type { LifecycleStatus, ModuleError, ModuleErrorCode } from "./lifecycle.js";
 import type { WorkspaceContext } from "./module.js";
-import { getDeliveredFrontier } from "./deliveredFrontier.js";
-import {
-  extractAgentReplyTextFromTurnCompletedParams,
-  extractAgentReplyTextPartsFromTurnCompletedParams,
-  extractAgentReplyTextsFromTurnCompletedParams,
-  mergeReplyTextFromDeltaAndSnapshot,
-} from "./turnReply.js";
-import { shouldFlushSegmentOnItemStarted } from "./segmentBoundaries.js";
 import { emptyUserInputResponse, type UserInputResponse } from "./userInput.js";
 
-type ClientProvider = ChannelAppServerClient | (() => ChannelAppServerClient);
+export type ClientProvider = ChannelAppServerClient | (() => ChannelAppServerClient);
 
-function resolveClient(provider: ClientProvider): ChannelAppServerClient {
+export function resolveClient(provider: ClientProvider): ChannelAppServerClient {
   return typeof provider === "function" ? provider() : provider;
-}
-
-function previewWireText(text: string, maxChars = 160): string {
-  const s = text.replace(/\r\n/g, "\n");
-  if (s.length <= maxChars) return s;
-  return `${s.slice(0, maxChars)}...(+${s.length - maxChars} chars)`;
-}
-
-function shortWireId(id: string, max = 12): string {
-  if (id.length <= max) return id;
-  return `${id.slice(0, max)}...`;
 }
 
 function isNodeErrno(error: unknown, code: string): boolean {
@@ -58,6 +39,7 @@ export type ChannelSenderContext = Record<string, unknown> & {
   senderName?: string;
   senderRole?: string;
   groupId?: string;
+  directTarget?: string;
 };
 
 export type ChannelAdapterMessageOptions = {
@@ -71,10 +53,11 @@ export type ChannelAdapterMessageOptions = {
   skipCommand?: boolean;
   inputParts?: InputPart[];
   omitSenderGroupId?: boolean;
+  directTarget?: string;
 };
 
 export function buildChannelSender(
-  opts: Pick<ChannelAdapterMessageOptions, "userId" | "userName" | "sender" | "senderExtra" | "omitSenderGroupId">,
+  opts: Pick<ChannelAdapterMessageOptions, "userId" | "userName" | "sender" | "senderExtra" | "omitSenderGroupId" | "directTarget">,
   channelContext: string,
 ): SenderContext {
   const sender: Record<string, unknown> = { ...(opts.sender ?? {}) };
@@ -82,6 +65,7 @@ export function buildChannelSender(
   if (sender.senderName === undefined) sender.senderName = opts.userName;
   if (sender.senderRole === undefined) sender.senderRole = "user";
   Object.assign(sender, opts.senderExtra ?? {});
+  if (opts.directTarget && sender.directTarget === undefined) sender.directTarget = opts.directTarget;
   if (channelContext && !opts.omitSenderGroupId && sender.groupId === undefined) {
     sender.groupId = channelContext;
   }
@@ -211,6 +195,7 @@ export interface ThreadIdentityLookup {
   userId: string;
   channelContext: string;
   workspacePath: string;
+  chat?: ChannelChatDescriptor;
 }
 
 export class ThreadResolver {
@@ -230,7 +215,7 @@ export class ThreadResolver {
   }
 
   invalidateConnectionBoundRuntime(): void {
-    if (this.getRuntimeAdditionalContext?.()) this.threadMap.clear();
+    this.threadMap.clear();
   }
 
   getCachedThreadId(identityKey: string): string | undefined {
@@ -294,6 +279,7 @@ export class ThreadResolver {
         channelContext: lookup.channelContext,
         workspacePath: lookup.workspacePath,
         additionalContext,
+        chat: lookup.chat,
       });
       this.threadMap.set(lookup.identityKey, thread.id);
       this.forceFreshThreadIdentities.delete(lookup.identityKey);
@@ -324,8 +310,8 @@ export class ThreadResolver {
     });
     const reusable = threads.find((t) => t.status === "active");
     if (reusable) {
-      const thread = additionalContext
-        ? await client.threadResume(reusable.id, { additionalContext })
+      const thread = additionalContext || lookup.chat
+        ? await client.threadResume(reusable.id, { additionalContext, chat: lookup.chat })
         : await client.threadRead(reusable.id);
       this.threadMap.set(lookup.identityKey, thread.id);
       this.emit({ action: "listed_active", ...lookup, threadId: thread.id });
@@ -338,6 +324,7 @@ export class ThreadResolver {
       channelContext: lookup.channelContext,
       workspacePath: lookup.workspacePath,
       additionalContext,
+      chat: lookup.chat,
     });
     this.threadMap.set(lookup.identityKey, thread.id);
     this.emit({ action: "created", ...lookup, threadId: thread.id });
@@ -371,8 +358,8 @@ export class ThreadResolver {
     });
     const reusable = threads.find((t) => t.status === "active");
     if (reusable) {
-      const thread = additionalContext
-        ? await client.threadResume(reusable.id, { additionalContext })
+      const thread = additionalContext || lookup.chat
+        ? await client.threadResume(reusable.id, { additionalContext, chat: lookup.chat })
         : await client.threadRead(reusable.id);
       this.threadMap.set(lookup.identityKey, thread.id);
       this.emit({ action: "recovered_listed_active", ...lookup, staleThreadId, threadId: thread.id });
@@ -385,6 +372,7 @@ export class ThreadResolver {
       channelContext: lookup.channelContext,
       workspacePath: lookup.workspacePath,
       additionalContext,
+      chat: lookup.chat,
     });
     this.threadMap.set(lookup.identityKey, fresh.id);
     this.emit({ action: "recovered_created", ...lookup, staleThreadId, threadId: fresh.id });
@@ -593,482 +581,6 @@ export class CommandRouter {
   }
 }
 
-export interface SegmentBoundaryPolicy {
-  shouldFlushOnItemStarted(itemType: string): boolean;
-}
-
-export class DefaultSegmentBoundaryPolicy implements SegmentBoundaryPolicy {
-  shouldFlushOnItemStarted(itemType: string): boolean {
-    return shouldFlushSegmentOnItemStarted(itemType);
-  }
-}
-
-export type TurnStreamDebugLogger = (
-  message: string,
-  data: Record<string, unknown> | (() => Record<string, unknown>),
-) => void;
-
-export interface TurnStreamReducerOptions {
-  segmentBoundaryPolicy?: SegmentBoundaryPolicy;
-  debug?: TurnStreamDebugLogger;
-}
-
-export interface TurnStreamContext {
-  threadId: string;
-  turnId: string;
-  channelContext: string;
-}
-
-/** Item lifecycle signal without payload: enough to know the agent is still working. */
-export interface TurnItemActivity {
-  kind: "text" | "reasoning" | "tool";
-  phase: "started" | "completed";
-  itemId: string;
-}
-
-export interface GeneratedImage {
-  itemId: string;
-  callId: string;
-  mediaType: string;
-  dataBase64: string;
-}
-
-export function activityKindForItemType(itemType: string): TurnItemActivity["kind"] | null {
-  switch (itemType) {
-    case "agentMessage":
-      return "text";
-    case "reasoningContent":
-      return "reasoning";
-    case "toolCall":
-    case "mcpToolCall":
-    case "dynamicToolCall":
-    case "toolResult":
-    case "commandExecution":
-      return "tool";
-    default:
-      return null;
-  }
-}
-
-export interface TurnStreamReducerHandlers {
-  onActivity?(
-    threadId: string,
-    turnId: string,
-    activity: TurnItemActivity,
-    channelContext: string,
-  ): Promise<void>;
-  onReplyProgress?(
-    threadId: string,
-    turnId: string,
-    replyParts: readonly string[],
-    isFinal: boolean,
-    channelContext: string,
-  ): Promise<void>;
-  onSegmentCompleted(
-    threadId: string,
-    turnId: string,
-    segmentText: string,
-    isFinal: boolean,
-    channelContext: string,
-  ): Promise<boolean | void>;
-  onTurnCompleted(
-    threadId: string,
-    turnId: string,
-    replyText: string,
-    channelContext: string,
-    segmentsWereDelivered: boolean,
-  ): Promise<void>;
-  onGeneratedImage?(
-    threadId: string,
-    turnId: string,
-    image: GeneratedImage,
-    channelContext: string,
-  ): Promise<void>;
-  onTurnFailed(threadId: string, turnId: string, error: string): Promise<void>;
-  onTurnCancelled(threadId: string, turnId: string): Promise<void>;
-}
-
-function generatedImageFromItem(item: Record<string, unknown>): GeneratedImage | null {
-  const payload = (item.payload as Record<string, unknown>) ?? {};
-  const dataBase64 = typeof payload.result === "string" ? payload.result.trim() : "";
-  if (payload.status !== "completed" || !dataBase64) return null;
-  const mediaType = typeof payload.mediaType === "string" && payload.mediaType.trim()
-    ? payload.mediaType.trim()
-    : "image/png";
-  return {
-    itemId: String(item.id ?? ""),
-    callId: String(payload.callId ?? ""),
-    mediaType,
-    dataBase64,
-  };
-}
-
-export class TurnStreamReducer {
-  private readonly segmentBoundaryPolicy: SegmentBoundaryPolicy;
-  private readonly debug?: TurnStreamDebugLogger;
-
-  constructor(options: TurnStreamReducerOptions = {}) {
-    this.segmentBoundaryPolicy = options.segmentBoundaryPolicy ?? new DefaultSegmentBoundaryPolicy();
-    this.debug = options.debug;
-  }
-
-  async consume(
-    eventStream: AsyncIterableIterator<JsonRpcMessage>,
-    context: TurnStreamContext,
-    handlers: TurnStreamReducerHandlers,
-  ): Promise<void> {
-    const { threadId, turnId, channelContext } = context;
-    const itemOrder: string[] = [];
-    const perItemDelta = new Map<string, string>();
-    const deliveredTextPerItem = new Map<string, string>();
-    let activeAgentItemId: string | null = null;
-    let lastDeltaAgentItemId: string | null = null;
-    let orphanDeltaTail = "";
-    let segmentsWereDelivered = false;
-
-    const orderSeen = new Set<string>();
-    const pushOrder = (itemId: string): void => {
-      if (!itemId || orderSeen.has(itemId)) return;
-      orderSeen.add(itemId);
-      itemOrder.push(itemId);
-    };
-    const getCurrentItemText = (itemId: string | null): string => {
-      if (!itemId) return "";
-      return perItemDelta.get(itemId) ?? "";
-    };
-    const markSegmentDelivered = (itemId: string | null, segmentText: string): void => {
-      if (!itemId || !segmentText) return;
-      const delivered = deliveredTextPerItem.get(itemId) ?? "";
-      deliveredTextPerItem.set(itemId, delivered + segmentText);
-    };
-    const getUnsentTail = (itemId: string | null, fallbackText = ""): string => {
-      if (!itemId) return fallbackText;
-      const current = getCurrentItemText(itemId) || fallbackText;
-      const delivered = deliveredTextPerItem.get(itemId) ?? "";
-      const frontier = getDeliveredFrontier(current, delivered);
-      if (frontier >= current.length) return "";
-      return current.slice(frontier);
-    };
-    const getUnsentFromMerged = (itemId: string | null, mergedText: string): string => {
-      if (!itemId) return mergedText;
-      const delivered = deliveredTextPerItem.get(itemId) ?? "";
-      const frontier = getDeliveredFrontier(mergedText, delivered);
-      if (frontier >= mergedText.length) return "";
-      return mergedText.slice(frontier);
-    };
-
-    const snapshotStreamState = (): Record<string, unknown> => ({
-      itemOrder: itemOrder.map((id) => shortWireId(id)),
-      perItemChars: Object.fromEntries(
-        [...perItemDelta.entries()].map(([id, t]) => [shortWireId(id), t.length]),
-      ),
-      deliveredChars: Object.fromEntries(
-        [...deliveredTextPerItem.entries()].map(([id, t]) => [shortWireId(id), t.length]),
-      ),
-      activeAgentItemId: activeAgentItemId ? shortWireId(activeAgentItemId) : "",
-      lastDeltaAgentItemId: lastDeltaAgentItemId ? shortWireId(lastDeltaAgentItemId) : "",
-      orphanDeltaChars: orphanDeltaTail.length,
-      segmentsWereDelivered,
-    });
-    const hasUnsentText = (): boolean =>
-      itemOrder.some((id) => getUnsentTail(id, "").trim().length > 0) || orphanDeltaTail.trim().length > 0;
-    const currentReplyParts = (): string[] => {
-      const parts = itemOrder
-        .map((id) => perItemDelta.get(id) ?? "")
-        .filter((text) => text.length > 0);
-      if (orphanDeltaTail.length > 0) parts.push(orphanDeltaTail);
-      return parts;
-    };
-    const notifyActivity = async (itemType: string, phase: TurnItemActivity["phase"], itemId: string): Promise<void> => {
-      const kind = activityKindForItemType(itemType);
-      if (!handlers.onActivity || !kind || !itemId) return;
-      try {
-        await handlers.onActivity(threadId, turnId, { kind, phase, itemId }, channelContext);
-      } catch (error) {
-        this.log("activity.threw", () => ({
-          kind,
-          phase,
-          error: error instanceof Error ? error.message : String(error),
-        }));
-      }
-    };
-    const notifyReplyProgress = async (replyParts: readonly string[], isFinal: boolean): Promise<void> => {
-      if (!handlers.onReplyProgress || replyParts.length === 0) return;
-      try {
-        await handlers.onReplyProgress(threadId, turnId, replyParts, isFinal, channelContext);
-      } catch (error) {
-        this.log("reply_progress.threw", () => ({
-          isFinal,
-          error: error instanceof Error ? error.message : String(error),
-          partChars: replyParts.map((part) => part.length),
-          ...snapshotStreamState(),
-        }));
-      }
-    };
-    const deliverSegment = async (
-      segmentText: string,
-      isFinal: boolean,
-      deliveredParts: Array<{ itemId: string | null; text: string }>,
-      clearOrphanOnSuccess: boolean,
-    ): Promise<boolean> => {
-      try {
-        const delivered = await handlers.onSegmentCompleted(threadId, turnId, segmentText, isFinal, channelContext);
-        if (delivered === false) {
-          this.log("segment.delivery_failed", () => ({
-            isFinal,
-            segmentChars: segmentText.length,
-            segmentPreview: previewWireText(segmentText),
-            ...snapshotStreamState(),
-          }));
-          return false;
-        }
-        segmentsWereDelivered = true;
-        for (const part of deliveredParts) {
-          markSegmentDelivered(part.itemId, part.text);
-        }
-        if (clearOrphanOnSuccess) orphanDeltaTail = "";
-        return true;
-      } catch (error) {
-        this.log("segment.delivery_threw", () => ({
-          isFinal,
-          error: error instanceof Error ? error.message : String(error),
-          segmentChars: segmentText.length,
-          segmentPreview: previewWireText(segmentText),
-          ...snapshotStreamState(),
-        }));
-        return false;
-      }
-    };
-
-    const flushPendingSegment = async (): Promise<{ segmentItemId: string | null; segmentText: string }> => {
-      const segmentItemId = activeAgentItemId ?? lastDeltaAgentItemId;
-      let segmentText = "";
-      if (segmentItemId) {
-        const merged = perItemDelta.get(segmentItemId) ?? "";
-        segmentText = getUnsentFromMerged(segmentItemId, merged);
-      } else if (orphanDeltaTail) {
-        segmentText = orphanDeltaTail;
-      }
-      if (segmentText.trim()) {
-        await deliverSegment(
-          segmentText,
-          false,
-          [{ itemId: segmentItemId, text: segmentText }],
-          segmentItemId == null,
-        );
-      }
-      return { segmentItemId, segmentText };
-    };
-    const deliverGeneratedImage = async (item: Record<string, unknown>): Promise<void> => {
-      const image = generatedImageFromItem(item);
-      if (!image || !handlers.onGeneratedImage) return;
-      await flushPendingSegment();
-      try {
-        await handlers.onGeneratedImage(threadId, turnId, image, channelContext);
-      } catch (error) {
-        this.log("generated_image.threw", () => ({
-          itemId: shortWireId(image.itemId),
-          error: error instanceof Error ? error.message : String(error),
-        }));
-      }
-    };
-
-    for await (const event of eventStream) {
-      this.log("event", () => ({
-        method: event.method,
-        threadId: shortWireId(threadId),
-        turnId: shortWireId(turnId),
-        channel: shortWireId(channelContext),
-      }));
-      if (event.method === "item/agentMessage/delta") {
-        const params = (event.params as Record<string, unknown>) ?? {};
-        const delta = String(params.delta ?? "");
-        const explicitItemId = String(params.itemId ?? "");
-        const resolvedItemId: string | null = explicitItemId || activeAgentItemId || lastDeltaAgentItemId || null;
-        if (resolvedItemId) {
-          pushOrder(resolvedItemId);
-          const prev = perItemDelta.get(resolvedItemId) ?? "";
-          perItemDelta.set(resolvedItemId, prev + delta);
-          lastDeltaAgentItemId = resolvedItemId;
-          if (!activeAgentItemId) activeAgentItemId = resolvedItemId;
-        } else {
-          orphanDeltaTail += delta;
-        }
-        this.log("event.item/agentMessage/delta", () => ({
-          explicitItemId: explicitItemId ? shortWireId(explicitItemId) : "(empty)",
-          resolvedItemId: resolvedItemId ? shortWireId(resolvedItemId) : "(orphan)",
-          deltaChars: delta.length,
-          deltaPreview: previewWireText(delta, 120),
-          mergedAfterChars: resolvedItemId ? (perItemDelta.get(resolvedItemId) ?? "").length : orphanDeltaTail.length,
-          ...snapshotStreamState(),
-        }));
-        await notifyReplyProgress(currentReplyParts(), false);
-      } else if (event.method === "item/started") {
-        const params = (event.params as Record<string, unknown>) ?? {};
-        const item = (params.item as Record<string, unknown>) ?? {};
-        const itemType = String(item.type ?? "");
-        const itemId = String(item.id ?? "");
-        if (itemType === "agentMessage" && itemId) {
-          activeAgentItemId = itemId;
-          lastDeltaAgentItemId = itemId;
-          pushOrder(itemId);
-        }
-        if (this.segmentBoundaryPolicy.shouldFlushOnItemStarted(itemType)) {
-          const { segmentItemId, segmentText } = await flushPendingSegment();
-          this.log("event.item/started.flush_segment", () => ({
-            itemType,
-            itemId: itemId ? shortWireId(itemId) : "",
-            flushSegment: true,
-            segmentItemId: segmentItemId ? shortWireId(segmentItemId) : "",
-            segmentChars: segmentText.length,
-            segmentPreview: previewWireText(segmentText),
-            ...snapshotStreamState(),
-          }));
-        } else {
-          this.log("event.item/started", () => ({
-            itemType,
-            itemId: itemId ? shortWireId(itemId) : "",
-            flushSegment: false,
-            ...snapshotStreamState(),
-          }));
-        }
-        await notifyActivity(itemType, "started", itemId);
-      } else if (event.method === "item/completed") {
-        const params = (event.params as Record<string, unknown>) ?? {};
-        const item = (params.item as Record<string, unknown>) ?? {};
-        const itemType = String(item.type ?? "");
-        await notifyActivity(itemType, "completed", String(item.id ?? ""));
-        if (itemType === "imageGeneration") {
-          await deliverGeneratedImage(item);
-          continue;
-        }
-        if (itemType !== "agentMessage") {
-          this.log("event.item/completed.skipped", () => ({
-            itemType,
-            itemId: String(item.id ?? "") ? shortWireId(String(item.id ?? "")) : "",
-            ...snapshotStreamState(),
-          }));
-          continue;
-        }
-        const itemId = String(item.id ?? "");
-        const payload = (item.payload as Record<string, unknown>) ?? {};
-        const snap = typeof payload.text === "string" ? payload.text : "";
-        pushOrder(itemId);
-        const fromD = perItemDelta.get(itemId) ?? "";
-        const canon = mergeReplyTextFromDeltaAndSnapshot(fromD, snap);
-        perItemDelta.set(itemId, canon);
-        if (itemId === activeAgentItemId) {
-          activeAgentItemId = null;
-        }
-        lastDeltaAgentItemId = itemId;
-        this.log("event.item/completed.agentMessage", () => ({
-          itemId: shortWireId(itemId),
-          deltaCharsBeforeMerge: fromD.length,
-          snapshotChars: snap.length,
-          mergedCharsAfter: canon.length,
-          deltaPreview: previewWireText(fromD),
-          snapshotPreview: previewWireText(snap),
-          mergedPreview: previewWireText(canon),
-          ...snapshotStreamState(),
-        }));
-        await notifyReplyProgress(currentReplyParts(), false);
-      } else if (event.method === "turn/completed") {
-        const params = (event.params as Record<string, unknown>) ?? {};
-        const snapshotParts = extractAgentReplyTextPartsFromTurnCompletedParams(params);
-        const snapshots = snapshotParts.map((part) => part.text);
-        const usedDeltaIds = new Set<string>();
-        const finalReplyParts = snapshotParts.length > 0
-          ? snapshotParts.map((snapshot, index) => {
-              const fallbackId = itemOrder[index] ?? "";
-              const deltaId = snapshot.itemId
-                ? (perItemDelta.has(snapshot.itemId) ? snapshot.itemId : "")
-                : fallbackId;
-              if (deltaId) usedDeltaIds.add(deltaId);
-              return mergeReplyTextFromDeltaAndSnapshot(
-                deltaId ? perItemDelta.get(deltaId) ?? "" : "",
-                snapshot.text,
-              );
-            })
-          : itemOrder.map((id) => perItemDelta.get(id) ?? "").filter((text) => text.length > 0);
-        if (snapshotParts.length > 0) {
-          for (const itemId of itemOrder) {
-            const delta = perItemDelta.get(itemId) ?? "";
-            if (delta && !usedDeltaIds.has(itemId)) finalReplyParts.push(delta);
-          }
-        }
-        if (orphanDeltaTail.length > 0 && !finalReplyParts.some((part) => part.includes(orphanDeltaTail))) {
-          finalReplyParts.push(orphanDeltaTail);
-        }
-        await notifyReplyProgress(finalReplyParts, true);
-        const lastSnap = snapshots.length > 0 ? snapshots[snapshots.length - 1] ?? "" : "";
-        const unsentParts: Array<{ itemId: string | null; text: string }> = [];
-        const orphanTailForReply = orphanDeltaTail;
-        for (const itemId of itemOrder) {
-          const tail = getUnsentTail(itemId, "");
-          if (tail.length > 0) unsentParts.push({ itemId, text: tail });
-        }
-        if (orphanDeltaTail.length > 0) {
-          unsentParts.push({ itemId: null, text: orphanDeltaTail });
-        }
-        let segmentText = unsentParts.map((part) => part.text).join("");
-        if (!segmentText.trim() && lastSnap && !segmentsWereDelivered && itemOrder.length === 0) {
-          segmentText = lastSnap;
-        }
-        if (segmentText.trim()) {
-          const deliveredParts = unsentParts.length > 0
-            ? unsentParts
-            : [{ itemId: itemOrder.length > 0 ? itemOrder[itemOrder.length - 1] : null, text: segmentText }];
-          await deliverSegment(segmentText, true, deliveredParts, unsentParts.some((part) => part.itemId == null));
-        }
-        const snapshotText = extractAgentReplyTextFromTurnCompletedParams(params);
-        const deltaText = itemOrder.map((id) => perItemDelta.get(id) ?? "").join("") + orphanTailForReply;
-        const fullReply = mergeReplyTextFromDeltaAndSnapshot(deltaText, snapshotText);
-        this.log("event.turn/completed", () => ({
-          unsentParts: unsentParts.map((p) => ({
-            itemId: p.itemId ? shortWireId(p.itemId) : "(orphan)",
-            chars: p.text.length,
-            preview: previewWireText(p.text),
-          })),
-          finalSegmentChars: segmentText.length,
-          finalSegmentPreview: previewWireText(segmentText),
-          snapshotConcatChars: snapshotText.length,
-          deltaConcatChars: deltaText.length,
-          deltaConcatPreview: previewWireText(deltaText),
-          snapshotConcatPreview: previewWireText(snapshotText),
-          fullReplyChars: fullReply.length,
-          fullReplyPreview: previewWireText(fullReply),
-          segmentsWereDelivered,
-          ...snapshotStreamState(),
-        }));
-        await handlers.onTurnCompleted(threadId, turnId, fullReply, channelContext, segmentsWereDelivered && !hasUnsentText());
-        break;
-      } else if (event.method === "turn/failed") {
-        const err = String(
-          ((event.params as Record<string, unknown>)?.turn as Record<string, unknown>)?.error ??
-            "Unknown error",
-        );
-        this.log("event.turn/failed", () => ({
-          error: previewWireText(err, 500),
-          ...snapshotStreamState(),
-        }));
-        await handlers.onTurnFailed(threadId, turnId, err);
-        break;
-      } else if (event.method === "turn/cancelled") {
-        this.log("event.turn/cancelled", () => snapshotStreamState());
-        await handlers.onTurnCancelled(threadId, turnId);
-        break;
-      }
-    }
-  }
-
-  private log(
-    message: string,
-    data: Record<string, unknown> | (() => Record<string, unknown>),
-  ): void {
-    this.debug?.(message, data);
-  }
-}
-
 export interface ApprovalDispatcherOptions {
   client: ClientProvider;
   onApprovalRequest: (request: Record<string, unknown>) => Promise<string>;
@@ -1122,51 +634,6 @@ export class UserInputDispatcher {
       } catch (error) {
         this.onError("onUserInputRequest raised:", error);
         return emptyUserInputResponse() as never;
-      }
-    });
-  }
-}
-
-export interface DeliveryDispatcherOptions {
-  client: ClientProvider;
-  onSend: (
-    target: string,
-    message: Record<string, unknown>,
-    metadata: Record<string, unknown>,
-  ) => Promise<Record<string, unknown>>;
-  onError?: (message: string, error: unknown) => void;
-}
-
-export class DeliveryDispatcher {
-  private readonly client: ClientProvider;
-  private readonly onSend: (
-    target: string,
-    message: Record<string, unknown>,
-    metadata: Record<string, unknown>,
-  ) => Promise<Record<string, unknown>>;
-  private readonly onError: (message: string, error: unknown) => void;
-
-  constructor(options: DeliveryDispatcherOptions) {
-    this.client = options.client;
-    this.onSend = options.onSend;
-    this.onError = options.onError ?? ((message, error) => console.error(message, error));
-  }
-
-  register(): void {
-    const client = resolveClient(this.client);
-    client.registerServerRequestHandler("ext/channel/send", async (_id, params) => {
-      const target = String(params.target ?? "");
-      const message = (params.message as Record<string, unknown>) ?? {};
-      const metadata = (params.metadata as Record<string, unknown>) ?? {};
-      try {
-        return await this.onSend(target, message, metadata);
-      } catch (error) {
-        this.onError("onSend raised:", error);
-        return {
-          delivered: false,
-          errorCode: "AdapterDeliveryFailed",
-          errorMessage: String(error),
-        };
       }
     });
   }

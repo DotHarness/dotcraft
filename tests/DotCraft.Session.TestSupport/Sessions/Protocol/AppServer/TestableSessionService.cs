@@ -967,7 +967,6 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
             TriggerKind = triggerInfo?.Kind,
             TriggerLabel = triggerInfo?.Label,
             TriggerRefId = triggerInfo?.RefId,
-            DeliveryBindingId = inputSnapshot?.DeliveryBindingId,
             SentAsGoal = inputSnapshot?.SentAsGoal
         };
         thread.QueuedInputs.Add(queued);

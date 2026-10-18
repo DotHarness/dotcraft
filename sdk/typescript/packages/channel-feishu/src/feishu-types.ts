@@ -20,13 +20,6 @@ export interface FeishuConfig {
       /** Feishu user scopes to request; an empty list keeps the CLI on Bot identity only. */
       userScopes?: string[];
     };
-    /** Debug logging to stderr; only keys set to `true` enable tracing. */
-    debug?: {
-      /** Verbose `consumeTurnEventStream` traces (adapter stream). */
-      adapterStream?: boolean;
-      /** Traces inside `mergeReplyTextFromDeltaAndSnapshot`. */
-      textMerge?: boolean;
-    };
   };
 }
 
@@ -100,6 +93,8 @@ export interface FeishuSendResult {
   messageId: string;
   chatId: string;
 }
+
+export type FeishuFileMessageType = "file" | "audio" | "media";
 
 export interface FeishuChatInfo {
   chatMode: string;

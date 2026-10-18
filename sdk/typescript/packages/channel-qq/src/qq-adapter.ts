@@ -18,7 +18,8 @@ import {
   mergeUserInputResponses,
   splitUserInputRequestByQuestion,
   userInputResponseFromText,
-  type ChannelToolDescriptor,
+  type ChannelChatDescriptor,
+  type ChannelDeliveryCapabilities,
   type ChannelAdapterMessageOpts,
   type UserInputResponse,
   type WorkspaceContext,
@@ -35,7 +36,7 @@ import {
   textSegment,
   type OneBotMessageEvent,
 } from "./onebot.js";
-import { QQMediaError, QQMediaTools } from "./qq-media-tools.js";
+import { qqDeliveryCapabilities, sendQQMessage } from "./qq-send.js";
 import type { QQConfig } from "./qq-config.js";
 import { QQPermissionService, normalizeIds } from "./permission.js";
 import { channelContextForQQEvent, parseQQTarget } from "./target.js";
@@ -89,7 +90,6 @@ export function validateQQConfig(rawConfig: unknown): asserts rawConfig is QQCon
 export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
   private oneBot: OneBotReverseWsServer | null = null;
   private permission = new QQPermissionService({});
-  private readonly mediaTools = new QQMediaTools();
   private readonly threadContextMap = new Map<string, string>();
   private readonly lastSenderByContext = new Map<string, string>();
   private readonly approvalReplies = new ApprovalReplyTracker({
@@ -127,12 +127,20 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     });
   }
 
-  protected override getDeliveryCapabilities(): Record<string, unknown> | null {
-    return this.mediaTools.getDeliveryCapabilities();
+  protected override getDisplayName(): string {
+    return "QQ";
   }
 
-  protected override getChannelTools(): ChannelToolDescriptor[] | null {
-    return this.mediaTools.getChannelTools();
+  protected override getDeliveryCapabilities(): ChannelDeliveryCapabilities {
+    return qqDeliveryCapabilities();
+  }
+
+  protected override getChatDescriptor(opts: ChannelAdapterMessageOpts, channelContext: string): ChannelChatDescriptor {
+    if (parseQQTarget(channelContext)?.kind === "group") {
+      return { kind: "group", membership: "shared" };
+    }
+    const label = opts.userName.trim();
+    return label ? { kind: "direct", label, membership: "shared" } : { kind: "direct", membership: "shared" };
   }
 
   protected override buildChannelTarget(
@@ -218,11 +226,8 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
   }
 
   override async onDeliver(target: string, content: string, _metadata: Record<string, unknown>): Promise<boolean> {
-    const result = await this.mediaTools.sendStructuredMessage(this.requireOneBot(), target, {
-      kind: "text",
-      text: content,
-    });
-    return Boolean(result.delivered);
+    const result = await sendQQMessage(this.requireOneBot(), target, { kind: "text", text: content });
+    return result.delivered;
   }
 
   protected override async onSend(
@@ -230,37 +235,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     message: Record<string, unknown>,
     _metadata: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    try {
-      return await this.mediaTools.sendStructuredMessage(this.requireOneBot(), target, message);
-    } catch (error) {
-      if (error instanceof QQMediaError) {
-        return { delivered: false, errorCode: error.code, errorMessage: error.message };
-      }
-      return {
-        delivered: false,
-        errorCode: "AdapterDeliveryFailed",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-
-  protected override async onToolCall(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    try {
-      return await this.mediaTools.executeToolCall(
-        this.requireOneBot(),
-        String(request.tool ?? ""),
-        asRecord(request.arguments),
-      );
-    } catch (error) {
-      if (error instanceof QQMediaError) {
-        return { success: false, errorCode: error.code, errorMessage: error.message };
-      }
-      return {
-        success: false,
-        errorCode: "AdapterToolCallFailed",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      };
-    }
+    return await sendQQMessage(this.requireOneBot(), target, message);
   }
 
   override async onApprovalRequest(request: Record<string, unknown>): Promise<string> {
@@ -388,33 +363,6 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     }
   }
 
-  protected override async onSegmentCompleted(
-    _threadId: string,
-    _turnId: string,
-    segmentText: string,
-    _isFinal: boolean,
-    channelContext: string,
-  ): Promise<void> {
-    if (!segmentText.trim()) return;
-    await this.onDeliver(channelContext, segmentText, {});
-  }
-
-  protected override async onTurnCompleted(
-    _threadId: string,
-    _turnId: string,
-    replyText: string,
-    channelContext: string,
-    segmentsWereDelivered: boolean,
-  ): Promise<void> {
-    if (!segmentsWereDelivered && replyText) {
-      await this.onDeliver(channelContext, replyText, {});
-    }
-  }
-
-  protected override async onTurnFailed(threadId: string, turnId: string, error: string): Promise<void> {
-    console.error(`[qq] turn ${turnId} failed on thread ${threadId}: ${error}`);
-  }
-
   private async handleOneBotMessage(evt: OneBotMessageEvent): Promise<void> {
     const isGroup = evt.message_type === "group";
     const groupId = evt.group_id;
@@ -425,6 +373,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     const senderId = String(evt.user_id);
     const channelContext = channelContextForQQEvent(isGroup, groupId, evt.user_id);
     const threadUserId = isGroup ? channelContext : senderId;
+    const directTarget = `user:${senderId}`;
     const senderName = getSenderName(evt);
     const rawText = getPlainText(evt.message).trim();
 
@@ -467,6 +416,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
         channelContext,
         sender: senderContext,
         omitSenderGroupId: !isGroup,
+        directTarget,
       });
       return;
     }
@@ -485,6 +435,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
       channelContext,
       sender: senderContext,
       omitSenderGroupId: !isGroup,
+      directTarget,
       inputParts: inputParts.length > 0 ? inputParts : undefined,
     });
   }

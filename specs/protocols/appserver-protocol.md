@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.8.10 |
 | **Status** | Living |
-| **Date** | 2026-10-17 |
+| **Date** | 2026-10-18 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
 
@@ -216,15 +216,21 @@ Client                              Server
 | Field | Type | Description |
 |-------|------|-------------|
 | `channelName` | string | Canonical external channel name (for example `telegram`, `feishu`). |
-| `deliveryCapabilities` | object | Structured delivery capability descriptor for the remote backend. |
+| `displayName` | string | The platform's product name, for example `Telegram`. Shown to the model and in clients. |
+| `deliveryCapabilities` | object | What the adapter's `ext/channel/send` accepts. Every adapter serves `ext/channel/send`. |
 | `channelTools` | array | Optional channel tool descriptors declared by the adapter during `initialize`. These descriptors are the wire projection of the unified channel tool model. |
 
 **`deliveryCapabilities` object**:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `structuredDelivery` | boolean | Whether the adapter can receive `ext/channel/send`. |
-| `media` | object | Optional media capability map keyed by delivery kind (`file`, `audio`, `image`, `video`). |
+| `text` | object | How the platform renders text: `{ format: "plain" \| "markdown" }`. |
+| `targets` | object | Which chats other than a thread's bound chat the adapter can reach: `{ group: boolean, direct: "any" \| "knownOnly" \| "none" }`. |
+| `media` | object | Optional media capability map keyed by delivery kind (`file`, `audio`, `image`, `video`). An absent kind is unsupported. |
+
+`text.format` is `plain` when the platform shows text as written and `markdown` when the sender writes Markdown and the platform renders it, natively or after the adapter converts it to the platform's own format. The adapter splits text too long for one platform message.
+
+`targets.group` says whether the adapter can send to a group other than the bound chat. `targets.direct` is `any` when it can open a direct chat with any user, `knownOnly` when only users who have messaged the bot are reachable, and `none` otherwise. Capabilities are fixed for the lifetime of the connection.
 
 Each media capability entry supports:
 
@@ -365,6 +371,7 @@ Create a new thread. The server generates a Thread ID and persists initial state
 | `config` | ThreadConfiguration | no | Per-thread agent configuration. Null means workspace defaults. |
 | `dynamicTools` | DynamicToolDeclaration[] | no | Thread-scoped Runtime Dynamic Function/Namespace declarations implemented by the AppServer client. |
 | `additionalContext` | RuntimeAdditionalContext | no | Thread-bound runtime context supplied by the AppServer client. Requires `capabilities.runtimeAdditionalContext`. |
+| `chat` | ChannelChat | no | The chat this thread speaks to. Accepted only from a channel adapter connection. See [Section 4.1.0.3](#4103-channel-chat). |
 | `historyMode` | string | no | `"server"` (default) or `"client"`. |
 | `displayName` | string | no | Explicit thread display name. |
 | `ephemeral` | boolean | no | When true, create a process-local thread that is never persisted, omitted from `thread/list` and `thread/search`, and hidden (Section 6.1). It runs turns like any thread and ends when it is deleted or the server process exits. Defaults to false. |
@@ -445,6 +452,26 @@ Rules:
 - `value` is required, model-visible text with a maximum length of 16 KiB.
 - Runtime additional context is bound to the requesting client runtime for the thread. It does not create Turns, Items, thread rollout records, or `ThreadConfiguration` updates.
 - The server renders each entry inside `<app-context>...</app-context>` in a System prompt section. Clients must not rely on a separate developer role being available.
+
+#### 4.1.0.3 Channel Chat
+
+`chat` describes the chat a channel adapter's thread speaks to. Its delivery target is the thread's `channelContext`; see [Channel Messaging](../features/channel-messaging.md) §4.
+
+```json
+{ "kind": "group", "label": "Release team", "membership": "shared" }
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `kind` | string | yes | `"direct"`, `"group"`, or `"topic"`. |
+| `label` | string | no | The chat's display name. |
+| `membership` | string | yes | `"shared"` when every forwarded member's messages arrive in the thread; `"sender"` when the thread holds one sender's messages in that chat. |
+
+Rules:
+
+- A request from a connection without `capabilities.channelAdapter` that carries `chat` fails with `InvalidParams`.
+- The chat is bound to the requesting connection in memory, like runtime additional context. It is not persisted and does not create Turns, Items, or `ThreadConfiguration` updates. The binding ends when the connection closes; the adapter sends `chat` again when it next starts or resumes the thread.
+- `thread/resume` without `chat` keeps the existing binding.
 
 #### 4.1.1 `ThreadConfiguration` Wire Shape
 
@@ -605,6 +632,7 @@ Resume an active thread. Session Core loads the thread from persistence and reco
 | `threadId` | string | yes | Thread ID to resume. |
 | `dynamicTools` | DynamicToolDeclaration[] | no | Runtime Dynamic replacement operation. Omitted means no change only for the current owner generation; `[]` clears when authorized; a non-empty array atomically replaces/takes over when authorized. Requires `capabilities.dynamicToolRebind`. |
 | `additionalContext` | RuntimeAdditionalContext | no | Replacement runtime additional context bound to this resume request's client connection. Requires `capabilities.runtimeAdditionalContext`. Omitted keeps the existing binding; `{}` clears it. |
+| `chat` | ChannelChat | no | Replacement chat binding from a channel adapter connection. See [Section 4.1.0.3](#4103-channel-chat). |
 
 **Result**: `{ "thread": Thread, "instructionSources": string[] }` — the resumed thread object and the ordered absolute logical paths used by its stable project-instruction snapshot.
 
@@ -1372,9 +1400,12 @@ Queued-input materialization never dereferences an image URL. A persisted inline
   "senderId": "user-456",
   "senderName": "Alice",
   "senderRole": "admin",
-  "groupId": "group-123"
+  "groupId": "group-123",
+  "directTarget": "user:456"
 }
 ```
+
+`directTarget` is optional. It is the sender's direct chat in the adapter's `ext/channel/send` target syntax, without a channel prefix. When present, the Turn's runtime reminder states `SenderAddress: <channelName>:<directTarget>`.
 
 The server records two separate provenance fields:
 
@@ -2472,11 +2503,11 @@ The turn enters `"waitingApproval"` status while the request is pending. The req
 | `turnId` | string | Active turn. |
 | `itemId` | string | The `approvalRequest` item ID. |
 | `requestId` | string | Unique correlation ID for this approval. |
-| `approvalType` | string | `"shell"`, `"file"`, `"computerUse"`, or another resource kind contributed by a tool. |
-| `operation` | string | For shell: the command. For file: `"read"`, `"write"`, `"edit"`, `"list"`. |
-| `target` | string | For shell: working directory. For file: the file path. For computerUse: the target application identity reported by the client backend. |
+| `approvalType` | string | `"shell"`, `"file"`, `"computerUse"`, `"channelMessage"`, or another resource kind contributed by a tool. |
+| `operation` | string | For shell: the command. For file: `"read"`, `"write"`, `"edit"`, `"list"`. For channelMessage: `"send"`. |
+| `target` | string | For shell: working directory. For file: the file path. For computerUse: the target application identity reported by the client backend. For channelMessage: the chat address `<channelName>:<target>`. |
 | `targetLabel` | string? | Optional display label for `target`, for example an application's display name. |
-| `scopeKey` | string | Session-scoped cache key used when the client returns `acceptForSession`. |
+| `scopeKey` | string | Session-scoped cache key used when the client returns `acceptForSession`. For channelMessage it is `"channelmessage:send:" + target`, so `acceptForSession` covers later sends to the same address. |
 | `reason` | string | Human-readable explanation of why approval is needed. |
 | `shell` | object? | Present for `approvalType = "shell"`: `{ reasons: string[], rememberedPrefixes: string[][], remembersExactCommand }` as defined by [Shell Command Safety](../architecture/shell-command-safety.md) Section 9. `scopeKey` is `"shell:" + approvalKey`, so `acceptForSession` covers only this command, shell, and directory. |
 
@@ -2811,11 +2842,11 @@ The external channel adapter integration uses **server → client** JSON-RPC req
 
 Capability negotiation happens during `initialize` via `capabilities.channelAdapter`:
 
-- `deliveryCapabilities.structuredDelivery = true` means the adapter implements the unified delivery contract through `ext/channel/send`.
+- every adapter implements the unified delivery contract through `ext/channel/send`; `deliveryCapabilities` describes what it accepts.
 - media entries under `deliveryCapabilities.media` describe which `message.kind` values the remote backend accepts and which source forms are allowed.
 - `channelTools` declares the channel-scoped tools that may be injected into matching-origin threads for the lifetime of the connection.
 - adapter-declared tools are validated and registered once per connection; later thread-level tool construction only filters visibility for the matching origin channel and current reserved names.
-- each injected runtime binding retains the exact initialized connection that declared it. Disconnect or replacement revokes dispatch immediately; an invocation from an older Turn snapshot must not be routed through a newer connection.
+- each injected runtime binding retains the exact initialized connection that declared it. Disconnect or replacement revokes dispatch immediately; an invocation from an older Turn snapshot must not be routed through a newer connection. While no connection is attached, the last connection's declarations stay visible in thread tool lists and fail dispatch as unavailable.
 
 #### 11.2.1 `ext/channel/send`
 
@@ -2828,6 +2859,7 @@ Structured delivery path for text and media payloads.
 ```json
 {
   "target": "group:12345",
+  "deliveryId": "5b0c6f1e9a2d4c3b8e7f6a5d4c3b2a19",
   "message": {
     "kind": "file",
     "caption": "Latest report",
@@ -2843,6 +2875,8 @@ Structured delivery path for text and media payloads.
   }
 }
 ```
+
+`deliveryId` is a required string that identifies this delivery. The adapter treats a repeated `deliveryId` as already delivered: it does not post again and returns the result of the first delivery. Remembering recent ids in memory is sufficient. The server derives the id of a `SendChannelMessage` part from the Turn, the tool call, and the part's index, so a retried call does not post twice; other deliveries carry a fresh id.
 
 `message.kind` values:
 
@@ -2886,6 +2920,7 @@ Adapters must treat `source.kind` as authoritative and ignore unrelated source f
 When `delivered` is `false`, `errorCode` should use a stable string when possible. Standard protocol-level values:
 
 - `UnsupportedDeliveryKind`
+- `UnsupportedTarget` (the adapter cannot reach `target`, or `target` is not in its syntax)
 - `UnsupportedMediaSource`
 - `MediaTooLarge`
 - `MediaTypeNotAllowed`
@@ -2894,7 +2929,7 @@ When `delivered` is `false`, `errorCode` should use a stable string when possibl
 - `AdapterDeliveryFailed`
 - `AdapterProtocolViolation`
 
-Adapters advertise `deliveryCapabilities.structuredDelivery = true` to receive delivery requests. If a media kind advertises `maxBytes`, the server rejects sources it cannot validate against that limit, including remote URLs it does not fetch for inspection.
+If a media kind advertises `maxBytes`, the server rejects sources it cannot validate against that limit, including remote URLs it does not fetch for inspection.
 
 #### 11.2.2 `ext/channel/toolCall`
 
@@ -2909,12 +2944,12 @@ Structured runtime tool invocation for adapter-declared channel tools.
   "threadId": "thread_001",
   "turnId": "turn_002",
   "callId": "exttool_001",
-  "tool": "TelegramSendDocumentToCurrentChat",
+  "tool": "CreateCalendarEvent",
   "arguments": {
-    "fileName": "report.pdf"
+    "title": "Weekly sync"
   },
   "context": {
-    "channelName": "telegram",
+    "channelName": "example",
     "channelContext": "-1001234567890",
     "senderId": "user_42",
     "groupId": "-1001234567890"
@@ -2928,11 +2963,10 @@ Structured runtime tool invocation for adapter-declared channel tools.
 {
   "success": true,
   "contentItems": [
-    { "type": "text", "text": "Sent report.pdf to the current chat." }
+    { "type": "text", "text": "Created the event Weekly sync." }
   ],
   "structuredContent": {
-    "delivered": true,
-    "fileName": "report.pdf"
+    "eventId": "evt_001"
   }
 }
 ```

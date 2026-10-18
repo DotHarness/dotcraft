@@ -17,14 +17,6 @@ export const configGroups: ConfigGroupDescriptor[] = [
       es: "Avanzado", fr: "Avancé", de: "Erweitert",
     },
   },
-  {
-    id: "debug",
-    displayLabel: "Debug",
-    localizedDisplayLabel: {
-      en: "Debug", "zh-Hans": "调试", ja: "デバッグ", ko: "디버그",
-      es: "Depuración", fr: "Débogage", de: "Debug",
-    },
-  },
 ];
 
 export const configDescriptors: ConfigDescriptor[] = [
@@ -262,43 +254,5 @@ export const configDescriptors: ConfigDescriptor[] = [
     interactiveSetupOnly: false,
     group: "configuration",
     defaultValue: [],
-  },
-  {
-    key: "feishu.debug.adapterStream",
-    displayLabel: "Debug Adapter Stream",
-    description: "Enable detailed adapter stream diagnostics.",
-    localizedDisplayLabel: {
-      en: "Debug Adapter Stream",
-      "zh-Hans": "调试适配器流",
-    },
-    localizedDescription: {
-      en: "Enable detailed adapter stream diagnostics.",
-      "zh-Hans": "启用详细的适配器流诊断日志。",
-    },
-    required: false,
-    dataKind: "boolean",
-    masked: false,
-    interactiveSetupOnly: false,
-    group: "debug",
-    defaultValue: false,
-  },
-  {
-    key: "feishu.debug.textMerge",
-    displayLabel: "Debug Text Merge",
-    description: "Enable transcript merge debug logs.",
-    localizedDisplayLabel: {
-      en: "Debug Text Merge",
-      "zh-Hans": "调试文本合并",
-    },
-    localizedDescription: {
-      en: "Enable transcript merge debug logs.",
-      "zh-Hans": "启用回复文本合并的调试日志。",
-    },
-    required: false,
-    dataKind: "boolean",
-    masked: false,
-    interactiveSetupOnly: false,
-    group: "debug",
-    defaultValue: false,
   },
 ];

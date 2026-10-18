@@ -25,4 +25,6 @@ public sealed record SenderContext
     /// Group or chat ID for group sessions. Null for direct/private sessions.
     /// </summary>
     public string? GroupId { get; init; }
+
+    public string? DirectTarget { get; init; }
 }

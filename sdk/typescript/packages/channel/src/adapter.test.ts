@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ChannelAdapter, type ChannelAdapterMessageOpts } from "./adapter.js";
+import type { ChannelChatDescriptor, ChannelDeliveryCapabilities } from "./capability.js";
 import type { SessionThread, SessionTurn } from "@dotcraft/sdk/contracts";
 import { makeThread, makeTurn } from "./test-contract-fixtures.js";
-import { shouldFlushSegmentOnItemStarted } from "./segmentBoundaries.js";
 import type { Transport } from "@dotcraft/sdk/wire";
 
 class NoopTransport implements Transport {
@@ -30,11 +30,8 @@ async function withTimeout<T>(promise: Promise<T>, message: string, ms = 1000): 
 }
 
 class RecordingAdapter extends ChannelAdapter {
-  readonly segments: Array<{ text: string; isFinal: boolean; channelContext: string }> = [];
   readonly deliveries: Array<{ target: string; content: string; metadata: Record<string, unknown> }> = [];
   deliveryError: Error | null = null;
-  /** Full-reply deliveries only (mirrors base ChannelAdapter: skipped when segments already sent). */
-  readonly completedReplies: string[] = [];
 
   constructor() {
     super(new NoopTransport(), "test-channel", "test-client", "0.0.0");
@@ -50,25 +47,16 @@ class RecordingAdapter extends ChannelAdapter {
     return "cancel";
   }
 
-  protected override async onSegmentCompleted(
-    _threadId: string,
-    _turnId: string,
-    segmentText: string,
-    isFinal: boolean,
-    channelContext: string,
-  ): Promise<void> {
-    this.segments.push({ text: segmentText, isFinal, channelContext });
+  protected getDisplayName(): string {
+    return "Test";
   }
 
-  protected override async onTurnCompleted(
-    _threadId: string,
-    _turnId: string,
-    replyText: string,
-    _channelContext: string,
-    segmentsWereDelivered: boolean,
-  ): Promise<void> {
-    await super.onTurnCompleted(_threadId, _turnId, replyText, _channelContext, segmentsWereDelivered);
-    if (!segmentsWereDelivered && replyText) this.completedReplies.push(replyText);
+  protected getDeliveryCapabilities(): ChannelDeliveryCapabilities {
+    return { text: { format: "plain" }, targets: { group: false, direct: "none" } };
+  }
+
+  protected getChatDescriptor(): ChannelChatDescriptor {
+    return { kind: "direct", membership: "shared" };
   }
 }
 
@@ -92,11 +80,6 @@ class ChannelRecordingAdapter extends RecordingAdapter {
     };
   }
 }
-
-test("should flush segments for tool calls", () => {
-  assert.equal(shouldFlushSegmentOnItemStarted("toolCall"), true);
-  assert.equal(shouldFlushSegmentOnItemStarted("agentMessage"), false);
-});
 
 test("ChannelAdapter parses numeric channel bind codes", () => {
   const adapter = new ChannelRecordingAdapter();
@@ -136,33 +119,6 @@ test("processMessage reports one generic failure when turn startup fails", async
   assert.equal(adapter.deliveries[0]?.content.includes(diagnostic), false);
 });
 
-test("processMessage does not report startup failure after a turn id is returned", async () => {
-  const adapter = new RecordingAdapter();
-  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
-
-  (adapter as unknown as {
-    getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
-  }).getOrCreateThread = async () => makeThread("thread-1", "active");
-  client.turnStart = async () => makeTurn("turn-1", "thread-1", "running");
-  client.streamEvents = () => (async function* () {
-    throw new Error("stream failed after turn start");
-  })();
-
-  await assert.rejects(
-    (adapter as unknown as {
-      processMessage: (identityKey: string, opts: ChannelAdapterMessageOpts) => Promise<void>;
-    }).processMessage("user-1:chat-1", {
-      userId: "user-1",
-      userName: "Tester",
-      text: "hello",
-      channelContext: "chat-1",
-    }),
-    /stream failed after turn start/,
-  );
-
-  assert.deepEqual(adapter.deliveries, []);
-});
-
 test("failure notification delivery errors preserve the original startup failure", async () => {
   const adapter = new RecordingAdapter();
   adapter.deliveryError = new Error("platform send unavailable");
@@ -182,66 +138,6 @@ test("failure notification delivery errors preserve the original startup failure
     /startup failed/,
   );
   assert.deepEqual(adapter.deliveries, []);
-});
-
-test("ChannelAdapter flushes the current segment before tool calls", async () => {
-  const adapter = new RecordingAdapter();
-  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
-
-  (adapter as unknown as {
-    getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
-  }).getOrCreateThread = async () => makeThread("thread-1", "active");
-
-  client.turnStart = async () => makeTurn("turn-1", "thread-1", "running");
-  client.streamEvents = () =>
-    (async function* () {
-      yield {
-        method: "item/agentMessage/delta",
-        params: { threadId: "thread-1", itemId: "item-a", delta: "before " },
-      };
-      yield {
-        method: "item/started",
-        params: {
-          threadId: "thread-1",
-          item: { type: "toolCall", id: "tool-1" },
-        },
-      };
-      yield {
-        method: "item/agentMessage/delta",
-        params: { threadId: "thread-1", itemId: "item-b", delta: "after" },
-      };
-      yield {
-        method: "turn/completed",
-        params: {
-          threadId: "thread-1",
-          turn: {
-            items: [
-              { type: "agentMessage", id: "item-a", payload: { text: "before " } },
-              { type: "agentMessage", id: "item-b", payload: { text: "after" } },
-            ],
-          },
-        },
-      };
-    })();
-
-  await (adapter as unknown as {
-    processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void>;
-  }).processMessage("user-1:chat-1", {
-    userId: "user-1",
-    userName: "Tester",
-    text: "hello",
-    channelContext: "chat-1",
-  });
-
-  assert.deepEqual(adapter.segments, [
-    { text: "before ", isFinal: false, channelContext: "chat-1" },
-    { text: "after", isFinal: true, channelContext: "chat-1" },
-  ]);
-  assert.deepEqual(
-    adapter.completedReplies,
-    [],
-    "full merged reply must not be delivered again when segments were already sent",
-  );
 });
 
 test("processMessage enqueues bound channel input instead of streaming a turn", async () => {
@@ -329,7 +225,7 @@ test("processMessage falls back to normal channel routing for unbound channel in
     getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
   }).getOrCreateThread = async (...args: unknown[]) => {
     getOrCreateCalls += 1;
-    assert.deepEqual(args, ["u:group-123", "u", "group-123", ""]);
+    assert.deepEqual(args, ["u:group-123", "u", "group-123", "", { kind: "direct", membership: "shared" }]);
     return makeThread("thread-unbound-1", "active");
   };
   client.turnStart = async (threadId: unknown, input: unknown, sender: unknown) => {
@@ -582,448 +478,6 @@ test("ChannelAdapter lets explicit sender override thread identity and omit impl
   });
 });
 
-test("item/completed reconciles truncated deltas before turn/completed", async () => {
-  const adapter = new RecordingAdapter();
-  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
-
-  (adapter as unknown as {
-    getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
-  }).getOrCreateThread = async () => makeThread("thread-1", "active");
-
-  client.turnStart = async () => makeTurn("turn-1", "thread-1", "running");
-  client.streamEvents = () =>
-    (async function* () {
-      yield {
-        method: "item/agentMessage/delta",
-        params: { threadId: "thread-1", itemId: "m1", delta: "hel" },
-      };
-      yield {
-        method: "item/completed",
-        params: {
-          threadId: "thread-1",
-          item: {
-            id: "m1",
-            type: "agentMessage",
-            status: "completed",
-            payload: { text: "hello world" },
-          },
-        },
-      };
-      yield {
-        method: "turn/completed",
-        params: {
-          threadId: "thread-1",
-          turn: {
-            items: [{ type: "agentMessage", payload: { text: "hello world" } }],
-          },
-        },
-      };
-    })();
-
-  await (adapter as unknown as {
-    processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void>;
-  }).processMessage("u:c", {
-    userId: "u",
-    userName: "t",
-    text: "hi",
-    channelContext: "c",
-  });
-
-  assert.deepEqual(adapter.segments, [{ text: "hello world", isFinal: true, channelContext: "c" }]);
-  assert.deepEqual(adapter.completedReplies, []);
-});
-
-test("approval-gated external tool call keeps final segment as unsent tail only", async () => {
-  const adapter = new RecordingAdapter();
-  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
-
-  (adapter as unknown as {
-    getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
-  }).getOrCreateThread = async () => makeThread("thread-1", "active");
-
-  client.turnStart = async () => makeTurn("turn-1", "thread-1", "running");
-  client.streamEvents = () =>
-    (async function* () {
-      yield {
-        method: "item/started",
-        params: {
-          threadId: "thread-1",
-          item: { id: "agent-1", type: "agentMessage" },
-        },
-      };
-      yield {
-        method: "item/agentMessage/delta",
-        params: { threadId: "thread-1", itemId: "agent-1", delta: "part-a " },
-      };
-      yield {
-        method: "item/started",
-        params: {
-          threadId: "thread-1",
-          item: { id: "tool-1", type: "toolCall" },
-        },
-      };
-      yield {
-        method: "item/completed",
-        params: {
-          threadId: "thread-1",
-          item: { id: "tool-1", type: "toolCall", status: "completed" },
-        },
-      };
-      yield {
-        method: "item/agentMessage/delta",
-        params: { threadId: "thread-1", itemId: "agent-1", delta: "part-b " },
-      };
-      yield {
-        method: "item/started",
-        params: {
-          threadId: "thread-1",
-          item: { id: "ext-tool", type: "toolCall" },
-        },
-      };
-      yield {
-        method: "item/approval/resolved",
-        params: {
-          threadId: "thread-1",
-          turnId: "turn-1",
-          item: { id: "approval-response", type: "approvalResponse", status: "completed" },
-        },
-      };
-      yield {
-        method: "item/completed",
-        params: {
-          threadId: "thread-1",
-          item: { id: "ext-tool", type: "toolCall", status: "completed" },
-        },
-      };
-      yield {
-        method: "item/agentMessage/delta",
-        params: { threadId: "thread-1", itemId: "agent-1", delta: "part-c" },
-      };
-      // This completion arrives before turn/completed in real traces.
-      yield {
-        method: "item/completed",
-        params: {
-          threadId: "thread-1",
-          item: {
-            id: "agent-1",
-            type: "agentMessage",
-            status: "completed",
-            payload: { text: "part-a part-b part-c" },
-          },
-        },
-      };
-      yield {
-        method: "turn/completed",
-        params: {
-          threadId: "thread-1",
-          turn: {
-            items: [{ id: "agent-1", type: "agentMessage", payload: { text: "part-a part-b part-c" } }],
-          },
-        },
-      };
-    })();
-
-  await (adapter as unknown as {
-    processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void>;
-  }).processMessage("u:c", {
-    userId: "u",
-    userName: "t",
-    text: "hi",
-    channelContext: "c",
-  });
-
-  assert.deepEqual(adapter.segments, [
-    { text: "part-a ", isFinal: false, channelContext: "c" },
-    { text: "part-b ", isFinal: false, channelContext: "c" },
-    { text: "part-c", isFinal: true, channelContext: "c" },
-  ]);
-  assert.deepEqual(adapter.completedReplies, []);
-});
-
-test("two approvals and file-send style flow preserves ordered unsent transcript tails", async () => {
-  const adapter = new RecordingAdapter();
-  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
-
-  (adapter as unknown as {
-    getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
-  }).getOrCreateThread = async () => makeThread("thread-1", "active");
-
-  client.turnStart = async () => makeTurn("turn-1", "thread-1", "running");
-  client.streamEvents = () =>
-    (async function* () {
-      yield { method: "item/started", params: { threadId: "thread-1", item: { id: "item-007", type: "agentMessage" } } };
-      yield {
-        method: "item/agentMessage/delta",
-        params: { threadId: "thread-1", itemId: "item-007", delta: "text-before-second-approval " },
-      };
-      yield { method: "item/started", params: { threadId: "thread-1", item: { id: "item-008", type: "toolCall" } } };
-      yield { method: "item/completed", params: { threadId: "thread-1", item: { id: "item-008", type: "toolCall" } } };
-      yield {
-        method: "item/completed",
-        params: {
-          threadId: "thread-1",
-          item: {
-            id: "item-007",
-            type: "agentMessage",
-            payload: { text: "text-before-second-approval " },
-          },
-        },
-      };
-      yield {
-        method: "item/started",
-        params: { threadId: "thread-1", item: { id: "item-009", type: "toolCall" } },
-      };
-      yield {
-        method: "item/started",
-        params: { threadId: "thread-1", item: { id: "item-010", type: "approvalRequest" } },
-      };
-      yield {
-        method: "item/completed",
-        params: { threadId: "thread-1", item: { id: "item-010", type: "approvalRequest" } },
-      };
-      yield {
-        method: "item/approval/resolved",
-        params: {
-          threadId: "thread-1",
-          turnId: "turn-1",
-          item: { id: "item-011", type: "approvalResponse", status: "completed" },
-        },
-      };
-      yield {
-        method: "item/completed",
-        params: { threadId: "thread-1", item: { id: "item-009", type: "toolCall" } },
-      };
-      yield { method: "item/started", params: { threadId: "thread-1", item: { id: "item-013", type: "agentMessage" } } };
-      yield {
-        method: "item/agentMessage/delta",
-        params: { threadId: "thread-1", itemId: "item-013", delta: "text-after-file-send" },
-      };
-      yield {
-        method: "item/completed",
-        params: {
-          threadId: "thread-1",
-          item: {
-            id: "item-013",
-            type: "agentMessage",
-            payload: { text: "text-after-file-send" },
-          },
-        },
-      };
-      yield {
-        method: "turn/completed",
-        params: {
-          threadId: "thread-1",
-          turn: {
-            items: [
-              { id: "item-007", type: "agentMessage", payload: { text: "text-before-second-approval " } },
-              { id: "item-013", type: "agentMessage", payload: { text: "text-after-file-send" } },
-            ],
-          },
-        },
-      };
-    })();
-
-  await (adapter as unknown as {
-    processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void>;
-  }).processMessage("u:c", {
-    userId: "u",
-    userName: "t",
-    text: "hi",
-    channelContext: "c",
-  });
-
-  assert.deepEqual(adapter.segments, [
-    { text: "text-before-second-approval ", isFinal: false, channelContext: "c" },
-    { text: "text-after-file-send", isFinal: true, channelContext: "c" },
-  ]);
-  assert.deepEqual(adapter.completedReplies, []);
-});
-
-test("multiple agentMessage items preserve remaining tails on turn completion", async () => {
-  const adapter = new RecordingAdapter();
-  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
-
-  (adapter as unknown as {
-    getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
-  }).getOrCreateThread = async () => makeThread("thread-1", "active");
-
-  client.turnStart = async () => makeTurn("turn-1", "thread-1", "running");
-  client.streamEvents = () =>
-    (async function* () {
-      yield { method: "item/started", params: { threadId: "thread-1", item: { id: "a1", type: "agentMessage" } } };
-      yield { method: "item/agentMessage/delta", params: { threadId: "thread-1", itemId: "a1", delta: "first " } };
-      yield { method: "item/completed", params: { threadId: "thread-1", item: { id: "a1", type: "agentMessage", payload: { text: "first " } } } };
-      yield { method: "item/started", params: { threadId: "thread-1", item: { id: "a2", type: "agentMessage" } } };
-      yield { method: "item/agentMessage/delta", params: { threadId: "thread-1", itemId: "a2", delta: "second" } };
-      yield {
-        method: "turn/completed",
-        params: {
-          threadId: "thread-1",
-          turn: {
-            items: [
-              { id: "a1", type: "agentMessage", payload: { text: "first " } },
-              { id: "a2", type: "agentMessage", payload: { text: "second" } },
-            ],
-          },
-        },
-      };
-    })();
-
-  await (adapter as unknown as {
-    processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void>;
-  }).processMessage("u:c", {
-    userId: "u",
-    userName: "t",
-    text: "hi",
-    channelContext: "c",
-  });
-
-  assert.deepEqual(adapter.segments, [{ text: "first second", isFinal: true, channelContext: "c" }]);
-  assert.deepEqual(adapter.completedReplies, []);
-});
-
-test("delta without itemId is attributed to active agent item", async () => {
-  const adapter = new RecordingAdapter();
-  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
-
-  (adapter as unknown as {
-    getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
-  }).getOrCreateThread = async () => makeThread("thread-1", "active");
-
-  client.turnStart = async () => makeTurn("turn-1", "thread-1", "running");
-  client.streamEvents = () =>
-    (async function* () {
-      yield { method: "item/started", params: { threadId: "thread-1", item: { id: "a1", type: "agentMessage" } } };
-      yield { method: "item/agentMessage/delta", params: { threadId: "thread-1", delta: "tail-without-id" } };
-      yield { method: "item/started", params: { threadId: "thread-1", item: { id: "tool-1", type: "toolCall" } } };
-      yield {
-        method: "turn/completed",
-        params: {
-          threadId: "thread-1",
-          turn: {
-            items: [{ id: "a1", type: "agentMessage", payload: { text: "tail-without-id" } }],
-          },
-        },
-      };
-    })();
-
-  await (adapter as unknown as {
-    processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void>;
-  }).processMessage("u:c", {
-    userId: "u",
-    userName: "t",
-    text: "hi",
-    channelContext: "c",
-  });
-
-  assert.deepEqual(adapter.segments, [{ text: "tail-without-id", isFinal: false, channelContext: "c" }]);
-  assert.deepEqual(adapter.completedReplies, []);
-});
-
-test("snapshot-only turn (no deltas) still delivers one final segment", async () => {
-  const adapter = new RecordingAdapter();
-  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
-
-  (adapter as unknown as {
-    getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
-  }).getOrCreateThread = async () => makeThread("thread-1", "active");
-
-  client.turnStart = async () => makeTurn("turn-1", "thread-1", "running");
-  client.streamEvents = () =>
-    (async function* () {
-      yield {
-        method: "turn/completed",
-        params: {
-          threadId: "thread-1",
-          turn: {
-            items: [{ type: "agentMessage", payload: { text: "from snapshot" } }],
-          },
-        },
-      };
-    })();
-
-  await (adapter as unknown as {
-    processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void>;
-  }).processMessage("u:c", {
-    userId: "u",
-    userName: "t",
-    text: "hi",
-    channelContext: "c",
-  });
-
-  assert.deepEqual(adapter.segments, [{ text: "from snapshot", isFinal: true, channelContext: "c" }]);
-  assert.deepEqual(adapter.completedReplies, []);
-});
-
-test("snapshot prefix repair does not trim the next sentence prefix", async () => {
-  const adapter = new RecordingAdapter();
-  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
-
-  (adapter as unknown as {
-    getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
-  }).getOrCreateThread = async () => makeThread("thread-1", "active");
-
-  client.turnStart = async () => makeTurn("turn-1", "thread-1", "running");
-  client.streamEvents = () =>
-    (async function* () {
-      yield { method: "item/started", params: { threadId: "thread-1", item: { id: "a1", type: "agentMessage" } } };
-      yield {
-        method: "item/agentMessage/delta",
-        params: {
-          threadId: "thread-1",
-          itemId: "a1",
-          delta: "我来文件发送。首先验证文件是否存在，然后发送。\n\n\n\n",
-        },
-      };
-      yield { method: "item/started", params: { threadId: "thread-1", item: { id: "tool-1", type: "toolCall" } } };
-      yield {
-        method: "item/completed",
-        params: {
-          threadId: "thread-1",
-          item: {
-            id: "a1",
-            type: "agentMessage",
-            payload: {
-              text: "我来测试将文件发送给你。首先验证文件是否存在，然后发送。\n\n\n\n文件存在。现在发送文件到当前飞书。",
-            },
-          },
-        },
-      };
-      yield {
-        method: "turn/completed",
-        params: {
-          threadId: "thread-1",
-          turn: {
-            items: [
-              {
-                id: "a1",
-                type: "agentMessage",
-                payload: {
-                  text: "我来测试将文件发送给你。首先验证文件是否存在，然后发送。\n\n\n\n文件存在。现在发送文件到当前飞书。",
-                },
-              },
-            ],
-          },
-        },
-      };
-    })();
-
-  await (adapter as unknown as {
-    processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void>;
-  }).processMessage("u:c", {
-    userId: "u",
-    userName: "t",
-    text: "hi",
-    channelContext: "c",
-  });
-
-  assert.deepEqual(adapter.segments, [
-    { text: "我来文件发送。首先验证文件是否存在，然后发送。\n\n\n\n", isFinal: false, channelContext: "c" },
-    { text: "文件存在。现在发送文件到当前飞书。", isFinal: true, channelContext: "c" },
-  ]);
-  assert.deepEqual(adapter.completedReplies, []);
-});
-
 test("processMessage uses inputParts when provided", async () => {
   const adapter = new RecordingAdapter();
   const client = (adapter as unknown as { client: Record<string, unknown> }).client;
@@ -1181,87 +635,4 @@ test("command /new sessionReset payload updates identity thread mapping", async 
   });
 
   assert.equal(map.get("u:c"), "thread-new");
-});
-
-class ImageDeliveryAdapter extends RecordingAdapter {
-  readonly sent: Array<{ target: string; message: Record<string, unknown>; metadata: Record<string, unknown> }> = [];
-  capabilities: Record<string, unknown> | null = null;
-  sendResult: Record<string, unknown> | Error = { delivered: true };
-
-  protected override getDeliveryCapabilities(): Record<string, unknown> | null {
-    return this.capabilities;
-  }
-
-  protected override async onSend(
-    target: string,
-    message: Record<string, unknown>,
-    metadata: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
-    this.sent.push({ target, message, metadata });
-    if (this.sendResult instanceof Error) throw this.sendResult;
-    return this.sendResult;
-  }
-
-  async deliverImage(dataBase64: string, mediaType = "image/png"): Promise<void> {
-    await this.onGeneratedImage(
-      "thread-1",
-      "turn-1",
-      { itemId: "item-1", callId: "ig_1", mediaType, dataBase64 },
-      "chat-1",
-    );
-  }
-}
-
-test("generated images use image delivery when the channel supports base64 images", async () => {
-  const adapter = new ImageDeliveryAdapter();
-  adapter.capabilities = { structuredDelivery: true, media: { image: { supportsBase64: true }, file: {} } };
-
-  await adapter.deliverImage("aGVsbG8=", "image/jpeg");
-
-  assert.equal(adapter.sent.length, 1);
-  assert.equal(adapter.sent[0]?.target, "chat-1");
-  assert.deepEqual(adapter.sent[0]?.message, {
-    kind: "image",
-    fileName: "ig_1.jpg",
-    mediaType: "image/jpeg",
-    source: { kind: "dataBase64", dataBase64: "aGVsbG8=", fileName: "ig_1.jpg", mediaType: "image/jpeg" },
-  });
-});
-
-test("generated images fall back to file delivery without image support or above the image size limit", async () => {
-  const adapter = new ImageDeliveryAdapter();
-  adapter.capabilities = { structuredDelivery: true, media: { file: { supportsBase64: true } } };
-  await adapter.deliverImage("aGVsbG8=");
-
-  adapter.capabilities = { structuredDelivery: true, media: { image: { supportsBase64: true, maxBytes: 4 }, file: {} } };
-  await adapter.deliverImage("aGVsbG8=");
-
-  adapter.capabilities = { structuredDelivery: true, media: { image: { supportsBase64: true, maxBytes: 5 }, file: {} } };
-  await adapter.deliverImage("aGVsbG8=");
-
-  assert.deepEqual(adapter.sent.map((entry) => [entry.message.kind, entry.message.fileName]), [
-    ["file", "ig_1.png"],
-    ["file", "ig_1.png"],
-    ["image", "ig_1.png"],
-  ]);
-});
-
-test("generated image delivery failures are logged without throwing", async () => {
-  const adapter = new ImageDeliveryAdapter();
-  const errors: unknown[][] = [];
-  const originalError = console.error;
-  console.error = (...args: unknown[]) => {
-    errors.push(args);
-  };
-  try {
-    adapter.sendResult = { delivered: false, errorCode: "UnsupportedDeliveryKind", errorMessage: "nope" };
-    await adapter.deliverImage("aGVsbG8=");
-    adapter.sendResult = new Error("network down");
-    await adapter.deliverImage("aGVsbG8=");
-  } finally {
-    console.error = originalError;
-  }
-
-  assert.equal(adapter.sent.length, 2);
-  assert.equal(errors.length, 2);
 });

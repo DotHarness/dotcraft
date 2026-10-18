@@ -34,4 +34,6 @@ public sealed class TurnInitiatorContext
     /// Group or chat identifier when the request originates from a group context.
     /// </summary>
     public string? GroupId { get; set; }
+
+    public string? DirectTarget { get; set; }
 }

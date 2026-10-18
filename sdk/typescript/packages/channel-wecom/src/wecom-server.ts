@@ -15,7 +15,12 @@ import {
   type WeComMessage,
 } from "./wecom-types.js";
 
-export type WeComTextMessageHandler = (parameters: string[], from: WeComFrom, pusher: WeComPusher) => Promise<void>;
+export type WeComTextMessageHandler = (
+  parameters: string[],
+  from: WeComFrom,
+  pusher: WeComPusher,
+  chatType: string,
+) => Promise<void>;
 export type WeComCommonMessageHandler = (message: WeComMessage, pusher: WeComPusher) => Promise<void>;
 export type WeComEventMessageHandler = (
   eventType: string,
@@ -259,13 +264,13 @@ export class WeComBotServer {
 
     if (message.msgType === WeComMsgType.Voice && handlers.textHandler) {
       const content = normalizeWeComTextContent(message.voice?.content ?? "");
-      await handlers.textHandler(parseWeComParameters(content, message.chatType), message.from ?? emptyFrom(), pusher);
+      await handlers.textHandler(parseWeComParameters(content, message.chatType), message.from ?? emptyFrom(), pusher, message.chatType);
       return;
     }
 
     if (message.msgType === WeComMsgType.Text && handlers.textHandler) {
       const content = normalizeWeComTextContent(message.text?.content ?? "");
-      await handlers.textHandler(parseWeComParameters(content, message.chatType), message.from ?? emptyFrom(), pusher);
+      await handlers.textHandler(parseWeComParameters(content, message.chatType), message.from ?? emptyFrom(), pusher, message.chatType);
       return;
     }
 

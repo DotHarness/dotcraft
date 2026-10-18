@@ -81,11 +81,13 @@ public sealed class RuntimeContextBuilderTests
                 UserName = "Alice",
                 UserRole = "admin",
                 ChannelContext = "group:123456",
-                GroupId = "123456"
+                GroupId = "123456",
+                DirectTarget = "user:10001"
             },
             workspacePath: Directory.GetCurrentDirectory());
 
         Assert.Contains("## Request Source", block, StringComparison.Ordinal);
+        Assert.Contains("SenderAddress: qq:user:10001", block, StringComparison.Ordinal);
         Assert.Contains("Channel: qq", block, StringComparison.Ordinal);
         Assert.Contains("Conversation: group:123456", block, StringComparison.Ordinal);
         Assert.Contains("SenderName: Alice", block, StringComparison.Ordinal);

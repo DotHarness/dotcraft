@@ -69,7 +69,7 @@ public sealed class DynamicWorkflowSection : IWorldStateSection
     public JsonNode? Snapshot(WorldStateContext context) =>
         Guidance(context.Thread) is { } guidance
             ? new JsonObject { ["guidance"] = WorldStateHash.Of(guidance) }
-            : null;
+            : new JsonObject();
 
     public string? RenderDiff(WorldStateContext context, PreviousSectionState previous) =>
         Guidance(context.Thread);

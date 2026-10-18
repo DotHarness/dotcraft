@@ -16,6 +16,8 @@ public interface IAdapterChannelToolRuntime
     /// </summary>
     AppServerConnection? ChannelToolConnection { get; }
 
+    AppServerConnection? LastChannelToolConnection { get; }
+
     /// <summary>Executes a tool only through the connection that declared it.</summary>
     Task<ChannelToolInvocationResult> ExecuteToolAsync(
         AppServerConnection expectedConnection,
@@ -54,7 +56,8 @@ public sealed class ChannelToolRegistrationService
         out IReadOnlyList<ChannelToolRegistrationDiagnostic> diagnostics,
         out AppServerConnection? adapterConnection)
     {
-        if (runtime is IAdapterChannelToolRuntime { ChannelToolConnection: { } connection })
+        if (runtime is IAdapterChannelToolRuntime adapterRuntime
+            && (adapterRuntime.ChannelToolConnection ?? adapterRuntime.LastChannelToolConnection) is { } connection)
         {
             EnsureConnectionRegistration(connection);
             diagnostics = connection.ChannelToolDiagnostics;

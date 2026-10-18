@@ -29,7 +29,8 @@ import {
   resolveModuleTempPath,
   splitUserInputRequestByQuestion,
   userInputResponseFromText,
-  type ChannelToolDescriptor,
+  type ChannelChatDescriptor,
+  type ChannelDeliveryCapabilities,
   type ChannelAdapterMessageOpts,
   type ModuleError,
   type UserInputResponse,
@@ -42,12 +43,8 @@ import { runMonitorLoop } from "./monitor.js";
 import { WeixinState, type WeixinCredentials } from "./state.js";
 import type { WeixinConfig } from "./weixin-config.js";
 import { buildTextMessageReq, sendMessage } from "./weixin-api.js";
-import {
-  WEIXIN_SEND_FILE_TOOL,
-  WEIXIN_SEND_IMAGE_TOOL,
-  WeixinMediaError,
-  WeixinMediaTools,
-} from "./weixin-media-tools.js";
+import { deliverWeixinMessage, weixinDeliveryCapabilities } from "./weixin-delivery.js";
+import { WeixinMediaSender } from "./weixin-media.js";
 
 /** Telegram-style /new: start a fresh thread (strict match, case-insensitive). */
 function isNewCommand(text: string): boolean {
@@ -96,12 +93,6 @@ export function validateWeixinConfig(rawConfig: unknown): asserts rawConfig is W
   }
 }
 
-interface CaptionDeliveryResult {
-  attempted: boolean;
-  delivered?: boolean;
-  errorMessage?: string;
-}
-
 export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
   private apiBaseUrl = "";
   private botToken = "";
@@ -113,7 +104,7 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
   private monitorAbortController: AbortController | undefined;
   private authAbortController: AbortController | undefined;
   private authFlowInProgress = false;
-  private readonly mediaTools = new WeixinMediaTools();
+  private readonly media = new WeixinMediaSender();
 
   private readonly approvalReplies = new ApprovalReplyTracker({
     notify: async ({ userId }, text) => {
@@ -345,43 +336,6 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     return error instanceof Error ? error.message : String(error);
   }
 
-  private async sendCaptionIfPresent(toUserId: string, caption: string): Promise<CaptionDeliveryResult> {
-    if (!caption.trim()) return { attempted: false };
-    try {
-      await this.sendWeixinText(toUserId, caption);
-      return { attempted: true, delivered: true };
-    } catch (error) {
-      console.error("caption send failed:", error);
-      return { attempted: true, delivered: false, errorMessage: this.errText(error) };
-    }
-  }
-
-  private attachCaptionInfo(
-    result: Record<string, unknown>,
-    caption: CaptionDeliveryResult,
-  ): Record<string, unknown> {
-    if (!caption.attempted) return result;
-
-    const updated: Record<string, unknown> = {
-      ...result,
-      captionDelivered: caption.delivered === true,
-    };
-    if (caption.errorMessage) {
-      updated.captionError = caption.errorMessage;
-    }
-
-    const structured = result.structuredContent;
-    if (structured && typeof structured === "object" && !Array.isArray(structured)) {
-      updated.structuredContent = {
-        ...(structured as Record<string, unknown>),
-        captionDelivered: caption.delivered === true,
-        captionError: caption.errorMessage ?? null,
-      };
-    }
-
-    return updated;
-  }
-
   private findUserIdForThread(threadId: string): string | undefined {
     for (const [identityKey, tid] of this.threadMap) {
       if (tid === threadId) {
@@ -427,9 +381,8 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
   }
 
   async onDeliver(target: string, content: string, _metadata: Record<string, unknown>): Promise<boolean> {
-    const userId = target.replace(/^user:/, "");
     try {
-      await this.sendWeixinText(userId, content);
+      await this.sendWeixinText(target, content);
       return true;
     } catch (e) {
       console.error("onDeliver failed:", e);
@@ -437,12 +390,19 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     }
   }
 
-  protected override getDeliveryCapabilities(): Record<string, unknown> | null {
-    return this.mediaTools.getDeliveryCapabilities();
+  protected override getDisplayName(): string {
+    return "WeChat";
   }
 
-  protected override getChannelTools(): ChannelToolDescriptor[] | null {
-    return this.mediaTools.getChannelTools();
+  protected override getDeliveryCapabilities(): ChannelDeliveryCapabilities {
+    return weixinDeliveryCapabilities();
+  }
+
+  protected override getChatDescriptor(
+    _opts: ChannelAdapterMessageOpts,
+    _channelContext: string,
+  ): ChannelChatDescriptor {
+    return { kind: "direct", membership: "shared" };
   }
 
   protected override buildChannelTarget(
@@ -474,122 +434,25 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
   protected override async onSend(
     target: string,
     message: Record<string, unknown>,
-    metadata: Record<string, unknown>,
+    _metadata: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    const kind = String(message.kind ?? "");
-    if (kind === "text") {
-      return await super.onSend(target, message, metadata);
-    }
-
-    if (kind !== "file" && kind !== "image") {
-      return {
-        delivered: false,
-        errorCode: "UnsupportedDeliveryKind",
-        errorMessage: `Weixin channel does not support structured '${kind}' delivery.`,
-      };
-    }
-
-    let captionResult: CaptionDeliveryResult = { attempted: false };
-    try {
-      const userId = target.replace(/^user:/, "");
-      const caption = String(message.caption ?? "");
-      captionResult = await this.sendCaptionIfPresent(userId, caption);
-      const result = await this.mediaTools.sendStructuredMessage({
-        baseUrl: this.apiBaseUrl,
-        token: this.getBotToken(),
-        toUserId: userId,
-        contextToken: this.contextTokens[userId],
-        clientId: `dotcraft-weixin-${randomUUID()}`,
-        message,
-      });
-      return this.attachCaptionInfo(result, captionResult);
-    } catch (error) {
-      if (error instanceof WeixinMediaError) {
-        return this.attachCaptionInfo(
-          { delivered: false, errorCode: error.code, errorMessage: error.message },
-          captionResult,
-        );
-      }
-      return this.attachCaptionInfo(
-        {
-          delivered: false,
-          errorCode: "AdapterDeliveryFailed",
-          errorMessage: error instanceof Error ? error.message : String(error),
-        },
-        captionResult,
-      );
-    }
-  }
-
-  protected override async onToolCall(
-    request: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
-    const tool = String(request.tool ?? "");
-    if (tool !== WEIXIN_SEND_FILE_TOOL && tool !== WEIXIN_SEND_IMAGE_TOOL) {
-      return {
-        success: false,
-        errorCode: "UnsupportedTool",
-        errorMessage: `Unknown tool '${tool}'.`,
-      };
-    }
-
-    const args = (request.arguments as Record<string, unknown>) ?? {};
-    const context = (request.context as Record<string, unknown>) ?? {};
-    const target = String(context.channelContext ?? context.groupId ?? "");
-    if (!target) {
-      return {
-        success: false,
-        errorCode: "MissingChatContext",
-        errorMessage: "Current tool call does not contain a Weixin chat target.",
-      };
-    }
-
-    let captionResult: CaptionDeliveryResult = { attempted: false };
-    try {
-      const caption = String(args.caption ?? "");
-      captionResult = await this.sendCaptionIfPresent(target, caption);
-      const result = await this.mediaTools.executeToolCall({
-        baseUrl: this.apiBaseUrl,
-        token: this.getBotToken(),
-        toUserId: target,
-        contextToken: this.contextTokens[target],
-        clientId: `dotcraft-weixin-${randomUUID()}`,
-        toolName: tool,
-        args,
-      });
-      return this.attachCaptionInfo(result, captionResult);
-    } catch (error) {
-      if (error instanceof WeixinMediaError) {
-        return this.attachCaptionInfo(
-          {
-            success: false,
-            errorCode: error.code,
-            errorMessage: error.message,
-            contentItems: [{ type: "text", text: error.message }],
-            structuredContent: {
-              delivered: false,
-              errorCode: error.code,
-              errorMessage: error.message,
-            },
-          },
-          captionResult,
-        );
-      }
-      return this.attachCaptionInfo(
-        {
-          success: false,
-          errorCode: "AdapterToolCallFailed",
-          errorMessage: error instanceof Error ? error.message : String(error),
-          contentItems: [{ type: "text", text: error instanceof Error ? error.message : String(error) }],
-          structuredContent: {
-            delivered: false,
-            errorCode: "AdapterToolCallFailed",
-            errorMessage: error instanceof Error ? error.message : String(error),
-          },
-        },
-        captionResult,
-      );
-    }
+    return await deliverWeixinMessage(
+      {
+        getContextToken: (userId) => this.contextTokens[userId],
+        sendText: (userId, text) => this.sendWeixinText(userId, text),
+        sendMedia: (userId, media) =>
+          this.media.sendStructuredMessage({
+            baseUrl: this.apiBaseUrl,
+            token: this.getBotToken(),
+            toUserId: userId,
+            contextToken: this.contextTokens[userId],
+            clientId: `dotcraft-weixin-${randomUUID()}`,
+            message: media,
+          }),
+      },
+      target,
+      message,
+    );
   }
 
   async onApprovalRequest(request: Record<string, unknown>): Promise<string> {
@@ -675,39 +538,6 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     return questionCount > 1 ? `${base} (${questionIndex + 1}/${questionCount})` : base;
   }
 
-  protected override async onSegmentCompleted(
-    _threadId: string,
-    _turnId: string,
-    segmentText: string,
-    _isFinal: boolean,
-    channelContext: string,
-  ): Promise<boolean | void> {
-    if (!segmentText.trim()) return true;
-    try {
-      await this.sendWeixinText(channelContext, segmentText);
-      return true;
-    } catch (e) {
-      console.error("onSegmentCompleted send failed:", e);
-      return false;
-    }
-  }
-
-  protected override async onTurnCompleted(
-    _threadId: string,
-    _turnId: string,
-    replyText: string,
-    channelContext: string,
-    segmentsWereDelivered: boolean,
-  ): Promise<void> {
-    if (segmentsWereDelivered) return;
-    if (!replyText) return;
-    try {
-      await this.sendWeixinText(channelContext, replyText);
-    } catch (e) {
-      console.error("onTurnCompleted send failed:", e);
-    }
-  }
-
   updateContextToken(userId: string, token: string | undefined): void {
     if (!token) return;
     this.contextTokens[userId] = token;
@@ -752,6 +582,7 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
       userName: name,
       text,
       channelContext: from,
+      directTarget: from,
       senderExtra: { senderRole: "admin" },
     }).catch((e) => console.error("handleMessage error:", e));
   }

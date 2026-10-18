@@ -13,10 +13,11 @@ public interface IChannelRuntime
     /// </summary>
     string Name { get; }
 
-    /// <summary>
-    /// Returns the structured delivery capabilities exposed by this channel.
-    /// </summary>
+    string DisplayName => Name;
+
     ChannelDeliveryCapabilitySnapshot? GetDeliveryCapabilities() => null;
+
+    ChannelChatDescriptor? GetThreadChat(string threadId) => null;
 
     /// <summary>
     /// Returns the platform-native tools exposed by this channel.
@@ -54,6 +55,7 @@ public interface IChannelRuntime
         string target,
         ChannelDeliveryMessage message,
         object? metadata = null,
+        string? deliveryId = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

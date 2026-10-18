@@ -9,7 +9,7 @@ internal sealed class SessionStartHookSection : IWorldStateSection
     public string Id => SectionId;
 
     public JsonNode? Snapshot(WorldStateContext context) =>
-        Text(context) is { } text ? new JsonObject { ["context"] = WorldStateHash.Of(text) } : null;
+        Text(context) is { } text ? new JsonObject { ["context"] = WorldStateHash.Of(text) } : new JsonObject();
 
     public string? RenderDiff(WorldStateContext context, PreviousSectionState previous) =>
         Text(context) is { } text ? "## SessionStart Hook Context\n" + text : null;

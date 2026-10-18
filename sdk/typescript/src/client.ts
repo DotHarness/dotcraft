@@ -6,6 +6,7 @@ import { JsonRpcMessage } from "./models.js";
 import { ReconnectQueueFullError, RequestTimeoutError, toJsonRpcError } from "./errors.js";
 import { type Transport, TransportClosed } from "./transportCore.js";
 import type {
+  ChannelDeliveryCapabilities,
   ChannelToolDescriptor,
   ClientNotificationMethods,
   ClientRequestMethods,
@@ -137,10 +138,12 @@ export class DotCraftWireClient {
     streamingSupport?: boolean;
     configChange?: boolean;
     optOutNotifications?: string[] | null;
-    channelName?: string | null;
-    deliverySupport?: boolean;
-    deliveryCapabilities?: Record<string, unknown> | null;
-    channelTools?: ChannelToolDescriptor[] | null;
+    channelAdapter?: {
+      channelName: string;
+      displayName: string;
+      deliveryCapabilities: ChannelDeliveryCapabilities;
+      channelTools?: ChannelToolDescriptor[] | null;
+    } | null;
     extraCapabilities?: Record<string, unknown> | null;
   }): Promise<InitializeResult> {
     this.initializeOptions = { ...opts };
@@ -159,19 +162,11 @@ export class DotCraftWireClient {
     }
     if (opts.optOutNotifications?.length)
       capabilities.optOutNotificationMethods = opts.optOutNotifications;
-    if (opts.channelName) {
-      capabilities.channelAdapter = {
-        channelName: opts.channelName,
-        deliverySupport: opts.deliverySupport ?? true,
-      };
-      if (opts.deliveryCapabilities) {
-        (capabilities.channelAdapter as Record<string, unknown>).deliveryCapabilities =
-          opts.deliveryCapabilities;
-      }
-      if (opts.channelTools?.length) {
-        (capabilities.channelAdapter as Record<string, unknown>).channelTools =
-          opts.channelTools;
-      }
+    if (opts.channelAdapter) {
+      const { channelTools, ...channelAdapter } = opts.channelAdapter;
+      capabilities.channelAdapter = channelTools?.length
+        ? { ...channelAdapter, channelTools }
+        : channelAdapter;
     }
 
     const clientInfo: { name: string; version: string; title?: string } = {

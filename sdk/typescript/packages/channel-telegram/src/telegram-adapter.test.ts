@@ -5,7 +5,6 @@ import {
   TelegramAdapter,
   buildTelegramBotCommands,
   isTelegramConflictError,
-  parseTargetChatId,
 } from "./telegram-adapter.js";
 
 async function waitUntil(predicate: () => boolean): Promise<void> {
@@ -28,13 +27,6 @@ test("buildTelegramBotCommands keeps defaults and filters unsupported names", as
     { command: "help", description: "Show available commands" },
     { command: "deploy", description: "Deploy the current change." },
   ]);
-});
-
-test("parseTargetChatId supports raw and prefixed targets", () => {
-  assert.equal(parseTargetChatId("-100123"), -100123);
-  assert.equal(parseTargetChatId("group:-100123"), -100123);
-  assert.equal(parseTargetChatId("user:42"), 42);
-  assert.equal(parseTargetChatId("bad-target"), null);
 });
 
 test("buildTelegramBotCommands exposes the host automation command", async () => {
@@ -163,6 +155,46 @@ test("TelegramAdapter accepts channel bind codes for chat context", async () => 
   ]);
 });
 
+test("TelegramAdapter binds group senders to their own thread and reports their direct chat", async () => {
+  const adapter = new TelegramAdapter() as unknown as {
+    handleMessage: (opts: Record<string, unknown>) => Promise<void>;
+    handleIncomingText: (ctx: Record<string, unknown>) => Promise<void>;
+    getChatDescriptor: (opts: Record<string, unknown>, channelContext: string) => Record<string, unknown>;
+    startTyping: (chatId: string) => void;
+  };
+  const handled: Array<Record<string, unknown>> = [];
+  adapter.startTyping = () => undefined;
+  adapter.handleMessage = async (opts) => {
+    handled.push(opts);
+  };
+
+  await adapter.handleIncomingText({
+    from: { id: 42, first_name: "Ada" },
+    chatId: -100123,
+    chat: { id: -100123, type: "supergroup", title: "Release crew" },
+    msg: { text: "hello" },
+  });
+  await adapter.handleIncomingText({
+    from: { id: 42, first_name: "Ada" },
+    chatId: 42,
+    chat: { id: 42, type: "private", first_name: "Ada" },
+    msg: { text: "hi" },
+  });
+
+  assert.equal(handled[0]?.channelContext, "-100123");
+  assert.equal(handled[0]?.directTarget, "42");
+  assert.deepEqual(adapter.getChatDescriptor(handled[0]!, "-100123"), {
+    kind: "group",
+    label: "Release crew",
+    membership: "sender",
+  });
+  assert.deepEqual(adapter.getChatDescriptor(handled[1]!, "42"), {
+    kind: "direct",
+    label: "Ada",
+    membership: "shared",
+  });
+});
+
 test("isTelegramConflictError detects 409 conflict messages", () => {
   assert.equal(isTelegramConflictError(new Error("409 Conflict: terminated by other getUpdates request")), true);
   assert.equal(isTelegramConflictError(new Error("400 Bad Request")), false);
@@ -275,4 +307,58 @@ test("TelegramAdapter asks multi-question user input sequentially", async () => 
       note: { answers: ["some extra context"] },
     },
   });
+});
+
+test("TelegramAdapter shows typing while a started Turn runs and stops on any terminal outcome", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const actions: Array<number | string> = [];
+  const sentMessages: string[] = [];
+  const adapter = new TelegramAdapter() as unknown as {
+    bot: Record<string, unknown>;
+    onTurnStarted: (turn: Record<string, string>) => Promise<void>;
+    onTurnEnded: (turn: Record<string, string>, outcome: Record<string, string>) => Promise<void>;
+  };
+  adapter.bot = {
+    api: {
+      async sendChatAction(chatId: number | string) {
+        actions.push(chatId);
+        return true;
+      },
+      async sendMessage(_chatId: number | string, text: string) {
+        sentMessages.push(text);
+        return { message_id: 1 };
+      },
+    },
+  };
+  const flush = async () => {
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+  };
+  const turn = (turnId: string) => ({ threadId: "thread-1", turnId, channelContext: "-100" });
+  const originalError = console.error;
+  const originalInfo = console.info;
+  console.error = () => {};
+  console.info = () => {};
+  t.after(() => {
+    console.error = originalError;
+    console.info = originalInfo;
+  });
+
+  await adapter.onTurnStarted(turn("turn-1"));
+  await adapter.onTurnStarted(turn("turn-2"));
+  await flush();
+  t.mock.timers.tick(4000);
+  await flush();
+  assert.deepEqual(actions, [-100, -100]);
+
+  await adapter.onTurnEnded(turn("turn-1"), { status: "cancelled" });
+  t.mock.timers.tick(4000);
+  await flush();
+  assert.equal(actions.length, 3);
+
+  await adapter.onTurnEnded(turn("turn-2"), { status: "failed", error: "provider detail" });
+  t.mock.timers.tick(8000);
+  await flush();
+  assert.equal(actions.length, 3);
+  assert.equal(sentMessages.length, 1);
+  assert.equal(sentMessages[0]?.includes("provider detail"), false);
 });

@@ -88,10 +88,6 @@ public sealed class UserMessagePayload : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? QueuedInputId { get; init; }
 
-    [JsonPropertyName("deliveryBindingId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? DeliveryBindingId { get; init; }
-
     [JsonPropertyName("sentAsGoal")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? SentAsGoal { get; init; }

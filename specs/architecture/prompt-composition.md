@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.7 |
+| **Version** | 0.8.10 |
 | **Status** | Draft |
-| **Date** | 2026-10-14 |
+| **Date** | 2026-10-18 |
 
 Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, App Binding, and AppServer clients.
 

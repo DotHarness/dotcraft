@@ -30,7 +30,8 @@ public static class TurnContractMapper
             SenderId = value.SenderId,
             SenderName = value.SenderName,
             SenderRole = value.SenderRole,
-            GroupId = value.GroupId
+            GroupId = value.GroupId,
+            DirectTarget = value.DirectTarget
         };
 
     public static Contract.QueuedTurnInput ToContract(QueuedTurnInput value) => new()
@@ -49,7 +50,6 @@ public static class TurnContractMapper
         TriggerLabel = value.TriggerLabel,
         TriggerRefId = value.TriggerRefId,
         TriggerStatus = value.TriggerStatus,
-        DeliveryBindingId = value.DeliveryBindingId,
         SentAsGoal = value.SentAsGoal
     };
 
@@ -79,7 +79,8 @@ public static class TurnContractMapper
             SenderId = value.SenderId,
             SenderName = value.SenderName,
             SenderRole = value.SenderRole,
-            GroupId = value.GroupId
+            GroupId = value.GroupId,
+            DirectTarget = value.DirectTarget
         };
 
     private static SessionInputContext? ToContext(Contract.InputContext? value) => value is null ? null : new()

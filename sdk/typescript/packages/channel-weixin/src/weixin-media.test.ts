@@ -5,15 +5,13 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import {
-  WEIXIN_SEND_FILE_TOOL,
-  WEIXIN_SEND_IMAGE_TOOL,
   WeixinMediaError,
-  WeixinMediaTools,
+  WeixinMediaSender,
   aesEcbPaddedSize,
   buildCdnUploadUrl,
   md5Hex,
   type WeixinMediaApi,
-} from "./weixin-media-tools.js";
+} from "./weixin-media.js";
 import type { GetUploadUrlReq, GetUploadUrlResp, SendMessageReq } from "./weixin-types.js";
 import { MessageItemType } from "./weixin-types.js";
 import { WeixinAdapter } from "./weixin-adapter.js";
@@ -39,16 +37,8 @@ class TestWeixinAdapter extends WeixinAdapter {
     return this.getDeliveryCapabilities();
   }
 
-  exposeChannelTools(): Record<string, unknown>[] | null {
-    return this.getChannelTools();
-  }
-
   async exposeSend(target: string, message: Record<string, unknown>): Promise<Record<string, unknown>> {
     return await this.onSend(target, message, {});
-  }
-
-  async exposeToolCall(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return await this.onToolCall(request);
   }
 }
 
@@ -100,7 +90,7 @@ test("sendStructuredMessage sends a file_item after encrypted CDN upload", async
   }) as typeof fetch;
 
   try {
-    const tools = new WeixinMediaTools(api);
+    const tools = new WeixinMediaSender(api);
     const result = await tools.sendStructuredMessage({
       baseUrl: "https://ilink.example",
       token: "token",
@@ -153,7 +143,7 @@ test("sendStructuredMessage sends an image_item without thumbnail upload", async
   }) as typeof fetch;
 
   try {
-    const tools = new WeixinMediaTools(api, "https://cdn.example/c2c");
+    const tools = new WeixinMediaSender(api, "https://cdn.example/c2c");
     await tools.sendStructuredMessage({
       baseUrl: "https://ilink.example",
       token: "token",
@@ -208,7 +198,7 @@ test("CDN upload retries 5xx responses and preserves x-error-message", async () 
   }) as typeof fetch;
 
   try {
-    const tools = new WeixinMediaTools(api);
+    const tools = new WeixinMediaSender(api);
     await assert.rejects(
       async () =>
         await tools.sendStructuredMessage({
@@ -235,8 +225,8 @@ test("CDN upload retries 5xx responses and preserves x-error-message", async () 
   }
 });
 
-test("media tools report getUploadUrl fetch failures with stage context", async () => {
-  const tools = new WeixinMediaTools({
+test("media sender report getUploadUrl fetch failures with stage context", async () => {
+  const tools = new WeixinMediaSender({
     async getUploadUrl(): Promise<GetUploadUrlResp> {
       throw new TypeError("fetch failed");
     },
@@ -258,7 +248,7 @@ test("media tools report getUploadUrl fetch failures with stage context", async 
   );
 });
 
-test("media tools report CDN fetch failures with stage context", async () => {
+test("media sender report CDN fetch failures with stage context", async () => {
   const originalFetch = globalThis.fetch;
   const api = new FakeWeixinApi({ upload_full_url: "https://upload.example/file" });
   let attempts = 0;
@@ -268,7 +258,7 @@ test("media tools report CDN fetch failures with stage context", async () => {
   }) as typeof fetch;
 
   try {
-    const tools = new WeixinMediaTools(api);
+    const tools = new WeixinMediaSender(api);
     await assert.rejects(
       async () =>
         await tools.sendStructuredMessage({
@@ -288,7 +278,7 @@ test("media tools report CDN fetch failures with stage context", async () => {
   }
 });
 
-test("media tools report final sendMessage failures with stage context", async () => {
+test("media sender report final sendMessage failures with stage context", async () => {
   const originalFetch = globalThis.fetch;
   const api: WeixinMediaApi = {
     async getUploadUrl(): Promise<GetUploadUrlResp> {
@@ -302,7 +292,7 @@ test("media tools report final sendMessage failures with stage context", async (
     new Response("", { status: 200, headers: { "x-encrypted-param": "download-file" } })) as typeof fetch;
 
   try {
-    const tools = new WeixinMediaTools(api);
+    const tools = new WeixinMediaSender(api);
     await assert.rejects(
       async () =>
         await tools.sendStructuredMessage({
@@ -321,8 +311,8 @@ test("media tools report final sendMessage failures with stage context", async (
   }
 });
 
-test("media tools reject invalid sources", async () => {
-  const tools = new WeixinMediaTools(new FakeWeixinApi({ upload_full_url: "https://upload.example/file" }));
+test("media sender reject invalid sources", async () => {
+  const tools = new WeixinMediaSender(new FakeWeixinApi({ upload_full_url: "https://upload.example/file" }));
 
   await assert.rejects(
     async () =>
@@ -347,38 +337,6 @@ test("media tools reject invalid sources", async () => {
   );
 });
 
-test("tool call resolves host path file names and exposes approval metadata", async () => {
-  const tempDir = mkdtempSync(join(tmpdir(), "weixin-file-"));
-  const filePath = join(tempDir, "report.txt");
-  writeFileSync(filePath, "hello", "utf-8");
-
-  const originalFetch = globalThis.fetch;
-  const api = new FakeWeixinApi({ upload_full_url: "https://upload.example/file" });
-  globalThis.fetch = (async () =>
-    new Response("", { status: 200, headers: { "x-encrypted-param": "download-file" } })) as typeof fetch;
-
-  try {
-    const tools = new WeixinMediaTools(api);
-    const toolDescriptors = tools.getChannelTools();
-    assert.equal(toolDescriptors[0]?.name, WEIXIN_SEND_FILE_TOOL);
-    assert.deepEqual((toolDescriptors[0]?.approval as Record<string, unknown>).targetArgument, "filePath");
-    assert.equal(toolDescriptors[1]?.name, WEIXIN_SEND_IMAGE_TOOL);
-    assert.deepEqual((toolDescriptors[1]?.approval as Record<string, unknown>).targetArgument, "imagePath");
-
-    const result = await tools.executeToolCall({
-      baseUrl: "https://ilink.example",
-      toUserId: "wx-user-1",
-      clientId: "client",
-      toolName: WEIXIN_SEND_FILE_TOOL,
-      args: { filePath },
-    });
-    assert.equal(result.success, true);
-    assert.equal(api.sentBodies[0]?.msg?.item_list?.[0]?.file_item?.file_name, "report.txt");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
 test("adapter advertises real file and image media capabilities", () => {
   const adapter = new TestWeixinAdapter();
   const capabilities = adapter.exposeDeliveryCapabilities() as Record<string, unknown>;
@@ -397,25 +355,17 @@ test("adapter sends caption as normalized text before media delivery", async () 
     apiBaseUrl: string;
     botToken: string;
     contextTokens: Record<string, string>;
-    mediaTools: {
+    media: {
       sendStructuredMessage(): Promise<Record<string, unknown>>;
-      getDeliveryCapabilities(): Record<string, unknown>;
-      getChannelTools(): Record<string, unknown>[];
     };
   };
   internals.apiBaseUrl = "https://ilink.example";
   internals.botToken = "token";
   internals.contextTokens = { "wx-user-1": "ctx" };
-  internals.mediaTools = {
+  internals.media = {
     async sendStructuredMessage(): Promise<Record<string, unknown>> {
       order.push("media");
       return { delivered: true, remoteMediaId: "media-id" };
-    },
-    getDeliveryCapabilities(): Record<string, unknown> {
-      return {};
-    },
-    getChannelTools(): Record<string, unknown>[] {
-      return [];
     },
   };
 
@@ -443,64 +393,71 @@ test("adapter sends caption as normalized text before media delivery", async () 
   }
 });
 
-test("adapter reports caption failure without blocking file tool delivery", async () => {
-  const originalFetch = globalThis.fetch;
-  const originalError = console.error;
+test("adapter send rejects a Weixin user without a stored context token", async () => {
+  const api = new FakeWeixinApi({ upload_full_url: "https://upload.example/file" });
   const adapter = new TestWeixinAdapter();
   const internals = adapter as unknown as {
     apiBaseUrl: string;
     botToken: string;
     contextTokens: Record<string, string>;
-    mediaTools: {
-      executeToolCall(): Promise<Record<string, unknown>>;
-      sendStructuredMessage(): Promise<Record<string, unknown>>;
-      getDeliveryCapabilities(): Record<string, unknown>;
-      getChannelTools(): Record<string, unknown>[];
-    };
+    media: WeixinMediaSender;
   };
   internals.apiBaseUrl = "https://ilink.example";
   internals.botToken = "token";
   internals.contextTokens = { "wx-user-1": "ctx" };
-  let mediaCalled = false;
-  internals.mediaTools = {
-    async executeToolCall(): Promise<Record<string, unknown>> {
-      mediaCalled = true;
-      return {
-        success: true,
-        contentItems: [{ type: "text", text: "Sent file." }],
-        structuredContent: { delivered: true, mediaId: "media-id", fileName: "report.txt" },
-      };
-    },
-    async sendStructuredMessage(): Promise<Record<string, unknown>> {
-      throw new Error("not used");
-    },
-    getDeliveryCapabilities(): Record<string, unknown> {
-      return {};
-    },
-    getChannelTools(): Record<string, unknown>[] {
-      return [];
-    },
-  };
+  internals.media = new WeixinMediaSender(api);
 
-  globalThis.fetch = (async () => new Response("bad request", { status: 400 })) as typeof fetch;
-  console.error = () => {};
+  const text = await adapter.exposeSend("wx-stranger", { kind: "text", text: "hello" });
+  const image = await adapter.exposeSend("wx-stranger", {
+    kind: "image",
+    source: { kind: "dataBase64", dataBase64: Buffer.from("x").toString("base64") },
+  });
+  const empty = await adapter.exposeSend("  ", { kind: "text", text: "hello" });
+
+  assert.equal(text.errorCode, "UnsupportedTarget");
+  assert.equal(image.errorCode, "UnsupportedTarget");
+  assert.equal(empty.errorCode, "UnsupportedTarget");
+  assert.equal(api.uploadBodies.length, 0);
+  assert.equal(api.sentBodies.length, 0);
+});
+
+test("adapter send delivers a host path image to a known Weixin user", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "weixin-image-"));
+  const imagePath = join(tempDir, "chart.png");
+  writeFileSync(imagePath, "image-bytes");
+
+  const originalFetch = globalThis.fetch;
+  const api = new FakeWeixinApi({ upload_full_url: "https://upload.example/image" });
+  globalThis.fetch = (async () =>
+    new Response("", { status: 200, headers: { "x-encrypted-param": "download-image" } })) as typeof fetch;
+
+  const adapter = new TestWeixinAdapter();
+  const internals = adapter as unknown as {
+    apiBaseUrl: string;
+    botToken: string;
+    contextTokens: Record<string, string>;
+    media: WeixinMediaSender;
+  };
+  internals.apiBaseUrl = "https://ilink.example";
+  internals.botToken = "token";
+  internals.contextTokens = { "wx-user-1": "ctx" };
+  internals.media = new WeixinMediaSender(api);
 
   try {
-    const result = await adapter.exposeToolCall({
-      tool: WEIXIN_SEND_FILE_TOOL,
-      arguments: { filePath: "report.txt", caption: "caption" },
-      context: { channelContext: "wx-user-1" },
+    const result = await adapter.exposeSend("wx-user-1", {
+      kind: "image",
+      mediaType: "image/png",
+      source: { kind: "hostPath", hostPath: imagePath },
     });
 
-    assert.equal(mediaCalled, true);
-    assert.equal(result.success, true);
-    assert.equal(result.captionDelivered, false);
-    assert.match(String(result.captionError ?? ""), /sendMessage 400/);
-    const structured = result.structuredContent as Record<string, unknown>;
-    assert.equal(structured.captionDelivered, false);
-    assert.match(String(structured.captionError ?? ""), /sendMessage 400/);
+    assert.equal(result.delivered, true);
+    assert.equal(api.uploadBodies[0]?.to_user_id, "wx-user-1");
+    const msg = api.sentBodies[0]?.msg;
+    assert.equal(msg?.to_user_id, "wx-user-1");
+    assert.equal(msg?.context_token, "ctx");
+    assert.equal(msg?.item_list?.[0]?.type, MessageItemType.IMAGE);
+    assert.equal(msg?.item_list?.[0]?.image_item?.media?.encrypt_query_param, "download-image");
   } finally {
     globalThis.fetch = originalFetch;
-    console.error = originalError;
   }
 });

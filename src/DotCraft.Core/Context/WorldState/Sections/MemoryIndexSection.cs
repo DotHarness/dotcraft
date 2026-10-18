@@ -18,7 +18,7 @@ internal sealed class MemoryIndexSection : IWorldStateSection
     public JsonNode? Snapshot(WorldStateContext context)
     {
         if (context.MemoryStore is not { } store)
-            return null;
+            return new JsonObject();
 
         var index = MemoryIndex.Load(store.MemoryDirectoryPath);
         var entries = new JsonObject();

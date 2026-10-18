@@ -17,6 +17,16 @@
         }
       ]
     },
+    "chat": {
+      "anyOf": [
+        {
+          "$ref": "./ChannelChat.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "config": {
       "anyOf": [
         {

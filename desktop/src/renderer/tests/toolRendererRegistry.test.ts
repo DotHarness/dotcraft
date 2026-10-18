@@ -29,6 +29,14 @@ describe('ToolRendererRegistry', () => {
     expect(coreToolRendererRegistry.resolve(item('core.automation'))?.family).toBe('automation')
     expect(coreToolRendererRegistry.resolve(item('core.automation', 'Mcp'))).toBeNull()
   })
+  it('resolves the channel message row only for a trusted source without options', () => {
+    expect(coreToolRendererRegistry.resolve(item(CORE_TOOL_PRESENTATION_IDS.channel))).toMatchObject({
+      family: 'channel',
+      mode: 'standalone'
+    })
+    expect(coreToolRendererRegistry.resolve(item(CORE_TOOL_PRESENTATION_IDS.channel, 'PluginNative'))).toBeNull()
+    expect(coreToolRendererRegistry.resolve(item(CORE_TOOL_PRESENTATION_IDS.channel, 'CoreNative', { operation: 'send' }))).toBeNull()
+  })
   it('resolves a registered Core renderer from presentation and provenance', () => {
     const plan = coreToolRendererRegistry.resolve(item(
       CORE_TOOL_PRESENTATION_IDS.web,

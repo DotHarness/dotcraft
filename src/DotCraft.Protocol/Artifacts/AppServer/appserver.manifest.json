@@ -5027,15 +5027,15 @@
         {
           "name": "deliveryCapabilities",
           "type": "core.ChannelDeliveryCapabilities",
-          "required": false,
-          "nullable": true,
+          "required": true,
+          "nullable": false,
           "const": null
         },
         {
-          "name": "deliverySupport",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
+          "name": "displayName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
           "const": null
         }
       ],
@@ -5176,6 +5176,38 @@
       "variants": []
     },
     {
+      "id": "core.ChannelChat",
+      "name": "ChannelChat",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelChat.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "membership",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ChannelDeliveryCapabilities",
       "name": "ChannelDeliveryCapabilities",
       "module": "core",
@@ -5191,10 +5223,17 @@
           "const": null
         },
         {
-          "name": "structuredDelivery",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
+          "name": "targets",
+          "type": "core.ChannelTargetCapability",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "text",
+          "type": "core.ChannelTextCapability",
+          "required": true,
+          "nullable": false,
           "const": null
         }
       ],
@@ -5569,6 +5608,49 @@
           "type": "string",
           "required": false,
           "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelTargetCapability",
+      "name": "ChannelTargetCapability",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelTargetCapability.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "direct",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "group",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelTextCapability",
+      "name": "ChannelTextCapability",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelTextCapability.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "format",
+          "type": "string",
+          "required": true,
+          "nullable": false,
           "const": null
         }
       ],
@@ -7713,6 +7795,13 @@
       "schema": "schemas/external-channel/ExtChannelSendParams.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "deliveryId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
         {
           "name": "message",
           "type": "external-channel.ChannelOutboundMessage",
@@ -15145,13 +15234,6 @@
           "const": null
         },
         {
-          "name": "deliveryBindingId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "displayText",
           "type": "string",
           "required": true,
@@ -15915,6 +15997,13 @@
       "schema": "schemas/core/SenderContext.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "directTarget",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
         {
           "name": "groupId",
           "type": "string",
@@ -21847,6 +21936,13 @@
           "const": null
         },
         {
+          "name": "chat",
+          "type": "core.ChannelChat",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "cwd",
           "type": "string",
           "required": false,
@@ -22327,6 +22423,13 @@
         {
           "name": "additionalContext",
           "type": "map<core.RuntimeAdditionalContextEntry>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "chat",
+          "type": "core.ChannelChat",
           "required": false,
           "nullable": true,
           "const": null
@@ -25578,13 +25681,6 @@
         },
         {
           "name": "clientUserMessageId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "deliveryBindingId",
           "type": "string",
           "required": false,
           "nullable": true,

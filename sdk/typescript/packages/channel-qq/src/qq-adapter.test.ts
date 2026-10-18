@@ -56,6 +56,7 @@ test("QQAdapter uses group thread identity and real sender context", async () =>
     groupId: "group:123",
   });
   assert.equal(groupOpts.omitSenderGroupId, false);
+  assert.equal(groupOpts.directTarget, "user:456");
 
   const secondGroupOpts = await captureHandleMessageOptions({
     post_type: "message",
@@ -91,6 +92,7 @@ test("QQAdapter uses group thread identity and real sender context", async () =>
     senderRole: "admin",
   });
   assert.equal(privateOpts.omitSenderGroupId, true);
+  assert.equal(privateOpts.directTarget, "user:456");
 });
 
 test("QQAdapter builds channel binding targets from native QQ context", () => {

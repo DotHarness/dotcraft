@@ -17,8 +17,8 @@ public interface IWorldStateSection : IContributionContract
     string Id { get; }
 
     /// <summary>
-    /// Comparison state for this turn, or <c>null</c> to contribute no baseline. It must not serialize
-    /// to JSON null, which marks removal in a merge patch.
+    /// Comparison state for this turn, or <c>null</c> when its facts are unavailable, which skips the section
+    /// and keeps the baseline the model was last shown. It must not serialize to JSON null.
     /// </summary>
     JsonNode? Snapshot(WorldStateContext context);
 

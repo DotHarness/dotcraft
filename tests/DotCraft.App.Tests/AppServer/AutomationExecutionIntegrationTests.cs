@@ -111,7 +111,7 @@ public sealed class AutomationExecutionIntegrationTests
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task StopAsync() => Task.CompletedTask;
         public IReadOnlyList<string> GetAdminTargets() => [];
-        public Task<ChannelDeliveryResult> DeliverAsync(string target, ChannelDeliveryMessage message, object? metadata = null, CancellationToken cancellationToken = default)
+        public Task<ChannelDeliveryResult> DeliverAsync(string target, ChannelDeliveryMessage message, object? metadata = null, string? deliveryId = null, CancellationToken cancellationToken = default)
         { Target = target; Message = message; Deliveries++; return Task.FromResult(new ChannelDeliveryResult { Delivered = true }); }
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

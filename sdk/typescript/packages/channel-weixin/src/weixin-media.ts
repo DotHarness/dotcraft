@@ -1,12 +1,6 @@
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
-import { basename } from "node:path";
 
-import {
-  mediaSourceFromToolPath,
-  prepareMediaBytes,
-  type PreparedMediaBytes,
-} from "@dotcraft/channel/media";
-import type { ChannelToolDescriptor } from "@dotcraft/channel";
+import { prepareMediaBytes, type PreparedMediaBytes } from "@dotcraft/channel/media";
 import {
   buildFileMessageReq,
   buildImageMessageReq,
@@ -15,9 +9,6 @@ import {
   type WeixinApiOptions,
 } from "./weixin-api.js";
 import { UploadMediaType, type CDNMedia, type GetUploadUrlReq, type GetUploadUrlResp, type SendMessageReq } from "./weixin-types.js";
-
-export const WEIXIN_SEND_FILE_TOOL = "WeixinSendFileToCurrentChat";
-export const WEIXIN_SEND_IMAGE_TOOL = "WeixinSendImageToCurrentChat";
 
 const DEFAULT_CDN_BASE_URL = "https://novac2c.cdn.weixin.qq.com/c2c";
 const MAX_CDN_UPLOAD_ATTEMPTS = 3;
@@ -55,76 +46,11 @@ export interface WeixinMediaDeliveryOptions {
   message: Record<string, unknown>;
 }
 
-export class WeixinMediaTools {
+export class WeixinMediaSender {
   constructor(
     private readonly api: WeixinMediaApi = { getUploadUrl, sendMessage },
     private readonly cdnBaseUrl = DEFAULT_CDN_BASE_URL,
   ) {}
-
-  getDeliveryCapabilities(): Record<string, unknown> {
-    return {
-      structuredDelivery: true,
-      media: {
-        file: {
-          supportsHostPath: true,
-          supportsUrl: false,
-          supportsBase64: true,
-          supportsCaption: true,
-        },
-        image: {
-          supportsHostPath: true,
-          supportsUrl: false,
-          supportsBase64: true,
-          supportsCaption: true,
-        },
-      },
-    };
-  }
-
-  getChannelTools(): ChannelToolDescriptor[] {
-    return [
-      {
-        name: WEIXIN_SEND_FILE_TOOL,
-        description: "Send a real file attachment to the current Weixin chat.",
-        requiresChatContext: true,
-        approval: {
-          required: true,
-          kind: "file",
-          targetArgument: "filePath",
-          operation: "read",
-        },
-        inputSchema: {
-          type: "object",
-          properties: {
-            filePath: { type: "string" },
-            fileName: { type: "string" },
-            caption: { type: "string" },
-          },
-          required: ["filePath"],
-        },
-      },
-      {
-        name: WEIXIN_SEND_IMAGE_TOOL,
-        description: "Send a real image to the current Weixin chat.",
-        requiresChatContext: true,
-        approval: {
-          required: true,
-          kind: "file",
-          targetArgument: "imagePath",
-          operation: "read",
-        },
-        inputSchema: {
-          type: "object",
-          properties: {
-            imagePath: { type: "string" },
-            fileName: { type: "string" },
-            caption: { type: "string" },
-          },
-          required: ["imagePath"],
-        },
-      },
-    ];
-  }
 
   async sendStructuredMessage(opts: WeixinMediaDeliveryOptions): Promise<Record<string, unknown>> {
     const kind = String(opts.message.kind ?? "");
@@ -140,6 +66,7 @@ export class WeixinMediaTools {
     const prepared = await prepareMediaSource(
       asRecord(opts.message.source),
       optionalText(opts.message.fileName),
+      optionalText(opts.message.mediaType),
       fallbackName,
     );
     const uploaded = kind === "image"
@@ -165,61 +92,6 @@ export class WeixinMediaTools {
       md5: prepared.md5,
       bytes: prepared.bytes.length,
     };
-  }
-
-  async executeToolCall(
-    opts: Omit<WeixinMediaDeliveryOptions, "message" | "clientId"> & {
-      toolName: string;
-      args: Record<string, unknown>;
-      clientId: string;
-    },
-  ): Promise<Record<string, unknown>> {
-    const message = this.createToolMessage(opts.toolName, opts.args);
-    const result = await this.sendStructuredMessage({ ...opts, message });
-    const delivered = Boolean(result.delivered);
-    const fileName = String(result.fileName ?? message.fileName ?? "attachment");
-    const noun = String(message.kind ?? "") === "image" ? "image" : "file";
-    return {
-      success: delivered,
-      contentItems: [
-        {
-          type: "text",
-          text: delivered
-            ? `Sent ${noun} '${fileName}' to the current Weixin chat.`
-            : String(result.errorMessage ?? "Tool execution failed."),
-        },
-      ],
-      structuredContent: {
-        delivered,
-        errorCode: result.errorCode ?? null,
-        mediaId: result.remoteMediaId ?? null,
-        fileName,
-      },
-      errorCode: result.errorCode,
-      errorMessage: result.errorMessage,
-    };
-  }
-
-  private createToolMessage(toolName: string, args: Record<string, unknown>): Record<string, unknown> {
-    if (toolName === WEIXIN_SEND_FILE_TOOL) {
-      const filePath = requiredText(args.filePath, "filePath");
-      return {
-        kind: "file",
-        fileName: optionalText(args.fileName) ?? basename(filePath),
-        caption: optionalText(args.caption),
-        source: mediaSourceFromToolPath(filePath, { fieldName: "filePath", errorFactory: weixinMediaError }),
-      };
-    }
-    if (toolName === WEIXIN_SEND_IMAGE_TOOL) {
-      const imagePath = requiredText(args.imagePath, "imagePath");
-      return {
-        kind: "image",
-        fileName: optionalText(args.fileName) ?? basename(imagePath),
-        caption: optionalText(args.caption),
-        source: mediaSourceFromToolPath(imagePath, { fieldName: "imagePath", errorFactory: weixinMediaError }),
-      };
-    }
-    throw new WeixinMediaError("UnsupportedTool", `Unknown tool '${toolName}'.`);
   }
 
   private async uploadFile(
@@ -367,10 +239,12 @@ interface PreparedMedia extends PreparedMediaBytes {
 async function prepareMediaSource(
   source: Record<string, unknown>,
   requestedFileName: string | undefined,
+  mediaType: string | undefined,
   fallbackFileName: string,
 ): Promise<PreparedMedia> {
   const prepared = await prepareMediaBytes(source, {
     fileName: requestedFileName,
+    mediaType,
     fallbackFileName,
     errorFactory: weixinMediaError,
   });
@@ -420,12 +294,6 @@ async function formatCdnErrorDetail(response: Response): Promise<string> {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-}
-
-function requiredText(value: unknown, field: string): string {
-  const text = optionalText(value);
-  if (!text) throw new WeixinMediaError("InvalidArguments", `${field} is required.`);
-  return text;
 }
 
 function optionalText(value: unknown): string | undefined {

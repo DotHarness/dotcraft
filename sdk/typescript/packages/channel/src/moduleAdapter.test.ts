@@ -5,12 +5,14 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { ChannelAdapter } from "./adapter.js";
+import type { ChannelChatDescriptor, ChannelDeliveryCapabilities } from "./capability.js";
 import { ConfigValidationError, loadJsonConfig, ModuleChannelAdapter, resolveConfigPath, resolveModuleStatePath, resolveModuleTempPath } from "./moduleAdapter.js";
 import type { ModuleError } from "./lifecycle.js";
 import type { WorkspaceContext } from "./module.js";
 import { TransportClosed, type Transport } from "@dotcraft/sdk/wire";
 
 class MockTransport implements Transport {
+  readonly written: Record<string, unknown>[] = [];
   private closed = false;
   private readonly queue: Record<string, unknown>[] = [];
   private readonly waiting: Array<{
@@ -28,6 +30,7 @@ class MockTransport implements Transport {
 
   async writeMessage(msg: Record<string, unknown>): Promise<void> {
     if (this.closed) throw new TransportClosed();
+    this.written.push(msg);
     const method = String(msg.method ?? "");
     if (method === "initialize") {
       this.push({
@@ -64,8 +67,8 @@ class MockTransport implements Transport {
 }
 
 class LifecycleAdapter extends ChannelAdapter {
-  constructor() {
-    super(new MockTransport(), "test-channel", "test-client", "0.0.0");
+  constructor(transport: Transport = new MockTransport()) {
+    super(transport, "test-channel", "test-client", "0.0.0");
   }
 
   async onDeliver(_target: string, _content: string, _metadata: Record<string, unknown>): Promise<boolean> {
@@ -74,6 +77,18 @@ class LifecycleAdapter extends ChannelAdapter {
 
   async onApprovalRequest(_request: Record<string, unknown>): Promise<string> {
     return "cancel";
+  }
+
+  protected getDisplayName(): string {
+    return "Test";
+  }
+
+  protected getDeliveryCapabilities(): ChannelDeliveryCapabilities {
+    return { text: { format: "plain" }, targets: { group: false, direct: "none" } };
+  }
+
+  protected getChatDescriptor(): ChannelChatDescriptor {
+    return { kind: "direct", membership: "shared" };
   }
 }
 
@@ -108,6 +123,18 @@ class TestModuleAdapter extends ModuleChannelAdapter<{ wsUrl: string }> {
 
   async onApprovalRequest(_request: Record<string, unknown>): Promise<string> {
     return "cancel";
+  }
+
+  protected getDisplayName(): string {
+    return "Test";
+  }
+
+  protected getDeliveryCapabilities(): ChannelDeliveryCapabilities {
+    return { text: { format: "plain" }, targets: { group: false, direct: "none" } };
+  }
+
+  protected getChatDescriptor(): ChannelChatDescriptor {
+    return { kind: "direct", membership: "shared" };
   }
 
   cacheThreadForTest(identityKey: string, threadId: string): void {
@@ -154,6 +181,22 @@ test("ChannelAdapter start and stop emit lifecycle transitions", async () => {
   await adapter.stop();
   assert.equal(adapter.getStatus(), "stopped");
   assert.deepEqual(transitions, ["starting", "ready", "stopped"]);
+});
+
+test("ChannelAdapter declares its platform name and delivery capabilities during initialize", async () => {
+  const transport = new MockTransport();
+  const adapter = new LifecycleAdapter(transport);
+
+  await adapter.start();
+  await adapter.stop();
+
+  const initialize = transport.written.find((msg) => msg.method === "initialize");
+  const capabilities = (initialize?.params as { capabilities?: Record<string, unknown> } | undefined)?.capabilities;
+  assert.deepEqual(capabilities?.channelAdapter, {
+    channelName: "test-channel",
+    displayName: "Test",
+    deliveryCapabilities: { text: { format: "plain" }, targets: { group: false, direct: "none" } },
+  });
 });
 
 test("ChannelAdapter notifies multiple status handlers", async () => {

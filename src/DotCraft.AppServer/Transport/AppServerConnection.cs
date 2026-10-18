@@ -27,6 +27,7 @@ public sealed class AppServerConnection
 
     // Logical interactive requests already delivered on this connection.
     private readonly ConcurrentDictionary<InteractiveRequestKey, byte> _interactiveRequests = new();
+    private readonly ConcurrentDictionary<string, ChannelChatDescriptor> _threadChats = new(StringComparer.Ordinal);
     internal event Action<string>? McpAppThreadEligibilityRevoked;
 
     // -------------------------------------------------------------------------
@@ -112,10 +113,18 @@ public sealed class AppServerConnection
         _appPrincipalAppId = appId;
     }
 
-    /// <summary>
-    /// Structured delivery descriptor declared by the adapter during initialize, if any.
-    /// </summary>
+    public string? ChannelDisplayName { get; private set; }
+
     public ChannelDeliveryCapabilitySnapshot? DeliveryCapabilities { get; private set; }
+
+    public void BindThreadChat(string threadId, ChannelChatDescriptor chat) => _threadChats[threadId] = chat;
+
+    public bool TryGetThreadChat(string threadId, out ChannelChatDescriptor? chat)
+    {
+        var found = _threadChats.TryGetValue(threadId, out var value);
+        chat = value;
+        return found;
+    }
 
     /// <summary>
     /// Raw channel tool descriptors declared by the adapter during initialize.
@@ -137,11 +146,6 @@ public sealed class AppServerConnection
     /// True once descriptor validation has been finalized for this connection.
     /// </summary>
     public bool ChannelToolRegistrationFinalized { get; private set; }
-
-    /// <summary>
-    /// Whether the adapter supports <c>ext/channel/send</c>.
-    /// </summary>
-    public bool SupportsStructuredDelivery => DeliveryCapabilities?.StructuredDelivery == true;
 
     // -------------------------------------------------------------------------
     // ACP extension state (appserver-protocol.md §11.2)
@@ -242,6 +246,7 @@ public sealed class AppServerConnection
         if (caps?.ChannelAdapter is { } ca)
         {
             ChannelAdapterName = ca.ChannelName;
+            ChannelDisplayName = ca.DisplayName;
             DeliveryCapabilities = ca.DeliveryCapabilities;
             DeclaredChannelTools = ca.ChannelTools?.ToArray() ?? [];
             RegisteredChannelTools = [];

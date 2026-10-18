@@ -4,6 +4,9 @@
   "title": "ExtChannelSendParams",
   "type": "object",
   "properties": {
+    "deliveryId": {
+      "type": "string"
+    },
     "message": {
       "$ref": "./ChannelOutboundMessage.schema.json"
     },

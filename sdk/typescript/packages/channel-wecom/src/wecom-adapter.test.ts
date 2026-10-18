@@ -1,8 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 import {
   APPROVAL_REPLY_PENDING_NOTICE,
@@ -12,7 +9,8 @@ import {
 
 import { WeComPermissionService } from "./permission.js";
 import { WeComAdapter } from "./wecom-adapter.js";
-import { WE_COM_SEND_FILE_TOOL, WE_COM_SEND_IMAGE_TOOL, WeComMediaTools } from "./wecom-media-tools.js";
+import { deliverWeComMessage } from "./wecom-delivery.js";
+import { WeComBotRegistry } from "./wecom-server.js";
 import { parseWeComMessage, parseWeComParameters, WeComChatType } from "./wecom-types.js";
 
 test("WeComPermissionService classifies admins, whitelisted users, chats, and unauthorized users", () => {
@@ -52,45 +50,8 @@ test("parseWeComMessage parses JSON mixed messages", () => {
   assert.equal(message?.mixedMessage?.msgItems[0]?.text?.content, "hello");
 });
 
-test("WeComMediaTools requires current chat context", () => {
-  const tools = new WeComMediaTools().getChannelTools();
-  assert.ok(tools.every((tool) => tool.requiresChatContext === true));
-});
-
-test("WeComMediaTools uploads file tool paths as bytes", async () => {
-  const tempDir = mkdtempSync(join(tmpdir(), "dotcraft-wecom-upload-"));
-  const filePath = join(tempDir, "report.txt");
-  writeFileSync(filePath, "hello wecom", "utf-8");
-  const uploads: Array<{ bytes: Buffer; filename: string; type: string }> = [];
-  let pushedFile = "";
-  const pusher = {
-    getChatId: () => "chat:chat-1",
-    uploadMedia: async (bytes: Buffer, filename: string, type: "voice" | "file") => {
-      uploads.push({ bytes, filename, type });
-      return "media-1";
-    },
-    pushFile: async (mediaId: string) => {
-      pushedFile = mediaId;
-    },
-    pushVoice: async () => undefined,
-    pushText: async () => undefined,
-  };
-
-  const result = await new WeComMediaTools().executeToolCall(pusher as never, WE_COM_SEND_FILE_TOOL, { filePath });
-
-  assert.equal(result.success, true);
-  assert.equal(uploads[0]?.filename, "report.txt");
-  assert.equal(uploads[0]?.type, "file");
-  assert.equal(uploads[0]?.bytes.toString("utf-8"), "hello wecom");
-  assert.equal(pushedFile, "media-1");
-});
-
-test("WeComMediaTools sends images inline within the WeCom size limit", async () => {
-  const tempDir = mkdtempSync(join(tmpdir(), "dotcraft-wecom-image-"));
-  const filePath = join(tempDir, "chart.png");
-  const pngBytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("png")]);
+test("WeCom delivery sends images inline within the WeCom size limit", async () => {
   const jpegBytes = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from("jpeg")]);
-  writeFileSync(filePath, pngBytes);
   const pushedImages: Buffer[] = [];
   const pusher = {
     getChatId: () => "chat:chat-1",
@@ -98,20 +59,17 @@ test("WeComMediaTools sends images inline within the WeCom size limit", async ()
       pushedImages.push(bytes);
     },
   };
-  const tools = new WeComMediaTools();
 
-  const toolResult = await tools.executeToolCall(pusher as never, WE_COM_SEND_IMAGE_TOOL, { filePath });
-  const structured = await tools.sendStructuredMessage(pusher as never, {
+  const structured = await deliverWeComMessage(pusher as never, {
     kind: "image",
     fileName: "ig_1.png",
     source: { kind: "dataBase64", dataBase64: jpegBytes.toString("base64") },
   });
 
-  assert.equal(toolResult.success, true);
   assert.equal(structured.delivered, true);
-  assert.deepEqual(pushedImages, [pngBytes, jpegBytes]);
+  assert.deepEqual(pushedImages, [jpegBytes]);
   await assert.rejects(
-    () => tools.sendStructuredMessage(pusher as never, {
+    () => deliverWeComMessage(pusher as never, {
       kind: "image",
       source: { kind: "dataBase64", dataBase64: Buffer.alloc(2 * 1024 * 1024 + 1).toString("base64") },
     }),
@@ -119,7 +77,7 @@ test("WeComMediaTools sends images inline within the WeCom size limit", async ()
   );
 });
 
-test("WeComMediaTools sends images WeCom cannot render inline as files", async () => {
+test("WeCom delivery sends images WeCom cannot render inline as files", async () => {
   const uploads: Array<{ fileName: string; type: string }> = [];
   let pushedFile = "";
   const pusher = {
@@ -136,7 +94,7 @@ test("WeComMediaTools sends images WeCom cannot render inline as files", async (
     },
   };
 
-  const result = await new WeComMediaTools().sendStructuredMessage(pusher as never, {
+  const result = await deliverWeComMessage(pusher as never, {
     kind: "image",
     fileName: "ig_1.webp",
     source: { kind: "dataBase64", dataBase64: Buffer.from("RIFF0000WEBP").toString("base64") },
@@ -145,6 +103,98 @@ test("WeComMediaTools sends images WeCom cannot render inline as files", async (
   assert.equal(result.delivered, true);
   assert.deepEqual(uploads, [{ fileName: "ig_1.webp", type: "file" }]);
   assert.equal(pushedFile, "media-webp");
+});
+
+test("WeCom delivery posts a caption before the uploaded attachment", async () => {
+  const calls: string[] = [];
+  const pusher = {
+    getChatId: () => "chat-1",
+    pushText: async (content: string) => {
+      calls.push(`text:${content}`);
+    },
+    uploadMedia: async (_bytes: Buffer, fileName: string, type: string) => {
+      calls.push(`upload:${type}:${fileName}`);
+      return "media-1";
+    },
+    pushFile: async (mediaId: string) => {
+      calls.push(`file:${mediaId}`);
+    },
+    pushVoice: async (mediaId: string) => {
+      calls.push(`voice:${mediaId}`);
+    },
+  };
+
+  const file = await deliverWeComMessage(pusher as never, {
+    kind: "file",
+    caption: "Latest report",
+    fileName: "report.pdf",
+    source: { kind: "dataBase64", dataBase64: Buffer.from("%PDF-1.7").toString("base64") },
+  });
+  const voice = await deliverWeComMessage(pusher as never, {
+    kind: "audio",
+    source: { kind: "dataBase64", dataBase64: Buffer.from("#!AMR\nabc").toString("base64") },
+  });
+  await assert.rejects(
+    () => deliverWeComMessage(pusher as never, {
+      kind: "audio",
+      caption: "not sent",
+      fileName: "clip.mp3",
+      source: { kind: "dataBase64", dataBase64: Buffer.from("ID3abc").toString("base64") },
+    }),
+    (error: { code?: string }) => error.code === "MediaTypeNotAllowed",
+  );
+
+  assert.deepEqual(file, { delivered: true, remoteMediaId: "media-1" });
+  assert.equal(voice.delivered, true);
+  assert.deepEqual(calls, [
+    "text:Latest report",
+    "upload:file:report.pdf",
+    "file:media-1",
+    "upload:voice:voice.amr",
+    "voice:media-1",
+  ]);
+});
+
+test("WeComAdapter answers sends to unreachable targets with UnsupportedTarget", async () => {
+  const adapter = new WeComAdapter() as unknown as {
+    registry: WeComBotRegistry;
+    onSend: (target: string, message: Record<string, unknown>, metadata: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  };
+  adapter.registry = new WeComBotRegistry();
+  adapter.registry.cacheWebhookUrl("chat-1", "https://example.test/webhook?key=k");
+
+  for (const target of ["chat-1", "group:chat-1", "chat:", "chat:chat-2"]) {
+    const result = await adapter.onSend(target, { kind: "text", text: "hi" }, {});
+    assert.equal(result.delivered, false, target);
+    assert.equal(result.errorCode, "UnsupportedTarget", target);
+  }
+});
+
+test("WeComAdapter reports the sender's direct chat once they have messaged the bot directly", async () => {
+  const adapter = new WeComAdapter() as unknown as {
+    handleMessage: (opts: Record<string, unknown>) => Promise<void>;
+    getChatDescriptor: (opts: Record<string, unknown>, channelContext: string) => Record<string, unknown>;
+    runInboundMessage: (
+      text: string,
+      from: { userId: string; name: string; alias?: string },
+      pusher: { getChatId: () => string },
+      inputParts: Record<string, unknown>[],
+      chatType: string,
+    ) => Promise<void>;
+  };
+  const captured: Record<string, unknown>[] = [];
+  adapter.handleMessage = async (opts) => {
+    captured.push(opts);
+  };
+  const from = { userId: "u1", name: "User One" };
+
+  await adapter.runInboundMessage("before", from, { getChatId: () => "group-1" }, [], WeComChatType.Group);
+  await adapter.runInboundMessage("dm", from, { getChatId: () => "dm-1" }, [], WeComChatType.Single);
+  await adapter.runInboundMessage("after", from, { getChatId: () => "group-1" }, [], WeComChatType.Group);
+
+  assert.deepEqual(captured.map((opts) => opts.directTarget), [undefined, "chat:dm-1", "chat:dm-1"]);
+  assert.deepEqual(adapter.getChatDescriptor({}, "chat:group-1"), { kind: "group", membership: "shared" });
+  assert.deepEqual(adapter.getChatDescriptor({}, "chat:dm-1"), { kind: "direct", membership: "shared" });
 });
 
 test("WeComAdapter uses chat thread identity and real sender context", async () => {

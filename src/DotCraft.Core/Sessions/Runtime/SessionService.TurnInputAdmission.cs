@@ -234,7 +234,6 @@ public sealed partial class SessionService
                 TriggerRefId = queued.TriggerRefId,
                 TriggerStatus = queued.TriggerStatus,
                 QueuedInputId = queued.Id,
-                DeliveryBindingId = queued.DeliveryBindingId
             }
         };
     }

@@ -91,6 +91,7 @@ public sealed class MessageRouterTests
             string target,
             ChannelDeliveryMessage message,
             object? metadata = null,
+            string? deliveryId = null,
             CancellationToken cancellationToken = default) => Task.FromResult(result);
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -113,6 +114,7 @@ public sealed class MessageRouterTests
             string target,
             ChannelDeliveryMessage message,
             object? metadata = null,
+            string? deliveryId = null,
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _deliverCount);
@@ -143,6 +145,7 @@ public sealed class MessageRouterTests
             string target,
             ChannelDeliveryMessage message,
             object? metadata = null,
+            string? deliveryId = null,
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _deliverCount);

@@ -3,47 +3,10 @@ import test from "node:test";
 
 import { WeixinAdapter } from "./weixin-adapter.js";
 
-class TestWeixinAdapter extends WeixinAdapter {
-  async exposeSegmentCompleted(segmentText: string, isFinal: boolean, channelContext: string): Promise<boolean | void> {
-    return await this.onSegmentCompleted("thread-1", "turn-1", segmentText, isFinal, channelContext);
-  }
-}
-
-test("Weixin sends non-final segments immediately instead of waiting for turn completion", async () => {
-  const originalFetch = globalThis.fetch;
-  const adapter = new TestWeixinAdapter();
-  const internals = adapter as unknown as {
-    apiBaseUrl: string;
-    botToken: string;
-    contextTokens: Record<string, string>;
-  };
-  internals.apiBaseUrl = "https://ilink.example";
-  internals.botToken = "token";
-  internals.contextTokens = { "wx-user-1": "ctx" };
-
-  const sentTexts: string[] = [];
-  globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
-    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-    const msg = body.msg as Record<string, unknown>;
-    const item = (msg.item_list as Array<Record<string, { text?: string }>>)[0];
-    sentTexts.push(item?.text_item?.text ?? "");
-    return new Response("", { status: 200 });
-  }) as typeof fetch;
-
-  try {
-    await adapter.exposeSegmentCompleted("先给你中间结果。", false, "wx-user-1");
-    await adapter.exposeSegmentCompleted("最终结果。", true, "wx-user-1");
-
-    assert.deepEqual(sentTexts, ["先给你中间结果。", "最终结果。"]);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("Weixin reports segment delivery failure instead of acknowledging it", async () => {
+test("Weixin reports text delivery failure instead of acknowledging it", async () => {
   const originalFetch = globalThis.fetch;
   const originalError = console.error;
-  const adapter = new TestWeixinAdapter();
+  const adapter = new WeixinAdapter();
   const internals = adapter as unknown as {
     apiBaseUrl: string;
     botToken: string;
@@ -57,7 +20,7 @@ test("Weixin reports segment delivery failure instead of acknowledging it", asyn
   console.error = () => {};
 
   try {
-    const delivered = await adapter.exposeSegmentCompleted("不会成功发送。", false, "wx-user-1");
+    const delivered = await adapter.onDeliver("wx-user-1", "不会成功发送。", {});
     assert.equal(delivered, false);
   } finally {
     globalThis.fetch = originalFetch;
@@ -67,7 +30,7 @@ test("Weixin reports segment delivery failure instead of acknowledging it", asyn
 
 test("Weixin retries transient text fetch failures with the same client id", async () => {
   const originalFetch = globalThis.fetch;
-  const adapter = new TestWeixinAdapter();
+  const adapter = new WeixinAdapter();
   const internals = adapter as unknown as {
     apiBaseUrl: string;
     botToken: string;
@@ -89,7 +52,7 @@ test("Weixin retries transient text fetch failures with the same client id", asy
   }) as typeof fetch;
 
   try {
-    const delivered = await adapter.exposeSegmentCompleted("重试后成功。", false, "wx-user-1");
+    const delivered = await adapter.onDeliver("wx-user-1", "重试后成功。", {});
     assert.equal(delivered, true);
     assert.equal(attempts, 3);
     assert.equal(new Set(clientIds).size, 1);

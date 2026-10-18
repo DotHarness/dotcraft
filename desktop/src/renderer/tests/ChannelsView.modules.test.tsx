@@ -49,8 +49,7 @@ function createWeComModule(): DiscoveredModule {
     supportedTransports: ['websocket'],
     requiresInteractiveSetup: false,
     capabilitySummary: {
-      hasChannelTools: true,
-      hasStructuredDelivery: true
+      hasChannelTools: true
     },
     variant: 'standard',
     source: 'bundled',

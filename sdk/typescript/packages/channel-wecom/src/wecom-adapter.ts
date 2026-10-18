@@ -20,13 +20,15 @@ import {
   mergeUserInputResponses,
   splitUserInputRequestByQuestion,
   userInputResponseFromText,
-  type ChannelToolDescriptor,
+  type ChannelChatDescriptor,
+  type ChannelChatKind,
+  type ChannelDeliveryCapabilities,
   type ChannelAdapterMessageOpts,
   type UserInputResponse,
   type WorkspaceContext,
 } from "@dotcraft/channel";
 
-import { WeComMediaError, WeComMediaTools } from "./wecom-media-tools.js";
+import { deliverWeComMessage, WeComMediaError, weComDeliveryCapabilities } from "./wecom-delivery.js";
 import { WeComPermissionService } from "./permission.js";
 import { WeComBotRegistry, WeComBotServer } from "./wecom-server.js";
 import { WeComPusher } from "./wecom-pusher.js";
@@ -97,9 +99,10 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
   private server: WeComBotServer | undefined;
   private registry: WeComBotRegistry | undefined;
   private permission = new WeComPermissionService({});
-  private readonly mediaTools = new WeComMediaTools();
   private readonly threadContextMap = new Map<string, string>();
   private readonly lastSenderByContext = new Map<string, string>();
+  private readonly chatKindByContext = new Map<string, ChannelChatKind>();
+  private readonly directChatByUser = new Map<string, string>();
   private readonly approvalReplies = new ApprovalReplyTracker({
     notify: async ({ channelContext }, text) => {
       await this.createPusher(channelContext).pushText(text);
@@ -133,12 +136,16 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     });
   }
 
-  protected override getDeliveryCapabilities(): Record<string, unknown> | null {
-    return this.mediaTools.getDeliveryCapabilities();
+  protected override getDisplayName(): string {
+    return "WeCom";
   }
 
-  protected override getChannelTools(): ChannelToolDescriptor[] | null {
-    return this.mediaTools.getChannelTools();
+  protected override getDeliveryCapabilities(): ChannelDeliveryCapabilities {
+    return weComDeliveryCapabilities;
+  }
+
+  protected override getChatDescriptor(_opts: ChannelAdapterMessageOpts, channelContext: string): ChannelChatDescriptor {
+    return { kind: this.chatKindByContext.get(channelContext) ?? "group", membership: "shared" };
   }
 
   protected override buildChannelTarget(
@@ -185,7 +192,7 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
       for (const path of registry.getAllPaths()) {
         registry.setHandlers(
           path,
-          (parameters, from, pusher) => this.handleTextMessage(parameters, from, pusher),
+          (parameters, from, pusher, chatType) => this.handleTextMessage(parameters, from, pusher, chatType),
           (message, pusher) => this.handleCommonMessage(message, pusher),
           (eventType, chatType, from, pusher) => this.handleEventMessage(eventType, chatType, from, pusher),
         );
@@ -248,9 +255,16 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     message: Record<string, unknown>,
     _metadata: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
+    const pusher = this.resolvePusher(target);
+    if (!pusher) {
+      return {
+        delivered: false,
+        errorCode: "UnsupportedTarget",
+        errorMessage: `WeCom cannot reach '${target}'. Targets are chat:<chatId> for a chat that has messaged the bot.`,
+      };
+    }
     try {
-      const result = await this.mediaTools.sendStructuredMessage(this.createPusher(target), message);
-      return result;
+      return await deliverWeComMessage(pusher, message);
     } catch (error) {
       if (error instanceof WeComMediaError) {
         return { delivered: false, errorCode: error.code, errorMessage: error.message };
@@ -258,34 +272,6 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
       return {
         delivered: false,
         errorCode: "AdapterDeliveryFailed",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-
-  protected override async onToolCall(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    try {
-      const context = asRecord(request.context);
-      const target = String(context.channelContext ?? "");
-      if (!target) {
-        return {
-          success: false,
-          errorCode: "MissingChatContext",
-          errorMessage: "WeCom tool execution requires a current chat context.",
-        };
-      }
-      return await this.mediaTools.executeToolCall(
-        this.createPusher(target),
-        String(request.tool ?? ""),
-        asRecord(request.arguments),
-      );
-    } catch (error) {
-      if (error instanceof WeComMediaError) {
-        return { success: false, errorCode: error.code, errorMessage: error.message };
-      }
-      return {
-        success: false,
-        errorCode: "AdapterToolCallFailed",
         errorMessage: error instanceof Error ? error.message : String(error),
       };
     }
@@ -392,34 +378,7 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     return questionCount > 1 ? `${base} (${questionIndex + 1}/${questionCount})` : base;
   }
 
-  protected override async onSegmentCompleted(
-    _threadId: string,
-    _turnId: string,
-    segmentText: string,
-    _isFinal: boolean,
-    channelContext: string,
-  ): Promise<void> {
-    if (!segmentText.trim()) return;
-    await this.createPusher(channelContext).pushMarkdown(segmentText);
-  }
-
-  protected override async onTurnCompleted(
-    _threadId: string,
-    _turnId: string,
-    replyText: string,
-    channelContext: string,
-    segmentsWereDelivered: boolean,
-  ): Promise<void> {
-    if (!segmentsWereDelivered && replyText) {
-      await this.createPusher(channelContext).pushMarkdown(replyText);
-    }
-  }
-
-  protected override async onTurnFailed(threadId: string, turnId: string, error: string): Promise<void> {
-    console.error(`[wecom] turn ${turnId} failed on thread ${threadId}: ${error}`);
-  }
-
-  private async handleTextMessage(parameters: string[], from: WeComFrom, pusher: WeComPusher): Promise<void> {
+  private async handleTextMessage(parameters: string[], from: WeComFrom, pusher: WeComPusher, chatType: string): Promise<void> {
     const plainText = parameters.join(" ").trim();
     if (!plainText) {
       await pusher.pushText("请输入消息内容");
@@ -434,7 +393,7 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
       return;
     }
 
-    await this.runInboundMessage(plainText, from, pusher, [textPart(plainText)]);
+    await this.runInboundMessage(plainText, from, pusher, [textPart(plainText)], chatType);
   }
 
   private async handleCommonMessage(message: WeComMessage, pusher: WeComPusher): Promise<void> {
@@ -442,7 +401,7 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     const inputParts = await this.buildInputParts(message);
     if (inputParts) {
       const text = message.msgType === WeComMsgType.Voice ? message.voice?.content ?? "[voice]" : `[${message.msgType}]`;
-      await this.runInboundMessage(text, from, pusher, inputParts);
+      await this.runInboundMessage(text, from, pusher, inputParts, message.chatType);
       return;
     }
 
@@ -467,7 +426,13 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     return null;
   }
 
-  private async runInboundMessage(text: string, from: WeComFrom, pusher: WeComPusher, inputParts: InputPart[]): Promise<void> {
+  private async runInboundMessage(
+    text: string,
+    from: WeComFrom,
+    pusher: WeComPusher,
+    inputParts: InputPart[],
+    chatType: string,
+  ): Promise<void> {
     const chatId = pusher.getChatId();
     const channelContext = `chat:${chatId}`;
     if (await this.approvalReplies.remindIfPending({ channelContext, userId: from.userId })) {
@@ -475,12 +440,16 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     }
     const senderName = from.name || from.alias || from.userId;
     this.lastSenderByContext.set(channelContext, from.userId);
+    const chatKind = chatType === WeComChatType.Single ? "direct" : "group";
+    this.chatKindByContext.set(channelContext, chatKind);
+    if (chatKind === "direct" && from.userId) this.directChatByUser.set(from.userId, channelContext);
     const role = this.permission.getUserRole(from.userId, chatId);
     await this.handleMessage({
       userId: channelContext,
       userName: senderName,
       text,
       channelContext,
+      directTarget: this.directChatByUser.get(from.userId),
       sender: {
         senderId: from.userId,
         senderName,
@@ -527,10 +496,15 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
   }
 
   private createPusher(target: string): WeComPusher {
-    const chatId = target.replace(/^chat:/, "");
-    const webhookUrl = this.registry?.getWebhookUrl(chatId);
-    if (!webhookUrl) throw new Error(`No WeCom webhook is available for target '${target}'.`);
-    return new WeComPusher(chatId, webhookUrl);
+    const pusher = this.resolvePusher(target);
+    if (!pusher) throw new Error(`No WeCom webhook is available for target '${target}'.`);
+    return pusher;
+  }
+
+  private resolvePusher(target: string): WeComPusher | null {
+    const chatId = parseWeComConversationId(target);
+    const webhookUrl = chatId ? this.registry?.getWebhookUrl(chatId) : undefined;
+    return chatId && webhookUrl ? new WeComPusher(chatId, webhookUrl) : null;
   }
 
   private async tryResolvePendingUserInput(text: string, userId: string, channelContext: string): Promise<boolean> {

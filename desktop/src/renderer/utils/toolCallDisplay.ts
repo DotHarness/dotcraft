@@ -8,6 +8,7 @@ import {
   Monitor,
   Pencil,
   Search,
+  Send,
   ShieldAlert,
   SquareTerminal,
   Wrench,
@@ -378,6 +379,7 @@ export function getToolRowIcon(
     return { icon: SquareTerminal }
   }
   if (kind === 'taskStop') return { icon: CircleStop }
+  if (kind === 'channelMessage') return { icon: Send }
   if (resolveMemoryOperation(item) === 'update') return { icon: Brain }
   const exploreIcon = kind ? EXPLORE_ICONS[kind] : undefined
   if (exploreIcon) return { icon: exploreIcon }

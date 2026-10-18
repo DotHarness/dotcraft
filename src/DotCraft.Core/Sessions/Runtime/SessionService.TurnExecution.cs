@@ -68,7 +68,8 @@ public sealed partial class SessionService
                 UserName = sender?.SenderName,
                 UserRole = sender?.SenderRole,
                 ChannelContext = turnChannelContext,
-                GroupId = sender?.GroupId ?? channelInfo?.GroupId
+                GroupId = sender?.GroupId ?? channelInfo?.GroupId,
+                DirectTarget = sender?.DirectTarget
             }
         };
 
@@ -108,7 +109,6 @@ public sealed partial class SessionService
                 TriggerRefId = triggerInfo?.RefId,
                 TriggerStatus = triggerInfo?.Status,
                 QueuedInputId = inputSnapshot?.QueuedInputId,
-                DeliveryBindingId = inputSnapshot?.DeliveryBindingId,
                 SentAsGoal = inputSnapshot?.SentAsGoal
             }
         };

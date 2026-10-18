@@ -439,6 +439,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             string target,
             ChannelDeliveryMessage message,
             object? metadata = null,
+            string? deliveryId = null,
             CancellationToken cancellationToken = default)
         {
             _ = target;

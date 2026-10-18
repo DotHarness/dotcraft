@@ -68,6 +68,8 @@ public static class RuntimeContextBuilder
         AddLine(lines, "SenderName", initiator.UserName);
         AddLine(lines, "SenderRole", initiator.UserRole);
         AddLine(lines, "GroupChatId", initiator.GroupId);
+        if (!string.IsNullOrWhiteSpace(channel) && !string.IsNullOrWhiteSpace(initiator.DirectTarget))
+            AddLine(lines, "SenderAddress", $"{channel}:{initiator.DirectTarget.Trim()}");
         return lines;
     }
 

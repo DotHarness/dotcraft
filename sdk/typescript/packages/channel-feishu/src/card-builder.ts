@@ -15,38 +15,55 @@ import {
 import { chunkMarkdown, normalizeMarkdownForFeishu } from "./formatting.js";
 
 export const DEFAULT_CARD_TITLE = "DotCraft";
-export const STREAMING_TRANSCRIPT_ELEMENT_ID = "dotcraft_reply";
-export const STREAMING_STATUS_ELEMENT_ID = "dotcraft_status";
-
-export type TurnStatusPhase = "thinking" | "working";
-
-export interface StreamingCardOptions {
-  /** Status row below the reply; shown only while no reply text is streaming. */
-  status?: TurnStatusPhase;
-  /** Image key of the animated loading GIF; falls back to a static icon when absent. */
-  statusIconImgKey?: string;
-}
+export type TurnStatusPhase = "working" | "retrying" | "done" | "failed" | "stopped";
 
 export interface QuestionPosition {
   index: number;
   count: number;
 }
 
-export function buildStatusElement(phase: TurnStatusPhase, iconImgKey?: string): Record<string, unknown> {
-  return {
+const STATUS_TEXT_KEYS = {
+  working: "working",
+  retrying: "retrying",
+  done: "doneAfter",
+  failed: "failedAfter",
+  stopped: "stoppedAfter",
+} as const satisfies Record<TurnStatusPhase, CardMessageKey>;
+
+const STATUS_ICONS: Record<Exclude<TurnStatusPhase, "working" | "retrying">, { token: string; color: string }> = {
+  done: { token: "succeed_filled", color: "green" },
+  failed: { token: "error_filled", color: "red" },
+  stopped: { token: "stop_outlined", color: "grey" },
+};
+
+export function buildTurnStatusCard(
+  phase: TurnStatusPhase,
+  elapsedMs: number,
+  loadingIconImgKey?: string,
+): Record<string, unknown> {
+  const text = cardText(STATUS_TEXT_KEYS[phase], { elapsed: formatElapsed(elapsedMs) });
+  const settled = phase !== "working" && phase !== "retrying";
+  const icon = settled
+    ? { tag: "standard_icon", ...STATUS_ICONS[phase], size: "16px 16px" }
+    : loadingIconImgKey
+      ? { tag: "custom_icon", img_key: loadingIconImgKey, size: "16px 16px" }
+      : { tag: "standard_icon", token: "loading_outlined", color: "grey", size: "16px 16px" };
+  return buildReplyV2Card(text, [{
     tag: "markdown",
-    element_id: STREAMING_STATUS_ELEMENT_ID,
-    ...buildStatusPatch(phase),
+    ...mapLocalized(text, (value) => `<font color="grey">${value}</font>`),
     text_size: "notation",
-    icon: iconImgKey
-      ? { tag: "custom_icon", img_key: iconImgKey, size: "16px 16px" }
-      : { tag: "standard_icon", token: "loading_outlined", color: "grey", size: "16px 16px" },
-  };
+    icon,
+  }]);
 }
 
-// The element patch API rejects `tag` and `element_id`, so phase changes only send the text fields.
-export function buildStatusPatch(phase: TurnStatusPhase): LocalizedText {
-  return localizedText((t) => `<font color="grey">${t(phase)}</font>`);
+export function formatElapsed(elapsedMs: number): string {
+  const totalSeconds = Math.max(0, Math.round(elapsedMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
 }
 
 export function resolveCardTitle(cardTitle?: string): string {
@@ -67,58 +84,6 @@ export function buildReplyCards(replyText: string, cardTitle?: string): Record<s
       [{ tag: "markdown", content: normalizeMarkdownForFeishu(chunk) }],
     ),
   );
-}
-
-export function buildTranscriptCard(text: string, isFinal: boolean, cardTitle?: string): Record<string, unknown> {
-  return buildReplyV2Card(isFinal ? buildReplySummary(cardTitle) : cardText("generating"), [
-    { tag: "markdown", content: normalizeMarkdownForFeishu(text) },
-  ]);
-}
-
-export function buildStreamingTranscriptCard(
-  text: string,
-  isFinal: boolean,
-  cardTitle?: string,
-  options: StreamingCardOptions = {},
-): Record<string, unknown> {
-  const elements: Array<Record<string, unknown>> = [
-    {
-      tag: "markdown",
-      element_id: STREAMING_TRANSCRIPT_ELEMENT_ID,
-      content: normalizeMarkdownForFeishu(text),
-    },
-  ];
-  if (!isFinal && options.status) {
-    elements.push(buildStatusElement(options.status, options.statusIconImgKey));
-  }
-  return {
-    schema: "2.0",
-    config: {
-      update_multi: true,
-      width_mode: "fill",
-      locales: CARD_LOCALES,
-      streaming_mode: !isFinal,
-      summary: summaryOf(isFinal ? buildReplySummary(cardTitle) : cardText("generating")),
-      ...(isFinal
-        ? {}
-        : {
-            streaming_config: {
-              print_frequency_ms: { default: 70 },
-              print_step: { default: 1 },
-              print_strategy: "fast",
-            },
-          }),
-    },
-    body: { elements },
-  };
-}
-
-export function buildFileCaptionCard(caption: string, fileName?: string): Record<string, unknown> {
-  const normalizedCaption = normalizeMarkdownForFeishu(caption);
-  const name = normalizeMarkdownForFeishu((fileName ?? "").trim());
-  return buildV2Card(cardText("fileNoteTitle"), "indigo", [
-    markdownElement(localizedText((t) => (name ? `${t("fileLine", { name })}\n\n${normalizedCaption}` : normalizedCaption))),
-  ]);
 }
 
 export function buildApprovalCard(params: {

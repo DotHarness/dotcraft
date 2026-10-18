@@ -45,7 +45,7 @@ public sealed class MessageRouter
         {
             try
             {
-                var result = await service.DeliverAsync(target, message, metadata, cancellationToken);
+                var result = await service.DeliverAsync(target, message, metadata, cancellationToken: cancellationToken);
                 if (!result.Delivered)
                 {
                     _logger.LogError(

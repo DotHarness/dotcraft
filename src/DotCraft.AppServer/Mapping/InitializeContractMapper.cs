@@ -128,6 +128,7 @@ internal static class InitializeContractMapper
         return new ChannelAdapterRuntimeCapability
         {
             ChannelName = value.ChannelName,
+            DisplayName = value.DisplayName,
             DeliveryCapabilities = ToDeliveryCapabilities(value.DeliveryCapabilities),
             ChannelTools = value.ChannelTools?.Select(ToChannelTool).ToList()
         };
@@ -150,22 +151,25 @@ internal static class InitializeContractMapper
         DeferLoading = value.DeferLoading
     };
 
-    private static ChannelDeliveryCapabilitySnapshot? ToDeliveryCapabilities(Contract.ChannelDeliveryCapabilities? value) =>
-        value is null
-            ? null
-            : new ChannelDeliveryCapabilitySnapshot
+    private static ChannelDeliveryCapabilitySnapshot ToDeliveryCapabilities(Contract.ChannelDeliveryCapabilities value) =>
+        new()
+        {
+            Text = new ChannelTextCapabilitySnapshot { Format = value.Text.Format },
+            Targets = new ChannelTargetCapabilitySnapshot
             {
-                StructuredDelivery = value.StructuredDelivery,
-                Media = value.Media is null
-                    ? null
-                    : new ChannelMediaCapabilitySnapshot
-                    {
-                        File = ToMediaConstraints(value.Media.File),
-                        Audio = ToMediaConstraints(value.Media.Audio),
-                        Image = ToMediaConstraints(value.Media.Image),
-                        Video = ToMediaConstraints(value.Media.Video)
-                    }
-            };
+                Group = value.Targets.Group,
+                Direct = value.Targets.Direct
+            },
+            Media = value.Media is null
+                ? null
+                : new ChannelMediaCapabilitySnapshot
+                {
+                    File = ToMediaConstraints(value.Media.File),
+                    Audio = ToMediaConstraints(value.Media.Audio),
+                    Image = ToMediaConstraints(value.Media.Image),
+                    Video = ToMediaConstraints(value.Media.Video)
+                }
+        };
 
     private static ChannelMediaConstraintSnapshot? ToMediaConstraints(Contract.ChannelMediaConstraints? value) =>
         value is null

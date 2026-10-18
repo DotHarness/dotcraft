@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.3 |
+| **Version** | 0.8.10 |
 | **Status** | Living |
-| **Date** | 2026-10-06 |
+| **Date** | 2026-10-18 |
 | **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: Define the TypeScript binding, package contract, Node.js runtime requirements, channel runtime, and compatibility strategy for `@dotcraft/sdk`.
@@ -582,12 +582,8 @@ Rules:
 - Deltas are accumulated per agent message item when possible.
 - Final snapshots are preferred when they contain the complete text and are at least as long as deltas.
 - The SDK must avoid duplicating text when both delta and snapshot contain overlapping content.
-- Channel adapters and high-level runs should share the same reducer logic.
-- Channel segment delivery is acknowledged by the adapter hook: `onSegmentCompleted` may return `false` to indicate the segment was not delivered. The reducer must not advance the delivered frontier for failed or thrown segment deliveries, so the final snapshot can resend the remaining text.
 
 ### 13.4 Segment Boundaries
-
-For channel adapters, stream reducers may emit intermediate segments at meaningful item boundaries, such as before tool calls.
 
 For high-level application runs, segment boundaries are optional. Applications receive raw delta events and a final merged result.
 
@@ -713,7 +709,7 @@ Entry points:
 |-------------|---------|
 | `@dotcraft/channel` | Channel adapter base classes and module authoring contract. |
 | `@dotcraft/channel/runtime` | Reusable channel runtime components. |
-| `@dotcraft/channel/media` | Media source normalization for upload-capable channel tools. |
+| `@dotcraft/channel/media` | Media source normalization for `ext/channel/send` delivery. |
 | `@dotcraft/channel/testing` | Shared manifest, configuration, lifecycle, and dispatch conformance contract for first-party modules. |
 | `@dotcraft/channel/meta` | Channel contract version metadata. |
 
@@ -723,7 +719,7 @@ Entry points:
 
 `ModuleChannelAdapter` extends it with workspace context, module config loading, state and temp path resolution, lifecycle status reporting, and hosted module startup through Desktop/AppServer module management.
 
-The Channel package owns thread resolution and caching, per-identity inbound serialization, slash command routing through `command/execute`, turn stream reduction and text merging, segment boundary policy, generated image delivery, `ext/channel/send` and `ext/channel/toolCall` dispatch, approval and user-input dispatch, plain-text approval reply parsing and pending-approval tracking, media source normalization, module config loading and validation, and module lifecycle state (`stopped`, `starting`, `ready`, `configMissing`, `configInvalid`, `authRequired`, `authExpired`). First-party channel packages must use these rather than duplicating equivalent logic.
+The Channel package owns thread resolution and caching, per-identity inbound serialization, slash command routing through `command/execute`, inbound routing to `turn/steer`, `turn/enqueue` or `turn/start` ([External Channel Adapter](../protocols/external-channel-adapter.md#102-thread-and-turn-management)), turn activity reduction, the generic Turn failure notice, `ext/channel/send` and `ext/channel/toolCall` dispatch, approval and user-input dispatch, plain-text approval reply parsing and pending-approval tracking, media source normalization, module config loading and validation, and module lifecycle state (`stopped`, `starting`, `ready`, `configMissing`, `configInvalid`, `authRequired`, `authExpired`). First-party channel packages must use these rather than duplicating equivalent logic.
 
 ### 16.3 Channel Adapter Hooks
 
@@ -737,17 +733,16 @@ getDeliveryCapabilities(): Record<string, unknown> | null;
 getChannelTools(): Record<string, unknown>[] | null;
 onSend(target: string, message: Record<string, unknown>, metadata: Record<string, unknown>): Promise<Record<string, unknown>>;
 onToolCall(request: Record<string, unknown>): Promise<Record<string, unknown>>;
-onSegmentCompleted(threadId: string, turnId: string, segmentText: string, isFinal: boolean, channelContext: string): Promise<boolean | void>;
-onTurnCompleted(threadId: string, turnId: string, replyText: string, channelContext: string, segmentsWereDelivered: boolean): Promise<void>;
-onGeneratedImage(threadId: string, turnId: string, image: GeneratedImage, channelContext: string): Promise<void>;
-onTurnFailed(threadId: string, turnId: string, error: string): Promise<void>;
-onTurnCancelled(threadId: string, turnId: string): Promise<void>;
+onTurnStarted(turn: ChannelTurn): Promise<void>;
+onActivity(turn: ChannelTurn, activity: TurnItemActivity): Promise<void>;
+onTurnRetrying(turn: ChannelTurn): Promise<void>;
+onTurnEnded(turn: ChannelTurn, outcome: ChannelTurnOutcome): Promise<void>;
 onThreadContextBound(threadId: string, channelContext: string): void;
 onThreadsArchived(identityKey: string, archivedThreadIds: string[]): void;
 getRuntimeAdditionalContext(): Record<string, RuntimeAdditionalContextEntry> | undefined;
 ```
 
-The default `onGeneratedImage` sends the image through `onSend` as `kind: "image"` with a `dataBase64` source when the adapter's `deliveryCapabilities.media.image` accepts base64 within its `maxBytes`, and as `kind: "file"` otherwise.
+`ChannelTurn` carries `threadId`, `turnId` and `channelContext`. The Turn hooks fire only for Turns the adapter started with `turn/start`; input steered or queued into another Turn produces none. They observe activity only: no hook receives `agentMessage` text, reasoning, plans or generated images. `onTurnRetrying` fires for `system/event` with `kind = "streamError"`. `onTurnEnded` fires once per started Turn with `completed`, `failed` (with the error, for logs only), `cancelled`, or `disconnected` when the event stream ends without a terminal event. The default `onTurnEnded` delivers one generic failure notice without diagnostic detail through `onDeliver` for a `failed` outcome; an adapter that shows a status card overrides it.
 
 Override `getRuntimeAdditionalContext` to bind compact adapter-owned application context through `thread/start.additionalContext`. The Channel runtime keeps the binding for active Thread reuse and restores it with one `thread/resume` after the AppServer connection is replaced.
 
@@ -864,7 +859,7 @@ Failure statuses use `stopped` with a structured `ModuleError`.
 
 ### 17.6 Platform Behavior Contract
 
-Each first-party module owns platform behavior that the Channel runtime must not absorb or alter: Feishu card approvals and transcript card updates; Telegram long polling, commands, approval callbacks, and media tools; Weixin QR auth lifecycle and monitor loop; QQ OneBot reverse WebSocket behavior and permission checks; WeCom server/pusher behavior and approval routing. Structured delivery capability declarations, channel tool names, schemas, and result shapes change only when a protocol spec changes them.
+Each first-party module owns platform behavior that the Channel runtime must not absorb or alter: Feishu card approvals and the Turn status card; Telegram long polling, commands, approval callbacks, and the typing indicator; Weixin QR auth lifecycle and monitor loop; QQ OneBot reverse WebSocket behavior and permission checks; WeCom server/pusher behavior and approval routing. Structured delivery capability declarations, channel tool names, schemas, and result shapes change only when a protocol spec changes them.
 
 ## 20. Security
 

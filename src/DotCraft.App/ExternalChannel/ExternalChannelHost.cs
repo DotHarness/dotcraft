@@ -56,6 +56,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
     private IAppServerTransport? _transport;
     private AppServerConnection? _connection;
     private AdapterToolBinding? _toolBinding;
+    private AppServerConnection? _lastToolConnection;
 
     // Subprocess management
     private ManagedChildProcess? _adapterProcess;
@@ -295,6 +296,9 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
     AppServerConnection? IAdapterChannelToolRuntime.ChannelToolConnection =>
         Volatile.Read(ref _toolBinding)?.Connection;
 
+    AppServerConnection? IAdapterChannelToolRuntime.LastChannelToolConnection =>
+        Volatile.Read(ref _lastToolConnection);
+
 
     /// <summary>
     /// External channels handle approval end-to-end via Wire Protocol.
@@ -302,8 +306,13 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
     /// </summary>
     public IApprovalService? ApprovalService => null;
 
+    public string DisplayName => _connection?.ChannelDisplayName is { Length: > 0 } displayName ? displayName : Name;
+
     public ChannelDeliveryCapabilitySnapshot? GetDeliveryCapabilities()
-        => _connection?.DeliveryCapabilities;
+        => _connection is { IsClientReady: true } connection ? connection.DeliveryCapabilities : null;
+
+    public ChannelChatDescriptor? GetThreadChat(string threadId)
+        => _connection is { IsClosed: false } connection && connection.TryGetThreadChat(threadId, out var chat) ? chat : null;
 
     public IReadOnlyList<ChannelToolSpec> GetChannelTools()
         => _connection is { IsClientReady: true } connection
@@ -440,6 +449,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         string target,
         ChannelDeliveryMessage message,
         object? metadata = null,
+        string? deliveryId = null,
         CancellationToken cancellationToken = default)
     {
         if (_stopped || _permanentlyFailed || _transport == null || _connection is not { IsClientReady: true } connection)
@@ -459,6 +469,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             target,
             message,
             metadata,
+            deliveryId ?? Guid.NewGuid().ToString("N"),
             cancellationToken);
 
         if (!result.Delivered)
@@ -1073,6 +1084,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
     {
         var next = new AdapterToolBinding(transport, connection);
         var previous = Interlocked.Exchange(ref _toolBinding, next);
+        Volatile.Write(ref _lastToolConnection, connection);
         if (!ReferenceEquals(previous?.Connection, connection))
             _threadAgentRefreshService?.InvalidateThreadAgents();
     }

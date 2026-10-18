@@ -5,12 +5,19 @@ using DotCraft.AppServer;
 
 namespace DotCraft.AppBinding;
 
-/// <summary>Projects active conversation bindings as server-authoritative plugin-native tools.</summary>
 public sealed class ManagedChannelToolSource(
     AppBindingService controlPlane,
     IChannelRuntimeRegistry runtimeRegistry,
     ChannelToolRegistrationService registrationService) : IToolSource, IThreadScopedToolSource
 {
+    private static readonly HashSet<string> PublishedStates = new(StringComparer.Ordinal)
+    {
+        AppBindingStates.Active,
+        AppBindingStates.Offline,
+        AppBindingStates.Syncing,
+        AppBindingStates.NeedsConfirmation
+    };
+
     private static readonly HashSet<string> ReservedTargets = new(StringComparer.Ordinal)
     {
         "target", "deliverytarget", "channelcontext", "chatid", "groupid",
@@ -26,7 +33,7 @@ public sealed class ManagedChannelToolSource(
         var dataPath = context.DataPath;
         var registrations = new List<ToolRegistration>();
         foreach (var binding in controlPlane.ListThreadBindings(dataPath, context.ThreadId)
-                     .Where(binding => binding.State == AppBindingStates.Active && binding.ChannelTarget != null))
+                     .Where(binding => PublishedStates.Contains(binding.State) && binding.ChannelTarget != null))
         {
             var target = binding.ChannelTarget!;
             if (!runtimeRegistry.TryGet(target.ChannelName, out var runtime) || runtime == null) continue;
