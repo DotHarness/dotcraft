@@ -70,6 +70,8 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
         bool streamingSupport = true,
         bool toolExecutionLifecycle = false,
         IReadOnlyList<string>? optOutMethods = null,
+        bool? requestUserInputSupport = null,
+        bool? commandExecutionStreaming = null,
         Contract.AcpExtensionCapability? acpExtensions = null,
         TimeSpan? timeout = null,
         CancellationToken ct = default)
@@ -77,7 +79,9 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
         var capabilities = new Contract.ClientCapabilities
         {
             ApprovalSupport = approvalSupport,
+            RequestUserInputSupport = requestUserInputSupport,
             StreamingSupport = streamingSupport,
+            CommandExecutionStreaming = commandExecutionStreaming,
             ToolExecutionLifecycle = toolExecutionLifecycle,
             OptOutNotificationMethods = [.. optOutMethods ?? []],
             AcpExtensions = acpExtensions
@@ -161,6 +165,18 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
                     yield break;
             }
         }
+    }
+
+    /// <summary>
+    /// Reads every notification routed to the channel registered for <paramref name="threadId"/>,
+    /// with no time limit, until the channel is unregistered or the transport closes.
+    /// </summary>
+    public IAsyncEnumerable<JsonDocument> ReadThreadNotificationsAsync(string threadId, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(threadId);
+        if (!_threadChannels.TryGetValue(threadId, out var channel))
+            throw new InvalidOperationException($"No thread notification channel is registered for '{threadId}'.");
+        return channel.Reader.ReadAllAsync(ct);
     }
 
     /// <summary>

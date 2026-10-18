@@ -4,7 +4,7 @@
 
 ![把 DotCraft 会话导出成一份 Markdown 交接文档：定位会话、导出、重放整理，再把文件原样交给外部 coding agent](/workspace-handoff-flow.svg)
 
-如果对方工具本身能接入 DotCraft，让它作为客户端连上来更省事，见 [AppServer 模式](../contribute/lifecycle/appserver)。导出文档适用于只能接收文件或粘贴内容的 coding agent。
+Claude Code 可以直接把任务交给 DotCraft 并拿回结果，见[在 Claude Code 里把任务交给 DotCraft](#在-claude-code-里把任务交给-dotcraft)。其他能接入 DotCraft 的工具作为客户端连上来，见 [AppServer 模式](../contribute/lifecycle/appserver)。导出文档适用于只能接收文件或粘贴内容的 coding agent。
 
 ## 该交给对方什么
 
@@ -61,6 +61,22 @@ dotcraft context export --thread thread_20260601_ab12cd --profile transcript --t
 ## 发出前先审阅
 
 导出不做任何脱敏。记录里出现过的内容都会原样进入文档，包括工具结果里带出的密钥和令牌。需要收窄范围就用 `--tool-results none` 或 `summary` 导出。发出前打开 Markdown 通读一遍，确认里面没有不该出去的东西，再告诉对方接下来做什么、哪些文件可以改。
+
+## 在 Claude Code 里把任务交给 DotCraft
+
+装上 DotCraft 的 Claude Code 插件后，Claude 可以把任务交给 DotCraft，结果回到同一个对话。DotCraft 用你在 DotCraft 里配置的模型（比如 GPT 模型）和它自己的工具完成任务，包括生成图片。任务是一个普通的 DotCraft 会话，你可以在 Desktop 里查看进度或接着聊。
+
+先把项目文件夹设为 DotCraft 工作区，并让 `dotcraft` 命令在 PATH 上，然后在 Claude Code 里安装插件：
+
+```text
+/plugin marketplace add DotHarness/dotcraft-claude-code
+/plugin install dotcraft@dotcraft
+/dotcraft:setup
+```
+
+`/dotcraft:setup` 会告诉你还缺什么。之后用 `/dotcraft:task` 交出任务，用 `/dotcraft:image` 生成图片，用 `/dotcraft:cancel` 停掉还在运行的任务，也可以直接让 Claude 请 DotCraft 去做。每个回答都会标明来自 DotCraft，并附上会话 id，方便继续追问。生成的图片保存在项目的 `.craft/generated_images` 文件夹下。
+
+DotCraft 会直接执行项目内的普通命令和改动，凡是需要你审批的操作都会拒绝，除非任务里加了 `--auto-approve`。插件底层调用的是 `dotcraft exec` 命令，见[命令行参考](../contribute/lifecycle/appserver)。
 
 ## 相关文档
 

@@ -40,11 +40,78 @@ dotcraft exec --remote ws://server:9100/ws --token my-secret "总结当前工作
 | 命令 / 参数 | 说明 |
 |---|---|
 | `dotcraft exec <prompt>` | 运行一次性命令行 Agent 任务 |
-| `dotcraft exec -` | 从 stdin 读取输入并运行一次性任务 |
+| `dotcraft exec -` | 从 stdin 读取提示词并运行一次性任务 |
+| `dotcraft exec resume <thread-id> <prompt>` | 在已有线程上继续执行新任务 |
+| `dotcraft exec resume --last <prompt>` | 在当前工作区最近活跃的线程上继续执行新任务 |
+| `dotcraft exec interrupt <thread-id>` | 停止线程上正在运行的任务 |
+| `dotcraft exec interrupt --last` | 停止当前工作区最近活跃线程上正在运行的任务 |
 | `dotcraft app-server` | 启动 AppServer（默认 stdio 模式） |
 | `--listen <URL>` | AppServer 传输方式，搭配 `app-server` 使用 |
 | `--remote <URL>` | 客户端连接远程 AppServer，搭配 `exec` 或 ACP 使用 |
 | `--token <VALUE>` | WebSocket 认证 Token，可搭配 `--listen` 或 `--remote` |
+
+### `exec` 参数
+
+| 参数 | 说明 |
+|---|---|
+| `-C, --cd <dir>` | 运行所在的工作区目录，必须包含 `.craft`。默认为当前目录 |
+| `-m, --model <id>` | 使用工作区默认 Provider 下的该模型。搭配 `resume` 时，线程后续任务也使用该模型 |
+| `-i, --image <file>` | 附加本地图片。可重复指定，也可传入逗号分隔的列表。相对路径基于当前目录解析，而不是 `--cd` |
+| `--auto-approve` | 自动批准该线程上所有需要审批的操作。搭配 `resume` 时，线程后续任务也照此执行 |
+| `--ephemeral` | 创建不持久化的线程。仅用于 `exec`，`resume` 不支持 |
+| `--json` | 以 JSON Lines 形式把事件流写入 stdout，代替最终回答 |
+| `-o, --output-last-message <file>` | 同时把最终回答写入该文件 |
+
+`exec interrupt` 支持 `-C`、`--remote` 和 `--token`。
+
+任务完成时，最终回答写入 stdout。任务失败或被取消时，stdout 保持为空，原因写入 stderr。进度信息写入 stderr，包括 `[CLI] Thread: <id>` 这一行，以及任务每保存一张图片输出的一行 `[CLI] Generated image: <path>`。图片数据从不输出。省略提示词时，exec 从 stdin 读取提示词。同时传入提示词并通过管道输入 stdin 时，管道内容以 `<stdin>` 块附加在提示词之后：
+
+```bash
+dotcraft exec "修复失败的测试"
+dotcraft exec resume --last -m <model> "再补一个回归测试"
+dotcraft exec resume <thread-id> -i before.png,after.png "对比这两张图"
+git diff | dotcraft exec "审查这次改动"
+```
+
+退出码：任务完成为 `0`；任务失败或 exec 无法执行为 `1`；用法错误为 `2`，此时不会创建任何线程。
+
+`-o` 把已完成任务的最终回答以不带 BOM 的 UTF-8 写入文件，覆盖原有内容。任务完成但没有最终回答时写入空文件并输出警告。任务失败或被取消时不改动该文件。
+
+exec 从不弹出审批。需要审批的操作会被拒绝，任务继续执行，退出码取决于任务结果。使用 `--auto-approve` 时，线程的审批策略变为 `autoApprove`，这些操作会被执行，但安全规则禁止的命令仍然禁止。
+
+exec 等待任务结束，自身不设时限。按 Ctrl+C 会请求 AppServer 停止任务，等任务停止后以 `1` 退出。exec 被直接杀掉时，任务仍在 AppServer 上继续运行，可用 `dotcraft exec interrupt` 停止：停止了任务或没有正在运行的任务时退出码为 `0`，线程不存在或无法连接 AppServer 时为 `1`。exec 启动的 Hub 在 exec 退出后继续运行，即使 exec 的整个进程树被杀掉也是如此。
+
+### `--json` 事件
+
+使用 `--json` 时，stdout 每行一个 JSON 对象，字段采用 `snake_case`：
+
+| 事件 | 字段 |
+|---|---|
+| `thread.started` | `thread_id` |
+| `turn.started` | 无 |
+| `item.started`、`item.updated`、`item.completed` | `item` |
+| `turn.completed` | `usage`：`input_tokens`、`cached_input_tokens`、`cache_write_input_tokens`、`output_tokens`、`reasoning_output_tokens` |
+| `turn.failed` | `error.message` |
+| `error` | `message`，用于任务之外的失败 |
+
+被取消的任务结束时没有 `turn.*` 事件。每个 `item` 都有 `id`、`type` 以及该类型的字段：
+
+| `type` | 字段 |
+|---|---|
+| `agent_message` | `text` |
+| `reasoning` | `text` |
+| `command_execution` | `command`、`aggregated_output`、`exit_code`、`status`（`in_progress`、`completed`、`failed`） |
+| `file_change` | `changes`（`path`、`kind`：`add`、`delete`、`update`）、`status` |
+| `mcp_tool_call` | `server`、`tool`、`arguments`、`result`、`error`、`status` |
+| `web_search` | `query` |
+| `todo_list` | `items`（`text`、`completed`）。计划变化时通过 `item.updated` 更新，任务结束时完成 |
+| `image_generation` | `status`、`saved_path`、`revised_prompt`、`error`。从不包含图片数据 |
+
+```bash
+dotcraft exec --json "修复失败的测试" | jq -c 'select(.type == "item.completed") | .item.type'
+dotcraft exec -o answer.md --auto-approve "更新 CHANGELOG"
+dotcraft exec interrupt --last
+```
 
 ### `--listen` URL Scheme
 

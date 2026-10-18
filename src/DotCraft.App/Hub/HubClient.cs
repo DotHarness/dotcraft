@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using DotCraft.Common;
@@ -143,51 +142,16 @@ public sealed class HubClient(string? dotcraftBin = null, HubPaths? paths = null
 
     private void StartHubProcess()
     {
-        var dotcraftBin = ResolveDotCraftBinary();
-        var psi = new ProcessStartInfo
-        {
-            FileName = dotcraftBin.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
-                ? "dotnet"
-                : dotcraftBin,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardInput = false,
-            RedirectStandardOutput = false,
-            RedirectStandardError = false
-        };
-
-        if (dotcraftBin.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-            psi.ArgumentList.Add(dotcraftBin);
-
-        psi.ArgumentList.Add("hub");
-
         try
         {
-            Process.Start(psi);
+            HubLauncher.StartLauncher(
+                string.IsNullOrWhiteSpace(_dotcraftBin) ? HubLauncher.CurrentBinary() : _dotcraftBin,
+                _paths);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not HubClientException)
         {
             throw new HubClientException("hubUnavailable", $"DotCraft Hub failed to start: {ex.Message}");
         }
-    }
-
-    private string ResolveDotCraftBinary()
-    {
-        if (!string.IsNullOrWhiteSpace(_dotcraftBin))
-            return _dotcraftBin;
-
-        var processPath = Environment.ProcessPath;
-        if (!string.IsNullOrWhiteSpace(processPath)
-            && Path.GetFileNameWithoutExtension(processPath).Equals("dotcraft", StringComparison.OrdinalIgnoreCase))
-        {
-            return processPath;
-        }
-
-        var assemblyPath = typeof(HubClient).Assembly.Location;
-        if (!string.IsNullOrWhiteSpace(assemblyPath) && File.Exists(assemblyPath))
-            return assemblyPath;
-
-        return processPath ?? throw new HubClientException("hubUnavailable", "Cannot determine dotcraft binary path.");
     }
 
     private static HttpClient CreateHttpClient(HubLockInfo info)

@@ -28,7 +28,7 @@ internal static class DotCraftApplication
 
         if (cliArgs.ReservesStdout)
         {
-            SubprocessEnvironment.Prepare();
+            SubprocessEnvironment.Prepare(ignoreInterruptSignal: cliArgs.Mode != CommandLineArgs.RunMode.Exec);
         }
 
         if (cliArgs.Mode == CommandLineArgs.RunMode.ScriptWorker)
@@ -82,8 +82,8 @@ internal static class DotCraftApplication
             return await ModelCatalogCliRunner.RunAsync(cliArgs, cancellationToken);
         }
 
-        var workspacePath = Directory.GetCurrentDirectory();
-        var botPath = Path.GetFullPath(".craft");
+        var workspacePath = cliArgs.Exec?.WorkspacePath ?? Directory.GetCurrentDirectory();
+        var botPath = Path.Combine(workspacePath, ".craft");
         if (cliArgs.Mode == CommandLineArgs.RunMode.Setup)
         {
             static WorkspaceSetupProviderMode ResolveSetupProviderMode(CommandLineArgs cliArgs)

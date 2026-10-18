@@ -4,48 +4,6 @@ namespace DotCraft.CLI;
 
 public static partial class DotCraftCommandLine
 {
-    private static Command CreateExecCommand()
-    {
-        var prompt = new Argument<string[]>("prompt")
-        {
-            Description = "Prompt to send to the agent.",
-            Arity = ArgumentArity.ZeroOrMore
-        };
-        var stdin = Flag("--stdin", "Read the prompt from standard input.");
-        var remote = StringOption("--remote", "Connect to an existing AppServer WebSocket endpoint.");
-        var token = StringOption("--token", "Authenticate to the remote AppServer with this token.");
-        var command = new Command("exec", "Run one agent task non-interactively.")
-        {
-            prompt,
-            stdin,
-            remote,
-            token
-        };
-        command.Validators.Add(result =>
-        {
-            var values = result.GetValue(prompt) ?? [];
-            if (values.Length == 0 && !result.GetValue(stdin))
-                result.AddError("Provide a prompt or use --stdin.");
-            if (values.Length > 0 && result.GetValue(stdin))
-                result.AddError("A prompt cannot be combined with --stdin.");
-        });
-        command.SetAction((parseResult, cancellationToken) =>
-        {
-            var values = parseResult.GetValue(prompt) ?? [];
-            var readStdin = parseResult.GetValue(stdin) || values is ["-"];
-            return RunApplicationAsync(new CommandLineArgs
-            {
-                Mode = CommandLineArgs.RunMode.Exec,
-                ExecPrompt = readStdin ? null : string.Join(' ', values).Trim(),
-                ExecReadStdin = readStdin,
-                RemoteUrl = parseResult.GetValue(remote),
-                Token = parseResult.GetValue(token),
-                ReservesStdout = true
-            }, cancellationToken);
-        });
-        return command;
-    }
-
     private static Command CreateAppServerCommand()
     {
         var listen = StringOption("--listen", "Transport URL: stdio://, ws://host:port, or ws+stdio://host:port.");

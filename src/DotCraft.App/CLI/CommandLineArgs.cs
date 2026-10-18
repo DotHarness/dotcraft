@@ -22,8 +22,7 @@ public sealed record CommandLineArgs
     public string? ListenUrl { get; init; }
     public string? RemoteUrl { get; init; }
     public string? Token { get; init; }
-    public string? ExecPrompt { get; init; }
-    public bool ExecReadStdin { get; init; }
+    public ExecRequest? Exec { get; init; }
     public string? SetupModel { get; init; }
     public string? SetupPreferenceJson { get; init; }
     public string? SetupEndPoint { get; init; }
