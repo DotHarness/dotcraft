@@ -124,7 +124,6 @@ public sealed record ExecFakeAppServerOptions
 
     public string? TurnStartError { get; init; }
     public IReadOnlyList<string> ListedThreadIds { get; init; } = [];
-    public IReadOnlyList<string> RunningThreadIds { get; init; } = [];
     public JsonObject? ThreadConfiguration { get; init; }
     public string? ActiveTurnId { get; init; }
     public IReadOnlyList<string>? KnownThreadIds { get; init; }
@@ -214,11 +213,7 @@ public sealed class ExecFakeAppServer : IAsyncDisposable
         "thread/start" => new JsonObject { ["thread"] = new JsonObject { ["id"] = "thread_1" } },
         "thread/list" => new JsonObject
         {
-            ["data"] = new JsonArray(_options.ListedThreadIds.Select(JsonNode? (listed) => new JsonObject
-            {
-                ["id"] = listed,
-                ["runtime"] = new JsonObject { ["running"] = _options.RunningThreadIds.Contains(listed) }
-            }).ToArray())
+            ["data"] = new JsonArray(_options.ListedThreadIds.Select(JsonNode? (listed) => new JsonObject { ["id"] = listed }).ToArray())
         },
         "thread/read" => new JsonObject
         {

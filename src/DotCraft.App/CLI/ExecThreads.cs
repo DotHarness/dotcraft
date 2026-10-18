@@ -52,29 +52,6 @@ internal static class ExecThreads
         throw new InvalidOperationException("No thread found in this workspace.");
     }
 
-    public static async Task<IReadOnlyList<string>> FindRunningAsync(AppServerWireClient wire, CancellationToken ct)
-    {
-        var result = await RequestAsync(wire, AppServerMethodNames.ThreadList, new
-        {
-            identity = Identity,
-            scope = "workspace",
-            channelName = "cli",
-            includeArchived = false,
-            includeSubAgents = false
-        }, ct).ConfigureAwait(false);
-
-        if (!result.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
-            return [];
-
-        return data.EnumerateArray()
-            .Where(thread => thread.TryGetProperty("runtime", out var runtime)
-                && runtime.TryGetProperty("running", out var running)
-                && running.ValueKind == JsonValueKind.True)
-            .Select(thread => thread.GetProperty("id").GetString())
-            .OfType<string>()
-            .ToList();
-    }
-
     public static async Task UpdateConfigAsync(
         AppServerWireClient wire,
         string threadId,

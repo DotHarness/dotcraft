@@ -82,6 +82,7 @@ public sealed class CliHost(
         {
             // A Ctrl+C that arrives while turn/start is in flight interrupts the Turn once its id is known.
             var turnId = await ExecThreads.StartTurnAsync(wire, threadId, request, CancellationToken.None).ConfigureAwait(false);
+            ExecTaskRecords.Write(request.WorkspacePath, threadId, turnId);
             await using var interrupt = signal.Token.Register(
                 () => _ = Task.Run(() => InterruptAsync(wire, threadId, turnId)));
 
@@ -102,6 +103,7 @@ public sealed class CliHost(
                         case OneShotNotificationKind.Completed:
                         case OneShotNotificationKind.Failed:
                         case OneShotNotificationKind.Cancelled:
+                            ExecTaskRecords.Remove(request.WorkspacePath, threadId);
                             return notification;
                     }
                 }

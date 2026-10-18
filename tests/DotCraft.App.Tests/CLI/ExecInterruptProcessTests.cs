@@ -20,35 +20,39 @@ public sealed class ExecInterruptProcessTests : ExecProcessTestBase
     }
 
     [Fact]
-    public async Task Interrupt_NoThreadId_InterruptsTheOnlyRunningExecTask()
+    public async Task Interrupt_NoThreadId_InterruptsTheOnlyRecordedExecTurn()
     {
-        await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions
-        {
-            ListedThreadIds = ["thread_6", "thread_7"],
-            RunningThreadIds = ["thread_7"],
-            ActiveTurnId = "turn_3"
-        });
+        await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions { ActiveTurnId = "turn_3" });
+        WriteRecord("thread_7", "turn_3");
 
         var result = await RunExecAsync(server, ["interrupt"]);
 
         Assert.Equal(0, result.ExitCode);
-        var list = Assert.Single(server.ParamsOf("thread/list"));
-        Assert.Equal("workspace", list["scope"]!.GetValue<string>());
-        Assert.Equal("cli", list["channelName"]!.GetValue<string>());
         var interrupt = Assert.Single(server.ParamsOf("turn/interrupt"));
         Assert.Equal("thread_7", interrupt["threadId"]!.GetValue<string>());
         Assert.Equal("turn_3", interrupt["turnId"]!.GetValue<string>());
+        Assert.False(File.Exists(RecordPath("thread_7")));
+    }
+
+    [Fact]
+    public async Task Interrupt_NoThreadIdWithStaleRecord_RemovesItAndExitsZero()
+    {
+        await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions { ActiveTurnId = "turn_9" });
+        WriteRecord("thread_7", "turn_3");
+
+        var result = await RunExecAsync(server, ["interrupt"]);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Empty(server.ParamsOf("turn/interrupt"));
+        Assert.False(File.Exists(RecordPath("thread_7")));
     }
 
     [Fact]
     public async Task Interrupt_NoThreadIdWithSeveralRunning_ListsThemAndExitsOne()
     {
-        await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions
-        {
-            ListedThreadIds = ["thread_6", "thread_7"],
-            RunningThreadIds = ["thread_6", "thread_7"],
-            ActiveTurnId = "turn_3"
-        });
+        await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions { ActiveTurnId = "turn_3" });
+        WriteRecord("thread_6", "turn_3");
+        WriteRecord("thread_7", "turn_3");
 
         var result = await RunExecAsync(server, ["interrupt"]);
 
@@ -56,17 +60,39 @@ public sealed class ExecInterruptProcessTests : ExecProcessTestBase
         Assert.Contains("thread_6", result.StandardError, StringComparison.Ordinal);
         Assert.Contains("thread_7", result.StandardError, StringComparison.Ordinal);
         Assert.Empty(server.ParamsOf("turn/interrupt"));
+        Assert.True(File.Exists(RecordPath("thread_6")));
     }
 
     [Fact]
-    public async Task Interrupt_NoThreadIdWithNothingRunning_ExitsZero()
+    public async Task Interrupt_NoThreadIdWithNothingRecorded_ExitsZeroWithoutContactingThreads()
     {
-        await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions { ListedThreadIds = ["thread_6"] });
+        await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions { ActiveTurnId = "turn_3" });
 
         var result = await RunExecAsync(server, ["interrupt"]);
 
         Assert.Equal(0, result.ExitCode);
+        Assert.Empty(server.ParamsOf("thread/read"));
         Assert.Empty(server.ParamsOf("turn/interrupt"));
+    }
+
+    [Fact]
+    public async Task Exec_CompletedTurn_LeavesNoRunningTaskRecord()
+    {
+        await using var server = await ExecFakeAppServer.StartAsync();
+
+        var result = await RunExecAsync(server, ["hello"]);
+
+        Assert.Equal(0, result.ExitCode);
+        var directory = Path.Combine(Workspace, ".craft", "tmp", "exec");
+        Assert.True(!Directory.Exists(directory) || Directory.GetFiles(directory).Length == 0);
+    }
+
+    private string RecordPath(string threadId) => Path.Combine(Workspace, ".craft", "tmp", "exec", threadId + ".json");
+
+    private void WriteRecord(string threadId, string turnId)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(RecordPath(threadId))!);
+        File.WriteAllText(RecordPath(threadId), $$"""{"threadId":"{{threadId}}","turnId":"{{turnId}}"}""");
     }
 
     [Fact]

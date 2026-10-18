@@ -30,7 +30,15 @@ internal static class ExecInterrupt
 
             if (threadId is null)
             {
-                var running = await ExecThreads.FindRunningAsync(wire, ct).ConfigureAwait(false);
+                var running = new List<string>();
+                foreach (var record in ExecTaskRecords.List(workspacePath))
+                {
+                    if (await RunsTurnAsync(wire, record, ct).ConfigureAwait(false))
+                        running.Add(record.ThreadId);
+                    else
+                        ExecTaskRecords.Remove(workspacePath, record.ThreadId);
+                }
+
                 if (running.Count == 0)
                 {
                     await Console.Error.WriteLineAsync("[CLI] No exec task is running in this workspace.").ConfigureAwait(false);
@@ -67,6 +75,7 @@ internal static class ExecInterrupt
                 return 0;
             }
 
+            ExecTaskRecords.Remove(workspacePath, threadId);
             await Console.Error.WriteLineAsync($"[CLI] Interrupted turn {turnId} on thread {threadId}.").ConfigureAwait(false);
             return 0;
         }
@@ -74,6 +83,20 @@ internal static class ExecInterrupt
         {
             await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(false);
             return 1;
+        }
+    }
+
+    private static async Task<bool> RunsTurnAsync(AppServerWireClient wire, ExecTaskRecords.Entry record, CancellationToken ct)
+    {
+        try
+        {
+            var thread = await ExecThreads.ReadAsync(wire, record.ThreadId, ct).ConfigureAwait(false);
+            return thread.TryGetProperty("runtime", out var runtime)
+                && OneShotNotification.ReadString(runtime, "activeTurnId") == record.TurnId;
+        }
+        catch (ExecRequestException)
+        {
+            return false;
         }
     }
 }
