@@ -18468,6 +18468,45 @@
         "status"
       ]
     },
+    "ThreadTokenUsage": {
+      "title": "ThreadTokenUsage",
+      "type": "object",
+      "properties": {
+        "last": {
+          "$ref": "#/$defs/TokenUsageBreakdown"
+        },
+        "modelContextWindow": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total": {
+          "$ref": "#/$defs/TokenUsageBreakdown"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ThreadTokenUsageUpdatedNotification": {
+      "title": "ThreadTokenUsageUpdatedNotification",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "tokenUsage": {
+          "$ref": "#/$defs/ThreadTokenUsage"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
     "ThreadToolPolicy": {
       "title": "ThreadToolPolicy",
       "type": "object",
@@ -18849,6 +18888,43 @@
         },
         "worktree": {
           "$ref": "#/$defs/ThreadWorktreeInfo"
+        }
+      },
+      "additionalProperties": true
+    },
+    "TokenUsageBreakdown": {
+      "title": "TokenUsageBreakdown",
+      "type": "object",
+      "properties": {
+        "cacheWriteInputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "cachedInputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "inputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "reasoningOutputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "totalTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         }
       },
       "additionalProperties": true

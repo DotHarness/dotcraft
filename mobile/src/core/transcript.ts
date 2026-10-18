@@ -3,9 +3,33 @@ import { parsePlanMarkdown } from './planMarkdown'
 import { turnChanges, type TurnChanges } from './turnChanges'
 import { userImages, userSegments, type ImageSource, type UserSegment } from './userSegments'
 
-export type ToolVerb = 'ran' | 'edited' | 'read' | 'searched' | 'used'
+export type ToolVerb =
+  | 'ran'
+  | 'edited'
+  | 'read'
+  | 'searched'
+  | 'used'
+  | 'backgroundStarted'
+  | 'backgroundStopped'
+  | 'spawned'
+  | 'messaged'
+  | 'listedAgents'
+  | 'stoppedShell'
+  | 'stoppedAgent'
+  | 'stoppedWorkflow'
+  | 'stoppingShell'
+  | 'stoppingAgent'
+  | 'stoppingWorkflow'
 
-export type ToolIcon = 'terminal' | 'declined' | 'stopped' | 'read' | 'search' | 'folder' | 'edit' | 'web' | 'other'
+export type ToolIcon = 'terminal' | 'declined' | 'stopped' | 'read' | 'search' | 'folder' | 'edit' | 'web' | 'agent' | 'other'
+
+export type TaskWakeKind = 'terminal' | 'subagent' | 'workflow'
+
+export interface TaskWake {
+  task: TaskWakeKind
+  label: string
+  status: string | null
+}
 
 interface ToolDetail {
   target: string
@@ -66,6 +90,7 @@ export type TranscriptEntry =
       status: 'working' | 'worked' | 'stopped'
       startedAt: string | null
       endedAt: string | null
+      origin: TaskWake | null
       children: TranscriptEntry[]
     }
   | { kind: 'notice'; id: string; tone: 'neutral' | 'error'; notice: NoticeKind; detail?: string }
@@ -108,9 +133,35 @@ function todoStatus(value: unknown): PlanTodo['status'] {
 type ToolKind =
   | 'read' | 'grep' | 'find' | 'explore' | 'edit' | 'shell' | 'writeStdin'
   | 'webSearch' | 'webFetch' | 'skillView' | 'skillManage' | 'requestUserInput' | 'createPlan'
+  | 'subagentSpawn' | 'subagentMessage' | 'subagentList' | 'taskStop'
+
+type TaskKind = 'shell' | 'agent' | 'workflow'
+
+const STOP_VERBS: Record<TaskKind, { stopped: ToolVerb; stopping: ToolVerb }> = {
+  shell: { stopped: 'stoppedShell', stopping: 'stoppingShell' },
+  agent: { stopped: 'stoppedAgent', stopping: 'stoppingAgent' },
+  workflow: { stopped: 'stoppedWorkflow', stopping: 'stoppingWorkflow' },
+}
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value : ''
+}
+
+function resultObject(result: HistoryItem | undefined): Record<string, unknown> {
+  const raw = result?.payload.result
+  if (typeof raw !== 'string') return {}
+  try {
+    const value = JSON.parse(raw) as unknown
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function taskKindOf(value: unknown, taskId: string): TaskKind {
+  if (value === 'shell' || value === 'agent' || value === 'workflow') return value
+  if (taskId.startsWith('term_')) return 'shell'
+  return taskId.startsWith('run_') ? 'workflow' : 'agent'
 }
 
 function args(payload: Record<string, unknown>): Record<string, unknown> {
@@ -155,11 +206,38 @@ interface ToolShape {
   target: string
   full?: string
   counts?: { added: number; removed: number } | null
+  details?: ToolDetail[]
+}
+
+function taskStopShape(toolName: string, input: Record<string, unknown>, result: HistoryItem | undefined): ToolShape {
+  if (result?.payload.success === false) return { verb: 'used', target: toolName }
+  const value = resultObject(result)
+  const verbs = STOP_VERBS[taskKindOf(value.kind, str(input.taskId))]
+  const message = str(value.lastAgentMessage).trim()
+  return {
+    verb: !result || value.status === 'stopping' ? verbs.stopping : verbs.stopped,
+    target: str(value.label).trim(),
+    details: message ? [{ target: message, output: null }] : [],
+  }
 }
 
 function toolShape(kind: ToolKind | null, toolName: string, input: Record<string, unknown>, result: HistoryItem | undefined): ToolShape {
   const path = str(input.path)
   switch (kind) {
+    case 'subagentSpawn': {
+      const name = str(resultObject(result).agentNickname) || str(input.agentNickname) || str(input.taskName)
+      const prompt = str(input.message).trim()
+      return name ? { verb: 'spawned', target: name, details: prompt ? [{ target: prompt, output: null }] : [] } : { verb: 'used', target: toolName }
+    }
+    case 'subagentMessage': {
+      const target = str(input.target)
+      const message = str(input.message).trim()
+      return target ? { verb: 'messaged', target, details: message ? [{ target: message, output: null }] : [] } : { verb: 'used', target: toolName }
+    }
+    case 'subagentList':
+      return { verb: 'listedAgents', target: '', details: [] }
+    case 'taskStop':
+      return taskStopShape(toolName, input, result)
     case 'shell':
       return { verb: 'ran', target: firstLine(str(input.command)), full: str(input.command) }
     case 'read':
@@ -201,6 +279,12 @@ function toolIcon(kind: ToolKind | null, result: HistoryItem | undefined): ToolI
     case 'webSearch':
     case 'webFetch':
       return 'web'
+    case 'subagentSpawn':
+    case 'subagentMessage':
+    case 'subagentList':
+      return 'agent'
+    case 'taskStop':
+      return result?.payload.success === false ? 'other' : 'stopped'
     default:
       return 'other'
   }
@@ -285,6 +369,10 @@ function toolKind(item: HistoryItem, result: HistoryItem | undefined): ToolKind 
       return 'requestUserInput'
     case 'core.create-plan':
       return 'createPlan'
+    case 'core.subagent':
+      return operation === 'spawn' ? 'subagentSpawn' : operation === 'sendMessage' ? 'subagentMessage' : operation === 'list' ? 'subagentList' : null
+    case 'core.task':
+      return operation === 'stop' ? 'taskStop' : null
     default:
       return null
   }
@@ -299,16 +387,42 @@ function createsFile(result: HistoryItem | undefined): boolean {
   return Array.isArray(content?.changes) && content.changes.some((change) => change.kind === 'add')
 }
 
-function toolEntry(item: HistoryItem, results: Map<string, HistoryItem>): ToolEntry | null {
+const OPTIONAL_SUBJECT = new Set<ToolVerb>([
+  'backgroundStarted',
+  'backgroundStopped',
+  'stoppedShell',
+  'stoppedAgent',
+  'stoppedWorkflow',
+  'stoppingShell',
+  'stoppingAgent',
+  'stoppingWorkflow',
+])
+
+function shellBackground(execution: HistoryItem | undefined, result: HistoryItem | undefined): 'running' | 'stopped' | null {
+  if (!execution || !result) return null
+  const status = str(execution.payload.status)
+  if (status === 'inProgress') return 'running'
+  return status === 'cancelled' && str(execution.payload.sessionId) && result.payload.success !== false ? 'stopped' : null
+}
+
+function toolEntry(
+  item: HistoryItem,
+  results: Map<string, HistoryItem>,
+  executions: Map<string, HistoryItem>,
+  turnRunning: boolean,
+): ToolEntry | null {
   const toolName = str(item.payload.toolName)
-  const result = item.type === 'toolCall' ? results.get(inTurn(item.turnId, str(item.payload.callId))) : item
+  const callId = inTurn(item.turnId, str(item.payload.callId))
+  const result = item.type === 'toolCall' ? results.get(callId) : item
   const kind = toolKind(item, result)
   if (!toolName || kind === 'requestUserInput' || isCodeModeWrapper(item)) return null
   const id = entryId(item)
   const input = item.type === 'toolCall' ? args(item.payload) : {}
-  const shape: ToolShape = item.type === 'toolCall' ? toolShape(kind, toolName, input, result) : { verb: 'used', target: toolName }
+  const background = kind === 'shell' && item.type === 'toolCall' ? shellBackground(executions.get(callId), result) : null
+  let shape: ToolShape = item.type === 'toolCall' ? toolShape(kind, toolName, input, result) : { verb: 'used', target: toolName }
+  if (background && !turnRunning) shape = { ...shape, verb: background === 'running' ? 'backgroundStarted' : 'backgroundStopped' }
   const presentation = presentationOf(item, result)
-  const live = item.type === 'toolCall' ? !result : !isComplete(item)
+  const live = item.type === 'toolCall' ? !result || (background === 'running' && turnRunning) : !isComplete(item)
   const base = {
     kind: 'tool' as const,
     id,
@@ -326,8 +440,8 @@ function toolEntry(item: HistoryItem, results: Map<string, HistoryItem>): ToolEn
   if (!shape.target && !isComplete(item)) return { ...base, subject: null, details: [] }
   return {
     ...base,
-    subject: shape.target || toolName,
-    details: [{ target: shape.full || shape.target || toolName, output: outputOf(result) }],
+    subject: shape.target || (OPTIONAL_SUBJECT.has(shape.verb) ? null : shape.verb === 'listedAgents' ? '' : toolName),
+    details: shape.details ?? [{ target: shape.full || shape.target || toolName, output: outputOf(result) }],
     ...shape.counts,
   }
 }
@@ -428,6 +542,7 @@ function layoutTurn(
   entries: TranscriptEntry[],
   running: boolean,
   changes: TurnChanges | null,
+  origin: TaskWake | null = null,
 ): TranscriptEntry[] {
   let start = 0
   while (start < entries.length && entries[start].kind === 'user' && !(entries[start] as { added: boolean }).added) start += 1
@@ -457,6 +572,7 @@ function layoutTurn(
     status,
     startedAt: turn.startedAt ?? null,
     endedAt: status === 'worked' ? (finalAt ?? turn.completedAt ?? null) : (turn.completedAt ?? null),
+    origin,
   }
   if (status !== 'worked' || final <= 0) return [...opening, { ...activity, children: [] }, ...body]
   const before = body.slice(0, final)
@@ -518,7 +634,9 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
   const approvals = new Map<string, HistoryItem>()
   const results = new Map<string, HistoryItem>()
   const turnErrors = new Map<string, string>()
+  const executions = new Map<string, HistoryItem>()
   for (const item of history.items) {
+    if (item.type === 'commandExecution' && str(item.payload.callId)) executions.set(inTurn(item.turnId, str(item.payload.callId)), item)
     if (item.type === 'approvalRequest') approvals.set(inTurn(item.turnId, str(item.payload.requestId)), item)
     if (item.type === 'toolResult') results.set(inTurn(item.turnId, str(item.payload.callId)), item)
     if (item.type === 'error' && str(item.payload.message)) turnErrors.set(item.turnId, str(item.payload.message))
@@ -527,6 +645,7 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
   const result: TranscriptEntry[] = []
   let out: TranscriptEntry[] = []
   let live = false
+  let wake: TaskWake | null = null
 
   const closeTurn = (turnId: string) => {
     const turn = turns.get(turnId)
@@ -535,9 +654,10 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
       out.push({ kind: 'notice', id: `turn-${turnId}`, tone: 'error', notice: 'turnFailed', ...(detail ? { detail } : {}) })
     }
     const changes = turn?.status === 'completed' ? turnChanges(history, turnId, workspacePath) : null
-    result.push(...layoutTurn(turnId, turn, out, turn ? !DONE.has(turn.status) : live, changes))
+    result.push(...layoutTurn(turnId, turn, out, turn ? !DONE.has(turn.status) : live, changes, wake))
     out = []
     live = false
+    wake = null
   }
 
   let currentTurn: string | null = null
@@ -549,7 +669,13 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
     switch (item.type) {
       case 'userMessage': {
         const mode = str(payload.deliveryMode)
-        if (mode === 'subagentMailbox' || isBackgroundTaskNotice(payload)) break
+        if (isBackgroundTaskNotice(payload)) {
+          if (mode !== 'guidance' && !wake && !out.some((entry) => entry.kind === 'user')) {
+            wake = { task: str(payload.triggerKind) as TaskWakeKind, label: str(payload.triggerLabel).trim(), status: str(payload.triggerStatus) || null }
+          }
+          break
+        }
+        if (mode === 'subagentMailbox') break
         const value = str(payload.text)
         const images = userImages(payload.nativeInputParts)
         if (value || images.length > 0) {
@@ -595,7 +721,8 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
           out.push(plan)
           break
         }
-        const entry = toolEntry(item, results)
+        const turn = turns.get(item.turnId)
+        const entry = toolEntry(item, results, executions, turn ? !DONE.has(turn.status) : !isComplete(item))
         if (entry) out.push(entry)
         break
       }

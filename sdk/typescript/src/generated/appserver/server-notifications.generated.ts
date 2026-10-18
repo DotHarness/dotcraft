@@ -51,6 +51,7 @@ export interface ServerNotificationMethods {
   "thread/resumed": { params: Models.ThreadNotification; result: Models.RpcEmpty };
   "thread/started": { params: Models.ThreadNotification; result: Models.RpcEmpty };
   "thread/status/changed": { params: Models.ThreadStatusChangedNotification; result: Models.RpcEmpty };
+  "thread/tokenUsage/updated": { params: Models.ThreadTokenUsageUpdatedNotification; result: Models.RpcEmpty };
   "thread/unarchived": { params: Models.ThreadUnarchivedNotification; result: Models.RpcEmpty };
   "thread/updated": { params: Models.ThreadNotification; result: Models.RpcEmpty };
   "turn/cancelled": { params: Models.TurnNotification; result: Models.RpcEmpty };

@@ -79,6 +79,32 @@ public sealed partial class SubAgentSessionControlTests
     }
 
     [Fact]
+    public async Task InterruptFromClient_StopsAnExternalChildAsTheUserAndLeavesItOpen()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "unused")
+        {
+            PendingResult = new TaskCompletionSource<DotCraft.Agents.SubAgentRunResult>(
+                TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions { AgentPrompt = "inspect code", TaskName = "inspect", ProfileName = "cli-run" },
+            waitForCompletion: false,
+            coordinator,
+            CancellationToken.None);
+
+        Assert.True(SubAgentSessionControl.InterruptRunningChild(spawned.ChildThreadId));
+        var ending = await _sessionService.WaitForTaskEndingAsync("/root/inspect");
+
+        Assert.Equal(BackgroundTaskStatus.Stopped, ending.Status);
+        Assert.True(ending.StoppedByUser);
+        Assert.True(ending.MayWake);
+        Assert.Equal(ThreadSpawnEdgeStatus.Open, Assert.Single(await _sessionService.ListSubAgentChildrenAsync(context.ParentThread.Id)).Status);
+    }
+
+    [Fact]
     public async Task CloseFromClient_NotifiesTheParentThatTheUserStoppedTheChild()
     {
         var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "unused")

@@ -176,6 +176,7 @@ public sealed partial class SessionService
                     LlmCallCount = tokensUsed.InputTokens > 0 || tokensUsed.OutputTokens > 0 ? 1 : 0,
                     TotalTokens = tokensUsed.InputTokens + tokensUsed.OutputTokens
                 };
+                owner.PublishThreadTokenUsage(thread, turn, turn.TokenUsage, turn.TokenUsage, modelContextWindow: null);
             }
 
             thread.LastActiveAt = DateTimeOffset.UtcNow;

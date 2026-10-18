@@ -90,6 +90,21 @@ public static partial class SubAgentSessionControl
         }
     }
 
+    internal static bool InterruptRunningChild(string childThreadId)
+    {
+        if (!RunningChildren.TryGetValue(childThreadId, out var running))
+            return false;
+        try
+        {
+            _ = running.Cancellation.CancelAsync();
+            return true;
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
+    }
+
     private static (string Status, string KindStatus) ResolveTaskStatus(SessionThread child, ThreadSpawnEdge? edge, bool running)
     {
         if (string.Equals(edge?.Status, ThreadSpawnEdgeStatus.Closed, StringComparison.Ordinal))

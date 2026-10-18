@@ -2203,11 +2203,18 @@ narrow widths.
 ### Subagents
 
 The Subagents tab in the detail panel lists the thread's subagents under counted
-Active, Done, and Closed headings. A row centres a 32px avatar against two lines:
-the name in `--text-primary` at the UI emphasis weight with its role in
-`--text-dimmed`, then a one-line preview in `--text-secondary`; elapsed or relative
-time sits on the trailing edge. Subagent names carry no hue of their own, here or
-in the conversation; the avatar is the identity.
+Running, Finished, and Closed headings; Running is always open, and Finished and
+Closed fold behind their heading and start folded. A row puts a 32px avatar beside
+two lines: the name in `--text-primary` at the UI emphasis weight with its role in
+`--text-dimmed`, then the model and the tokens the subagent has used, such as
+"atlas-2 · 275.3k tokens", in `--text-dimmed` with the count in `--text-secondary`.
+The trailing edge of the name line holds the running time, or for a finished
+subagent its relative time, replaced by Failed or Cancelled in `--text-secondary`
+when it did not finish normally. A running row ends that line with a ghost
+Stop icon button that interrupts the subagent's turn and leaves it open for the
+parent to continue; while the request runs the button shows a spinner. Subagent
+names carry no hue of their own, here or in the conversation; the avatar is the
+identity.
 
 Opening a row, or a subagent name in the conversation, shows that subagent inside
 the tab and leaves the main view on the parent thread. A header row holds Back, a

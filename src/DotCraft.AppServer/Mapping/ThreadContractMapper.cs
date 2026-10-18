@@ -88,6 +88,28 @@ internal static class ThreadContractMapper
         UpdatedAt = value.UpdatedAt
     };
 
+    public static Contract.ThreadTokenUsageUpdatedNotification ToContract(Domain.ThreadTokenUsageUpdate value) => new()
+    {
+        ThreadId = value.ThreadId,
+        TurnId = value.TurnId,
+        TokenUsage = new Contract.ThreadTokenUsage
+        {
+            Total = ToBreakdown(value.Total),
+            Last = ToBreakdown(value.Last),
+            ModelContextWindow = OmitIfNull(value.ModelContextWindow)
+        }
+    };
+
+    private static Contract.TokenUsageBreakdown ToBreakdown(Domain.TokenUsageInfo value) => new()
+    {
+        TotalTokens = value.InputTokens + value.OutputTokens,
+        InputTokens = value.InputTokens,
+        CachedInputTokens = value.CachedInputTokens,
+        CacheWriteInputTokens = value.CacheWriteInputTokens,
+        OutputTokens = value.OutputTokens,
+        ReasoningOutputTokens = value.ReasoningOutputTokens
+    };
+
     public static Contract.ContextUsageSnapshot ToContract(ContextUsageSnapshot value) => new()
     {
         Tokens = value.Tokens,

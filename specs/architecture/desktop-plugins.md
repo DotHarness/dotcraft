@@ -353,7 +353,7 @@ switching.
 
 ### SubAgent state
 
-`subagents` reads the SubAgent children Desktop tracks for a parent thread. These are the children its Subagents tab lists. `subagents.list(parentThreadId)` returns a snapshot. `subagents.onChange(parentThreadId, listener)` notifies with a complete snapshot whenever a listed child's identity, state, or summary changes.
+`subagents` reads the SubAgent children Desktop tracks for a parent thread. These are the children its Subagents tab lists. `subagents.list(parentThreadId)` returns a snapshot. `subagents.onChange(parentThreadId, listener)` notifies with a complete snapshot whenever a listed child's identity or state changes.
 
 ```ts
 interface DesktopPluginSubAgent {
@@ -362,11 +362,10 @@ interface DesktopPluginSubAgent {
   readonly agentPath: string | null
   readonly nickname: string
   readonly state: "working" | "waiting" | "done" | "failed" | "cancelled"
-  readonly summary: string | null
 }
 ```
 
-`state` is a product reading, not the wire status. `waiting` means the child's active Turn needs approval or user input. `done` covers a completed or closed child. `summary` is a preview of the child's latest agent message, or `null` before Desktop has read one.
+`state` is a product reading, not the wire status. `waiting` means the child's active Turn needs approval or user input. `done` covers a completed or closed child.
 
 
 `subagents.reveal(parentThreadId, childThreadId)` opens the parent thread's Subagents tab with that child selected.

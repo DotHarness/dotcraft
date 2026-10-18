@@ -1,13 +1,15 @@
-import type { TerminalLifecycleNotification } from '@dotcraft/sdk/contracts'
+import type { SubAgentChild, TerminalLifecycleNotification } from '@dotcraft/sdk/contracts'
 import type { DotCraftWireClient } from '@dotcraft/sdk/wire'
-import { agentTask, mergeAgents, terminalTask, upsertTask, workflowTask, type BackgroundTask, type TaskSource } from './backgroundTasks'
+import { agentTask, isBackgroundTerminal, mergeAgents, terminalTask, upsertTask, workflowTask, type BackgroundTask, type TaskSource } from './backgroundTasks'
 import { chatKey, type ComputerAction, type ComputerState } from './state'
 import type { Store } from './store'
 
 const WORKFLOW_PAGE = 200
+const TURN_PAGE = 100
 
 export class BackgroundTaskSync {
   private readonly loads = new Map<string, { dirty: boolean; done: Promise<void> }>()
+  private readonly childTurns = new Map<string, { seen: string; status: string | null; tokens: number }>()
   private readonly sources: TaskSource[] = []
   private readonly canStopWorkflows: boolean
 
@@ -37,6 +39,10 @@ export class BackgroundTaskSync {
     return this.store.getState().tasks[this.key(threadId)]?.[source]
   }
 
+  private activeTurn(threadId: string): string | null {
+    return this.store.getState().chats[this.key(threadId)]?.runtime?.activeTurnId ?? null
+  }
+
   private set(threadId: string, source: TaskSource, tasks: BackgroundTask[]): void {
     this.store.dispatch({ type: 'tasks', key: this.key(threadId), source, tasks })
   }
@@ -48,16 +54,27 @@ export class BackgroundTaskSync {
 
   private register(): void {
     const terminal = ({ terminal }: TerminalLifecycleNotification) => {
-      if (!terminal) return
+      if (!terminal || !this.known(terminal.threadId)) return
+      const tasks = this.tasksOf(terminal.threadId, 'shell')
+      if (terminal.backgroundReason !== 'runInBackground' && !tasks?.some((task) => task.id === terminal.sessionId)) return
       const task = terminalTask(terminal)
-      if (task && this.known(terminal.threadId)) this.set(terminal.threadId, 'shell', upsertTask(this.tasksOf(terminal.threadId, 'shell'), task))
+      if (task) this.set(terminal.threadId, 'shell', upsertTask(tasks, task))
     }
     if (this.sources.includes('shell')) {
       this.client.on('terminal/started', terminal)
       this.client.on('terminal/completed', terminal)
       this.client.on('terminal/cleaned', terminal)
+      this.client.on('thread/status/changed', ({ threadId, runtime }) => {
+        if (threadId && !runtime?.activeTurnId && this.store.getState().tasks[this.key(threadId)]) {
+          void this.refresh(threadId, 'shell').catch(() => undefined)
+        }
+      })
     }
     if (this.sources.includes('agent')) {
+      this.client.on('thread/tokenUsage/updated', ({ threadId, tokenUsage }) => {
+        const total = tokenUsage?.total?.totalTokens
+        if (threadId && total !== undefined) this.childUsage(threadId, total)
+      })
       this.client.on('subagent/graph/changed', ({ parentThreadId }) => {
         if (this.known(parentThreadId)) void this.refresh(parentThreadId, 'agent').catch(() => undefined)
       })
@@ -117,12 +134,24 @@ export class BackgroundTaskSync {
     switch (source) {
       case 'shell': {
         const { terminals } = await this.client.request('terminal/list', { threadId })
-        this.set(threadId, source, (terminals ?? []).flatMap((terminal) => terminalTask(terminal) ?? []))
+        const listed = new Set((this.tasksOf(threadId, source) ?? []).map((task) => task.id))
+        const active = this.activeTurn(threadId)
+        const background = (terminals ?? []).filter((terminal) => listed.has(terminal.sessionId ?? '') || isBackgroundTerminal(terminal, active))
+        this.set(threadId, source, background.flatMap((terminal) => terminalTask(terminal) ?? []))
         return
       }
       case 'agent': {
         const { data } = await this.client.request('subagent/children/list', { parentThreadId: threadId, includeThreads: true })
-        this.set(threadId, source, mergeAgents(this.tasksOf(threadId, source), (data ?? []).flatMap((child) => agentTask(child) ?? [])))
+        const children = data ?? []
+        const turns = await Promise.all(children.map((child) => this.childTurnsOf(child)))
+        const listed = this.tasksOf(threadId, source)
+        const tasks = children.flatMap((child, index) => {
+          const current = listed?.find((task) => task.id === child.edge?.childThreadId)
+          const live = current?.kind === 'agent' ? current.tokens : null
+          const tokens = turns[index] ? Math.max(turns[index].tokens, live ?? 0) : live
+          return agentTask(child, turns[index]?.status ?? null, tokens) ?? []
+        })
+        this.set(threadId, source, mergeAgents(this.tasksOf(threadId, source), tasks))
         return
       }
       case 'workflow': {
@@ -138,6 +167,39 @@ export class BackgroundTaskSync {
     }
   }
 
+  private childUsage(childThreadId: string, tokens: number): void {
+    const prefix = `${this.projectId}:`
+    for (const [key, sources] of Object.entries(this.store.getState().tasks)) {
+      const task = sources.agent?.find((entry) => entry.id === childThreadId)
+      if (!key.startsWith(prefix) || task?.kind !== 'agent') continue
+      this.set(key.slice(prefix.length), 'agent', upsertTask(sources.agent, { ...task, tokens: Math.max(task.tokens ?? 0, tokens) }))
+    }
+  }
+
+  private async childTurnsOf({ edge, thread }: SubAgentChild): Promise<{ status: string | null; tokens: number } | null> {
+    const id = edge?.childThreadId
+    if (!id || edge.status === 'closed') return null
+    const seen = `${thread?.lastActiveAt ?? edge.updatedAt ?? ''}:${thread?.runtime?.running === true}`
+    const cached = this.childTurns.get(id)
+    if (cached?.seen === seen) return cached
+    try {
+      let status: string | null = null
+      let tokens = 0
+      let cursor: string | undefined
+      do {
+        const page = await this.client.request('thread/turns/list', { threadId: id, limit: TURN_PAGE, sortDirection: 'descending', ...(cursor ? { cursor } : {}) })
+        status ??= page.data?.[0]?.status ?? null
+        for (const turn of page.data ?? []) tokens += turn.tokenUsage?.totalTokens ?? 0
+        cursor = page.nextCursor ?? undefined
+      } while (cursor)
+      const entry = { seen, status: thread?.runtime?.running === true ? null : status, tokens }
+      this.childTurns.set(id, entry)
+      return entry
+    } catch {
+      return null
+    }
+  }
+
   async stop(threadId: string, task: BackgroundTask): Promise<void> {
     if (!task.stop) return
     switch (task.kind) {
@@ -147,10 +209,12 @@ export class BackgroundTaskSync {
         if (stopped) this.set(threadId, 'shell', upsertTask(this.tasksOf(threadId, 'shell'), stopped))
         return
       }
-      case 'agent':
-        await this.client.request('subagent/close', { parentThreadId: threadId, target: task.stop })
+      case 'agent': {
+        const turnId = task.activeTurnId ?? (await this.client.request('thread/read', { threadId: task.stop })).thread.runtime?.activeTurnId
+        if (turnId) await this.client.request('turn/interrupt', { threadId: task.stop, turnId })
         this.set(threadId, 'agent', upsertTask(this.tasksOf(threadId, 'agent'), { ...task, status: 'stopped', stop: null, endedAt: new Date().toISOString() }))
         return
+      }
       case 'workflow': {
         const { run } = await this.client.request('workflow/run/stop', { threadId, runId: task.stop })
         this.set(threadId, 'workflow', upsertTask(this.tasksOf(threadId, 'workflow'), this.workflowTask(run)))

@@ -8,7 +8,7 @@ export function makeSubAgent(overrides: Partial<SubAgentChild> = {}): SubAgentCh
     nickname: 'Core B', agentRole: 'explorer', profileName: 'native', runtimeType: 'native',
     supportsClose: true, supportsResume: true, supportsSendInput: true,
     status: 'open', isCompleted: false, currentTool: null, lastToolDisplay: null,
-    lastMessagePreview: null, inputTokens: 0, outputTokens: 0,
+    model: null, usedTokens: null,
     runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false },
     ...overrides
   }

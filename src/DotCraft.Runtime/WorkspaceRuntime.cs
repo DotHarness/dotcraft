@@ -171,6 +171,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
     public event Action<string, string>? SubAgentGraphChanged;
 
+    public event Action<ThreadTokenUsageUpdate>? ThreadTokenUsageUpdated;
+
     /// <summary>
     /// Provisions and starts the workspace kernel with the supplied compiled modules.
     /// </summary>
@@ -327,6 +329,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     threadId => ThreadGoalCleared?.Invoke(threadId);
                 sessionService.SubAgentGraphChangedForBroadcast =
                     (parentThreadId, childThreadId) => SubAgentGraphChanged?.Invoke(parentThreadId, childThreadId);
+                sessionService.ThreadTokenUsageUpdatedForBroadcast =
+                    update => ThreadTokenUsageUpdated?.Invoke(update);
 
                 var loggerFactory = Services.GetService<ILoggerFactory>();
                 var commitMessageSuggestService =
@@ -550,7 +554,10 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 started.SessionService.ThreadStatusChangedForBroadcast = null;
                 started.SessionService.ThreadRuntimeSignalForBroadcast = null;
                 if (started.SessionService is SessionService sessionService)
+                {
                     sessionService.SubAgentGraphChangedForBroadcast = null;
+                    sessionService.ThreadTokenUsageUpdatedForBroadcast = null;
+                }
             }
             catch (Exception ex)
             {

@@ -59,7 +59,7 @@ export function usedShare(usage: ContextUsage | null): number {
   return clampShare(usage.tokens / usage.contextWindow)
 }
 
-const UNITS = ['', 'K', 'M', 'B']
+const UNITS = ['', 'k', 'M', 'B']
 
 export function compactCount(value: number): string {
   const whole = Math.round(value)

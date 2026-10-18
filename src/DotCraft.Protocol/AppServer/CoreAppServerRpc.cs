@@ -278,6 +278,8 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<ThreadSubscribeParams, global::DotCraft.Protocol.RpcEmpty> ThreadSubscribe = new("thread/subscribe", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
 
+    public static readonly RpcNotification<ThreadTokenUsageUpdatedNotification> ThreadTokenUsageUpdated = new("thread/tokenUsage/updated", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", notificationOptOut: true);
+
     public static readonly RpcRequest<ThreadUnarchiveParams, global::DotCraft.Protocol.RpcEmpty> ThreadUnarchive = new("thread/unarchive", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<ThreadUnsubscribeParams, global::DotCraft.Protocol.RpcEmpty> ThreadUnsubscribe = new("thread/unsubscribe", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "threadManagement", errors: CommonErrors);

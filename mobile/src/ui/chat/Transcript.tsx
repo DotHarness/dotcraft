@@ -8,6 +8,8 @@ import {
   type ToolEntry,
   type ToolGroupLabel,
   type ToolIcon,
+  type TaskWake,
+  type TaskWakeKind,
   type ToolVerb,
   type TranscriptEntry,
 } from '../../core/transcript'
@@ -34,6 +36,7 @@ const TOOL_ICON: Record<ToolIcon, IconName> = {
   folder: 'folder',
   edit: 'pencil',
   web: 'globe',
+  agent: 'bot',
   other: 'wrench',
 }
 
@@ -43,25 +46,50 @@ const TOOL_TEXT: Record<ToolVerb, MessageId> = {
   read: 'tool.read',
   searched: 'tool.searched',
   used: 'tool.used',
+  backgroundStarted: 'tool.backgroundStarted',
+  backgroundStopped: 'tool.backgroundStopped',
+  spawned: 'tool.spawned',
+  messaged: 'tool.messaged',
+  listedAgents: 'tool.listedAgents',
+  stoppedShell: 'tool.stoppedShell',
+  stoppedAgent: 'tool.stoppedAgent',
+  stoppedWorkflow: 'tool.stoppedWorkflow',
+  stoppingShell: 'tool.stoppingShell',
+  stoppingAgent: 'tool.stoppingAgent',
+  stoppingWorkflow: 'tool.stoppingWorkflow',
 }
 
 const TOOL_LIVE_TEXT: Record<ToolVerb, MessageId> = {
+  ...TOOL_TEXT,
   ran: 'tool.live.ran',
   edited: 'tool.live.edited',
   read: 'tool.live.read',
   searched: 'tool.live.searched',
   used: 'tool.live.used',
+  spawned: 'tool.live.spawned',
+  messaged: 'tool.live.messaged',
+  listedAgents: 'tool.live.listedAgents',
 }
 
-const TOOL_PENDING_TEXT: Record<Exclude<ToolVerb, 'used'>, MessageId> = {
+const TOOL_PENDING_TEXT: Partial<Record<ToolVerb, MessageId>> = {
   ran: 'tool.running',
   edited: 'tool.editing',
   read: 'tool.reading',
   searched: 'tool.searching',
+  listedAgents: 'tool.live.listedAgents',
+  backgroundStarted: 'tool.backgroundStarted.generic',
+  backgroundStopped: 'tool.backgroundStopped.generic',
+  stoppedShell: 'tool.stoppedShell.generic',
+  stoppedAgent: 'tool.stoppedAgent.generic',
+  stoppedWorkflow: 'tool.stoppedWorkflow.generic',
+  stoppingShell: 'tool.stoppingShell.generic',
+  stoppingAgent: 'tool.stoppingAgent.generic',
+  stoppingWorkflow: 'tool.stoppingWorkflow.generic',
 }
 
 export function toolText(verb: ToolVerb, subject: string | null, t: I18n['t']): string {
-  if (subject === null && verb !== 'used') return t(TOOL_PENDING_TEXT[verb])
+  const pending = TOOL_PENDING_TEXT[verb]
+  if (subject === null && pending) return t(pending)
   return t(TOOL_TEXT[verb], { subject: subject ?? '' })
 }
 
@@ -84,6 +112,44 @@ const NOTICE_TEXT = {
   answered: 'notice.answered',
   turnFailed: 'notice.turnFailed',
 } as const satisfies Record<string, MessageId>
+
+const WAKE_COPY: Record<TaskWakeKind, { icon: IconName; started: MessageId; generic: MessageId; statuses: Record<string, MessageId> }> = {
+  terminal: {
+    icon: 'squareTerminal',
+    started: 'wake.command',
+    generic: 'wake.command.generic',
+    statuses: {
+      completed: 'wake.command.finished',
+      failed: 'wake.command.failed',
+      killed: 'wake.command.stopped',
+      waitingForInput: 'wake.command.waitingForInput',
+    },
+  },
+  subagent: {
+    icon: 'bot',
+    started: 'wake.subagent',
+    generic: 'wake.subagent.generic',
+    statuses: { completed: 'wake.subagent.finished', failed: 'wake.subagent.failed', cancelled: 'wake.subagent.stopped' },
+  },
+  workflow: {
+    icon: 'workflow',
+    started: 'wake.workflow',
+    generic: 'wake.workflow.generic',
+    statuses: {
+      succeeded: 'wake.workflow.finished',
+      failed: 'wake.workflow.failed',
+      cancelled: 'wake.workflow.failed',
+      interrupted: 'wake.workflow.failed',
+      stopped: 'wake.workflow.stopped',
+    },
+  },
+}
+
+function wakeText(origin: TaskWake, t: I18n['t']): string {
+  const copy = WAKE_COPY[origin.task]
+  if (!origin.label) return t(copy.generic)
+  return t((origin.status && copy.statuses[origin.status]) || copy.started, { label: origin.label })
+}
 
 function Disclosure({ open }: { open: boolean }) {
   const { colors } = useTheme()
@@ -130,15 +196,18 @@ function Activity({ entry, workspacePath }: { entry: Extract<TranscriptEntry, { 
   const [plain, withDuration] = ACTIVITY_TEXT[entry.status]
   const label = timed ? t(withDuration, { duration: duration(elapsed) }) : t(plain)
   const expandable = entry.children.length > 0
+  const origin = entry.origin ? wakeText(entry.origin, t) : null
   return (
     <View style={styles.activity}>
       <Pressable
+        accessibilityLabel={origin ? `${label} · ${origin}` : undefined}
         accessibilityRole={expandable ? 'button' : undefined}
         accessibilityState={expandable ? { expanded: open } : undefined}
         disabled={!expandable}
         onPress={() => setOpen((value) => !value)}
         style={styles.activityRow}
       >
+        {entry.origin ? <Icon name={WAKE_COPY[entry.origin.task].icon} size={14} color={colors.textSecondary} strokeWidth={1.8} /> : null}
         <Text numberOfLines={1} style={[type.text, styles.fixed, { color: colors.textSecondary }]}>
           {label}
         </Text>
@@ -222,7 +291,7 @@ function ToolLine({ entry }: { entry: ToolEntry }) {
   const { colors } = useTheme()
   const [open, setOpen] = useState(false)
   const textStyle = [type.text, styles.line, { color: colors.textSecondary }]
-  const pending = entry.subject === null && entry.verb !== 'used'
+  const pendingText = entry.subject === null ? TOOL_PENDING_TEXT[entry.verb] : undefined
   const subject = entry.subject
   const [before, after] = around((entry.live ? TOOL_LIVE_TEXT : TOOL_TEXT)[entry.verb], 'subject')
   return (
@@ -241,8 +310,8 @@ function ToolLine({ entry }: { entry: ToolEntry }) {
           strokeWidth={1.6}
         />
         <RunningShimmer active={entry.live} style={styles.shrink} textStyle={textStyle}>
-          {pending ? (
-            t(TOOL_PENDING_TEXT[entry.verb as Exclude<ToolVerb, 'used'>])
+          {pendingText ? (
+            t(pendingText)
           ) : (
             <>
               {before}

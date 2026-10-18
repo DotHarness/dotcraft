@@ -5,14 +5,6 @@ import { useThreadStore } from '../stores/threadStore'
 
 const appServerSendRequest = vi.fn()
 
-function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise
-  })
-  return { promise, resolve }
-}
-
 function makeRunningChild(overrides: Partial<SubAgentChild> = {}): SubAgentChild {
   return {
     childThreadId: 'child-1',
@@ -26,10 +18,9 @@ function makeRunningChild(overrides: Partial<SubAgentChild> = {}): SubAgentChild
     supportsClose: true,
     status: 'open',
     lastToolDisplay: null,
-    lastMessagePreview: null,
     currentTool: null,
-    inputTokens: 0,
-    outputTokens: 0,
+    model: null,
+    usedTokens: null,
     isCompleted: false,
     runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false },
     ...overrides
@@ -92,47 +83,6 @@ describe('subAgentStore', () => {
     })
     expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]?.runtime).toEqual(
       expect.objectContaining({ activeTurnId: null, activeTurnStartedAt: null })
-    )
-  })
-
-  it('does not let a delayed preview read overwrite current turn metadata', async () => {
-    useSubAgentStore.getState().setChildren('parent-1', [makeRunningChild({
-      runtime: {
-        running: true,
-        activeTurnId: 'turn-1',
-        activeTurnStartedAt: '2026-08-24T00:00:00.000Z',
-        waitingOnApproval: false,
-        waitingOnPlanConfirmation: false
-      }
-    })])
-    const staleTurns = createDeferred<unknown>()
-    appServerSendRequest.mockImplementation((method: string) => {
-      if (method === 'thread/turns/list') return staleTurns.promise
-      if (method === 'thread/items/list') return Promise.resolve({ data: [], nextCursor: null })
-      if (method === 'thread/read') return Promise.resolve({ thread: { id: 'child-1', turns: [] } })
-      return Promise.resolve({})
-    })
-
-    const staleRead = useSubAgentStore.getState().fetchPreviews('parent-1', { force: true })
-    useSubAgentStore.getState().updateChildRuntime('child-1', {
-      running: true,
-      activeTurnId: 'turn-2',
-      activeTurnStartedAt: '2026-08-24T01:00:00.000Z',
-      waitingOnApproval: false,
-      waitingOnPlanConfirmation: false
-    })
-
-    staleTurns.resolve({
-      data: [{ id: 'turn-1', status: 'running', startedAt: '2026-08-24T00:00:00.000Z' }],
-      nextCursor: null
-    })
-    await staleRead
-
-    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]?.runtime).toEqual(
-      expect.objectContaining({
-        activeTurnId: 'turn-2',
-        activeTurnStartedAt: '2026-08-24T01:00:00.000Z'
-      })
     )
   })
 
@@ -369,8 +319,8 @@ describe('subAgentStore', () => {
         status: 'open',
         lastToolDisplay: 'Reading sprite atlas',
         currentTool: 'ReadFile',
-        inputTokens: 7,
-        outputTokens: 11,
+        model: null,
+        usedTokens: null,
         isCompleted: false,
         runtime: {
           running: true,
@@ -488,8 +438,8 @@ describe('subAgentStore', () => {
         nickname: 'Lovelace',
         lastToolDisplay: 'Reading sprite atlas',
         currentTool: 'ReadFile',
-        inputTokens: 12,
-        outputTokens: 34,
+        model: null,
+        usedTokens: null,
         supportsClose: false,
         isPlaceholder: true,
         isCompleted: false,
@@ -547,8 +497,8 @@ describe('subAgentStore', () => {
         status: 'open',
         lastToolDisplay: 'Reading sprite atlas',
         currentTool: 'ReadFile',
-        inputTokens: 7,
-        outputTokens: 11,
+        model: null,
+        usedTokens: null,
         isCompleted: false,
         runtime: {
           running: true,
@@ -629,8 +579,8 @@ describe('subAgentStore', () => {
         agentRole: 'explorer',
         lastToolDisplay: 'Reading sprite atlas',
         currentTool: 'ReadFile',
-        inputTokens: 12,
-        outputTokens: 34,
+        model: null,
+        usedTokens: null,
         supportsClose: true,
         isPlaceholder: false,
         runtime: expect.objectContaining({ running: true })
@@ -662,8 +612,8 @@ describe('subAgentStore', () => {
         status: 'open',
         lastToolDisplay: 'Reading sprite atlas',
         currentTool: 'ReadFile',
-        inputTokens: 12,
-        outputTokens: 34,
+        model: null,
+        usedTokens: null,
         isCompleted: false,
         runtime: {
           running: true,
@@ -761,8 +711,8 @@ describe('subAgentStore', () => {
         status: 'open',
         lastToolDisplay: null,
         currentTool: null,
-        inputTokens: 0,
-        outputTokens: 0,
+        model: null,
+        usedTokens: null,
         isCompleted: false,
         isPlaceholder: false
       }
@@ -778,7 +728,7 @@ describe('subAgentStore', () => {
     expect(child ? isSubAgentChildRunning(child) : true).toBe(false)
   })
 
-  it('merges progress descriptions and token usage into existing child rows', () => {
+  it('merges progress descriptions into existing child rows', () => {
     useSubAgentStore.getState().setChildren('parent-1', [
       {
         childThreadId: 'child-1',
@@ -793,8 +743,8 @@ describe('subAgentStore', () => {
         status: 'open',
         lastToolDisplay: null,
         currentTool: null,
-        inputTokens: 0,
-        outputTokens: 0,
+        model: null,
+        usedTokens: null,
         isCompleted: false,
         runtime: {
           running: true,
@@ -819,12 +769,42 @@ describe('subAgentStore', () => {
       expect.objectContaining({
         lastToolDisplay: 'Reading sprite atlas',
         currentTool: 'ReadFile',
-        inputTokens: 12,
-        outputTokens: 34,
+        model: null,
+        usedTokens: null,
         isCompleted: false,
         runtime: expect.objectContaining({ running: true })
       })
     )
+  })
+
+  it('sums the turn usage of a child across pages and follows later thread usage updates', async () => {
+    useSubAgentStore.getState().setChildren('parent-1', [makeRunningChild()])
+    appServerSendRequest
+      .mockResolvedValueOnce({ data: [{ id: 't3', tokenUsage: { inputTokens: 900, outputTokens: 100, totalTokens: 1000 } }], nextCursor: 'next' })
+      .mockResolvedValueOnce({ data: [{ id: 't2' }, { id: 't1', tokenUsage: { inputTokens: 200, outputTokens: 50 } }], nextCursor: null })
+
+    await useSubAgentStore.getState().fetchUsage('parent-1')
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0].usedTokens).toBe(1250)
+
+    useSubAgentStore.getState().updateChildUsage('child-1', 4200)
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0].usedTokens).toBe(4200)
+
+    appServerSendRequest.mockClear()
+    await useSubAgentStore.getState().fetchUsage('parent-1')
+    expect(appServerSendRequest).not.toHaveBeenCalled()
+  })
+
+  it('reads usage again once a child finishes while keeping a newer live total', async () => {
+    useSubAgentStore.getState().setChildren('parent-1', [makeRunningChild()])
+    appServerSendRequest.mockResolvedValueOnce({ data: [{ id: 't1', tokenUsage: { totalTokens: 500 } }], nextCursor: null })
+    await useSubAgentStore.getState().fetchUsage('parent-1')
+    useSubAgentStore.getState().updateChildUsage('child-1', 900)
+
+    useSubAgentStore.getState().updateChildRuntime('child-1', { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false })
+    appServerSendRequest.mockResolvedValueOnce({ data: [{ id: 't1', tokenUsage: { totalTokens: 700 } }], nextCursor: null })
+    await useSubAgentStore.getState().fetchUsage('parent-1')
+    expect(appServerSendRequest).toHaveBeenLastCalledWith('thread/turns/list', expect.objectContaining({ threadId: 'child-1' }))
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0].usedTokens).toBe(900)
   })
 
   it('marks a child completed and clears current tool when runtime stops', () => {
@@ -842,8 +822,8 @@ describe('subAgentStore', () => {
         status: 'open',
         lastToolDisplay: 'Reading sprite atlas',
         currentTool: 'ReadFile',
-        inputTokens: 12,
-        outputTokens: 34,
+        model: null,
+        usedTokens: null,
         isCompleted: false,
         runtime: {
           running: true,

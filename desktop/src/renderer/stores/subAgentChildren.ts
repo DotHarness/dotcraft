@@ -1,6 +1,5 @@
 import type { SubAgentEntry } from '../types/toolCall'
-import type { ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
-import { wireTurnToConversationTurn } from '../types/conversation'
+import type { ThreadConfigurationWire, ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
 import { useThreadStore } from './threadStore'
 
 interface SubAgentEdgeWire {
@@ -27,7 +26,7 @@ interface SubAgentEdgeWire {
 
 export interface SubAgentChildWire {
   edge?: SubAgentEdgeWire
-  thread?: ThreadSummary | null
+  thread?: (ThreadSummary & { configuration?: ThreadConfigurationWire | null }) | null
 }
 
 export interface SubAgentChild {
@@ -46,15 +45,9 @@ export interface SubAgentChild {
   supportsClose: boolean
   status: string
   lastToolDisplay: string | null
-  /**
-   * Preview of the subagent's most recent agent message, used by the Subagents
-   * panel for finished subagents (running ones prefer live tool progress).
-   * Loaded lazily by the store preview loader; null until read.
-   */
-  lastMessagePreview: string | null
   currentTool: string | null
-  inputTokens: number
-  outputTokens: number
+  model: string | null
+  usedTokens: number | null
   isCompleted: boolean
   isPlaceholder?: boolean
   runtime?: ThreadRuntimeSnapshot
@@ -81,31 +74,6 @@ function normalizeRole(source: {
     ?? normalizeText(source?.agentType)
     ?? normalizeText(source?.agent_type)
     ?? normalizeText(source?.role)
-}
-
-const PREVIEW_MAX_LENGTH = 140
-
-/**
- * Extracts a short single-line preview from the most recent agent message across
- * the given raw turns (newest last). Returns null when no agent text is present.
- */
-export function extractLastAgentMessagePreview(rawTurns: Array<Record<string, unknown>>): string | null {
-  for (let turnIndex = rawTurns.length - 1; turnIndex >= 0; turnIndex -= 1) {
-    let turn
-    try {
-      turn = wireTurnToConversationTurn(rawTurns[turnIndex])
-    } catch {
-      continue
-    }
-    for (let itemIndex = turn.items.length - 1; itemIndex >= 0; itemIndex -= 1) {
-      const item = turn.items[itemIndex]
-      if (item.type !== 'agentMessage') continue
-      const text = item.text?.replace(/\s+/g, ' ').trim()
-      if (!text) continue
-      return text.length > PREVIEW_MAX_LENGTH ? `${text.slice(0, PREVIEW_MAX_LENGTH)}…` : text
-    }
-  }
-  return null
 }
 
 export function isTerminalSubAgentStatus(status: string | null | undefined): boolean {
@@ -168,10 +136,9 @@ export function childFromWire(parentThreadId: string, wire: SubAgentChildWire): 
     supportsClose: edge.supportsClose ?? source?.supportsClose ?? true,
     status,
     lastToolDisplay: null,
-    lastMessagePreview: null,
     currentTool: null,
-    inputTokens: 0,
-    outputTokens: 0,
+    model: normalizeText(wire.thread?.configuration?.model) ?? normalizeText(wire.thread?.configuration?.Model),
+    usedTokens: null,
     isCompleted,
     isPlaceholder: false,
     runtime,
@@ -202,10 +169,9 @@ export function mergeExistingProgress(next: SubAgentChild, existing: SubAgentChi
     profileName: next.profileName ?? existing.profileName,
     runtimeType: next.runtimeType ?? existing.runtimeType,
     lastToolDisplay: existing.lastToolDisplay,
-    lastMessagePreview: existing.lastMessagePreview,
     currentTool: isCompleted ? null : existing.currentTool,
-    inputTokens: existing.inputTokens,
-    outputTokens: existing.outputTokens,
+    model: next.model ?? existing.model,
+    usedTokens: existing.usedTokens,
     isCompleted,
     isPlaceholder: false,
     runtime
@@ -237,10 +203,9 @@ export function createPlaceholderChild(
     supportsClose: false,
     status: isCompleted ? 'completed' : 'open',
     lastToolDisplay: display,
-    lastMessagePreview: null,
     currentTool: isCompleted ? null : progress.currentTool,
-    inputTokens: progress.inputTokens,
-    outputTokens: progress.outputTokens,
+    model: null,
+    usedTokens: null,
     isCompleted,
     isPlaceholder: true,
     runtime: {
