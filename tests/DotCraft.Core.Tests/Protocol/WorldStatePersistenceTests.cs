@@ -181,6 +181,51 @@ public sealed class WorldStatePersistenceTests : IDisposable
         Assert.Equal("/a", WorkingDirectory(Assert.IsType<WorldStateSnapshot>(replay.WorldState)));
     }
 
+    [Fact]
+    public async Task NativeCompaction_DropsOlderBaselineAndRollbackKeepsTheReset()
+    {
+        var thread = await CreateThreadWithTurnsAsync(2);
+        await AppendWorldStateAsync(thread, thread.Turns[0].Id, true,
+            new JsonObject { ["agents_md"] = new JsonObject { ["content"] = "old rules" } });
+        await AppendNativeCompactionAsync(thread, thread.Turns[0].Id);
+        Assert.Null(await LoadBaselineAsync(thread));
+        await AppendWorldStateAsync(thread, thread.Turns[1].Id, true,
+            new JsonObject { ["agents_md"] = new JsonObject { ["content"] = "new rules" } });
+        Assert.Equal("new rules", (await LoadBaselineAsync(thread))!.ToJsonObject()["agents_md"]!["content"]!.GetValue<string>());
+        await _store.RollbackThreadAsync(thread, 1);
+        var reloaded = await _store.LoadThreadAsync(thread.Id, CancellationToken.None);
+        Assert.Null(await LoadBaselineAsync(reloaded!));
+    }
+
+    [Fact]
+    public async Task RolledBackNativeCompaction_DoesNotHideTheSurvivingBaseline()
+    {
+        var thread = await CreateThreadWithTurnsAsync(2);
+        await AppendWorldStateAsync(thread, thread.Turns[0].Id, true,
+            new JsonObject { ["agents_md"] = new JsonObject { ["content"] = "surviving rules" } });
+        await AppendNativeCompactionAsync(thread, thread.Turns[1].Id);
+        await _store.RollbackThreadAsync(thread, 1);
+        var reloaded = await _store.LoadThreadAsync(thread.Id, CancellationToken.None);
+        Assert.Equal("surviving rules", (await LoadBaselineAsync(reloaded!))!.ToJsonObject()["agents_md"]!["content"]!.GetValue<string>());
+    }
+
+    private Task AppendNativeCompactionAsync(SessionThread thread, string turnId) =>
+        _store.ReplaceProviderHistoryAsync(new ProviderHistoryReplacedPayload
+        {
+            SchemaVersion = ProviderHistorySchema.CurrentSchemaVersion,
+            ThreadId = thread.Id,
+            Protocol = ProviderHistorySchema.OpenAIResponsesProtocol,
+            GenerationId = "native-window",
+            ContextWindowId = "native-window",
+            CoveredThroughTurnId = turnId,
+            Reason = ProviderHistoryReasons.RemoteCompaction,
+            Entries = [new ProviderHistoryEntry
+            {
+                EntryId = "compaction",
+                Item = JsonSerializer.SerializeToElement(new { type = "compaction", encrypted_content = "fixture" })
+            }]
+        });
+
     private static string UnreadableStateRecord(SessionThread thread, string turnId) =>
         JsonSerializer.Serialize(new
         {

@@ -15,7 +15,7 @@ DotCraft sends four layers to the model:
 | Layer | Transport | Owner | Purpose |
 |-------|-----------|-------|---------|
 | Base instructions | Provider/system instruction channel | Agent runtime | Stable identity, operating rules, workspace context, skills, and app context. Derived only from configuration and workspace state. |
-| Project instructions | A plain `user` message before ordinary conversation history | Session runtime | Stable user- and repository-level `AGENTS.md` instructions with directory scope and source provenance. |
+| Project instructions | Plain `user` context updates before the current input | Session runtime | Stable user- and repository-level `AGENTS.md` instructions with directory scope and source provenance. |
 | Thread context items | Conversation history, appended before the turn's user message | Session runtime | Thread-scoped or connection-bound context that cannot be derived from configuration alone: native SubAgent role guidance, client-bound runtime context, and developer instructions on developer-role protocols. |
 | Turn input | Current user-message content | Session runtime and client/app input | User text, materialized references, queued app/team input, mailbox input, and per-turn runtime reminders. |
 
@@ -123,23 +123,25 @@ Rules:
    nearest `.git` marker from the effective cwd and load one project file per directory from that
    root through cwd. `AGENTS.override.md` shadows `AGENTS.md` in the same directory. With no marker,
    only cwd participates. Secondary runtime roots do not participate.
-2. **Carrier.** Every provider receives one plain `user` message with item kind
+2. **Carrier.** Every emitted instruction update is a plain `user` message with item kind
    `agents_md.instructions`. OpenAI Responses must not upgrade it to `developer`; Anthropic must
    not merge it into the top-level system parameter.
 3. **Authority.** Runtime policy and direct system, developer, and user instructions take
    precedence. A project file applies to its directory subtree, and the deeper file wins when two
    applicable files conflict.
-4. **Placement.** The item is a stable session prefix before ordinary conversation history. Native
-   SubAgent guidance and connection-owned thread context remain later context items.
+4. **Placement.** The `agents_md` world-state section appends updates after the canonical provider
+   baseline and pre-turn compaction, before the current user input. Already sent items are immutable.
 5. **Lifecycle.** The rendered content and ordered source paths form one context-page snapshot.
    Ordinary turns reuse it. Successful compaction, cold resume, effective cwd/worktree changes, or
    relevant instruction configuration changes load a new snapshot. A running Turn resolves and
    reloads project instructions from the effective cwd captured when that Turn was admitted; a
    later thread workspace update applies only to subsequent Turns. Standalone lifecycle operations
    use the thread workspace current at their own boundary.
-6. **Replacement.** A changed snapshot replaces the existing marked history item in place. An empty
-   snapshot removes it. The runtime must update persisted and provider-native replacement history;
-   it must not append model-visible replacement or removal notices.
+6. **Updates.** Initial context carries the complete current instructions. Changed instructions append
+   a complete replacement with an explicit supersession notice; removal appends one retraction.
+   An unchanged or already empty snapshot emits nothing. Instruction changes must not create a
+   history replacement checkpoint, advance the provider generation, or reconstruct native history.
+   Reading instruction sources changes diagnostics only, not model or provider history.
 7. **Nested directories.** Runtime discovery stops at the captured cwd. Before working below that
    directory, the agent must check for more deeply scoped `AGENTS.md` files itself.
 8. **Observability.** The effective context-page snapshot is recorded as an `AgentInstructions`

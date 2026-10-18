@@ -15,7 +15,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-public sealed class SessionServiceNativeCompactionTests : IDisposable
+public sealed partial class SessionServiceNativeCompactionTests : IDisposable
 {
     private readonly string _workspace = Path.Combine(Path.GetTempPath(), "NativeCompact_" + Guid.NewGuid().ToString("N"));
     private readonly NativeProvider _provider = new();
@@ -345,6 +345,8 @@ public sealed class SessionServiceNativeCompactionTests : IDisposable
         public bool OverflowNextRequest { get; set; }
         public bool ReportHighUsageNextResponse { get; set; }
         public bool ToolNextResponse { get; set; }
+        public bool ReasoningNextResponse { get; set; }
+        public Func<CancellationToken, Task>? BeforeNextResponse { get; set; }
         public IReadOnlyCollection<string> Protocols => [ModelProviderProtocols.OpenAIResponses];
         public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => CreateClient();
         public IChatClient CreateClient() => new OpenAIResponsesToolSearchChatClient(
@@ -379,6 +381,20 @@ public sealed class SessionServiceNativeCompactionTests : IDisposable
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             Requests.Add(ModelReaderWriter.Write(options).ToString());
+            if (BeforeNextResponse is { } beforeResponse)
+            {
+                BeforeNextResponse = null;
+                await beforeResponse(cancellationToken);
+            }
+            if (ReasoningNextResponse)
+            {
+                ReasoningNextResponse = false;
+                yield return ModelReaderWriter.Read<StreamingResponseUpdate>(BinaryData.FromString("""
+                    {"type":"response.output_item.done","sequence_number":0,"output_index":0,
+                     "item":{"type":"reasoning","id":"rs_old","summary":[{"type":"summary_text","text":"old reasoning marker"}],
+                     "encrypted_content":"old-reasoning-cache"}}
+                    """))!;
+            }
             if (OverflowNextRequest)
             {
                 OverflowNextRequest = false;

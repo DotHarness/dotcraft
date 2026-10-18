@@ -96,7 +96,7 @@ internal static class ProviderHistoryReplayer
         }
     }
 
-    private static bool IsValidReplacement(
+    internal static bool IsValidReplacement(
         ProviderHistoryReplacedPayload? value,
         string expectedThreadId,
         IReadOnlySet<string> survivingTurnIds) =>

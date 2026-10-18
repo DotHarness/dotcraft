@@ -265,7 +265,8 @@ public sealed class SessionServiceAgentInstructionsTests : IDisposable
 
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("second")]));
 
-        var secondInstructions = Assert.Single(recorder.LastMessages, AgentInstructionsHistory.IsInstructions);
+        var secondInstructions = recorder.LastMessages.Last(AgentInstructionsHistory.IsInstructions);
+        Assert.Equal(2, recorder.LastMessages.Count(AgentInstructionsHistory.IsInstructions));
         Assert.Contains("updated workspace rules", secondInstructions.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("admitted workspace rules", secondInstructions.Text, StringComparison.Ordinal);
     }
@@ -324,6 +325,50 @@ public sealed class SessionServiceAgentInstructionsTests : IDisposable
         var instructions = Assert.Single(recorder.LastMessages, AgentInstructionsHistory.IsInstructions);
         Assert.Contains("parent snapshot v1", instructions.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("filesystem snapshot v2", instructions.Text, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ModelProviderProtocols.OpenAI)]
+    [InlineData(ModelProviderProtocols.OpenAIResponses)]
+    [InlineData(ModelProviderProtocols.Anthropic)]
+    public async Task InstructionUpdates_AppendAcrossColdResumeRemovalAndReaddition(string protocol)
+    {
+        var agentsPath = Path.Combine(_workspace, "AGENTS.md");
+        File.WriteAllText(agentsPath, "original project rules");
+        var recorder = new RecordingChatClient();
+        string threadId;
+        await using (var firstFactory = CreateAgentFactory(protocol))
+        {
+            var initial = new SessionService(firstFactory, recorder.AsAIAgent(), _persistence, new SessionGate());
+            var thread = await initial.CreateThreadAsync(MakeIdentity());
+            threadId = thread.Id;
+            await DrainAsync(initial.SubmitInputAsync(threadId, [new TextContent("initial")]));
+        }
+        File.WriteAllText(agentsPath, "replacement project rules");
+        await using var factory = CreateAgentFactory(protocol);
+        var service = new SessionService(factory, recorder.AsAIAgent(), _persistence, new SessionGate());
+        await service.ResumeThreadAsync(threadId);
+        await service.GetInstructionSourcesAsync(threadId);
+        await DrainAsync(service.SubmitInputAsync(threadId, [new TextContent("new rules")]));
+        var updates = recorder.LastMessages.Where(AgentInstructionsHistory.IsInstructions).ToArray();
+        Assert.Equal(2, updates.Length);
+        Assert.Contains("original project rules", updates[0].Text);
+        Assert.Contains("replacement project rules", updates[1].Text);
+        Assert.All(updates, update => Assert.Equal(ChatRole.User, update.Role));
+
+        File.Delete(agentsPath);
+        factory.RuntimeContext.ContextPageManager.ReleaseStablePages(threadId);
+        await DrainAsync(service.SubmitInputAsync(threadId, [new TextContent("removed rules")]));
+        var afterRemoval = recorder.LastMessages.Count(AgentInstructionsHistory.IsInstructions);
+        Assert.Equal(3, afterRemoval);
+        await DrainAsync(service.SubmitInputAsync(threadId, [new TextContent("still empty")]));
+        Assert.Equal(afterRemoval, recorder.LastMessages.Count(AgentInstructionsHistory.IsInstructions));
+
+        File.WriteAllText(agentsPath, "readded project rules");
+        factory.RuntimeContext.ContextPageManager.ReleaseStablePages(threadId);
+        await DrainAsync(service.SubmitInputAsync(threadId, [new TextContent("readded rules")]));
+        Assert.Contains("readded project rules", recorder.LastMessages.Last(AgentInstructionsHistory.IsInstructions).Text);
+        Assert.Equal(4, recorder.LastMessages.Count(AgentInstructionsHistory.IsInstructions));
     }
 
     private SessionService CreateService(AgentFactory factory, TraceCollector? traceCollector = null) =>

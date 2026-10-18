@@ -33,6 +33,8 @@ public sealed record WorldStateContext
 
     public string? WorkspacePath { get; init; }
 
+    public string? AgentInstructions { get; init; }
+
     public bool HasActivePlan { get; init; }
 
     public ThreadGoal? ThreadGoal { get; init; }

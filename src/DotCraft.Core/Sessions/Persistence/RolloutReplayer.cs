@@ -27,6 +27,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         var survivingTurnIds = orderedTurns.Select(static turn => turn.Id).ToHashSet(StringComparer.Ordinal);
         var reverseBatches = new List<DecodedModelBatch>();
         var reverseWorldStates = new List<WorldStatePayload>();
+        var nativeWorldStateBoundary = false;
         var fallbackTurnIds = new HashSet<string>(StringComparer.Ordinal);
         var warnings = new List<ModelHistoryReplayWarning>();
         var codec = new ModelHistoryCodec();
@@ -164,7 +165,16 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                         markFallback: false);
                 }
             }
-            else if (string.Equals(kind, RolloutKinds.WorldState, StringComparison.Ordinal))
+            else if (string.Equals(kind, RolloutKinds.ProviderHistoryReplaced, StringComparison.Ordinal)
+                     && record.ProviderHistoryReplaced is { } providerReplacement
+                     && ProviderHistoryReasons.IsNativeCompacted(providerReplacement.Reason)
+                     && ProviderHistoryReplayer.IsValidReplacement(
+                         providerReplacement, expectedThreadId ?? providerReplacement.ThreadId, survivingTurnIds))
+            {
+                nativeWorldStateBoundary = true;
+            }
+            else if (string.Equals(kind, RolloutKinds.WorldState, StringComparison.Ordinal)
+                     && !nativeWorldStateBoundary)
             {
                 hasRecords = true;
                 var worldStateRecord = record.WorldState;
