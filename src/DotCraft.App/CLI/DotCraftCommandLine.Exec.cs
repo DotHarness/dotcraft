@@ -128,26 +128,17 @@ public static partial class DotCraftCommandLine
         var workspaceDirectory = WorkspaceDirectoryOption();
         var remote = RemoteOption();
         var token = TokenOption();
-        var threadId = new Argument<string?>("thread-id")
+        var threadId = new Argument<string>("thread-id")
         {
-            Description = "Thread whose running turn to stop. Omit it when using --last.",
-            Arity = ArgumentArity.ZeroOrOne
+            Description = "Thread whose running turn to stop."
         };
-        var last = Flag("--last", "Stop the running turn of the most recently active thread in this workspace.");
         var command = new Command("interrupt", "Stop the running turn of a thread.")
         {
             threadId,
-            last,
             workspaceDirectory,
             remote,
             token
         };
-        command.Validators.Add(result =>
-        {
-            var hasId = !string.IsNullOrWhiteSpace(result.GetValue(threadId));
-            if (result.GetValue(last) == hasId)
-                result.AddError("Provide either a thread id or --last.");
-        });
         command.SetAction(async (parseResult, cancellationToken) =>
         {
             if (FindUnrecognizedOption(parseResult, [threadId]) is { } unrecognized)
@@ -159,7 +150,7 @@ public static partial class DotCraftCommandLine
             var workspace = Path.GetFullPath(parseResult.GetValue(workspaceDirectory) ?? Directory.GetCurrentDirectory());
             return await ExecInterrupt.RunAsync(
                 Path.TrimEndingDirectorySeparator(workspace),
-                parseResult.GetValue(last) ? null : parseResult.GetValue(threadId),
+                parseResult.GetValue(threadId)!,
                 new CommandLineArgs
                 {
                     Mode = CommandLineArgs.RunMode.Exec,

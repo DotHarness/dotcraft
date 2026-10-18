@@ -76,7 +76,7 @@ dotcraft context export --thread thread_20260601_ab12cd --profile transcript --t
 
 `/dotcraft:setup` 会告诉你还缺什么。之后用 `/dotcraft:task` 交出任务，用 `/dotcraft:image` 生成图片，用 `/dotcraft:cancel` 停掉还在运行的任务，也可以直接让 Claude 请 DotCraft 去做。每个回答都会标明来自 DotCraft，并附上会话 id，方便继续追问。生成的图片保存在项目的 `.craft/generated_images` 文件夹下。
 
-DotCraft 会直接执行项目内的普通命令和改动，凡是需要你审批的操作都会拒绝，除非任务里加了 `--auto-approve`。插件底层调用的是 `dotcraft exec` 命令，见[命令行参考](../contribute/lifecycle/appserver)。
+DotCraft 会直接执行项目内的普通命令和改动。需要你审批的操作按工作区的默认审批策略处理：设为自动批准时直接执行，否则会被拒绝，除非任务里加了 `--auto-approve`。插件底层调用的是 `dotcraft exec` 命令，见[命令行参考](../contribute/lifecycle/appserver)。
 
 ## 相关文档
 

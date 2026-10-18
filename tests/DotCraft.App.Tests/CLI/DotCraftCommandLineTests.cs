@@ -85,6 +85,7 @@ public sealed class DotCraftCommandLineTests
     [InlineData("tool-host", "policy", "set", "Exec", "sometimes")]
     [InlineData("config", "schema", "--section")]
     [InlineData("exec", "resume", "--model", " ", "--last", "hello")]
+    [InlineData("exec", "interrupt")]
     public async Task InvalidInput_IsRejectedAsUsageError(string first, params string[] remaining)
     {
         using var output = new StringWriter();

@@ -20,24 +20,6 @@ public sealed class ExecInterruptProcessTests : ExecProcessTestBase
     }
 
     [Fact]
-    public async Task Interrupt_Last_InterruptsTheMostRecentThread()
-    {
-        await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions
-        {
-            ListedThreadIds = ["thread_7"],
-            ActiveTurnId = "turn_3"
-        });
-
-        var result = await RunExecAsync(server, ["interrupt", "--last"]);
-
-        Assert.Equal(0, result.ExitCode);
-        Assert.Equal("workspace", Assert.Single(server.ParamsOf("thread/list"))["scope"]!.GetValue<string>());
-        var interrupt = Assert.Single(server.ParamsOf("turn/interrupt"));
-        Assert.Equal("thread_7", interrupt["threadId"]!.GetValue<string>());
-        Assert.Equal("turn_3", interrupt["turnId"]!.GetValue<string>());
-    }
-
-    [Fact]
     public async Task Interrupt_NothingRunning_ExitsZeroWithoutInterrupting()
     {
         await using var server = await ExecFakeAppServer.StartAsync();
@@ -65,7 +47,7 @@ public sealed class ExecInterruptProcessTests : ExecProcessTestBase
     {
         await using var server = await ExecFakeAppServer.StartAsync();
 
-        var result = await RunExecAsync(server, ["interrupt", "--last"], workingDirectory: CreateDirectory("elsewhere"));
+        var result = await RunExecAsync(server, ["interrupt", "thread_9"], workingDirectory: CreateDirectory("elsewhere"));
 
         Assert.Equal(1, result.ExitCode);
         Assert.Empty(server.Requests);

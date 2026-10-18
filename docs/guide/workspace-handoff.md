@@ -76,7 +76,7 @@ Make the project folder a DotCraft workspace and put the `dotcraft` command on y
 
 `/dotcraft:setup` reports anything still missing. After that, use `/dotcraft:task` to hand over a task, `/dotcraft:image` to generate an image, and `/dotcraft:cancel` to stop a task that is still running, or just ask Claude to have DotCraft do something. Each answer comes back labeled as DotCraft's, with the conversation id for follow-ups. Generated images are saved under the project's `.craft/generated_images` folder.
 
-DotCraft runs ordinary commands and edits inside the project without asking, and refuses anything that would need your approval unless the task includes `--auto-approve`. The plugin drives the `dotcraft exec` command; see the [command-line reference](../contribute/lifecycle/appserver).
+DotCraft runs ordinary commands and edits inside the project without asking. Anything that would need your approval follows the workspace's default approval policy: it runs when that is set to approve automatically, and is refused otherwise unless the task includes `--auto-approve`. The plugin drives the `dotcraft exec` command; see the [command-line reference](../contribute/lifecycle/appserver).
 
 ## Related docs
 

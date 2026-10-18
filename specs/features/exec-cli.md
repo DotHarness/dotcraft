@@ -43,7 +43,7 @@ A caller that cannot be modified relies on this command alone. One example is an
 ```text
 dotcraft exec [options] [PROMPT | -]
 dotcraft exec resume [options] (THREAD_ID | --last) [PROMPT | -]
-dotcraft exec interrupt [-C DIR] [--remote URL [--token TOKEN]] (THREAD_ID | --last)
+dotcraft exec interrupt [-C DIR] [--remote URL [--token TOKEN]] THREAD_ID
 ```
 
 **Prompt input:**
@@ -167,12 +167,13 @@ Exec initializes with `approvalSupport: false` and `requestUserInputSupport: fal
 **Approval policy:**
 
 - `autoApprove` accepts every request.
+- `default` follows the workspace's default approval policy. When that is `autoApprove`, every request is accepted.
 - Every other policy declines. The tool receives the rejection, and the Turn continues.
 
-**Default behavior:**
+New exec threads use `default`, so the outcome depends on the workspace:
 
-- Work inside the workspace that needs no approval still runs. This includes ordinary shell commands and file writes.
-- Operations that need approval are refused. Examples are dangerous commands, access outside the workspace, and gated MCP tools.
+- Work inside the workspace that needs no approval always runs. This includes ordinary shell commands and file writes.
+- Operations that need approval, such as dangerous commands, access outside the workspace, and gated MCP tools, run when the workspace default is `autoApprove` and are refused otherwise.
 - A declined request does not fail the run.
 
 **With `--auto-approve`:**
@@ -186,7 +187,7 @@ User-input requests receive empty answers, as the protocol defines for clients t
 
 - **Waiting.** Exec waits for the Turn's terminal notification, with no time limit of its own.
 - **Ctrl+C / SIGINT.** Exec sends `turn/interrupt` for its running Turn, keeps waiting for the terminal notification, then exits `1`.
-- **Killed without a chance to interrupt.** The Turn keeps running on the AppServer, because Turn execution outlives the submitting connection. `dotcraft exec interrupt` stops it: it resolves the workspace as in §5, finds the thread's running Turn, and sends `turn/interrupt`.
+- **Killed without a chance to interrupt.** The Turn keeps running on the AppServer, because Turn execution outlives the submitting connection. `dotcraft exec interrupt` stops it. It resolves the workspace as in §5, then finds the thread's running Turn and sends `turn/interrupt`.
 - **Hub lifetime.** A Hub or AppServer that exec started keeps running after exec exits, whether exec finished normally, was interrupted, or had its process tree terminated. Exec starts the Hub through a short-lived launcher that detaches it into its own session (Unix) or without a console (Windows) and exits, so the Hub is neither a descendant of exec nor reached by exec's console signals.
 
 ## 9. Constraints And Compatibility

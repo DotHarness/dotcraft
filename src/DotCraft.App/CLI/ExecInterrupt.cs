@@ -7,7 +7,7 @@ internal static class ExecInterrupt
 {
     public static async Task<int> RunAsync(
         string workspacePath,
-        string? threadId,
+        string threadId,
         CommandLineArgs connectionArgs,
         CancellationToken ct)
     {
@@ -28,7 +28,6 @@ internal static class ExecInterrupt
                 ct).ConfigureAwait(false);
             var wire = connection.Wire;
 
-            threadId ??= await ExecThreads.FindLatestAsync(wire, ct).ConfigureAwait(false);
             var thread = await ExecThreads.ReadAsync(wire, threadId, ct).ConfigureAwait(false);
             var turnId = thread.TryGetProperty("runtime", out var runtime)
                 ? OneShotNotification.ReadString(runtime, "activeTurnId")

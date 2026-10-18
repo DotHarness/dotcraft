@@ -44,7 +44,6 @@ dotcraft exec --remote ws://server:9100/ws --token my-secret "总结当前工作
 | `dotcraft exec resume <thread-id> <prompt>` | 在已有线程上继续执行新任务 |
 | `dotcraft exec resume --last <prompt>` | 在当前工作区最近活跃的线程上继续执行新任务 |
 | `dotcraft exec interrupt <thread-id>` | 停止线程上正在运行的任务 |
-| `dotcraft exec interrupt --last` | 停止当前工作区最近活跃线程上正在运行的任务 |
 | `dotcraft app-server` | 启动 AppServer（默认 stdio 模式） |
 | `--listen <URL>` | AppServer 传输方式，搭配 `app-server` 使用 |
 | `--remote <URL>` | 客户端连接远程 AppServer，搭配 `exec` 或 ACP 使用 |
@@ -73,13 +72,13 @@ dotcraft exec resume <thread-id> -i before.png,after.png "对比这两张图"
 git diff | dotcraft exec "审查这次改动"
 ```
 
-退出码：任务完成为 `0`；任务失败或 exec 无法执行为 `1`；用法错误为 `2`，此时不会创建任何线程。
+退出码：任务完成为 `0`，任务失败或 exec 无法执行为 `1`，用法错误为 `2`，此时不会创建任何线程。
 
 `-o` 把已完成任务的最终回答以不带 BOM 的 UTF-8 写入文件，覆盖原有内容。任务完成但没有最终回答时写入空文件并输出警告。任务失败或被取消时不改动该文件。
 
-exec 从不弹出审批。需要审批的操作会被拒绝，任务继续执行，退出码取决于任务结果。使用 `--auto-approve` 时，线程的审批策略变为 `autoApprove`，这些操作会被执行，但安全规则禁止的命令仍然禁止。
+exec 从不弹出审批。需要审批的操作按线程的审批策略处理，exec 新建的线程沿用工作区的默认策略。工作区默认策略为 `autoApprove` 时，这些操作会被执行。否则会被拒绝，任务继续执行，退出码取决于任务结果。使用 `--auto-approve` 时，线程的审批策略变为 `autoApprove`，但安全规则禁止的命令仍然禁止。
 
-exec 等待任务结束，自身不设时限。按 Ctrl+C 会请求 AppServer 停止任务，等任务停止后以 `1` 退出。exec 被直接杀掉时，任务仍在 AppServer 上继续运行，可用 `dotcraft exec interrupt` 停止：停止了任务或没有正在运行的任务时退出码为 `0`，线程不存在或无法连接 AppServer 时为 `1`。exec 启动的 Hub 在 exec 退出后继续运行，即使 exec 的整个进程树被杀掉也是如此。
+exec 等待任务结束，自身不设时限。按 Ctrl+C 会请求 AppServer 停止任务，等任务停止后以 `1` 退出。exec 被直接杀掉时，任务仍在 AppServer 上继续运行，可用 `dotcraft exec interrupt <thread-id>` 停止。停止了任务或没有正在运行的任务时退出码为 `0`，线程不存在或无法连接 AppServer 时为 `1`。exec 启动的 Hub 在 exec 退出后继续运行，即使 exec 的整个进程树被杀掉也是如此。
 
 ### `--json` 事件
 
@@ -110,7 +109,7 @@ exec 等待任务结束，自身不设时限。按 Ctrl+C 会请求 AppServer �
 ```bash
 dotcraft exec --json "修复失败的测试" | jq -c 'select(.type == "item.completed") | .item.type'
 dotcraft exec -o answer.md --auto-approve "更新 CHANGELOG"
-dotcraft exec interrupt --last
+dotcraft exec interrupt <thread-id>
 ```
 
 ### `--listen` URL Scheme
