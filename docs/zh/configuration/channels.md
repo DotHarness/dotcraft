@@ -61,6 +61,8 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 
 每个 TypeScript 渠道配置都有一个 `dotcraft` 段和一个平台段。Desktop UI 会隐藏 `dotcraft.*` 字段，并在托管模块运行时自动提供这些值。
 
+QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只有列表里的人能执行 `/model`、`/automate`、`/init` 和 `/debug` 等管理员命令，渠道放行的其他人都以普通用户身份聊天。列表为空时，聊天里无法使用管理员命令。微信机器人只有其所有者能联系到，因此微信没有管理员列表，每个微信发送者都能执行管理员命令。在 QQ 和企业微信上，白名单决定谁能接触到机器人，白名单之外的消息会被忽略。
+
 ### QQ
 
 ```json
@@ -89,7 +91,7 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 | `qq.host` | OneBot 反向 WebSocket 监听 host。 | `127.0.0.1` |
 | `qq.port` | OneBot 反向 WebSocket 监听端口。 | `6700` |
 | `qq.accessToken` | 可选 OneBot access token。设置后必须与 NapCat 一致。 | 空 |
-| `qq.adminUsers` | 拥有管理员权限的 QQ 用户 ID。 | `[]` |
+| `qq.adminUsers` | 可以执行管理员命令的 QQ 用户 ID。管理员总能与 DotCraft 对话。 | `[]` |
 | `qq.whitelistedUsers` | 允许与 DotCraft 对话的 QQ 用户 ID。 | `[]` |
 | `qq.whitelistedGroups` | 允许群成员与 DotCraft 对话的 QQ 群 ID。 | `[]` |
 | `qq.approvalTimeoutMs` | 审批超时时间，单位毫秒。 | `60000` |
@@ -133,7 +135,7 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 | `wecom.tls.keyPath` | 直接提供 HTTPS 回调服务时使用的 TLS 私钥路径。 | 空 |
 | `wecom.robots` | 机器人回调凭据：`path`、`token` 和 `aesKey`。 | `[]` |
 | `wecom.defaultRobot` | 某个机器人条目省略 token 或 AES key 时使用的默认值。 | 空 |
-| `wecom.adminUsers` | 拥有管理员权限的企业微信 UserId。 | `[]` |
+| `wecom.adminUsers` | 可以执行管理员命令的企业微信 UserId。管理员总能与 DotCraft 对话。 | `[]` |
 | `wecom.whitelistedUsers` | 允许与 DotCraft 对话的企业微信 UserId。 | `[]` |
 | `wecom.whitelistedChats` | 允许与 DotCraft 对话的企业微信 ChatId。 | `[]` |
 | `wecom.approvalTimeoutMs` | 审批超时时间，单位毫秒。 | `60000` |
@@ -154,9 +156,7 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
     "approvalTimeoutMs": 120000,
     "groupMentionRequired": true,
     "ackReactionEmoji": "GLANCE",
-    "streaming": {
-      "enabled": true
-    },
+    "adminUsers": ["ou_your_open_id"],
     "cli": {
       "enabled": false
     }
@@ -173,14 +173,13 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 | `feishu.verificationToken` | 需要校验事件 payload 时使用的可选 verification token。 | 空 |
 | `feishu.encryptKey` | 加密事件 payload 使用的可选 encrypt key。 | 空 |
 | `feishu.brand` | 服务环境：`feishu` 或 `lark`。 | `feishu` |
-| `feishu.cardTitle` | 回复、进度和审批卡片上显示的标题。 | `DotCraft` |
+| `feishu.cardTitle` | 消息、状态和审批卡片上显示的标题。 | `DotCraft` |
 | `feishu.approvalTimeoutMs` | 审批超时时间，单位毫秒。 | `120000` |
 | `feishu.groupMentionRequired` | 飞书群聊是否需要 @ 机器人。 | `true` |
 | `feishu.ackReactionEmoji` | 标记已处理消息的 emoji 类型。 | `GLANCE` |
+| `feishu.adminUsers` | 可以执行管理员命令的飞书用户 open_id。 | `[]` |
 | `feishu.cli.enabled` | 是否向此 Channel 创建的 Thread 提供内置官方飞书 CLI。 | `false` |
 | `feishu.cli.userScopes` | 授权账号只读访问个人资源时请求的飞书 scope。留空则所有命令都以机器人身份运行。 | 空 |
-| `feishu.debug.adapterStream` | 是否启用 adapter stream 调试日志。 | `false` |
-| `feishu.debug.textMerge` | 是否启用文本合并调试日志。 | `false` |
 
 启用 `feishu.cli.enabled` 后，飞书来源的 Thread 会获得 `FeishuCli` 工具，每次调用都需要审批。适配器会使用配置的应用凭据换取并缓存 tenant access token，再以机器人身份运行内置 CLI。CLI 子进程只接收 App ID 和一个 access token，不接收 App Secret。
 
@@ -200,6 +199,7 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
   },
   "telegram": {
     "botToken": "123456:telegram-bot-token",
+    "adminUsers": [123456789],
     "httpsProxy": "",
     "approvalTimeoutMs": 120000,
     "pollTimeoutMs": 30000
@@ -212,6 +212,7 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 | `dotcraft.wsUrl` | 独立适配器使用的 AppServer WebSocket 端点。Desktop 托管运行时会覆盖该值。 | `ws://127.0.0.1:9100/ws` |
 | `dotcraft.token` | 独立适配器使用的 AppServer WebSocket token。Desktop 托管运行时会覆盖该值。 | 空 |
 | `telegram.botToken` | BotFather 签发的 bot token。 | 必填 |
+| `telegram.adminUsers` | 可以执行管理员命令的 Telegram 数字用户 ID。这些用户也会在 Bot 命令菜单里看到管理员命令。 | `[]` |
 | `telegram.httpsProxy` | Telegram Bot API 请求使用的可选 HTTPS proxy。 | 空 |
 | `telegram.approvalTimeoutMs` | 审批超时时间，单位毫秒。 | `120000` |
 | `telegram.pollTimeoutMs` | Telegram long-poll 超时时间，单位毫秒。 | `30000` |

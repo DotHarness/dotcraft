@@ -10,7 +10,7 @@ The two layers serve one Channel implementation:
 
 | Layer | Responsibility |
 | --- | --- |
-| **Channel adapter** | Connect to AppServer, resolve threads, run turns, handle approvals, and deliver platform messages. |
+| **Channel adapter** | Connect to AppServer, resolve threads, forward messages and commands, handle approvals, deliver what the agent sends, and show chat activity. |
 | **Channel module** | Describe the implementation, expose configuration metadata, create the adapter instance, and report lifecycle state to the host. |
 
 Use `ModuleChannelAdapter` when an adapter needs module-aware configuration and lifecycle support. A host-loadable package then exposes the module contract from its root and includes a `manifest.json` for discovery.
@@ -63,7 +63,6 @@ export const manifest: ModuleManifest = {
   requiresInteractiveSetup: false,
   capabilitySummary: {
     hasChannelTools: false,
-    hasStructuredDelivery: false,
     requiresInteractiveSetup: false,
     capabilitySetMayVaryByEnvironment: false,
   },

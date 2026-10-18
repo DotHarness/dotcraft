@@ -12,7 +12,7 @@
 
    ![在 Telegram 渠道详情页开始连接](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/telegram-detail.png)
 
-6. 粘贴 bot token，然后检查可选代理和超时设置。
+6. 粘贴 bot token。想使用 `/model` 等管理员命令时，把你的 Telegram 数字用户 ID 加进**管理员用户**，然后检查可选代理和超时设置。
 
    ![在 DotCraft Desktop 中配置 Telegram Bot](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/telegram-configuration.png)
 
@@ -41,10 +41,10 @@ Telegram 的平台设置主要在 BotFather 中完成：
 
 ## 设置后可用能力
 
-- Telegram 送达给 Bot 的私聊和群聊消息，DotCraft 都会回复。
-- `/new` 开启新的 DotCraft 会话，`/help` 列出可用命令。workspace 中定义的斜杠命令也会出现在 Telegram 命令菜单里。
-- 审批和用户输入请求会尽量使用 Telegram inline buttons。
-- 文件和图片投递可通过渠道投递工具使用。
+- Telegram 送达给 Bot 的私聊和群聊消息，DotCraft 都会回复。在群聊里，每个成员与 Agent 各有一段会话。
+- Agent 可以发送带格式的文本、图片、文件、音频和视频。Agent 工作时，Bot 会显示正在输入。
+- Telegram 命令菜单列出每个人能用的[聊天命令](./#聊天中的命令)，包括 workspace 自己的命令。管理员命令只对**管理员用户**里的人显示。
+- 审批、用户输入请求，以及 `/model` 列出的模型这类命令选项，都使用 Telegram inline buttons。
 - 同一个 bot token 同一时间只能给一个 DotCraft 实例使用。
 
 ## 相关文档

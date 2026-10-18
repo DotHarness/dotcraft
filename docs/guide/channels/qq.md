@@ -49,9 +49,10 @@ If NapCat runs in Docker or on another machine, replace `127.0.0.1` with an addr
 - A QQ group shares one conversation.
 - Group messages require an @mention by default.
 - Empty admin and allowlist settings mean the bot ignores QQ messages.
-- Approval replies accept `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. A leading `/` also works, so `/yes` and `/no` are accepted. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the session.
+- Admin users can also run admin commands such as `/model`. Allowed users and members of allowed groups use the other [chat commands](./#commands-in-a-chat), and command choices appear as a numbered list.
+- Approval replies accept `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. A leading `/` also works, so `/yes` and `/no` are accepted, as do `/approve`, `/approve session`, and `/deny`. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the session.
 - While an approval waits for you, the bot answers your other messages in that chat with a reminder instead of passing them on. If you don't answer in time, the action is cancelled and the chat tells you.
-- Image, voice, video, and file delivery are available through channel delivery tools.
+- The agent sends text, images, files, voice, and video. With your approval, it can also post to another group or to a user who has messaged the bot.
 - NapCat in Docker does not need access to the workspace files.
 
 ## Related docs

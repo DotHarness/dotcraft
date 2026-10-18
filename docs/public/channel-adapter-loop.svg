@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="516" viewBox="0 0 800 516" role="img" aria-label="DotCraft channel adapter message loop: a platform message enters the adapter and waits in the queue for its identity, so the same user in the same chat runs in order. The adapter resolves the thread or routes a slash command that skips the queue, the DotCraft server runs one turn for that thread, and the streamed turn events are reduced into a single reply delivered back to the same chat. Outside that loop the server also sends the adapter approval, user input, proactive send, and heartbeat requests.">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="516" viewBox="0 0 800 516" role="img" aria-label="DotCraft channel adapter message loop: a platform message enters the adapter and waits in the queue for its identity, so the same user in the same chat runs in order. The adapter resolves the thread, or runs a slash command at once, and the DotCraft server starts a turn or steers the running one. Only the messages the agent chooses to send are delivered back to the chat. Beside that loop the server sends turn events the adapter shows as activity, plus approval, user input, and heartbeat requests.">
   <title>Channel adapter message loop</title>
   <defs>
     <marker id="a" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto-start-reverse"><path d="M0 1L8 4.5L0 8Z" fill="#2b2e33"/></marker>
@@ -67,7 +67,7 @@
     </g>
   </svg>
   <g transform="translate(0,54)">
-  <rect x="52" y="40" width="696" height="64" rx="10" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
+  <rect x="52" y="40" width="696" height="64" rx="10" class="plain" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
   <g transform="translate(70,51) scale(0.8333)" fill="none" stroke="#55585c" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4,14.5 L6.8,5.5 h10.4 L20,14.5 M4,14.5 h4.5 l2,2.8 h3 l2,-2.8 H20 M4,14.5 V18 a2,2 0 0 0 2,2 h12 a2,2 0 0 0 2,-2 v-3.5"/></g>
   <text x="98" y="66" class="title">Chat platform</text>
   <text x="70" y="86" class="body">Telegram · Feishu · QQ · WeCom · WeChat</text>
@@ -81,29 +81,29 @@
   <rect x="52" y="236" width="336" height="64" rx="10" class="node"/>
   <g transform="translate(70,247) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5,5 H19.5 L14,11.6 V17.6 L10,20 V11.6 Z" stroke-linejoin="round"/></g>
   <text x="98" y="262" class="title">Thread and command routing</text>
-  <text x="70" y="282" class="body">a slash command can skip the queue</text>
+  <text x="70" y="282" class="body">a slash command runs at once</text>
   <path d="M168 300 V332" class="link" marker-end="url(#a)"/>
   <rect x="52" y="334" width="336" height="64" rx="10" class="node"/>
   <g transform="translate(70,345) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="4.5" width="15" height="6.2" rx="1.6"/><rect x="4.5" y="13.3" width="15" height="6.2" rx="1.6"/><circle cx="7.6" cy="7.6" r="1.1" fill="#1a1c1f" stroke="none"/><circle cx="7.6" cy="16.4" r="1.1" fill="#1a1c1f" stroke="none"/></g>
   <text x="98" y="360" class="title">DotCraft server</text>
-  <text x="70" y="380" class="body">runs the turn for that thread</text>
+  <text x="70" y="380" class="body">starts a turn or steers the running one</text>
   <path d="M300 334 V317 H580 V302" class="link" marker-end="url(#a)"/>
   <rect x="412" y="236" width="336" height="64" rx="10" class="accent"/>
-  <g transform="translate(430,247) scale(0.8333)" fill="none" stroke="#1d3fbf" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.8,12.6 H8 L10.2,7.6 13.8,17 15.8,12.6 H20.2"/></g>
-  <text x="458" y="262" class="title">Reduce the turn stream</text>
-  <text x="430" y="282" class="body">many events become one reply</text>
+  <g transform="translate(430,247) scale(0.8333)" fill="none" stroke="#1d3fbf" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12,4 C12.8,9 15,11.2 20,12 C15,12.8 12.8,15 12,20 C11.2,15 9,12.8 4,12 C9,11.2 11.2,9 12,4 Z"/></g>
+  <text x="458" y="262" class="title">The agent sends</text>
+  <text x="430" y="282" class="body">only what it chooses reaches the chat</text>
   <path d="M580 236 V204" class="link" marker-end="url(#a)"/>
   <rect x="412" y="138" width="336" height="64" rx="10" class="node"/>
   <g transform="translate(430,149) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5,15.5 V18 a2,2 0 0 0 2,2 h11 a2,2 0 0 0 2,-2 v-2.5"/><path d="M12,4.5 V13.5 M8.2,8.3 L12,4.5 15.8,8.3"/></g>
   <text x="458" y="164" class="title">Deliver to the platform</text>
-  <text x="430" y="184" class="body">in segments, or once at the end</text>
+  <text x="430" y="184" class="body">text, images and files</text>
   <path d="M580 138 V106" class="link" marker-end="url(#a)"/>
-  <text x="592" y="126" class="eyebrow">REPLY OUT</text>
-  <rect x="412" y="334" width="336" height="64" rx="10" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
+  <text x="592" y="126" class="eyebrow">MESSAGE OUT</text>
+  <rect x="412" y="334" width="336" height="64" rx="10" class="plain" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
   <g transform="translate(430,345) scale(0.8333)" fill="none" stroke="#55585c" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5,10 A7,7 0 0 1 18.5,8 M18.8,3.8 L18.6,8.2 14.2,8"/><path d="M18.5,14 A7,7 0 0 1 5.5,16 M5.2,20.2 L5.4,15.8 9.8,16"/></g>
-  <text x="458" y="360" class="title">Requests from the server</text>
-  <text x="430" y="380" class="body">approvals · user input · sends · heartbeat</text>
+  <text x="458" y="360" class="title">Turn events and requests</text>
+  <text x="430" y="380" class="body">activity · approvals · heartbeat</text>
   <path d="M388 366 H410" class="link2" marker-end="url(#b)"/>
-  <text x="52" y="434" class="cap">You write the edges, not the loop.</text>
+  <text x="52" y="434" class="cap">The chat sees only what the agent sends.</text>
   </g>
 </svg>

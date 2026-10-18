@@ -13,7 +13,7 @@
 
    ![在飞书渠道详情页开始连接](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/feishu-detail.png)
 
-7. 粘贴 App ID 和 App Secret，然后检查平台与群消息设置。
+7. 粘贴 App ID 和 App Secret。把需要使用 `/model` 等管理员命令的人的 open_id 加进**管理员用户**，然后检查平台与群消息设置。
 
    ![在 DotCraft Desktop 中配置飞书 Bot](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/feishu-configuration.png)
 
@@ -27,11 +27,10 @@ Bot 连接到飞书事件后，Desktop 中的飞书渠道应显示为 connected�
 
 1. 将 Bot 添加到需要 DotCraft 响应的会话。
 2. 授予消息事件权限，让 DotCraft 能接收 Bot 消息。
-3. 授予消息发送权限，让 DotCraft 能用卡片回复。
-4. 授予 `cardkit:card:write`（**创建与更新卡片**）权限，让回复能够使用原生打字机效果流式显示。
-5. 如果用户会向 DotCraft 发送图片或文件，授予资源权限。
-6. 如果 Bot 需要群聊上下文，授予会话元数据权限。
-7. 如果希望 DotCraft 用表情标记已处理消息，授予 reaction 权限。
+3. 授予消息发送权限，让 Agent 能发送消息，DotCraft 能发出审批卡片和状态卡片。
+4. 如果用户会向 DotCraft 发送图片或文件，或者 Agent 需要发送它们，授予资源权限。
+5. 如果 Bot 需要群聊上下文，授予会话元数据权限。
+6. 如果希望 DotCraft 用表情标记已处理消息，授予 reaction 权限。
 
 在群聊中测试前，请先在目标租户中发布或启用应用。即使已经选择 scope，租户策略仍可能拦截事件或消息发送。
 
@@ -47,8 +46,10 @@ Bot 连接到飞书事件后，Desktop 中的飞书渠道应显示为 connected�
 
 - 私聊消息不需要 @ 即可处理。
 - 群聊默认需要 @ 机器人后才处理。
-- 在话题群里 @ 机器人，DotCraft 会在该话题内回复，不同话题的对话互不影响。
-- DotCraft 可以用配置的 reaction 标记已处理消息。
+- 在话题群里 @ 机器人，会话就留在该话题内，不同话题的对话互不影响。
+- Agent 以卡片发送带格式的文本，也能发送图片、文件、音频和视频。
+- DotCraft 会用配置的 reaction 标记它接手的每条消息。工作超过 20 秒时，状态卡片会显示进度，最后停在已完成、失败或已停止。
+- 审批和命令选项（比如 `/model` 列出的模型）以卡片按钮显示。
 - 卡片上的文字跟随你的飞书界面语言显示，支持中文、英语、日语、韩语、西班牙语、法语和德语。
 - 应用具备资源权限时，可以下载图片和文件输入。
 

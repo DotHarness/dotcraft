@@ -18,7 +18,7 @@ Follow-up requests continue an existing conversation. Independent scheduled work
 
 Select an automation to see its previous runs, then open the result you want. Each run points to its own conversation or the specific turn in the followed conversation. Independent runs in Git projects use separate managed worktrees by default, and their changes can be reviewed from the run's conversation.
 
-Follow-ups notify you about important changes; independent jobs notify you after each run. You can change this in the automation details. Pausing prevents future runs while allowing current work to finish.
+Follow-ups notify you about important changes; independent jobs notify you after each run. You can change this in the automation details. An automation created from a chat posts to that chat instead, and only when the agent has something to say; see [Automations from a chat](./channels/#automations-from-a-chat). Pausing prevents future runs while allowing current work to finish.
 
 ## Goals
 
