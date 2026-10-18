@@ -54,7 +54,7 @@ public sealed class DotCraftCommandLineTests
 
         var exitCode = await DotCraftCommandLine.RunAsync(["tool-host"], output, error);
 
-        Assert.Equal(1, exitCode);
+        Assert.Equal(2, exitCode);
         var help = output.ToString();
         Assert.Contains("workspace", help);
         Assert.Contains("invite", help);
@@ -84,7 +84,8 @@ public sealed class DotCraftCommandLineTests
     [InlineData("tool-host", "invite", "--expires", "notanumber")]
     [InlineData("tool-host", "policy", "set", "Exec", "sometimes")]
     [InlineData("config", "schema", "--section")]
-    public async Task InvalidInput_IsRejected(string first, params string[] remaining)
+    [InlineData("exec", "resume", "--model", " ", "--last", "hello")]
+    public async Task InvalidInput_IsRejectedAsUsageError(string first, params string[] remaining)
     {
         using var output = new StringWriter();
         using var error = new StringWriter();
@@ -92,7 +93,7 @@ public sealed class DotCraftCommandLineTests
 
         var exitCode = await DotCraftCommandLine.RunAsync(args, output, error);
 
-        Assert.Equal(1, exitCode);
+        Assert.Equal(2, exitCode);
         Assert.NotEqual(string.Empty, error.ToString());
     }
 }

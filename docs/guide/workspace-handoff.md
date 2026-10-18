@@ -4,7 +4,7 @@ Some work ends up with a coding agent outside DotCraft. DotCraft exports a conve
 
 ![Exporting a DotCraft conversation into one Markdown handoff document: find the conversation, export it, replay the record, then hand the file verbatim to an external coding agent](/workspace-handoff-flow.svg)
 
-If the other tool can integrate with DotCraft directly, connect it as a client instead — see [AppServer Mode](../contribute/lifecycle/appserver). The handoff document is for coding agents that only accept files or pasted context.
+Claude Code can hand tasks to DotCraft directly and get the results back; see [Hand tasks from Claude Code](#hand-tasks-from-claude-code). Other tools that integrate with DotCraft connect as a client; see [AppServer Mode](../contribute/lifecycle/appserver). The handoff document is for coding agents that only accept files or pasted context.
 
 ## What to hand over
 
@@ -61,6 +61,22 @@ Reasoning content and internal provider data are never exported. Tool calls are 
 ## Review it before you send it
 
 Nothing is redacted. Whatever the record holds goes into the document as written, including any secrets or tokens that tool results captured. Narrow the scope with `--tool-results none` or `summary` when that matters. Open the Markdown and read it through before sending, then tell the other agent what to do next and which files it may change.
+
+## Hand tasks from Claude Code
+
+With the DotCraft plugin for Claude Code, Claude hands a task to DotCraft and gets the result back in the same conversation. DotCraft does the work with the models you set up in DotCraft, such as a GPT model, and with its own tools, including image generation. The task runs as an ordinary DotCraft conversation, so you can follow it or continue it in Desktop.
+
+Make the project folder a DotCraft workspace and put the `dotcraft` command on your PATH, then install the plugin in Claude Code:
+
+```text
+/plugin marketplace add DotHarness/dotcraft-claude-code
+/plugin install dotcraft@dotcraft
+/dotcraft:setup
+```
+
+`/dotcraft:setup` reports anything still missing. After that, use `/dotcraft:task` to hand over a task, `/dotcraft:image` to generate an image, and `/dotcraft:cancel` to stop a task that is still running, or just ask Claude to have DotCraft do something. Each answer comes back labeled as DotCraft's, with the conversation id for follow-ups. Generated images are saved under the project's `.craft/generated_images` folder.
+
+DotCraft runs ordinary commands and edits inside the project without asking, and refuses anything that would need your approval unless the task includes `--auto-approve`. The plugin drives the `dotcraft exec` command; see the [command-line reference](../contribute/lifecycle/appserver).
 
 ## Related docs
 

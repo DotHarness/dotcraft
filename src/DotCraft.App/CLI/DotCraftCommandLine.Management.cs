@@ -7,11 +7,14 @@ public static partial class DotCraftCommandLine
 {
     private static Command CreateHubCommand()
     {
-        var hub = new Command("hub", "Run the workspace-independent local Hub.");
-        hub.SetAction((_, cancellationToken) => RunApplicationAsync(new CommandLineArgs
-        {
-            Mode = CommandLineArgs.RunMode.Hub
-        }, cancellationToken));
+        var detach = new Option<bool>(HubLauncher.LauncherOption) { Hidden = true };
+        var hub = new Command("hub", "Run the workspace-independent local Hub.") { detach };
+        hub.SetAction((parseResult, cancellationToken) => parseResult.GetValue(detach)
+            ? Task.FromResult(HubLauncher.RunLauncher())
+            : RunApplicationAsync(new CommandLineArgs
+            {
+                Mode = CommandLineArgs.RunMode.Hub
+            }, cancellationToken));
 
         var nodeBin = StringOption("--node-bin", "Node.js executable path.");
         var modulesDir = StringOption("--modules-dir", "Node.js modules directory.");

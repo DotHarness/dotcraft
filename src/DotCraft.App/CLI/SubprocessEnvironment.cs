@@ -11,7 +11,7 @@ namespace DotCraft.CLI;
 /// markup does not pollute the JSON-RPC transport on stdout.</item>
 /// <item>Redirecting <see cref="Console.Out"/> to stderr so that any
 /// <c>Console.WriteLine</c> calls also go to stderr.</item>
-/// <item>Disabling the Ctrl+C / SIGINT handler via <see cref="ConsoleSignalGuard"/>
+/// <item>Optionally disabling the Ctrl+C / SIGINT handler via <see cref="ConsoleSignalGuard"/>
 /// so the subprocess lifecycle is controlled solely by stdin EOF or explicit shutdown.</item>
 /// </list>
 ///
@@ -24,10 +24,10 @@ namespace DotCraft.CLI;
 internal static class SubprocessEnvironment
 {
     /// <summary>
-    /// Redirect all console output to stderr and suppress Ctrl+C.
+    /// Redirect all console output to stderr and, unless the mode handles it, suppress Ctrl+C.
     /// Call this as early as possible in the process lifetime, before any I/O loop starts.
     /// </summary>
-    public static void Prepare()
+    public static void Prepare(bool ignoreInterruptSignal)
     {
         // Redirect Spectre.Console output to stderr so that markup/rendered output
         // does not pollute the stdout JSON-RPC transport.
@@ -51,6 +51,7 @@ internal static class SubprocessEnvironment
         //
         // On Unix, Process.Start does not propagate SIGINT to children (the shell does), and this
         // handler provides consistent ignore semantics across platforms.
-        ConsoleSignalGuard.IgnoreInterruptSignal();
+        if (ignoreInterruptSignal)
+            ConsoleSignalGuard.IgnoreInterruptSignal();
     }
 }

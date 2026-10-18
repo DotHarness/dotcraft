@@ -92,54 +92,50 @@ public sealed class WebSocketClientConnection : IAsyncDisposable
     /// <summary>
     /// Receive loop: WebSocket frames → newline-delimited lines written to inbound pipe.
     /// AppServerWireClient reads from the inbound pipe using StreamReader.ReadLineAsync().
+    /// Frames are copied straight into the pipe, so a message of any size is delivered whole.
     /// </summary>
     private async Task ReceiveLoopAsync(CancellationToken ct)
     {
-        const int MaxMessageBytes = 4 * 1024 * 1024;
-        var buffer = new byte[MaxMessageBytes];
+        const int ReceiveChunkBytes = 64 * 1024;
+        var writer = _inboundPipe.Writer;
 
         try
         {
             while (!ct.IsCancellationRequested)
             {
-                int totalBytes = 0;
-                WebSocketReceiveResult result;
+                var messageBytes = 0;
+                ValueWebSocketReceiveResult result;
 
                 do
                 {
-                    var remaining = MaxMessageBytes - totalBytes;
-                    if (remaining <= 0) return;
-
+                    var memory = writer.GetMemory(ReceiveChunkBytes);
                     try
                     {
-                        result = await _socket.ReceiveAsync(
-                            new ArraySegment<byte>(buffer, totalBytes, remaining), ct);
+                        result = await _socket.ReceiveAsync(memory, ct);
                     }
                     catch (OperationCanceledException) { return; }
                     catch (WebSocketException) { return; }
 
                     if (result.MessageType == WebSocketMessageType.Close) return;
-                    if (result.MessageType == WebSocketMessageType.Binary) continue;
+                    if (result.MessageType != WebSocketMessageType.Text) continue;
 
-                    totalBytes += result.Count;
+                    writer.Advance(result.Count);
+                    messageBytes += result.Count;
                 } while (!result.EndOfMessage);
 
-                if (totalBytes == 0) continue;
+                if (messageBytes == 0) continue;
 
-                // Write JSON + newline so StreamReader.ReadLineAsync() reads one complete message
-                var memory = _inboundPipe.Writer.GetMemory(totalBytes + 1);
-                buffer.AsSpan(0, totalBytes).CopyTo(memory.Span);
-                memory.Span[totalBytes] = (byte)'\n';
-                _inboundPipe.Writer.Advance(totalBytes + 1);
+                writer.GetSpan(1)[0] = (byte)'\n';
+                writer.Advance(1);
 
-                var flushResult = await _inboundPipe.Writer.FlushAsync(ct);
+                var flushResult = await writer.FlushAsync(ct);
                 if (flushResult.IsCompleted) return;
             }
         }
         catch (OperationCanceledException) { }
         finally
         {
-            await _inboundPipe.Writer.CompleteAsync();
+            await writer.CompleteAsync();
         }
     }
 

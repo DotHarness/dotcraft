@@ -1,13 +1,16 @@
 using System.CommandLine;
 using System.CommandLine.Invocation;
+using System.CommandLine.Parsing;
 
 namespace DotCraft.CLI;
 
 /// <summary>Defines and invokes the DotCraft command-line surface.</summary>
 public static partial class DotCraftCommandLine
 {
+    private const int UsageErrorExitCode = 2;
+
     /// <summary>Parses and executes a DotCraft command.</summary>
-    public static Task<int> RunAsync(
+    public static async Task<int> RunAsync(
         string[] args,
         TextWriter? output = null,
         TextWriter? error = null,
@@ -20,7 +23,23 @@ public static partial class DotCraftCommandLine
             Error = error ?? Console.Error
         };
         var effectiveArgs = args.Length == 0 ? ["--help"] : args;
-        return root.Parse(effectiveArgs).InvokeAsync(invocation, cancellationToken);
+        var parseResult = root.Parse(effectiveArgs);
+        if (IsExecCommand(parseResult.CommandResult))
+            invocation.ProcessTerminationTimeout = null;
+        var exitCode = await parseResult.InvokeAsync(invocation, cancellationToken);
+        return parseResult.Errors.Count > 0 ? UsageErrorExitCode : exitCode;
+    }
+
+    // Exec handles Ctrl+C itself: it interrupts the running Turn and waits for it to stop.
+    private static bool IsExecCommand(CommandResult? result)
+    {
+        for (; result != null; result = result.Parent as CommandResult)
+        {
+            if (result.Command.Name == "exec" && result.Parent is CommandResult { Command: RootCommand })
+                return true;
+        }
+
+        return false;
     }
 
     internal static RootCommand CreateRootCommand()
