@@ -111,6 +111,11 @@ carrying are gone: compaction of any kind, rollback, a reconciliation that reloa
 disk, and a replacement that establishes a new checkpoint. The next step then restates every
 section.
 
+Each client-managed turn replaces history with the supplied transcript and resets both the live and
+persisted comparison baselines. This reset supersedes any baseline restored from an earlier turn.
+The turn's first context update establishes a new baseline, which later sampling steps reuse without
+repeating unchanged instructions. Instruction-file cache lifetimes remain unchanged.
+
 Native compaction resets the world-state baseline while retaining the provider's opaque replacement;
 subsequent state updates append to that generation. Neutral compaction excludes all AGENTS updates
 from summarization and installs one current instruction item with its comparison snapshot in the new

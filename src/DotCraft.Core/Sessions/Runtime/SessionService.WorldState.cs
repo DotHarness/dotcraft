@@ -226,7 +226,6 @@ public sealed partial class SessionService
         if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
             return;
 
-        // Replay stops at the newest checkpoint, so the durable baseline restarts here too.
         runtime.WorldStateBaseline = null;
         runtime.PersistedWorldStateBaseline = null;
         runtime.WorldStateBaselineRestored = true;

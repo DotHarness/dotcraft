@@ -14,7 +14,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-public sealed class SessionServiceAgentInstructionsTests : IDisposable
+public sealed partial class SessionServiceAgentInstructionsTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"dotcraft-session-agents-{Guid.NewGuid():N}");
     private readonly string _workspace;
@@ -426,7 +426,11 @@ public sealed class SessionServiceAgentInstructionsTests : IDisposable
     {
         public IReadOnlyList<ChatMessage> LastMessages { get; private set; } = [];
 
+        public List<IReadOnlyList<ChatMessage>> Requests { get; } = [];
+
         public ChatOptions? LastOptions { get; private set; }
+
+        public bool ToolNextResponse { get; set; }
 
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> chatMessages,
@@ -434,6 +438,7 @@ public sealed class SessionServiceAgentInstructionsTests : IDisposable
             CancellationToken cancellationToken = default)
         {
             LastMessages = chatMessages.ToList();
+            Requests.Add(LastMessages);
             LastOptions = options;
             return Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, "ok")]));
         }
@@ -444,8 +449,18 @@ public sealed class SessionServiceAgentInstructionsTests : IDisposable
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             LastMessages = chatMessages.ToList();
+            Requests.Add(LastMessages);
             LastOptions = options;
-            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")]);
+            if (ToolNextResponse)
+            {
+                ToolNextResponse = false;
+                yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [new FunctionCallContent("call-status", "GetStatus", new Dictionary<string, object?>())]);
+            }
+            else
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")]);
+            }
             await Task.CompletedTask;
         }
 

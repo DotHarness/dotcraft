@@ -952,6 +952,7 @@ public sealed partial class SessionService
                 if (thread.HistoryMode == HistoryMode.Client && messages != null)
                 {
                     session = [.. messages];
+                    ResetWorldStateBaseline(threadId, "client_history_supplied");
                 }
                 else
                 {
