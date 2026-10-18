@@ -94,9 +94,11 @@ public sealed partial class SessionServiceInterruptionTests : IDisposable
         var runtime = Assert.IsType<ThreadRuntime>(service.DebugGetRuntime(thread.Id));
         runtime.AgentLock = new SemaphoreSlim(0, 1);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         service.ThreadRuntimeSignalForBroadcast = (_, signal, _) =>
         {
             if (signal == SessionThreadRuntimeSignal.TurnStarted) started.TrySetResult();
+            if (signal == SessionThreadRuntimeSignal.TurnCancelled) cancelled.TrySetResult();
         };
         using var cts = new CancellationTokenSource();
         var run = Drain(service.SubmitInputAsync(thread.Id, [new TextContent("early")], ct: cts.Token));
@@ -106,6 +108,7 @@ public sealed partial class SessionServiceInterruptionTests : IDisposable
         try { await run.WaitAsync(TimeSpan.FromSeconds(10)); }
         catch (OperationCanceledException) when (callerCancellation) { }
         runtime.AgentLock.Release();
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await Drain(service.SubmitInputAsync(thread.Id, [new TextContent("next")]));
         Assert.Equal(enabled && !callerCancellation ? 1 : 0, client.Messages.Count(IsMarker));
         Assert.Contains(client.Messages, message => message.Text.Contains("previous"));

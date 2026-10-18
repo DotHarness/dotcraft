@@ -35,6 +35,11 @@ public sealed partial class SessionServiceInterruptionTests
         });
         service = new SessionService(factory, agent, new SessionPersistenceService(store), new SessionGate());
         thread = (await service.GetThreadAsync(thread.Id))!;
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.ThreadRuntimeSignalForBroadcast = (_, signal, _) =>
+        {
+            if (signal == SessionThreadRuntimeSignal.TurnCancelled) cancelled.TrySetResult();
+        };
         using var cts = new CancellationTokenSource();
         var run = Task.Run(async () =>
         {
@@ -51,6 +56,7 @@ public sealed partial class SessionServiceInterruptionTests
         if (!disposeOnCancellation)
             await service.CancelTurnAsync(thread.Id, thread.Turns[^1].Id);
         await run.WaitAsync(TimeSpan.FromSeconds(10));
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(10));
         service = Service(factory, retry, new ThreadStore(root));
         await service.GetThreadAsync(thread.Id);
         await Drain(service.SubmitInputAsync(thread.Id, [new TextContent("continue")]));
