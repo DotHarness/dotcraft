@@ -1189,7 +1189,10 @@ public sealed partial class SessionService
                         thread.WorkspacePath,
                         threadGoalForContext,
                         agentFactory.RuntimeContext.Contributions?
-                            .Resolve<IChatContextProvider>(threadId)));
+                            .Resolve<IChatContextProvider>(threadId),
+                        turn.Input?.AsUserMessage is { TriggerKind: { } triggerKind } triggeredInput
+                            ? new TurnTriggerInfo { Kind = triggerKind, Label = triggeredInput.TriggerLabel }
+                            : null));
 
                 using var commandExecutionScope = CommandExecutionRuntimeScope.Set(
                     new CommandExecutionRuntimeContext

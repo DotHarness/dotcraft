@@ -61,7 +61,7 @@ internal sealed class SendChannelMessageRuntime(
 
         if (!destination.IsBound)
         {
-            var approved = approvalService != null && await approvalService.RequestResourceApprovalAsync(
+            var approved = !bound.RefusesOtherChats && approvalService != null && await approvalService.RequestResourceApprovalAsync(
                 new ResourceApprovalRequest(ApprovalType, ApprovalOperation, destination.Address)
                 {
                     TargetLabel = $"a message to {destination.Runtime.DisplayName} {destination.Target}"

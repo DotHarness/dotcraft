@@ -34,6 +34,7 @@ export function AutomationEditor({ automation, initial, chats = false, onClose, 
   const store = useAutomationsStore()
   const actionPending = !!(automation && store.pendingActions[automation.id])
   const completed = automation?.status === 'completed'
+  const chatOrigin = !!automation?.origin?.chatKind
   const dirty = !base || JSON.stringify(draft) !== JSON.stringify(editableAutomation(base))
   const targetChatId = !dirty && draft.executionMode === 'thread' ? draft.targetThreadId : null
   const conflict = !!base && !!automation && base.version !== automation.version
@@ -138,7 +139,7 @@ export function AutomationEditor({ automation, initial, chats = false, onClose, 
           <p className="dc-automation-hint">{t('automation.onlineHint')}</p>
         </section>
 
-        <AutomationScheduleEditor value={draft.schedule} onChange={(schedule) => update({ schedule })} notificationPolicy={draft.notificationPolicy} onNotificationPolicyChange={(notificationPolicy) => update({ notificationPolicy })} />
+        <AutomationScheduleEditor value={draft.schedule} onChange={(schedule) => update({ schedule })} notificationPolicy={chatOrigin ? undefined : draft.notificationPolicy} onNotificationPolicyChange={(notificationPolicy) => update({ notificationPolicy })} />
 
         {draft.executionMode === 'independent' ? (
           <details className="dc-automation-advanced">

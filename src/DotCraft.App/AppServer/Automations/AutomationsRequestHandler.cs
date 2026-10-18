@@ -19,16 +19,8 @@ public sealed class AutomationsRequestHandler(AutomationService service) : IAuto
     public async Task<Contract.AutomationReadResult> HandleReadAsync(Contract.AutomationIdParams parameters, CancellationToken ct) =>
         new() { Automation = ToWire(await service.ReadAsync(parameters.AutomationId, ct)) };
 
-    public async Task<Contract.AutomationReadResult> HandleCreateAsync(Contract.AutomationCreateParams parameters, CancellationToken ct)
-    {
-        var source = ChannelSessionScope.Current;
-        var origin = source == null ? null : new AutomationOrigin
-        {
-            Channel = source.Channel, UserId = source.UserId, GroupId = source.GroupId,
-            DeliveryTarget = source.DefaultDeliveryTarget
-        };
-        return new() { Automation = ToWire(await service.CreateAsync(Map<AutomationInput>(parameters.Automation), origin, ct)) };
-    }
+    public async Task<Contract.AutomationReadResult> HandleCreateAsync(Contract.AutomationCreateParams parameters, CancellationToken ct) =>
+        new() { Automation = ToWire(await service.CreateAsync(Map<AutomationInput>(parameters.Automation), AutomationOrigin.Capture(ChannelSessionScope.Current), ct)) };
 
     public async Task<Contract.AutomationReadResult> HandleUpdateAsync(Contract.AutomationUpdateParams parameters, CancellationToken ct) =>
         new() { Automation = ToWire(await service.UpdateAsync(parameters.AutomationId, parameters.ExpectedVersion, Map<AutomationInput>(parameters.Automation), ct)) };

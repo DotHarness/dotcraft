@@ -11,14 +11,17 @@ namespace DotCraft.Context;
 /// </summary>
 public static class RuntimeContextBuilder
 {
+    private const string AnnouncedTriggerKind = "automation";
+
     public static IList<AIContent> AppendRuntimeContext(
         this IList<AIContent> contents,
         TurnInitiatorContext? initiator = null,
         string? workspacePath = null,
         ThreadGoal? threadGoal = null,
-        IReadOnlyList<IChatContextProvider>? chatContextProviders = null)
+        IReadOnlyList<IChatContextProvider>? chatContextProviders = null,
+        TurnTriggerInfo? trigger = null)
     {
-        if (BuildBlock(initiator, workspacePath, threadGoal, chatContextProviders) is { } block)
+        if (BuildBlock(initiator, workspacePath, threadGoal, chatContextProviders, trigger) is { } block)
             contents.Add(new TextContent($"\n{block}"));
         return contents;
     }
@@ -27,7 +30,8 @@ public static class RuntimeContextBuilder
         TurnInitiatorContext? initiator = null,
         string? workspacePath = null,
         ThreadGoal? threadGoal = null,
-        IReadOnlyList<IChatContextProvider>? chatContextProviders = null)
+        IReadOnlyList<IChatContextProvider>? chatContextProviders = null,
+        TurnTriggerInfo? trigger = null)
     {
         var sections = new List<string>();
 
@@ -42,6 +46,8 @@ public static class RuntimeContextBuilder
             sections.Add(usage);
 
         var initiatorLines = BuildInitiatorLines(initiator, workspacePath);
+        if (trigger is { Kind: AnnouncedTriggerKind })
+            initiatorLines.Add(string.IsNullOrWhiteSpace(trigger.Label) ? $"Trigger: {trigger.Kind}" : $"Trigger: {trigger.Kind} \"{trigger.Label.Trim()}\"");
         if (initiatorLines.Count > 0)
             sections.Add("## Request Source\n" + string.Join("\n", initiatorLines));
 

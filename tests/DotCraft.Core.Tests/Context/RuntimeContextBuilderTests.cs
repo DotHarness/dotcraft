@@ -55,6 +55,18 @@ public sealed class RuntimeContextBuilderTests
     }
 
     [Fact]
+    public void BuildBlock_NamesTheAutomationThatStartedTheTurn()
+    {
+        var automation = RuntimeContextBuilder.BuildBlock(
+            trigger: new TurnTriggerInfo { Kind = "automation", Label = "Daily report" });
+        var goal = RuntimeContextBuilder.BuildBlock(
+            trigger: new TurnTriggerInfo { Kind = "goal", Label = "Goal continuation" });
+
+        Assert.Contains("Trigger: automation \"Daily report\"", automation, StringComparison.Ordinal);
+        Assert.Null(goal);
+    }
+
+    [Fact]
     public void BuildBlock_OmitsWorkspaceRequestSourceForLocalDesktopInitiator()
     {
         var workspace = Path.GetFullPath(Directory.GetCurrentDirectory());

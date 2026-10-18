@@ -29,6 +29,8 @@ Example:
 
 `schedule.at` is a string, never a CLR-style object. `notificationPolicy` belongs inside `automation`. Keep unrelated schedule fields out. Omit `workspaceMode` and `agentProfileId` when unset; `approvalPolicy` is `workspaceScope` or `fullAuto`. Thread mode binds the current conversation when `targetThreadId` is omitted. Independent Git work defaults to a new worktree per run. Notifications default to important changes for thread mode and every result for independent mode.
 
+In a conversation connected to a chat, each run speaks to that chat only through `SendChannelMessage`, and DotCraft posts nothing after a successful run. Write the prompt to say what to send and when to stay silent. `notificationPolicy` does not apply there.
+
 ## Manage
 
 Use `list` or `read` before changing a definition when its version is unknown. Updates require `expectedVersion`. Use `pause`, `resume`, or `delete` for lifecycle changes. Completed is assigned by DotCraft after a one-shot run and is read-only. `run` queues an execution; report it as queued.

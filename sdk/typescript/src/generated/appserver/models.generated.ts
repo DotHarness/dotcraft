@@ -887,6 +887,8 @@ export interface AutomationListResult {
 
 export interface AutomationOrigin {
   channel: string;
+  chatKind?: string | null;
+  chatLabel?: string | null;
   deliveryTarget?: string | null;
   groupId?: string | null;
   userId: string;

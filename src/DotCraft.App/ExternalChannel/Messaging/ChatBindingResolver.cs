@@ -1,4 +1,5 @@
 using DotCraft.AppBinding;
+using DotCraft.Automations;
 using DotCraft.Channels;
 using DotCraft.Sessions;
 using DotCraft.Workspaces;
@@ -6,7 +7,12 @@ using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.ExternalChannel.Messaging;
 
-internal sealed record ChatBinding(string ChannelName, string Target, ChannelChatDescriptor? Chat, bool CanDeliver = true)
+internal sealed record ChatBinding(
+    string ChannelName,
+    string Target,
+    ChannelChatDescriptor? Chat,
+    bool RefusesOtherChats = false,
+    bool CanDeliver = true)
 {
     public string Address => ChatAddress.Format(ChannelName, Target);
 }
@@ -33,7 +39,8 @@ internal static class ChatAddress
 internal sealed class ChatBindingResolver(
     IChannelRuntimeRegistry registry,
     DotCraftPaths? paths = null,
-    AppBindingService? appBindings = null)
+    AppBindingService? appBindings = null,
+    AutomationService? automations = null)
 {
     private static readonly HashSet<string> BindsChat = new(StringComparer.Ordinal)
     {
@@ -53,6 +60,12 @@ internal sealed class ChatBindingResolver(
 
     public ChatBinding? Resolve(string threadId, string? originChannel, string? channelContext)
     {
+        if (automations?.FindRunDefinition(originChannel, channelContext) is { } automation
+            && ResolveAutomationRun(automation) is { } run)
+        {
+            return run;
+        }
+
         if (!string.IsNullOrWhiteSpace(originChannel)
             && !string.IsNullOrWhiteSpace(channelContext)
             && registry.TryGet(originChannel, out var runtime)
@@ -62,6 +75,22 @@ internal sealed class ChatBindingResolver(
         }
 
         return ResolveAppBinding(threadId);
+    }
+
+    private ChatBinding? ResolveAutomationRun(AutomationDefinition automation)
+    {
+        if (automation.Origin is not { IsChat: true } origin
+            || !registry.TryGet(origin.Channel, out var runtime)
+            || runtime == null)
+        {
+            return null;
+        }
+
+        return new ChatBinding(
+            runtime.Name,
+            origin.DeliveryTarget!,
+            new ChannelChatDescriptor(origin.ChatKind!, origin.ChatLabel, ChannelChatMemberships.Shared),
+            RefusesOtherChats: automation.ApprovalPolicy != "fullAuto");
     }
 
     private ChatBinding? ResolveAppBinding(string threadId)

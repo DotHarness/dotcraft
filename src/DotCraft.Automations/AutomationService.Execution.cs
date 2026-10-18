@@ -35,6 +35,7 @@ public sealed partial class AutomationService
     {
         var acquired = false;
         var outcome = new AutomationOutcome();
+        var chatOrigin = definition.Origin is { IsChat: true };
         SemaphoreSlim? threadGate = null;
         try
         {
@@ -77,7 +78,7 @@ public sealed partial class AutomationService
                 threadConfig.MemoryAutoExtract = false;
                 threadConfig.ApprovalPolicy = ApprovalPolicy.AutoApprove;
                 threadConfig.RequireApprovalOutsideWorkspace = definition.ApprovalPolicy == "fullAuto";
-                threadId = await client.CreateThreadAsync("automations", "run-" + run.Id, threadConfig, ct, definition.Name);
+                threadId = await client.CreateThreadAsync(RunChannel, "run-" + run.Id, definition.Id, threadConfig, ct, definition.Name);
                 run = run with { ThreadId = threadId };
                 await SaveRunAsync(run);
                 if (definition.WorkspaceMode == "worktree")
@@ -89,9 +90,14 @@ public sealed partial class AutomationService
             await SaveRunAsync(run);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             if (config.TurnTimeout > TimeSpan.Zero) timeout.CancelAfter(config.TurnTimeout);
-            var prompt = definition.Prompt + "\n\nOptionally call Automation(action: report) to save this run's summary and importance.";
-            using var channelScope = definition.Origin == null ? null : ChannelSessionScope.Set(new ChannelSessionInfo
-            { Channel = definition.Origin.Channel, UserId = definition.Origin.UserId, GroupId = definition.Origin.GroupId, DefaultDeliveryTarget = definition.Origin.DeliveryTarget });
+            var prompt = chatOrigin ? definition.Prompt
+                : definition.Prompt + "\n\nOptionally call Automation(action: report) to save this run's summary and importance.";
+            var origin = definition.Origin;
+            using var channelScope = origin == null ? null : ChannelSessionScope.Set(new ChannelSessionInfo
+            {
+                Channel = origin.Channel, UserId = origin.UserId, GroupId = origin.GroupId, DefaultDeliveryTarget = origin.DeliveryTarget,
+                Chat = origin.IsChat ? new ChannelChatDescriptor(origin.ChatKind!, origin.ChatLabel, ChannelChatMemberships.Shared) : null
+            });
             var completed = false;
             await foreach (var evt in client.SubmitTurnAsync(threadId, prompt, timeout.Token,
                 new TurnTriggerInfo { Kind = "automation", Label = definition.Name, RefId = definition.Id },
@@ -113,7 +119,7 @@ public sealed partial class AutomationService
                 }
             }
             if (!completed) throw new InvalidOperationException("automation.turnEndedWithoutResult");
-            run = run with { Summary = outcome.Summary ?? run.Summary };
+            if (!chatOrigin) run = run with { Summary = outcome.Summary ?? run.Summary };
         }
         catch (OperationCanceledException ex)
         { run = run with { Status = ct.IsCancellationRequested ? "interrupted" : "cancelled", Error = ex.Message }; }
@@ -125,8 +131,10 @@ public sealed partial class AutomationService
             try
             {
                 await SaveRunAsync(run);
-                var deliver = DeliverAsync != null && (run.Status != "succeeded" || definition.NotificationPolicy != "failures"
-                    && (definition.NotificationPolicy != "important" || outcome.Important != false));
+                var deliver = DeliverAsync != null && (chatOrigin
+                    ? run.Status != "succeeded" && run.Error != "automation.pausedBeforeDispatch"
+                    : run.Status != "succeeded" || definition.NotificationPolicy != "failures"
+                        && (definition.NotificationPolicy != "important" || outcome.Important != false));
                 if (deliver)
                 {
                     try

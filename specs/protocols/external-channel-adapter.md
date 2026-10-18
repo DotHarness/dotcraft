@@ -180,7 +180,7 @@ This section defines the protocol-level obligations that any conforming external
 - The adapter **must** populate `SenderContext` in `turn/start` with at minimum `senderId` and `senderName`. This enables correct attribution in the turn's `initiator` record and cross-channel audit logging.
 - The adapter is responsible for permission checks before forwarding a message to DotCraft. DotCraft trusts the `SenderContext` presented by the adapter.
 - The adapter **should** set `directTarget` to the sender's direct chat in its `ext/channel/send` target syntax whenever it can deliver there, including for messages that arrive in a group.
-- The `groupId` field **must** be set to the platform-specific delivery target for the current chat or group (e.g. the Telegram `chat_id`). The server uses this value as the default delivery target when an automation is created during the turn: the host captures the origin delivery target from `SenderContext.groupId`. Adapters that participate in unified delivery must therefore ensure `groupId` contains a value that their `ext/channel/send` implementation can accept as `target`. If no meaningful group context exists, omit `groupId`; the server will fall back to `senderId` instead.
+- The `groupId` field identifies the group a message came from and is omitted for direct chats. The default delivery target of a Turn, captured as the origin of an automation created during it, is the thread's `channelContext`.
 
 ### 10.4 Server-to-Client Requests
 

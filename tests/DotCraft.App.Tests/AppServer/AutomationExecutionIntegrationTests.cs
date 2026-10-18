@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using DotCraft.Agents;
 using DotCraft.AppServer;
@@ -22,7 +23,7 @@ namespace DotCraft.Tests.AppServer;
 public sealed class AutomationExecutionIntegrationTests
 {
     [Fact]
-    public async Task CreateRunAndPause_UsesRealSessionAndDeliversToCapturedGroup()
+    public async Task CreateRunAndPause_UsesRealSession_AndOnlyAFailedRunNotifiesTheCapturedChat()
     {
         var root = Path.Combine(Path.GetTempPath(), "automation_execution_" + Guid.NewGuid().ToString("N"));
         var craft = Path.Combine(root, ".craft"); Directory.CreateDirectory(craft);
@@ -38,13 +39,24 @@ public sealed class AutomationExecutionIntegrationTests
         await using var provider = new ServiceCollection().AddSingleton(service).AddSingleton(router).BuildServiceProvider();
         await using var runtime = new AppServerAutomationRuntime(provider);
         var handler = new AutomationsRequestHandler(service);
-        var completed = new TaskCompletionSource<AutomationRun>(TaskCreationOptions.RunContinuationsAsynchronously);
-        service.RunUpdated += run => { if (run.DeliveryStatus == "sent") completed.TrySetResult(run); return Task.CompletedTask; };
+        var finishedRuns = new ConcurrentDictionary<string, TaskCompletionSource<AutomationRun>>();
+        Task<AutomationRun> Finished(string runId) =>
+            finishedRuns.GetOrAdd(runId, _ => new(TaskCreationOptions.RunContinuationsAsynchronously)).Task.WaitAsync(TimeSpan.FromSeconds(15));
+        service.RunUpdated += run =>
+        {
+            if (run.CompletedAt != null && run.DeliveryStatus != "pending")
+                finishedRuns.GetOrAdd(run.Id, _ => new(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult(run);
+            return Task.CompletedTask;
+        };
         try
         {
             await runtime.StartAsync(new WorkspaceRuntimeAppServerFeatureContext(provider, config, paths, new ModuleRegistry(), sessions, null!, _ => { }));
             Contract.AutomationReadResult created;
-            using (ChannelSessionScope.Set(new() { Channel = "qq", UserId = "creator", GroupId = "42", DefaultDeliveryTarget = "group:42" }))
+            using (ChannelSessionScope.Set(new()
+            {
+                Channel = "qq", UserId = "creator", GroupId = "42", DefaultDeliveryTarget = "group:42",
+                Chat = new ChannelChatDescriptor(ChannelChatKinds.Group, "Release team", ChannelChatMemberships.Shared)
+            }))
                 created = await handler.HandleCreateAsync(new() { Automation = new Contract.AutomationInput {
                     Name = "Daily report", Prompt = "Summarize project changes", Status = "active", ExecutionMode = "independent",
                     WorkspaceMode = "project", ApprovalPolicy = "workspaceScope", NotificationPolicy = "all",
@@ -52,12 +64,13 @@ public sealed class AutomationExecutionIntegrationTests
             var id = created.Automation.Id;
             var accepted = await handler.HandleRunAsync(new() { AutomationId = id }, default);
             Assert.Equal("queued", accepted.Run.Status);
-            var finished = await completed.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            Assert.Equal(ChannelChatKinds.Group, created.Automation.Origin?.ChatKind);
+            var finished = await Finished(accepted.Run.Id);
             Assert.Equal("succeeded", finished.Status);
+            Assert.Equal("skipped", finished.DeliveryStatus);
             Assert.Equal("Project is up to date.", finished.Summary);
-            Assert.Equal("group:42", channel.Target);
-            Assert.Equal(finished.Summary, channel.Message?.Text);
-            Assert.Equal(1, channel.Deliveries);
+            Assert.Equal(0, channel.Deliveries);
+            Assert.Contains("Trigger: automation \"Daily report\"", chat.LastInput, StringComparison.Ordinal);
             var history = await handler.HandleRunsListAsync(new() { AutomationId = id }, default);
             var recorded = Assert.Single(history.Runs);
             Assert.Equal(finished.Id, recorded.Id);
@@ -71,6 +84,14 @@ public sealed class AutomationExecutionIntegrationTests
             Assert.Equal("automation", turn.Input?.AsUserMessage?.TriggerKind);
             Assert.Equal(id, turn.Input?.AsUserMessage?.TriggerRefId);
             Assert.Equal("qq", chat.Origin?.Channel);
+
+            chat.Fail = true;
+            var failing = await handler.HandleRunAsync(new() { AutomationId = id }, default);
+            var failed = await Finished(failing.Run.Id);
+            Assert.Equal(("failed", "sent"), (failed.Status, failed.DeliveryStatus));
+            Assert.Equal(1, channel.Deliveries);
+            Assert.Equal("group:42", channel.Target);
+            Assert.DoesNotContain(failed.Error!, channel.Message?.Text, StringComparison.Ordinal);
             var updated = await handler.HandleUpdateAsync(new() { AutomationId = id, ExpectedVersion = created.Automation.Version,
                 Automation = new Contract.AutomationInput { Name = "Edited report", Prompt = "Summarize only important changes", Status = "paused",
                     ExecutionMode = "independent", WorkspaceMode = "project", ApprovalPolicy = "workspaceScope", NotificationPolicy = "all",
@@ -89,12 +110,16 @@ public sealed class AutomationExecutionIntegrationTests
     private sealed class LocalChatClient : IChatClient
     {
         public ChannelSessionInfo? Origin;
+        public bool Fail;
+        public string LastInput = "";
         public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "Project is up to date.")));
         public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             Origin = ChannelSessionScope.Current;
+            LastInput = messages.Last(message => message.Role == ChatRole.User).Text;
+            if (Fail) throw new InvalidOperationException("model unavailable");
             yield return new ChatResponseUpdate(ChatRole.Assistant, "Project is up to date.");
             await Task.CompletedTask;
         }

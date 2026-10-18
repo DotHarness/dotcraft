@@ -18,6 +18,8 @@ public sealed class ChannelSessionInfo
     /// For QQ group: "group:{groupId}". For WeCom: the ChatId. Null for private/unknown.
     /// </summary>
     public string? DefaultDeliveryTarget { get; init; }
+
+    public ChannelChatDescriptor? Chat { get; init; }
 }
 
 public static class ChannelSessionScope

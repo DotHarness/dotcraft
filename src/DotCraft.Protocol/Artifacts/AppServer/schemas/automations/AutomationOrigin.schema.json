@@ -7,6 +7,26 @@
     "channel": {
       "type": "string"
     },
+    "chatKind": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "chatLabel": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "deliveryTarget": {
       "anyOf": [
         {

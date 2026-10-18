@@ -113,17 +113,16 @@ internal sealed class AppServerAutomationRuntime(IServiceProvider services) : IA
         _service.DeliverAsync = async (definition, run, token) =>
         {
             var origin = definition.Origin;
-            if (origin == null || origin.Channel is "cli" or "api" or "acp")
+            if (origin is not { IsChat: true })
             {
                 context.EmitBackgroundJobResult(new DotCraft.Runtime.BackgroundJobResult(
                     "automation", definition.Id, definition.Name, run.Summary, run.Error,
                     run.ThreadId, null, null));
                 return;
             }
-            var target = origin.DeliveryTarget ?? origin.GroupId ?? origin.UserId;
             await services.GetRequiredService<DotCraft.Channels.MessageRouter>().DeliverRequiredAsync(
-                origin.Channel, target, new DotCraft.Channels.ChannelDeliveryMessage
-                { Kind = "text", Text = run.Error ?? run.Summary ?? "Automation completed." }, token);
+                origin.Channel, origin.DeliveryTarget!, new DotCraft.Channels.ChannelDeliveryMessage
+                { Kind = "text", Text = $"Automation \"{definition.Name}\" did not finish." }, token);
         };
         try { await _service.StartAsync(ct); }
         catch { await StopAsync(CancellationToken.None); throw; }

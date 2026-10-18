@@ -23,7 +23,7 @@ export interface AutomationDefinition extends AutomationInput {
   workspaceMode: 'project' | 'worktree'
   id: string
   version: number
-  origin?: { channel: string; userId?: string; groupId?: string; deliveryTarget?: string } | null
+  origin?: { channel: string; userId?: string; groupId?: string; deliveryTarget?: string; chatKind?: string | null; chatLabel?: string | null } | null
   createdAt: string
   updatedAt: string
   nextRunAt?: string | null

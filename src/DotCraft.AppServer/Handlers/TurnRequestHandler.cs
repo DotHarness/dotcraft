@@ -72,20 +72,6 @@ internal sealed class TurnRequestHandler(
         var content = materializedInput.Content;
         RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
-        var channelScopeInfo = connection.IsChannelAdapter
-            ? new ChannelSessionInfo
-            {
-                Channel = connection.ChannelAdapterName ?? "external",
-                UserId = sender?.SenderId ?? connection.ClientInfo?.Name ?? "anonymous",
-                GroupId = sender?.GroupId,
-                DefaultDeliveryTarget = sender?.GroupId,
-            }
-            : new ChannelSessionInfo
-            {
-                Channel = connection.HasAcpExtensions ? "acp" : "cli",
-                UserId = connection.ClientInfo?.Name ?? "anonymous"
-            };
-
         ChatMessage[]? messages = null;
         if (p.Messages.HasValue && p.Messages.Value.ValueKind != JsonValueKind.Null)
         {
@@ -126,7 +112,7 @@ internal sealed class TurnRequestHandler(
             initialTurnTcs.TrySetResult(initialTurn);
         }
 
-        using var channelScope = ChannelSessionScope.Set(channelScopeInfo);
+        using var channelScope = await CreateChannelScopeAsync(sender, p.ThreadId);
 
         await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
         if (p.Cwd != null || p.RuntimeWorkspaceRoots != null)
@@ -279,7 +265,7 @@ internal sealed class TurnRequestHandler(
         var materializedInput = await PrepareTurnInputAsync(input, p.ThreadId, ct);
         RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
-        using var channelScope = CreateChannelScope(sender);
+        using var channelScope = await CreateChannelScopeAsync(sender, p.ThreadId);
         await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
         var queued = await sessionService.EnqueueTurnInputAsync(
             p.ThreadId,
@@ -319,7 +305,7 @@ internal sealed class TurnRequestHandler(
         var materializedInput = await PrepareTurnInputAsync(input, threadId, ct);
         RecordSkillReferences(threadId, materializedInput.NativeInputParts);
 
-        using var channelScope = CreateChannelScope(sender);
+        using var channelScope = await CreateChannelScopeAsync(sender, threadId);
         await sessionService.EnsureThreadLoadedAsync(threadId, ct);
         var turnId = await sessionService.SteerTurnAsync(
             threadId,
@@ -505,7 +491,7 @@ internal sealed class TurnRequestHandler(
         };
     }
 
-    private IDisposable? CreateChannelScope(SenderContext? sender)
+    private async Task<IDisposable> CreateChannelScopeAsync(SenderContext? sender, string threadId)
     {
         var channelScopeInfo = connection.IsChannelAdapter
             ? new ChannelSessionInfo
@@ -513,7 +499,8 @@ internal sealed class TurnRequestHandler(
                 Channel = connection.ChannelAdapterName ?? "external",
                 UserId = sender?.SenderId ?? connection.ClientInfo?.Name ?? "anonymous",
                 GroupId = sender?.GroupId,
-                DefaultDeliveryTarget = sender?.GroupId,
+                DefaultDeliveryTarget = (await sessionService.GetThreadAsync(threadId)).ChannelContext,
+                Chat = connection.TryGetThreadChat(threadId, out var chat) ? chat : null
             }
             : new ChannelSessionInfo
             {

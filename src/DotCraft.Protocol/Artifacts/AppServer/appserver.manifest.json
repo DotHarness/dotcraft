@@ -4331,6 +4331,20 @@
           "const": null
         },
         {
+          "name": "chatKind",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "chatLabel",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "deliveryTarget",
           "type": "string",
           "required": false,

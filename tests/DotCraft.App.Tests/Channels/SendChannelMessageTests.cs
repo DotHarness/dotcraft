@@ -2,12 +2,14 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.AppBinding;
+using DotCraft.Automations;
 using DotCraft.Channels;
 using DotCraft.ExternalChannel.Messaging;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 using DotCraft.Workspaces;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
@@ -85,6 +87,58 @@ public sealed class SendChannelMessageTests : IDisposable
         Assert.Equal("-100", Assert.Single(_telegram.Deliveries).Target);
         Assert.False(revoked.Success);
         Assert.Equal(SendChannelMessageErrorCodes.ChannelUnavailable, revoked.Error?.Code);
+    }
+
+    [Fact]
+    public async Task ChannelOriginRunThread_IsBoundToTheOriginChat()
+    {
+        var automations = Automations();
+        var definition = await CreateAutomationAsync(automations, "independent", "workspaceScope");
+        var provider = new SendChannelMessageToolProvider(new ChatBindingResolver(_registry, automations: automations));
+        var runThread = new SessionThread
+        {
+            Id = "run-thread", OriginChannel = AutomationService.RunChannel, ChannelContext = definition.Id, WorkspacePath = _workspace
+        };
+
+        var runtime = (await RegistrationAsync(provider, runThread)).Binding.Runtime;
+        var result = await runtime.InvokeAsync(Context("call-1", runThread.Id), Args("""{ "text": "nothing new" }"""));
+
+        Assert.True(result.Success);
+        Assert.Equal("chat-9", Assert.Single(_telegram.Deliveries).Target);
+        Assert.Equal("Ops", result.StructuredContent!.Value.GetProperty("label").GetString());
+    }
+
+    [Fact]
+    public async Task ThreadModeRun_SpeaksToTheTargetThreadsOwnChat()
+    {
+        var automations = Automations();
+        await CreateAutomationAsync(automations, "thread", "fullAuto");
+        var resolver = new ChatBindingResolver(_registry, automations: automations);
+        var provider = new SendChannelMessageToolProvider(resolver);
+
+        var runtime = (await RegistrationAsync(provider, InboundThread(ThreadId, "chat-1"))).Binding.Runtime;
+        await runtime.InvokeAsync(Context("call-1"), Args("""{ "text": "update" }"""));
+
+        Assert.Equal("chat-1", Assert.Single(_telegram.Deliveries).Target);
+    }
+
+    [Theory]
+    [InlineData("workspaceScope", false)]
+    [InlineData("fullAuto", true)]
+    public async Task AutomationRun_SendsToOtherChatsOnlyUnderFullAuto(string approvalPolicy, bool sent)
+    {
+        var automations = Automations();
+        var definition = await CreateAutomationAsync(automations, "independent", approvalPolicy);
+        var runtime = new SendChannelMessageRuntime(
+            new ChatBindingResolver(_registry, automations: automations),
+            ThreadId, AutomationService.RunChannel, definition.Id, _workspace, null);
+        using var scope = EnterTurn(new AutoApproveApprovalService());
+
+        var result = await runtime.InvokeAsync(Context("call-1"), Args("""{ "text": "hi", "to": "telegram:chat-2" }"""));
+
+        Assert.Equal(sent, result.Success);
+        Assert.Equal(sent ? null : SendChannelMessageErrorCodes.Declined, result.Error?.Code);
+        Assert.Equal(sent ? new[] { "chat-2" } : [], _telegram.Deliveries.Select(delivery => delivery.Target));
     }
 
     [Theory]
@@ -319,6 +373,24 @@ public sealed class SendChannelMessageTests : IDisposable
 
         Assert.Equal(SendChannelMessageErrorCodes.ChannelUnavailable, result.Error?.Code);
     }
+
+    private AutomationService Automations() => new(
+        new AutomationsConfig(),
+        new DotCraftPaths(_workspace, Path.Combine(_workspace, ".craft"), null),
+        NullLogger<AutomationService>.Instance);
+
+    private static Task<AutomationDefinition> CreateAutomationAsync(AutomationService automations, string executionMode, string approvalPolicy) =>
+        automations.CreateAsync(
+            new AutomationInput
+            {
+                Name = "Daily report", Prompt = "Report changes", Status = "paused", ExecutionMode = executionMode,
+                TargetThreadId = executionMode == "thread" ? ThreadId : null, WorkspaceMode = "project", ApprovalPolicy = approvalPolicy,
+                Schedule = new AutomationSchedule { Kind = "every", EveryMs = 60000 }
+            },
+            new AutomationOrigin
+            {
+                Channel = "telegram", UserId = "u", DeliveryTarget = "chat-9", ChatKind = ChannelChatKinds.Group, ChatLabel = "Ops"
+            });
 
     private SendChannelMessageRuntime Runtime() =>
         new(new ChatBindingResolver(_registry), ThreadId, "telegram", "chat-1", _workspace, null);

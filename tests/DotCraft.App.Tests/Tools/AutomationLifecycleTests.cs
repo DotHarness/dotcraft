@@ -190,6 +190,48 @@ public sealed class AutomationLifecycleTests : IDisposable
         finally { await service.StopAsync(); }
     }
     [Fact]
+    public async Task ChatOriginRun_SendsNothingOnSuccess_AndOneNoticeWhenItFails()
+    {
+        var service = Service(); var client = new Sessions(); service.SetSessionClient(client);
+        var delivered = new List<AutomationRun>();
+        service.DeliverAsync = (_, run, _) => { delivered.Add(run); return Task.CompletedTask; };
+        client.DuringTurn = thread => service.ReportOutcome(thread, "turn-1", "Reported", true);
+        await service.StartAsync();
+        try
+        {
+            var definition = await service.CreateAsync(Input() with { Status = "paused", NotificationPolicy = "all" },
+                new() { Channel = "telegram", UserId = "u", DeliveryTarget = "-100", ChatKind = ChannelChatKinds.Group, ChatLabel = "Ops" });
+            var succeeded = await Finish(service, await service.RunAsync(definition.Id));
+            Assert.Equal(("succeeded", "skipped"), (succeeded.Status, succeeded.DeliveryStatus));
+            Assert.Empty(delivered);
+            Assert.NotEqual("Reported", succeeded.Summary);
+
+            client.Fail = true;
+            var failed = await Finish(service, await service.RunAsync(definition.Id));
+            Assert.Equal(("failed", "sent"), (failed.Status, failed.DeliveryStatus));
+            Assert.Equal(failed.Id, Assert.Single(delivered).Id);
+        }
+        finally { await service.StopAsync(); }
+    }
+    [Theory]
+    [InlineData("all", 1)]
+    [InlineData("failures", 0)]
+    public async Task RunWithoutChatOrigin_FollowsNotificationPolicy(string policy, int deliveries)
+    {
+        var service = Service(); var client = new Sessions(); service.SetSessionClient(client);
+        var delivered = 0;
+        service.DeliverAsync = (_, _, _) => { delivered++; return Task.CompletedTask; };
+        await service.StartAsync();
+        try
+        {
+            var definition = await service.CreateAsync(Input() with { Status = "paused", NotificationPolicy = policy });
+            var run = await Finish(service, await service.RunAsync(definition.Id));
+            Assert.Equal("succeeded", run.Status);
+            Assert.Equal(deliveries, delivered);
+        }
+        finally { await service.StopAsync(); }
+    }
+    [Fact]
     public async Task EveryRun_OfOneAutomation_CarriesThatAutomationsMemoryScope_WithExtractionDisabled()
     {
         var service = Service(); var client = new Sessions(); service.SetSessionClient(client);
@@ -348,7 +390,7 @@ public sealed class AutomationLifecycleTests : IDisposable
         public string? LastMessage;
         public List<string?> MemoryScopes { get; } = [];
         public List<bool?> MemoryAutoExtract { get; } = [];
-        public Task<string> CreateThreadAsync(string channelName, string userId, ThreadConfiguration config, CancellationToken ct, string? displayName = null)
+        public Task<string> CreateThreadAsync(string channelName, string userId, string? channelContext, ThreadConfiguration config, CancellationToken ct, string? displayName = null)
         {
             MemoryScopes.Add(config.MemoryScope);
             MemoryAutoExtract.Add(config.MemoryAutoExtract);
@@ -373,7 +415,7 @@ public sealed class AutomationLifecycleTests : IDisposable
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public Task<string> CreateThreadAsync(string channelName, string userId, ThreadConfiguration config, CancellationToken ct, string? displayName = null) => Task.FromResult(userId);
+        public Task<string> CreateThreadAsync(string channelName, string userId, string? channelContext, ThreadConfiguration config, CancellationToken ct, string? displayName = null) => Task.FromResult(userId);
         public Task<ThreadWorktreeInfo> EnsureRunWorktreeAsync(string threadId, string taskId, CancellationToken ct) => throw new InvalidOperationException("unused");
         public Task<SessionThread?> TryGetThreadAsync(string threadId, CancellationToken ct) => Task.FromResult<SessionThread?>(new() { Id = threadId });
         public async IAsyncEnumerable<SessionEvent> SubmitTurnAsync(string threadId, string message, [EnumeratorCancellation] CancellationToken ct,

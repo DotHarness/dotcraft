@@ -29,6 +29,7 @@ public sealed class AutomationSessionClient(ISessionService sessionService, DotC
     public async Task<string> CreateThreadAsync(
         string channelName,
         string userId,
+        string? channelContext,
         ThreadConfiguration config,
         CancellationToken ct,
         string? displayName = null)
@@ -37,6 +38,7 @@ public sealed class AutomationSessionClient(ISessionService sessionService, DotC
         {
             ChannelName = channelName,
             UserId = userId,
+            ChannelContext = channelContext,
             WorkspacePath = paths.WorkspacePath
         };
 

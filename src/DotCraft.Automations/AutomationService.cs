@@ -8,6 +8,7 @@ namespace DotCraft.Automations;
 /// <summary>Single lifecycle owner for scheduled agent work.</summary>
 public sealed partial class AutomationService(AutomationsConfig config, DotCraftPaths paths, ILogger<AutomationService> logger)
 {
+    public const string RunChannel = "automations";
     private readonly AutomationStore _store = new(paths.Data.Resolve("automations"));
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, AutomationDefinition> _definitions = new();
@@ -101,6 +102,13 @@ public sealed partial class AutomationService(AutomationsConfig config, DotCraft
         if (_loaded) return;
         foreach (var definition in await _store.ListAsync(ct)) _definitions[definition.Id] = definition;
         _loaded = true;
+    }
+    public AutomationDefinition? FindRunDefinition(string? originChannel, string? channelContext)
+    {
+        if (!string.Equals(originChannel, RunChannel, StringComparison.Ordinal) || string.IsNullOrWhiteSpace(channelContext)) return null;
+        _gate.Wait();
+        try { return _definitions.GetValueOrDefault(channelContext); }
+        finally { _gate.Release(); }
     }
     private AutomationDefinition Get(string id) => _definitions.GetValueOrDefault(id) ?? throw new KeyNotFoundException("automation.notFound");
     private AutomationDefinition Build(AutomationInput input)
