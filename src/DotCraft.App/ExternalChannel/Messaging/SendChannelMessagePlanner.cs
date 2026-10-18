@@ -56,12 +56,13 @@ internal static class SendChannelMessagePlanner
         SendChannelMessageRequest request,
         ChannelDeliveryCapabilitySnapshot capabilities,
         FileAccessGuard fileAccess,
+        bool hasRemoteRoute,
         CancellationToken cancellationToken)
     {
         var attachments = new List<PlannedChannelPart>();
         foreach (var attachment in request.Attachments)
         {
-            var (part, error) = await PlanAttachmentAsync(attachment, capabilities, fileAccess, cancellationToken);
+            var (part, error) = await PlanAttachmentAsync(attachment, capabilities, fileAccess, hasRemoteRoute, cancellationToken);
             if (error != null)
                 return ([], error);
             attachments.Add(part!);
@@ -84,6 +85,7 @@ internal static class SendChannelMessagePlanner
         SendChannelMessageAttachment attachment,
         ChannelDeliveryCapabilitySnapshot capabilities,
         FileAccessGuard fileAccess,
+        bool hasRemoteRoute,
         CancellationToken cancellationToken)
     {
         var fullPath = fileAccess.ResolvePath(attachment.Path);
@@ -94,7 +96,9 @@ internal static class SendChannelMessagePlanner
         {
             return (null, new SendChannelMessageError(
                 SendChannelMessageErrorCodes.InvalidArguments,
-                $"Attachment '{attachment.Path}' was not found."));
+                hasRemoteRoute
+                    ? $"Attachment '{attachment.Path}' was not found on this host. Attachments must be local files; download remote files to the local workspace with the Transfer tool first."
+                    : $"Attachment '{attachment.Path}' was not found."));
         }
 
         var fileName = attachment.Name ?? Path.GetFileName(fullPath);

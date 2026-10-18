@@ -5,6 +5,7 @@ using DotCraft.AppBinding;
 using DotCraft.Automations;
 using DotCraft.Channels;
 using DotCraft.ExternalChannel.Messaging;
+using DotCraft.Plugins;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Tools;
@@ -153,6 +154,59 @@ public sealed class SendChannelMessageTests : IDisposable
 
         Assert.False(result.Success);
         Assert.Equal(code, result.Error?.Code);
+        Assert.Empty(_telegram.Deliveries);
+    }
+
+    [Fact]
+    public async Task WorkspaceScopedTurn_RefusesAnAttachmentOutsideTheWorkspace()
+    {
+        var outside = Path.Combine(Path.GetTempPath(), $"send-channel-outside-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(outside);
+        try
+        {
+            var file = Path.Combine(outside, "report.txt");
+            File.WriteAllText(file, "numbers");
+            _telegram.Capabilities.Media = new ChannelMediaCapabilitySnapshot { File = HostPath() };
+            var approvals = new AutoApproveApprovalService();
+            using var host = EnterTurn(approvals);
+            using var turn = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
+            {
+                ThreadId = ThreadId,
+                TurnId = TurnId,
+                OriginChannel = "telegram",
+                WorkspacePath = _workspace,
+                RequireApprovalOutsideWorkspace = false,
+                ApprovalService = approvals,
+                Turn = new SessionTurn { Id = TurnId, ThreadId = ThreadId },
+                NextItemSequence = () => 1,
+                EmitItemStarted = _ => { },
+                EmitItemCompleted = _ => { }
+            });
+
+            var result = await Runtime().InvokeAsync(Context("call-1"),
+                Args($$"""{ "attachments": [{ "path": {{JsonSerializer.Serialize(file)}} }] }"""));
+
+            Assert.Equal(SendChannelMessageErrorCodes.InvalidArguments, result.Error?.Code);
+            Assert.Empty(_telegram.Deliveries);
+        }
+        finally
+        {
+            Directory.Delete(outside, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task MissingAttachmentOnARemoteRoute_PointsToTransfer()
+    {
+        _telegram.Capabilities.Media = new ChannelMediaCapabilitySnapshot { File = HostPath() };
+        var runtime = new SendChannelMessageRuntime(
+            new ChatBindingResolver(_registry), ThreadId, "telegram", "chat-1", _workspace, null,
+            DispatchProxy.Create<IRemoteToolHostClient, RoutedRemoteToolHost>());
+
+        var result = await runtime.InvokeAsync(Context("call-1"), Args("""{ "attachments": [{ "path": "build/output.log" }] }"""));
+
+        Assert.Equal(SendChannelMessageErrorCodes.InvalidArguments, result.Error?.Code);
+        Assert.Contains("Transfer", result.Error?.Message, StringComparison.Ordinal);
         Assert.Empty(_telegram.Deliveries);
     }
 
@@ -495,6 +549,17 @@ public sealed class SendChannelMessageTests : IDisposable
         {
             Requests.Add(request);
             return Task.FromResult(approve);
+        }
+    }
+
+    public class RoutedRemoteToolHost : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            if (targetMethod?.Name != nameof(IRemoteToolHostClient.TryGetRoute))
+                throw new NotSupportedException();
+            args![1] = new RemoteToolRoute("host", "workspace", "lease", "instance", "session");
+            return true;
         }
     }
 

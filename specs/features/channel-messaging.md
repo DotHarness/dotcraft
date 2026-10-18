@@ -67,7 +67,7 @@ A root thread has a chat binding when one of these holds:
 |--------|---------|
 | Created by an inbound channel | The adapter's chat for the thread. Its target is the thread's `channelContext`. |
 | Bound by App Binding | The verified channel binding target ([App Binding](../protocols/app-binding.md) §7). |
-| An automation run whose definition has a channel origin | The origin's channel and delivery target. A thread-mode run into a thread that already has a binding uses that thread's binding. |
+| An automation run whose definition has a channel origin | The origin's channel and delivery target, with the origin's chat kind and label when it has them; without a kind the chat is unspecified. A thread-mode run into a thread that already has a binding uses that thread's binding. |
 
 SubAgent threads, Workflow children and other non-root threads have no chat binding.
 
@@ -189,7 +189,7 @@ not hide it from a bound root thread.
       "items": {
         "type": "object",
         "properties": {
-          "path": { "type": "string" },
+          "path": { "type": "string", "description": "Path of a file on this computer." },
           "kind": { "type": "string", "enum": ["image", "file", "audio", "video"] },
           "name": { "type": "string" }
         },
@@ -202,9 +202,11 @@ not hide it from a bound root thread.
 ```
 
 - At least one of `text` and `attachments` is present.
-- `path` names a file the thread can read: a workspace path, or a path on the thread's
-  [Remote Tool Host](../architecture/remote-tool-host.md) route. A generated image's saved path is
-  valid.
+- `path` names a file on the host running DotCraft that the Turn's file access policy lets it read,
+  such as a workspace path or a generated image's saved path. A file in a
+  [Remote Tool Host](../architecture/remote-tool-host.md) workspace must first be downloaded to the
+  local workspace; while the thread has a remote route, an attachment not found locally fails with
+  `invalidArguments` and says so.
 - `kind`, when omitted, is inferred from the file's media type: images become `image`, anything else
   `file`. `audio` and `video` are sent as voice and video messages where the channel supports them.
 - `name` is the file name shown in the chat; it defaults to the file's name.
@@ -220,7 +222,9 @@ The host validates the whole call before sending anything:
 
 - the target channel is connected, an App Binding binding is `active`, and, for a target other than
   the bound chat, its `targets` capability allows the target's kind;
-- every attachment exists, is readable, and fits the target's `media` limits.
+- every attachment exists, is readable under the Turn's file access policy (its workspace roots,
+  outside-workspace rule and path blacklist, as for file tools), and fits the target's `media`
+  limits.
 
 An `audio` or `video` attachment the target does not support is sent as a `file` when files are
 supported; the result reports the downgrade. Any other unsupported kind fails the call before
@@ -350,7 +354,11 @@ adapter-owned account commands such as personal authorization.
 A conversation is a thread identity: the current thread's origin channel, user id and channel
 context. It has one current thread: the newest active thread for its identity. `/new` and
 `/resume` keep that invariant by archiving the thread they replace. When a command result names a
-thread, the adapter switches its current thread to it. `/sessions` and `/tasks` number their entries
+thread, the adapter switches its current thread to it.
+
+A chat bound to a thread through App Binding (§4.1) belongs to that thread. While the binding is not
+revoked, `/new`, `/resume` and `/sessions` archive nothing and answer that the chat is bound to a
+DotCraft conversation and must be unbound in DotCraft first. `/sessions` and `/tasks` number their entries
 newest first; `/resume <n>` and `/tasks stop <n>` use those numbers. `/model`, `/mode`, `/sessions`
 and `/tasks` return choices (§12.5) that select a model, a mode, a thread or a task to stop.
 
@@ -365,7 +373,13 @@ forwarded at all.
 
 Approval prompts are not registry commands. In addition to buttons and the existing reply keywords,
 every adapter accepts `/approve`, `/approve session` and `/deny` as replies to the sender's pending
-approval.
+approval. An approval is the pending approval of the sender who started the Turn that raised it, or of
+the thread's only sender when the thread holds one sender's messages; these replies never answer
+another member's approval.
+
+An adapter handles an inbound message in this order: an approval reply, then a command, then an
+answer to a pending question, then ordinary input. A command such as `/stop` therefore runs even
+while a question waits for an answer.
 
 ### 12.5 Presentation
 
@@ -409,4 +423,5 @@ models `/model` lists.
 - [ ] `/stop` leaves a background shell running; `/stop all` stops it and clears queued input.
 - [ ] `/new` then `/sessions` then `/resume 2` returns to the previous thread and keeps one current
       thread for the conversation.
+- [ ] `/new` in a chat bound through App Binding is refused and archives nothing.
 - [ ] A non-admin sender cannot run `/model`, and native menus hide it for them.

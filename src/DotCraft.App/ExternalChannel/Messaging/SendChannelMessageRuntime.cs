@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Channels;
+using DotCraft.Plugins;
 using DotCraft.Security;
 using DotCraft.Tools;
 
@@ -14,7 +15,8 @@ internal sealed class SendChannelMessageRuntime(
     string? originChannel,
     string? channelContext,
     string workspacePath,
-    PathBlacklist? pathBlacklist) : IToolRuntime
+    PathBlacklist? pathBlacklist,
+    IRemoteToolHostClient? remoteToolHost = null) : IToolRuntime
 {
     internal const string ApprovalType = "channelMessage";
     internal const string ApprovalOperation = "send";
@@ -44,17 +46,26 @@ internal sealed class SendChannelMessageRuntime(
         if (targetError != null)
             return Fail(targetError.Code, targetError.Message, destination, request.Text, []);
 
+        var turn = PluginFunctionExecutionScope.Current;
         var hostScope = ToolHostExecutionScope.Current;
-        var approvalService = hostScope?.ApprovalService;
-        var fileAccess = new FileAccessGuard(
-            context.WorkspacePath ?? hostScope?.WorkspacePath ?? workspacePath,
-            requireApprovalOutsideWorkspace: true,
-            approvalService,
-            pathBlacklist);
+        var approvalService = turn?.ApprovalService ?? hostScope?.ApprovalService;
+        var fileAccess = turn == null
+            ? new FileAccessGuard(
+                context.WorkspacePath ?? hostScope?.WorkspacePath ?? workspacePath,
+                requireApprovalOutsideWorkspace: true,
+                approvalService,
+                pathBlacklist)
+            : new FileAccessGuard(
+                turn.WorkspacePath,
+                turn.RequireApprovalOutsideWorkspace,
+                turn.ApprovalService,
+                turn.PathBlacklist,
+                workspaceRoots: turn.WorkspaceRoots);
         var (parts, planError) = await SendChannelMessagePlanner.PlanAsync(
             request,
             destination!.Capabilities,
             fileAccess,
+            remoteToolHost?.TryGetRoute(threadId, out _) == true,
             cancellationToken);
         if (planError != null)
             return Fail(planError.Code, planError.Message, destination, request.Text, []);

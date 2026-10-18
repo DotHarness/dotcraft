@@ -8,7 +8,8 @@ namespace DotCraft.ExternalChannel.Messaging;
 
 internal sealed class SendChannelMessageToolProvider(
     ChatBindingResolver resolver,
-    PathBlacklist? pathBlacklist = null) : IThreadPluginToolSourceProvider
+    PathBlacklist? pathBlacklist = null,
+    IRemoteToolHostClientFactory? remoteToolHosts = null) : IThreadPluginToolSourceProvider
 {
     public IReadOnlyList<IToolSource> CreateToolSourcesForThread(SessionThread thread)
     {
@@ -24,7 +25,8 @@ internal sealed class SendChannelMessageToolProvider(
             thread.OriginChannel,
             thread.ChannelContext,
             thread.WorkspacePath,
-            pathBlacklist))];
+            pathBlacklist,
+            remoteToolHosts?.Create()))];
     }
 }
 
@@ -45,7 +47,7 @@ internal sealed class SendChannelMessageToolSource(SendChannelMessageRuntime run
               "items": {
                 "type": "object",
                 "properties": {
-                  "path": { "type": "string" },
+                  "path": { "type": "string", "description": "Path of a file on this computer." },
                   "kind": { "type": "string", "enum": ["image", "file", "audio", "video"] },
                   "name": { "type": "string" }
                 },
