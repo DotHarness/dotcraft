@@ -120,8 +120,10 @@ internal sealed class CommandSessionHarness : IAsyncDisposable
 
     public async Task<BackgroundTerminalSnapshot> StartBackgroundShellAsync(string threadId)
     {
+        var existing = (await Terminals.ListAsync(threadId)).Select(static terminal => terminal.SessionId).ToHashSet();
         await RunTurnAsync(threadId, StartShellPrompt);
-        return Assert.Single(await Terminals.ListAsync(threadId), static terminal => terminal.Status == BackgroundTerminalStatus.Running);
+        return Assert.Single(await Terminals.ListAsync(threadId), terminal =>
+            terminal.Status == BackgroundTerminalStatus.Running && !existing.Contains(terminal.SessionId));
     }
 
     public Task<CommandResult> ExecuteAsync(string threadId, string rawText, bool isAdmin = false) =>

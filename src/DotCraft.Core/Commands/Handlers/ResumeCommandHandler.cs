@@ -14,11 +14,14 @@ public sealed class ResumeCommandHandler : ICommandHandler
             return CommandResult.HandledResult(FallbackText.CommandServiceUnavailable);
 
         var current = await sessions.GetThreadAsync(context.SessionId);
-        var threads = await CommandThreads.ListConversationAsync(sessions, current);
-        if (context.Arguments.Length != 1 || !CommandThreads.TryParseIndex(context.Arguments[0], threads.Count, out var index))
+        var threads = await CommandThreads.NumberConversationAsync(sessions, current);
+        if (context.Arguments.Length != 1
+            || CommandThreads.Select(threads, context.Arguments[0], static thread => thread.Id) is not { } selected)
+        {
             return CommandResult.HandledResult(FallbackText.CommandResumeUsage);
+        }
 
-        var target = threads[index];
+        var target = selected.Value;
         if (target.Id == current.Id)
             return CommandResult.HandledResult(FallbackText.CommandResumeAlreadyCurrent);
 

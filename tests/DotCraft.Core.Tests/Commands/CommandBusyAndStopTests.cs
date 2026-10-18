@@ -60,13 +60,41 @@ public sealed class CommandBusyAndStopTests
 
         var listed = await harness.ExecuteAsync(thread.Id, "/tasks");
         var choice = Assert.Single(listed.Choices!);
-        Assert.Equal("/tasks stop 1", choice.Command);
 
         var stopped = await harness.ExecuteAsync(thread.Id, choice.Command);
 
         Assert.True(stopped.Handled);
         Assert.Equal(BackgroundTerminalStatus.Killed, (await harness.Terminals.ReadAsync(shell.SessionId)).Status);
         Assert.Null((await harness.ExecuteAsync(thread.Id, "/tasks")).Choices);
+    }
+
+    [Fact]
+    public async Task TasksStop_StopsTheListedTaskAfterANewerTaskStarts()
+    {
+        await using var harness = CommandSessionHarness.Create();
+        var thread = await harness.CreateThreadAsync();
+        var listedShell = await harness.StartBackgroundShellAsync(thread.Id);
+        var choice = Assert.Single((await harness.ExecuteAsync(thread.Id, "/tasks")).Choices!);
+        var newerShell = await harness.StartBackgroundShellAsync(thread.Id);
+
+        await harness.ExecuteAsync(thread.Id, choice.Command);
+
+        Assert.Equal(BackgroundTerminalStatus.Killed, (await harness.Terminals.ReadAsync(listedShell.SessionId)).Status);
+        Assert.Equal(BackgroundTerminalStatus.Running, (await harness.Terminals.ReadAsync(newerShell.SessionId)).Status);
+    }
+
+    [Fact]
+    public async Task TasksStop_NumbersFollowStartOrder()
+    {
+        await using var harness = CommandSessionHarness.Create();
+        var thread = await harness.CreateThreadAsync();
+        var older = await harness.StartBackgroundShellAsync(thread.Id);
+        var newer = await harness.StartBackgroundShellAsync(thread.Id);
+
+        await harness.ExecuteAsync(thread.Id, "/tasks stop 1");
+
+        Assert.Equal(BackgroundTerminalStatus.Killed, (await harness.Terminals.ReadAsync(older.SessionId)).Status);
+        Assert.Equal(BackgroundTerminalStatus.Running, (await harness.Terminals.ReadAsync(newer.SessionId)).Status);
     }
 
     [Fact]

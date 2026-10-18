@@ -28,16 +28,43 @@ internal static class CommandThreads
         WorkspacePath = thread.WorkspacePath
     };
 
-    public static async Task<IReadOnlyList<ThreadSummary>> ListConversationAsync(
+    public static async Task<IReadOnlyList<Numbered<ThreadSummary>>> NumberConversationAsync(
         ISessionService sessions,
         SessionThread current)
     {
         var threads = await sessions.FindThreadsAsync(IdentityOf(current), includeArchived: true);
-        return threads
-            .OrderByDescending(static thread => thread.LastActiveAt)
-            .ThenByDescending(static thread => thread.CreatedAt)
+        return Number(threads, static thread => thread.CreatedAt, static thread => thread.Id);
+    }
+
+    public static IReadOnlyList<Numbered<ThreadSummary>> RecentFirst(IReadOnlyList<Numbered<ThreadSummary>> threads) =>
+        threads
+            .OrderByDescending(static entry => entry.Value.LastActiveAt)
+            .ThenByDescending(static entry => entry.Number)
             .Take(ConversationListLimit)
             .ToArray();
+
+    public static IReadOnlyList<Numbered<T>> Number<T>(
+        IEnumerable<T> items,
+        Func<T, DateTimeOffset> createdAt,
+        Func<T, string> id) =>
+        items
+            .OrderBy(createdAt)
+            .ThenBy(id, StringComparer.Ordinal)
+            .Select(static (item, index) => new Numbered<T>(index + 1, item))
+            .ToArray();
+
+    public static Numbered<T>? Select<T>(IReadOnlyList<Numbered<T>> entries, string? argument, Func<T, string> id)
+    {
+        if (string.IsNullOrWhiteSpace(argument))
+            return null;
+
+        var byId = entries.FirstOrDefault(entry => string.Equals(id(entry.Value), argument, StringComparison.Ordinal));
+        if (byId != null)
+            return byId;
+
+        return int.TryParse(argument, NumberStyles.None, CultureInfo.InvariantCulture, out var number)
+            ? entries.FirstOrDefault(entry => entry.Number == number)
+            : null;
     }
 
     public static string Title(string? displayName, string threadId) =>
@@ -55,18 +82,6 @@ internal static class CommandThreads
             return string.Create(CultureInfo.InvariantCulture, $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m");
         return string.Create(CultureInfo.InvariantCulture, $"{(int)elapsed.TotalDays}d {elapsed.Hours}h");
     }
-
-    public static bool TryParseIndex(string? value, int count, out int index)
-    {
-        index = -1;
-        if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var number)
-            || number < 1
-            || number > count)
-        {
-            return false;
-        }
-
-        index = number - 1;
-        return true;
-    }
 }
+
+internal sealed record Numbered<T>(int Number, T Value);

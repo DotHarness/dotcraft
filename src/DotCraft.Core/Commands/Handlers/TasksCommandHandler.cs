@@ -16,17 +16,20 @@ public sealed class TasksCommandHandler : ICommandHandler
         if (context.SessionService is not { } sessions)
             return CommandResult.HandledResult(FallbackText.CommandServiceUnavailable);
 
-        var tasks = await sessions.ListBackgroundTasksAsync(context.SessionId);
+        var tasks = CommandThreads.Number(
+            await sessions.ListBackgroundTasksAsync(context.SessionId),
+            static task => task.StartedAt ?? DateTimeOffset.MinValue,
+            static task => task.TaskId);
         return context.Arguments switch
         {
             [] => List(tasks),
-            [var verb, var number] when string.Equals(verb, "stop", StringComparison.OrdinalIgnoreCase)
-                => await StopAsync(sessions, context.SessionId, tasks, number),
+            [var verb, var selector] when string.Equals(verb, "stop", StringComparison.OrdinalIgnoreCase)
+                => await StopAsync(sessions, context.SessionId, tasks, selector),
             _ => CommandResult.HandledResult(FallbackText.CommandTasksUsage)
         };
     }
 
-    private static CommandResult List(IReadOnlyList<BackgroundTask> tasks)
+    private static CommandResult List(IReadOnlyList<Numbered<BackgroundTask>> tasks)
     {
         if (tasks.Count == 0)
             return CommandResult.HandledResult(FallbackText.CommandTasksEmpty);
@@ -34,16 +37,14 @@ public sealed class TasksCommandHandler : ICommandHandler
         var now = DateTimeOffset.UtcNow;
         var text = new StringBuilder(FallbackText.CommandTasksTitle);
         var choices = new List<CommandChoice>();
-        for (var index = 0; index < Math.Min(tasks.Count, ListLimit); index++)
+        foreach (var (number, task) in tasks.Reverse().Take(ListLimit))
         {
-            var task = tasks[index];
-            var number = index + 1;
             var elapsed = task.StartedAt is { } started
                 ? CommandThreads.FormatElapsed((task.EndedAt ?? now) - started)
                 : "-";
             text.Append('\n').Append($"{number}. {task.Kind} · {task.Label} · {task.Status} · {elapsed}");
             if (task.Status == BackgroundTaskStatus.Running)
-                choices.Add(new CommandChoice(FallbackText.CommandTasksStopChoice(task.Label), $"/tasks stop {number}"));
+                choices.Add(new CommandChoice(FallbackText.CommandTasksStopChoice(task.Label), $"/tasks stop {task.TaskId}"));
         }
 
         return CommandResult.HandledResult(text.ToString(), choices: choices);
@@ -52,13 +53,13 @@ public sealed class TasksCommandHandler : ICommandHandler
     private static async Task<CommandResult> StopAsync(
         ISessionService sessions,
         string threadId,
-        IReadOnlyList<BackgroundTask> tasks,
-        string number)
+        IReadOnlyList<Numbered<BackgroundTask>> tasks,
+        string selector)
     {
-        if (!CommandThreads.TryParseIndex(number, tasks.Count, out var index))
-            return CommandResult.HandledResult(FallbackText.CommandTasksNotFound(number));
+        if (CommandThreads.Select(tasks, selector, static task => task.TaskId) is not { } selected)
+            return CommandResult.HandledResult(FallbackText.CommandTasksNotFound(selector));
 
-        var stopped = await sessions.StopBackgroundTaskAsync(threadId, tasks[index].TaskId);
+        var stopped = await sessions.StopBackgroundTaskAsync(threadId, selected.Value.TaskId);
         return CommandResult.HandledResult(FallbackText.CommandTasksStopped(stopped.Label, stopped.Status));
     }
 }

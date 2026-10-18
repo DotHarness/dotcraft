@@ -17,7 +17,6 @@ public sealed class CommandConversationTests
 
         var sessions = await harness.ExecuteAsync(second, "/sessions");
         var choice = Assert.Single(sessions.Choices!);
-        Assert.Equal("/resume 2", choice.Command);
 
         var resumed = await harness.ExecuteAsync(second, choice.Command);
 
@@ -25,6 +24,22 @@ public sealed class CommandConversationTests
         var conversation = await harness.Service.FindThreadsAsync(harness.Identity, includeArchived: true);
         Assert.Equal(first.Id, Assert.Single(conversation, static thread => thread.Status == ThreadStatus.Active).Id);
         Assert.Contains(conversation, thread => thread.Id == second && thread.Status == ThreadStatus.Archived);
+    }
+
+    [Fact]
+    public async Task ResumeChoicesAndNumbers_KeepPointingAtTheListedThreadAfterANewerOneAppears()
+    {
+        await using var harness = CommandSessionHarness.Create();
+        var first = await harness.CreateThreadAsync();
+        var second = (await harness.ExecuteAsync(first.Id, "/new")).ThreadId!;
+        var choice = Assert.Single((await harness.ExecuteAsync(second, "/sessions")).Choices!);
+
+        var third = (await harness.ExecuteAsync(second, "/new")).ThreadId!;
+        var byChoice = await harness.ExecuteAsync(third, choice.Command);
+        var byNumber = await harness.ExecuteAsync(first.Id, "/resume 2");
+
+        Assert.Equal(first.Id, byChoice.ThreadId);
+        Assert.Equal(second, byNumber.ThreadId);
     }
 
     [Theory]

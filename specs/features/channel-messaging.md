@@ -339,12 +339,12 @@ adapter-owned account commands such as personal authorization.
 | `/new` | Archive the current thread and start a new one for this conversation. | conversation | interruptFirst | everyone |
 | `/stop` | Cancel the active Turn. SubAgent Turns started under it are cancelled with it. Queued input and background shells and Workflows keep running. | current Turn | run | everyone |
 | `/stop all` | Cancel the active Turn, remove queued input, and stop every background task the thread owns (shell, SubAgent, Workflow), recorded as stopped by the user. | current thread | run | everyone |
-| `/tasks` | List the thread's background tasks with an index, kind, label, status and elapsed time. `/tasks stop <n>` stops one. | current thread | run | everyone |
+| `/tasks` | List the thread's background tasks with a number, kind, label, status and elapsed time. `/tasks stop <n or task id>` stops one. | current thread | run | everyone |
 | `/status` | Show the thread's title, state (idle, running, waiting for approval or input), model, mode, context usage, queued input count, running task count and pending approvals. | current thread | run | everyone |
 | `/model [model]` | Without an argument, list the models available for the thread's provider. With one, set the model for the thread's later Turns. | current thread | run | admin |
 | `/mode [agent\|plan]` | Show or set the thread's mode. | current thread | run | everyone |
-| `/sessions` | List this conversation's recent threads, including archived ones, newest first, with an index, title and last activity. | conversation | run | everyone |
-| `/resume <n>` | Make thread `n` from `/sessions` the conversation's current thread: unarchive it and archive the current one. | conversation | interruptFirst | everyone |
+| `/sessions` | List this conversation's recent threads, including archived ones, most recently active first, with a number, title and last activity. | conversation | run | everyone |
+| `/resume <n or thread id>` | Make that thread from `/sessions` the conversation's current thread: unarchive it and archive the current one. | conversation | interruptFirst | everyone |
 | `/compact` | Compact the thread's context. | current thread | reject | everyone |
 | `/automate list\|show\|pause\|resume\|run\|remove` | Unchanged ([Automations lifecycle](automations-lifecycle.md)). | automations created from this conversation | run | admin |
 | `/help` | List the commands the sender may use. | none | run | everyone |
@@ -358,8 +358,9 @@ thread, the adapter switches its current thread to it.
 
 A chat bound to a thread through App Binding (§4.1) belongs to that thread. While the binding is not
 revoked, `/new`, `/resume` and `/sessions` archive nothing and answer that the chat is bound to a
-DotCraft conversation and must be unbound in DotCraft first. `/sessions` and `/tasks` number their entries
-newest first; `/resume <n>` and `/tasks stop <n>` use those numbers. `/model`, `/mode`, `/sessions`
+DotCraft conversation and must be unbound in DotCraft first. `/sessions` and `/tasks` number entries in creation order, so a number never moves when a newer
+thread or task appears; `/resume` and `/tasks stop` accept that number or the entry's id, and the
+choices they return carry the id. `/model`, `/mode`, `/sessions`
 and `/tasks` return choices (§12.5) that select a model, a mode, a thread or a task to stop.
 
 ### 12.3 Authority
