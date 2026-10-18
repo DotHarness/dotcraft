@@ -28,7 +28,7 @@ internal static class ExecInterrupt
                 ct).ConfigureAwait(false);
             var wire = connection.Wire;
 
-            threadId ??= await ExecThreads.FindLatestAsync(wire, workspacePath, ct).ConfigureAwait(false);
+            threadId ??= await ExecThreads.FindLatestAsync(wire, ct).ConfigureAwait(false);
             var thread = await ExecThreads.ReadAsync(wire, threadId, ct).ConfigureAwait(false);
             var turnId = thread.TryGetProperty("runtime", out var runtime)
                 ? OneShotNotification.ReadString(runtime, "activeTurnId")

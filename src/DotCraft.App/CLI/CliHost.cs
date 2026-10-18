@@ -61,7 +61,7 @@ public sealed class CliHost(
     {
         var resuming = request.ResumeThreadId != null || request.ResumeLast;
         var threadId = resuming
-            ? request.ResumeThreadId ?? await ExecThreads.FindLatestAsync(wire, request.WorkspacePath, ct).ConfigureAwait(false)
+            ? request.ResumeThreadId ?? await ExecThreads.FindLatestAsync(wire, ct).ConfigureAwait(false)
             : await ExecThreads.StartAsync(wire, request, ct).ConfigureAwait(false);
         await Console.Error.WriteLineAsync($"[CLI] Thread: {threadId}").ConfigureAwait(false);
 

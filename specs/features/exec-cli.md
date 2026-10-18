@@ -89,7 +89,7 @@ With `--remote`, the workspace is the one the remote AppServer owns.
 
 ### 5.2 Identity
 
-Every exec thread uses `identity = { channelName: "cli", userId: "local", workspacePath }`. Desktop lists these threads with the CLI origin badge.
+Every exec thread uses `identity = { channelName: "cli", userId: "local" }`. Exec omits `workspacePath`, so the connected AppServer supplies its own workspace, both through the Hub and with `--remote`. Desktop lists these threads with the CLI origin badge.
 
 ### 5.3 `--last`
 

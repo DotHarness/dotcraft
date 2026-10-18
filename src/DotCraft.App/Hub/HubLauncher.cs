@@ -15,7 +15,7 @@ internal static class HubLauncher
     {
         if (OperatingSystem.IsWindows())
             StopInheritingStandardHandles();
-        Start(dotcraftBin, paths.HubStatePath, "hub", LauncherOption);
+        Start(ResolveAgainstCaller(dotcraftBin), paths.HubStatePath, "hub", LauncherOption);
     }
 
     public static int RunLauncher()
@@ -25,6 +25,13 @@ internal static class HubLauncher
         Start(CurrentBinary(), HubPaths.ForCurrentUser().HubStatePath, "hub");
         return 0;
     }
+
+    private static string ResolveAgainstCaller(string dotcraftBin) =>
+        dotcraftBin.Contains(Path.DirectorySeparatorChar)
+        || dotcraftBin.Contains(Path.AltDirectorySeparatorChar)
+        || dotcraftBin.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+            ? Path.GetFullPath(dotcraftBin)
+            : dotcraftBin;
 
     public static string CurrentBinary()
     {

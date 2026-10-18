@@ -13,7 +13,7 @@ internal static class ExecThreads
     {
         var result = await RequestAsync(wire, AppServerMethodNames.ThreadStart, new
         {
-            identity = Identity(request.WorkspacePath),
+            identity = Identity,
             config = request.Model is null && !request.AutoApprove
                 ? null
                 : new
@@ -29,11 +29,11 @@ internal static class ExecThreads
             ?? throw new InvalidOperationException("AppServer returned a thread with no id.");
     }
 
-    public static async Task<string> FindLatestAsync(AppServerWireClient wire, string workspacePath, CancellationToken ct)
+    public static async Task<string> FindLatestAsync(AppServerWireClient wire, CancellationToken ct)
     {
         var result = await RequestAsync(wire, AppServerMethodNames.ThreadList, new
         {
-            identity = Identity(workspacePath),
+            identity = Identity,
             scope = "workspace",
             includeArchived = false,
             includeSubAgents = false,
@@ -98,13 +98,7 @@ internal static class ExecThreads
             : turnId;
     }
 
-    private static object Identity(string workspacePath) => new
-    {
-        channelName = "cli",
-        userId = "local",
-        channelContext = (string?)null,
-        workspacePath
-    };
+    private static readonly object Identity = new { channelName = "cli", userId = "local" };
 
     public static Task InterruptTurnAsync(AppServerWireClient wire, string threadId, string turnId, CancellationToken ct) =>
         RequestAsync(wire, AppServerMethodNames.TurnInterrupt, new { threadId, turnId }, ct);

@@ -54,7 +54,7 @@ public sealed class ExecProcessTests : ExecProcessTestBase
 
         Assert.Equal(0, result.ExitCode);
         var start = Assert.Single(server.ParamsOf("thread/start"));
-        Assert.Equal(Workspace, start["identity"]!["workspacePath"]!.GetValue<string>());
+        Assert.Null(start["identity"]!["workspacePath"]);
         Assert.Null(start["cwd"]);
     }
 
@@ -215,7 +215,7 @@ public sealed class ExecProcessTests : ExecProcessTestBase
         Assert.Equal(1, list["limit"]!.GetValue<int>());
         Assert.Equal("cli", list["identity"]!["channelName"]!.GetValue<string>());
         Assert.Equal("local", list["identity"]!["userId"]!.GetValue<string>());
-        Assert.Equal(Workspace, list["identity"]!["workspacePath"]!.GetValue<string>());
+        Assert.Null(list["identity"]!["workspacePath"]);
         Assert.Equal("thread_7", Assert.Single(server.ParamsOf("turn/start"))["threadId"]!.GetValue<string>());
         Assert.Equal("next step", TurnText(server));
         Assert.Contains("[CLI] Thread: thread_7", result.StandardError, StringComparison.Ordinal);
