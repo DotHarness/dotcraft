@@ -292,6 +292,6 @@ internal static class DotCraftApplication
                 workspacePath);
             throw;
         }
-        return 0;
+        return Environment.ExitCode;
     }
 }

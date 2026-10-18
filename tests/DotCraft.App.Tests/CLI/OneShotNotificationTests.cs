@@ -48,7 +48,7 @@ public sealed class OneShotNotificationTests
         yield return
         [
             """
-            {"jsonrpc":"2.0","method":"item/completed","params":{"threadId":"thread_1","item":{"type":"agentMessage","text":"final answer"}}}
+            {"jsonrpc":"2.0","method":"item/completed","params":{"threadId":"thread_1","item":{"type":"agentMessage","payload":{"text":"final answer"}}}}
             """,
             nameof(OneShotNotificationKind.AgentCompleted),
             "final answer",
