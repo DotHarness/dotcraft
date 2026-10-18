@@ -14,8 +14,8 @@ interface TaskBase {
 }
 
 export type BackgroundTask =
-  | (TaskBase & { kind: 'shell'; output: string | null })
-  | (TaskBase & { kind: 'agent'; role: string | null })
+  | (TaskBase & { kind: 'shell'; turnId: string | null; output: string | null })
+  | (TaskBase & { kind: 'agent'; role: string | null; activeTurnId: string | null; tokens: number | null })
   | (TaskBase & { kind: 'workflow'; agents: number })
 
 export type TaskSources = Partial<Record<TaskSource, BackgroundTask[]>>
@@ -26,6 +26,11 @@ const TERMINAL_STATUS: Record<string, TaskStatus> = {
   running: 'running',
   completed: 'completed',
   killed: 'stopped',
+}
+
+const AGENT_TURN_STATUS: Record<string, TaskStatus> = {
+  failed: 'failed',
+  cancelled: 'stopped',
 }
 
 const WORKFLOW_STATUS: Record<string, TaskStatus> = {
@@ -41,8 +46,13 @@ function tail(output: string | undefined): string | null {
   return text.trim() ? text : null
 }
 
+export function isBackgroundTerminal(terminal: BackgroundTerminalSnapshot, activeTurnId: string | null): boolean {
+  if (terminal.backgroundReason === 'runInBackground') return true
+  return terminal.status === 'running' && (!terminal.turnId || terminal.turnId !== activeTurnId)
+}
+
 export function terminalTask(terminal: BackgroundTerminalSnapshot): BackgroundTask | null {
-  if (terminal.backgroundReason !== 'runInBackground' || !terminal.sessionId) return null
+  if (!terminal.sessionId) return null
   const status = TERMINAL_STATUS[terminal.status ?? ''] ?? 'failed'
   return {
     kind: 'shell',
@@ -52,23 +62,27 @@ export function terminalTask(terminal: BackgroundTerminalSnapshot): BackgroundTa
     startedAt: terminal.startedAt ?? null,
     endedAt: terminal.completedAt ?? null,
     stop: status === 'running' ? terminal.sessionId : null,
+    turnId: terminal.turnId ?? null,
     output: tail(terminal.output),
   }
 }
 
-export function agentTask({ edge, thread }: SubAgentChild): BackgroundTask | null {
+export function agentTask({ edge, thread }: SubAgentChild, lastTurnStatus: string | null = null, tokens: number | null = null): BackgroundTask | null {
   const id = edge?.childThreadId
   if (!id) return null
-  const running = thread?.runtime?.running === true
+  const runtime = thread?.runtime
+  const running = runtime?.running === true
   return {
     kind: 'agent',
     id,
     title: edge.agentNickname || thread?.displayName || edge.taskName || id,
-    status: running ? 'running' : edge.status === 'closed' ? 'stopped' : 'completed',
+    status: running ? 'running' : edge.status === 'closed' ? 'stopped' : (AGENT_TURN_STATUS[lastTurnStatus ?? ''] ?? 'completed'),
     startedAt: edge.createdAt ?? thread?.createdAt ?? null,
     endedAt: running ? null : (edge.updatedAt ?? thread?.lastActiveAt ?? null),
-    stop: running && edge.supportsClose && edge.agentPath ? edge.agentPath : null,
+    stop: running ? id : null,
     role: [edge.agentRole, edge.profileName].filter(Boolean).join(' · ') || null,
+    activeTurnId: running ? (runtime?.activeTurnId ?? null) : null,
+    tokens,
   }
 }
 
@@ -103,8 +117,15 @@ function time(value: string | null): number {
   return Date.parse(value ?? '') || 0
 }
 
-export function chatTasks(sources: TaskSources | undefined): { running: BackgroundTask[]; completed: BackgroundTask[] } {
-  const all = [...(sources?.shell ?? []), ...(sources?.agent ?? []), ...(sources?.workflow ?? [])]
+function ofActiveTurn(task: BackgroundTask, activeTurnId: string | null): boolean {
+  return task.kind === 'shell' && task.status === 'running' && !!task.turnId && task.turnId === activeTurnId
+}
+
+export function chatTasks(
+  sources: TaskSources | undefined,
+  activeTurnId: string | null = null,
+): { running: BackgroundTask[]; completed: BackgroundTask[] } {
+  const all = [...(sources?.shell ?? []), ...(sources?.agent ?? []), ...(sources?.workflow ?? [])].filter((task) => !ofActiveTurn(task, activeTurnId))
   return {
     running: all.filter((task) => task.status === 'running').sort((left, right) => time(right.startedAt) - time(left.startedAt)),
     completed: all

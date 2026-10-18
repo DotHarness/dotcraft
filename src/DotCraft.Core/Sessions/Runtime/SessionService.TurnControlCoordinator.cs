@@ -28,7 +28,10 @@ public sealed partial class SessionService
 
         public Task CancelTurn(string threadId, string turnId)
         {
-            owner.TryGetTurnRuntime(new TurnKey(threadId, turnId))?.Interrupt();
+            if (owner.TryGetTurnRuntime(new TurnKey(threadId, turnId)) is { } runtime)
+                runtime.Interrupt();
+            else
+                SubAgentSessionControl.InterruptRunningChild(threadId);
             return Task.CompletedTask;
         }
 

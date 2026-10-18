@@ -2109,6 +2109,13 @@ export function App(): JSX.Element {
             break
           }
 
+          case 'thread/tokenUsage/updated': {
+            const threadId = (p.threadId as string | undefined) ?? ''
+            const total = (p.tokenUsage as { total?: { totalTokens?: number } } | undefined)?.total?.totalTokens
+            if (threadId && typeof total === 'number') useSubAgentStore.getState().updateChildUsage(threadId, total)
+            break
+          }
+
           case 'subagent/graph/changed': {
             const parentThreadId = (p.parentThreadId as string | undefined) ?? ''
             if (parentThreadId) {

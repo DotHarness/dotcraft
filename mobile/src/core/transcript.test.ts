@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { emptyHistory, type ChatHistory, type HistoryItem } from './history'
-import { buildTranscript, thinkingStatus } from './transcript'
+import { buildTranscript, thinkingStatus, type ToolEntry, type TranscriptEntry } from './transcript'
 
 // The trusted source and presentation the server declares on first-party tools.
 const CORE_PRESENTATIONS: Record<string, { presentationId: string; options?: { operation: string } }> = {
   ReadFile: { presentationId: 'core.read-file', options: { operation: 'read' } },
   EditFile: { presentationId: 'core.file-write', options: { operation: 'edit' } },
   CreatePlan: { presentationId: 'core.create-plan' },
+  Exec: { presentationId: 'core.shell', options: { operation: 'exec' } },
+  SpawnAgent: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
+  TaskStop: { presentationId: 'core.task', options: { operation: 'stop' } },
 }
 
 function core(toolName: string) {
@@ -43,6 +46,12 @@ function history(items: HistoryItem[], status: string): ChatHistory {
     items,
     turns: [{ id: 't1', status, error: null, startedAt: '2026-10-04T08:00:00Z', completedAt: status === 'running' ? null : '2026-10-04T08:01:00Z' }],
   }
+}
+
+function tools(entries: TranscriptEntry[]): ToolEntry[] {
+  return entries.flatMap((entry) =>
+    entry.kind === 'tool' ? [entry] : entry.kind === 'toolGroup' || entry.kind === 'activity' ? tools(entry.children) : [],
+  )
 }
 
 describe('turn layout', () => {
@@ -94,7 +103,53 @@ describe('turn layout', () => {
     expect(transcript.filter((entry) => entry.kind === 'user')).toMatchObject([{ text: 'Run the build' }, { text: 'Run the review workflow' }])
   })
 
-    it('marks a stopped turn and drops reasoning that never finished', () => {
+  it('opens a turn woken by a background task with how the task ended', () => {
+    const items = [
+      item('userMessage', { text: 'Background command finished', deliveryMode: 'queued', triggerKind: 'terminal', triggerLabel: 'npm test', triggerRefId: 'term_1', triggerStatus: 'completed' }),
+      item('userMessage', { text: 'Subagent reviewer finished', deliveryMode: 'queued', triggerKind: 'subagent', triggerLabel: 'reviewer', triggerRefId: '/root/reviewer', triggerStatus: 'failed' }),
+      item('agentMessage', { text: 'The tests pass.', phase: 'final' }),
+    ]
+    const transcript = buildTranscript(history(items, 'completed'))
+    expect(transcript.map((entry) => entry.kind)).toEqual(['activity', 'assistant'])
+    expect(transcript[0]).toMatchObject({ origin: { task: 'terminal', label: 'npm test', status: 'completed' } })
+
+    const guided = [
+      item('userMessage', { text: 'Go' }),
+      item('userMessage', { text: 'Done', deliveryMode: 'guidance', triggerKind: 'terminal', triggerStatus: 'completed' }),
+      item('agentMessage', { text: 'Done.', phase: 'final' }),
+    ]
+    expect(buildTranscript(history(guided, 'completed'))).toMatchObject([{ kind: 'user' }, { kind: 'activity', origin: null }, { kind: 'assistant' }])
+  })
+
+  it('names a command that kept running after its result as a background terminal once its turn ended', () => {
+    const exec = (status: string) => [
+      item('userMessage', { text: 'Start the server' }),
+      item('toolCall', { ...core('Exec'), callId: 'c1', arguments: { command: 'npm run dev' } }),
+      item('commandExecution', { command: 'npm run dev', status, sessionId: 'term_1', callId: 'c1' }, { status: status === 'inProgress' ? 'started' : 'completed' }),
+      item('toolResult', { ...core('Exec'), callId: 'c1', result: 'Process running with session ID term_1', success: true }),
+    ]
+    expect(tools(buildTranscript(history(exec('inProgress'), 'running')))[0]).toMatchObject({ verb: 'ran', live: true })
+    expect(tools(buildTranscript(history(exec('inProgress'), 'completed')))[0]).toMatchObject({ verb: 'backgroundStarted', subject: 'npm run dev', live: false })
+    expect(tools(buildTranscript(history(exec('cancelled'), 'completed')))[0]).toMatchObject({ verb: 'backgroundStopped', subject: 'npm run dev' })
+    expect(tools(buildTranscript(history(exec('completed'), 'completed')))[0]).toMatchObject({ verb: 'ran' })
+  })
+
+  it('names what TaskStop stopped from its result and what a spawn started', () => {
+    const items = [
+      item('userMessage', { text: 'Stop the reviewer' }),
+      item('toolCall', { ...core('SpawnAgent'), callId: 's1', arguments: { taskName: 'reviewer', agentNickname: 'Reviewer', message: 'Review the diff' } }),
+      item('toolResult', { ...core('SpawnAgent'), callId: 's1', result: '{"agentPath":"/root/reviewer","status":"running"}', success: true }),
+      item('toolCall', { ...core('TaskStop'), callId: 'k1', arguments: { taskId: '/root/reviewer' } }),
+      item('toolResult', { ...core('TaskStop'), callId: 'k1', result: '{"taskId":"/root/reviewer","kind":"agent","label":"Reviewer","status":"stopped","lastAgentMessage":"Half done"}', success: true }),
+      item('toolCall', { ...core('TaskStop'), callId: 'k2', arguments: { taskId: 'term_9' } }),
+    ]
+    const [spawn, stopped, stopping] = tools(buildTranscript(history(items, 'running')))
+    expect(spawn).toMatchObject({ verb: 'spawned', subject: 'Reviewer', icon: 'agent', details: [{ target: 'Review the diff', output: null }] })
+    expect(stopped).toMatchObject({ verb: 'stoppedAgent', subject: 'Reviewer', icon: 'stopped', details: [{ target: 'Half done', output: null }] })
+    expect(stopping).toMatchObject({ verb: 'stoppingShell', subject: null, live: true })
+  })
+
+  it('marks a stopped turn and drops reasoning that never finished', () => {
     const items = [item('userMessage', { text: 'Go' }), item('reasoningContent', { text: 'Hmm' }, { status: 'started', completedAt: null })]
     expect(buildTranscript(history(items, 'cancelled'))).toMatchObject([{ kind: 'user' }, { kind: 'activity', status: 'stopped' }])
   })

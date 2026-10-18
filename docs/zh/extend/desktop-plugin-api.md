@@ -513,7 +513,7 @@ useEffect(() => {
 
 ### 跟随 SubAgent
 
-`host.subagents` 读取 Desktop 为某个父 thread 跟踪的 SubAgent，也就是它的 Subagents 标签页列出的那些。`list` 返回快照。只要某个子 SubAgent 的身份、状态或摘要发生变化，`onChange` 就会重新发送完整列表：
+`host.subagents` 读取 Desktop 为某个父 thread 跟踪的 SubAgent，也就是它的 Subagents 标签页列出的那些。`list` 返回快照。只要某个子 SubAgent 的身份或状态发生变化，`onChange` 就会重新发送完整列表：
 
 ```ts
 const render = (agents: readonly DesktopPluginSubAgent[]) =>
@@ -530,7 +530,6 @@ host.subagents.onChange(threadId, render);
 | `agentPath` | 它的 agent path，未知时为 `null`。 |
 | `nickname` | Subagents 标签页显示的名字。把它传给 `AgentAvatar`。 |
 | `state` | `working`、`waiting`、`done`、`failed` 或 `cancelled`。 |
-| `summary` | 它最新一条消息的预览，Desktop 尚未读取时为 `null`。 |
 
 `waiting` 表示该 SubAgent 的当前轮次需要审批或用户输入。`done` 涵盖已完成或已关闭的 SubAgent。
 

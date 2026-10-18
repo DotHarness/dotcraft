@@ -29,8 +29,7 @@ function toDesktopPluginSubAgent(parentThreadId: string, child: SubAgentChild): 
     childThreadId: child.childThreadId,
     agentPath: child.agentPath ?? null,
     nickname: child.nickname,
-    state: desktopPluginSubAgentState(child),
-    summary: child.lastMessagePreview
+    state: desktopPluginSubAgentState(child)
   }
 }
 
@@ -52,7 +51,6 @@ function sameSubAgents(a: readonly DesktopPluginSubAgent[], b: readonly DesktopP
       && entry.agentPath === other.agentPath
       && entry.nickname === other.nickname
       && entry.state === other.state
-      && entry.summary === other.summary
   })
 }
 

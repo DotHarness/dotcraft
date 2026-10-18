@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Square } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import {
   isSubAgentChildClosed,
@@ -8,8 +9,11 @@ import {
 } from '../../stores/subAgentStore'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { useThreadStore } from '../../stores/threadStore'
-import { ActionTooltip } from '../ui/ActionTooltip'
-import { RunningShimmer } from '../ui/RunningShimmer'
+import { DisclosureChevron } from '../ui/DisclosureChevron'
+import { IconButton } from '../ui/IconButton'
+import { Spinner } from '../ui/Spinner'
+import { addToast } from '../../stores/toastStore'
+import { formatCompactCount } from '../../utils/formatCompactCount'
 import { formatSubAgentMeta } from '../../utils/subAgentPresentation'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { formatRelativeTime } from '../../utils/relativeTime'
@@ -19,8 +23,6 @@ import styles from './SubagentsTab.module.css'
 
 const EMPTY_CHILDREN: SubAgentChild[] = []
 
-/** Refresh interval for running subagents' live message preview while the tab is open. */
-const RUNNING_PREVIEW_POLL_MS = 3000
 
 export function SubagentsTab(): JSX.Element {
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
@@ -61,33 +63,19 @@ function SubagentList({ parentThreadId }: { parentThreadId: string | null }): JS
   const children = useSubAgentStore((s) =>
     parentThreadId ? s.childrenByParent.get(parentThreadId) ?? EMPTY_CHILDREN : EMPTY_CHILDREN
   )
-  const fetchPreviews = useSubAgentStore((s) => s.fetchPreviews)
+  const fetchUsage = useSubAgentStore((s) => s.fetchUsage)
+  const [finishedOpen, setFinishedOpen] = useState(false)
+  const [closedOpen, setClosedOpen] = useState(false)
 
-  // Load previews for any children that arrived via live progress/graph events
-  // after the initial fetch (e.g. a subagent finishing while the tab is open).
   useEffect(() => {
     if (!parentThreadId) return
-    if (children.some((child) =>
-      child.isPlaceholder !== true
-      && child.lastMessagePreview == null
-    )) {
-      void fetchPreviews(parentThreadId)
+    if (children.some((child) => child.isPlaceholder !== true && child.usedTokens == null)) {
+      void fetchUsage(parentThreadId)
     }
-  }, [parentThreadId, children, fetchPreviews])
+  }, [parentThreadId, children, fetchUsage])
 
   const hasRunningSubagent = children.some(isSubAgentChildRunning)
   const elapsedNowMs = useElapsedNow(hasRunningSubagent)
-
-  // While the tab is open and any subagent is running, poll its latest agent
-  // message so the Active rows show live progress. Stops when nothing is running
-  // or the tab unmounts, so idle tabs never poll.
-  useEffect(() => {
-    if (!parentThreadId || !hasRunningSubagent) return
-    const timer = setInterval(() => {
-      void fetchPreviews(parentThreadId, { runningOnly: true })
-    }, RUNNING_PREVIEW_POLL_MS)
-    return () => clearInterval(timer)
-  }, [parentThreadId, hasRunningSubagent, fetchPreviews])
 
   const { active, done, closed } = useMemo(() => {
     const running: SubAgentChild[] = []
@@ -115,9 +103,9 @@ function SubagentList({ parentThreadId }: { parentThreadId: string | null }): JS
 
   return (
     <div className={`${styles.scrollContainer} dc-scrollbar-stable`}>
-      <SectionHeader label={t('subagentsPanel.active')} count={active.length} />
+      <SectionHeader label={t('subagentsPanel.running')} count={active.length} />
       {active.length === 0 ? (
-        <p className={styles.sectionEmpty}>{t('subagentsPanel.noActive')}</p>
+        <p className={styles.sectionEmpty}>{t('subagentsPanel.noRunning')}</p>
       ) : (
         <div className={styles.rows}>
           {active.map((child) => (
@@ -128,34 +116,61 @@ function SubagentList({ parentThreadId }: { parentThreadId: string | null }): JS
 
       {done.length > 0 && (
         <>
-          <SectionHeader label={t('subagentsPanel.done')} count={done.length} />
-          <div className={styles.rows}>
-            {done.map((child) => (
-              <SubagentRow key={child.childThreadId} child={child} elapsedNowMs={elapsedNowMs} onOpen={open} />
-            ))}
-          </div>
+          <SectionHeader label={t('subagentsPanel.finished')} count={done.length} open={finishedOpen} onToggle={setFinishedOpen} />
+          {finishedOpen && (
+            <div className={styles.rows}>
+              {done.map((child) => (
+                <SubagentRow key={child.childThreadId} child={child} elapsedNowMs={elapsedNowMs} onOpen={open} />
+              ))}
+            </div>
+          )}
         </>
       )}
 
       {closed.length > 0 && (
         <>
-          <SectionHeader label={t('subagentsPanel.closed')} count={closed.length} />
-          <div className={styles.rows}>
-            {closed.map((child) => (
-              <SubagentRow key={child.childThreadId} child={child} elapsedNowMs={elapsedNowMs} onOpen={open} />
-            ))}
-          </div>
+          <SectionHeader label={t('subagentsPanel.closed')} count={closed.length} open={closedOpen} onToggle={setClosedOpen} />
+          {closedOpen && (
+            <div className={styles.rows}>
+              {closed.map((child) => (
+                <SubagentRow key={child.childThreadId} child={child} elapsedNowMs={elapsedNowMs} onOpen={open} />
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
   )
 }
 
-function SectionHeader({ label, count }: { label: string; count: number }): JSX.Element {
+function SectionHeader({
+  label,
+  count,
+  open,
+  onToggle
+}: {
+  label: string
+  count: number
+  open?: boolean
+  onToggle?: (open: boolean) => void
+}): JSX.Element {
+  if (!onToggle) {
+    return (
+      <div className={styles.sectionHeader}>
+        <span className={styles.sectionHeaderLabel}>{label} · {count}</span>
+      </div>
+    )
+  }
   return (
-    <div className={styles.sectionHeader}>
+    <button
+      type="button"
+      className={`${styles.sectionHeader} ${styles.sectionToggle}`}
+      aria-expanded={open === true}
+      onClick={() => onToggle(!open)}
+    >
       <span className={styles.sectionHeaderLabel}>{label} · {count}</span>
-    </div>
+      <span className={styles.sectionChevron} aria-hidden><DisclosureChevron expanded={open === true} /></span>
+    </button>
   )
 }
 
@@ -170,46 +185,80 @@ function SubagentRow({
 }): JSX.Element {
   const t = useT()
   const locale = useLocale()
+  const [stopping, setStopping] = useState(false)
   const running = isSubAgentChildRunning(child)
   const meta = formatSubAgentMeta({
     agentRole: child.agentRole,
     profileName: child.profileName,
     runtimeType: child.runtimeType
   })
-  const preview = resolvePreview(child, running, t)
+  const ended = running ? null : endedStatus(child, t)
   const timeLabel = running
     ? formatRunningElapsed(child.runtime?.activeTurnStartedAt, elapsedNowMs)
-    : child.threadSummary?.lastActiveAt
+    : ended ?? (child.threadSummary?.lastActiveAt
       ? formatRelativeTime(child.threadSummary.lastActiveAt, new Date(elapsedNowMs), locale)
-      : ''
+      : '')
   const canOpen = child.isPlaceholder !== true
+  const canStop = running && child.isPlaceholder !== true
+  const stop = (): void => {
+    setStopping(true)
+    useSubAgentStore.getState().interruptChild(child).then(
+      () => setStopping(false),
+      () => {
+        setStopping(false)
+        addToast(t('subagentsPanel.stopFailed'), 'error')
+      }
+    )
+  }
 
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(child)}
-      disabled={!canOpen}
-      aria-label={t('subagentsPanel.openAria', { name: child.nickname })}
-      className={styles.row}
-    >
-      <span className={styles.avatar}>
-        <RobotAvatar name={child.nickname} size={32} />
-      </span>
-      <span className={styles.bodyCell}>
-        <span className={styles.titleRow}>
-          <span className={styles.nameGroup}>
-            <span className={styles.nickname}>{child.nickname}</span>
-            {meta && <span className={styles.meta}>({meta})</span>}
-          </span>
-          {timeLabel && <span className={styles.time}>{timeLabel}</span>}
+    <div className={styles.row} data-stoppable={canStop || undefined}>
+      <button
+        type="button"
+        onClick={() => onOpen(child)}
+        disabled={!canOpen}
+        aria-label={t('subagentsPanel.openAria', { name: child.nickname })}
+        className={styles.rowButton}
+      >
+        <span className={styles.avatar}>
+          <RobotAvatar name={child.nickname} size={32} />
         </span>
-        <ActionTooltip label={preview} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
-          <RunningShimmer active={running} className={styles.preview}>
-            {preview}
-          </RunningShimmer>
-        </ActionTooltip>
-      </span>
-    </button>
+        <span className={styles.bodyCell}>
+          <span className={styles.titleRow}>
+            <span className={styles.nameGroup}>
+              <span className={styles.nickname}>{child.nickname}</span>
+              {meta && <span className={styles.meta}>({meta})</span>}
+            </span>
+            {timeLabel && <span className={styles.time} data-ended={ended ? true : undefined}>{timeLabel}</span>}
+          </span>
+          {(child.model || child.usedTokens != null) && (
+            <span className={styles.usage}>
+              {child.model}
+              {child.model && child.usedTokens != null && ' · '}
+              {child.usedTokens != null && (
+                <span>
+                  <span className={styles.usageCount}>{formatCompactCount(child.usedTokens)}</span>
+                  {' '}{t('subagentsPanel.tokens')}
+                </span>
+              )}
+            </span>
+          )}
+        </span>
+      </button>
+      {canStop && (
+        <span className={styles.stop}>
+          <IconButton
+            size={24}
+            icon={stopping ? <Spinner size={14} /> : <Square size={14} strokeWidth={1.75} />}
+            label={t('subagentsPanel.stop', { name: child.nickname })}
+            tooltipLabel={t('subagentsPanel.stop', { name: child.nickname })}
+            disabled={stopping}
+            aria-busy={stopping || undefined}
+            onClick={stop}
+          />
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -230,30 +279,12 @@ function formatRunningElapsed(startedAt: string | null | undefined, nowMs: numbe
   return formatSubAgentElapsed(nowMs - startedAtMs)
 }
 
-function resolvePreview(
-  child: SubAgentChild,
-  running: boolean,
-  t: (key: string, vars?: Record<string, string | number>) => string
-): string {
-  if (running) {
-    // Prefer the live agent message the subagent is producing (refreshed by the
-    // panel's poll); fall back to the current tool activity, then to "Running".
-    return child.lastMessagePreview?.trim()
-      || child.lastToolDisplay?.trim()
-      || t('subAgentDock.running')
-  }
-  const preview = child.lastMessagePreview?.trim()
-  if (preview) return preview
-  return formatDoneStatus(child, t)
-}
-
-function formatDoneStatus(
+function endedStatus(
   child: SubAgentChild,
   t: (key: string, vars?: Record<string, string | number>) => string
-): string {
+): string | null {
   const normalized = child.status.trim().toLowerCase()
-  if (normalized === 'closed') return t('subagentsPanel.closedStatus')
   if (normalized === 'failed') return t('subAgentDock.failed')
   if (normalized === 'cancelled' || normalized === 'canceled') return t('subAgentDock.cancelled')
-  return t('subAgentDock.completed')
+  return null
 }

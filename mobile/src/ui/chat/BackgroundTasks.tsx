@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { BackgroundTask } from '../../core/backgroundTasks'
+import { compactCount } from '../../core/contextUsage'
 import { useI18n, type I18n } from '../../i18n'
 import type { MessageId } from '../../i18n/messages/en'
 import { CircleStopGlyph, Icon, type IconName } from '../icons'
@@ -19,7 +20,7 @@ export function runningTasksLabel(t: I18n['t'], count: number): string {
   return t(count === 1 ? 'tasks.runningOne' : 'tasks.runningMany', { count })
 }
 
-export function TasksRow({ count, onPress }: { count: number; onPress: () => void }) {
+export function TasksPill({ count, onPress }: { count: number; onPress: () => void }) {
   const { t } = useI18n()
   const { colors } = useTheme()
   const label = runningTasksLabel(t, count)
@@ -28,11 +29,15 @@ export function TasksRow({ count, onPress }: { count: number; onPress: () => voi
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      hitSlop={6}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.pill,
+        { borderColor: colors.borderDefault, backgroundColor: pressed ? colors.bgTertiary : colors.bgElevated, boxShadow: colors.shadow1 },
+      ]}
     >
-      <Icon name="activity" size={16} color={colors.accent} />
-      <Text style={[type.text, { color: colors.accent }]}>{label}</Text>
+      <Icon name="layers" size={16} color={colors.textSecondary} />
+      <Txt numberOfLines={1} style={styles.shrink}>
+        {label}
+      </Txt>
     </Pressable>
   )
 }
@@ -79,6 +84,7 @@ function TaskCard({ task, now, onStop }: { task: BackgroundTask; now: number; on
     t(KIND[task.kind].label),
     ...(span !== null ? [duration(span)] : []),
     ...(task.status === 'stopped' ? [t('tasks.stopped')] : task.status === 'failed' ? [t('state.failed')] : []),
+    ...(task.kind === 'agent' && task.tokens ? [t('tasks.tokens', { count: compactCount(task.tokens) })] : []),
   ].join(' · ')
   const stop = () => {
     setStopping(true)
@@ -216,7 +222,17 @@ export function TasksSheet({
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', minHeight: 32 },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+    height: 38,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderRadius: metrics.pill,
+  },
+  shrink: { flexShrink: 1 },
   pressed: { opacity: 0.6 },
   section: { gap: 8 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: metrics.touch },

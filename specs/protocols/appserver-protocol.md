@@ -1418,6 +1418,11 @@ Before emitting `turn/cancelled`, the server resolves the turn's pending approva
 
 The actual cancellation is asynchronous. Rely on the `turn/cancelled` notification to know when the turn has stopped.
 
+Interrupting the active turn of a SubAgent child thread stops that child the way the model's
+`TaskStop` does, for native and external runtimes alike: the spawn edge stays open, so the parent can
+continue the child later, and the parent receives a task notification that the user stopped it (see
+[Background Tasks](../architecture/background-tasks.md) §5).
+
 The server also loads a thread that is not yet present in the current process before handling this
 request. If cold loading finds the requested persisted Turn in `running`, `waitingApproval`, or
 `waitingInput`, cold-load recovery durably changes it to `cancelled` and emits `turn/cancelled` with
@@ -2225,6 +2230,51 @@ Emitted each time the agent completes an LLM iteration and produces a `UsageCont
 - Cache-hit accounting is cumulative by the same rule: `cachedInputTokens` deltas sum to the Turn's cache-hit input total, so dashboards can show how much of `turnInputTokens` came from cache hits.
 - SubAgent tokens are reported separately via `subagent/progress` and are not included in `item/usage/delta`.
 - Clients that do not need real-time token display can opt out via `optOutNotificationMethods: ["item/usage/delta"]` during `initialize`.
+
+#### `thread/tokenUsage/updated`
+
+Emitted after each LLM iteration of a thread with the thread's token usage so far, so a client can
+show how much a thread, and in particular a SubAgent, has used while it runs.
+
+**Params**:
+
+```json
+{
+  "threadId": "thread_child",
+  "turnId": "turn_003",
+  "tokenUsage": {
+    "total": { "totalTokens": 275300, "inputTokens": 268100, "cachedInputTokens": 201400, "cacheWriteInputTokens": 0, "outputTokens": 7200, "reasoningOutputTokens": 1900 },
+    "last": { "totalTokens": 18450, "inputTokens": 18000, "cachedInputTokens": 15800, "cacheWriteInputTokens": 0, "outputTokens": 450, "reasoningOutputTokens": 120 },
+    "modelContextWindow": 400000
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `threadId` | string | Thread whose usage changed. |
+| `turnId` | string | Turn that made the LLM request. |
+| `tokenUsage.total` | TokenUsageBreakdown | Usage of every Turn of the thread so far, including the running Turn. |
+| `tokenUsage.last` | TokenUsageBreakdown | Usage of the LLM request that produced this notification. |
+| `tokenUsage.modelContextWindow` | integer? | Context window of the model that served the request, when known. |
+
+`TokenUsageBreakdown` fields are `totalTokens`, `inputTokens`, `cachedInputTokens`,
+`cacheWriteInputTokens`, `outputTokens`, and `reasoningOutputTokens`, all integers; `totalTokens` is
+input plus output.
+
+**Emission rules**:
+
+- Emitted for every thread, SubAgent child threads included, once per LLM iteration, from the same
+  usage as that iteration's `item/usage/delta`; the two travel separately, so clients do not rely on
+  their order. An external SubAgent runtime reports once, when its Turn completes.
+- `total` after a Turn ends equals the sum of `tokenUsage` over the thread's persisted Turns.
+  Clients take their starting value from that sum and replace it with `total` from each
+  notification.
+- Delivered to connections subscribed to the thread and, for a SubAgent child thread, to connections
+  subscribed to its parent thread, so a client follows its subagents' usage without subscribing to
+  each child.
+- Clients can opt out via `optOutNotificationMethods: ["thread/tokenUsage/updated"]` during
+  `initialize`.
 
 ### 6.7 System Notifications
 

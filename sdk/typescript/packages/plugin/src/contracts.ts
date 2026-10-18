@@ -227,12 +227,11 @@ export interface DesktopPluginSubAgent {
   readonly agentPath: string | null;
   readonly nickname: string;
   readonly state: DesktopPluginSubAgentState;
-  readonly summary: string | null;
 }
 
 export interface DesktopPluginSubAgents {
   list(parentThreadId: string): readonly DesktopPluginSubAgent[];
-  /** Notifies with the complete list when a child's identity, state, or summary changes; never fires on subscribe. */
+  /** Notifies with the complete list when a child's identity or state changes; never fires on subscribe. */
   onChange(
     parentThreadId: string,
     listener: (subagents: readonly DesktopPluginSubAgent[]) => void,

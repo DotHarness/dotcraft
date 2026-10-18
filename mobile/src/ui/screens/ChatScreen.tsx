@@ -14,7 +14,7 @@ import { controlsOf, offersPlanMode, type ChatControls } from '../../core/thread
 import { buildTranscript } from '../../core/transcript'
 import { runningTurnChanges, turnChanges } from '../../core/turnChanges'
 import { useI18n } from '../../i18n'
-import { TasksRow, TasksSheet } from '../chat/BackgroundTasks'
+import { TasksPill, TasksSheet } from '../chat/BackgroundTasks'
 import { ChangesOpenerContext, ChangesPill, ChangesSheet } from '../chat/Changes'
 import { BAR_HEIGHT, BarButton, ChatBar } from '../chat/ChatBar'
 import { ChatMenu } from '../chat/ChatMenu'
@@ -82,7 +82,8 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const pending: PendingRequest[] = state.pending[key] ?? []
   const transcript = useMemo(() => (detail ? buildTranscript(detail.history, detail.effectiveWorkspacePath) : []), [detail])
   const chatTaskSources = state.tasks[key]
-  const tasks = useMemo(() => chatTasks(chatTaskSources), [chatTaskSources])
+  const activeTurnId = chat?.runtime?.activeTurnId ?? null
+  const tasks = useMemo(() => chatTasks(chatTaskSources, activeTurnId), [chatTaskSources, activeTurnId])
   const catchingUp = live && (detail ? detail.loading && detail.history.items.length === 0 : true)
   const profile = chat?.profileId ? (detail?.profileName ?? chat.profileId) : null
   const configured = controlsOf(detail?.config, state.models[projectId]?.approvalDefault ?? 'prompt')
@@ -216,7 +217,6 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
                   </ChangesOpenerContext.Provider>
                 </ImageReaderContext.Provider>
               </FileViewerContext.Provider>
-              {tasks.running.length > 0 ? <TasksRow count={tasks.running.length} onPress={() => setTasksOpen(true)} /> : null}
               {decision ? (
                 <View style={styles.decision}>
                   <DecisionCard key={decision.requestId} decision={decision} count={decisions.length} disabled={!ready} actions={actions} />
@@ -240,7 +240,14 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
           {docked ? (
             <Dock
               floating
-              above={runningChanges ? <ChangesPill changes={runningChanges} onPress={() => openChanges(runningChanges.turnId)} /> : null}
+              above={
+                runningChanges || tasks.running.length > 0 ? (
+                  <View style={styles.pills}>
+                    {runningChanges ? <ChangesPill changes={runningChanges} onPress={() => openChanges(runningChanges.turnId)} /> : null}
+                    {tasks.running.length > 0 ? <TasksPill count={tasks.running.length} onPress={() => setTasksOpen(true)} /> : null}
+                  </View>
+                ) : null
+              }
               onLayout={({ nativeEvent }) => setDockHeight(nativeEvent.layout.height)}
             >
               <Composer
@@ -321,4 +328,5 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   transcript: { flexGrow: 1, gap: 14, paddingTop: BAR_HEIGHT + 20, paddingHorizontal: metrics.gutter, paddingBottom: 16 },
   decision: { marginTop: 'auto' },
+  pills: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
 })

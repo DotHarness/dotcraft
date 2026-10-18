@@ -7,6 +7,8 @@ export interface FakeTerminal {
   completedAt?: string
   exitCode?: number
   output: string
+  turnId?: string
+  backgroundReason?: string | null
 }
 
 export interface FakeAgent {
@@ -16,6 +18,8 @@ export interface FakeAgent {
   role: string
   running: boolean
   closed?: boolean
+  lastTurn?: 'completed' | 'failed' | 'cancelled'
+  tokens?: number
   createdAt: string
   updatedAt: string
 }
@@ -51,13 +55,13 @@ function stamp(): string {
 function terminalBody(terminal: FakeTerminal): Record<string, unknown> {
   return {
     ...terminal,
-    turnId: null,
+    turnId: terminal.turnId ?? null,
     callId: null,
     workingDirectory: '',
     source: 'host',
     exitCode: terminal.exitCode ?? null,
     completedAt: terminal.completedAt ?? null,
-    backgroundReason: 'runInBackground',
+    backgroundReason: terminal.backgroundReason === undefined ? 'runInBackground' : terminal.backgroundReason,
   }
 }
 
@@ -90,7 +94,13 @@ function agentBody(agent: FakeAgent): Record<string, unknown> {
       createdAt: agent.createdAt,
       lastActiveAt: agent.updatedAt,
       source: { kind: 'subagent' },
-      runtime: { running: agent.running, busy: agent.running, waitingOnApproval: false, waitingOnInput: false },
+      runtime: {
+        running: agent.running,
+        busy: agent.running,
+        activeTurnId: agent.running ? `turn_${agent.childThreadId}` : null,
+        waitingOnApproval: false,
+        waitingOnInput: false,
+      },
     },
   }
 }
@@ -148,14 +158,21 @@ export class FakeBackground {
             data: this.agents.filter((entry) => entry.parentThreadId === params.parentThreadId && (params.includeClosed === true || !entry.closed)).map(agentBody),
           },
         }
-      case 'subagent/close': {
-        const agent = this.agents.find((entry) => entry.parentThreadId === params.parentThreadId && `/root/${taskName(entry)}` === params.target)
-        if (!agent) return { error: { code: -32602, message: 'Unknown agent.' } }
-        Object.assign(agent, { running: false, closed: true, updatedAt: stamp() })
+      case 'turn/interrupt': {
+        const agent = this.agents.find((entry) => entry.childThreadId === params.threadId)
+        if (!agent) return null
+        if (!agent.running) return { error: { code: -32014, message: 'Turn not running.' } }
+        Object.assign(agent, { running: false, lastTurn: 'cancelled', updatedAt: stamp() })
         return {
-          result: { status: 'closed', supportsSendMessage: true, supportsFollowupTask: true, supportsClose: true },
+          result: {},
           after: () => this.host.notify(agent.parentThreadId, 'subagent/graph/changed', { parentThreadId: agent.parentThreadId, childThreadId: agent.childThreadId }),
         }
+      }
+      case 'thread/turns/list': {
+        const agent = this.agents.find((entry) => entry.childThreadId === params.threadId)
+        if (!agent) return null
+        const tokenUsage = agent.tokens ? { tokenUsage: { inputTokens: Math.round(agent.tokens * 0.97), outputTokens: agent.tokens - Math.round(agent.tokens * 0.97), totalTokens: agent.tokens } } : {}
+        return { result: { data: [{ id: `turn_${agent.childThreadId}`, threadId: agent.childThreadId, status: agent.running ? 'running' : (agent.lastTurn ?? 'completed'), ...tokenUsage }] } }
       }
       case 'workflow/run/list': {
         const runs = this.workflows

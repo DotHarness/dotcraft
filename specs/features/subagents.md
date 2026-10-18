@@ -62,10 +62,10 @@ Activity and navigation share the resolved child. Clicking it opens the Subagent
 active conversation on that child's read-only transcript; unresolved entries open the tab's list.
 
 Desktop caches `subagent/children/list` with `includeClosed: true` and `includeThreads: true`.
-Conversation and preview surfaces share initial discovery per parent; notifications refresh it.
+Conversation and panel surfaces share initial discovery per parent; notifications refresh it.
 Each parent records idle, loading, ready, or error, plus whether discovery has ever succeeded.
 A refresh during loading schedules one trailing request. Clearing a parent or resetting the
-connection invalidates pending list and preview responses. Failure does not complete discovery.
+connection invalidates pending list and usage responses. Failure does not complete discovery.
 
 Pending spawn and initial discovery display `started working`. Resolved runtime and explicit
 terminal state take precedence: closed edges stay finished despite stale running notifications,

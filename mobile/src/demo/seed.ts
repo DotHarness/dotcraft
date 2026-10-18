@@ -8,7 +8,7 @@ import {
   type FakeProvider,
   type FakeThread,
 } from './fakeComputer'
-import type { FakeBackgroundSeed } from './fakeBackground'
+import type { FakeAgent, FakeBackgroundSeed } from './fakeBackground'
 import { sampleDiff, textBase64 } from './fakeDiffs'
 import { MEADOW_PNG } from './images'
 
@@ -30,6 +30,10 @@ type Line =
   | { kind: 'chart'; text: string }
   | { kind: 'plan'; plan: string; steps: string[] }
   | { kind: 'workflowFinished'; name: string; runId: string }
+  | { kind: 'background'; command: string; sessionId: string }
+  | { kind: 'spawned'; nickname: string; taskName: string; message: string }
+  | { kind: 'taskStopped'; taskId: string; task: 'shell' | 'agent' | 'workflow'; label: string; lastMessage?: string }
+  | { kind: 'woken'; task: 'terminal' | 'subagent' | 'workflow'; label: string; refId: string; status: string; text: string }
 
 interface ChatSeed {
   id: string
@@ -343,6 +347,50 @@ const CHATS: ChatSeed[] = [
     continuation: 'Sure, here’s more detail.',
   },
   {
+    id: 'api-checks',
+    context: 0.27,
+    title: 'Check the API against its docs',
+    project: 'dotcraft',
+    minutesAgo: 3,
+    lines: [
+      {
+        kind: 'user',
+        text: 'Run the integration tests in the background, have subagents check the docs, the changelog, and the schema, and keep the API server running for them.',
+      },
+      { kind: 'ran', command: 'npm run test:integration', output: 'Started in the background as term_integration.' },
+      { kind: 'spawned', nickname: 'Docs reviewer', taskName: 'docs_reviewer', message: 'Check every endpoint page in docs/api against the running server and list stale examples.' },
+      { kind: 'spawned', nickname: 'Changelog checker', taskName: 'changelog_checker', message: 'Check that each API entry in the 0.8.3 changelog matches the server’s behaviour.' },
+      { kind: 'spawned', nickname: 'Schema auditor', taskName: 'schema_auditor', message: 'Compare the OpenAPI schema with the server’s responses and report mismatches.' },
+      { kind: 'background', command: 'npm run api:dev', sessionId: 'term_api_dev' },
+      {
+        kind: 'assistant',
+        text: 'The API server is up and the integration tests run in the background. Three subagents are checking the docs, the changelog, and the schema. I’ll report back as each one finishes.',
+      },
+      {
+        kind: 'woken',
+        task: 'terminal',
+        label: 'npm run test:integration',
+        refId: 'term_integration',
+        status: 'completed',
+        text: 'Background command finished (exit code 0): npm run test:integration',
+      },
+      { kind: 'assistant', text: 'The integration tests passed: 48 of 48. The subagents are still working.' },
+      { kind: 'woken', task: 'subagent', label: 'Docs reviewer', refId: '/root/docs_reviewer', status: 'failed', text: 'Subagent Docs reviewer failed' },
+      {
+        kind: 'taskStopped',
+        taskId: '/root/changelog_checker',
+        task: 'agent',
+        label: 'Changelog checker',
+        lastMessage: 'Checked 9 of 14 entries. No mismatches so far.',
+      },
+      {
+        kind: 'assistant',
+        text: 'The docs reviewer failed because the docs site doesn’t build, so I stopped the changelog checker too: its pages come from the same build. The API server is still running, and the schema auditor is still comparing responses.',
+      },
+    ],
+    continuation: 'Looking into the docs build now.',
+  },
+  {
     id: 'release-summary',
     context: 0.08,
     title: 'Summarize yesterday’s release notes',
@@ -491,6 +539,12 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
     push('toolCall', { toolName, providerFlatName: toolName, callId, arguments: args, ...shown })
     push('toolResult', { toolName, providerFlatName: toolName, callId, result: 'ok', success: true, ...shown, ...result })
   }
+  const nextTurn = () => {
+    const at = iso(now, chat.minutesAgo + 1, clock)
+    finished.push({ id: turnId, threadId: id, status: 'completed', startedAt: turnStarted, completedAt: at })
+    turnId = sequenceId('turn', finished.length + 1)
+    turnStarted = at
+  }
   const emit = (line: Line) => {
     switch (line.kind) {
       case 'user': {
@@ -545,14 +599,41 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
         tool('CreatePlan', { plan: line.plan, todos: line.steps.map((content, index) => ({ id: `step-${index + 1}`, content })) })
         break
       case 'workflowFinished': {
-        const at = iso(now, chat.minutesAgo + 1, clock)
-        finished.push({ id: turnId, threadId: id, status: 'completed', startedAt: turnStarted, completedAt: at })
-        turnId = sequenceId('turn', finished.length + 1)
-        turnStarted = at
+        nextTurn()
         const text = `Workflow ${line.name} finished.`
         push('userMessage', { text, nativeInputParts: [{ type: 'text', text }], triggerKind: 'workflow', triggerLabel: line.name, triggerRefId: line.runId })
         break
       }
+      case 'background': {
+        const callId = nextCall()
+        const shown = { presentation: PRESENTATIONS.Exec, source: CORE_SOURCE }
+        push('toolCall', { toolName: 'Exec', providerFlatName: 'Exec', callId, arguments: { command: line.command }, ...shown })
+        push('commandExecution', { command: line.command, status: 'inProgress', sessionId: line.sessionId, callId, source: 'host', aggregatedOutput: '' }, 1, 'started')
+        push('toolResult', { toolName: 'Exec', providerFlatName: 'Exec', callId, result: `Process running with session ID ${line.sessionId}`, success: true, ...shown })
+        break
+      }
+      case 'spawned': {
+        const result = { agentPath: `/root/${line.taskName}`, taskName: line.taskName, agentNickname: line.nickname, status: 'running' }
+        tool('SpawnAgent', { taskName: line.taskName, agentNickname: line.nickname, message: line.message }, { result: JSON.stringify(result) })
+        break
+      }
+      case 'taskStopped': {
+        const result = { taskId: line.taskId, kind: line.task, label: line.label, status: 'stopped', ...(line.lastMessage ? { lastAgentMessage: line.lastMessage } : {}) }
+        tool('TaskStop', { taskId: line.taskId }, { result: JSON.stringify(result) })
+        break
+      }
+      case 'woken':
+        nextTurn()
+        push('userMessage', {
+          text: line.text,
+          nativeInputParts: [{ type: 'text', text: line.text }],
+          deliveryMode: 'queued',
+          triggerKind: line.task,
+          triggerLabel: line.label,
+          triggerRefId: line.refId,
+          triggerStatus: line.status,
+        })
+        break
       case 'chart':
         tool('NodeReplJs', { code: 'renderChart()' }, {
           result: '',
@@ -668,6 +749,60 @@ const PRESENTATIONS: Record<string, { presentationId: string; options?: { operat
   ReadFile: { presentationId: 'core.read-file', options: { operation: 'read' } },
   GrepFiles: { presentationId: 'core.read-file', options: { operation: 'grep' } },
   FindFiles: { presentationId: 'core.read-file', options: { operation: 'find' } },
+  SpawnAgent: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
+  TaskStop: { presentationId: 'core.task', options: { operation: 'stop' } },
+}
+
+function apiChecksBackground(now: Date): FakeBackgroundSeed {
+  const threadId = 'thread_api_checks'
+  const at = (minutes: number, seconds = 0) => iso(now, minutes, -seconds)
+  const agent = (taskName: string, nickname: string, role: string, extra: Partial<FakeAgent> = {}): FakeAgent => ({
+    childThreadId: `thread_${taskName}`,
+    parentThreadId: threadId,
+    nickname,
+    role,
+    running: false,
+    createdAt: at(4, 20),
+    updatedAt: at(3, 30),
+    ...extra,
+  })
+  return {
+    terminals: [
+      {
+        sessionId: 'term_api_dev',
+        threadId,
+        command: 'npm run api:dev',
+        status: 'running',
+        startedAt: at(4, 40),
+        turnId: sequenceId('turn', 1),
+        backgroundReason: null,
+        output: ['> api@0.8.3 dev', '> tsx watch src/server.ts', '', 'API listening on http://localhost:8080'].join('\n'),
+      },
+      {
+        sessionId: 'term_integration',
+        threadId,
+        command: 'npm run test:integration',
+        status: 'completed',
+        exitCode: 0,
+        startedAt: at(4, 35),
+        completedAt: at(3, 50),
+        output: [' ✓ tests/integration/threads.test.ts (21 tests)', ' ✓ tests/integration/files.test.ts (27 tests)', '', ' Tests  48 passed (48)'].join('\n'),
+      },
+    ],
+    agents: [
+      agent('docs_reviewer', 'Docs reviewer', 'explorer', { lastTurn: 'failed', tokens: 41_800 }),
+      agent('changelog_checker', 'Changelog checker', 'explorer', { lastTurn: 'cancelled', tokens: 18_200 }),
+      agent('schema_auditor', 'Schema auditor', 'worker', { running: true, updatedAt: at(3), tokens: 275_300 }),
+    ],
+  }
+}
+
+function mergeBackground(...seeds: FakeBackgroundSeed[]): FakeBackgroundSeed {
+  return {
+    terminals: seeds.flatMap((seed) => seed.terminals ?? []),
+    agents: seeds.flatMap((seed) => seed.agents ?? []),
+    workflows: seeds.flatMap((seed) => seed.workflows ?? []),
+  }
 }
 
 function releaseBackground(now: Date): FakeBackgroundSeed {
@@ -779,7 +914,7 @@ function studioSeed(now: Date, options: StudioOptions = {}): FakeComputerSeed {
     files: studioFiles(),
     tooLargeFiles: ['D:/Projects/dotcraft/artifacts/release/publish.log'],
     accountUsage: accountUsage(now),
-    ...(options.chats === false ? {} : { background: releaseBackground(now) }),
+    ...(options.chats === false ? {} : { background: mergeBackground(releaseBackground(now), apiChecksBackground(now)) }),
   }
 }
 

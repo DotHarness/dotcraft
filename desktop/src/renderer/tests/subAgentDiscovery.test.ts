@@ -88,25 +88,6 @@ describe('subagent discovery lifecycle', () => {
     await next
     expect(store().childrenByParent.get(parent)?.[0].childThreadId).toBe('fresh')
   })
-
-  it.each(['clear', 'reset'] as const)('ignores delayed preview responses after %s even when the same child is reloaded', async (action) => {
-    store().setChildren(parent, [makeSubAgent()])
-    const old = deferred<unknown>()
-    request.mockImplementation((method: string) => {
-      if (method === 'thread/turns/list') return old.promise
-      if (method === 'thread/items/list') return Promise.resolve({ data: [{ turnId: 'old-turn', item: { id: 'message', type: 'agentMessage', status: 'completed', text: 'stale preview' } }], nextCursor: null })
-      return Promise.resolve({ thread: { id: 'child-B', turns: [] } })
-    })
-    const preview = store().fetchPreviews(parent)
-    if (action === 'clear') store().clearParent(parent)
-    else store().reset()
-    store().setChildren(parent, [makeSubAgent({ lastMessagePreview: 'fresh preview' })])
-    old.resolve({ data: [{ id: 'old-turn', threadId: 'child-B', status: 'completed', startedAt: '' }], nextCursor: null })
-    await preview
-    expect(store().childrenByParent.get(parent)?.[0].lastMessagePreview).toBe('fresh preview')
-    await store().fetchPreviews(parent, { force: true })
-    expect(store().childrenByParent.get(parent)?.[0].lastMessagePreview).toBe('stale preview')
-  })
 })
 
 describe('closed subagent history', () => {
@@ -131,6 +112,5 @@ describe('closed subagent history', () => {
     expect(children).toHaveLength(2)
     expect(children[0].currentTool).toBeNull()
     expect(children[1].currentTool).toBe('Exec')
-    expect(children[1].inputTokens).toBe(11)
   })
 })

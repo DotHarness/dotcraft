@@ -256,6 +256,7 @@ public sealed class AppServerHost(
         runtime.ThreadGoalUpdated += BroadcastThreadGoalUpdated;
         runtime.ThreadGoalCleared += BroadcastThreadGoalCleared;
         runtime.SubAgentGraphChanged += BroadcastSubAgentGraphChanged;
+        runtime.ThreadTokenUsageUpdated += BroadcastThreadTokenUsageUpdated;
         if (_services.GetService<DynamicWorkflowService>() is { } workflows)
             workflows.RunChanged += BroadcastWorkflowRunUpdated;
         if (_services.GetService<SessionImportService>() is { } imports)
@@ -293,6 +294,7 @@ public sealed class AppServerHost(
         runtime.ThreadGoalUpdated -= BroadcastThreadGoalUpdated;
         runtime.ThreadGoalCleared -= BroadcastThreadGoalCleared;
         runtime.SubAgentGraphChanged -= BroadcastSubAgentGraphChanged;
+        runtime.ThreadTokenUsageUpdated -= BroadcastThreadTokenUsageUpdated;
         if (_services.GetService<DynamicWorkflowService>() is { } workflows)
             workflows.RunChanged -= BroadcastWorkflowRunUpdated;
         if (_services.GetService<SessionImportService>() is { } imports)
@@ -1355,6 +1357,9 @@ public sealed class AppServerHost(
             });
         }
     }
+
+    private void BroadcastThreadTokenUsageUpdated(ThreadTokenUsageUpdate update) =>
+        _services.GetRequiredService<AppServerThreadSubscribers>().NotifyThreadTokenUsageUpdated(update);
 
     private static bool IsSubAgentThread(SessionThread thread) =>
         string.Equals(thread.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)

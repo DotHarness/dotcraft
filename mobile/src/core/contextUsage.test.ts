@@ -34,6 +34,6 @@ describe('context ring', () => {
   })
 
   it('writes token counts compactly', () => {
-    expect([999, 1_000, 12_345, 510_000, 999_960, 1_250_000].map(compactCount)).toEqual(['999', '1K', '12.3K', '510K', '1M', '1.3M'])
+    expect([999, 1_000, 12_345, 510_000, 999_960, 1_250_000].map(compactCount)).toEqual(['999', '1k', '12.3k', '510k', '1M', '1.3M'])
   })
 })

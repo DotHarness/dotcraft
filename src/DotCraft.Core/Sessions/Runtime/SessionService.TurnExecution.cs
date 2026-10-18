@@ -1148,6 +1148,7 @@ public sealed partial class SessionService
                 int? currentUsageRequestIndex = null;
                 ChatFinishReason? lastFinishReason = null;
                 var usageAccumulator = new TokenUsageRequestAccumulator();
+                TokenUsageInfo? requestUsage = null;
 
                 // SubAgent progress aggregator: lazily created when SpawnAgent tool calls appear
                 SubAgentProgressAggregator? progressAggregator = null;
@@ -1801,6 +1802,19 @@ public sealed partial class SessionService
                                             cachedInputTokens += delta.CachedInputTokens;
                                             cacheWriteInputTokens += delta.CacheWriteInputTokens;
                                             reasoningOutputTokens += delta.ReasoningOutputTokens;
+                                            var requestDelta = new TokenUsageInfo
+                                            {
+                                                InputTokens = delta.InputTokens,
+                                                OutputTokens = delta.OutputTokens,
+                                                CachedInputTokens = delta.CachedInputTokens,
+                                                CacheWriteInputTokens = delta.CacheWriteInputTokens,
+                                                ReasoningOutputTokens = delta.ReasoningOutputTokens,
+                                                LlmCallCount = usageDelta.LlmCallDelta,
+                                                TotalTokens = delta.InputTokens + delta.OutputTokens
+                                            };
+                                            requestUsage = usageDelta.IsNewRequest || requestUsage is null
+                                                ? requestDelta
+                                                : requestUsage + requestDelta;
                                             tokenTracker.UpdateWithStreamingDeltas(
                                                 delta.InputTokens,
                                                 delta.OutputTokens,
@@ -1831,6 +1845,19 @@ public sealed partial class SessionService
                                                 turnOutputTokens: outputTokens,
                                                 turnLlmCalls: llmCallCount,
                                                 contextUsage: contextUsage);
+                                            PublishThreadTokenUsage(
+                                                thread,
+                                                turn,
+                                                CombineTurnUsage(
+                                                    inputTokens,
+                                                    outputTokens,
+                                                    cachedInputTokens,
+                                                    cacheWriteInputTokens,
+                                                    reasoningOutputTokens,
+                                                    llmCallCount,
+                                                    tokenTracker),
+                                                requestUsage,
+                                                contextUsage.ContextWindow > 0 ? contextUsage.ContextWindow : null);
                                             await RecordGoalUsageAsync(
                                                 turnKey,
                                                 new TokenUsageInfo
@@ -1870,26 +1897,20 @@ public sealed partial class SessionService
                 FinalizeStreamingReasoning();
 
                 // Step 5i: Accumulate token usage (include SubAgent tokens)
-                var totalInput = inputTokens + tokenTracker.SubAgentInputTokens;
-                var totalOutput = outputTokens + tokenTracker.SubAgentOutputTokens;
-                var totalCachedInput = cachedInputTokens + tokenTracker.SubAgentCachedInputTokens;
-                var totalCacheWriteInput = cacheWriteInputTokens + tokenTracker.SubAgentCacheWriteInputTokens;
-                var totalReasoningOutput = reasoningOutputTokens + tokenTracker.SubAgentReasoningOutputTokens;
                 var mainTraceUsageDelta = Math.Max(
                     0,
                     (traceCollector?.GetTokenUsageCount(threadId) ?? mainTraceUsageBaseline) - mainTraceUsageBaseline);
-                if (totalInput > 0 || totalOutput > 0)
+                var turnUsage = CombineTurnUsage(
+                    inputTokens,
+                    outputTokens,
+                    cachedInputTokens,
+                    cacheWriteInputTokens,
+                    reasoningOutputTokens,
+                    Math.Max(llmCallCount, mainTraceUsageDelta),
+                    tokenTracker);
+                if (turnUsage.InputTokens > 0 || turnUsage.OutputTokens > 0)
                 {
-                    turn.TokenUsage = new TokenUsageInfo
-                    {
-                        InputTokens = totalInput,
-                        OutputTokens = totalOutput,
-                        CachedInputTokens = Math.Clamp(totalCachedInput, 0, totalInput),
-                        CacheWriteInputTokens = Math.Clamp(totalCacheWriteInput, 0, totalInput),
-                        ReasoningOutputTokens = totalReasoningOutput,
-                        LlmCallCount = Math.Max(llmCallCount, mainTraceUsageDelta) + tokenTracker.SubAgentLlmCallCount,
-                        TotalTokens = totalInput + totalOutput
-                    };
+                    turn.TokenUsage = turnUsage;
                     await AccountGoalUsageAsync(
                         turnKey,
                         turn.TokenUsage,

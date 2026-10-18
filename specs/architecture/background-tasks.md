@@ -132,8 +132,8 @@ exactly one notification to its owner, unless the task is already `notified`:
 - a host shutdown ended it;
 - a Workflow child with silent completion ended, because its run consumes the result.
 
-A client stop (`terminal/stop`, `subagent/close`, `workflow/run/stop`) still notifies and records the
-stop origin as `user`. A shell stall (see [Tool Architecture](tools-architecture.md) §7.3) sends a
+A client stop (`terminal/stop`, `turn/interrupt` on a SubAgent child, `subagent/close`,
+`workflow/run/stop`) still notifies and records the stop origin as `user`. A shell stall (see [Tool Architecture](tools-architecture.md) §7.3) sends a
 notification without settling the task; its completion notification still follows.
 
 ### 5.2 Envelope
@@ -190,8 +190,9 @@ An Agent's ending reaches its parent only as a task notification. The mailbox ca
 
 ## 6. Clients
 
-Clients control tasks through `terminal/*`, `subagent/*`, and `workflow/run/*`. `subagent/close`
-closes the child; the model's `TaskStop` only interrupts it.
+Clients control tasks through `terminal/*`, `subagent/*`, and `workflow/run/*`, and stop a SubAgent
+by interrupting the child thread's active turn with `turn/interrupt`, which leaves it open as the
+model's `TaskStop` does. `subagent/close` closes the child.
 
 Desktop:
 

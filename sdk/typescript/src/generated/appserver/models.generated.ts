@@ -4566,6 +4566,20 @@ export interface ThreadSummary {
   [key: string]: unknown;
 }
 
+export interface ThreadTokenUsage {
+  last?: TokenUsageBreakdown;
+  modelContextWindow?: number | null;
+  total?: TokenUsageBreakdown;
+  [key: string]: unknown;
+}
+
+export interface ThreadTokenUsageUpdatedNotification {
+  threadId?: string;
+  tokenUsage?: ThreadTokenUsage;
+  turnId?: string;
+  [key: string]: unknown;
+}
+
 export interface ThreadToolPolicy {
   agentControl?: string | null;
   allow?: string[] | null;
@@ -4658,6 +4672,16 @@ export interface ThreadWorktreeStatus {
   path?: string;
   threadId?: string;
   worktree?: ThreadWorktreeInfo;
+  [key: string]: unknown;
+}
+
+export interface TokenUsageBreakdown {
+  cacheWriteInputTokens?: number;
+  cachedInputTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  reasoningOutputTokens?: number;
+  totalTokens?: number;
   [key: string]: unknown;
 }
 

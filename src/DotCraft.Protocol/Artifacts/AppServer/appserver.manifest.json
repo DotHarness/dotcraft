@@ -22631,6 +22631,70 @@
       "variants": []
     },
     {
+      "id": "core.ThreadTokenUsage",
+      "name": "ThreadTokenUsage",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadTokenUsage.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "last",
+          "type": "core.TokenUsageBreakdown",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "modelContextWindow",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "total",
+          "type": "core.TokenUsageBreakdown",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadTokenUsageUpdatedNotification",
+      "name": "ThreadTokenUsageUpdatedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadTokenUsageUpdatedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "tokenUsage",
+          "type": "core.ThreadTokenUsage",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ThreadToolPolicy",
       "name": "ThreadToolPolicy",
       "module": "core",
@@ -23104,6 +23168,71 @@
           "required": false,
           "nullable": false,
           "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.TokenUsageBreakdown",
+      "name": "TokenUsageBreakdown",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TokenUsageBreakdown.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "cacheWriteInputTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "cachedInputTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "inputTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "outputTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "reasoningOutputTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "totalTokens",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         }
       ],
       "variants": []
@@ -31996,6 +32125,22 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "thread/tokenUsage/updated",
+      "descriptorMember": "ThreadTokenUsageUpdated",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ThreadTokenUsageUpdatedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": null,
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

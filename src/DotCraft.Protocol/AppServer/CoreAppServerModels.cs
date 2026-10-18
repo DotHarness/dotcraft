@@ -5895,6 +5895,40 @@ public sealed class ThreadSubscribeParams : ExtensibleJsonObject
 
 }
 
+/// <summary>Executable wire contract for ThreadTokenUsage.</summary>
+public sealed class ThreadTokenUsage : ExtensibleJsonObject
+{
+    [JsonPropertyName("last")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<TokenUsageBreakdown> Last { get; init; }
+
+    [JsonPropertyName("modelContextWindow")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int?> ModelContextWindow { get; init; }
+
+    [JsonPropertyName("total")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<TokenUsageBreakdown> Total { get; init; }
+
+}
+
+/// <summary>Executable wire contract for ThreadTokenUsageUpdatedNotification.</summary>
+public sealed class ThreadTokenUsageUpdatedNotification : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ThreadId { get; init; }
+
+    [JsonPropertyName("tokenUsage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ThreadTokenUsage> TokenUsage { get; init; }
+
+    [JsonPropertyName("turnId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> TurnId { get; init; }
+
+}
+
 /// <summary>Executable wire contract for ThreadToolPolicy.</summary>
 public sealed class ThreadToolPolicy : ExtensibleJsonObject
 {
@@ -6104,6 +6138,41 @@ public sealed class ThreadWorktreeStatus : ExtensibleJsonObject
     [JsonPropertyName("worktree")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ThreadWorktreeInfo> Worktree { get; init; }
+
+}
+
+/// <summary>Executable wire contract for TokenUsageBreakdown.</summary>
+public sealed class TokenUsageBreakdown : ExtensibleJsonObject
+{
+    [JsonPropertyName("cacheWriteInputTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> CacheWriteInputTokens { get; init; }
+
+    [JsonPropertyName("cachedInputTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> CachedInputTokens { get; init; }
+
+    [JsonPropertyName("inputTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> InputTokens { get; init; }
+
+    [JsonPropertyName("outputTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> OutputTokens { get; init; }
+
+    [JsonPropertyName("reasoningOutputTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> ReasoningOutputTokens { get; init; }
+
+    [JsonPropertyName("totalTokens")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> TotalTokens { get; init; }
 
 }
 

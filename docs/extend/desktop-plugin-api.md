@@ -517,7 +517,7 @@ useEffect(() => {
 
 ### Follow SubAgents
 
-`host.subagents` reads the SubAgents Desktop tracks for a parent thread, the same ones its Subagents tab lists. `list` returns a snapshot. `onChange` sends the complete list again whenever a child's identity, state, or summary changes:
+`host.subagents` reads the SubAgents Desktop tracks for a parent thread, the same ones its Subagents tab lists. `list` returns a snapshot. `onChange` sends the complete list again whenever a child's identity or state changes:
 
 ```ts
 const render = (agents: readonly DesktopPluginSubAgent[]) =>
@@ -534,7 +534,6 @@ host.subagents.onChange(threadId, render);
 | `agentPath` | Its agent path, or `null` when unknown. |
 | `nickname` | The name the Subagents tab shows. Pass it to `AgentAvatar`. |
 | `state` | `working`, `waiting`, `done`, `failed`, or `cancelled`. |
-| `summary` | A preview of its latest message, or `null` before Desktop has read one. |
 
 `waiting` means the SubAgent's active turn needs approval or user input. `done` covers a SubAgent that completed or was closed.
 

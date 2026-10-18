@@ -4,11 +4,11 @@ import type { ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
 import { useConnectionStore } from './connectionStore'
 import { useThreadStore } from './threadStore'
 import {
-  childFromWire, createPlaceholderChild, extractLastAgentMessagePreview,
+  childFromWire, createPlaceholderChild,
   isSubAgentChildClosed, isSubAgentChildRunning, mergeExistingProgress,
   type SubAgentChild, type SubAgentChildWire
 } from './subAgentChildren'
-import { readThreadHistoryHead } from '../utils/threadHistory'
+import { listThreadTurns } from '../utils/threadHistory'
 
 export { isSubAgentChildClosed, isSubAgentChildRunning, isTerminalSubAgentStatus } from './subAgentChildren'
 export type { SubAgentChild } from './subAgentChildren'
@@ -40,7 +40,9 @@ interface SubAgentStoreActions {
   setChildren(parentThreadId: string, children: SubAgentChild[], options?: SetChildrenOptions): void
   ensureChildren(parentThreadId: string): Promise<void>
   fetchChildren(parentThreadId: string, options?: FetchChildrenOptions): Promise<void>
-  fetchPreviews(parentThreadId: string, options?: { force?: boolean; runningOnly?: boolean }): Promise<void>
+  fetchUsage(parentThreadId: string): Promise<void>
+  updateChildUsage(childThreadId: string, usedTokens: number): void
+  interruptChild(child: SubAgentChild): Promise<void>
   updateProgress(parentThreadId: string, entries: SubAgentEntry[]): void
   updateChildRuntime(childThreadId: string, runtime: ThreadRuntimeSnapshot): void
   selectChild(parentThreadId: string, childThreadId: string | null): void
@@ -61,6 +63,13 @@ interface ChildRequest {
   promise: Promise<void>
   refresh: boolean
   authoritative: boolean
+}
+
+const USAGE_TURN_PAGE_LIMIT = 100
+
+function turnTokens(usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | null | undefined): number {
+  if (!usage) return 0
+  return usage.totalTokens ?? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0)
 }
 
 const requests = new Map<string, ChildRequest>()
@@ -208,55 +217,64 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     return task.promise
   },
 
-  async fetchPreviews(parentThreadId, options) {
+  async fetchUsage(parentThreadId) {
     if (!parentThreadId) return
     const token = lifetime(parentThreadId)
-    const runningOnly = options?.runningOnly === true
-    // runningOnly polls always refresh (the message is still changing); the
-    // default pass only fills children that have no cached preview yet.
-    const force = options?.force === true || runningOnly
-    const children = get().childrenByParent.get(parentThreadId) ?? []
-    const targets = children.filter((child) =>
-      child.isPlaceholder !== true
-      && (!runningOnly || isSubAgentChildRunning(child))
-      && (force || child.lastMessagePreview == null)
-    )
+    const targets = (get().childrenByParent.get(parentThreadId) ?? [])
+      .filter((child) => child.isPlaceholder !== true && child.usedTokens == null)
     if (targets.length === 0) return
-
-    const updates = new Map<string, string | null>()
+    const totals = new Map<string, number>()
     await Promise.all(targets.map(async (child) => {
       try {
-        const result = await readThreadHistoryHead(
-          (method, params) => window.api.appServer.sendRequest(method, params),
-          child.childThreadId,
-          1
-        )
-        const rawTurns = (result.thread.turns ?? [])
-          .map((turn) => turn as unknown as Record<string, unknown>)
-        updates.set(child.childThreadId, extractLastAgentMessagePreview(rawTurns))
+        let total = 0
+        let cursor: string | null = null
+        do {
+          const page = await listThreadTurns(
+            (method, params) => window.api.appServer.sendRequest(method, params),
+            child.childThreadId,
+            cursor,
+            'descending',
+            USAGE_TURN_PAGE_LIMIT
+          )
+          for (const turn of page.turns) total += turnTokens(turn.tokenUsage)
+          cursor = page.nextCursor
+        } while (cursor)
+        totals.set(child.childThreadId, total)
       } catch {
-        // Best-effort preview; leave null so the row falls back to a status label.
+        return
       }
     }))
-    if (updates.size === 0 || lifetimes.get(parentThreadId) !== token) return
-
+    if (totals.size === 0 || lifetimes.get(parentThreadId) !== token) return
     set((state) => {
       const current = state.childrenByParent.get(parentThreadId)
       if (!current) return state
-      const next = current.map((child) => {
-        if (!updates.has(child.childThreadId)) return child
-        const lastMessagePreview = updates.get(child.childThreadId) ?? child.lastMessagePreview
-        if (lastMessagePreview === child.lastMessagePreview) return child
-        return {
-          ...child,
-          lastMessagePreview
-        }
-      })
-      if (next.every((child, index) => child === current[index])) return state
       const childrenByParent = new Map(state.childrenByParent)
-      childrenByParent.set(parentThreadId, next)
+      childrenByParent.set(parentThreadId, current.map((child) => {
+        const total = totals.get(child.childThreadId)
+        return total === undefined || child.usedTokens != null ? child : { ...child, usedTokens: total }
+      }))
       return { childrenByParent }
     })
+  },
+
+  updateChildUsage(childThreadId, usedTokens) {
+    set((state) => {
+      let changed = false
+      const childrenByParent = new Map(state.childrenByParent)
+      for (const [parentThreadId, children] of childrenByParent) {
+        if (!children.some((child) => child.childThreadId === childThreadId)) continue
+        changed = true
+        childrenByParent.set(parentThreadId, children.map((child) =>
+          child.childThreadId === childThreadId ? { ...child, usedTokens } : child))
+      }
+      return changed ? { childrenByParent } : state
+    })
+  },
+
+  async interruptChild(child) {
+    const turnId = child.runtime?.activeTurnId
+      ?? ((await window.api.appServer.sendRequest('thread/read', { threadId: child.childThreadId })) as { thread: ThreadSummary }).thread.runtime?.activeTurnId
+    if (turnId) await window.api.appServer.sendRequest('turn/interrupt', { threadId: child.childThreadId, turnId })
   },
 
   updateProgress(parentThreadId, entries) {
@@ -276,8 +294,6 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
           ...child,
           lastToolDisplay: progress.currentToolDisplay ?? progress.currentTool ?? child.lastToolDisplay,
           currentTool: isCompleted ? null : progress.currentTool ?? child.currentTool,
-          inputTokens: progress.inputTokens,
-          outputTokens: progress.outputTokens,
           isCompleted,
           runtime: child.runtime
             ? { ...child.runtime, running: child.runtime.running === false ? false : !isCompleted }
