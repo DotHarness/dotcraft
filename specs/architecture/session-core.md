@@ -1706,7 +1706,8 @@ Internal prompt-suggestion forks bind to their parent trace session and record p
 Dashboard trace event reads are paged from the durable trace store. The first page returns a bounded newest-first window of events for the selected session or all sessions; clients fetch older events with an opaque `beforeCursor` when the user scrolls upward. Maintenance envelope events are filterable as maintenance events and are counted separately from normal LLM request/response totals, while detailed collector events and token usage remain in the same trace session for correlation.
 
 The effective `AGENTS.md` context-page snapshot is persisted as an `AgentInstructions` trace event.
-Its content is the exact rendered plain-user instruction item; metadata contains schema version 1,
+Its content is the rendered current instructions before any world-state replacement or removal
+notice; metadata contains schema version 1,
 item kind `agents_md.instructions`, role `user`, the content-and-sources fingerprint, and ordered
 absolute source paths. Session Core records the resolved snapshot at thread lifecycle boundaries and
 before provider use, with consecutive equivalent snapshots de-duplicated by fingerprint. An empty
@@ -1714,6 +1715,12 @@ snapshot is recorded as empty content and sources rather than as a replacement o
 Dashboard reads this diagnostic from the trace store in both live and read-only modes. It must not
 re-read instruction files or infer their sources from model or provider history. The trace event is
 diagnostic-only and must not be projected back into rollout or model-visible history.
+
+Model-visible AGENTS changes use the `agents_md` world-state section. Updates append as ordinary
+marked user context before the current input, without a history checkpoint or provider-history
+replacement. Source discovery records the effective snapshot but never reconciles persisted history.
+World-state snapshots are committed after their instruction messages, so resume, rollback, and retry
+recover the same effective instructions without restoring context removed by native compaction.
 
 Dashboard may also project read-only thread operations from canonical thread JSONL. Rollback visibility is derived from `thread_rolled_back` records and exposed as operation metadata (`type = rollback`, `threadId`, timestamp, removed Turn count, and source). Hidden recovery records such as compaction checkpoints remain internal and must not be exposed through Dashboard operation APIs or trace views.
 

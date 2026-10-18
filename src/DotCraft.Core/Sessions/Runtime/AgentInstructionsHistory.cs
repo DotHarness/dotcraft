@@ -1,72 +1,40 @@
+using System.Text.Json.Nodes;
+using DotCraft.Context.WorldState;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Sessions;
 
-internal enum AgentInstructionsHistoryChange
-{
-    None,
-    Added,
-    Replaced,
-    Removed
-}
-
-/// <summary>
-/// Reconciles the single provider-neutral AGENTS.md item at the front of model history.
-/// </summary>
 internal static class AgentInstructionsHistory
 {
     public const string Kind = "agents_md.instructions";
+    private const string BaselineKey = "dotcraft.agents_md.baseline";
 
-    public static AgentInstructionsHistoryChange Reconcile(
-        IList<ChatMessage> history,
-        string desiredContent)
+    public static bool IsInstructions(ChatMessage message) => ThreadContextItems.IsKind(message, Kind);
+
+    public static ChatMessage Create(string content) => new(ChatRole.User, content)
     {
-        ArgumentNullException.ThrowIfNull(history);
+        AdditionalProperties = new AdditionalPropertiesDictionary { [ThreadContextItems.KindMetadataKey] = Kind }
+    };
 
-        var index = -1;
-        for (var i = 0; i < history.Count; i++)
+    public static void InstallBaseline(IList<ChatMessage> history, string content)
+    {
+        for (var index = history.Count - 1; index >= 0; index--)
         {
-            if (ThreadContextItems.IsKind(history[i], Kind))
-            {
-                index = i;
-                break;
-            }
+            if (IsInstructions(history[index]))
+                history.RemoveAt(index);
         }
-
-        if (desiredContent.Length == 0)
-        {
-            if (index < 0)
-                return AgentInstructionsHistoryChange.None;
-            history.RemoveAt(index);
-            return AgentInstructionsHistoryChange.Removed;
-        }
-
-        var desired = Create(desiredContent);
-        if (index < 0)
-        {
-            history.Insert(0, desired);
-            return AgentInstructionsHistoryChange.Added;
-        }
-
-        var unchanged = history[index].Role == ChatRole.User
-                        && string.Equals(history[index].Text, desiredContent, StringComparison.Ordinal);
-        if (unchanged)
-            return AgentInstructionsHistoryChange.None;
-
-        history[index] = desired;
-        return AgentInstructionsHistoryChange.Replaced;
+        if (content.Length == 0)
+            return;
+        var message = Create(content);
+        message.AdditionalProperties![BaselineKey] = true;
+        history.Insert(0, message);
     }
 
-    public static bool IsInstructions(ChatMessage message) =>
-        ThreadContextItems.IsKind(message, Kind);
-
-    private static ChatMessage Create(string content) =>
-        new(ChatRole.User, content)
-        {
-            AdditionalProperties = new AdditionalPropertiesDictionary
-            {
-                [ThreadContextItems.KindMetadataKey] = Kind
-            }
-        };
-
+    public static JsonNode? TryGetInstalledBaseline(IReadOnlyList<ChatMessage> history)
+    {
+        var message = history.LastOrDefault(IsInstructions);
+        return message?.AdditionalProperties?.ContainsKey(BaselineKey) == true
+            ? AgentsMdSection.CreateSnapshot(message.Text)
+            : null;
+    }
 }

@@ -1,6 +1,5 @@
 using DotCraft.Agents;
 using DotCraft.Context;
-using DotCraft.Context.Compaction;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Sessions;
@@ -17,17 +16,16 @@ public sealed partial class SessionService
     {
         var thread = await GetOrLoadThreadAsync(threadId, ct);
         var snapshot = ResolveAgentInstructions(thread);
-        await ReconcilePersistedAgentInstructionsAsync(thread, snapshot, ct);
         RecordAgentInstructionsSnapshot(thread.Id, snapshot);
         return snapshot.Sources;
     }
 
     private ContextPageSnapshot ResolveAgentInstructions(SessionThread thread) =>
-        ResolveAgentInstructions(thread, ThreadWorkspaceResolver.Resolve(thread));
+        ResolveAgentInstructions(thread, ThreadWorkspaceResolver.Resolve(thread).Cwd);
 
     private ContextPageSnapshot ResolveAgentInstructions(
         SessionThread thread,
-        ThreadWorkspaceContext context)
+        string effectiveCwd)
     {
         var config = _appConfigMonitor?.Current ?? AgentFactory.RuntimeContext.Config;
         var globalConfigPath = string.IsNullOrWhiteSpace(config.GlobalConfigPath)
@@ -35,7 +33,7 @@ public sealed partial class SessionService
             : Path.GetFullPath(config.GlobalConfigPath!);
         var variant = string.Join(
             "\0",
-            Path.GetFullPath(context.Cwd),
+            Path.GetFullPath(effectiveCwd),
             globalConfigPath,
             config.ProjectDocMaxBytes.ToString(System.Globalization.CultureInfo.InvariantCulture));
         var shouldLoad = thread.Source.SubAgent is not { } subAgent
@@ -49,47 +47,8 @@ public sealed partial class SessionService
             ContextPageKeys.AgentInstructions(variant),
             ContextPageLifecycle.StableUntilCompaction,
             () => shouldLoad
-                ? new AgentInstructionsLoader(Logger).Load(context.Cwd, config).ToContextPageDocument()
+                ? new AgentInstructionsLoader(Logger).Load(effectiveCwd, config).ToContextPageDocument()
                 : ContextPageDocument.FromContent(string.Empty));
-    }
-
-    private async Task ReconcilePersistedAgentInstructionsAsync(
-        SessionThread thread,
-        ContextPageSnapshot snapshot,
-        CancellationToken ct)
-    {
-        if (thread.Ephemeral || thread.HistoryMode != HistoryMode.Server)
-            return;
-
-        var history = await Persistence.LoadModelHistoryAsync(thread.Id, ct);
-        var change = AgentInstructionsHistory.Reconcile(history, snapshot.Content);
-        if (change == AgentInstructionsHistoryChange.None)
-            return;
-
-        var coveredTurn = thread.Turns
-            .Where(static turn => turn.Status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Cancelled)
-            .OrderBy(static turn => turn.StartedAt)
-            .ThenBy(static turn => turn.Id, StringComparer.Ordinal)
-            .LastOrDefault();
-        if (coveredTurn == null)
-            return;
-
-        var tokens = MessageTokenEstimator.Estimate(history);
-        await Persistence.AppendCompactionCheckpointAsync(
-            thread.Id,
-            coveredTurn.Id,
-            history.Select(static message => message.Clone()).ToList(),
-            trigger: "agents_md_instructions_changed",
-            mode: "partial",
-            tokensBefore: tokens,
-            tokensAfter: tokens,
-            ct);
-        TryAdvanceResponsesContextWindowAfterReplacement(thread.Id);
-        await TryReplaceResponsesProviderHistoryAsync(
-            thread,
-            history,
-            "agents_md_instructions_changed",
-            ct);
     }
 
     private ContextPageSnapshot ReloadAgentInstructionsAfterCompaction(
@@ -106,8 +65,8 @@ public sealed partial class SessionService
         ThreadWorkspaceContext context)
     {
         AgentInstructionContextPages.ReleaseStablePages(thread.Id);
-        var snapshot = ResolveAgentInstructions(thread, context);
-        AgentInstructionsHistory.Reconcile(history, snapshot.Content);
+        var snapshot = ResolveAgentInstructions(thread, context.Cwd);
+        AgentInstructionsHistory.InstallBaseline(history, snapshot.Content);
         RecordAgentInstructionsSnapshot(thread.Id, snapshot);
         return snapshot;
     }

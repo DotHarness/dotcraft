@@ -43,8 +43,15 @@ The following are not sections and stay in the turn's own reminder:
 
 ### 1.2 Snapshot contents
 
-A snapshot carries identity and status, never moving values. Long text is carried as a fingerprint
-rather than in full, so the persisted baseline stays small.
+A snapshot carries identity and status, never moving values. Long text normally uses fingerprints.
+The built-in `agents_md` section stores the rendered instruction content, including an explicit
+empty string after removal, so instruction replacement and retraction have a recoverable baseline.
+
+AGENTS fragments retain the plain-user `agents_md.instructions` marker on every protocol. Other
+sections keep their protocol-specific carrier. The section sends initial instructions once, marks
+later full instructions as replacing all previous AGENTS instructions, and sends one removal notice
+when previously visible instructions disappear. Legacy marked items without a snapshot count as
+`Unknown`, including when the entire baseline is missing.
 
 A snapshot must not serialize to null, because null marks removal in a merge patch. Null members of
 a snapshot object are stripped before comparison, so a snapshot compares equal to the value restored
@@ -103,6 +110,16 @@ The baseline is dropped whenever history is replaced, because the items it claim
 carrying are gone: compaction of any kind, rollback, a reconciliation that reloads history from
 disk, and a replacement that establishes a new checkpoint. The next step then restates every
 section.
+
+Each client-managed turn replaces history with the supplied transcript and resets both the live and
+persisted comparison baselines. This reset supersedes any baseline restored from an earlier turn.
+The turn's first context update establishes a new baseline, which later sampling steps reuse without
+repeating unchanged instructions. Instruction-file cache lifetimes remain unchanged.
+
+Native compaction resets the world-state baseline while retaining the provider's opaque replacement;
+subsequent state updates append to that generation. Neutral compaction excludes all AGENTS updates
+from summarization and installs one current instruction item with its comparison snapshot in the new
+checkpoint. That snapshot prevents a duplicate instruction update on continuation or cold resume.
 
 ### 3.4 Inheritance
 

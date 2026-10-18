@@ -33,11 +33,14 @@ public sealed partial class SessionService
             ],
             logger);
 
+        var instructions = ResolveAgentInstructions(thread, workspacePath);
+        RecordAgentInstructionsSnapshot(thread.Id, instructions);
         var context = new WorldStateContext
         {
             Thread = thread,
             ModeManager = modeManager,
             WorkspacePath = workspacePath,
+            AgentInstructions = instructions.Content,
             HasActivePlan = hasActivePlan,
             ThreadGoal = threadGoal,
             SessionStartHookContext = sessionStartHookContext,
@@ -48,18 +51,27 @@ public sealed partial class SessionService
         var baseline = _runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
             ? runtime.WorldStateBaseline
             : null;
-        var render = baseline == null
-            ? world.RenderFull(context)
-            : world.Render(context, baseline, SectionIdsInHistory(history));
+        var full = baseline == null;
+        if ((baseline == null || !baseline.TryGetSection(AgentsMdSection.SectionId, out _))
+            && ProviderRequestContextScope.Current?.History?.CaptureOpaqueSnapshot().IsNativeCompacted != true
+            && AgentInstructionsHistory.TryGetInstalledBaseline(history) is { } installedInstructions)
+        {
+            var sections = baseline?.ToJsonObject() ?? new();
+            sections[AgentsMdSection.SectionId] = installedInstructions;
+            baseline = WorldStateSnapshot.FromJsonObject(sections);
+        }
+        var render = world.Render(context, baseline, SectionIdsInHistory(history));
 
         var items = render.Fragments
-            .Select(fragment => ThreadContextItems.Create(
-                carrier,
-                WorldStateComposer.ItemKind(fragment.SectionId),
-                fragment.Text))
+            .Select(fragment => fragment.SectionId == AgentsMdSection.SectionId
+                ? AgentInstructionsHistory.Create(fragment.Text)
+                : ThreadContextItems.Create(
+                    carrier,
+                    WorldStateComposer.ItemKind(fragment.SectionId),
+                    fragment.Text))
             .ToArray();
 
-        return new WorldStateTurnUpdate(items, render, baseline == null);
+        return new WorldStateTurnUpdate(items, render, full);
     }
 
     private void CommitWorldStateUpdate(
@@ -214,7 +226,6 @@ public sealed partial class SessionService
         if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
             return;
 
-        // Replay stops at the newest checkpoint, so the durable baseline restarts here too.
         runtime.WorldStateBaseline = null;
         runtime.PersistedWorldStateBaseline = null;
         runtime.WorldStateBaselineRestored = true;
@@ -239,6 +250,8 @@ public sealed partial class SessionService
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var message in history)
         {
+            if (AgentInstructionsHistory.IsInstructions(message))
+                ids.Add(AgentsMdSection.SectionId);
             if (WorldStateComposer.SectionIdFromItemKind(ThreadContextItems.GetKind(message)) is { } id)
                 ids.Add(id);
         }

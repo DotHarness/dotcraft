@@ -283,6 +283,12 @@ A provider-native replacement:
 5. updates the `thread_context_windows` state-store projection to the committed identity;
 6. leaves the in-memory and persisted neutral `ChatMessage` history unchanged.
 
+Refreshing AGENTS instructions after installation appends a world-state update to the active native
+generation. It must not project the unchanged full neutral transcript into a new provider generation.
+The compacted items and their coverage remain authoritative; ordinary tail appends advance coverage
+normally. Reading instruction sources must not mutate either history. Neutral replacements instead
+install the current instruction snapshot after filtering all historical AGENTS updates from the summary.
+
 The rollout replacement is authoritative because it contains its own context-window identity.
 `thread_context_windows` is a routing projection, not a second commit record, and is not required to
 share a transaction with rollout JSONL. Cold recovery must select the newest valid replacement,

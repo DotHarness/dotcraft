@@ -952,6 +952,7 @@ public sealed partial class SessionService
                 if (thread.HistoryMode == HistoryMode.Client && messages != null)
                 {
                     session = [.. messages];
+                    ResetWorldStateBaseline(threadId, "client_history_supplied");
                 }
                 else
                 {
@@ -963,30 +964,20 @@ public sealed partial class SessionService
                     turnCommitter.PersistedModelHistoryCount = persistedHistory.Count;
                 await RestoreWorldStateBaselineAsync(thread, executionCt);
 
-                var agentInstructionsSnapshot = ResolveAgentInstructions(thread, turnContext.Workspace);
-                var agentInstructionsChange = AgentInstructionsHistory.Reconcile(
-                    session,
-                    agentInstructionsSnapshot.Content);
-                RecordAgentInstructionsSnapshot(thread.Id, agentInstructionsSnapshot);
                 var threadContextCarrier = ResolveThreadContextCarrier(thread);
                 var guidanceChange = NativeSubAgentGuidance.Reconcile(
                     thread,
                     session,
                     threadContextCarrier,
                     _subAgentGuidanceProviders);
-                var replacesPersistedHistory =
-                    guidanceChange is NativeSubAgentGuidanceChange.Replaced
-                    || agentInstructionsChange is not AgentInstructionsHistoryChange.None
-                       && persistedHistory.Count > 0;
+                var replacesPersistedHistory = guidanceChange is NativeSubAgentGuidanceChange.Replaced;
                 if (replacesPersistedHistory)
                 {
                     var replacementTokens = MessageTokenEstimator.Estimate(session);
                     if (!thread.Ephemeral)
                     {
                         var guidanceCheckpoint = new PendingCompactionCheckpoint(
-                            agentInstructionsChange is not AgentInstructionsHistoryChange.None
-                                ? "agents_md_instructions_changed"
-                                : "subagent_role_instructions_changed",
+                            "subagent_role_instructions_changed",
                             "partial",
                             replacementTokens,
                             replacementTokens,
@@ -1282,9 +1273,7 @@ public sealed partial class SessionService
                         session,
                         executionCt,
                         forceReplacementReason: replacesPersistedHistory
-                            ? agentInstructionsChange is not AgentInstructionsHistoryChange.None
-                                ? "agents_md_instructions_changed"
-                                : "subagent_role_instructions_changed"
+                            ? "subagent_role_instructions_changed"
                             : null);
                 reactiveCompaction.ProviderContext = new ProviderRequestContext(
                     providerIdentity,

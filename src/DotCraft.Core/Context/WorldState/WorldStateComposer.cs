@@ -19,6 +19,7 @@ public static class WorldStateComposer
         ILogger? logger = null)
     {
         var world = new WorldState(logger);
+        world.AddSection(new AgentsMdSection());
         world.AddSection(new EnvironmentSection());
         world.AddSection(new ModeSection());
         world.AddSection(new SessionStartHookSection());
