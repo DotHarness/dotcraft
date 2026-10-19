@@ -16,6 +16,7 @@ public sealed partial class SessionService
         SessionTurn turn,
         TurnExecutionState execution,
         TurnCommitter committer,
+        bool initialInputRecorded,
         IProviderConversationHistory? providerHistory)
     {
         var appendMarker = execution.IntentionallyInterrupted && InterruptMessageEnabled;
@@ -29,6 +30,10 @@ public sealed partial class SessionService
             committer.PersistedModelHistoryCount = previous.Count;
             previous.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(turn));
             committer.Session = previous;
+        }
+        else if (committer.Session != null && !initialInputRecorded)
+        {
+            committer.Session.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(turn));
         }
         if (appendMarker)
         {

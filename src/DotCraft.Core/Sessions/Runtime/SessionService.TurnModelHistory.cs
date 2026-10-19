@@ -15,6 +15,7 @@ public sealed partial class SessionService
         private const string InputsKey = "dotcraft.history.inputs";
         private readonly List<Admission> _admissions = [];
         public bool RequiresReconciliation { get; private set; }
+        public bool InitialInputRecorded { get; private set; }
 
         public async ValueTask OnHistoryChangedAsync(AgentHistoryUpdate update, CancellationToken cancellationToken)
         {
@@ -29,6 +30,7 @@ public sealed partial class SessionService
                 var delta = session.Skip(committer.PersistedModelHistoryCount).Concat(update.Messages).ToArray();
                 await persist(delta, cancellationToken);
                 session.AddRange(update.Messages);
+                InitialInputRecorded = true;
                 committer.PersistedModelHistoryCount = session.Count;
                 var incorporated = update.Messages.SelectMany(Inputs).Select(input => input.InputId)
                     .ToHashSet(StringComparer.Ordinal);

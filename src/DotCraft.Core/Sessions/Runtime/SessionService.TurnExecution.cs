@@ -214,6 +214,7 @@ public sealed partial class SessionService
             {
                 turnCommitter.Session = session;
                 await CommitInterruptedTurnAsync(thread, turn, turnRuntime, turnCommitter,
+                    turnModelHistory?.InitialInputRecorded == true,
                     reactiveCompaction.ProviderContext?.History);
             }
 
