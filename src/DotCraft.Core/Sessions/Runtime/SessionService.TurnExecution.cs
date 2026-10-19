@@ -1352,7 +1352,8 @@ public sealed partial class SessionService
                     runtimeModeManager,
                     hasActivePlan,
                     threadGoalForContext,
-                    lifecycleHookContext);
+                    lifecycleHookContext,
+                    turnContext.Channel?.Surface);
                 foreach (var worldStateItem in worldStateUpdate.Items)
                     session.Add(worldStateItem);
                 CommitWorldStateUpdate(threadId, turn.Id, worldStateUpdate, runtimeModeManager);

@@ -596,11 +596,7 @@ public sealed class AppServerEventDispatcher
             deltaText = toolCallDelta.Delta;
         }
 
-        var connectionKind = _connection.IsChannelAdapter
-            ? "externalChannel"
-            : _connection.HasAcpExtensions
-                ? "acp"
-                : "cli";
+        var connectionKind = _connection.IsChannelAdapter ? "externalChannel" : _connection.Surface.Id;
 
         _streamDebugLogger.Log(
             "appserver_outbound_delta",

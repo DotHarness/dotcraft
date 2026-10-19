@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
+using DotCraft.Channels;
 using DotCraft.Contributions;
 using DotCraft.Memory;
 using DotCraft.Sessions;
@@ -49,6 +50,9 @@ public sealed record WorldStateContext
 
     /// <summary>Reads the skills the Thread may use, or <c>null</c> when it composes no skill context.</summary>
     public Func<IReadOnlyList<SkillCatalogEntry>>? Skills { get; init; }
+
+    /// <summary>The client surface that submitted the current Turn, or <c>null</c> when no client did.</summary>
+    public ClientSurface? ClientSurface { get; init; }
 }
 
 public enum PreviousSectionKind

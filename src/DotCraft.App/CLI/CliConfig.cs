@@ -9,7 +9,7 @@ namespace DotCraft.CLI;
 public sealed class CliConfig
 {
     /// <summary>
-    /// Adds compact ASCII visualization guidance to CLI-originated threads.
+    /// Adds compact ASCII visualization guidance when a request comes from the terminal CLI.
     /// </summary>
     public bool TerminalVisualizationInstructions { get; set; }
 

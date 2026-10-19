@@ -4740,6 +4740,16 @@
             }
           ]
         },
+        "remoteHost": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "requestUserInputSupport": {
           "anyOf": [
             {

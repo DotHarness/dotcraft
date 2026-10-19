@@ -42,6 +42,7 @@ internal static class SystemPromptSectionCatalog
         (SystemPromptSectionNames.AgentMessageBoard, 310, SubAgentPromptSections.MessageBoard),
         (SystemPromptSectionNames.ProjectInstructions, 350, static _ => GuidancePromptSections.ProjectInstructions),
         (SystemPromptSectionNames.WorkingStyle, 400, static _ => GuidancePromptSections.WorkingStyle),
+        (SystemPromptSectionNames.ChannelReplies, 450, ChannelReplyPromptSection.Build),
         (SystemPromptSectionNames.ResponseStyle, 500, static _ => GuidancePromptSections.ResponseStyle),
         (SystemPromptSectionNames.EditingWorkflow, 600, static _ => GuidancePromptSections.EditingWorkflow),
         (SystemPromptSectionNames.FileReferences, 700, static _ => GuidancePromptSections.FileReferences),

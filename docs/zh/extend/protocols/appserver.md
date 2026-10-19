@@ -92,6 +92,8 @@ WebSocket 模式下，每个连接都有独立的初始化状态和线程订阅�
 }
 ```
 
+服务端根据 `clientInfo` 判断 Agent 正在和哪个 client 对话。DotCraft 自己的 client 按名称识别，其他名称一律视为通用 API client，Agent 会用标准 Markdown 回复。如果用户的 client 和服务端不在同一台机器上，请在 `capabilities` 中同时发送 `"remoteHost": true`，这样 Agent 就知道工具和文件在服务端，而不在用户的设备上。
+
 初始化响应会返回服务端信息和能力：
 
 ```json

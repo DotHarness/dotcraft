@@ -35,6 +35,7 @@ internal static class InitializeContractMapper
             Visualizations = value.Visualizations,
             GenerativeUi = value.GenerativeUi,
             McpElicitation = value.McpElicitation,
+            RemoteHost = value.RemoteHost,
             ChannelAdapter = ToChannelAdapter(value.ChannelAdapter),
             AcpExtensions = ToAcp(value.AcpExtensions),
             NodeRepl = value.NodeRepl is null ? null : new NodeReplClientCapability { Backend = value.NodeRepl.Backend },

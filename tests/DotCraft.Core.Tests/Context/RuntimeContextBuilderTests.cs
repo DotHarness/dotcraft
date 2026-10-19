@@ -66,20 +66,25 @@ public sealed class RuntimeContextBuilderTests
         Assert.Null(goal);
     }
 
-    [Fact]
-    public void BuildBlock_OmitsWorkspaceRequestSourceForLocalDesktopInitiator()
+    [Theory]
+    [InlineData("dotcraft-desktop")]
+    [InlineData("cli")]
+    [InlineData("acp")]
+    public void BuildBlock_PreservesLocalSourceWithoutRedundantWorkspaceOrSender(string channel)
     {
         var workspace = Path.GetFullPath(Directory.GetCurrentDirectory());
         var block = RuntimeContextBuilder.BuildBlock(
             initiator: new TurnInitiatorContext
             {
-                ChannelName = "cli",
-                UserId = "dotcraft-desktop",
+                ChannelName = channel,
+                UserId = "local",
                 ChannelContext = $"workspace:{workspace}"
             },
             workspacePath: workspace);
 
-        Assert.Null(block);
+        Assert.Contains($"Channel: {channel}", block, StringComparison.Ordinal);
+        Assert.DoesNotContain("Conversation:", block, StringComparison.Ordinal);
+        Assert.DoesNotContain("SenderId:", block, StringComparison.Ordinal);
     }
 
     [Fact]

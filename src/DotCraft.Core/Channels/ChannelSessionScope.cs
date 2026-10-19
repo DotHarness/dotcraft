@@ -20,6 +20,8 @@ public sealed class ChannelSessionInfo
     public string? DefaultDeliveryTarget { get; init; }
 
     public ChannelChatDescriptor? Chat { get; init; }
+
+    public ClientSurface? Surface { get; init; }
 }
 
 public static class ChannelSessionScope

@@ -64,8 +64,13 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 18 | Role instructions | Final role-level specialization for the thread, except for native SubAgents. |
 | 19 | Developer instructions | Instructions from the application that started the thread (`developerInstructions`), after role instructions, except for native SubAgents. On protocols with a developer role the same text travels as a developer-role thread context item ahead of the turn's user message instead (§4b), and this section is omitted. |
 
-Working style owns progress messages and the distinction between commentary and final responses;
-question routing and waiting follow the user-coordination guidance. Response style owns expression,
+The tool-conditioned `channel-replies` section follows working style when `SendChannelMessage` is available.
+It defines visible chat reply responsibilities. Resolved chat facts stay in the `channel_chat` WorldState
+section, and each input's Request Source identifies the surface that supplied that input, including local
+app and terminal surfaces.
+
+Working style owns progress messages and turn closure. User coordination describes app-surface
+questions and waiting, while channel reply routing stays in `channel-replies`. Response style owns expression,
 information selection, formatting, and self-contained final answers. Change-reporting guidance applies
 when reporting technical changes, rather than imposing a delivery checklist on every answer. Local file
 links follow the file-references section.
@@ -248,6 +253,16 @@ counters that move on their own such as consumed tokens, remaining budget, and e
 State that persists across turns — the environment, the current mode and the actions it allows, an
 active goal's identity and status, and capability availability — is not a runtime reminder. It is
 delivered through the append-on-change thread context contract in §4b.
+
+The reminder's Request Source names the turn's channel, which for AppServer connections is the
+server-resolved client surface id ([AppServer Protocol §3.2](../protocols/appserver-protocol.md#32-initialize)).
+The `client_surface` WorldState section states only what departs from the defaults the base
+instructions assume: a terminal shows replies as plain text, optionally with the configured ASCII
+visualization guidance, and tools run on the workspace host rather than the user's device. Desktop,
+editor, and API clients on the same machine add nothing, and chat facts stay in `channel_chat`. Notes
+that stop applying are retired once. A turn with no client surface, such as an automation run, leaves
+the section unchanged, and SubAgent threads never render it. Base instructions and tool schemas stay
+unchanged when the client changes.
 
 Dynamic fields stay out of the base instructions so they remain stable for prompt caching.
 

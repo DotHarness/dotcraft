@@ -92,6 +92,8 @@ Initialize request:
 }
 ```
 
+The server uses `clientInfo` to decide which client the agent is talking to. DotCraft's own clients are recognized by name. Any other name is treated as a generic API client, and the agent writes standard Markdown for it. If your users run your client on a different machine from the server, also send `"remoteHost": true` in `capabilities`. The agent then knows that tools and files are on the server, not on the user's device.
+
 The response returns server info and capabilities:
 
 ```json

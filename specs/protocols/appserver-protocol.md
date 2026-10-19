@@ -138,6 +138,21 @@ After the `initialize` response the client sends the `initialized` notification.
 | `nodeRepl` | omitted | With `browserUse` or `computerUse`, client handles `ext/nodeRepl/*` for thread-bound browser or desktop automation. `backend` names the runtime (Desktop reports `desktop-node`). |
 | `browserUse` | omitted | Browser backends behind the Node REPL. |
 | `computerUse` | omitted | Desktop application automation behind the Node REPL; `backend` names the runtime (Windows Desktop reports `cua-driver`). |
+| `remoteHost` | `false` | The user's device is not the machine running this server, for example Desktop attached to a remote workspace. |
+
+**Client surface**: the server resolves one client surface per connection from `initialize`, never from turn input:
+
+| Condition | Surface id | Kind |
+|-----------|------------|------|
+| `channelAdapter` declared | adapter `channelName` | chat |
+| `acpExtensions` declared, or `clientInfo.name` = `dotcraft-acp` | `acp` | editor |
+| `clientInfo.name` = `dotcraft-desktop` | `dotcraft-desktop` | desktop app |
+| `clientInfo.name` = `dotcraft-mobile` | `dotcraft-mobile` | mobile app |
+| `clientInfo.name` = `dotcraft-cli` | `cli` | terminal |
+| `clientInfo.name` = `oratorio` | `oratorio` | service |
+| any other client | `api` | API client |
+
+The surface id is the channel of every Turn the connection starts, enqueues, or steers (`turn.originChannel`, `initiator.channelName`). The tools run on the server's machine. That is the user's device unless the surface is chat or mobile, or the client declares `remoteHost`. What differs from the defaults the base instructions assume reaches the model as the `client_surface` WorldState section ([Prompt Composition §9](../architecture/prompt-composition.md#9-turn-input-layer)).
 
 **`acpExtensions`**: `fsReadTextFile`, `fsWriteTextFile`, and `terminalCreate` declare support for the corresponding `ext/acp/*` families; `extensions` lists custom families (for example `["_unity"]`) for which the server may send `ext/acp/<family>/<method>`.
 
@@ -615,7 +630,7 @@ Queued-input materialization never dereferences image URLs. A persisted HTTP(S) 
 
 `SenderContext` carries `senderId`, `senderName`, `senderRole`, `groupId`, and optional `directTarget`: the sender's direct chat in the adapter's `ext/channel/send` target syntax without channel prefix. When present, the Turn's runtime reminder states `SenderAddress: <channelName>:<directTarget>`.
 
-`thread.originChannel` is the channel that created the thread; `turn.originChannel` is the channel that initiated the turn. Each persisted Turn records an `initiator` (`channelName`, `userId`, `userName`, `userRole`, `channelContext`, `groupId`) for cross-channel replay and audit.
+`thread.originChannel` is the channel that created the thread; `turn.originChannel` is the client surface id of the connection that initiated the turn (§3.2). Each persisted Turn records an `initiator` (`channelName`, `userId`, `userName`, `userRole`, `channelContext`, `groupId`) for cross-channel replay and audit.
 
 ### 5.2 `turn/interrupt`
 

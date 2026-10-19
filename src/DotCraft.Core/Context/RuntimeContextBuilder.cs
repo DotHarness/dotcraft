@@ -63,8 +63,7 @@ public static class RuntimeContextBuilder
             return lines;
 
         var channel = initiator.ChannelName?.Trim();
-        if (IsInformativeChannel(channel))
-            AddLine(lines, "Channel", channel);
+        AddLine(lines, "Channel", channel);
 
         if (!IsWorkspaceChannelContextForWorkspace(initiator.ChannelContext, workspacePath))
             AddLine(lines, "Conversation", initiator.ChannelContext);
@@ -79,16 +78,9 @@ public static class RuntimeContextBuilder
         return lines;
     }
 
-    private static bool IsInformativeChannel(string? channel) =>
-        !string.IsNullOrWhiteSpace(channel)
-        && !string.Equals(channel, "cli", StringComparison.OrdinalIgnoreCase)
-        && !string.Equals(channel, "acp", StringComparison.OrdinalIgnoreCase)
-        && !string.Equals(channel, "desktop", StringComparison.OrdinalIgnoreCase);
-
     private static bool IsLocalSenderId(string? senderId) =>
         string.IsNullOrWhiteSpace(senderId)
-        || string.Equals(senderId, "local", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(senderId, "dotcraft-desktop", StringComparison.OrdinalIgnoreCase);
+        || string.Equals(senderId, "local", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsWorkspaceChannelContextForWorkspace(string? channelContext, string? workspacePath)
     {

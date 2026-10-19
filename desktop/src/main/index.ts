@@ -2226,7 +2226,8 @@ async function connectViaWebSocket(
   const generation = ++connectionGeneration
   const client = DesktopAppServerClient.fromWebSocket(wsUrl, {
     autoReconnect: options.autoReconnect,
-    initializeTimeoutMs: options.initializeTimeoutMs
+    initializeTimeoutMs: options.initializeTimeoutMs,
+    remoteHost: options.projectKind === 'remote'
   })
   const projectId = options.projectId ?? localProjectId(workspacePath)
   const connectionKey = projectId
