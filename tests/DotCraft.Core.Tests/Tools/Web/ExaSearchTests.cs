@@ -31,11 +31,10 @@ public sealed class ExaSearchTests
         var output = await SearchWith(null, _ => Text(RateLimitedBody, "text/event-stream"), h => handler = h);
 
         Assert.Equal("https://mcp.exa.ai/mcp", Assert.Single(handler!.Requests).RequestUri!.ToString());
-        var error = output.RootElement.GetProperty("error").GetString();
-        Assert.Contains("rate limited", error);
-        Assert.Contains("Tools.Web.ExaApiKey", error);
-        Assert.Contains("Bing", error);
-        Assert.Equal("dotcraft", output.RootElement.GetProperty("query").GetString());
+        Assert.False(output.Success);
+        Assert.Contains("rate limited", output.Content);
+        Assert.Contains("Tools.Web.ExaApiKey", output.Content);
+        Assert.Contains("Bing", output.Content);
     }
 
     [Fact]
@@ -112,9 +111,8 @@ public sealed class ExaSearchTests
         Assert.Equal(3, sent.RootElement.GetProperty("numResults").GetInt32());
         Assert.Equal(1, sent.RootElement.GetProperty("contents").GetProperty("highlights").GetProperty("highlightsPerUrl").GetInt32());
 
-        var root = output.RootElement;
+        var root = output.StructuredContent!.Value;
         Assert.Equal("exa", root.GetProperty("provider").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("notice").GetString()));
         var results = root.GetProperty("results");
         Assert.Equal(2, results.GetArrayLength());
         Assert.Equal("Exa", results[0].GetProperty("title").GetString());
@@ -132,10 +130,11 @@ public sealed class ExaSearchTests
             Content = new StringContent("{\"error\":\"Invalid API key\"}", Encoding.UTF8, "application/json")
         });
 
-        Assert.Contains("401", output.RootElement.GetProperty("error").GetString());
+        Assert.False(output.Success);
+        Assert.Contains("401", output.Content);
     }
 
-    private static async Task<JsonDocument> SearchWith(
+    private static async Task<ToolExecutionResult> SearchWith(
         string? apiKey,
         Func<HttpRequestMessage, HttpResponseMessage> respond,
         Action<StubHttpHandler>? capture = null)
@@ -143,7 +142,7 @@ public sealed class ExaSearchTests
         var handler = new StubHttpHandler(respond);
         capture?.Invoke(handler);
         var tools = new WebTools(new AppConfig.WebToolsConfig(), apiKey, new HttpClient(handler));
-        return JsonDocument.Parse(await tools.WebSearch("dotcraft", 3));
+        return await tools.WebSearch("dotcraft", 3);
     }
 
     private static HttpResponseMessage Text(string body, string mediaType) =>

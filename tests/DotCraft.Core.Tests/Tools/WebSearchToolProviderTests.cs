@@ -324,15 +324,13 @@ public sealed class WebSearchToolProviderTests : IDisposable
         };
         var tools = new WebTools(config, ModelProviderResolver.ResolveMain(config), chatClients: new ChatClientRegistry(provider));
 
-        using var output = JsonDocument.Parse(await tools.WebSearch("dotcraft"));
+        var output = await tools.WebSearch("dotcraft");
 
         var request = Assert.Single(provider.Requests);
         Assert.Empty(request.Input);
         Assert.Equal("dotcraft", request.Commands["search_query"]![0]!["q"]!.GetValue<string>());
-        var result = Assert.Single(output.RootElement.GetProperty("results").EnumerateArray());
-        Assert.Equal(
-            ("A", "https://example.com/a", "about A"),
-            (result.GetProperty("title").GetString(), result.GetProperty("url").GetString(), result.GetProperty("snippet").GetString()));
+        Assert.Contains("- [A](https://example.com/a)\n  about A\n", output.Content);
+        Assert.Single(output.StructuredContent!.Value.GetProperty("results").EnumerateArray());
     }
 
     private static AppConfig AnthropicConfig()

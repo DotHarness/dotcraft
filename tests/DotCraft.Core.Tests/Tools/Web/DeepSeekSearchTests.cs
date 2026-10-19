@@ -16,11 +16,11 @@ public sealed class DeepSeekSearchTests
     {
         var handler = new StubHttpHandler(_ => Json("""
             {"results":[
-              {"title":"First","url":"https://example.org/a","summary":"Long summary","snippet":"Short","date":"2026-10-17T00:00:00Z"},
+              {"title":"First","url":"https://example.org/a","summary":"长摘要\n...\na > b & c","snippet":"Short","date":"2026-10-17T00:00:00Z"},
               {"title":"","url":"https://example.org/b","summary":"","snippet":"Fallback"}]}
             """));
         var tools = Tools(handler);
-        using var result = JsonDocument.Parse(await tools.WebSearch("DeepSeek", 2));
+        var result = await tools.WebSearch("DeepSeek", 2);
         var sent = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Post, sent.Method);
         Assert.Equal(ProviderWebSearchBackend.DeepSeekSearchEndpoint, sent.RequestUri);
@@ -29,10 +29,11 @@ public sealed class DeepSeekSearchTests
         Assert.Equal("DeepSeek", body.RootElement.GetProperty("query").GetString());
         Assert.Equal(2, body.RootElement.GetProperty("count").GetInt32());
         Assert.False(body.RootElement.GetProperty("need_content").GetBoolean());
-        Assert.Equal("deepseek", result.RootElement.GetProperty("provider").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(result.RootElement.GetProperty("notice").GetString()));
-        var items = result.RootElement.GetProperty("results");
-        Assert.Equal("Long summary", items[0].GetProperty("snippet").GetString());
+        Assert.Contains("- [First](https://example.org/a) (2026-10-17T00:00:00Z)\n  长摘要 ... a > b & c\n", result.Content);
+        var structured = result.StructuredContent!.Value;
+        Assert.Equal("deepseek", structured.GetProperty("provider").GetString());
+        var items = structured.GetProperty("results");
+        Assert.Equal("长摘要\n...\na > b & c", items[0].GetProperty("snippet").GetString());
         Assert.Equal("2026-10-17T00:00:00Z", items[0].GetProperty("publishedDate").GetString());
         Assert.Equal("https://example.org/b", items[1].GetProperty("title").GetString());
         Assert.Equal("Fallback", items[1].GetProperty("snippet").GetString());
@@ -46,10 +47,10 @@ public sealed class DeepSeekSearchTests
     {
         var handler = new StubHttpHandler(_ => Json("""{"results":[]}"""));
         var query = string.Concat(Enumerable.Repeat("😀", count));
-        using var result = JsonDocument.Parse(await Tools(handler).WebSearch(query));
-        Assert.Equal(invalid, result.RootElement.TryGetProperty("error", out _));
+        var result = await Tools(handler).WebSearch(query);
+        Assert.Equal(invalid, !result.Success);
         Assert.Equal(invalid ? 0 : 1, handler.Requests.Count);
-        if (!invalid) Assert.Equal(0, result.RootElement.GetProperty("results").GetArrayLength());
+        if (!invalid) Assert.Equal(0, result.StructuredContent!.Value.GetProperty("results").GetArrayLength());
     }
 
     [Theory]
@@ -58,8 +59,7 @@ public sealed class DeepSeekSearchTests
     [InlineData("{\"results\":null}")]
     public async Task InvalidResponsesReturnToolErrors(string body)
     {
-        using var result = JsonDocument.Parse(await Tools(new StubHttpHandler(_ => Json(body))).WebSearch("query"));
-        Assert.True(result.RootElement.TryGetProperty("error", out _));
+        Assert.False((await Tools(new StubHttpHandler(_ => Json(body))).WebSearch("query")).Success);
     }
 
     [Theory]
@@ -70,7 +70,7 @@ public sealed class DeepSeekSearchTests
     public async Task HttpFailuresDoNotRetryOrExposeResponseSecrets(int status)
     {
         var handler = new StubHttpHandler(_ => new HttpResponseMessage((HttpStatusCode)status) { Content = new StringContent("search-secret") });
-        var result = await Tools(handler).WebSearch("query");
+        var result = (await Tools(handler).WebSearch("query")).Content;
         Assert.Contains(status.ToString(), result);
         Assert.DoesNotContain("search-secret", result);
         Assert.Single(handler.Requests);
@@ -91,8 +91,8 @@ public sealed class DeepSeekSearchTests
         }
         else
         {
-            using var result = JsonDocument.Parse(await tools.WebSearch("query"));
-            Assert.Contains("timed out", result.RootElement.GetProperty("error").GetString());
+            var result = await tools.WebSearch("query");
+            Assert.Equal(ToolErrorCodes.Timeout, result.Error!.Code);
         }
     }
 
@@ -111,9 +111,8 @@ public sealed class DeepSeekSearchTests
         var tools = new WebTools(new AppConfig.WebToolsConfig(), null,
             new HttpClient(new StubHttpHandler(_ => throw new InvalidOperationException("Unexpected direct request."))),
             new WebSearchTarget("DeepSeek", Runtime: runtime), transport);
-        using var result = JsonDocument.Parse(await tools.WebSearch("query"));
+        Assert.True((await tools.WebSearch("query")).Success);
         Assert.Equal("account", transport.ProviderId);
-        Assert.Equal("deepseek", result.RootElement.GetProperty("provider").GetString());
         Assert.Single(handler.Requests);
     }
 

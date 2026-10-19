@@ -1,7 +1,7 @@
 import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem, WebSearchAction, WebSearchInfo } from '../types/conversation'
 import { extractPartialJsonStringValue } from './toolCallDisplay'
-import { parseWebSearchResultDisplay, toWebSearchResultRows, type WebSearchResultRow } from './webToolDisplay'
+import { toWebSearchResultRows, type WebSearchResultRow } from './webToolDisplay'
 
 export type WebSearchRowState = 'running' | 'completed' | 'failed'
 
@@ -49,7 +49,7 @@ export function getWebSearchDisplay(
 }
 
 export function getWebSearchToolDisplay(
-  item: Pick<ConversationItem, 'arguments' | 'argumentsPreview' | 'result' | 'errorMessage'>,
+  item: Pick<ConversationItem, 'arguments' | 'argumentsPreview' | 'result' | 'errorMessage' | 'structuredResult'>,
   { running, success }: { running: boolean; success: boolean },
   locale: AppLocale
 ): WebSearchDisplay {
@@ -57,15 +57,13 @@ export function getWebSearchToolDisplay(
   const query = typeof argument === 'string'
     ? argument
     : item.argumentsPreview ? extractPartialJsonStringValue(item.argumentsPreview, 'query') ?? '' : ''
-  const parsed = running ? null : parseWebSearchResultDisplay(item.result)
-  const state: WebSearchRowState = running
-    ? 'running'
-    : !success || parsed?.kind === 'error' ? 'failed' : 'completed'
+  const structured = item.structuredResult as { results?: unknown } | null | undefined
+  const results = !running && Array.isArray(structured?.results) ? structured.results : []
   return buildDisplay(
-    state,
+    running ? 'running' : success ? 'completed' : 'failed',
     getWebSearchDetail({ action: { type: 'search', query }, query }),
-    parsed?.kind === 'results' ? parsed.rows : [],
-    parsed?.kind === 'error' ? parsed.message : item.errorMessage ?? item.result ?? '',
+    toWebSearchResultRows(results),
+    item.errorMessage ?? item.result ?? '',
     locale
   )
 }
