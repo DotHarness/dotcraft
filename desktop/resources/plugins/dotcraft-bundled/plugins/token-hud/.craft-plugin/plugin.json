@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "token-hud",
-  "version": "0.1.0",
+  "version": "0.9.0",
   "displayName": "Token HUD",
   "description": "Shows generation speed, workspace token use, and cache efficiency.",
   "capabilities": ["desktop"],

@@ -268,7 +268,6 @@ $targets = @(
     @{ Type = "dotnetPackage"; Path = "src/DotCraft.ModelService/DotCraft.ModelService.csproj" },
     @{ Type = "dotnetPackage"; Path = "sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj" },
     @{ Type = "packageJson"; Path = "desktop/package.json" },
-    @{ Type = "packageJson"; Path = "desktop/resources/plugins/dotcraft-bundled/plugins/oratorio/.craft-plugin/plugin.json" },
     @{ Type = "npmLock"; Path = "desktop/package-lock.json"; Name = "dotcraft-desktop"; UpdateLinkedSdk = $true; UpdateLinkedDesktopPlugin = $true; UpdateLinkedAvatar = $true },
     @{ Type = "packageJson"; Path = "sdk/typescript/package.json" },
     @{ Type = "npmLock"; Path = "sdk/typescript/package-lock.json"; Name = "@dotcraft/sdk"; SyncSdkDependencyWorkspace = "packages/plugin" },
@@ -286,6 +285,11 @@ $targets = @(
     @{ Type = "npmLock"; Path = "mobile/package-lock.json"; Name = "dotcraft-mobile"; UpdateLinkedSdk = $true; UpdateLinkedAvatar = $true },
     @{ Type = "releaseDownloads"; Path = "docs/public/release-downloads.json" }
 )
+
+$bundledPluginsPath = "desktop/resources/plugins/dotcraft-bundled/plugins"
+foreach ($plugin in Get-ChildItem -LiteralPath (Join-Path $repoRoot $bundledPluginsPath) -Directory | Sort-Object Name) {
+    $targets += @{ Type = "packageJson"; Path = "$bundledPluginsPath/$($plugin.Name)/.craft-plugin/plugin.json" }
+}
 
 # The lock file carries one entry per workspace beside its root entry. That list is
 # derived from the workspace package.json targets above rather than repeated, so a

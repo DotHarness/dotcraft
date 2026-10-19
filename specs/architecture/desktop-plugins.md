@@ -87,6 +87,10 @@ manifest-relative `./desktop/dist/`. Free-form capability labels do not grant re
 
 ### Bundled assets
 
+Every plugin under `desktop/resources/plugins/dotcraft-bundled/plugins` shares
+the DotCraft release version in its `.craft-plugin/plugin.json`. The release
+version bump script discovers those plugins and updates their manifests together.
+
 Imported assets resolve against the importing module's installed source and revision, including
 split chunks; CSS URLs remain stylesheet-relative. Bundles use the Desktop-owned React/JSX runtime
 and do not ship another React implementation. The Host UI kit and published theme tokens are

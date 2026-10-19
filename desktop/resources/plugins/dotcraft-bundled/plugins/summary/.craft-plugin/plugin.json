@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "summary",
-  "version": "0.1.0",
+  "version": "0.9.0",
   "displayName": "Summary",
   "description": "Shows a chat's changes, plan, subagents, scheduled tasks, and sources beside the conversation.",
   "capabilities": ["desktop"],
