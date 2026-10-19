@@ -18,6 +18,21 @@ if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'unde
   window.cancelIdleCallback = () => {}
 }
 
+// jsdom has no editing commands; apply insertHTML and delete to the selection without undo history.
+if (typeof document !== 'undefined' && typeof document.execCommand !== 'function') {
+  document.execCommand = (command: string, _showUI?: boolean, value?: string): boolean => {
+    const selection = window.getSelection()
+    if (!selection?.rangeCount || (command !== 'insertHTML' && command !== 'delete')) return false
+    const range = selection.getRangeAt(0)
+    const start = range.startContainer
+    const root = (start instanceof Element ? start : start.parentElement)?.closest('[contenteditable="true"]')
+    range.deleteContents()
+    if (command === 'insertHTML') range.insertNode(range.createContextualFragment(value ?? ''))
+    root?.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    return true
+  }
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllTimers()

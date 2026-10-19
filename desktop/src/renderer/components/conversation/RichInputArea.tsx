@@ -294,6 +294,26 @@ function parseSkillMarkersFromText(text: string, catalog: ComposerRefCatalog): C
   return parseComposerTextWithCatalog(text, catalog)
 }
 
+// Editing commands keep programmatic changes on the browser's undo stack.
+function replaceRangeUndoably(editor: HTMLElement, range: Range, content?: DocumentFragment): void {
+  editor.focus()
+  const selection = window.getSelection()
+  if (!selection) return
+  const total = linearLengthOfNode(editor)
+  const following = total - (linearOffsetFromPoint(editor, range.endContainer, range.endOffset) ?? total)
+  selection.removeAllRanges()
+  selection.addRange(range)
+  if (content?.hasChildNodes()) {
+    const holder = document.createElement('div')
+    holder.appendChild(content)
+    document.execCommand('insertHTML', false, holder.innerHTML)
+  } else if (!range.collapsed) {
+    document.execCommand('delete')
+  }
+  const caret = locateLinearBoundary(editor, linearLengthOfNode(editor) - following)
+  selection.collapse(caret.node, caret.offset)
+}
+
 export const RichInputArea = forwardRef(function RichInputArea(
   {
     disabled,
@@ -534,29 +554,14 @@ export const RichInputArea = forwardRef(function RichInputArea(
         try {
           range.setStart(startLoc.node, startLoc.offset)
           range.setEnd(endLoc.node, endLoc.offset)
-          range.deleteContents()
         } catch {
           return
         }
-        if (leadingSpace) {
-          const prefix = document.createTextNode(' ')
-          range.insertNode(prefix)
-          range.setStartAfter(prefix)
-          range.collapse(true)
-        }
-        const span = createRefSpan(kind, value, title)
-        const space = document.createTextNode('\u00a0')
-        range.insertNode(span)
-        range.setStartAfter(span)
-        range.insertNode(space)
-        // The caret must sit *inside* the trailing spacer text node: left at the element
-        // boundary next to the contenteditable=false chip, Chromium double-inserts the
-        // first IME-committed character.
-        range.setStart(space, space.length)
-        range.collapse(true)
-        const sel = window.getSelection()
-        sel?.removeAllRanges()
-        sel?.addRange(range)
+        const frag = document.createDocumentFragment()
+        if (leadingSpace) frag.appendChild(document.createTextNode(' '))
+        frag.appendChild(createRefSpan(kind, value, title))
+        frag.appendChild(document.createTextNode('\u00a0'))
+        replaceRangeUndoably(el, range, frag)
         captureSelectionRange()
         commandQueryRangeRef.current = null
         onAtQuery?.(null)
@@ -590,14 +595,10 @@ export const RichInputArea = forwardRef(function RichInputArea(
         try {
           range.setStart(startLoc.node, startLoc.offset)
           range.setEnd(endLoc.node, endLoc.offset)
-          range.deleteContents()
-          range.collapse(true)
         } catch {
           return
         }
-        const selection = window.getSelection()
-        selection?.removeAllRanges()
-        selection?.addRange(range)
+        replaceRangeUndoably(el, range)
         commandQueryRangeRef.current = null
         onAtQuery?.(null)
         onSlashQuery?.(null)
@@ -974,20 +975,21 @@ export const RichInputArea = forwardRef(function RichInputArea(
           const { startContainer, startOffset } = range
           if (startContainer.nodeType === Node.TEXT_NODE && startOffset === 0) {
             const prev = startContainer.previousSibling
+            const removal = document.createRange()
             if (prev && prev.nodeType === Node.TEXT_NODE && (prev.textContent === '\u00a0' || prev.textContent === ' ')) {
               const beforeSpace = prev.previousSibling
               if (beforeSpace && isRefElement(beforeSpace)) {
                 e.preventDefault()
-                beforeSpace.remove()
-                prev.remove()
-                onInput()
+                removal.setStartBefore(beforeSpace)
+                removal.setEndAfter(prev)
+                replaceRangeUndoably(editorRef.current, removal)
                 return
               }
             }
             if (prev && isRefElement(prev)) {
               e.preventDefault()
-              prev.remove()
-              onInput()
+              removal.selectNode(prev)
+              replaceRangeUndoably(editorRef.current, removal)
             }
           }
         }
@@ -1032,20 +1034,10 @@ export const RichInputArea = forwardRef(function RichInputArea(
         if (!sel || sel.rangeCount === 0) return
         const range = sel.getRangeAt(0)
         if (!editor.contains(range.startContainer)) return
-
-        const frag = buildEditorFragmentFromSegments(segments, { addSpacers: true })
-        const tail = frag.lastChild
-        if (!(tail instanceof Text)) return
-
-        range.deleteContents()
-        range.insertNode(frag)
-        // Keep the caret inside text so the first IME punctuation commit is not duplicated.
-        range.setStart(tail, tail.length)
-        range.collapse(true)
-        sel.removeAllRanges()
-        sel.addRange(range)
+        replaceRangeUndoably(editor, range, buildEditorFragmentFromSegments(segments, { addSpacers: true }))
+        onInput()
       },
-      []
+      [onInput]
     )
 
     const onEditorClick = useCallback(
@@ -1056,22 +1048,20 @@ export const RichInputArea = forwardRef(function RichInputArea(
         if (!removeIcon) return
         const tag = removeIcon.closest('[data-ref-type]')
         if (!(tag instanceof HTMLElement)) return
+        const editor = editorRef.current
+        if (!editor) return
         e.preventDefault()
         e.stopPropagation()
         const next = tag.nextSibling
         const prev = tag.previousSibling
-        tag.remove()
-        if (next?.nodeType === Node.TEXT_NODE && (next.textContent === '\u00a0' || next.textContent === ' ')) {
-          next.remove()
-        } else if (
-          prev?.nodeType === Node.TEXT_NODE &&
-          (prev.textContent === '\u00a0' || prev.textContent === ' ')
-        ) {
-          prev.remove()
-        }
-        onInput()
+        const isSpacer = (node: ChildNode | null): node is ChildNode =>
+          node?.nodeType === Node.TEXT_NODE && (node.textContent === '\u00a0' || node.textContent === ' ')
+        const removal = document.createRange()
+        removal.setStartBefore(!isSpacer(next) && isSpacer(prev) ? prev : tag)
+        removal.setEndAfter(isSpacer(next) ? next : tag)
+        replaceRangeUndoably(editor, removal)
       },
-      [onInput]
+      []
     )
 
     const onCopyOrCut = useCallback(
@@ -1088,11 +1078,9 @@ export const RichInputArea = forwardRef(function RichInputArea(
         e.preventDefault()
         e.clipboardData.setData('text/plain', plainText)
         e.clipboardData.setData(RICH_REFS_CLIPBOARD_MIME, JSON.stringify({ version: 1, segments }))
-        if (!cut) return
-        range.deleteContents()
-        onInput()
+        if (cut) replaceRangeUndoably(editor, range)
       },
-      [onInput]
+      []
     )
 
     const onPaste = useCallback(
@@ -1113,7 +1101,6 @@ export const RichInputArea = forwardRef(function RichInputArea(
             if (segments.length > 0) {
               e.preventDefault()
               insertClipboardSegmentsAtCaret(segments)
-              onInput()
               return
             }
           } catch {
@@ -1130,16 +1117,14 @@ export const RichInputArea = forwardRef(function RichInputArea(
           const truncated = pasted.slice(0, MAX_TEXT_LEN)
           const segments = parseSkillMarkersFromText(truncated, refCatalog)
           insertClipboardSegmentsAtCaret(segments)
-          onInput()
           onPasteTextOversized?.()
           return
         }
         e.preventDefault()
         const segments = parseSkillMarkersFromText(pasted, refCatalog)
         insertClipboardSegmentsAtCaret(segments)
-        onInput()
       },
-      [insertClipboardSegmentsAtCaret, onInput, onPasteImage, onPasteText, onPasteTextOversized, refCatalog]
+      [insertClipboardSegmentsAtCaret, onPasteImage, onPasteText, onPasteTextOversized, refCatalog]
     )
 
     return (
