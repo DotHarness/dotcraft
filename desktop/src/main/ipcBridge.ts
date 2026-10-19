@@ -31,6 +31,7 @@ import {
   SATELLITES_CHANNELS
 } from './satellites/satellitesIpc'
 import { CHAT_FOLDERS_CHANNELS, registerChatFoldersHandlers } from './chatFoldersIpc'
+import { LINK_PREVIEW_CHANNELS, registerLinkPreviewHandlers } from './linkPreviews'
 import { chatFolderFor } from './chatFolderAccess'
 import { getSatellitesHubBridge } from './satellites/satellitesHubBridge'
 import { MOBILE_CHANNELS, registerMobileHandlers } from './mobile/mobileIpc'
@@ -1435,6 +1436,7 @@ export function registerIpcHandlers(
   })
 
   registerChatFoldersHandlers(handleSafe, () => callbacks?.getSettings() ?? {})
+  registerLinkPreviewHandlers(handleSafe)
 
   handleSafe('workspace:create-local-project', async (_event, params: { name?: string }) => {
     const folderName = sanitizeProjectFolderName(typeof params?.name === 'string' ? params.name : '')
@@ -2341,6 +2343,9 @@ export function unregisterIpcHandlers(): void {
     ipcMain.removeHandler(channel)
   }
   for (const channel of CHAT_FOLDERS_CHANNELS) {
+    ipcMain.removeHandler(channel)
+  }
+  for (const channel of LINK_PREVIEW_CHANNELS) {
     ipcMain.removeHandler(channel)
   }
   for (const channel of MOBILE_CHANNELS) {

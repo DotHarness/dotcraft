@@ -1,5 +1,6 @@
 import type { TextContextMenuRequest } from '../shared/textContextMenu'
 import type { GithubBranchPullResult, GithubRefResult, GithubRefTarget, GithubRepo } from '../shared/githubReferences'
+import type { LinkPreviewResult } from '../shared/linkPreviews'
 import type { BrowserHostApi, BrowserHostEvent } from '../shared/viewer/browserHost'
 import type { PastedTextContext } from '../shared/composerContext'
 import type { ChatsFolderInfo } from '../shared/chatFolders'
@@ -915,6 +916,12 @@ const api = {
     },
     getWorkspaceRepo(workspacePath: string): Promise<GithubRepo | null> {
       return ipcRenderer.invoke('github:getWorkspaceRepo', workspacePath)
+    }
+  },
+
+  linkPreview: {
+    get(url: string): Promise<LinkPreviewResult> {
+      return ipcRenderer.invoke('linkPreview:get', url)
     }
   },
 

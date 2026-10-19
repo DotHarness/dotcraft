@@ -1027,6 +1027,12 @@ Surfaces beyond the conversation follow the same rules: protocol-driven behavior
 - In assistant Markdown, a link targeting exactly a github.com pull request or issue renders as a GitHub reference when its text is empty, the URL, `#<n>`, or `<owner>/<repo>#<n>`; other text is kept and gains only state. Other GitHub URLs and hosts stay ordinary links. A click opens the URL normally.
 - Desktop reads title, state, author, age, and pull request diff stats through the local GitHub CLI credentials, from the trusted host process only, lazily and with short-lived caching. Failures leave the reference usable with its number and explain the reason on hover. References in the workspace's GitHub `origin` are labeled by number alone.
 
+**Link previews**
+
+- Resting on or keyboard-focusing an ordinary web link in assistant Markdown opens a preview of the page: its host, favicon, preview image, and title. Only `https` links without credentials get a preview; other schemes, `localhost`, `.local`, `.internal`, `.test`, and literal IP hosts keep the plain URL hint, and GitHub references keep their own card. The preview's Open action does exactly what clicking the link does.
+- Metadata is fetched by the trusted host process only when a preview opens, never for every link in a transcript. The request carries only the URL: no cookies, credentials, or referrer, in a session separate from the browser panel's. The host refuses any address that resolves to a loopback, private, link-local, or otherwise non-public network, checking again on each redirect (at most three), and bounds each lookup by time and size: HTML is read only up to the end of its head, and the image and favicon are returned inline, limited to raster image types, so the renderer never loads the page's resources itself.
+- Results are cached by URL for a few minutes (failures briefly) and concurrent lookups for a URL are shared. A failed or refused lookup leaves the link usable and the preview says why.
+
 **Files and editing**
 
 - The Files tree offers one root per folder of the active local Project, following the active file's containing folder until another root is chosen. Files are labeled relative to the longest containing Project folder, or absolutely otherwise.
