@@ -7,6 +7,7 @@ using DotCraft.Context;
 using DotCraft.Context.WorldState;
 using DotCraft.Context.Compaction;
 using DotCraft.Contributions;
+using DotCraft.Memory;
 using DotCraft.Runtime;
 using DotCraft.Sessions;
 using DotCraft.Tools;
@@ -30,7 +31,7 @@ internal static class DotNetPluginSampleEffects
     internal const string ConsumerId = "acme.review-consumer";
 
     /// <summary>A line of the built-in <c>response-style</c> section, absent while the replacement holds.</summary>
-    private const string BuiltInResponseStyle = "Be concise, direct, and useful.";
+    private const string BuiltInResponseStyle = "## Response Style";
 
     /// <summary>Prompt sections, the Tier-B replacement, the Tier-C takeover, and the two context bridges.</summary>
     internal static void AssertPromptEffects(DotNetPluginSampleHost host, SampleCoverageLedger ledger)
@@ -223,6 +224,34 @@ internal static class DotNetPluginSampleEffects
         host.AssertJournalExcludes(ProviderId, privateSentinel);
     }
 
+    internal static async Task AssertMemoryWriteEffectsAsync(
+        DotNetPluginSampleHost host,
+        string workspace,
+        SampleCoverageLedger ledger)
+    {
+        var dataPath = Path.Combine(workspace, ".craft");
+        var stores = MemoryScopes.AttachedStores(
+            new ThreadConfiguration
+            {
+                MemoryStores = [new MemoryStoreAttachment("review", "Review", "Shared review knowledge.", MemoryStoreAccess.ReadWrite)]
+            },
+            dataPath);
+        var path = Path.Combine(Assert.Single(stores).DirectoryPath, "review.md");
+        var tools = new FileTools(
+            workspace,
+            memoryStores: new ThreadMemoryStores(new MemoryStore(dataPath), stores),
+            memoryWriteGates: () => host.Registry.Resolve<IMemoryWriteGate>(ThreadId));
+
+        var written = await tools.WriteFile(path, "Check cancellation before publishing.");
+        Assert.True(written.Success, written.Content);
+        Assert.Equal("Check cancellation before publishing.", File.ReadAllText(path));
+
+        var deleted = await tools.WriteFile(path, "");
+        Assert.False(deleted.Success);
+        Assert.Equal("Check cancellation before publishing.", File.ReadAllText(path));
+        ledger.Prove<IMemoryWriteGate>();
+    }
+
     /// <summary>The contribution points whose only Host reader this harness cannot reach; see the coverage table.</summary>
     /// <remarks>These get the weaker claim on purpose: the sample contributes, and nothing here asserts an effect.</remarks>
     internal static void AssertRegistrationOnlyPoints(DotNetPluginSampleHost host, SampleCoverageLedger ledger)
@@ -246,6 +275,7 @@ internal static class DotNetPluginSampleEffects
             CompactionSummarizerCatalog.Resolve(host.Registry, ThreadId));
         Assert.Same(SubAgentProfileCatalog.BuiltIn, SubAgentProfileCatalog.Resolve(host.Registry, ThreadId));
         Assert.Empty(CommandContributions.List(host.Registry, ThreadId));
+        Assert.Empty(host.Registry.Resolve<IMemoryWriteGate>(ThreadId));
         Assert.False(CompactableToolPolicyCatalog.IsCompactable(host.Registry, ThreadId, "review.summary"));
     }
 

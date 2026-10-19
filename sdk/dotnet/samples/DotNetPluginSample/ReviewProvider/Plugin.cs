@@ -5,6 +5,7 @@ using DotCraft.Context;
 using DotCraft.Context.WorldState;
 using DotCraft.Context.Compaction;
 using DotCraft.Contributions;
+using DotCraft.Memory;
 using DotCraft.Plugins;
 using DotCraft.Sessions;
 using DotCraft.Tools;
@@ -118,6 +119,7 @@ public sealed class Plugin : IDotCraftPlugin, IDisposable
             new ReviewResultStamp(),
             new ContributionOptions(Order: 500));
         contributions.Add<IToolRestriction>(new ReviewToolRestriction(settings));
+        contributions.Add<IMemoryWriteGate>(new ReviewMemoryWriteGate());
     }
 
     private static void AddSessionContributions(

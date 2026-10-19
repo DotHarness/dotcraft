@@ -679,7 +679,10 @@ public sealed class GitLabReadSyncTests
             client,
             $"/api/v1/items/id/{mr.ItemId}/dispatch",
             new DispatchRequest("appServer", "Prepare GitLab MR review suggestions.", null, null));
-        var reviewed = await WaitForItemByIdAsync(client, mr.ItemId!, x => x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status != ReviewDraftStatus.Draft);
+        var reviewed = await WaitForItemByIdAsync(client, mr.ItemId!, x =>
+            x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status == ReviewDraftStatus.Published &&
+            x.SourceWrites.Any(write => write.Kind == SourceWriteKind.MergeRequestDiscussion &&
+                write.Intent == "reviewDraftPublish" && write.Status == SourceWriteStatus.Succeeded));
         var draft = Assert.Single(reviewed.ReviewDrafts);
         Assert.Equal(2, draft.AcceptedCount);
         Assert.Equal(0, draft.WarningCount);
@@ -909,7 +912,10 @@ public sealed class GitLabReadSyncTests
             client,
             $"/api/v1/items/id/{mr.ItemId}/dispatch",
             new DispatchRequest("appServer", "Prepare a clean GitLab MR review.", null, null));
-        var reviewed = await WaitForItemByIdAsync(client, mr.ItemId!, x => x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status != ReviewDraftStatus.Draft);
+        var reviewed = await WaitForItemByIdAsync(client, mr.ItemId!, x =>
+            x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status == ReviewDraftStatus.Published &&
+            x.SourceWrites.Any(write => write.Kind == SourceWriteKind.MergeRequestNote &&
+                write.Intent == "reviewDraftPublish" && write.Status == SourceWriteStatus.Succeeded));
         var draft = Assert.Single(reviewed.ReviewDrafts);
 
         Assert.Equal(0, fakeGitLab.MergeRequestDiffReadCount);

@@ -189,6 +189,7 @@ The catalog reuses kernel contracts. Capability tiers are:
 | Tools | `IToolInvocationRecorder` | A, B | Per dispatch, contained fan-out |
 | Tools | `IToolResultNormalizer` | A, B | Per dispatch, ordered fold |
 | Tools | `IToolRestriction` | A | Materialized per tool snapshot |
+| Memory | `IMemoryWriteGate` | A | Resolved per attached-store write, every gate must admit the write |
 | Lifecycle | `IThreadLifecycleContributor`, `ITurnLifecycleContributor` | A | Contained fan-out |
 | Lifecycle | `IThreadRuntimeSignalContributor` | A | Bounded asynchronous fan-out |
 | Suggestions | `ICommitMessageSuggester`, `IWelcomeSuggester` | B | Authority per request |

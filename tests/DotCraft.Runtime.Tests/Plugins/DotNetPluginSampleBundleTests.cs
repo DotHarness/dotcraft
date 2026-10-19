@@ -79,6 +79,7 @@ public sealed class DotNetPluginSampleBundleTests : IDisposable
         await AssertCompactionEffectsAsync(host, ledger);
         await AssertModelPipelineEffectsAsync(host, ledger);
         await AssertToolEffectsAsync(host, manager, ledger);
+        await AssertMemoryWriteEffectsAsync(host, _harness.Workspace, ledger);
         await AssertSessionAndSurfaceEffectsAsync(host, ledger);
         AssertRegistrationOnlyPoints(host, ledger);
 

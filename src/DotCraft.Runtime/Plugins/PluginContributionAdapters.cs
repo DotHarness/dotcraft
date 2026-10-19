@@ -4,6 +4,7 @@ using DotCraft.Commands.Core;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Contributions;
+using DotCraft.Memory;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 using DotCraft.Tracing;
@@ -49,6 +50,8 @@ internal static class PluginContributionAdapters
                 new ToolNormalizerAdapter(value, invocation),
             IToolRestriction value when typeof(TContract) == typeof(IToolRestriction) =>
                 new ToolRestrictionAdapter(value, invocation),
+            IMemoryWriteGate value when typeof(TContract) == typeof(IMemoryWriteGate) =>
+                new MemoryWriteGateAdapter(value, invocation),
             IThreadLifecycleContributor value when typeof(TContract) == typeof(IThreadLifecycleContributor) =>
                 new ThreadLifecycleAdapter(value, invocation),
             ITurnLifecycleContributor value when typeof(TContract) == typeof(ITurnLifecycleContributor) =>
@@ -281,6 +284,21 @@ internal static class PluginContributionAdapters
         public ToolRestrictionEdit? Restrict(ToolRestrictionContext context) =>
             _invocation.Invoke(() =>
                 HostOwned(_target.Value.Restrict(context), "tool restriction edit"));
+    }
+
+    private sealed class MemoryWriteGateAdapter(
+        IMemoryWriteGate target,
+        PluginInvocation invocation) : IMemoryWriteGate
+    {
+        private readonly PluginTarget<IMemoryWriteGate> _target = invocation.Capture(target);
+
+        public ValueTask<MemoryWriteDecision> EvaluateAsync(
+            MemoryWriteRequest request,
+            CancellationToken cancellationToken) =>
+            invocation.InvokeAsync(new Func<ValueTask<MemoryWriteDecision>>(async () =>
+                HostOwned(
+                    await _target.Value.EvaluateAsync(request, cancellationToken).ConfigureAwait(false),
+                    "memory write decision")));
     }
 
     private sealed class ThreadLifecycleAdapter(

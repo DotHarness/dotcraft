@@ -4,6 +4,7 @@ using DotCraft.Context;
 using DotCraft.Context.WorldState;
 using DotCraft.Context.Compaction;
 using DotCraft.Contributions;
+using DotCraft.Memory;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 using DotCraft.Tracing;
@@ -55,6 +56,7 @@ internal static class DotNetPluginSampleCoverage
         Effect<IToolInvocationRecorder>("The plugin's journal line for a dispatch the Host's own recorder also recorded."),
         Effect<IToolResultNormalizer>("The plugin's stamp on the content the Host's normalizer produced."),
         Effect<IToolRestriction>("A masked Tool absent from the assembled registrations and NotFound at dispatch; a rewritten description on the one kept."),
+        Effect<IMemoryWriteGate>("FileTools writes shared memory but refuses to delete it while the plugin gate is active."),
         Effect<IThreadRuntimeSignalContributor>("The plugin's journal line for a signal published through ThreadRuntimeSignalDispatcher."),
         Effect<ICommitMessageSuggester>("The message ContributedCommitMessageSuggestService returns while the replacement is registered."),
         Effect<IWelcomeSuggester>("The snapshot ContributedWelcomeSuggestionService returns while the replacement is registered."),
