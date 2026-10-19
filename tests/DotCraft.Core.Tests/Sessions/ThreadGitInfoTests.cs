@@ -1,5 +1,13 @@
+using System.Text.Json.Nodes;
+using DotCraft.Agents;
+using DotCraft.Configuration;
+using DotCraft.Memory;
+using DotCraft.Security;
 using DotCraft.Sessions;
+using DotCraft.Skills;
+using DotCraft.Tools;
 using DotCraft.Utilities;
+using Microsoft.Extensions.AI;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions;
@@ -91,6 +99,41 @@ public sealed class ThreadGitInfoTests : IDisposable
         Assert.Equal(thread.GitInfo, summary.GitInfo);
     }
 
+    [Fact]
+    public async Task LocalTurn_RecordsGitInfoAlthoughARemoteToolHostIsAvailable()
+    {
+        var repo = await CreateRepositoryAsync("feat/local");
+        var chat = new ReplyChatClient();
+        await using var factory = new AgentFactory(
+            dotcraftPath: repo,
+            workspacePath: repo,
+            config: AppConfigTestFactory.CreateOpenAI(),
+            memoryStore: new MemoryStore(repo),
+            skillsLoader: new SkillsLoader(repo),
+            approvalService: new AutoApproveApprovalService(),
+            blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
+            chatClient: chat,
+            toolSources: Array.Empty<IToolSource>(),
+            remoteToolHostClient: new UnroutedRemoteClient());
+        var service = new SessionService(
+            factory,
+            chat.AsAIAgent(),
+            new SessionPersistenceService(new ThreadStore(repo)),
+            new SessionGate());
+        var updated = new TaskCompletionSource<ThreadGitInfo?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.ThreadUpdatedForBroadcast += thread => updated.TrySetResult(thread.GitInfo);
+        var thread = await service.CreateThreadAsync(
+            new SessionIdentity { ChannelName = "test", UserId = "user", WorkspacePath = repo });
+
+        await foreach (var _ in service.SubmitInputAsync(thread.Id, [new TextContent("hello")]))
+        {
+        }
+
+        var info = await updated.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        Assert.Equal("feat/local", info?.Branch);
+    }
+
     private async Task<string> CreateRepositoryAsync(string branch)
     {
         var repo = Directory.CreateDirectory(Path.Combine(_tempDir, "repo")).FullName;
@@ -104,5 +147,74 @@ public sealed class ThreadGitInfoTests : IDisposable
     {
         var result = await GitProcessRunner.RunAsync(cwd, args, TimeSpan.FromSeconds(30), CancellationToken.None);
         Assert.True(result.ExitCode == 0, result.StdErr);
+    }
+
+    private sealed class ReplyChatClient : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, "ok")]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "ok");
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    /// <summary>A host that is available but routes no thread, as in an ordinary local session.</summary>
+    private sealed class UnroutedRemoteClient : IRemoteToolHostClient
+    {
+        public event Action<RemoteToolRouteChange>? RouteChanged { add { } remove { } }
+
+        public void UpdateRemoteToolSnapshot(string threadId, EffectiveToolSnapshot snapshot, string mode) { }
+
+        public ValueTask PrepareTurnAsync(string threadId, EffectiveToolSnapshot snapshot, string mode,
+            CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+
+        public void ReportTurn(string threadId, string turnId, TurnStatus status) { }
+
+        public ValueTask<RemoteToolHostCatalog> ListAsync(string threadId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<RemoteToolConnectResult> ConnectAsync(string threadId, string hostId, string workspaceId,
+            CancellationToken cancellationToken = default, RemoteToolRouteInitiator initiator = RemoteToolRouteInitiator.Client) =>
+            throw new NotSupportedException();
+
+        public ValueTask<RemoteToolDisconnectResult> DisconnectAsync(string threadId,
+            CancellationToken cancellationToken = default, RemoteToolRouteInitiator initiator = RemoteToolRouteInitiator.Client) =>
+            throw new NotSupportedException();
+
+        public bool TryGetRoute(string threadId, out RemoteToolRoute route)
+        {
+            route = null!;
+            return false;
+        }
+
+        public bool TryGetConnectionSnapshot(string threadId, out RemoteToolConnectionSnapshot snapshot)
+        {
+            snapshot = null!;
+            return false;
+        }
+
+        public bool TryForkRoute(string parentThreadId, string childThreadId) => false;
+
+        public ValueTask<string> WriteImageAsync(RemoteToolRoute route, string threadId, string callId, byte[] bytes,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public ValueTask<byte[]> ReadImageAsync(RemoteToolRoute route, string threadId, string callId, string path,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public ValueTask<ToolExecutionResult> InvokeAsync(RemoteToolRoute route, ToolDefinition definition, string contractHash,
+            ToolInvocationContext context, JsonObject arguments, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

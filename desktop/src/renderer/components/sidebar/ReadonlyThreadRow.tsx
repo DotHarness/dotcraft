@@ -20,6 +20,7 @@ import { threadOriginBadge, useThreadEntryDetails } from './ThreadEntryDetails'
 import { ThreadRowLayout } from './ThreadRowLayout'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { isRemoteProject, isThreadRunning, isThreadWaiting, projectIdentity } from './projectThreads'
+import { ThreadPullRequestGlyph } from './ThreadPullRequest'
 import { ThreadRowTitle } from './ThreadRowTitle'
 import { useRememberRowSelection } from './threadRowSelection'
 
@@ -66,12 +67,14 @@ export function ReadonlyThreadRow({
   const displayName = thread.displayName ?? t('sidebar.newConversation')
   const relativeTime = formatRelativeTime(thread.lastActiveAt, new Date(), locale)
   const subAgent = isSubAgentThread(thread)
+  const [onScreen, setOnScreen] = useState(false)
   const threadDetails = useThreadEntryDetails({
     thread: { ...thread, displayName },
     project,
     projectName: project.name || project.path,
     relativeTime,
-    origin: threadOriginBadge({ thread, isSubAgent: subAgent, t })
+    origin: threadOriginBadge({ thread, isSubAgent: subAgent, t }),
+    onScreen
   })
   const rowProjectKey = projectIdentity(project)
   const subAgentDepth = getSubAgentDepth(thread)
@@ -151,6 +154,8 @@ export function ReadonlyThreadRow({
         <span className="dc-status-badge" data-size="compact" data-tone="warning">
           <span className="dc-status-badge__label">{t('projectsRail.awaitingResponse')}</span>
         </span>
+      ) : threadDetails.rowPull ? (
+        <ThreadPullRequestGlyph pull={threadDetails.rowPull} />
       ) : (
         relativeTime
       )}
@@ -210,7 +215,13 @@ export function ReadonlyThreadRow({
             </span>
           )
         }
-        name={<ThreadRowTitle title={displayName} worktreeBranch={thread.worktree?.branchName?.trim() || null} />}
+        name={
+          <ThreadRowTitle
+            title={displayName}
+            worktreeBranch={thread.worktree?.branchName?.trim() || null}
+            onVisibilityChange={setOnScreen}
+          />
+        }
         nameStyle={{ fontWeight: 'var(--type-ui-weight)', overflow: 'visible', textOverflow: 'clip' }}
         statusColumn={statusColumn}
         statusSlotWidth={statusSlotWidth}

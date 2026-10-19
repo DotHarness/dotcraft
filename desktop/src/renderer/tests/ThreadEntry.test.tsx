@@ -169,6 +169,48 @@ describe('ThreadEntry', () => {
     expect(gitInspectHead).not.toHaveBeenCalled()
   })
 
+  it('refreshes the row pull request when the window regains focus after the cached state expires', async () => {
+    useGithubRefStore.setState({ originPulls: {} })
+    let now = Date.now()
+    const dateNow = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const pull = (state: 'open' | 'merged') => ({
+      status: 'ready' as const,
+      ref: {
+        kind: 'pull' as const,
+        owner: 'OctoOrg',
+        repo: 'sample-app',
+        number: 42,
+        title: 'Settings page',
+        author: 'octo',
+        createdAt: new Date(now).toISOString(),
+        state,
+        additions: 1,
+        deletions: 1,
+        changedFiles: 1,
+        checks: { state: 'none' as const, passed: 0, failed: 0, total: 0 }
+      }
+    })
+    const getOriginBranchPullRequest = vi.fn()
+      .mockResolvedValueOnce(pull('open'))
+      .mockResolvedValueOnce(pull('merged'))
+    installDesktopApiMock({
+      settings: { get: settingsGet, set: settingsSet },
+      appServer: { sendRequest: appServerSendRequest },
+      git: { inspectHead: gitInspectHead },
+      github: { getOriginBranchPullRequest }
+    })
+    renderThreadEntry(makeThread({
+      gitInfo: { branch: 'feat/settings-page', originUrl: 'https://github.com/OctoOrg/sample-app.git' }
+    }))
+    expect(await screen.findByRole('img', { name: /#42 · Open/ })).toBeInTheDocument()
+
+    now += 61_000
+    fireEvent.focus(window)
+
+    expect(await screen.findByRole('img', { name: /#42 · Merged/ })).toBeInTheDocument()
+    dateNow.mockRestore()
+  })
+
   it('omits the origin badge for a thread started from Desktop', async () => {
     renderThreadEntry(makeThread({ originChannel: 'dotcraft-desktop' }))
 

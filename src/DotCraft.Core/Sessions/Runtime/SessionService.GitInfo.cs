@@ -6,8 +6,8 @@ public sealed partial class SessionService
 {
     private void RecordThreadGitInfo(SessionThread thread, string workspace)
     {
-        // A Remote Tool Host executes elsewhere, so this host's checkout says nothing about the turn.
-        if (agentFactory.RemoteToolHostClient is not null)
+        // A thread routed to a Remote Tool Host executes elsewhere, so this host's checkout says nothing about it.
+        if (agentFactory.RemoteToolHostClient?.TryGetRoute(thread.Id, out _) == true)
             return;
         _ = RecordThreadGitInfoAsync(thread, workspace);
     }

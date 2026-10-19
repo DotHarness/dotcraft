@@ -12,6 +12,7 @@ import { normalizeGitPathKey } from './gitStore'
 const RESULT_TTL_MS = 60_000
 const FAILURE_TTL_MS = 5_000
 const REPO_TTL_MS = 5 * 60_000
+const ORIGIN_PULL_REFRESH_MS = 30_000
 
 interface GithubRefEntry<T> {
   status: 'loading' | 'resolved'
@@ -167,8 +168,24 @@ export function useOriginBranchPullRequest(
 ): GithubPullSummary | null {
   const key = enabled && originUrl && branch ? originPullKey(originUrl, branch) : ''
   const result = useGithubRefStore((state) => (key ? state.originPulls[key]?.result ?? null : null))
+  const pull = result?.status === 'ready' ? result.ref : null
+  const pullOpen = pull != null && pull.state !== 'merged' && pull.state !== 'closed'
   useEffect(() => {
-    if (key && originUrl && branch) void useGithubRefStore.getState().ensureOriginPull(originUrl, branch)
-  }, [branch, key, originUrl])
-  return result?.status === 'ready' ? result.ref : null
+    if (!key || !originUrl || !branch) return
+    const refresh = (): void => {
+      void useGithubRefStore.getState().ensureOriginPull(originUrl, branch)
+    }
+    refresh()
+    window.addEventListener('focus', refresh)
+    const timer = pullOpen
+      ? window.setInterval(() => {
+          if (document.hasFocus()) refresh()
+        }, ORIGIN_PULL_REFRESH_MS)
+      : undefined
+    return () => {
+      window.removeEventListener('focus', refresh)
+      window.clearInterval(timer)
+    }
+  }, [branch, key, originUrl, pullOpen])
+  return pull
 }
