@@ -1,5 +1,4 @@
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns'
-import type { IncomingMessage } from 'node:http'
 import { request } from 'node:https'
 import { BlockList, isIP, type LookupFunction } from 'node:net'
 import type { Readable } from 'node:stream'
@@ -90,18 +89,65 @@ export interface LinkPreviewRequest {
 const USER_AGENT = 'Mozilla/5.0 (compatible; DotCraftLinkPreview/1.0)'
 const MAX_REDIRECTS = 3
 
-function decoded(response: IncomingMessage): Readable {
-  switch ((response.headers['content-encoding'] ?? '').toLowerCase()) {
-    case 'gzip':
-    case 'x-gzip':
-      return response.pipe(createGunzip())
-    case 'deflate':
-      return response.pipe(createInflate())
-    case 'br':
-      return response.pipe(createBrotliDecompress())
-    default:
-      return response
-  }
+function decoded(source: Readable, encoding: string | undefined): Readable {
+  const decoder = (() => {
+    switch ((encoding ?? '').toLowerCase()) {
+      case 'gzip':
+      case 'x-gzip':
+        return createGunzip()
+      case 'deflate':
+        return createInflate()
+      case 'br':
+        return createBrotliDecompress()
+      default:
+        return null
+    }
+  })()
+  if (!decoder) return source
+  // pipe() does not forward errors, so an interrupted body would leave the decoder waiting forever.
+  source.on('error', (error) => decoder.destroy(error))
+  source.on('close', () => {
+    if (!source.readableEnded) decoder.destroy(new Error('Connection closed'))
+  })
+  return source.pipe(decoder)
+}
+
+/** Reads a (possibly compressed) body up to `maxBytes`, settling once even if the connection drops. */
+export function readLinkPreviewBody(
+  source: Readable,
+  encoding: string | undefined,
+  options: Pick<LinkPreviewRequest, 'maxBytes' | 'stopAt'>
+): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = []
+    let size = 0
+    let scanned = 0
+    let settled = false
+    const settle = (error: Error | null): void => {
+      if (settled) return
+      settled = true
+      source.destroy()
+      if (error) reject(error)
+      else resolve(Buffer.concat(chunks, size))
+    }
+    const stream = decoded(source, encoding)
+    stream.on('data', (chunk: Buffer) => {
+      if (settled) return
+      const room = options.maxBytes - size
+      chunks.push(chunk.length > room ? chunk.subarray(0, room) : chunk)
+      size += Math.min(chunk.length, room)
+      if (options.stopAt) {
+        const from = Math.max(0, scanned - options.stopAt.length)
+        const tail = Buffer.concat(chunks, size).subarray(from).toString('latin1').toLowerCase()
+        scanned = size
+        if (tail.includes(options.stopAt)) return settle(null)
+      }
+      if (size >= options.maxBytes) settle(options.stopAt ? null : new Error('Response too large'))
+    })
+    stream.on('end', () => settle(null))
+    stream.on('error', (error) => settle(error))
+    stream.on('close', () => settle(new Error('Connection closed')))
+  })
 }
 
 type Hop = { redirect: string } | LinkPreviewResponse
@@ -111,6 +157,7 @@ function requestOnce(url: URL, options: LinkPreviewRequest, deadline: number): P
   if (isIP(host) && !isPublicAddress(host)) {
     return Promise.reject(new LinkPreviewBlockedError(`${host} is not a public address`))
   }
+  let timer: ReturnType<typeof setTimeout> | undefined
   return new Promise<Hop>((resolve, reject) => {
     const req = request(
       url,
@@ -136,47 +183,17 @@ function requestOnce(url: URL, options: LinkPreviewRequest, deadline: number): P
           reject(new Error(`HTTP ${status}`))
           return
         }
-        const chunks: Buffer[] = []
-        let size = 0
-        let scanned = 0
-        let settled = false
-        const finish = (): void => {
-          if (settled) return
-          settled = true
-          response.destroy()
-          resolve({ url: url.href, contentType: response.headers['content-type'] ?? '', body: Buffer.concat(chunks, size) })
-        }
-        const stream = decoded(response)
-        stream.on('data', (chunk: Buffer) => {
-          if (settled) return
-          const room = options.maxBytes - size
-          chunks.push(chunk.length > room ? chunk.subarray(0, room) : chunk)
-          size += Math.min(chunk.length, room)
-          if (options.stopAt) {
-            const from = Math.max(0, scanned - options.stopAt.length)
-            const tail = Buffer.concat(chunks, size).subarray(from).toString('latin1').toLowerCase()
-            scanned = size
-            if (tail.includes(options.stopAt)) return finish()
-          }
-          if (size >= options.maxBytes) {
-            if (options.stopAt) return finish()
-            settled = true
-            response.destroy()
-            reject(new Error('Response too large'))
-          }
-        })
-        stream.on('end', finish)
-        stream.on('error', (error) => {
-          if (settled) return
-          settled = true
-          reject(error)
-        })
+        readLinkPreviewBody(response, response.headers['content-encoding'], options).then(
+          (body) => resolve({ url: url.href, contentType: response.headers['content-type'] ?? '', body }),
+          reject
+        )
       }
     )
-    req.setTimeout(Math.max(1, deadline - Date.now()), () => req.destroy(new Error('Timed out')))
+    // A wall-clock deadline: socket timeouts reset on every byte and do not cover DNS.
+    timer = setTimeout(() => req.destroy(new Error('Timed out')), Math.max(1, deadline - Date.now()))
     req.on('error', reject)
     req.end()
-  })
+  }).finally(() => clearTimeout(timer))
 }
 
 export async function fetchLinkPreviewResource(rawUrl: string, options: LinkPreviewRequest): Promise<LinkPreviewResponse> {

@@ -91,10 +91,10 @@ export function WebLinkPreviewAnchor({
   onOpenLink: OpenLink
   children: ReactNode
 }): JSX.Element {
-  const [opened, setOpened] = useState(false)
-  const load = useLinkPreview(href, opened)
+  const [openCount, setOpenCount] = useState(0)
+  const load = useLinkPreview(href, openCount)
   const label = load.status === 'ready' && load.title ? load.title : linkPreviewHost(href)
-  const onOpen = useCallback(() => setOpened(true), [])
+  const onOpen = useCallback(() => setOpenCount((count) => count + 1), [])
   const { anchorProps, card } = useReferenceHoverCard<HTMLAnchorElement>({
     label,
     className: 'dc-link-card dc-link-card--floating',

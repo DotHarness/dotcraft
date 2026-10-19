@@ -3,7 +3,8 @@ import { linkPreviewKey, type LinkPreviewResult } from '../../shared/linkPreview
 
 export type LinkPreviewLoad = { status: 'loading' } | LinkPreviewResult
 
-const REUSE_MS = 60_000
+const REUSE_MS = 30_000
+const MAX_RESULTS = 32
 const UNAVAILABLE: LinkPreviewResult = { status: 'error', error: 'unavailable' }
 
 const results = new Map<string, { result: LinkPreviewResult; at: number }>()
@@ -11,7 +12,22 @@ const inFlight = new Map<string, Promise<LinkPreviewResult>>()
 
 function cached(key: string): LinkPreviewResult | null {
   const entry = results.get(key)
-  return entry && Date.now() - entry.at < REUSE_MS ? entry.result : null
+  if (!entry) return null
+  if (Date.now() - entry.at >= REUSE_MS) {
+    results.delete(key)
+    return null
+  }
+  return entry.result
+}
+
+function remember(key: string, result: LinkPreviewResult): void {
+  const now = Date.now()
+  results.delete(key)
+  results.set(key, { result, at: now })
+  for (const [oldKey, entry] of results) {
+    if (results.size <= MAX_RESULTS && now - entry.at < REUSE_MS) break
+    results.delete(oldKey)
+  }
 }
 
 function requestLinkPreview(key: string): Promise<LinkPreviewResult> {
@@ -21,7 +37,7 @@ function requestLinkPreview(key: string): Promise<LinkPreviewResult> {
       .then(() => window.api.linkPreview.get(key))
       .catch(() => UNAVAILABLE)
       .then((result) => {
-        results.set(key, { result, at: Date.now() })
+        remember(key, result)
         inFlight.delete(key)
         return result
       })
@@ -30,8 +46,9 @@ function requestLinkPreview(key: string): Promise<LinkPreviewResult> {
   return request
 }
 
-// Fetch only once a card opens, never for every link in a transcript.
-export function useLinkPreview(url: string, enabled: boolean): LinkPreviewLoad {
+// Looks up only when a card opens (`openCount` > 0), never for every link in a transcript;
+// each opening revalidates a result older than the reuse window.
+export function useLinkPreview(url: string, openCount: number): LinkPreviewLoad {
   const key = linkPreviewKey(url)
   const [load, setLoad] = useState<{ key: string; value: LinkPreviewLoad }>(() => ({
     key,
@@ -39,7 +56,7 @@ export function useLinkPreview(url: string, enabled: boolean): LinkPreviewLoad {
   }))
 
   useEffect(() => {
-    if (!enabled) return
+    if (openCount === 0) return
     const known = cached(key)
     if (known) {
       setLoad({ key, value: known })
@@ -52,7 +69,7 @@ export function useLinkPreview(url: string, enabled: boolean): LinkPreviewLoad {
     return () => {
       live = false
     }
-  }, [enabled, key])
+  }, [openCount, key])
 
   return load.key === key ? load.value : { status: 'loading' }
 }

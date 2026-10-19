@@ -1,6 +1,14 @@
+import { PassThrough } from 'node:stream'
+import { gzipSync } from 'node:zlib'
 import { describe, expect, it, vi } from 'vitest'
 import { isPreviewableUrl } from '../../shared/linkPreviews'
-import { fetchLinkPreviewResource, isPublicAddress, LinkPreviewBlockedError, type LinkPreviewResponse } from '../linkPreviewFetch'
+import {
+  fetchLinkPreviewResource,
+  isPublicAddress,
+  LinkPreviewBlockedError,
+  readLinkPreviewBody,
+  type LinkPreviewResponse
+} from '../linkPreviewFetch'
 import { createLinkPreviewService } from '../linkPreviews'
 
 vi.mock('electron', () => ({}))
@@ -40,6 +48,31 @@ describe('link preview address policy', () => {
   it('refuses a literal private address before connecting', async () => {
     await expect(fetchLinkPreviewResource('https://127.0.0.1/', { accept: '*/*', maxBytes: 10, timeoutMs: 1000 }))
       .rejects.toBeInstanceOf(LinkPreviewBlockedError)
+  })
+})
+
+describe('link preview body', () => {
+  const page = gzipSync(Buffer.from(`<html><head><title>${'x'.repeat(4000)}</title></head>`))
+
+  it('reads a compressed body up to the end of the head', async () => {
+    const source = new PassThrough()
+    const reading = readLinkPreviewBody(source, 'gzip', { maxBytes: 64 * 1024, stopAt: '</head' })
+    source.end(page)
+    expect((await reading).toString()).toContain('</head')
+  })
+
+  it('settles when a compressed body is cut off', async () => {
+    const failed = new PassThrough()
+    const failing = readLinkPreviewBody(failed, 'gzip', { maxBytes: 64 * 1024 })
+    failed.write(page.subarray(0, 24))
+    failed.destroy(new Error('socket hang up'))
+    await expect(failing).rejects.toThrow()
+
+    const closed = new PassThrough()
+    const closing = readLinkPreviewBody(closed, 'gzip', { maxBytes: 64 * 1024 })
+    closed.write(page.subarray(0, 24))
+    closed.destroy()
+    await expect(closing).rejects.toThrow()
   })
 })
 
