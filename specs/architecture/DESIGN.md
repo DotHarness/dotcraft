@@ -1345,6 +1345,27 @@ glyph's own box. The card adds one line naming the checks' state with
 `passed/total` dimmed at the trailing edge, led by the shared spinner while checks
 run.
 
+### Link previews
+
+A web link in prose keeps its ordinary reference chip. Resting on it opens the same
+card as a GitHub reference (same delays, placement, surface, and 360px width,
+never wider than the window less 8px a side), so a reader learns where the link goes
+without leaving the conversation. The card replaces the link's URL tooltip.
+
+The header is one 12px `--text-secondary` row: the site's 16px favicon (a globe
+when there is none), the host without `www.`, and a quiet `Open ↗` action at the
+trailing edge. A preview image follows full-bleed at 1.91:1, cropped to fill; a
+page without one draws no image area rather than a placeholder. The title closes
+the card at body size, semibold, clamped to two lines. While loading, the header is
+already real (the host comes from the URL) and the image and title are skeletons. A
+failed or refused lookup keeps the header and adds one muted line saying why; a
+resource with no title shows its URL in that muted style.
+
+Keyboard focus opens the card at once. Its one tab stop is Open: Tab from the link
+enters it, Tab again continues after the link, and Shift+Tab or Escape return to
+the link. The pointer may cross another link on its way into the card; the card
+switches only when the pointer rests there.
+
 ### Markdown tables
 
 A markdown table is frameless: a rule under the header and hairlines between rows.

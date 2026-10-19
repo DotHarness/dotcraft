@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { githubRefShortLabel, parseGithubRefUrl, usesGithubRefLabel } from '../../shared/githubReferences'
-import { placeGithubRefCard } from '../components/conversation/githubReferences/useGithubRefHoverCard'
+import { placeReferenceCard } from '../components/conversation/referenceHoverCard'
 
 describe('parseGithubRefUrl', () => {
   it('accepts exact pull request and issue links', () => {
@@ -55,25 +55,25 @@ describe('github reference labels', () => {
   })
 })
 
-describe('placeGithubRefCard', () => {
+describe('placeReferenceCard', () => {
   const viewport = { width: 1200, height: 800 }
 
   it('opens below the anchor and mirrors above when there is no room', () => {
-    expect(placeGithubRefCard({ left: 100, top: 200, bottom: 220 }, 160, viewport, 'below'))
+    expect(placeReferenceCard({ left: 100, top: 200, bottom: 220 }, 160, viewport, 'below'))
       .toEqual({ left: 100, top: 226, side: 'below' })
-    expect(placeGithubRefCard({ left: 100, top: 700, bottom: 720 }, 160, viewport, 'below'))
+    expect(placeReferenceCard({ left: 100, top: 700, bottom: 720 }, 160, viewport, 'below'))
       .toEqual({ left: 100, top: 534, side: 'above' })
   })
 
   it('keeps a preferred above side unless only below fits', () => {
-    expect(placeGithubRefCard({ left: 100, top: 600, bottom: 628 }, 160, viewport, 'above'))
+    expect(placeReferenceCard({ left: 100, top: 600, bottom: 628 }, 160, viewport, 'above'))
       .toEqual({ left: 100, top: 434, side: 'above' })
-    expect(placeGithubRefCard({ left: 100, top: 40, bottom: 68 }, 160, viewport, 'above'))
+    expect(placeReferenceCard({ left: 100, top: 40, bottom: 68 }, 160, viewport, 'above'))
       .toEqual({ left: 100, top: 74, side: 'below' })
   })
 
   it('clamps the card inside the viewport edges', () => {
-    expect(placeGithubRefCard({ left: 1000, top: 200, bottom: 220 }, 160, viewport, 'below').left).toBe(832)
-    expect(placeGithubRefCard({ left: -20, top: 200, bottom: 220 }, 160, viewport, 'below').left).toBe(8)
+    expect(placeReferenceCard({ left: 1000, top: 200, bottom: 220 }, 160, viewport, 'below').left).toBe(832)
+    expect(placeReferenceCard({ left: -20, top: 200, bottom: 220 }, 160, viewport, 'below').left).toBe(8)
   })
 })

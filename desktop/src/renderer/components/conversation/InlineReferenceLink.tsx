@@ -6,14 +6,18 @@ import { basename } from '../../utils/path'
 import { referenceLocation } from '../../utils/referencePaths'
 import type { OpenTargetLocation } from '../../../shared/openTargets'
 import { parseGithubRefUrl } from '../../../shared/githubReferences'
-import { resolveConversationLink } from '../../../shared/viewer/linkResolver'
+import { isPreviewableUrl } from '../../../shared/linkPreviews'
+import { resolveConversationLink, type LinkNavigationHint } from '../../../shared/viewer/linkResolver'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 import { extractText } from './markdownText'
 import { GithubReferenceChip } from './githubReferences/GithubReferenceChip'
+import { WebLinkPreviewAnchor } from './linkPreviews/WebLinkPreview'
 
 type InlineReferenceKind = 'file' | 'browser' | 'external'
+
+const REFERENCE_TOOLTIP_DELAY_MS = 200
 
 export function InlineReferenceLink({
   href,
@@ -29,14 +33,15 @@ export function InlineReferenceLink({
   remoteWorkspaceActive: boolean
   activeThreadId: string | null
   linkMode: 'conversation' | 'external'
-  t: (key: string) => string
+  t: (key: string, vars?: Record<string, string | number>) => string
 }): JSX.Element {
   const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string; location: OpenTargetLocation | null } | null>(null)
   const presentation = useMemo(
-    () => getInlineReferencePresentation(href, workspacePath, extractText(children)),
-    [children, href, workspacePath]
+    () => getInlineReferencePresentation(href, workspacePath, extractText(children), t),
+    [children, href, t, workspacePath]
   )
   const githubTarget = useMemo(() => (linkMode === 'conversation' ? parseGithubRefUrl(href) : null), [href, linkMode])
+  const previewed = linkMode === 'conversation' && !githubTarget && presentation.kind === 'browser' && isPreviewableUrl(href)
 
   async function openLink(target: string, event: MouseEvent<HTMLElement>): Promise<void> {
     if (linkMode === 'conversation' && event.detail !== 0 && selectionOverlapsReference(event.currentTarget)) return
@@ -86,6 +91,20 @@ export function InlineReferenceLink({
   }
 
   const NonFileIcon = presentation.kind === 'browser' ? Globe : Link2
+  const anchorClassName = `dc-ref ${presentation.kind === 'file' ? 'dc-ref-file' : 'dc-ref-link'}`
+  const anchorStyle = {
+    margin: '0 4px',
+    maxWidth: 'min(100%, var(--inline-reference-max-width))',
+    cursor: href ? 'pointer' : 'default'
+  }
+  const anchorContent = (
+    <>
+      {presentation.kind === 'file'
+        ? <FileTypeIcon path={presentation.absolutePath ?? presentation.label} size={12} style={{ display: 'inline-block' }} />
+        : <NonFileIcon size={12} strokeWidth={2.1} aria-hidden />}
+      <span>{presentation.label}</span>
+    </>
+  )
 
   const anchor = githubTarget ? (
     <GithubReferenceChip
@@ -95,29 +114,29 @@ export function InlineReferenceLink({
       linkProps={linkProps}
       onOpenLink={(url, event) => { void openLink(url, event) }}
     />
+  ) : previewed && href ? (
+    <WebLinkPreviewAnchor
+      href={href}
+      className={anchorClassName}
+      style={anchorStyle}
+      linkProps={linkProps}
+      onOpenLink={(url, event) => { void openLink(url, event) }}
+    >
+      {anchorContent}
+    </WebLinkPreviewAnchor>
   ) : (
-    <a
-        className={`dc-ref ${presentation.kind === 'file' ? 'dc-ref-file' : 'dc-ref-link'}`}
-        style={{
-          margin: '0 4px',
-          maxWidth: 'min(100%, var(--inline-reference-max-width))',
-          cursor: href ? 'pointer' : 'default'
-        }}
-        {...linkProps}
-      >
-        {presentation.kind === 'file'
-          ? <FileTypeIcon path={presentation.absolutePath ?? presentation.label} size={12} style={{ display: 'inline-block' }} />
-          : <NonFileIcon size={12} strokeWidth={2.1} aria-hidden />}
-        <span>{presentation.label}</span>
-      </a>
+    <a className={anchorClassName} style={anchorStyle} {...linkProps}>
+      {anchorContent}
+    </a>
   )
 
   return (
     <>
-      {presentation.title && !githubTarget ? (
+      {presentation.title && !githubTarget && !previewed ? (
         <ActionTooltip
           label={presentation.title}
           wrapperClassName={linkMode === 'conversation' ? 'dc-conversation-reference-tooltip' : undefined}
+          openDelayMs={REFERENCE_TOOLTIP_DELAY_MS}
         >
           {anchor}
         </ActionTooltip>
@@ -165,7 +184,8 @@ function resolveExternalMarkdownUrl(href: string): string | null {
 function getInlineReferencePresentation(
   href: string | undefined,
   workspacePath: string,
-  childrenText: string
+  childrenText: string,
+  t: (key: string, vars?: Record<string, string | number>) => string
 ): { kind: InlineReferenceKind; label: string; title: string; absolutePath?: string; location?: OpenTargetLocation | null } {
   const rawHref = href?.trim() ?? ''
   const childLabel = childrenText.trim()
@@ -178,7 +198,7 @@ function getInlineReferencePresentation(
     return {
       kind: 'file',
       label: hasCustomLabel ? childLabel : basename(resolution.absolutePath),
-      title: rawHref || resolution.absolutePath,
+      title: fileReferenceTitle(rawHref || resolution.absolutePath, resolution.hint, t),
       ...(isAbsoluteLocalPath(resolution.absolutePath)
         ? { absolutePath: resolution.absolutePath, location: referenceLocation(resolution.hint) }
         : {})
@@ -206,6 +226,22 @@ function getInlineReferencePresentation(
     label: childLabel || rawHref,
     title: rawHref || childLabel
   }
+}
+
+function fileReferenceTitle(
+  path: string,
+  hint: LinkNavigationHint | undefined,
+  t: (key: string, vars?: Record<string, string | number>) => string
+): string {
+  if (!hint?.line) return path
+  const written = path.replace(/(?:#L\d+(?:C\d+)?(?:-L?\d+(?:C\d+)?)?|:\d+(?::\d+|-\d+)?)$/, '')
+  const parts = [
+    hint.endLine && hint.endLine !== hint.line
+      ? t('conversation.reference.lines', { start: hint.line, end: hint.endLine })
+      : t('conversation.reference.line', { line: hint.line })
+  ]
+  if (hint.column) parts.push(t('conversation.reference.column', { column: hint.column }))
+  return `${written} (${parts.join(', ')})`
 }
 
 function isAbsoluteLocalPath(value: string): boolean {

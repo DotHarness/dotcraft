@@ -30,6 +30,8 @@ interface ActionTooltipProps {
   children: ReactNode
   wrapperClassName?: string
   wrapperStyle?: CSSProperties
+  /** Pointer hover waits this long; keyboard focus still shows the tooltip at once. */
+  openDelayMs?: number
 }
 
 interface TooltipPosition {
@@ -51,10 +53,11 @@ export function ActionTooltip({
   detail,
   children,
   wrapperClassName,
-  wrapperStyle
+  wrapperStyle,
+  openDelayMs = 0
 }: ActionTooltipProps): JSX.Element {
   const tooltipId = useId()
-  const { visible, anchorRef, overlayRef, open, hide } = useTransientOverlay<HTMLSpanElement, HTMLDivElement>()
+  const { visible, anchorRef, overlayRef, open, scheduleOpen, hide } = useTransientOverlay<HTMLSpanElement, HTMLDivElement>({ openDelayMs })
   const [position, setPosition] = useState<TooltipPosition>({ left: 0, top: 0 })
   const tooltipLabel = disabledReason || label
   const tooltipDetail = disabledReason ? undefined : detail
@@ -82,7 +85,7 @@ export function ActionTooltip({
     <>
       <span
         ref={anchorRef}
-        onMouseEnter={open}
+        onMouseEnter={scheduleOpen}
         onMouseLeave={hide}
         onFocusCapture={open}
         onBlurCapture={hide}
