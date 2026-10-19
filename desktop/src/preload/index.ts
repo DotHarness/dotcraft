@@ -914,6 +914,9 @@ const api = {
     getBranchPullRequest(workspacePath: string, branch: string): Promise<GithubBranchPullResult> {
       return ipcRenderer.invoke('github:getBranchPullRequest', workspacePath, branch)
     },
+    getOriginBranchPullRequest(originUrl: string, branch: string): Promise<GithubBranchPullResult> {
+      return ipcRenderer.invoke('github:getOriginBranchPullRequest', originUrl, branch)
+    },
     getWorkspaceRepo(workspacePath: string): Promise<GithubRepo | null> {
       return ipcRenderer.invoke('github:getWorkspaceRepo', workspacePath)
     }

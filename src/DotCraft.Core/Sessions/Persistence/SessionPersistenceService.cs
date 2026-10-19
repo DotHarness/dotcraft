@@ -39,6 +39,9 @@ public sealed class SessionPersistenceService(
     public Task SaveThreadAsync(SessionThread thread, CancellationToken ct = default)
         => threadStore.SaveThreadAsync(thread, ct);
 
+    internal Task SaveThreadBaselineAsync(SessionThread thread, CancellationToken ct = default)
+        => threadStore.SaveThreadBaselineAsync(thread, ct);
+
     internal Task SaveTurnAsync(SessionThread thread, SessionTurn turn, CancellationToken ct = default)
         => threadStore.SaveTurnAsync(thread, turn, ct);
 

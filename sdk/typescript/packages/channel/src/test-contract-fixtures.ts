@@ -32,6 +32,7 @@ export function makeThread(
     sessionId: id,
     source: { kind: "test" },
     worktree: null,
+    gitInfo: null,
   } as SessionThread;
 }
 

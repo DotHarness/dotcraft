@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ThreadGitInfo.schema.json",
+  "title": "ThreadGitInfo",
+  "type": "object",
+  "properties": {
+    "branch": {
+      "type": "string"
+    },
+    "originUrl": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

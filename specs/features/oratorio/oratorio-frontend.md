@@ -202,6 +202,12 @@ reload it only when it changed, so live activity never blanks it. Action
 success and failure use the DotCraft global toast host and never insert banners
 into the page.
 
+The saved drawer selection is restored once per board mount, waiting for the
+task list to load when necessary. While waiting, state reporting preserves the
+saved task identity. Selecting another task, creating a task or closing the
+drawer supersedes restoration; subsequent list and detail updates preserve the
+operator's current selection or closed drawer.
+
 A running run's Activity line carries a live indicator: a short verb for what
 the agent is doing, optionally followed by its latest streamed text. It is an
 ephemeral status line, not a conversation row: replaced in place as the run

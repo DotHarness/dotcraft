@@ -36,6 +36,7 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
                 forked_from_id,
                 ephemeral,
                 worktree_json,
+                git_info_json,
                 source_json,
                 display_name,
                 status,
@@ -57,6 +58,7 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
                 $forked_from_id,
                 $ephemeral,
                 $worktree_json,
+                $git_info_json,
                 $source_json,
                 $display_name,
                 $status,
@@ -78,6 +80,7 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
                 forked_from_id = excluded.forked_from_id,
                 ephemeral = excluded.ephemeral,
                 worktree_json = excluded.worktree_json,
+                git_info_json = excluded.git_info_json,
                 source_json = excluded.source_json,
                 display_name = excluded.display_name,
                 status = excluded.status,
@@ -103,6 +106,11 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
             summary.Worktree == null
                 ? DBNull.Value
                 : JsonSerializer.Serialize(summary.Worktree));
+        command.Parameters.AddWithValue(
+            "$git_info_json",
+            summary.GitInfo == null
+                ? DBNull.Value
+                : JsonSerializer.Serialize(summary.GitInfo));
         command.Parameters.AddWithValue(
             "$source_json",
             JsonSerializer.Serialize(
@@ -198,7 +206,8 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
                 forked_from_id,
                 ephemeral,
                 worktree_json,
-                source_json
+                source_json,
+                git_info_json
             FROM threads
             ORDER BY updated_at DESC, thread_id DESC
             """;
@@ -231,7 +240,8 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
                 Metadata = metadata,
                 ForkedFromId = reader.IsDBNull(11) ? null : reader.GetString(11),
                 Ephemeral = !reader.IsDBNull(12) && reader.GetInt32(12) != 0,
-                Worktree = reader.IsDBNull(13) ? null : ParseWorktree(reader.GetString(13))
+                Worktree = reader.IsDBNull(13) ? null : ParseWorktree(reader.GetString(13)),
+                GitInfo = reader.IsDBNull(15) ? null : JsonSerializer.Deserialize<ThreadGitInfo>(reader.GetString(15))
             });
         }
 

@@ -265,6 +265,14 @@ describe('github branch pull requests', () => {
     await env.service.getBranchPullRequest('F:/work/sample-app/.craft/worktrees/a', 'main')
     expect(env.fetch).toHaveBeenCalledTimes(1)
   })
+
+  it('looks a branch up in the repository named by the origin, without a checkout', async () => {
+    const env = setup({ origin: null, responses: [branchResponse([pullNode({ number: 42, state: 'OPEN' })])] })
+    expect(await env.service.getOriginBranchPullRequest('github.com:OctoOrg/sample-app.git', 'feat/settings-page'))
+      .toMatchObject({ status: 'ready', ref: { number: 42, owner: 'OctoOrg', repo: 'sample-app' } })
+    const body = JSON.parse(String(env.fetch.mock.calls[0][1]?.body))
+    expect(body.variables).toEqual({ owner: 'OctoOrg', name: 'sample-app', branch: 'feat/settings-page' })
+  })
 })
 
 describe('parseGithubRemoteUrl', () => {

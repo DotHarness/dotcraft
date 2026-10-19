@@ -131,6 +131,7 @@ internal sealed class ThreadHistoryProjector(
         thread.ForkedFromId = opened.ForkedFromId;
         thread.Ephemeral = opened.Ephemeral;
         thread.Worktree = opened.Worktree;
+        thread.GitInfo = opened.GitInfo;
         thread.CreatedAt = opened.CreatedAt;
         thread.LastActiveAt = opened.LastActiveAt;
         thread.Metadata = new Dictionary<string, string>(opened.Metadata);

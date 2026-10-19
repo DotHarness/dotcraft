@@ -766,6 +766,65 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
+  it('shows the recorded branch pull request on a secondary remote project row', async () => {
+    const getOriginBranchPullRequest = vi.fn(async () => ({
+      status: 'ready' as const,
+      ref: {
+        kind: 'pull' as const,
+        owner: 'OctoOrg',
+        repo: 'sample-app',
+        number: 7,
+        title: 'Deploy pipeline',
+        author: 'octo',
+        createdAt: new Date().toISOString(),
+        state: 'open' as const,
+        additions: 1,
+        deletions: 1,
+        changedFiles: 1,
+        checks: { state: 'none' as const, passed: 0, failed: 0, total: 0 }
+      }
+    }))
+    installDesktopApiMock({
+      settings: { get: settingsGet, set: settingsSet },
+      appServer: { sendRequest: vi.fn() },
+      github: { getOriginBranchPullRequest }
+    })
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          projectId: 'remote:servers:host-1:stack-1',
+          kind: 'remote',
+          path: '/srv/app',
+          identityWorkspacePath: '/srv/app',
+          name: 'prod-stack',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [{
+            ...makeThread('remote-thread', 'Remote thread', 1),
+            gitInfo: { branch: 'feat/deploy', originUrl: 'https://github.com/OctoOrg/sample-app.git' }
+          }],
+          pinnedThreadIds: [],
+          remote: {
+            source: 'servers',
+            displayPath: '/srv/app',
+            endpoint: 'ws://127.0.0.1:9123/ws',
+            hostId: 'host-1',
+            stackId: 'stack-1'
+          }
+        }
+      ]
+    })
+
+    renderList()
+
+    expect(await screen.findByRole('img', { name: /#7/ })).toBeInTheDocument()
+    expect(getOriginBranchPullRequest).toHaveBeenCalledWith('https://github.com/OctoOrg/sample-app.git', 'feat/deploy')
+  })
+
   it('keeps active remote threads in a separate project bucket from the previous local workspace', () => {
     useThreadStore.getState().setThreadList([
       makeThread('remote-thread', 'Remote thread', 1)

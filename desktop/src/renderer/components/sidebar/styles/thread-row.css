@@ -109,3 +109,78 @@
 .dc-project-thread-list-toggle:hover {
   color: var(--text-secondary);
 }
+
+@property --dc-title-fade-end {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 16px;
+}
+
+.dc-thread-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The left fade sits in padding at rest, so it only shows once the title scrolls. */
+.dc-thread-title {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-inline-start: -8px;
+  padding-inline-start: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.dc-thread-title[data-overflowing] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 8px,
+    #000 calc(100% - var(--dc-title-fade-end)),
+    transparent
+  );
+}
+
+.dc-thread-title__text {
+  display: inline-block;
+}
+
+.dc-thread-row:hover .dc-thread-title[data-overflowing] {
+  animation: dc-thread-title-fade-end var(--dc-title-duration) linear 350ms forwards;
+}
+
+.dc-thread-row:hover .dc-thread-title[data-overflowing] .dc-thread-title__text {
+  animation: dc-thread-title-marquee var(--dc-title-duration) linear 350ms forwards;
+}
+
+@keyframes dc-thread-title-marquee {
+  to {
+    transform: translateX(var(--dc-title-shift));
+  }
+}
+
+@keyframes dc-thread-title-fade-end {
+  80% {
+    --dc-title-fade-end: 16px;
+  }
+
+  to {
+    --dc-title-fade-end: 0px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-thread-row:hover .dc-thread-title[data-overflowing],
+  .dc-thread-row:hover .dc-thread-title[data-overflowing] .dc-thread-title__text {
+    animation: none;
+  }
+}
+
+.dc-thread-worktree-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-dimmed);
+}

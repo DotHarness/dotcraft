@@ -4,7 +4,7 @@ import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import type { ThreadSummary } from '../../types/thread'
 import { normalizeGitPathKey } from '../../stores/gitStore'
 import { useGitHeadStore } from '../../stores/gitHeadStore'
-import { useBranchPullRequest, useGithubRefStore } from '../../stores/githubRefStore'
+import { useBranchPullRequest, useGithubRefStore, useOriginBranchPullRequest } from '../../stores/githubRefStore'
 import type { GithubPullSummary } from '../../../shared/githubReferences'
 import { importedThreadSourceLabel } from '../../utils/sessionImport'
 import { ChannelIconBadge } from '../ui/channelMeta'
@@ -81,14 +81,19 @@ export function useThreadEntryDetails({
   project,
   projectName,
   relativeTime,
-  origin
+  origin,
+  onScreen = false
 }: {
   thread: ThreadSummary
   project?: WorkspaceProjectSummary | null
   projectName: string | null
   relativeTime: string
   origin?: ReactNode
-}): { content: JSX.Element; onOpen: () => void; pull: GithubPullSummary | null } {
+  onScreen?: boolean
+}): { content: JSX.Element; onOpen: () => void; pull: GithubPullSummary | null; rowPull: GithubPullSummary | null } {
+  const recordedBranch = thread.gitInfo?.branch?.trim() || null
+  const recordedOrigin = thread.gitInfo?.originUrl?.trim() || null
+  const recorded = Boolean(recordedBranch && recordedOrigin)
   const worktreeBranch = thread.worktree?.branchName?.trim() || null
   const gitPath = (
     thread.effectiveWorkspacePath
@@ -98,18 +103,28 @@ export function useThreadEntryDetails({
     || ''
   ).trim()
   const localGit = Boolean(gitPath && project?.kind !== 'remote' && project?.kind !== 'chat')
-  const canInspectGit = localGit && !worktreeBranch
+  const canInspectGit = localGit && !worktreeBranch && !recordedBranch
   const gitPathKey = canInspectGit ? normalizeGitPathKey(gitPath) : ''
   const head = useGitHeadStore((state) => gitPathKey ? state.byPath[gitPathKey] : undefined)
   const pullBranch = worktreeBranch || (head?.inspection?.kind === 'branch' ? head.inspection.label : null)
   const [opened, setOpened] = useState(false)
-  const pull = useBranchPullRequest(gitPath, pullBranch, localGit && (opened || Boolean(worktreeBranch)))
+  const originPull = useOriginBranchPullRequest(recordedOrigin, recordedBranch, recorded && (opened || onScreen))
+  const pathPull = useBranchPullRequest(
+    gitPath,
+    pullBranch,
+    !recordedOrigin && localGit && (opened || (Boolean(worktreeBranch) && onScreen))
+  )
+  const pull = recordedOrigin ? originPull : pathPull
   const ensureHead = useCallback(() => {
     setOpened(true)
     if (canInspectGit) void useGitHeadStore.getState().ensure(gitPath)
-    if (localGit && pullBranch) void useGithubRefStore.getState().ensureBranchPull(gitPath, pullBranch)
-  }, [canInspectGit, gitPath, localGit, pullBranch])
-  const branchLabel = worktreeBranch || (
+    if (recordedOrigin) {
+      if (recordedBranch) void useGithubRefStore.getState().ensureOriginPull(recordedOrigin, recordedBranch)
+    } else if (localGit && pullBranch) {
+      void useGithubRefStore.getState().ensureBranchPull(gitPath, pullBranch)
+    }
+  }, [canInspectGit, gitPath, localGit, pullBranch, recordedBranch, recordedOrigin])
+  const branchLabel = recordedBranch || worktreeBranch || (
     head?.inspection?.kind === 'branch'
       ? head.inspection.label
       : head?.inspection?.kind === 'detached'
@@ -122,6 +137,8 @@ export function useThreadEntryDetails({
   return {
     onOpen: ensureHead,
     pull,
+    // A row shows only the thread's own branch, never the workspace's current HEAD.
+    rowPull: recordedOrigin ? originPull : worktreeBranch ? pathPull : null,
     content: (
       <>
         <div

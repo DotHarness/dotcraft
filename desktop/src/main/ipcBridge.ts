@@ -1378,6 +1378,9 @@ export function registerIpcHandlers(
       branch
     )
   )
+  handleSafe('github:getOriginBranchPullRequest', (_event, originUrl: string, branch: string): Promise<GithubBranchPullResult> =>
+    githubReferences.getOriginBranchPullRequest(originUrl, branch)
+  )
   handleSafe('github:getWorkspaceRepo', (_event, wsPath: string): Promise<GithubRepo | null> =>
     githubReferences.getWorkspaceGithubRepo(
       assertGitInspectionPath(wsPath, workspacePath, callbacks?.getLocalProjectPaths() ?? [], mainLocale(callbacks))
@@ -2399,6 +2402,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('git:createAndCheckoutBranch')
   ipcMain.removeHandler('github:getReferenceSummary')
   ipcMain.removeHandler('github:getBranchPullRequest')
+  ipcMain.removeHandler('github:getOriginBranchPullRequest')
   ipcMain.removeHandler('github:getWorkspaceRepo')
   ipcMain.removeHandler('workspace:pick-folder')
   ipcMain.removeHandler('workspace:create-local-project')

@@ -3396,6 +3396,7 @@ export interface SessionThread {
   effectiveWorkspacePath: string;
   ephemeral: boolean;
   forkedFromId?: string | null;
+  gitInfo?: ThreadGitInfo | null;
   goal?: ThreadGoal | null;
   historyMode: string;
   id: string;
@@ -4220,6 +4221,12 @@ export interface ThreadForkResult {
   [key: string]: unknown;
 }
 
+export interface ThreadGitInfo {
+  branch?: string;
+  originUrl?: string;
+  [key: string]: unknown;
+}
+
 export interface ThreadGoal {
   createdAt: number;
   objective: string;
@@ -4581,6 +4588,7 @@ export interface ThreadSummary {
   displayName?: string | null;
   ephemeral?: boolean | null;
   forkedFromId?: string | null;
+  gitInfo?: ThreadGitInfo;
   goal?: ThreadGoal | null;
   id: string;
   lastActiveAt?: string | null;

@@ -1588,6 +1588,16 @@ origin channel) may live in a hover annotation instead of layout: a tooltip for
 one line, a details card for several. Metadata only some rows carry belongs there
 by default, so the list stays one shape.
 
+A sidebar thread title that does not fit fades out over its last 16px instead of
+ending in an ellipsis; a title that fits is never masked. Resting on the row
+scrolls the title once, after 350ms at 2em per second, until its end is fully
+visible, then holds; leaving the row returns it. Reduced motion keeps the fade
+and drops the scroll. Marks about the thread sit at the trailing end of the title
+area, 6px before the status slot, so they line up down the list: a thread running
+in a worktree carries the 14px worktree glyph in `--text-dimmed`. The
+status slot holds one item, in priority order: pending request, running spinner,
+unread dot, then the branch's pull request glyph.
+
 ### Settings groups
 
 A settings group is a heading over a card, not a card with a heading in it. The

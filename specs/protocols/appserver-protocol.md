@@ -246,7 +246,7 @@ Thread methods correspond to `ISessionService` thread lifecycle operations in [S
 
 `thread/start`, `thread/resume`, and `thread/fork` return `{ thread, instructionSources }`. `instructionSources` is the required ordered array of absolute logical paths used by the thread's stable `AGENTS.md` snapshot (`[]` when no file contributes). Thread notifications and worktree lifecycle results do not carry it.
 
-The `Thread` object carries lineage (`forkedFromId`), `ephemeral`, `worktree`, `cwd`, `runtimeWorkspaceRoots`, and `effectiveWorkspacePath`. `cwd`/`effectiveWorkspacePath` is the root clients use for relative file, shell, Git, and editor surfaces; `runtimeWorkspaceRoots` is the full set of runtime content boundaries. Optional header state includes `queuedInputs`, `runtime`, `plan`, `contextUsage`, and `originApp` (see [Section 4.4](#44-threadread) and [Section 4.3](#43-threadlist)).
+The `Thread` object carries lineage (`forkedFromId`), `ephemeral`, `worktree`, `gitInfo` (branch and credential-free `originUrl` last observed at a Turn start, [Session Core §4.1.1.6](../architecture/session-core.md#4116-git-context); `null` when unknown, omitted from summaries), `cwd`, `runtimeWorkspaceRoots`, and `effectiveWorkspacePath`. `cwd`/`effectiveWorkspacePath` is the root clients use for relative file, shell, Git, and editor surfaces; `runtimeWorkspaceRoots` is the full set of runtime content boundaries. Optional header state includes `queuedInputs`, `runtime`, `plan`, `contextUsage`, and `originApp` (see [Section 4.4](#44-threadread) and [Section 4.3](#43-threadlist)).
 
 ### 4.1 `thread/start`
 
@@ -387,7 +387,7 @@ List threads matching an identity.
 - `query`: case-insensitive text filter over id, display name, origin channel, status, and channel context.
 - `limit` (1-100; 50 when only `cursor` is given; full list when both are omitted) and opaque `cursor` (invalid → `InvalidParams`).
 
-**Result**: `{ data: ThreadSummary[], nextCursor, totalMatched }`. Ordered by `lastActiveAt` descending; filters apply before pagination; `totalMatched` counts after filters and before pagination.
+**Result**: `{ data: ThreadSummary[], nextCursor, totalMatched }`. Summaries carry the same `worktree` and `gitInfo` as the Thread object. Ordered by `lastActiveAt` descending; filters apply before pagination; `totalMatched` counts after filters and before pagination.
 
 - `runtime`: optional best-effort, process-local snapshot with the shape of `thread/status/changed`, for hydrating activity indicators after reconnect. Clients continue to consume `thread/status/changed` as the source of truth and treat omission as unknown, not idle.
 - `originApp` (`appId`, `displayName`, optional `icon`, optional `memberId`): set when the summary's `originChannel` matches an installed App Binding app's declared origin channel. When the app declares origin members and `channelContext` matches one, the branding is the member's and `memberId` is set. Clients fall back to the generic origin badge when absent. The same attribution is attached to full Thread objects from `thread/read`, `thread/started`, `thread/updated`, `thread/resumed`, and `thread/rollback`.
@@ -705,7 +705,7 @@ A thread is **hidden** when it is ephemeral or internal (DotCraft-owned helper t
 | Notification | Params | Semantics |
 |--------------|--------|-----------|
 | `thread/started` | `{ thread }` | A thread was created. Sent to the initiating client after `thread/start` and broadcast to connections when any channel in the process creates one, including the connection whose other request (such as an extension request) created it as a side effect. SubAgent child creation is broadcast so lists can show the child while the parent turn runs. |
-| `thread/updated` | `{ thread }` | Compact metadata changed without create, delete, rename, or status change (for example after `thread/worktree/handoff` or `thread/config/update`). The payload may omit history; clients merge it rather than treating omitted history as deleted. |
+| `thread/updated` | `{ thread }` | Compact metadata changed without create, delete, rename, or status change (for example after `thread/worktree/handoff`, `thread/config/update`, or a Turn start that changed `gitInfo`). The payload may omit history; clients merge it rather than treating omitted history as deleted. |
 | `thread/renamed` | `{ threadId, displayName }` | Display name changed by `thread/rename` or automatic naming. Broadcast to all connections; duplicate deliveries are allowed. |
 | `thread/deleted` | `{ threadId }` | Thread permanently deleted. Broadcast to all connections, including the initiator, regardless of which entry point removed it; no subscription required; may precede or follow the RPC response. Duplicates are ignored. |
 | `thread/resumed` | `{ thread, resumedBy }` | Thread resumed through `thread/resume`; `resumedBy` is the channel name. |

@@ -85,6 +85,7 @@ Fields:
 - `ForkedFromId` (nullable) — source thread id for a fork.
 - `Ephemeral` — process-local; not persisted or listed by default.
 - `Worktree` (nullable) — DotCraft-managed Git worktree bound to the thread.
+- `GitInfo` (nullable) — branch and `origin` remote last observed in the thread's execution workspace (Section 4.1.1.6).
 - `Status` — `Active` or `Archived` (Section 5.1).
 - `CreatedAt`, `LastActiveAt` — `LastActiveAt` updates when a Turn starts or completes.
 - `Metadata` — string map for channel-specific data. Preserved, never interpreted.
@@ -172,6 +173,16 @@ The record is keyed by `thread_id` and stores `first_window_id`, `previous_windo
 A successful compaction that replaces model-visible history (`micro` or `partial`, from any trigger) advances the window from the durable replacement boundary: the previous current id becomes `previous_window_id`, the replacement supplies the new current id, and `generation` increments. A provider-native replacement carries the exact next window identity and is authoritative over a stale projection. Skipped, failed, cancelled, or diagnostic-only attempts do not advance the window.
 
 The window record is routing metadata: never conversation content, never in Thread wire DTOs, never the prompt-cache key. For Responses, `prompt_cache_key` and OAuth `session-id` use the root cache-session Thread id, while OAuth `thread-id` and `x-client-request-id` use the executing Thread id. Root threads and ordinary forks are their own cache-session roots; subagents use the persisted root thread id from their source.
+
+#### 4.1.1.6 Git Context
+
+`GitInfo` tells clients which branch a thread was working on, so they can relate the thread to that branch's pull request even when several threads share one working tree.
+
+- At each Turn start, Session Core reads the current branch name and the `origin` remote URL of the thread's effective workspace. The read is best-effort and bounded by a short timeout; it never delays the Turn beyond that bound or fails it.
+- A detached HEAD records no branch. A workspace outside any Git working tree records no `GitInfo`. A failed or timed-out read keeps the previous value.
+- The origin URL is stored without credentials or other user information.
+- Turns whose tools run on a Remote Tool Host keep the previous value, because the Agent Host's file system is not the execution workspace.
+- A changed value is persisted with the thread baseline and announced as a thread update. Threads that have not started a Turn since this was recorded carry no `GitInfo`.
 
 #### 4.1.2 Turn
 
@@ -695,7 +706,7 @@ Each thread is an append-only JSONL rollout. Every line is a record `{ kind, tim
 
 Session Core reconstructs a Thread by replaying the rollout in order.
 
-`thread_opened.source` is a DotCraft-owned versioned union (`schemaVersion = 1`), not a serialized runtime type. The user variant stores `kind` and optional `spawnedFromThreadId`; the subagent variant also stores parent thread, root thread, parent turn, parent call, depth, path, task, nickname, role, profile, runtime, and all send, resume, message, follow-up, and close capabilities. A source change appends a new `thread_opened`; replay uses the latest. Every rollout begins with a canonical `thread_opened`. An unknown source schema version or structurally invalid source is an identity safety error that stops replay; it is never downgraded to an ordinary user thread.
+`thread_opened.source` is a DotCraft-owned versioned union (`schemaVersion = 1`), not a serialized runtime type. The user variant stores `kind` and optional `spawnedFromThreadId`; the subagent variant also stores parent thread, root thread, parent turn, parent call, depth, path, task, nickname, role, profile, runtime, and all send, resume, message, follow-up, and close capabilities. A source or `GitInfo` change appends a new `thread_opened`; replay uses the latest. Every rollout begins with a canonical `thread_opened`. An unknown source schema version or structurally invalid source is an identity safety error that stops replay; it is never downgraded to an ordinary user thread.
 
 ### 9.3 Model-History Storage and Runtime Execution
 

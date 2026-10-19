@@ -27,6 +27,7 @@ import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { threadOriginBadge, useThreadEntryDetails, workspacePathName } from './ThreadEntryDetails'
 import { ThreadPullRequestGlyph } from './ThreadPullRequest'
+import { ThreadRowTitle } from './ThreadRowTitle'
 import { useRememberRowSelection, useThreadRowSelected } from './threadRowSelection'
 import { buildWorkspaceOpenDeepLink } from '../../../shared/desktopDeepLink'
 import { buildOpenInSubmenu, useOpenTargets } from '../../utils/openTargets'
@@ -73,6 +74,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   // `dropSuccessPulse` on the row + `slideInBadge` on the inline bound icon;
   // `fail` plays `shake` on the row. Clears itself after the animation window.
   const [anim, setAnim] = useState<'success' | 'fail' | null>(null)
+  const [onScreen, setOnScreen] = useState(false)
   const renameInputRef = useRef<HTMLInputElement>(null)
 
   const dragActive = useDragDropStore((s) => s.active)
@@ -115,9 +117,10 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     project,
     projectName,
     relativeTime,
-    origin: threadOriginBadge({ thread, isSubAgent, t })
+    origin: threadOriginBadge({ thread, isSubAgent, t }),
+    onScreen
   })
-  const worktreePull = thread.worktree?.branchName ? threadDetails.pull : null
+  const rowPull = threadDetails.rowPull
   const canPin = !isSubAgent && thread.status !== 'archived'
   const isPinned = canPin && pinnedThreadIds.includes(thread.id)
   const showPendingApprovalBadge = !isActive && hasPendingApproval
@@ -281,8 +284,14 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         nameTestId={`thread-title-${thread.id}`}
         badgeTestId={`thread-badge-slot-${thread.id}`}
         statusTestId={`thread-status-slot-${thread.id}`}
-        name={displayName}
-        nameStyle={{ fontWeight: 'var(--type-ui-weight)' }}
+        name={
+          <ThreadRowTitle
+            title={displayName}
+            worktreeBranch={thread.worktree?.branchName?.trim() || null}
+            onVisibilityChange={setOnScreen}
+          />
+        }
+        nameStyle={{ fontWeight: 'var(--type-ui-weight)', overflow: 'visible', textOverflow: 'clip' }}
         statusColumn={statusColumn}
         statusSlotWidth={statusSlotWidth}
         statusJustifySelf={statusSlotJustifySelf}
@@ -492,8 +501,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                     <span className="dc-status-indicator__dot" data-tone="success" />
                   </span>
                 </ActionTooltip>
-              ) : worktreePull ? (
-                <ThreadPullRequestGlyph pull={worktreePull} />
+              ) : rowPull ? (
+                <ThreadPullRequestGlyph pull={rowPull} />
               ) : null}
             </span>
           </span>
