@@ -199,7 +199,9 @@ export function ComposerShell({
         flexDirection: 'column',
         gap: 0,
         opacity,
-        isolation: 'isolate'
+        isolation: 'isolate',
+        // Lets menus and tooltips that open upward cover the conversation's floating controls.
+        zIndex: 20
       }}
     >
       {showMascot && (
