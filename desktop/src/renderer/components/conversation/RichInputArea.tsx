@@ -1120,7 +1120,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
             // Ignore malformed payload and fall back to plain text.
           }
         }
-        const pasted = e.clipboardData.getData('text/plain')
+        const pasted = e.clipboardData.getData('text/plain').replace(/\r\n?/g, '\n')
         if (pasted.length >= 5_000 && onPasteText?.(pasted)) {
           e.preventDefault()
           return
@@ -1135,8 +1135,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
           return
         }
         e.preventDefault()
-        const text = e.clipboardData.getData('text/plain')
-        const segments = parseSkillMarkersFromText(text, refCatalog)
+        const segments = parseSkillMarkersFromText(pasted, refCatalog)
         insertClipboardSegmentsAtCaret(segments)
         onInput()
       },
@@ -1232,6 +1231,8 @@ export const RichInputArea = forwardRef(function RichInputArea(
             fontWeight: 'var(--conversation-font-weight)',
             lineHeight: 'var(--conversation-line-height)',
             fontFamily: 'var(--font-sans)',
+            whiteSpace: 'break-spaces',
+            overflowWrap: 'break-word',
             backgroundColor:
               chrome !== 'default'
                 ? 'transparent'

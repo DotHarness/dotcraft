@@ -25,6 +25,19 @@ describe('RichInputArea paste selection', () => {
     expect(ref.current!.getSelectionRange()).toEqual({ start: initial.length + 11, end: initial.length + 11 })
   })
 
+  it('keeps pasted Windows and classic Mac line breaks as newlines', () => {
+    const ref = createRef<RichInputAreaHandle>()
+    render(<RichInputArea ref={ref} onSubmit={vi.fn()} />)
+    act(() => {
+      ref.current!.setPlainText('')
+      ref.current!.setSelectionRange({ start: 0, end: 0 })
+    })
+    fireEvent.paste(screen.getByRole('textbox'), {
+      clipboardData: { items: [], getData: (type: string) => type === 'text/plain' ? 'one\r\ntwo\rthree' : '' }
+    })
+    expect(ref.current!.getText()).toBe('one\ntwo\nthree')
+  })
+
   it.each([
     { name: 'plain text', text: 'hello', rich: '' },
     { name: 'multiline text', text: 'hello\nworld\n', rich: '' },
