@@ -800,7 +800,7 @@ Discovery runs a filesystem-first read-repair pass, then reads the SQLite thread
 
 Each metadata row records the confirmed rollout byte offset from the flush that produced it. Discovery enumerates active and archived rollouts and compares paths and lengths with SQLite. Matching rows need no rollout read; a missing row, changed path, shortened file, or mismatched offset replays only that rollout. Concurrent initial discovery shares one reconciliation.
 
-If SQLite listing or repair is unavailable, discovery reports the failure; it never infers or migrates non-canonical paths. Rows whose rollout is absent are omitted but not deleted by read-repair. SQLite projections never participate in model-history reconstruction.
+If SQLite listing or repair is unavailable, discovery returns summaries built from the readable rollouts and records a diagnostic warning; it never infers or migrates non-canonical paths. Rows whose rollout is absent are omitted but not deleted by read-repair. SQLite projections never participate in model-history reconstruction.
 
 Each discovered thread summary returns `Id`, `Status`, `OriginChannel`, `ChannelContext`, `UserId`, `WorkspacePath`, `DisplayName`, `CreatedAt`, `LastActiveAt`, and `TurnCount`.
 

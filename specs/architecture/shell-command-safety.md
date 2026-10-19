@@ -201,7 +201,7 @@ A running terminal keeps its resolved shell identity and immutable launch direct
 
 One terminal admits one interaction at a time: assessment, approval, and the write are serialized per terminal. Terminals do not block each other.
 
-Empty input polls for output and is not assessed. Input that is exactly the end-of-text character is not assessed. Terminal input a client sends on the person's behalf does not pass the gate; the person typing it is the authority.
+Input that is empty or contains only line breaks is not assessed; empty input polls for output. Any other input is assessed, control characters included. Terminal input a client sends on the person's behalf does not pass the gate; the person typing it is the authority.
 
 An approval raised for standard input carries the input as its command and the launch directory as its working directory, and states that the text is being written to a running terminal whose own directory and state may since have moved.
 
