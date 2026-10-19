@@ -98,6 +98,13 @@ public sealed partial class ThreadStore : IAsyncDisposable
         await TryUpdateThreadProjectionAsync(thread, result, ct);
     }
 
+    internal async Task SaveThreadBaselineAsync(SessionThread thread, CancellationToken ct = default)
+    {
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
+        var result = await _rolloutStore.AppendThreadBaselineAsync(thread, ct);
+        await TryUpdateThreadProjectionAsync(thread, result, ct);
+    }
+
     internal async Task SaveTurnAsync(
         SessionThread thread,
         SessionTurn turn,

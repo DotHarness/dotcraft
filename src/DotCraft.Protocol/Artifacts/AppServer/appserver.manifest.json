@@ -16804,6 +16804,13 @@
           "const": null
         },
         {
+          "name": "gitInfo",
+          "type": "core.ThreadGitInfo",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "goal",
           "type": "core.ThreadGoal",
           "required": false,
@@ -20936,6 +20943,31 @@
       "variants": []
     },
     {
+      "id": "core.ThreadGitInfo",
+      "name": "ThreadGitInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadGitInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "branch",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "originUrl",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ThreadGoal",
       "name": "ThreadGoal",
       "module": "core",
@@ -22676,6 +22708,13 @@
           "type": "string",
           "required": false,
           "nullable": true,
+          "const": null
+        },
+        {
+          "name": "gitInfo",
+          "type": "core.ThreadGitInfo",
+          "required": false,
+          "nullable": false,
           "const": null
         },
         {

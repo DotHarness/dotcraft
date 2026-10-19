@@ -209,6 +209,9 @@ public sealed record SessionWireThread
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public ThreadWorktreeInfo? Worktree { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public ThreadGitInfo? GitInfo { get; init; }
+
     public string? UserId { get; init; }
 
     public string OriginChannel { get; init; } = string.Empty;

@@ -80,6 +80,16 @@
         }
       ]
     },
+    "gitInfo": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadGitInfo.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "goal": {
       "anyOf": [
         {

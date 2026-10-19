@@ -63,6 +63,8 @@ public sealed class SessionThread
     /// </summary>
     public ThreadWorktreeInfo? Worktree { get; set; }
 
+    public ThreadGitInfo? GitInfo { get; set; }
+
     public ThreadStatus Status { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }

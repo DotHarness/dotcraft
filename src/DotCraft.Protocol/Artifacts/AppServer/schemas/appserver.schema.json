@@ -13249,6 +13249,16 @@
             }
           ]
         },
+        "gitInfo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadGitInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "goal": {
           "anyOf": [
             {
@@ -16810,6 +16820,19 @@
         "instructionSources"
       ]
     },
+    "ThreadGitInfo": {
+      "title": "ThreadGitInfo",
+      "type": "object",
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "originUrl": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
     "ThreadGoal": {
       "title": "ThreadGoal",
       "type": "object",
@@ -18429,6 +18452,9 @@
               "type": "null"
             }
           ]
+        },
+        "gitInfo": {
+          "$ref": "#/$defs/ThreadGitInfo"
         },
         "goal": {
           "anyOf": [

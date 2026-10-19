@@ -62,6 +62,7 @@ public static class SessionWireMapper
             ParentThreadId = thread.Source.SubAgent?.ParentThreadId,
             Ephemeral = thread.Ephemeral,
             Worktree = thread.Worktree,
+            GitInfo = thread.GitInfo,
             UserId = thread.UserId,
             OriginChannel = thread.OriginChannel,
             ChannelContext = thread.ChannelContext,

@@ -185,6 +185,16 @@ internal sealed class ThreadRolloutStore
         return new RolloutAppendResult(targetPath, receipt);
     }
 
+    public async Task<RolloutAppendResult> AppendThreadBaselineAsync(SessionThread thread, CancellationToken ct = default)
+    {
+        var path = ResolveExistingPath(thread.Id);
+        if (path == null)
+            return await SaveThreadAsync(thread, previous: null, ct);
+
+        var receipt = await AppendRecordsAsync(thread.Id, path, [CreateThreadOpenedRecord(thread)], ct);
+        return new RolloutAppendResult(path, receipt);
+    }
+
     public async Task<RolloutAppendResult> AppendTurnStateAsync(
         SessionThread thread,
         SessionTurn turn,
@@ -851,6 +861,8 @@ internal sealed class ThreadRolloutStore
             return true;
         if (!JsonEquals(previous.Worktree, current.Worktree))
             return true;
+        if (!JsonEquals(previous.GitInfo, current.GitInfo))
+            return true;
         if (!JsonEquals(previous.Source, current.Source))
             return true;
         if (!JsonEquals(previous.Configuration, current.Configuration))
@@ -887,6 +899,7 @@ internal sealed class ThreadRolloutStore
                 ForkedFromId = thread.ForkedFromId,
                 Ephemeral = thread.Ephemeral,
                 Worktree = thread.Worktree,
+                GitInfo = thread.GitInfo,
                 CreatedAt = thread.CreatedAt,
                 LastActiveAt = thread.LastActiveAt,
                 Metadata = new Dictionary<string, string>(thread.Metadata),
@@ -1015,6 +1028,7 @@ internal sealed class ThreadRolloutStore
                     _thread.ForkedFromId = record.ThreadOpened.ForkedFromId;
                     _thread.Ephemeral = record.ThreadOpened.Ephemeral;
                     _thread.Worktree = record.ThreadOpened.Worktree;
+                    _thread.GitInfo = record.ThreadOpened.GitInfo;
                     _thread.CreatedAt = record.ThreadOpened.CreatedAt;
                     _thread.LastActiveAt = record.ThreadOpened.LastActiveAt;
                     _thread.Metadata = new Dictionary<string, string>(record.ThreadOpened.Metadata);
@@ -1233,6 +1247,8 @@ internal sealed class ThreadOpenedPayload
     public bool Ephemeral { get; init; }
 
     public ThreadWorktreeInfo? Worktree { get; init; }
+
+    public ThreadGitInfo? GitInfo { get; init; }
 
     public DateTimeOffset CreatedAt { get; init; }
 

@@ -19,14 +19,16 @@ interface GithubRefEntry<T> {
   updatedAt: number | null
 }
 
-type Slice = 'refs' | 'branchPulls' | 'repos'
+type Slice = 'refs' | 'branchPulls' | 'originPulls' | 'repos'
 
 interface GithubRefStore {
   refs: Record<string, GithubRefEntry<GithubRefResult>>
   branchPulls: Record<string, GithubRefEntry<GithubBranchPullResult>>
+  originPulls: Record<string, GithubRefEntry<GithubBranchPullResult>>
   repos: Record<string, GithubRefEntry<GithubRepo | null>>
   ensureRef(target: GithubRefTarget): Promise<void>
   ensureBranchPull(path: string, branch: string, options?: { force?: boolean }): Promise<void>
+  ensureOriginPull(originUrl: string, branch: string): Promise<void>
   ensureRepo(path: string): Promise<void>
 }
 
@@ -43,6 +45,13 @@ function branchPullKey(path: string, branch: string): string {
   const pathKey = normalizeGitPathKey(path.trim())
   const branchName = branch.trim()
   return pathKey && branchName ? `${pathKey}\n${branchName}` : ''
+}
+
+function originPullKey(originUrl: string, branch: string): string {
+  const origin = originUrl.trim()
+  const branchName = branch.trim()
+  return origin && branchName ? `${origin}
+${branchName}` : ''
 }
 
 function ttlFor(result: unknown): number {
@@ -87,6 +96,7 @@ export const useGithubRefStore = create<GithubRefStore>((set, get) => {
   return {
     refs: {},
     branchPulls: {},
+    originPulls: {},
     repos: {},
 
     ensureRef(target) {
@@ -101,6 +111,16 @@ export const useGithubRefStore = create<GithubRefStore>((set, get) => {
         () => window.api.github.getBranchPullRequest(path.trim(), branch.trim()),
         UNAVAILABLE,
         options?.force === true
+      )
+    },
+
+    ensureOriginPull(originUrl, branch) {
+      return ensure<GithubBranchPullResult>(
+        'originPulls',
+        originPullKey(originUrl, branch),
+        ttlFor,
+        () => window.api.github.getOriginBranchPullRequest(originUrl.trim(), branch.trim()),
+        UNAVAILABLE
       )
     },
 
@@ -137,5 +157,18 @@ export function useBranchPullRequest(path: string | null | undefined, branch: st
   useEffect(() => {
     if (key && path && branch) void useGithubRefStore.getState().ensureBranchPull(path, branch)
   }, [branch, key, path])
+  return result?.status === 'ready' ? result.ref : null
+}
+
+export function useOriginBranchPullRequest(
+  originUrl: string | null | undefined,
+  branch: string | null | undefined,
+  enabled: boolean
+): GithubPullSummary | null {
+  const key = enabled && originUrl && branch ? originPullKey(originUrl, branch) : ''
+  const result = useGithubRefStore((state) => (key ? state.originPulls[key]?.result ?? null : null))
+  useEffect(() => {
+    if (key && originUrl && branch) void useGithubRefStore.getState().ensureOriginPull(originUrl, branch)
+  }, [branch, key, originUrl])
   return result?.status === 'ready' ? result.ref : null
 }

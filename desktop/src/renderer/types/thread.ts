@@ -121,6 +121,11 @@ export interface ThreadWorktreeInfoWire {
   } | null
 }
 
+export interface ThreadGitInfoWire {
+  branch?: string
+  originUrl?: string
+}
+
 export interface ThreadSummary {
   id: string
   userId?: string | null
@@ -130,6 +135,7 @@ export interface ThreadSummary {
   forkedFromId?: string | null
   ephemeral?: boolean
   worktree?: ThreadWorktreeInfoWire | null
+  gitInfo?: ThreadGitInfoWire | null
   displayName: string | null
   status: ThreadStatus
   originChannel: string

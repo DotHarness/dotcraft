@@ -8,6 +8,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { useGitHeadStore } from '../stores/gitHeadStore'
+import { useGithubRefStore } from '../stores/githubRefStore'
 import type { ThreadSummary } from '../types/thread'
 import { buildWorkspaceOpenDeepLink } from '../../shared/desktopDeepLink'
 import { translate } from '../../shared/locales'
@@ -130,6 +131,41 @@ describe('ThreadEntry', () => {
     fireEvent.focus(screen.getByTestId('thread-entry-thread-1').parentElement!)
 
     expect(await screen.findByRole('dialog')).toHaveTextContent('feature/details-card')
+    expect(gitInspectHead).not.toHaveBeenCalled()
+  })
+
+  it('shows the pull request of the branch the thread recorded, without probing the workspace', async () => {
+    useGithubRefStore.setState({ originPulls: {} })
+    const getOriginBranchPullRequest = vi.fn(async () => ({
+      status: 'ready' as const,
+      ref: {
+        kind: 'pull' as const,
+        owner: 'OctoOrg',
+        repo: 'sample-app',
+        number: 42,
+        title: 'Settings page',
+        author: 'octo',
+        createdAt: new Date().toISOString(),
+        state: 'open' as const,
+        additions: 1,
+        deletions: 1,
+        changedFiles: 1,
+        checks: { state: 'none' as const, passed: 0, failed: 0, total: 0 }
+      }
+    }))
+    installDesktopApiMock({
+      settings: { get: settingsGet, set: settingsSet },
+      appServer: { sendRequest: appServerSendRequest },
+      git: { inspectHead: gitInspectHead },
+      github: { getOriginBranchPullRequest }
+    })
+    renderThreadEntry(makeThread({
+      workspacePath: 'C:\fixtures\sample-project',
+      gitInfo: { branch: 'feat/settings-page', originUrl: 'https://github.com/OctoOrg/sample-app.git' }
+    }))
+
+    expect(await screen.findByRole('img', { name: /#42/ })).toBeInTheDocument()
+    expect(getOriginBranchPullRequest).toHaveBeenCalledWith('https://github.com/OctoOrg/sample-app.git', 'feat/settings-page')
     expect(gitInspectHead).not.toHaveBeenCalled()
   })
 

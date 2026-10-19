@@ -20,6 +20,7 @@ import { threadOriginBadge, useThreadEntryDetails } from './ThreadEntryDetails'
 import { ThreadRowLayout } from './ThreadRowLayout'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { isRemoteProject, isThreadRunning, isThreadWaiting, projectIdentity } from './projectThreads'
+import { ThreadRowTitle } from './ThreadRowTitle'
 import { useRememberRowSelection } from './threadRowSelection'
 
 /**
@@ -209,8 +210,8 @@ export function ReadonlyThreadRow({
             </span>
           )
         }
-        name={displayName}
-        nameStyle={{ fontWeight: 'var(--type-ui-weight)' }}
+        name={<ThreadRowTitle title={displayName} worktreeBranch={thread.worktree?.branchName?.trim() || null} />}
+        nameStyle={{ fontWeight: 'var(--type-ui-weight)', overflow: 'visible', textOverflow: 'clip' }}
         statusColumn={statusColumn}
         statusSlotWidth={statusSlotWidth}
         statusSlotMinWidth={statusSlotMinWidth}

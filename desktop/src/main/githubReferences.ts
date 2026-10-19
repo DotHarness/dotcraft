@@ -353,13 +353,12 @@ export function createGithubReferenceService(deps: GithubReferenceDeps = {}) {
     })
   }
 
-  async function getBranchPullRequest(workspacePath: string, branch: unknown): Promise<GithubBranchPullResult> {
+  function validBranch(branch: unknown): string | null {
     const branchName = typeof branch === 'string' ? branch.trim() : ''
-    if (!branchName || branchName.length > MAX_BRANCH_LENGTH || hasControlCharacter(branchName)) {
-      return { status: 'none' }
-    }
-    const repo = await getWorkspaceGithubRepo(workspacePath)
-    if (!repo) return { status: 'none' }
+    return !branchName || branchName.length > MAX_BRANCH_LENGTH || hasControlCharacter(branchName) ? null : branchName
+  }
+
+  function repoBranchPullRequest(repo: GithubRepo, branchName: string): Promise<GithubBranchPullResult> {
     const key = `branch:${repo.owner}/${repo.repo}:`.toLowerCase() + branchName
     return cached(key, BRANCH_SUCCESS_TTL_MS, async (): Promise<GithubBranchPullResult> => {
       const outcome = await graphql<{ repository?: { pullRequests?: { nodes?: Array<PullNode | null> } } | null }>(
@@ -376,7 +375,20 @@ export function createGithubReferenceService(deps: GithubReferenceDeps = {}) {
     })
   }
 
-  return { getReferenceSummary, getBranchPullRequest, getWorkspaceGithubRepo }
+  async function getBranchPullRequest(workspacePath: string, branch: unknown): Promise<GithubBranchPullResult> {
+    const branchName = validBranch(branch)
+    if (!branchName) return { status: 'none' }
+    const repo = await getWorkspaceGithubRepo(workspacePath)
+    return repo ? repoBranchPullRequest(repo, branchName) : { status: 'none' }
+  }
+
+  function getOriginBranchPullRequest(originUrl: unknown, branch: unknown): Promise<GithubBranchPullResult> {
+    const branchName = validBranch(branch)
+    const repo = typeof originUrl === 'string' ? parseGithubRemoteUrl(originUrl) : null
+    return branchName && repo ? repoBranchPullRequest(repo, branchName) : Promise.resolve({ status: 'none' })
+  }
+
+  return { getReferenceSummary, getBranchPullRequest, getOriginBranchPullRequest, getWorkspaceGithubRepo }
 }
 
 export const githubReferences = createGithubReferenceService()
