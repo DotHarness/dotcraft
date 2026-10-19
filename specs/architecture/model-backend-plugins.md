@@ -17,7 +17,7 @@ Agents owns provider-neutral backend and request contracts. Core contributes bac
 existing generation gate. The application still explicitly selects its built-in providers.
 
 Backend IDs are unique workspace-wide. Activation stages backend registration and rejects duplicate
-IDs, including conflicts with built-ins. Backend sources are workspace-scoped and cannot replace other
+IDs. Backend sources are workspace-scoped and cannot replace other
 contributions. Registrations are activation-only. Missing, disabled or untrusted backends leave
 configuration readable but fail model operations without fallback.
 
@@ -35,8 +35,7 @@ storage.
 
 One runtime resolver serves chat, native subagents, summaries, maintenance, cache warming, model
 catalogs, authentication and usage. Backend generation and instance configuration
-participate in cache identity. Authentication changes invalidate affected identities. A stale catalog
-refresh cannot publish after its generation is revoked.
+participate in cache identity. Authentication changes invalidate affected identities.
 
 The host applies its normal retry policy to backend requests. The host remains responsible for tool policy, approval and execution. Backends emit standard model
 tool calls and consume the resulting tool messages.

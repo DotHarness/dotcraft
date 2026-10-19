@@ -65,13 +65,11 @@ public static class ModelProviderCatalog
         try
         {
             var catalog = providerRegistry.Resolve(runtime).GetService(typeof(IModelCatalogProvider)) as IModelCatalogProvider;
-            var result = catalog == null
+            return catalog == null
                 ? Failure(
                     ModelCatalogErrorCode.UnsupportedProtocol,
                     $"Protocol '{runtime.Protocol}' does not support model listing.")
                 : await catalog.FetchModelsAsync(runtime, cancellationToken).ConfigureAwait(false);
-            return providerRegistry.Normalize(runtime).BackendGeneration == runtime.BackendGeneration
-                ? result : Failure(ModelCatalogErrorCode.UnsupportedProtocol, "The model backend changed during catalog refresh.");
         }
         catch (ModelProviderNotRegisteredException ex)
         {

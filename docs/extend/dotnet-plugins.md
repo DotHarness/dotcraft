@@ -173,7 +173,7 @@ Background work goes through `context.Lifetime.Run`. It starts after activation 
 Implement `IModelBackend` and register it through `IModelBackendSource` during activation.
 Its descriptor declares the backend ID, supported protocols, authentication methods and capabilities.
 `CreateProvider(ModelBackendContext)` returns an `IModelProvider` for each configured instance.
-Backend IDs must be unique and cannot use the reserved `builtin.` prefix.
+Backend IDs must be unique.
 
 The [.NET plugin sample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample#try-the-offline-model-backend)
 demonstrates model discovery, chat and interactive login. After enabling and trusting Review Core,

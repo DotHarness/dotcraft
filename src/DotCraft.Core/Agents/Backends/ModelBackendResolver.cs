@@ -90,14 +90,9 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
 
     private ContributionEntry<IModelBackendSource> Find(string id)
     {
-        var entries = contributions.ResolveEntries<IModelBackendSource>()
-            .Where(entry => entry.Contribution.Backend.Descriptor.Id == id).ToArray();
-        return entries.Length switch
-        {
-            1 => entries[0],
-            0 => throw new ModelBackendUnavailableException(id),
-            _ => throw new InvalidOperationException($"Multiple model backends are registered as '{id}'.")
-        };
+        foreach (var entry in contributions.ResolveEntries<IModelBackendSource>())
+            if (entry.Contribution.Backend.Descriptor.Id == id) return entry;
+        throw new ModelBackendUnavailableException(id);
     }
 
     private static string InstanceKey(EffectiveModelRuntime runtime) =>

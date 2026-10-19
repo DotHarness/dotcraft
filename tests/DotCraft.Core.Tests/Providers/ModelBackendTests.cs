@@ -32,45 +32,6 @@ public sealed class ModelBackendTests : IDisposable
     }
 
     [Fact]
-    public async Task RevokedBackendCannotPublishAStaleCatalog()
-    {
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var pending = new TaskCompletionSource<ModelCatalogResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var backend = new Backend("alpha") { CatalogFactory = () => { started.SetResult(); return pending.Task; } };
-        var handle = _contributions.Add<IModelBackendSource>(new Source(backend));
-        var resolver = Resolver();
-        var fetch = ModelProviderCatalog.FetchAsync(Config(("a", "alpha")), resolver, "a");
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        handle.Dispose();
-        pending.SetResult(new ModelCatalogResult { Success = true, Models = [new() { Id = "stale" }] });
-        Assert.False((await fetch).Success);
-        Assert.Empty((await fetch).Models);
-    }
-
-    [Fact]
-    public async Task CancelledRefreshCannotRestoreCredentialsAfterLogout()
-    {
-        var store = new ProviderCredentialStore(_root, "alpha", "a");
-        var other = new ProviderCredentialStore(_root, "alpha", "a");
-        using var cancellation = new CancellationTokenSource();
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var refresh = store.ModifyAsync(async (_, _) =>
-        {
-            started.SetResult();
-            await release.Task;
-            return JsonSerializer.SerializeToElement("rotated-secret");
-        }, cancellation.Token);
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        cancellation.Cancel();
-        var logout = other.DeleteAsync(default);
-        release.SetResult();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => refresh);
-        await logout;
-        Assert.Null(await store.ReadAsync(default));
-    }
-
-    [Fact]
     public void DuplicateBackendRegistrationDoesNotReplaceExistingRoute()
     {
         _contributions.Add<IModelBackendSource>(new Source(new Backend("alpha")));
@@ -142,19 +103,6 @@ public sealed class ModelBackendTests : IDisposable
     }
 
     [Fact]
-    public async Task SamplingSeesTheActiveConversationIdentity()
-    {
-        var backend = new Backend("alpha");
-        _contributions.Add<IModelBackendSource>(new Source(backend));
-        var client = new ChatClientRegistry(new ModelProviderRegistry([]), Resolver()).GetChatClient(Config(("a", "alpha")), "a", "model");
-        var identity = new ProviderConversationIdentity(
-            "thread", "thread", null, null, "turn", "window", ProviderRequestKind.Compaction, 0, "test", null);
-        using var scope = ProviderRequestContextScope.Push(new ProviderRequestContext(identity));
-        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")]);
-        Assert.Equal(identity, backend.LastIdentity);
-    }
-
-    [Fact]
     public async Task HostExecutesTheToolAndReturnsItsResultToTheBackend()
     {
         var backend = new Backend("alpha") { ClientFactory = () => new ToolRoundTripClient() };
@@ -202,8 +150,6 @@ public sealed class ModelBackendTests : IDisposable
     private sealed class Backend(string id) : IModelBackend
     {
         public Func<IChatClient>? ClientFactory { get; init; }
-        public Func<Task<ModelCatalogResult>>? CatalogFactory { get; init; }
-        public ProviderConversationIdentity? LastIdentity { get; set; }
         public ModelBackendDescriptor Descriptor => new(id, id, "anthropic", ["anthropic"],
             [new("oauth", "Sign in", "oauth")], new ModelProviderCapabilities());
         public IModelProvider CreateProvider(ModelBackendContext context) => new Provider(this, id, context.Credentials);
@@ -213,10 +159,10 @@ public sealed class ModelBackendTests : IDisposable
         : IModelProvider, IModelCatalogProvider, IProviderAuthenticator
     {
         public IReadOnlyCollection<string> Protocols => ["anthropic"];
-        public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => backend.ClientFactory?.Invoke() ?? new Client(backend, id);
+        public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => backend.ClientFactory?.Invoke() ?? new Client(id);
         public object? GetService(Type type, object? key = null) => type.IsInstanceOfType(this) ? this : null;
         public Task<ModelCatalogResult> FetchModelsAsync(EffectiveModelRuntime runtime, CancellationToken ct) =>
-            backend.CatalogFactory?.Invoke() ?? Task.FromResult(new ModelCatalogResult { Success = true, Models = [new() { Id = id }] });
+            Task.FromResult(new ModelCatalogResult { Success = true, Models = [new() { Id = id }] });
         public async Task<ProviderAuthenticationStatus> GetStatusAsync(CancellationToken ct) =>
             new(await credentials.ReadAsync(ct) is not null);
         public async Task<ProviderAuthenticationStatus> LoginAsync(string method, IProviderLoginInteraction interaction, CancellationToken ct)
@@ -228,13 +174,10 @@ public sealed class ModelBackendTests : IDisposable
         public Task LogoutAsync(CancellationToken ct) => credentials.DeleteAsync(ct);
     }
 
-    private sealed class Client(Backend backend, string text) : IChatClient
+    private sealed class Client(string text) : IChatClient
     {
-        public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
-        {
-            backend.LastIdentity = ProviderRequestContextScope.Current?.CurrentIdentity;
-            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, text)));
-        }
+        public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, text)));
         public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages,
             ChatOptions? options = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {

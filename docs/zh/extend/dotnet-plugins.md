@@ -173,7 +173,7 @@ internal sealed class PluginTool : AIFunctionToolSource
 实现 `IModelBackend`，在激活期间通过 `IModelBackendSource` 注册。
 描述符声明后端 ID、支持的协议、认证方式和能力。
 `CreateProvider(ModelBackendContext)` 为每个配置实例返回 `IModelProvider`。
-后端 ID 必须唯一，不能使用保留的 `builtin.` 前缀。
+后端 ID 必须唯一。
 
 [.NET 插件示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample#try-the-offline-model-backend)
 演示模型发现、聊天和交互式登录。启用并信任 Review Core 后，在配置中添加其后端：

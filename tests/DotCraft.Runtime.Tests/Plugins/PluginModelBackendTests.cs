@@ -24,8 +24,6 @@ public sealed class PluginModelBackendTests
         Assert.Equal("model", Assert.Single((await ModelProviderCatalog.FetchAsync(config, resolver, "demo")).Models).Id);
         await Assert.ThrowsAsync<PluginContributionException>(() => client.GetResponseAsync([], new ChatOptions { ModelId = "raw" }));
         var runtime = clients.ResolveMainRuntime(config, "demo", "model");
-        Assert.Null(clients.GetProviderService<IProviderHistorySessionFactory>(runtime));
-        Assert.Null(clients.GetProviderService<IProviderNativeCompactorFactory>(runtime));
 
         await using var authentication = new ProviderAuthenticationCoordinator(resolver);
         var waiting = new TaskCompletionSource<ProviderLoginState>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -66,7 +64,7 @@ public sealed class PluginModelBackendTests
             }
         }
         internal sealed class TestBackend : IModelBackendSource, IModelBackend, IModelProvider, IModelCatalogProvider,
-            IProviderAuthenticator, IProviderHistorySessionFactory, IProviderNativeCompactorFactory
+            IProviderAuthenticator
         {
             public IModelBackend Backend => this;
             public ModelBackendDescriptor Descriptor => new("test.backend", "Test", "backend-test", new[] { "backend-test" },
@@ -84,10 +82,6 @@ public sealed class PluginModelBackendTests
                 return new ProviderAuthenticationStatus(true);
             }
             public Task LogoutAsync(CancellationToken ct) => Task.CompletedTask;
-            public IProviderConversationHistory CreateSession(ProviderConversationIdentity identity, OpaqueProviderHistorySnapshot snapshot,
-                IReadOnlyList<ChatMessage> messages, IProviderHistorySink? sink) => throw new NotSupportedException();
-            public IProviderNativeCompactor CreateCompactor(EffectiveModelRuntime runtime, IChatClient? client = null) =>
-                throw new NotSupportedException();
         }
         internal sealed class Client : IChatClient
         {

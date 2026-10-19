@@ -31,7 +31,7 @@ public sealed class ProviderCredentialStore : IProviderCredentialStore
         var before = Read();
         var credential = await update(before.Credential?.Clone(), cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        var next = new StoredCredential(before.Revision + 1, credential?.Clone());
+        var next = new StoredCredential(credential?.Clone());
         var temporary = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
@@ -54,7 +54,7 @@ public sealed class ProviderCredentialStore : IProviderCredentialStore
     private StoredCredential Read() => File.Exists(_path)
         ? JsonSerializer.Deserialize<StoredCredential>(File.ReadAllText(_path))
             ?? throw new InvalidDataException("The provider credential record is invalid.")
-        : new StoredCredential(0, null);
+        : new StoredCredential(null);
 
     private async Task<IAsyncDisposable> AcquireAsync(CancellationToken cancellationToken)
     {
@@ -112,7 +112,7 @@ public sealed class ProviderCredentialStore : IProviderCredentialStore
             FileMode.CreateNew, FileSystemRights.Write, FileShare.None, 4096, FileOptions.None, security);
     }
 
-    private sealed record StoredCredential(long Revision, JsonElement? Credential);
+    private sealed record StoredCredential(JsonElement? Credential);
 
     private sealed class LockLease(FileStream file, SemaphoreSlim gate) : IAsyncDisposable
     {
