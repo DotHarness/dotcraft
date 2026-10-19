@@ -114,19 +114,34 @@ internal sealed class PluginChatClient : IChatClient
         _invocation = invocation;
     }
 
-    public Task<ChatResponse> GetResponseAsync(
+    public async Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
-        CancellationToken cancellationToken = default) =>
-        _invocation.InvokeAsync(new Func<Task<ChatResponse>>(async () =>
+        CancellationToken cancellationToken = default)
+    {
+        using var lease = _invocation.Enter();
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _invocation.Stopping);
+        ChatResponse response;
+        try
         {
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _invocation.Stopping);
-            var response = await _target.Value
+            response = await _target.Value
                 .GetResponseAsync(messages, options, linked.Token)
                 .ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            throw Fail(exception);
+        }
+        try
+        {
             PluginObjectGraphGuard.EnsureHostOwnedGraph(response, "chat response");
-            return response;
-        }));
+        }
+        catch (Exception exception)
+        {
+            throw _invocation.Normalize(exception);
+        }
+        return response;
+    }
 
     public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages,
@@ -145,7 +160,7 @@ internal sealed class PluginChatClient : IChatClient
         }
         catch (Exception exception)
         {
-            throw _invocation.Normalize(exception);
+            throw Fail(exception);
         }
 
         try
@@ -208,9 +223,15 @@ internal sealed class PluginChatClient : IChatClient
         }
         catch (Exception exception)
         {
-            throw _invocation.Normalize(exception);
+            throw Fail(exception);
         }
     }
+
+    private Exception Fail(Exception exception) =>
+        exception is OperationCanceledException or PluginContributionException
+            ? _invocation.Normalize(exception)
+            : new ProviderFailureException(
+                DefaultProviderFailureClassifier.Instance.Classify(exception), _invocation.Normalize(exception));
 
     private async ValueTask DisposeEnumeratorAsync(IAsyncEnumerator<ChatResponseUpdate> enumerator)
     {

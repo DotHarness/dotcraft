@@ -42,6 +42,24 @@ public sealed class PluginModelBackendTests
         Assert.Throws<ModelBackendUnavailableException>(() => clients.GetChatClient(config, "demo", "model"));
     }
 
+    [Fact]
+    public async Task HostRetriesATransientBackendStreamFailure()
+    {
+        using var harness = new PluginGenerationHarness();
+        WritePlugin(harness.PluginRoot("backend-test"), "backend-test", "BackendTest.Plugin", Source);
+        await harness.ActivateAsync("backend-test");
+        using var resolver = new ModelBackendResolver(new ModelProviderRegistry([]), harness.Registry, harness.Root);
+        var clients = new ChatClientRegistry(new ModelProviderRegistry([]), resolver);
+        var config = new AppConfig { Providers = new() { ["demo"] = new() { BackendId = "test.backend" } } };
+        var client = clients.GetChatClient(config, "demo", "model");
+
+        var text = "";
+        await foreach (var update in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "flaky")]))
+            text += update.Text;
+
+        Assert.Equal("recovered", text);
+    }
+
     private const string Source = """
         #nullable enable
         using System;
@@ -94,11 +112,19 @@ public sealed class PluginModelBackendTests
             public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
                 [EnumeratorCancellation] CancellationToken cancellationToken = default)
             {
+                if (System.Linq.Enumerable.LastOrDefault(messages)?.Text == "flaky")
+                {
+                    if (Interlocked.Increment(ref _flakyAttempts) == 1)
+                        throw new System.IO.IOException("connection reset");
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, "recovered");
+                    yield break;
+                }
                 yield return new ChatResponseUpdate(ChatRole.Assistant, "ready");
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             }
             public object? GetService(Type type, object? key = null) => null;
             public void Dispose() { }
+            private static int _flakyAttempts;
             private sealed class PrivateValue { }
         }
         """;
