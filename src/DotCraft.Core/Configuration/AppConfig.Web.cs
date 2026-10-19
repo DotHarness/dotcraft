@@ -17,7 +17,7 @@ public sealed partial class AppConfig
         [ConfigField(Min = 1, Max = 10)]
         public int SearchMaxResults { get; set; } = 5;
 
-        [ConfigField(FieldType = "select", Options = ["Auto", "Exa", "Bing", "DeepSeek"], Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.ThreadAgents)]
+        [ConfigField(FieldType = "select", Options = ["Auto", "Exa", "Bing", "DeepSeek", "ChatGPT"], Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.ThreadAgents)]
         public string SearchProvider { get; set; } = WebSearchProvider.Auto;
 
         [ConfigField(Sensitive = true, Hint = "Exa API key; empty uses EXA_API_KEY or the free rate-limited endpoint", Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.ThreadAgents)]

@@ -119,6 +119,30 @@ describe('web search configuration', () => {
     expect(config.write).toHaveBeenCalledWith('Tools.Web.DeepSeekProvider', 'team')
   })
 
+  it('offers ChatGPT only while a subscription provider is signed in', () => {
+    const subscription = (isAuthenticated: boolean) => ({
+      id: 'openai',
+      displayName: 'OpenAI',
+      protocol: 'openai-responses',
+      endPoint: '',
+      hasApiKey: false,
+      authMethod: 'chatgptOAuth',
+      isAuthenticated
+    })
+    const chatGptOption = () => screen.getByRole('option', { name: 'ChatGPT' }) as HTMLOptionElement
+
+    render(<WebSearchSettingsGroup providers={[subscription(false)]} providersLoading={false} />)
+    expect(chatGptOption().disabled).toBe(true)
+
+    cleanup()
+    render(<WebSearchSettingsGroup providers={[subscription(true)]} providersLoading={false} />)
+    expect(chatGptOption().disabled).toBe(false)
+    fireEvent.change(screen.getByLabelText('settings.llm.webSearch.service'), {
+      target: { value: 'ChatGPT' }
+    })
+    expect(config.write).toHaveBeenCalledWith('Tools.Web.SearchProvider', 'ChatGPT')
+  })
+
   it('offers a key when no DeepSeek provider exists', () => {
     config.values['Tools.Web.SearchProvider'] = 'DeepSeek'
     render(<WebSearchSettingsGroup providers={[]} providersLoading={false} />)

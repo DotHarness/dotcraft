@@ -1648,6 +1648,8 @@ export const MESSAGES_ES = {
   'settings.llm.webSearch.serviceHint': 'Elige un servicio de búsqueda web.',
   'settings.llm.webSearch.exaDescription': 'Mejores resultados. El uso gratuito tiene límite de frecuencia.',
   'settings.llm.webSearch.bingDescription': 'No necesita clave.',
+  'settings.llm.webSearch.chatGptDescription': 'Usa tu suscripción de ChatGPT.',
+  'settings.llm.webSearch.chatGptSignedOut': 'Inicia sesión con ChatGPT primero.',
   'settings.llm.webSearch.exaKey': 'Clave API de Exa',
   'settings.llm.webSearch.exaKeyHint': 'Déjala vacía para usar el servicio gratuito con límite de frecuencia.',
   'settings.llm.webSearch.exaKeyPlaceholder': 'Sin configurar',

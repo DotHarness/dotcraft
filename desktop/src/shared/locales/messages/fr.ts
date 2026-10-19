@@ -1648,6 +1648,8 @@ export const MESSAGES_FR = {
   'settings.llm.webSearch.serviceHint': 'Choisissez un service de recherche web.',
   'settings.llm.webSearch.exaDescription': 'De meilleurs résultats. L’usage gratuit est limité en fréquence.',
   'settings.llm.webSearch.bingDescription': 'Aucune clé requise.',
+  'settings.llm.webSearch.chatGptDescription': 'Utilise votre abonnement ChatGPT.',
+  'settings.llm.webSearch.chatGptSignedOut': "Connectez-vous d'abord avec ChatGPT.",
   'settings.llm.webSearch.exaKey': 'Clé API Exa',
   'settings.llm.webSearch.exaKeyHint': 'Laissez vide pour utiliser le service gratuit, limité en fréquence.',
   'settings.llm.webSearch.exaKeyPlaceholder': 'Non définie',

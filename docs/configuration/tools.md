@@ -45,13 +45,13 @@ Background commands, subagents, and workflows report back to the agent when they
 | `Tools.Web.Timeout` | Web request timeout in seconds | `30` |
 | `Tools.Web.MaxResponseBytes` | Max bytes read from a fetched page; longer pages are truncated | `5000000` |
 | `Tools.Web.SearchMaxResults` | Default search result count | `5` |
-| `Tools.Web.SearchProvider` | `Auto` / `Exa` / `Bing` / `DeepSeek` | `Auto` |
+| `Tools.Web.SearchProvider` | `Auto` / `Exa` / `Bing` / `DeepSeek` / `ChatGPT` | `Auto` |
 | `Tools.Web.ExaApiKey` | Your Exa API key; empty uses `EXA_API_KEY`, and without either Exa search uses the free, rate-limited endpoint | `""` |
 | `Tools.Web.DeepSeekCredentialSource` | `Provider` reuses an existing provider. `ApiKey` uses an independent search key | `Provider` |
 | `Tools.Web.DeepSeekProvider` | Provider id to reuse. Empty prefers the current eligible provider, then the only available DeepSeek provider | `""` |
 | `Tools.Web.DeepSeekApiKey` | Independent search key in `ApiKey` mode. Empty reads `DEEPSEEK_API_KEY` | `""` |
 
-In Desktop, choose a search service under **Settings → Model providers → Web search**. Automatic mode searches with DeepSeek through the conversation's provider when it is an authenticated official DeepSeek provider, and uses Exa otherwise. The DeepSeek credential settings apply only when DeepSeek is selected. An explicit Exa, Bing, or DeepSeek selection takes precedence outside ChatGPT subscription conversations.
+In Desktop, choose a search service under **Settings → Model providers → Web search**. Automatic mode searches with DeepSeek through the conversation's provider when it is an authenticated official DeepSeek provider, and uses Exa otherwise. The DeepSeek credential settings apply only when DeepSeek is selected. An explicit Exa, Bing, DeepSeek, or ChatGPT selection takes precedence outside ChatGPT subscription conversations. Automatic mode never chooses ChatGPT.
 
 ### Search with DeepSeek
 
@@ -76,6 +76,8 @@ Remote model service providers also reuse their server-side credentials when the
 ### Web search with a ChatGPT subscription
 
 When the conversation uses a provider that [signs in with ChatGPT](./models#sign-in-with-chatgpt), web search runs through your subscription's search service as the `web.run` tool instead of `WebSearch`. It can search, open and read pages, and look up finance, weather, sports, and time data, and the answer cites the pages it used. The generic search provider, credential, and result-count settings do not apply to it. `WebFetch` is unchanged and keeps using the settings above.
+
+To search through the same subscription while chatting with another provider, select **ChatGPT** as the search service. It becomes available once a ChatGPT provider is signed in, and it searches with the model you last chose for that provider. Only the search query is sent to ChatGPT, and each search counts toward your subscription's usage. The model still calls `WebSearch`, which returns titles, URLs, and snippets as it does with the other services.
 
 ## Tool results
 
