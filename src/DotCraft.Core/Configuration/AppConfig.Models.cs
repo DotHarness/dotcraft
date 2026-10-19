@@ -51,12 +51,6 @@ public sealed partial class AppConfig
             set => _authMethod = value;
         }
 
-        [ConfigField(Hint = "Populated by Sign in with ChatGPT; do not edit manually.")]
-        public string ChatGptAccountId { get; set; } = string.Empty;
-
-        [ConfigField(Hint = "Populated by Sign in with ChatGPT; do not edit manually.")]
-        public string ChatGptPlanType { get; set; } = string.Empty;
-
         /// <summary>Empty values use the protocol's official default endpoint.</summary>
         public string EndPoint { get; set; } = string.Empty;
 
@@ -86,8 +80,6 @@ public sealed partial class AppConfig
             Protocol = Protocol,
             ApiKey = ApiKey,
             AuthMethod = AuthMethod,
-            ChatGptAccountId = ChatGptAccountId,
-            ChatGptPlanType = ChatGptPlanType,
             EndPoint = EndPoint,
             NetworkTimeoutSeconds = NetworkTimeoutSeconds,
             MaxOutputTokens = MaxOutputTokens,

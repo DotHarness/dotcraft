@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createProvider, ProviderExistsError, providerUpdateValue, type ProviderFields } from '../components/settings/providerConfigWrites'
+import { createProvider, ProviderExistsError, providerCreateValue, providerUpdateValue, type ProviderFields } from '../components/settings/providerConfigWrites'
 import type { ProviderInfoWire } from '../components/settings/providerInfo'
 
 const stored: ProviderInfoWire = {
@@ -15,6 +15,7 @@ const stored: ProviderInfoWire = {
 const unchanged: ProviderFields = {
   displayName: 'Work',
   protocol: 'openai-responses',
+  backendId: null,
   authMethod: 'apiKey',
   apiKey: null,
   endPoint: 'https://api.example.com/v1',
@@ -35,6 +36,34 @@ describe('provider update edits', () => {
   it('clears the stored key when the provider switches to subscription sign-in', () => {
     expect(providerUpdateValue(stored, { ...unchanged, authMethod: 'chatgptOAuth', apiKey: 'ignored' }))
       .toEqual({ AuthMethod: 'chatgptOAuth', ApiKey: null })
+  })
+
+  it('moves a provider onto a backend without keeping its key or endpoint', () => {
+    expect(providerUpdateValue(stored, {
+      ...unchanged, backendId: 'local-llm', protocol: 'local-chat', authMethod: 'device', apiKey: 'ignored'
+    })).toEqual({
+      BackendId: 'local-llm', Protocol: 'local-chat', AuthMethod: 'device', EndPoint: null, ApiKey: null
+    })
+  })
+})
+
+describe('provider create value', () => {
+  it('writes the backend, its protocol and sign-in method without HTTP fields', () => {
+    expect(providerCreateValue({
+      ...unchanged,
+      displayName: '',
+      backendId: 'local-llm',
+      protocol: 'local-chat',
+      authMethod: 'device',
+      apiKey: 'ignored',
+      endPoint: 'https://ignored.example.com',
+      networkTimeoutSeconds: null
+    })).toEqual({ BackendId: 'local-llm', Protocol: 'local-chat', AuthMethod: 'device' })
+  })
+
+  it('writes the subscription method instead of a key', () => {
+    expect(providerCreateValue({ ...unchanged, authMethod: 'chatgptOAuth', apiKey: 'ignored', networkTimeoutSeconds: null }))
+      .toEqual({ Protocol: 'openai-responses', DisplayName: 'Work', AuthMethod: 'chatgptOAuth', EndPoint: 'https://api.example.com/v1' })
   })
 })
 

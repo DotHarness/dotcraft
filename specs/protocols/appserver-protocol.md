@@ -48,7 +48,6 @@ Serialized shapes are defined by the `DotCraft.Protocol` C# contracts and the ge
 - [26. Memory Management Methods](#26-memory-management-methods)
 - [27. Dreams Management Methods](#27-dreams-management-methods)
 - [27A. Usage Telemetry Methods](#27a-usage-telemetry-methods)
-- [27B. OpenAI account methods](#27b-openai-account-methods)
 - [28. Protocol Ownership](#28-protocol-ownership)
 
 Section numbers are stable identifiers referenced by clients and other specs; gaps in the numbering are intentional.
@@ -203,7 +202,7 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `toolCatalog` | `tool/list` (always `true`; no workspace dependency). |
 | `commandManagement` | `command/list`, `command/execute`. |
 | `channelStatus` | `channel/status`. |
-| `providerManagement` | `provider/list`, `provider/test`. Providers are edited through configuration writes. |
+| `providerManagement` | `provider/list`, `provider/test`, and provider authentication ([Section 21.6](#216-provider-authentication)). Providers are edited through configuration writes. |
 | `modelCatalogManagement` | `model/list`. |
 | `workspaceConfigManagement` | `config/schema`, `config/read`, `config/value/write`, `config/batchWrite`. |
 | `sourceControlManagement` | `sourceControl/*` and provider extensions advertised by `sourceControl/get.capabilities`. |
@@ -224,7 +223,6 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `subAgentSessions` | `subagent/children/list`, `subagent/sendMessage`, `subagent/followupTask`, `subagent/close`. |
 | `usageTelemetry` | `usage/*` and `profile/insights`. Absent when tracing is disabled. |
 | `remoteToolHost` | `remoteToolHost/*`. Absent when the workspace has no Remote Tool Host client. |
-| `authOpenAiOAuth` / `authOpenAiUsage` | `auth/openai/*` sign-in and usage surfaces ([Section 27B](#27b-openai-account-methods)). |
 | `extensions` | Module capability registry keyed by extension name; `true` or extension-defined metadata means the extension is available (for example `welcomeSuggestions`). |
 
 Extension entries with metadata:
@@ -1673,13 +1671,15 @@ These methods list and probe model providers and discover models. `provider/list
 
 Provider records are personal configuration under `Providers`, created, edited, and deleted only through configuration writes in the user layer ([Section 25.4](#254-configuration-writes)); workspace configuration only selects a provider id and model id. A configuration write that changes `Providers` emits `config/changed` whose `regions` include `Providers` and the domain tag `providers`.
 
-With a remote [model service](../architecture/model-service.md), provider records come from that service, carry `managedBy: "modelService"` and `isAuthenticated`, and expose no upstream credentials. Listing, testing an existing provider, and model selection remain available; draft testing and subscription login/logout return InvalidRequest naming the management location, and writes under `Providers` fail with `configValidationError`.
+With a remote [model service](../architecture/model-service.md), provider records come from that service, carry `managedBy: "modelService"` and `isAuthenticated`, and expose no upstream credentials. Listing, testing an existing provider, model selection, and authentication status and usage remain available; draft testing and provider login/logout return InvalidRequest naming the management location, and writes under `Providers` fail with `configValidationError`.
 
 ### 21.2 `ProviderInfo` Wire DTO
 
 Non-obvious fields:
 
-- `protocol`: `openai-chat-completions`, `openai-responses`, or `anthropic`.
+- `protocol`: `openai-chat-completions`, `openai-responses`, or `anthropic`; a backend instance reports its backend's protocol.
+- `backendId`: present for [model backend](../architecture/model-backend-plugins.md) instances.
+- `isAuthenticated`: present when the provider's configured method supports sign-in or a model service manages it.
 - `apiKey`: a redacted marker when a key exists; raw secrets are never returned. `hasApiKey` reports presence.
 - `endPoint`: empty means the protocol's official endpoint.
 - `streamMaxRetries` (default 5, range 0-100) and `streamIdleTimeoutMs` (default 300000): provider-specific stream reconnection settings; `networkTimeoutSeconds` overrides the timeout.
@@ -1707,6 +1707,10 @@ Params: optional `providerId` (omitted or null uses the workspace-selected provi
 
 - Provider or configuration errors still return a successful JSON-RPC response with `success: false` and a provider-neutral `errorCode` (for example `MissingApiKey`); clients continue to allow manual model entry.
 - Results come from a cache keyed by resolved provider identity (id, protocol, endpoint, credentials), reused for five minutes. A failed refresh returns the last catalog for the same identity when one exists; an identity without a cached catalog is re-queried at most every thirty seconds while failing. Editing credentials or endpoint creates a new identity. `provider/test` always queries the endpoint.
+
+### 21.6 Provider Authentication
+
+`provider/backend/list` and `provider/auth/*` sign providers in and out and report account status and usage for built-in providers and model backends alike. [Provider authentication](provider-auth.md) defines them.
 
 ## 22. MCP Management Methods
 
@@ -2194,10 +2198,10 @@ Apply ordered `edits` (`{ keyPath, value, mergeStrategy }`) to one layer atomica
 
 #### Providers
 
-`Providers` maps a provider id to an object with `DisplayName`, `Protocol`, `ApiKey`, `AuthMethod`, `ChatGptAccountId`, `ChatGptPlanType`, `EndPoint`, `NetworkTimeoutSeconds`, `MaxOutputTokens`, `StreamMaxRetries`, `StreamIdleTimeoutMs`, `SupportsImageGeneration`, and `SupportsFreeformTools`. Writing `Providers.<id>` or `Providers.<id>.<Field>` creates or edits a provider; writing `null` to `Providers.<id>` deletes it. Ids compare case-insensitively. To edit without touching the key, clients send the masked `"***"` back or omit it from an `upsert`.
+`Providers` maps a provider id to an object with `DisplayName`, `Protocol`, `ApiKey`, `AuthMethod`, `BackendId`, `BackendSettings`, `EndPoint`, `NetworkTimeoutSeconds`, `MaxOutputTokens`, `StreamMaxRetries`, `StreamIdleTimeoutMs`, `SupportsImageGeneration`, and `SupportsFreeformTools`. Writing `Providers.<id>` or `Providers.<id>.<Field>` creates or edits a provider; writing `null` to `Providers.<id>` deletes it. Ids compare case-insensitively. To edit without touching the key, clients send the masked `"***"` back or omit it from an `upsert`.
 
 - Provider edits persist to the user layer; naming another layer fails with `configValidationError`, as does any edit under `Providers` while a remote model service manages providers.
-- Each changed entry needs an id that is non-empty without `/`, `\`, or `:`; a `Protocol` of `openai-chat-completions`, `openai-responses`, or `anthropic`; an absolute-URI `EndPoint` when non-empty; positive `NetworkTimeoutSeconds`, `MaxOutputTokens`, and `StreamIdleTimeoutMs`; `StreamMaxRetries` from 0 to 100; and an `AuthMethod` of `apiKey` or `chatgptOAuth` (which requires an OpenAI protocol).
+- Each changed entry needs an id that is non-empty without `/`, `\`, or `:`; a `Protocol` of `openai-chat-completions`, `openai-responses`, or `anthropic`; an absolute-URI `EndPoint` when non-empty; positive `NetworkTimeoutSeconds`, `MaxOutputTokens`, and `StreamIdleTimeoutMs`; `StreamMaxRetries` from 0 to 100; and an `AuthMethod` of `apiKey` or `chatgptOAuth` (which requires an OpenAI protocol). An entry with a `BackendId` needs an object `BackendSettings` and positive limits; its backend validates protocol and method.
 - After editing `ProviderId` or `Providers`, a non-empty effective `ProviderId` must name a defined (or service-managed) provider; deleting or selecting an unavailable provider fails with `configValidationError`.
 - Omitted fields are resolved at apply time as `provider/list` reports them; defaults are not written to the file.
 - Changes take effect for new Turns, model listing, and provider tests without restart; `config/changed` lists `Providers` and the domain tag `providers`.
@@ -2218,7 +2222,7 @@ A rejected write leaves the file unchanged and returns `-32600` with `data.confi
 Notification `{ source, regions, changedAt }`, emitted after write completion and in-process state update.
 
 - `source`: the RPC method or runtime operation that caused the change; each method states its `source` and `regions`.
-- `regions`: changed key paths for `config/value/write` and `config/batchWrite`, or coarse domain tags for domain operations: `providers`, `skills`, `plugins`, `plugins.config`, `memory`, `lsp`, `mcp`, `hooks`, `externalChannel`, `subagent`, `sourceControl`. `providers` accompanies `Providers` whenever a change alters the provider set, including the provider binding of `auth/openai/login` and `auth/openai/logout`.
+- `regions`: changed key paths for `config/value/write` and `config/batchWrite`, or coarse domain tags for domain operations: `providers`, `skills`, `plugins`, `plugins.config`, `memory`, `lsp`, `mcp`, `hooks`, `externalChannel`, `subagent`, `sourceControl`. `providers` accompanies `Providers` whenever a change alters the provider set.
 - Key paths match `config/schema` key paths ordinally. Clients refresh a configuration view when a path under a displayed prefix appears and refresh domain state (`skills/list`, `mcp/list`, …) when its tag appears. Unknown regions are ignored.
 
 ## 25A. Source Control Methods
@@ -2465,22 +2469,6 @@ Workspace activity insights. Params: `topSkills` (default 5, clamped 1-20).
 **Result**: `topModel` and `topReasoning` (`{ key, count, total }`, where `count / total` is the share; omitted when none recorded), `skillsExplored` (distinct skills referenced), `totalSkillsUsed`, `totalThreads` (non-internal threads, active and archived), `longestTaskMs` (longest single Turn), and `skills` (most-referenced, by count then name, with `pluginId` for plugin skills).
 
 Models are keyed by model id only (provider not distinguished), counted from response trace events. A skill use is counted only when the agent loads it through `SkillView`; skills injected otherwise (for example `always: true`) are not counted.
-
-## 27B. OpenAI account methods
-
-These methods project [OpenAI subscription authentication](../architecture/openai-subscription-auth.md). The `authOpenAiOAuth` and `authOpenAiUsage` server capabilities advertise them.
-
-| Method | Kind | Behavior |
-|---|---|---|
-| `auth/openai/status` | request | Account metadata or `loggedIn: false`. |
-| `auth/openai/login` | request | Waits (at least 15 minutes) for the interactive browser authorization flow. |
-| `auth/openai/logout` | request | Revokes and clears local tokens and unbinds the provider. |
-| `auth/openai/usage` | request | Cached usage, fetched inline when nothing is cached. |
-| `auth/openai/authorizeUrl` | notification | Delivers the browser URL while login is pending. |
-| `auth/openai/usage/updated` | notification | A changed usage snapshot after polling, login, or logout. |
-
-- Login and logout persist the provider binding as one user-layer configuration write under the provider rules of [Section 25.4](#254-configuration-writes). A rejected binding on login keeps the tokens and returns InvalidRequest naming the failure; logout clears tokens even when its binding write fails. A binding that changes configuration emits `config/changed` with `source` set to the method name and `regions` listing the changed key paths and `providers`.
-- `auth/openai/status` accepts `includeToken` and `refreshToken` (force refresh before answering; otherwise proactive refresh applies). `authToken` is returned only for an explicit `includeToken: true` when the host holds credentials locally; model-service connections report remote sign-in state without credentials, and refresh failure omits the token. Clients use a returned token only for their own ChatGPT backend requests and never persist or log it.
 
 ## 28. Protocol Ownership
 

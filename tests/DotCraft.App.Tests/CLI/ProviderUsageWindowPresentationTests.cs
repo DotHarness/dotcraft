@@ -1,10 +1,10 @@
-using DotCraft.Auth.OpenAI;
+using DotCraft.Agents;
 using DotCraft.CLI;
 using Xunit;
 
 namespace DotCraft.Tests.CLI;
 
-public sealed class OpenAIUsageWindowPresentationTests
+public sealed class ProviderUsageWindowPresentationTests
 {
     [Fact]
     public void ShapeOrdersKnownWindowsByDurationInsteadOfUpstreamSlot()
@@ -13,13 +13,13 @@ public sealed class OpenAIUsageWindowPresentationTests
         var fiveHour = Window(TimeSpan.FromHours(5));
         var snapshot = Snapshot(primary: weekly, secondary: fiveHour);
 
-        var windows = OpenAIUsageWindowPresentation.Shape(snapshot);
+        var windows = ProviderUsageWindowPresentation.Shape(snapshot);
 
         Assert.Equal(
             new[]
             {
-                new OpenAIUsageDisplayWindow(fiveHour, OpenAIUsageWindowKind.FiveHour),
-                new OpenAIUsageDisplayWindow(weekly, OpenAIUsageWindowKind.Weekly)
+                new ProviderUsageDisplayWindow(fiveHour, ProviderUsageWindowKind.FiveHour),
+                new ProviderUsageDisplayWindow(weekly, ProviderUsageWindowKind.Weekly)
             },
             windows);
     }
@@ -34,9 +34,9 @@ public sealed class OpenAIUsageWindowPresentationTests
             ? Snapshot(primary: weekly, secondary: null)
             : Snapshot(primary: null, secondary: weekly);
 
-        var display = Assert.Single(OpenAIUsageWindowPresentation.Shape(snapshot));
+        var display = Assert.Single(ProviderUsageWindowPresentation.Shape(snapshot));
 
-        Assert.Equal(new OpenAIUsageDisplayWindow(weekly, OpenAIUsageWindowKind.Weekly), display);
+        Assert.Equal(new ProviderUsageDisplayWindow(weekly, ProviderUsageWindowKind.Weekly), display);
     }
 
     [Theory]
@@ -47,12 +47,12 @@ public sealed class OpenAIUsageWindowPresentationTests
     public void ClassifyAcceptsFivePercentDurationTolerance(int durationSeconds)
     {
         var expected = durationSeconds < 100_000
-            ? OpenAIUsageWindowKind.FiveHour
-            : OpenAIUsageWindowKind.Weekly;
+            ? ProviderUsageWindowKind.FiveHour
+            : ProviderUsageWindowKind.Weekly;
 
-        var actual = OpenAIUsageWindowPresentation.Classify(
+        var actual = ProviderUsageWindowPresentation.Classify(
             Window(TimeSpan.FromSeconds(durationSeconds)),
-            OpenAIUsageWindowKind.Primary);
+            ProviderUsageWindowKind.Primary);
 
         Assert.Equal(expected, actual);
     }
@@ -63,20 +63,20 @@ public sealed class OpenAIUsageWindowPresentationTests
         var primary = Window(TimeSpan.FromDays(30));
         var secondary = Window(TimeSpan.FromHours(1));
 
-        var windows = OpenAIUsageWindowPresentation.Shape(Snapshot(primary, secondary));
+        var windows = ProviderUsageWindowPresentation.Shape(Snapshot(primary, secondary));
 
         Assert.Equal(
             new[]
             {
-                new OpenAIUsageDisplayWindow(primary, OpenAIUsageWindowKind.Primary),
-                new OpenAIUsageDisplayWindow(secondary, OpenAIUsageWindowKind.Secondary)
+                new ProviderUsageDisplayWindow(primary, ProviderUsageWindowKind.Primary),
+                new ProviderUsageDisplayWindow(secondary, ProviderUsageWindowKind.Secondary)
             },
             windows);
     }
 
-    private static OpenAIUsageSnapshot Snapshot(RateLimitWindow? primary, RateLimitWindow? secondary)
-        => new("pro", primary, secondary, null, null, DateTimeOffset.UtcNow);
+    private static ProviderUsageSnapshot Snapshot(ProviderRateLimitWindow? primary, ProviderRateLimitWindow? secondary)
+        => new(DateTimeOffset.UtcNow, new Dictionary<string, double>(), PlanType: "pro", Primary: primary, Secondary: secondary);
 
-    private static RateLimitWindow Window(TimeSpan duration)
+    private static ProviderRateLimitWindow Window(TimeSpan duration)
         => new(9, duration, DateTimeOffset.UtcNow.Add(duration));
 }

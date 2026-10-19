@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Protocol;
@@ -45,21 +44,23 @@ internal sealed class ModelBackendRequestHandler(
             return Task.FromResult<object?>(new RpcEmpty());
         });
         Map(table, Contract.AppServerRpc.ProviderAuthStatus, async (p, ct) =>
-            MapStatus(await Authentication.GetStatusAsync(Config(), Required(p.ProviderId), ct).ConfigureAwait(false)));
+        {
+            var config = Config();
+            var providerId = Required(p.ProviderId);
+            var token = p.IncludeToken || p.RefreshToken
+                ? await Authentication.GetAccessTokenAsync(config, providerId, p.RefreshToken, ct).ConfigureAwait(false)
+                : null;
+            var status = await Authentication.GetStatusAsync(config, providerId, ct).ConfigureAwait(false);
+            return MapStatus(status, p.IncludeToken ? token : null);
+        });
         Map(table, Contract.AppServerRpc.ProviderAuthLogout, async (p, ct) =>
         {
             await Authentication.LogoutAsync(Config(), Required(p.ProviderId), ct).ConfigureAwait(false);
             return new RpcEmpty();
         });
         Map(table, Contract.AppServerRpc.ProviderAuthUsage, async (p, ct) =>
-        {
-            var snapshot = await Authentication.ReadUsageAsync(Config(), Required(p.ProviderId), ct).ConfigureAwait(false);
-            return new Contract.ProviderAuthUsageResult
-            {
-                Available = snapshot is not null,
-                Snapshot = snapshot is null ? null : JsonSerializer.SerializeToElement(snapshot, new JsonSerializerOptions(JsonSerializerDefaults.Web))
-            };
-        });
+            ProviderUsageMapping.ToResult(
+                await Authentication.ReadUsageAsync(Config(), Required(p.ProviderId), ct).ConfigureAwait(false)));
         if (services.ProviderAuthentication is { } authentication)
         {
             authentication.Changed += OnChanged;
@@ -67,13 +68,7 @@ internal sealed class ModelBackendRequestHandler(
         }
     }
 
-    private AppConfig Config()
-    {
-        var config = services.AppConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig();
-        if (config.ModelService is not null)
-            throw AppServerErrors.InvalidRequest("Provider authentication is managed by the model service.");
-        return config;
-    }
+    private AppConfig Config() => services.AppConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig();
 
     private void OnChanged(string owner, ProviderLoginState state)
     {
@@ -107,6 +102,10 @@ internal sealed class ModelBackendRequestHandler(
                 throw new AppServerException(-32600, exception.Message, new AppServerErrorData
                 { Code = exception.Code, MessageKey = exception.Code, FallbackText = exception.Message });
             }
+            catch (ModelProviderConfigurationException exception)
+            {
+                throw AppServerErrors.InvalidRequest(exception.Message);
+            }
             catch (ModelBackendUnavailableException exception)
             {
                 throw new AppServerException(-32600, exception.Message, new AppServerErrorData
@@ -114,10 +113,11 @@ internal sealed class ModelBackendRequestHandler(
             }
         });
 
-    private static Contract.ProviderAuthStatusResult MapStatus(ProviderAuthenticationStatus status) => new()
+    private static Contract.ProviderAuthStatusResult MapStatus(ProviderAuthenticationStatus status, string? authToken = null) => new()
     {
         IsAuthenticated = status.IsAuthenticated, AccountId = status.AccountId, DisplayName = status.DisplayName,
-        PlanType = status.PlanType, Email = status.Email, FailureCode = status.FailureCode, FailureMessage = status.FailureMessage
+        PlanType = status.PlanType, Email = status.Email, FailureCode = status.FailureCode, FailureMessage = status.FailureMessage,
+        AuthToken = authToken
     };
 
     private static Contract.ProviderAuthLoginState MapState(ProviderLoginState state) => new()

@@ -169,6 +169,7 @@ import type {
   WorkspaceSetupModelListResult,
   WorkspaceSetupRequest,
   WorkspaceSetupRunResult,
+  WorkspaceSetupSignInResult,
   WorkspaceStatusPayload
 } from '../shared/workspaceSetup'
 export type * from '../shared/workspaceSetup'
@@ -1067,8 +1068,8 @@ const api = {
     listSetupModels(request: WorkspaceSetupModelListRequest): Promise<WorkspaceSetupModelListResult> {
       return ipcRenderer.invoke('workspace:list-setup-models', request)
     },
-    loginSetupChatGpt(providerId: string): Promise<{ kind: 'success' | 'error'; errorCode?: string; errorMessage?: string }> {
-      return ipcRenderer.invoke('workspace:login-setup-chatgpt', providerId)
+    loginSetupChatGpt(request: WorkspaceSetupModelListRequest): Promise<WorkspaceSetupSignInResult> {
+      return ipcRenderer.invoke('workspace:login-setup-chatgpt', request)
     },
 
     runSetup(request: WorkspaceSetupRequest): Promise<WorkspaceSetupRunResult> {

@@ -49,7 +49,7 @@ public sealed class ChatClientRegistry
     public void InvalidateBackends()
     {
         // Generation teardown owns plugin objects; cache eviction must not dispose admitted calls.
-        foreach (var key in _chatClients.Keys.Where(key => key.BackendId is not null))
+        foreach (var key in _chatClients.Keys.Where(key => key.BackendId is not null || key.IsChatGptOAuth))
             _chatClients.TryRemove(key, out _);
     }
 
@@ -131,7 +131,7 @@ public sealed class ChatClientRegistry
             StreamMaxRetries = Math.Clamp(runtime.StreamMaxRetries, 0, ModelProviderDefaults.MaxStreamMaxRetries),
             StreamIdleTimeoutMs = Math.Max(1, runtime.StreamIdleTimeoutMs),
             AuthMethod = runtime.BackendId is null ? ModelProviderAuthMethods.Normalize(runtime.AuthMethod) : runtime.AuthMethod,
-            ChatGptAccountId = string.IsNullOrWhiteSpace(runtime.ChatGptAccountId) ? null : runtime.ChatGptAccountId.Trim(),
+            AccountId = string.IsNullOrWhiteSpace(runtime.AccountId) ? null : runtime.AccountId.Trim(),
             UseResponsesLite = runtime.IsChatGptOAuth && runtime.UseResponsesLite
         };
         return _chatClients.GetOrAdd(normalizedRuntime, static (runtime, registry) =>
@@ -209,7 +209,7 @@ public sealed class ChatClientRegistry
             .Resolve(runtime) ?? new ProviderRuntimeMetadata();
         return runtime with
         {
-            ChatGptAccountId = accountId,
+            AccountId = accountId,
             UseResponsesLite = EnableChatGptResponsesLite && metadata.UseLightweightResponses
         };
     }

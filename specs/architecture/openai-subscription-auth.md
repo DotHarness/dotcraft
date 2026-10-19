@@ -118,9 +118,7 @@ execution identity. These per-thread hints give the backend a finer cache-affini
 account id alone. Without an active thread id, DotCraft omits them and logs the degraded routing
 shape once.
 
-`chatgpt-account-id` is resolved per request from the signed-in token store, falling back to the
-configured value. If the configured value is stale, DotCraft logs a warning once and routes with
-the token-store value.
+`chatgpt-account-id` is resolved per request from the signed-in token store.
 
 Create-response `/responses` bodies carry a `client_metadata` map. `x-codex-turn-metadata` is the
 canonical metadata envelope; flat fields expose the routing identities:
@@ -302,35 +300,29 @@ Per-provider entry in `~/.craft/config.json`:
     "openai": {
       "DisplayName": "OpenAI (ChatGPT)",
       "Protocol": "openai-responses",
-      "AuthMethod": "chatgptOAuth",
-      "ChatGptAccountId": "acct_...",
-      "ChatGptPlanType": "pro"
+      "AuthMethod": "chatgptOAuth"
     }
   }
 }
 ```
 
 `AuthMethod` is `apiKey` (default) or `chatgptOAuth`, which requires an OpenAI protocol.
-`ChatGptAccountId` / `ChatGptPlanType` are read-only metadata written by login.
+Configuration never stores account metadata; account id and plan come from the signed-in token
+store.
 
-### Provider binding
+## Sign-in
 
-Login binds the selected provider (`openai` unless another id is named) to the signed-in account:
-it sets `AuthMethod` to `chatgptOAuth`, `Protocol` to `openai-responses`, and the account metadata
-(removing fields the account omits), creating the provider if absent. When the user layer has no
-`ProviderId`, login also selects the bound provider; when the provider has no remembered model, it
-records a manual preference for the default subscription model. Logout sets `AuthMethod` to
-`apiKey` and removes account metadata, leaving the provider and its selection in place.
-
-Inside a workspace runtime, `auth/openai/login` and `auth/openai/logout` apply the binding as one
-user-layer write through the [configuration service](configuration.md), taking effect for new
-Turns and announcing `config/changed` with the method name as `source`. A rejected login binding
-keeps the saved tokens and reports the failure; logout clears tokens even when its binding cannot
-be written. The CLI writes the same binding directly to the user configuration file.
+ChatGPT sign-in is the `chatgptOAuth` method of the built-in OpenAI provider in [provider
+authentication](../protocols/provider-auth.md). A provider must be configured with this method, or
+supplied as an unsaved draft to the CLI, before signing in. Login reports the authorize URL as an
+`auth_url` event and completes on the loopback callback; logout revokes the refresh token and deletes
+`auth.json`. Neither writes configuration. One sign-in serves every `chatgptOAuth` provider on the
+host.
 
 ## Usage / rate-limit telemetry
 
-DotCraft polls the ChatGPT rate-limit endpoint for the signed-in account:
+DotCraft polls the ChatGPT rate-limit endpoint for the signed-in account and projects it as provider
+usage for every `chatgptOAuth` provider:
 
 | Item | Value |
 |---|---|
@@ -351,20 +343,13 @@ primary/secondary labels.
 
 ## CLI commands
 
-```
-dotcraft auth openai login   [--provider-id <id>] [--no-browser]
-dotcraft auth openai logout  [--provider-id <id>]
-dotcraft auth openai status
-```
-
-`login` opens the system browser, waits on the loopback callback, persists tokens, and binds the
-provider. `--no-browser` prints the URL only. `logout` revokes the refresh token at OpenAI and
-deletes the local `auth.json`.
+Sign-in uses the provider authentication commands, for example
+`dotcraft auth login openai [--no-browser]`. `--no-browser` prints the URL only.
 
 `dotcraft setup` and the setup wizard accept `--auth-method chatgptOAuth`. The wizard signs in
-before completion with `auth openai login --no-bind`: tokens are saved immediately, provider
-configuration only when setup is submitted. Login and setup model discovery use the same
-host-selected user data directory.
+before completion with `auth login --stdin` and the unsaved provider draft: tokens are saved
+immediately, provider configuration only when setup is submitted. Login and setup model discovery
+use the same host-selected user data directory.
 
 A containerized deployment keeps this user data in one deployment-local mount, shared by the
 DotCraft container and a headless auth helper that uses a host-network loopback listener for
@@ -373,7 +358,8 @@ login. Separate deployments must not share the directory, since they refresh tok
 ## Host access boundary
 
 Hosts expose sign-in, sign-out, status, and usage through the same credential owner. A caller may
-explicitly request the current access token only from a host that stores those credentials locally.
+explicitly request the current access token through `provider/auth/status` only from a host that
+stores those credentials locally.
 Remote model-service clients receive sign-in metadata but no token. Refresh failure omits the token;
 clients must never persist or log an exposed token.
 

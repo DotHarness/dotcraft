@@ -1,5 +1,3 @@
-using DotCraft.Configuration;
-
 namespace DotCraft.Agents;
 
 internal sealed class ProviderLoginSession : IProviderLoginInteraction, IDisposable
@@ -14,19 +12,19 @@ internal sealed class ProviderLoginSession : IProviderLoginInteraction, IDisposa
     private TaskCompletionSource<string>? _answer;
     private ProviderLoginState _state;
 
-    public ProviderLoginSession(EffectiveModelRuntime runtime, string owner, IProviderAuthenticator authenticator,
+    public ProviderLoginSession(string providerId, string instanceKey, string owner, IProviderAuthenticator authenticator,
         string method, CancellationToken generationStopping, CancellationToken ownerStopping,
         Action<ProviderLoginState> publish, Action authenticated)
     {
         Owner = owner;
-        InstanceKey = ProviderAuthenticationCoordinator.InstanceKey(runtime);
+        InstanceKey = instanceKey;
         _authenticator = authenticator;
         _method = method;
         _publish = publish;
         _authenticated = authenticated;
         _cancellation = CancellationTokenSource.CreateLinkedTokenSource(generationStopping, ownerStopping);
         _cancellation.CancelAfter(TimeSpan.FromMinutes(15));
-        _state = new ProviderLoginState(Guid.NewGuid().ToString("N"), runtime.ProviderId, 0, "running");
+        _state = new ProviderLoginState(Guid.NewGuid().ToString("N"), providerId, 0, "running");
     }
 
     public string Owner { get; }
@@ -93,7 +91,7 @@ internal sealed class ProviderLoginSession : IProviderLoginInteraction, IDisposa
             Update(state => state with
             {
                 Status = "failed", ErrorCode = "ProviderLoginFailed",
-                ErrorMessage = "Provider login failed. Check the backend configuration and try again."
+                ErrorMessage = "Provider sign-in failed. Try again."
             });
         }
     }

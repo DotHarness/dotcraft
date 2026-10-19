@@ -465,19 +465,6 @@ public sealed class ServerCapabilitySnapshot
     public bool RemoteToolHost { get; set; }
 
     /// <summary>
-    /// Server supports the OpenAI ChatGPT subscription auth methods (<c>auth/openai/login</c>, etc.).
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool AuthOpenAiOAuth { get; set; }
-
-    /// <summary>
-    /// Server exposes usage / rate-limit telemetry for ChatGPT subscription accounts
-    /// (<c>auth/openai/usage</c> + <c>auth/openai/usage/updated</c>).
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool AuthOpenAiUsage { get; set; }
-
-    /// <summary>
     /// Module-provided capabilities keyed by extension name.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -22,6 +22,7 @@ import type {
   WorkspaceSetupProviderSummary,
   WorkspaceSetupRequest,
   WorkspaceSetupRunResult,
+  WorkspaceSetupSignInResult,
   WorkspaceSetupState,
   WorkspaceStatusPayload
 } from '../shared/workspaceSetup'
@@ -272,9 +273,7 @@ function normalizeProviderForModelList(
       protocol: normalizeProviderProtocol(request.provider.protocol),
       apiKey: request.provider.apiKey.trim(),
       endPoint: request.provider.endPoint.trim(),
-      authMethod: request.provider.authMethod === 'chatgptOAuth' ? 'chatgptOAuth' : 'apiKey',
-      chatGptAccountId: request.provider.chatGptAccountId ?? null,
-      chatGptPlanType: request.provider.chatGptPlanType ?? null
+      authMethod: request.provider.authMethod === 'chatgptOAuth' ? 'chatgptOAuth' : 'apiKey'
     }
   }
 
@@ -331,18 +330,39 @@ export async function listSetupModels(
 }
 
 export async function loginSetupChatGpt(
-  providerId: string,
-  settings: AppSettings,
-  runBackend?: (args: string[], stdin?: string, timeoutMs?: number) => Promise<WorkspaceSetupModelListResult>
-): Promise<{ kind: 'success' | 'error'; errorCode?: string; errorMessage?: string }> {
-  const args = ['auth', 'openai', 'login', '--provider-id', providerId, '--no-bind']
+  request: WorkspaceSetupModelListRequest,
+  options?: {
+    userConfigPath?: string
+    settings?: AppSettings
+    runBackend?: (args: string[], stdin?: string, timeoutMs?: number) => Promise<WorkspaceSetupModelListResult>
+  }
+): Promise<WorkspaceSetupSignInResult> {
+  const provider = normalizeProviderForModelList(request, options)
+  if (!provider) return { kind: 'error', errorCode: 'provider_not_configured' }
+  const args = ['auth', 'login', '--stdin']
+  const stdin = JSON.stringify(provider)
   try {
-    if (runBackend) await runBackend(args, undefined, 15 * 60_000)
-    else await runSetupBackend(resolveDesktopBinary(settings), args, undefined, 15 * 60_000, false)
+    if (options?.runBackend) await options.runBackend(args, stdin, 15 * 60_000)
+    else await runSetupBackend(resolveDesktopBinary(options?.settings ?? ({} as AppSettings)), args, stdin, 15 * 60_000, false)
     return { kind: 'success' }
   } catch (error) {
-    return { kind: 'error', errorCode: 'openai_login_failed', errorMessage: error instanceof Error ? error.message : 'ChatGPT sign-in failed.' }
+    const cancelled = error instanceof SetupBackendExitError && error.exitCode === 130
+    return {
+      kind: 'error',
+      errorCode: cancelled ? 'provider_login_cancelled' : 'provider_login_failed',
+      errorMessage: error instanceof Error ? error.message : 'Sign-in failed.'
+    }
   }
+}
+
+class SetupBackendExitError extends Error {
+  constructor(message: string, readonly exitCode: number | null) {
+    super(message)
+  }
+}
+
+function lastLine(text: string): string {
+  return text.trim().split(/\r?\n/).filter((line) => line.trim()).pop()?.trim() ?? ''
 }
 
 function runSetupBackend(
@@ -368,7 +388,8 @@ function runSetupBackend(
     child.on('close', (code) => {
       clearTimeout(timer)
       if (code !== 0) {
-        reject(new Error(stderr.trim() || `DotCraft backend exited with code ${code ?? 'unknown'}.`))
+        const detail = stderr.trim() || (parseJson ? '' : lastLine(stdout))
+        reject(new SetupBackendExitError(detail || `DotCraft backend exited with code ${code ?? 'unknown'}.`, code))
         return
       }
       if (!parseJson) {

@@ -8,29 +8,15 @@ namespace DotCraft.AppServer;
 public static class ProviderContractMapper
 {
     public static async Task<IReadOnlyList<Contract.ProviderInfo>> BuildProviderInfosAsync(
-        AppConfig config, IModelRuntimeResolver? resolver, CancellationToken ct)
+        AppConfig config, IModelRuntimeResolver? resolver, ProviderAuthenticationCoordinator? authentication, CancellationToken ct)
     {
         var infos = new List<Contract.ProviderInfo>();
         foreach (var (id, provider) in config.Providers.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
         {
-            var runtime = ResolveRuntime(config, id, resolver);
-            bool? authenticated = null;
-            if (provider.BackendId is not null)
-            {
-                authenticated = false;
-                if (runtime is not null && resolver is not null)
-                {
-                    try
-                    {
-                        var auth = resolver.Resolve(runtime).GetService(typeof(IProviderAuthenticator))
-                            as IProviderAuthenticator;
-                        authenticated = auth is null ? string.IsNullOrEmpty(runtime.AuthMethod)
-                            : (await auth.GetStatusAsync(ct).ConfigureAwait(false)).IsAuthenticated;
-                    }
-                    catch (Exception exception) when (exception is not OperationCanceledException) { }
-                }
-            }
-            infos.Add(BuildProviderInfo(id, provider, runtime, authenticated));
+            var authenticated = authentication is null
+                ? provider.RemoteAuthentication?.IsAuthenticated
+                : await authentication.TryGetAuthenticatedAsync(config, id, ct).ConfigureAwait(false);
+            infos.Add(BuildProviderInfo(id, provider, ResolveRuntime(config, id, resolver), authenticated));
         }
         return infos;
     }
@@ -71,12 +57,6 @@ public static class ProviderContractMapper
             StreamIdleTimeoutMs = provider.StreamIdleTimeoutMs,
             SupportsImageGeneration = ModelProviderResolver.ResolveImageGenerationSupport(provider),
             AuthMethod = authMethod,
-            ChatGptAccountId = authMethod == ModelProviderAuthMethods.ChatGptOAuth && !string.IsNullOrWhiteSpace(provider.ChatGptAccountId)
-                ? provider.ChatGptAccountId.Trim()
-                : null,
-            ChatGptPlanType = authMethod == ModelProviderAuthMethods.ChatGptOAuth && !string.IsNullOrWhiteSpace(provider.ChatGptPlanType)
-                ? provider.ChatGptPlanType.Trim()
-                : null,
             Capabilities = MapProviderCapabilities(custom
                 ? runtime?.Capabilities ?? new ModelProviderCapabilities { StreamingChat = false, ToolCalling = false, ModelListing = false, TokenUsageReporting = false }
                 : ModelProviderCapabilities.ForProtocol(protocol))

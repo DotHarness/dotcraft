@@ -2772,262 +2772,6 @@
         "remembersExactCommand"
       ]
     },
-    "AuthOpenAiAuthorizeUrlNotification": {
-      "title": "AuthOpenAiAuthorizeUrlNotification",
-      "type": "object",
-      "properties": {
-        "callbackPort": {
-          "type": "integer"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AuthOpenAiLoginParams": {
-      "title": "AuthOpenAiLoginParams",
-      "type": "object",
-      "properties": {
-        "openBrowser": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "providerId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "AuthOpenAiLogoutParams": {
-      "title": "AuthOpenAiLogoutParams",
-      "type": "object",
-      "properties": {
-        "providerId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "AuthOpenAiStatusParams": {
-      "title": "AuthOpenAiStatusParams",
-      "type": "object",
-      "properties": {
-        "includeToken": {
-          "type": "boolean"
-        },
-        "refreshToken": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AuthOpenAiStatusResult": {
-      "title": "AuthOpenAiStatusResult",
-      "type": "object",
-      "properties": {
-        "accessTokenExpiresAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "accountId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "authToken": {
-          "type": "string"
-        },
-        "email": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "lastRefresh": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "loggedIn": {
-          "type": "boolean"
-        },
-        "planType": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "providerId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "AuthOpenAiUsageCredits": {
-      "title": "AuthOpenAiUsageCredits",
-      "type": "object",
-      "properties": {
-        "balance": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "hasCredits": {
-          "type": "boolean"
-        },
-        "unlimited": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AuthOpenAiUsageResult": {
-      "title": "AuthOpenAiUsageResult",
-      "type": "object",
-      "properties": {
-        "available": {
-          "type": "boolean"
-        },
-        "credits": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AuthOpenAiUsageCredits"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "fetchedAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "limitReachedKind": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "planType": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "primary": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AuthOpenAiUsageWindow"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "secondary": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AuthOpenAiUsageWindow"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "AuthOpenAiUsageWindow": {
-      "title": "AuthOpenAiUsageWindow",
-      "type": "object",
-      "properties": {
-        "resetAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "usedPercent": {
-          "type": "integer"
-        },
-        "windowSeconds": {
-          "type": "integer"
-        }
-      },
-      "additionalProperties": true
-    },
     "AutomationCreateParams": {
       "title": "AutomationCreateParams",
       "type": "object",
@@ -12067,11 +11811,40 @@
         "message"
       ]
     },
+    "ProviderAuthStatusParams": {
+      "title": "ProviderAuthStatusParams",
+      "type": "object",
+      "properties": {
+        "includeToken": {
+          "type": "boolean"
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "refreshToken": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "providerId"
+      ]
+    },
     "ProviderAuthStatusResult": {
       "title": "ProviderAuthStatusResult",
       "type": "object",
       "properties": {
         "accountId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "authToken": {
           "anyOf": [
             {
               "type": "string"
@@ -12140,6 +11913,33 @@
         "isAuthenticated"
       ]
     },
+    "ProviderAuthUsageCredits": {
+      "title": "ProviderAuthUsageCredits",
+      "type": "object",
+      "properties": {
+        "balance": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hasCredits": {
+          "type": "boolean"
+        },
+        "unlimited": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "hasCredits",
+        "unlimited"
+      ]
+    },
     "ProviderAuthUsageResult": {
       "title": "ProviderAuthUsageResult",
       "type": "object",
@@ -12147,11 +11947,171 @@
         "available": {
           "type": "boolean"
         },
-        "snapshot": {}
+        "credits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderAuthUsageCredits"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fetchedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limitReachedKind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planType": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "primary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderAuthUsageWindow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "secondary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderAuthUsageWindow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
       },
       "additionalProperties": true,
       "required": [
         "available"
+      ]
+    },
+    "ProviderAuthUsageUpdatedNotification": {
+      "title": "ProviderAuthUsageUpdatedNotification",
+      "type": "object",
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "credits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderAuthUsageCredits"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fetchedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limitReachedKind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planType": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "primary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderAuthUsageWindow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "secondary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderAuthUsageWindow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "available",
+        "providerId"
+      ]
+    },
+    "ProviderAuthUsageWindow": {
+      "title": "ProviderAuthUsageWindow",
+      "type": "object",
+      "properties": {
+        "resetAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "usedPercent": {
+          "type": "integer"
+        },
+        "windowSeconds": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "resetAt",
+        "usedPercent",
+        "windowSeconds"
       ]
     },
     "ProviderAuthenticationMethodInfo": {
@@ -12288,26 +12248,6 @@
         },
         "capabilities": {
           "$ref": "#/$defs/ProviderCapabilities"
-        },
-        "chatGptAccountId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "chatGptPlanType": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
         },
         "displayName": {
           "type": "string"
@@ -13212,12 +13152,6 @@
           "type": "boolean"
         },
         "approvalFlow": {
-          "type": "boolean"
-        },
-        "authOpenAiOAuth": {
-          "type": "boolean"
-        },
-        "authOpenAiUsage": {
           "type": "boolean"
         },
         "automations": {

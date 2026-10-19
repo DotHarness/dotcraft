@@ -82,8 +82,13 @@ internal static class DotCraftApplication
             return await ModelCatalogCliRunner.RunAsync(cliArgs, cancellationToken);
         }
 
-        var workspacePath = cliArgs.ProviderAuthWorkspacePath ?? cliArgs.Exec?.WorkspacePath ?? Directory.GetCurrentDirectory();
+        var workspacePath = cliArgs.AuthWorkspacePath ?? cliArgs.Exec?.WorkspacePath ?? Directory.GetCurrentDirectory();
         var botPath = Path.Combine(workspacePath, ".craft");
+        if (cliArgs.Mode == CommandLineArgs.RunMode.Auth
+            && (cliArgs.AuthReadStdin || (cliArgs.AuthWorkspacePath is null && !Directory.Exists(botPath))))
+        {
+            return await AuthCliRunner.RunStandaloneAsync(cliArgs, cancellationToken);
+        }
         if (cliArgs.Mode == CommandLineArgs.RunMode.Setup)
         {
             static WorkspaceSetupProviderMode ResolveSetupProviderMode(CommandLineArgs cliArgs)
@@ -276,14 +281,22 @@ internal static class DotCraftApplication
                         options.UserDataPath = HubPaths.ForCurrentUser().CraftHomePath;
                     });
 
-            if (cliArgs.Mode == CommandLineArgs.RunMode.ProviderAuth)
+            if (cliArgs.Mode == CommandLineArgs.RunMode.Auth)
             {
-                await using var authenticationProvider = services.BuildServiceProvider();
+                await using var authenticationProvider = hostBuilder.BuildServices(services);
                 var runtime = authenticationProvider.GetRequiredService<DotCraft.Runtime.WorkspaceRuntime>();
                 await runtime.StartAsync(moduleRegistry, cancellationToken);
-                return await ProviderAuthCliRunner.RunAsync(
-                    authenticationProvider.GetRequiredService<DotCraft.Agents.ProviderAuthenticationCoordinator>(),
-                    config, cliArgs, cancellationToken);
+                try
+                {
+                    return await AuthCliRunner.RunAsync(
+                        authenticationProvider.GetRequiredService<DotCraft.Agents.ProviderAuthenticationCoordinator>(),
+                        authenticationProvider.GetRequiredService<DotCraft.Agents.ModelBackendResolver>(),
+                        config, cliArgs, cancellationToken);
+                }
+                finally
+                {
+                    await runtime.StopAsync(CancellationToken.None);
+                }
             }
             var (provider, host) = hostBuilder.Build(services);
             await using var providerLifetime = provider;

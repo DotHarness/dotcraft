@@ -445,14 +445,6 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool RemoteToolHost { get; init; }
 
-    [JsonPropertyName("authOpenAiOAuth")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool AuthOpenAiOAuth { get; init; }
-
-    [JsonPropertyName("authOpenAiUsage")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool AuthOpenAiUsage { get; init; }
-
     [JsonPropertyName("extensions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ServerCapabilityExtensions? Extensions { get; init; }

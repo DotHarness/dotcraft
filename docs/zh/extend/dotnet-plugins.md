@@ -196,6 +196,10 @@ internal sealed class PluginTool : AIFunctionToolSource
 通过 `IProviderAuthenticator` 实现登录，返回标准的 `IChatClient` 响应和工具调用来执行模型请求。
 `ModelBackendContext.Credentials` 保存当前实例的凭据，token 刷新放在其 `ModifyAsync` 回调中。
 
+Desktop 把后端实例与其他提供商列在一起，用同一个提供商编辑器创建，并通过共用的登录控件登录。
+在终端中，`dotcraft auth login review-demo` 按配置的 `AuthMethod` 登录，`--method <id>` 选择后端声明的其他方式，
+`--workspace <path>` 指定启用该插件的工作区。AppServer 客户端通过 `provider/auth/*` 方法驱动同一流程。
+
 重试、提示词来源、原生历史和生命周期要求见
 [后端契约](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/model-backend-plugins.md)。
 

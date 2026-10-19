@@ -23,7 +23,7 @@ public sealed partial class OpenAIClientProvider
             var token = await _openAIAuthService!.GetAccessTokenAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
-        var accountId = ResolveChatGptAccountId(runtime);
+        var accountId = ResolveAccountId(runtime);
         if (!string.IsNullOrWhiteSpace(accountId))
             request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.AccountIdHeader, accountId);
         request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.OriginatorHeader, OpenAIAuthConstants.Originator);
@@ -168,7 +168,7 @@ public sealed partial class OpenAIClientProvider
                 var token = await _openAIAuthService!.GetAccessTokenAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             }
-            var accountId = ResolveChatGptAccountId(runtime);
+            var accountId = ResolveAccountId(runtime);
             if (!string.IsNullOrWhiteSpace(accountId))
                 request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.AccountIdHeader, accountId);
 

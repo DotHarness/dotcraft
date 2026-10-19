@@ -12,29 +12,10 @@ public interface IModelCatalogProvider
         CancellationToken cancellationToken);
 }
 
-/// <summary>Optional interactive authentication capability exposed by a provider.</summary>
-public interface IProviderAuthentication
+public interface IProviderAccessTokenReader
 {
-    ProviderAuthenticationStatus GetStatus();
-
-    Task<ProviderAuthenticationStatus> LoginAsync(
-        ProviderLoginRequest request,
-        CancellationToken cancellationToken);
-
-    Task LogoutAsync(CancellationToken cancellationToken);
-
     Task<string?> TryGetAccessTokenAsync(bool forceRefresh, CancellationToken cancellationToken);
 }
-
-/// <summary>Provider-neutral interactive login options.</summary>
-public sealed record ProviderLoginRequest(
-    bool OpenBrowser,
-    Func<ProviderAuthorizationRequest, ValueTask>? AuthorizationRequestAvailable = null);
-
-/// <summary>Provider-neutral authorization URL and its selected local callback port.</summary>
-public sealed record ProviderAuthorizationRequest(
-    Uri AuthorizationUrl,
-    int CallbackPort);
 
 /// <summary>Provider-neutral authentication state.</summary>
 public sealed record ProviderAuthenticationStatus(

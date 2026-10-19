@@ -1095,138 +1095,6 @@
       ]
     },
     {
-      "name": "auth/openai/login",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/core/AuthOpenAiLoginParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/core/AuthOpenAiStatusResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "core",
-      "x-dotcraft-capability": null,
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "auth/openai/logout",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/core/AuthOpenAiLogoutParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/core/AuthOpenAiStatusResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "core",
-      "x-dotcraft-capability": null,
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "auth/openai/status",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/core/AuthOpenAiStatusParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/core/AuthOpenAiStatusResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "core",
-      "x-dotcraft-capability": null,
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "auth/openai/usage",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/core/RpcEmpty.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/core/AuthOpenAiUsageResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "core",
-      "x-dotcraft-capability": null,
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
       "name": "automation/create",
       "paramStructure": "by-name",
       "params": [
@@ -4794,7 +4662,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/provider-backend-auth.md",
+      "x-dotcraft-spec-ref": "specs/protocols/provider-auth.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -4827,7 +4695,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/provider-backend-auth.md",
+      "x-dotcraft-spec-ref": "specs/protocols/provider-auth.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -4860,7 +4728,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/provider-backend-auth.md",
+      "x-dotcraft-spec-ref": "specs/protocols/provider-auth.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -4893,7 +4761,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/provider-backend-auth.md",
+      "x-dotcraft-spec-ref": "specs/protocols/provider-auth.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -4926,7 +4794,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/provider-backend-auth.md",
+      "x-dotcraft-spec-ref": "specs/protocols/provider-auth.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -4941,7 +4809,7 @@
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/core/ProviderAuthInstanceParams.schema.json"
+            "$ref": "./schemas/core/ProviderAuthStatusParams.schema.json"
           }
         }
       ],
@@ -4959,7 +4827,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/provider-backend-auth.md",
+      "x-dotcraft-spec-ref": "specs/protocols/provider-auth.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -4992,7 +4860,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/provider-backend-auth.md",
+      "x-dotcraft-spec-ref": "specs/protocols/provider-auth.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
@@ -5025,7 +4893,7 @@
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/provider-backend-auth.md",
+      "x-dotcraft-spec-ref": "specs/protocols/provider-auth.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",

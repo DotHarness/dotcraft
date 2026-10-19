@@ -57,7 +57,7 @@ For CLI login, use the [example configuration](../../../../docs/extend/dotnet-pl
 and run this command from the workspace:
 
 ```sh
-dotcraft auth provider login review-demo
+dotcraft auth login review-demo
 ```
 
 ## Run a live smoke test

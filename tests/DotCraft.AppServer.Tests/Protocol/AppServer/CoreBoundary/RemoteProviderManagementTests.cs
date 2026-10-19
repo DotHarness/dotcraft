@@ -9,20 +9,6 @@ public sealed class RemoteProviderManagementTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("remote-provider-").FullName;
     public void Dispose() => Directory.Delete(_root, true);
-    [Theory]
-    [InlineData("auth/openai/login")]
-    [InlineData("auth/openai/logout")]
-    public async Task ManagedRuntimeRejectsUpstreamManagement(string method)
-    {
-        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _root);
-        harness.Monitor.Current.ModelService = new AppConfig.ModelServiceConfig
-            { Endpoint = "https://models.example/model-service", Token = "client-test" };
-        await harness.InitializeAsync();
-        await harness.ExecuteRequestAsync(harness.BuildRequest(method, new { providerId = "primary" }));
-        var response = Assert.Single(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        Assert.Equal(AppServerErrors.InvalidRequestCode, response.RootElement.GetProperty("error").GetProperty("code").GetInt32());
-    }
-
     [Fact]
     public async Task ConfigWritesCannotEditOrReplaceServiceManagedProviders()
     {

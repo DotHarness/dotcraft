@@ -47,18 +47,16 @@ public sealed class SetupOAuthCatalogTests
     }
 
     [Fact]
-    public void Setup_PersistsAuthenticatedAccountOnFinalSubmission()
+    public void Setup_SavesChatGptProviderOnFinalSubmission()
     {
         var root = Path.Combine(Path.GetTempPath(), "dotcraft-setup-oauth", Guid.NewGuid().ToString("N"));
         var paths = HubPaths.Resolve(root);
         Directory.CreateDirectory(paths.CraftHomePath);
         try
         {
-            var payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(
-                """{"https://api.openai.com/auth":{"chatgpt_account_id":"account-test","chatgpt_plan_type":"plus"}}"""));
             new OpenAITokenStore(paths.CraftHomePath).Save(new AuthDotJson
             {
-                Tokens = new OpenAITokenSet { AccessToken = "test-token", IdToken = $"header.{payload}.signature" }
+                Tokens = new OpenAITokenSet { AccessToken = "test-token", IdToken = "header.e30.signature" }
             });
             Assert.False(File.Exists(paths.GlobalConfigPath));
             var exitCode = InitHelper.RunSetup(Path.Combine(root, "workspace", ".craft"), new WorkspaceSetupRequest
@@ -69,17 +67,16 @@ public sealed class SetupOAuthCatalogTests
                 ProviderMode = WorkspaceSetupProviderMode.Create,
                 Provider = new WorkspaceSetupProviderDraft
                 {
-                    Id = "subscription", Protocol = "openai-responses", AuthMethod = "chatgptOAuth"
+                    Id = "subscription", Protocol = "openai-chat-completions", AuthMethod = "chatgptOAuth"
                 }
             }, paths.GlobalConfigPath);
             Assert.Equal(0, exitCode);
             using var config = JsonDocument.Parse(File.ReadAllText(paths.GlobalConfigPath));
             var provider = config.RootElement.GetProperty("Providers").GetProperty("subscription");
-            Assert.Equal("account-test", provider.GetProperty("ChatGptAccountId").GetString());
-            Assert.Equal("plus", provider.GetProperty("ChatGptPlanType").GetString());
+            Assert.Equal("chatgptOAuth", provider.GetProperty("AuthMethod").GetString());
+            Assert.Equal("openai-responses", provider.GetProperty("Protocol").GetString());
             Assert.DoesNotContain("test-token", File.ReadAllText(paths.GlobalConfigPath));
         }
         finally { Directory.Delete(root, recursive: true); }
     }
-
 }

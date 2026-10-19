@@ -5,11 +5,15 @@ import {
   type CSSProperties,
   type JSX
 } from 'react'
+import { Plug } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { useConnectionStore } from '../../stores/connectionStore'
 import {
-  useChatGptUsage,
+  useProviderUsage,
+  useProvidersStore,
   type ProviderSummary
 } from '../../stores/providersStore'
+import { tryNormalizeProviderProtocol } from '../../../shared/providerProtocols'
 import { formatPlanName } from '../../utils/chatgptPlan'
 import {
   shapeChatGptUsageWindows,
@@ -18,21 +22,25 @@ import {
 } from '../../utils/chatgptUsageWindows'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ProviderMark } from '../ui/ProviderMark'
-import { ChatGptUsagePopover } from './ChatGptUsagePopover'
-import {
-} from './ComposerShell'
+import { getProviderProtocolMarkKind } from '../settings/panels/ProviderProtocolIcon'
+import { ProviderUsagePopover } from './ProviderUsagePopover'
 
-interface ChatGptUsageBadgeProps {
-  /** Active OAuth provider; pass null/undefined to hide the badge. */
+interface ProviderUsageBadgeProps {
   provider: ProviderSummary | null
 }
 
-/** Footer chip for a provider signed in to a ChatGPT subscription; the bar shows the most pressured window. */
-export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Element | null {
+export function ProviderUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Element | null {
   const t = useT()
-  const usage = useChatGptUsage()
+  const providerId = provider?.id ?? null
+  const usage = useProviderUsage(providerId)
+  const providerManagement = useConnectionStore((state) => state.capabilities?.providerManagement === true)
+  const refreshUsage = useProvidersStore((state) => state.refreshUsage)
   const [open, setOpen] = useState(false)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (providerId && providerManagement) void refreshUsage(providerId)
+  }, [providerId, providerManagement, refreshUsage])
 
   useEffect(() => {
     if (!open) return
@@ -52,16 +60,18 @@ export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Ele
     }
   }, [open])
 
-  if (!provider) return null
+  if (!provider || !usage?.available) return null
 
-  const planName = formatPlanName(provider.chatGptPlanType ?? usage?.planType ?? null)
+  const title = provider.authMethod === 'chatgptOAuth' ? t('composer.chatgptUsage.title') : provider.displayName
+  const label = provider.authMethod === 'chatgptOAuth' ? t('composer.chatgptBadge.label') : provider.displayName
+  const planName = formatPlanName(usage.planType)
   const displayWindows = shapeChatGptUsageWindows(usage)
   const pressuredWindow = selectPressuredWindow(displayWindows)
   const remaining = remainingPercent(pressuredWindow?.window ?? null)
   const accentColor = colorForRemaining(remaining)
   const tooltipLabel = formatUsageTooltipLabel(displayWindows, t)
 
-  const ariaParts = [[t('composer.chatgptBadge.label'), planName].filter(Boolean).join(' ')]
+  const ariaParts = [[label, planName].filter(Boolean).join(' ')]
   for (const display of displayWindows) {
     ariaParts.push(formatUsageAriaLabel(display.kind, remainingPercent(display.window) ?? 0, t))
   }
@@ -75,7 +85,9 @@ export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Ele
       className="dc-composer-pill"
       style={badgeStyle}
     >
-      <ProviderMark kind="openai" size={14} style={iconStyle()} />
+      {provider.authMethod === 'chatgptOAuth' || tryNormalizeProviderProtocol(provider.protocol)
+        ? <ProviderMark kind={getProviderProtocolMarkKind(provider.protocol)} size={14} style={iconStyle()} />
+        : <Plug size={14} style={iconStyle()} aria-hidden />}
       <span style={miniTrackStyle()} aria-hidden>
         <span style={{ ...miniFillStyle(), width: `${remaining ?? 0}%`, background: accentColor }} />
       </span>
@@ -91,7 +103,7 @@ export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Ele
       )}
       {open && (
         <div style={popoverWrapperStyle()}>
-          <ChatGptUsagePopover usage={usage} onClose={() => setOpen(false)} />
+          <ProviderUsagePopover title={title} usage={usage} onClose={() => setOpen(false)} />
         </div>
       )}
     </div>

@@ -54,7 +54,9 @@ describe('Setup ChatGPT sign-in', () => {
     expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    await waitFor(() => expect(loginSetupChatGpt).toHaveBeenCalledWith('chatgpt'))
+    await waitFor(() => expect(loginSetupChatGpt).toHaveBeenCalledWith({
+      provider: expect.objectContaining({ id: 'chatgpt', authMethod: 'chatgptOAuth' })
+    }))
     await waitFor(() => expect(listSetupModels).toHaveBeenCalledWith({
       provider: expect.objectContaining({ id: 'chatgpt', authMethod: 'chatgptOAuth' })
     }))
@@ -91,7 +93,7 @@ describe('Setup ChatGPT sign-in', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }))
 
-    await waitFor(() => expect(loginSetupChatGpt).toHaveBeenCalledWith('subscription'))
+    await waitFor(() => expect(loginSetupChatGpt).toHaveBeenCalledWith({ providerId: 'subscription' }))
     await create()
     expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({ providerMode: 'existing', providerId: 'subscription', model: 'account-model' }))
   })

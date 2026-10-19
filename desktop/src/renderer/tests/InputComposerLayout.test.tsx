@@ -1103,7 +1103,7 @@ describe('InputComposer layout', () => {
         providerManagement: true
       }
     })
-    appServerSendRequest.mockImplementation(async (method: string) => {
+    appServerSendRequest.mockImplementation(async (method: string, params?: { providerId?: string }) => {
       if (method === 'provider/list') {
         return {
           providers: [
@@ -1112,13 +1112,12 @@ describe('InputComposer layout', () => {
               displayName: 'OpenAI (ChatGPT)',
               protocol: 'openai-responses',
               authMethod: 'chatgptOAuth',
-              chatGptAccountId: 'acct_1234567890',
-              chatGptPlanType: 'plus'
+              isAuthenticated: true
             }
           ]
         }
       }
-      if (method === 'auth/openai/usage') {
+      if (method === 'provider/auth/usage' && params?.providerId === 'openai') {
         return {
           available: true,
           planType: 'plus',

@@ -1,17 +1,17 @@
-import type { ChatGptUsageSnapshot, ChatGptUsageWindow } from '../stores/providersStore'
+import type { ProviderUsageSnapshot, ProviderUsageWindow } from '../stores/providersStore'
 
 export type ChatGptUsageWindowKind = 'fiveHour' | 'weekly' | 'primary' | 'secondary'
 
 export interface ChatGptUsageDisplayWindow {
   kind: ChatGptUsageWindowKind
-  window: ChatGptUsageWindow
+  window: ProviderUsageWindow
 }
 
 const DURATION_TOLERANCE = 0.05
 const FIVE_HOURS_SECONDS = 5 * 60 * 60
 const ONE_WEEK_SECONDS = 7 * 24 * 60 * 60
 
-export function shapeChatGptUsageWindows(usage: ChatGptUsageSnapshot | null): ChatGptUsageDisplayWindow[] {
+export function shapeChatGptUsageWindows(usage: ProviderUsageSnapshot | null): ChatGptUsageDisplayWindow[] {
   if (!usage?.available) return []
 
   const windows: ChatGptUsageDisplayWindow[] = []
@@ -22,7 +22,7 @@ export function shapeChatGptUsageWindows(usage: ChatGptUsageSnapshot | null): Ch
 }
 
 export function classifyChatGptUsageWindow(
-  window: ChatGptUsageWindow,
+  window: ProviderUsageWindow,
   fallback: 'primary' | 'secondary'
 ): ChatGptUsageWindowKind {
   if (isApproximate(window.windowSeconds, FIVE_HOURS_SECONDS)) return 'fiveHour'
@@ -32,7 +32,7 @@ export function classifyChatGptUsageWindow(
 
 function addWindow(
   windows: ChatGptUsageDisplayWindow[],
-  window: ChatGptUsageWindow | null,
+  window: ProviderUsageWindow | null,
   fallback: 'primary' | 'secondary'
 ): void {
   if (window) windows.push({ window, kind: classifyChatGptUsageWindow(window, fallback) })

@@ -3770,290 +3770,6 @@
       "variants": []
     },
     {
-      "id": "core.AuthOpenAiAuthorizeUrlNotification",
-      "name": "AuthOpenAiAuthorizeUrlNotification",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/AuthOpenAiAuthorizeUrlNotification.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "callbackPort",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "url",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.AuthOpenAiLoginParams",
-      "name": "AuthOpenAiLoginParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/AuthOpenAiLoginParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "openBrowser",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "providerId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.AuthOpenAiLogoutParams",
-      "name": "AuthOpenAiLogoutParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/AuthOpenAiLogoutParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "providerId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.AuthOpenAiStatusParams",
-      "name": "AuthOpenAiStatusParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/AuthOpenAiStatusParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "includeToken",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "refreshToken",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.AuthOpenAiStatusResult",
-      "name": "AuthOpenAiStatusResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/AuthOpenAiStatusResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "accessTokenExpiresAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "accountId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "authToken",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "email",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "lastRefresh",
-          "type": "date-time",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "loggedIn",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "planType",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "providerId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.AuthOpenAiUsageCredits",
-      "name": "AuthOpenAiUsageCredits",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/AuthOpenAiUsageCredits.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "balance",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "hasCredits",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "unlimited",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.AuthOpenAiUsageResult",
-      "name": "AuthOpenAiUsageResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/AuthOpenAiUsageResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "available",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "credits",
-          "type": "core.AuthOpenAiUsageCredits",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "fetchedAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "limitReachedKind",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "planType",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "primary",
-          "type": "core.AuthOpenAiUsageWindow",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "secondary",
-          "type": "core.AuthOpenAiUsageWindow",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.AuthOpenAiUsageWindow",
-      "name": "AuthOpenAiUsageWindow",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/AuthOpenAiUsageWindow.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "resetAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "usedPercent",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "windowSeconds",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "automations.AutomationCreateParams",
       "name": "AutomationCreateParams",
       "module": "automations",
@@ -15164,6 +14880,38 @@
       "variants": []
     },
     {
+      "id": "core.ProviderAuthStatusParams",
+      "name": "ProviderAuthStatusParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ProviderAuthStatusParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "includeToken",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "refreshToken",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ProviderAuthStatusResult",
       "name": "ProviderAuthStatusResult",
       "module": "core",
@@ -15173,6 +14921,13 @@
       "fields": [
         {
           "name": "accountId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "authToken",
           "type": "string",
           "required": false,
           "nullable": true,
@@ -15224,6 +14979,38 @@
       "variants": []
     },
     {
+      "id": "core.ProviderAuthUsageCredits",
+      "name": "ProviderAuthUsageCredits",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ProviderAuthUsageCredits.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "balance",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "hasCredits",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "unlimited",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ProviderAuthUsageResult",
       "name": "ProviderAuthUsageResult",
       "module": "core",
@@ -15239,10 +15026,144 @@
           "const": null
         },
         {
-          "name": "snapshot",
-          "type": "json",
+          "name": "credits",
+          "type": "core.ProviderAuthUsageCredits",
           "required": false,
           "nullable": true,
+          "const": null
+        },
+        {
+          "name": "fetchedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "limitReachedKind",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "planType",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "primary",
+          "type": "core.ProviderAuthUsageWindow",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "secondary",
+          "type": "core.ProviderAuthUsageWindow",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ProviderAuthUsageUpdatedNotification",
+      "name": "ProviderAuthUsageUpdatedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ProviderAuthUsageUpdatedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "available",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "credits",
+          "type": "core.ProviderAuthUsageCredits",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "fetchedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "limitReachedKind",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "planType",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "primary",
+          "type": "core.ProviderAuthUsageWindow",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "secondary",
+          "type": "core.ProviderAuthUsageWindow",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ProviderAuthUsageWindow",
+      "name": "ProviderAuthUsageWindow",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ProviderAuthUsageWindow.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "resetAt",
+          "type": "date-time",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "usedPercent",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "windowSeconds",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
           "const": null
         }
       ],
@@ -15466,20 +15387,6 @@
           "type": "core.ProviderCapabilities",
           "required": false,
           "nullable": false,
-          "const": null
-        },
-        {
-          "name": "chatGptAccountId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "chatGptPlanType",
-          "type": "string",
-          "required": false,
-          "nullable": true,
           "const": null
         },
         {
@@ -16586,20 +16493,6 @@
         },
         {
           "name": "approvalFlow",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "authOpenAiOAuth",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "authOpenAiUsage",
           "type": "boolean",
           "required": false,
           "nullable": false,
@@ -28596,118 +28489,6 @@
       "stability": "stable"
     },
     {
-      "name": "auth/openai/authorizeUrl",
-      "descriptorMember": "AuthOpenAiAuthorizeUrl",
-      "kind": "notification",
-      "direction": "serverToClient",
-      "paramsType": "core.AuthOpenAiAuthorizeUrlNotification",
-      "resultType": "core.RpcEmpty",
-      "module": "core",
-      "capability": null,
-      "scope": "connection",
-      "notificationOptOut": true,
-      "errors": [],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "auth/openai/login",
-      "descriptorMember": "AuthOpenAiLogin",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.AuthOpenAiLoginParams",
-      "resultType": "core.AuthOpenAiStatusResult",
-      "module": "core",
-      "capability": null,
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "auth/openai/logout",
-      "descriptorMember": "AuthOpenAiLogout",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.AuthOpenAiLogoutParams",
-      "resultType": "core.AuthOpenAiStatusResult",
-      "module": "core",
-      "capability": null,
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "auth/openai/status",
-      "descriptorMember": "AuthOpenAiStatus",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.AuthOpenAiStatusParams",
-      "resultType": "core.AuthOpenAiStatusResult",
-      "module": "core",
-      "capability": null,
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "auth/openai/usage",
-      "descriptorMember": "AuthOpenAiUsage",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.RpcEmpty",
-      "resultType": "core.AuthOpenAiUsageResult",
-      "module": "core",
-      "capability": null,
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "auth/openai/usage/updated",
-      "descriptorMember": "AuthOpenAiUsageUpdated",
-      "kind": "notification",
-      "direction": "serverToClient",
-      "paramsType": "core.AuthOpenAiUsageResult",
-      "resultType": "core.RpcEmpty",
-      "module": "core",
-      "capability": null,
-      "scope": "connection",
-      "notificationOptOut": true,
-      "errors": [],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
       "name": "automation/create",
       "descriptorMember": "AutomationCreate",
       "kind": "request",
@@ -31285,7 +31066,7 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/provider-backend-auth.md",
+      "specRef": "specs/protocols/provider-auth.md",
       "stability": "stable"
     },
     {
@@ -31305,7 +31086,7 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/provider-backend-auth.md",
+      "specRef": "specs/protocols/provider-auth.md",
       "stability": "stable"
     },
     {
@@ -31325,7 +31106,7 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/provider-backend-auth.md",
+      "specRef": "specs/protocols/provider-auth.md",
       "stability": "stable"
     },
     {
@@ -31345,7 +31126,7 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/provider-backend-auth.md",
+      "specRef": "specs/protocols/provider-auth.md",
       "stability": "stable"
     },
     {
@@ -31365,7 +31146,7 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/provider-backend-auth.md",
+      "specRef": "specs/protocols/provider-auth.md",
       "stability": "stable"
     },
     {
@@ -31373,7 +31154,7 @@
       "descriptorMember": "ProviderAuthStatus",
       "kind": "request",
       "direction": "clientToServer",
-      "paramsType": "core.ProviderAuthInstanceParams",
+      "paramsType": "core.ProviderAuthStatusParams",
       "resultType": "core.ProviderAuthStatusResult",
       "module": "core",
       "capability": "providerManagement",
@@ -31385,7 +31166,7 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/provider-backend-auth.md",
+      "specRef": "specs/protocols/provider-auth.md",
       "stability": "stable"
     },
     {
@@ -31401,7 +31182,7 @@
       "notificationOptOut": false,
       "errors": [],
       "since": "1",
-      "specRef": "specs/protocols/provider-backend-auth.md",
+      "specRef": "specs/protocols/provider-auth.md",
       "stability": "stable"
     },
     {
@@ -31421,7 +31202,23 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/provider-backend-auth.md",
+      "specRef": "specs/protocols/provider-auth.md",
+      "stability": "stable"
+    },
+    {
+      "name": "provider/auth/usage/updated",
+      "descriptorMember": "ProviderAuthUsageUpdated",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ProviderAuthUsageUpdatedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": null,
+      "scope": "connection",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/provider-auth.md",
       "stability": "stable"
     },
     {
@@ -31441,7 +31238,7 @@
         "MethodNotFound"
       ],
       "since": "1",
-      "specRef": "specs/protocols/provider-backend-auth.md",
+      "specRef": "specs/protocols/provider-auth.md",
       "stability": "stable"
     },
     {

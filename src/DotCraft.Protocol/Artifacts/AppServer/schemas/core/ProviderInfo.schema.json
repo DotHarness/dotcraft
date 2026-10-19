@@ -23,26 +23,6 @@
     "capabilities": {
       "$ref": "./ProviderCapabilities.schema.json"
     },
-    "chatGptAccountId": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "chatGptPlanType": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "displayName": {
       "type": "string"
     },

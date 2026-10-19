@@ -199,9 +199,9 @@ public static partial class ModelProviderResolver
             var hostedCapabilityDefault = DefaultSupportsOpenAIHostedCapability(protocol, endPoint, configuredAuthMethod);
             var supportsImageGeneration = provider.SupportsImageGeneration ?? hostedCapabilityDefault;
             var supportsFreeformTools = provider.SupportsFreeformTools ?? hostedCapabilityDefault;
-            var accountId = string.IsNullOrWhiteSpace(provider.ChatGptAccountId)
+            var accountId = string.IsNullOrWhiteSpace(provider.RemoteAuthentication?.AccountId)
                 ? null
-                : provider.ChatGptAccountId.Trim();
+                : provider.RemoteAuthentication.AccountId.Trim();
 
             // API key is irrelevant in OAuth mode; the OpenAIClientProvider injects a placeholder so
             // the SDK still constructs a client.

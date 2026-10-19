@@ -28,9 +28,10 @@ configuration. Without a backend ID, existing protocol, authentication and endpo
 unchanged. Explicit backends validate their own settings and declared protocol/authentication choices.
 They do not inherit HTTP endpoints, API-key requirements or protocol-based hosted capabilities.
 
-Desktop uses the existing provider list and editor. Backend-specific options use typed controls in
-a plugin settings surface. `BackendSettings` holds their serialized values. Authentication uses its
-own interaction and credential storage.
+Desktop lists backend instances with every other provider and creates them from the same editor.
+Backend-specific options use typed controls in a plugin settings surface. `BackendSettings` holds
+their serialized values. Authentication uses the shared provider sign-in flow and backend credential
+storage.
 
 One runtime resolver serves chat, native subagents, summaries, maintenance, cache warming, model
 catalogs, authentication, usage and native history. Backend generation and instance configuration
@@ -65,8 +66,8 @@ atomic replacement, current-user file permissions and cross-process locking. Ref
 and logout serialize per partition. Cancellation is checked before committing a write.
 Plugins receive only a bound partition view.
 
-Desktop and CLI use the same Core authentication coordinator. AppServer projects its login
-operations and revisioned notifications through the [backend authentication protocol](../protocols/provider-backend-auth.md).
+Backend authenticators join built-in sign-in, including ChatGPT, in one Core coordinator that Desktop
+and CLI share. AppServer projects it through [provider authentication](../protocols/provider-auth.md).
 
 Provider-independent startup permits plugin discovery, trust, configuration and login before any
 usable model exists. Standalone ModelService hosts reject local-backend configurations.

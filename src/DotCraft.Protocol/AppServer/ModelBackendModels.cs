@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DotCraft.Protocol.AppServer;
@@ -30,6 +29,13 @@ public sealed class ProviderAuthInstanceParams
     [JsonPropertyName("providerId")] public string ProviderId { get; init; } = string.Empty;
 }
 
+public sealed class ProviderAuthStatusParams
+{
+    [JsonPropertyName("providerId")] public string ProviderId { get; init; } = string.Empty;
+    [JsonPropertyName("includeToken")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool IncludeToken { get; init; }
+    [JsonPropertyName("refreshToken")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool RefreshToken { get; init; }
+}
+
 public sealed class ProviderAuthLoginParams
 {
     [JsonPropertyName("providerId")] public string ProviderId { get; init; } = string.Empty;
@@ -57,6 +63,7 @@ public sealed class ProviderAuthStatusResult
     [JsonPropertyName("email")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Email { get; init; }
     [JsonPropertyName("failureCode")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? FailureCode { get; init; }
     [JsonPropertyName("failureMessage")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? FailureMessage { get; init; }
+    [JsonPropertyName("authToken")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? AuthToken { get; init; }
 }
 
 public sealed class ProviderAuthEvent
@@ -97,7 +104,38 @@ public sealed class ProviderAuthLoginState
 public sealed class ProviderAuthUsageResult
 {
     [JsonPropertyName("available")] public bool Available { get; init; }
-    [JsonPropertyName("snapshot")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public JsonElement? Snapshot { get; init; }
+    [JsonPropertyName("fetchedAt")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public DateTimeOffset? FetchedAt { get; init; }
+    [JsonPropertyName("planType")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? PlanType { get; init; }
+    [JsonPropertyName("primary")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageWindow? Primary { get; init; }
+    [JsonPropertyName("secondary")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageWindow? Secondary { get; init; }
+    [JsonPropertyName("credits")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageCredits? Credits { get; init; }
+    [JsonPropertyName("limitReachedKind")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? LimitReachedKind { get; init; }
+}
+
+public sealed class ProviderAuthUsageUpdatedNotification
+{
+    [JsonPropertyName("providerId")] public string ProviderId { get; init; } = string.Empty;
+    [JsonPropertyName("available")] public bool Available { get; init; }
+    [JsonPropertyName("fetchedAt")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public DateTimeOffset? FetchedAt { get; init; }
+    [JsonPropertyName("planType")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? PlanType { get; init; }
+    [JsonPropertyName("primary")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageWindow? Primary { get; init; }
+    [JsonPropertyName("secondary")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageWindow? Secondary { get; init; }
+    [JsonPropertyName("credits")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageCredits? Credits { get; init; }
+    [JsonPropertyName("limitReachedKind")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? LimitReachedKind { get; init; }
+}
+
+public sealed class ProviderAuthUsageWindow
+{
+    [JsonPropertyName("usedPercent")] public int UsedPercent { get; init; }
+    [JsonPropertyName("windowSeconds")] public int WindowSeconds { get; init; }
+    [JsonPropertyName("resetAt")] public DateTimeOffset ResetAt { get; init; }
+}
+
+public sealed class ProviderAuthUsageCredits
+{
+    [JsonPropertyName("hasCredits")] public bool HasCredits { get; init; }
+    [JsonPropertyName("unlimited")] public bool Unlimited { get; init; }
+    [JsonPropertyName("balance")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Balance { get; init; }
 }
 
 public sealed partial class ProviderInfo

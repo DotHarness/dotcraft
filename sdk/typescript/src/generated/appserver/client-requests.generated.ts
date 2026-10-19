@@ -36,10 +36,6 @@ export interface ClientRequestMethods {
   "app/surface/resolve": { params: Models.AppSurfaceResolveParams; result: Models.AppSurface };
   "app/threadInput/enqueue": { params: Models.AppThreadInputEnqueueParams; result: Models.AppThreadInputEnqueueResult };
   "app/view": { params: Models.AppViewParams; result: Models.AppViewResult };
-  "auth/openai/login": { params: Models.AuthOpenAiLoginParams; result: Models.AuthOpenAiStatusResult };
-  "auth/openai/logout": { params: Models.AuthOpenAiLogoutParams; result: Models.AuthOpenAiStatusResult };
-  "auth/openai/status": { params: Models.AuthOpenAiStatusParams; result: Models.AuthOpenAiStatusResult };
-  "auth/openai/usage": { params: Models.RpcEmpty; result: Models.AuthOpenAiUsageResult };
   "automation/create": { params: Models.AutomationCreateParams; result: Models.AutomationReadResult };
   "automation/delete": { params: Models.AutomationIdParams; result: Models.AutomationDeleteResult };
   "automation/list": { params: Models.RpcEmpty; result: Models.AutomationListResult };
@@ -133,7 +129,7 @@ export interface ClientRequestMethods {
   "provider/auth/login": { params: Models.ProviderAuthLoginParams; result: Models.ProviderAuthLoginState };
   "provider/auth/logout": { params: Models.ProviderAuthInstanceParams; result: Models.RpcEmpty };
   "provider/auth/state": { params: Models.ProviderAuthOperationParams; result: Models.ProviderAuthLoginState };
-  "provider/auth/status": { params: Models.ProviderAuthInstanceParams; result: Models.ProviderAuthStatusResult };
+  "provider/auth/status": { params: Models.ProviderAuthStatusParams; result: Models.ProviderAuthStatusResult };
   "provider/auth/usage": { params: Models.ProviderAuthInstanceParams; result: Models.ProviderAuthUsageResult };
   "provider/backend/list": { params: Models.RpcEmpty; result: Models.ProviderBackendListResult };
   "provider/list": { params: Models.ProviderListParams; result: Models.ProviderListResult };

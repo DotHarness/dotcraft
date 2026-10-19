@@ -21,8 +21,7 @@ public sealed class ModelProviderResolverOAuthTests
                     Protocol = ModelProviderProtocols.OpenAIChatCompletions,
                     AuthMethod = ModelProviderAuthMethods.ChatGptOAuth,
                     ApiKey = "ignored",
-                    EndPoint = "https://example.com/should-be-ignored",
-                    ChatGptAccountId = "acct_test"
+                    EndPoint = "https://example.com/should-be-ignored"
                 }
             }
         };
@@ -32,7 +31,7 @@ public sealed class ModelProviderResolverOAuthTests
         Assert.True(runtime.IsChatGptOAuth);
         Assert.Equal(ModelProviderDefaults.ChatGptBackendEndpoint, runtime.EndPoint);
         Assert.Equal(ModelProviderProtocols.OpenAIResponses, runtime.Protocol);
-        Assert.Equal("acct_test", runtime.ChatGptAccountId);
+        Assert.Null(runtime.AccountId);
         Assert.Equal(string.Empty, runtime.ApiKey);
     }
 

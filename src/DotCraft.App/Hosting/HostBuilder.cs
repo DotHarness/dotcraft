@@ -89,10 +89,7 @@ public sealed class HostBuilder
     /// <returns>A tuple containing the service provider and the host.</returns>
     public (ServiceProvider Provider, IDotCraftHost Host) Build(IServiceCollection services)
     {
-        var paths = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(DotCraftPaths))
-            ?.ImplementationInstance as DotCraftPaths
-            ?? throw new InvalidOperationException(
-                "DotCraftPaths is not registered. Call AddDotCraftHarness before building the application host.");
+        var paths = RequirePaths(services);
 
         // Select primary module
         var primaryModule = _registry.SelectPrimaryModule(_config, _preferredPrimaryModuleName);
@@ -135,4 +132,18 @@ public sealed class HostBuilder
 
         return (provider, host);
     }
+
+    public ServiceProvider BuildServices(IServiceCollection services)
+    {
+        var paths = RequirePaths(services);
+        foreach (var module in _registry.GetEnabledModules(_config))
+            ConfigureModuleServices(services, module, paths);
+        return services.BuildServiceProvider();
+    }
+
+    private static DotCraftPaths RequirePaths(IServiceCollection services) =>
+        services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(DotCraftPaths))
+            ?.ImplementationInstance as DotCraftPaths
+        ?? throw new InvalidOperationException(
+            "DotCraftPaths is not registered. Call AddDotCraftHarness before building the application host.");
 }

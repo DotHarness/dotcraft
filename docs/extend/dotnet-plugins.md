@@ -198,6 +198,12 @@ Implement `IProviderAuthenticator` for sign-in and return standard `IChatClient`
 calls for model execution. `ModelBackendContext.Credentials` stores credentials for the instance.
 Run token refresh inside its `ModifyAsync` callback.
 
+Desktop lists backend instances with the other providers, creates them from the same provider
+editor, and signs them in with the shared sign-in control. From a terminal,
+`dotcraft auth login review-demo` signs in with the configured `AuthMethod`; `--method <id>` picks
+another declared method and `--workspace <path>` names the workspace that enables the plugin.
+AppServer clients drive the same flow through the `provider/auth/*` methods.
+
 See the [backend contract](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/model-backend-plugins.md)
 for retry, prompt provenance, native history and lifetime requirements.
 

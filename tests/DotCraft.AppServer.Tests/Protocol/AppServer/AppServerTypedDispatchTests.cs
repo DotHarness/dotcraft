@@ -65,17 +65,20 @@ public sealed class AppServerTypedDispatchTests
         var transport = new InMemoryTransport();
 
         await transport.NotifyContractAsync(
-            Contract.AppServerRpc.AuthOpenAiAuthorizeUrl,
-            new Contract.AuthOpenAiAuthorizeUrlNotification
+            Contract.AppServerRpc.ProviderAuthUsageUpdated,
+            new Contract.ProviderAuthUsageUpdatedNotification
             {
-                Url = "https://example.test/authorize",
-                CallbackPort = 1455
+                ProviderId = "openai",
+                Available = true,
+                Primary = new Contract.ProviderAuthUsageWindow { UsedPercent = 42, WindowSeconds = 18_000 }
             });
 
         using var message = await transport.ReadNextSentAsync();
-        Assert.Equal(Contract.AppServerRpc.AuthOpenAiAuthorizeUrl.Name, message.RootElement.GetProperty("method").GetString());
-        Assert.Equal("https://example.test/authorize", message.RootElement.GetProperty("params").GetProperty("url").GetString());
-        Assert.Equal(1455, message.RootElement.GetProperty("params").GetProperty("callbackPort").GetInt32());
+        Assert.Equal(Contract.AppServerRpc.ProviderAuthUsageUpdated.Name, message.RootElement.GetProperty("method").GetString());
+        var parameters = message.RootElement.GetProperty("params");
+        Assert.Equal("openai", parameters.GetProperty("providerId").GetString());
+        Assert.Equal(42, parameters.GetProperty("primary").GetProperty("usedPercent").GetInt32());
+        Assert.False(parameters.TryGetProperty("secondary", out _));
     }
 
     [Fact]

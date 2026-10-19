@@ -15,7 +15,7 @@ public sealed record CommandLineArgs
         Hub,
         Dashboard,
         ModelCatalog,
-        ProviderAuth,
+        Auth,
         ScriptWorker
     }
 
@@ -43,9 +43,11 @@ public sealed record CommandLineArgs
     public int? DashboardPort { get; init; }
     public bool ModelCatalogReadStdin { get; init; }
     public string? ScriptWorkerKind { get; init; }
-    public string? ProviderAuthAction { get; init; }
-    public string? ProviderAuthMethod { get; init; }
-    public string? ProviderAuthWorkspacePath { get; init; }
+    public string? AuthAction { get; init; }
+    public string? AuthMethod { get; init; }
+    public string? AuthWorkspacePath { get; init; }
+    public bool AuthReadStdin { get; init; }
+    public bool AuthNoBrowser { get; init; }
     public bool ReservesStdout { get; init; }
 
     public void ApplyTo(AppConfig config)
@@ -77,7 +79,7 @@ public sealed record CommandLineArgs
             case RunMode.Setup:
             case RunMode.Hub:
             case RunMode.ModelCatalog:
-            case RunMode.ProviderAuth:
+            case RunMode.Auth:
             case RunMode.ScriptWorker:
                 break;
             default:

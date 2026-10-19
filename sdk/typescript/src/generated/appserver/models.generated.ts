@@ -773,66 +773,6 @@ export interface ApprovalShellDetails {
   [key: string]: unknown;
 }
 
-export interface AuthOpenAiAuthorizeUrlNotification {
-  callbackPort?: number;
-  url?: string;
-  [key: string]: unknown;
-}
-
-export interface AuthOpenAiLoginParams {
-  openBrowser?: boolean | null;
-  providerId?: string | null;
-  [key: string]: unknown;
-}
-
-export interface AuthOpenAiLogoutParams {
-  providerId?: string | null;
-  [key: string]: unknown;
-}
-
-export interface AuthOpenAiStatusParams {
-  includeToken?: boolean;
-  refreshToken?: boolean;
-  [key: string]: unknown;
-}
-
-export interface AuthOpenAiStatusResult {
-  accessTokenExpiresAt?: string | null;
-  accountId?: string | null;
-  authToken?: string;
-  email?: string | null;
-  lastRefresh?: string | null;
-  loggedIn?: boolean;
-  planType?: string | null;
-  providerId?: string | null;
-  [key: string]: unknown;
-}
-
-export interface AuthOpenAiUsageCredits {
-  balance?: string | null;
-  hasCredits?: boolean;
-  unlimited?: boolean;
-  [key: string]: unknown;
-}
-
-export interface AuthOpenAiUsageResult {
-  available?: boolean;
-  credits?: AuthOpenAiUsageCredits | null;
-  fetchedAt?: string | null;
-  limitReachedKind?: string | null;
-  planType?: string | null;
-  primary?: AuthOpenAiUsageWindow | null;
-  secondary?: AuthOpenAiUsageWindow | null;
-  [key: string]: unknown;
-}
-
-export interface AuthOpenAiUsageWindow {
-  resetAt?: string;
-  usedPercent?: number;
-  windowSeconds?: number;
-  [key: string]: unknown;
-}
-
 export interface AutomationCreateParams {
   automation: AutomationInput;
   [key: string]: unknown;
@@ -3096,8 +3036,16 @@ export interface ProviderAuthPrompt {
   [key: string]: unknown;
 }
 
+export interface ProviderAuthStatusParams {
+  includeToken?: boolean;
+  providerId: string;
+  refreshToken?: boolean;
+  [key: string]: unknown;
+}
+
 export interface ProviderAuthStatusResult {
   accountId?: string | null;
+  authToken?: string | null;
   displayName?: string | null;
   email?: string | null;
   failureCode?: string | null;
@@ -3107,9 +3055,40 @@ export interface ProviderAuthStatusResult {
   [key: string]: unknown;
 }
 
+export interface ProviderAuthUsageCredits {
+  balance?: string | null;
+  hasCredits: boolean;
+  unlimited: boolean;
+  [key: string]: unknown;
+}
+
 export interface ProviderAuthUsageResult {
   available: boolean;
-  snapshot?: JsonValue;
+  credits?: ProviderAuthUsageCredits | null;
+  fetchedAt?: string | null;
+  limitReachedKind?: string | null;
+  planType?: string | null;
+  primary?: ProviderAuthUsageWindow | null;
+  secondary?: ProviderAuthUsageWindow | null;
+  [key: string]: unknown;
+}
+
+export interface ProviderAuthUsageUpdatedNotification {
+  available: boolean;
+  credits?: ProviderAuthUsageCredits | null;
+  fetchedAt?: string | null;
+  limitReachedKind?: string | null;
+  planType?: string | null;
+  primary?: ProviderAuthUsageWindow | null;
+  providerId: string;
+  secondary?: ProviderAuthUsageWindow | null;
+  [key: string]: unknown;
+}
+
+export interface ProviderAuthUsageWindow {
+  resetAt: string;
+  usedPercent: number;
+  windowSeconds: number;
   [key: string]: unknown;
 }
 
@@ -3154,8 +3133,6 @@ export interface ProviderInfo {
   authMethod?: string;
   backendId?: string;
   capabilities?: ProviderCapabilities;
-  chatGptAccountId?: string | null;
-  chatGptPlanType?: string | null;
   displayName?: string;
   endPoint?: string;
   hasApiKey?: boolean;
@@ -3379,8 +3356,6 @@ export interface ServerCapabilities {
   appBindingVersion?: number;
   appThreadInputEnqueue?: boolean;
   approvalFlow?: boolean;
-  authOpenAiOAuth?: boolean;
-  authOpenAiUsage?: boolean;
   automations?: boolean;
   backgroundTerminals?: boolean;
   channelStatus?: boolean;

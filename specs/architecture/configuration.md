@@ -12,7 +12,7 @@ Purpose: Define how DotCraft configuration fields are declared, layered, read, w
 
 This specification covers the root `AppConfig`, its `[ConfigSection]` sections (including module sections stored in extension data), the user and workspace configuration files, the configuration descriptor registry, the configuration service in Session Core, and the AppServer methods and notification that read and change configuration. Model provider definitions (`Providers`) are configuration and follow this specification.
 
-Domain operations that persist configuration as a side effect keep their own methods and semantics: thread settings (`thread/config/update`), skills, plugins, MCP servers, hooks, external channels, SubAgent profiles, and source control. They are out of scope except where they share the change notification. Subscription sign-in (`auth/openai/login`, `auth/openai/logout`) persists its provider binding through the configuration service (§6.6).
+Domain operations that persist configuration as a side effect keep their own methods and semantics: thread settings (`thread/config/update`), skills, plugins, MCP servers, hooks, external channels, SubAgent profiles, and source control. They are out of scope except where they share the change notification.
 
 ## 2. Goals
 
@@ -115,7 +115,7 @@ Option sets are declared on the field: `Permissions.DefaultApprovalPolicy` accep
 
 ### 5.5 Providers
 
-`Providers` is an object-valued field mapping a provider id to a provider object with the fields `DisplayName`, `Protocol`, `ApiKey`, `AuthMethod`, `ChatGptAccountId`, `ChatGptPlanType`, `EndPoint`, `NetworkTimeoutSeconds`, `MaxOutputTokens`, `StreamMaxRetries`, `StreamIdleTimeoutMs`, `SupportsImageGeneration`, and `SupportsFreeformTools`. Provider ids compare case-insensitively. Its reload behavior is `SubsystemRestart` in the `threadAgents` subsystem.
+`Providers` is an object-valued field mapping a provider id to a provider object with the fields `DisplayName`, `Protocol`, `ApiKey`, `AuthMethod`, `BackendId`, `BackendSettings`, `EndPoint`, `NetworkTimeoutSeconds`, `MaxOutputTokens`, `StreamMaxRetries`, `StreamIdleTimeoutMs`, `SupportsImageGeneration`, and `SupportsFreeformTools`. Provider ids compare case-insensitively. Its reload behavior is `SubsystemRestart` in the `threadAgents` subsystem.
 
 Providers are created, edited, and deleted only by configuration writes: an edit of `Providers.<id>` or `Providers.<id>.<Field>` creates or changes a provider, and a `null` value at `Providers.<id>` deletes it. A write does not distinguish creating from editing; a client that must not overwrite an existing provider checks the listed ids and supplies the expected version of the user layer.
 
@@ -162,7 +162,7 @@ Region key paths are the canonical key paths from the descriptor registry. Clien
 
 `provider/list` is the read view of providers: each configured provider, or with a remote model service each provider it manages, with resolved defaults, capability flags, and whether a key is set instead of the key. `provider/test` probes a saved provider or an unsaved draft. Neither writes configuration.
 
-`auth/openai/login` and `auth/openai/logout` persist their provider binding as one configuration write to the user layer, with the method name as `source`, subject to the same validation, layer rule, application, and change notification as any other write.
+[Provider authentication](../protocols/provider-auth.md) signs providers in and out without writing configuration; choosing a provider's sign-in method is an ordinary write of `AuthMethod`.
 
 ## 7. Clients
 

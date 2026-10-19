@@ -113,7 +113,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const workspacePath = detail?.effectiveWorkspacePath ?? null
   const docked = !catchingUp && live && !decision
   const inset = docked ? dockHeight : insets.bottom
-  const signsIn = models?.providers.find((provider) => provider.id === controls.providerId)?.signsIn === true
+  const usageProviderId = controls.providerId ?? models?.defaultProviderId ?? null
 
   const title = chat ? chatTitle(chat, t('chat.untitled')) : t('chat.untitled')
 
@@ -135,7 +135,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
 
   const openStatus = () => {
     setStatusOpen(true)
-    void session.loadUsage(projectId).catch(() => undefined)
+    void session.loadUsage(projectId, usageProviderId).catch(() => undefined)
   }
 
   const actions: DecisionActions = {
@@ -302,7 +302,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
         chatId={threadId}
         folder={workspacePath}
         context={detail?.context ?? null}
-        windows={signsIn ? (models?.usage ?? []) : []}
+        windows={usageProviderId ? (models?.usage[usageProviderId] ?? []) : []}
         onClose={() => setStatusOpen(false)}
       />
       {changes ? (

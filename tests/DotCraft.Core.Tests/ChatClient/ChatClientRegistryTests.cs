@@ -379,7 +379,7 @@ public sealed class ChatClientRegistryTests
             StreamMaxRetries: ModelProviderDefaults.MaxStreamMaxRetries + 1,
             StreamIdleTimeoutMs: 0,
             AuthMethod: " CHATGPTOAUTH ",
-            ChatGptAccountId: " account-a ",
+            AccountId: " account-a ",
             SupportsImageGeneration: true,
             UseResponsesLite: true,
             ProviderStateDirectory: "provider-state");
@@ -399,7 +399,7 @@ public sealed class ChatClientRegistryTests
         Assert.Equal(ModelProviderDefaults.MaxStreamMaxRetries, received.StreamMaxRetries);
         Assert.Equal(1, received.StreamIdleTimeoutMs);
         Assert.Equal(ModelProviderAuthMethods.ChatGptOAuth, received.AuthMethod);
-        Assert.Equal("account-a", received.ChatGptAccountId);
+        Assert.Equal("account-a", received.AccountId);
         Assert.True(received.SupportsImageGeneration);
         Assert.True(received.UseResponsesLite);
         Assert.Equal("provider-state", received.ProviderStateDirectory);

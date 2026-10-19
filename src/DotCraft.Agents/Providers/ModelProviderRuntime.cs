@@ -152,7 +152,7 @@ public sealed record EffectiveModelRuntime(
     int StreamMaxRetries = ModelProviderDefaults.DefaultStreamMaxRetries,
     int StreamIdleTimeoutMs = ModelProviderDefaults.DefaultStreamIdleTimeoutMs,
     string AuthMethod = ModelProviderAuthMethods.ApiKey,
-    string? ChatGptAccountId = null,
+    string? AccountId = null,
     bool SupportsImageGeneration = false,
     bool SupportsFreeformTools = false,
     bool UseResponsesLite = false,

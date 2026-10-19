@@ -32,8 +32,7 @@ public sealed class AgentFactoryOAuthTests : IDisposable
                 {
                     DisplayName = "OpenAI (ChatGPT)",
                     Protocol = ModelProviderProtocols.OpenAIResponses,
-                    AuthMethod = ModelProviderAuthMethods.ChatGptOAuth,
-                    ChatGptAccountId = "acct_test"
+                    AuthMethod = ModelProviderAuthMethods.ChatGptOAuth
                 }
             }
         };

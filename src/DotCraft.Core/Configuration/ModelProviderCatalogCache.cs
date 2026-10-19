@@ -36,7 +36,6 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
             runtime.Protocol,
             runtime.EndPoint.TrimEnd('/').ToLowerInvariant(),
             runtime.AuthMethod,
-            runtime.ChatGptAccountId ?? string.Empty,
             Fingerprint(runtime.ApiKey));
     }
 

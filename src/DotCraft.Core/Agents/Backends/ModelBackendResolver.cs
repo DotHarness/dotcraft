@@ -12,6 +12,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     private readonly string? _defaultConfigurationSource;
     private readonly ConcurrentDictionary<EffectiveModelRuntime, Lazy<IModelProvider>> _providers = new();
     private readonly ConcurrentDictionary<string, long> _authenticationRevisions = new(StringComparer.Ordinal);
+    private long _chatGptRevision;
     public event Action? Changed;
 
     public ModelBackendResolver(ModelProviderRegistry builtins, IContributionView contributions, string credentialRoot,
@@ -31,7 +32,12 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     public EffectiveModelRuntime Normalize(EffectiveModelRuntime runtime)
     {
         if (string.IsNullOrWhiteSpace(runtime.BackendId))
-            return builtins.Normalize(runtime);
+        {
+            runtime = builtins.Normalize(runtime);
+            return runtime.IsChatGptOAuth
+                ? runtime with { BackendGeneration = "chatgpt:" + Interlocked.Read(ref _chatGptRevision) }
+                : runtime;
+        }
         if (runtime.ConfigurationSource is null or "in-memory" && _defaultConfigurationSource is not null)
             runtime = runtime with { ConfigurationSource = _defaultConfigurationSource };
         runtime = runtime with { ConfigurationSource = ProviderCredentialStore.CanonicalSource(runtime.ConfigurationSource ?? "in-memory") };
@@ -74,6 +80,12 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
 
     public void InvalidateAuthentication(EffectiveModelRuntime runtime)
     {
+        if (string.IsNullOrWhiteSpace(runtime.BackendId))
+        {
+            Interlocked.Increment(ref _chatGptRevision);
+            Changed?.Invoke();
+            return;
+        }
         _authenticationRevisions.AddOrUpdate(InstanceKey(runtime), 1, (_, revision) => revision + 1);
         foreach (var key in _providers.Keys.Where(key => InstanceKey(key) == InstanceKey(runtime)))
             _providers.TryRemove(key, out _);

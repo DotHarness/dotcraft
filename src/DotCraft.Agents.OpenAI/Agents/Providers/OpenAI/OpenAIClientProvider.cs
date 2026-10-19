@@ -25,7 +25,8 @@ public sealed partial class OpenAIClientProvider :
     IProviderHistorySessionFactory,
     IModelCatalogProvider,
     IProviderRuntimeMetadataResolver,
-    IProviderAuthentication,
+    IProviderAuthenticator,
+    IProviderAccessTokenReader,
     IProviderUsageReader,
     IProviderLifecycle
 {
@@ -47,7 +48,6 @@ public sealed partial class OpenAIClientProvider :
     private readonly HttpClient _chatGptHttpClient;
     private readonly IProviderHttpTransport? _httpTransport;
     private readonly ILogger<OpenAIClientProvider>? _logger;
-    private int _accountMismatchWarningLogged;
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> Protocols => SupportedProtocols;
@@ -83,12 +83,12 @@ public sealed partial class OpenAIClientProvider :
     }
 
     string? IProviderRuntimeIdentityResolver.ResolveAccountId(EffectiveModelRuntime runtime) =>
-        ResolveChatGptAccountId(runtime);
+        ResolveAccountId(runtime);
 
     ProviderRuntimeMetadata IProviderRuntimeMetadataResolver.Resolve(EffectiveModelRuntime runtime)
         => new(runtime.RequestAdaptation?.UseResponsesLite ?? ChatGptCodexModelCatalog.ResolveUseResponsesLite(
             runtime,
-            ResolveChatGptAccountId(runtime)));
+            ResolveAccountId(runtime)));
 
     async Task<ModelCatalogResult> IModelCatalogProvider.FetchModelsAsync(
         EffectiveModelRuntime runtime,
@@ -381,27 +381,10 @@ public sealed partial class OpenAIClientProvider :
         return options;
     }
 
-    internal string? ResolveChatGptAccountId(EffectiveModelRuntime runtime)
+    internal string? ResolveAccountId(EffectiveModelRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
-        var tokenAccountId = runtime.IsRemote ? null : NormalizeOptional(_openAIAuthService?.GetAccountId());
-        var configuredAccountId = NormalizeOptional(runtime.ChatGptAccountId);
-        if (!string.IsNullOrEmpty(tokenAccountId))
-        {
-            if (!string.IsNullOrEmpty(configuredAccountId) &&
-                !string.Equals(configuredAccountId, tokenAccountId, StringComparison.Ordinal) &&
-                Interlocked.Exchange(ref _accountMismatchWarningLogged, 1) == 0)
-            {
-                _logger?.LogWarning(
-                    "ChatGPT OAuth account id from config ({ConfiguredAccountId}) differs from the signed-in token account ({TokenAccountId}); using the token account for request routing.",
-                    configuredAccountId,
-                    tokenAccountId);
-            }
-
-            return tokenAccountId;
-        }
-
-        return configuredAccountId;
+        return NormalizeOptional(runtime.IsRemote ? runtime.AccountId : _openAIAuthService?.GetAccountId());
     }
 
     internal async Task<ChatGptCodexModelsHttpResponse> FetchChatGptCodexModelsAsync(

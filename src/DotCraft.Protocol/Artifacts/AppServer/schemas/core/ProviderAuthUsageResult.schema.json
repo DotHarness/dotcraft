@@ -7,7 +7,67 @@
     "available": {
       "type": "boolean"
     },
-    "snapshot": {}
+    "credits": {
+      "anyOf": [
+        {
+          "$ref": "./ProviderAuthUsageCredits.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fetchedAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "limitReachedKind": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "planType": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "primary": {
+      "anyOf": [
+        {
+          "$ref": "./ProviderAuthUsageWindow.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "secondary": {
+      "anyOf": [
+        {
+          "$ref": "./ProviderAuthUsageWindow.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
   },
   "additionalProperties": true,
   "required": [

@@ -54,55 +54,6 @@ public static partial class DotCraftCommandLine
         return hub;
     }
 
-    private static Command CreateAuthCommand()
-    {
-        var auth = new Command("auth", "Manage provider authentication.");
-        var openAi = new Command("openai", "Manage OpenAI authentication.");
-        openAi.Subcommands.Add(CreateOpenAiLoginCommand());
-        openAi.Subcommands.Add(CreateOpenAiLogoutCommand());
-        openAi.Subcommands.Add(CreateOpenAiStatusCommand());
-        var verify = new Command("verify", "Check subscription credentials and selected model.");
-        verify.SetAction((_, cancellationToken) => AuthCliRunner.VerifyAsync(cancellationToken));
-        openAi.Subcommands.Add(verify);
-        auth.Subcommands.Add(openAi);
-        auth.Subcommands.Add(CreateProviderAuthCommand());
-        return auth;
-    }
-
-    private static Command CreateOpenAiLoginCommand()
-    {
-        var providerId = StringOption("--provider-id", "Provider id to bind after login.");
-        var noBrowser = Flag("--no-browser", "Print the authorization URL without opening a browser.");
-        var noBind = Flag("--no-bind", "Do not bind the provider configuration after login.");
-        var command = new Command("login", "Sign in with OpenAI.") { providerId, noBrowser, noBind };
-        command.SetAction((parseResult, cancellationToken) => AuthCliRunner.LoginAsync(
-            parseResult.GetValue(providerId),
-            parseResult.GetValue(noBrowser),
-            parseResult.GetValue(noBind),
-            cancellationToken));
-        return command;
-    }
-
-    private static Command CreateOpenAiLogoutCommand()
-    {
-        var providerId = StringOption("--provider-id", "Provider id to unbind after logout.");
-        var command = new Command("logout", "Remove stored OpenAI credentials.") { providerId };
-        command.SetAction((parseResult, cancellationToken) => AuthCliRunner.LogoutAsync(
-            parseResult.GetValue(providerId),
-            cancellationToken));
-        return command;
-    }
-
-    private static Command CreateOpenAiStatusCommand()
-    {
-        var noUsage = Flag("--no-usage", "Skip the usage and rate-limit lookup.");
-        var command = new Command("status", "Show OpenAI authentication status.") { noUsage };
-        command.SetAction((parseResult, cancellationToken) => AuthCliRunner.StatusAsync(
-            parseResult.GetValue(noUsage),
-            cancellationToken));
-        return command;
-    }
-
     private static Command CreateSkillCommand()
     {
         var skill = new Command("skill", "Verify and install DotCraft skills.");

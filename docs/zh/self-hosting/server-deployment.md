@@ -52,7 +52,7 @@ ssh -N -L 1455:localhost:1455 -L 1457:localhost:1457 user@host
 在服务器的部署目录运行登录命令：
 
 ```bash
-docker compose --profile auth run --rm auth dotcraft auth openai login --no-browser
+docker compose --profile auth run --rm auth dotcraft auth login openai --no-browser
 ```
 
 命令会输出授权网址。在浏览器中完成登录后，启动服务：

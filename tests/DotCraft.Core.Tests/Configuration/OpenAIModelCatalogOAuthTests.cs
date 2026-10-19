@@ -184,7 +184,7 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
 
         Assert.False(main.UseResponsesLite);
         Assert.False(subAgent.UseResponsesLite);
-        Assert.Equal("acct_runtime", main.ChatGptAccountId);
+        Assert.Equal("acct_runtime", main.AccountId);
     }
 
     public void Dispose()
@@ -226,7 +226,7 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         MaxOutputTokens: null,
         Capabilities: ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses),
         AuthMethod: ModelProviderAuthMethods.ChatGptOAuth,
-        ChatGptAccountId: accountId,
+        AccountId: accountId,
         ProviderStateDirectory: Path.Combine(_tempRoot, "global"));
 
     private sealed class FakeOpenAIAuthService(string accountId = "acct_test") : IOpenAIAuthService

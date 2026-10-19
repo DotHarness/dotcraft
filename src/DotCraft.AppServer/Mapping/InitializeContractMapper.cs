@@ -96,8 +96,6 @@ internal static class InitializeContractMapper
         HooksManagement = value.HooksManagement,
         UsageTelemetry = value.UsageTelemetry,
         RemoteToolHost = value.RemoteToolHost,
-        AuthOpenAiOAuth = value.AuthOpenAiOAuth,
-        AuthOpenAiUsage = value.AuthOpenAiUsage,
         Extensions = ToContractExtensions(value.Extensions)
     };
 

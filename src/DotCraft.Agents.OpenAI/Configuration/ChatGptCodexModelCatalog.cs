@@ -45,7 +45,7 @@ internal static class ChatGptCodexModelCatalog
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(openAIClientProvider);
 
-        var accountId = openAIClientProvider.ResolveChatGptAccountId(runtime);
+        var accountId = openAIClientProvider.ResolveAccountId(runtime);
         var clientVersion = ClientVersion;
         var cachePath = ResolveCachePath(runtime);
         var cacheKey = BuildCacheKey(runtime.EndPoint, accountId, clientVersion);

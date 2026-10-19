@@ -65,8 +65,8 @@ import { GoalComposePill } from './GoalComposePill'
 import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
 import type { InferenceSpeedWire, ModelCatalogItem } from '../../stores/modelCatalogStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
-import { useProvidersStore, useChatGptOAuthSummary } from '../../stores/providersStore'
-import { ChatGptUsageBadge } from './ChatGptUsageBadge'
+import { useProvidersStore, useProviderSummary } from '../../stores/providersStore'
+import { ProviderUsageBadge } from './ProviderUsageBadge'
 import { ComposerCommandTrigger } from './ComposerCommandTrigger'
 import { ContextUsageRing } from './ContextUsageRing'
 import { ApprovalPolicyPicker } from './ApprovalPolicyPicker'
@@ -301,14 +301,13 @@ function InputComposerCore({
     threadId
   ))
 
-  // Load providers once so the ChatGPT subscription badge can render in the composer footer.
   const reloadProviders = useProvidersStore((s) => s.reload)
   useEffect(() => {
     if (capabilities?.providerManagement !== true) return
     void reloadProviders()
   }, [capabilities?.providerManagement, reloadProviders])
   const activeCatalogProviderId = useModelCatalogStore((s) => s.providerId)
-  const activeChatGptProvider = useChatGptOAuthSummary(activeCatalogProviderId)
+  const activeUsageProvider = useProviderSummary(activeCatalogProviderId)
 
   const {
     turns,
@@ -2091,7 +2090,7 @@ function InputComposerCore({
                 turnRunning={isRunning || isWaitingApproval || isWaitingInput}
               />
             )}
-            subscription={minimalChrome ? null : <ChatGptUsageBadge provider={activeChatGptProvider} />}
+            subscription={minimalChrome ? null : <ProviderUsageBadge provider={activeUsageProvider} />}
           />
         )}
         />

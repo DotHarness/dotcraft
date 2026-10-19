@@ -6,8 +6,6 @@ export interface ServerNotificationMethods {
   "app/binding/requested": { params: Models.AppBindingRequestedNotification; result: Models.RpcEmpty };
   "app/connection/changed": { params: Models.AppConnectionChangedNotification; result: Models.RpcEmpty };
   "app/list/updated": { params: Models.AppListUpdatedNotification; result: Models.RpcEmpty };
-  "auth/openai/authorizeUrl": { params: Models.AuthOpenAiAuthorizeUrlNotification; result: Models.RpcEmpty };
-  "auth/openai/usage/updated": { params: Models.AuthOpenAiUsageResult; result: Models.RpcEmpty };
   "automation/run/updated": { params: Models.AutomationRunUpdatedNotification; result: Models.RpcEmpty };
   "automation/updated": { params: Models.AutomationUpdatedNotification; result: Models.RpcEmpty };
   "config/changed": { params: Models.ConfigChangedParams; result: Models.RpcEmpty };
@@ -32,6 +30,7 @@ export interface ServerNotificationMethods {
   "plan/updated": { params: Models.PlanUpdatedNotification; result: Models.RpcEmpty };
   "plugin/snapshot/updated": { params: Models.PluginSnapshotUpdatedNotification; result: Models.RpcEmpty };
   "provider/auth/updated": { params: Models.ProviderAuthLoginState; result: Models.RpcEmpty };
+  "provider/auth/usage/updated": { params: Models.ProviderAuthUsageUpdatedNotification; result: Models.RpcEmpty };
   "remoteToolHost/route/changed": { params: Models.RemoteToolHostRouteChangedNotification; result: Models.RpcEmpty };
   "subagent/graph/changed": { params: Models.SubAgentGraphChangedNotification; result: Models.RpcEmpty };
   "subagent/progress": { params: Models.SubAgentProgressNotification; result: Models.RpcEmpty };

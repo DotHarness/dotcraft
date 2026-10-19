@@ -18,18 +18,6 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<AgentProfileValidateParams, AgentProfileValidateResult> AgentProfileValidate = new("agent/profiles/validate", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
-    public static readonly RpcNotification<AuthOpenAiAuthorizeUrlNotification> AuthOpenAiAuthorizeUrl = new("auth/openai/authorizeUrl", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", notificationOptOut: true);
-
-    public static readonly RpcRequest<AuthOpenAiLoginParams, AuthOpenAiStatusResult> AuthOpenAiLogin = new("auth/openai/login", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
-
-    public static readonly RpcRequest<AuthOpenAiLogoutParams, AuthOpenAiStatusResult> AuthOpenAiLogout = new("auth/openai/logout", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
-
-    public static readonly RpcRequest<AuthOpenAiStatusParams, AuthOpenAiStatusResult> AuthOpenAiStatus = new("auth/openai/status", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
-
-    public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, AuthOpenAiUsageResult> AuthOpenAiUsage = new("auth/openai/usage", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
-
-    public static readonly RpcNotification<AuthOpenAiUsageResult> AuthOpenAiUsageUpdated = new("auth/openai/usage/updated", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", notificationOptOut: true);
-
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, ChannelListResult> ChannelList = new("channel/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, ChannelStatusResult> ChannelStatus = new("channel/status", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);

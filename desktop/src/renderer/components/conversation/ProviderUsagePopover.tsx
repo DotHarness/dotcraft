@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties, type JSX } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
-import type { ChatGptUsageSnapshot, ChatGptUsageWindow } from '../../stores/providersStore'
+import type { ProviderUsageSnapshot, ProviderUsageWindow } from '../../stores/providersStore'
 import { formatPlanName } from '../../utils/chatgptPlan'
 import {
   formatCreditsBalance,
@@ -8,14 +8,15 @@ import {
   type ChatGptUsageWindowKind
 } from '../../utils/chatgptUsageWindows'
 
-interface ChatGptUsagePopoverProps {
-  usage: ChatGptUsageSnapshot | null
+interface ProviderUsagePopoverProps {
+  title: string
+  usage: ProviderUsageSnapshot | null
   onClose: () => void
 }
 
 const POPOVER_WIDTH = 280
 
-export function ChatGptUsagePopover({ usage, onClose: _onClose }: ChatGptUsagePopoverProps): JSX.Element {
+export function ProviderUsagePopover({ title, usage, onClose: _onClose }: ProviderUsagePopoverProps): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const [now, setNow] = useState(() => Date.now())
@@ -28,7 +29,7 @@ export function ChatGptUsagePopover({ usage, onClose: _onClose }: ChatGptUsagePo
   if (!usage || !usage.available) {
     return (
       <div style={containerStyle()}>
-        <div style={titleStyle()}>{t('composer.chatgptUsage.title')}</div>
+        <div style={titleStyle()}>{title}</div>
         <div style={emptyStateStyle()}>{t('composer.chatgptUsage.unavailable')}</div>
       </div>
     )
@@ -38,11 +39,11 @@ export function ChatGptUsagePopover({ usage, onClose: _onClose }: ChatGptUsagePo
   const displayWindows = shapeChatGptUsageWindows(usage)
   const hasSupplementalUsage = usage.credits?.hasCredits === true || usage.limitReachedKind != null
   return (
-    <div style={containerStyle()} role="dialog" aria-label={t('composer.chatgptUsage.title')}>
+    <div style={containerStyle()} role="dialog" aria-label={title}>
       <div style={headerRowStyle()}>
         <div style={headerTextStyle()}>
           <span style={titleStyle()}>
-            {t('composer.chatgptUsage.title')}
+            {title}
             {planName ? <span style={planNameStyle()}> {planName}</span> : null}
           </span>
           {usage.fetchedAt && (
@@ -90,7 +91,7 @@ export function ChatGptUsagePopover({ usage, onClose: _onClose }: ChatGptUsagePo
 
 interface UsageWindowRowProps {
   label: string
-  window: ChatGptUsageWindow
+  window: ProviderUsageWindow
   now: number
   t: (key: string, vars?: Record<string, string | number>) => string
 }

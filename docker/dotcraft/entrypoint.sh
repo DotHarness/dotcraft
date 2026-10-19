@@ -26,7 +26,7 @@ fi
 node /opt/dotcraft/render-config.mjs
 
 if [ "${DOTCRAFT_MODEL_MODE:-direct}" = "direct" ] && [ "${DOTCRAFT_AUTH_METHOD:-}" = "chatgptOAuth" ]; then
-  dotcraft auth openai verify
+  dotcraft auth verify
 fi
 
 APP_HOST="${APPSERVER_LISTEN_HOST:-0.0.0.0}"

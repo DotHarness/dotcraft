@@ -1,19 +1,28 @@
 import { normalizeProviderList, type ProviderInfoWire } from './providerInfo'
-import { createProvider, deleteProvider, ProviderExistsError, providerIdExists, updateProvider, type ProviderFields } from './providerConfigWrites'
+import { createProvider, deleteProvider, ProviderExistsError, providerIdExists, updateProvider } from './providerConfigWrites'
 import { BrowserDownloadsSettings } from './BrowserDownloadsSettings'
 import { BrowserDownloadHistory } from './BrowserDownloadHistory'
-import { ChatGptOAuthPanel } from './ChatGptOAuthPanel'
-import { ModelBackendSettings } from './backends/ModelBackendSettings'
+import { ProviderEditor, type ProviderTestResultWire } from './providers/ProviderEditor'
+import {
+  createProviderDraft,
+  isStoredApiKey,
+  providerConnectionMode,
+  providerDetails,
+  providerDraftFromInfo,
+  providerFieldsFromDraft,
+  providerProblem,
+  providerUsable,
+  type ProviderDraft,
+  type ProviderEditorId
+} from './providers/providerDraft'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import {
   Hand,
   Image as ImageIcon,
-  ListChecks,
   MessageCircle,
   OctagonAlert,
   Pencil,
   Plus,
-  TestTube2,
   Trash2
 } from 'lucide-react'
 import { addToast } from '../../stores/toastStore'
@@ -25,16 +34,6 @@ import {
   type ConnectionSettingsDraft,
   type RemoteConnectionValidationCode
 } from '../../../shared/remoteConnection'
-import {
-  ANTHROPIC_PROTOCOL,
-  defaultProviderEndpoint,
-  DESKTOP_PROVIDER_PROTOCOLS,
-  normalizeProviderProtocol,
-  OPENAI_CHAT_COMPLETIONS_PROTOCOL,
-  OPENAI_RESPONSES_PROTOCOL,
-  providerProtocolLabel,
-  type DesktopProviderProtocol
-} from '../../../shared/providerProtocols'
 import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import {
@@ -52,7 +51,6 @@ import {
   runWithoutAppNavigationRecording
 } from '../../stores/appNavigationStore'
 import { useSettingsWorkspaceConfigChangeEffects } from '../../hooks/useSettingsWorkspaceConfigChangeEffects'
-import { SecretInput } from '../channels/FormShared'
 import { stringifyComposerDraftSegments } from '../conversation/richInputSerialization'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -65,7 +63,6 @@ import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { SettingsGroup, SettingsRow } from './SettingsGroup'
 import {
   SETTINGS_SURFACE_CLASS,
-  settingsDescriptionStyle,
   settingsHintStyle,
   settingsLabelStyle,
   settingsMetaTextStyle,
@@ -108,8 +105,7 @@ import { isPluginManagedMcpServer, McpServerList } from './panels/mcp/McpServerL
 import { oauthPayload, useMcpDraft } from './panels/mcp/useMcpDraft'
 import {
   StatusIndicator,
-  statusTextStyle,
-  type StatusTone
+  statusTextStyle
 } from './panels/settingsStatusStyles'
 import { coreSettingsPanels } from './coreSettingsPanels'
 import { settingsContentContainerStyle, settingsMainStyle } from './settingsLayout'
@@ -130,7 +126,6 @@ import type {
   ConnectionMode
 } from '../../../preload/api'
 import type { ConfigChangedPayload } from '../../utils/configChanged'
-import { slugProviderId, uniqueProviderId } from '../../utils/providerId'
 import { isSessionImportAvailable } from '../../utils/sessionImport'
 import { providerPreferenceEdit, resolveWorkspaceProviderFromConfig } from '../../utils/workspaceCoreConfig'
 import {
@@ -143,8 +138,10 @@ import {
   type ModelPreference,
   type ProviderPreferences
 } from '../../../shared/modelPreference'
+import type { ProviderBackendInfo } from '@dotcraft/sdk/contracts'
 import {
   parseModelCatalogItems,
+  useModelCatalogStore,
   type ModelCatalogItem
 } from '../../stores/modelCatalogStore'
 import {
@@ -180,98 +177,6 @@ interface McpTestResultWire {
   errorCode?: string
   errorMessage?: string
   toolCount?: number
-}
-
-interface ProviderDraft {
-  id: string
-  displayName: string
-  protocol: DesktopProviderProtocol
-  apiKey: string
-  endPoint: string
-  networkTimeoutSeconds: string
-  authMethod: 'apiKey' | 'chatgptOAuth'
-  supportsImageGeneration: boolean
-  supportsImageGenerationTouched: boolean
-}
-
-type ProviderEditorId = string | '__new__' | null
-
-interface ProviderTestResultWire {
-  success: boolean
-  providerId?: string | null
-  protocol?: string
-  models?: Array<{ id?: string; Id?: string }>
-  errorCode?: string
-  errorMessage?: string
-}
-
-// Must match the literals written by OpenAIAuthBindingPersistence.BindProviderToOAuth
-// so re-binding from the form lines up with the backend's upsert key and displayName.
-const OPENAI_CHATGPT_DEFAULT_ID = 'openai'
-const OPENAI_CHATGPT_DISPLAY_NAME = 'OpenAI (ChatGPT)'
-
-function createProviderDraft(): ProviderDraft {
-  return withDefaultImageGenerationSupport({
-    id: '',
-    displayName: '',
-    protocol: OPENAI_RESPONSES_PROTOCOL,
-    apiKey: '',
-    endPoint: defaultProviderEndpoint(OPENAI_RESPONSES_PROTOCOL),
-    networkTimeoutSeconds: '',
-    authMethod: 'apiKey',
-    supportsImageGeneration: false,
-    supportsImageGenerationTouched: false
-  })
-}
-
-function providerDraftFromInfo(provider: ProviderInfoWire): ProviderDraft {
-  return {
-    id: provider.id,
-    displayName: provider.displayName,
-    protocol: normalizeProviderProtocol(provider.protocol),
-    apiKey: provider.hasApiKey ? '********' : '',
-    endPoint: provider.endPoint ?? '',
-    networkTimeoutSeconds:
-      typeof provider.networkTimeoutSeconds === 'number' ? String(provider.networkTimeoutSeconds) : '',
-    authMethod: provider.authMethod === 'chatgptOAuth' ? 'chatgptOAuth' : 'apiKey',
-    supportsImageGeneration: provider.supportsImageGeneration === true,
-    supportsImageGenerationTouched: true
-  }
-}
-
-function canConfigureImageGeneration(provider: Pick<ProviderDraft, 'protocol' | 'authMethod'>): boolean {
-  return isOpenAIFamilyProtocol(provider.protocol) || provider.authMethod === 'chatgptOAuth'
-}
-
-function isOpenAIFamilyProtocol(protocol: DesktopProviderProtocol): boolean {
-  return protocol === OPENAI_RESPONSES_PROTOCOL || protocol === OPENAI_CHAT_COMPLETIONS_PROTOCOL
-}
-
-function withDefaultImageGenerationSupport(draft: ProviderDraft): ProviderDraft {
-  if (draft.supportsImageGenerationTouched) return draft
-  return {
-    ...draft,
-    supportsImageGeneration: defaultImageGenerationSupport(draft)
-  }
-}
-
-function defaultImageGenerationSupport(provider: Pick<ProviderDraft, 'protocol' | 'authMethod' | 'endPoint'>): boolean {
-  if (provider.authMethod === 'chatgptOAuth') return true
-  if (!isOpenAIFamilyProtocol(provider.protocol)) return false
-  return isOfficialOpenAIEndpoint(provider.endPoint.trim() || defaultProviderEndpoint(provider.protocol))
-}
-
-function isOfficialOpenAIEndpoint(endpoint: string): boolean {
-  try {
-    const candidate = new URL(endpoint)
-    const official = new URL(defaultProviderEndpoint(OPENAI_RESPONSES_PROTOCOL))
-    return candidate.protocol.toLowerCase() === official.protocol.toLowerCase() &&
-      candidate.hostname.toLowerCase() === official.hostname.toLowerCase() &&
-      candidate.port === official.port &&
-      candidate.pathname.replace(/\/+$/, '').toLowerCase() === official.pathname.replace(/\/+$/, '').toLowerCase()
-  } catch {
-    return false
-  }
 }
 
 type VisibleApprovalPolicy = 'default' | 'autoApprove'
@@ -319,42 +224,6 @@ function providerRowStyle(active: boolean): CSSProperties {
     borderColor: active
       ? 'color-mix(in srgb, var(--accent) 45%, var(--border-default))'
       : 'var(--border-default)'
-  }
-}
-
-function providerFieldStackStyle(): CSSProperties {
-  return {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px'
-  }
-}
-
-function providerFieldGridStyle(): CSSProperties {
-  return {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-    gap: '12px'
-  }
-}
-
-function providerFooterStyle(): CSSProperties {
-  return {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: '12px',
-    flexWrap: 'wrap'
-  }
-}
-
-function providerInlineStatusStyle(): CSSProperties {
-  return {
-    ...statusTextStyle(),
-    minWidth: 0,
-    maxWidth: 'min(420px, 100%)',
-    fontSize: '12px',
-    lineHeight: 1.4
   }
 }
 
@@ -439,12 +308,9 @@ export function SettingsView({
   const [providersManagedRemotely, setProvidersManagedRemotely] = useState(false)
   const [providers, setProviders] = useState<ProviderInfoWire[]>([])
   const [providersLoading, setProvidersLoading] = useState(false)
+  const [providerBackends, setProviderBackends] = useState<ProviderBackendInfo[] | null>(null)
   const [providerDraft, setProviderDraft] = useState<ProviderDraft>(() => createProviderDraft())
-  // Snapshot of the user's typed id/displayName before they switch to ChatGPT-OAuth, so we can
-  // restore those values if they toggle the auth method back to API key without saving.
-  const preChatGptDraftRef = useRef<{ id: string; displayName: string } | null>(null)
   const [providerEditorId, setProviderEditorId] = useState<ProviderEditorId>(null)
-  const pendingOAuthEditorRef = useRef<string | null>(null)
   const providerEditorIdRef = useRef(providerEditorId)
   providerEditorIdRef.current = providerEditorId
   const [selectedProviderId, setSelectedProviderId] = useState('')
@@ -594,15 +460,14 @@ export function SettingsView({
     }
     setProvidersLoading(true)
     try {
-      const result = await window.api.appServer.sendRequest('provider/list', {}, 20_000)
+      const [result, backendResult] = await Promise.all([
+        window.api.appServer.sendRequest('provider/list', {}, 20_000),
+        window.api.appServer.sendRequest('provider/backend/list', {}, 20_000).catch(() => null)
+      ])
       setProvidersManagedRemotely((result as { managedBy?: string }).managedBy === 'modelService')
-      const refreshed = normalizeProviderList(result)
-      setProviders(refreshed)
-      const editor = refreshed.find((provider) => provider.id === providerEditorIdRef.current)
-      if (editor && pendingOAuthEditorRef.current === editor.id) {
-        setProviderDraft(providerDraftFromInfo(editor))
-        pendingOAuthEditorRef.current = null
-      }
+      setProviders(normalizeProviderList(result))
+      const backends = (backendResult as { backends?: unknown } | null)?.backends
+      setProviderBackends(Array.isArray(backends) ? backends as ProviderBackendInfo[] : null)
       return true
     } catch (err) {
       addToast(t('settings.llm.toast.loadProvidersFailed', {
@@ -782,7 +647,6 @@ export function SettingsView({
   }, [selectedProviderMissing, workspaceProviderMissingMessage])
 
   function startCreateProvider(): void {
-    pendingOAuthEditorRef.current = null
     providerEditorIdRef.current = '__new__'
     setProviderEditorId('__new__')
     setProviderDraft(createProviderDraft())
@@ -790,7 +654,6 @@ export function SettingsView({
   }
 
   function startEditProvider(provider: ProviderInfoWire): void {
-    pendingOAuthEditorRef.current = null
     providerEditorIdRef.current = provider.id
     setProviderEditorId(provider.id)
     setProviderDraft(providerDraftFromInfo(provider))
@@ -798,7 +661,6 @@ export function SettingsView({
   }
 
   function closeProviderEditor(): void {
-    pendingOAuthEditorRef.current = null
     providerEditorIdRef.current = null
     setProviderEditorId(null)
     setProviderTestResult(null)
@@ -994,20 +856,16 @@ export function SettingsView({
     setProviderTestResult(null)
     try {
       const editing = providerEditorProvider
-      const apiKeyUnchanged = editing?.hasApiKey === true && providerDraft.apiKey === '********'
-      // ChatGPT-OAuth providers can't be tested via the draft payload — the backend draft path
-      // has no AuthMethod field and would fall through the resolver as an api-key provider with
-      // empty key. Always route to the saved provider's id so the OAuth-bound runtime is used.
-      const isChatGptOAuth = providerDraft.authMethod === 'chatgptOAuth'
+      const apiKeyUnchanged = editing?.hasApiKey === true && isStoredApiKey(providerDraft)
       let payload: Record<string, unknown>
-      if (isChatGptOAuth) {
-        payload = { providerId: providerDraft.id.trim() }
+      if (providerConnectionMode(providerDraft, providerBackends ?? []) !== 'apiKey') {
+        payload = { providerId: editing?.id ?? providerDraft.id.trim() }
       } else if (editing && apiKeyUnchanged) {
         payload = { providerId: editing.id }
       } else {
         payload = {
           protocol: providerDraft.protocol,
-          apiKey: providerDraft.apiKey === '********' ? null : providerDraft.apiKey.trim(),
+          apiKey: isStoredApiKey(providerDraft) ? null : providerDraft.apiKey.trim(),
           endPoint: providerDraft.endPoint.trim() || null,
           networkTimeoutSeconds: providerDraft.networkTimeoutSeconds.trim()
             ? Number(providerDraft.networkTimeoutSeconds.trim())
@@ -1028,62 +886,91 @@ export function SettingsView({
     }
   }
 
-  async function handleProviderSave(): Promise<void> {
+  async function persistProviderDraft(): Promise<{ id: string; created: boolean } | null> {
     const id = providerDraft.id.trim()
     if (!id) {
       addToast(t('settings.llm.toast.providerIdRequired'), 'warning')
-      return
+      return null
     }
     const editing = providerEditorProvider
     if (editing == null && providerIdExists(providers, id)) {
       addToast(t('settings.llm.toast.providerIdExists', { providerId: id }), 'warning')
-      return
+      return null
     }
+    try {
+      const fields = providerFieldsFromDraft(providerDraft, editing)
+      if (editing != null) await updateProvider(editing, fields)
+      else await createProvider(id, fields)
+      return { id: editing?.id ?? id, created: editing == null }
+    } catch (err) {
+      if (err instanceof ProviderExistsError) {
+        addToast(t('settings.llm.toast.providerIdExists', { providerId: err.providerId }), 'warning')
+      } else {
+        addToast(t('settings.llm.toast.saveProviderFailed', {
+          error: err instanceof Error ? err.message : String(err)
+        }), 'error')
+      }
+      return null
+    }
+  }
+
+  async function handleProviderSave(): Promise<void> {
     setSavingProvider(true)
     try {
-      const fields: ProviderFields = {
-        displayName: providerDraft.displayName.trim(),
-        protocol: providerDraft.protocol,
-        authMethod: providerDraft.authMethod,
-        apiKey: editing?.hasApiKey === true && providerDraft.apiKey === '********'
-          ? null
-          : providerDraft.apiKey.trim(),
-        endPoint: providerDraft.endPoint.trim(),
-        networkTimeoutSeconds: providerDraft.networkTimeoutSeconds.trim()
-          ? Number(providerDraft.networkTimeoutSeconds.trim())
-          : null,
-        supportsImageGeneration: canConfigureImageGeneration(providerDraft)
-          ? providerDraft.supportsImageGeneration
-          : null
-      }
-      if (editing != null) {
-        await updateProvider(editing, fields)
-        addToast(t('settings.llm.toast.providerUpdated'), 'success')
-      } else {
-        await createProvider(id, fields)
-        addToast(t('settings.llm.toast.providerCreated'), 'success')
-        // Auto-activate the new provider unless the workspace already has a usable selection.
-        // Mirrors the backend's "only-if-empty" semantics from BindProviderToOAuth and avoids
-        // the "API key must be configured" trap when the previous selection was broken.
+      const saved = await persistProviderDraft()
+      if (!saved) return
+      addToast(t(saved.created ? 'settings.llm.toast.providerCreated' : 'settings.llm.toast.providerUpdated'), 'success')
+      if (saved.created && providerConnectionMode(providerDraft, providerBackends ?? []) !== 'signIn') {
         const previous = providers.find((p) => p.id === selectedProviderId)
-        const shouldActivate = !selectedProviderId || !previous || previous.hasApiKey === false
-        if (shouldActivate && selectedProviderId !== id) {
-          await handleWorkspaceProviderChange(id)
+        const shouldActivate = !selectedProviderId || !previous || !providerUsable(previous)
+        if (shouldActivate && selectedProviderId !== saved.id) {
+          await handleWorkspaceProviderChange(saved.id)
         }
       }
       await reloadProviders()
       closeProviderEditor()
-    } catch (err) {
-      if (err instanceof ProviderExistsError) {
-        addToast(t('settings.llm.toast.providerIdExists', { providerId: err.providerId }), 'warning')
-        return
-      }
-      addToast(t('settings.llm.toast.saveProviderFailed', {
-        error: err instanceof Error ? err.message : String(err)
-      }), 'error')
     } finally {
       setSavingProvider(false)
     }
+  }
+
+  async function prepareProviderSignIn(): Promise<string | null> {
+    const editor = providerEditorIdRef.current
+    setSavingProvider(true)
+    try {
+      const saved = await persistProviderDraft()
+      if (!saved || providerEditorIdRef.current !== editor) return null
+      providerEditorIdRef.current = saved.id
+      setProviderEditorId(saved.id)
+      await reloadProviders()
+      return saved.id
+    } finally {
+      setSavingProvider(false)
+    }
+  }
+
+  async function refreshAfterProviderSignIn(providerId: string): Promise<void> {
+    await reloadProviders()
+    void useModelCatalogStore.getState().handleConfigChanged(['providers'])
+    if (selectedProviderIdRef.current === providerId) void reloadProviderPreferences(providerId)
+  }
+
+  async function handleProviderSignedIn(providerId: string): Promise<void> {
+    const selected = selectedProviderIdRef.current
+    const previous = providers.find((provider) => provider.id === selected)
+    const shouldActivate = !selected || selected === providerId || !previous || !providerUsable(previous)
+    if (shouldActivate && selected !== providerId) await handleWorkspaceProviderChange(providerId)
+    const name = providers.find((provider) => provider.id === providerId)?.displayName ?? providerId
+    if (selectedProviderIdRef.current === providerId) {
+      addToast(t('settings.llm.toast.signInActivated', { name }), 'success')
+    } else if (!shouldActivate) {
+      addToast(t('settings.llm.toast.signInActivateSkipped'), 'info')
+    }
+    await refreshAfterProviderSignIn(providerId)
+  }
+
+  async function handleProviderSignedOut(providerId: string): Promise<void> {
+    await refreshAfterProviderSignIn(providerId)
   }
 
   async function handleProviderDelete(provider: ProviderInfoWire): Promise<void> {
@@ -2121,7 +2008,6 @@ export function SettingsView({
                       </div>
                     </SettingsGroup>
 
-                    <ModelBackendSettings providers={providers} onChanged={reloadProviders} />
                     <ImageGenerationSettingsGroup
                       providers={providers}
                       providersLoading={providersLoading}
@@ -2164,7 +2050,7 @@ export function SettingsView({
                           </div>
                         )}
 
-                        {!providersLoading && providers.filter((provider) => !provider.backendId).map((provider) => {
+                        {!providersLoading && providers.map((provider) => {
                           const active = provider.id === selectedProviderId
                           const rememberedMainAgentPreference = active
                             ? workspacePreference
@@ -2195,7 +2081,7 @@ export function SettingsView({
                               }}
                               style={providerRowStyle(active)}
                             >
-                              <ActionTooltip label={providerDetails(provider, t)}>
+                              <ActionTooltip label={providerDetails(provider, providerBackends, t)}>
                                 <span style={{ display: 'inline-flex', flexShrink: 0 }}>
                                   <ProviderProtocolIcon protocol={provider.protocol} size={30} />
                                 </span>
@@ -2225,7 +2111,7 @@ export function SettingsView({
                                       </span>
                                     </ActionTooltip>
                                   )}
-                                  {providerProblem(provider, t) && (
+                                  {providerProblem(provider, providerBackends, t) && (
                                     <span style={{
                                       flex: 1,
                                       minWidth: 0,
@@ -2235,7 +2121,7 @@ export function SettingsView({
                                       fontSize: '12px',
                                       color: 'var(--warning-text)'
                                     }}>
-                                      {providerProblem(provider, t)}
+                                      {providerProblem(provider, providerBackends, t)}
                                     </span>
                                   )}
                                 </div>
@@ -2272,369 +2158,25 @@ export function SettingsView({
                 )}
 
                 {providerManagementEnabled && providerEditorId !== null && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <SettingsGroup flush>
-                      <div style={providerFieldStackStyle()}>
-                        <div style={providerFieldGridStyle()}>
-                          <div>
-                            <label htmlFor="settings-provider-id" style={sectionLabelStyle()}>
-                              {t('settings.llm.field.id')}
-                            </label>
-                            <Input
-                              id="settings-provider-id"
-                              value={providerDraft.id}
-                              onChange={(e) => setProviderDraft((draft) => ({ ...draft, id: slugProviderId(e.target.value) }))}
-                              readOnly={!providerEditorIsNew || providerDraft.authMethod === 'chatgptOAuth'}
-                              mono
-                              style={{ opacity: !providerEditorIsNew || providerDraft.authMethod === 'chatgptOAuth' ? 0.65 : 1 }}
-                              placeholder="anthropic"
-                            />
-                            <div style={{ ...settingsHintStyle(false), marginTop: '6px' }}>
-                              {providerDraft.authMethod === 'chatgptOAuth'
-                                ? t('settings.llm.field.lockedForChatGpt')
-                                : providerEditorIsNew
-                                  ? t('settings.llm.field.idNewHint')
-                                  : t('settings.llm.field.idEditHint')}
-                            </div>
-                          </div>
-                          <div>
-                            <label htmlFor="settings-provider-display-name" style={sectionLabelStyle()}>
-                              {t('settings.llm.field.displayName')}
-                            </label>
-                            <Input
-                              id="settings-provider-display-name"
-                              value={providerDraft.displayName}
-                              onChange={(e) => {
-                                const displayName = e.target.value
-                                setProviderDraft((draft) => ({
-                                  ...draft,
-                                  displayName,
-                                  id: providerEditorIsNew ? (draft.id || slugProviderId(displayName)) : draft.id
-                                }))
-                              }}
-                              readOnly={providerDraft.authMethod === 'chatgptOAuth'}
-                              style={{ opacity: providerDraft.authMethod === 'chatgptOAuth' ? 0.65 : 1 }}
-                              placeholder="Anthropic"
-                            />
-                            {providerDraft.authMethod === 'chatgptOAuth' && (
-                              <div style={{ ...settingsHintStyle(false), marginTop: '6px' }}>
-                                {t('settings.llm.field.lockedForChatGpt')}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div>
-                          <label htmlFor="settings-provider-protocol" style={sectionLabelStyle()}>
-                            {t('settings.llm.field.protocol')}
-                          </label>
-                          <SettingsSelect<DesktopProviderProtocol>
-                            id="settings-provider-protocol"
-                            value={providerDraft.protocol}
-                            onValueChange={(protocol) => setProviderDraft((draft) => {
-                              const nextEndPoint =
-                                !draft.endPoint || draft.endPoint === defaultProviderEndpoint(draft.protocol)
-                                  ? defaultProviderEndpoint(protocol)
-                                  : draft.endPoint
-                              // ChatGPT OAuth only works on the Responses path; switching to any
-                              // other protocol must clear the OAuth selection so the UI reverts
-                              // to the API-key form and the persisted payload stays consistent.
-                              if (protocol !== OPENAI_RESPONSES_PROTOCOL && draft.authMethod === 'chatgptOAuth') {
-                                const prev = providerEditorIsNew ? preChatGptDraftRef.current : null
-                                preChatGptDraftRef.current = null
-                                return withDefaultImageGenerationSupport({
-                                  ...draft,
-                                  protocol,
-                                  endPoint: nextEndPoint,
-                                  authMethod: 'apiKey',
-                                  id: prev ? prev.id : draft.id,
-                                  displayName: prev ? prev.displayName : draft.displayName
-                                })
-                              }
-                              return withDefaultImageGenerationSupport({
-                                ...draft,
-                                protocol,
-                                endPoint: nextEndPoint,
-                                authMethod: protocol === OPENAI_RESPONSES_PROTOCOL ? draft.authMethod : 'apiKey'
-                              })
-                            })}
-                            options={DESKTOP_PROVIDER_PROTOCOLS.map((protocol) => ({
-                              value: protocol,
-                              label: providerProtocolLabel(protocol)
-                            }))}
-                          />
-                        </div>
-                      </div>
-                    </SettingsGroup>
-
-                    {providerDraft.protocol === OPENAI_RESPONSES_PROTOCOL && (
-                      <SettingsGroup title={t('settings.llm.field.authMethod')} flush>
-                        <div style={{ display: 'grid', gap: '8px' }}>
-                          <button
-                            type="button"
-                            onClick={() => setProviderDraft((draft) => {
-                              if (draft.authMethod !== 'chatgptOAuth') return draft
-                              // Restore the user's pre-OAuth id/displayName when in NEW mode.
-                              if (providerEditorIsNew && preChatGptDraftRef.current) {
-                                const prev = preChatGptDraftRef.current
-                                preChatGptDraftRef.current = null
-                                return withDefaultImageGenerationSupport({
-                                  ...draft,
-                                  authMethod: 'apiKey',
-                                  id: prev.id,
-                                  displayName: prev.displayName
-                                })
-                              }
-                              return withDefaultImageGenerationSupport({ ...draft, authMethod: 'apiKey' })
-                            })}
-                            style={{
-                              border: providerDraft.authMethod === 'apiKey'
-                                ? '1px solid var(--accent)'
-                                : '1px solid var(--border-default)',
-                              background: providerDraft.authMethod === 'apiKey'
-                                ? 'var(--bg-tertiary)'
-                                : 'var(--bg-secondary)',
-                              borderRadius: '8px',
-                              padding: '10px 12px',
-                              textAlign: 'left',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
-                              {t('settings.llm.authMethod.apiKey')}
-                            </div>
-                            <div style={settingsDescriptionStyle()}>
-                              {t('settings.llm.authMethod.apiKeyDescription')}
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setProviderDraft((draft) => {
-                              if (draft.authMethod === 'chatgptOAuth') return draft
-                              // In NEW mode, lock id/displayName to canonical values so the OAuth bind
-                              // helper on the backend can't silently rewrite a user-typed displayName.
-                              if (providerEditorIsNew) {
-                                preChatGptDraftRef.current = { id: draft.id, displayName: draft.displayName }
-                                return withDefaultImageGenerationSupport({
-                                  ...draft,
-                                  authMethod: 'chatgptOAuth',
-                                  apiKey: '',
-                                  id: uniqueProviderId(OPENAI_CHATGPT_DEFAULT_ID, providers),
-                                  displayName: OPENAI_CHATGPT_DISPLAY_NAME
-                                })
-                              }
-                              return withDefaultImageGenerationSupport({ ...draft, authMethod: 'chatgptOAuth', apiKey: '' })
-                            })}
-                            style={{
-                              border: providerDraft.authMethod === 'chatgptOAuth'
-                                ? '1px solid var(--accent)'
-                                : '1px solid var(--border-default)',
-                              background: providerDraft.authMethod === 'chatgptOAuth'
-                                ? 'var(--bg-tertiary)'
-                                : 'var(--bg-secondary)',
-                              borderRadius: '8px',
-                              padding: '10px 12px',
-                              textAlign: 'left',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
-                              {t('settings.llm.authMethod.chatgpt')}
-                            </div>
-                            <div style={settingsDescriptionStyle()}>
-                              {t('settings.llm.authMethod.chatgptDescription')}
-                            </div>
-                          </button>
-                        </div>
-                      </SettingsGroup>
-                    )}
-
-                    {providerDraft.protocol === OPENAI_RESPONSES_PROTOCOL &&
-                     providerDraft.authMethod === 'chatgptOAuth' ? (
-                      <SettingsGroup title={t('settings.llm.connectionTitle')} flush>
-                        <ChatGptOAuthPanel
-                          key={providerDraft.id}
-                          providerId={providerDraft.id}
-                          providerInfo={providerEditorProvider}
-                          selectedProviderId={selectedProviderId || null}
-                          selectedProviderUsable={providers.some((p) => p.id === selectedProviderId && (p.isAuthenticated ?? (p.hasApiKey || (p.authMethod === 'chatgptOAuth' && Boolean(p.chatGptAccountId)))))}
-                          onAfterMutation={reloadProviders}
-                          onSignedIn={(id) => {
-                            pendingOAuthEditorRef.current = id
-                            providerEditorIdRef.current = id
-                            setProviderEditorId(id)
-                          }}
-                          onProviderActivated={(activatedId) => {
-                            selectedProviderIdRef.current = activatedId
-                            setSelectedProviderId(activatedId)
-                          }}
-                        />
-                      </SettingsGroup>
-                    ) : (
-                      <SettingsGroup title={t('settings.llm.connectionTitle')} flush>
-                        <div style={providerFieldStackStyle()}>
-                          <div>
-                            <label htmlFor="settings-provider-api-key" style={sectionLabelStyle()}>
-                              {t('settings.llm.field.apiKey')}
-                            </label>
-                            <SecretInput
-                              value={providerDraft.apiKey}
-                              ariaLabel={t('settings.llm.field.apiKey')}
-                              onChange={(apiKey) => setProviderDraft((draft) => ({ ...draft, apiKey }))}
-                              mono
-                              placeholder={t('settings.llm.field.apiKeyPlaceholder')}
-                            />
-                            {providerEditorProvider?.hasApiKey === true && providerDraft.apiKey === '********' && (
-                              <div style={{ ...settingsHintStyle(false), marginTop: '6px' }}>
-                                {t('settings.llm.field.apiKeyKeepHint')}
-                              </div>
-                            )}
-                          </div>
-
-                          <div>
-                            <label htmlFor="settings-provider-endpoint" style={sectionLabelStyle()}>
-                              {t('settings.llm.field.endpoint')}
-                            </label>
-                            <Input
-                              id="settings-provider-endpoint"
-                              type="url"
-                              value={providerDraft.endPoint}
-                              onChange={(e) => setProviderDraft((draft) => withDefaultImageGenerationSupport({
-                                ...draft,
-                                endPoint: e.target.value
-                              }))}
-                              mono
-                              placeholder={defaultProviderEndpoint(providerDraft.protocol)}
-                            />
-                            <div style={{ ...settingsHintStyle(false), marginTop: '6px' }}>
-                              {providerDraft.protocol === ANTHROPIC_PROTOCOL
-                                ? t('settings.llm.field.endpointAnthropicHint')
-                                : t('settings.llm.field.endpointOpenAiHint')}
-                            </div>
-                          </div>
-                        </div>
-                      </SettingsGroup>
-                    )}
-
-                    <SettingsGroup title={t('settings.group.advanced')}>
-                      <SettingsRow
-                        label={t('settings.llm.field.timeout')}
-                        description={t('settings.llm.field.timeoutHint')}
-                        htmlFor="settings-provider-timeout"
-                        orientation="block"
-                        control={
-                          <Input
-                            id="settings-provider-timeout"
-                            type="number"
-                            className="dc-plain-number"
-                            min={1}
-                            value={providerDraft.networkTimeoutSeconds}
-                            onChange={(e) => setProviderDraft((draft) => ({ ...draft, networkTimeoutSeconds: e.target.value }))}
-                            mono
-                            placeholder={t('settings.llm.field.timeoutPlaceholder')}
-                          />
-                        }
-                      />
-                      {canConfigureImageGeneration(providerDraft) && (
-                        <SettingsRow
-                          label={t('settings.llm.field.imageGeneration')}
-                          description={t('settings.llm.field.imageGenerationHint')}
-                          controlMinWidth={48}
-                          control={
-                            <PillSwitch
-                              checked={providerDraft.supportsImageGeneration}
-                              aria-label={t('settings.llm.field.imageGeneration')}
-                              onChange={(supportsImageGeneration) => {
-                                setProviderDraft((draft) => ({
-                                  ...draft,
-                                  supportsImageGeneration,
-                                  supportsImageGenerationTouched: true
-                                }))
-                              }}
-                            />
-                          }
-                        />
-                      )}
-                    </SettingsGroup>
-
-                    <div style={providerFooterStyle()}>
-                      <div style={{ flex: '1 1 260px', minWidth: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        {providerEditorProvider && (
-                          <Button
-                            variant="danger"
-                            onClick={() => void handleProviderDelete(providerEditorProvider)}
-                            disabled={deletingProvider || savingProvider}
-                          >
-                            {deletingProvider ? t('settings.llm.deletingProvider') : t('settings.llm.deleteProvider')}
-                          </Button>
-                        )}
-                        {(() => {
-                          if (testingProvider) {
-                            return (
-                              <div role="status" aria-live="polite" style={providerInlineStatusStyle()}>
-                                <StatusIndicator tone="pending" />
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {t('settings.llm.testRunningInline')}
-                                </span>
-                              </div>
-                            )
-                          }
-                          if (!providerTestResult) return null
-                          const tone: StatusTone = providerTestResult.success
-                            ? 'success'
-                            : providerTestResult.errorCode === 'EndpointNotSupported'
-                              ? 'warning'
-                              : 'error'
-                          const message = providerTestResult.success
-                            ? t('settings.llm.testSuccessInline', { count: providerTestResult.models?.length ?? 0 })
-                            : providerTestResult.errorCode === 'EndpointNotSupported'
-                              ? t('settings.llm.testUnsupportedInline')
-                              : t('settings.llm.testFailedInline', {
-                                  error: providerTestResult.errorMessage ?? providerTestResult.errorCode ?? t('settings.llm.unknownError')
-                                })
-                          return (
-                            <ActionTooltip
-                              label={message}
-                              wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
-                            >
-                              <div role="status" aria-live="polite" style={providerInlineStatusStyle()}>
-                                <StatusIndicator tone={tone} />
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {message}
-                                </span>
-                              </div>
-                            </ActionTooltip>
-                          )
-                        })()}
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <Button
-                          onClick={() => void handleProviderTest()}
-                          disabled={testingProvider || !providerManagementEnabled}
-                          iconLeft={<TestTube2 size={14} aria-hidden="true" />}
-                        >
-                          {testingProvider ? t('settings.llm.testingProvider') : t('settings.llm.testProvider')}
-                        </Button>
-                        {/* In NEW + ChatGPT-OAuth mode, the Sign In button inside ChatGptOAuthPanel
-                            is the commit action (it calls BindProviderToOAuth on the backend), so
-                            a redundant Save here would either no-op or fail with "already exists". */}
-                        {!(providerEditorIsNew && providerDraft.authMethod === 'chatgptOAuth') && (
-                          <Button
-                            variant="primary"
-                            onClick={() => void handleProviderSave()}
-                            disabled={savingProvider || !providerManagementEnabled}
-                            iconLeft={<ListChecks size={14} aria-hidden="true" />}
-                          >
-                            {savingProvider
-                              ? t('settings.llm.savingProvider')
-                              : providerEditorIsNew
-                                ? t('settings.llm.createProvider')
-                                : t('settings.llm.updateProvider')}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <ProviderEditor
+                    draft={providerDraft}
+                    setDraft={setProviderDraft}
+                    isNew={providerEditorIsNew}
+                    savedProvider={providerEditorProvider}
+                    providers={providers}
+                    backends={providerBackends}
+                    managementEnabled={providerManagementEnabled}
+                    testing={testingProvider}
+                    testResult={providerTestResult}
+                    saving={savingProvider}
+                    deleting={deletingProvider}
+                    onTest={() => void handleProviderTest()}
+                    onSave={() => void handleProviderSave()}
+                    onDelete={(provider) => void handleProviderDelete(provider)}
+                    prepareSignIn={prepareProviderSignIn}
+                    onSignedIn={handleProviderSignedIn}
+                    onSignedOut={handleProviderSignedOut}
+                  />
                 )}
               </SettingsPanelShell>
               </GeneralPanel>
@@ -3206,23 +2748,3 @@ export function SettingsView({
   )
 }
 
-function providerProblem(provider: ProviderInfoWire, t: ReturnType<typeof useT>): string | null {
-  if (provider.backendId) {
-    return provider.isAuthenticated ? null : t('settings.llm.backends.unauthenticated')
-  }
-  if (provider.managedBy === 'modelService') {
-    return provider.isAuthenticated ? null : t('settings.llm.serviceAuthenticationRequired')
-  }
-  if (provider.authMethod === 'chatgptOAuth') {
-    return provider.chatGptPlanType ? null : t('settings.llm.providerChatGptNotSignedIn')
-  }
-  return provider.hasApiKey ? null : t('settings.llm.providerKeyMissing')
-}
-
-function providerDetails(provider: ProviderInfoWire, t: ReturnType<typeof useT>): string {
-  return [
-    providerProtocolLabel(provider.protocol),
-    provider.endPoint.trim() || null,
-    provider.managedBy === 'modelService' && provider.isAuthenticated ? t('settings.llm.managedByService') : null
-  ].filter(Boolean).join(' · ')
-}

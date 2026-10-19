@@ -1,33 +1,26 @@
-using System.Text.Json.Nodes;
 using DotCraft.Agents;
-using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
 using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.AppServer;
 
 /// <summary>
-/// Handles provider, model catalog, and ChatGPT subscription auth wire methods.
+/// Handles provider and model catalog wire methods.
 /// </summary>
 internal sealed class ProviderRequestHandler(
-    IAppServerTransport transport,
     WorkspaceConfigEditor workspaceConfig,
-    ConfigurationService? configuration,
     string? workspaceCraftPath,
     IAppConfigMonitor? appConfigMonitor,
     ModelProviderRegistry? modelProviderRegistry,
     bool supportsUltraReasoning,
-    IModelRuntimeResolver? runtimeResolver = null) : IAppServerDomainHandler
+    IModelRuntimeResolver? runtimeResolver = null,
+    ProviderAuthenticationCoordinator? authentication = null) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
         table.Map(Protocol.AppServer.AppServerRpc.ProviderList, HandleProviderListAsync);
         table.Map(Protocol.AppServer.AppServerRpc.ProviderTest, HandleProviderTestAsync);
         table.Map(Protocol.AppServer.AppServerRpc.ModelList, HandleModelListAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.AuthOpenAiStatus, HandleAuthOpenAiStatusAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.AuthOpenAiLogin, HandleAuthOpenAiLoginAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.AuthOpenAiLogout, HandleAuthOpenAiLogoutAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.AuthOpenAiUsage, HandleAuthOpenAiUsageAsync);
     }
 
     private async Task<object?> HandleProviderListAsync(AppServerTypedRequest<Contract.ProviderListParams> request, CancellationToken ct)
@@ -41,7 +34,7 @@ internal sealed class ProviderRequestHandler(
         {
             ManagedBy = config.ModelService is null ? default : new Protocol.Optional<string>("modelService"),
             Providers = new Protocol.Optional<IReadOnlyList<Contract.ProviderInfo>>(
-                await ProviderContractMapper.BuildProviderInfosAsync(config, runtimeResolver, ct).ConfigureAwait(false))
+                await ProviderContractMapper.BuildProviderInfosAsync(config, runtimeResolver, authentication, ct).ConfigureAwait(false))
         };
     }
 
@@ -157,117 +150,6 @@ internal sealed class ProviderRequestHandler(
         };
     }
 
-    private async Task<object?> HandleAuthOpenAiStatusAsync(AppServerTypedRequest<Contract.AuthOpenAiStatusParams> request, CancellationToken ct)
-    {
-        if (appConfigMonitor?.Current is { ModelService: not null } remote)
-        {
-            var provider = remote.Providers.GetValueOrDefault(remote.ProviderId);
-            return BuildAuthStatusResult(
-                provider?.RemoteAuthentication ?? new ProviderAuthenticationStatus(false), remote.ProviderId);
-        }
-        var auth = GetOpenAIService<IProviderAuthentication>();
-        if (auth is null)
-            throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
-
-        var p = request.Params;
-        string? authToken = null;
-        if (ValueOrDefault(p.IncludeToken) && auth.GetStatus().IsAuthenticated)
-            authToken = await auth.TryGetAccessTokenAsync(ValueOrDefault(p.RefreshToken), ct).ConfigureAwait(false);
-
-        return BuildAuthStatusResult(auth.GetStatus(), providerId: null, authToken);
-    }
-
-    private async Task<object?> HandleAuthOpenAiLoginAsync(AppServerTypedRequest<Contract.AuthOpenAiLoginParams> request, CancellationToken ct)
-    {
-        EnsureLocallyManaged();
-        var auth = GetOpenAIService<IProviderAuthentication>();
-        if (auth is null)
-            throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
-
-        var p = request.Params;
-        var requestedProviderId = ValueOrDefault(p.ProviderId);
-        var providerId = string.IsNullOrWhiteSpace(requestedProviderId) ? "openai" : requestedProviderId.Trim();
-        var openBrowser = ValueOrDefault(p.OpenBrowser) ?? true;
-
-        ProviderAuthenticationStatus status;
-        try
-        {
-            status = await auth.LoginAsync(
-                new ProviderLoginRequest(
-                    openBrowser,
-                    AuthorizationRequestAvailable: authorization =>
-                {
-                    _ = transport.NotifyContractAsync(
-                        Protocol.AppServer.AppServerRpc.AuthOpenAiAuthorizeUrl,
-                        new Contract.AuthOpenAiAuthorizeUrlNotification
-                        {
-                            Url = authorization.AuthorizationUrl.ToString(),
-                            CallbackPort = authorization.CallbackPort
-                        },
-                        ct);
-                    return ValueTask.CompletedTask;
-                }),
-                ct).ConfigureAwait(false);
-        }
-        catch (InvalidOperationException ex)
-        {
-            throw AppServerErrors.InvalidRequest(ex.Message);
-        }
-
-        try
-        {
-            await WriteBindingAsync(
-                user => OpenAIAuthBindingPersistence.BindEdits(user, providerId, status),
-                Protocol.AppServer.AppServerMethodNames.AuthOpenAiLogin,
-                ct).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            throw AppServerErrors.InvalidRequest($"Login succeeded but provider config could not be updated: {ex.Message}");
-        }
-
-        return BuildAuthStatusResult(status, providerId);
-    }
-
-    private async Task<object?> HandleAuthOpenAiLogoutAsync(AppServerTypedRequest<Contract.AuthOpenAiLogoutParams> request, CancellationToken ct)
-    {
-        EnsureLocallyManaged();
-        var auth = GetOpenAIService<IProviderAuthentication>();
-        if (auth is null)
-            throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
-
-        var p = request.Params;
-        var requestedProviderId = ValueOrDefault(p.ProviderId);
-        var providerId = string.IsNullOrWhiteSpace(requestedProviderId) ? "openai" : requestedProviderId.Trim();
-
-        await auth.LogoutAsync(ct).ConfigureAwait(false);
-        try
-        {
-            await WriteBindingAsync(
-                user => OpenAIAuthBindingPersistence.UnbindEdits(user, providerId),
-                Protocol.AppServer.AppServerMethodNames.AuthOpenAiLogout,
-                ct).ConfigureAwait(false);
-        }
-        catch (Exception)
-        {
-            // Best-effort: OAuth tokens are already deleted, which is the user's primary intent.
-        }
-
-        return new Contract.AuthOpenAiStatusResult { LoggedIn = false, ProviderId = providerId };
-    }
-
-    private async Task<object?> HandleAuthOpenAiUsageAsync(AppServerTypedRequest<Protocol.RpcEmpty> request, CancellationToken ct)
-    {
-        _ = request;
-        var usage = GetOpenAIService<IProviderUsageReader>();
-        if (usage is null)
-            throw AppServerErrors.InvalidRequest("ChatGPT usage telemetry is not available in this server build.");
-
-        var snapshot = await usage.ReadAsync(ct).ConfigureAwait(false);
-
-        return OpenAIUsageMapping.ToWire(snapshot);
-    }
-
     private void EnsureProviderManagementAvailable()
     {
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
@@ -277,7 +159,7 @@ internal sealed class ProviderRequestHandler(
     private void EnsureLocallyManaged()
     {
         if (appConfigMonitor?.Current.ModelService is not null)
-            throw AppServerErrors.InvalidRequest("Providers and subscription authentication are managed by the model service. Use its configuration or CLI.");
+            throw AppServerErrors.InvalidRequest("Providers are managed by the model service. Use its configuration or CLI.");
     }
 
     private ModelProviderRegistry RequireProviderRegistry() =>
@@ -286,44 +168,8 @@ internal sealed class ProviderRequestHandler(
 
     private IModelRuntimeResolver RequireModelResolver() => runtimeResolver ?? RequireProviderRegistry();
 
-    private TService? GetOpenAIService<TService>() where TService : class
-    {
-        var registry = RequireProviderRegistry();
-        return registry.TryResolve(ModelProviderProtocols.OpenAIResponses, out var provider)
-            ? provider?.GetService(typeof(TService)) as TService
-            : null;
-    }
-
-    private static Contract.AuthOpenAiStatusResult BuildAuthStatusResult(
-        ProviderAuthenticationStatus status,
-        string? providerId,
-        string? authToken = null) =>
-        new()
-        {
-            LoggedIn = status.IsAuthenticated,
-            AccountId = status.AccountId,
-            PlanType = status.PlanType,
-            Email = status.Email,
-            LastRefresh = status.LastRefresh,
-            AccessTokenExpiresAt = status.AccessTokenExpiresAt,
-            ProviderId = providerId,
-            AuthToken = authToken is null ? default : new Protocol.Optional<string>(authToken)
-        };
-
     private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
-
-    private async Task WriteBindingAsync(
-        Func<JsonObject, IReadOnlyList<ConfigEdit>> buildEdits,
-        string source,
-        CancellationToken ct)
-    {
-        var service = configuration ?? throw new InvalidOperationException("Workspace configuration is not available.");
-        var user = service.Read(includeLayers: true).Layers![0];
-        var edits = buildEdits(user.Config);
-        if (edits.Count > 0)
-            await service.WriteAsync(edits, service.UserConfigPath, user.Layer.Version, source, ct).ConfigureAwait(false);
-    }
 
     private static void ValidateProviderPayload(
         string protocol,

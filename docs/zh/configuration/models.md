@@ -70,8 +70,6 @@ Provider 对象字段：
 | `Protocol` | Provider 协议：`anthropic`、`openai-chat-completions` 或 `openai-responses`。空值默认使用 `openai-chat-completions` | `openai-chat-completions` |
 | `ApiKey` | Provider API Key。建议使用 `${ENV_NAME}` 引用环境变量 | 空 |
 | `AuthMethod` | 认证方式。`apiKey` 使用静态 `ApiKey`，`chatgptOAuth` 以 ChatGPT 订阅账号认证（仅限 OpenAI 协议，见下文）。无法识别的取值回退为 `apiKey` | `apiKey` |
-| `ChatGptAccountId` | 由 Sign in with ChatGPT 流程写入的 ChatGPT 账号 id，不要手动编辑 | 空 |
-| `ChatGptPlanType` | 由 Sign in with ChatGPT 流程写入的 ChatGPT 订阅档位（`free`、`plus`、`pro`、`business`、`enterprise`、`edu`），不要手动编辑 | 空 |
 | `EndPoint` | Provider base URL。为空时使用协议默认地址 | OpenAI 协议：`https://api.openai.com/v1`。`anthropic`：`https://api.anthropic.com` |
 | `NetworkTimeoutSeconds` | 单个 Provider 请求超时时间，覆盖全局 `NetworkTimeoutSeconds` | 空 |
 | `MaxOutputTokens` | 单个 Provider 的默认最大输出 token 数，请求自己没有指定时使用该值 | 空 |
@@ -94,7 +92,7 @@ Provider 对象字段：
 }
 ```
 
-`chatgptOAuth` Provider 以 ChatGPT 订阅账号认证，不使用 API key。运行 `dotcraft auth openai login` 完成登录：它会把 OAuth token 包保存为用户数据目录下的 `auth.json`，把上面的 Provider 条目写进全局配置，在尚未选择默认 Provider 时将其设为默认，并在该 Provider 没有模型偏好时补一条默认偏好。这种模式下 `ApiKey` 与 `EndPoint` 会被忽略，最终生效的协议始终是 `openai-responses`，完整解析规则见[配置模型 Provider](../extend/harness/model-providers)。`dotcraft auth openai logout` 会删除 token 并把 Provider 还原为 `apiKey`。
+`chatgptOAuth` Provider 以 ChatGPT 订阅账号认证，不使用 API key。先保存上面的 Provider 条目，再运行 `dotcraft auth login openai` 完成登录：它会打开浏览器，并把 OAuth token 包保存为用户数据目录下的 `auth.json`。登录不会修改配置，一次登录即可供本机所有 `chatgptOAuth` Provider 使用。这种模式下 `ApiKey` 与 `EndPoint` 会被忽略，最终生效的协议始终是 `openai-responses`，完整解析规则见[配置模型 Provider](../extend/harness/model-providers)。`dotcraft auth status openai` 显示当前登录的账号，`dotcraft auth logout openai` 会删除 token，同时退出所有 `chatgptOAuth` Provider 的登录。
 
 ## Reasoning 与 PromptCaching
 
