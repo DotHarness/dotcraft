@@ -53,11 +53,20 @@ public sealed partial class ThreadStore : IAsyncDisposable
         string botPath,
         WorkspaceStateDatabase? stateRuntime,
         Func<string, CancellationToken, Task>? beforeRolloutDeleteAsync = null)
+        : this(botPath, stateRuntime, beforeRolloutDeleteAsync, new OrderedRolloutWriter())
+    {
+    }
+
+    internal ThreadStore(
+        string botPath,
+        WorkspaceStateDatabase? stateRuntime,
+        Func<string, CancellationToken, Task>? beforeRolloutDeleteAsync,
+        IRolloutWriter rolloutWriter)
     {
         _botPath = Path.GetFullPath(botPath);
         StateDatabase = stateRuntime ?? new WorkspaceStateDatabase(botPath);
         _metadataStore = new ThreadMetadataStore(StateDatabase);
-        _rolloutStore = new ThreadRolloutStore(botPath, beforeRolloutDeleteAsync);
+        _rolloutStore = new ThreadRolloutStore(botPath, beforeRolloutDeleteAsync, rolloutWriter);
         _rolloutReplayer = new RolloutReplayer();
         _attachmentStore = new ThreadAttachmentStore(StateDatabase, botPath);
         _historyProjectionStore = new ThreadHistoryProjectionStore(StateDatabase, _metadataStore);

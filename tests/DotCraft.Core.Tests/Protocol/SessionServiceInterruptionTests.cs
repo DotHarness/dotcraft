@@ -50,6 +50,8 @@ public sealed partial class SessionServiceInterruptionTests : IDisposable
             await service.GetThreadAsync(thread.Id);
         }
         await Drain(service.SubmitInputAsync(thread.Id, [new TextContent("second")]));
+        Assert.Single(client.Messages, message => message.Role == ChatRole.User && message.Text.Contains("first"));
+        Assert.Single(client.Messages, message => message.Role == ChatRole.Assistant && message.Text == "partial");
         var markers = client.Messages.Where(IsMarker).ToArray();
         Assert.Equal(enabled ? 1 : 0, markers.Length);
         if (enabled)
@@ -101,18 +103,24 @@ public sealed partial class SessionServiceInterruptionTests : IDisposable
             if (signal == SessionThreadRuntimeSignal.TurnCancelled) cancelled.TrySetResult();
         };
         using var cts = new CancellationTokenSource();
-        var run = Drain(service.SubmitInputAsync(thread.Id, [new TextContent("early")], ct: cts.Token));
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        if (callerCancellation) cts.Cancel();
-        else await service.CancelTurnAsync(thread.Id, thread.Turns[^1].Id);
-        try { await run.WaitAsync(TimeSpan.FromSeconds(10)); }
-        catch (OperationCanceledException) when (callerCancellation) { }
-        runtime.AgentLock.Release();
-        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        try
+        {
+            var run = Drain(service.SubmitInputAsync(thread.Id, [new TextContent("early")], ct: cts.Token));
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (callerCancellation) cts.Cancel();
+            else await service.CancelTurnAsync(thread.Id, thread.Turns[^1].Id);
+            try { await run.WaitAsync(TimeSpan.FromSeconds(10)); }
+            catch (OperationCanceledException) when (callerCancellation) { }
+            await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            runtime.AgentLock.Release();
+        }
         await Drain(service.SubmitInputAsync(thread.Id, [new TextContent("next")]));
         Assert.Equal(enabled && !callerCancellation ? 1 : 0, client.Messages.Count(IsMarker));
         Assert.Contains(client.Messages, message => message.Text.Contains("previous"));
-        Assert.Contains(client.Messages, message => message.Text.Contains("early"));
+        Assert.Single(client.Messages, message => message.Role == ChatRole.User && message.Text.Contains("early"));
     }
 
     [Theory]
