@@ -26,9 +26,10 @@ public sealed class AppServerReviewPreparationTests
     [InlineData(true)]
     public async Task Preparation_UsesFrozenRunHead_AndRejectsMissingTarget(bool missingTarget)
     {
+        var github = new FakeGitHubApiClient();
         var worktrees = new FakeWorktreeManager();
         var appServer = new FakeAppServerClientFactory(FakeAppServerOutcome.Hold);
-        await using var app = CreateApp(new FakeGitHubApiClient(), appServer, worktrees);
+        await using var app = CreateApp(github, appServer, worktrees);
         var client = app.CreateClient();
         var itemId = await ImportPullRequestAsync(app);
 
@@ -39,8 +40,14 @@ public sealed class AppServerReviewPreparationTests
             var service = scope.ServiceProvider.GetRequiredService<OratorioService>();
             await service.DispatchByIdAsync(itemId,
                 new DispatchRequest("appServer", "Review the queued commit.", null, null), CancellationToken.None);
-            var item = await db.Items.SingleAsync(x => x.ItemId == itemId);
-            item.HeadSha = "def456";
+            var pull = github.PullRequests[0];
+            github.PullRequests[0] = pull with
+            {
+                UpdatedAt = pull.UpdatedAt.AddMinutes(1),
+                Head = pull.Head with { Sha = "def456" },
+                Base = pull.Base with { Sha = "new-base456" }
+            };
+            await scope.ServiceProvider.GetRequiredService<GitHubSourceService>().SyncAsync(CancellationToken.None);
             if (missingTarget)
                 (await db.Runs.SingleAsync(x => x.ItemId == itemId)).TargetHeadSha = null;
             await db.SaveChangesAsync();
@@ -62,6 +69,27 @@ public sealed class AppServerReviewPreparationTests
             Assert.Equal("abc123", run.TargetHeadSha);
             Assert.Equal("abc123", run.BaseSha);
             Assert.Equal("abc123", Assert.Single(worktrees.PrepareRequests).HeadSha);
+
+            using var scope = app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+            Assert.Equal("def456", (await db.Items.SingleAsync(x => x.ItemId == itemId)).HeadSha);
+            var storedRun = await db.Runs.SingleAsync(x => x.RunId == run.RunId);
+            var incremental = await scope.ServiceProvider.GetRequiredService<AppServerPromptBuilder>()
+                .BuildAsync(storedRun, null, run.WorktreePath!, [], incremental: true, CancellationToken.None);
+            foreach (var (prompt, contextJson) in new[]
+                     {
+                         (Assert.Single(appServer.TurnPrompts), storedRun.PromptContextJson!),
+                         (incremental.Prompt, incremental.ContextJson)
+                     })
+            {
+                Assert.Contains("base123...abc123", prompt);
+                Assert.DoesNotContain("def456", prompt);
+                Assert.DoesNotContain("new-base456", prompt);
+                using var context = JsonDocument.Parse(contextJson);
+                foreach (var section in new[] { "item", "workspace", "sourceSnapshot" })
+                    Assert.Equal("abc123", context.RootElement.GetProperty(section).GetProperty("headSha").GetString());
+                Assert.Equal("abc123", context.RootElement.GetProperty("currentRound").GetProperty("targetHeadSha").GetString());
+            }
         }
     }
 

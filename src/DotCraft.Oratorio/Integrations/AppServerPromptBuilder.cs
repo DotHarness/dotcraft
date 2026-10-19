@@ -114,6 +114,7 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
                 .FirstOrDefault()
             : null;
         var isPullRequestReview = run.Purpose == RunPurpose.ReviewAnalysis && item.Source is "github" or "gitlab" && item.Kind == ItemKind.PullRequest;
+        var headSha = isPullRequestReview ? run.TargetHeadSha : item.HeadSha;
         var priorOpenFindings = isPullRequestReview
             ? await db.ReviewDraftComments.AsNoTracking()
                 .Where(c =>
@@ -174,11 +175,12 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
                 .ToList();
         var sourceSnapshots = await db.SourceSnapshots.AsNoTracking()
             .Where(x => x.ItemId == item.ItemId)
+            .Where(x => !isPullRequestReview || x.HeadSha == headSha)
             .OrderByDescending(x => x.SyncedAt)
             .Take(20)
             .ToListAsync(ct);
         var sourceSnapshot = sourceSnapshots.FirstOrDefault();
-        var reviewDiff = ResolveReviewDiffTarget(item, sourceSnapshots);
+        var reviewDiff = ResolveReviewDiffTarget(item, headSha, sourceSnapshots);
         var decisionCommentIds = decisions
             .Select(x => x.CommentId)
             .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -229,7 +231,7 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
                 item.Branch,
                 item.ExternalUrl,
                 Labels = ParseStringArray(item.LabelsJson),
-                item.HeadSha,
+                HeadSha = headSha,
                 item.IsDraft,
                 item.SourceUpdatedAt,
                 item.LastSourceSyncAt
@@ -244,7 +246,7 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
                 run.BaseSha,
                 item.Repository,
                 item.Branch,
-                item.HeadSha
+                HeadSha = headSha
             },
             currentRound = new
             {
@@ -350,8 +352,8 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
         prompt.AppendLine($"- Kind: {item.Kind}");
         prompt.AppendLine($"- Repository: {item.Repository ?? "none"}");
         prompt.AppendLine($"- Branch: {item.Branch ?? "none"}");
-        prompt.AppendLine($"- Head SHA: {item.HeadSha ?? "none"}");
-        prompt.AppendLine($"- Target head SHA: {run.TargetHeadSha ?? item.HeadSha ?? "none"}");
+        prompt.AppendLine($"- Head SHA: {headSha ?? "none"}");
+        prompt.AppendLine($"- Target head SHA: {run.TargetHeadSha ?? headSha ?? "none"}");
         if (reviewDiff is not null)
         {
             prompt.AppendLine($"- Review diff base: {reviewDiff.BaseRef} / {reviewDiff.BaseSha}");
@@ -360,8 +362,8 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
         }
         if (!incremental)
         {
-            prompt.AppendLine($"- Review target head SHA: {item.HeadSha ?? run.BaseSha ?? "none"}");
-            prompt.AppendLine($"- Head ref/SHA: {item.Branch ?? "none"} / {item.HeadSha ?? "none"}");
+            prompt.AppendLine($"- Review target head SHA: {headSha ?? run.BaseSha ?? "none"}");
+            prompt.AppendLine($"- Head ref/SHA: {item.Branch ?? "none"} / {headSha ?? "none"}");
             prompt.AppendLine($"- Workspace checkout ref/SHA: {run.BaseRef ?? "none"} / {run.BaseSha ?? "none"}");
             prompt.AppendLine($"- URL: {item.ExternalUrl ?? "none"}");
             prompt.AppendLine($"- Workspace: {workspacePath}");
@@ -548,10 +550,11 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
         !string.IsNullOrWhiteSpace(comment.SourceCommentId) ||
         !string.IsNullOrWhiteSpace(comment.ExternalUrl);
 
-    private static ReviewDiffTarget? ResolveReviewDiffTarget(OratorioItem item, IReadOnlyList<OratorioSourceSnapshot> sourceSnapshots)
+    private static ReviewDiffTarget? ResolveReviewDiffTarget(
+        OratorioItem item, string? headSha, IReadOnlyList<OratorioSourceSnapshot> sourceSnapshots)
     {
         if (item.Kind != ItemKind.PullRequest ||
-            string.IsNullOrWhiteSpace(item.HeadSha))
+            string.IsNullOrWhiteSpace(headSha))
         {
             return null;
         }
@@ -569,7 +572,7 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
                 "gitlab" => TryReadGitLabReviewDiffTarget(snapshot.PayloadJson),
                 _ => null
             };
-            if (target is not null && string.Equals(target.HeadSha, item.HeadSha, StringComparison.OrdinalIgnoreCase))
+            if (target is not null && string.Equals(target.HeadSha, headSha, StringComparison.OrdinalIgnoreCase))
             {
                 return target;
             }

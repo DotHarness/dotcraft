@@ -853,6 +853,9 @@ Managed worktrees and concurrency:
   commit is absent locally, Oratorio fetches that exact SHA from origin and
   creates the worktree at that commit, independently of provider review refs
   and `FETCH_HEAD`.
+- Full and incremental review prompts use that same frozen head for target
+  labels, item and workspace context, and diff selection. Source snapshots
+  are selected for the frozen head before applying the history limit.
 - Fetching a target commit uses the same Oratorio source credentials as
   writes (§5.2). Without a configured credential the fetch is anonymous and
   works only for public repositories. Private repository fetch failures name
