@@ -2,6 +2,7 @@ using DotCraft.Agents;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Contributions;
+using DotCraft.Memory;
 using DotCraft.Memory.Extraction;
 using DotCraft.Plugins;
 using DotCraft.Sessions;
@@ -38,6 +39,7 @@ internal sealed class WorkspaceContributionScope(IContributionRegistry registry)
         var registrar = _registry.CreateRegistrar(ContributionOrigin.Builtin);
         _owned.Add(registrar);
         _registry.SeedContributions<IThreadSystemPromptContextProvider>(services, registrar);
+        _registry.SeedContributions<IMemoryWriteGate>(services, registrar);
     }
 
     /// <summary>Registers the composition root's dispatch stages.</summary>

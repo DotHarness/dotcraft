@@ -6,7 +6,7 @@ namespace DotCraft.Memory.Extraction;
 
 internal static class MemoryUpdates
 {
-    /// <summary>The path arguments of the Turn's memory writes whose results succeeded.</summary>
+    /// <summary>The path arguments of the Turn's succeeded writes to the Thread's own store; attached stores are not counted.</summary>
     public static IReadOnlyList<string> SucceededPaths(SessionTurn turn)
     {
         var items = turn.Items.ToArray();
@@ -22,7 +22,8 @@ internal static class MemoryUpdates
                 || !succeeded.Contains(call.CallId)
                 || call.Presentation?.Options?[SessionService.MemoryPresentationOption] is not JsonValue mark
                 || !mark.TryGetValue<string>(out var kind)
-                || kind != "update")
+                || kind != "update"
+                || call.Presentation.Options[SessionService.MemoryStorePresentationOption] is not null)
             {
                 continue;
             }

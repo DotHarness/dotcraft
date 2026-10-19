@@ -35,6 +35,7 @@ public sealed partial class SessionService
 
         var instructions = ResolveAgentInstructions(thread, workspacePath);
         RecordAgentInstructionsSnapshot(thread.Id, instructions);
+        var memoryStores = ResolveMemoryIndexStores(thread.Configuration);
         var context = new WorldStateContext
         {
             Thread = thread,
@@ -44,7 +45,8 @@ public sealed partial class SessionService
             HasActivePlan = hasActivePlan,
             ThreadGoal = threadGoal,
             SessionStartHookContext = sessionStartHookContext,
-            MemoryStore = ResolveMemoryIndexStore(thread.Configuration),
+            MemoryStore = memoryStores?.Own,
+            AttachedMemoryStores = memoryStores?.Attached ?? [],
             Skills = ResolveSkillCatalog(thread, turnId)
         };
 
@@ -233,7 +235,7 @@ public sealed partial class SessionService
         logger?.LogDebug("Reset world state baseline for thread {ThreadId}: {Reason}", threadId, reason);
     }
 
-    private MemoryStore? ResolveMemoryIndexStore(ThreadConfiguration? config)
+    private ThreadMemoryStores? ResolveMemoryIndexStores(ThreadConfiguration? config)
     {
         // A Thread running on caller-supplied instructions has no memory instructions, so it gets no index either.
         if (config?.MemoryEnabled == false
@@ -242,7 +244,7 @@ public sealed partial class SessionService
             return null;
         }
 
-        return ResolveMemoryStore(config);
+        return ResolveMemoryStores(config);
     }
 
     private static IReadOnlySet<string> SectionIdsInHistory(IReadOnlyList<ChatMessage> history)

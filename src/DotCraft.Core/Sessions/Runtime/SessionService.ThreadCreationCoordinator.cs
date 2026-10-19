@@ -109,6 +109,7 @@ public sealed partial class SessionService
                     ? ThreadConfigurationCloner.Clone(source.Configuration)
                     : owner.CaptureThreadConfigurationForNewThread(null);
             config.MemoryScope = source.Configuration?.MemoryScope;
+            config.MemoryStores = source.Configuration?.MemoryStores is { } stores ? [.. stores] : null;
             config.MemoryEnabled = source.Configuration?.MemoryEnabled;
             config.MemoryAutoExtract = source.Configuration?.MemoryAutoExtract;
             // Nobody answers an extraction fork's approval prompts; the policy is not model-visible, so the cache is kept.

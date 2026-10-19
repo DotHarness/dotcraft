@@ -1,3 +1,5 @@
+using DotCraft.Memory;
+
 namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
@@ -20,6 +22,7 @@ public sealed partial class SessionService
 
         public async Task UpdateAsync(string threadId, ThreadConfiguration config, CancellationToken ct)
         {
+            MemoryScopes.ValidateAttachments(config.MemoryStores);
             var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
             using (await owner.AcquireThreadAgentLockAsync(threadId, ct))
             {
@@ -30,6 +33,7 @@ public sealed partial class SessionService
                     config.Cwd,
                     config.RuntimeWorkspaceRoots);
                 thread.Configuration.MemoryScope = previous?.MemoryScope;
+                thread.Configuration.MemoryStores ??= previous?.MemoryStores;
                 thread.Configuration.MemoryEnabled = previous?.MemoryEnabled;
                 thread.Configuration.MemoryAutoExtract = previous?.MemoryAutoExtract;
                 owner.SetThreadAgent(threadId, await owner.BuildAgentForThreadAsync(thread, ct));

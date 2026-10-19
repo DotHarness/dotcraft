@@ -1,6 +1,5 @@
 using DotCraft.Agents;
 using DotCraft.Mcp;
-using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Configuration;
 using DotCraft.Tools;
@@ -129,10 +128,10 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     }
 
     private bool WritesMemoryStore(ToolRegistration registration, JsonObject arguments, string? workspacePath) =>
-        context.MemoryEnabled
+        context.MemoryStores is { } stores
         && registration.Definition.Id.Kind == ToolSourceKind.CoreNative
         && FileToolAccess.TryResolveTarget(registration.Definition.Id.SourceToolId.Value, arguments, workspacePath, out _, out var target)
-        && WorkspaceBoundary.IsWithin(target, context.MemoryStore.MemoryDirectoryPath);
+        && stores.Classify(target) is { Writable: true };
 
     /// <summary>Evaluates the source-qualified registration at the common dispatcher boundary.</summary>
     public ToolDispatchDecision EvaluateRegistration(

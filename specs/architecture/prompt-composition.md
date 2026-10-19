@@ -54,7 +54,7 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 8 | Mode protocol | Mode selection and transition rules. |
 | 9 | User-input request protocol | Included only when the tool is available. |
 | 10 | Bootstrap files | DotCraft-owned workspace bootstrap files. Repository `AGENTS.md` content is excluded and belongs to project instructions (§4a). |
-| 11 | Memory | Memory instructions with the resolved store path. Holds no memory content; the index arrives as the `memory_index` world-state section (§4b). Omitted when the Thread has memory disabled. See [Memory](../features/memory.md#5-memory-in-the-prompt). |
+| 11 | Memory | Memory instructions with the own store path and each attached store's path, name, description, and access. Holds no memory content; the index arrives as the `memory_index` world-state section (§4b). Omitted when the Thread has memory disabled. See [Memory](../features/memory.md#5-memory-in-the-prompt). |
 | 12 | Skill self-learning | Included only when skill management is available. |
 | 13 | Always-loaded skills | Full content for enabled skills marked always-loaded that the thread's skill policy permits. |
 | 14 | Skills summary | How to choose and load a skill. Holds no catalog; the available skills arrive as the `skills` world-state section (搂4b). See [Skills](skills.md#4-prompt-loading-and-references). |

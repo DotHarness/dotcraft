@@ -1,3 +1,4 @@
+using DotCraft.Memory;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Security;
@@ -80,7 +81,7 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
         var store = Path.Combine(_tempRoot, "state", "memory");
         Directory.CreateDirectory(store);
         var approvals = new RecordingApprovalService();
-        var registrations = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: null, approvals, store);
+        var registrations = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: null, approvals, new ThreadMemoryStores(new MemoryStore(Path.GetDirectoryName(store)!), []));
         var writeFile = Assert.Single(registrations, item => item.Definition.Name.Name == "WriteFile");
         var evaluator = new CommonToolApprovalEvaluator();
         evaluator.Bind(approvals);
@@ -99,7 +100,7 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
     {
         var store = Path.Combine(_tempRoot, "state", "memory");
         Directory.CreateDirectory(store);
-        var registrations = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: false, memoryStoreDirectory: store);
+        var registrations = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: false, memoryStores: new ThreadMemoryStores(new MemoryStore(Path.GetDirectoryName(store)!), []));
         var writeFile = Assert.Single(registrations, item => item.Definition.Name.Name == "WriteFile");
 
         var stored = await InvokeAsync(writeFile, new JsonObject
@@ -135,7 +136,7 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
     private async Task<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
         bool? requireApprovalOutsideWorkspace,
         IApprovalService? approvalService = null,
-        string? memoryStoreDirectory = null)
+        ThreadMemoryStores? memoryStores = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         Assert.True(config.Tools.File.RequireApprovalOutsideWorkspace);
@@ -157,7 +158,7 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
             1,
             workspaceRoots: [_workspace],
             requireApprovalOutsideWorkspace: requireApprovalOutsideWorkspace,
-            memoryStoreDirectory: memoryStoreDirectory));
+            memoryStores: memoryStores));
     }
 
     private static async Task<ToolExecutionResult> InvokeAsync(

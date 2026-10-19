@@ -318,7 +318,7 @@ public sealed class AgentFactory : IAsyncDisposable
         var builder = new EffectiveToolSnapshotBuilder();
         var registrations = await builder.CollectAsync(sources, planningContext, cancellationToken)
             .ConfigureAwait(false);
-        registrations = RemoteToolRegistrationRouter.Wrap(registrations, _remoteToolHostClient, planningContext.MemoryStoreDirectory);
+        registrations = RemoteToolRegistrationRouter.Wrap(registrations, _remoteToolHostClient, planningContext.MemoryStores);
         return ApplyGlobalToolExposure(builder.Build(
             ApplyToolRestrictions(registrations, planningContext),
             planningContext.Revision,
@@ -710,7 +710,8 @@ public sealed class AgentFactory : IAsyncDisposable
                 workspaceRoots: ctx.WorkspaceRoots,
                 loggerFactory: _loggerFactory,
                 contributions: ctx.Contributions,
-                skillsPolicy: promptInputs.SkillsPolicy);
+                skillsPolicy: promptInputs.SkillsPolicy,
+                attachedMemoryStores: ctx.MemoryStores?.Attached);
         }
 
         // Caller-supplied instructions run with no context pipeline at all, contributions included.

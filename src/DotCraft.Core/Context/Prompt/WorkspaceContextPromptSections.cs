@@ -37,10 +37,13 @@ internal static class WorkspaceContextPromptSections
         if (sources.MemoryStore is not { } memoryStore)
             return null;
 
+        var attached = sources.AttachedMemoryStores;
         return sources.GetContextPage(
             context.ThreadId,
-            ContextPageKeys.Memory(Path.GetFullPath(memoryStore.MemoryDirectoryPath)),
-            () => BuildMemoryContext(memoryStore));
+            ContextPageKeys.Memory(Path.GetFullPath(memoryStore.MemoryDirectoryPath) + AttachedStoresVariant(attached)),
+            () => attached.Count == 0
+                ? BuildMemoryContext(memoryStore)
+                : BuildMemoryContext(memoryStore) + "\n" + BuildAttachedStoresContext(attached));
     }
 
     /// <summary>Builds the <c>custom-commands</c> section from the markdown commands and the contributed ones.</summary>
@@ -84,6 +87,28 @@ internal static class WorkspaceContextPromptSections
         }
 
         return parts.Count > 0 ? string.Join("\n\n", parts) : string.Empty;
+    }
+
+    private static string AttachedStoresVariant(IReadOnlyList<AttachedMemoryStore> attached) =>
+        attached.Count == 0
+            ? string.Empty
+            : "\n" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(
+                string.Join("\n", attached.Select(static store =>
+                    $"{store.DirectoryPath}\t{store.Attachment.Name}\t{store.Attachment.Description}\t{store.Attachment.Access}")))));
+
+    private static string BuildAttachedStoresContext(IReadOnlyList<AttachedMemoryStore> attached)
+    {
+        var lines = attached.Select(static store =>
+            $"- **{store.Attachment.Name}** (`{Path.GetFullPath(store.DirectoryPath)}`, {(store.Writable ? "read and write" : "read only")}): {store.Attachment.Description}");
+        return $"""
+## Shared memories
+
+You also use these memories, shared with others. Each keeps its own `MEMORY.md` index in the same format as yours.
+
+{string.Join("\n", lines)}
+
+Save to a shared memory you can write only what holds for everyone who uses it, as the general lesson rather than the case that taught it. Never save credentials, conversation content, or details that identify a person there. What concerns your own role and way of working, or anything you are unsure about, goes to your own memory. To delete a memory file from a shared memory, write it empty and remove its index line.
+""";
     }
 
     private static string BuildMemoryContext(MemoryStore memoryStore) =>

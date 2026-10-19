@@ -52,6 +52,7 @@ public sealed class AgentRuntimeContext
         UserDataPath = source.UserDataPath;
         MemoryStore = source.MemoryStore;
         MemoryEnabled = source.MemoryEnabled;
+        AttachedMemoryStores = source.AttachedMemoryStores;
         SkillsLoader = source.SkillsLoader;
         ContextPageManager = source.ContextPageManager;
         ThreadSystemPromptContextProviders = source.ThreadSystemPromptContextProviders;
@@ -209,6 +210,11 @@ public sealed class AgentRuntimeContext
     public required MemoryStore MemoryStore { get; init; }
 
     public bool MemoryEnabled { get; init; } = true;
+
+    public IReadOnlyList<AttachedMemoryStore> AttachedMemoryStores { get; init; } = [];
+
+    /// <summary>The own and attached stores, or null when the Thread has memory disabled.</summary>
+    public ThreadMemoryStores? MemoryStores => MemoryEnabled ? new ThreadMemoryStores(MemoryStore, AttachedMemoryStores) : null;
 
     /// <summary>
     /// The skills loader for skill-based tools.

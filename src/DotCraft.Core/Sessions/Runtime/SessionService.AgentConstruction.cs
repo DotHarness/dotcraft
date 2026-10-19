@@ -1,6 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Mcp;
+using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Tools;
@@ -74,6 +75,7 @@ public sealed partial class SessionService
             preference = ModelPreferenceRules.Normalize(currentConfig, runtime.ProviderId, preference);
         }
 
+        MemoryScopes.ValidateAttachments(captured.MemoryStores);
         captured.MemoryEnabled ??= currentConfig.Memory.Enabled;
         captured.MemoryAutoExtract ??= currentConfig.Memory.AutoExtract;
         captured.Reasoning ??= ThreadConfigurationCloner.CloneReasoningConfig(preference.Reasoning);
@@ -189,7 +191,7 @@ public sealed partial class SessionService
     {
         if (!string.IsNullOrWhiteSpace(config.AgentProfileId) || !string.IsNullOrWhiteSpace(config.MemoryScope))
             return true;
-        if (config.MemoryEnabled == false)
+        if (config.MemoryEnabled == false || config.MemoryStores is { Count: > 0 })
             return true;
         if (!string.IsNullOrWhiteSpace(config.AgentProfileSource))
             return true;
@@ -362,6 +364,7 @@ public sealed partial class SessionService
         scopedContext = new AgentRuntimeContext(scopedContext ?? threadBaseContext)
         {
             MemoryStore = ResolveMemoryStore(config),
+            AttachedMemoryStores = MemoryScopes.AttachedStores(config, DataPath),
             MemoryEnabled = config.MemoryEnabled ?? true
         };
 
@@ -444,7 +447,7 @@ public sealed partial class SessionService
             toolContext.WorkspaceRoots,
             config.SubAgentModelCatalogSnapshot,
             config.RequireApprovalOutsideWorkspace,
-            toolContext.MemoryEnabled ? toolContext.MemoryStore.MemoryDirectoryPath : null);
+            toolContext.MemoryStores);
         var toolSnapshot = await agentFactory.BuildToolSnapshotAsync(
             snapshotSources,
             planningContext,

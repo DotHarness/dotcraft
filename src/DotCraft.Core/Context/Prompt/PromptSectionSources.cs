@@ -13,6 +13,8 @@ internal sealed class PromptSectionSources
 {
     internal MemoryStore? MemoryStore { get; init; }
 
+    internal IReadOnlyList<AttachedMemoryStore> AttachedMemoryStores { get; init; } = [];
+
     internal required SkillsLoader SkillsLoader { get; init; }
 
     /// <summary>Gets the normalized DotCraft data directory path.</summary>

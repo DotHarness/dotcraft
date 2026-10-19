@@ -89,6 +89,23 @@ public sealed class SessionServiceMemorySwitchTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateThreadConfiguration_WithInvalidAttachments_LeavesTheThreadRunnable()
+    {
+        await using var factory = CreateAgentFactory();
+        var service = CreateService(factory);
+        var attachment = new MemoryStoreAttachment("team", "Team", "What every agent of the team knows.", MemoryStoreAccess.Read);
+        var thread = await service.CreateThreadAsync(MakeIdentity(), new ThreadConfiguration { MemoryStores = [attachment] });
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateThreadConfigurationAsync(
+            thread.Id,
+            new ThreadConfiguration { Mode = "agent", MemoryStores = [attachment, attachment] }));
+
+        Assert.Equal([attachment], (await service.GetThreadAsync(thread.Id)).Configuration?.MemoryStores);
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+        Assert.Contains("What every agent of the team knows.", _recorder.LastInstructions, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ForkWithPartialConfig_InheritsTheSourceMemorySettings()
     {
         _config.Memory.Enabled = false;
