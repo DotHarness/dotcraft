@@ -228,6 +228,7 @@ internal sealed partial class PluginRequestHandler
             Source = entry.Source,
             Ref = OmitIfNull(entry.Ref),
             SparsePaths = entry.SparsePaths.ToArray(),
+            MarketplacePath = entry.MarketplacePath,
             Root = OmitIfNull(entry.Root),
             LastUpdated = OmitIfNull(entry.LastUpdated),
             Revision = OmitIfNull(entry.Revision),

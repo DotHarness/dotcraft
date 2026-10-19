@@ -597,6 +597,9 @@ export const styles = {
     lineHeight: 1.25,
     fontWeight: 700,
     color: 'var(--text-primary)',
+    // The clip box is the padding box, so this keeps descenders without moving the row.
+    paddingBlock: '2px',
+    marginBlock: '-2px',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap'

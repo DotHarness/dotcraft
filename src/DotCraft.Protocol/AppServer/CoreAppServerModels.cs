@@ -1556,6 +1556,10 @@ public sealed class MarketplaceInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> LastUpdated { get; init; }
 
+    [JsonPropertyName("marketplacePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> MarketplacePath { get; init; }
+
     [JsonPropertyName("name")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Name { get; init; }

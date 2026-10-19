@@ -154,6 +154,7 @@ export interface MarketplaceEntry {
   source: string
   ref?: string | null
   sparsePaths: string[]
+  marketplacePath?: string | null
   root?: string | null
   lastUpdated?: string | null
   revision?: string | null

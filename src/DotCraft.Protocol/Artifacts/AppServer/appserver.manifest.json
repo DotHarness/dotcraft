@@ -10431,6 +10431,13 @@
           "const": null
         },
         {
+          "name": "marketplacePath",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "name",
           "type": "string",
           "required": false,

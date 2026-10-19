@@ -3869,6 +3869,7 @@ When the server advertises `capabilities.pluginMarketplaces`, the result also ca
       "source": "https://example.com/team/plugins.git",
       "ref": "main",
       "sparsePaths": ["plugins/example"],
+      "marketplacePath": ".craft/plugins/marketplace.json",
       "root": "/home/user/.craft/marketplaces/example-marketplace",
       "lastUpdated": "2026-07-22T00:00:00Z",
       "revision": "0000000000000000000000000000000000000000",
@@ -3900,13 +3901,14 @@ effective `skills/list` entry by plugin attribution and name.
 | `source` | string | Resolved source value: repository URL, local directory, or archive URL. |
 | `ref` | string? | Configured reference for git sources. |
 | `sparsePaths` | string[] | Configured sparse paths for git sources; empty otherwise. |
+| `marketplacePath` | string? | Marketplace document path inside the source, relative to it. |
 | `root` | string? | Materialized or in-place marketplace root when one is available on disk. |
 | `lastUpdated` | string? | UTC timestamp of the last successful add or refresh. |
 | `revision` | string? | Resolved source revision when the source kind provides one. |
 | `removable` | boolean | False for the host-provided default marketplace, which is controlled by configuration rather than by `marketplace/remove`. |
 | `pluginIds` | string[] | Plugin ids contributed by this marketplace, in marketplace order. |
 
-Each `PluginInfo` contributed by a marketplace carries `marketplaceName` so clients can group entries without re-resolving sources. Built-in and workspace-local plugins omit it.
+Each `PluginInfo` contributed by a marketplace carries `marketplaceName` so clients can group entries and show where they came from without re-resolving sources. A plugin installed from a marketplace keeps it while its DotCraft-managed install remains in place. Bundled, workspace-local, and user-owned plugins omit it.
 
 `snapshotRevision` is the current workspace plugin-management snapshot revision defined under
 [Snapshot revision](#snapshot-revision) below.

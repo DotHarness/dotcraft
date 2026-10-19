@@ -60,6 +60,20 @@
   white-space: normal;
 }
 
+.dc-action-tooltip--detail {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  max-width: min(32rem, calc(100vw - 16px));
+  white-space: normal;
+}
+
+.dc-action-tooltip__detail {
+  max-width: 100%;
+  color: var(--text-on-inverse-muted);
+  overflow-wrap: anywhere;
+}
+
 @keyframes sidebar-entry-details-in {
   from { opacity: 0; transform: translateX(var(--sidebar-entry-details-enter-x, -2px)) scale(0.985); }
   to { opacity: 1; transform: translateX(0) scale(1); }

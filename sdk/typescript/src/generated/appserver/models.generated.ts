@@ -2125,6 +2125,7 @@ export interface MarketplaceFailure {
 export interface MarketplaceInfo {
   displayName?: string | null;
   lastUpdated?: string | null;
+  marketplacePath?: string | null;
   name?: string;
   pluginIds?: string[];
   ref?: string | null;
