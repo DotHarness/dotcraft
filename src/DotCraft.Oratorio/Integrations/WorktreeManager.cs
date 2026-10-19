@@ -25,8 +25,7 @@ public sealed record WorktreePrepareRequest(
     string? HeadSha,
     string BaseWorkspacePath,
     string? StackOntoBranch = null,
-    string? StackOntoSha = null,
-    string? ReviewTargetFetchRef = null);
+    string? StackOntoSha = null);
 
 public sealed record WorktreePrepareResult(
     string BaseWorkspacePath,
@@ -250,64 +249,25 @@ public sealed class WorktreeManager(
             return expectedHeadSha;
         }
 
-        if (!string.IsNullOrWhiteSpace(request.ReviewTargetFetchRef))
-        {
-            var fetchRef = request.ReviewTargetFetchRef!.Trim();
-            try
-            {
-                await GitAsync(repoRoot, ["fetch", "origin", fetchRef], credential, ct);
-            }
-            catch (WorktreeException ex)
-            {
-                // Missing credentials are the hardest failure to self-diagnose here,
-                // so name the cause rather than leaving only git's transport error.
-                var hint = credential is null
-                    ? " No source credentials were available for this project; private repositories require a configured GitHub App installation or GitLab project token."
-                    : "";
-                throw new WorktreeException(
-                    "reviewTargetFetchFailed",
-                    $"Could not fetch review target ref '{fetchRef}' from origin: {ex.Message}{hint}");
-            }
-
-            string fetchedHead;
-            try
-            {
-                fetchedHead = (await GitAsync(repoRoot, ["rev-parse", "FETCH_HEAD"], ct)).Trim();
-            }
-            catch (WorktreeException ex)
-            {
-                throw new WorktreeException(
-                    "reviewTargetHeadUnresolved",
-                    $"Fetched review target ref '{fetchRef}', but could not resolve FETCH_HEAD: {ex.Message}");
-            }
-
-            if (!string.Equals(fetchedHead, expectedHeadSha, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new WorktreeException(
-                    "reviewTargetHeadUnresolved",
-                    $"Fetched review target ref '{fetchRef}' resolved to {fetchedHead}, but Oratorio expected {expectedHeadSha}.");
-            }
-
-            if (await CommitExistsAsync(repoRoot, expectedHeadSha, ct))
-            {
-                return expectedHeadSha;
-            }
-
-            throw new WorktreeException(
-                "reviewTargetHeadUnresolved",
-                $"Fetched review target ref '{fetchRef}', but expected head {expectedHeadSha} is not available in the mapped repository checkout.");
-        }
-
         try
         {
-            return (await GitAsync(repoRoot, ["rev-parse", expectedHeadSha], ct)).Trim();
+            await GitAsync(repoRoot, ["fetch", "origin", expectedHeadSha], credential, ct);
         }
         catch (WorktreeException ex)
         {
+            var hint = credential is null
+                ? " No source credentials were available for this project. Private repositories require a configured GitHub App installation or GitLab project token."
+                : "";
             throw new WorktreeException(
-                "reviewTargetHeadUnresolved",
-                $"Could not resolve review target head '{expectedHeadSha}' in the mapped repository checkout: {ex.Message}");
+                "reviewTargetFetchFailed",
+                $"Could not fetch target commit '{expectedHeadSha}' from origin: {ex.Message}{hint}");
         }
+
+        if (!await CommitExistsAsync(repoRoot, expectedHeadSha, ct))
+            throw new WorktreeException("reviewTargetFetchFailed",
+                $"Target commit '{expectedHeadSha}' is not available after fetching from origin.");
+
+        return expectedHeadSha;
     }
 
     private static Task<bool> CommitExistsAsync(string repoRoot, string sha, CancellationToken ct) =>

@@ -2115,7 +2115,7 @@ public sealed class OratorioApiTests
         Assert.Equal("abc123", run.BaseRef);
         Assert.Equal("abc123", run.BaseSha);
         var prepareRequest = Assert.Single(fakeWorktree.PrepareRequests);
-        Assert.Equal("refs/pull/184/head", prepareRequest.ReviewTargetFetchRef);
+        Assert.Equal(run.TargetHeadSha, prepareRequest.HeadSha);
         Assert.Equal(run.BaseWorkspacePath, fakeProcess.EnsureWorkspacePaths.Single());
         Assert.Equal(run.BaseWorkspacePath, fakeAppServer.LastThreadStartRequest?.BaseWorkspacePath);
         Assert.Equal(run.WorktreePath, fakeAppServer.LastThreadStartRequest?.ExecutionWorkspacePath);
@@ -4389,7 +4389,6 @@ public sealed class OratorioApiTests
         Assert.Equal("local", localPrepareRequest.Source);
         Assert.Equal("feature/auth-refresh", localPrepareRequest.SourceBranch);
         Assert.Equal("abc123", localPrepareRequest.HeadSha);
-        Assert.Equal("refs/pull/184/head", localPrepareRequest.ReviewTargetFetchRef);
     }
 
     [Fact]
