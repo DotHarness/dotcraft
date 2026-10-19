@@ -200,7 +200,7 @@ public sealed class CoreToolSource(
             policy: shellPolicy);
         tools.AddRange(GeneratedToolFunctions.All(shellTools));
 
-        var webTools = new WebTools(config, mainRuntime, providerHttpTransport);
+        var webTools = new WebTools(config, mainRuntime, providerHttpTransport, chatClientRegistry);
         var hostedWebSearch = WebSearchToolSource.IsSupportedRuntime(mainRuntime);
         tools.AddRange(GeneratedToolFunctions.All(webTools)
             .Where(tool => !hostedWebSearch || tool.Name != nameof(WebTools.WebSearch)));

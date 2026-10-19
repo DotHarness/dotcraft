@@ -1650,6 +1650,8 @@ export const MESSAGES_KO = {
   'settings.llm.webSearch.serviceHint': '웹 검색 서비스를 선택하세요.',
   'settings.llm.webSearch.exaDescription': '더 나은 결과. 무료 사용은 횟수가 제한됩니다.',
   'settings.llm.webSearch.bingDescription': '키가 필요 없습니다.',
+  'settings.llm.webSearch.chatGptDescription': 'ChatGPT 구독을 사용합니다.',
+  'settings.llm.webSearch.chatGptSignedOut': '먼저 ChatGPT로 로그인하세요.',
   'settings.llm.webSearch.exaKey': 'Exa API 키',
   'settings.llm.webSearch.exaKeyHint': '비워 두면 횟수가 제한된 무료 서비스를 사용합니다.',
   'settings.llm.webSearch.exaKeyPlaceholder': '설정 안 됨',

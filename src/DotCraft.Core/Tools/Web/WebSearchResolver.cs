@@ -22,8 +22,10 @@ internal static class WebSearchResolver
             return new(WebSearchProvider.Exa);
         if (selected.Equals(WebSearchProvider.Bing, StringComparison.OrdinalIgnoreCase))
             return new(WebSearchProvider.Bing);
+        if (selected.Equals(WebSearchProvider.ChatGpt, StringComparison.OrdinalIgnoreCase))
+            return ResolveChatGpt(config);
         if (!automatic && !selected.Equals(WebSearchProvider.DeepSeek, StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException($"Unsupported Tools.Web.SearchProvider '{web.SearchProvider}'. Supported values: Auto, Exa, Bing, DeepSeek.");
+            throw new ArgumentException($"Unsupported Tools.Web.SearchProvider '{web.SearchProvider}'. Supported values: Auto, Exa, Bing, DeepSeek, ChatGPT.");
         if (automatic)
         {
             return current?.WebSearchBackend == ProviderWebSearchBackend.DeepSeek && IsAvailable(config, current)
@@ -72,6 +74,20 @@ internal static class WebSearchResolver
             > 1 => Failed("Multiple DeepSeek providers are available. Select Tools.Web.DeepSeekProvider in Web search settings."),
             _ => Failed("No authenticated DeepSeek search provider is available. Configure a provider, upgrade the remote model service, or use an independent search key.")
         };
+    }
+
+    private static WebSearchTarget ResolveChatGpt(AppConfig config)
+    {
+        var runtime = config.Providers.Keys
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .Select(id => TryResolveProvider(config, id))
+            .FirstOrDefault(candidate => candidate is { IsOpenAICompatible: true, IsChatGptOAuth: true });
+        if (runtime is null)
+            return new(WebSearchProvider.ChatGpt, Error: "No ChatGPT subscription provider is configured. Sign in with ChatGPT in model provider settings.");
+        var model = ModelProviderResolver.ResolveConfiguredModel(config, runtime.ProviderId);
+        return string.IsNullOrWhiteSpace(model)
+            ? new(WebSearchProvider.ChatGpt, Error: $"Choose a model for '{runtime.DisplayName}' before searching with ChatGPT.")
+            : new(WebSearchProvider.ChatGpt, Runtime: runtime with { Model = model.Trim() });
     }
 
     private static WebSearchTarget FromRuntime(AppConfig config, EffectiveModelRuntime runtime)

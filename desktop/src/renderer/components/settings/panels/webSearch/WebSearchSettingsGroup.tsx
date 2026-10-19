@@ -12,6 +12,7 @@ import {
 import { WebSearchApiKeyRow } from './WebSearchApiKeyRow'
 import {
   canProviderSearchDeepSeek,
+  hasSignedInChatGpt,
   isSearchProviderAuthenticated,
   normalizeSearchProvider
 } from './webSearchModel'
@@ -51,6 +52,7 @@ export function WebSearchSettingsGroup({
     candidates.find((item) => item.id.toLowerCase() === storedProviderId.toLowerCase())?.id ??
     storedProviderId
   const staleProvider = providerId !== '' && !candidates.some((item) => item.id === providerId)
+  const chatGptReady = hasSignedInChatGpt(providers)
   const options: SettingsSelectOption[] = [
     {
       value: 'Auto',
@@ -71,6 +73,14 @@ export function WebSearchSettingsGroup({
       value: 'DeepSeek',
       label: 'DeepSeek',
       description: t('settings.llm.webSearch.deepSeekDescription')
+    },
+    {
+      value: 'ChatGPT',
+      label: 'ChatGPT',
+      disabled: !chatGptReady,
+      description: chatGptReady
+        ? t('settings.llm.webSearch.chatGptDescription')
+        : t('settings.llm.webSearch.chatGptSignedOut')
     }
   ]
   const providerOptions: SettingsSelectOption[] = [

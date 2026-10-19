@@ -1648,6 +1648,8 @@ export const MESSAGES_JA = {
   'settings.llm.webSearch.serviceHint': 'ウェブ検索サービスを選択します。',
   'settings.llm.webSearch.exaDescription': 'より良い結果。無料利用には回数制限があります。',
   'settings.llm.webSearch.bingDescription': 'キーは不要です。',
+  'settings.llm.webSearch.chatGptDescription': 'ChatGPT サブスクリプションを使います。',
+  'settings.llm.webSearch.chatGptSignedOut': '先に ChatGPT でサインインしてください。',
   'settings.llm.webSearch.exaKey': 'Exa API キー',
   'settings.llm.webSearch.exaKeyHint': '空欄の場合は回数制限のある無料サービスを使います。',
   'settings.llm.webSearch.exaKeyPlaceholder': '未設定',

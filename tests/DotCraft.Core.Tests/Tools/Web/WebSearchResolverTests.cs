@@ -122,6 +122,25 @@ public sealed class WebSearchResolverTests
         Assert.Equal("Exa", WebSearchResolver.Resolve(config, ModelProviderResolver.ResolveProvider(config, "other")).Provider);
     }
 
+    [Fact]
+    public void ChatGptSearchesWithTheSubscriptionProviderWhateverTheConversationProvider()
+    {
+        var config = Config();
+        config.Tools.Web.SearchProvider = "ChatGPT";
+        Assert.Contains("No ChatGPT", WebSearchResolver.Resolve(config, ModelProviderResolver.ResolveProvider(config)).Error);
+
+        config.Providers["subscription"] = new() { AuthMethod = "chatgptOAuth", Protocol = "openai-responses" };
+        Assert.Contains("Choose a model", WebSearchResolver.Resolve(config, ModelProviderResolver.ResolveProvider(config)).Error);
+
+        config.ProviderPreferences["subscription"] = new ModelPreference { Model = "subscription-model" };
+        var target = WebSearchResolver.Resolve(config, ModelProviderResolver.ResolveProvider(config));
+        Assert.Null(target.Error);
+        Assert.Equal(("subscription", "subscription-model"), (target.Runtime!.ProviderId, target.Runtime.Model));
+
+        config.Tools.Web.SearchProvider = "Auto";
+        Assert.Equal("Exa", WebSearchResolver.Resolve(config, ModelProviderResolver.ResolveProvider(config, "subscription")).Provider);
+    }
+
     private static AppConfig Config(string endpoint = "https://api.deepseek.com/v1") => new()
     {
         ProviderId = "first",

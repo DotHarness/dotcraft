@@ -22,7 +22,7 @@ export function resolveSecretKeyCommit(
 
 export function normalizeSearchProvider(
   value: unknown
-): 'Auto' | 'Exa' | 'Bing' | 'DeepSeek' {
+): 'Auto' | 'Exa' | 'Bing' | 'DeepSeek' | 'ChatGPT' {
   switch (typeof value === 'string' ? value.toLowerCase() : '') {
     case 'exa':
       return 'Exa'
@@ -30,9 +30,17 @@ export function normalizeSearchProvider(
       return 'Bing'
     case 'deepseek':
       return 'DeepSeek'
+    case 'chatgpt':
+      return 'ChatGPT'
     default:
       return 'Auto'
   }
+}
+
+export function hasSignedInChatGpt(providers: ProviderInfoWire[]): boolean {
+  return providers.some(
+    (provider) => provider.authMethod === 'chatgptOAuth' && provider.isAuthenticated === true
+  )
 }
 
 export function canProviderSearchDeepSeek(provider: ProviderInfoWire): boolean {

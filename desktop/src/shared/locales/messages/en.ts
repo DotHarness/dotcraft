@@ -1466,6 +1466,8 @@ export const MESSAGES_EN = {
   'settings.llm.webSearch.serviceHint': 'Choose a web search service.',
   'settings.llm.webSearch.exaDescription': 'Better results. Free use is rate limited.',
   'settings.llm.webSearch.bingDescription': 'No key needed.',
+  'settings.llm.webSearch.chatGptDescription': 'Uses your ChatGPT subscription.',
+  'settings.llm.webSearch.chatGptSignedOut': 'Sign in with ChatGPT first.',
   'settings.llm.webSearch.exaKey': 'Exa API key',
   'settings.llm.webSearch.exaKeyHint': 'Leave empty to use the free, rate-limited service.',
   'settings.llm.webSearch.exaKeyPlaceholder': 'Not set',

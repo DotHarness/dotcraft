@@ -736,7 +736,7 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 - Provider credentials and endpoints are personal; workspace saves write `ProviderId` and the selected provider's `ProviderPreferences.<id>` entry. Each preference holds model, reasoning, and speed, and a workspace record atomically overrides the personal one for that provider.
 - Main and Subagent model settings use the shared picker. Subagent can inherit (removing its provider-specific record) or be customized starting from the main preference.
 - Unsupported model listing remains recoverable with manual entry.
-- Web search chooses `Tools.Web.SearchProvider` and shows only the settings that service uses: `Auto` and `Exa` the write-only `Tools.Web.ExaApiKey`, `Bing` nothing, and `DeepSeek` its credential source followed by either a provider choice or the write-only `Tools.Web.DeepSeekApiKey`. The provider choice appears only when more than one DeepSeek provider exists; with none, the row offers switching to a key. Changes take effect from the next turn.
+- Web search chooses `Tools.Web.SearchProvider` and shows only the settings that service uses: `Auto` and `Exa` the write-only `Tools.Web.ExaApiKey`, `Bing` and `ChatGPT` nothing, and `DeepSeek` its credential source followed by either a provider choice or the write-only `Tools.Web.DeepSeekApiKey`. The provider choice appears only when more than one DeepSeek provider exists; with none, the row offers switching to a key. `ChatGPT` can be chosen only while a ChatGPT-subscription provider is signed in. Changes take effect from the next turn.
 
 **Connections**
 

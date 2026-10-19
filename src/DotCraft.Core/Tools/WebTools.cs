@@ -35,6 +35,8 @@ public sealed partial class WebTools
 
     private readonly string? _exaApiKey;
 
+    private readonly IProviderWebSearch? _chatGptSearch;
+
     static WebTools()
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -48,18 +50,22 @@ public sealed partial class WebTools
     {
     }
 
-    internal WebTools(AppConfig config, EffectiveModelRuntime runtime, IProviderHttpTransport? transport = null)
+    internal WebTools(AppConfig config, EffectiveModelRuntime runtime, IProviderHttpTransport? transport = null,
+        ChatClientRegistry? chatClients = null)
         : this(config.Tools.Web,
             string.IsNullOrWhiteSpace(config.Tools.Web.ExaApiKey) ? Environment.GetEnvironmentVariable("EXA_API_KEY") : config.Tools.Web.ExaApiKey,
-            WebHttp.SharedClient, WebSearchResolver.Resolve(config, runtime), transport)
+            WebHttp.SharedClient, WebSearchResolver.Resolve(config, runtime), transport, chatClients)
     {
     }
 
     internal WebTools(AppConfig.WebToolsConfig config, string? exaApiKey, HttpClient httpClient,
-        WebSearchTarget? search = null, IProviderHttpTransport? transport = null)
+        WebSearchTarget? search = null, IProviderHttpTransport? transport = null, ChatClientRegistry? chatClients = null)
     {
         _search = search ?? WebSearchResolver.Resolve(new AppConfig { Tools = new AppConfig.ToolsConfig { Web = config } });
         _transport = transport;
+        _chatGptSearch = _search is { Provider: WebSearchProvider.ChatGpt, Runtime: { } chatGpt }
+            ? chatClients?.GetProviderService<IProviderWebSearch>(chatGpt)
+            : null;
         _maxChars = Math.Max(1, config.MaxChars);
         _maxResponseBytes = Math.Max(1, config.MaxResponseBytes);
         _timeout = TimeSpan.FromSeconds(Math.Max(1, config.Timeout));
@@ -86,6 +92,7 @@ public sealed partial class WebTools
             {
                 WebSearchProvider.Exa => await ExaSearch.SearchAsync(_httpClient, _exaApiKey, query, count, token),
                 WebSearchProvider.Bing => await BingSearch.SearchAsync(_httpClient, query, count, token),
+                WebSearchProvider.ChatGpt => await ChatGptSearch.SearchAsync(_chatGptSearch, _search, query, count, token),
                 _ => await DeepSeekSearch.SearchAsync(_httpClient, _search, _transport, query, count, token)
             };
             return JsonSerializer.Serialize(new

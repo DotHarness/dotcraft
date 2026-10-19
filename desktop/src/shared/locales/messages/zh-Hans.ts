@@ -1591,6 +1591,8 @@ export const MESSAGES_ZH_HANS = {
   'settings.llm.webSearch.serviceHint': '选择联网搜索使用的服务。',
   'settings.llm.webSearch.exaDescription': '结果更好，免费使用有频率限制。',
   'settings.llm.webSearch.bingDescription': '无需密钥。',
+  'settings.llm.webSearch.chatGptDescription': '使用你的 ChatGPT 订阅。',
+  'settings.llm.webSearch.chatGptSignedOut': '请先登录 ChatGPT。',
   'settings.llm.webSearch.exaKey': 'Exa API 密钥',
   'settings.llm.webSearch.exaKeyHint': '留空则使用有频率限制的免费服务。',
   'settings.llm.webSearch.exaKeyPlaceholder': '未设置',

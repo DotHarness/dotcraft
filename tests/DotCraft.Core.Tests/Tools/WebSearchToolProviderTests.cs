@@ -304,6 +304,37 @@ public sealed class WebSearchToolProviderTests : IDisposable
         return config;
     }
 
+    [Fact]
+    public async Task WebSearch_SearchesThroughTheChatGptSubscriptionFromAnotherProvider()
+    {
+        var config = AnthropicConfig();
+        config.Tools.Web.SearchProvider = "ChatGPT";
+        config.Providers["subscription"] = new AppConfig.ModelProviderConfig
+        {
+            AuthMethod = "chatgptOAuth",
+            Protocol = ModelProviderProtocols.OpenAIResponses
+        };
+        config.ProviderPreferences["subscription"] = new ModelPreference { Model = "gpt-test" };
+        var provider = new FakeSearchProvider
+        {
+            Result = new("page text", [
+                new JsonObject { ["ref_id"] = "turn0search0", ["url"] = "https://example.com/a", ["title"] = "A", ["snippet"] = "about A" },
+                new JsonObject { ["ref_id"] = "turn0search1" }
+            ])
+        };
+        var tools = new WebTools(config, ModelProviderResolver.ResolveMain(config), chatClients: new ChatClientRegistry(provider));
+
+        using var output = JsonDocument.Parse(await tools.WebSearch("dotcraft"));
+
+        var request = Assert.Single(provider.Requests);
+        Assert.Empty(request.Input);
+        Assert.Equal("dotcraft", request.Commands["search_query"]![0]!["q"]!.GetValue<string>());
+        var result = Assert.Single(output.RootElement.GetProperty("results").EnumerateArray());
+        Assert.Equal(
+            ("A", "https://example.com/a", "about A"),
+            (result.GetProperty("title").GetString(), result.GetProperty("url").GetString(), result.GetProperty("snippet").GetString()));
+    }
+
     private static AppConfig AnthropicConfig()
     {
         var config = new AppConfig
