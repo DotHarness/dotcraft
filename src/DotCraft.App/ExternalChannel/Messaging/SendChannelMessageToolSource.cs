@@ -35,15 +35,16 @@ internal sealed class SendChannelMessageToolSource(SendChannelMessageRuntime run
     internal const string ToolName = "SendChannelMessage";
     internal const string PresentationId = "core.channel";
     internal const string Description =
-        "Send a message to a chat. People in the chat see only what you send with this tool.";
+        "Reply to a chat request or carry out a user-requested chat send. The result identifies the destination, delivered parts, and any delivery error.";
 
     internal static readonly JsonElement InputSchema = JsonDocument.Parse("""
         {
           "type": "object",
           "properties": {
-            "text": { "type": "string" },
+            "text": { "type": "string", "description": "User-facing message text, optionally accompanied by attachments." },
             "attachments": {
               "type": "array",
+              "description": "Files to deliver with the message.",
               "items": {
                 "type": "object",
                 "properties": {
@@ -54,7 +55,7 @@ internal sealed class SendChannelMessageToolSource(SendChannelMessageRuntime run
                 "required": ["path"]
               }
             },
-            "to": { "type": "string" }
+            "to": { "type": "string", "description": "Omit for replies to the connected chat. To send elsewhere, use the destination's full channel address." }
           }
         }
         """).RootElement.Clone();

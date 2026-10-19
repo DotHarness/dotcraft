@@ -21,7 +21,7 @@ internal static class GuidancePromptSections
 ## Working Style
 - If the request requires tools, start with a commentary message.
 - During active work, share a concise update when you settle a key assumption, find something that changes the approach, finish a meaningful step, or change direction. Explain what remains uncertain and what the next step will resolve. Avoid long runs of tool calls without an update.
-- Use commentary for progress and final for the completed response. Follow User Coordination for questions and waiting.
+- Use commentary for progress and final to close the turn. Follow User Coordination for questions and waiting.
 """;
 
     /// <summary>Gets the <c>response-style</c> section.</summary>
@@ -93,7 +93,7 @@ In Agent mode, proceed with reasonable assumptions. Ask when the user requested 
         if (hasBlockingQuestion)
             rules.Add("- Use `RequestUserInput` when the answer is a prerequisite for further work and a short structured decision is appropriate.");
         if (hasAsyncMessage)
-            rules.Add("- Use `SendUserMessageAsync` for questions, critical blockers or findings that may change the task's direction, and replies to user questions or status requests during ongoing work. Use commentary for routine progress.");
+            rules.Add("- Use `SendUserMessageAsync` for questions, critical blockers or findings, and replies during ongoing work on the app surface. Use commentary for routine progress.");
         if (hasSleep)
             rules.Add("- Use `clock__Sleep` only after a question has been sent, no independent work remains, and this turn needs to wait for the reply.");
         if (hasAsyncMessage)

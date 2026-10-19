@@ -79,8 +79,7 @@ internal sealed class ChannelChatSection(ChatBindingResolver resolver) : IWorldS
 
         var sb = new StringBuilder();
         sb.AppendLine(Heading);
-        sb.AppendLine($"This conversation is connected to the {facts.DisplayName} {kind}{label} ({facts.Address}).");
-        sb.AppendLine("People in the chat see only what you send with SendChannelMessage. Everything else you write stays in this conversation.");
+        sb.AppendLine($"Default chat delivery destination: {facts.DisplayName} {kind}{label} ({facts.Address}).");
         if (facts.Chat.Kind != ChannelChatKinds.Direct)
         {
             if (facts.Chat.Membership == ChannelChatMemberships.Shared)

@@ -20,6 +20,9 @@ public static class SystemPromptSectionNames
     /// <summary>How the agent narrates its work.</summary>
     public const string WorkingStyle = "working-style";
 
+    /// <summary>Visible chat reply responsibilities when the channel delivery tool is available.</summary>
+    public const string ChannelReplies = "channel-replies";
+
     /// <summary>How the agent shapes its replies.</summary>
     public const string ResponseStyle = "response-style";
 
