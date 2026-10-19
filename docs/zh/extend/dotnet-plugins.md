@@ -200,7 +200,7 @@ Desktop 把后端实例与其他提供商列在一起，用同一个提供商编
 在终端中，`dotcraft auth login review-demo` 按配置的 `AuthMethod` 登录，`--method <id>` 选择后端声明的其他方式，
 `--workspace <path>` 指定启用该插件的工作区。AppServer 客户端通过 `provider/auth/*` 方法驱动同一流程。
 
-重试、提示词来源、原生历史和生命周期要求见
+请求、鉴权和生命周期要求见
 [后端契约](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/model-backend-plugins.md)。
 
 ## 编写强类型工具 {#write-typed-tools}

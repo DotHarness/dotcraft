@@ -11,18 +11,11 @@ public sealed class ProviderCredentialStore : IProviderCredentialStore
     private readonly string _path;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    public ProviderCredentialStore(string root, string backendId, string providerId, string configurationSource)
+    public ProviderCredentialStore(string root, string backendId, string providerId)
     {
-        var identity = string.Join('\n', backendId, providerId.ToLowerInvariant(), CanonicalSource(configurationSource));
+        var identity = string.Join('\n', backendId, providerId.ToLowerInvariant());
         var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))).ToLowerInvariant();
         _path = Path.Combine(root, "provider-credentials", key + ".json");
-    }
-
-    internal static string CanonicalSource(string source)
-    {
-        if (!Path.IsPathFullyQualified(source)) return source;
-        var fullPath = Path.GetFullPath(source);
-        return OperatingSystem.IsWindows() ? fullPath.ToUpperInvariant() : fullPath;
     }
 
     public async Task<JsonElement?> ReadAsync(CancellationToken cancellationToken)
@@ -42,8 +35,8 @@ public sealed class ProviderCredentialStore : IProviderCredentialStore
         var temporary = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(next), cancellationToken).ConfigureAwait(false);
-            RestrictFile(temporary);
+            await using (var stream = CreateOwnerOnlyFile(temporary))
+                await JsonSerializer.SerializeAsync(stream, next, cancellationToken: cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             File.Move(temporary, _path, overwrite: true);
         }
@@ -90,18 +83,23 @@ public sealed class ProviderCredentialStore : IProviderCredentialStore
         }
     }
 
-    private static void RestrictFile(string path)
+    private static FileStream CreateOwnerOnlyFile(string path)
     {
         if (!OperatingSystem.IsWindows())
         {
-            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-            return;
+            return new FileStream(path, new FileStreamOptions
+            {
+                Mode = FileMode.CreateNew,
+                Access = FileAccess.Write,
+                Share = FileShare.None,
+                UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite
+            });
         }
-        RestrictWindowsFile(path);
+        return CreateWindowsOwnerOnlyFile(path);
     }
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static void RestrictWindowsFile(string path)
+    private static FileStream CreateWindowsOwnerOnlyFile(string path)
     {
         var owner = System.Security.Principal.WindowsIdentity.GetCurrent().User
             ?? throw new UnauthorizedAccessException("The current user cannot be determined.");
@@ -110,7 +108,8 @@ public sealed class ProviderCredentialStore : IProviderCredentialStore
         security.SetOwner(owner);
         security.AddAccessRule(new FileSystemAccessRule(
             owner, FileSystemRights.FullControl, AccessControlType.Allow));
-        new FileInfo(path).SetAccessControl(security);
+        return new FileInfo(path).Create(
+            FileMode.CreateNew, FileSystemRights.Write, FileShare.None, 4096, FileOptions.None, security);
     }
 
     private sealed record StoredCredential(long Revision, JsonElement? Credential);

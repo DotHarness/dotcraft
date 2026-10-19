@@ -89,7 +89,7 @@ public static class ServiceRegistration
         services.AddSingleton<ModelProviderRegistry>();
         services.AddSingleton(sp => new ModelBackendResolver(
             sp.GetRequiredService<ModelProviderRegistry>(), sp.GetRequiredService<IContributionView>(),
-            paths.UserData.RootPath ?? paths.Data.RootPath, Path.Combine(paths.Data.RootPath, "config.json")));
+            paths.UserData.RootPath ?? paths.Data.RootPath));
         services.AddSingleton<IModelRuntimeResolver>(sp => sp.GetRequiredService<ModelBackendResolver>());
         services.AddSingleton<ProviderAuthenticationCoordinator>();
         services.AddSingleton(sp =>

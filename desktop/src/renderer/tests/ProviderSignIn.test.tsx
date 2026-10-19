@@ -131,4 +131,25 @@ describe('ProviderSignIn', () => {
     await waitFor(() => expect(requests('provider/auth/login')).toEqual([{ providerId: 'saved-id', method: 'chatgptOAuth' }]))
     expect(prepare).toHaveBeenCalledOnce()
   })
+
+  it('ignores an authenticated status that arrives after unmount', async () => {
+    let resolveStatus: (value: unknown) => void = () => {}
+    const onSignedIn = vi.fn()
+    sendRequest.mockImplementation(async (method: string, params: { providerId?: string }) => {
+      if (method === 'provider/auth/status' && params.providerId === 'saved-id') {
+        return new Promise((resolve) => { resolveStatus = resolve })
+      }
+      if (method === 'provider/auth/status') return { isAuthenticated: false }
+      return {}
+    })
+    const { unmount } = renderSignIn({ providerId: null, prepare: async () => 'saved-id', onSignedIn })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }))
+    await waitFor(() => expect(requests('provider/auth/status')).toContainEqual({ providerId: 'saved-id' }))
+    unmount()
+    await act(async () => resolveStatus({ isAuthenticated: true }))
+
+    expect(onSignedIn).not.toHaveBeenCalled()
+    expect(requests('provider/auth/login')).toEqual([])
+  })
 })

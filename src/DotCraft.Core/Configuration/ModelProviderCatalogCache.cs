@@ -32,7 +32,6 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
             runtime.BackendId ?? string.Empty,
             runtime.BackendGeneration ?? string.Empty,
             runtime.BackendSettingsJson,
-            runtime.ConfigurationSource ?? string.Empty,
             runtime.Protocol,
             runtime.EndPoint.TrimEnd('/').ToLowerInvariant(),
             runtime.AuthMethod,

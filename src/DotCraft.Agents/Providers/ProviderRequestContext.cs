@@ -96,9 +96,6 @@ public sealed record ProviderRequestContext(
     IModelRuntimeDiagnostics? Diagnostics = null,
     ProviderConversationState? ConversationState = null)
 {
-    public ProviderPromptSources PromptSources { get; init; } = new();
-    public ProviderPromptSnapshot? Prompt { get; init; }
-
     public ProviderConversationIdentity CurrentIdentity =>
         ConversationState?.Identity ?? ConversationIdentity;
 }

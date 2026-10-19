@@ -118,12 +118,12 @@ export function useProviderSignIn({ providerId, method, prepare, onSignedIn, onS
         const current = await window.api.appServer.sendRequest(
           'provider/auth/status', { providerId: id }, AUTH_REQUEST_TIMEOUT_MS
         ) as ProviderAuthStatusResult
+        if (!mounted.current) return
         if (current.isAuthenticated) {
-          if (mounted.current) setStatus(current)
+          setStatus(current)
           await latest.current.onSignedIn?.(id)
           return
         }
-        if (!mounted.current) return
       }
       tracker.current.begin(id)
       let response: ProviderAuthLoginState

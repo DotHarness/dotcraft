@@ -424,7 +424,8 @@ public sealed partial class SessionService
                 config,
                 thread.Configuration?.ProviderId,
                 thread.Configuration?.Model);
-            if (runtime.BackendId is null && (!runtime.IsOpenAIResponses || !runtime.IsChatGptOAuth)
+            if (!runtime.IsOpenAIResponses
+                || !runtime.IsChatGptOAuth
                 || thread.HistoryMode != HistoryMode.Server
                 || thread.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion)
                 return new CompactionCoordinator(pipeline);
@@ -437,7 +438,7 @@ public sealed partial class SessionService
             return new CompactionCoordinator(
                 pipeline,
                 _ => new ProviderNativeCompactionBackend(
-                    runtime.BackendId is null ? CompactionBackendIds.ChatGptResponsesCompact : "provider_native:" + runtime.BackendId,
+                    CompactionBackendIds.ChatGptResponsesCompact,
                     factory.CreateCompactor(
                         runtime,
                         owner.AgentFactory.RuntimeContext.ChatClientRegistry.GetChatClient(runtime)),

@@ -212,10 +212,6 @@ public sealed partial class ThreadStore
 
     private sealed class ThreadRecoveryProviderSnapshot
     {
-        public string Protocol { get; init; } = ProviderHistorySchema.OpenAIResponsesProtocol;
-        public string? BackendId { get; init; }
-        public string? ProviderId { get; init; }
-
         public int SchemaVersion { get; init; }
 
         public string GenerationId { get; init; } = string.Empty;

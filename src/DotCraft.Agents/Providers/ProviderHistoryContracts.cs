@@ -18,10 +18,7 @@ public sealed record ProviderHistoryIdentity(
     string ThreadId,
     string? TurnId,
     string GenerationId,
-    string ContextWindowId)
-{
-    public string? BackendId { get; init; }
-}
+    string ContextWindowId);
 
 /// <summary>An opaque provider-native history item with a stable ledger identity.</summary>
 public sealed record ProviderHistoryItem(string EntryId, JsonElement Payload);

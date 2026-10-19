@@ -81,11 +81,7 @@ public sealed partial class SessionService
             currentConfig,
             thread.Configuration?.ProviderId,
             thread.Configuration?.Model);
-        if (runtime.BackendId is null && !runtime.IsOpenAIResponses)
-            return null;
-        var factory = agentFactory.RuntimeContext.ChatClientRegistry
-            .GetProviderService<IProviderHistorySessionFactory>(runtime);
-        if (factory is null)
+        if (!runtime.IsOpenAIResponses)
             return null;
 
         if (!TrySnapshotInMemoryHistory(session, out var baselineHistory))
@@ -93,7 +89,7 @@ public sealed partial class SessionService
 
         var activeIdentity = ProviderRequestContextScope.Current?.CurrentIdentity
             ?? throw new InvalidOperationException(
-                "Provider history requires an active conversation identity.");
+                "Responses provider history requires an active conversation identity.");
         var snapshot = thread.Ephemeral
             ? _runtimeRegistry.TryGetRuntime(thread.Id, out var ephemeralRuntime)
               && ephemeralRuntime.ResponsesProviderHistorySnapshot is { } inMemorySnapshot
@@ -123,8 +119,7 @@ public sealed partial class SessionService
             .OrderBy(candidate => candidate.StartedAt)
             .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
             .LastOrDefault();
-        var requiresReplacement = !HistoryMatchesRuntime(runtime, snapshot.Identity)
-            || !string.IsNullOrWhiteSpace(forceReplacementReason)
+        var requiresReplacement = !string.IsNullOrWhiteSpace(forceReplacementReason)
             || previousTurn != null
                && !string.Equals(
                    snapshot.CoveredThroughTurnId,
@@ -140,11 +135,15 @@ public sealed partial class SessionService
         var providerIdentity = string.IsNullOrWhiteSpace(coveredThroughTurnIdOverride)
             ? activeIdentity
             : activeIdentity with { TurnId = coveredThroughTurnIdOverride };
+        var factory = agentFactory.RuntimeContext.ChatClientRegistry
+            .GetProviderService<IProviderHistorySessionFactory>(runtime);
+        if (factory == null)
+            return null;
         var context = factory.CreateSession(
             providerIdentity,
             snapshot,
             baselineHistory,
-            thread.Ephemeral ? null : new SessionProviderHistorySink(persistence, runtime.BackendId, runtime.ProviderId));
+            thread.Ephemeral ? null : new SessionProviderHistorySink(persistence));
 
         if (requiresReplacement)
         {
@@ -186,12 +185,11 @@ public sealed partial class SessionService
             currentConfig,
             thread.Configuration?.ProviderId,
             thread.Configuration?.Model);
-        if (!TrySnapshotInMemoryHistory(session, out var replacementHistory))
+        if (!runtime.IsOpenAIResponses
+            || !TrySnapshotInMemoryHistory(session, out var replacementHistory))
         {
             return;
         }
-        if (runtime.BackendId is null && !runtime.IsOpenAIResponses)
-            return;
 
         var coveredTurn = ResolveNewestTerminalTurn(thread);
         var identity = ThreadConversationIdentity.Create(
@@ -207,7 +205,7 @@ public sealed partial class SessionService
             identity,
             CreateEmptyOpaqueHistory(runtime, identity),
             coveredMessages: [],
-            new SessionProviderHistorySink(persistence, runtime.BackendId, runtime.ProviderId));
+            new SessionProviderHistorySink(persistence));
         await context.HistoryReplacedAsync(
             replacementHistory,
             options: null,
@@ -226,7 +224,7 @@ public sealed partial class SessionService
                 identity.CurrentThreadId,
                 identity.TurnId,
                 identity.ContextWindowId,
-                identity.ContextWindowId) { BackendId = runtime.BackendId },
+                identity.ContextWindowId),
             [],
             CoveredThroughTurnId: null);
 
@@ -236,22 +234,16 @@ public sealed partial class SessionService
         ProviderHistorySnapshot snapshot) =>
         new(
             new ProviderHistoryIdentity(
-                snapshot.ProviderId ?? runtime.ProviderId,
-                snapshot.Protocol,
+                runtime.ProviderId,
+                runtime.Protocol,
                 ProviderHistorySchema.CurrentSchemaVersion,
                 identity.CurrentThreadId,
                 identity.TurnId,
                 snapshot.GenerationId,
-                snapshot.ContextWindowId) { BackendId = snapshot.BackendId },
+                snapshot.ContextWindowId),
             snapshot.Entries
                 .Select(static entry => new ProviderHistoryItem(entry.EntryId, entry.Item.Clone()))
                 .ToArray(),
             snapshot.CoveredThroughTurnId,
             snapshot.IsNativeCompacted);
-
-    private static bool HistoryMatchesRuntime(EffectiveModelRuntime runtime, ProviderHistoryIdentity identity) =>
-        string.Equals(runtime.BackendId, identity.BackendId, StringComparison.Ordinal)
-        && string.Equals(runtime.Protocol, identity.Protocol, StringComparison.Ordinal)
-        && (runtime.BackendId is null
-            || string.Equals(runtime.ProviderId, identity.ProviderId, StringComparison.OrdinalIgnoreCase));
 }

@@ -7,21 +7,13 @@ internal static class PluginProviderCapabilities
 {
     public static bool Supports(Type type) =>
         type == typeof(IModelCatalogProvider) || type == typeof(IProviderAuthenticator)
-        || type == typeof(IProviderUsageReader) || type == typeof(IProviderHistorySessionFactory)
-        || type == typeof(IProviderNativeCompactorFactory)
-        || type == typeof(IProviderRuntimeIdentityResolver) || type == typeof(IProviderRuntimeMetadataResolver);
+        || type == typeof(IProviderUsageReader);
 
     public static object Adapt(object target, Type type, PluginInvocation invocation) => target switch
     {
         IModelCatalogProvider catalog when type == typeof(IModelCatalogProvider) => new Catalog(catalog, invocation),
         IProviderAuthenticator auth when type == typeof(IProviderAuthenticator) => new Authentication(auth, invocation),
         IProviderUsageReader usage when type == typeof(IProviderUsageReader) => new Usage(usage, invocation),
-        IProviderHistorySessionFactory history when type == typeof(IProviderHistorySessionFactory) =>
-            new PluginProviderHistoryFactory(history, invocation),
-        IProviderNativeCompactorFactory compactor when type == typeof(IProviderNativeCompactorFactory) =>
-            new PluginProviderCompactorFactory(compactor, invocation),
-        IProviderRuntimeIdentityResolver identity when type == typeof(IProviderRuntimeIdentityResolver) => new Identity(identity, invocation),
-        IProviderRuntimeMetadataResolver metadata when type == typeof(IProviderRuntimeMetadataResolver) => new Metadata(metadata, invocation),
         _ => throw new InvalidOperationException("Unsupported provider capability.")
     };
 
@@ -81,19 +73,5 @@ internal static class PluginProviderCapabilities
                 using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, invocation.Stopping);
                 return HostOwned(await _target.Value.ReadAsync(linked.Token).ConfigureAwait(false));
             }));
-    }
-
-    private sealed class Identity(IProviderRuntimeIdentityResolver target, PluginInvocation invocation) : IProviderRuntimeIdentityResolver
-    {
-        private readonly PluginTarget<IProviderRuntimeIdentityResolver> _target = invocation.Capture(target);
-        public string? ResolveAccountId(EffectiveModelRuntime runtime) =>
-            invocation.Invoke(() => _target.Value.ResolveAccountId(runtime));
-    }
-
-    private sealed class Metadata(IProviderRuntimeMetadataResolver target, PluginInvocation invocation) : IProviderRuntimeMetadataResolver
-    {
-        private readonly PluginTarget<IProviderRuntimeMetadataResolver> _target = invocation.Capture(target);
-        public ProviderRuntimeMetadata Resolve(EffectiveModelRuntime runtime) =>
-            invocation.Invoke(() => HostOwned(_target.Value.Resolve(runtime)));
     }
 }

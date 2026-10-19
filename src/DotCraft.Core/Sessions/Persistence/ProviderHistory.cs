@@ -29,9 +29,6 @@ internal static class ProviderHistoryReplayer
         }
 
         var generationId = replacement?.GenerationId ?? string.Empty;
-        var protocol = replacement?.Protocol ?? ProviderHistorySchema.OpenAIResponsesProtocol;
-        var backendId = replacement?.BackendId;
-        var providerId = replacement?.ProviderId;
         var contextWindowId = replacement?.ContextWindowId ?? currentContextWindowId;
         var coveredThroughTurnId = replacement?.CoveredThroughTurnId;
         var entries = new List<(ProviderHistoryEntry Entry, string? AttemptId)>();
@@ -47,9 +44,7 @@ internal static class ProviderHistoryReplayer
         {
             var record = records[i];
             if (record.ProviderHistoryAttemptAborted is { } aborted
-                && IsCommonValid(aborted.SchemaVersion, aborted.ThreadId, aborted.Protocol, expectedThreadId,
-                    aborted.BackendId, aborted.ProviderId)
-                && MatchesIdentity(aborted.Protocol, aborted.BackendId, aborted.ProviderId)
+                && IsCommonValid(aborted.SchemaVersion, aborted.ThreadId, aborted.Protocol, expectedThreadId)
                 && survivingTurnIds.Contains(aborted.TurnId)
                 && (string.IsNullOrEmpty(generationId)
                     || string.Equals(generationId, aborted.GenerationId, StringComparison.Ordinal)))
@@ -70,12 +65,8 @@ internal static class ProviderHistoryReplayer
             {
                 generationId = appended.GenerationId;
                 contextWindowId = appended.ContextWindowId;
-                protocol = appended.Protocol;
-                backendId = appended.BackendId;
-                providerId = appended.ProviderId;
             }
             if (!string.Equals(generationId, appended.GenerationId, StringComparison.Ordinal)
-                || !MatchesIdentity(appended.Protocol, appended.BackendId, appended.ProviderId)
                 || !string.Equals(contextWindowId, appended.ContextWindowId, StringComparison.Ordinal)
                 || (appended.AttemptId != null && abortedAttempts.Contains(appended.AttemptId)))
             {
@@ -95,17 +86,7 @@ internal static class ProviderHistoryReplayer
             contextWindowId,
             entries.Select(pair => CloneEntry(pair.Entry)).ToList(),
             coveredThroughTurnId,
-            ProviderHistoryReasons.IsNativeCompacted(replacement?.Reason))
-        {
-            Protocol = protocol,
-            BackendId = backendId,
-            ProviderId = providerId
-        };
-
-        bool MatchesIdentity(string candidateProtocol, string? candidateBackend, string? candidateProvider) =>
-            string.Equals(protocol, candidateProtocol, StringComparison.Ordinal)
-            && string.Equals(backendId, candidateBackend, StringComparison.Ordinal)
-            && string.Equals(providerId, candidateProvider, StringComparison.OrdinalIgnoreCase);
+            ProviderHistoryReasons.IsNativeCompacted(replacement?.Reason));
 
         void AddEntry(ProviderHistoryEntry entry, string? attemptId)
         {
@@ -120,8 +101,7 @@ internal static class ProviderHistoryReplayer
         string expectedThreadId,
         IReadOnlySet<string> survivingTurnIds) =>
         value != null
-        && IsCommonValid(value.SchemaVersion, value.ThreadId, value.Protocol, expectedThreadId,
-            value.BackendId, value.ProviderId)
+        && IsCommonValid(value.SchemaVersion, value.ThreadId, value.Protocol, expectedThreadId)
         && !string.IsNullOrWhiteSpace(value.GenerationId)
         && !string.IsNullOrWhiteSpace(value.ContextWindowId)
         && (string.IsNullOrWhiteSpace(value.CoveredThroughTurnId)
@@ -131,8 +111,7 @@ internal static class ProviderHistoryReplayer
         ProviderHistoryItemsAppendedPayload value,
         string expectedThreadId,
         IReadOnlySet<string> survivingTurnIds) =>
-        IsCommonValid(value.SchemaVersion, value.ThreadId, value.Protocol, expectedThreadId,
-            value.BackendId, value.ProviderId)
+        IsCommonValid(value.SchemaVersion, value.ThreadId, value.Protocol, expectedThreadId)
         && survivingTurnIds.Contains(value.TurnId)
         && !string.IsNullOrWhiteSpace(value.GenerationId)
         && !string.IsNullOrWhiteSpace(value.ContextWindowId)
@@ -142,15 +121,10 @@ internal static class ProviderHistoryReplayer
         int schemaVersion,
         string threadId,
         string protocol,
-        string expectedThreadId,
-        string? backendId = null,
-        string? providerId = null) =>
+        string expectedThreadId) =>
         schemaVersion == ProviderHistorySchema.CurrentSchemaVersion
         && string.Equals(threadId, expectedThreadId, StringComparison.Ordinal)
-        && (backendId is null && providerId is null
-            ? string.Equals(protocol, ProviderHistorySchema.OpenAIResponsesProtocol, StringComparison.Ordinal)
-            : !string.IsNullOrWhiteSpace(backendId) && !string.IsNullOrWhiteSpace(providerId)
-              && !string.IsNullOrWhiteSpace(protocol));
+        && string.Equals(protocol, ProviderHistorySchema.OpenAIResponsesProtocol, StringComparison.Ordinal);
 
     private static bool IsValidEntry(ProviderHistoryEntry entry) =>
         !string.IsNullOrWhiteSpace(entry.EntryId) && entry.Item.ValueKind == JsonValueKind.Object;
@@ -165,7 +139,7 @@ internal static class ProviderHistoryReplayer
                         appended.SchemaVersion,
                         appended.ThreadId,
                         appended.Protocol,
-                        expectedThreadId, appended.BackendId, appended.ProviderId)
+                        expectedThreadId)
                     || string.IsNullOrWhiteSpace(appended.TurnId)
                     || string.IsNullOrWhiteSpace(appended.GenerationId)
                     || string.IsNullOrWhiteSpace(appended.ContextWindowId)
@@ -184,7 +158,7 @@ internal static class ProviderHistoryReplayer
                         replaced.SchemaVersion,
                         replaced.ThreadId,
                         replaced.Protocol,
-                        expectedThreadId, replaced.BackendId, replaced.ProviderId)
+                        expectedThreadId)
                     || string.IsNullOrWhiteSpace(replaced.GenerationId)
                     || string.IsNullOrWhiteSpace(replaced.ContextWindowId)
                     || replaced.Entries.Any(entry => !IsValidEntry(entry)))
@@ -199,7 +173,7 @@ internal static class ProviderHistoryReplayer
                         aborted.SchemaVersion,
                         aborted.ThreadId,
                         aborted.Protocol,
-                        expectedThreadId, aborted.BackendId, aborted.ProviderId)
+                        expectedThreadId)
                     || string.IsNullOrWhiteSpace(aborted.TurnId)
                     || string.IsNullOrWhiteSpace(aborted.GenerationId)
                     || string.IsNullOrWhiteSpace(aborted.AttemptId))

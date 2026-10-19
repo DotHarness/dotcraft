@@ -205,7 +205,7 @@ another declared method and `--workspace <path>` names the workspace that enable
 AppServer clients drive the same flow through the `provider/auth/*` methods.
 
 See the [backend contract](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/model-backend-plugins.md)
-for retry, prompt provenance, native history and lifetime requirements.
+for request, authentication and lifetime requirements.
 
 ## Write typed tools
 

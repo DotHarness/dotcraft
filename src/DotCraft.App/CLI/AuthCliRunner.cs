@@ -99,7 +99,9 @@ internal static class AuthCliRunner
                 if (state.Prompt is { } prompt && state.PromptId is { } promptId && promptId != answered)
                 {
                     answered = promptId;
-                    auth.Respond(state.Id, promptId, await ReadPromptAsync(prompt, ct), owner);
+                    state = await AnswerPromptAsync(auth, state, prompt, promptId, owner, states.Reader, ct);
+                    if (state.PromptId != promptId)
+                        continue;
                 }
                 var next = await states.Reader.ReadAsync(ct);
                 if (next.Id == state.Id && next.Revision > state.Revision)
@@ -171,6 +173,41 @@ internal static class AuthCliRunner
             AnsiConsole.MarkupLine(message.EscapeMarkup());
         if (!noBrowser && notification.Kind is "auth_url" or "device_code" && notification.Url is { } url)
             TryOpenBrowser(url);
+    }
+
+    private static async Task<ProviderLoginState> AnswerPromptAsync(ProviderAuthenticationCoordinator auth,
+        ProviderLoginState state, ProviderLoginPrompt prompt, string promptId, string owner,
+        ChannelReader<ProviderLoginState> states, CancellationToken ct)
+    {
+        using var reading = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var input = Task.Run(() => ReadPromptAsync(prompt, reading.Token), CancellationToken.None);
+        while (true)
+        {
+            var changed = states.WaitToReadAsync(ct).AsTask();
+            if (await Task.WhenAny(input, changed) == input)
+            {
+                try
+                {
+                    auth.Respond(state.Id, promptId, await input, owner);
+                }
+                catch (ProviderAuthenticationException exception) when (exception.Code == "ProviderLoginPromptStale")
+                {
+                }
+                return state;
+            }
+            await changed;
+            while (states.TryRead(out var next))
+            {
+                if (next.Id != state.Id || next.Revision <= state.Revision)
+                    continue;
+                state = next;
+                if (state.PromptId != promptId)
+                {
+                    reading.Cancel();
+                    return state;
+                }
+            }
+        }
     }
 
     private static Task<string> ReadPromptAsync(ProviderLoginPrompt prompt, CancellationToken ct)

@@ -8,7 +8,7 @@
 ## Identity and ownership
 
 An explicitly selected model backend owns provider construction, supported protocol identifiers,
-authentication methods, capabilities, request execution and retry policy. A configured provider is
+authentication methods, capabilities and request execution. A configured provider is
 an instance of a backend. Protocol names describe the implementation's input dialect and never select
 an explicitly configured backend.
 
@@ -34,20 +34,19 @@ their serialized values. Authentication uses the shared provider sign-in flow an
 storage.
 
 One runtime resolver serves chat, native subagents, summaries, maintenance, cache warming, model
-catalogs, authentication, usage and native history. Backend generation and instance configuration
+catalogs, authentication and usage. Backend generation and instance configuration
 participate in cache identity. Authentication changes invalidate affected identities. A stale catalog
 refresh cannot publish after its generation is revoked.
 
-Host retry is opt-in for explicit backends. Backend-owned retry disables the host reconnect wrapper.
-The host remains responsible for tool policy, approval and execution. Backends emit standard model
+The host applies its normal retry policy to backend requests. The host remains responsible for tool policy, approval and execution. Backends emit standard model
 tool calls and consume the resulting tool messages.
 
 ## Generation lifetime
 
-Factories, clients, authentication, model catalogs and history sessions cross the generation boundary
-only through host-owned adapters. Async calls and streaming enumeration hold the gate throughout.
-Capability lookup is allowlisted; arbitrary plugin service objects and raw private SDK values cannot
-escape through `GetService` or response metadata.
+Factories, clients, authentication and model catalogs cross the generation boundary only through
+host-owned adapters. Async calls and streaming enumeration hold the gate throughout. Capability
+lookup is limited to model catalogs, authentication and usage; arbitrary plugin service objects and
+raw private SDK values cannot escape through `GetService` or response metadata.
 
 Revocation removes routes before signalling generation stopping. Login, refresh and inference receive
 the stopping cancellation token. Admitted work drains before provider-owned resources are disposed.
@@ -60,9 +59,9 @@ Authentication is scoped to a configured provider instance. Supported methods de
 OAuth, delegated CLI or ambient/keyless access. Availability checks distinguish missing credentials
 from unavailable dependencies. A plugin may delegate all credential management to an external CLI.
 
-Host credential storage partitions by backend ID, provider ID and canonical defining configuration
-source. Stored JSON never enters workspace configuration, rollouts or ordinary logging. Writes use
-atomic replacement, current-user file permissions and cross-process locking. Refresh, login commit
+Host credential storage partitions by backend ID and provider ID. Stored JSON never enters workspace
+configuration, rollouts or ordinary logging. Credential files are created with current-user
+permissions before any secret is written; writes use atomic replacement and cross-process locking. Refresh, login commit
 and logout serialize per partition. Cancellation is checked before committing a write.
 Plugins receive only a bound partition view.
 
@@ -72,24 +71,14 @@ and CLI share. AppServer projects it through [provider authentication](../protoc
 Provider-independent startup permits plugin discovery, trust, configuration and login before any
 usable model exists. Standalone ModelService hosts reject local-backend configurations.
 
-## Prompt provenance and native history
+## Requests and conversation state
 
-Each sampling request can carry an immutable `ProviderPromptSnapshot` with ordered fragments
-classified as harness, caller instructions, project instructions, skill, memory, extension or opaque.
-Fragments include source identity, text and placement. Provenance is captured while composing the
-request and checked against the actual sampling text. It never changes the model-visible prompt.
+Backends are stateless toward the host. Each sampling request carries the complete model-visible
+conversation, including system instructions and tool declarations, through the standard chat client.
+The active request context identifies the conversation, turn and request kind; a backend that keeps
+an external session keys it by that identity and rebuilds it when the conversation it receives no
+longer matches. Compaction, fork and rollback reach a backend only as a changed conversation on its
+next request.
 
-Legacy assemblers or transforms that rewrite text without source mapping produce opaque fragments.
-Backends must not treat opaque output as known-source text. Tool declarations remain in the normal
-model request and provenance does not provide execution callbacks. Prompt projection and filtering
-are backend responsibilities.
-
-Existing request kinds, conversation identities, history sessions, attempt leases and awaited
-history replacement coordinate stateful implementations. Runtime signal notifications are
-observational and cannot replace awaited history mutation. Fork, rollback and compaction must
-invalidate or update a parked external conversation before its next sampling request.
-
-Native history is selected by `IProviderHistorySessionFactory`, independent of protocol name.
-Explicit backend ledger records retain backend and configured provider identity through replay,
-fork and recovery. Switching that identity rebuilds from neutral history; opaque entries from another
-backend are never relabelled. Legacy unbound records remain valid only for built-in Responses.
+The host persists provider-neutral history for backend providers. Provider-native history, compaction
+bridges and native compactors remain built-in provider features.

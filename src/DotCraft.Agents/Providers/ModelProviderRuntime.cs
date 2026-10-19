@@ -165,8 +165,6 @@ public sealed record EffectiveModelRuntime(
     public string? BackendId { get; init; }
     public string BackendSettingsJson { get; init; } = "{}";
     public string? BackendGeneration { get; init; }
-    public string? ConfigurationSource { get; init; }
-    public bool BackendOwnsRetry { get; init; }
 
     public bool IsOpenAICompatible => BackendId is null && ModelProviderProtocols.IsOpenAIProtocol(Protocol);
     public bool IsOpenAIResponses => BackendId is null && ModelProviderProtocols.IsOpenAIResponses(Protocol);

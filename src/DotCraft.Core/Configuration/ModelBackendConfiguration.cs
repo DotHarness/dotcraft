@@ -1,5 +1,3 @@
-using System.Text.Json.Nodes;
-
 namespace DotCraft.Configuration;
 
 public static partial class ModelProviderResolver
@@ -24,21 +22,7 @@ public static partial class ModelProviderResolver
         {
             BackendId = provider.BackendId!.Trim(),
             BackendSettingsJson = provider.BackendSettings?.ToJsonString()
-                ?? throw new ArgumentException("BackendSettings must be a JSON object."),
-            ConfigurationSource = ResolveBackendConfigurationSource(config, providerId)
+                ?? throw new ArgumentException("BackendSettings must be a JSON object.")
         };
-    }
-
-    private static string ResolveBackendConfigurationSource(AppConfig config, string providerId)
-    {
-        if (config.WorkspaceConfigPath is { } workspace && File.Exists(workspace))
-        {
-            var root = JsonNode.Parse(File.ReadAllText(workspace)) as JsonObject;
-            var providers = root?.FirstOrDefault(p => p.Key.Equals("Providers", StringComparison.OrdinalIgnoreCase)).Value as JsonObject;
-            if (providers?.Any(p => p.Key.Equals(providerId, StringComparison.OrdinalIgnoreCase)) == true)
-                return Path.GetFullPath(workspace);
-        }
-        return config.GlobalConfigPath is { } global ? Path.GetFullPath(global)
-            : config.WorkspaceConfigPath is { } local ? Path.GetFullPath(local) : "in-memory";
     }
 }

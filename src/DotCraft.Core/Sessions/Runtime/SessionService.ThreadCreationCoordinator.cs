@@ -308,9 +308,7 @@ public sealed partial class SessionService
                 {
                     SchemaVersion = ProviderHistorySchema.CurrentSchemaVersion,
                     ThreadId = forked.Id,
-                    Protocol = sourceSnapshot.Protocol,
-                    BackendId = sourceSnapshot.BackendId,
-                    ProviderId = sourceSnapshot.ProviderId,
+                    Protocol = ProviderHistorySchema.OpenAIResponsesProtocol,
                     GenerationId = forkWindow.CurrentWindowId,
                     ContextWindowId = forkWindow.CurrentWindowId,
                     CoveredThroughTurnId = forked.Turns.LastOrDefault()?.Id,

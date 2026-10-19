@@ -137,10 +137,6 @@ public sealed class ChatClientRegistry
         return _chatClients.GetOrAdd(normalizedRuntime, static (runtime, registry) =>
         {
             var client = registry._runtimeResolver.Resolve(runtime).CreateChatClient(runtime);
-            if (runtime.BackendId is not null)
-                client = new ProviderPromptChatClient(client);
-            if (runtime.BackendOwnsRetry)
-                return client;
 
             return new StreamRetryingChatClient(
                 client,

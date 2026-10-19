@@ -5,8 +5,7 @@ namespace DotCraft.Sessions;
 /// <summary>
 /// Persists provider-owned opaque JSON without interpreting its wire representation.
 /// </summary>
-internal sealed class SessionProviderHistorySink(SessionPersistenceService persistence,
-    string? backendId = null, string? providerId = null) : IProviderHistorySink
+internal sealed class SessionProviderHistorySink(SessionPersistenceService persistence) : IProviderHistorySink
 {
     public async ValueTask AppendAsync(
         ProviderHistoryIdentity identity,
@@ -17,8 +16,6 @@ internal sealed class SessionProviderHistorySink(SessionPersistenceService persi
     {
         await persistence.AppendProviderHistoryItemsAsync(new ProviderHistoryItemsAppendedPayload
         {
-            BackendId = backendId,
-            ProviderId = backendId is null ? null : providerId,
             SchemaVersion = identity.SchemaVersion,
             ThreadId = identity.ThreadId,
             TurnId = identity.TurnId ?? string.Empty,
@@ -42,8 +39,6 @@ internal sealed class SessionProviderHistorySink(SessionPersistenceService persi
     {
         await persistence.ReplaceProviderHistoryAsync(new ProviderHistoryReplacedPayload
         {
-            BackendId = backendId,
-            ProviderId = backendId is null ? null : providerId,
             SchemaVersion = identity.SchemaVersion,
             ThreadId = identity.ThreadId,
             Protocol = identity.Protocol,
@@ -62,8 +57,6 @@ internal sealed class SessionProviderHistorySink(SessionPersistenceService persi
     {
         await persistence.AbortProviderHistoryAttemptAsync(new ProviderHistoryAttemptAbortedPayload
         {
-            BackendId = backendId,
-            ProviderId = backendId is null ? null : providerId,
             SchemaVersion = identity.SchemaVersion,
             ThreadId = identity.ThreadId,
             TurnId = identity.TurnId ?? string.Empty,

@@ -9,19 +9,16 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     private readonly ModelProviderRegistry builtins;
     private readonly IContributionView contributions;
     private readonly string credentialRoot;
-    private readonly string? _defaultConfigurationSource;
     private readonly ConcurrentDictionary<EffectiveModelRuntime, Lazy<IModelProvider>> _providers = new();
     private readonly ConcurrentDictionary<string, long> _authenticationRevisions = new(StringComparer.Ordinal);
     private long _chatGptRevision;
     public event Action? Changed;
 
-    public ModelBackendResolver(ModelProviderRegistry builtins, IContributionView contributions, string credentialRoot,
-        string? defaultConfigurationSource = null)
+    public ModelBackendResolver(ModelProviderRegistry builtins, IContributionView contributions, string credentialRoot)
     {
         this.builtins = builtins;
         this.contributions = contributions;
         this.credentialRoot = credentialRoot;
-        _defaultConfigurationSource = defaultConfigurationSource;
         if (contributions is IContributionRegistry registry) registry.Changed += OnContributionsChanged;
     }
 
@@ -38,9 +35,6 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
                 ? runtime with { BackendGeneration = "chatgpt:" + Interlocked.Read(ref _chatGptRevision) }
                 : runtime;
         }
-        if (runtime.ConfigurationSource is null or "in-memory" && _defaultConfigurationSource is not null)
-            runtime = runtime with { ConfigurationSource = _defaultConfigurationSource };
-        runtime = runtime with { ConfigurationSource = ProviderCredentialStore.CanonicalSource(runtime.ConfigurationSource ?? "in-memory") };
         var entry = Find(runtime.BackendId);
         var descriptor = entry.Contribution.Backend.Descriptor;
         var protocol = string.IsNullOrWhiteSpace(runtime.Protocol) ? descriptor.DefaultProtocol : runtime.Protocol;
@@ -56,7 +50,6 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
             Protocol = protocol,
             AuthMethod = method,
             Capabilities = descriptor.Capabilities,
-            BackendOwnsRetry = !descriptor.UseHostRetry,
             BackendGeneration = entry.Id.Value + ":" + _authenticationRevisions.GetValueOrDefault(InstanceKey(runtime))
         };
     }
@@ -69,7 +62,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
         return _providers.GetOrAdd(normalized, key => new Lazy<IModelProvider>(() =>
         {
             var backend = Find(key.BackendId!).Contribution.Backend;
-            var store = new ProviderCredentialStore(credentialRoot, key.BackendId!, key.ProviderId, key.ConfigurationSource ?? "in-memory");
+            var store = new ProviderCredentialStore(credentialRoot, key.BackendId!, key.ProviderId);
             return backend.CreateProvider(new ModelBackendContext(key, store, backend.Stopping));
         }, LazyThreadSafetyMode.ExecutionAndPublication)).Value;
     }
@@ -93,8 +86,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     }
 
     public Task ClearCredentialsAsync(EffectiveModelRuntime runtime, CancellationToken ct) =>
-        new ProviderCredentialStore(credentialRoot, runtime.BackendId!, runtime.ProviderId,
-            runtime.ConfigurationSource ?? "in-memory").DeleteAsync(ct);
+        new ProviderCredentialStore(credentialRoot, runtime.BackendId!, runtime.ProviderId).DeleteAsync(ct);
 
     private ContributionEntry<IModelBackendSource> Find(string id)
     {
@@ -109,7 +101,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     }
 
     private static string InstanceKey(EffectiveModelRuntime runtime) =>
-        string.Join('\n', runtime.BackendId, runtime.ProviderId.ToLowerInvariant(), runtime.ConfigurationSource);
+        string.Join('\n', runtime.BackendId, runtime.ProviderId.ToLowerInvariant());
 
     private void OnContributionsChanged(object? sender, ContributionsChangedEventArgs args)
     {

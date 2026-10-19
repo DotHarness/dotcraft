@@ -219,5 +219,5 @@ public sealed class ProviderAuthenticationCoordinator(ModelBackendResolver resol
     private static string InstanceKey(EffectiveModelRuntime runtime, string method) =>
         string.IsNullOrWhiteSpace(runtime.BackendId) && method == ModelProviderAuthMethods.ChatGptOAuth
             ? ChatGptInstanceKey
-            : string.Join('\n', runtime.BackendId, runtime.ProviderId.ToLowerInvariant(), runtime.ConfigurationSource);
+            : string.Join('\n', runtime.BackendId, runtime.ProviderId.ToLowerInvariant());
 }

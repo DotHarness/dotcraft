@@ -3,8 +3,6 @@ using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
-using DotCraft.Context;
-using DotCraft.Skills;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -52,8 +50,8 @@ public sealed class ModelBackendTests : IDisposable
     [Fact]
     public async Task CancelledRefreshCannotRestoreCredentialsAfterLogout()
     {
-        var store = new ProviderCredentialStore(_root, "alpha", "a", "source");
-        var other = new ProviderCredentialStore(_root, "alpha", "a", "source");
+        var store = new ProviderCredentialStore(_root, "alpha", "a");
+        var other = new ProviderCredentialStore(_root, "alpha", "a");
         using var cancellation = new CancellationTokenSource();
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -130,8 +128,8 @@ public sealed class ModelBackendTests : IDisposable
     [Fact]
     public async Task CredentialModificationSerializesAcrossStoreInstances()
     {
-        var first = new ProviderCredentialStore(_root, "alpha", "a", "source");
-        var second = new ProviderCredentialStore(_root, "alpha", "a", "source");
+        var first = new ProviderCredentialStore(_root, "alpha", "a");
+        var second = new ProviderCredentialStore(_root, "alpha", "a");
         async Task<JsonElement?> Increment(JsonElement? current, CancellationToken ct)
         {
             await Task.Delay(20, ct);
@@ -139,33 +137,21 @@ public sealed class ModelBackendTests : IDisposable
         }
         await Task.WhenAll(first.ModifyAsync(Increment, default), second.ModifyAsync(Increment, default));
         Assert.Equal(2, (await first.ReadAsync(default))!.Value.GetInt32());
-        var other = new ProviderCredentialStore(_root, "alpha", "a", "different-source");
+        var other = new ProviderCredentialStore(_root, "alpha", "b");
         Assert.Null(await other.ReadAsync(default));
     }
 
     [Fact]
-    public async Task SamplingReceivesValidatedProvenanceAndOpaqueFallback()
+    public async Task SamplingSeesTheActiveConversationIdentity()
     {
         var backend = new Backend("alpha");
         _contributions.Add<IModelBackendSource>(new Source(backend));
-        var config = Config(("a", "alpha"));
-        var client = new ChatClientRegistry(new ModelProviderRegistry([]), Resolver()).GetChatClient(config, "a", "model");
-        var context = new ProviderRequestContext(new ProviderConversationIdentity(
-            "thread", "thread", null, null, "turn", "window", ProviderRequestKind.Compaction, 0, "test", null));
-        context.PromptSources.Register("known", [new ProviderPromptFragment("caller", ProviderPromptSourceKind.CallerInstructions, "known", "instructions")]);
-        using var scope = ProviderRequestContextScope.Push(context);
-        await client.GetResponseAsync([], new ChatOptions { Instructions = "known" });
-        Assert.Equal(ProviderPromptSourceKind.CallerInstructions, Assert.Single(backend.LastPrompt!.Fragments).Kind);
-        Assert.Equal(ProviderRequestKind.Compaction, backend.LastPurpose);
-        await client.GetResponseAsync([], new ChatOptions { Instructions = "changed" });
-        Assert.Equal(ProviderPromptSourceKind.Opaque, Assert.Single(backend.LastPrompt!.Fragments).Kind);
-        Directory.CreateDirectory(_root);
-        var composed = new PromptBuilder(null, new SkillsLoader(_root), _root, _root,
-            roleInstructions: "caller role").BuildSystemPrompt();
-        await client.GetResponseAsync([], new ChatOptions { Instructions = composed });
-        Assert.Contains(backend.LastPrompt!.Fragments, fragment => fragment.Kind == ProviderPromptSourceKind.Harness);
-        Assert.Contains(backend.LastPrompt.Fragments, fragment => fragment.Kind == ProviderPromptSourceKind.CallerInstructions);
-        Assert.Equal(composed, string.Concat(backend.LastPrompt.Fragments.Select(fragment => fragment.Text)));
+        var client = new ChatClientRegistry(new ModelProviderRegistry([]), Resolver()).GetChatClient(Config(("a", "alpha")), "a", "model");
+        var identity = new ProviderConversationIdentity(
+            "thread", "thread", null, null, "turn", "window", ProviderRequestKind.Compaction, 0, "test", null);
+        using var scope = ProviderRequestContextScope.Push(new ProviderRequestContext(identity));
+        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")]);
+        Assert.Equal(identity, backend.LastIdentity);
     }
 
     [Fact]
@@ -217,8 +203,7 @@ public sealed class ModelBackendTests : IDisposable
     {
         public Func<IChatClient>? ClientFactory { get; init; }
         public Func<Task<ModelCatalogResult>>? CatalogFactory { get; init; }
-        public ProviderPromptSnapshot? LastPrompt { get; set; }
-        public ProviderRequestKind? LastPurpose { get; set; }
+        public ProviderConversationIdentity? LastIdentity { get; set; }
         public ModelBackendDescriptor Descriptor => new(id, id, "anthropic", ["anthropic"],
             [new("oauth", "Sign in", "oauth")], new ModelProviderCapabilities());
         public IModelProvider CreateProvider(ModelBackendContext context) => new Provider(this, id, context.Credentials);
@@ -247,8 +232,7 @@ public sealed class ModelBackendTests : IDisposable
     {
         public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
         {
-            backend.LastPrompt = ProviderPromptSnapshotScope.Current;
-            backend.LastPurpose = ProviderRequestContextScope.Current?.CurrentIdentity.RequestKind;
+            backend.LastIdentity = ProviderRequestContextScope.Current?.CurrentIdentity;
             return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, text)));
         }
         public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages,

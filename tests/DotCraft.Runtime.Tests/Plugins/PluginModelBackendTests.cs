@@ -1,7 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Runtime;
-using System.Text.Json;
 using Microsoft.Extensions.AI;
 using Xunit;
 using static DotCraft.Tests.Runtime.Plugins.DotNetPluginTestBundle;
@@ -25,16 +24,8 @@ public sealed class PluginModelBackendTests
         Assert.Equal("model", Assert.Single((await ModelProviderCatalog.FetchAsync(config, resolver, "demo")).Models).Id);
         await Assert.ThrowsAsync<PluginContributionException>(() => client.GetResponseAsync([], new ChatOptions { ModelId = "raw" }));
         var runtime = clients.ResolveMainRuntime(config, "demo", "model");
-        var historyFactory = clients.GetProviderService<IProviderHistorySessionFactory>(runtime)!;
-        var identity = new ProviderConversationIdentity("thread", "thread", null, null, "turn", "window", ProviderRequestKind.Turn, 0, "test", null);
-        var history = historyFactory.CreateSession(identity, new OpaqueProviderHistorySnapshot(
-            new ProviderHistoryIdentity("demo", runtime.Protocol, 1, "thread", "turn", "window", "window"), [], null), [], null);
-        var bridge = Assert.IsAssignableFrom<IProviderCompactionBridge>(history);
-        var compactor = clients.GetProviderService<IProviderNativeCompactorFactory>(runtime)!.CreateCompactor(runtime);
-        var compacted = await compactor.CompactAsync(new ProviderNativeCompactionInput(
-            [new("input", JsonSerializer.SerializeToElement(new { text = "opaque" }))], 1, "turn"), [], null, default);
-        await bridge.ReplaceAsync(compacted, default);
-        Assert.Single(history.CaptureOpaqueSnapshot().Items);
+        Assert.Null(clients.GetProviderService<IProviderHistorySessionFactory>(runtime));
+        Assert.Null(clients.GetProviderService<IProviderNativeCompactorFactory>(runtime));
 
         await using var authentication = new ProviderAuthenticationCoordinator(resolver);
         var waiting = new TaskCompletionSource<ProviderLoginState>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -51,9 +42,6 @@ public sealed class PluginModelBackendTests
         Assert.Equal("cancelled", authentication.Get(operation.Id, "owner").Status);
         await Assert.ThrowsAsync<PluginContributionUnavailableException>(() => client.GetResponseAsync([]));
         Assert.Throws<ModelBackendUnavailableException>(() => clients.GetChatClient(config, "demo", "model"));
-        Assert.Throws<PluginContributionUnavailableException>(() => history.CaptureOpaqueSnapshot());
-        await Assert.ThrowsAsync<PluginContributionUnavailableException>(() =>
-            compactor.CompactAsync(new ProviderNativeCompactionInput([], 0, null), [], null, default));
     }
 
     private const string Source = """
@@ -78,7 +66,7 @@ public sealed class PluginModelBackendTests
             }
         }
         internal sealed class TestBackend : IModelBackendSource, IModelBackend, IModelProvider, IModelCatalogProvider,
-            IProviderAuthenticator, IProviderHistorySessionFactory, IProviderNativeCompactorFactory, IProviderNativeCompactor
+            IProviderAuthenticator, IProviderHistorySessionFactory, IProviderNativeCompactorFactory
         {
             public IModelBackend Backend => this;
             public ModelBackendDescriptor Descriptor => new("test.backend", "Test", "backend-test", new[] { "backend-test" },
@@ -97,32 +85,9 @@ public sealed class PluginModelBackendTests
             }
             public Task LogoutAsync(CancellationToken ct) => Task.CompletedTask;
             public IProviderConversationHistory CreateSession(ProviderConversationIdentity identity, OpaqueProviderHistorySnapshot snapshot,
-                IReadOnlyList<ChatMessage> messages, IProviderHistorySink? sink) => new History(snapshot);
-            public IProviderNativeCompactor CreateCompactor(EffectiveModelRuntime runtime, IChatClient? client = null) => this;
-            public Task<ProviderNativeCompactionReplacement> CompactAsync(ProviderNativeCompactionInput input,
-                IReadOnlyList<ChatMessage> history, ChatOptions? options, CancellationToken ct) =>
-                Task.FromResult(new ProviderNativeCompactionReplacement("backend-test", input.Items, input.CoveredMessageCount, input.CoveredThroughTurnId, 10));
-        }
-        internal sealed class History(OpaqueProviderHistorySnapshot snapshot) : IProviderConversationHistory, IProviderCompactionBridge
-        {
-            private OpaqueProviderHistorySnapshot _snapshot = snapshot;
-            public ValueTask AppendLocalInputAsync(IReadOnlyList<ChatMessage> messages, CancellationToken ct) => ValueTask.CompletedTask;
-            public ValueTask HistoryReplacedAsync(IReadOnlyList<ChatMessage> messages, ChatOptions? options, string reason,
-                CancellationToken ct, string? turn = null) => ValueTask.CompletedTask;
-            public void MarkProjectionCovered(IReadOnlyList<ChatMessage> messages) { }
-            public string? BeginAttempt() => null;
-            public ValueTask AbortAttemptAsync(string? id, CancellationToken ct) => ValueTask.CompletedTask;
-            public void EndAttempt(string? id) { }
-            public OpaqueProviderHistorySnapshot CaptureOpaqueSnapshot() => _snapshot;
-            public ValueTask<ProviderNativeCompactionInput> CaptureInputAsync(ProviderCompactionPhase phase,
-                IReadOnlyList<ChatMessage> messages, ChatOptions? options, CancellationToken ct) =>
-                ValueTask.FromResult(new ProviderNativeCompactionInput(_snapshot.Items, messages.Count, null));
-            public ValueTask ReplaceAsync(ProviderNativeCompactionReplacement replacement, CancellationToken ct)
-            {
-                _snapshot = _snapshot with { Items = replacement.Items };
-                return ValueTask.CompletedTask;
-            }
-            public long EstimateContextTokens(ProviderNativeCompactionInput input, IReadOnlyList<ChatMessage> tail, ChatOptions? options) => 10;
+                IReadOnlyList<ChatMessage> messages, IProviderHistorySink? sink) => throw new NotSupportedException();
+            public IProviderNativeCompactor CreateCompactor(EffectiveModelRuntime runtime, IChatClient? client = null) =>
+                throw new NotSupportedException();
         }
         internal sealed class Client : IChatClient
         {
