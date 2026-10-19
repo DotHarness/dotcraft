@@ -1,8 +1,10 @@
 import type { JSX } from 'react'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useConfigSetting } from '../../../../stores/configStore'
+import { Button } from '../../../ui/Button'
 import type { ProviderInfoWire } from '../../providerInfo'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
+import { SegmentedControl } from '../../ui/SegmentedControl'
 import {
   SettingsSelect,
   type SettingsSelectOption
@@ -14,6 +16,8 @@ import {
   normalizeSearchProvider
 } from './webSearchModel'
 import styles from './WebSearchSettingsGroup.module.css'
+
+type CredentialSource = 'Provider' | 'ApiKey'
 
 interface Props {
   providers: ProviderInfoWire[]
@@ -37,7 +41,7 @@ export function WebSearchSettingsGroup({
     failureMessage
   )
   const selected = normalizeSearchProvider(service.value)
-  const credentialSource =
+  const credentialSource: CredentialSource =
     typeof source.value === 'string' && source.value.toLowerCase() === 'apikey'
       ? 'ApiKey'
       : 'Provider'
@@ -46,6 +50,7 @@ export function WebSearchSettingsGroup({
   const providerId =
     candidates.find((item) => item.id.toLowerCase() === storedProviderId.toLowerCase())?.id ??
     storedProviderId
+  const staleProvider = providerId !== '' && !candidates.some((item) => item.id === providerId)
   const options: SettingsSelectOption[] = [
     {
       value: 'Auto',
@@ -83,7 +88,7 @@ export function WebSearchSettingsGroup({
         : t('settings.llm.webSearch.unauthenticated')
     }))
   ]
-  if (providerId && !candidates.some((item) => item.id === providerId)) {
+  if (staleProvider) {
     providerOptions.push({
       value: providerId,
       label: providerId,
@@ -91,7 +96,18 @@ export function WebSearchSettingsGroup({
       description: t('settings.llm.webSearch.unavailable')
     })
   }
-  const showDeepSeek = selected === 'Auto' || selected === 'DeepSeek'
+  const onlyProvider = candidates.length === 1 && !staleProvider ? candidates[0] : null
+  const credentialsHint = credentialSource === 'ApiKey'
+    ? t('settings.llm.webSearch.credentialsKeyHint')
+    : onlyProvider
+      ? isSearchProviderAuthenticated(onlyProvider)
+        ? t('settings.llm.webSearch.credentialsProviderHint', { name: onlyProvider.displayName })
+        : t('settings.llm.webSearch.credentialsUnauthenticated', { name: onlyProvider.displayName })
+      : candidates.length === 0 && !staleProvider
+        ? t('settings.llm.webSearch.deepSeekDescription')
+        : t('settings.llm.webSearch.credentialsChosenHint')
+  const showProviderChoice = candidates.length > 1 || staleProvider
+  const noProviders = !providersLoading && candidates.length === 0 && !staleProvider
   return (
     <SettingsGroup title={t('settings.llm.webSearch.title')}>
       <SettingsRow
@@ -104,6 +120,7 @@ export function WebSearchSettingsGroup({
               id="settings-web-search-provider"
               value={selected}
               options={options}
+              adaptiveWidth={false}
               disabled={service.pending}
               ariaLabel={t('settings.llm.webSearch.service')}
               onValueChange={(value) => void service.set(value)}
@@ -111,45 +128,43 @@ export function WebSearchSettingsGroup({
           </div>
         }
       />
-      {selected === 'Exa' && <WebSearchApiKeyRow key="Exa" provider="Exa" />}
-      {showDeepSeek && (
+      {(selected === 'Exa' || selected === 'Auto') && (
+        <WebSearchApiKeyRow key="Exa" provider="Exa" optional={selected === 'Auto'} />
+      )}
+      {selected === 'DeepSeek' && (
         <>
           <SettingsRow
             label={t('settings.llm.webSearch.credentials')}
-            description={t('settings.llm.webSearch.deepSeekDescription')}
-            htmlFor="settings-web-search-credentials"
+            description={credentialsHint}
             control={
-              <div className={styles.control}>
-                <SettingsSelect
-                  id="settings-web-search-credentials"
-                  value={credentialSource}
-                  disabled={source.pending}
-                  ariaLabel={t('settings.llm.webSearch.credentials')}
-                  options={[
-                    {
-                      value: 'Provider',
-                      label: t('settings.llm.webSearch.reuseProvider')
-                    },
-                    {
-                      value: 'ApiKey',
-                      label: t('settings.llm.webSearch.independentKey')
-                    }
-                  ]}
-                  onValueChange={(value) => void source.set(value)}
-                />
-              </div>
+              <SegmentedControl<CredentialSource>
+                value={credentialSource}
+                disabled={source.pending}
+                ariaLabel={t('settings.llm.webSearch.credentials')}
+                options={[
+                  { value: 'Provider', label: t('settings.llm.webSearch.reuseProvider') },
+                  { value: 'ApiKey', label: t('settings.llm.webSearch.independentKey') }
+                ]}
+                onChange={(value) => void source.set(value)}
+              />
             }
           />
           {credentialSource === 'ApiKey' ? (
             <WebSearchApiKeyRow key="DeepSeek" provider="DeepSeek" />
-          ) : (
+          ) : noProviders ? (
             <SettingsRow
               label={t('settings.llm.webSearch.deepSeekProvider')}
-              description={
-                !providersLoading && candidates.length === 0
-                  ? t('settings.llm.webSearch.noProviders')
-                  : t('settings.llm.webSearch.reuseAutoHint')
+              description={t('settings.llm.webSearch.noProviders')}
+              control={
+                <Button size="sm" disabled={source.pending} onClick={() => void source.set('ApiKey')}>
+                  {t('settings.llm.webSearch.useApiKey')}
+                </Button>
               }
+            />
+          ) : showProviderChoice && (
+            <SettingsRow
+              label={t('settings.llm.webSearch.deepSeekProvider')}
+              description={t('settings.llm.webSearch.deepSeekProviderHint')}
               htmlFor="settings-web-search-deepseek-provider"
               control={
                 <div className={styles.control}>
@@ -157,6 +172,7 @@ export function WebSearchSettingsGroup({
                     id="settings-web-search-deepseek-provider"
                     value={providerId}
                     options={providerOptions}
+                    adaptiveWidth={false}
                     disabled={provider.pending || providersLoading}
                     ariaLabel={t('settings.llm.webSearch.deepSeekProvider')}
                     onValueChange={(value) => void provider.set(value)}

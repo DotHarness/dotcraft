@@ -74,13 +74,16 @@ public sealed class WebSearchResolverTests
     }
 
     [Fact]
-    public void AutoReportsExplicitCredentialErrorsAfterSelectingDeepSeek()
+    public void AutoSearchesWithTheConversationProviderRegardlessOfDeepSeekSettings()
     {
         var config = Config();
         config.Tools.Web.DeepSeekProvider = "deleted";
+        config.Tools.Web.DeepSeekCredentialSource = "ApiKey";
+        config.Tools.Web.DeepSeekApiKey = "independent-key";
         var target = WebSearchResolver.Resolve(config, ModelProviderResolver.ResolveProvider(config));
         Assert.Equal("DeepSeek", target.Provider);
-        Assert.Contains("not configured", target.Error);
+        Assert.Null(target.Error);
+        Assert.Equal("first-key", target.ApiKey);
     }
 
     [Fact]

@@ -12,9 +12,10 @@ import styles from './WebSearchSettingsGroup.module.css'
 
 interface Props {
   provider: 'Exa' | 'DeepSeek'
+  optional?: boolean
 }
 
-export function WebSearchApiKeyRow({ provider }: Props): JSX.Element {
+export function WebSearchApiKeyRow({ provider, optional = false }: Props): JSX.Element {
   const t = useT()
   const setting = useConfigSetting(`Tools.Web.${provider}ApiKey`, (error) =>
     t('settings.llm.webSearch.saveFailed', { error })
@@ -44,9 +45,11 @@ export function WebSearchApiKeyRow({ provider }: Props): JSX.Element {
           : t('settings.llm.webSearch.deepSeekKey')
       }
       description={
-        provider === 'Exa'
-          ? t('settings.llm.webSearch.exaKeyHint')
-          : t('settings.llm.webSearch.deepSeekKeyHint')
+        provider === 'DeepSeek'
+          ? t('settings.llm.webSearch.deepSeekKeyHint')
+          : optional
+            ? t('settings.llm.webSearch.exaKeyAutoHint')
+            : t('settings.llm.webSearch.exaKeyHint')
       }
       htmlFor={id}
       control={

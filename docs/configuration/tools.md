@@ -51,13 +51,13 @@ Background commands, subagents, and workflows report back to the agent when they
 | `Tools.Web.DeepSeekProvider` | Provider id to reuse. Empty prefers the current eligible provider, then the only available DeepSeek provider | `""` |
 | `Tools.Web.DeepSeekApiKey` | Independent search key in `ApiKey` mode. Empty reads `DEEPSEEK_API_KEY` | `""` |
 
-In Desktop, choose a search service under **Settings → Model providers → Web search**. Automatic mode uses DeepSeek when the conversation uses an authenticated official DeepSeek provider, and Exa otherwise. An explicit Exa, Bing, or DeepSeek selection takes precedence outside ChatGPT subscription conversations.
+In Desktop, choose a search service under **Settings → Model providers → Web search**. Automatic mode searches with DeepSeek through the conversation's provider when it is an authenticated official DeepSeek provider, and uses Exa otherwise. The DeepSeek credential settings apply only when DeepSeek is selected. An explicit Exa, Bing, or DeepSeek selection takes precedence outside ChatGPT subscription conversations.
 
 ### Search with DeepSeek
 
-Select **DeepSeek** to use its search with any conversation model. By default, DotCraft reuses your existing DeepSeek provider without asking for its API key again. It prefers the current eligible provider, or the only available provider. Select a provider when you have multiple accounts. Providers using the official OpenAI-compatible or Anthropic-compatible DeepSeek endpoint are supported. Third-party model gateways do not qualify.
+Select **DeepSeek** to use its search with any conversation model. By default, DotCraft reuses your existing DeepSeek provider without asking for its API key again. It prefers the current eligible provider, or the only available provider. When you have more than one DeepSeek provider, the settings ask which one to use. Providers using the official OpenAI-compatible or Anthropic-compatible DeepSeek endpoint are supported. Third-party model gateways do not qualify.
 
-For an independent search account, select **Independent API key** and enter its key or set `DEEPSEEK_API_KEY`:
+For an independent search account, choose **API key** under **DeepSeek credentials** and enter it or set `DEEPSEEK_API_KEY`:
 
 ```json
 {

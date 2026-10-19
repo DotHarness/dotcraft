@@ -51,13 +51,13 @@
 | `Tools.Web.DeepSeekProvider` | 要复用的提供商 ID。为空时优先使用当前可用的提供商，否则使用唯一可用的 DeepSeek 提供商 | `""` |
 | `Tools.Web.DeepSeekApiKey` | `ApiKey` 模式下的独立搜索密钥。为空时读取 `DEEPSEEK_API_KEY` | `""` |
 
-在 Desktop 的 **设置 → 模型提供商 → 联网搜索** 中选择搜索服务。自动模式在对话使用已认证的官方 DeepSeek 提供商时使用 DeepSeek，否则使用 Exa。除 ChatGPT 订阅对话外，明确选择的 Exa、Bing 或 DeepSeek 优先于自动选择。
+在 Desktop 的 **设置 → 模型提供商 → 联网搜索** 中选择搜索服务。自动模式在对话使用已认证的官方 DeepSeek 提供商时，用该提供商进行 DeepSeek 搜索，否则使用 Exa。DeepSeek 凭据设置只在明确选择 DeepSeek 时生效。除 ChatGPT 订阅对话外，明确选择的 Exa、Bing 或 DeepSeek 优先于自动选择。
 
 ### 使用 DeepSeek 搜索
 
-选择 **DeepSeek**，即可为任意对话模型使用 DeepSeek 搜索。默认复用已有的 DeepSeek 提供商，无需重复填写 API Key。DotCraft 优先使用当前可用的提供商，否则使用唯一可用的提供商。有多个账号时，选择要使用的提供商。支持官方 DeepSeek 的 OpenAI 兼容和 Anthropic 兼容端点，第三方模型中转服务不适用。
+选择 **DeepSeek**，即可为任意对话模型使用 DeepSeek 搜索。默认复用已有的 DeepSeek 提供商，无需重复填写 API Key。DotCraft 优先使用当前可用的提供商，否则使用唯一可用的提供商。有多个 DeepSeek 提供商时，设置中会出现提供商选择。支持官方 DeepSeek 的 OpenAI 兼容和 Anthropic 兼容端点，第三方模型中转服务不适用。
 
-若要使用独立的搜索账号，选择 **独立 API Key** 并填写密钥，或设置 `DEEPSEEK_API_KEY`：
+若要使用独立的搜索账号，在 **DeepSeek 凭据** 中选择 **API 密钥** 并填写密钥，或设置 `DEEPSEEK_API_KEY`：
 
 ```json
 {

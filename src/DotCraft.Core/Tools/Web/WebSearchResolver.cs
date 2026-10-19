@@ -24,8 +24,12 @@ internal static class WebSearchResolver
             return new(WebSearchProvider.Bing);
         if (!automatic && !selected.Equals(WebSearchProvider.DeepSeek, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException($"Unsupported Tools.Web.SearchProvider '{web.SearchProvider}'. Supported values: Auto, Exa, Bing, DeepSeek.");
-        if (automatic && (current?.WebSearchBackend != ProviderWebSearchBackend.DeepSeek || !IsAvailable(config, current)))
-            return new(WebSearchProvider.Exa);
+        if (automatic)
+        {
+            return current?.WebSearchBackend == ProviderWebSearchBackend.DeepSeek && IsAvailable(config, current)
+                ? FromRuntime(config, current)
+                : new(WebSearchProvider.Exa);
+        }
 
         return ResolveDeepSeek(config, current, environment ?? Environment.GetEnvironmentVariable);
     }

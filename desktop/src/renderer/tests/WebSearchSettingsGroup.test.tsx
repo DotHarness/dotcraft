@@ -59,7 +59,26 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('web search configuration', () => {
-  it('overrides an inherited provider with an explicit automatic selection', () => {
+  const deepSeek = (id: string) => ({
+    id,
+    displayName: id,
+    protocol: 'anthropic',
+    endPoint: '',
+    hasApiKey: false,
+    managedBy: 'modelService',
+    isAuthenticated: true,
+    webSearchBackend: 'deepseek'
+  })
+
+  it('shows no DeepSeek settings in automatic mode', () => {
+    render(<WebSearchSettingsGroup providers={[deepSeek('account')]} providersLoading={false} />)
+
+    expect(screen.queryByLabelText('settings.llm.webSearch.credentials')).toBeNull()
+    expect(screen.getByLabelText('settings.llm.webSearch.exaKey')).toBeTruthy()
+  })
+
+  it('overrides a stale provider with an explicit automatic selection', () => {
+    config.values['Tools.Web.SearchProvider'] = 'DeepSeek'
     config.values['Tools.Web.DeepSeekProvider'] = 'inherited-account'
     render(<WebSearchSettingsGroup providers={[]} providersLoading={false} />)
 
@@ -71,42 +90,42 @@ describe('web search configuration', () => {
     expect(config.write).toHaveBeenCalledWith('Tools.Web.DeepSeekProvider', '')
   })
 
-  it('saves provider reuse without asking for a duplicate key', () => {
-    render(
-      <WebSearchSettingsGroup
-        providers={[
-          {
-            id: 'account',
-            displayName: 'Account',
-            protocol: 'anthropic',
-            endPoint: '',
-            hasApiKey: false,
-            managedBy: 'modelService',
-            isAuthenticated: true,
-            webSearchBackend: 'deepseek'
-          }
-        ]}
-        providersLoading={false}
-      />
-    )
+  it('reuses the only provider without asking for a choice or a key', () => {
+    render(<WebSearchSettingsGroup providers={[deepSeek('account')]} providersLoading={false} />)
     fireEvent.change(screen.getByLabelText('settings.llm.webSearch.service'), {
       target: { value: 'DeepSeek' }
     })
+    expect(config.write).toHaveBeenCalledWith('Tools.Web.SearchProvider', 'DeepSeek')
+
+    config.values['Tools.Web.SearchProvider'] = 'DeepSeek'
+    cleanup()
+    render(<WebSearchSettingsGroup providers={[deepSeek('account')]} providersLoading={false} />)
+    expect(screen.queryByLabelText('settings.llm.webSearch.deepSeekProvider')).toBeNull()
+    expect(screen.queryByLabelText('settings.llm.webSearch.deepSeekKey')).toBeNull()
+  })
+
+  it('asks for a provider only when there are several', () => {
+    config.values['Tools.Web.SearchProvider'] = 'DeepSeek'
+    render(
+      <WebSearchSettingsGroup
+        providers={[deepSeek('personal'), deepSeek('team')]}
+        providersLoading={false}
+      />
+    )
     fireEvent.change(
       screen.getByLabelText('settings.llm.webSearch.deepSeekProvider'),
-      { target: { value: 'account' } }
+      { target: { value: 'team' } }
     )
-    expect(config.write).toHaveBeenCalledWith(
-      'Tools.Web.SearchProvider',
-      'DeepSeek'
-    )
-    expect(config.write).toHaveBeenCalledWith(
-      'Tools.Web.DeepSeekProvider',
-      'account'
-    )
-    expect(
-      screen.queryByLabelText('settings.llm.webSearch.deepSeekKey')
-    ).toBeNull()
+    expect(config.write).toHaveBeenCalledWith('Tools.Web.DeepSeekProvider', 'team')
+  })
+
+  it('offers a key when no DeepSeek provider exists', () => {
+    config.values['Tools.Web.SearchProvider'] = 'DeepSeek'
+    render(<WebSearchSettingsGroup providers={[]} providersLoading={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.llm.webSearch.useApiKey' }))
+
+    expect(config.write).toHaveBeenCalledWith('Tools.Web.DeepSeekCredentialSource', 'ApiKey')
   })
 
   it('keeps Exa and DeepSeek key drafts separate and supports clearing', () => {
