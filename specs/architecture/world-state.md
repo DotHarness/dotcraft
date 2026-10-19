@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.10 |
+| **Version** | 0.9.1 |
 | **Status** | Draft |
-| **Date** | 2026-10-18 |
+| **Date** | 2026-10-19 |
 | **Parent Specs** | [Prompt Composition](prompt-composition.md) |
 
 Purpose: define the model-visible state DotCraft re-sends only when it changes — what counts as a
@@ -47,13 +47,11 @@ A snapshot carries identity and status, never moving values. Long text normally 
 The built-in `agents_md` section stores the rendered instruction content, including an explicit
 empty string after removal, so instruction replacement and retraction have a recoverable baseline.
 
-AGENTS fragments retain the plain-user `agents_md.instructions` marker on every protocol. Other
-sections keep their protocol-specific carrier. The section sends initial instructions once, marks
-later full instructions as replacing all previous AGENTS instructions, and sends one removal notice
-when previously visible instructions disappear. Legacy marked items without a snapshot count as
-`Unknown`, including when the entire baseline is missing.
+AGENTS fragments use the plain-user `agents_md.instructions` carrier on every protocol (Prompt
+Composition §4a); other sections keep their protocol-specific carrier. Marked items without a
+snapshot count as `Unknown`, including when the entire baseline is missing.
 
-A snapshot must not serialize to null, because null marks removal in a merge patch. Null members of
+A snapshot never serializes to null, because null marks removal in a merge patch. Null members of
 a snapshot object are stripped before comparison, so a snapshot compares equal to the value restored
 from a patch. Normalization is the runtime's job, not a section's.
 
@@ -84,7 +82,7 @@ A section describing a capability that can be switched off has three cases:
 - on: render the current state;
 - on, then off: render one notice retiring what was said, then say nothing.
 
-A section that carries instructions must mark a re-render as replacing what it said before, so two
+A section that carries instructions marks a re-render as replacing what it said before, so two
 copies in history cannot be read as cumulative.
 
 ## 3. Baseline
@@ -102,7 +100,7 @@ replay can tell that a record describes context a rolled-back turn removed.
 
 Replay applies records oldest first: a full snapshot resets the baseline, a patch advances it, and a
 patch with no full snapshot to stand on is ignored. A record missing its state or its identifiers is
-rejected and replay continues; a malformed record must never make a thread unloadable. Replay stops at the newest surviving compaction
+rejected and replay continues; a malformed record never makes a thread unloadable. Replay stops at the newest surviving compaction
 checkpoint, which is what makes compaction a reset.
 
 A record is skipped when its turn did not survive rollback, and when its turn was rebuilt from its
@@ -119,7 +117,7 @@ section.
 Each client-managed turn replaces history with the supplied transcript and resets both the live and
 persisted comparison baselines. This reset supersedes any baseline restored from an earlier turn.
 The turn's first context update establishes a new baseline, which later sampling steps reuse without
-repeating unchanged instructions. Instruction-file cache lifetimes remain unchanged.
+repeating unchanged instructions.
 
 Native compaction resets the world-state baseline while retaining the provider's opaque replacement;
 subsequent state updates append to that generation. Neutral compaction excludes all AGENTS updates
@@ -129,7 +127,7 @@ checkpoint. That snapshot prevents a duplicate instruction update on continuatio
 ### 3.4 Inheritance
 
 A fork inherits only the part of its parent's baseline that its own inherited history carries. A
-fork that does not carry a section's item must restate that section.
+fork that does not carry a section's item restates that section.
 
 ## 4. Cadence
 

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-19 |
 | **Parent Specs** | [Tools Architecture](../architecture/tools-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md) |
 
 Purpose: define how the Feishu Channel exposes official Feishu/Lark cloud capabilities through a Channel-owned companion executable.
@@ -19,7 +19,7 @@ Purpose: define how the Feishu Channel exposes official Feishu/Lark cloud capabi
 
 This specification covers one CLI capability declared by the Feishu adapter. It runs as the Bot by default and, when an operator has authorized an account, as that single user for read-only access to personal resources. Feishu MCP, raw OpenAPI execution, and runtime downloads are out of scope.
 
-Current-chat delivery and CLI operations are both Channel-owned tools. The former requires the current conversation context; the latter starts a short-lived companion process owned by the adapter and does not call the Feishu event-stream connection.
+Each CLI operation starts a short-lived companion process owned by the adapter and does not use the Feishu event-stream connection.
 
 ## 3. Availability and lifecycle
 
@@ -61,11 +61,11 @@ The Feishu Channel runner starts the pinned executable directly without a shell 
 - unknown or unclassified commands fail closed;
 - `identity: "user"` is accepted only for a command classified `read`, and only while an authorized account exists;
 - only the trusted runner may append `--yes`, and only for a command classified as `high-risk-write` after the common approval has completed;
-- file-bearing arguments resolve against the workspace and must remain inside it; external paths are unsupported in this version.
+- file-bearing arguments resolve against the workspace and must remain inside it; external paths are unsupported.
 
 The runner uses the adapter's validated configuration snapshot and locks identity through child-only environment variables. All inherited `LARKSUITE_CLI_*` values are cleared before the controlled environment is constructed, and the child never receives the App Secret.
 
-The two identities are mutually exclusive per invocation. A Bot invocation carries the adapter-owned App ID and a cached tenant access token from the initialized `FeishuClient`. A user invocation carries the App ID and the authorized user access token, and no tenant token. Strict mode is set to the selected identity in both cases, so a command cannot drift between identities. Risk classification runs without any token.
+The two identities are mutually exclusive per invocation. A Bot invocation carries the adapter-owned App ID and a cached tenant access token from the adapter's initialized Feishu client. A user invocation carries the App ID and the authorized user access token, and no tenant token. Strict mode is set to the selected identity in both cases, so a command cannot drift between identities. Risk classification runs without any token.
 
 Callers cannot supply access credentials or select a host-local CLI profile. Business resource identifiers such as document, wiki, file, media, and page tokens remain ordinary command arguments and are not credential overrides. Credentials, full argv, environment values, request bodies, document content, stdout, stderr, and workspace paths must not enter diagnostics.
 
@@ -81,20 +81,16 @@ Authorization binds one operator account for the whole Channel. The Channel acce
 
 Access tokens refresh ahead of expiry using the stored refresh token. An expired or rejected refresh token clears the binding, and the next user-identity call reports that authorization is required.
 
-Because one account serves the whole Channel, anyone who can reach the Bot can cause a read as that account. Read-only classification is what bounds this: user identity can never write, send, or delete on the operator's behalf. The common approval card names the command but not the identity, because the approval contract carries a single target argument; surfacing identity there requires a change to that shared contract.
+Because one account serves the whole Channel, anyone who can reach the Bot can cause a read as that account. Read-only classification is what bounds this: user identity can never write, send, or delete on the operator's behalf. The common approval card names the command but not the identity, because the approval contract carries a single target argument.
 
-The record is stored as plain JSON in the module state directory, at the same protection level as the already-plaintext App Secret. DotCraft has no secret store today, and introducing one is a separate concern that would cover both.
+The record is stored as plain JSON in the module state directory, at the same protection level as the plaintext App Secret.
 
 ## 7. Packaging
 
-The Feishu Channel package owns the CLI version lock, release checksums, staging script, shortcut catalog generation, license, and package verifier. The pinned version is `1.0.87`.
-
-Build tooling downloads the selected official release artifact, verifies SHA-256 before extraction, and stages the executable, generated catalog, and MIT license inside the Feishu module directory. The bundled adapter resolves these artifacts relative to its own module location. Desktop packaging may invoke the module's staging and verification commands and copy the resulting module directory, but it must not contain Feishu-specific runtime configuration or artifact resolution.
-
-Artifact staging uses the repository's shared downloader and SHA-256-verified cache. The downloader reports progress, bounds network waits, and uses up to eight concurrent byte-range requests with per-range retries when supported; servers without range support use a single response.
+The Feishu Channel package owns the pinned CLI version, its release checksums, the reviewed shortcut catalog and the license. Build tooling downloads the selected official release artifact, verifies SHA-256 before extraction, and stages the executable, generated catalog, and MIT license inside the Feishu module directory. The bundled adapter resolves these artifacts relative to its own module location. Desktop packaging may stage and copy the module directory, but it must not contain Feishu-specific runtime configuration or artifact resolution.
 
 Runtime downloads, automatic updates, npm launchers, Go source integration, and fallback to another executable are forbidden. Missing or mismatched artifacts cause a stable tool failure.
 
 ## 8. Protocol boundary
 
-`FeishuCli` uses the existing Channel tool declaration, Runtime Additional Context, approval, and `ext/channel/toolCall` contracts. AppServer requires no Feishu-specific service or wire extension. Other Channels and the generic Channel tool mechanism are unchanged.
+`FeishuCli` uses the existing Channel tool declaration, Runtime Additional Context, approval, and `ext/channel/toolCall` contracts. AppServer requires no Feishu-specific service or wire extension.

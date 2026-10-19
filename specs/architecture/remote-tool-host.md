@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.10 |
+| Version | 0.9.1 |
 | Status | Draft |
-| Date | 2026-10-17 |
+| Date | 2026-10-19 |
 | Parent | [Tool Architecture](tools-architecture.md) |
 
 ## 1. Purpose
@@ -47,14 +47,14 @@ kind (§8) without learning which it carries.
 Remote Tool Host does not provide general .NET remoting, IL weaving, arbitrary method interception,
 gRPC, NAT traversal, a cloud relay, LAN discovery, OAuth, enterprise SSO, multi-user roles, or a
 LocalSystem/root service. Each pairing is one principal; there are no roles or permissions beyond
-Host-local tool policy. It does not proxy MCP, Runtime Dynamic, Legacy App Binding, Session,
+Host-local tool policy. It does not proxy MCP, Runtime Dynamic, App Binding, Session,
 Agent-control, planning, goal, or user-interaction tools. It provides no remote input, remote
 control, or recording. A separate read-only screen data session may use the same broker transport
 without acquiring execution authority.
 
 ### 2.1 Embedded execution surface
 
-Core's `IRemoteToolHostClient` remains the Agent integration boundary. The common execution layer
+Core's `IRemoteToolHostClient` is the Agent integration boundary. The common execution layer
 owns tool negotiation, snapshot preparation, invocation, file transfer, and resource lifecycle.
 Product adapters own discovery, authentication, application authorization, Thread-to-session binding,
 and state projection. Execution-session identities are opaque to the common layer; business
@@ -71,16 +71,14 @@ Hub integration and the connection-management tools in §6 belong to its product
 
 `ToolRpcAttribute` is a parameterless method marker used alongside `ToolAttribute` or
 `GeneratedToolAttribute` or `ToolDeclarationAttribute`. It means that a Core Native tool or an
-accepted .NET plugin tool MAY be exported by a Remote Tool Host
-and that an Agent Host MAY route the tool's runtime binding remotely. It grants no authority,
+accepted .NET plugin tool MAY be exported by a Remote Tool Host and that an Agent Host MAY route the tool's runtime binding remotely. It grants no authority,
 changes no approval policy, and has no effect on direct method calls.
 
 The generated tool declaration and generated catalog descriptor MUST carry an `RpcEligible`
-boolean derived from the attribute. Reflection-based discovery MUST produce the same value. A
-method carrying `ToolRpcAttribute` without a supported tool attribute is invalid and SHOULD
-produce a generator diagnostic.
+boolean derived from the attribute. A method carrying `ToolRpcAttribute` without a supported tool
+attribute is invalid.
 
-The initial Core RPC-eligible set is:
+The Core RPC-eligible set is:
 
 - `ReadFile`, `WriteFile`, `EditFile`, `GrepFiles`, and `FindFiles`;
 - `LSP`;
@@ -107,8 +105,7 @@ numbers use their canonical JSON representation before SHA-256 is calculated.
 
 The Host exports RPC-eligible Core Native registrations and prepared .NET plugin registrations.
 A `PluginNative` label alone does not qualify a source: the Agent runtime must own its accepted
-bundle and live generation. Every exported MCP tool carries the
-following metadata:
+bundle and live generation. Every exported MCP tool carries this metadata:
 
 ```json
 {
@@ -157,8 +154,8 @@ A Host also has zero or more **pairings**. A pairing binds the Host to one broke
 the Host as a peer record containing the broker endpoint, a broker-assigned opaque `peerId`, a
 credential reference, and the `workspaceId` the pairing was created for. That workspace reference
 is enforced per authenticated peer at discovery, acquisition, catalog and invocation boundaries.
-Peer records require the endpoint scheme, workspace, and owner-granted authorization mode.
-They store `authorizationRevision` so changing authorization invalidates outstanding approvals.
+Peer records require the endpoint scheme, workspace, and owner-granted authorization mode, and
+store `authorizationRevision` so changing authorization invalidates outstanding approvals.
 The broker records the same pairing as a satellite peer under the same `peerId` together with the
 Host display name, machine information, build version, last reported workspaces, and last-seen
 time. Agent Hosts address the Remote Tool Host by that `peerId`; it is the `hostId` value they see
@@ -215,8 +212,8 @@ Lease or execution-session loss keeps the thread route and marks it unavailable.
 MUST NOT be reported as loss of a sibling's healthy lease. There is no automatic fallback to local
 execution; only an explicit disconnect clears the route.
 
-Observers are notified outside the client's route and state locks, and one observer's failure never
-fails the connect, disconnect, or heartbeat that produced the event, nor the observers behind it.
+One observer's failure never fails the connect, disconnect, or heartbeat that produced the event, nor
+the observers behind it.
 
 ### 5.2 Execution-session ownership
 
@@ -276,19 +273,9 @@ Provider-flat projections MAY translate the dot but the canonical identity remai
 These tools never accept or return an endpoint, token, certificate, credential reference, or raw
 Host configuration.
 
-Their static descriptions are:
-
-```text
-Namespace: Manage this thread's remote workspace connection.
-List: List registered Remote Tool Hosts, their workspaces, and this thread's current connection.
-Connect: Connect this thread to a remote workspace. RPC plugin tools are prepared automatically. Skill files remain local; read with target="local" and Transfer as needed.
-Disconnect: Disconnect this thread from its remote workspace.
-Transfer: Upload or download files and directories between local and connected remote workspaces; directories merge into the destination.
-Connect.hostId: Remote Tool Host id.
-Connect.workspaceId: Remote workspace id.
-```
-
-The namespace, tool descriptions, schemas, ordering, and exposure are static. Peer registrations,
+The namespace, tool descriptions, schemas, ordering, and exposure are static. The `Connect`
+description tells the model that RPC plugin tools are prepared automatically and that Skill files
+remain local, to be read with `target="local"` and transferred as needed. Peer registrations,
 online catalogs, thread routes, and lease state MUST NOT change any declaration or deferred-search
 metadata. An empty peer catalog still exposes all four tools: `List` returns an empty catalog,
 `Connect` returns `HostNotRegistered`, `Disconnect` reports no route, and `Transfer` requires a route.
@@ -317,7 +304,7 @@ Session Core records a persistent `systemNotice` item with `kind = "remoteRoute"
 and disconnect a person or the model caused, and for every lease loss, so a thread's history shows
 where its tools ran; disconnects the Agent Host performs on teardown are not recorded. The notice
 is appended to the running Turn when one is in flight and otherwise to the latest completed Turn; a
-thread with no Turn records nothing, because a divider with nothing to divide is noise. A notice on a
+thread with no Turn records nothing. A notice on a
 running Turn is placed at the point in that Turn where the route changed, so the Items before it are
 the work that ran in the previous location and the Items after it are the work that ran in the new
 one. Its payload is defined in [Session Core](session-core.md) §4.2.
@@ -326,15 +313,10 @@ At the start of each Turn, the Agent Host appends a Remote Tool Host section to 
 message runtime context when the thread has a connected or lost route. The section contains
 `Status`, `HostId`, `WorkspaceId`, `HostName`, `OperatingSystem`, `UserName`, and
 `RemoteWorkingDirectory` and remote supporting-file paths for always-loaded Skills.
-Values are bounded
-and encoded as single-line scalars. The section MUST
-omit lease and Host instance identifiers, endpoints, tokens, certificates, and credential
+Values are bounded and encoded as single-line scalars. The section MUST omit lease and Host instance identifiers, endpoints, tokens, certificates, and credential
 references. A disconnected thread has no Remote Tool Host runtime-context section. A successful
 `Connect` or `Disconnect` result is authoritative for the remainder of its current Turn; the next
 Turn's runtime context reflects the new state.
-
-The control namespace remains directly loaded with a stable tool surface regardless of connection
-state.
 
 ## 7. Invocation flow and policy
 
@@ -359,7 +341,7 @@ route-aware runtime binding. On a remote route it then sends an MCP `tools/call`
 }
 ```
 
-`originKind` is present only for a nested [Code Mode](../features/code-mode.md) call, and the Host
+`originKind` is present only for a call nested in a script tool call (`codeMode`), and the Host
 dispatches with that origin kind so the native runtime shapes its result as it does locally; any other
 call runs with the Host's own origin.
 
@@ -370,13 +352,11 @@ effective configuration (§10) and the configured path blacklist; a Host MUST NO
 weaker file boundary than a local Agent applies to the same directory.
 
 Before encoding a text result, the Host materializes oversized text as a session-owned artifact
-under the Host's private state root.
-The session's artifact root MUST be a trusted read path of its owning execution runtime so remote
+under the Host's private state root. The session's artifact root MUST be a trusted read path of its owning execution runtime so remote
 `ReadFile` can reach it. It lies outside the leased workspace, is unavailable to other sessions,
 and MUST resolve inside the Host state directory after symlink and reparse-point resolution.
 Tool writes into Host-private execution state are denied. A Host whose artifact root is
-blacklisted MUST fail at startup rather than at call time. Artifact access follows §5.2.
-The requested limit is clamped to the profile hard ceiling of 100,000 characters; zero cannot
+blacklisted MUST fail at startup rather than at call time. Artifact access follows §5.2. The requested limit is clamped to the profile hard ceiling of 100,000 characters; zero cannot
 disable this transport ceiling. The Host returns only a bounded preview and the artifact path.
 A materialization failure fails the call and MUST NOT fall back to transmitting the complete result.
 
@@ -392,8 +372,8 @@ root. The Agent Host never receives the file text, so a remote edit invalidates 
 diff for that Turn: `turn/diff/updated` carries an empty diff and clients rely on the per-call
 diffs.
 
-Host deny policy is authoritative. Owner authorization reuses `IApprovalService` through a local
-owner-consent presenter, never remote MCP elicitation as a substitute. Workspace-preferred permits
+Host deny policy is authoritative. Owner authorization uses the Host's local owner-consent
+presenter, never remote MCP elicitation. Workspace-preferred permits
 ordinary workspace files; external files, every new command, nonempty terminal input and language
 server execution require owner approval. Full access skips owner prompts but not explicit Host
 policy. Requests bind peer, authorization revision, execution session, invocation and arguments.
@@ -406,8 +386,7 @@ start only inside an approved invocation; file-only calls cannot start them. She
 execution with the signed-in user's authority, not filesystem isolation. A Host `Exec` first passes
 the shell execution gate from [Shell Command Safety](shell-command-safety.md); the owner request
 carries the command as its operation and the working directory as its target, like the Agent-side
-approval. Terminals remain bound to
-their execution session within the lease.
+approval. Terminals remain bound to their execution session within the lease.
 File path checks cover ancestor junctions and symlinks, including nonexistent destination files.
 
 ## 8. Transport profile and failure semantics
@@ -458,7 +437,7 @@ required profile fields fail closed.
 The client requires the Host's explicit `execution-sessions-v1` capability before acquiring a lease.
 Successful pairing alone does not establish this capability. Lease acquisition and release follow
 the session lifecycle in §5.2. The client sends Turn reports only to a Host that lists
-`execution-turns-v1`; with an older Host the session works unchanged and the Host shows no Turns.
+`execution-turns-v1`.
 
 ### 8.1 Control channel
 
@@ -485,7 +464,7 @@ A local client asks its Hub for a session to a peer. The Hub sends `openSession`
 channel and waits up to 15 seconds for the Host to open a data connection carrying that session id
 and the peer credential. The Hub then relays the two WebSockets frame for frame, preserving message
 type and fragment boundaries, until either side closes. One data connection of kind `tools` is one
-MCP session; a `screen` connection follows Remote Screen View §6.
+MCP session; a `screen` connection carries the screen view protocol.
 Independent execution sessions within one Agent Host use separate data connections while retaining
 that process's shared lease ownership. Multiple Agent Host processes use distinct owner identities;
 lease exclusivity between them is unchanged. A replaced data connection gets a new session identity;
@@ -516,8 +495,7 @@ has no live control connection for the peer; `SatelliteSessionFailed` means the 
 failed to open the requested data connection.
 
 A Host that declines `openSession` answers `sessionFailed` with a stable code, and the Hub hands
-that code to the local client as the bridge's close description; the codes a screen view may carry
-are listed in Remote Screen View §6.2.
+that code to the local client as the bridge's close description.
 
 File transfer errors distinguish `FileNotFound`, `FileAccessDenied`, `FileInUse`,
 `TransferSourceChanged`, and `FileIoError`, with the operation and safe reason in the fallback.
@@ -608,8 +586,7 @@ composes a provider-free workspace execution runtime with one control channel pe
 not compose a model provider, Session Core, AppServer, memory, or Agent orchestration. A Host with
 no pairing refuses to start and points at `join`.
 
-User-level login autostart is the v1 lifecycle; Windows user autostart is the initial conformance
-target. A state root serves at most one Remote Tool Host process: when the Satellite client owns
+The Host lifecycle is user-level login autostart. A state root serves at most one Remote Tool Host process: when the Satellite client owns
 autostart, `autostart install` MUST refuse, and installing Satellite autostart MUST remove the CLI
 autostart entry. The same public runtime hosting entry point serves both the CLI verbs and the
 Satellite client so their lifecycle semantics cannot diverge.
@@ -631,14 +608,12 @@ thread route. Explicit local execution never changes that route. Explicit remote
 requires a live route; remote failure never causes local execution. This Agent-side projection
 strips `target` before native execution and hashes the original native contract.
 
-An internal RPC schema post-processor adds the routing parameter before snapshot construction,
-independently of tool source and provider schema sanitization. It copies the native definition,
-preserving business parameters, required fields, constraints, and metadata. It handles top-level
-object parameter schemas without expanding references or composition keywords. A native top-level
-`target` declaration is a registration error that prevents snapshot construction; nested fields
-with that name remain business data. The registration router owns RPC eligibility and tool-specific
-routing descriptions. Already routed registrations are reused, while catalog negotiation and
-runtime invocation retain the original native definition.
+The routing parameter is added to a copy of the native definition before snapshot construction,
+independently of tool source and provider schema sanitization, preserving business parameters,
+required fields, constraints, and metadata without expanding references or composition keywords. A
+native top-level `target` declaration is a registration error that prevents snapshot construction;
+nested fields with that name remain business data. Catalog negotiation and runtime invocation use the
+original native definition.
 
 The RPC runtime accepts only an omitted `target`, `"local"`, or `"remote"`. Other values fail with
 `InputInvalid` before execution, including strings outside the schema enum. Only the top-level
@@ -664,7 +639,7 @@ total and transferred bytes, total and completed files, and the current file. Tr
 advance only after a chunk succeeds; completed files and bytes advance only after that file is
 verified, flushed, and committed. Commit work remains part of `transferring`: the only terminal
 states are `completed` and `failed`. Failure retains the last known byte progress and confirmed
-destination bytes. Historical results without totals expose only their known statistics and never
+destination bytes. Results without totals expose only their known statistics and never
 infer a percentage. A zero-byte file completes normally.
 
 The private `files/*` extension uses bounded chunks, 64-bit sizes and offsets, SHA-256 validation,
@@ -679,7 +654,7 @@ method or wire traffic between the Agent and Remote Tool Host.
 
 Connect acquires a candidate lease, negotiates tools and the `files-v1` capability, then publishes
 the route. Failure preserves the previous route. Repeating Connect returns the current connection
-without emitting a duplicate route transition. Hosts lacking file transfer support require upgrading.
+without emitting a duplicate route transition. A Host without `files-v1` cannot be connected.
 
 Skills remain on the Agent machine. SkillView reads effective local instructions,
 and the Skill catalog identifies the effective local file, including variants. Supporting files are
@@ -712,9 +687,9 @@ Full-access authorization permits automatic preparation. Workspace-preferred aut
 the Host owner's approval of the exact bundle fingerprints before any plugin code loads. Approval is
 execution-session-scoped and is not persisted as local plugin trust.
 
-Runtime owns a provider-free plugin execution host using the ordinary bundle preflight, dependency
-planner, generation gates, proxies, and teardown. RemoteTools consumes that host; Runtime does not
-depend on RemoteTools. The execution host supports tool sources, dependency exports, plugin lifetime,
+The runtime layer owns a provider-free plugin execution host that uses the ordinary bundle preflight,
+dependency planning, generation gates, and teardown; Remote Tool Host consumes it without the runtime
+depending on Remote Tool Host. The execution host supports tool sources, dependency exports, plugin lifetime,
 and its explicitly provided host services, not Agent, Session, or provider contributions.
 
 Catalogs are execution-session-, thread-, and snapshot-scoped. A leased workspace has one active generation per plugin.
@@ -736,11 +711,10 @@ closure cleans all of its prepared Threads without invalidating sibling sessions
 shared generation. Final lease release disposes the complete execution runtime. Verified package
 files may remain on disk.
 
-## Generated image artifacts
+## 14. Generated image artifacts
 
-Image generation remains Agent-owned. The image's route is captured when the `image_gen.imagegen`
-call starts.
-The Agent persists image content in Session history and, when routed remotely, writes the
+Image generation is Agent-owned. The image's route is captured when the `image_gen.imagegen`
+call starts. The Agent persists image content in Session history and, when routed remotely, writes the
 artifact through `dotcraft/remoteToolHost/images/write` to the captured workspace's
 `.craft/generated_images/<threadId>/<callId>.png`. The Host computes this path, validates the
 execution session, lease and peer, applies WriteFile authorization and configured file size limits, and writes

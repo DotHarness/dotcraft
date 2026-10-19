@@ -6,7 +6,7 @@
 | **Status** | Living |
 | **Date** | 2026-10-19 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md) |
-| **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [World State](../architecture/world-state.md), [Dreams](dreams.md), [Agent Profiles](agent-profiles.md) |
+| **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [World State](../architecture/world-state.md) |
 
 Purpose: Define DotCraft's memory: the agent-maintained store of memory files and their index, which store a Thread uses, the stores its creator attaches beside it and how writes to them are admitted, how memory enters the prompt, how memory is saved while responding and after a Turn, how clients present it, the switches that govern it, and how it is deleted.
 
@@ -25,12 +25,12 @@ In scope:
 
 Out of scope:
 
-- Consolidating a store, owned by [Dreams](dreams.md).
+- Consolidating a store, owned by Dreams.
 - Short-term context compaction and token-pressure recovery.
 - Per-Thread memory controls.
 - Relevance-based retrieval, vector or semantic indexes, and cross-workspace or user-global memory. Standing user-level guidance belongs in the user's `AGENTS.md`.
 - Where an attached store's content comes from, who may change it, and how it stays consistent across hosts. These belong to the host that attaches the store.
-- Attaching stores over AppServer or from a client. In this version only an in-process host attaches stores.
+- Attaching stores over AppServer or from a client. Only an in-process host attaches stores.
 
 ## 2. Core Concepts
 
@@ -126,7 +126,6 @@ Rules:
 - An attachment that fails validation fails Thread creation or configuration replacement with a reason. Validation covers an unsafe or duplicate `id`, a missing `name` or `description`, an unknown access, or too many attachments.
 - Unlike the scope, attachments may change: replacing a Thread's configuration replaces its attachments, and the change takes effect at the Thread's next Turn. A replacement that leaves out attachments keeps the ones the Thread has.
 - A SubAgent or forked Thread inherits its source's attachments.
-- A Thread persisted before attachments existed has none.
 - The runtime creates an attached store's directory when it is missing and never deletes one. The store's content belongs to the host that attaches it. That host may replace the files at any time, for example to deliver another host's changes. Such a replacement reaches running Threads through the memory index section (§5.1).
 - Attachments are independent of the memory switches. A Thread with memory disabled uses no store, attached or own.
 
@@ -223,7 +222,7 @@ The fork may read anything the Thread may read, attached stores included. It may
 
 ### 6.3 Consolidation
 
-[Dreams](dreams.md) periodically consolidates a store: it merges duplicates, corrects drifted facts, prunes the index, and reconciles memory with `AGENTS.md`. It never consolidates an attached store, whose host owns its upkeep.
+Dreams periodically consolidates a store: it merges duplicates, corrects drifted facts, prunes the index, and reconciles memory with `AGENTS.md`. It never consolidates an attached store, whose host owns its upkeep.
 
 ## 7. Memory Switches
 
@@ -232,7 +231,7 @@ The fork may read anything the Thread may read, attached stores included. It may
 | `Memory.Enabled` | `true` | New Threads use and maintain memory. |
 | `Memory.AutoExtract` | `false` | New memory-enabled Threads run memory extraction. |
 
-A Thread captures both switches at creation and keeps them for its lifetime, like its scope. Changing a setting affects new Threads only; running and resumed Threads keep the values they captured, and replacing a Thread's configuration preserves them. A SubAgent or forked Thread inherits its source's values. A Thread persisted before a switch existed captured `Memory.Enabled` as `true` and `Memory.AutoExtract` as `false`. Whoever creates a Thread may capture extraction as disabled; automations do.
+A Thread captures both switches at creation and keeps them for its lifetime, like its scope. Changing a setting affects new Threads only; running and resumed Threads keep the values they captured, and replacing a Thread's configuration preserves them. A SubAgent or forked Thread inherits its source's values. Whoever creates a Thread may capture extraction as disabled; automations do.
 
 When memory is disabled, a Thread neither uses nor maintains memory: the memory instructions and the memory index are absent, and no extraction runs.
 
@@ -252,8 +251,8 @@ Clients group recall operations as recalled memories and show an update as a mem
 
 ## 9. Deleting Memory
 
-AppServer `memory/reset` deletes the contents of every memory store in the current workspace: the workspace store and every scope store, including files left by earlier versions. It also deletes all Dreams artifacts. It leaves attached stores untouched, because their content belongs to the host that attaches them. It keeps the store directories, sessions, configuration, skills, plugins, plans, automation tasks, Agent Profiles, and the memory switches.
+AppServer `memory/reset` deletes the contents of every memory store in the current workspace: the workspace store and every scope store. It also deletes all Dreams artifacts. It leaves attached stores untouched, because their content belongs to the host that attaches them. It keeps the store directories, sessions, configuration, skills, plugins, plans, automation tasks, Agent Profiles, and the memory switches.
 
 ## 10. Welcome Suggestions
 
-Personalized welcome suggestions receive an explicit snapshot of the workspace store as generation input, alongside dedicated system instructions: the loaded index and the listing of its memory files by type, name, and description. The same captured content supplies the generation request and determines the cache fingerprint. Suggestions are generated in the background after a successful Turn when that content has changed since the cached result. They are skipped when memory is disabled or the store holds no memory files. The internal Thread submits its result through `EmitWelcomeSuggestions`.
+Personalized welcome suggestions receive an explicit snapshot of the workspace store as generation input, alongside dedicated system instructions: the loaded index and the listing of its memory files by type, name, and description. The same captured content supplies the generation request and determines the cache fingerprint. Suggestions are generated in the background after a successful Turn when that content has changed since the cached result. They are skipped when memory is disabled or the store holds no memory files.

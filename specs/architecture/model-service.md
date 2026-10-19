@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.8 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-19 |
 
 DotCraft runtimes select either direct model access or one remote model service. A service exposes
-multiple configured providers. The worker runs the existing provider adapters, model loop, tools,
+multiple configured providers. The worker runs the provider adapters, model loop, tools,
 native history, and compaction policy. The service owns upstream credentials and network access.
 
 ## Transport boundary
@@ -25,7 +25,7 @@ never become upstream authentication. The service cannot execute workspace tools
 
 Provider descriptions contain protocol, authentication method, non-secret routing and model
 metadata, and sanitized authentication status. They contain no API keys, OAuth tokens, or server
-filesystem paths. Workers retain current provider request shaping and native history capabilities.
+filesystem paths. Workers keep provider request shaping and native history.
 Thread, root thread, Turn, and request-kind correlation remain explicit. Cache routing identities
 are scoped by the stable caller identity.
 
@@ -50,10 +50,8 @@ failures require a new login. Browser interaction remains the responsibility of 
 
 Service usage is extracted from upstream responses by provider-owned readers. Hosts receive
 normalized token counts with caller and request correlation. Usage-recording failures do not fail
-model responses. Request bodies and credentials are not included in these records.
-When an upstream response omits `Content-Type`, the usage reader selects JSON for a body whose
-first non-whitespace byte is `{` or `[`, and SSE otherwise. Explicit response types retain their
-existing parsing behavior; format detection does not alter the forwarded response.
+model responses. Request bodies and credentials are not included in these records. Usage reading
+never alters the forwarded response.
 
 ## Deployment
 
@@ -65,6 +63,6 @@ but cannot mutate providers or start or revoke upstream authentication.
 
 ## DeepSeek search
 
-Provider catalogs optionally advertise `webSearchBackend: "deepseek"` for official DeepSeek API-key providers. The absence of this field disables remote DeepSeek search, including on older services. This metadata contains no credentials and is carried through the worker's effective provider metadata and AppServer provider list.
+Provider catalogs optionally advertise `webSearchBackend: "deepseek"` for official DeepSeek API-key providers; its absence disables remote DeepSeek search. This metadata contains no credentials and is carried through the worker's effective provider metadata and AppServer provider list.
 
-`POST tools/search` uses the existing provider HTTP transport, caller authorization, correlation context, timeout, cancellation, and observers. The service accepts it only for a configured official DeepSeek provider, independently of whether its model protocol is OpenAI or Anthropic. It maps the logical operation to `https://api.deepseek.com/v1/tools/search` and injects the provider's API key using Bearer authentication. Client authorization and Anthropic model authentication headers are never forwarded as search credentials. Search does not require a model, does not execute workspace tools, and never falls back to worker credentials. Other providers cannot use this operation.
+`POST tools/search` uses the provider HTTP transport, caller authorization, correlation context, timeout, cancellation, and observers. The service accepts it only for a configured official DeepSeek provider, independently of whether its model protocol is OpenAI or Anthropic. It maps the logical operation to `https://api.deepseek.com/v1/tools/search` and injects the provider's API key using Bearer authentication. Client authorization and Anthropic model authentication headers are never forwarded as search credentials. Search does not require a model, does not execute workspace tools, and never falls back to worker credentials. Other providers cannot use this operation.

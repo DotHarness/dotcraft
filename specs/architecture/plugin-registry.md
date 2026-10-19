@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.9.1 |
 | **Status** | Draft |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-19 |
 
 Purpose: define the product and process contract for DotCraft plugin marketplaces. A marketplace lets DotCraft discover installable external integration plugins without bundling every integration in the DotCraft Desktop release package, and lets users and organizations add their own plugin sources.
 
@@ -28,7 +28,7 @@ Marketplace sources and installed plugins are recorded once for the user and are
 - Keep availability-critical DotCraft plugins bundled with the main Desktop package.
 - Provide an official curated source marketplace for first-party installable plugins.
 - Let users and organizations add additional marketplaces, including private mirrors and company-internal repositories, without editing configuration files by hand.
-- Preserve the existing local plugin runtime model and plugin manifest contract.
+- Reuse the local plugin runtime model and plugin manifest contract.
 
 ## 3. Non-goals
 
@@ -89,7 +89,7 @@ A marketplace source declares where the marketplace document and its plugin dire
 | `local` | Directory path on this machine | None | No, read in place |
 | `archive` | HTTPS archive URL, or a local archive file | Archive download and extraction | Yes, in a content-addressed cache |
 
-`archive` is the pre-existing source kind and remains supported for configured sources and the host-provided default marketplace. Entries that omit the source kind keep the pre-0.3.0 behavior: an existing directory or archive file path is treated as a local snapshot, and any other value is treated as an archive URL.
+The host-provided default marketplace is an `archive` source. An entry that omits the source kind is treated as a local snapshot when its value is an existing directory or archive file path, and as an archive URL otherwise.
 
 ### 5.1 Accepted git source syntax
 
@@ -114,7 +114,7 @@ A git source may declare sparse paths so that only the marketplace document and 
 
 ## 6. Installed Marketplace Roots
 
-Git marketplaces are materialized under a user-global installed marketplace root, one directory per marketplace name. Local marketplaces are never copied; DotCraft reads the user's directory in place. Archive marketplaces keep their existing content-addressed snapshot cache.
+Git marketplaces are materialized under a user-global installed marketplace root, one directory per marketplace name. Local marketplaces are never copied; DotCraft reads the user's directory in place. Archive marketplaces use the snapshot cache in §7.6.
 
 Rules:
 
@@ -157,7 +157,7 @@ Removing a marketplace deletes its configuration entry and, for materialized kin
 
 ### 7.5 Discovery never fetches
 
-Plugin discovery runs on every plugin listing and every plugin mutation, and plugin listing is reachable from request paths that a client may call repeatedly. Discovery therefore reads only materialized roots, local source directories, local archive files, and cached archive snapshots that already exist on disk. Discovery must never start a network fetch of any kind. Every fetch happens through an explicit add or refresh operation, or through the startup sync described in §7.7.
+Discovery runs on every plugin listing and mutation, including request paths clients call repeatedly. It reads only materialized roots, local source directories, local archive files, and cached archive snapshots already on disk, and never starts a network fetch. Every fetch happens through an explicit add or refresh, or the startup sync in §7.7.
 
 Extracting a local archive file into its snapshot cache is not a fetch, but discovery repeats it only when the archive file changed since the cached snapshot was activated.
 
@@ -167,29 +167,27 @@ Archive marketplaces use the user-global cache under `<craft-home>/cache/plugin-
 
 An archive refresh must extract into a temporary directory, validate the marketplace document, and atomically activate the new snapshot before deleting an older snapshot. A failed download, extraction, validation, or activation leaves the previous snapshot available. After successful activation, DotCraft immediately removes other cache generations for the same marketplace identity on a best-effort basis; cleanup failure must not make the new snapshot unavailable. Removing an archive marketplace also removes its managed cache snapshots.
 
-Each activated snapshot stores internal cache metadata containing a schema version, marketplace identity, source key, marketplace path, and update time. Existing snapshots without metadata remain readable: DotCraft derives their identity from the marketplace document, writes metadata when possible, and applies the same single-version pruning rule. Cache operations also remove interrupted archive staging directories older than ten minutes while leaving newer staging directories and unrelated files untouched.
+Each activated snapshot stores cache metadata: schema version, marketplace identity, source key, marketplace path, and update time. Cache operations also remove interrupted staging directories older than ten minutes, leaving newer staging directories and unrelated files untouched.
 
-The cache root must be derived from the effective Craft home supplied to the runtime or development resolver. Tests and alternate Craft homes must not write into the default user's cache. These cache mechanics do not apply to Git marketplace roots, local marketplaces, or installed plugins.
+The cache root derives from the effective Craft home, so alternate Craft homes never write into the default user's cache.
 
 ### 7.7 Archive download and retry
 
 An archive download is bounded by a timeout sized for a repository archive rather than for a small document, and by a maximum download size enforced while the response is read. A download that exceeds either bound fails that marketplace and leaves the previous snapshot available.
 
-Each archive source records both its last successful activation and its last attempt. A successful activation is reused until the refresh interval elapses. A failed attempt is not retried until a backoff interval has elapsed, and the backoff grows with consecutive failures up to the refresh interval. The attempt record is what makes a source whose snapshot has never been activated stop re-downloading on every pass.
+Each archive source records both its last successful activation and its last attempt. A successful activation is reused until the refresh interval elapses. A failed attempt is not retried until a backoff interval has elapsed, and the backoff grows with consecutive failures up to the refresh interval, so a source that has never activated does not re-download on every pass.
 
 The host supplies the default registry through the environment, so it has no configuration entry to refresh from. DotCraft syncs it once per process shortly after startup, off any request path, and again whenever a refresh operation runs. Concurrent syncs of one source coalesce into a single download. When a startup sync activates a new snapshot, DotCraft advances the plugin snapshot revision so connected clients reload the catalog.
 
 ### 7.8 Unavailable sources
 
-A configured source that cannot be resolved on this machine is reported, not repaired. This covers a local directory that no longer exists, a git marketplace that has not been fetched, and an archive marketplace that has not been downloaded. DotCraft never deletes or disables a configuration entry because it failed to resolve: a source is usually absent for a reason that reverses, such as an unmounted drive, a repository not cloned yet, or a directory that moved. Removal stays an explicit user action, and it succeeds whether or not the source still exists on disk.
-
-An unavailable source remains listed and remains removable. A client must be able to reach remove for a marketplace that contributes no plugins, because that is the state removal exists for.
+A configured source that cannot be resolved on this machine (a missing local directory, an unfetched git marketplace, an undownloaded archive) is reported, not repaired. DotCraft never deletes or disables a configuration entry because it failed to resolve, since absence usually reverses. An unavailable source remains listed and removable; removal is an explicit user action that succeeds whether or not the source still exists on disk.
 
 ### 7.9 Source diagnostics
 
 A source diagnostic names the marketplace in a `marketplace` parameter and carries the offending path. The code and parameters are the stable contract; the message is English fallback text that a client may replace with its own localized copy.
 
-Each configured source contributes at most one diagnostic per discovery pass, however many times a pass resolves that source internally. A caller that aggregates diagnostics from more than one pass reports each distinct diagnostic once, comparing severity, code, message, plugin id, function name, and path. Repetition counts occurrences of an internal resolve, which carries no information a reader can act on.
+Each configured source contributes at most one diagnostic per discovery pass. A caller that aggregates diagnostics from more than one pass reports each distinct diagnostic once, comparing severity, code, message, plugin id, function name, and path.
 
 ## 8. Precedence
 
@@ -209,7 +207,7 @@ Installing a marketplace plugin must:
 - write a managed marker for DotCraft-owned refresh/removal behavior;
 - refresh plugin-contributed skills, apps, MCP/LSP servers, and Desktop module metadata through the normal plugin runtime.
 
-User-owned plugins without a managed marker must not be overwritten by marketplace install or refresh behavior.
+User-owned plugins without a managed marker are never overwritten by marketplace install or refresh.
 
 ## 10. Security and Trust Boundaries
 
@@ -231,7 +229,7 @@ Content validation:
 
 Runtime boundaries:
 
-- Adding a marketplace only makes its plugins visible as installable catalog entries. No plugin contributes runtime behavior until the user installs it into a workspace.
+- Adding a marketplace only makes its plugins visible as installable catalog entries. No plugin contributes runtime behavior until the user installs it.
 - Desktop Plugins are trusted installed code and load only after installation and enablement.
 - App Binding, MCP/LSP, dynamic tools, and Desktop Plugins retain the lifecycle and consent rules in their owning specifications.
 
@@ -239,12 +237,8 @@ Review expectations for the official marketplace: check misleading metadata, mis
 
 ## 11. Publication Workflow
 
-The intended publishing flow for the official marketplace is:
-
-1. A contributor updates or adds a plugin directory under `plugins/<pluginName>/`.
-2. The contributor updates `.craft/plugins/marketplace.json`.
-3. CI validates marketplace shape, path safety, manifest id consistency, and referenced files.
-4. DotCraft maintainers review and merge the marketplace pull request.
-5. The merged default branch becomes available through marketplace refresh.
-
-The same repository layout applies to any user-added or organization-managed marketplace.
+A contributor adds or updates a plugin directory under `plugins/<pluginName>/` and the
+`.craft/plugins/marketplace.json` entry. CI validates marketplace shape, path safety, manifest id
+consistency, and referenced files; maintainers review and merge; the merged default branch reaches
+users through marketplace refresh. The same layout applies to any user-added or organization-managed
+marketplace.

@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.7.8 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-19 |
 | Parent Spec | [Desktop Design System](DESIGN.md) |
 
 ## Overview
@@ -15,9 +15,9 @@ preserving one deterministic global cascade for existing global selectors.
 
 ## Core design and architecture
 
-The renderer has one global style entry imported once by the renderer bootstrap.
-That entry is an ordered import manifest; it contains no style declarations.
-Its import order is a compatibility contract for existing global selectors.
+The renderer has one global style entry imported once at renderer startup. That
+entry is an ordered import manifest with no declarations of its own; its import
+order is a compatibility contract for existing global selectors.
 
 Global styles are divided by ownership:
 
@@ -27,41 +27,29 @@ Global styles are divided by ownership:
 - Shared concerns define cross-feature accessibility, motion, status, and
   appearance behavior.
 - Feature styles live beside the feature that owns their selectors, animations,
-  and responsive behavior. They may still be included by the ordered global
-  manifest when stable cascade order is required.
+  and responsive behavior. The global manifest may still include them when stable
+  cascade order is required.
 
-Existing class names remain global during organizational refactors. New isolated
+Existing class names stay global during organizational refactors. New isolated
 leaf components may use CSS Modules when their selectors do not target portals,
-shared component classes, third-party DOM, or ancestor-owned state. Global
-feature selectors use an ownership prefix. Shared production primitives use the
-`dc-` prefix.
+shared component classes, third-party DOM, or ancestor-owned state. Global feature
+selectors use an ownership prefix; shared production primitives use the `dc-`
+prefix.
 
-Static presentation belongs in CSS. Inline React styles are reserved for values
-that genuinely depend on runtime data, including coordinates, measured sizes,
-progress, and CSS custom-property inputs.
+Static presentation belongs in CSS. Inline styles are reserved for values that
+depend on runtime data: coordinates, measured sizes, progress, and custom-property
+inputs.
 
-Persistent vertical scroll regions reserve space for classic scrollbars with
-the shared `dc-scrollbar-stable` primitive. This applies to page bodies and
-long-lived sidebars, drawers, rails, and dynamic lists whose content can cross
-the overflow boundary while the surrounding layout remains mounted. Centered
-conversation surfaces may use `scrollbar-gutter: stable both-edges` when their
-own layout requires symmetric space.
-
-Do not apply stable gutters globally. Menus, popovers, comboboxes, short-lived
-dialogs, code blocks, horizontal-only scrollers, and navigation rails that hide
-their scrollbar keep their feature-owned overflow behavior. The document root
-also remains non-scrolling; nested scroll regions opt in to the primitive.
-
-Scrollbar geometry is global and token-driven. Foundations own the size, inset,
-radius, and the resting/hover/active thumb colors; features own only whether a
-region scrolls and whether it reserves a gutter. The reserved gutter follows
-`--scrollbar-size`, so changing the size reflows every `dc-scrollbar-stable`
-consumer by design.
-
-Features do not set `scrollbar-width`. Current Chromium gives that property
-precedence over the `::-webkit-scrollbar` pseudo-elements, so an element
-declaring it drops the shared geometry and its own webkit thumb rules become
-dead code. The one sanctioned use is `none`, to hide a scrollbar deliberately.
+Scrollbar geometry is global and token-driven (see the Scrollbars rules in
+[DESIGN.md](DESIGN.md#scrollbars)). Foundations own the size, inset, radius, and
+thumb colors; features own only whether a region scrolls and whether it reserves a
+gutter. Persistent vertical scroll regions (page bodies and long-lived sidebars,
+drawers, rails, and dynamic lists) reserve the gutter through the shared stable-
+gutter primitive, which follows `--scrollbar-size`. Centered conversation surfaces
+may reserve both edges when their layout needs symmetric space. Stable gutters are
+never applied globally: menus, popovers, comboboxes, short-lived dialogs, code
+blocks, horizontal-only scrollers, and rails that hide their scrollbar keep their
+own overflow behavior, and the document root does not scroll.
 
 ## Design tokens
 
@@ -70,65 +58,62 @@ the layer above it.
 
 | Layer | Where | Written by |
 | --- | --- | --- |
-| Seed | inline on the document element | `shared/themeDerive.ts` |
-| Semantic | `foundations/tokens.css`, `foundations/themes.css` | authored CSS, `color-mix` off the seed |
-| Component | the same two files | authored CSS, resolving from the semantic layer |
+| Seed | inline on the document element | runtime theme derivation |
+| Semantic | the token and theme stylesheets | authored CSS, `color-mix` off the seed |
+| Component | the same stylesheets | authored CSS, resolving from the semantic layer |
 
-The seed is four values per variant — `--seed-surface`, `--seed-ink`,
-`--seed-accent`, and a 0-100 `--seed-contrast` — plus `--contrast-k`, the
+The seed is four values per variant (`--seed-surface`, `--seed-ink`,
+`--seed-accent`, and a 0-100 `--seed-contrast`) plus `--contrast-k`, the
 normalized multiplier the ramps read. `surface` is the base plane: the page in
-dark, the card in light, so both variants move away from it the same way, by
-mixing in ink. Every ramp percentage is `base% + var(--contrast-k) * slope%`,
-with each base solved so the authored value reproduces at that variant's default
-contrast.
+dark, the card in light, so both variants move away from it by mixing in ink.
+Every ramp percentage is `base% + var(--contrast-k) * slope%`, with each base
+solved so the authored value reproduces at the variant's default contrast.
 
-Runtime theme derivation writes only what CSS cannot compute: the three seed colors, the
-contrast multiplier, and `--on-accent`, whose choice needs relative luminance. A
-field left at its variant default is removed rather than restated, so an
-uncustomized app resolves entirely from the stylesheet. The ink is not a separate
-control; it follows the surface, so a chosen background cannot leave text
-unreadable.
+Runtime derivation writes only what CSS cannot compute: the three seed colors, the
+contrast multiplier, and `--on-accent`, which needs relative luminance. A field at
+its variant default is not written, so an uncustomized app resolves entirely from
+the stylesheet. Ink follows the surface rather than being a separate control, so a
+chosen background cannot leave text unreadable.
 
 Three rules keep the layers honest:
 
-- The color axes are closed. Surfaces are `--bg-*`, text is `--text-*`, borders
+- The color axes are closed: surfaces are `--bg-*`, text is `--text-*`, borders
   are `--border-*`. A new color belongs on an existing axis or is not a token.
-- A component token resolves from the semantic layer, never from a literal. A
-  literal there is a value no seed can reach.
+- A component token resolves from the semantic layer, never from a literal.
 - Component qualifiers name first-class surfaces only, such as `--composer-*`,
-  `--sidebar-*`, `--shell-*`, `--main-surface-*`, and `--glass-*`. A one-off does
-  not earn a prefix.
+  `--sidebar-*`, `--shell-*`, `--main-surface-*`, and `--glass-*`.
 
 Some families stay literal on purpose. The sixteen `--ansi-*` are a protocol
-palette, `--code-block-bg` matches the bundled syntax theme's own background, and
-the status hues along with `--brand-blue-*` and `--find-match` are identities
-rather than derivations. `--bg-inverse` and `--text-on-inverse` are the opposite
-variant's tones, which one variant's seed cannot state.
+palette, `--code-block-bg` matches the bundled syntax theme's background, and the
+status hues, `--brand-blue-*`, and `--find-match` are identities rather than
+derivations. `--bg-inverse` and `--text-on-inverse` are the opposite variant's
+tones, which one variant's seed cannot state.
 
-The native caption bar and pre-paint window background use the same chrome mix as the renderer.
+The native caption bar and pre-paint window background use the same chrome mix as
+the renderer.
 
-Only explicitly published theme tokens are compatibility contracts; other custom properties remain internal.
+Only explicitly published theme tokens are compatibility contracts; other custom
+properties are internal.
 
 ## Workflow and lifecycle
 
 Style-only source moves preserve selectors, declarations, at-rules, animation
-names, and their effective order. Formatting, deduplication, selector cleanup,
-and visual changes are performed separately after equivalence is established.
+names, and their effective order. Formatting, deduplication, selector cleanup, and
+visual changes happen separately after equivalence is established.
 
-The production application and maintained design system consume the same global
-entry and canonical token source. The design system must not copy production
-rules into a parallel stylesheet.
+The production application and the maintained design system consume the same
+global entry and token source; the design system never copies production rules
+into a parallel stylesheet.
 
 ## Constraints and compatibility
 
-- The Tailwind import and top-level `@theme` definitions remain valid for the
-  configured Tailwind Vite plugin.
-- A normal hand-written CSS file targets fewer than 500 formatted lines. A file
-  at or above 800 formatted lines must be split when it receives a non-trivial
-  change. Import-only manifests, generated output, and third-party styles are
-  exempt.
+- The Tailwind import and top-level `@theme` definitions stay valid for the
+  configured Tailwind build.
+- A hand-written CSS file targets fewer than 500 formatted lines; one at or above
+  800 lines is split when it receives a non-trivial change. Import-only manifests,
+  generated output, and third-party styles are exempt.
 - Organizational refactors do not introduce `@layer`; doing so changes cascade
   precedence and requires an explicit compatibility review.
 - Global focus, reduced-motion, pointer, theme, and locale behavior remain
   authoritative across every feature.
-- Source organization must not depend on renderer route load order.
+- Source organization does not depend on renderer route load order.

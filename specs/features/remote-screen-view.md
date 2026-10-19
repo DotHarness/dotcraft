@@ -2,57 +2,53 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.8 |
+| Version | 0.9.1 |
 | Status | Draft |
-| Date | 2026-09-28 |
+| Date | 2026-10-19 |
 | Parent | [Remote Tool Host](../architecture/remote-tool-host.md) |
 | Related Specs | [Hub Architecture](../architecture/hub-architecture.md), [Runtime Module Boundaries](../architecture/runtime-module-boundaries.md) |
 
 ## 1. Purpose
 
 Remote diagnosis needs the operator to see the remote machine's desktop while a thread is routed to
-that machine, not to ask the person at the keyboard what is on screen. This specification defines
-Remote Screen View: a live, read-only, latest-frame-only picture of a paired Remote Tool Host's
-desktop, carried over the same Hub bridge that carries tool sessions and shown inside the Desktop
+that machine. Remote Screen View is a live, read-only, latest-frame-only picture of a paired Remote
+Tool Host's desktop, carried over the same Hub bridge as tool sessions and shown in the Desktop
 conversation as a floating dock and a theater.
 
-Capture is client behavior and belongs to DotCraft. Relaying frames to a fleet and showing them in
-a web client is server behavior and belongs to the product that owns the server. Universe therefore
-consumes DotCraft's capture and frame format and keeps its own relay and viewer.
+Capture and the frame format belong to DotCraft. A product that relays frames to a fleet or shows
+them in its own client consumes DotCraft's capture and frame format and owns its relay and viewer
+(§9).
 
 The key words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are normative.
 
 ## 2. Boundaries and non-goals
 
-- Screen view is view only. There is no remote input, no cursor, no clipboard, no audio, and no
-  file transfer on this channel.
+- View only: no remote input, cursor, clipboard, audio, or file transfer on this channel.
 - Nothing is recorded. Neither end persists a frame; the Hub relays and forgets.
 - Frames are lossy and non-durable: a viewer sees the newest frame that reached it, never a replay.
 - Screen view is not a tool. The model cannot invoke it, it produces no Session item, and it takes
   no workspace lease.
-- v1 captures the whole virtual desktop. Per-display capture is an additive extension that adds a
-  display selector to the control message; it does not change the frame format.
+- Capture covers the whole virtual desktop.
 - Screen view MUST NOT carry a credential, a path, or command output. It carries pixels, a small
   control vocabulary, and stable reason codes.
 
 ## 3. Ownership
 
-| Concern | Owner | Package |
-|---|---|---|
-| Platform capture: `DotCraft.Screen` | `DotCraft.Core` | Harness |
-| Frame format, control records, budget clamp: `DotCraft.Protocol.ScreenView` | `DotCraft.Protocol` | Sdk |
-| Session kind, host-side session, viewer count, status | `DotCraft.RemoteTools` | Harness |
-| Bridge `kind`, capability advertisement, refusal codes | Hub in `DotCraft.App` | application |
-| Viewer transport, dock, theater | Desktop | client |
-| Fleet relay and web viewer | Universe | Universe |
+| Concern | Owner |
+|---|---|
+| Platform capture (`DotCraft.Screen`) | Harness |
+| Frame format, control records, budget clamp (`DotCraft.Protocol.ScreenView`) | Sdk |
+| Session kind, host-side session, viewer count, status | Remote Tool Host |
+| Bridge `kind`, capability advertisement, refusal codes | Hub |
+| Viewer transport, dock, theater | Desktop |
 
-`DotCraft.Screen` MUST NOT depend on `DotCraft.Protocol`; the Harness package carries no Protocol
-assembly. `DotCraft.Protocol.ScreenView` is outside the AppServer contract generator's scope and
-contributes nothing to the AppServer manifest. `DotCraft.RemoteTools` depends on both.
+Capture MUST NOT depend on the Protocol package, because the Harness package carries no Protocol
+assembly. The screen-view protocol is outside the AppServer contract and contributes nothing to the
+AppServer manifest.
 
 ## 4. Capture contract
 
-`DotCraft.Screen.IScreenCaptureSource` samples on demand:
+A capture source samples on demand:
 
 ```text
 Probe()                       -> ScreenCaptureCapability(Available, UnavailableReason)
@@ -60,19 +56,18 @@ Capture(MaxWidth, Quality)    -> ScreenCaptureResult(Frame | UnavailableReason, 
 Frame                         =  (Width, Height, Jpeg)
 ```
 
-`ScreenCaptureSource.Create()` returns the platform backend, or a source whose every answer is
-`noCaptureBackend` where the build has none. The Windows backend captures physical desktop pixels and returns JPEG images.
-
-Capture uses the shared [image capability](../architecture/image-processing.md) to resize desktop
-pixels and encode JPEG frames. Image-processing failures map to `captureFailed`; capture and
-frame retry policy belong to this feature.
+A build without a platform backend returns a source whose every answer is `noCaptureBackend`.
+Capture uses the shared [image capability](../architecture/image-processing.md) to resize and encode
+JPEG; image-processing failures map to `captureFailed`.
 
 Rules:
 
 - The capture unit is the whole virtual desktop, starting at its real origin, which may be negative.
-- `MaxWidth` bounds width because a desktop is wider than tall and horizontal room is what makes a
-  frame readable; height follows the aspect ratio and is never zero.
-- A source supports concurrent consumers and recovers when desktop bounds, session, lock or remote-desktop attachment change. A stale capture surface must not permanently disable viewing.
+- `MaxWidth` bounds width; height follows the aspect ratio and is never zero.
+- Dimensions are physical pixels, independent of the host application's DPI awareness.
+- A source supports concurrent consumers and recovers when desktop bounds, session, lock, or
+  remote-desktop attachment change. A stale capture surface must not permanently disable viewing.
+- Protected surfaces and hardware overlays may appear black; this is a platform limit.
 - Unavailable displays are state, not faults. The reasons are a closed set:
 
 | Reason | Meaning |
@@ -82,12 +77,9 @@ Rules:
 | `noDisplayServer` | There is no display at all, the ordinary case on a headless host. |
 | `captureFailed` | The platform refused the capture for a reason the host cannot resolve. |
 
-- `captureFailed` MAY carry a `Detail`: one line of at most 200 characters naming the platform
-  error, such as `BitBlt failed (Win32 6)`, for diagnosis only. It MUST NOT contain a path, and
-  no viewer shows it as status.
-- Protected surfaces and hardware overlays may appear black. That is a platform limit, and this
-  specification does not work around it.
-- Capture dimensions use physical pixels independently of the host application's DPI manifest.
+`captureFailed` MAY carry a `Detail`: one line of at most 200 characters naming the platform error,
+such as `BitBlt failed (Win32 6)`, for diagnosis only. It MUST NOT contain a path, and no viewer
+shows it as status.
 
 ## 5. Frame format
 
@@ -101,10 +93,9 @@ A frame is one binary WebSocket message: a 16-byte little-endian header followed
 | 8 | `int64` | `capturedAtUnixMs` |
 | 16 | bytes | JPEG |
 
-The sender MAY send the header and the JPEG as two fragments of one message so the frame is never
-copied into a joined buffer. A relay MUST preserve message type and fragment boundaries. A reader
-MUST honor the header's dimensions only when both are positive and their product does not exceed
-`8192 × 8192`; a header past that ceiling describes an allocation, not a desktop.
+The sender MAY send header and JPEG as two fragments of one message. A relay MUST preserve message
+type and fragment boundaries. A reader honors the header's dimensions only when both are positive and
+their product does not exceed `8192 × 8192`.
 
 Ceilings, identical on every end:
 
@@ -118,34 +109,33 @@ Ceilings, identical on every end:
 | `Quality` | 20 to 90 |
 
 A frame that encodes past `MaximumFrameBytes` is re-encoded at quality 40, then at half the width
-(never below 320) and quality 40; one that still does not fit is dropped without a capability
-message, because the next capture supersedes it before a reassembled one could be drawn.
+(never below 320) and quality 40; one that still does not fit is dropped silently, since the next
+capture supersedes it.
 
 Text messages on the same socket are JSON with camelCase members:
 
 | Direction | Record | Meaning |
 |---|---|---|
 | viewer → host | `ScreenViewControl { watchers, fps, maxWidth, quality }` | The viewer's demand. Every transition is pushed; `watchers = 0` stops capture entirely. The host clamps every field to the ceilings above. |
-| host → viewer | `ScreenViewCapability { enabled, unavailableReason, detail }` | Sent once when the session opens and again whenever capture stops or resumes. `enabled` is whether the host allows viewing at all, always true from a DotCraft host, which refuses the session instead; `unavailableReason` is one of the §4 reasons or null and alone decides whether frames can be expected; `detail` is the §4 diagnostic line or null. |
+| host → viewer | `ScreenViewCapability { enabled, unavailableReason, detail }` | Sent when the session opens and whenever capture stops or resumes. `enabled` is whether the host allows viewing at all (always true from a DotCraft host, which refuses the session instead); `unavailableReason` is a §4 reason or null and alone decides whether frames can be expected; `detail` is the §4 diagnostic line or null. |
 
-A host reports `captureFailed` only after three consecutive captures fail: the first two are retried
-at the frame cadence, and only the third is a state change worth telling the viewer. Once reported,
-the host keeps trying at the slower unavailable cadence, and the first frame that succeeds is
-preceded by a capability message with no reason. Every other reason is reported as soon as it is
-observed. The host sends a capability message only when reason or detail changed.
+A host reports `captureFailed` only after three consecutive failed captures; the first two are
+retried at the frame cadence. Once reported, the host keeps trying at a slower cadence, and the
+first successful frame is preceded by a capability message with no reason. Other reasons are
+reported as soon as observed. A capability message is sent only when reason or detail changed.
 
 ## 6. Transport
 
 ### 6.1 Session kinds
 
-The Hub bridge and the satellite data route carry sessions of two kinds. `tools` is the MCP session
-defined by [Remote Tool Host](../architecture/remote-tool-host.md) §8. `screen` is one screen view.
-The relay is kind-blind: it never learns which it carries.
+The Hub bridge and the satellite data route carry two session kinds: `tools`, the MCP session
+defined by [Remote Tool Host](../architecture/remote-tool-host.md) §8, and `screen`, one screen view.
+The relay is kind-blind.
 
-A Remote Tool Host declares the kinds it can serve in `hello` as `capabilities`; the only screen
-capability in v1 is `screen-v1`, declared when the build has a capture backend. The Hub MUST NOT ask
-a peer to open a kind it did not declare, and it reports each online peer's capabilities to local
-clients so a viewer control appears only where it can work.
+A Remote Tool Host declares the kinds it can serve in `hello` as `capabilities`; the screen
+capability is `screen-v1`, declared when the build has a capture backend. The Hub MUST NOT ask a peer
+to open a kind it did not declare, and it reports each online peer's capabilities to local clients
+so a viewer control appears only where it can work.
 
 ### 6.2 Opening a view
 
@@ -162,14 +152,13 @@ host    -> viewer  frames while watchers > 0
 `kind` absent means `tools`. The Hub answers an unknown kind with `400 sessionKindUnsupported`, an
 unknown peer with `404 satelliteNotFound`, a paired peer without a live control connection with
 `503 satelliteOffline` for either kind, and a peer that did not declare `screen-v1` with
-`409 satelliteScreenUnsupported`; the offline answer comes before the capability check because a
-peer declares its capabilities only while connected. It keeps its existing answers for a duplicate
-session id and a missing upgrade. A viewer treats `503` as a machine to dial again, never as a
-machine that cannot be watched.
+`409 satelliteScreenUnsupported`. The offline check comes first because a peer declares capabilities
+only while connected. A viewer treats `503` as a machine to dial again, never as one that cannot be
+watched.
 
 A host that cannot open the view answers `sessionFailed` with a stable code, and the Hub closes the
 viewer's socket with that code as the close description. A host that ends a live view closes its
-data socket with the code as the close description, and the relay carries the close through.
+data socket with the code, and the relay carries the close through.
 
 | Code | Sent when |
 |---|---|
@@ -186,99 +175,83 @@ that needs the machine owner, and every other code as a connection to retry with
 
 Latest-frame-only is enforced at both endpoints, because the relay cannot skip:
 
-- the host captures nothing while `watchers <= 0`, captures at most one frame per `1 / fps`, and never
-  starts a capture while a send is outstanding;
+- the host captures nothing while `watchers <= 0`, captures at most one frame per `1 / fps`, and
+  never starts a capture while a send is outstanding;
 - a viewer keeps at most one undecoded frame and overwrites it until the decoder is free.
 
-A view has no heartbeat of its own; the WebSocket keep-alive and the control channel's presence
-decide liveness. A viewer that stops receiving frames keeps showing its last frame and reports the
-stall rather than blanking.
+A view has no heartbeat of its own; WebSocket keep-alive and control-channel presence decide
+liveness. A viewer that stops receiving frames keeps its last frame and reports the stall.
 
 ### 6.4 Leases and status
 
-A screen session takes no workspace lease and holds no lease-owned resource. It counts as a data
-session for the host's status: a host with an open view and no lease reports `connected`, so the
-machine owner's island is visible for the whole time the machine is watched. The number of open views
-per pairing is exposed on the peer record as `screenViewers`, and the host raises a start event and a
-stop event on each pairing's transition between zero and more than zero.
+A screen session takes no workspace lease. It counts as a data session for host status: a host with
+an open view and no lease reports `connected`, so the owner's indicator stays visible while the
+machine is watched. The peer record exposes the number of open views as `screenViewers`, and the host
+raises start and stop events on each pairing's transition between zero and more than zero.
 
 Ending a screen session MUST NOT affect a tool session on the same pairing, and vice versa. Pause,
-disconnect, revoke, authorization change, and host shutdown end both, through the same drain that
-already ends tool sessions.
+disconnect, revoke, authorization change, and host shutdown end both through the same drain.
 
 ## 7. Consent and visibility
 
 Viewing is enabled for every pairing whose authorization is valid while sharing is not paused. There
-is no per-pairing setting and no per-view approval in v1: pairing already lends the machine, and the
-machine owner's controls are the existing ones — pause, disconnect, revoke.
+is no per-pairing setting or per-view approval: pairing already lends the machine, and the owner's
+controls are pause, disconnect, and revoke.
 
 The machine owner MUST be able to tell that the machine is being watched:
 
-- for the whole time `screenViewers > 0` the island's glyph becomes an eye, in the same tone as the
-  dish, and each watched machine's detail row says so in words, without changing the island's mode
-  or using colour;
-- an operating-system notification is raised when a pairing starts being watched and when it stops.
+- while `screenViewers > 0`, the host's status indicator shows a watching glyph and each watched
+  machine's detail row says so in words, without changing the indicator's mode or using colour;
+- an operating-system notification is raised when a pairing starts and stops being watched.
 
 Nothing about a view is persisted on either machine, and no frame is written to disk or to a log.
 
 ## 8. Desktop viewer
 
-Desktop shows a view for the thread's routed machine. The stream is independent of AppServer conversations and tools:
+Desktop shows a view for the thread's routed machine, independent of AppServer conversations and
+tools:
 
-- the Desktop main process dials the Hub bridge with the Hub bearer read from `hub.lock`; the bearer
-  never enters the renderer, and the AppServer is not involved;
-- frames reach the renderer over a main-owned channel with a credit of one: main holds at most one
-  undelivered frame per view and overwrites it until the renderer acknowledges a decode;
-- a view exists only while the dock or theater is open on a visible window. Hiding or minimizing the
-  window sends `watchers = 0`; showing it again resumes. Closing the view closes the socket.
+- the main process dials the Hub bridge with the Hub bearer from `hub.lock`; the bearer never enters
+  the renderer, and the AppServer is not involved;
+- frames reach the renderer with a credit of one: main holds at most one undelivered frame per view
+  and overwrites it until the renderer acknowledges a decode;
+- a view exists only while the dock or theater is open on a visible window. Hiding or minimizing
+  sends `watchers = 0`; showing resumes. Closing the view closes the socket.
 
 The view has seven states: `connecting`, `live`, `stalled`, `reconnecting`, `paused`, `offline`,
 `unavailable(reason)`. `paused` and `offline` follow the close codes and the `503` answer in §6.2;
 `unavailable` follows `ScreenViewCapability`. A view that lost its frames keeps the last one.
 
-The view never says its state in words. The picture carries it, and the words exist only in the
-surface's tooltip and accessible name, as `<machine> · <state>`, with the host's `detail` appended
-for `unavailable`:
-
-| State | Surface |
-|---|---|
-| `live` | the picture alone |
-| `connecting` | a dark stage with the satellite glyph breathing |
-| `stalled`, `reconnecting` | the last frame, dimmed, with one pulsing dot in a corner |
-| `paused`, `offline`, `unavailable` | the last frame, dimmed further, with the satellite glyph still at the centre; paused marks the glyph as paused |
-
-Reduced motion stops the breathing and the pulse. The launcher's icon takes the accent colour only
+State is shown by the picture, not by words: `live` is the picture alone; `connecting` is an empty
+stage with the satellite glyph; `stalled` and `reconnecting` dim the last frame with an activity
+mark; `paused`, `offline`, and `unavailable` dim it further with the satellite glyph (marked paused
+for `paused`). Words appear only in the tooltip and accessible name, as `<machine> · <state>`, plus
+the host's `detail` for `unavailable`. Reduced motion stops animation. The launcher is accented only
 while the window's view is `live`.
 
 The launcher opens a view when the thread has a route, the routed machine is connected, and it
-declared `screen-v1`; a route whose lease was lost counts as not connected. Once open, a view stays
-open through `offline` and `reconnecting`, redialing until the machine returns, and closes only when
-the route is removed or the person closes it; the launcher stays visible for as long as the view is
-open. One stream is open per window at a time; switching threads closes it and remembers the view's
-mode per thread, and a remembered view reopens only when the machine is connected.
+declared `screen-v1`; a route whose lease was lost counts as not connected. An open view stays open
+through `offline` and `reconnecting`, redialing until the machine returns, and closes only when the
+route is removed or the person closes it; the launcher stays visible while it is open. One stream is
+open per window; switching threads closes it and remembers the view's mode per thread, and a
+remembered view reopens only when the machine is connected.
 
-The dock is a picture-in-picture surface: it floats above the window's content, outside any column,
-and the person places it anywhere inside the window. The whole picture drags, a grip resizes it, and
-its width and position are remembered across restarts and clamped inside the window below the title
-bar. At rest the dock is the picture alone; the machine's name, expand, and close appear on hover or
-keyboard focus and leave with the pointer. The theater is a modal centred in the window, as large as
-the stream's shape allows under the title bar, whose chrome follows the same rule, and returning to
-the dock does not reconnect.
+The dock is a picture-in-picture surface floating above the window's content, placeable anywhere in
+the window: the picture drags, a grip resizes, and width and position persist across restarts,
+clamped inside the window below the title bar. Its name, expand, and close controls appear only on
+hover or keyboard focus. The theater is a centred modal as large as the stream's aspect allows, with
+the same chrome rule; returning to the dock does not reconnect.
 
-Neither surface is sized by the pixels of the frame it is showing. Both take their box from the
-window and the stream's aspect ratio and scale the picture into it, so a frame that arrives at a new
-size changes only what is drawn. A surface whose size decided the next requested width, which decided
-the next frame's size, would resize itself once per round trip for as long as it took to converge.
-
-The requested width follows the pixels the surface can show: the surface's CSS width times the
-device pixel ratio, rounded up to a multiple of 64 and clamped to the §5 `MaxWidth` range, re-sent
-when the surface is resized or moved to a display with another ratio. `fps 8`, `quality 82` on both
-surfaces.
+Neither surface is sized by the frame it shows: each takes its box from the window and the stream's
+aspect ratio and scales the picture into it, so a frame at a new size never resizes the surface. The
+requested `maxWidth` is the surface's displayed width in device pixels, rounded up to a multiple of
+64, clamped to the §5 range, and re-sent when the surface is resized or moves to a display with
+another pixel ratio. Both surfaces request `fps 8`, `quality 82`.
 
 ## 9. Reuse by other products
 
 A product that hosts DotCraft in process reuses `DotCraft.Screen` for capture and
-`DotCraft.Protocol.ScreenView` for the header, the ceilings, the control and capability records, and
-`Clamp`. It owns its relay, its viewer, its consent model, and any status record its relay reports.
-It MUST keep the frame format byte-identical so a viewer written against one product reads frames
-from the other.
+`DotCraft.Protocol.ScreenView` for the header, ceilings, control and capability records, and
+`Clamp`. It owns its relay, viewer, consent model, and any status record its relay reports. It MUST
+keep the frame format byte-identical so a viewer written against one product reads frames from the
+other.

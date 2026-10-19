@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.7.8 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-19 |
 
 ## Overview
 
@@ -18,13 +18,12 @@ exposing provider-specific APIs to Core services.
 - A query service, SQLite diagnostics database, or remote telemetry exporter.
 - Persisting every line written to stdout or stderr.
 - Merging ACP wire logs or session stream debug records into operational logs.
-- Changing CLI presentation as part of logging-provider replacement.
 
 ## Core design and architecture
 
 Application and Core code emit operational diagnostics through injected
-`ILogger<T>` instances. DotCraft does not expose or consume provider-specific
-logging APIs outside the application composition root.
+`ILogger<T>` instances. Provider-specific logging APIs are used only in the
+application composition root.
 
 The application owns one `ILoggerFactory` for its lifetime. The factory fans
 events out to the configured rolling file provider and, when enabled, a console
@@ -55,8 +54,8 @@ diagnostic scope. Workspace logs use `dotcraft-yyyy-MM-dd_NNN.log`; Hub logs use
 when a file reaches the size limit. The workspace and Hub single-owner locks
 prevent long-lived concurrent writers to the same host log set. A bounded
 background queue applies backpressure instead of growing memory without limit.
-Existing `Logging.Enabled`, `Console`, `MinLevel`, `Directory`, and
-`RetentionDays` configuration remains authoritative.
+The `Logging.Enabled`, `Console`, `MinLevel`, `Directory`, and `RetentionDays`
+configuration keys control the destinations, level, and retention.
 
 ## Behavioral contracts and lifecycle
 
@@ -76,21 +75,17 @@ but operational diagnostics retain structured identifiers and exception data.
 Console output has three distinct roles:
 
 - Wire stdout is reserved exclusively for the active protocol.
-- Spectre.Console renders interactive CLI presentation at the App boundary.
+- Interactive CLI presentation is rendered at the application boundary.
 - Diagnostic console output is an optional logging destination and uses stderr
   whenever stdout is reserved.
 
-Core has no terminal package dependency and never writes directly to
-`Console`. Interactive approvals use the host-neutral
-`IInteractiveApprovalPrompt` contract; DotCraft.App provides the Spectre.Console
-implementation. Other presentation-only progress uses existing responder or
+Core has no terminal package dependency and never writes directly to the
+console. Interactive approvals use a host-neutral prompt contract that the
+application implements; other presentation-only progress uses responder or
 status callback surfaces.
 
-## Constraints and compatibility
+## Constraints
 
-- `ILogger<T>` remains the public diagnostics abstraction.
-- Existing logging configuration files continue to load without migration.
+- `ILogger<T>` is the public diagnostics abstraction.
 - High-volume or sensitive payloads such as prompts, model output, tool output,
   tokens, and raw protocol frames are not ordinary operational log content.
-- Provider-specific extension methods are not used in business or Core code.
-- Core does not depend on terminal rendering packages.

@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.7.8 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-19 |
 
 This specification defines explicit CDP startup, the renderer readiness driver, and
 non-owning automation attachment. It does not define a scenario suite or state-reset service.
@@ -12,7 +12,7 @@ non-owning automation attachment. It does not define a scenario suite or state-r
 ## Architecture
 
 Electron owns the CDP endpoint from process startup. The active Desktop Plugin generation owns
-its renderer driver under [Desktop Plugins](desktop-plugins.md#runtime-lifecycle). An automation
+its renderer driver. An automation
 client owns only its CDP connection, never the Desktop, tray, Hub, or AppServer lifecycle.
 
 ## Startup contract

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.8 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-19 |
 | Parent Spec | [Session Core](session-core.md) |
 
 ## 1. Overview
@@ -17,31 +17,26 @@ Microsoft.Extensions.AI (MEAI) is DotCraft's provider-neutral content, tool, cha
 streaming abstraction layer. DotCraft adds lifecycle and provider-native state only where MEAI's
 generic aggregation cannot represent a required protocol invariant.
 
-OpenAI Responses, OpenAI Chat Completions, and Anthropic continue to use MEAI-compatible clients
-while retaining protocol-native request, response, history, and cache behavior.
+OpenAI Responses, OpenAI Chat Completions, and Anthropic use MEAI-compatible clients while
+retaining protocol-native request, response, history, and cache behavior.
 
 Remote execution uses the same provider adapters and history contracts on the worker; a transport
 substitution does not move model-loop or history ownership.
 
-## 4. Non-goals
+## 2. Non-goals
 
 - Defining one lowest-common-denominator wire format for all providers.
-- Replacing MEAI abstractions merely to make them DotCraft-owned.
-- Removing `AIFunction`, `AIFunctionFactory`, delegating tool abstractions, or DotCraft's generated
-  `AIFunction` wrappers and source generator.
-- Introducing parallel DotCraft equivalents for `AIContent`, `ChatMessage`, `ChatOptions`,
+- Parallel DotCraft equivalents for `AIContent`, `ChatMessage`, `ChatOptions`,
   `ChatResponseUpdate`, `AITool`, `AIFunction`, or `IChatClient` without a demonstrated protocol or
   lifecycle conflict.
 - Replacing provider SDKs when a maintained SDK exposes the required protocol faithfully.
-- Changing model-visible tool names, schemas, ordering, or policy merely to fit a new runtime.
-- Rewriting Session Core persistence or public AppServer protocols as part of runtime ownership.
 - Treating UI-oriented Session Items as the source of provider request history.
 - Persisting OAuth credentials, protected reasoning plaintext, or arbitrary provider runtime
   objects.
 
-## 5. Authority and Boundaries
+## 3. Authority and Boundaries
 
-### 5.1 Session authority
+### 3.1 Session authority
 
 Session Core owns:
 
@@ -54,14 +49,12 @@ Session Core owns:
 The model runtime receives an immutable turn execution snapshot and emits runtime events. It does
 not create a second durable session object or independently infer thread lineage.
 
-Session Core reconstructs a `List<ChatMessage>` directly from rollout records. That request-local
-list is the MEAI model-history projection for the active turn; it is not serialized as an
-independent session object. `ChatClientAgent` contains only the configured `IChatClient`, cloned
-`ChatOptions`, the optional prompt context provider, and agent metadata.
+Session Core reconstructs the MEAI model history for the active turn directly from rollout records.
+That request-local list is not serialized as an independent session object.
 
-### 5.2 Runtime authority
+### 3.2 Runtime authority
 
-For one active Turn, DotCraft's MEAI-aligned execution layer owns:
+For one active Turn, the execution layer owns:
 
 - sampling attempts and their retry state;
 - ordered provider input and output;
@@ -70,17 +63,11 @@ For one active Turn, DotCraft's MEAI-aligned execution layer owns:
 - the transition to another sampling request or terminal completion.
 
 All mutable state belongs to one explicit turn execution. Async-local scopes may expose immutable
-request context to adapters, but they are not authoritative storage. A scope is entered before the
-dependent pipeline executes and is disposed on success, failure, or cancellation. Nested scopes
-restore their parent value and turn-scoped state must not leak into another invocation.
+request context to adapters, but they are not authoritative storage; they are disposed on success,
+failure, or cancellation, nested scopes restore their parent value, and turn-scoped state does not
+leak into another invocation.
 
-`ChatClientAgent` invokes the configured `IChatClient` directly, streams
-`ChatResponseUpdate` values without introducing a parallel event hierarchy, aggregates the
-completed response with MEAI's standard helpers for generic model history, and appends the
-request/response messages only after successful completion. Responses provider items continue to
-be captured before this generic aggregation boundary.
-
-### 5.3 Provider authority
+### 3.3 Provider authority
 
 Each provider-specific `IChatClient` adapter owns:
 
@@ -95,69 +82,51 @@ Each provider-specific `IChatClient` adapter owns:
 Authentication and routing policies consume an already-resolved request identity. They do not
 infer Session lifecycle from tracing state or ambient client instances.
 
-## 6. MEAI Baseline and Extension Policy
+## 4. MEAI Baseline and Extension Policy
 
-MEAI is the default design and implementation reference. DotCraft does not introduce a competing
-abstraction unless an accepted test demonstrates that the MEAI contract cannot preserve required
-Session or provider behavior.
+MEAI is the default design reference. DotCraft does not introduce a competing abstraction unless
+the MEAI contract demonstrably cannot preserve required Session or provider behavior; an extension
+is a narrow subclass, adapter, or MEAI-shaped extension rather than a parallel content, tool, or
+chat-client model.
 
-### 6.1 Conversation items
+### 4.1 Conversation items
 
-Generic runtime content uses the MEAI `ChatMessage` and `AIContent` hierarchy. This includes:
+Generic runtime content uses the MEAI `ChatMessage` and `AIContent` hierarchy: messages of every
+role, visible text and multimodal data, reasoning summaries and protected reasoning, provider item
+identity, function calls and results, hosted tool calls and outputs, usage, and protocol errors.
+DotCraft adds `AIContent` subclasses only for content kinds MEAI does not represent.
 
-- system/developer/user/assistant messages;
-- visible text and multimodal data;
-- reasoning summaries, protected reasoning, and provider item identity;
-- function calls and function results;
-- hosted/provider tool calls and outputs;
-- usage and protocol error information;
-- DotCraft `AIContent` subclasses for content kinds not yet represented by MEAI.
+Provider item ID and tool `call_id` are distinct identities. Converting or aggregating content
+never substitutes one for the other.
 
-Provider item ID and tool `call_id` are distinct identities. Converting or aggregating content must
-never silently substitute one for the other.
-
-`AdditionalProperties` carries small, JSON-safe cross-layer metadata where MEAI explicitly
-supports extension. `RawRepresentation` is request-local and is never a durable persistence
-contract.
+`AdditionalProperties` carries small, JSON-safe cross-layer metadata where MEAI supports extension.
+`RawRepresentation` is request-local and is never a durable persistence contract.
 
 When a provider requires an item ordering, identity, or protected payload that MEAI aggregation
-cannot preserve, that provider uses a separate native ledger. The ledger supplements rather than
-replaces generic MEAI history.
+cannot preserve, that provider uses a separate native ledger that supplements generic MEAI history.
 
-### 6.2 Model request
+### 4.2 Model request
 
-Model requests continue to use `IChatClient.GetStreamingResponseAsync`, ordered
-`IEnumerable<ChatMessage>`, and `ChatOptions`. DotCraft supplies:
+Model requests use `IChatClient` streaming with ordered `ChatMessage` input and `ChatOptions`.
+DotCraft supplies the immutable thread/turn/request identity, model and protocol selection, ordered
+conversation input, ordered `AITool` definitions, reasoning and output options, protocol-specific
+validated options, and cancellation and observability context.
 
-- the immutable thread/turn/request identity;
-- model and protocol selection;
-- ordered MEAI conversation input;
-- ordered `AITool` definitions;
-- MEAI reasoning and output options;
-- protocol-specific validated options;
-- cancellation and observability context.
+The request reaching the provider adapter is complete. Delegating middleware and HTTP policies may
+observe or serialize it but do not reconstruct lifecycle identity.
 
-The request reaching the provider adapter is complete. `DelegatingChatClient` middleware and HTTP
-policies may observe or serialize it but must not reconstruct lifecycle identity.
+### 4.3 Stream events
 
-### 6.3 Stream events
+Provider clients emit `ChatResponseUpdate` with typed `AIContent` for response and output-item
+start and completion, text and reasoning deltas, tool-call argument deltas, completed tool calls and
+hosted items, usage, provider turn state, and retryable and terminal failures.
 
-Provider clients emit `ChatResponseUpdate` with typed `AIContent` for:
+Event order is part of the runtime contract. Provider-native identity is attached before response
+aggregation, history projection, or tool dispatch.
 
-- response and output-item start/completion;
-- text and reasoning deltas;
-- tool-call argument deltas;
-- completed tool calls and hosted items;
-- usage;
-- provider turn state;
-- retryable and terminal failures.
+### 4.4 Documented extensions
 
-Event order is part of the runtime contract. Provider-native identity must be attached before
-`ToChatResponse`, message coalescing, history projection, or tool dispatch.
-
-### 6.4 Extension criteria
-
-DotCraft extends MEAI only for a documented Session or provider requirement:
+DotCraft extends MEAI for these requirements:
 
 - response coalescing cannot be the sole Responses wire-history authority because it cannot
   preserve every raw representation, item boundary, or content metadata field;
@@ -166,89 +135,65 @@ DotCraft extends MEAI only for a documented Session or provider requirement:
 - provider request identity comes from Thread lifecycle rather than ambient tracing or client
   middleware.
 
-Any additional extension requires a failing characterization test and a spec update. The
-preferred implementation is a narrow subclass, adapter, or MEAI-shaped extension rather than a
-parallel content, tool, or chat-client model.
+### 4.5 Agent facade
 
-### 6.5 Agent facade
+`ChatClientAgent` is the immutable facade over one configured `IChatClient` pipeline. Its options
+contain stable agent identity (`Id`, `Name`, `Description`), default `ChatOptions`, and an ordered
+snapshot of context providers. Mutable option objects and collections are cloned at construction
+and for every invocation. `AsAIAgent` constructs the facade from an `IChatClient` without creating
+lifecycle or persistence state.
 
-`ChatClientAgent` is the immutable DotCraft facade over one configured `IChatClient` pipeline. Its
-options contain stable agent identity (`Id`, `Name`, and `Description`), default `ChatOptions`, and
-an ordered snapshot of context providers. The facade also exposes provider metadata derived from
-the configured chat client. Mutable option objects and collections are cloned at construction and
-again for every invocation.
+The facade runs aggregated (`RunAsync`) or streaming (`RunStreamingAsync`):
 
-The facade exposes aggregated and streaming runs:
-
-- `RunAsync` accepts a string, one `ChatMessage`, or an ordered message collection and returns the
-  aggregated `ChatResponse`;
-- `RunStreamingAsync` yields the provider's ordered `ChatResponseUpdate` sequence;
-- both forms accept optional invocation-specific run options and caller-owned model history;
-- both forms append the input plus completed response
-  messages only after successful model completion;
-- a failed or cancelled request does not append partial input or response messages;
+- both accept a string, one message, or an ordered message collection, optional invocation-specific
+  run options, and caller-owned model history;
+- each invocation's request is the supplied history followed by the current input; the caller's
+  list remains the durable history projection, and the request list and cloned options are
+  invocation-local;
+- input plus completed response messages are appended to the history only after successful model
+  completion; a failed or cancelled request appends nothing;
 - streaming cancellation is forwarded to the chat-client enumerator, whose disposal completes
   before the run exits;
-- context providers receive terminal notification after success, failure, or cancellation;
-- response messages and streaming updates receive the configured agent name only when they do not
-  already identify an author.
+- response messages and updates receive the agent name only when they do not already identify an
+  author.
 
-Each invocation builds a new request list containing the supplied history followed by all current
-input messages. String input is converted to a user-role message, and an omitted history starts
-from an empty invocation-local list. The caller's list remains the durable history projection; the
-request list and cloned options are invocation-local.
+Invocation `ChatOptions` merge with agent defaults without mutating either: request scalars win
+and unset ones inherit; agent instructions precede request instructions, separated by one newline;
+request additional properties win per key; a request raw-representation factory runs first and
+falls back to the agent's only when it returns `null`; request stop sequences and tools precede the
+agent's; run-level response format and additional properties override the merged options.
 
-Invocation `ChatOptions` merge with agent defaults as follows:
-
-- request scalar values win; unset request scalar values inherit agent defaults;
-- agent instructions precede request instructions, separated by one newline;
-- request additional properties win and missing keys inherit agent defaults;
-- a request raw-representation factory runs first and falls back to the agent factory only when it
-  returns `null`;
-- request stop sequences precede agent stop sequences;
-- request tools precede agent tools;
-- run-level response format and additional properties override the merged chat options;
-- no merge mutates agent defaults or caller-owned run options.
-
-The supported run-options surface deliberately excludes continuation tokens, background
-responses, and facade-owned sessions. A run may provide a request-local chat-client factory; its
-result must be non-null and is used only for that invocation.
-
-The facade does not add typed structured-output convenience overloads or external SDK metadata
-projections without a first-party consumer. Callers may still use MEAI `ChatOptions.ResponseFormat`
-through the existing run-options contract.
+Run options exclude continuation tokens, background responses, and facade-owned sessions. A run may
+supply a request-local chat-client factory, whose non-null result is used only for that invocation.
 
 `ChatClientAgent` is not exposed as an `AIFunction`. Model-visible subagent invocation routes
 through Session Core's child-Thread lifecycle so lineage, policy, persistence, cache identity, and
 collaboration state remain authoritative.
 
 `GetService` resolves, in order, the agent itself, agent metadata, a cloned options value, the
-configured `IChatClient`, ordered context providers, and services provided by the underlying
-chat-client pipeline. Service keys are forwarded and self-owned services resolve only for an
-unkeyed request. `AsAIAgent` constructs this facade from an `IChatClient` without creating
-lifecycle or persistence state.
+configured `IChatClient`, ordered context providers, and services of the underlying chat-client
+pipeline. Service keys are forwarded; self-owned services resolve only for an unkeyed request.
 
-`AgentFactory` constructs the provider middleware pipeline, immutable tool snapshot, prompt
-context, and per-invocation options before creating the facade. Session Core remains responsible
-for choosing the agent and supplying history for each Turn.
+Agent construction builds the provider middleware pipeline, immutable tool snapshot, prompt
+context, and per-invocation options. Session Core chooses the agent and supplies history for each
+Turn.
 
-### 6.6 Context-provider lifecycle
+### 4.6 Context-provider lifecycle
 
 An agent may have zero or more ordered context providers. Before each invocation, the first
 provider receives an invocation-local context containing the complete request messages and merged
-tools. Each provider returns the complete context observed by the next provider. Instructions,
-messages, and tools therefore compose deterministically in registration order.
+tools, and each provider returns the complete context observed by the next. Instructions, messages,
+and tools therefore compose deterministically in registration order.
 
-After the chat client terminates, every provider that participated in preparation is notified in
-the same registration order. The terminal context contains the exact request sent to the chat
-client and either the completed response messages or the exception. Notification is attempted for
-success, failure, and cancellation; a failure notification must not replace the original model
-exception. Context instructions, messages, and tools are request-local and are never appended to
-Session-owned durable history merely because a provider supplied them.
+After the chat client terminates, every provider that participated is notified in registration
+order with the exact request sent and either the completed response messages or the exception.
+Notification is attempted for success, failure, and cancellation; a notification failure does not
+replace the original model exception. Context instructions, messages, and tools are request-local
+and are never appended to Session-owned durable history.
 
-## 7. Turn Execution
+## 5. Turn Execution
 
-The MEAI-aligned pipeline preserves this observable transition sequence:
+The pipeline preserves this observable transition sequence:
 
 1. Prepare the immutable execution and provider request identity.
 2. Materialize the active conversation window and provider history.
@@ -262,13 +207,12 @@ The MEAI-aligned pipeline preserves this observable transition sequence:
 10. Append protocol-correct tool outputs.
 11. Repeat sampling or complete the Turn.
 
-This sequence is a behavioral contract, not a requirement to introduce a second public state
-machine or request/event type hierarchy. It remains implemented through an MEAI `IChatClient`
-pipeline unless a narrower change is justified.
+This sequence is a behavioral contract implemented through the MEAI `IChatClient` pipeline, not a
+second public state machine or event hierarchy.
 
 Tool-call sampling has no fixed iteration limit. It continues while the model emits handleable
 calls and ends through normal model completion, cancellation, the consecutive-error policy, or
-context compaction. Loop control must not issue a terminal sampling request with a reduced tool
+context compaction. Loop control never issues a terminal sampling request with a reduced tool
 surface.
 
 Retries are sampling-attempt transitions, not recursive agent runs. Two bounded budgets apply.
@@ -278,68 +222,54 @@ delivered: the runtime commits the truncated response to conversation history, s
 calls that response carries, and issues a new sampling request built from the grown history.
 
 Retry never replays a committed effect. Completed provider items and tool effects are never
-executed again merely because transport streaming failed, and a truncated attempt's delivered
-output is committed once and never withdrawn from the stream the caller already observed.
+executed again because transport streaming failed, and a truncated attempt's delivered output is
+committed once and never withdrawn from the stream the caller already observed.
 
-## 8. Tool Contract
+## 6. Tool Contract
 
-The runtime retains MEAI `AITool`, `AIFunction`, `AIFunctionDeclaration`,
-`AIFunctionArguments`, delegating function wrappers, JSON schema utilities, and invocation
-semantics. DotCraft's incremental `ToolFunctionGenerator` and generated `AIFunction` wrappers
-remain the standard implementation for built-in tools.
-
-The existing source-neutral `ToolDefinition`, planning snapshot, authority, approval, and
-dispatcher contracts complement MEAI tool objects; they do not replace the MEAI invocation and
-schema abstractions. Tool definitions remain ordered and immutable for a sampling request.
+The runtime uses MEAI `AITool`, `AIFunction`, delegating function wrappers, JSON schema utilities,
+and invocation semantics; built-in tools are generated `AIFunction` wrappers. DotCraft's
+source-neutral tool definitions, planning snapshot, authority, approval, and dispatcher contracts
+complement these objects rather than replace them. Tool definitions are ordered and immutable for a
+sampling request.
 
 Tool execution results may contain MEAI `AIContent`. A provider adapter projects them into its
 native tool-output format. Rich output intended only for clients or hosts is not sent to the model
 unless explicitly marked model-visible.
 
 Parallel tool calls may complete and emit UI lifecycle events in actual completion order. The next
-provider request must use the deterministic ordering and grouping required by that provider.
+provider request uses the deterministic ordering and grouping required by that provider.
 
-## 9. Conversation and History
+## 7. Conversation and History
 
-### 9.1 Provider-neutral history
+### 7.1 Provider-neutral history
 
-The rollout remains the durable authority for Session behavior, display, protocol export,
-rollback, and generic conversation reconstruction.
+The rollout is the durable authority for Session behavior, display, protocol export, rollback, and
+generic conversation reconstruction. It preserves roles, multimodal content, reasoning, tool calls
+and results, usage, and safe metadata without depending on runtime object identity.
 
-Provider-neutral history must preserve roles, multimodal content, reasoning, tool calls/results,
-usage, and safe metadata without depending on runtime CLR object identity.
-
-### 9.2 Provider-native history
+### 7.2 Provider-native history
 
 Protocols that require byte- or item-faithful replay use a durable provider-native history owned
-by that provider adapter.
-
-Provider-native history:
+by that provider adapter. Provider-native history:
 
 - is the outbound authority for its provider/protocol;
 - preserves item order, IDs, protected content, call IDs, and native item boundaries;
 - survives tool iterations, Turn completion, cold resume, and compatible whole-Turn forks;
-- establishes an explicit replacement boundary for partial forks, forks without native history,
-  rollback, compaction, or protocol transitions that cannot preserve an exact native prefix;
-- is replaced only at an explicit history/window boundary;
+- is replaced only at an explicit history/window boundary, which partial forks, forks without native
+  history, rollback, compaction, and protocol transitions that cannot preserve an exact native
+  prefix establish;
 - is never reconstructed from UI Session Items when an exact native history exists.
 
-### 9.3 Schema activation and recovery
+Unknown, missing, or corrupt active provider-native history fails with a stable error rather than
+silently falling back to a lossy mapping.
 
-Current rollouts require the provider-history schema version defined by the owning
-provider-history specification. A compatible whole-Turn fork may preserve an exact native
-snapshot; a partial fork or a fork without native history establishes the documented replacement
-boundary. Unknown, missing, or corrupt active provider-native history fails with a stable error
-rather than silently falling back to a lossy mapping.
-
-## 10. Provider Isolation
+## 8. Provider Isolation
 
 OpenAI Responses, OpenAI Chat Completions, and Anthropic consume MEAI messages, options, and tools
 through separate `IChatClient` adapters.
 
-### 10.1 Assembly boundaries
-
-The model runtime is split across four compile-time layers:
+### 8.1 Assembly boundaries
 
 - `DotCraft.Agents` owns the provider-neutral agent facade, chat-client infrastructure, runtime
   request contracts, provider registry, optional provider capability contracts, and the MEAI
@@ -348,12 +278,11 @@ The model runtime is split across four compile-time layers:
   compaction, observability, and the provider-neutral projection of native history as opaque JSON.
 - `DotCraft.Agents.OpenAI` and `DotCraft.Agents.Anthropic` own their SDK clients, wire mappings,
   protocol-specific request adapters, prompt-cache placement and marking, and optional capabilities.
-- Executable hosts are composition roots. The built-in DotCraft application references Core and
-  both provider integrations and registers them explicitly.
+- Executable hosts are composition roots that register provider integrations explicitly.
 
-`ModelProviderRegistry` rejects duplicate protocol ownership and reports an unsupported-provider
-error when no registered provider owns the requested protocol. Core's `ChatClientRegistry` caches
-clients and resolves product configuration from immutable provider-neutral runtime requests.
+The provider registry rejects duplicate protocol ownership and reports an unsupported-provider
+error when no registered provider owns the requested protocol. Core caches clients and resolves
+product configuration from immutable provider-neutral runtime requests.
 
 Provider-native conversation state crosses the boundary through an opaque history contract. The
 provider owns MEAI-to-native mapping, entry identity, attempt bookkeeping, and native compaction.
@@ -364,15 +293,13 @@ Core owns append, replacement, abort persistence, replay filtering, and Thread l
 - Chat Completions preserves role/message grouping and reasoning fields used by compatible
   providers. It emits no cache-control markers; its prefix cache is automatic.
 - Anthropic preserves content-block order, thinking signatures, native cache-control markers, and
-  deferred tool loading. It does not ask for fine-grained tool-input streaming: that is a per-tool
-  field only the first-party surfaces accept, an Anthropic-compatible endpoint has no way to say
-  whether it does, and omitting it yields the same `input_json_delta` events with the vendor's own
-  buffering and validation.
+  deferred tool loading. It does not request fine-grained tool-input streaming, which only
+  first-party surfaces accept and compatible endpoints cannot advertise.
 
 A capability or optimization belonging to one transport cannot alter another transport's
 history, tool schema, retry timing, or wire request.
 
-## 11. Lifecycle Contract
+## 9. Lifecycle Contract
 
 | Lifecycle event | Runtime behavior |
 |---|---|
@@ -387,31 +314,28 @@ history, tool schema, retry timing, or wire request.
 | Protocol switch | Rebase from provider-neutral history and start protocol-local state. |
 | Cancellation | Stop active sampling/tools according to their cancellation contract and persist only committed effects. |
 
-## 12. Failure Behavior
+## 10. Failure Behavior
 
 - Provider authentication, rate-limit, quota, overload, invalid-request, and server failures carry
   a stable classification and, when the provider supplies them, the upstream HTTP status, request
   ID, and a server-advised retry delay. Classification belongs to the provider integration; the
-  provider-neutral layer consumes it and does not re-derive it from message text.
+  provider-neutral layer does not re-derive it from message text.
 - A classified failure is the sole authority on whether it may be retried and after how long. A
-  server-advised delay takes precedence over the local backoff schedule. Retry advice becomes a
-  process-local monotonic deadline when response headers are first observed, or when a provider
-  exposes rate-limit text advice at failure capture. Text advice applies only to rate-limit failures
-  and never overrides a valid response header, including a zero delay. Exception propagation,
-  notification delivery, and completed tool effects consume that same wait; they never restart it. Both transport replay and
-  tool-loop reissue wait only for the remaining duration. Valid zero or past-date advice means no
-  wait; missing or malformed advice uses local backoff. Retry eligibility, budgets, cancellation,
-  and terminal capacity/quota handling remain unchanged.
-- Retry deadlines survive classification, exception wrapping, and record copies. Public duration
-  properties remain compatible; monotonic timestamps are never serialized or sent across hosts.
-  Remote boundaries forward supported retry headers and establish a new local deadline on receipt.
+  server-advised delay takes precedence over local backoff and becomes a process-local monotonic
+  deadline when response headers are first observed, or when a provider exposes rate-limit text
+  advice at failure capture. Text advice applies only to rate-limit failures and never overrides a
+  valid header, including a zero delay. Later handling consumes the same deadline rather than
+  restarting it, and both transport replay and tool-loop reissue wait only for the remaining
+  duration. Zero or past-date advice means no wait; missing or malformed advice uses local backoff.
+- Retry deadlines survive classification and exception wrapping. Monotonic timestamps are never
+  serialized or sent across hosts; remote boundaries forward supported retry headers and establish
+  a new local deadline on receipt.
 - Tool failures produce one deterministic result for their call and do not terminate unrelated
   parallel calls unless policy requires it.
-- Retry never duplicates a completed local tool effect.
 - Persistence failure before tool dispatch prevents that tool from executing.
 - Corrupt durable history blocks only the incompatible execution path and reports a stable error.
 
-## 13. Observability and Privacy
+## 11. Observability and Privacy
 
 Diagnostics observe the final transport shape and may record:
 
@@ -422,19 +346,5 @@ Diagnostics observe the final transport shape and may record:
 - token usage and cache coverage;
 - retry, fallback, and invalidation reasons.
 
-Diagnostics must not record request content, credentials, protected reasoning data, raw private
-tool metadata, or user secrets. Diagnostic observers cannot assign identity or mutate history.
-
-## 14. Stable Integration Boundaries
-
-- AppServer request/response and Session event behavior remain backward compatible.
-- Existing threads, forks, rollbacks, and compaction checkpoints remain usable.
-- Model-visible tool schemas and ordering remain stable unless separately specified.
-- Provider request JSON and headers are wire-identical during architecture-only changes, excluding
-  explicitly normalized nondeterministic fields.
-- Agent integrations use `ChatClientAgent`, `AsAIAgent`, `AgentFactory`, and the MEAI
-  contracts defined by this specification.
-- Executable composition roots register built-in provider integrations through
-  `ModelProviderRegistry`.
-- Session lifecycle and durable history integrations use Session Core contracts rather than
-  serializing runtime agent objects.
+Diagnostics do not record request content, credentials, protected reasoning data, raw private tool
+metadata, or user secrets. Diagnostic observers cannot assign identity or mutate history.

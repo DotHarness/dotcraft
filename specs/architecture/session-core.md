@@ -2,126 +2,69 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.10 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-10-18 |
+| **Date** | 2026-10-19 |
 
-Purpose: Define the **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
+Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
 ## 1. Scope
 
-This specification defines the **internal domain model and execution engine** for channels whose conversation state is owned by the server and executed through `ISessionService`.
-
-Transport protocols project these primitives without redefining their lifecycle or persistence.
-
-### 1.1 In-Scope Channels
-
-All channels executing through `ISessionService` share server-managed Thread/Turn/Item state,
-rollout persistence, event ordering, and approval lifecycle. Adapters translate transport,
-authentication, and presentation; they do not own another session engine.
+This specification defines the domain model and execution semantics for every channel whose conversation state is owned by the server and executed through the Session Core service. All such channels share Thread/Turn/Item state, rollout persistence, event ordering, and approval lifecycle. Adapters translate transport, authentication, and presentation; they do not own another session engine. Transport protocols project these primitives without redefining their lifecycle or persistence.
 
 ## 2. Goals and Non-Goals
 
 ### 2.1 Goals
 
-1. **Unified session primitives**: Define Thread, Turn, and Item as the shared model for all server-managed channels.
-2. **Single server-side execution path**: In-scope channels invoke the agent through Session Core rather than channel-specific streaming loops.
-3. **Unified event stream**: Session Core emits a structured event stream (item started, delta, completed) that server-managed channel adapters translate into transport-specific output.
-4. **Cross-channel resume for compatible server-managed identities**: Threads can be discovered and resumed across channels that share the same identity shape.
-5. **Thin adapters**: Channel-specific code should primarily translate transport messages and approvals, not own session orchestration logic.
-6. **Approval flow unification**: HITL approval requests are modeled as Items within a Turn, with a defined lifecycle that in-scope adapters implement.
+1. **Unified session primitives**: Thread, Turn, and Item are the shared model for all server-managed channels.
+2. **Single server-side execution path**: channels invoke the agent through Session Core rather than channel-specific streaming loops.
+3. **Unified event stream**: Session Core emits a structured event stream that adapters translate into transport-specific output.
+4. **Cross-channel resume** for channels that share the same identity shape.
+5. **Thin adapters**: channel code translates transport messages and approvals; it does not own session orchestration.
+6. **Unified approvals**: approval requests are Items within a Turn with a defined lifecycle.
 
 ### 2.2 Non-Goals
 
-- **Changing LLM/tool execution internals**: The Microsoft.Extensions.AI pipeline (`FunctionInvokingChatClient`, `TracingChatClient`, etc.) remains as-is. Session Core wraps it; it does not replace it.
-- **Prescribing channel-specific UX**: How a channel renders a diff is an adapter concern. The protocol defines *what* happened, not *how* to display it.
-- **Real-time cross-device sync**: Session Core does not push notifications to idle channels when a thread updates elsewhere. Channels discover thread state on resume.
-- **Multi-user thread collaboration**: Collaborative editing of a thread (multiple users editing simultaneously) is not in scope. Sequential group input is supported as described in Section 13.
-- **Standards-body compatibility**: This spec defines DotCraft's internal session model. It does not attempt to be an external public standard.
-- **Channel integration**: Session Core is a layer *inside* channel implementations, not a replacement of the module system. Compiled modules use `IDotCraftModule` for registration and implement the capability-specific `IChannelServiceModule` and `ISessionChannelModule` facets when they provide managed channel behavior or session origins. Host composition remains outside Session Core.
+- Changing the model/tool execution pipeline. Session Core wraps it; it does not replace it.
+- Prescribing channel-specific UX. The model defines *what* happened, not *how* to display it.
+- Real-time cross-device sync. Idle channels are not notified when a thread updates elsewhere; they discover state on resume.
+- Simultaneous multi-user editing of one thread. Sequential group input is supported (Section 13).
+- Host composition and module registration.
 
 ## 3. System Overview
 
-### 3.1 Main Components
+### 3.1 Main Components and Boundaries
 
-Session Core owns lifecycle, per-thread serialization, events, and persistence. It invokes the
-Agent execution pipeline and exposes operations to thin channel adapters. Canonical domain and
-model-visible history lives in thread JSONL; SQLite stores explicitly classified state and
-rebuildable projections.
-
-### 3.4 Component Boundaries
+Session Core owns lifecycle, per-thread serialization, events, and persistence. It invokes the agent execution pipeline and exposes operations to thin channel adapters. Canonical domain and model-visible history lives in thread JSONL; SQLite stores explicitly classified state and rebuildable projections.
 
 - Agent construction builds immutable agent instances and their model-client pipelines. It does not own a second session model.
-- Per-thread mutual exclusion is an internal detail of Session Core. Channels do not acquire session locks themselves.
+- Per-thread mutual exclusion is internal to Session Core. Channels do not acquire session locks.
 - Session Core invokes PrePrompt, Stop, PreToolUse, and PostToolUse hooks at their points in the Turn lifecycle and records trace events. Adapters do not invoke hooks or the trace collector.
-- Approval requests and responses are modeled as Items with an explicit lifecycle; Session Core routes them to the channel adapter through the approval interface.
+- Approval requests and responses are Items with an explicit lifecycle; Session Core routes them to the adapter.
 
-### 3.6 Runtime State Ownership
+### 3.2 Runtime State Ownership
 
-Session Core is the single authority for live state associated with threads and turns. This includes active execution, event delivery, approval and user-input pauses, maintenance work, background continuation, and transient state used to resume, cancel, or report work.
+Session Core is the single authority for live state associated with threads and turns: active execution, event delivery, approval and user-input pauses, maintenance work, background continuation, and transient state used to resume, cancel, or report work. Each thread's live state has one ownership boundary. Adapters, protocol projections, and background workers may request operations or observe events, but must not keep competing mutable thread runtime state.
 
-Each thread's live runtime state must have one ownership boundary. Related state must not be duplicated across independent owners that can drift apart or be cleaned up separately. Channel adapters, protocol projections, and background workers may request operations or observe events, but they must not maintain competing mutable thread runtime state.
+Thread deletion is both a persistence operation and a runtime teardown: it stops or invalidates outstanding work and clears all live state for the thread. Concurrent flows distinguish reading existing state from creating or restoring it as part of a lifecycle operation; event delivery, cleanup, retries, notifications, and delayed continuations use the existing-state path so they cannot resurrect a deleted or archived execution context.
 
-Thread deletion is both a persistence operation and a runtime teardown. Deleting a thread must stop or invalidate outstanding work for that thread and clear all live state owned by Session Core. Background completion, cleanup, retry, or notification paths must not recreate runtime state for a thread that is being permanently deleted.
+### 3.3 Runtime Command Ownership
 
-Any concurrent flow that touches thread runtime state must explicitly distinguish between reading existing state and creating or restoring state as part of a lifecycle operation. Incidental event delivery, cleanup, and delayed background continuations must use the existing-state path so they cannot resurrect a deleted or archived execution context.
+Every loaded Thread has one runtime command owner. External mutations of live Thread state -- Turn admission and cancellation, approval and user-input resolution, queued-input changes, effective configuration publication, maintenance admission, and lifecycle teardown -- are serialized by that owner. Long-running model or maintenance work may execute outside the dispatcher, but returns completion to the same owner before the active-work slot is cleared or follow-up work is admitted.
 
-### 3.6.1 Runtime Command Ownership
+The owner stays responsive while a Turn runs, so cancellation, approvals, user-input answers, steering, and configuration changes do not wait for model completion. A configuration change committed during an active Turn applies to the next Turn; it never mutates the active Turn's captured context.
 
-Every loaded Thread has one runtime command owner. External mutations of live Thread state -- Turn
-admission and cancellation, approval and user-input resolution, queued-input changes, effective
-configuration publication, maintenance admission, and lifecycle teardown -- are serialized by that
-owner. Long-running model or maintenance work may execute outside the command dispatcher, but it
-must return completion to the same owner before the active-work slot is cleared or follow-up work is
-admitted.
+Each runtime activation has a generation identity. Delayed completion from an earlier generation, including after permanent deletion or reload, must not mutate, persist, publish, or recreate live Thread state.
 
-The command dispatcher must remain responsive while a Turn is running so cancellation, approval,
-user-input answers, steering, and configuration changes do not wait for model completion. A Thread
-configuration change committed during an active Turn applies to the next Turn. It must not mutate
-the active Turn's captured execution context.
+### 3.4 Turn Execution Ownership
 
-Each runtime activation has a generation identity. Delayed completion from an earlier generation,
-including completion after permanent deletion or reload, must not mutate, persist, publish, or
-recreate live Thread state.
+Turn admission captures an immutable execution context: effective configuration, agent, workspace and runtime roots, client capabilities, and request origin. The effective tool snapshot is frozen with the Turn; provider-history identity is derived from the admitted Thread and Turn before the first provider request. Caller-owned input, input snapshots, and client-managed history are copied at admission.
 
-### 3.6.2 Turn Execution Ownership
+Mutable Turn state is separate: cancellation, pending approval and user-input waiters, tool projections, usage accounting, item sequence allocation, and same-Turn steering. The command owner requests cancellation through it; the Turn applies the terminal success, cancellation, and failure policy. The agent pipeline owns model sampling and tool invocation.
 
-Turn admission captures an immutable execution context containing the effective configuration,
-Agent, workspace and runtime roots, client capabilities, and request origin used by that Turn. The
-effective tool snapshot is frozen alongside it in mutable Turn runtime state; provider-history
-identity is derived from the admitted Thread and Turn before the first provider request.
-Caller-owned input collections, input snapshots, and client-managed history are copied at
-admission. Runtime adapters may expose this context through ambient compatibility scopes, but
-those scopes are not a second authority.
+An Item that a running Turn did not produce on its own execution path still belongs to that Turn. Its producer delivers it to the live Turn, which records it at its next Item boundary, allocating from the Turn's item sequence and publishing on its event stream. A producer must not wait on a Thread-level serialization point held by the running Turn. When no Turn is live, the producer appends to the latest completed Turn under ordinary serialization, above that Turn's highest item sequence; a Thread with no Turn records nothing. Resolving the target Turn never admits, restores, or recreates a Turn. An Item's creation time is the moment it is appended, so Items stay ordered by creation time; when the instant an event occurred matters, it belongs in the payload. Imported threads are the one exception: their Turns and Items keep the source session's monotonic timestamps.
 
-Mutable Turn state is owned separately from the immutable execution context. It contains
-cancellation, pending approval and user-input waiters, tool projections, usage accounting, item
-sequence allocation, and same-Turn steering. Turn execution is represented as a runtime task. The
-Session Core task coordinator owns task start and generation-safe cleanup. The Thread command owner
-requests cancellation through the mutable Turn state, while the task applies the existing terminal
-success, cancellation, and failure policy. The Agent pipeline continues to own model sampling and
-tool invocation.
-
-An Item that a running Turn did not produce on its own execution path still belongs to that Turn. A
-producer of such an Item delivers it to the live Turn, and the Turn's own writing path records it at
-the next Item boundary it reaches, allocating from that Turn's item sequence and publishing on its
-event channel. Such a producer must not reach the Turn by waiting on a Thread-level serialization
-point that the running Turn holds for its whole duration, because a producer that waits there cannot
-record an Item until the Turn it belongs to has ended. When no Turn is live, the producer appends to
-the latest completed Turn under the Thread's ordinary serialization, allocating above that Turn's
-highest existing item sequence; a Thread with no Turn records nothing. Resolving the target Turn is a
-read of existing runtime state: an out-of-band producer never admits, restores, or recreates a Turn
-in order to have somewhere to write. An Item's creation time is the moment it is appended, so a
-Turn's Items stay ordered by creation time in array order; when the instant an event occurred must
-also be known, it belongs in the Item's payload rather than in its creation time. Threads created
-through `ImportThreadAsync` are the one exception: their Turns and Items retain monotonic source-session timestamps.
-
-Terminal persistence is owned by one Turn committer, which atomically commits terminal Turn state,
-the model-history suffix, and any compaction checkpoint through the existing rollout contract. Live
-Turn-state cleanup returns through the Thread command owner, and delayed cleanup is rejected when
-its runtime generation is no longer current. Existing Session event ordering remains the protocol
-contract; this ownership split does not introduce new events or reorder AppServer notifications.
-Durable queued input continues to have priority over autonomous Goal continuation.
+Terminal persistence is owned by one Turn committer, which atomically commits terminal Turn state, the model-history suffix, and any compaction checkpoint. Live Turn-state cleanup returns through the command owner and is rejected when its generation is no longer current. Durable queued input has priority over autonomous Goal continuation.
 
 ## 4. Core Domain Model
 
@@ -133,526 +76,222 @@ A Thread is a persistent conversation between one user and one agent, tied to a 
 
 Fields:
 
-- `Id` (string)
-  - Globally unique identifier. Format: `thread_{timestamp}_{random}` (e.g., `thread_20260315_a3f2k9`).
-  - Assigned by Session Core on creation. Immutable after creation.
-- `WorkspacePath` (string)
-  - Absolute path to the workspace this Thread belongs to.
-- `UserId` (string, nullable)
-  - Opaque user identifier from the originating channel. Used for thread discovery ("show me my threads").
-  - May be null for system-initiated threads; Independent automation runs use a distinct identity for each run.
-- `OriginChannel` (string)
-  - Name of the channel that created this Thread (e.g., `"qq"`, `"acp"`, `"cli"`).
-  - Informational only; does not restrict which channels can resume the Thread.
-- `DisplayName` (string, nullable)
-  - Human-readable label. Can be set explicitly.
-  - Otherwise, the first eligible top-level user message immediately supplies a provisional name by collapsing whitespace and truncating the visible text to 36 Unicode characters. After that provisional name is persisted, Session Core starts one best-effort, non-blocking structured title request using the effective SubAgent model at low reasoning effort.
-  - A generated title replaces the provisional name only when the current `DisplayName` still exactly matches that provisional value. Provider failures, timeouts, invalid structured output, and intervening renames leave the provisional or user-supplied name unchanged; automatic generation is not retried.
-  - Forked threads use an explicit fork `displayName` when supplied. Otherwise they use the source thread's visible `DisplayName`, falling back to the first retained user message when the source has no display name.
-- `Source` (ThreadSource)
-  - Describes why this thread exists. `kind: "user"` is the default top-level conversation.
-  - `kind: "subagent"` marks a child thread spawned from another thread turn and carries parent thread, parent turn, root thread, depth, nickname, role, profile, and runtime metadata.
-  - The complete source and every subagent capability are part of the canonical thread baseline and must survive cold-start replay.
-- `ForkedFromId` (string, nullable)
-  - Source thread id when this thread was created by forking another conversation. Null for ordinary starts.
-- `Ephemeral` (boolean)
-  - True when the thread is process-local and is not persisted or listed by default.
-- `Worktree` (ThreadWorktreeInfo, nullable)
-  - DotCraft-managed Git worktree metadata bound to this thread. Null for ordinary local-workspace threads.
-- `Status` (enum: `Active`, `Archived`)
-  - See Section 5.1 for lifecycle rules.
-- `CreatedAt` (UTC timestamp)
-- `LastActiveAt` (UTC timestamp)
-  - Updated when a Turn starts or completes.
-- `Metadata` (dictionary, string → string)
-  - Extensible key-value pairs for channel-specific data (e.g., a group or chat id, a workspace URI).
-  - Session Core preserves but does not interpret Metadata.
-- `Configuration` (ThreadConfiguration, nullable)
-  - Per-thread agent configuration (MCP servers, mode, extensions). See Section 12. Null means workspace defaults apply.
-- `Turns` (ordered list of Turn)
-  - Canonical visible Turn history. Normal execution appends Turns; rollback removes a visible tail while the rollout retains the rollback and prior Turn records for audit and identity recovery.
-- `QueuedInputs` (ordered list of QueuedTurnInput)
-  - FIFO inputs submitted while a Turn or blocking thread maintenance operation is active. The queue is part of canonical thread state and is persisted in the rollout file.
-  - Clients may explicitly reorder the full queue. Reordering preserves queued input payloads and statuses, but updates the execution order for future queued turns.
-  - When a running Turn completes successfully and no blocking thread maintenance is active, Session Core dequeues at most one queued input and starts it as the next Turn. Failed or cancelled Turns do not automatically consume queued inputs.
-  - When blocking thread maintenance completes, skips, fails, or is cancelled, Session Core dequeues at most one queued input and starts it as the next Turn if the thread is otherwise idle.
+- `Id` — globally unique, assigned at creation, immutable (Section 4.3).
+- `WorkspacePath` — absolute path of the state workspace.
+- `UserId` (nullable) — opaque user identifier from the originating channel, used for discovery. Null for system-initiated threads; independent automation runs use a distinct identity per run.
+- `OriginChannel` — channel that created the Thread. Informational; does not restrict which channels may resume it.
+- `DisplayName` (nullable) — see naming rules below.
+- `Source` — why the thread exists. `kind: "user"` is a top-level conversation; `kind: "subagent"` marks a child thread and carries parent thread, parent turn, root thread, depth, nickname, role, profile, runtime, and capabilities. The complete source is part of the canonical baseline and survives cold-start replay.
+- `ForkedFromId` (nullable) — source thread id for a fork.
+- `Ephemeral` — process-local; not persisted or listed by default.
+- `Worktree` (nullable) — DotCraft-managed Git worktree bound to the thread.
+- `Status` — `Active` or `Archived` (Section 5.1).
+- `CreatedAt`, `LastActiveAt` — `LastActiveAt` updates when a Turn starts or completes.
+- `Metadata` — string map for channel-specific data. Preserved, never interpreted.
+- `Configuration` (nullable) — per-thread agent configuration (Section 12). Null means workspace defaults.
+- `Turns` — canonical visible Turn history. Rollback removes a visible tail; the rollout keeps the removed records.
+- `QueuedInputs` — persisted FIFO of inputs submitted while a Turn or blocking maintenance is active (Section 4.1.1.3).
+
+Naming: an explicit name wins. Otherwise the first eligible top-level user message supplies a provisional name (whitespace collapsed, truncated to 36 characters), after which Session Core makes one best-effort, non-blocking title request using the effective SubAgent model at low reasoning effort. A generated title replaces the provisional name only if `DisplayName` still exactly equals it; failures and intervening renames leave the name unchanged, and generation is not retried. A fork uses an explicit fork name, else the source's name, else its first retained user message.
+
+Queue execution: when a Turn completes successfully and no blocking maintenance is active, Session Core dequeues at most one queued input and starts it as the next Turn. Failed or cancelled Turns do not consume the queue. When blocking maintenance ends in any outcome, Session Core starts at most one queued input if the thread is otherwise idle. Clients may reorder the full queue; reordering changes only execution order.
 
 #### 4.1.1.1 Thread Forks
 
-A thread fork creates a new conversation branch from a source thread while leaving the source unchanged.
+A fork creates a new conversation branch from a source thread and leaves the source unchanged.
 
-Fork contract:
-
-- A persistent fork receives a new thread id, persists its own rollout, and sets `ForkedFromId` to the source thread id.
-- An ephemeral fork receives a new thread id and `ForkedFromId`, but stays process-local and is omitted from default thread lists.
-- Fork history is copied, not linked. Future edits, archive/delete actions, rollback, or compaction on the source must not rewrite the fork.
-- The fork copies the selected source turn/item prefix. A `forkPoint` may target a whole turn or an item boundary, with `"after"` including the target and `"before"` excluding it.
-- A copied active or partial source turn must end at an explicit interrupted boundary so clients and model-history reconstruction do not treat partial output as a naturally completed response.
-- Forks do not inherit queued inputs, pending approvals, active user-input requests, app bindings, active goals, or durable plan state. Transcript items already copied remain visible as history.
+- A persistent fork gets a new id, its own rollout, and `ForkedFromId`. An ephemeral fork gets the same identity fields but stays process-local and unlisted.
+- History is copied, not linked; later source edits, archive, delete, rollback, or compaction never rewrite the fork.
+- The fork copies the selected turn/item prefix. A `forkPoint` targets a whole turn or an item boundary; `"after"` includes the target and `"before"` excludes it.
+- A copied active or partial source turn ends at an explicit interrupted boundary.
+- Forks do not inherit queued inputs, pending approvals or user-input requests, app bindings, active goals, or plan state. Copied transcript items stay visible.
 - Forks copy thread configuration, then apply request-level overrides.
-- Forked threads include a persisted `SystemNotice` item with `kind = "forked"` and `sourceThreadId` at the boundary between inherited source history and fork-specific work. This marker is client-visible but not model-visible.
-- A persistent fork must materialize its own optimized model-visible history when source history has already been compacted. If the selected fork prefix fully retains a source compaction checkpoint's covered turn, Session Core rebases that checkpoint into the fork rollout, appends the retained later model-history messages, and records an estimated context usage snapshot. If the fork point cuts inside or before the checkpoint-covered turn, that checkpoint is not compatible and an older compatible checkpoint may be used instead.
-- Fork rebuilds must prefer fork-local compaction checkpoints and must not expand compacted source history back into the full pre-compaction transcript when a compatible checkpoint exists.
+- A persisted `SystemNotice` with `kind = "forked"` and `sourceThreadId` marks the boundary between inherited history and new work. It is client-visible, not model-visible.
+- A persistent fork materializes its own optimized model history. When the fork prefix fully retains a source compaction checkpoint's covered turn, the checkpoint is rebased into the fork rollout followed by the retained later model history, with an estimated context usage snapshot; a fork point inside or before that turn falls back to an older compatible checkpoint. Forks never expand compacted source history back into the full transcript when a compatible checkpoint exists.
 
 Side chat forks:
 
-- A side chat is an internal ephemeral fork of a thread that is not itself a side chat. It copies the source's full current history and may be taken while a source Turn is running.
-- Its model-visible history reuses the source's persisted model history for every completed Turn, so the copied prefix is byte-identical to the source's. A running source Turn is rebuilt from its copied Items and ends at the interrupted boundary.
-- It inherits the source's tool-planning role and cache routing root like other cache-sharing forks, so its tool surface and base instructions match the source.
-- Before each Turn, Session Core appends a side chat boundary thread context item when the history has none. The boundary follows the copied history, survives compaction by being restored on the next Turn, and is not a visible Item.
-- `SpawnAgent` fails in a side chat because a side chat cannot own persistent child threads.
-- Archiving or permanently deleting the source deletes its side chats.
+- A side chat is an internal ephemeral fork of a non-side-chat thread. It copies the full current history and may be taken while a source Turn runs.
+- Its model history reuses the source's persisted model history for every completed Turn, so the prefix is byte-identical; a running source Turn is rebuilt from its copied Items and ends at the interrupted boundary.
+- It inherits the source's tool-planning role and cache routing root, so tool surface and base instructions match.
+- Before each Turn, Session Core appends a side-chat boundary context item when the history has none. It follows the copied history, is restored after compaction, and is not a visible Item.
+- A side chat cannot own persistent child threads, so spawning a child agent fails.
+- Archiving or deleting the source deletes its side chats.
 
 #### 4.1.1.2 Worktree Handoff
 
-A worktree handoff composes Git worktree creation with thread fork.
+A worktree handoff composes Git worktree creation with a thread fork.
 
-Ownership rules:
-
-- `WorkspacePath` remains the state workspace. It owns `.craft/threads`, `.craft/state.db`, memory, goals, plans, app bindings, skills, plugins, and thread metadata.
-- The worktree path is the execution workspace for the forked thread. File tools, shell tools, Git operations, LSP, and first-party file surfaces use that execution root.
-- `ordinaryCwd = Cwd ?? WorkspaceOverride ?? WorkspacePath`.
-- `effectiveWorkspacePath = ExecutionWorkspaceOverride ?? ordinaryCwd`.
-- `ExecutionWorkspaceOverride` changes runtime execution location only. It must not relocate rollout, memory, goals, plans, app bindings, or workspace configuration.
-- `RuntimeWorkspaceRoots` is the ordered, sticky set of additional runtime boundaries.
-- Registered worktree roots under `.craft/worktrees` are allowed execution roots for their bound threads even though ordinary main-workspace browsing hides `.craft/worktrees/**`.
-- Worktree handoff must not mutate the source thread or the source working tree. Dirty change handoff copies uncommitted source changes into the new worktree when requested.
+- `WorkspacePath` remains the state workspace: it owns `.craft/threads`, `.craft/state.db`, memory, goals, plans, app bindings, skills, plugins, and thread metadata.
+- The worktree is the execution workspace for the forked thread: file, shell, Git, LSP, and first-party file surfaces use it.
+- `ordinaryCwd = Cwd ?? WorkspaceOverride ?? WorkspacePath`; `effectiveWorkspacePath = ExecutionWorkspaceOverride ?? ordinaryCwd`.
+- `ExecutionWorkspaceOverride` changes execution location only; it never relocates rollout, memory, goals, plans, app bindings, or workspace configuration.
+- Registered worktree roots under `.craft/worktrees` are allowed execution roots for their bound threads even though ordinary workspace browsing hides `.craft/worktrees/**`.
+- Handoff never mutates the source thread or source working tree. Uncommitted source changes are copied into the worktree when requested.
 
 #### 4.1.1.3 QueuedTurnInput
 
-A QueuedTurnInput is a durable snapshot of user input waiting to become a future Turn.
+A durable snapshot of user input waiting to become a future Turn.
 
-Fields:
+- `Id`, `ThreadId`, `CreatedAt`.
+- `NativeInputParts` — transport-native parts (text, file, skill, command, local image references).
+- `MaterializedInputParts` — model-visible parts used when the input executes.
+- `DisplayText` — label derived from the native snapshot.
+- `Sender` (nullable) — sender identity for group sessions.
+- `Status` — `"queued"` for FIFO execution, or `"guidancePending"` after promotion into current-Turn guidance.
+- `ReadyAfterTurnId` (nullable) — active Turn when queued.
+- `TriggerKind`, `TriggerLabel`, `TriggerRefId`, `TriggerStatus` (nullable) — present when the input was synthesized by a server mechanism rather than typed by a human (Section 4.2, UserMessage). `TriggerStatus` is set only on task notifications.
 
-- `Id` (string)
-  - Globally unique queued-input identifier.
-- `ThreadId` (string)
-  - Parent Thread ID.
-- `NativeInputParts` (ordered list)
-  - Transport-native input parts, such as text, file references, skill references, command references, or local image references.
-- `MaterializedInputParts` (ordered list)
-  - Model-visible input parts after materialization. This snapshot is used when the queued input is executed.
-- `DisplayText` (string)
-  - Human-readable queue label derived from the native snapshot.
-- `Sender` (SenderContext, nullable)
-  - Optional sender identity for group sessions.
-- `Status` (string)
-  - `"queued"` for normal FIFO execution or `"guidancePending"` after the user promotes the input into current-Turn guidance.
-- `CreatedAt` (UTC timestamp)
-- `ReadyAfterTurnId` (string, nullable)
-  - Active Turn ID observed when the input was queued.
-- `TriggerKind` (string, nullable)
-  - Present when the queued input was synthesized by a server/app mechanism rather than typed by a human. Examples include `goal`, `automation`, `app`, `team`, and the task notification kinds `terminal`, `subagent`, and `workflow`.
-- `TriggerLabel` (string, nullable)
-  - Optional human-readable source label.
-- `TriggerRefId` (string, nullable)
-  - Optional stable source id for client-side click-through or audit correlation.
-- `TriggerStatus` (string, nullable)
-  - State of the source when the input was created. Set only on task notifications.
-
-When a queued input starts a future Turn, Session Core must copy trigger metadata and the queued input id into the persisted `UserMessagePayload`. When a queued input is promoted into current-turn guidance, the guidance `UserMessage` item must preserve the same trigger metadata. Before guidance is admitted into the active Turn, a client may change the queued input's desired status back to `"queued"` without changing its input payload, metadata, or queue position. Once admission atomically persists the guidance `UserMessage` and removes the queued input, the input is no longer retractable.
+A queued input that starts a Turn copies its trigger metadata and id into the `UserMessage` payload; promoted guidance preserves the same metadata. Before guidance is admitted, a client may set it back to `"queued"` without changing payload, metadata, or position. Admission atomically persists the guidance `UserMessage` and removes the queued input; after that it is not retractable.
 
 ##### Task notifications
 
-A task notification is a queued input with `triggerKind` `terminal`, `subagent`, or `workflow`,
-created by Session Core when a background task ends or a shell task stalls (see
-[Background Tasks](background-tasks.md) §5). Each runtime claims the ending through the task's
-notification latch and hands it to one Session Core delivery path:
+A task notification is a queued input with `triggerKind` `terminal`, `subagent`, or `workflow`, created by Session Core when a background task ends or a shell task stalls. Envelope, wake policy, and per-kind fields are owned by the background-task subsystem. Session-level delivery:
 
-- While the owner Thread has an active Turn, the notification is added as `guidancePending` for that
-  Turn and is drained at its next sampling boundary. It does not preempt a model request, does not hand
-  over a waiting foreground `Exec`, and skips `UserPromptSubmit` hooks. If the Turn ends first, it
-  becomes queued input like other undrained guidance.
-- Otherwise it is added as `queued`. When the owner Thread is Active and idle and the notification may
-  wake it, the next queued Turn is started.
-- Every Turn, whatever started it, admits all `queued` task notifications as guidance before its
-  first sampling request, so notifications that end together, or that were held, reach the model with
-  that Turn's input.
-- `Tools.BackgroundTasks.CompletionDelivery = off` keeps notifications queued without starting a
-  Turn. With `wake`, a Thread whose last `Tools.BackgroundTasks.MaxConsecutiveWakes` Turns were each
-  started by a task notification and each started another background task is not woken: the
-  notification stays queued. Choosing the next queued Turn skips task notifications that may not
-  wake the Thread.
-- A notification is never dropped. On a Thread that is not Active it stays queued for the Thread's
-  next Turn.
+- While the owner Thread has an active Turn, the notification is added as `guidancePending` and drained at the next sampling boundary. It does not preempt a model request, does not hand over a waiting foreground command, and skips `UserPromptSubmit` hooks. If the Turn ends first, it becomes queued input.
+- Otherwise it is added as `queued`, and an Active idle Thread starts the next queued Turn when the wake policy allows.
+- Every Turn admits all `queued` task notifications as guidance before its first sampling request, so notifications that end together reach the model with that Turn's input.
+- Selecting the next queued Turn skips notifications that may not wake the Thread. A notification is never dropped; on a non-Active Thread it waits for the next Turn.
 
-Queued-input materialization is a local-only operation. Inline `image` parts contain base64 `data:image/...` URLs and are decoded without network access; `localImage` parts are read from their persisted local paths. Rebuilding model-visible history from a Turn's input snapshot (forks, interruption, or a Turn without stored model history) reads `localImage` files the same way and frames them as at Turn start; a file that can no longer be read becomes the text `[localImage:<path>]`. Session Core must never dereference HTTP or HTTPS image URLs while starting a queued Turn or admitting current-Turn guidance. A queued snapshot containing such a URL is materialized as the text `image content omitted because remote image URLs are not supported`, while the remaining parts continue normally.
+Queued-input materialization is local-only. Inline `image` parts (base64 data URLs) are decoded without network access; `localImage` parts are read from their persisted paths. Rebuilding model history from an input snapshot (forks, interruption, a Turn without stored model history) reads `localImage` files the same way; an unreadable file becomes the text `[localImage:<path>]`. Session Core never dereferences HTTP(S) image URLs when starting a queued Turn or admitting guidance; such a part becomes a text notice that remote image URLs are not supported, and the remaining parts continue.
 
 #### 4.1.1.4 SubAgent Child Threads
 
-Child agents are ordinary `SessionThread` instances with `Source.kind = "subagent"` and
-`OriginChannel = "subagent"`. Native children use the same Turn, Item, approval, persistence, and
-resume contracts. External runtimes persist synthetic Turns with input, final output or failure,
-and available usage.
+Child agents are ordinary Threads with `Source.kind = "subagent"` and `OriginChannel = "subagent"`. Native children use the same Turn, Item, approval, persistence, and resume contracts. External runtimes persist synthetic Turns with input, final output or failure, and available usage.
 
-Parent-child edges, stored child configuration, and pending communication are durable. Child
-control identity is independent of the mutable thread display name. Root-scoped communications
-must not leak into another root's execution or wakeups.
+Parent-child edges, stored child configuration, and pending communication are durable. Child control identity is independent of the display name. Root-scoped communication must not leak into another root's execution or wakeups.
 
-Default thread discovery excludes children. Parent archive and deletion cascade to descendants;
-parent restore restores only still-open child edges. Closing a child cancels its active work and
-archives its subtree. Closed children are not reopened by root resume.
+Default discovery excludes children. Parent archive and deletion cascade to descendants; parent restore restores only still-open child edges. Closing a child cancels its active work and archives its subtree. Closed children are not reopened by root resume.
 
 #### 4.1.1.5 Provider Context Windows
 
-Session Core maintains an internal provider context-window record for each persistent thread. This is not part of the public Thread wire model; it exists so provider integrations such as ChatGPT OAuth Responses can describe the current model-visible history lineage using provider-compatible metadata.
+Session Core keeps an internal provider context-window record per persistent thread so provider integrations can describe the current model-visible history lineage. It is not part of the public Thread model.
 
-The persisted record is keyed by `thread_id` and stores `first_window_id`, `previous_window_id`, `current_window_id`, `generation`, and `updated_at`. IDs are UUID strings generated by the runtime. A record is created when the first provider request on a thread needs it. `current_window_id` remains stable across normal turns, retries, tool loops, queued inputs, and resume from disk.
+The record is keyed by `thread_id` and stores `first_window_id`, `previous_window_id`, `current_window_id`, `generation`, and `updated_at` (runtime-generated UUIDs). It is created on the first provider request that needs it. `current_window_id` is stable across turns, retries, tool loops, queued inputs, and resume.
 
-When a compaction succeeds and replaces neutral or provider-native model-visible history (`micro` or `partial` outcomes from auto, reactive, or manual compaction), Session Core advances the provider context window from the durable replacement boundary. A provider-native rollout replacement carries the exact next window identity and is authoritative if the derived `thread_context_windows` projection is stale. The previous `current_window_id` becomes `previous_window_id`, the committed replacement supplies a new `current_window_id`, and `generation` increments. Skipped, failed, cancelled, or diagnostic-only compaction attempts must not advance the window.
+A successful compaction that replaces model-visible history (`micro` or `partial`, from any trigger) advances the window from the durable replacement boundary: the previous current id becomes `previous_window_id`, the replacement supplies the new current id, and `generation` increments. A provider-native replacement carries the exact next window identity and is authoritative over a stale projection. Skipped, failed, cancelled, or diagnostic-only attempts do not advance the window.
 
-The window record is internal routing metadata. It must not be rendered as conversation content,
-included in AppServer Thread DTOs, or used as the provider prompt-cache key. For Responses,
-`prompt_cache_key` and OAuth `session-id` use the root cache-session Thread id, while OAuth
-`thread-id` and `x-client-request-id` use the current executing Thread id. Root Threads and
-ordinary user forks are their own cache-session roots; subagents retain the persisted
-`Source.SubAgent.RootThreadId`.
+The window record is routing metadata: never conversation content, never in Thread wire DTOs, never the prompt-cache key. For Responses, `prompt_cache_key` and OAuth `session-id` use the root cache-session Thread id, while OAuth `thread-id` and `x-client-request-id` use the executing Thread id. Root threads and ordinary forks are their own cache-session roots; subagents use the persisted root thread id from their source.
 
 #### 4.1.2 Turn
 
-A Turn is one unit of agent work initiated by user input. A Turn starts when the user submits a message and ends when the agent finishes responding (or fails, or is cancelled).
+A Turn is one unit of agent work initiated by input. It ends when the agent finishes, fails, or is cancelled.
 
-Fields:
-
-- `Id` (string)
-  - Unique within the Thread. Format: `turn_{sequence}` (e.g., `turn_001`).
-- `ThreadId` (string)
-  - Reference to the parent Thread.
-- `Status` (enum: `Running`, `Completed`, `WaitingApproval`, `WaitingInput`, `Failed`, `Cancelled`)
-  - See Section 5.2 for lifecycle rules.
-- `Input` (Item)
-  - The user's input Item that initiated this Turn. Always of type `UserMessage`.
-- `Items` (ordered list of Item)
-  - All Items produced during this Turn, including the Input. Append-only.
-- `StartedAt` (UTC timestamp)
-- `CompletedAt` (UTC timestamp, nullable)
-  - Set when Status transitions to a terminal state (`Completed`, `Failed`, `Cancelled`).
-- `TokenUsage` (object, nullable)
-  - `InputTokens` (long): cumulative billing input across all LLM requests in the Turn.
-  - `OutputTokens` (long)
-  - `CachedInputTokens` (long): cache-hit/cache-read input tokens.
-  - `CacheWriteInputTokens` (long): cache-creation/cache-write input tokens.
-  - `FreshInputTokens` (long, derived): `max(0, InputTokens - CachedInputTokens - CacheWriteInputTokens)`.
-  - `NonCachedInputTokens` (long, derived): `max(0, InputTokens - CachedInputTokens)`.
-  - `ReasoningOutputTokens` (long)
-  - `TotalTokens` (long)
-  - Accumulated across every model request in the Turn from `UsageContent` in the streaming response. This is billing usage, not context-window occupancy.
-- `Error` (string, nullable)
-  - Human-readable error description when Status is `Failed`.
+- `Id` — unique within the Thread (Section 4.3).
+- `ThreadId`.
+- `Status` — `Running`, `WaitingApproval`, `WaitingInput`, `Completed`, `Failed`, `Cancelled` (Section 5.2).
+- `Input` — the `UserMessage` Item that started the Turn.
+- `Items` — all Items of the Turn, including the input. Append-only.
+- `StartedAt`, `CompletedAt` (set on a terminal state).
+- `TokenUsage` (nullable) — billing usage accumulated across every model request of the Turn, not context occupancy: `InputTokens`, `OutputTokens`, `CachedInputTokens` (cache read), `CacheWriteInputTokens`, `ReasoningOutputTokens`, `TotalTokens`, and derived `FreshInputTokens = max(0, Input - Cached - CacheWrite)` and `NonCachedInputTokens = max(0, Input - Cached)`.
+- `Error` (nullable) — description when `Failed`.
 
 #### 4.1.3 Item
 
-An Item is the atomic unit of input/output within a Turn. Every piece of information exchanged between the user, agent, and tools is represented as an Item with a typed payload and an explicit lifecycle.
+An Item is the atomic unit of input/output within a Turn, with a typed payload and an explicit lifecycle.
 
-Fields:
+- `Id` — unique within the Turn (Section 4.3).
+- `TurnId`.
+- `Type`:
+  - `UserMessage` — user input.
+  - `AgentMessage` — agent response text, may stream.
+  - `ReasoningContent` — model reasoning, when exposed.
+  - `CommandExecution` — observable shell execution for `Exec`-style tools.
+  - `ToolExecution` — runtime lifecycle projection of a normal tool invocation.
+  - `ImageGeneration` — lifecycle of the `image_gen.imagegen` tool.
+  - `WebSearch` — lifecycle of the `web.run` tool.
+  - `ToolCall` — native or plugin tool invocation, including managed channel tools.
+  - `McpToolCall` — MCP invocation lifecycle.
+  - `DynamicToolCall` — runtime Dynamic tool callback lifecycle.
+  - `ToolResult` — result paired with a standard `ToolCall`.
+  - `ApprovalRequest`, `ApprovalResponse` — approval of a sensitive operation.
+  - `UserInputRequest`, `UserInputResponse` — structured question to the user and its answer.
+  - `Error` — an error during the Turn.
+  - `SystemNotice` — persistent system marker in the timeline (for example a compaction point). Emitted as `item/started` + `item/completed` with no streaming phase.
+- `Status` — `Started` (payload may be partial), `Streaming` (receiving deltas; valid for `AgentMessage`, `ReasoningContent`, `CommandExecution`, and streamed `ToolCall` argument previews), `Completed` (payload final).
+- `Payload` — type-specific (Section 4.2).
+- `CreatedAt`, `CompletedAt`.
 
-- `Id` (string)
-  - Unique within the Turn. Format: `item_{sequence}` (e.g., `item_001`).
-- `TurnId` (string)
-  - Reference to the parent Turn.
-- `Type` (enum)
-  - `UserMessage` — User's input text.
-  - `AgentMessage` — Agent's response text (may be streamed incrementally).
-  - `ReasoningContent` — Agent's internal reasoning/thinking (if exposed by the model).
-  - `CommandExecution` — Server-observed shell execution projection for `Exec`-style tools. Payload includes command metadata and aggregated output for persistence, history summaries, and non-terminal-capable fallback rendering.
-  - `ToolExecution` — Server-observed runtime lifecycle for a normal tool invocation. Payload includes call id, tool name, status, duration, and optional preview/error text.
-  - `ImageGeneration` — Lifecycle of the `image_gen.imagegen` tool. Payload includes call id, in-progress/completed/failed status, prompt, generated image bytes when available, saved path, backend request and generation ids, and error text.
-  - `WebSearch` — Lifecycle of the `web.run` tool. Payload includes call id, in-progress/completed/failed status, a display query, the action derived from the commands, the search service's result objects, the call arguments, the text returned to the model, and error text.
-  - `ToolCall` — Agent invokes a native or plugin tool, including managed channel tools. Payload includes canonical namespace/name, arguments, call id, definition identity, and safe provenance.
-  - `McpToolCall` — MCP invocation lifecycle item preserving raw MCP result fields under audience rules plus separately normalized model content.
-  - `DynamicToolCall` — Runtime Dynamic callback lifecycle item with canonical namespace/name, separate call/item ids, status, duration, normalized content, structured content, and stable failure data.
-  - `ToolResult` — Result paired with a standard `ToolCall`, including model fallback content and audience-separated client/host data.
-  - `ApprovalRequest` — Agent requests user approval for a sensitive operation.
-  - `ApprovalResponse` — User's approval decision (approved/rejected).
-  - `UserInputRequest` — Plan Mode agent asks the client to collect structured user input.
-  - `UserInputResponse` — User's answer to a Plan Mode input request.
-  - `Error` — An error occurred during the Turn.
-  - `SystemNotice` — Persistent system-level marker in the conversation timeline (e.g. context compaction point). Emits `item/started` + `item/completed` back-to-back; no streaming phase.
-- Thread maintenance — A thread-level busy state for long-running blocking maintenance outside the normal Turn stream, such as manual context compaction. While active, new input is accepted only through the queued-input path and starts after the maintenance terminal event.
-- `Status` (enum: `Started`, `Streaming`, `Completed`)
-  - `Started` — Item has been created, payload may be partial or empty.
-  - `Streaming` — Item is receiving incremental updates (deltas). Valid for `AgentMessage`, `ReasoningContent`, runtime-projected `CommandExecution`, and AppServer-projected streamed `ToolCall` argument previews.
-  - `Completed` — Item is finalized, payload is complete.
-- `Payload` (type-specific object)
-  - See Section 4.2 for payload schemas per Item type.
-- `CreatedAt` (UTC timestamp)
-- `CompletedAt` (UTC timestamp, nullable)
+Thread maintenance is a thread-level busy state for long-running blocking work outside the Turn stream, such as manual compaction. While active, new input is accepted only through the queue and starts after the maintenance terminal event.
 
 #### 4.1.4 SessionIdentity
 
-A SessionIdentity maps a channel-specific user context to a Thread. It is used for thread discovery and creation.
+A SessionIdentity maps a channel-specific user context to Threads for discovery and creation.
 
-Fields:
+- `ChannelName` — the requesting channel.
+- `UserId` (nullable) — channel-specific user id.
+- `ChannelContext` (nullable) — channel-specific context key (a group or chat id, a workspace URI), allowing several threads per user in one channel.
+- `WorkspacePath` — the workspace of the identity.
 
-- `ChannelName` (string)
-  - The channel requesting the operation.
-- `UserId` (string, nullable)
-  - Channel-specific user identifier.
-- `ChannelContext` (string, nullable)
-  - Channel-specific context key (e.g., a group or chat id, a workspace URI). Allows multiple threads per user within the same channel.
-- `WorkspacePath` (string)
-  - The workspace this identity operates in.
-
-Thread discovery uses `SessionIdentity` to find existing threads:
-- `FindThreads(identity)` → returns threads matching the workspace, user, and optionally channel context.
-- The adapter decides whether to resume an existing thread or create a new one.
+Discovery returns threads matching the workspace, user, and optionally channel context (Section 9.5). The adapter decides whether to resume one or create a new thread.
 
 ### 4.2 Item Payload Schemas
 
-Each Item type has a specific payload structure:
+Payload field shapes are owned by the Session Protocol contracts and generated schemas. This section defines what each payload means and the rules other subsystems depend on.
 
 #### UserMessage
 
-```
-{
-  "text": string,          // Compatibility/display text derived from nativeInputParts
-  "nativeInputParts": [    // Optional native input snapshot persisted as the source of truth
-    InputPart
-  ],
-  "materializedInputParts": [ // Optional model-visible input snapshot after server-side materialization
-    InputPart
-  ],
-  "senderId": string,      // Individual sender within a group session (nullable, see Section 13.1)
-  "senderName": string,    // Display name of the sender (nullable)
-  "senderRole": string,    // Sender role when available from channel adapter (nullable)
-  "channelName": string,   // Originating channel for this user message (nullable)
-  "channelContext": string,// Channel-specific context for this message (nullable)
-  "groupId": string,       // Group/chat identifier (nullable)
-  "images": [              // Optional local image metadata for UI rehydration
-    {
-      "path": string,      // Absolute attachment path on host
-      "mimeType": string,  // Optional MIME hint
-      "fileName": string   // Optional original filename
-    }
-  ],
-  "triggerKind": string,   // Optional trigger marker: "automation" | "goal" | "app" | "mcpApp" | "team" | "subagentFollowupTask" | "subagentMailbox" | "subagentInput" | "terminal" | "subagent" | "workflow"
-  "triggerLabel": string,  // Optional human-readable source label (e.g. automation name, task title, agent label)
-  "triggerRefId": string,  // Optional routing/audit id for click-through when supported (e.g. automation id, task id, agent path)
-  "triggerStatus": string  // Optional state of the source when the message was created (task notifications only)
-}
-```
+Fields: `text`, `nativeInputParts`, `materializedInputParts`, sender fields (`senderId`, `senderName`, `senderRole`, `channelName`, `channelContext`, `groupId`; Section 13.1), optional local `images` metadata for UI rehydration, `deliveryMode`, `queuedInputId`, `clientUserMessageId`, and the trigger fields `triggerKind`, `triggerLabel`, `triggerRefId`, `triggerStatus`.
 
-`clientUserMessageId` correlates a client submission with its persisted user message and is preserved through queued and guidance delivery. It is not an idempotency key. Typed `contextRef` native parts retain source snapshots and owned image references; their materialized parts contain the model-facing expansion.
-
-`nativeInputParts` is authoritative for history rendering and editor rehydration when present. `materializedInputParts` captures the exact prompt/image snapshot that Session Core received after transport-side input materialization. `text` supports compatibility and preview generation; it is not the source of truth for user-message reconstruction.
-
-The optional `triggerKind` trio is populated by Session Core when a turn is submitted with an active trigger scope. Server-side runners set that scope so automation-synthesized messages carry a stable marker that clients can use to render an "automation-sourced" affordance and route click-through to the originating job or task. Goal continuation turns use `triggerKind = "goal"`, `triggerLabel = "Goal continuation"`, and `triggerRefId = internal goal id`. Session-backed SubAgent turns set `triggerKind = "subagentFollowupTask"` for turns a parent starts or queues with `SendMessage`, `triggerKind = "subagentInput"` for direct/resumable external input, and mailbox drain items use `triggerKind = "subagentMailbox"`; mailbox drain items are internal/model-visible notifications rather than user-authored bubbles, and their `triggerRefId` is an agent path for audit/display and is not necessarily a client-navigable thread id. Task notifications use `triggerKind = "terminal"`, `"subagent"`, or `"workflow"` with the task label, task id, and kind-specific final status (see [Task notifications](#task-notifications)); like mailbox drain items they are model-visible notifications that clients do not present as user input. Fields are absent when the turn originates from a real user input.
+- `nativeInputParts` is authoritative for history rendering and editor rehydration. `materializedInputParts` is the exact prompt/image snapshot Session Core received after transport-side materialization. `text` is a compatibility and preview value derived from the native snapshot, not the source of truth.
+- Typed `contextRef` native parts keep source snapshots and owned image references; their materialized parts contain the model-facing expansion.
+- `clientUserMessageId` correlates a client submission with its persisted message through queued and guidance delivery. It is not an idempotency key.
+- `deliveryMode` is `"normal"` (or absent) for a direct Turn start, `"queued"` for a queued input that became a Turn, and `"guidance"` for input appended to an active Turn. `queuedInputId` names the queue record that produced the message.
+- Trigger fields are set when input is synthesized by a server mechanism and absent for real user input. `triggerKind` values: `automation`, `goal` (label `Goal continuation`, ref = goal id), `app`, `mcpApp`, `team`, `subagentFollowupTask` (a parent starts or queues work for a child), `subagentInput` (direct or resumable external input), `subagentMailbox` (mailbox drain; `triggerRefId` is an agent path, not necessarily a navigable thread id), and the task notification kinds `terminal`, `subagent`, `workflow` (label = task label, ref = task id, `triggerStatus` = final status; see [Task notifications](#task-notifications)). Mailbox drains and task notifications are model-visible notifications that clients do not present as user input.
 
 #### AgentMessage
 
-```
-{
-  "text": string          // Accumulated response text (final value after streaming)
-}
-```
-
-Delta payload (during streaming):
-
-```
-{
-  "textDelta": string     // Incremental text chunk
-}
-```
+`{ text }`; streaming deltas carry `{ textDelta }`. Optional `deliveryMode = "async"` marks a model-initiated message sent while the Turn continues (Section 10.4): it is persisted and broadcast immediately but excluded from rebuilt model-visible assistant history and from the Turn's final answer; the tool call and result that produced it remain model-visible.
 
 #### ReasoningContent
 
-```
-{
-  "text": string          // The reasoning/thinking text
-}
-```
+`{ text }`.
 
 #### ToolCall
 
-```
-{
-  "namespace": string,       // Optional canonical namespace; absent/null for top-level tools
-  "toolName": string,        // Canonical local tool name
-  "providerFlatName": string,// Deterministic flat-provider alias persisted from the snapshot
-  "definitionId": string,    // Source-qualified ToolDefinitionId
-  "runtimeBindingId": string,// Live RuntimeBindingId at invocation time
-  "bindingRevision": string, // Runtime binding revision at invocation time
-  "snapshotRevision": string,// EffectiveToolSnapshot revision at invocation time
-  "sourceKind": string,      // Safe source kind
-  "sourceToolId": string,    // Optional safe raw source identity
-  "sourceProvenance": object,// Optional sanitized source provenance
-  "presentation": object,    // Optional trusted PresentationId + bounded options
-  "pluginId": string,        // Optional plugin provenance
-  "functionId": string,      // Optional plugin function provenance
-  "arguments": object,       // Tool arguments as key-value pairs
-  "callId": string           // Provider/model correlation id linking ToolCall to ToolResult
-}
-```
+Fields: canonical `namespace` (absent for top-level tools) and `toolName`; `providerFlatName`; immutable invocation identity (`definitionId`, `runtimeBindingId`, `bindingRevision`, `snapshotRevision`); safe provenance (`sourceKind`, `sourceToolId`, `sourceProvenance`, `pluginId`, `functionId`); trusted `presentation`; `arguments`; and `callId`, the provider correlation id linking the call to its result.
 
-The tool snapshot and the live invocation have distinct lifetimes. Snapshot planning does not provide the execution Turn identity. At the model callback boundary, Session Core captures the active thread and Turn in an immutable invocation context and uses that context for dispatch and projection. An invocation with no Turn may execute for an authorized host audience but MUST NOT create or update a Turn item.
-
-For a registered call, streamed arguments and dispatcher lifecycle events are coordinated by `(threadId, turnId, callId, projectionShape)`. They MUST atomically upsert the same `ToolCall`; neither arrival order may create a generic duplicate. Canonical identity, source provenance, and presentation come from the matched frozen registration and MUST NOT be inferred from `toolName`, arguments, or result content.
-
-While arguments are still being streamed, the started projection omits `arguments` (or represents it
-as null); an empty object means the final argument set is known to be empty. The completed projection
-always carries the authoritative argument object.
+- At the model callback boundary, Session Core captures the active thread and Turn in an immutable invocation context used for dispatch and projection. An invocation with no Turn may run for an authorized host audience but must not create or update a Turn item.
+- Streamed arguments and dispatcher lifecycle for one call are coordinated by `(threadId, turnId, callId, projectionShape)` and atomically upsert the same `ToolCall`; neither arrival order creates a duplicate. Identity, provenance, and presentation come from the frozen registration, never inferred from name, arguments, or result.
+- While arguments stream, the started projection has null `arguments`; an empty object means the final arguments are known to be empty. The completed projection always carries the authoritative arguments.
 
 #### ToolExecution
 
-```
-{
-  "callId": string,        // Matches the ToolCall.callId
-  "toolName": string,      // Name of the tool being executed
-  "status": string,        // "inProgress", "completed", "failed", or "cancelled"
-  "success": boolean,      // Whether execution succeeded (nullable until completion)
-  "durationMs": number,    // Wall-clock duration when available
-  "resultPreview": string, // Optional sanitized/truncated UI preview
-  "errorMessage": string   // Optional human-readable failure/cancellation message
-}
-```
-
-`ToolExecution` is a runtime projection for UIs. It does not replace `ToolCall` or `ToolResult`: `ToolCall` remains the model-request/final-arguments item, and `ToolResult` remains the complete model-visible result.
+Fields: `callId`, `toolName`, `status` (`inProgress`, `completed`, `failed`, `cancelled`), `success`, `durationMs`, optional `resultPreview` and `errorMessage`. A UI runtime projection only; `ToolCall` remains the request record and `ToolResult` the complete model-visible result.
 
 #### ImageGeneration
 
-```
-{
-  "callId": string,        // Tool call id
-  "status": string,        // "inProgress", "completed", or "failed"
-  "revisedPrompt": string, // Optional prompt sent to the image model
-  "result": string,        // Base64 image bytes when completed with inline image data
-  "mediaType": string,     // Image media type; defaults to "image/png"
-  "savedPath": string,     // Optional local path under .craft/generated_images/{threadId}/{callId}.png
-  "errorMessage": string   // Optional human-readable failure message
-}
-```
+Fields: `callId`, `status` (`inProgress`, `completed`, `failed`), `revisedPrompt`, base64 `result`, `mediaType` (default `image/png`), `savedPath`, backend request id and generation id when returned, `errorMessage`.
 
-`ImageGeneration` is the specialized projection of the `image_gen.imagegen` tool defined in [Tool Architecture](tools-architecture.md). It starts when the dispatcher records the call and completes once from the tool result; it has no companion `ToolCall` or `ToolResult`. Completed image bytes are saved under `.craft/generated_images/{threadId}/{callId}.png`, or in the captured remote workspace; the payload also carries base64 bytes for wire clients. The payload also records the backend image request id and the image's generation id when the provider returns them; a failed request keeps the request id. When model history is rebuilt from items, each terminal `ImageGeneration` item replays as an `image_gen.imagegen` call whose result is the image and saved-path hint, or the failure text.
+The specialized projection of `image_gen.imagegen`: it starts when the dispatcher records the call, completes once from the tool result, and has no companion `ToolCall` or `ToolResult`. Completed bytes are saved under `.craft/generated_images/{threadId}/{callId}.png` (or in the captured remote workspace). A failed request keeps the request id. When model history is rebuilt from Items, a terminal item replays as an `image_gen.imagegen` call whose result is the image and saved-path hint, or the failure text.
 
 #### WebSearch
 
-```
-{
-  "callId": string,        // Tool call id
-  "status": string,        // "inProgress", "completed", or "failed"
-  "query": string,         // Display summary of the action; empty while in progress
-  "action": object | null, // { "type": "search" | "openPage" | "findInPage" | "other", ... }; null while in progress
-  "results": array | null, // Search service result objects, opaque to clients; null until completed
-  "errorMessage": string,  // Optional human-readable failure message
-  "arguments": object,     // Call arguments as the model sent them
-  "output": string         // Terminal text returned to the model
-}
-```
+Fields: `callId`, `status` (`inProgress`, `completed`, `failed`), display `query` (empty while in progress), `action` (`search`, `openPage`, `findInPage`, `other`; null while in progress), opaque `results`, `arguments`, `output` (text returned to the model), `errorMessage`.
 
-`WebSearch` is the specialized projection of the `web.run` tool defined in [Tool Architecture](tools-architecture.md). It starts when the dispatcher records the call and completes once from the tool result; it has no companion `ToolCall` or `ToolResult`. The action and query are derived from the call's commands as defined in the [AppServer protocol item table](../protocols/appserver-protocol.md). When model history is rebuilt from items, each terminal `WebSearch` item replays as a `web.run` call with its `arguments` whose result is its `output`, or the failure text.
+The specialized projection of `web.run`, with the same single-item lifecycle as `ImageGeneration`. Action and query are derived from the call's commands. On history rebuild, a terminal item replays as a `web.run` call with its `arguments` and result `output`, or the failure text.
 
 #### McpToolCall
 
-```
-{
-  "namespace": string,          // Canonical MCP server namespace
-  "toolName": string,           // Canonical local name
-  "providerFlatName": string,   // Deterministic flat-provider alias persisted from the snapshot
-  "server": string,             // Runtime MCP server name
-  "origin": string,             // "workspace" | "plugin" | "thread" | "binding"
-  "sourceToolId": string,       // Original MCP tool name
-  "definitionId": string,       // Source-qualified ToolDefinitionId
-  "runtimeBindingId": string,   // Live MCP binding identity
-  "bindingRevision": string,    // Binding/session generation revision
-  "snapshotRevision": string,   // EffectiveToolSnapshot revision
-  "sourceProvenance": object,   // Sanitized origin provenance
-  "presentation": object,       // Optional trusted local presentation descriptor
-  "callId": string,             // Provider/model call id; differs from Item.id
-  "arguments": object,
-  "status": string,             // "inProgress" | "completed" | "failed"
-  "durationMs": number,
-  "contentItems": array,        // Normalized model/history content
-  "structuredContent": any,     // Client/view-only structured result
-  "_meta": object,              // Sanitized host/view-only MCP metadata
-  "rawContent": array,          // Raw MCP content retained for clients, not model history
-  "mcpAppResourceUri": string,  // Optional normalized ui:// association from the invoked definition
-  "isError": boolean,
-  "success": boolean,           // Absent/null while in progress
-  "errorCode": string,
-  "errorMessage": string
-}
-```
+Fields: canonical `namespace`/`toolName`, `providerFlatName`, runtime `server`, `origin` (`workspace`, `plugin`, `thread`, `binding`), `sourceToolId`, invocation identity and provenance as on `ToolCall`, `callId` (distinct from `Item.id`), `arguments`, `status`, `durationMs`, normalized `contentItems`, client-only `structuredContent`, sanitized host-only `_meta`, raw MCP `rawContent`, optional `mcpAppResourceUri`, `isError`, `success`, `errorCode`, `errorMessage`.
 
-`McpToolCall` is one lifecycle item and has no companion `ToolResult`. History reconstruction uses only `contentItems`; it MUST NOT insert `structuredContent`, `_meta`, or `rawContent` into model context.
-
-`mcpAppResourceUri` and the bounded tool result are the only persisted MCP App presentation inputs. Availability is recalculated against the current MCP registration and authority when the Item is projected. `viewHandle`, UI resource HTML/blob, CSP, iframe/AppBridge state, pending context, credentials, and live authority state are runtime data and MUST NOT be persisted. When current availability cannot be established, a persisted or replayed `McpToolCall` uses the generic result presentation.
+- One lifecycle item with no companion `ToolResult`. History reconstruction uses only `contentItems`; `structuredContent`, `_meta`, and `rawContent` never enter model context.
+- `mcpAppResourceUri` and the bounded result are the only persisted MCP App presentation inputs. Availability is recomputed against the current registration and authority at projection time. View handles, UI resource content, CSP, iframe state, pending context, credentials, and live authority are runtime-only and never persisted. When availability cannot be established, the item uses generic result presentation.
 
 #### DynamicToolCall
 
-```
-{
-  "namespace": string,      // Optional canonical namespace; absent/null for a top-level Function
-  "toolName": string,       // Runtime dynamic tool name
-  "providerFlatName": string,// Deterministic flat-provider alias persisted from the snapshot
-  "callId": string,         // Provider/model call id; differs from Item.id
-  "arguments": object,      // Tool arguments as key-value pairs
-  "status": string,         // "inProgress" | "completed" | "failed"
-  "durationMs": number,     // Present on terminal payloads
-  "contentItems": [         // Optional rich result content
-    {
-      "type": string,       // "text" | "image"
-      "text": string,       // Text content when type is "text"
-      "mediaType": string,  // Image media type when type is "image"
-      "dataBase64": string  // Base64 image data when type is "image"
-    }
-  ],
-  "structuredContent": any, // Client-only structured JSON result
-  "success": boolean,       // Absent/null while in progress
-  "errorCode": string,      // Optional stable failure code
-  "errorMessage": string    // Optional English fallback failure message
-}
-```
-
-Runtime Dynamic Tool invocations are represented by this single item. Session Core does not emit paired `ToolCall` / `ToolResult` items for the same call.
+Fields: canonical `namespace`/`toolName`, `providerFlatName`, `callId` (distinct from `Item.id`), `arguments`, `status`, `durationMs` (terminal), `contentItems` (`text` or `image` with `mediaType`/`dataBase64`), client-only `structuredContent`, `success`, `errorCode`, `errorMessage`. A runtime Dynamic tool invocation is this single item; no paired `ToolCall`/`ToolResult` is emitted.
 
 #### ToolResult
 
-```
-{
-  "callId": string,          // Matches the ToolCall.callId
-  "namespace": string,       // Optional canonical namespace; absent/null for top-level tools
-  "toolName": string,        // Canonical local tool name
-  "providerFlatName": string,// Deterministic flat-provider alias persisted from the snapshot
-  "definitionId": string,    // Source-qualified ToolDefinitionId
-  "runtimeBindingId": string,// RuntimeBindingId used for the call
-  "bindingRevision": string, // Binding revision used for the call
-  "snapshotRevision": string,// EffectiveToolSnapshot revision used for the call
-  "sourceKind": string,      // Safe source kind
-  "sourceToolId": string,    // Optional safe raw source identity
-  "sourceProvenance": object,// Optional sanitized source provenance
-  "presentation": object,    // Optional trusted PresentationId + bounded options
-  "pluginId": string,        // Optional plugin provenance
-  "functionId": string,      // Optional plugin function provenance
-  "durationMs": number,      // Wall-clock duration of the invocation
-  "result": string,          // Model/history-safe textual fallback
-  "contentItems": [          // Optional model-safe rich content
-    {
-      "type": string,     // "text" | "image"
-      "text": string,     // Text content when type is "text"
-      "mediaType": string,// Image media type when type is "image"
-      "dataBase64": string// Base64 image data when type is "image"
-    }
-  ],
-  "structuredContent": any, // Optional client-only structured result
-  "_meta": object,           // Optional sanitized host-only metadata
-  "success": boolean,        // Whether the tool execution succeeded
-  "errorCode": string,       // Optional stable failure code
-  "errorMessage": string     // Optional English fallback failure message
-}
-```
+Fields: `callId`, the complete immutable invocation identity, provenance, and presentation of its `ToolCall`; `durationMs`; `result` (model/history-safe text fallback); optional model-safe `contentItems` (`text` or `image`); client-only `structuredContent`; sanitized host-only `_meta`; `success`, `errorCode`, `errorMessage`.
 
-For ordinary tools that return non-text `AIContent`, `result` remains the
-model/history-safe text fallback. Clients may use `contentItems` for richer
-presentation, such as showing image output from a file read. History
-reconstruction may restore a validated image item as structured model media,
-but it must never serialize the item's data URL or base64 payload as ordinary
-text or JSON. Provider-specific compatibility projection may replace historical
-tool media with the textual fallback. It never serializes `structuredContent`
-or `_meta` into provider history.
+- Clients never join against the current registry to recover provenance or presentation; the result carries it.
+- Standard projection appends exactly one terminal `ToolResult` per call. `McpToolCall` and `DynamicToolCall` instead reach exactly one terminal state on their own item. All projections share one atomic terminal guard across completion, rejection, cancellation, timeout, and failure.
+- A provider callback naming an invalid, unknown, or unavailable function produces a recoverable tool failure with `success = false` and `errorCode = "tool_not_found"`, returned to the model rather than failing the Turn.
+- For non-text tool output, `result` remains the text fallback and clients may use `contentItems`. History reconstruction may restore a validated image as structured model media but never serializes its data URL or base64 as text. Provider-specific projection may replace historical tool media with the text fallback. `structuredContent` and `_meta` never enter provider history.
 
-`WriteFile` and `EditFile` attach their write outcome and available exact file change as
-`structuredContent`. The root `writeState` and optional `warnings` describe the operation
-independently of the diff.
+`WriteFile` and `EditFile` attach their write outcome and exact file change as `structuredContent`:
 
 ```
 {
@@ -662,264 +301,81 @@ independently of the diff.
   "changes": [
     {
       "path": string,       // Display path of the written file
-      "kind": string,       // "add" | "update"
+      "kind": "add" | "update",
       "diff": string,       // Git-style unified diff of this call; omitted when truncated
-      "additions": number,  // Added line count
-      "deletions": number,  // Removed line count
+      "additions": number,
+      "deletions": number,
       "truncated": boolean  // Present and true when the diff exceeded the per-call cap
     }
   ]
 }
 ```
 
-- `writeState` is `notApplied` before writing, `unknown` if writing fails, and `applied` on
-  completion. A diff reporting failure preserves a successful write and emits a
-  `file_change_report_failed` warning in both the result text and structured payload.
-  Failed or unavailable diffs have an empty `changes` array, not invented line counts.
-- `path` is workspace-relative with `/` separators when the file is under the
-  tool's workspace root, and otherwise the absolute path with `/` separators. A
-  Remote Tool Host uses its own workspace root.
-- `kind` is `add` when `WriteFile` created a file that did not exist, and
-  `update` for every overwrite and every `EditFile` call. No native file tool
-  deletes or renames files, so there are no delete or move kinds.
-- `diff` covers the whole file from before to after this call:
-  `diff --git a/<path> b/<path>`, `new file mode 100644` for an add,
-  `index <oid>..<oid>` with git blob SHA-1 ids (all zeros for the missing side),
-  `--- a/<path>` or `--- /dev/null`, `+++ b/<path>`, and `@@ -l,c +l,c @@` hunks
-  with three context lines and `\ No newline at end of file` markers. It
-  reproduces the exact text, including line endings.
-- When the rendered diff exceeds 128 KiB, `diff` is omitted and `truncated` is
-  `true`. `additions` and `deletions` are always present.
+- `writeState` is `notApplied` before writing, `unknown` if writing fails, `applied` on completion. A diff-reporting failure preserves a successful write and adds a `file_change_report_failed` warning to both the result text and the payload. Failed or unavailable diffs give an empty `changes` array, never invented counts.
+- `path` is workspace-relative with `/` separators under the tool's workspace root (a Remote Tool Host uses its own root), otherwise absolute with `/` separators.
+- `kind` is `add` when `WriteFile` created a new file and `update` for every overwrite and every `EditFile`. Native file tools never delete or rename, so there are no delete or move kinds.
+- `diff` covers the whole file from before to after this call in git format: `diff --git a/<path> b/<path>`, `new file mode 100644` for an add, `index <oid>..<oid>` with git blob SHA-1 ids (zeros for the missing side), `--- a/<path>` or `--- /dev/null`, `+++ b/<path>`, three-line-context hunks, and `\ No newline at end of file` markers. It reproduces exact text including line endings.
+- Over 128 KiB, `diff` is omitted and `truncated` is `true`; `additions` and `deletions` are always present.
 
-`additions`, `deletions`, and `truncated` exist only so a truncated change still
-reports its size. Like all `structuredContent`, the payload never enters model
-context during history reconstruction. It is the durable per-edit record; the
-aggregated Turn diff in [Turn Diff Events](#turn-diff-events) is live-only.
-
-`ToolResult` repeats the complete immutable invocation identity used by its matching `ToolCall`; clients do not join against current registry state to recover provenance or presentation. Standard tool projection appends exactly one terminal `ToolResult` for a call. Specialized `McpToolCall` and `DynamicToolCall` projections instead update their single item to exactly one terminal state and do not create `ToolResult`. All projections use one atomic terminal guard across completion, rejection, cancellation, timeout, and failure races. If an untrusted provider callback names an invalid, unknown, or unavailable function, the result is a recoverable tool failure with `success = false` and stable `errorCode = "tool_not_found"`; the same failure is returned to the model without escalating it to a Turn-level exception.
+This payload never enters model context. It is the durable per-edit record; the aggregated Turn diff ([Turn Diff Events](#turn-diff-events)) is live-only.
 
 #### CommandExecution
 
-```
-{
-  "callId": string,               // Correlates to the underlying Exec-style tool call
-  "command": string,              // Shell command text
-  "workingDirectory": string,     // Effective working directory
-  "source": string,               // "host"
-  "status": string,               // "inProgress", "completed", "failed", "cancelled", "killed", or "lost"
-  "aggregatedOutput": string,     // Full accumulated output shown to the user
-  "sessionId": string | null,     // Background terminal id when the command continues after tool return
-  "outputPath": string | null,    // Host-local output log for background terminal sessions
-  "originalOutputChars": number | null,
-  "truncated": boolean | null,
-  "backgroundReason": string | null,
-  "exitCode": number | null,      // Process exit code when available
-  "durationMs": number | null     // Total wall-clock duration when available
-}
-```
+Fields: `callId`, `command`, `workingDirectory`, `source` (`"host"`), `status` (`inProgress`, `completed`, `failed`, `cancelled`, `killed`, `lost`), `aggregatedOutput`, `sessionId` (background terminal id when the command outlives its tool call), `outputPath`, `originalOutputChars`, `truncated`, `backgroundReason`, `exitCode`, `durationMs`.
 
-An `Exec` without `runInBackground` waits for its process for at most its
-foreground budget: `Tools.Shell.Background.ForegroundBudgetMs` (120 seconds),
-or `yieldTimeMs` when given, capped by that budget. A `runInBackground` command waits for its yield time instead:
-`yieldTimeMs`, or `Tools.Shell.Background.DefaultYieldTimeMs` (10 seconds) when
-omitted, capped by `Tools.Shell.Background.MaxYieldTimeMs`. A process still
-running then is handed to the background terminal runtime, and the tool returns
-its session ID. The process keeps running until it exits or is stopped.
-`Tools.Shell.Timeout` applies only while the tool still waits: with a wait at or
-above it, or with background terminals disabled, the tool waits until the
-process exits or times out. While a foreground `Exec` of a regular Turn waits,
-guidance admitted for that Turn hands the process over at once, so the guidance
-reaches the model at the next sampling boundary instead of after the command.
+`CommandExecution` is the persisted observable summary of an `Exec`-style call. Foreground wait budgets, background handover, stdin, and stop semantics belong to the shell tool and background-task subsystems. Session-level rules:
 
-A terminal handed to the model while still running is a `shell` background task.
-When it exits, Session Core delivers one task notification to the Thread that
-started it, unless the model already received the terminal's final status from
-`Exec`, `WriteStdin`, or `TaskStop`. The envelope, trigger fields, delivery, and
-wake limits are defined by [Background Tasks](background-tasks.md) §5 and
-[Task notifications](#task-notifications). For a terminal, `triggerLabel` is the
-shortened command, `triggerRefId` is the terminal session ID, and
-`triggerStatus` is the terminal's final status (`completed`, `failed`, `killed`,
-`timedOut`, or `lost`), or `waitingForInput` for a stall. The notification's
-`output_file` is the output log; only a stall notification carries a `result`,
-at most 2,000 characters from the end of the output the model has not read. A
-notification never moves the
-model read cursor, so that output stays readable through `WriteStdin`.
-Terminals of a Remote Tool Host route do not notify; the model reads them
-through `WriteStdin` and stops them with `TaskStop` on the same route.
-
-A stall reported by the terminal watchdog (see Tools Architecture §7.3) for an
-armed terminal delivers a stall notification through the same path. A stall
-notification does not settle the terminal, so its completion notification still
-follows.
-
-A command handed over after its yield time, with or without `runInBackground`,
-keeps its Item in progress, records the terminal `sessionId` on it, and
-completes it with the final output, status, and exit code when the process
-exits, even after its Turn has completed. That late completion is persisted into the Turn and
-published as `item/completed`; output produced after the hand-over reaches
-clients through `terminal/*` notifications, not `CommandExecution` deltas. When
-a thread is loaded, such an Item still in progress on a finished Turn whose
-terminal is no longer running, for example after a host restart, is completed
-from the terminal's final state, or with `status = "lost"` when the terminal is
-unknown, and the result is persisted.
-
-Input to `WriteStdin` that is only Ctrl+C (end-of-text) is ordinary input: it
-does not stop the process or settle the terminal. The model stops a terminal
-with `TaskStop`, which resolves `term_` ids through the Session Core task
-registry (see [Background Tasks](background-tasks.md) §3) and accepts only
-terminals started by the calling Thread. On a Remote Tool Host route it runs on
-the Host, as `WriteStdin` does (see [Remote Tool Host](remote-tool-host.md) §12).
-
-`WriteStdin` keeps its `ToolCall` and `ToolResult` Items, which carry the model
-history and the persisted record of what was written. Clients present that input
-on the command it went to, through the terminal interaction delta live and by
-matching the call's `sessionId` argument to the command Item's `sessionId` when
-history is reloaded, rather than as a tool call of its own. A failed call wrote
-nothing, so it is not presented on the command and remains a tool call.
-
-An `Exec` process that is still owned by the active tool invocation is foreground
-work. Cancelling the Turn stops its process tree, completes the
-`CommandExecution` Item with `status = "cancelled"`, and only then completes Turn
-cancellation. A process explicitly started with `runInBackground = true` transfers
-ownership to the background terminal runtime once it starts; Turn cancellation
-does not stop it, including while the tool is waiting for its initial yield. A
-foreground process handed over after its yield time is likewise no longer
-stopped by Turn cancellation.
-
-Terminal-capable AppServer clients consume live shell process output from
-`terminal/*` notifications. `CommandExecution` remains the persisted observable
-summary and compatibility projection; clients that consume both paths merge by
-`callId` and avoid rendering duplicate output.
+- A command handed to the background terminal runtime keeps its Item in progress, records `sessionId`, and completes it with final output, status, and exit code when the process exits, even after its Turn has completed. The late completion is persisted into that Turn and published as `item/completed`. Output after handover reaches clients through terminal notifications, not `CommandExecution` deltas.
+- When a thread loads, such an Item still in progress on a finished Turn whose terminal is no longer running (for example after a restart) is completed from the terminal's final state, or with `status = "lost"` when the terminal is unknown, and persisted.
+- While a foreground command of a regular Turn waits, guidance admitted for that Turn hands the process over at once, so the guidance reaches the model at the next sampling boundary.
+- A process still owned by the active tool invocation is foreground work: cancelling the Turn stops its process tree, completes the Item with `status = "cancelled"`, and only then completes Turn cancellation. A process started in the background, or handed over after its yield time, is owned by the background terminal runtime and is not stopped by Turn cancellation.
+- `WriteStdin` keeps its own `ToolCall`/`ToolResult`. Clients present successful input on the target command — live through the terminal interaction delta (Section 6.3), and on reload by matching the call's `sessionId` argument to the command's `sessionId` — rather than as a separate tool call. A failed call wrote nothing and remains a tool call.
+- Terminal-capable clients consume live output from terminal notifications; clients that consume both paths merge by `callId` without duplicating output.
 
 #### ApprovalRequest
 
-```
-{
-  "approvalType": string, // "file" or "shell"
-  "operation": string,    // For file: "read", "write", "edit", "list". For shell: the command.
-  "target": string,       // For file: the path. For shell: the working directory.
-  "requestId": string,    // Unique ID for correlating with ApprovalResponse
-  "shell": {              // Shell requests only; produced by the shell safety kernel
-    "reasons": string[],
-    "rememberedPrefixes": string[][], // allow rules a permanent approval will store
-    "remembersExactCommand": boolean  // a permanent approval also stores the exact key
-  }
-}
-```
-
-The shell runtime supplies the `shell` block and its approval key in `scopeKey`. Session-scoped
-approval must not authorize a command with a different key.
+Fields: `approvalType` (`file` or `shell`), `operation` (file: `read`, `write`, `edit`, `list`; shell: the command), `target` (file path, or shell working directory), `requestId`, and, for shell requests, a `shell` block produced by the shell safety kernel (`reasons`, `rememberedPrefixes` a permanent approval will store, `remembersExactCommand`). The shell runtime supplies the approval key in `scopeKey`; session-scoped approval never authorizes a command with a different key.
 
 #### ApprovalResponse
 
-```
-{
-  "requestId": string,    // Matches the ApprovalRequest.requestId
-  "approved": boolean     // User's decision
-}
-```
+`{ requestId, approved }`.
 
 #### UserInputRequest
 
-```
-{
-  "requestId": string,
-  "questions": [
-    {
-      "id": string,       // Stable answer key, e.g. "provider_id_handling"
-      "header": string,   // Short UI label
-      "question": string, // User-facing prompt
-      "isOther": boolean, // Whether the client may offer a free-form response
-      "isSecret": boolean,
-      "options": [
-        { "label": string, "description": string }
-      ]
-    }
-  ]
-}
-```
+`{ requestId, isBlocking, questions[] }`. Each question has a stable answer key `id`, short `header`, user-facing `question`, `isOther` (free-form answer allowed), `isSecret`, and `options` (`label`, `description`). `isBlocking` is set by Session Core from the active mode (Section 10.3).
 
 #### UserInputResponse
 
-```
-{
-  "requestId": string,
-  "response": {
-    "answers": {
-      "<questionId>": {
-        "answers": [string]
-      }
-    }
-  }
-}
-```
+`{ requestId, response: { answers: { "<questionId>": { answers: [string] } } } }`.
 
 #### Error
 
-```
-{
-  "message": string,      // Human-readable error description
-  "code": string,         // Machine-readable error code (e.g., "agent_error", "timeout")
-  "fatal": boolean        // Whether the error terminates the Turn
-}
-```
+`{ message, code, fatal }` — `code` is machine-readable (for example `agent_error`, `timeout`); `fatal` says whether the error terminates the Turn.
 
 #### SystemNotice
 
-```
-{
-  "kind": string,              // Notice classifier. Known values: "compacted", "forked", "remoteRoute", "channel".
-  "trigger": string,           // For kind="compacted": "auto" | "reactive" | "manual"
-  "mode": string,              // For kind="compacted": the compaction mode, "micro" or "partial"
-  "tokensBefore": number,      // Approximate input tokens right before compaction ran
-  "tokensAfter": number,       // Approximate input tokens after compaction ran
-  "percentLeftAfter": number,  // Fraction of EffectiveContextWindow still available (0.0 - 1.0)
-  "clearedToolResults": number,// Count of tool results cleared before summary (0 for partial-only compaction)
-  "sourceThreadId": string,    // For kind="forked": source thread id
-  "reason": string,            // For kind="remoteRoute": "connected" | "disconnected" | "leaseLost"; for kind="channel": "bound" | "unbound"
-  "initiator": string,         // For kind="remoteRoute": "client" | "agent" | "system" (system only with reason "leaseLost")
-  "hostId": string,            // For kind="remoteRoute": Remote Tool Host id
-  "hostName": string,          // For kind="remoteRoute": Host display name, when known
-  "workspaceId": string,       // For kind="remoteRoute": remote workspace id
-  "workspaceName": string,     // For kind="remoteRoute": workspace display name, when known
-  "channelName": string,       // For kind="channel": canonical channel name
-  "targetName": string         // For kind="channel": bound conversation display name
-}
-```
+`kind` classifies the notice: `compacted`, `forked`, `remoteRoute`, or `channel`. Kind-specific fields:
 
-`SystemNotice` items are created by Session Core for partial neutral or
-provider-native compaction and persisted via the normal rollout/`turn.Items`
-pipeline, so they survive thread reload and round-trip through paged Item history.
-Clients treat them as inline dividers in the timeline rather than part of the
-model conversation. Micro compaction clears cold-cache tool results without installing a
-replacement history: it emits only the transient `system/event` needed to
-refresh context usage and must not create a persistent timeline divider.
-Persisted compaction notices therefore carry `mode = "partial"`.
-`forked` notices mark the boundary between copied source history and new
-fork-specific work. They carry `sourceThreadId`, are not model-visible, and
-must not mutate the source thread.
-`remoteRoute` notices mark where a thread's eligible tools started or stopped running on a
-the execution-location owner. Session Core appends one to the running Turn when a Turn is
-in flight and otherwise to the latest completed Turn; a thread with no Turn records nothing. A notice
-appended to a running Turn lands where the route changed within that Turn — after the Items that
-preceded the change and before the Items that follow it — so a route the model changed divides the
-work it changed rather than trailing the Turn that changed it. Connects
-and disconnects are recorded only when a person or the model caused them: thread release and process
-teardown are not history. A lost lease is always recorded, with `initiator = "system"`. `hostId`
-and `workspaceId` name the route the change was about, including the route a disconnect removed.
-Hosts outside Session Core append their own notices through `IThreadSystemNoticeService.AppendSystemNotice`,
-which uses the same placement and never waits for a running Turn. `channel` notices are owned by
-App Binding; see `specs/protocols/app-binding.md` §7.
+- `compacted`: `trigger` (`auto`, `reactive`, `manual`), `mode`, `tokensBefore`, `tokensAfter`, `percentLeftAfter` (fraction of the effective context window, 0.0–1.0), `clearedToolResults`.
+- `forked`: `sourceThreadId`.
+- `remoteRoute`: `reason` (`connected`, `disconnected`, `leaseLost`), `initiator` (`client`, `agent`, or `system` only with `leaseLost`), `hostId`, `hostName`, `workspaceId`, `workspaceName`.
+- `channel`: `reason` (`bound`, `unbound`), `channelName`, `targetName`. Owned by App Binding.
+
+Notices are persisted through the normal rollout path, survive reload and paged history, and render as inline timeline dividers rather than model conversation.
+
+- Session Core creates a `compacted` notice only for partial compaction (neutral or provider-native), so persisted notices carry `mode = "partial"`. Micro compaction emits only the transient `system/event` that refreshes context usage.
+- `forked` notices are not model-visible and never mutate the source thread.
+- `remoteRoute` notices mark where eligible tools started or stopped running on a remote execution location. They follow the out-of-band placement rule in Section 3.4: appended to the running Turn at the point the route changed, otherwise to the latest completed Turn. Connects and disconnects are recorded only when a person or the model caused them; thread release and process teardown are not recorded. A lost lease is always recorded with `initiator = "system"`. `hostId` and `workspaceId` name the route the change was about, including the route a disconnect removed. Hosts outside Session Core append notices through the Session API with the same placement and never wait for a running Turn.
 
 ### 4.3 Stable Identifiers and Normalization Rules
 
-- **Thread ID**: Generated by Session Core. Format `thread_{yyyyMMdd}_{6-char-random}`. Must be unique within the workspace. Used as the primary key for persistence and cross-channel resume.
-- **Turn ID**: Sequential and never reused within a Thread. Format `turn_{3-digit-sequence}`. Assigned by Session Core when a Turn starts. Session Core maintains a historical sequence high-water mark across rollback, restart, fork initialization, subagent execution, and ordinary Turn creation; removing a visible Turn never lowers that mark.
-- **Item ID**: Sequential within a Turn. Format `item_{3-digit-sequence}`. Assigned by Session Core when an Item is created. Continuing an existing Turn resumes after its highest allocated sequence. Lifecycle updates may reuse the same id only for the same logical Item; a different type, call, or source MUST NOT overwrite it.
-- **Item reference**: An Item is addressed across Thread-level protocols by `(turnId, itemId)`. `itemId` alone is not a Thread-wide identity.
-- **Canonical tool identity**: The persisted pair `(namespace, toolName)` is the exact case-sensitive `ToolName` selected by the Turn snapshot. It is not parsed from a provider string. Each present component matches `^[A-Za-z0-9_]+$` and its deterministic flat form fits within 64 ASCII bytes.
-- **Flat provider alias**: `providerFlatName` is the exact deterministic alias selected by the same snapshot for providers that cannot represent namespaces. It is required on every new tool invocation payload, remains distinct from the canonical pair, and is never parsed to recover canonical or source-routing identity.
-- **UserId Normalization**: Session Core stores `UserId` as-is from the adapter. Cross-channel user identity resolution (whether two channels' user ids denote the same person) is out of scope for this spec.
+- **Thread ID**: `thread_{yyyyMMdd}_{6-char-random}`, generated by Session Core, unique within the workspace. Primary key for persistence and resume.
+- **Turn ID**: `turn_{3-digit-sequence}`, sequential and never reused within a Thread. Session Core keeps a sequence high-water mark across rollback, restart, fork initialization, subagent execution, and ordinary creation; removing a visible Turn never lowers it.
+- **Item ID**: `item_{3-digit-sequence}`, sequential within a Turn. Continuing an existing Turn resumes after its highest allocated sequence. Lifecycle updates reuse an id only for the same logical Item; a different type, call, or source never overwrites it.
+- **Item reference**: across Thread-level protocols an Item is addressed by `(turnId, itemId)`. `itemId` alone is not Thread-wide.
+- **Canonical tool identity**: the persisted `(namespace, toolName)` pair is the exact case-sensitive tool name selected by the Turn snapshot, never parsed from a provider string. Each present component matches `^[A-Za-z0-9_]+$`, and its deterministic flat form fits within 64 ASCII bytes.
+- **Flat provider alias**: `providerFlatName` is the deterministic alias chosen by the same snapshot for providers without namespaces. It is required on every new tool invocation payload and never parsed to recover canonical or routing identity.
+- **UserId**: stored as received from the adapter. Resolving whether ids from different channels denote the same person is out of scope.
 
 ## 5. Session Lifecycle Specification
 
@@ -933,63 +389,46 @@ App Binding; see `specs/protocols/app-binding.md` §7.
                     └──────────┘  UnarchiveThread   └───────────┘
 ```
 
-**Transitions**:
+- `CreateThread(identity)` → `Active`. Session Core assigns the id and sets `CreatedAt` and `LastActiveAt`.
+- `ResumeThread(threadId)` keeps an Active thread Active. Any compatible adapter may resume it; Archived threads cannot be resumed. An unloaded thread is loaded from rollout (state and model history), a runtime agent session is constructed, and `LastActiveAt` updates.
+- `Active` → `Archived` on explicit request or archival policy. Archived threads are read-only: listable and inspectable, not resumable. Archiving a parent archives its SubAgent subtree.
+- `Archived` → `Active` on explicit restore, which restores the SubAgent subtree.
 
-- `CreateThread(identity)` → `Active`
-  - Session Core generates a Thread ID, sets `CreatedAt` and `LastActiveAt` to now.
-  - The adapter provides `SessionIdentity` with channel name, user ID, and context.
+Invariants:
 
-- `ResumeThread` (Active stays Active)
-  - Any compatible in-scope adapter can resume an Active thread by calling `ResumeThread(threadId)`. Archived threads cannot be resumed.
-  - When the thread is not loaded, Session Core loads the thread state and model history from rollout, constructs a runtime agent session, and updates `LastActiveAt`.
-
-- `Active` → `Archived`
-  - Triggered by explicit adapter request or by archival policy (e.g., "archive threads inactive for 30 days").
-  - Archived threads are read-only. They can be listed and inspected but not resumed.
-  - Archiving a parent thread recursively archives its SubAgent child subtree.
-
-- `Archived` → `Active` (via `UnarchiveThread`)
-  - Triggered by explicit restore request.
-  - Restoring a parent thread recursively restores its SubAgent child subtree.
-
-**Invariants**:
-
-- At most one Turn may be `Running`, `WaitingApproval`, or `WaitingInput` on a Thread at any time.
-- At most one thread maintenance operation may be active on a Thread at any time.
-- A Thread may have Turns from different channels (cross-channel resume). Each Turn records which channel originated it.
+- At most one Turn per Thread is `Running`, `WaitingApproval`, or `WaitingInput`.
+- At most one thread maintenance operation is active per Thread.
+- A Thread may contain Turns from different channels; each Turn records its originating channel.
 
 ### 5.1.1 Thread-Owned Runtime Artifacts
 
-Session Core distinguishes canonical thread history from thread-owned runtime artifacts. Artifacts are not a second source of conversation authority, but their ownership and cleanup are part of the thread lifecycle:
+Thread-owned runtime artifacts are not a second source of conversation authority, but their ownership and cleanup follow the thread lifecycle:
 
-- Background terminal metadata and output logs are owned by the originating Thread. A terminal session is identified by its persisted terminal metadata and remains addressable after process completion until its owner is permanently deleted or retention removes the artifact.
-- Oversized tool-result spill files are owned by the originating Thread. The model-visible message contains a bounded preview and a workspace-relative reference; the complete spill file remains independent of the preview and is not reconstructed from the rollout.
-- Archive is not deletion. `Active → Archived` stops or invalidates active terminal processes for the archived thread, but preserves completed/lost terminal metadata, output logs, and tool-result spill files so historical inspection, context export, and tool-result reads continue to work.
-- Permanent deletion is deletion of the complete owned subtree. It stops or invalidates active terminal processes, removes terminal metadata/output and tool-result spill artifacts for the thread and all descendant SubAgent threads, then removes the thread's durable state. Cleanup is idempotent and may be retried independently when an individual filesystem operation fails.
-- Parent lifecycle operations apply to the complete SubAgent subtree. A child artifact must not survive permanent deletion of its owning parent solely because the child is not visible in the default thread list.
-- Compaction may replace or clear model-visible tool-result content, but must not delete a spill file while a current rollout or retained historical view may reference it. Spill cleanup is a retention/orphan-maintenance concern, not a compaction side effect.
-- Graceful process shutdown stops active terminal processes, flushes terminal metadata/rollout writers, and releases handles. It does not delete archived history or persistent terminal/tool-result artifacts merely because the process exits. A later startup pass marks persisted `running` terminals as `lost` before retention processing.
+- Background terminal metadata and output logs are owned by the originating Thread and stay addressable after the process ends until the owner is permanently deleted or retention removes them.
+- Oversized tool-result spill files are owned by the originating Thread. The model-visible message holds a bounded preview and a workspace-relative reference; the spill file is not reconstructable from the rollout.
+- Archive is not deletion. Archiving stops or invalidates active terminal processes but preserves terminal metadata, logs, and spill files for inspection, export, and tool-result reads.
+- Permanent deletion removes the complete owned subtree: it stops active terminals, removes terminal and spill artifacts for the thread and all descendant SubAgent threads, then removes durable state. Cleanup is idempotent and retryable per filesystem operation. A child artifact never survives deletion of its parent because the child is hidden from default lists.
+- Compaction may replace or clear model-visible tool-result content but never deletes a spill file a current rollout or retained view may reference. Spill cleanup is retention maintenance, not a compaction side effect.
+- Graceful shutdown stops active terminals, flushes metadata and rollout writers, and releases handles; it never deletes persistent history or artifacts. The next startup marks persisted `running` terminals as `lost` before retention processing.
+- A terminal output log is complete output; preview bounds in UIs or APIs never permit truncating it.
+- A spill file name is stable for its tool call (the persisted call id, otherwise a deterministic artifact key). Replaying the same call is idempotent and never creates a second file or overwrites another call's file. A spill file is removed only when permanent deletion or retention can prove the owner and all current rollout references are gone.
+- The terminal `OutputRetentionDays` setting governs retention of completed and lost terminal artifacts; running terminals are never removed by TTL. Tool-result retention may share the workspace policy but is conservative when reference status is unknown.
+- A throttled retention janitor may run at startup and in long-lived processes. It coordinates through a workspace/process lock, skips active owners, continues after individual failures, and reports a retryable result; a marker may suppress duplicate scans but never a retry after an incomplete scan. Thread deletion is the authoritative synchronous cleanup; if database deletion succeeds while file cleanup fails, the failure is observable and the orphan stays eligible for the janitor.
 
 ### 5.1.2 Session Recovery Snapshots
 
-Session Core can export and restore a versioned JSON recovery snapshot for a server-managed, non-ephemeral Thread. The snapshot preserves the executable state required to continue with a later Turn.
+Session Core can export and restore a versioned JSON recovery snapshot for a server-managed, non-ephemeral Thread, preserving the executable state needed to continue with a later Turn.
 
-- Export accepts only a Thread ID. Session Core first loads the persisted Thread into its runtime, admits thread maintenance through the same runtime command owner used by `SubmitInput`, flushes durable state, and captures only while the Thread is idle and its newest Turn is `Completed`, `Failed`, or `Cancelled`. The result reports the Turn boundary actually captured so an adapter can compare it with its own Run binding.
-- Version 1 is one JSON document containing the original Thread ID and normalized workspace, execution configuration, source and metadata, latest terminal Turn identity and state, the Turn sequence high-watermark, model Session encoded by `ModelHistoryCodec`, and provider continuity state.
-- Restore decodes model history with `ModelHistoryCodec` and replays provider state with `ProviderHistoryReplayer` before installation.
-- Export and restore exchange snapshot files only through a restricted staging directory under the workspace `.craft` path. Callers cannot provide an arbitrary filesystem path. Staged snapshots are caller-cleaned after use and may also be removed by age-based DotCraft maintenance.
-- Restore requires the current workspace and original Thread ID to match and is allowed only when the target Thread does not exist.
-- Restore materializes the Thread header, captured terminal boundary, Session checkpoint, and provider checkpoint. It preserves the Turn sequence high-watermark.
-- The snapshot is validated before the restored Thread becomes visible, and a failed restore removes state created by that attempt.
-- Normal `ResumeThread` remains the only way to create execution resources after restore. Recovery itself returns only the restored Thread ID and emits no synthetic Turn or Item.
+- Export takes only a Thread id. Session Core loads the thread, admits thread maintenance through the runtime command owner, flushes durable state, and captures only while the thread is idle and its newest Turn is terminal. The result reports the Turn boundary captured so an adapter can compare it with its own run binding.
+- Version 1 is one JSON document with the original Thread id and normalized workspace, execution configuration, source and metadata, latest terminal Turn identity and state, the Turn sequence high-water mark, the encoded model history, and provider continuity state.
+- Snapshots are exchanged only through a restricted staging directory under the workspace `.craft` path; callers cannot supply arbitrary paths. Callers clean up staged snapshots, and DotCraft maintenance may remove old ones.
+- Restore requires the same workspace and original Thread id, and a target Thread that does not exist. It decodes model history and replays provider state, materializes the Thread header, captured terminal boundary, session checkpoint, and provider checkpoint, and preserves the Turn sequence high-water mark.
+- The snapshot is validated before the Thread becomes visible; a failed restore removes state it created.
+- Restore returns only the Thread id and emits no synthetic Turn or Item. Execution resources are created only by a later `ResumeThread`.
 
 ### 5.2 Turn Lifecycle
 
-Creating a Running Turn is an atomic Thread-local transition. Validation that the Thread is active
-and has no Running, WaitingApproval, or WaitingInput Turn, sequence reservation, Turn insertion,
-and runtime registration occur under the same Thread-local start gate. Concurrent submissions may
-create at most one Running Turn; all other contenders fail with the existing turn-in-progress
-error and must not append input Items or emit start events.
+Creating a Running Turn is an atomic Thread-local transition: validating that the Thread is Active with no active Turn, reserving the sequence, inserting the Turn, and registering runtime state happen under one start gate. Concurrent submissions create at most one Running Turn; other contenders fail with the turn-in-progress error and append no Items or start events.
 
 ```
 SubmitInput
@@ -1001,59 +440,18 @@ Running ────────────────────► Complete
 WaitingApproval/WaitingInput ──────────► Cancelled
 ```
 
-**Transitions**:
+- `SubmitInput(threadId, content)` → `Running`. Session Core creates the Turn and its `UserMessage` Item and invokes the agent. Precondition: the Thread is Active, no Turn is active, and no thread maintenance is active.
+- `Running` → `WaitingApproval`: a tool needs approval. Session Core creates an `ApprovalRequest` Item and pauses; the adapter presents it.
+- `WaitingApproval` → `Running`: the adapter resolves the request; Session Core records an `ApprovalResponse` and resumes.
+- `Running` → `WaitingInput`: a root-thread agent requests structured user input (Section 10.3). Session Core creates a `UserInputRequest` Item and pauses.
+- `WaitingInput` → `Running`: the adapter returns a `UserInputResponse`; Session Core records it and resumes.
+- `Running` → `Completed`: the agent finishes; the final `AgentMessage` is completed, the terminal rollout batch is committed, and Stop hooks run.
+- `Running` → `Failed`: an unrecoverable error (agent exception, timeout, output-limit truncation). Session Core creates an `Error` Item, sets `Turn.Error`, and persists partial state. Completed model messages and any compaction replacement are appended first, so the next Turn sees the failed Turn's completed user, assistant, and paired tool history without expanding history a surviving compaction checkpoint replaced.
+- `Running`, `WaitingApproval`, or `WaitingInput` → `Cancelled`: the adapter requests cancellation. Session Core resolves pending approval and user-input requests (Section 10.2), cancels execution, completes any streaming agent or reasoning Items with their accumulated text, and persists partial domain and model history. Cancellation never restores tool results or summaries that compaction had removed from model-visible history.
 
-- `SubmitInput(threadId, content)` → `Running`
-  - Session Core creates a new Turn, creates a `UserMessage` Item from the input, invokes the agent.
-  - Precondition: Thread status is `Active` and no other Turn is `Running`, `WaitingApproval`, or `WaitingInput`, and no thread maintenance is active.
+`Completed`, `Failed`, and `Cancelled` are terminal; a terminal Turn never transitions.
 
-- `Running` → `WaitingApproval`
-  - The agent's tool execution encounters a sensitive operation requiring user approval.
-  - Session Core creates an `ApprovalRequest` Item and pauses agent execution.
-  - The adapter presents the approval request to the user.
-
-- `WaitingApproval` → `Running`
-  - The adapter calls `ResolveApproval(turnId, requestId, approved)`.
-  - Session Core creates an `ApprovalResponse` Item and resumes agent execution.
-
-- `Running` → `WaitingInput`
-  - A root-thread agent calls `RequestUserInput` to ask the user a short structured question.
-  - Session Core creates a `UserInputRequest` Item and pauses agent execution.
-  - The adapter presents the question request to the user.
-
-- `WaitingInput` → `Running`
-  - The adapter resolves the request with a `UserInputResponse`.
-  - Session Core records the response Item and resumes agent execution.
-
-- `Running` → `Completed`
-  - The agent finishes its response. The final `AgentMessage` Item is marked Completed.
-  - Session Core commits the terminal rollout batch and runs Stop hooks.
-
-- `Running` → `Failed`
-  - An unrecoverable error occurs: agent exception, tool execution error, timeout.
-  - Session Core creates an `Error` Item, sets `Turn.Error`, saves the partial Thread state, and runs cleanup.
-  - For server-managed history, Session Core appends completed model messages and any compaction replacement before finishing failure handling. The next Turn includes the failed Turn's completed user, assistant, and paired tool-call/tool-result history, but must not expand older history that a surviving compaction checkpoint replaced.
-
-- `Running`, `WaitingApproval`, or `WaitingInput` → `Cancelled`
-- The adapter requests cancellation (e.g., user sends `/cancel`, channel disconnects).
-- Session Core resolves the Turn's pending approval and user-input requests (Section 10.2), cancels the agent execution via `CancellationToken`, completes any currently streaming agent/reasoning Items with their accumulated text, and appends partial domain and model history to rollout. A cancellation must not restore pre-compaction tool results or summaries that were no longer model-visible.
-
-**Terminal states**: `Completed`, `Failed`, `Cancelled`. A Turn in a terminal state cannot transition.
-
-On the first load of a persisted Thread into a new Session Core process, a single Turn still in
-`Running`, `WaitingApproval`, or `WaitingInput` has no execution owner and is treated as interrupted.
-Before the load operation returns, Session Core sets that Turn to `Cancelled`, sets `CompletedAt`,
-and commits the terminal Turn and its completed model-visible history. Existing Items, token usage,
-and error data are preserved exactly; recovery does not synthesize an error, assistant response,
-approval response, or user-input response. The terminal commit must succeed before the Thread is
-registered in the process or `turn/cancelled` is published. A commit failure fails the load and the
-modified Thread is not cached. After the commit, Session Core publishes exactly one
-`turn/cancelled` event with reason `"interrupted"`; unresolved approval or user-input requests from
-that Turn are no longer replayed.
-
-This reconciliation applies only at the persisted cold-load boundary. A Thread already registered
-in the current process retains its live execution owner and is never reconciled by ordinary load,
-resume, or read operations.
+On the first load of a persisted Thread into a new process, a Turn still `Running`, `WaitingApproval`, or `WaitingInput` has no execution owner and is treated as interrupted. Before the load returns, Session Core sets it to `Cancelled`, sets `CompletedAt`, and commits the terminal Turn with its completed model-visible history. Existing Items, usage, and error data are preserved; no error, response, approval, or user-input Item is synthesized. The commit must succeed before the Thread is registered or `turn/cancelled` is published; a commit failure fails the load and nothing is cached. Session Core then publishes exactly one `turn/cancelled` with reason `"interrupted"`, and the Turn's unresolved requests are no longer replayed. This reconciliation happens only at the cold-load boundary; a Thread already registered in the process is never reconciled by load, resume, or read.
 
 ### 5.3 Item Lifecycle
 
@@ -1066,552 +464,264 @@ resume, or read operations.
               (non-streaming items skip Streaming)
 ```
 
-**Transitions**:
+- `Started` → `Streaming` → `Completed` applies to `AgentMessage`, `ReasoningContent`, and `CommandExecution`. Each delta emits `item/delta`; the completed payload holds the final value. Hosts may project streamed tool arguments as `ToolCall` argument previews; the canonical persisted `ToolCall` is finalized at completion.
+- `Started` → `Completed` applies to other Items. `ToolResult`, approval, user-input, and `Error` Items are created complete. `ImageGeneration`, `WebSearch`, `McpToolCall`, and `DynamicToolCall` start `inProgress` when the call is recorded and complete once with a terminal completed or failed payload.
 
-- `Started` → `Streaming` (optional, for `AgentMessage`, `ReasoningContent`, and runtime-projected `CommandExecution`)
-  - Session Core begins receiving incremental content from the agent.
-  - Each delta emits an `item/delta` event with the incremental payload.
-  - For streamed tool arguments, hosts such as AppServer may project these deltas as tool-call argument preview notifications on the wire while the canonical persisted `ToolCall` payload is finalized at completion.
+Invariants:
 
-- `Streaming` → `Completed`
-  - The agent finishes producing content for this Item.
-  - The Item's payload contains the final accumulated value.
-
-- `Started` → `Completed` (for non-streaming items)
-    - Items like `ToolResult`, `ApprovalRequest`, `ApprovalResponse`, `UserInputRequest`, `UserInputResponse`, `Error` are created with their full payload and immediately completed.
-    - `ToolCall` is usually completed directly, but hosts may expose an intermediate streaming preview of argument construction before the final completed payload is persisted.
-    - `ImageGeneration` starts when the `image_gen.imagegen` call is recorded and completes with inline image data or a visible failure payload.
-    - `WebSearch` starts when the `web.run` call is recorded and completes with the action, query, and results, or a visible failure payload.
-    - `McpToolCall` and `DynamicToolCall` start with `status = "inProgress"` and nullable/absent `success`, then complete once with a terminal completed/failed payload.
-
-**Invariants**:
-
-- An Item's Status never moves backward.
-- A Completed Item's payload is immutable.
-- A tool invocation has exactly one source-declared projection shape. Streaming observation and dispatcher recording atomically upsert its call item by Turn, call id, and shape.
-- Each invocation publishes at most one terminal projection. Competing completion, rejection, timeout, cancellation, and failure paths converge on the same terminal guard.
-- Items within a Turn are ordered by creation time. This order is the canonical sequence of events within the Turn.
-- A tool-call boundary finalizes any preceding streaming `AgentMessage` and `ReasoningContent` before the tool lifecycle begins. Their accumulated payloads are persisted and their `item/completed` events are emitted before any approval or user-input request created by that tool can pause execution.
-- Before model-visible history is submitted to a provider, Session Core MUST ensure
-  that each assistant tool call has an immediately following tool result message.
-  If persisted or in-memory history contains an incomplete historical tool call,
-  the provider request is repaired or filtered at the request boundary rather
-  than sending a provider-invalid message sequence.
+- Item status never moves backward, and a completed payload is immutable.
+- A tool invocation has exactly one source-declared projection shape; streaming observation and dispatcher recording atomically upsert its item by Turn, call id, and shape.
+- Each invocation publishes at most one terminal projection; competing completion, rejection, timeout, cancellation, and failure paths converge on one terminal guard.
+- Items within a Turn are ordered by creation time; this is the canonical sequence of the Turn.
+- A tool-call boundary finalizes preceding streaming `AgentMessage` and `ReasoningContent` Items: their payloads are persisted and `item/completed` is emitted before any approval or user-input request from that tool can pause execution.
+- Before model-visible history goes to a provider, every assistant tool call is immediately followed by its tool result. An incomplete historical call is repaired or filtered at the request boundary, without mutating rollout evidence.
 
 ### 5.4 Turn Item Sequence (Normative)
 
-A typical Turn produces Items in this order:
-
 ```
 1. UserMessage (input)
-2. [ReasoningContent] (if model exposes thinking)
-3. [ToolCall → ToolResult | ImageGeneration | WebSearch | McpToolCall | DynamicToolCall]* (zero or more tool invocations)
-   3a. [ApprovalRequest → ApprovalResponse] (within a tool call, if approval needed)
-   3b. [UserInputRequest → UserInputResponse] (if the agent needs a structured user decision before continuing)
+2. [ReasoningContent]
+3. [ToolCall → ToolResult | ImageGeneration | WebSearch | McpToolCall | DynamicToolCall]*
+   3a. [ApprovalRequest → ApprovalResponse] (within a tool call)
+   3b. [UserInputRequest → UserInputResponse]
 4. AgentMessage (final response, streamed)
-5. [Error] (if something went wrong)
+5. [Error]
 ```
 
-The sequence may recurse: the agent may call tools, receive results, reason again, call more tools, and then respond. Session Core emits Items in the order they occur. The adapter renders them according to its channel's capabilities.
+The sequence may repeat: the agent may reason, call tools, and reason again before responding. Session Core emits Items in the order they occur; adapters render them according to channel capability.
 
-### 5.4.1 MCP App direct actions and transient context
+### 5.4.1 MCP App Direct Actions and Transient Context
 
 An MCP App view action does not belong to the completed Turn that produced its source result.
 
-- A view `tools/call` uses the common dispatcher with null Turn id. It creates no Turn, `ToolCall`, `ToolResult`, or `McpToolCall`, and never enters provider history. Safe tracing records `ToolInvocationOrigin(kind: "mcpApp", sourceItemId)` independently from Session items.
-- An accepted `ui/message` is the only view action that creates conversational input. It starts a Turn immediately when the thread is idle or uses `QueuedTurnInput` while another Turn is active. The resulting user input is marked with `triggerKind = "mcpApp"` and safe server/tool/source-item provenance; the opaque view handle and UI resource data are not persisted.
-- Each live view owns one last-write-wins pending context. A View message atomically consumes only its originating value. An ordinary user Turn atomically consumes all live pending values for the thread. Consumption happens at the central Turn-start boundary, including the queued-input path, and each value is injected at most once.
-- Pending context is bounded, explicitly marked untrusted, and transient. It is not an Item, rollout record, thread configuration, or provider-history message by itself. It cannot change system policy or tool authority. Teardown, revoke, disconnect, archive/delete, or MCP generation replacement discards unconsumed values.
-- If an accepted View message is persisted in the ordinary input queue and the process restarts, the queued message may survive but its transient pending context does not.
-
-Unknown context content shapes reject the entire update. Text and image content are materialized through the normal safe input path; structured content may be injected only as bounded JSON.
+- A view `tools/call` uses the common dispatcher with no Turn. It creates no Turn or tool Item and never enters provider history; tracing records its origin (`mcpApp`, source item id) separately.
+- An accepted `ui/message` is the only view action that creates conversational input. It starts a Turn when the thread is idle or is queued otherwise, marked `triggerKind = "mcpApp"` with safe server, tool, and source-item provenance. The view handle and UI resource data are not persisted.
+- Each live view owns one last-write-wins pending context. A view message consumes only its own value; an ordinary user Turn consumes all live pending values for the thread. Consumption happens at the central Turn-start boundary, including the queued path, and each value is injected at most once.
+- Pending context is bounded, marked untrusted, and transient: not an Item, rollout record, configuration, or provider-history message by itself, and it cannot change system policy or tool authority. Teardown, revoke, disconnect, archive, delete, or MCP generation replacement discards it, and it does not survive a restart even if its queued message does.
+- Unknown context content shapes reject the whole update. Text and image content use the normal safe input path; structured content is injected only as bounded JSON.
 
 ### 5.5 Cross-Channel Resume Semantics
 
-When a channel adapter resumes a Thread that was created by a different channel:
+1. **Discovery**: the adapter calls `FindThreads(identity, includeArchived, crossChannelOrigins)` and presents the result or picks the most recently active thread (Section 9.5).
+2. **Resume**: `ResumeThread(threadId)` loads the Thread, sets it `Active`, and updates `LastActiveAt`.
+3. **Session load**: Session Core rebuilds request-local model history from the rollout's exact model-history records and latest usable compaction checkpoint. Domain Items are a fallback only where exact records are absent.
+4. **Ready**: `SubmitInput` starts a new Turn attributed to the resuming channel.
 
-1. **Discovery**: the adapter calls `FindThreadsAsync(identity, includeArchived, crossChannelOrigins)` and either presents the result or auto-selects the most recently active thread. Discovery scoping rules are defined in Section 9.5.
-2. **Resume**: the adapter calls `ResumeThreadAsync(threadId)`. Session Core loads the Thread from persistence, sets `Status` to `Active`, and updates `LastActiveAt`.
-3. **Session load**: Session Core reconstructs a request-local `List<ChatMessage>` from the rollout's exact model-history records and latest usable compaction checkpoint. Domain Items are used only as a finite fallback when an exact record is absent.
-4. **Ready**: the adapter calls `SubmitInputAsync` to start a new Turn. The new Turn's Items are attributed to the resuming channel, and the Turn records that channel's name.
+The resumed agent has the full context of earlier Turns regardless of channel.
 
-The resumed agent has full context of previous Turns regardless of which channel originated them.
+History reconstruction rules:
 
-When reconstructing model history, provider reasoning metadata MUST be preserved on assistant messages that contain tool calls. If one sampling segment produced `ReasoningContent`, visible assistant text, and one or more `ToolCall` Items before their matching `ToolResult` Items, the reconstructed history represents them as one assistant `ChatMessage` containing reasoning content, visible text, and all function calls. This preserves OpenAI protocol providers such as DeepSeek whose thinking mode requires `reasoning_content` to be round-tripped on assistant tool-call messages.
-
-Tool history reconstruction is source-neutral. It expands a valid standard `ToolCall`/`ToolResult` pair or a terminal `McpToolCall`/`DynamicToolCall` into the provider's function-call/function-result sequence while preserving the original provider `callId`. A namespace-capable provider receives the persisted `(namespace, toolName)` tuple; a flat-only provider receives the persisted `providerFlatName`. Reconstruction MUST NOT consult the current tool inventory, parse a flat alias, regenerate one from current naming rules, or substitute MCP `server`/`sourceToolId` for model identity. Orphaned, duplicated, incomplete, or identity-incomplete calls are diagnosed and skipped or rejected at the request boundary; Session Core MUST NOT guess pairings. Only normalized model content participates in provider history. `structuredContent`, `_meta`, and raw MCP result fields never do.
-
-Validated tool-result images remain structured media until history compaction.
-Summary-producing partial or full compaction replaces tool-result images in the
-replacement history with their bounded textual description. Images attached to
-a user message remain only when that user message is part of the preserved tail;
-images covered by the summarized prefix are not copied into replacement history.
+- Provider reasoning metadata is preserved on assistant messages that contain tool calls. A sampling segment that produced reasoning, visible text, and tool calls before their results is reconstructed as one assistant message containing all three, as required by providers whose thinking mode round-trips reasoning on tool-call messages.
+- Tool history reconstruction is source-neutral. A valid `ToolCall`/`ToolResult` pair or terminal `McpToolCall`/`DynamicToolCall` expands into the provider's function-call/result sequence with the original `callId`. Namespace-capable providers receive the persisted `(namespace, toolName)`; flat-only providers receive the persisted `providerFlatName`. Reconstruction never consults the current tool inventory, parses or regenerates a flat alias, or substitutes MCP server/source names. Orphaned, duplicated, incomplete, or identity-incomplete calls are diagnosed and skipped or rejected at the request boundary; pairings are never guessed. Only normalized model content participates.
+- Validated tool-result images stay structured media until compaction. Summary-producing compaction replaces them with their bounded textual description in the replacement history. Images on a user message remain only if that message is in the preserved tail.
 
 ## 6. Event Model
 
 ### 6.1 Overview
 
-Session Core emits a structured event stream during Turn execution. The event stream is the **contract between Session Core and channel adapters**: adapters consume events and translate them to their transport format. This replaces channel-specific `agent.RunStreamingAsync` consumption loops.
-
-Events are delivered in-process via a callback or async enumerable pattern. There is no network transport for events — adapters run in the same process as Session Core.
+Session Core emits a structured, in-process event stream during Turn execution. It is the contract between Session Core and channel adapters, which translate events into their transport format.
 
 ### 6.2 Event Envelope
 
-Every event carries a common envelope:
-
-```
-SessionEvent
-├── EventId: string           // Unique event ID, monotonically increasing within a Turn
-├── EventType: string         // One of the types defined in Section 6.3
-├── ThreadId: string          // Parent Thread
-├── TurnId: string            // Parent Turn (null for thread-level events)
-├── ItemId: string            // Related Item (null for turn/thread-level events)
-├── Timestamp: UTC timestamp  // When the event was emitted
-└── Payload: object           // Event-type-specific data
-```
+Every event carries `EventId` (monotonic within a Turn), `EventType`, `ThreadId`, `TurnId` (null for thread-level events), `ItemId` (null for turn- and thread-level events), `Timestamp`, and a type-specific `Payload`.
 
 ### 6.3 Event Types
 
 #### Thread Events
 
-- **`thread/created`**
-  - Emitted when a new Thread is created.
-  - Payload: `{ thread: Thread }` (full Thread object with initial state).
+- `thread/created` — `{ thread }`.
+- `thread/resumed` — `{ thread, resumedBy }` (resuming channel).
+- `thread/archived`, `thread/unarchived` — `{ threadId }`.
 
-- **`thread/resumed`**
-  - Emitted when a Thread is resumed.
-  - Payload: `{ thread: Thread, resumedBy: string }` (channel name that resumed it).
-
-- **`thread/archived`, `thread/unarchived`**
-  - Emitted when Thread status changes (Active → Archived, Archived → Active).
-  - Payload: `{ threadId: string }`.
-
-- **`thread/renamed` (Wire Protocol only; not a `SessionEvent`)**
-  - Display name changes are applied in Session Core via `ISessionService.RenameThreadAsync`, when the first user message on a turn sets the provisional `Thread.DisplayName`, or when a generated title atomically replaces that unchanged provisional value (see turn input handling and `Thread.DisplayName` in this specification). Session Core does **not** enqueue a `SessionEvent` on the turn/event stream for rename-only updates (there is no separate thread-level event type consumed by in-process adapters the same way as `thread/created`).
-
-- **`thread/deleted` (Wire Protocol only; not a `SessionEvent`)**
-  - Permanent removal is performed via `ISessionService.DeleteThreadPermanentlyAsync(threadId)`. Session Core first closes the thread recorder, then deletes the canonical rollout, then removes DB-backed state and attachment references, and finally best-effort deletes workspace-managed attachment files that are no longer referenced by any remaining thread. Failure to delete the rollout leaves database state and attachment assets intact. It does **not** enqueue a `SessionEvent` on the turn/event stream (there is no active turn for deletion).
+Rename (explicit, provisional, or generated title) and permanent deletion are not events on the Turn stream; the wire protocol projects them as its own notifications. Permanent deletion closes the thread recorder, deletes the canonical rollout, removes database state and attachment references, and finally best-effort deletes managed attachment files no remaining thread references. If the rollout cannot be deleted, database state and attachments are left intact.
 
 #### Turn Events
 
-- **`turn/started`**
-  - Emitted when a new Turn begins.
-  - Payload: `{ turn: Turn }` (Turn object with `Status = Running`, Input Item included).
-
-- **`turn/completed`**
-  - Emitted when a Turn finishes successfully.
-  - Provider output-limit termination (for example `finish_reason = "length"` or Anthropic `max_tokens`) is not successful completion.
-  - Payload: `{ turn: Turn }` (final Turn state with all Items, TokenUsage).
-
-- **`turn/failed`**
-  - Emitted when a Turn fails.
-  - Also emitted when the model response is truncated by the provider output token limit, so clients can retry or surface the incomplete generation instead of accepting it as success.
-  - Payload: `{ turn: Turn, error: string }`.
-
-- **`turn/cancelled`**
-  - Emitted when a Turn is cancelled.
-  - Payload: `{ turn: Turn, reason: string }`.
+- `turn/started` — `{ turn }` with `Status = Running` and the input Item.
+- `turn/completed` — `{ turn }` with all Items and usage. Provider output-limit termination is not successful completion.
+- `turn/failed` — `{ turn, error }`. Also emitted when the provider output token limit truncates the response, so clients can retry instead of accepting it.
+- `turn/cancelled` — `{ turn, reason }`.
 
 #### Item Events
 
-- **`item/started`**
-  - Emitted when an Item is created.
-  - Payload: `{ item: Item }` (Item with `Status = Started`, payload may be partial).
-  - Adapters should begin rendering immediately (e.g., show a "typing" indicator for AgentMessage, show tool name for ToolCall).
-
-- **`item/delta`**
-  - Emitted for incremental content updates on streaming Items (`AgentMessage`, `ReasoningContent`, `CommandExecution`, and streamed `ToolCall` argument previews).
-  - Payload: the delta-specific payload (e.g., `{ textDelta: "chunk of text" }`).
-  - May be emitted many times per Item. Adapters that support streaming should forward these to the user progressively.
-  - Adapters that do not support streaming may ignore deltas and wait for `item/completed`.
-  - Persistence still uses the final completed Item payload as source of truth; intermediate `ToolCall` argument preview deltas are for progressive rendering.
-  - A `CommandExecution` Item also receives a terminal interaction delta, `{ sessionId, stdin }`, when `WriteStdin` writes to the process it started, or polls it while it is still running (`stdin` is then empty). It carries the command Item's own Turn id, may arrive after that Item completed or during a later Turn, and is not persisted on the Item.
-
-- **`item/completed`**
-  - Emitted when an Item is finalized.
-  - Payload: `{ item: Item }` (Item with `Status = Completed`, full payload).
+- `item/started` — `{ item }` with `Status = Started`. Adapters may begin rendering immediately.
+- `item/delta` — incremental payload (for example `{ textDelta }`) for streaming Items and `ToolCall` argument previews. Adapters may forward or ignore deltas; the completed payload is the source of truth. A `CommandExecution` Item also receives a terminal interaction delta `{ sessionId, stdin }` when `WriteStdin` writes to or polls (empty `stdin`) its process; it carries the command's own Turn id, may arrive after the Item completed or during a later Turn, and is not persisted.
+- `item/completed` — `{ item }` with the full payload.
 
 #### Approval Events
 
-- **`approval/requested`**
-  - Emitted when the agent requires user approval. Equivalent to `item/started` for an `ApprovalRequest` Item, but distinguished as a separate event type because it requires adapter action (the adapter must present the request and return a response).
-  - Payload: `{ item: Item }` (the `ApprovalRequest` Item).
-  - The Turn enters `WaitingApproval` status.
-
-- **`approval/resolved`**
-  - Emitted when the user resolves an approval request.
-  - Payload: `{ item: Item }` (the `ApprovalResponse` Item).
-  - The Turn returns to `Running` status.
+- `approval/requested` — `{ item }` (`ApprovalRequest`). Distinct from `item/started` because the adapter must act. The Turn enters `WaitingApproval`.
+- `approval/resolved` — `{ item }` (`ApprovalResponse`). The Turn returns to `Running`.
 
 #### User Input Request Events
 
-- **`userInput/requested`**
-  - Emitted when a root-thread agent calls `RequestUserInput`.
-  - Payload: `{ item: Item }` (the `UserInputRequest` Item).
-  - The Turn enters `WaitingInput` status.
-
-- **`userInput/resolved`**
-  - Emitted when the adapter returns answers for a user input request.
-  - Payload: `{ item: Item }` (the `UserInputResponse` Item).
-  - The Turn returns to `Running` status.
+- `userInput/requested` — `{ item }` (`UserInputRequest`). The Turn enters `WaitingInput`.
+- `userInput/resolved` — `{ item }` (`UserInputResponse`). The Turn returns to `Running`.
 
 #### SubAgent Progress Events
 
-- **`subagent/progress`**
-  - Emitted periodically during Turn execution when one or more SubAgent tool calls (`SpawnAgent`) are active.
-  - Provides a snapshot of all active SubAgents' real-time execution progress, including the tool currently being executed, cumulative token consumption, and completion status.
-  - Payload:
-
-    ```
-    {
-      "entries": [
-        {
-          "label": string,          // SubAgent identifier/label (matches the agentNickname argument passed to SpawnAgent)
-          "currentTool": string,    // Name of the tool the SubAgent is currently executing (nullable, null when thinking)
-          "inputTokens": long,      // Cumulative input token consumption
-          "outputTokens": long,     // Cumulative output token consumption
-          "isCompleted": boolean    // Whether the SubAgent has finished execution
-        }
-      ]
-    }
-    ```
-
-  - **Emission rules**:
-    - A periodic aggregator emits the event about every 200ms from a snapshot of in-process SubAgent progress state.
-    - The aggregator starts when the first `SpawnAgent` tool call begins within a Turn, and stops when the Turn ends or all tracked SubAgents have completed.
-    - Each notification contains the **complete snapshot** of all tracked SubAgents (not incremental deltas), so clients can replace their local state on each receipt.
-    - The event is injected into the Turn's event stream as a sideband signal — it may interleave with `item/started`, `item/delta`, and `item/completed` events. This is expected behavior.
-  - **Relationship to Item events**: SubAgent execution is triggered by `SpawnAgent` tool calls, which appear as `item/started` (type `toolCall`, toolName `SpawnAgent`) and `item/completed` (type `toolResult`) events. The `subagent/progress` event provides fine-grained intermediate progress that is not captured by the standard Item lifecycle.
-  - **Adapters**: Adapters that render SubAgent progress (e.g., a live progress table) should consume `subagent/progress` events to update their UI. Adapters that do not need SubAgent progress may ignore this event type or opt out via `optOutNotificationMethods`.
+- `subagent/progress` — a complete snapshot of all SubAgents tracked in the Turn, emitted about every 200 ms while any is active: `{ entries: [{ label, currentTool, inputTokens, outputTokens, isCompleted }] }`. `label` matches the spawn nickname; `currentTool` is null while thinking. Clients replace local state on each receipt. Tracking starts with the first spawn in a Turn and stops when the Turn ends or all tracked SubAgents complete. The event is a sideband signal and may interleave with Item events.
 
 #### System Events
 
-- **`system/event`**
-  - Emitted by Session Core when a system-level maintenance operation occurs during a Turn's post-processing phase. These operations are not part of the agent's conversational output but affect the session's internal state.
-  - Payload:
+- `system/event` — session maintenance and transient runtime status that is not conversational output. Payload: `kind`, `messageKey` (localization key), `params`, `fallbackText` (English), `message` (alias of `fallbackText`), `percentLeft` (unused fraction of the effective context window), `tokenCount` (estimated prompt tokens), `contextUsage` (full context usage snapshot).
 
-    ```
-    {
-      "kind": string,          // One of the values in "Defined kind values" below
-      "messageKey": string,    // Stable client-localization key (nullable)
-      "params": object,        // Optional interpolation params (nullable)
-      "fallbackText": string,  // English fallback text (nullable)
-      "message": string,       // Compatibility alias for fallbackText (nullable)
-      "percentLeft": double,   // Fraction of the effective context window still unused (nullable; 0.0-1.0)
-      "tokenCount": long,      // Current estimated prompt token usage (nullable)
-      "contextUsage": object   // Full ContextUsageSnapshot on successful compaction terminal events (nullable)
-    }
-    ```
+| Kind | Meaning |
+|------|---------|
+| `compactWarning` | Context usage crossed the warning threshold. Advisory. |
+| `compactError` | Context usage crossed the error threshold. Auto-compaction may run on the next Turn. |
+| `compacting` | Compaction is starting. `percentLeft`/`tokenCount` are a projected hint and carry no `contextUsage`. |
+| `compacted` | Compaction succeeded (`micro` or `partial`). Values reflect the post-compaction model-visible state. Only `partial` creates a persisted notice. |
+| `compactSkipped` | Compaction evaluated but not executed. |
+| `compactFailed` | Compaction attempted and failed. |
+| `compactCancelled` | Manual compaction was interrupted; nothing is installed. |
+| `guidanceBlocked` | A `UserPromptSubmit` hook blocked pending guidance (Section 6.5). |
+| `streamError` | A provider stream broke before the sampling request completed and Session Core is retrying. `params` carry one-based `attempt`, `max`, classified `providerError`, and `httpStatus` when known; `fallbackText` is `Reconnecting... x/y`. |
 
-    The effective context window is evaluated for the thread's effective model using the merged model catalog; a thread-level model override therefore changes compaction thresholds for that thread.
+Emission rules:
 
-  - **Context usage accounting**:
-    - `ContextUsageSnapshot.tokens` is server-authoritative active context-window occupancy, separate from cumulative billing usage. After each provider usage snapshot, Session Core records the latest request's provider-visible input plus the output generated by that request; this value is the post-response active context count, not the Turn's cumulative `TokenUsage`.
-    - Session Core chooses sources in this order: a valid provider usage anchor plus model-visible messages appended after the anchored request; a prefix-adjusted anchor when the anchored message prefix and non-instruction request shape still match; the latest provider active-context snapshot only while it belongs to the current request boundary; persisted provider-context display fallback for UI only; and finally full model-visible history estimate.
-    - Strict prompt request fingerprints are for prompt-cache and maintenance-fork safety. `PromptDriftDetected`, including drift caused by re-reading dirty memory pages, must not by itself force context usage to fall back to full-history estimation. If only base instructions changed, Session Core adjusts the anchored count by the estimated base-instructions token delta.
-    - Auto-compaction may trigger from provider context only when the provider anchor or request-boundary snapshot is still valid for the current model-visible history. After rollback, compaction, deletion, or another history replacement, Session Core must invalidate provider anchors and token trackers, save a replacement-history estimate, and allow that estimate to drive the next auto-compaction decision until a new provider usage snapshot arrives. A provider-native replacement uses its generation-scoped estimator instead of expanding the neutral transcript. Persisted provider display values without a valid anchor remain UI/diagnostic fallbacks and must not by themselves trigger auto-compaction. Compaction replacements record their covered Turn so rollback can retain only surviving replacements.
+- Every compaction attempt emits `compacting` followed by exactly one terminal event. Threshold advisories and successful `compacted` events carry `contextUsage` when available; clients prefer it over `tokenCount`/`percentLeft` and never update context UI from a `compacting` event.
+- Turn-scoped system events arrive before the Turn's terminal event. Thread-scoped maintenance events (manual compaction) may arrive later.
+- Reactive compaction after a context-overflow rejection still fails the Turn, but its `compacting` and terminal events are emitted first.
+- Manual compaction is thread maintenance (`maintenanceKind = "compacting"`): allowed only for Active server-managed threads with history and no active Turn or maintenance, it blocks new Turns until its terminal event and on success appends a `compacted` notice with `trigger = "manual"` to the latest completed Turn. Interrupting thread maintenance is a Session API operation.
+- `streamError` is transient and never creates a `SystemNotice`. The first attempt of a retry sequence is not surfaced. Retry does not depend on whether the attempt delivered output: a stream that broke after delivering updates is committed to model history as a response that ended early, its tool calls are settled, and the next attempt continues from the grown history. Delivered Items and deltas are never withdrawn. A failure before any update reaches the runtime is retried by the transport layer, which suppresses usage, provider error frames, and echoed input from the discarded attempt. Idle-timeout detection surfaces the retry or failure promptly; cleanup of the failed stream never delays it.
+- System events carry `messageKey`, optional `params`, and English `fallbackText`; localizing clients translate the key. User text, model output, and tool output are never translated.
 
-  - **Defined `kind` values**:
+Context usage accounting:
 
-    | Kind | Meaning | Timing |
-    |------|---------|--------|
-    | `compactWarning` | Token usage crossed `WarningThreshold` but not yet `ErrorThreshold`. Advisory only, no compaction is attempted. | Synchronous, post-turn (Step 5k), when threshold is above warning but below auto. |
-    | `compactError` | Token usage crossed `ErrorThreshold`. Strong advisory; auto-compaction may trigger on the next turn. | Synchronous, post-turn (Step 5k), when threshold is above error but below auto. |
-    | `compacting` | Auto-compaction is starting. `percentLeft`/`tokenCount` reflect the projected pre-compaction threshold hint, not a stable active context snapshot. | Synchronous, before the selected compaction backend runs. |
-    | `compacted` | Compaction finished successfully. Token tracker has been reset and `percentLeft`/`tokenCount` reflect the post-compaction optimized model-visible state. Auto/reactive compaction may include estimated fixed request overhead for the current sampling request; idle manual compaction must report the compacted replacement estimate without carrying over the previous request's provider overhead. | Synchronous, immediately after the coordinator returns `Micro` or `Partial`. Only `Partial` creates a persisted compaction notice. |
-    | `compactSkipped` | Compaction was evaluated but not executed (e.g. below threshold, nothing new to summarize, circuit breaker tripped). | Synchronous, immediately after the coordinator returns `Skipped`. |
-    | `compactFailed` | Compaction attempted but failed (backend, validation, transport, or persistence error). The selected backend's circuit breaker may trip after several consecutive failures. | Synchronous, immediately after the coordinator returns `Failed`. |
-    | `compactCancelled` | Thread-scoped manual compaction was interrupted by the user. | Asynchronous/thread-scoped, when the maintenance cancellation token is signalled. |
-    | `streamError` | A provider streaming response disconnected, timed out while idle, or otherwise ended before the sampling request completed; Session Core is retrying. `params` carry the one-based `attempt`, the `max` budget, the classified `providerError`, and the upstream `httpStatus` when known. `fallbackText` uses the compact form `Reconnecting... x/y`. | Turn-scoped, during agent execution, before the retry delay. |
-
-  - **Emission rules**:
-    - System events are emitted during the Turn's post-processing phase (after agent execution completes, before `turn/completed`), except when raised reactively (see below).
-    - The threshold advisory events (`compactWarning`, `compactError`) carry `percentLeft`, `tokenCount`, and `contextUsage` when available so UIs can render the same context-pressure value Session Core used for threshold evaluation.
-    - `compacting` start events do not carry `contextUsage`; clients must not update context-window UI from their projected `tokenCount` / `percentLeft`. Successful `compacted` events carry `contextUsage` when available. Clients should prefer this full snapshot over `tokenCount` / `percentLeft` because it includes thresholds and source metadata needed to seed context-window UI after manual compaction timeouts or missed thread snapshots.
-    - Auto-compaction events (`compacting`, `compacted`, `compactSkipped`, `compactFailed`) are synchronous within Step 5k and always fire in the order `compacting` -> one terminal event (`compacted` / `compactSkipped` / `compactFailed`). Each attempt has one backend and one terminal outcome.
-    - Manual compaction uses `ISessionService.CompactThreadAsync(threadId)` and is exposed to AppServer clients as `thread/compact/start`. It is allowed only for Active, server-managed threads with existing history and no `Running` / `WaitingApproval` turn or active thread maintenance. It registers thread maintenance with `maintenanceKind = "compacting"`, emits the same `compacting` -> terminal `system/event` sequence through the thread event broker, and prevents new turns from starting until the terminal event. The selected backend does not run a microcompact pre-pass. A local backend first tries partial compaction and may fall back to full-history compaction. A provider-native backend replaces only its native generation and leaves neutral model history unchanged. On success, Session Core persists the replacement domain, updates context usage, invalidates request-boundary anchors, and appends a `SystemNotice` with `kind = "compacted"` and `trigger = "manual"` to the latest completed turn. On cancellation it emits `compactCancelled` and installs nothing.
-    - The pipeline may also be invoked **reactively** from the Turn's error path when the model rejects a request with `prompt_too_long`, `context_length_exceeded`, or another conservatively classified context-overflow equivalent. In that case the Turn still fails, but `compacting` followed by `compacted` / `compactFailed` is emitted first so UIs know the history was repaired before the user retries.
-    - `ISessionService.CancelThreadMaintenanceAsync(threadId)` interrupts active thread maintenance. AppServer exposes this as `thread/maintenance/interrupt`.
-    - Turn-scoped system events are emitted through the turn-scoped `SessionEventChannel`, so they are guaranteed to arrive before `turn/completed`. Thread-scoped maintenance events may arrive later.
-    - The protocol is language-neutral. System events carry `messageKey`, optional `params`, and an English `fallbackText`; `message` is a compatibility alias for `fallbackText`. Clients that support UI localization translate `messageKey` locally and fall back to `fallbackText`. User text, model output, and raw tool output remain original text and are not translated by Session Core.
-    - Provider stream retry events (`streamError`) are transient and must not create a persistent `SystemNotice`. Retry is not gated on whether the attempt already produced visible output. A stream that breaks after delivering updates is treated as a response that ended early: its delivered output is committed to model history, the tool calls it carries are settled, and the next attempt is built from the grown history so the model continues instead of repeating. Items and deltas already delivered to clients are never withdrawn, and no delta rollback semantics are introduced. A failure raised before any update reaches the runtime is retried by the transport layer instead, which buffers usage metadata, provider error frames, and `FunctionResultContent` echoed from request input so a discarded attempt surfaces none of them. The first attempt of a retry sequence is not surfaced, because a transport blip that recovers immediately is noise. Idle-timeout detection must surface the retry or failure promptly; cleanup of the failed provider stream is best-effort and must not indefinitely delay the retry notification or terminal failure.
-  - **Adapters**: Adapters that display session maintenance status (e.g., status text for compaction) should consume `system/event` notifications. Adapters that do not need maintenance status may ignore this event type or opt out via `optOutNotificationMethods`.
+- `contextUsage.tokens` is server-authoritative active context-window occupancy, separate from billing usage: after each provider usage snapshot, the latest request's provider-visible input plus its output.
+- Sources, in order: a valid provider usage anchor plus model-visible messages appended after it; a prefix-adjusted anchor when the anchored prefix and non-instruction request shape still match (base-instruction changes adjust by their estimated token delta, and prompt drift alone does not force a fallback); the latest provider snapshot only while it belongs to the current request boundary; persisted provider display values for UI only; and finally a full model-visible history estimate.
+- Auto-compaction may trigger from provider context only while the anchor or request-boundary snapshot is valid for the current history. After rollback, compaction, deletion, or another history replacement, anchors and trackers are invalidated and a replacement-history estimate drives the next decision until a new provider snapshot arrives; a provider-native replacement uses its generation-scoped estimator. Persisted display values without a valid anchor never trigger auto-compaction.
+- The effective context window is resolved for the thread's effective model (Section 12.2).
 
 #### Usage Events
 
-- **`usage/delta`**
-  - Emitted each time the agent completes an LLM iteration and a `UsageContent` is received from the streaming response. Carries the **incremental** token consumption for that single iteration.
-  - Payload:
-
-    ```
-    {
-      "inputTokens": long,      // Input tokens consumed in this iteration
-      "outputTokens": long,     // Output tokens consumed in this iteration
-      "cachedInputTokens": long,
-      "cacheWriteInputTokens": long,
-      "freshInputTokens": long,
-      "reasoningOutputTokens": long,
-      "llmCallDelta": long,
-      "contextInputTokens": long,
-      "turnInputTokens": long,
-      "turnOutputTokens": long,
-      "turnLlmCalls": long
-    }
-    ```
-
-  - **Emission rules**:
-    - The event is emitted by Session Core immediately after processing a `UsageContent` from the agent's streaming output, provided the token counts are non-zero.
-    - Each emission carries only the delta for the current LLM request, not cumulative totals. `turnInputTokens`, `turnOutputTokens`, and `turnLlmCalls` are optional cumulative billing totals emitted for convenience.
-    - `contextInputTokens` is the latest main-agent request input snapshot used for context-window occupancy. It is not the sum of Turn input usage.
-    - `contextUsage.tokens`, when present, is the active context-window value after processing the same provider usage snapshot. It may be greater than `contextInputTokens` because it includes the current request's output tokens and, when rebased from an anchor, estimated model-visible messages appended after the anchored request.
-    - Example: request snapshots `12000 | 20000 | 41000` produce `turnInputTokens = 73000` and `contextInputTokens = 41000`.
-    - Cache-hit totals follow the same request-sum rule, so dashboards can show how much of the cumulative input was cache-read input for billing verification.
-    - At most one `usage/delta` event is emitted per LLM iteration (the `UsageContent` is emitted once at the end of each iteration by the provider, not per token).
-    - The event is a sideband signal — it may interleave with `item/started`, `item/delta`, and `item/completed` events. This is expected behavior.
-  - **Relationship to Turn.TokenUsage**: The sum of all `usage/delta` events for a Turn's main agent equals the main-agent portion of `Turn.TokenUsage`. SubAgent tokens are reported separately via `subagent/progress` and are added to `Turn.TokenUsage` at turn completion.
-  - **Adapters**: Adapters that display real-time token consumption should consume `usage/delta` events to maintain a running total. Adapters that only need final totals may ignore this event type or opt out via `optOutNotificationMethods`.
+- `usage/delta` — emitted once per model request whose usage is non-zero, carrying that request's incremental usage: `inputTokens`, `outputTokens`, `cachedInputTokens`, `cacheWriteInputTokens`, `freshInputTokens`, `reasoningOutputTokens`, `llmCallDelta`, `contextInputTokens`, and optional cumulative `turnInputTokens`, `turnOutputTokens`, `turnLlmCalls`, plus `contextUsage` when available.
+  - `contextInputTokens` is the latest main-agent request input, not a sum: request inputs `12000 | 20000 | 41000` give `turnInputTokens = 73000` and `contextInputTokens = 41000`. Cache totals follow the same request-sum rule.
+  - `contextUsage.tokens` may exceed `contextInputTokens` because it includes the request's output and messages appended after an anchored request.
+  - The sum of a Turn's `usage/delta` events equals the main-agent portion of `Turn.TokenUsage`; SubAgent usage is reported through `subagent/progress` and added at Turn completion.
+  - A sideband signal that may interleave with Item events.
 
 #### Turn Diff Events
 
-- **`turn/diff/updated`**
-  - Emitted when the Turn's aggregated diff of `WriteFile` and `EditFile` edits changes. Each emission carries the **complete latest snapshot**, not a delta.
-  - Payload: `{ diff: string }` (git-style unified diff in the per-call `fileChange` format; may be empty).
-  - **Tracking rules**:
-    - Session Core creates one turn diff tracker with each user Turn and drops it when the Turn ends.
-    - On the first edit of a path in the Turn, the tracker records the file's pre-edit text as that path's baseline; later edits replace only its current text. A path that did not exist before its first edit has no baseline.
-    - The aggregate renders each path from its baseline to its current text, sorted by display path. A file created and then edited in the same Turn renders as one add, an overwrite of an existing file renders as an update against the pre-existing content, and a path whose current text equals its baseline renders nothing.
-    - Each path's rendered diff is reused while neither its baseline nor its current content revision changes. Path keys are case-insensitive on Windows.
-    - Edits made during the Turn by in-process SubAgents are included, although they produce no item in this Thread, so the live aggregate is the complete change set of the Turn.
-    - Files changed by `Exec` or other shell commands are not tracked and do not invalidate the tracker.
-    - The tracker is invalidated for the rest of the Turn when an edit's exact before and after text is unknown to it, in particular an edit executed on a Remote Tool Host, where the Agent Host receives only that call's diff. An aggregate over 1 MiB invalidates it as well. While the tracker is invalid, emissions carry an empty `diff`; an invalidation is emitted only if a non-empty aggregate was emitted before it.
-  - **Emission rules**:
-    - Emitted immediately after the `item/completed` of the `ToolResult` that changed the aggregate, and flushed once more before `turn/completed` or `turn/cancelled` when the aggregate changed since the last emission.
-    - A snapshot identical to the previous emission is not re-sent.
-    - The event is not persisted. The thread event broker retains it among recent events, so `thread/subscribe` replay can deliver it. After reload, a Turn's changes are rebuilt from the per-call `fileChange` diffs recorded on [ToolResult](#toolresult).
-  - **Adapters**: Adapters that render a live Turn diff consume this event and fall back to per-call `fileChange` diffs when `diff` is empty. Adapters that do not need it may ignore this event type or opt out via `optOutNotificationMethods`.
+- `turn/diff/updated` — `{ diff }`: the complete latest git-style unified diff (per-call `fileChange` format) of the Turn's `WriteFile` and `EditFile` edits; may be empty.
+  - Tracking: one tracker per user Turn. The first edit of a path records its pre-edit text as baseline; later edits update only current text. A path that did not exist has no baseline. Paths render baseline-to-current sorted by display path, so create-then-edit is one add, an overwrite is an update against prior content, and an unchanged path renders nothing. Path keys are case-insensitive on Windows.
+  - Edits by in-process SubAgents during the Turn are included. Shell-command file changes are not tracked and do not invalidate the tracker.
+  - The tracker is invalid for the rest of the Turn when an edit's exact before/after text is unknown (for example an edit on a Remote Tool Host) or the aggregate exceeds 1 MiB. Invalid emissions carry an empty `diff`, sent only if a non-empty aggregate was emitted before.
+  - Emitted right after the `item/completed` of the `ToolResult` that changed the aggregate, and flushed before the Turn's terminal event if it changed since the last emission. Identical snapshots are not re-sent.
+  - Not persisted, though recent emissions are replayed to new subscribers. After reload, changes are rebuilt from the per-call `fileChange` records on [ToolResult](#toolresult); adapters also fall back to them when `diff` is empty.
+
+Adapters that do not need a sideband event type (`subagent/progress`, `system/event`, `usage/delta`, `turn/diff/updated`) may ignore it or opt out of it.
 
 ### 6.4 Event Delivery Semantics
 
-- **Ordering**: Events within a Turn are emitted in causal order. `item/started` always precedes `item/delta` and `item/completed` for the same Item. `turn/started` always precedes all item events for that Turn. `turn/completed` (or `turn/failed`, `turn/cancelled`) is always the last event for a Turn.
+- **Ordering**: events within a Turn are causal. `item/started` precedes `item/delta` and `item/completed` for the same Item; `turn/started` precedes all Item events of the Turn; the Turn's terminal event is last.
+- **At-most-once**: events are not durably queued. A disconnected adapter loses them and reconstructs state from the persisted Thread.
+- **Decoupled emission**: Session Core writes events into a per-Turn in-memory channel and does not wait for rendering.
+- **Single consumer per Turn**: one adapter consumes a Turn's events, following from the one-active-Turn invariant.
 
-- **At-most-once delivery**: Events are not durably queued. If the adapter is not listening (e.g., channel disconnected mid-turn), events are lost. The adapter can reconstruct state from the persisted Thread on reconnection.
+### 6.5 Session Input API
 
-- **Decoupled emission**: Session Core writes events into a per-turn in-memory channel and does not synchronously wait for channel rendering. The event stream is authoritative for the active turn, but it is not a durable queue.
+`SubmitInput` starts a Turn and returns that Turn's authoritative event stream; there is no separate subscribe operation, and callback-style consumption is a helper concern. Input is a list of multimodal content parts plus an optional sender context. When the transport provides native input parts (commands, skills, file references), it validates and materializes them before submission; Session Core persists both snapshots on the `UserMessage`, derives `text` from the native snapshot, and passes the materialized content to the agent.
 
-- **Single consumer per Turn**: At most one adapter is actively consuming events for a Turn. This is enforced by the Thread invariant (one Running Turn at a time, started by one adapter).
+- `EnqueueTurnInput` appends a `queued` input while another Turn may run. The queue is persisted as rollout records and drained per Section 4.1.1, with `deliveryMode = "queued"`.
+- `RemoveQueuedTurnInput` removes a queued input without starting a Turn.
+- `UpdateQueuedTurnInput(threadId, queuedInputId, expectedTurnId, status)` sets status to `"queued"` or `"guidancePending"`. Promotion requires `expectedTurnId` to be the active Turn; restoring `queued` validates the input's bound Turn without requiring it to be active. Setting the current status again succeeds idempotently.
+- `SteerTurn(threadId, expectedTurnId, content)` atomically appends a `guidancePending` input for the active regular Turn. It rejects a missing or mismatched active Turn, maintenance, Internal threads, and SubAgent child threads, and creates no Turn and no start event.
 
-### 6.5 Event Subscription API
-
-Session Core does not expose a standalone `SubscribeToTurn` API. Instead, the turn-scoped event stream is returned directly from `SubmitInputAsync(...)`:
-
-```
-IAsyncEnumerable<SessionEvent> SubmitInputAsync(
-    string threadId,
-    IList<AIContent> content,
-    SenderContext? sender = null,
-    ...)
-```
-
-The `content` parameter accepts multimodal input (text, images, etc.) as a list of `AIContent` parts. When the transport provides native input metadata (for example native command, skill, or file-reference parts), the transport validates and materializes those parts before submission. Session Core persists both the transport-native snapshot and the materialized `AIContent` snapshot on `UserMessagePayload`, derives `UserMessagePayload.Text` from the native snapshot for compatibility/display, and passes the full multimodal materialized content to the agent via `ChatMessage`. A convenience extension method `SubmitInputAsync(string threadId, string text, ...)` wraps plain text into `[new TextContent(text)]` for text-only callers.
-
-`UserMessagePayload.DeliveryMode` is optional and indicates how the user message entered the conversation: `"normal"` (or omitted) for a direct Turn start, `"queued"` for a queued input that later became a Turn, and `"guidance"` for a user request appended to an active Turn.
-
-`UserMessagePayload.QueuedInputId` stores the queue record that produced the message when available.
-
-`AgentMessagePayload.DeliveryMode` is optional. `"async"` marks a model-initiated message sent to the user while the Turn continues. Session Core persists and broadcasts the Item immediately, but excludes its text when rebuilding model-visible assistant history and when aggregating the Turn's final answer. The ordinary `ToolCall` and `ToolResult` for the invocation remain model-visible.
-
-```
-Task<QueuedTurnInput> EnqueueTurnInputAsync(
-    string threadId,
-    IList<AIContent> content,
-    SenderContext? sender = null,
-    CancellationToken ct = default,
-    SessionInputSnapshot? inputSnapshot = null)
-```
-
-Enqueues user input while another Turn may be running. The queue is persisted as append-only rollout records. On successful Turn completion, Session Core automatically dequeues the first input and invokes `SubmitInputAsync` with `DeliveryMode = "queued"`.
-
-```
-Task<IReadOnlyList<QueuedTurnInput>> RemoveQueuedTurnInputAsync(
-    string threadId,
-    string queuedInputId,
-    CancellationToken ct = default)
-```
-
-Removes a queued input without starting a Turn.
-
-```
-Task<IReadOnlyList<QueuedTurnInput>> UpdateQueuedTurnInputAsync(
-    string threadId,
-    string queuedInputId,
-    string expectedTurnId,
-    string status,
-    CancellationToken ct = default)
-```
-
-Sets the referenced queued input's desired status to `"queued"` or `"guidancePending"`. Promotion to `guidancePending` validates that `expectedTurnId` matches the active Turn. Restoring `queued` validates the queued input's bound Turn but does not require that Turn to remain active. Setting the current status again is an idempotent success. The active execution loop drains pending guidance only at its pre-sampling drain point (see [Running input and history consistency](#running-input-and-history-consistency)). One drain admits every `guidancePending` input bound to the Turn, in queue order, each as its own `UserMessage`. Before admission and outside the queue lock, Session Core runs `UserPromptSubmit` for each input with its display text, except SubAgent follow-up tasks, which are agent-to-agent input rather than user prompts. A blocked input is removed from the queue without an Item or model-visible history and is reported as a `guidanceBlocked` system event; an input whose content resolves to nothing is removed the same way without an event; context returned by a non-blocking hook follows that input as model-only history. The final status recheck, `UserMessage` persistence, and queue removal occur under the same per-thread queue lock used by update and removal operations. If update-to-queued wins the lock, admission is skipped; if admission wins, the queued input no longer exists and the later update fails. If the Turn ends before admission, pending guidance is restored to `queued`.
-
-```
-Task<string> SteerTurnAsync(
-    string threadId,
-    string expectedTurnId,
-    IList<AIContent> content,
-    SenderContext? sender = null,
-    CancellationToken ct = default,
-    SessionInputSnapshot? inputSnapshot = null)
-```
-
-Atomically appends a new `guidancePending` input for the active regular Turn. It rejects a missing or mismatched active Turn, maintenance execution, Internal threads, and SubAgent child threads. It creates no new Turn and emits no Turn-start event. Guidance persistence, later Item admission, and queue removal use the existing per-thread queue lock.
-
-The adapter starts a turn and immediately consumes the returned async stream. Callback-style consumption is a helper-layer concern (for example, wrapping the stream in a local event handler), not part of the `ISessionService` contract.
+Guidance admission happens only at the pre-sampling drain point ([Running input and history consistency](#running-input-and-history-consistency)). One drain admits every `guidancePending` input bound to the Turn, in queue order, each as its own `UserMessage`. Before admission, outside the queue lock, `UserPromptSubmit` runs for each input with its display text, except SubAgent follow-up tasks. A blocked input is removed without an Item or model history and reported as `guidanceBlocked`; an input that resolves to nothing is removed silently; context from a non-blocking hook follows its input as model-only history. The final status recheck, `UserMessage` persistence, and queue removal happen under the per-thread queue lock shared with update and removal: if an update to `queued` wins, admission skips the input; if admission wins, the later update fails. If the Turn ends first, pending guidance returns to `queued`.
 
 ## 7. Channel Adapter Contract
 
 ### 7.1 Role
 
-A channel adapter is the boundary between a transport and Session Core. It is responsible for:
-
-- turning inbound user actions into `ISessionService` calls
-- turning `SessionEvent` output into channel-specific UX
-- routing approval decisions back into the active turn
-- exposing thread discovery and resume in whatever UX the channel supports
-
-The adapter is not a new public framework interface. It is an internal part of a channel's existing `IChannelService`.
+A channel adapter is the boundary between a transport and Session Core. It turns inbound user actions into Session API calls, turns events into channel UX, routes approval and user-input decisions back to the active Turn, and exposes discovery and resume in whatever UX the channel supports. It is part of the channel implementation, not a separate framework interface.
 
 ### 7.2 Contract
 
-The normative contract is intentionally small:
-
-- `CreateThread` / `ResumeThread` / `FindThreads` define thread lifecycle at the transport boundary.
-- `GetThread` returns persisted thread state and may load the thread into the in-process cache **without** rebuilding execution resources (e.g. per-thread MCP connections).
-- `EnsureThreadLoaded` (or an equivalent internal step before turn execution) loads the thread like `GetThread` and, when `Thread.Configuration` is non-null, ensures the effective agent for that thread matches the persisted configuration. It does **not** change thread status or emit `thread/resumed`. Session Core uses this on turn execution paths when the thread may exist only on disk or was cached without agent hydration (e.g. after host restart).
-- `SubmitInput` starts a turn and returns the authoritative event stream for that turn. Before running the agent, Session Core must ensure per-thread configuration (mode, MCP, etc.) has been applied when `Configuration` is present—same outcome as loading via `ResumeThread` from disk.
-- `ResolveApproval` and `CancelTurn` let the adapter participate in interactive control flow.
+- `CreateThread`, `ResumeThread`, and `FindThreads` define thread lifecycle at the transport boundary.
+- `GetThread` returns persisted state and may cache the thread **without** building execution resources such as per-thread MCP connections.
+- Before Turn execution, Session Core ensures the thread is loaded and, when `Configuration` is present, that the effective agent matches it — the same outcome as `ResumeThread` from disk — without changing status or emitting `thread/resumed`. This covers threads that exist only on disk or were cached without agent hydration.
+- `SubmitInput` starts a Turn and returns its event stream.
+- `ResolveApproval`, user-input resolution, and `CancelTurn` participate in interactive control flow.
 - `SetThreadMode` and `UpdateThreadConfiguration` support per-thread behavior where a channel exposes it.
-- `ExportThreadRecovery` and `RestoreThreadRecovery` expose the restricted JSON recovery lifecycle to trusted adapters.
+- `ExportThreadRecovery` and `RestoreThreadRecovery` expose the recovery lifecycle (Section 5.1.2) to trusted adapters.
 
 ### 7.3 Design Constraints
 
-- Adapters may choose different UX patterns (streaming text, buffered messages, structured UI, non-interactive execution).
-- Adapters must not own persistence, agent lifecycle, or hook orchestration.
+- Adapters may choose any UX pattern (streaming, buffered, structured, non-interactive).
+- Adapters never own persistence, agent lifecycle, or hook orchestration.
 
 ## 8. Agent Execution Integration
 
-### 8.1 Principle
+Session Core wraps the agent pipeline rather than redefining it. Agent creation, tool invocation, tracing, and middleware keep their own owners; Session Core standardizes how their output becomes Threads, Turns, Items, and events. Host entry points that wrap a Turn (for example the automation runner) delegate to Session Core rather than forming a second session model.
 
-Session Core wraps the existing agent pipeline rather than redefining it. Agent creation, tool invocation, tracing, and middleware remain existing responsibilities; Session Core standardizes how their output is represented as Threads, Turns, Items, and `SessionEvent`s.
-
-### 8.2 Normative Behavior
-
-For each submitted turn, Session Core must:
-
-- validate thread state and mutual exclusion
-- create the Turn and its initial user input item
-- execute the agent against a runtime session hydrated from persisted rollout history
-- translate agent output into typed items and events
-- collect token usage and other turn-level metadata
-- persist updated domain and model history to rollout
-- emit terminal completion or failure events
-
-### 8.3 Compatibility Boundary
-
-- Session Core owns orchestration.
-- Adapters own presentation.
-- A host entry point that wraps a turn (for example the automation runner) delegates to Session Core; it is not a second session model.
+For each submitted Turn, Session Core validates thread state and mutual exclusion, creates the Turn and its input Item, executes the agent against history hydrated from the rollout, translates output into typed Items and events, collects usage, persists domain and model history, and emits the terminal event.
 
 ## 9. Persistence Specification
 
 ### 9.1 Storage Layout
 
-Thread data is stored under the workspace's `.craft/` directory:
-
 ```
 .craft/
 ├── threads/
 │   ├── active/
-│   │   ├── {threadId}.jsonl     # Canonical rollout history when threadId is a safe file name
-│   │   ├── thread-{sha256(threadId)}.jsonl # Canonical name when threadId contains invalid file-name characters
-│   │   └── ...
-│   ├── archived/
-│   │   ├── {threadId}.jsonl     # Canonical rollout history when threadId is a safe file name
-│   │   ├── thread-{sha256(threadId)}.jsonl # Canonical name when threadId contains invalid file-name characters
-│   │   └── ...
-├── state.db                     # Classified SQLite state, projections, diagnostics, usage
-├── attachments/                 # Workspace-managed attachments referenced by thread history: images/ for images, <id>/ for uploaded files and pasted text
-├── cache/                       # Rebuildable cache files; not part of thread lifecycle
+│   │   ├── {threadId}.jsonl                 # Canonical rollout when threadId is a safe file name
+│   │   └── thread-{sha256(threadId)}.jsonl  # Canonical name when threadId has invalid file-name characters
+│   └── archived/                            # Same naming
+├── terminals/{threadDir}/
+│   ├── {terminalSessionId}.json             # Terminal metadata
+│   └── {terminalSessionId}.log              # Complete terminal output
+├── tool-results/{threadDir}/
+│   └── {stableToolCallArtifact}.txt         # Tool-result spill file
+├── state.db                                 # Classified SQLite state, projections, diagnostics, usage
+├── attachments/                             # Managed attachments: images/ for images, <id>/ for files and pasted text
+└── cache/                                   # Rebuildable cache; not part of the thread lifecycle
 ```
+
+`{threadDir}` uses the same rule as rollout names: a safe Thread id stays readable, otherwise `thread-{sha256(threadId)}`. Paths always resolve under the corresponding `.craft` root; no other directory shape is part of the contract.
 
 ### 9.2 Thread File Format
 
-Each thread is stored as an append-only JSONL rollout. Every line is a `ThreadRolloutRecord` describing one state transition:
+Each thread is an append-only JSONL rollout. Every line is a record `{ kind, timestamp, <payload> }` describing one state transition. Record kinds:
 
-```json
-{ "kind": "thread_opened", "timestamp": "2026-03-15T10:00:00Z", "threadOpened": { ... } }
-{ "kind": "turn_started", "timestamp": "2026-03-15T10:00:01Z", "turnStarted": { ... } }
-{ "kind": "item_appended", "timestamp": "2026-03-15T10:00:01Z", "itemAppended": { ... } }
-{ "kind": "model_history_messages_appended", "timestamp": "2026-03-15T10:00:02Z", "modelHistoryMessagesAppended": { "turnId": "...", "messages": [ ... ] } }
-{ "kind": "provider_history_items_appended", "timestamp": "2026-03-15T10:00:03Z", "providerHistoryItemsAppended": { "schemaVersion": 1, "protocol": "openai-responses", "turnId": "...", "entries": [ ... ] } }
-{ "kind": "provider_history_replaced", "timestamp": "2026-03-15T10:00:04Z", "providerHistoryReplaced": { "schemaVersion": 1, "protocol": "openai-responses", "coveredThroughTurnId": "...", "entries": [ ... ] } }
-{ "kind": "provider_history_attempt_aborted", "timestamp": "2026-03-15T10:00:05Z", "providerHistoryAttemptAborted": { "schemaVersion": 1, "protocol": "openai-responses", "turnId": "...", "attemptId": "..." } }
-{ "kind": "turn_state_replaced", "timestamp": "2026-03-15T10:02:30Z", "turnStateReplaced": { ... } }
-{ "kind": "turn_completed", "timestamp": "2026-03-15T10:02:30Z", "turnCompleted": { ... } }
-{ "kind": "queued_input_added", "timestamp": "2026-03-15T10:02:31Z", "queuedInputAdded": { ... } }
-{ "kind": "queued_input_removed", "timestamp": "2026-03-15T10:02:32Z", "queuedInputRemoved": { ... } }
-{ "kind": "queued_input_reordered", "timestamp": "2026-03-15T10:02:33Z", "queuedInputReordered": { ... } }
-```
+- `thread_opened` — thread baseline, including the versioned source union and `providerHistorySchemaVersion`.
+- `turn_started`, `item_appended`, `turn_completed` — incremental Turn records, still readable.
+- `turn_state_replaced` — a complete Turn mutation. The normal terminal path writes one per Turn; replay replaces that Turn atomically, including its ordered Items, terminal state, input, usage, and error. Streaming deltas and other transient updates are never recorded.
+- `queued_input_added`, `queued_input_removed`, `queued_input_reordered`.
+- `model_history_messages_appended`, `context_compacted` — model-visible history (Section 9.3).
+- `provider_history_items_appended`, `provider_history_replaced`, `provider_history_attempt_aborted` — protocol-native provider history.
+- `thread_rolled_back` — rollback (Section 9.7).
 
-Session Core reconstructs a `SessionThread` by replaying the rollout file in order. Incremental `turn_started`, `item_appended`, and `turn_completed` records remain readable. The normal terminal write path commits a complete Turn mutation as one `turn_state_replaced` record. Replay replaces the same Turn id atomically, including its ordered Items, terminal state, input, token usage, and error. A Turn writes at most one terminal replacement; streaming deltas and other transient lifecycle updates are not rollout records.
+Session Core reconstructs a Thread by replaying the rollout in order.
 
-`thread_opened.source` is a DotCraft-owned versioned union rather than the serialized CLR shape of the public `ThreadSource` type. New records use `schemaVersion = 1`. The user variant stores `kind` and optional `spawnedFromThreadId`. The subagent variant additionally stores parent thread id, root thread id, parent turn id, parent call id, depth, path, task, nickname, role, profile, runtime, and all send, resume, message, follow-up, and close capabilities. A source change is a baseline change and appends a new `thread_opened` record. Replay uses the latest baseline.
-
-Every current rollout begins with a canonical `thread_opened` record containing the versioned source union. An unknown source schema version or a structurally invalid canonical source is a thread identity safety error and stops thread replay; it must not be downgraded to an ordinary user thread.
+`thread_opened.source` is a DotCraft-owned versioned union (`schemaVersion = 1`), not a serialized runtime type. The user variant stores `kind` and optional `spawnedFromThreadId`; the subagent variant also stores parent thread, root thread, parent turn, parent call, depth, path, task, nickname, role, profile, runtime, and all send, resume, message, follow-up, and close capabilities. A source change appends a new `thread_opened`; replay uses the latest. Every rollout begins with a canonical `thread_opened`. An unknown source schema version or structurally invalid source is an identity safety error that stops replay; it is never downgraded to an ordinary user thread.
 
 ### 9.3 Model-History Storage and Runtime Execution
 
-The rollout is the sole authority for both the Session Protocol domain model and optimized model-visible history. Session Core replays the rollout into DotCraft-owned model-history messages, converts them to a request-local `List<ChatMessage>`, and passes that list explicitly to `ChatClientAgent` for execution. The request-local agent object and its middleware pipeline are not persistence records.
+The rollout is the sole authority for both the domain model and optimized model-visible history. Session Core replays it into DotCraft-owned model-history messages, converts them to request-local history, and passes that history explicitly to the agent. Agent objects and middleware are not persistence records.
 
-A successful context replacement has one recoverable rollout commit boundary. The authoritative
-compaction checkpoint and replacement model history are committed before derived context-usage,
-provider-history, context-window, or cache projections are published. Recovery replays the
-checkpoint and repairs or replaces those derived projections; it must never expose a new provider
-window with pre-compaction model history, nor compacted model history with an unrelated provider
-prefix. In-memory history and UI notifications become observable only after the authoritative
-commit succeeds.
+The domain history and the model history are distinct durable representations: `turn_state_replaced` preserves client-visible Turn and Item state; `model_history_messages_appended` preserves the exact provider-facing message sequence. Neither must be losslessly derivable from the other, and model metadata is not copied into Items merely to remove duplicate text.
 
-Per-thread plans are stored in SQLite `thread_plans`. Plans follow the thread lifecycle: archive/unarchive keeps them, and permanent thread deletion cascades through the database.
+- **Append**: every successful mutation of server-managed model history appends its records to the same rollout before it is considered durable.
+- **Load**: resume supplies the replayed history directly to the agent.
+- **Fork**: a persistent fork writes its materialized model history into its own rollout.
 
-Native Agent trees own durable shared discussion state independently of transcript projections. Its ownership, fork, deletion and transient notification semantics are defined by [SubAgent communication and persistence](../features/subagents.md#81-shared-discussion-board).
+A successful context replacement has one recoverable commit boundary: the compaction checkpoint and replacement history are committed before derived context-usage, provider-history, context-window, or cache projections are published. Recovery replays the checkpoint and repairs the derived projections; it never pairs a new provider window with pre-compaction history or compacted history with an unrelated provider prefix. In-memory history and UI notifications become observable only after the commit.
 
-Workspace-managed attachments under `.craft/attachments/`, referenced by persisted `localImage`, `fileRef`, or `contextRef` input parts, are indexed in SQLite `thread_attachments`. Desktop pastes, phone photos and files, and channel images all land there. An attachment file is an independent asset: rollout stores its reference but cannot reconstruct its bytes. The file remains available for history rendering while at least one active or archived thread references it. Permanent thread deletion removes that thread's references and best-effort deletes now-unreferenced managed files. Attachments that never enter thread history, such as unsent drafts, inputs a channel drops before a Turn starts, or a failed send, are removed by an orphan sweep once they are a day old. The sweep runs at most hourly, after a thread-index repair that read every rollout, and is skipped while any rollout is unreadable, because attachment references are then uncertain.
+`context_compacted` is an internal replacement record, not an Item or client event, and uses the same model-history schema. During replay the newest checkpoint whose covered Turn survives establishes a new baseline; earlier model-history records are discarded and later surviving records are appended. Rollback that removes the covered Turn invalidates the checkpoint; removing only later Turns keeps it.
 
-#### 9.3.0 Thread Artifact Storage and Maintenance
+Current rollouts require `thread_opened.providerHistorySchemaVersion = 1` and may persist protocol-native provider history (for OpenAI Responses, the source of the future wire `input` array). Session Core stores these records opaquely and never exposes them through display history; the generic model history remains the cross-provider representation.
 
-The artifact layout is workspace-relative and thread-owned:
+Workspace-managed attachments under `.craft/attachments/`, referenced by persisted `localImage`, `fileRef`, or `contextRef` input parts, are indexed in SQLite. Attachment bytes are independent assets: the rollout stores references only. A file stays available while any active or archived thread references it. Permanent deletion removes the thread's references and best-effort deletes now-unreferenced files. Attachments that never enter history (unsent drafts, inputs dropped before a Turn, failed sends) are removed by an orphan sweep once a day old. The sweep runs at most hourly, only after an index repair that read every rollout, and is skipped while any rollout is unreadable.
 
-```text
-.craft/
-├── terminals/{canonicalThreadDirectory}/
-│   ├── {terminalSessionId}.json   # terminal metadata
-│   └── {terminalSessionId}.log    # complete terminal output
-└── tool-results/{canonicalThreadDirectory}/
-    └── {stableToolCallArtifact}.txt
-```
+Per-thread plans are stored in SQLite; archive and unarchive keep them, and permanent deletion cascades. Native agent trees own durable shared discussion state independently of transcript projections.
 
-The canonical thread directory name is the same for all thread-owned artifact stores: a Thread ID that is a safe file name may remain readable, and an ID containing invalid filename characters uses the `thread-{sha256(threadId)}` form. Runtime code must resolve the final path under the workspace's `.craft/terminals` or `.craft/tool-results` root. Discovery of any other sanitized directory shape is not part of the contract.
+#### 9.3.0 Model-History Record Format
 
-Artifact rules:
+`model_history_messages_appended` atomically stores one Turn-local ordered batch of versioned messages. Each message carries `schemaVersion`, `turnId`, role, optional message identity, author, and timestamp, and ordered contents. The format is independent of runtime type envelopes and serializer-specific shapes.
 
-- A terminal output log is complete persistent output. UI/API previews may impose independent character, line, or width bounds and must not be interpreted as permission to truncate or delete the log.
-- A tool-result spill filename is stable for the originating tool call (prefer the persisted tool call ID; otherwise use a deterministic current-protocol artifact key). Reprocessing or replaying the same call must be idempotent: an existing matching file is a valid result and must not create a second random spill file or overwrite a different call's file.
-- A spill file is referenced from a bounded model-visible preview. The full file is retained through archive and compaction unless permanent deletion or a retention janitor can prove that the owning thread and all current rollout references are gone.
-- The terminal `OutputRetentionDays` setting governs completed and lost terminal artifact retention. Running terminals are never removed by TTL cleanup. Tool-result retention may share the workspace retention policy, but cleanup must be conservative when reference status cannot be established.
-- Startup and long-lived-process maintenance may run a throttled janitor. It must use a workspace/process lock or equivalent coordination, avoid deleting active owners, continue after individual failures, and report a retryable maintenance result. A marker may suppress duplicate scans but must not suppress a later retry after an incomplete scan.
-- Thread deletion is the authoritative synchronous cleanup path; janitor cleanup is best effort and must not be required to make a deleted Thread unavailable. If database deletion succeeds while filesystem cleanup fails, the failure is observable and the orphan remains eligible for a later janitor retry.
-- Normal process shutdown is not an artifact retention boundary. Shutdown cleanup handles active processes and open streams; it does not remove persistent terminal logs or tool-result spill files.
-
-`model_history_messages_appended` atomically stores one Turn-local ordered batch of versioned `ModelHistoryMessage` values. Each message carries `schemaVersion`, `turnId`, role, optional message identity/author/timestamp, and ordered contents. DotCraft's `kind` field is the content discriminator. The storage contract is independent of runtime CLR type envelopes and serializer-specific property shapes. The codec encodes MEAI semantic fields into DotCraft-owned DTOs and explicitly constructs new MEAI values when decoding.
-
-Every model-history content value has the shape `{ kind, payload }`. Model-history schema version is 1. Its payload union is owned by DotCraft and contains only the following durable fields, plus content-level `additionalProperties`:
+Every content value is `{ kind, payload }` with schema version 1. The payload union contains only these durable fields, plus content-level `additionalProperties`:
 
 | Kind | Durable fields |
 |---|---|
@@ -1625,110 +735,74 @@ Every model-history content value has the shape `{ kind, payload }`. Model-histo
 | `usage` | standard token counts and `additionalCounts` |
 | `deferred_tool_reference` | `toolName` |
 
-Writes and reads accept version 1 only. Unknown schema versions are rejected through the bounded replay contract; rollout records are not migrated or rewritten.
-
-Function results use a versioned union. A `json` result stores any JSON-compatible scalar, object, array, or null. A `contents` result recursively stores an ordered list from the parent message's DotCraft-owned content union. Binary data is stored once as base64; derived data URIs are not duplicated.
-
-Function-call namespace and provider-flat-name values are persisted as strong fields even when the same values also occur in `AdditionalProperties`. On decode, the strong fields restore the standard runtime metadata keys. A conflict between a strong field and its extension value makes that content invalid; the model-history replayer rejects the containing record and applies its normal whole-Turn fallback rather than choosing one value silently.
-
-Message-level and content-level `AdditionalProperties` are persisted in full using JSON semantics. Arbitrary nested objects, arrays, numbers, booleans, strings, and nulls must round-trip as JSON; runtime CLR object identity is not a persistence guarantee and complex values may hydrate as `JsonElement`. `RawRepresentation` and runtime exception objects on function calls or results are never persisted. Core content fields remain strongly typed even when equivalent provider metadata also exists in `AdditionalProperties`.
-
-Streaming tool-call argument deltas are transient presentation state. They are removed when model history is encoded and never appear in a rollout model-history record. Any other unsupported runtime content fails the write explicitly; the writer must not silently omit an unknown semantic content type. On read, an unknown kind, malformed owned payload, or metadata conflict follows the tolerant replay contract in section 9.3.2.
-
-Session Core manages the mapping:
-
-- **Append**: Every successful mutation of server-managed model history appends the corresponding model-history records to the same thread rollout before the mutation is considered durable.
-- **Load**: Resume materializes the request-local MEAI history produced by rollout replay and supplies it directly to `ChatClientAgent`.
-- **Fork**: A persistent fork writes its materialized model history into the fork rollout. It does not create a separate runtime-session blob.
-
-The domain history and exact model history are intentionally distinct durable representations. `turn_state_replaced` preserves client-visible Turn and Item lifecycle state. `model_history_messages_appended` preserves the exact provider-facing message sequence. Neither representation is required to losslessly derive the other, and arbitrary model metadata must not be copied into client-visible Items merely to remove duplicate text.
+- Only version 1 is written or read; unknown versions are rejected through bounded replay. Rollout records are never migrated or rewritten.
+- A function result is either `json` (any JSON value) or `contents` (an ordered list from the same content union). Binary data is stored once as base64; derived data URIs are not duplicated.
+- Function-call `namespace` and `providerFlatName` are strong fields even when also present in extension properties. A conflict between them makes the content invalid, and replay applies its whole-Turn fallback rather than choosing one.
+- Message- and content-level extension properties round-trip as JSON; runtime object identity is not preserved. Raw provider representations and runtime exception objects are never persisted.
+- Streaming tool-argument deltas are transient and never written. Any other unsupported runtime content fails the write; the writer never silently drops an unknown content type.
 
 #### Running input and history consistency
 
-The active model/tool loop maintains an ordered history of initial input, model responses, tool results, and admitted steering and passive input. History updates and output events are separate execution outputs. Delivered input remains available to subsequent Turns, cold loading, and recovery export.
+The active model/tool loop keeps an ordered history of initial input, model responses, tool results, and admitted steering and passive input. Delivered input remains available to later Turns, cold loading, and recovery export.
 
-Running input enters the loop at one pre-sampling drain point. The first sample of a Turn admits only passive mailbox input and queued task notifications. After a tool round, the next sample first runs pre-sampling preparation, including compaction, and then drains, so admitted input always follows any compaction baseline verbatim. After a final answer, the loop continues only while user guidance is pending, up to a fixed limit per model request; it runs the same preparation and drain, and ends without sampling again if the drain admits no guidance. Stream-failure reissues and provider-managed continuations do not drain, except after an instant interrupt described below. A drain acquires the thread's SubAgent inbox lock before the queue lock, the same order SubAgent follow-up delivery uses. Every drain appends, in order: goal steering, each admitted guidance input followed by its hook context, subagent mailbox input, and world-state changes. The prompt request snapshot used for context estimates and reactive compaction is captured from the final request after the drain, so it includes the admitted input.
+Running input enters the loop at one pre-sampling drain point:
 
-When `InstantInterruptEnabled` is on (the default), pending user guidance also preempts the current model request while that request has produced no effective output (assistant text, reasoning text, or a tool call) and while the loop waits before a stream-failure reissue. Only `guidancePending` input for the Turn that is neither a SubAgent follow-up task, a task notification, nor a legacy goal-budget input triggers preemption; goal steering, SubAgent mailbox, world state, and queued input do not. Preemption cancels only the provider request, discards its partial updates and any provider-native output recorded for it, does not consume the stream-retry budget, and reissues the request after the same preparation and drain that follow a tool round. A request that already produced effective output is not preempted; its guidance waits for the next drain point. When the option is off, guidance never preempts a request.
+- The first sample of a Turn admits only passive mailbox input and queued task notifications.
+- After a tool round, pre-sampling preparation (including compaction) runs first and then the drain, so admitted input always follows any compaction baseline verbatim.
+- After a final answer, the loop continues only while user guidance is pending, up to a fixed limit per model request, running the same preparation and drain; if the drain admits no guidance, the Turn ends without sampling again.
+- Stream-failure reissues and provider-managed continuations do not drain, except after an instant interrupt.
+- A drain takes the thread's SubAgent inbox lock before the queue lock, the same order SubAgent follow-up delivery uses. It appends, in order: goal steering, each admitted guidance input followed by its hook context, SubAgent mailbox input, and world-state changes.
+- The request snapshot used for context estimates and reactive compaction is taken from the final request after the drain.
 
-Session Core persists the ordered model-history prefix containing an input before consuming its queue entry or confirming communication delivery. Each admitted input has one identity record linking its input ID, Item ID, and Turn ID in model-message metadata. Restart reconciliation uses persisted history and these identities to complete interrupted delivery confirmation. A history write failure stops execution and leaves delivery unconfirmed.
+With instant interrupt enabled (the default), pending user guidance also preempts the current model request while it has produced no effective output (assistant text, reasoning, or a tool call), and while the loop waits before a stream-failure reissue. Only `guidancePending` user input for the Turn triggers preemption — not SubAgent follow-up tasks, task notifications, goal steering, mailbox, world state, or queued input. Preemption cancels only the provider request, discards its partial updates and any provider-native output recorded for it, does not consume the retry budget, and reissues after the same preparation and drain as a tool round. A request with effective output is not preempted. With the option off, guidance never preempts.
 
-Session input identities belong to this correlation metadata. `ChatMessage.MessageId` and protocol-native message IDs belong to the model provider's message identity domain.
+Session Core persists the model-history prefix containing an input before consuming its queue entry or confirming communication delivery. Each admitted input has one identity record linking input id, Item id, and Turn id in model-message metadata; restart reconciliation uses it to complete interrupted delivery confirmation. Provider message ids are a separate identity domain. A history write failure stops execution and leaves delivery unconfirmed.
 
-Completion, failure, and cancellation commit only the unpersisted history suffix. Neutral compaction installs a replacement history baseline that subsequent appends and terminal commits use.
-
-The Agent foundation reports history appends and replacements through an optional asynchronous observer. Session Core uses the observer to own incremental persistence. Standalone execution buffers changes and commits caller-owned history on successful completion. Request sanitization and generated prompt instructions remain local to sampling requests.
-
-Current rollouts require `thread_opened.providerHistorySchemaVersion = 1` and may additionally
-persist a protocol-native history. For OpenAI Responses, that history is the source of the future wire
-`input` array while generic model history remains the Session-owned cross-provider
-representation. Session Core persists the opaque native records without interpreting their provider
-payload or exposing it through display history.
-
-`context_compacted` is an internal model-history replacement record, not a Session Item and not a client event. Its replacement history uses the same versioned DotCraft model-history schema. During replay, the newest checkpoint whose covered turn survives establishes a new history baseline; earlier model-history records are discarded and only later surviving records are appended. Rollback that removes the covered turn invalidates that checkpoint; a checkpoint never covers a Turn later than its covered turn, so removing later Turns keeps it.
+Completion, failure, and cancellation commit only the unpersisted history suffix. Compaction installs a replacement baseline that later appends and terminal commits build on. The agent pipeline reports history appends and replacements to Session Core, which owns incremental persistence; standalone execution outside Session Core buffers changes and commits caller-owned history on success. Request sanitization and generated instructions stay local to sampling requests.
 
 ### 9.3.1 Ordered Rollout Writer
 
-All records for a thread pass through one workspace-lifetime recorder keyed by thread id. Each recorder has one bounded queue and owns its pending suffix and any currently open append stream. Enqueue order is append order. A normal terminal Turn mutation enqueues the Turn replacement, any compaction replacement, and its model-history suffix as one batch, then crosses one flush barrier. The file handle may be released after a barrier so standard filesystem readers can inspect the rollout concurrently; recorder lifetime is independent from file-handle lifetime.
+All records for a thread pass through one workspace-lifetime recorder keyed by thread id, with one bounded queue that owns its pending suffix and any open append stream. Enqueue order is append order. A terminal Turn mutation enqueues the Turn replacement, any compaction replacement, and its model-history suffix as one batch behind one flush barrier. The file handle may be released after a barrier so ordinary readers can inspect the rollout; recorder lifetime is independent of handle lifetime.
 
-A flush receipt identifies the confirmed byte offset and serialized record sizes. SQLite projections advance only after that barrier succeeds. Normal shutdown flushes and closes every recorder. Writers for different threads may operate concurrently, but one thread has exactly one active append order.
+A flush receipt reports the confirmed byte offset and record sizes; SQLite projections advance only after the barrier succeeds. Shutdown flushes and closes every recorder. Different threads write concurrently; one thread has exactly one append order.
 
-Records leave the pending suffix only after their complete JSONL lines have been written. On I/O failure the recorder drops the stream, retains the unwritten suffix, reopens the file, and retries without rewriting confirmed complete lines. If a failed write leaves a non-newline-terminated tail, reopen terminates that invalid tail before retrying the unconfirmed record so forward readers can skip the damaged line. Exhausted retries block later writes for that thread and fail the affected Turn with a persistence error; a later flush or shutdown may retry the retained suffix.
+Records leave the pending suffix only after their complete lines are written. On I/O failure the recorder reopens the file and retries without rewriting confirmed lines; a non-newline-terminated tail is terminated first so readers can skip the damaged line. Exhausted retries block later writes for that thread and fail the affected Turn with a persistence error; a later flush or shutdown may retry the retained suffix.
 
 ### 9.3.2 Bounded Model-History Replay
 
-A shared, read-only replayer is the canonical selector for runtime hydration and current-context export. It receives a rollout path, ordered surviving Turns, an optional excluded current Turn, and the expected Thread id. The rollout path must resolve under the workspace's `.craft/threads/{active,archived}` roots, and the canonical `thread_opened` identity plus every model-history/checkpoint payload must match the expected Thread id. For ordinary uncompressed JSONL, it scans backward in bounded blocks. It accumulates the surviving suffix and stops at the newest decodable `context_compacted` record whose covered Turn still survives. The reconstructed history is the checkpoint replacement followed by later model-history messages in physical rollout order, including later messages associated with the covered Turn itself.
+One shared, read-only replayer selects model history for runtime hydration and current-context export. It takes a rollout path, the ordered surviving Turns, an optional excluded current Turn, and the expected Thread id. The path must resolve under `.craft/threads/{active,archived}`, and the canonical `thread_opened` identity and every model-history and checkpoint payload must match the expected Thread id. For uncompressed JSONL it scans backward in bounded blocks and stops at the newest decodable `context_compacted` whose covered Turn survives. The result is the checkpoint replacement followed by later model-history messages in physical order, including later messages of the covered Turn.
 
-Ordinary malformed JSONL lines, rollout records, model batches, and model contents are rejected individually. Replay skips them, increments a rejected-record count, emits a structured warning without protected or extension payloads, and continues recovering other Turns. If a rejected record can be associated with a Turn, that Turn is marked exact-history-incomplete and its entire model-visible contribution is rebuilt from Session Items; valid exact batches from the same Turn must not be mixed with that fallback. Other Turns continue using exact history.
+- Malformed lines, records, batches, and contents are rejected individually: skipped, counted, and reported as a structured warning without protected or extension payloads. If a rejected record belongs to a Turn, that Turn's entire model-visible contribution is rebuilt from its Items, never mixed with its valid exact batches. Other Turns keep exact history.
+- An invalid checkpoint is discarded whole and scanning continues to an earlier one. Without a usable checkpoint the scan reaches the start and recovers every decodable surviving record, without first materializing a second complete domain thread. A surviving tail Turn with no exact records also uses the Item projection.
+- Canonical `thread_opened` source-schema errors stay fail-fast.
+- The result reports messages, warnings, rejected-record count, fallback Turn ids, bytes read, and decoded-record count.
 
-An invalid checkpoint is discarded as a whole and scanning continues to an earlier checkpoint. If no usable checkpoint exists, the same reverse scan reaches the beginning and recovers every decodable surviving record; it must not first materialize a second complete domain thread. A surviving tail Turn with no exact records also uses the lossy SessionItem projection. Canonical `thread_opened` source-schema errors remain fail-fast because continuing would change thread identity or authority.
-
-The replay result contains ordered messages, warnings, rejected-record count, fallback Turn ids, bytes read, and decoded-record count. Rollout observability records rejected resume records in `dotcraft.rollout.resume.records.rejected` without thread ids or payload data. Full forward domain replay remains available to execution and lifecycle operations that require complete canonical state. UI history reads use the paged projection in section 9.4.2, while current-context export consumes the shared model replay result and applies its own presentation redaction.
+Full forward domain replay remains for operations that need complete canonical state. UI history reads use the paged projection (Section 9.4.2).
 
 ### 9.3.3 Rollout Observability and Search Safety
 
-Rollout diagnostics measure record count and serialized bytes by record kind, flush duration and outcome, and resume bytes, decoded-record count, and rejected-record count. Metric dimensions must remain low-cardinality and must not contain thread ids, message contents, `ProtectedData`, or arbitrary `AdditionalProperties`.
-
-Context search treats exact model-history, provider-history, and compaction replacement records as internal recovery state. It must not index or preview `model_history_messages_appended`, `provider_history_items_appended`, `provider_history_replaced`, `provider_history_attempt_aborted`, `context_compacted`, `ProtectedData`, arbitrary `AdditionalProperties`, system prompts, raw trace event JSON, channel context, or tool arguments/results. Searchable rollout evidence is extracted from explicitly displayable domain fields rather than raw JSONL lines, and a domain value duplicated in model history contributes only one rollout match. Tool arguments and result payloads are omitted or replaced with `[redacted]` at the presentation boundary.
-
-Diagnostic readers apply the same domain replay semantics as Session Core: later `turn_state_replaced` records replace the same Turn, rollback removes the visible tail, and only surviving terminal Items contribute errors and tool summaries. Exact model batches may expose counts, Turn ids, schema versions, content kinds, and rejection status, but never model payloads, `ProtectedData`, or extension properties. Compaction diagnostics expose only checkpoint boundaries and decode status.
-
-Current-context handoff uses the canonical shared model-history replayer. Its Markdown presentation excludes reasoning, `ProtectedData`, `AdditionalProperties`, internal provider metadata, and the free-form `SessionThread.Metadata` dictionary. Thread metadata may contain channel credentials, external CLI session identifiers, private paths, or future extension values and therefore is not eligible for blacklist-based redaction. Export uses an explicit allowlist of strong thread fields such as display name, status, timestamps, origin channel, history mode, and Turn count, and propagates sanitized replay warnings through the existing export warning surface.
+- Rollout diagnostics measure record count and bytes by kind, flush duration and outcome, and resume bytes, decoded records, and rejected records. Dimensions stay low-cardinality and never contain thread ids, message content, protected data, or extension properties.
+- Context search treats model-history, provider-history, and compaction records as internal recovery state and never indexes or previews them, protected data, extension properties, system prompts, raw trace JSON, channel context, or tool arguments and results. Searchable evidence comes from explicitly displayable domain fields, not raw lines; a value duplicated in model history counts once. Tool arguments and results are omitted or `[redacted]` at presentation.
+- Diagnostic readers apply Session Core replay semantics: later `turn_state_replaced` records win, rollback removes the visible tail, and only surviving terminal Items contribute errors and tool summaries. Model batches may expose counts, Turn ids, schema versions, content kinds, and rejection status, never payloads. Compaction diagnostics expose only checkpoint boundaries and decode status.
+- Current-context export uses the shared replayer. Its Markdown excludes reasoning, protected data, extension properties, internal provider metadata, and the free-form thread `Metadata` map (which may hold credentials, external session ids, or private paths). Export uses an explicit allowlist of thread fields — display name, status, timestamps, origin channel, history mode, Turn count — and surfaces sanitized replay warnings.
 
 #### Dashboard Diagnostic Reads
 
-Dashboard trace-session deletion follows the same persistence contract. Deleting one trace session removes that session's trace rows and associated dashboard usage rows; if the session is bound to a thread, deletion cascades through permanent thread deletion. Clearing all trace sessions deletes the selected trace/thread state and associated usage rows, but preserves global usage rows that have no `thread_id` or `session_key`. Bulk trace clearing may run SQLite maintenance (`wal_checkpoint(TRUNCATE)` and conditional `VACUUM`) after deletion to reclaim WAL/free-page space.
-
-Internal prompt-suggestion forks bind to their parent trace session and record parent Turn, fork Turn, and terminal outcome as diagnostic metadata. Provider completion metadata remains separate from Turn status, so a successful provider response with no visible text can be distinguished from a transport failure even when the Turn fails the existing empty-response check. Temporary fork cleanup retains diagnostic records under the existing trace retention policy.
-
-Dashboard trace event reads are paged from the durable trace store. The first page returns a bounded newest-first window of events for the selected session or all sessions; clients fetch older events with an opaque `beforeCursor` when the user scrolls upward. Maintenance envelope events are filterable as maintenance events and are counted separately from normal LLM request/response totals, while detailed collector events and token usage remain in the same trace session for correlation.
-
-The effective `AGENTS.md` context-page snapshot is persisted as an `AgentInstructions` trace event.
-Its content is the rendered current instructions before any world-state replacement or removal
-notice; metadata contains schema version 1,
-item kind `agents_md.instructions`, role `user`, the content-and-sources fingerprint, and ordered
-absolute source paths. Session Core records the resolved snapshot at thread lifecycle boundaries and
-before provider use, with consecutive equivalent snapshots de-duplicated by fingerprint. An empty
-snapshot is recorded as empty content and sources rather than as a replacement or removal notice.
-Dashboard reads this diagnostic from the trace store in both live and read-only modes. It must not
-re-read instruction files or infer their sources from model or provider history. The trace event is
-diagnostic-only and must not be projected back into rollout or model-visible history.
-
-Model-visible AGENTS changes use the `agents_md` world-state section. Updates append as ordinary
-marked user context before the current input, without a history checkpoint or provider-history
-replacement. Source discovery records the effective snapshot but never reconciles persisted history.
-World-state snapshots are committed after their instruction messages, so resume, rollback, and retry
-recover the same effective instructions without restoring context removed by native compaction.
-
-Dashboard may also project read-only thread operations from canonical thread JSONL. Rollback visibility is derived from `thread_rolled_back` records and exposed as operation metadata (`type = rollback`, `threadId`, timestamp, removed Turn count, and source). Hidden recovery records such as compaction checkpoints remain internal and must not be exposed through Dashboard operation APIs or trace views.
+- Deleting one trace session removes its trace and dashboard usage rows; a session bound to a thread cascades through permanent thread deletion. Clearing all trace sessions deletes the selected trace and thread state and associated usage rows, but keeps global usage rows with no thread or session key, and may then reclaim SQLite space.
+- Internal prompt-suggestion forks bind to their parent trace session and record parent Turn, fork Turn, and outcome. Provider completion metadata stays separate from Turn status, so an empty successful response is distinguishable from a transport failure. Temporary fork cleanup keeps diagnostics under trace retention.
+- Trace event reads are paged newest-first with an opaque `beforeCursor` for older events. Maintenance events are filterable and counted separately from LLM request/response totals.
+- The effective `AGENTS.md` context snapshot is recorded as an `AgentInstructions` trace event: the rendered instructions before any world-state notice, with schema version 1, item kind `agents_md.instructions`, role `user`, the content-and-sources fingerprint, and ordered absolute source paths. It is recorded at thread lifecycle boundaries and before provider use, de-duplicated by fingerprint; an empty snapshot is recorded as empty. Dashboard reads it from the trace store and never re-reads instruction files or infers sources from history. It is diagnostic-only and never projected into rollout or model history. Model-visible AGENTS changes travel as world-state context, not through this event.
+- Dashboard may project read-only rollback operations from `thread_rolled_back` records (`type = rollback`, thread id, timestamp, removed Turn count, source). Hidden recovery records such as compaction checkpoints are never exposed.
 
 ### 9.4 Thread Discovery
 
-Thread discovery uses a filesystem-first read-repair pass followed by the SQLite `threads` metadata projection. Rollout files remain the canonical conversation history, while `ThreadSummary` rows are derived metadata used by `FindThreadsAsync`.
+Discovery runs a filesystem-first read-repair pass, then reads the SQLite thread metadata projection. Rollouts remain canonical; summary rows are derived.
 
-Each metadata row records the confirmed rollout byte offset from the flush that produced it. Discovery enumerates active and archived rollout files and compares their paths and lengths with SQLite. Matching rows require no rollout-body read. A missing row, changed path, shortened file, or mismatched offset causes only that rollout to be replayed and its projection rebuilt before the list is returned. Concurrent initial discovery shares one reconciliation operation.
+Each metadata row records the confirmed rollout byte offset from the flush that produced it. Discovery enumerates active and archived rollouts and compares paths and lengths with SQLite. Matching rows need no rollout read; a missing row, changed path, shortened file, or mismatched offset replays only that rollout. Concurrent initial discovery shares one reconciliation.
 
-If SQLite listing or repair is unavailable, discovery reports the metadata read failure; it does not infer or migrate non-canonical rollout paths. Rows whose current canonical rollout files are absent are omitted but are not destructively deleted by read-repair. SQLite projections never participate in model-history reconstruction.
+If SQLite listing or repair is unavailable, discovery reports the failure; it never infers or migrates non-canonical paths. Rows whose rollout is absent are omitted but not deleted by read-repair. SQLite projections never participate in model-history reconstruction.
+
+Each discovered thread summary returns `Id`, `Status`, `OriginChannel`, `ChannelContext`, `UserId`, `WorkspacePath`, `DisplayName`, `CreatedAt`, `LastActiveAt`, and `TurnCount`.
 
 ### 9.4.1 Persistence Authority Classification
 
@@ -1736,172 +810,132 @@ If SQLite listing or repair is unavailable, discovery reports the metadata read 
 |---|---|---|
 | Rollout session authority | Thread baseline and source, Turns, Items, queued inputs, model history, compaction | Replayed from the thread rollout |
 | SQLite durable business authority | Goals, plans, spawn edges, subagent mailbox, visualization widget state | Not rebuilt by rollout read-repair |
-| SQLite runtime continuity state | Context windows | May explicitly degrade to a new transient window when unavailable |
-| SQLite disposable cache and sidecar | Context usage | May be discarded and recomputed or restarted |
+| SQLite runtime continuity state | Context windows | May degrade to a new transient window when unavailable |
+| SQLite disposable cache and sidecar | Context usage | May be discarded and recomputed |
 | SQLite rebuildable projection | Threads, confirmed rollout offset, attachment references, thread read snapshots, Turns, Items | Rebuilt from readable rollout records |
-| Diagnostics and accounting | Traces, token usage, dashboard usage | Independent diagnostic retention rules apply |
+| Diagnostics and accounting | Traces, token usage, dashboard usage | Independent diagnostic retention |
 | Independent file assets | Attachment file bytes | Rollout preserves references only |
 
-Filesystem read-repair updates only thread metadata and attachment references. It must not clear or overwrite durable business authority, runtime continuity, diagnostics, or unrelated sidecar tables. Loss of `state.db` is partial data loss: conversation state remains recoverable from rollout, while goals, plans, graph edges, and mailbox state are not recovered.
+Read-repair updates only thread metadata and attachment references; it never touches business authority, continuity state, diagnostics, or unrelated tables. Losing `state.db` is partial data loss: conversations recover from rollouts, while goals, plans, graph edges, and mailbox state do not.
 
-A projection repair or terminal Turn commit updates thread metadata, attachment references, and their confirmed rollout offsets only after the corresponding rollout flush succeeds. Each projection advances its own offset in the transaction that publishes its complete derived state. Attachment projection uncertainty disables attachment garbage collection until a later successful repair; retaining an orphan is preferable to deleting a referenced asset. Each thread row records the attachment index version that produced its references, and a repair reprojects any thread whose version is older than the current one even when its rollout offset matches, so references added by a newer index (for example uploaded files and pasted text) exist before the orphan sweep may delete anything.
-
-`ThreadSummary` fields returned for each discovered thread:
-- `Id`, `Status`, `OriginChannel`, `ChannelContext`
-- `UserId`, `WorkspacePath`, `DisplayName`
-- `CreatedAt`, `LastActiveAt`
-- `TurnCount`
+Projection repair and terminal Turn commits update thread metadata, attachment references, and their offsets only after the rollout flush succeeds; each projection advances its own offset in the transaction that publishes its state. Attachment projection uncertainty disables attachment garbage collection until a later successful repair. Each thread row records the attachment index version that produced its references, and repair reprojects older versions even when the offset matches, so references exist before the orphan sweep may delete anything.
 
 ### 9.4.2 Paged Thread History Projection
 
-Persisted Thread display history is queried from a rebuildable SQLite projection. AppServer reads must not materialize a complete `SessionThread` or replay a complete rollout merely to return a Thread header, a Turn page, or an Item page. Execution, resume, rollback, compaction, and fork materialization continue to use canonical rollout replay when they require complete domain or model-visible history.
+Persisted display history is read from a rebuildable SQLite projection. Display reads never materialize a complete Thread or replay a complete rollout to return a Thread header, a Turn page, or an Item page. Execution, resume, rollback, compaction, and fork still use canonical replay when they need complete state.
 
-The projection consists of three tables: `thread_history_projection_state` holds one row per Thread with its rollout path, projected rollout offset, next rollout ordinal, Thread snapshot, and persisted runtime; `thread_turns` holds one row per Turn; `thread_items` holds one row per Item, keyed within its Turn and carrying both its original and its most recently updated rollout ordinal.
+The projection has one state row per Thread (rollout path, projected offset, next rollout ordinal, Thread snapshot without Turns, persisted runtime summary), one row per Turn (without Items), and one row per Item (keyed within its Turn, with its original and most recent rollout ordinal). All rows cascade from the owning thread row. Turns page by `(thread_id, rollout_ordinal)`; Items page by thread or by `(thread, turn)`. Process-local maintenance state is overlaid on the runtime summary at read time. These encodings are internal projections, not new authorities.
 
-All three tables reference the owning `threads` row directly or transitively with `ON DELETE CASCADE`. Turn paging uses a `(thread_id, rollout_ordinal)` index. Item paging uses `(thread_id, rollout_ordinal)` and `(thread_id, turn_id, rollout_ordinal)` indexes.
+Ordinals are allocated monotonically per rollout. A Turn or Item keeps the ordinal from when it first became visible; updating an Item advances only its updated ordinal. Rollback removes the visible Turn tail and its Items without lowering the next ordinal, so positions are never reused.
 
-`thread_snapshot_json` is the provider-neutral `SessionThread` state with an empty `Turns` collection. It includes configuration, queued inputs, source, worktree, metadata, and other current Thread fields required by read-only clients. `persisted_runtime_json` is the runtime summary derived from canonical domain state at the same projection boundary; process-local maintenance state is overlaid at read time. `turn_json` stores a `SessionTurn` without Items. `item_json` stores one complete provider-neutral `SessionItem`. These JSON values are internal projection encodings, not new persistence authorities or framework session blobs.
-
-Projection ordinals are monotonically allocated per rollout. A Turn or Item keeps the ordinal assigned when it first becomes visible. Updating the same Item advances `updated_rollout_ordinal` without changing its paging position. Rollback removes the visible Turn tail and its Items but does not lower `next_rollout_ordinal`; later Turns therefore cannot reuse positions removed by rollback.
-
-The per-thread rollout writer and `ThreadRolloutWriteGate` define projection order:
+Projection order, under the per-thread rollout write gate:
 
 1. Append and flush the canonical rollout batch.
 2. Obtain the confirmed byte offset.
 3. Update the affected snapshot, Turn rows, and Item rows in one SQLite transaction.
-4. Advance `projected_rollout_offset` and `next_rollout_ordinal` last in that transaction.
+4. Advance the projected offset and next ordinal last in that transaction.
 
-An SQLite failure after a confirmed rollout write leaves the prior projection checkpoint intact. It must not make the canonical mutation fail retroactively or advance a partial projection. Writers for different Threads may use SQLite WAL concurrently; Session Core does not add a workspace-global history writer.
+An SQLite failure after a confirmed rollout write keeps the previous projection checkpoint; it never fails the canonical mutation retroactively or publishes a partial projection. Writers for different threads run concurrently.
 
-Projection applies domain records as follows:
+Record application:
 
-- Thread baseline, name, status, configuration, and queued-input records update the Thread snapshot.
-- `turn_started` and `turn_completed` insert or update Turn metadata.
-- `item_appended` inserts or replaces the stable Item id while retaining its original paging ordinal.
-- `turn_state_replaced` atomically replaces the Turn metadata and exact Item set; Items absent from the replacement are deleted.
-- `thread_rolled_back` removes the selected visible Turn tail and cascades its Items.
-- Model-history, compaction, and provider-history records do not contribute display rows. The projector reads only their outer record envelope and advances the confirmed checkpoint without decoding their internal payloads.
+- Thread baseline, name, status, configuration, and queued-input records update the snapshot.
+- `turn_started` and `turn_completed` insert or update Turn rows.
+- `item_appended` inserts or replaces an Item id while keeping its original ordinal.
+- `turn_state_replaced` replaces the Turn row and its exact Item set; absent Items are deleted.
+- `thread_rolled_back` removes the visible Turn tail and its Items.
+- Model-history, compaction, and provider-history records contribute no rows; only their outer envelope is read to advance the checkpoint, and provider-history item JSON is never decoded, stored, searched, logged, or exposed. Malformed provider history never makes display pages unavailable.
 
-Persistent forks write and project their own copied rollout; they never share history rows or lineage with the source. Archive and unarchive update the projected rollout path without rewriting history rows. Permanent deletion cascades all history projection rows. Ephemeral Threads have no SQLite owner and do not support paged history queries.
+Persistent forks project their own rollout and share no rows with the source. Archive and unarchive update only the projected path. Permanent deletion cascades all rows. Ephemeral threads have no paged history.
 
-Projection state is created and repaired on demand rather than through a workspace-wide startup scan. A missing state row causes a streaming rebuild from the canonical rollout. A valid checkpoint behind the current file length scans only the complete suffix. A changed path, shortened file, invalid record boundary, or invalid projected JSON clears that Thread's projection and performs a streaming rebuild. Repair runs under the same per-thread gate, publishes one complete SQLite transaction, and retries the requested query after success.
+Projection state is created and repaired on demand, not by a startup scan. A missing state row triggers a streaming rebuild; a valid checkpoint behind the file length scans only the complete suffix; a changed path, shortened file, invalid record boundary, or invalid projected JSON clears and rebuilds that thread. Repair runs under the per-thread gate, publishes one transaction, and retries the query.
 
-The projector parses one JSONL line at a time and decodes only domain payloads. It must not deserialize, store, search, log, or expose the item JSON inside `provider_history_items_appended`, `provider_history_replaced`, or `provider_history_attempt_aborted`. Malformed provider-history state remains isolated to provider-history recovery and must not make provider-neutral Thread, Turn, or Item pages unavailable. Canonical identity errors and unrecoverable domain projection errors fail the query with stable code `ThreadHistoryUnavailable`.
+There is no full-rollout fallback. Canonical identity errors, unrecoverable projection errors, and failed query or repair return the stable error `ThreadHistoryUnavailable`. Deleting `state.db` or the history tables is supported because the next successful read rebuilds the projection.
 
-There is no full-rollout response fallback. If SQLite query or repair fails, the caller receives `ThreadHistoryUnavailable`; Session Core must not replay JSONL into a complete response. Removing `state.db` or the history tables is supported because the next successful paged read rebuilds the projection.
+Read-only query operations:
 
-Session Core exposes this projection through read-only query DTOs rather than returning mutable execution aggregates:
+- `ReadThreadSnapshot(threadId)` — Thread header and persisted runtime.
+- `ListThreadTurns(threadId, cursor, limit, direction)` — one ordered Turn page without Items.
+- `ListThreadItems(threadId, turnId?, cursor, limit, direction)` — one ordered Item page with owning Turn ids.
 
-- `ReadThreadSnapshotAsync(threadId)` returns the provider-neutral Thread header and persisted runtime, with process-local maintenance state overlaid by the caller.
-- `ListThreadTurnsAsync(threadId, cursor, limit, direction)` returns one ordered Turn metadata page without Items.
-- `ListThreadItemsAsync(threadId, optionalTurnId, cursor, limit, direction)` returns one ordered Item page with its owning Turn id.
-
-`GetThreadAsync` remains the internal lifecycle path for execution, resume, rollback, compaction, and fork operations that genuinely require complete canonical state. AppServer display-history reads must not call it.
-
-History projection telemetry contains no Thread content, provider payload, or raw identifier. It records projection hits, incremental repairs, full rebuilds, repair failures and reason categories, page-query duration, returned row count, repair bytes read, repair record count, and `ThreadHistoryUnavailable` counts. Performance acceptance uses a large-history fixture: healthy first and last pages must equal canonical replay, must not open the rollout file, and must allocate `O(page size + largest single rollout record)` server memory rather than memory proportional to total history.
+Projection telemetry contains no content, provider payload, or raw identifier: hits, incremental repairs, full rebuilds, failures by reason, query duration, row counts, repair bytes and records, and `ThreadHistoryUnavailable` counts. Healthy first and last pages over a large history must equal canonical replay, must not open the rollout, and use memory proportional to page size plus the largest single record.
 
 ### 9.5 Cross-Channel Resume Protocol
 
 #### Default discovery (no `crossChannelOrigins`)
 
-`FindThreadsAsync(identity, includeArchived, crossChannelOrigins: null)` uses identity-scoped discovery by default and matches threads by three fields. `ChannelName` on the identity is **not** used as a filter:
+`FindThreads(identity, includeArchived, crossChannelOrigins: null)` matches on three identity fields; `ChannelName` is **not** a filter:
 
 | Field | Behavior |
 |---|---|
 | `WorkspacePath` | Required exact match (case-insensitive) |
-| `UserId` | Matched if non-null in identity; null identity field skips this filter |
-| `ChannelContext` | `null` identity matches only threads with `ChannelContext = null`; non-null matches exactly |
+| `UserId` | Matched if non-null in identity; null skips this filter |
+| `ChannelContext` | Null matches only threads with null `ChannelContext`; non-null matches exactly |
 
-This means cross-channel discovery is **natural for channels that share the same identity shape**:
+Cross-channel discovery is therefore natural for channels sharing an identity shape:
 
-- **Local single-user channels** (a terminal, an editor protocol) use `UserId = "local"` and `ChannelContext = null`. They discover each other's threads automatically: a thread created in one appears in another's session list, and vice versa. This is by design — all of them are local, single-user channels on the same machine.
-- **Social messaging channels** use social conversation identities. Private chats use a per-user identity; group chats use a group/chat identity (`UserId = "group:{id}"` or `"chat:{chatId}"`, with matching `ChannelContext`). Individual senders are recorded per turn through `SenderContext`. Local single-user channels cannot see social-channel threads and vice versa unless an opt-in cross-channel origin is supplied.
+- **Local single-user channels** (a terminal, an editor protocol) use `UserId = "local"` and null `ChannelContext`, and see each other's threads.
+- **Social channels** use per-user identities for private chats and group identities for group chats (`UserId = "group:{id}"` or `"chat:{chatId}"` with matching `ChannelContext`). Individual senders are recorded per Turn. Local and social threads are mutually invisible unless an origin is opted in.
 
 #### Opt-in cross-context discovery (`crossChannelOrigins`)
 
-`FindThreadsAsync` accepts an optional fourth parameter: `crossChannelOrigins` (`IReadOnlyList<string>?`, default `null`).
-
-- When `crossChannelOrigins` is **null** or **empty**, behavior is identical to the default discovery above (no extra threads).
-- When **non-empty**, the result set is the union of:
-  1. Threads that satisfy the default identity predicate (`WorkspacePath` + `UserId` + `ChannelContext` as in the table above), **and**
-  2. Threads that match `WorkspacePath` (case-insensitive) + `OriginChannel` contained in `crossChannelOrigins` (case-insensitive string match), **ignoring `ChannelContext`**. This branch does **not** require `UserId` to match the request identity, so channels that use per-job or per-session synthetic user IDs (e.g. `automation:{runId}`) still appear when the user opts in to that origin.
-
-The union is deduplicated by thread ID and ordered by `LastActiveAt` descending.
-
-This opt-in path exists so clients such as **DotCraft Desktop** (which uses a non-null `ChannelContext` such as `workspace:{path}`) can still list threads created by channels with a different context (for example a channel with `ChannelContext = null`) when the user explicitly allows those origin channels.
+When `crossChannelOrigins` is null or empty, discovery is the default. When non-empty, the result is the union of threads matching the default predicate and threads whose `WorkspacePath` matches and whose `OriginChannel` is in the list (case-insensitive), ignoring `ChannelContext` and `UserId` — so origins with per-run synthetic user ids (for example `automation:{runId}`) appear when opted in. The union is de-duplicated by id and ordered by `LastActiveAt` descending. This lets a client with a non-null context (such as `workspace:{path}`) list threads from origins with a different context when the user allows them.
 
 #### Workspace-scoped discovery
 
-Trusted workspace-owner clients may request workspace-scoped discovery. This mode still requires an exact case-insensitive `WorkspacePath` match, but does not filter by `UserId`, `ChannelContext`, or `OriginChannel`. `crossChannelOrigins` is redundant and ignored in this mode.
-
-Workspace-scoped discovery does not weaken the default identity scope. Clients and adapters that omit the scope continue to use the identity rules above. Archived, sub-agent, internal-thread, query, channel-name, and pagination controls remain independent filters. DotCraft Desktop uses workspace scope so every non-internal thread in the current workspace is discoverable, including automation, App Binding origins, and external origins the client does not know in advance.
+Trusted workspace-owner clients may request workspace scope: exact `WorkspacePath` match only, with no `UserId`, `ChannelContext`, or `OriginChannel` filter; `crossChannelOrigins` is ignored. Callers that omit the scope keep identity rules. Archived, sub-agent, internal-thread, query, channel-name, and pagination filters remain independent. Workspace scope makes every non-internal thread in the workspace discoverable, including automation, App Binding, and unknown external origins.
 
 #### Resume flow
 
-Discovery returns threads matching the combined predicate when `crossChannelOrigins` is set, otherwise the default predicate only. The normative resume steps are in Section 5.5.
+The resume steps are in Section 5.5.
 
 ### 9.6 Persistence Failure Handling
 
-- **Save failure**: The writer retains the unconfirmed suffix and retries transient failures. If durability cannot be established, the affected Turn ends with a stable persistence error; Session Core must not report a successfully durable terminal Turn or silently discard model history.
-- **Load failure**: Ordinary malformed history records are skipped with structured warnings. If Session Core cannot read the file or cannot safely interpret the canonical thread header or source schema, it returns an error to the adapter. The adapter should inform the user and offer to create a new Thread.
-- **Discovery failure**: If a thread file is unreadable during `FindThreadsAsync`, it is skipped with diagnostic evidence. SQLite failure falls back to readable filesystem rollouts, and one corrupt file does not prevent other threads from being discovered.
+- **Save failure**: the writer keeps the unconfirmed suffix and retries. If durability cannot be established, the Turn ends with a stable persistence error; Session Core never reports a durable terminal Turn or silently discards model history.
+- **Load failure**: malformed history records are skipped with warnings. An unreadable file or an unsafe canonical header or source schema returns an error; the adapter informs the user and may offer a new Thread.
+- **Discovery failure**: an unreadable thread file is skipped with diagnostics; one corrupt file never hides other threads.
 
 ### 9.7 Thread Rollback
 
-`RollbackThread(threadId, numTurns)` removes `numTurns` turns from the end of a non-archived Thread. `numTurns` must be at least 1 and no turn in the Thread may be `Running`, `WaitingApproval`, or `WaitingInput`.
+`RollbackThread(threadId, numTurns)` removes `numTurns` (at least 1) Turns from the end of a non-archived Thread with no active Turn.
 
-Rollback appends a canonical rollback record to thread JSONL and updates thread metadata; it does not revert files or other workspace side effects created by tools. After rollback, Session Core rebuilds model-visible history from the rollout through the newest compaction checkpoint whose covered Turn survives, invalidates provider anchors and token trackers, and saves a replacement-history estimate; while a provider-native replacement is active, that estimate comes from the generation-scoped estimator rather than the neutral transcript. Pre-turn and turn-end checkpoints cover only terminal Turns, so editing and resending the newest Turn keeps its compacted history; a mid-turn or reactive checkpoint covering the removed Turn is discarded and the surviving history is rebuilt from the previous checkpoint or full canonical history. Rollback must not silently restore model-visible history that had already been compacted out.
-Rollback broadcasts the `HistoryRolledBack` runtime signal, which resets the Thread's runtime state. It is not a Turn completion and must not produce a Turn-completion notification.
-Rollback does not release the historical Turn sequence numbers of removed Turns. Replay scans all valid `turn_started` records, including Turns later removed by rollback, before allocating a new Turn ID.
-Successful rollback also records a maintenance trace event for live Dashboard visibility. Dashboard must de-duplicate that live event with the canonical rollout-derived operation when both are available.
+- Rollback appends a canonical rollback record and updates thread metadata. It does not revert files or other tool side effects.
+- Model-visible history is rebuilt through the newest compaction checkpoint whose covered Turn survives; provider anchors and token trackers are invalidated and a replacement-history estimate is saved (from the generation-scoped estimator while a provider-native replacement is active). Pre-turn and turn-end checkpoints cover only terminal Turns, so editing and resending the newest Turn keeps its compacted history; a mid-turn or reactive checkpoint covering a removed Turn is discarded. Rollback never restores history that compaction had removed.
+- Rollback resets the Thread's runtime state. It is not a Turn completion and produces no Turn-completion notification.
+- Removed Turn sequence numbers are not reused: replay scans every valid `turn_started`, including rolled-back ones, before allocating a new id.
+- Successful rollback also records a maintenance trace event; Dashboard de-duplicates it with the rollout-derived operation.
 
 ## 10. Approval Flow Integration
 
 ### 10.1 Principle
 
-Approvals are part of the turn model, not an out-of-band concern owned by individual channels.
+Approvals are part of the Turn model, not an out-of-band concern of individual channels.
 
 ### 10.2 Normative Behavior
 
-When a tool execution requires approval, Session Core must:
+When a tool execution requires approval, Session Core emits an approval request tied to the active Turn, pauses that execution path until an adapter resolves it or the Turn ends (approvals have no timeout), records the outcome in Turn history, and resumes or rejects the operation.
 
-- emit an approval request event tied to the active turn
-- pause the affected execution path until an adapter resolves the request or the Turn ends; approvals have no timeout
-- record the approval outcome in the turn history
-- resume or reject the operation accordingly
+When a Turn is cancelled, completes, or fails with approval or user-input requests pending, Session Core resolves each before the Turn's terminal event: an approval as `CancelTurn`, so its operation does not run, and a user-input request with an empty response. Each resolution creates its response Item and emits the resolved event. A later resolution of the same request is ignored, and a request raised after its Turn ended is rejected without prompting.
 
-When a Turn is cancelled, completes, or fails with approval or user-input requests still pending, Session Core resolves each one before the Turn's terminal event where it can: an approval as `CancelTurn`, so its operation does not run, and a user-input request with an empty response. Each resolution creates its response Item and emits the resolved event. A later resolution attempt for the same request is ignored, and a request raised after its Turn ended is rejected without prompting.
+The adapter only presents the request and returns the decision. Approval UX is channel-specific, and non-interactive server-managed channels may auto-approve.
 
-The adapter is responsible only for presenting the request and returning the decision.
+### 10.3 Model-Initiated User Input
 
-### 10.3 Constraints
+`RequestUserInput` lets the agent ask one to three short structured questions before continuing. It is exposed only to main user threads, not SubAgents, and keeps the same schema in Agent and Plan modes.
 
-- Approval UX remains channel-specific.
-- Non-interactive server-managed channels may auto-approve.
+Each `UserInputRequest` carries `isBlocking`, set by Session Core from the active mode: `true` in Plan mode, `false` in Agent mode. It is client-facing metadata, not a tool argument, and does not change the server-side wait: both modes pause until resolution or Turn end.
 
-### 10.4 Model-Initiated User Input
+On invocation Session Core finalizes and persists preceding assistant and reasoning content, emits the `UserInputRequest` Item, pauses until resolution, cancellation, or unavailable-client fallback, records the `UserInputResponse`, and returns the answers to the tool.
 
-`RequestUserInput` is a model tool that lets the agent ask one to three short structured questions before continuing. It is exposed only to main user threads, not SubAgents, and remains schema-stable across Agent and Plan modes.
+Interactive adapters present the request natively. A client may auto-resolve a non-blocking request with an empty answer according to its own foreground and inactivity policy; blocking requests need an explicit answer or cancellation. Non-interactive or unsupported adapters resolve with an empty answer so the Turn continues.
 
-Each persisted `UserInputRequest` carries a required `isBlocking` value selected by Session Core from the active mode: `true` in Plan mode and `false` in Agent mode. The flag is client-facing lifecycle metadata, not a model tool argument. It does not change the server-side wait: both modes pause until the adapter resolves the request or the turn ends.
+### 10.4 Asynchronous User Coordination
 
-When the tool is invoked, Session Core must:
+`SendUserMessageAsync` is exposed by default to top-level Agent and Plan threads (not Internal or SubAgent threads). It validates a non-empty message, persists and broadcasts an `AgentMessage` with `deliveryMode = "async"`, returns `{ "accepted": true }`, and lets the loop continue.
 
-- finalize and persist any assistant or reasoning content emitted before the tool call
-- emit a `UserInputRequest` Item tied to the active turn
-- pause the affected execution path until resolution, turn cancellation, or transport/unavailable-client fallback
-- record the returned `UserInputResponse` Item
-- resume execution with the answer payload returned to the tool
+The `clock` namespace is exposed by default to ordinary agent threads, including native SubAgents but not Internal threads. `clock/CurrentTime` returns the current UTC time. `clock/Sleep` accepts `durationMs` from 1 ms to 12 hours and records a `Sleep` Item for the wait. It returns after the duration, Turn cancellation, or an active-Turn steer, mailbox, or task notification signal; the runtime subscribes before rechecking pending input so a signal at the boundary is not lost. The next drain then admits that input before the next sample.
 
-Interactive adapters present the request in their native UI. A client may automatically resolve a non-blocking request with an empty answer object according to its own foreground and inactivity policy. Blocking requests require an explicit answer or turn cancellation. Non-interactive or unsupported adapters resolve the request with an empty answer object so the turn can continue.
-
-### 10.5 Asynchronous User Coordination
-
-`SendUserMessageAsync` is exposed by default to top-level Agent and Plan threads, except Internal and SubAgent child threads. It validates a non-empty message, persists and broadcasts an `AgentMessage` with `deliveryMode = "async"`, returns `{ "accepted": true }`, and lets the current model/tool loop continue.
-
-The `clock` namespace is exposed by default to ordinary Session Core agent threads, including native SubAgents but excluding Internal threads. `clock/CurrentTime` returns the current UTC time. `clock/Sleep` accepts `durationMs` from 1 millisecond through 12 hours and records a `Sleep` Item for the wait lifecycle. Sleep completes after the requested duration, Turn cancellation, or an active-Turn steer, mailbox, or task notification signal. The runtime subscribes before rechecking pending input so input arriving at the subscription boundary cannot be lost. After Sleep returns, the existing safe-boundary drain admits steer, mailbox, and notification content before the next model sample.
-
-Prompt composition describes the choice only when the corresponding tools are available: use `RequestUserInput` when a structured answer blocks further work, use `SendUserMessageAsync` when the agent can continue independent authorized work, and use `clock/Sleep` after asking when no independent work remains. An asynchronous message must not be repeated in the final answer. These tools never create a Goal or change Goal continuation behavior.
+When these tools are available, prompt composition describes the choice: `RequestUserInput` when a structured answer blocks further work, `SendUserMessageAsync` when independent authorized work can continue, and `clock/Sleep` after asking when no independent work remains. An asynchronous message is not repeated in the final answer. These tools never create a Goal or change Goal continuation.
 
 ## 11. Failure Model
 
@@ -1911,301 +945,200 @@ Prompt composition describes the choice only when the corresponding tools are av
 
 | Failure | Trigger | Behavior |
 |---------|---------|----------|
-| **Agent Exception** | `RunStreamingAsync` throws | Create Error Item. Set Turn status = Failed. Emit `turn/failed`. Save partial state. |
-| **Recoverable Provider Stream Disconnect** | The provider stream disconnects, becomes idle past `StreamIdleTimeoutMs`, or ends before the sampling request completes | Emit `system/event` with `kind = "streamError"` and re-issue the sampling request up to the provider's `StreamMaxRetries`. A failure before the first delivered update replays the same request; a failure after delivery commits the truncated response first and re-issues from the grown history. Exhaustion falls through to Agent Exception behavior. Cleanup of the failed provider stream is best-effort and must not indefinitely block retry or failure delivery. |
-| **Provider Rate Limit, Quota, or Overload** | The provider reports throttling, an exhausted plan or balance, or that the selected model is at capacity | Classify each case distinctly, whether the provider reports it as an HTTP status or as an error frame inside an otherwise successful stream. Throttling is retryable and honors a server-advised delay when the provider supplies one. Quota exhaustion and explicit capacity rejection are terminal. The failed Turn carries the classification as `providerError` and the upstream `httpStatus` when known, so clients can offer the correct next action instead of a generic failure. |
-| **Tool Execution Error** | Unified dispatch returns or classifies a tool failure | Native/plugin calls complete `ToolResult` with stable failure fields; MCP and Runtime Dynamic calls complete their specialized lifecycle item as failed. The normalized textual failure is returned to the model, which decides whether to retry or stop. |
-| **Incomplete Historical Tool Pair** | Persisted or in-memory model history contains a `tool_use`/function call without an immediately following `tool_result`/function result | Repair or filter the model request before provider submission so strict providers can accept the history. The repair is request-local and does not silently mutate rollout evidence. |
-| **Turn Timeout** | Turn exceeds configurable time limit | Cancel the `CancellationToken`. Create Error Item. Set Turn status = Failed. |
-| **Cancellation** | Adapter calls `CancelTurn` | Resolve pending approval and user-input requests (Section 10.2). Cancel the `CancellationToken`. Set Turn status = Cancelled. Save partial state. |
-| **Prompt Hook Blocked** | PrePrompt hook returns `Blocked = true` | Create Error Item with block reason. Set Turn status = Failed. No agent invocation occurs. |
+| **Agent Exception** | Agent execution throws | Error Item; Turn `Failed`; `turn/failed`; partial state saved. |
+| **Recoverable Stream Disconnect** | Provider stream disconnects, idles past its timeout, or ends before the request completes | `streamError` event and re-issue up to the provider retry limit (Section 6.3). Exhaustion becomes Agent Exception. |
+| **Rate Limit, Quota, or Overload** | Provider reports throttling, exhausted plan or balance, or model capacity | Classified distinctly whether reported as HTTP status or in-stream error frame. Throttling is retryable and honors a server-advised delay; quota and capacity rejection are terminal. The failed Turn carries `providerError` and `httpStatus` when known. |
+| **Tool Execution Error** | Dispatch returns or classifies a tool failure | The tool's result Item completes with stable failure fields; the failure text is returned to the model, which decides how to proceed. |
+| **Incomplete Historical Tool Pair** | History has a tool call without an immediately following result | Request-local repair or filtering before provider submission (Section 5.3). |
+| **Turn Timeout** | Turn exceeds its configured limit | Execution cancelled; Error Item; Turn `Failed`. |
+| **Cancellation** | Adapter calls `CancelTurn` | Pending requests resolved (Section 10.2); Turn `Cancelled`; partial state saved. |
+| **Prompt Hook Blocked** | PrePrompt hook blocks | Error Item with the reason; Turn `Failed`; no agent invocation. |
 
 #### Thread-Level Failures
 
 | Failure | Trigger | Behavior |
 |---------|---------|----------|
-| **Resume Failed (file missing)** | Thread file not found on resume | Return error to adapter. Adapter informs user. |
-| **Resume Failed (unsafe header)** | Canonical thread header or source schema cannot be safely interpreted | Return error to adapter. Do not downgrade thread identity or authority. |
-| **Concurrent Turn** | Adapter calls `SubmitInput` while a Turn is Running | Return error to adapter. Adapter should queue or reject the message. |
+| **Resume Failed (file missing)** | Thread file not found | Error returned to adapter. |
+| **Resume Failed (unsafe header)** | Canonical header or source schema cannot be safely interpreted | Error returned; identity and authority never downgraded. |
+| **Concurrent Turn** | `SubmitInput` while a Turn is active | Error returned; adapter queues or rejects. |
 
 #### Persistence Failures
 
 | Failure | Trigger | Behavior |
 |---------|---------|----------|
-| **Save Failed** | Rollout writer cannot confirm a terminal Turn batch | Retain the unconfirmed suffix, block later writes for that thread, and end the Turn with a persistence error. A later flush may retry. |
-| **Metadata Corrupt** | `threads` projection is unreadable or inconsistent | Attempt filesystem read-repair; if SQLite remains unavailable, return filesystem-derived summaries with a diagnostic warning. |
-| **History Projection Unavailable** | A paged history query cannot validate, incrementally repair, or rebuild the thread history projection | Return the stable `ThreadHistoryUnavailable` error. Do not assemble or return a full-history response from JSONL. |
-| **Disk Full** | No space for new rollout records or SQLite writes | Return error on CreateThread/SubmitInput. Adapter informs user. |
+| **Save Failed** | Writer cannot confirm a terminal Turn batch | Suffix retained, later writes blocked, Turn ends with a persistence error (Section 9.3.1). |
+| **Metadata Corrupt** | Thread projection unreadable or inconsistent | Filesystem read-repair; if SQLite stays unavailable, filesystem-derived summaries with a diagnostic warning. |
+| **History Projection Unavailable** | Paged query cannot validate, repair, or rebuild | `ThreadHistoryUnavailable`; never a full-history response from JSONL. |
+| **Disk Full** | No space for rollout or SQLite writes | Error on `CreateThread`/`SubmitInput`. |
 
 #### Channel Disconnect Failures
 
 | Failure | Trigger | Behavior |
 |---------|---------|----------|
-| **Adapter Disconnects Mid-Turn** | An adapter's transport drops mid-turn | Turn continues to completion. Events are emitted to a dead consumer (buffered and eventually dropped). On reconnect, the adapter can resume the Thread and see the completed Turn's results. |
-| **Adapter Never Resolves Approval** | Channel disconnects while WaitingApproval | The approval stays pending. Another adapter may resolve it; otherwise it resolves as `CancelTurn` when the Turn ends. |
+| **Adapter Disconnects Mid-Turn** | Transport drops | The Turn runs to completion; events to the dead consumer are dropped; the adapter sees results after resume. |
+| **Adapter Never Resolves Approval** | Channel disconnects while `WaitingApproval` | The approval stays pending; another adapter may resolve it, otherwise it resolves as `CancelTurn` when the Turn ends. |
 
 ### 11.2 Recovery Strategy
 
-- **Turn failures** do not corrupt Thread state. A failed Turn is recorded in the Thread's Turn history. The adapter can submit a new Turn to retry.
-- **Interrupted process recovery** terminates a persisted non-terminal Turn during the next cold load. Session Core durably commits it as `Cancelled` before publishing `turn/cancelled` with reason `"interrupted"`, preserving completed partial history so later input and recovery export can proceed.
-- **Canonical write failures** are recoverable because Session Core retains the unconfirmed in-memory suffix and retries on the next operation.
-- **History projection failures** are recoverable from canonical JSONL through the incremental repair or full rebuild rules in §9.4.2. A failed repair remains an explicit read failure; it is never converted into an unbounded JSONL response.
-
-- **Channel disconnects** are transparent to Session Core. Turns run to completion regardless of adapter state. Results are persisted and available on reconnect.
+- Turn failures never corrupt Thread state; a failed Turn stays in history and the adapter may submit a new Turn.
+- A persisted non-terminal Turn is terminated at the next cold load (Section 5.2).
+- Canonical write failures are recoverable because the unconfirmed suffix is retained and retried.
+- History projection failures recover from canonical JSONL through repair or rebuild (Section 9.4.2); a failed repair stays an explicit read failure.
+- Channel disconnects are transparent to Session Core.
 
 ### 11.3 Error Reporting
 
-All failures surface as:
-1. An `Error` Item within the Turn (for turn-level failures)
-2. An exception returned to the adapter's `SubmitInput`/`ResumeThread` call (for thread-level and persistence failures)
-3. A log entry with structured context (`threadId`, `turnId`, error category)
+Failures surface as an `Error` Item in the Turn (turn-level), an error returned to the adapter's call (thread-level and persistence), and a structured log entry with `threadId`, `turnId`, and error category.
 
 ## 12. Per-Session Agent Configuration
 
 ### 12.1 Principle
 
-Thread configuration belongs to the thread model rather than to any individual adapter.
+Thread configuration belongs to the thread model, not to any adapter.
 
 ### 12.2 Thread Configuration
 
-Each thread may carry a `Configuration` object. This is a thread-owned model, not channel-owned state, and the same shape applies across every host, in-process or out-of-process.
+Each thread may carry a `Configuration` object. It is thread-owned, persisted with the thread, and has the same shape across every host:
 
 ```
 ThreadConfiguration
 ├── McpServers: McpServerConfig[]?                  // Per-thread MCP server connections
-├── Mode: string                                    // Agent mode: "agent", "plan", etc. (default: "agent")
+├── Mode: string                                    // "agent", "plan", ... (default "agent")
 ├── Extensions: string[]?                           // Active extension prefixes, e.g. ["_unity"]
 ├── CustomTools: string[]?                          // Additional tool names to enable
-├── ProviderId: string?                             // Per-thread provider id captured at thread creation
-├── Model: string?                                  // Per-thread model captured from ProviderPreferences at thread creation
-├── Reasoning: ReasoningConfig?                     // Per-thread reasoning configuration
-├── Speed: standard|fast?                           // Per-thread requested inference-speed mode
-├── WorkspaceOverride: string?                      // Alternate workspace root for this thread
-├── Cwd: string?                                    // Sticky working directory; relative paths resolve here
-├── RuntimeWorkspaceRoots: string[]?                // Sticky ordered runtime boundaries; null defaults to cwd
-├── ExecutionWorkspaceOverride: string?             // Runtime execution root, typically a registered worktree
+├── ProviderId: string?                             // Provider captured at thread creation
+├── Model: string?                                  // Model captured at thread creation
+├── Reasoning: ReasoningConfig?                     // Reasoning configuration
+├── Speed: standard|fast?                           // Requested inference-speed mode
+├── WorkspaceOverride: string?                      // Alternate workspace root
+├── Cwd: string?                                    // Sticky working directory
+├── RuntimeWorkspaceRoots: string[]?                // Sticky ordered runtime boundaries
+├── ExecutionWorkspaceOverride: string?             // Execution root, typically a registered worktree
 ├── ToolProfile: string?                            // Named tool profile to inject
-├── UseToolProfileOnly: bool                        // Use only the profile tools when true
-├── AgentInstructions: string?                      // Optional extra system instructions
+├── UseToolProfileOnly: bool                        // Use only the profile tools
+├── AgentInstructions: string?                      // Extra system instructions
 ├── DeveloperInstructions: string?                  // Starting application's instructions, final prompt section
 ├── ApprovalPolicy: default|prompt|autoApprove|deny // Thread-scoped approval behavior
 ├── AutomationTaskDirectory: string?                // Local automation task directory
-└── RequireApprovalOutsideWorkspace: bool?          // Overrides file-access and shell launch-directory boundary behavior
+└── RequireApprovalOutsideWorkspace: bool?          // Outside-workspace file and shell boundary behavior
 ```
 
-Approval-related fields are normative:
+Approval fields:
 
-- `ApprovalPolicy = default` means the thread uses the normal interactive approval path when a tool requests approval.
-- `ApprovalPolicy = prompt` means the thread always uses the interactive approval path, even when the workspace default is `autoApprove`.
-- `ApprovalPolicy = autoApprove` means approval-gated operations on that thread are auto-accepted by the server.
-- `ApprovalPolicy = deny` means any approval-gated operation is rejected without prompting; the active tool receives the rejection and the turn may continue. A persisted `interrupt` is read as `deny`.
-- `RequireApprovalOutsideWorkspace = true` allows outside-workspace file or shell operations to proceed through the approval service.
-- `RequireApprovalOutsideWorkspace = false` rejects outside-workspace file or shell operations without prompting.
-- `RequireApprovalOutsideWorkspace = null` falls back to the workspace-level default in `AppConfig.Tools.File`, which governs both file and shell operations.
+- `default` uses the normal interactive approval path; `prompt` always uses it, even when the workspace default is `autoApprove`; `autoApprove` accepts approval-gated operations on the server; `deny` rejects them without prompting, the tool receives the rejection, and the Turn may continue. A persisted `interrupt` is read as `deny`.
+- `RequireApprovalOutsideWorkspace`: `true` sends outside-workspace file and shell operations through approval; `false` rejects them without prompting; null uses the workspace file-tool default, which governs both file and shell operations.
 
-When a thread is created or its configuration changes, Session Core recreates the effective agent/tool set from that configuration.
+When a thread is created or its configuration changes, Session Core rebuilds the effective agent and tool set; a Turn already running is never switched mid-flight. Configuration changes never create Turns, and channels may expose only the subset their UX supports.
 
-Model preference resolution is thread-aware:
+Model preference:
 
-- when a server-managed thread is created, Session Core captures the effective provider and its complete `ModelPreference`: model, reasoning, and speed
-- an explicit thread configuration wins; otherwise the preference resolves from `AppConfig.ProviderPreferences[ProviderId]`
-- a selected provider without a complete preference is not a valid MainAgent runtime
-- the MainAgent uses the captured thread configuration for every turn, resume, and tool-planning operation; workspace defaults never replace values on an existing thread
-- native full-history SubAgents inherit the parent thread's complete captured preference and ignore default, role, and invocation-specific overrides
-- external CLI SubAgents do not consume native model preferences
-- changing provider or preference on an existing thread atomically replaces the corresponding provider/model/reasoning/speed values while preserving the rest of `ThreadConfiguration`; workspace changes affect Welcome and future threads only
-- provider and SubAgent preference changes invalidate cached agents, but an already-running turn is never switched mid-flight
+- At creation, a server-managed thread captures the effective provider and its complete model preference (model, reasoning, speed). An explicit thread configuration wins; otherwise the preference comes from the workspace provider preferences. A provider without a complete preference is not a valid main-agent runtime.
+- The main agent uses the captured values for every Turn, resume, and tool-planning operation; workspace changes affect only new threads.
+- Native full-history SubAgents inherit the parent's complete captured preference and ignore other overrides. External CLI SubAgents do not use native preferences.
+- Changing provider or preference on an existing thread atomically replaces those values and keeps the rest of the configuration.
+- A server-managed thread also captures its memory scope and workspace memory switch at creation.
 
-A server-managed thread captures its memory scope and workspace memory switch at creation; workspace changes do not alter that captured scope.
+Context capacity is resolved per operation from the effective model's merged catalog (global and workspace catalogs override built-in entries). A positive `Compaction.MaxContextWindow` caps it; the default `-1` uses the catalog window. Running Turns keep their captured capacity; model changes affect queued and future work.
 
-Context capacity is resolved from the effective model's merged catalog for each operation. Global
-and workspace model catalogs override the built-in entries. A positive `Compaction.MaxContextWindow`
-limits that capacity; its default `-1` uses the catalog window. Compaction applies its reserves
-and thresholds to the resulting window.
-Running Turns retain their captured capacity while model changes affect queued and future work.
+Workspace resolution:
 
-Workspace resolution is thread-aware:
-
-- `WorkspacePath` is the state workspace for thread persistence and workspace-owned state.
-- `WorkspaceOverride`, when present, is the traditional alternate workspace root for a thread.
-- `Cwd`, when present, is the sticky working directory for tool execution and relative path resolution without moving state from `WorkspacePath`.
-- `RuntimeWorkspaceRoots` is an ordered full replacement when present. Null defaults to the ordinary cwd; an empty array explicitly supplies no runtime roots.
-- A cwd-only update retargets the old cwd entry while preserving additional roots. Duplicate roots are removed without changing first-occurrence order.
-- `ExecutionWorkspaceOverride`, when present, wins for tool execution and first-party file/Git surfaces while keeping state in `WorkspacePath`; it replaces the ordinary cwd root in the effective roots and preserves additional roots.
-- Git worktree handoff uses `ExecutionWorkspaceOverride`; it must not use `WorkspaceOverride` to move state into the worktree.
-- Existing-thread worktree handoff is a metadata/configuration change on the same Thread. It must be rejected while the Thread has running or waiting turn work, and it must rebuild the effective agent/tool context before the next turn.
+- `WorkspacePath` is the state workspace for persistence and workspace-owned state.
+- `WorkspaceOverride` is an alternate workspace root for the thread.
+- `Cwd` is the sticky working directory for tool execution and relative paths, without moving state.
+- `RuntimeWorkspaceRoots` is an ordered full replacement when present; null defaults to the ordinary cwd, and an empty array supplies no roots. A cwd-only update retargets the old cwd entry and keeps additional roots; duplicates are removed keeping first occurrence.
+- `ExecutionWorkspaceOverride` wins for tool execution and first-party file and Git surfaces while state stays in `WorkspacePath`; it replaces the ordinary cwd root in the effective roots. Worktree handoff uses it, never `WorkspaceOverride`.
+- Worktree handoff on an existing thread is a configuration change on the same Thread: rejected while a Turn is active, and the effective agent and tool context is rebuilt before the next Turn.
 
 ### 12.3 Mode Switching
 
-Mode switching is a thread-level operation:
-
-```
-ISessionService.SetThreadMode(threadId: string, mode: string) → void
-```
-
-- Changes `Thread.Configuration.Mode`.
-- Session Core recreates the agent with the new mode's tool set.
-- No Turn is created. This is a metadata operation.
+`SetThreadMode(threadId, mode)` changes `Configuration.Mode` and rebuilds the agent's tool set. It creates no Turn.
 
 ### 12.3.1 Mode-Stable Plan Tools
 
-Plan-related tools remain schema-stable across ordinary Agent/Plan mode switches to preserve prompt-cache stability. When `PlanStore` is available, `AgentFactory` exposes `CreatePlan`, `UpdateTodos`, and `TodoWrite`; `ModeToolPolicy` enforces which calls are valid for the current mode:
+Plan tools keep the same schema across Agent/Plan switches to preserve prompt-cache stability. When plan persistence is available, `CreatePlan`, `UpdateTodos`, and `TodoWrite` are always exposed and the mode decides which calls are valid:
 
-| Mode | Allowed Plan Tools | Denied Plan Tools |
-|------|--------------------|-------------------|
+| Mode | Allowed | Denied |
+|------|---------|--------|
 | `plan` | `CreatePlan` | `UpdateTodos`, `TodoWrite` |
 | `agent` | `UpdateTodos`, `TodoWrite` | `CreatePlan` |
 
-**Plan persistence is required**: every host that exposes mode switching must provide per-thread plan persistence. Without it the plan tools are omitted regardless of the requested mode; that is a host configuration error, not a graceful degradation.
-
-**Plan update notification is optional**: a host may observe plan changes to drive its own UX, such as a status panel or a wire notification. Each notification carries the source `threadId` and the complete plan snapshot. Omitting it disables real-time plan status in the client but does not change tool injection.
-
-**Host equivalence**: every host that exposes `ISessionService` must supply the same mode-critical capabilities — plan persistence, and hook execution where lifecycle hooks are expected — so mode switching behaves identically across hosts.
+Every host that exposes mode switching must provide per-thread plan persistence, and hook execution where lifecycle hooks are expected, so mode switching behaves identically across hosts; without plan persistence the plan tools are omitted, which is a host configuration error. A host may observe plan changes (each carrying `threadId` and the complete plan) to drive its own UX.
 
 ### 12.4 MCP Lifecycle
 
-MCP server connections are thread-scoped, not turn-scoped:
+MCP connections are thread-scoped:
 
-- **Connect**: When a thread is created with `McpServers`, Session Core connects those servers, waits for the current startup attempt to settle, and adds ready tools before turn execution. Failed servers are reflected through MCP status and do not prevent agent construction unless the caller cancels. The same applies when a thread with persisted `McpServers` is prepared for turn execution after a cold load (e.g. via `ResumeThread` from disk or `EnsureThreadLoaded` before `SubmitInput`). Purely read-only operations (`GetThread`, thread discovery) must not connect MCP servers solely because thread metadata was loaded.
-- **Disconnect**: When a thread is archived or its MCP configuration changes, Session Core disconnects the previous servers.
-- **Lifecycle**: MCP connections live as long as the thread remains active.
-
-When `Thread.Configuration.McpServers` is null, workspace-level MCP configuration applies.
+- **Connect**: when a thread with `McpServers` is created, or prepared for Turn execution after a cold load, Session Core connects the servers, waits for the startup attempt to settle, and adds ready tools before execution. Failed servers are reported through MCP status and do not block agent construction. Read-only operations (`GetThread`, discovery) never connect servers.
+- **Disconnect**: archiving the thread or changing its MCP configuration disconnects the previous servers.
+- Connections live while the thread is active. Null `McpServers` means workspace MCP configuration applies.
 
 ### 12.5 Connection-Scoped Extension Capabilities
 
-Channel capabilities such as extension prefixes are connection-scoped at discovery time but may be recorded in `Thread.Configuration.Extensions` when they affect the thread's effective tool set.
-
-For channels that do not use extension capabilities, `Thread.Configuration.Extensions` is null.
-
-### 12.6 Design Constraints
-
-- Configuration changes do not implicitly create turns.
-- Configuration must be persisted with the thread.
-- Channels may expose only the subset of configuration that their UX supports.
+Channel extension capabilities are connection-scoped at discovery time but may be recorded in `Configuration.Extensions` when they affect the thread's tool set. Channels without extensions leave it null.
 
 ## 13. Social Channel Patterns
 
 ### 13.1 Group Sessions (Multi-User)
 
-Group sessions are supported without changing the Thread / Turn / Item model:
+Group sessions use the same Thread / Turn / Item model:
 
-- `Thread.UserId` for group sessions is **null or a group identifier** (e.g., `group:12345` or `chat:chatId`), not an individual user.
-- Each Turn's `Input` Item can carry per-message sender information in its payload.
-- Sender context is appended to the current user message runtime context, not to the thread system prompt, so prompt-cacheable system instructions remain stable across different group senders.
-
-The sender fields on the `UserMessage` payload (`senderId`, `senderName`, `senderRole`, `groupId`) are defined in Section 4.2.
-
-Session Core still treats the thread as a single execution context; sender identity is carried at the turn level.
+- A group thread's `UserId` is null or a group identifier (`group:12345`, `chat:chatId`), not an individual.
+- Each Turn's input carries the sender fields of the `UserMessage` payload (Section 4.2).
+- Sender context is appended to the current user message's runtime context, not the system prompt, so cacheable instructions stay stable across senders.
+- The thread remains one execution context; sender identity is per Turn.
 
 ### 13.2 Permission and Role System
 
-Permissions are an adapter-level concern. Typical roles include `Unauthorized`, `Whitelisted`, and `Admin`. They affect:
+Permissions are an adapter concern. Roles (for example `Unauthorized`, `Whitelisted`, `Admin`) decide whether a user may chat, whether tools may write, whether the user may approve operations, and which slash commands are available. The adapter rejects unauthorized users before submitting input, supplies the user's role in the approval context, and filters commands by permission.
 
-- Whether a user can chat at all
-- Whether tools can write to the workspace
-- Whether a user can approve operations
-- Whether a user can use slash commands like `/stop`, `/new`
-
-Permission evaluation is an adapter boundary. Session Core does not interpret channel roles: the adapter rejects unauthorized users before submitting input, supplies the user's role in the approval context so approval routing can use it, and filters slash commands by permission level.
-
-`SubmitInputAsync` (Section 6.5) accepts an optional `SenderContext`:
-
-```
-SenderContext
-├── SenderId: string           // Individual user ID
-├── SenderName: string         // Display name
-├── SenderRole: string         // "admin" or "user"
-└── GroupId: string            // Group/chat ID for group sessions (nullable)
-```
-
-Session Core records `SenderContext`, appends it to the current user message runtime context, and passes it through to approval handling. The adapter is responsible for populating it.
+`SubmitInput` accepts an optional sender context — `SenderId`, `SenderName`, `SenderRole` (`admin` or `user`), and nullable `GroupId` — populated by the adapter. Session Core records it, appends it to the current user message's runtime context, and passes it to approval handling.
 
 ### 13.3 Slash Commands
 
-Slash commands are modeled as a managed subsystem with a single server-side command registry for **server-managed commands**:
+Server-managed slash commands have one server-side registry, authoritative for discovery, permission hints, and routing. In-process adapters call it directly; out-of-process adapters reach it through the wire protocol. Adapters may provide native command UX but never fork command semantics.
 
-- Built-in in-process adapters call the registry directly.
-- Out-of-process adapters use AppServer wire methods (`command/list`, `command/execute`).
-- Both paths resolve against the same server-managed command set and permission metadata.
+| Command | Maps To |
+|---------|---------|
+| `/stop` | `CancelTurn` for the thread's active Turn |
+| `/new` | Reset conversation: archive reusable threads and create a fresh thread |
+| `/load`, `/sessions` | `FindThreads` + `ResumeThread` |
+| `/help` | Managed command metadata listing |
+| `/automate` | Automation management (host service) |
+| `/debug` | Debug mode toggle (host service) |
+| `/init` | Expands a repository-guidelines prompt into a normal agent Turn |
+| Custom commands | Resolved by the command pipeline |
 
-| Command | Maps To | Scope |
-|---------|---------|-------|
-| `/stop` | `ISessionService.CancelTurn(turnId)` | Session Core |
-| `/new` | `ISessionService.ResetConversation(identity)` (archive reusable threads + create fresh thread) | Session Core |
-| `/load`, `/sessions` | `ISessionService.FindThreads(identity)` + `ResumeThread` | Session Core |
-| `/help` | Managed command metadata listing | Session Core + Adapter rendering |
-| `/automate` | Automation management operations | AppServer-hosted service |
-| `/debug` | Debug mode toggle operation | AppServer-hosted service |
-| `/init` | Expand a repository-guidelines prompt into a normal agent turn | Session Core command pipeline |
-| Custom commands | `CustomCommandLoader.TryResolve` | Session Core command pipeline |
+`/clear` is a client-local UI command, not a thread lifecycle command; client-local commands are outside the registry.
 
-The registry is authoritative for command discovery, permission hints, and execution routing.
-Adapters may still provide platform-specific UX (for example native command menus), but they must not fork server-managed command semantics.
-`/clear` is intentionally excluded from Session Core semantics and should be treated as a client-local UI command (clear screen) rather than a thread lifecycle command.
-Client-local commands are outside `command/list` and `command/execute`.
-
-`/init` is a workspace-conditional server-managed built-in command. Command discovery omits it when
-`AGENTS.override.md` or `AGENTS.md` is already a regular file at the thread's `WorkspacePath`. It
-returns an expanded prompt that asks the agent to inspect that primary workspace and create
-`AGENTS.md` with concise English project instructions grounded in the repository. The agent must
-check both standard filenames and must not overwrite or modify an existing file. Clients execute
-the expanded prompt through the ordinary turn pipeline, so normal workspace tools, approvals, and
-remote-workspace routing continue to apply.
+`/init` is workspace-conditional: discovery omits it when `AGENTS.override.md` or `AGENTS.md` already exists as a regular file at the thread's `WorkspacePath`. Its prompt asks the agent to inspect the workspace and create `AGENTS.md` with concise English project instructions, checking both filenames and never modifying an existing file. It runs as an ordinary Turn, so normal tools, approvals, and remote routing apply.
 
 ### 13.4 Active Run Cancellation
 
-Session Core owns active-run cancellation:
+Session Core owns cancellation of the active run. `CancelTurn(turnId)` cancels the Turn's execution and transitions it to `Cancelled`. Foreground tool resource owners finish cancellation cleanup before the terminal Turn event. Explicitly detached background terminals are not owned by the Turn and are stopped through terminal control operations.
 
-- Session Core tracks the `CancellationTokenSource` for each Running Turn internally.
-- `CancelTurn(turnId)` cancels the token and transitions the Turn to `Cancelled`.
-- Foreground tool resource owners observe that token and finish their cancellation cleanup before the terminal Turn event is emitted.
-- Explicitly detached background terminals are not owned by the active Turn and require terminal control-plane stop or cleanup operations.
-- The adapter maps `/stop` to `CancelTurn` for the current Thread's active Turn.
+### 13.5 Turn Interruption History
 
-### 13.5 Turn interruption history
+With `AgentInterruptMessageEnabled` (default `true`), explicit Turn cancellation, including an approval `CancelTurn` decision, appends one model-visible `turn_aborted` context item after the interrupted Turn's partial history. Caller cancellation, thread deletion, recovery, and failures do not imply intentional interruption. The terminal Turn and its history are persisted before cancellation notifications are published.
 
-`AgentInterruptMessageEnabled` defaults to `true`.
-Explicit turn cancellation (including the approval CancelTurn decision) appends one model-visible
-`turn_aborted` context item after the interrupted turn's partial history. Caller cancellation,
-thread deletion, recovery, and failures do not imply an intentional interruption. The terminal
-turn and its history are persisted before publishing cancellation notifications.
-
-A regular fork that retains an active source turn appends the same boundary only to the child.
-Completed-turn item cuts and forks excluding the active turn do not generate a new marker.
-Retained existing markers survive fork and resume. Ephemeral threads retain them in memory.
-Disabling the setting suppresses new markers without removing existing history.
-
-Responses records the marker as provider-owned local input as well as neutral history, without
-replacing native compacted history. Existing compression and rollback rules apply.
-On cancellation, Responses preserves completed provider output and any streamed assistant text
-whose output item has not completed before appending the interruption boundary. Failed attempts
-that are retried are still discarded. Ephemeral history retains the cancelled turn's input even
-when cancellation occurs before session initialization or no interruption marker is generated.
+- A regular fork that retains an active source Turn appends the same boundary only to the child. Completed-turn item cuts and forks excluding the active Turn add no marker.
+- Existing markers survive fork and resume; ephemeral threads keep them in memory. Disabling the setting suppresses new markers without removing existing ones.
+- Responses records the marker as provider-owned local input as well as neutral history, without replacing native compacted history. On cancellation, Responses keeps completed provider output and streamed assistant text whose output item had not completed before appending the boundary. Retried failed attempts are still discarded.
+- Ephemeral history keeps the cancelled Turn's input even when cancellation precedes session initialization or no marker is generated.
 
 ## 14. Bidirectional Capabilities
 
-Bidirectional capabilities are outside the session model.
-
-The Session Protocol models conversation state and turn execution. It does not model transport-specific request/response features such as IDE filesystem access, terminal control, extension calls, or API-specific REST flows. Those remain tool- or channel-level concerns. Background terminals follow the same boundary: Session Core records the observable `CommandExecution` Item for the originating tool call, while AppServer exposes live terminal snapshots and output deltas to terminal-capable clients. The model-facing shell surface stays minimal (`Exec` plus `WriteStdin`, where empty stdin polls output, and `TaskStop` to stop a terminal); terminal listing, direct reads, client stops, and cleanup are AppServer/control-plane capabilities.
-
-The design rule is simple:
-
-- Session Core models conversation semantics.
-- Adapters and tool providers model transport capabilities.
+The session model covers conversation state and Turn execution only. Transport-specific request/response features — IDE filesystem access, terminal control, extension calls, REST flows — are tool or channel concerns. Background terminals follow the same boundary: Session Core records the observable `CommandExecution` Item for the originating call, while the wire protocol exposes live terminal snapshots and output to terminal-capable clients. The model-facing shell surface stays minimal (`Exec`, `WriteStdin` where empty stdin polls, and `TaskStop`); terminal listing, direct reads, client stops, and cleanup are control-plane capabilities.
 
 ## 15. Thread Goals
 
-Session Core owns persistent thread goals, their runtime accounting, and autonomous continuation. A thread has at most one current goal. Clients and adapters may expose controls, but must translate them to Session Core or AppServer goal operations instead of maintaining independent goal state.
+Session Core owns persistent thread goals, their runtime accounting, and autonomous continuation. A thread has at most one current goal. Clients and adapters translate goal controls into Session Core operations rather than keeping their own goal state.
 
-Goal continuation turns are ordinary persisted turns with system provenance. Session Core starts them only when an active goal exists, automatic continuation is enabled, the thread is idle, the thread is in a goal-compatible mode, and no user/approval/plan-confirmation work is pending. The continuation input is generated by Session Core as model steering; it is not a user-authored message.
+Goal continuation Turns are ordinary persisted Turns with system provenance. Session Core starts one only when an active goal exists, automatic continuation is enabled, the thread is idle and in a goal-compatible mode, and no user, approval, or plan-confirmation work is pending. The continuation input is model steering generated by Session Core, not a user message.
 
-When a user interrupts a turn that is pursuing an active goal, Session Core accounts progress made so far and changes the goal to `paused`. Non-user cancellation may account progress but must not imply user intent to pause unless the cancellation source explicitly represents an interrupt.
+When a user interrupts a Turn pursuing an active goal, Session Core accounts the progress made and sets the goal to `paused`. Other cancellation may account progress but implies a pause only when its source represents an interrupt.
 
-Goal objective text is user-provided data. Whenever it is injected into model-visible context, it must be escaped and marked as untrusted task context rather than higher-priority instructions.
+Goal objective text is user data: whenever it enters model-visible context it is escaped and marked as untrusted task context, not instructions.
 
 ## 16. Wire Protocol (Cross-Language SDK Support)
 
-Out-of-process clients use a protocol projection of `ISessionService`. The projection owns wire
-DTOs, connection capabilities, transport errors, and notification delivery; it must not introduce
-another Thread lifecycle or persist independent conversation state.
+Out-of-process clients use a protocol projection of the Session API. The projection owns wire DTOs, connection capabilities, transport errors, and notification delivery; it must not introduce another Thread lifecycle or persist independent conversation state.

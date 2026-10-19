@@ -2,24 +2,23 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.1 |
+| **Version** | 0.9.1 |
 | **Status** | Draft |
-| **Date** | 2026-10-12 |
+| **Date** | 2026-10-19 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Runtime Module Boundaries](../architecture/runtime-module-boundaries.md) |
-| **Related Specs** | [External CLI SubAgent](external-cli-subagent.md), [Context Compaction](../architecture/context-compaction.md), [Multi-Folder Projects](multi-folder-projects.md) |
+| **Related Specs** | [External CLI SubAgent](external-cli-subagent.md), [Context Compaction](../architecture/context-compaction.md), [Agent Import](agent-import.md) |
 
 Purpose: define how a workspace imports chat sessions recorded by other coding agents on the same
 machine (Claude Code, ChatGPT, Cursor) into DotCraft threads, and how those imports are kept in sync.
 
 ## 1. Scope and Ownership
 
-Session import is a per-workspace capability owned by the bundled `DotCraft.SessionImport` module and
-projected through AppServer. It has four boundaries:
+Session import is a per-workspace capability owned by a bundled module and projected through
+AppServer. It has four boundaries:
 
 1. **Source adapters** read the on-disk session stores of other agents. They are read-only: an adapter
    never writes to, locks, renames, or repairs a source file.
-2. **Session Core** creates and extends threads from normalized import input through
-   `ISessionService.ImportThreadAsync` and `ISessionService.AppendImportedTurnsAsync`.
+2. **Session Core** creates and extends threads from normalized import input (§5).
 3. **AppServer** exposes detection, import, and sync settings under `import/*` and broadcasts import
    progress notifications.
 4. **Desktop** renders the Settings › Import page and the import dialog for the current workspace.
@@ -33,8 +32,8 @@ runs it: a workspace detects and imports only the source sessions whose working 
 that workspace (§3.2). There is no cross-workspace import, no session-to-project assignment step, and
 import never creates a workspace or writes `.craft/` into another folder.
 
-Remote-mode consequences follow from this ownership: an AppServer reads the source stores of the
-machine it runs on. Clients must not assume the sources live on the client machine.
+An AppServer reads the source stores of the machine it runs on; in remote mode the sources are not on
+the client machine.
 
 ## 2. Definitions
 
@@ -80,16 +79,16 @@ under it. The working directory comes from the session records, never from direc
   is not a member.
 
 Paths are compared after full-path normalization, with separators unified and, on Windows, without
-case sensitivity. A candidate whose working directory is a subfolder is imported with
-`Configuration.Cwd` set to that subfolder. When the folder no longer exists the candidate is skipped.
+case sensitivity. A candidate whose working directory is a subfolder is imported with the thread
+working directory set to that subfolder. When the folder no longer exists the candidate is skipped.
 
 ### 3.3 Window and limits
 
 Per source, detection considers files modified within `MaxSessionAgeDays` (default 30), takes the
 newest `MaxSessionsPerSource` (default 50) by modification time, and only then applies membership and
 validation. Sessions already recorded in the ledger with an unchanged modification time are skipped
-before parsing; when the time changed but the recomputed content hash did not, the next import pass refreshes the
-recorded time so the file is not parsed again on the next pass. Sessions that produce no import turn
+before parsing; when the time changed but the content hash did not, the next import pass refreshes the
+recorded time. Sessions that produce no import turn
 are not candidates.
 
 ### 3.4 Exclusions
@@ -125,7 +124,7 @@ tagged text, and everything else is dropped.
 ### 4.1 Turn assembly
 
 Records are read in file order. A user text record starts a new import turn; subsequent assistant text
-records become `AgentMessage` items of that turn until the next user text record. Assistant records
+records become agent message items of that turn until the next user text record. Assistant records
 before the first user record are dropped. Empty turns are dropped.
 
 Within one source message, text parts are joined with a blank line. Tool activity is rendered inline:
@@ -153,7 +152,7 @@ Source specifics:
   `last-prompt`, `queue-operation`, and others without `parentUuid`) do not produce items.
 - `codex`: paginated rollouts use `event_msg.item_completed` items — `UserMessage` text parts,
   `AgentMessage` text, and `CommandExecution`, `FileChange`, and `McpToolCall` as tool text; `Reasoning`
-  and the remaining item kinds are dropped. Legacy rollouts use `event_msg.user_message` and
+  and the remaining item kinds are dropped. Non-paginated rollouts use `event_msg.user_message` and
   `event_msg.agent_message`, plus `response_item` `function_call`, `custom_tool_call`,
   `local_shell_call`, and their outputs as tool text. When the current file declares `history_base`,
   the ancestor file's bytes before `end_byte_offset` precede the current file's records after its own
@@ -171,7 +170,7 @@ millisecond when the source is not monotonic. Item timestamps equal their turn's
 
 ### 4.3 Import marker
 
-The last turn ends with one additional `AgentMessage` whose text is `<EXTERNAL SESSION IMPORTED>`.
+The last turn ends with one additional agent message whose text is `<EXTERNAL SESSION IMPORTED>`.
 The marker stays in place when later turns are appended or when that turn is extended (§5.2), so it
 appears exactly once per thread and may then sit before the messages added later.
 
@@ -194,26 +193,26 @@ left falls through to the next turn. An empty result becomes `Imported session`.
 
 ### 5.1 Creation
 
-`ISessionService.ImportThreadAsync(ThreadImportRequest)` creates a thread that already contains
-history. It differs from `CreateThreadAsync` in these ways:
+Import creates a thread that already contains history. It differs from normal thread creation in
+these ways:
 
 - The thread id is deterministic: `thread_import_<source>_<hash>` where `<hash>` is the first 16 hex
   characters of SHA-256 over `<source>:<sourceId>`. A request whose thread already exists returns the
   existing thread without changes.
-- No agent is built. Configuration is captured the same way `CreateThreadAsync` captures it, then
-  `Cwd` is applied from the request.
-- Turns are materialized as terminal `Completed` turns with `Completed` items, `originChannel`
+- No agent is built. Configuration is captured as for normal creation, then the working directory is
+  applied from the request.
+- Turns are materialized as terminal completed turns with completed items, `originChannel`
   `session-import`, and source timestamps (§4.2).
-- The thread carries `ProviderHistorySchemaVersion` at the current version and no provider or model
-  history records; model-visible history is rebuilt from items on demand.
+- The thread carries no provider or model history records; model-visible history is rebuilt from items
+  on demand.
 - A context usage snapshot records the request's estimated token count (total UTF-8 bytes of message
   text divided by four) so the first follow-up turn can trigger automatic compaction.
 - The thread is persisted through the normal Session Core path and announced through
   `thread/started`. Contribution lifecycle start hooks do not run; they run when the thread resumes.
 
-Identity: `WorkspacePath` is the workspace root, `UserId` is `local`, `OriginChannel` is
-`session-import`, and `ChannelContext` is `workspace:<workspacePath>` so Desktop's workspace-scoped
-thread discovery lists the thread. Provenance is stored in metadata:
+Identity: the workspace path is the workspace root, the user id is `local`, the origin channel is
+`session-import`, and the channel context is `workspace:<workspacePath>` so workspace-scoped thread
+discovery lists the thread. Provenance is stored in metadata:
 
 | Key | Value |
 |-----|-------|
@@ -225,9 +224,8 @@ Metadata holds stable identity only. Sync watermarks live in the ledger.
 
 ### 5.2 Extension
 
-`ISessionService.AppendImportedTurnsAsync(ThreadImportAppendRequest)` appends turns to an existing
-imported thread. It is refused, with no change, unless every existing turn has `originChannel`
-`session-import` and the thread is `Active` and not running. The caller supplies the expected existing
+Extension appends turns to an existing imported thread. It is refused, with no change, unless every
+existing turn has `originChannel` `session-import` and the thread is active and not running. The caller supplies the expected existing
 turn count and the appended turns; the request fails when the count differs. Session Core compares the
 existing turns' user and assistant text with the caller's `existingTurns`: every turn but the last must
 match exactly, and the last existing turn's assistant messages must equal, or be a prefix of, the
@@ -279,8 +277,8 @@ metadata, with hashes recomputed on the next detection.
 
 For each importable candidate, in detection order:
 
-1. `new`: convert, then `ImportThreadAsync`; record the ledger entry.
-2. `changed`: convert, then `AppendImportedTurnsAsync` with the ledger's `turnCount` and the converted
+1. `new`: convert, then create the thread (§5.1); record the ledger entry.
+2. `changed`: convert, then extend the thread (§5.2) with the ledger's `turnCount` and the converted
    turns; on success update the ledger hash, modification time, and turn count. A refusal leaves the
    ledger untouched and reports the candidate as `deferred`.
 
@@ -289,17 +287,14 @@ thread, and a source file that disappears leaves the thread and its ledger recor
 
 ### 6.3 Sync and client integration
 
-The import coordinator owns sync selection, configuration, protocol presentation and history.
-Synchronization uses the `AgentImport` configuration section.
-The session ledger and imported threads retain the persistence contract defined above.
-Detection may rebuild ledger state in memory but never writes it. A completed import pass persists
+The import coordinator of [Agent Import](agent-import.md) owns sync selection, configuration
+(the `AgentImport` section), protocol presentation and history. Detection may rebuild ledger state in memory but never writes it. A completed import pass persists
 recomputed hashes and modification times.
 
 ## 7. Reading Without Importing
 
-A host that embeds DotCraft may read candidates without turning them into threads, for example to show
-a session to someone who decides what to do with it. The Harness package exposes this as
-`ExternalSessionReader`.
+A host that embeds DotCraft may read candidates without turning them into threads. The Harness package
+exposes this as `ExternalSessionReader`.
 
 - It reads the current user's source stores (§3.1) and applies workspace membership (§3.2) and
   exclusions (§3.4) within the window the caller gives (§3.3).

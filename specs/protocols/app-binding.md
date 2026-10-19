@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.10 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-10-18 |
+| Date | 2026-10-19 |
 | Related specs | [Tools architecture](../architecture/tools-architecture.md), [AppServer protocol](appserver-protocol.md), [Session Core](../architecture/session-core.md) |
 
 App Binding is DotCraft's application connection and thread-authorization control plane. It does not define, attach, execute, or present tools. Ordinary application capabilities come from one binding-scoped MCP session; interactive presentation uses MCP Apps. Channel bindings authorize a conversation target whose operations are exposed by a managed native tool source.
@@ -27,7 +27,7 @@ App Binding does not own:
 - Dynamic Tool declarations or callbacks;
 - executable tool catalogs, per-tool scopes, or tool-selection consent;
 - tool dispatch, result schemas, Session item lifecycle, or approval policy;
-- private iframe resources, UI calls, or context blocks;
+- private iframe resources, UI calls, or context blocks.
 
 An app descriptor contains product identity, installation and connection UX, branding, and safe links. Execution declarations such as tool namespaces, scopes, and catalogs are invalid.
 
@@ -61,17 +61,7 @@ For local runtimes, the durable authority key is `local:<canonical-workspace-pat
 
 AppServer maintains a minimal, workspace-scoped, in-memory registry for app-owned Desktop surfaces. A registry key is `(appId, surfaceId)`. It is discovery and credential handoff only; it does not grant thread tool authority.
 
-An authenticated app principal publishes a surface with `app/surface/publish`:
-
-```json
-{
-  "surfaceId": "board",
-  "endpoint": "http://127.0.0.1:43120/",
-  "bearer": "<opaque-secret>"
-}
-```
-
-`appId` is taken from the authenticated principal and MUST NOT be accepted from request parameters. `surfaceId` is a non-empty app-defined stable id. `endpoint` MUST be an absolute loopback `http` or `https` URL. User info and fragments are forbidden. `bearer` is a non-empty opaque credential.
+An authenticated app principal publishes a surface with `app/surface/publish`, giving `surfaceId`, `endpoint`, and `bearer`. `appId` is taken from the authenticated principal and MUST NOT be accepted from request parameters. `surfaceId` is a non-empty app-defined stable id. `endpoint` MUST be an absolute loopback `http` or `https` URL. User info and fragments are forbidden. `bearer` is a non-empty opaque credential.
 
 Every successful publish creates a fixed 120-second lease and returns `{ appId, surfaceId, endpoint, bearer, expiresAt }`. Publishing the same `(appId, surfaceId)` again atomically replaces the endpoint and bearer, even when either value is unchanged, and renews the lease to 120 seconds from that publish. There is no configurable lease duration and no durable registry state. AppServer restart clears every surface; control-connection loss does not remove a surface before its lease expires.
 
@@ -120,7 +110,7 @@ State labels are not authority. Every dispatch checks binding id, authority revi
 
 Every ordinary binding owns an independent MCP session, bearer, generation, approved snapshot, and lifecycle. Binding MCP is additive to thread/workspace MCP configuration and uses binding origin provenance. Thread MCP null/empty/replacement semantics cannot remove it.
 
-DotCraft initializes binding MCP with the `2025-06-18` compatibility baseline and the standard `initialize` handshake. The `2026-07-28` discovery lifecycle is not implicitly probed or negotiated. This baseline is shared with ordinary DotCraft MCP clients so App Binding does not have a separate version-selection policy. A compatible initialize-era server may negotiate another supported legacy revision through the standard lifecycle.
+DotCraft initializes binding MCP with the `2025-06-18` compatibility baseline and the standard `initialize` handshake. The `2026-07-28` discovery lifecycle is not implicitly probed or negotiated. App Binding shares this baseline with ordinary DotCraft MCP clients; a server may negotiate another supported revision through the standard lifecycle.
 
 Only Streamable HTTP is accepted:
 
@@ -169,7 +159,7 @@ The following require `thread/appBindings/confirmCapabilities`:
 
 Removal and provable narrowing take effect without confirmation. Stable reordering, title/description changes, endpoint rotation, and bearer rotation do not require confirmation. Complex or ambiguous schema/security differences are expansion.
 
-While `needsConfirmation`, candidate capabilities are not callable. Acceptance atomically promotes the candidate revision. Rejection discards the candidate and moves the binding offline; the previous `ApprovedTools` snapshot remains only as a non-executable registration, display, audit, and future-diff baseline. A compatible authenticated rebind may return the binding to `active` without another confirmation, while any later expansion creates a new candidate requiring confirmation.
+While `needsConfirmation`, candidate capabilities are not callable. Acceptance atomically promotes the candidate revision. Rejection discards the candidate and moves the binding offline; the previous approved snapshot remains only as a non-executable registration, display, audit, and future-diff baseline. A compatible authenticated rebind may return the binding to `active` without another confirmation, while any later expansion creates a new candidate requiring confirmation.
 
 ### 6.3 Offline stubs
 
@@ -197,7 +187,7 @@ The channel adapter is authenticated by its AppServer channel identity. It resol
 
 When `app/channelBinding/accept` activates a binding, DotCraft appends a persistent `systemNotice` item to the bound thread with `kind = "channel"` and `reason = "bound"`. When `thread/appBindings/revoke` revokes a channel binding that had a verified target, it appends the same notice with `reason = "unbound"`. Both carry `channelName` (the canonical channel name) and `targetName` (the target display label, falling back to the conversation id). The notice follows Session Core placement: the running Turn, otherwise the latest completed Turn; a thread with no Turn records nothing.
 
-A managed channel `IToolSource` contributes Plugin Native registrations for every channel binding that keeps a verified target and is not revoked (active, offline, syncing, needsConfirmation), from the channel's current or last declared tools. The registrations stay schema-stable across those states for prompt-cache stability (Section 6.3); they dispatch only while the binding is active and the declaring adapter connection is attached. Canonical identity retains the channel namespace and source tool name. Its authority reference includes the binding revision and verified target.
+A managed channel tool source contributes Plugin Native registrations for every channel binding that keeps a verified target and is not revoked (active, offline, syncing, needsConfirmation), from the channel's current or last declared tools. The registrations stay schema-stable across those states for prompt-cache stability (Section 6.3); they dispatch only while the binding is active and the declaring adapter connection is attached. Canonical identity retains the channel namespace and source tool name. Its authority reference includes the binding revision and verified target.
 
 Target-like fields such as `target`, `deliveryTarget`, `chatId`, `groupId`, and `conversationId` are reserved. A channel descriptor that exposes one at the top level is rejected. Invocation also rejects case or alias variants before dispatch. The verified delivery target is injected only into trusted channel call context.
 

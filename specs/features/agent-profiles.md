@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.7 |
+| **Version** | 0.9.1 |
 | **Status** | Draft |
-| **Date** | 2026-10-14 |
-| **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Session Core](../architecture/session-core.md) |
+| **Date** | 2026-10-19 |
+| **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Session Core](../architecture/session-core.md), [Memory](memory.md) |
 
 Purpose: define Agent Profiles as reusable agent configuration templates. A profile gives a thread a role, default runtime preferences, and enforceable capability policy without replacing DotCraft's generated base instructions.
 
@@ -25,7 +25,6 @@ Out of scope:
 - Full-prompt replacement for ordinary profile-backed threads.
 - Automatic mutation of existing threads when profile files change.
 - Profile inheritance or field-by-field merging between same-id profiles.
-- SubAgent-specific profile migration beyond the prompt-composition rules.
 
 ## 2. Principles
 
@@ -34,7 +33,7 @@ Out of scope:
 - Profile resolution is deterministic. Higher-priority sources shadow lower-priority profiles as whole documents.
 - Existing threads are stable. A profile file change affects new threads only, unless a client explicitly refreshes an existing profile-backed thread.
 - Profiles specialize the generated DotCraft prompt through role instructions. They must not replace the base prompt.
-- Model policy is atomic. A profile either inherits the complete effective provider preference or pins one complete Profile model preset; canonical profiles do not merge individual model-option fields with workspace defaults.
+- Model policy is atomic. A profile either inherits the complete effective provider preference or pins one complete model preset; it never merges individual model-option fields with workspace defaults.
 - Overlays are narrow. Profile-backed thread creation may override ordinary runtime model choices, but must not use request-time overlays to broaden capabilities.
 - Runtime-owned capabilities remain outside profile policy. Profiles specialize a thread without taking ownership of scheduling or runtime lifecycle.
 - Visual identity is client-derived from the profile name. It is not authored in profile frontmatter, stored by the profile service, or exposed by the AppServer profile contract.
@@ -71,7 +70,7 @@ Supported frontmatter groups:
 
 | Field | Meaning |
 |-------|---------|
-| `providerPreference` | Optional fixed model preset for new profile-backed threads. When present it contains `providerId`, `model`, reasoning enabled/effort, speed. Reasoning output visibility is selected from the model catalog at runtime rather than authored in a profile. |
+| `providerPreference` | Optional fixed model preset for new profile-backed threads: `providerId`, `model`, reasoning enabled/effort, speed. Reasoning output visibility comes from the model catalog at runtime. |
 | `mode` | Other runtime defaults for new profile-backed threads. |
 | `tools` | Built-in, dynamic, deferred, and agent-control tool policy. |
 | `mcp` | MCP server and MCP tool policy. |
@@ -88,14 +87,9 @@ Validation rules:
 - Duplicate names within one source are invalid and block mutation. Cross-source shadowing remains whole-document priority resolution.
 - `id` and `agentProfileId` reference this same canonical name; there is no independent display-name or slug field.
 - Upsert accepts optional `previousName` for a same-source rename. It validates the new document and target-name availability before replacing the old document. Failure preserves the original. Existing thread snapshots retain their original provenance; renaming does not rewrite historical threads.
-- `description` must be present for valid authoring and selection UX.
 - Unknown fields are rejected unless explicitly marked experimental.
 - The Markdown body maps to role instructions, not a base-prompt replacement.
-- An omitted `providerPreference` captures the complete effective workspace/global provider preference when a new thread is created.
-- A present `providerPreference` requires a non-empty `providerId`, `model`, `reasoning` and `speed`.
-- An empty or partial `providerPreference` is invalid; omission is the only inherited form.
-- `providerPreference.reasoning` contains only `enabled` and `effort`. `output` is not a Profile field and is rejected as unknown.
-- Canonical profiles do not support partial model inheritance such as pinning a model while inheriting reasoning or overriding reasoning while inheriting the model.
+- An omitted `providerPreference` captures the complete effective workspace/global provider preference when a new thread is created. A present one requires non-empty `providerId`, `model`, `reasoning` (only `enabled` and `effort`) and `speed`; an empty or partial preference is invalid.
 - A profile with a fixed provider preference may remain structurally valid when its provider or model is unavailable in the current workspace. Management APIs report that runtime diagnostic, and thread creation fails without changing thread state until the provider becomes runnable.
 - Non-managed profiles must not declare managed-only locks.
 - `tools.allow` and `tools.deny` are mutually exclusive in an Agent Profile.
@@ -130,7 +124,6 @@ Resolution rules:
 - Built-in, plugin, and managed profiles are read-only through ordinary profile CRUD.
 - User and workspace profiles are writable through ordinary profile CRUD.
 - Invalid profiles do not block discovery of other profiles; they appear with diagnostics when identifiable.
-- Diagnostics should explain selected source, shadowed sources, restrictions, locked fields, validation errors, and stale thread fingerprints.
 
 Managed policy may constrain lower-priority profiles through explicit locks. Without such a lock, priority is whole-document shadowing.
 
@@ -180,16 +173,15 @@ Policy semantics:
 - Omitting both `tools.allow` and `tools.deny` allows all ordinary profile-managed tools.
 - An explicit empty `tools.allow` allows no ordinary tools; a non-empty list allows only the named tools.
 - A non-empty `tools.deny` allows ordinary tools except the named tools.
-- `tools.allow` and `tools.deny` name ordinary profile-managed tools and do not reach MCP tools. An MCP tool answers to `mcp.servers` and `mcp.tools`, which select by server and by namespaced tool selector and accept wildcards. A Profile author names the tools available to the agent it writes; an MCP server a host puts on one Thread for one Run is not among them, and a name list written without it would hide it with no way for the author to have known.
+- `tools.allow` and `tools.deny` name ordinary profile-managed tools and never reach MCP tools, so a host-attached MCP server on one thread is not hidden by a tool name list. MCP tools answer to `mcp.servers` and `mcp.tools`, which select by server and namespaced tool selector and accept wildcards.
 - Outside the tool policy, omitted `allow` means no allow-list is applied and empty `allow` allows no profile-managed capability for that policy dimension.
 - Empty or omitted `deny` means no deny-list is applied.
 - Deny wins over allow.
-- Legacy exact-name tool filters compose with structured tool policy. The effective surface is the intersection of all allows after all denies are applied.
-- `permissions.approvalPolicy` is `default`, `prompt`, `autoApprove`, or `deny`. `default` follows the workspace default policy, `prompt` always asks, `autoApprove` accepts, and `deny` never asks: the operation is rejected and that rejection is returned to the calling tool, so the turn continues. A persisted `interrupt` is read as `deny`.
+- Exact-name tool filters from other configuration compose with structured tool policy. The effective surface is the intersection of all allows after all denies are applied.
+- `permissions.approvalPolicy` is `default`, `prompt`, `autoApprove`, or `deny`. `default` follows the workspace default policy, `prompt` always asks, `autoApprove` accepts, and `deny` never asks: the operation is rejected and that rejection is returned to the calling tool, so the turn continues.
 - A profile written by the conversational builder carries `prompt` or `autoApprove`. `default` and `deny` stay legal on read for hand-written and automation-owned profiles.
 - `permissions.requireApprovalOutsideWorkspace` stays a legal profile key for hand-written and automation-owned profiles. The conversational builder neither presents nor writes it and preserves an authored value.
 - `tools.agentControl` is `full`, `disabled`, or `allowList`, and `allowList` draws its members from `tools.allowedAgentControlTools`. Both remain enforced as written; the conversational builder presents only the choice between `full` and `disabled` and preserves an authored `allowList` until that choice changes.
-- Profile policy must be enforced both when tools are shown to the model and when calls are invoked.
 
 ## 7. Prompt Composition
 
@@ -228,11 +220,13 @@ Profile management uses Markdown as the primary authoring format.
 | `agent/profiles/refreshThread` | Explicitly refresh a profile-backed thread from the current resolved profile. |
 | `agent/profiles/builderDraft/read` | Read the transient working draft for a bound conversational builder thread. |
 | `agent/profiles/builderDraft/update` | Replace the transient working draft for a bound conversational builder thread without persisting a profile file. |
-| `agent/profiles/export/plan` | List what an export of a user or workspace profile can carry. See [Agent packages](agent-packages.md). |
-| `agent/profiles/export/read` | Write the Agent package for the chosen skills and plugins and read it in chunks. See [Agent packages](agent-packages.md). |
-| `agent/profiles/import/upload` | Upload an Agent package or Profile document in chunks and return its preview. See [Agent packages](agent-packages.md). |
-| `agent/profiles/import/commit` | Install the chosen packages and create the profile from an uploaded import. See [Agent packages](agent-packages.md). |
-| `agent/profiles/import/discard` | Discard an uploaded import. See [Agent packages](agent-packages.md). |
+| `agent/profiles/export/plan` | List what an export of a user or workspace profile can carry. |
+| `agent/profiles/export/read` | Write the Agent package for the chosen skills and plugins and read it in chunks. |
+| `agent/profiles/import/upload` | Upload an Agent package or Profile document in chunks and return its preview. |
+| `agent/profiles/import/commit` | Install the chosen packages and create the profile from an uploaded import. |
+| `agent/profiles/import/discard` | Discard an uploaded import. |
+
+The export and import methods are defined by the Agent package feature.
 
 Rules:
 
@@ -240,7 +234,7 @@ Rules:
 - Upsert requires the requested id to match the frontmatter `name`.
 - Read-only sources return clear errors for write attempts.
 - List/read responses include diagnostics instead of forcing clients to parse Markdown.
-- Error codes should be stable; user-facing localization belongs to clients.
+- Error codes are stable; user-facing localization belongs to clients.
 
 ## 10. Governance And Diagnostics
 
@@ -251,7 +245,7 @@ Governance features:
 - Managed locks may force, cap, deny, or require values for specific profile fields.
 - Lower-priority profiles conflicting with locks are invalid or compiled under the lock, depending on the declared managed policy.
 
-Diagnostics should support:
+Diagnostics cover:
 
 - profile authoring errors,
 - source shadowing,
@@ -262,33 +256,24 @@ Diagnostics should support:
 - existing threads using stale fingerprints,
 - refresh success or failure.
 
-Audit records should exist for profile writes, removals, and explicit thread refresh attempts. Audit entries use stable machine-readable codes and structured fields.
+Audit records exist for profile writes, removals, and explicit thread refresh attempts. Audit entries use stable machine-readable codes and structured fields.
 
 ## 11. Authoring And UX Process
 
-Profile authoring tools should:
+Profile authoring tools validate Markdown before writing, show the effective source and policy summary, distinguish role text from enforced policy, warn that edits affect existing threads only after refresh, and expose stale-thread hints and explicit refresh. Profile generation tools use the same validation, source, policy, and refresh rules.
 
-- validate Markdown before writing,
-- show the effective profile source and policy summary,
-- distinguish role text from enforced policy,
-- warn when an edit will not affect existing threads until refresh,
-- expose stale-thread hints and explicit refresh,
-- avoid editing raw profile files for generated-agent workflows when a guided editor or generator is available.
+## 12. Conversational Builder
 
-Agent-profile generation tools may propose or modify Markdown profiles, but they must still use the same validation, source, policy, and refresh rules defined here.
+The conversational builder lets a user create or refine an Agent Profile by talking to a dedicated **profile-builder agent** alongside the structured editor. It is a normal Session Core thread using the standard turn, streaming, and tool-call machinery. Its only dedicated AppServer methods are the working-draft synchronization methods.
 
-## 11A. Conversational Builder
+### 12.1 Model
 
-The conversational builder lets a user create or refine an Agent Profile by talking to a dedicated **profile-builder agent** instead of (or alongside) the structured editor. It is a normal Session Core thread reusing the standard turn, streaming, and tool-call machinery. The only Agent Builder-specific AppServer methods are transient working-draft synchronization methods; conversation itself still uses ordinary thread/turn APIs.
+- **Builder thread.** A profile-builder conversation runs in an ordinary thread with internal visibility and a builder target binding, excluded from ordinary thread listings by that visibility. It runs the built-in, hidden profile-builder agent, which is not an editable profile.
+- **Target binding.** The thread configuration's `agentBuilderTargetId` (with `agentBuilderTargetSource`) names the profile the conversation edits. A thread without this binding is not a builder thread and exposes no builder tools.
+- **Working draft.** The builder edits a **thread-scoped working draft** held server-side, seeded from the target profile's Markdown (empty for a new agent). The draft is the agent's authoritative state for the session: it is injected into prompt composition (Section 7) as a cache-stable context section and synchronized with clients through `agent/profiles/builderDraft/read` and `agent/profiles/builderDraft/update`. The draft is not a persisted profile until it is created or saved (§12.4).
+- **Conversation lifecycle.** A client rendering the builder from `thread/subscribe` subscribes before the first `turn/start`, and flushes any pending `agent/profiles/builderDraft/update` before each builder message so the working draft and turn prompt are coherent. The builder uses the ordinary thread/turn notification contract.
 
-### 12A.1 Model
-
-- **Builder thread.** A profile-builder conversation runs in an ordinary Session Core thread source with internal visibility and a builder target binding. It is excluded from ordinary thread listings by visibility/runtime metadata, not by introducing a third `ThreadSource` kind. The thread runs the built-in profile-builder agent — a hidden, non-listed agent that is not itself an editable profile in the gallery.
-- **Target binding.** The thread's `ThreadConfiguration.agentBuilderTargetId` (with `agentBuilderTargetSource`) names the profile the conversation edits. A thread without this binding is not a builder thread and exposes no builder tools.
-- **Working draft.** The builder edits a **thread-scoped working draft** held server-side, seeded from the target profile's Markdown (empty for a new agent). The draft is the agent's authoritative state for the session: it is injected into prompt composition (Section 7) as a cache-stable context section and synchronized with clients through `agent/profiles/builderDraft/read` and `agent/profiles/builderDraft/update`. The draft is not a persisted profile until it is created or saved (see 12A.4).
-- **Conversation lifecycle.** A client that renders the conversational builder from a `thread/subscribe` stream must establish that subscription (or an equivalent event-capture path) before sending the first `turn/start` for the builder thread, matching the ordinary run/welcome flow. Before each builder message, the client must flush any pending `agent/profiles/builderDraft/update` so the server-side working draft and the turn prompt are coherent. The builder does not introduce a privileged streaming path; it uses the ordinary thread/turn notification contract.
-
-### 12A.2 Builder tools
+### 12.2 Builder tools
 
 The profile-builder agent is given fine-grained, model-visible tools — each mutates exactly one field of the working draft. They are registered **only when the thread is a builder thread** (target binding present) and never appear on ordinary threads.
 
@@ -305,23 +290,23 @@ The profile-builder agent is given fine-grained, model-visible tools — each mu
 | `ClearAgentProviderPreference()` | Remove `providerPreference` so the profile inherits model settings. |
 | `SetAgentApproval(policy)` | Set `permissions.approvalPolicy` to `prompt` or `autoApprove`. The builder does not author the unattended values or the workspace-boundary permission. |
 
-Every tool validates names against any live catalogs available to the builder runtime — built-in tools via the tool catalog (AppServer protocol Section 18A), skills via the skills loader, MCP servers via the configured MCP manager. When a catalog is available, unknown values are rejected with a diagnostic the agent can correct. When a catalog is not available in the host context, the builder preserves the requested names and relies on normal profile validation/refresh diagnostics to surface unresolved references. Each successful tool call leaves the working draft valid per the normal profile validation rules (Section 3).
+Every tool validates names against the live built-in tool, skill, and MCP server catalogs when available, rejecting unknown values with a diagnostic the agent can correct. Without a catalog, requested names are preserved and normal profile validation and refresh diagnostics surface unresolved references. Each successful tool call leaves the working draft valid per the normal profile validation rules (Section 3).
 
-Tool results are **fine-grained change descriptors, not the whole document**: each returns `{ ok, field, change }`, where `field` is the changed field path (for example `name`, `instructions`, `tools.policy`, `skills.allow`, `mcp.servers`, `providerPreference`, `approval`) and `change` carries the operation (`set` / `add` / `remove` / `append`) with the scalar value or the added/removed/rejected items. `SetAgentToolPolicy` returns the complete derived mode and active list. `SetAgentProviderPreference` carries the complete atomic preference in `change.providerPreference`; `ClearAgentProviderPreference` carries `change.op = "remove"`. Rejections return `{ ok: false, field, error }`. The authoritative full draft is the server-side working draft (12A.1), injected into prompt composition (12A.3) rather than echoed per call. Clients read the descriptors from the normal tool-call stream to drive the per-field cursor highlight and apply the same single-field change to their local document — no additional request method or notification is introduced.
+Tool results are **fine-grained change descriptors, not the whole document**: each returns `{ ok, field, change }`, where `field` is the changed field path (for example `name`, `instructions`, `tools.policy`, `skills.allow`, `mcp.servers`, `providerPreference`, `approval`) and `change` carries the operation (`set` / `add` / `remove` / `append`) with the scalar value or the added/removed/rejected items. `SetAgentToolPolicy` returns the complete derived mode and active list. `SetAgentProviderPreference` carries the complete atomic preference in `change.providerPreference`; `ClearAgentProviderPreference` carries `change.op = "remove"`. Rejections return `{ ok: false, field, error }`. The authoritative full draft is the server-side working draft (§12.1), injected into prompt composition (§12.3) rather than echoed per call. Clients apply the descriptors from the normal tool-call stream to their local document.
 
-Every builder tool carries the trusted presentation id `core.agent-builder` with `options.field` set to the field path it edits. Desktop renders such calls as profile-change rows (the changed field stated in words, with the value as an inline reference and long values behind the row's disclosure) instead of generic tool output; other clients keep the text descriptor.
+Every builder tool carries the trusted presentation id `core.agent-builder` with `options.field` set to the field path it edits. Desktop renders these calls as profile-change rows; other clients keep the text descriptor.
 
-### 12A.3 Catalog and schema context
+### 12.3 Catalog and schema context
 
-Prompt composition for a builder thread additionally injects, through the normal thread-system-prompt context path (Section 7): (a) the Agent Profile frontmatter schema and field semantics, including the three mutually exclusive built-in tool modes and explicit-empty allow-list behavior, (b) the working-draft snapshot, and (c) the built-in tool catalog — so the agent proposes only valid tool names. The builder draft is a guided-edit subset of the full profile schema and uses the same atomic `providerPreference` shape as persisted profiles. The saved profile is still parsed by the normal profile parser, which owns the complete schema and final diagnostics. Skill and MCP server names are validated against the live catalogs at tool-call time when those catalogs are available (12A.2) rather than enumerated in the prompt. This section is keyed by a constant context page (cache-stable for prompt caching): it snapshots the draft once per thread after each compaction, with later field edits carried by the conversation's own tool-call history. It carries no user-secret data.
+Prompt composition for a builder thread additionally injects, through the normal thread-system-prompt context path (Section 7): (a) the Agent Profile frontmatter schema and field semantics, including the three mutually exclusive built-in tool modes and explicit-empty allow-list behavior, (b) the working-draft snapshot, and (c) the built-in tool catalog — so the agent proposes only valid tool names. The builder draft is a guided-edit subset of the full profile schema and uses the same atomic `providerPreference` shape as persisted profiles. The saved profile is still parsed by the normal profile parser, which owns the complete schema and final diagnostics. Skill and MCP server names are validated at tool-call time (§12.2) rather than enumerated in the prompt. This section is a cache-stable context page that snapshots the draft once per thread and after each compaction; later edits are carried by the conversation's tool-call history. It carries no user-secret data.
 
-### 12A.4 Creation, persistence, and concurrency
+### 12.4 Creation, persistence, and concurrency
 
 - **New agent.** The working draft is not persisted until the user explicitly **creates** it (the client's Create action upserts through the management API, Section 9). Before creation the conversation and the draft are transient; abandoning the builder discards them.
-- **Existing agent.** A builder thread bound to an already-persisted profile flushes draft changes back through the management API (debounced auto-save). The profile file's last-write time is surfaced (`updatedAt`) for an "updated …" indicator.
-- **Manual edits.** A client may also hand-edit the same draft through the structured editor; manual edits are debounced to `agent/profiles/builderDraft/update`, and clients flush pending draft sync before sending a builder message. Builder tools mutate the same server-side draft. While a builder turn is running, clients should present the document as agent-controlled (non-interactive) to avoid concurrent field conflicts; manual editing resumes when the turn completes.
+- **Existing agent.** A builder thread bound to a persisted profile auto-saves draft changes through the management API. The profile's last-write time is surfaced as `updatedAt`.
+- **Manual edits.** The structured editor edits the same server-side draft through `agent/profiles/builderDraft/update`. While a builder turn runs, clients present the document as agent-controlled to avoid concurrent field conflicts.
 - **No privileged path.** Creating or saving a profile from the builder uses the same validation, source, policy, and stale-thread refresh rules as Sections 5 and 9 — the builder is not a privileged write path.
 
-### Desktop creation
+### 12.5 Desktop creation
 
-New agent opens the profile editor alongside the builder conversation. Empty conversations offer creation prompts; templates remain in the Agents gallery. Unnamed drafts use the default avatar. Naming a draft gives its editor and conversation the canonical name-derived avatar.
+New agent opens the profile editor alongside the builder conversation. Empty conversations offer creation prompts. Unnamed drafts use the default avatar; named drafts use the name-derived avatar.

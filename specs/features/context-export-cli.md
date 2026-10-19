@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.6 |
+| **Version** | 0.9.1 |
 | **Status** | Draft |
-| **Date** | 2026-10-13 |
+| **Date** | 2026-10-19 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) |
 
 Purpose: define a local, read-only CLI that turns DotCraft workspace sessions, trace metadata, and memory into handoff artifacts for external coding agents and troubleshooting workflows.
@@ -27,8 +27,8 @@ The feature is a local CLI surface, not an AppServer protocol extension. It read
 
 ## 3. Non-Goals
 
-- No remote AppServer or JSON-RPC API in the first version.
-- No LLM, embedding, or network-backed ranking in the first version.
+- No remote AppServer or JSON-RPC API.
+- No LLM, embedding, or network-backed ranking.
 - No mutation, repair, rollback, compaction, memory writes, or workspace cleanup.
 
 ## 4. Command Contract
@@ -43,18 +43,16 @@ Optional:
 
 - `--workspace <path>` resolves the workspace root; defaults to the current directory.
 - `--output <file>` writes Markdown to a file; omission writes to stdout.
-- `--profile handoff|transcript` records the requested export profile in metadata. Default: `handoff`; the current renderer uses the same document shape for both values.
+- `--profile handoff|transcript` records the requested export profile in metadata. Default: `handoff`. Both profiles use the same document shape, honoring rollback and the selected tool-result scope.
 - `--tool-results none|summary|full` controls tool result rendering. Default: `summary`.
 
-Current export output includes:
+Export output includes:
 
 - thread metadata
 - the thread's memory store: its index and memory files (see [Memory](memory.md#3-store-layout-and-format))
 - continuity events for rollback and compaction
 - a current-context section that reflects the latest surviving compaction checkpoint when one exists
 - surviving turns ordered by turn start time
-
-`transcript` records the selected profile in export metadata. It does not currently add separate transcript-only sections; all exports still honor rollback and the selected tool-result output scope.
 
 ### 4.2 `dotcraft context search`
 
@@ -69,14 +67,14 @@ Optional:
 - `--status active|archived|all` filters thread metadata status. Default: `all`.
 - `--json` emits machine-readable results.
 
-Search must inspect `.craft/state.db` first. It should use:
+Search inspects `.craft/state.db` first:
 
 - `threads` for thread id, title, first message, channel, status, timestamps, and rollout path
 - `trace_session_bindings` for root thread correlation
 - `trace_sessions` for aggregate error, compaction, usage, model, and tool metadata
 - `trace_events` for request, response, error, tool, maintenance, and rollback evidence
 
-Rollout files may be read for top candidates to add short evidence snippets and item counts. Evidence text is a faithful bounded projection of the selected displayable field; search does not classify or redact values by key name or text pattern. Hidden compaction checkpoint replacement history must not be emitted in search results.
+Rollout files may be read for top candidates to add short evidence snippets and item counts. Evidence text is a faithful bounded projection of the selected displayable field. Hidden compaction checkpoint replacement history must not be emitted in search results.
 
 ## 5. Continuity Rules
 
@@ -85,7 +83,7 @@ Rollout files may be read for top candidates to add short evidence snippets and 
 - Context compaction checkpoint records are recovery evidence, not user-visible transcript items.
 - Export may use the latest checkpoint whose covered turn still survives to describe current model-visible context, then append later surviving turns.
 - If a checkpoint is corrupt, invalid, or covers a rolled-back turn, export falls back to surviving rollout turns and emits a warning.
-- Persistent `SystemNotice` items, such as manual compaction notices, may be rendered as timeline notices because they are Session Items.
+- Persistent system notice items, such as manual compaction notices, may be rendered as timeline notices.
 
 ## 6. Fidelity, Scope, and Read-Only Behavior
 
@@ -94,15 +92,14 @@ Rollout files may be read for top candidates to add short evidence snippets and 
 - `--tool-results summary` must emit a faithful bounded prefix of each tool output body.
 - `--tool-results full` must emit each tool output body verbatim.
 - `RequestUserInput` calls and results follow the same `none|summary|full` scope as every other tool result; answer content has no special hiding rule.
-- Export and search must not classify or redact persisted values by key name or text pattern.
-- Reasoning content, protected model data, arbitrary model metadata, and internal recovery records remain omitted from ordinary export and search because they are outside the displayable Session/model-visible projection, not because of value-based classification.
+- Export and search never classify or redact persisted values by key name or text pattern. Reasoning content, protected model data, arbitrary model metadata, and internal recovery records are omitted only because they are outside the displayable Session projection.
 - Search results favor evidence metadata and bounded previews over unbounded content while preserving the selected evidence text.
 
 Missing workspace, state DB or thread and invalid arguments produce nonzero CLI failures. Corrupt rollout records produce bounded diagnostics rather than silent evidence loss.
 
 ## 7. Doctor Skill Integration
 
-The built-in Doctor plugin should provide a skill that teaches agents to:
+The built-in Doctor plugin provides a skill that teaches agents to:
 
 - run `dotcraft context search` when only an error, symptom, or provider/tool message is known
 - run `dotcraft context export` for the selected thread

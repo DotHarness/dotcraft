@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.7 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-10-14 |
+| **Date** | 2026-10-19 |
 
 Purpose: define the durable architecture for DotCraft Skills, including discovery, prompt loading,
 effective Skill resolution, self-learning adaptations, installation, client access, and remote use.
@@ -24,8 +24,8 @@ The Skill system has five responsibilities:
 4. Load and mutate Skills through the `SkillView` and `SkillManage` tools.
 5. Project Skill discovery and management through AppServer and Desktop.
 
-Existing `SKILL.md` bundles remain loadable. Managed creation and installation apply the stricter
-validation rules in this specification.
+Any `SKILL.md` bundle is loadable; managed creation and installation apply the stricter validation
+rules below.
 
 ## 2. Skill bundles and metadata
 
@@ -84,11 +84,10 @@ but not uninstalled.
 
 Workspace configuration stores disabled Skill names in `Skills.DisabledSkills`. Thread and Agent
 Profile policy can further restrict Skill names with `allow` and `deny`, and can disable
-`SkillManage` with `allowManage`. `allow` names the Skills an Agent may use; when it is absent, every
-enabled Skill is available, and deny wins over allow. Names match case-insensitively, as Skill names
-do everywhere. Runtime policy enforces these restrictions in
-Agent context and on invocation: a Skill the policy excludes is left out of active Skill context and
-the catalog, and `SkillView` refuses it. Prompt text is not the enforcement boundary.
+`SkillManage` with `allowManage`. When `allow` is absent, every enabled Skill is available; deny
+wins over allow; names match case-insensitively. Runtime policy enforces these restrictions: an
+excluded Skill is left out of active Skill context and the catalog, and `SkillView` refuses it.
+Prompt text is not the enforcement boundary.
 
 ## 4. Prompt loading and references
 
@@ -145,7 +144,7 @@ Variants are stored separately from sources:
 
 Each variant contains a complete Skill bundle. Its manifest records the schema and variant ids,
 source name, source kind, source path and fingerprint, target signature, status, timestamps,
-provenance, and optional summary.
+provenance, and optional summary. Variant storage is never scanned as a source root.
 
 ### 5.1 Source fingerprints
 
@@ -197,8 +196,8 @@ mutation. Creating a Skill still creates a workspace source. Restoring the origi
 current compatible variant as `restored`, refreshes Skill context, and makes effective resolution
 fall back to the source.
 
-With `VariantMode` set to `disabled`, effective resolution uses source content and mutations use the
-workspace source implementation. The supported values are `enabled` and `disabled`; the default is
+With `VariantMode` set to `disabled`, effective resolution uses source content and mutations apply
+to the workspace source. The supported values are `enabled` and `disabled`; the default is
 `enabled`. Disabling self-learning removes `SkillManage` but does not remove `SkillView`.
 
 ## 7. Installation and removal
@@ -237,10 +236,7 @@ elsewhere must be explicitly transferred while preserving relative dependencies.
 ## 10. Security and invariants
 
 - Source Skills are not mutated by self-learning while variant mode is enabled.
-- Variant storage is not scanned as a source root.
-- Stale and restored variants are not selected as effective Skills.
 - General file tools remain subject to their normal path and approval policies.
 - Skill creation, deletion, installation, and overwrite retain their approval and validation boundaries.
 - Supporting files become executable only when invoked through an ordinary tool with its own policy.
 - Plugin-contained Skill identity and lifecycle remain subordinate to the owning plugin.
-- AppServer clients do not need variant internals for ordinary Skill use.

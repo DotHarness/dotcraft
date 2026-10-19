@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.4 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-10-12 |
+| **Date** | 2026-10-19 |
 | **Related Specs** | [Design System](../architecture/DESIGN.md), [Desktop Client](../clients/desktop-client.md), [Desktop Styles](../architecture/desktop-styles.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 Purpose: define Generative UI, the small interactive answers a model writes as a program and Desktop renders with its own components inside the conversation.
@@ -61,7 +61,7 @@ A program is the content of a fenced block whose info string is `dotcraft-ui`.
 - Props are JSON values or functions. A function prop is an event handler; its arguments are JSON values. Elements are valid only as children.
 - `import`, `export`, `fetch`, `XMLHttpRequest`, `WebSocket`, storage, and nested workers are unavailable. Timers are available.
 - Images are embedded only: an `Image` source must be a base64 `data:image/png`, `jpeg`, `gif`, or `webp` URL. Any other scheme fails validation.
-- Controls may be controlled (`value` plus `onChange`) or uncontrolled (`defaultValue`). Unlike React, a controlled field shows the reader's edits even when the program never changes `value`: the field keeps its own draft while its edits are in flight, adopts a `value` the program sets on its own, and ignores snapshots that echo an older edit, so a late snapshot never rewinds typing.
+- Controls may be controlled (`value` plus `onChange`) or uncontrolled (`defaultValue`). Unlike React, a controlled field shows the reader's edits even when the program never changes `value`, adopts a `value` the program sets on its own, and a late snapshot never rewinds typing.
 - Programs should be deterministic: the same program renders the same first tree.
 - `useState` values are saved and restored by the host (§11); programs do not read or write saved state themselves.
 
@@ -88,12 +88,12 @@ Desktop renderer ──iframe──► sandbox proxy (dotcraft-mcp-sandbox:) ─
        └───────────────────── one MessagePort per block (host protocol) ◄───────────┘
 ```
 
-- **Runner frame.** Desktop keeps one hidden runner frame per renderer and shares it between blocks. It creates the frame when the first block needs it, or earlier when a message with blocks mounts, so a block usually starts without waiting for the sandbox. Desktop reuses the MCP App sandbox proxy. The proxy loads a runner document into a nested `sandbox="allow-scripts"` frame with an opaque origin. Its CSP allows only inline scripts, `eval` for the compiled program, and `blob:` workers; `connect-src`, `img-src`, and `style-src` are `'none'`.
-- **Worker.** The runner frame starts one dedicated Worker per block from a `blob:` URL, so blocks never share a global scope or an event loop. The worker removes network, storage, and worker constructors from its global scope before it accepts a program. The CSP it inherits is the backstop.
-- **Compiler.** The worker compiles JSX with Sucrase into calls to an internal element factory. Compilation happens inside the sandbox, so a malformed program never runs in Desktop.
-- **Hooks runtime.** The worker renders function components, keeps hook state per component instance, batches state updates, runs effects after each committed render, and posts a snapshot only when the tree changed. An instance is identified by its position in the tree and its function's name, so a component redefined on each render keeps its state.
-- **Renderer.** Desktop validates every snapshot and renders it with its own components. Event handlers in the tree are callback references; Desktop invokes them back over the port.
-- **Lifecycle.** Removing a block, retrying, or failing closes the block's port and terminates its Worker; other blocks keep running. Desktop removes the frame once no block has used it for 60 seconds. When the sandbox closes the frame, every running block fails with `host_error`, and the next block creates a new frame.
+- **Runner frame.** Desktop keeps one hidden runner frame, shared between blocks and created on demand. It is loaded through the MCP App sandbox proxy into a nested `sandbox="allow-scripts"` frame with an opaque origin. Its CSP allows only inline scripts, `eval` for the compiled program, and `blob:` workers; `connect-src`, `img-src`, and `style-src` are `'none'`.
+- **Worker.** The runner frame starts one dedicated Worker per block, so blocks never share a global scope or an event loop. The worker removes network, storage, and worker constructors from its global scope before it accepts a program; the inherited CSP is the backstop.
+- **Compilation.** JSX is compiled inside the sandbox, so a malformed program never runs in Desktop.
+- **Hooks runtime.** The worker renders function components with React hook semantics and posts a snapshot only when the tree changed. A component instance is identified by its position in the tree and its function's name, so a component redefined on each render keeps its state.
+- **Renderer.** Desktop validates every snapshot and renders it with its own components. Event handlers in the tree are callback references that Desktop invokes over the port.
+- **Lifecycle.** Removing, retrying, or failing a block closes its port and terminates its Worker; other blocks keep running. An idle runner frame is eventually removed. When the sandbox closes the frame, every running block fails with `host_error`, and the next block creates a new frame.
 
 ## 5. Host protocol
 
@@ -145,7 +145,7 @@ Desktop validates each node's props against the component's schema before render
 
 | State | Presentation |
 |-------|--------------|
-| Streaming | The block's closing fence has not arrived; the loading skeleton shows with a "Working" label and the runner does not start. |
+| Streaming | The block's closing fence has not arrived; the loading skeleton shows and the runner does not start. |
 | Waiting | A closed block that has not started yet, outside the preload range or while its saved state loads; the same skeleton. |
 | Loading | From runner creation to the first snapshot, the same skeleton. |
 | Ready | The latest snapshot, rendered natively in the reading column. |
@@ -191,11 +191,11 @@ Every failure stops the runner; §7 defines what stays on screen. Messages are E
 An assistant message may hold any number of Generative UI blocks between its Markdown and visualization references. Only a top-level fence counts: a `dotcraft-ui` fence nested in another fence or indented as code is ordinary Markdown. Blocks are numbered from 0 in source order; the number identifies a block's saved state.
 
 - While a message streams, a block whose closing fence has not arrived shows the skeleton and never its source. Once the fence closes the block starts, even while the rest of the message streams. A completed message whose last block never closed runs it to the end of the message.
-- Blocks in completed turns start only when they come within 320px of the visible conversation, so long threads do not run every block at once. A started block keeps running when scrolled away.
+- Blocks in completed turns start only when they approach the visible conversation, so long threads do not run every block at once. A started block keeps running when scrolled away.
 - A block is locked while its message streams or its turn runs.
 - Copying a message omits block source and keeps the surrounding prose. A client that cannot render blocks shows each one as a tool row without its source.
 
-[Desktop Client §5.8.4](../clients/desktop-client.md#584-generative-ui-in-assistant-messages) defines the Desktop behavior in detail.
+Message splitting and rendering in the Desktop transcript follow [Desktop Client §5.8.4](../clients/desktop-client.md#584-generative-ui-in-assistant-messages).
 
 ## 10. Host actions
 
@@ -203,7 +203,7 @@ An assistant message may hold any number of Generative UI blocks between its Mar
 |--------|------------------|
 | `sendMessage(prompt)` | Starts a user turn in the block's thread with `prompt` as the message text, without confirmation. While a turn is running or waiting for approval or input, it shows a quiet notice and sends nothing. |
 | `prefillComposer(text)` | Puts `text` in the composer. |
-| `copy(text)` | Copies `text` and shows the Copied notice. |
+| `copy(text)` | Copies `text` and confirms quietly. |
 | `openUrl(url)` | Shows the URL in a trusted confirmation dialog and opens it in the system browser only after the user confirms. |
 
 The user-activation window of §5.4 applies to every action. A locked block delivers no callbacks, so it requests no actions.

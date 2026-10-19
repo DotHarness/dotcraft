@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.1 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-10-03 |
+| **Date** | 2026-10-19 |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md) |
 
 Purpose: define the shared SDK design contract for DotCraft across languages while allowing each language binding to keep idiomatic package structure, runtime constraints, publishing rules, and environment-specific helpers.
@@ -35,9 +35,7 @@ This specification does not define:
 
 Every general-purpose SDK exposes the same DotCraft capabilities through the same core nouns and verbs, differing only by each language's casing and idiom. A developer fluent in one binding should read another without a translation table: `connectLocal` / `ConnectLocalAsync` / `connect_local` are the same operation; `thread.run()` / `thread.RunAsync()` / `thread.run()` are the same operation.
 
-This is the design center of the cross-language contract. Bindings stay idiomatic in *form* — async suffixes, casing, iteration primitives, error types, packaging — but the surface is *parallel in shape*: same entry points, same method names, same option keys, same event model, same capability coverage. Bindings must preserve equivalent capability coverage and object responsibilities.
-
-The canonical surface below is the spine all general-purpose bindings converge on:
+Bindings stay idiomatic in *form* — async suffixes, casing, iteration primitives, error types, packaging — but the surface is *parallel in shape*: same entry points, method names, option keys, event model, capability coverage, and object responsibilities. The canonical surface:
 
 | Concept | TypeScript | .NET |
 |---------|-----------|------|
@@ -69,9 +67,7 @@ Channel authoring and hosted Channel runtime APIs are outside these three SDK la
 
 Host adapters integrate an SDK with an environment such as Electron. They own IPC, window and workspace routing, executable discovery, UI localization, and host security policy, but not another JSON-RPC client.
 
-Logical layers do not require one published package per layer. A binding may ship Contracts and runtime assemblies together when that keeps installation atomic, provided the dependency boundary and transport-free Contracts surface remain intact.
-
-The raw Wire API is the low-level SDK surface. Bindings must not preserve a parallel AppServer facade, legacy wire client, handwritten wire DTO, or compatibility facade after consumers migrate.
+Logical layers do not require one published package per layer, provided the dependency boundary and transport-free Contracts surface remain intact. The Wire API is the only low-level SDK surface; there is no parallel AppServer facade or handwritten wire DTO.
 
 ### 2.3 AppServer And Hub Are Authoritative
 
@@ -79,7 +75,7 @@ SDKs are clients. They must not duplicate server-side thread state machines, que
 
 ### 2.4 Raw Escape Hatch Is Required
 
-Every general-purpose SDK must expose explicitly named raw AppServer request, notification, notification-listener, and server-request fallback APIs so callers can use newly added protocol methods before typed wrappers exist. Known methods use generated typed APIs. A typed API must not accept an arbitrary string overload that silently bypasses the method catalog.
+Every general-purpose SDK must expose explicitly named raw AppServer request, notification, notification-listener, and server-request fallback APIs so callers can use protocol methods before typed wrappers exist. Known methods use generated typed APIs, following the [raw extension boundary](protocol-contract-generation.md#102-handwritten-layer).
 
 ### 2.5 Typed Wrappers Are Traceable
 
@@ -89,10 +85,10 @@ Every typed SDK wrapper maps to its owning protocol contract and one of the capa
 
 A few SDK surfaces are naturally language-specific. Examples:
 
-- The first-party **hosted** channel module runtime (manifests, module lifecycle, Desktop-managed startup) is owned by TypeScript, because hosted channel modules are Node packages. The channel **adapter** base class itself is a shared capability that any SDK building external channels may provide; TypeScript ships one today.
+- The first-party **hosted** channel module runtime (manifests, module lifecycle, Desktop-managed startup) is TypeScript-only, because hosted channel modules are Node packages. The channel **adapter** base class is a shared capability that any SDK building external channels may provide.
 - Publishing, packaging, and runtime baselines remain language binding concerns.
 
-Everything else — including App Binding helpers, the Run profile, and approval/user-input callbacks — is a shared capability with parallel surfaces across every general-purpose SDK, not a single-language feature. Language-specific profiles must still use the shared protocol semantics and stable wire shapes.
+Everything else is a shared capability with parallel surfaces across every general-purpose SDK. Language-specific profiles still use the shared protocol semantics and wire shapes.
 
 ## 3. Capability Profiles
 
@@ -140,7 +136,7 @@ The Application profile is the normal application-developer surface:
 - Runtime Dynamic Tool declaration and callback registration.
 - Approval and user-input callback support when the SDK advertises those initialize capabilities.
 - Raw request escape hatch on the high-level client.
-- Structured AppServer error metadata on SDK exceptions: stable server code, message key, fallback text, optional detail, and raw structured params. Language bindings may additionally retain the complete raw JSON-RPC error data for compatibility and advanced callers.
+- Structured AppServer error metadata on SDK exceptions: stable server code, message key, fallback text, optional detail, and raw structured params. Bindings may also retain the complete raw JSON-RPC error data.
 
 ### 3.4 Run Profile
 
@@ -162,7 +158,7 @@ The App Binding profile exposes typed connection, principal, binding, surface, a
 
 ### 3.6 Channel Adapter Profile
 
-The Channel Adapter profile is required only for languages that ship first-party external channel adapters. TypeScript provides a channel adapter base class today; .NET does not. The hosted-module runtime (manifests, config descriptors, module lifecycle, conformance helpers) is a TypeScript-only sub-profile.
+The Channel Adapter profile is required only for languages that ship first-party external channel adapters. The hosted-module runtime (manifests, config descriptors, module lifecycle, conformance helpers) is a TypeScript-only sub-profile.
 
 - Channel adapter initialize capability declaration.
 - Per-identity message queueing.
@@ -211,8 +207,7 @@ Wire connection behavior is shared across bindings:
 - Calls made during reconnect queue in invocation order up to 1,024 entries. Timeout includes queue time; overflow returns a stable queue-full error.
 - After reconnect, the client replays the exact initialization parameters, sends `initialized`, and only then releases queued application messages.
 - Notification and server-request handler registrations survive reconnect. Explicit close cancels retries.
-- Wire does not recover Thread, Run, subscription, or Dynamic Tool state. Those decisions belong to the high-level client or host adapter.
-- A high-level Run that loses its Wire session terminates with a stable disconnect error. Reconnect must never replay `turn/start`; applications recover from persisted Thread and Turn state explicitly.
+- Wire does not recover Thread, Run, subscription, or Dynamic Tool state; the high-level client or host adapter decides. A Run that loses its Wire session ends per the [Run profile](#34-run-profile) with a stable disconnect error; `turn/start` is never replayed.
 
 Normal RPC calls default to thirty seconds and allow a finite override or no timeout. Ordinary local initialization defaults to no timeout. Host-specific initialization and probe limits belong to the host.
 
@@ -245,7 +240,7 @@ Runtime Dynamic Tools use the same model in every SDK:
 - Declarations use the canonical `Function` / `Namespace` tagged union; namespaced callback routing uses the composite `(namespace, tool)` identity rather than a flattened-name convention.
 - SDK-local handlers are not sent over the wire.
 - `item/tool/call` is dispatched by `threadId`, optional `namespace`, and `tool`.
-- Results use `success`, validated `contentItems`, optional client-only `structuredContent`, and stable `errorCode` / `errorMessage` fields. Legacy `structuredResult`, `_meta`, `_meta.ui`, and UI resource fields are invalid; interactive results use MCP Apps.
+- Results use `success`, validated `contentItems`, optional client-only `structuredContent`, and stable `errorCode` / `errorMessage` fields. Interactive results use MCP Apps.
 - Missing handlers return `UnsupportedTool`.
 - Handler exceptions return `AdapterToolCallFailed`.
 - Tool handlers are responsible for argument validation and app-level authorization.
@@ -281,7 +276,7 @@ Exact class names and inheritance are language binding concerns.
 
 Media source handling is an SDK-local normalization layer for channel tools and SDK helpers that need to send user-provided media to an external platform.
 
-It does not change the AppServer wire shape, including `ext/channel/toolCall`, and it does not require model-visible tool schemas to change. Existing tool arguments may continue to use channel-specific names such as a path, URL, or base64 field when those names are already part of the tool contract.
+It does not change the AppServer wire shape, including `ext/channel/toolCall`, or model-visible tool schemas. Tool arguments keep their channel-specific names such as a path, URL, or base64 field.
 
 The shared media source semantics are:
 
@@ -329,9 +324,9 @@ Breaking changes include:
 - Removing a required Core, Hub, Application, Run, or App Binding capability from a language that had advertised the profile.
 - Changing a typed wrapper's wire method or payload shape incompatibly.
 - Changing callback fallback behavior in a way that can block non-interactive clients.
-- Reintroducing a broad string overload on a typed method or maintaining a second legacy Wire implementation.
+- Adding a broad string overload to a typed method.
 
-Repository consumers may migrate atomically during an explicitly approved breaking refactor. Package version changes and external release compatibility are handled by the release workflow and are not implied by an internal refactor commit.
+Package versions and release compatibility are handled by the release workflow.
 
 Non-breaking changes include:
 

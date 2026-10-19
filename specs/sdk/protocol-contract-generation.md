@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.10 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-10-16 |
+| **Date** | 2026-10-19 |
 | **Parent Specs** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 Purpose: define the executable AppServer wire contract, typed RPC catalog, deterministic contract artifacts, and generated low-level bindings shared by the .NET and TypeScript SDKs.
@@ -12,8 +12,6 @@ Purpose: define the executable AppServer wire contract, typed RPC catalog, deter
 ## 1. Overview
 
 AppServer is a bidirectional JSON-RPC protocol. Its public surface includes client requests, client notifications, server requests, and server notifications. Each stable method needs a single machine-readable association between its method name, direction, parameter type, result type, capability requirements, and protocol metadata.
-
-The contract system has four layers:
 
 ```text
 Markdown protocol specifications
@@ -35,69 +33,35 @@ The generated layer covers wire contracts and low-level method bindings. Transpo
 
 This specification owns the executable contract boundary, cross-language type rules, RPC catalog, deterministic artifacts, and generation workflow. AppServer and its protocol modules own behavior. Hub HTTP, high-level SDK orchestration, dynamic third-party generation, and external artifact publication are outside this contract package.
 
-## 4. Sources of truth
+## 3. Sources of truth
 
-### 4.1 Normative protocol semantics
+### 3.1 Normative protocol semantics
 
 Markdown protocol specifications own public behavior, method semantics, field meaning, ordering guarantees, failure behavior, and compatibility policy. A behavior change updates the owning specification before the executable contract.
 
-### 4.2 Executable contract
+### 3.2 Executable contract
 
-`DotCraft.Protocol` owns the C# wire DTOs and typed RPC descriptors used to build generated artifacts. Generated SDK code, schemas, and manifests must not be edited as independent protocol sources.
+`DotCraft.Protocol` is the sole executable authority for public AppServer DTOs and method associations. Generated SDK code, schemas, and manifests must not be edited as independent protocol sources. Runtime assemblies may retain domain-facing projection types and SDKs may retain high-level models, but neither is an independent wire definition: Core request/result/notification DTOs, handwritten SDK wire DTOs, and handwritten method-name facades are prohibited. Built-in registrations, notifications, fixed reverse requests, and canonical method-name constants derive from typed descriptors.
 
-The executable contract must agree with the normative specs. Each RPC descriptor carries a valid `SpecRef` that resolves to the owning specification section. Validation fails when a reference is missing or malformed.
+The executable contract must agree with the normative specs. Each RPC descriptor carries a valid `SpecRef` that resolves to the owning specification section; validation fails when a reference is missing or malformed.
 
-### 4.3 Derived artifacts
+### 3.3 Derived artifacts
 
-Contract artifacts and generated SDK files are reproducible outputs. They may be checked in for review and packaging, but changes to them must originate from the C# contracts, RPC catalog, or generator implementation.
+Contract artifacts and generated SDK files are reproducible outputs. They may be checked in for review and packaging, but changes to them must originate from the C# contracts, RPC catalog, or generator.
 
-## 5. Project and dependency boundaries
+## 4. Dependency boundaries
 
-### 5.1 Contracts
+`DotCraft.Protocol` exposes the `DotCraft.Protocol` namespace (contract primitives, extensibility, serialization, RPC descriptors) and the `DotCraft.Protocol.AppServer` namespace (AppServer DTOs, payloads, and descriptors). It contains the wire DTOs, wire enums and unions, `RpcEmpty`, `Optional<T>`, the Session item payload catalog, and the core and first-party module catalogs.
 
-The `DotCraft.Protocol` assembly exposes two public namespaces:
+It may depend only on the .NET base class library and System.Text.Json. Core, the .NET SDK, and first-party runtime modules reference it; it never references them or any persistence, agent runtime, Desktop, Hub, database, or provider assembly.
 
-- `DotCraft.Protocol` for common contract primitives, extensibility, serialization, and RPC descriptors;
-- `DotCraft.Protocol.AppServer` for AppServer DTOs, payloads, and RPC descriptors.
+Core must not define a structurally synonymous AppServer wire model. A Core type may remain only when it owns domain lifecycle, persistence, runtime behavior, or an internal projection that is not serialized as the AppServer contract. Hybrid types that combine wire fields with runtime state are split at the boundary.
 
-It contains:
+A compile-time generator and analyzer discovers descriptors, generates catalog indexes, serializer registrations, and C# binding helpers, and reports invalid contract declarations; it does not write repository files. The repo-local `DotCraft.ProtocolGen` CLI loads the compiled contract assembly, builds and validates the Contract IR, and writes the repository artifacts. It must not construct the AppServer host, resolve services, inspect a workspace, read user configuration, or access the network.
 
-- AppServer wire DTOs;
-- the canonical Session item payload catalog and typed payload parser;
-- wire enums and discriminated unions;
-- `RpcEmpty` and `Optional<T>`;
-- RPC descriptor primitives;
-- the core and first-party module catalogs;
-- generated catalog indexes and `JsonSerializerContext` registrations.
+## 5. Wire contract model
 
-It may depend only on the .NET base class library and System.Text.Json. It must not reference Core, persistence, agent runtime, Desktop, Hub, database, provider implementation, or first-party module runtime assemblies.
-
-Core, the .NET SDK, and first-party runtime modules reference Contracts. Contracts never reference those consumers.
-
-Core must not define a structurally synonymous AppServer wire model. A Core type may remain only when it owns domain lifecycle, persistence, runtime behavior, or an internal projection that is not serialized as the AppServer contract. Hybrid types that combine wire fields with ignored runtime state must be split at the boundary.
-
-### 5.2 Compile-time generator and analyzer
-
-`DotCraft.Protocol.Generators` is a separate Roslyn incremental generator and analyzer. It must not be merged into the existing module/tool generator project.
-
-It is responsible for:
-
-- discovering typed RPC descriptor declarations;
-- generating module-local and aggregate catalog indexes;
-- generating serializer context registrations and C# binding helpers;
-- reporting compile-time diagnostics for invalid contract declarations.
-
-It does not write repository files and does not emit TypeScript, Manifest, Schema, or OpenRPC artifacts.
-
-### 5.3 Repository generator
-
-`DotCraft.ProtocolGen` is a repo-local .NET CLI. It loads the compiled contract assembly and generated catalog, builds the Contract IR, validates the complete graph, and writes deterministic repository artifacts. JSON Schema, OpenRPC, Manifest, and language bindings are derived outputs and must not be edited as protocol sources.
-
-The CLI must not construct the AppServer host, resolve dependency injection services, inspect a workspace, read user configuration, or perform network access.
-
-## 6. Wire contract model
-
-### 6.1 Named DTO requirement
+### 5.1 Named DTO requirement
 
 Stable request params, request results, notification params, server-request params, and server-request results use named wire DTOs. Anonymous objects and `object?` are not valid stable contract types.
 
@@ -108,13 +72,13 @@ Raw JSON remains valid for deliberately open boundaries, including:
 - localized system-event parameter dictionaries;
 - provider-native or otherwise opaque payloads whose unknown fields must survive round trips.
 
-These boundaries use `JsonElement`, `JsonNode`, `JsonValue`, or a dictionary whose values are an explicit JSON value type.
+These boundaries use an explicit JSON value type.
 
-### 6.2 Empty values
+### 5.2 Empty values
 
-`RpcEmpty` represents an empty params or result object and serializes as `{}`. The contract system does not create a distinct empty type for each method.
+`RpcEmpty` represents an empty params or result object and serializes as `{}`. There is no distinct empty type per method.
 
-### 6.3 Required, optional, and nullable fields
+### 5.3 Required, optional, and nullable fields
 
 Contract properties must make presence and nullability explicit.
 
@@ -126,40 +90,36 @@ Contract properties must make presence and nullability explicit.
 | `Optional<T>` | optional, explicit null invalid | `field?: T` |
 | `Optional<T?>` | missing, null, or value | `field?: T \| null` |
 
-The analyzer rejects public contract properties whose declaration does not resolve to one of these states. Patch, update, and merge requests use `Optional<T>` where omission differs from an explicit value.
+The analyzer rejects public contract properties that do not resolve to one of these states. Patch, update, and merge requests use `Optional<T>` where omission differs from an explicit value.
 
-### 6.4 Enums and open string sets
+### 5.4 Enums and open string sets
 
-Closed wire enums serialize as camelCase strings. TypeScript represents them as string unions.
+Closed wire enums serialize as camelCase strings and are string unions in TypeScript.
 
-A field that must accept future string values is modeled as an open string set in the Contract IR rather than a closed enum. Generated clients expose known constants without rejecting unknown non-empty wire values.
+A field that must accept future string values is an open string set rather than a closed enum. Generated clients expose known constants without rejecting unknown non-empty wire values.
 
-### 6.5 Discriminated unions
+### 5.5 Discriminated unions
 
-Public unions require a stable string discriminator such as `type`. Every variant must have a unique discriminator value and a named payload type. The analyzer rejects public unions without a discriminator or with overlapping discriminator values.
+Public unions require a stable string discriminator such as `type`. Every variant has a unique discriminator value and a named payload type.
 
-### 6.6 Primitive and collection rules
+### 5.6 Primitive and collection rules
 
 - Protocol identifiers are strings.
-- Integer values whose protocol domain is bounded to JavaScript's safe range may use
-  `[JsonSafeInteger] long`/`long?` in C#. Contract IR records the inclusive
-  `-(2^53-1)` to `2^53-1` bounds, JSON Schema emits those bounds, and TypeScript
-  uses `number`. Producers must not emit values outside that range.
-- Values that can legitimately exceed JavaScript's safe integer range are strings on the wire.
-- Timestamps use ISO 8601 UTC strings. C# may expose `DateTimeOffset`; TypeScript wire models retain their serialized string form unless a language binding explicitly wraps them at a higher layer.
+- Integers whose domain is bounded to JavaScript's safe range may use `[JsonSafeInteger] long`; the contract records the `-(2^53-1)` to `2^53-1` bounds, JSON Schema emits them, and TypeScript uses `number`. Producers must not emit values outside that range.
+- Values that can exceed JavaScript's safe integer range are strings on the wire.
+- Timestamps are ISO 8601 UTC strings. TypeScript wire models keep the string form.
 - Arrays preserve order.
 - Dictionaries have string keys and an explicitly modeled value type.
-- Contract collections use read-only interfaces in public C# declarations where mutation is not part of the wire contract.
 
-### 6.7 Serializer behavior
+### 5.7 Serializer behavior
 
-Wire names use explicit `JsonPropertyName` declarations. Optional fields use explicit null/default omission rules. Unknown fields are ignored by C# deserialization and preserved on the wire.
+Wire names use explicit `JsonPropertyName` declarations. Optional fields use explicit omission rules. Unknown fields are ignored by C# deserialization and preserved on the wire.
 
-Custom converters are prohibited unless the contract system has an explicit schema/IR adapter for that converter. Built-in string-enum and approved discriminated-union handling are supported.
+Custom converters are prohibited unless the contract system has an explicit schema/IR adapter for them. Built-in string-enum and approved discriminated-union handling are supported.
 
-### 6.8 Session item payloads
+### 5.8 Session item payloads
 
-`SessionItem.payload` remains an optional opaque JSON value so clients can retain unknown future payloads. `SessionItem.payloadKind` selects a named canonical payload DTO when the kind is known. The executable Contracts assembly owns one payload catalog; generators, parsers, and SDKs must not maintain independent kind-to-type maps.
+`SessionItem.payload` remains an optional opaque JSON value so clients can retain unknown future payloads. `SessionItem.payloadKind` selects a named canonical payload DTO when the kind is known. The Contracts assembly owns the one payload catalog; generators, parsers, and SDKs must not maintain independent kind-to-type maps.
 
 The canonical catalog contains `userMessage`, `agentMessage`, `reasoningContent`, `commandExecution`, `toolExecution`, `imageGeneration`, `webSearch`, `toolCall`, `mcpToolCall`, `dynamicToolCall`, `toolResult`, `approvalRequest`, `approvalResponse`, `userInputRequest`, `userInputResponse`, `error`, and `systemNotice`.
 
@@ -170,103 +130,29 @@ Canonical payload DTOs are extensible objects and preserve unknown fields. Parsi
 - an unknown kind returns no typed value and preserves the original JSON;
 - a missing payload, explicit `null`, and a JSON value remain distinguishable.
 
-The catalog makes payload DTOs reachable roots in Contract IR even though `SessionItem.payload` is opaque JSON.
+The catalog makes payload DTOs reachable contract roots even though `SessionItem.payload` is opaque JSON.
 
-## 7. Typed RPC catalog
+## 6. Typed RPC catalog
 
-### 7.1 Descriptor primitives
+### 6.1 Descriptors
 
-The catalog exposes these core concepts:
+Each public method has exactly one typed descriptor (`RpcRequest<TParams, TResult>` or `RpcNotification<TParams>`) carrying its wire name, direction, `Since`, `SpecRef`, module, stability, and typed capability, scope, notification opt-out, and stable error-code metadata.
 
-```csharp
-public enum RpcDirection
-{
-    ClientToServer,
-    ServerToClient
-}
+The catalog covers four kinds: client-to-server requests and notifications, and server-to-client requests (approval, user input, tool execution, other callbacks) and notifications (lifecycle and state changes). Direction and request/notification kind are part of method identity and cannot vary by transport.
 
-public enum RpcStability
-{
-    Stable,
-    Experimental
-}
+Catalog order is independent of source order: methods sort by wire name, direction, and kind. Duplicate wire identities fail compilation.
 
-public sealed record RpcRequest<TParams, TResult>(
-    string Name,
-    RpcDirection Direction,
-    string Since,
-    string SpecRef,
-    string Module = "core",
-    RpcStability Stability = RpcStability.Stable);
+### 6.2 Modules
 
-public sealed record RpcNotification<TParams>(
-    string Name,
-    RpcDirection Direction,
-    string Since,
-    string SpecRef,
-    string Module = "core",
-    RpcStability Stability = RpcStability.Stable);
-```
+Each descriptor has a stable module identifier. Core and bundled first-party contracts (core AppServer, App Binding, Automations, ACP, Node REPL, External Channel) live in the Contracts assembly but remain separate modules in the Manifest, even when their runtime implementations live in separate assemblies. The default package represents the complete bundled AppServer surface; module filtering may produce a subset for validation.
 
-Descriptors also expose capability, scope, notification opt-out, and stable error-code metadata through typed properties rather than unstructured dictionaries.
+Third-party extensions that do not ship a contract module declare string method names and accept raw JSON; dynamic third-party contract discovery is outside this package. Hub endpoints are not AppServer modules and do not enter the catalog, Manifest, or OpenRPC.
 
-### 7.2 Four protocol directions
+## 7. Contract IR
 
-The catalog covers:
+All emitters consume one normalized model of metadata, modules, types (object, enum, open string set, union, array, map, any-JSON), item payloads (`payloadKind` → type), and methods. Each field records its wire name, type, requiredness, nullability, description, deprecation, and constraints. Each method records its full descriptor metadata and resolved params and result types.
 
-| Kind | Direction | Example responsibility |
-|------|-----------|------------------------|
-| **Request** | Client to server | A client calls an AppServer operation and receives a typed result. |
-| **Notification** | Client to server | A client sends a one-way lifecycle signal. |
-| **Request** | Server to client | AppServer requests approval, user input, tool execution, or another callback. |
-| **Notification** | Server to client | AppServer publishes lifecycle or state changes. |
-
-Every public method has exactly one descriptor. Direction and request/notification kind are part of identity and cannot vary by transport.
-
-### 7.3 Catalog declaration and discovery
-
-Domain catalog classes expose public static descriptor fields grouped by protocol area. The Roslyn generator discovers fields whose types are `RpcRequest<,>` or `RpcNotification<>` and generates an ordered aggregate catalog.
-
-Generation order is independent of source-file order. Methods sort by wire name, direction, and kind. Duplicate wire identities fail compilation.
-
-### 7.4 Modules
-
-Each descriptor has a stable module identifier. Core and bundled first-party contracts live in the pure Contracts assembly but remain separate modules in the Manifest.
-
-The bundled module set includes core AppServer, App Binding, Automations, ACP, Node REPL, and External Channel contracts. Dynamic third-party extensions remain outside generated coverage and use the existing raw extension interface.
-
-## 8. Contract IR
-
-### 8.1 Model
-
-All emitters consume one normalized in-memory model:
-
-```text
-ProtocolModel
-|-- Metadata
-|-- Modules
-|-- Types
-|   |-- Object
-|   |-- Enum
-|   |-- OpenStringSet
-|   |-- Union
-|   |-- Array
-|   |-- Map
-|   `-- AnyJson
-|-- ItemPayloads
-|   `-- payloadKind -> Type
-`-- Methods
-    |-- Request
-    `-- Notification
-```
-
-Each field records its wire name, type reference, requiredness, nullability, description, deprecation state, and constraints. Each method records the full descriptor metadata and the resolved type identities of its params and result.
-
-### 8.2 Construction
-
-ProtocolGen reads generated catalog metadata and System.Text.Json serializer metadata from the compiled Contracts assembly. The TypeScript emitter does not reflect C# independently and does not parse other generated files.
-
-### 8.3 Validation
+The IR is built from catalog metadata and System.Text.Json serializer metadata of the compiled Contracts assembly. Language emitters consume the IR; they do not reflect C# independently or parse other generated files.
 
 IR construction fails on:
 
@@ -277,32 +163,20 @@ IR construction fails on:
 - ambiguous field presence or nullability;
 - unsupported custom converters or primitive mappings;
 - unsafe numeric mappings;
-- invalid union discriminators;
+- missing or overlapping union discriminators;
 - schema-name or generated-symbol collisions;
 - unreachable or orphaned public contract types;
 - nondeterministic ordering or output.
 
-Validation reports stable diagnostic codes and identifies the descriptor or type that caused the failure.
+Validation reports stable diagnostic codes identifying the offending descriptor or type.
 
-## 9. Generated contract artifacts
+## 8. Generated contract artifacts
 
-### 9.1 Repository layout
+### 8.1 Artifact set
 
-Generated AppServer artifacts live under:
+The AppServer contract package consists of the Manifest (`appserver.manifest.json`), OpenRPC (`openrpc.json`), the contract hash (`contract.sha256`), and JSON Schemas (an aggregate bundle plus one file per type, grouped by module). Artifacts are colocated with the executable contract and contain no timestamps, checkout paths, machine names, credentials, user identities, external project references, or environment-specific values.
 
-```text
-src/DotCraft.Protocol/Artifacts/AppServer/
-|-- appserver.manifest.json
-|-- openrpc.json
-|-- contract.sha256
-`-- schemas/
-    |-- appserver.schema.json
-    `-- <module>/<Type>.schema.json
-```
-
-Artifacts are colocated with the executable contract that owns them. They remain repository outputs rather than compiled resources or independent protocol sources. They contain no timestamps, checkout paths, machine names, credentials, user identities, external project references, or environment-specific values.
-
-### 9.2 Manifest
+### 8.2 Manifest
 
 The Manifest is the complete machine-readable contract directory. Format version 1 contains:
 
@@ -316,27 +190,21 @@ The Manifest is the complete machine-readable contract directory. Format version
 
 SDK method registries and method maps derive from the Manifest or the same IR data. JSON Schema alone is not a method catalog.
 
-### 9.3 JSON Schema
+### 8.3 JSON Schema
 
-ProtocolGen emits JSON Schema Draft 2020-12. It writes one stable file per public type and an aggregate AppServer bundle. `$id` and `$ref` values are repository-independent and use stable logical names.
+Schemas use JSON Schema Draft 2020-12. `$id` and `$ref` values are repository-independent stable logical names. Schemas resolve required/nullable semantics, assign stable union variant titles, represent open string sets explicitly, and preserve descriptions needed by language generators.
 
-Schema normalization resolves required/nullable semantics, assigns stable union variant titles, represents open string sets explicitly, and preserves descriptions needed by language generators.
+### 8.4 OpenRPC
 
-### 9.4 OpenRPC
+OpenRPC describes request methods and their params/results, with DotCraft extensions for direction, module, capability, stability, notification semantics, and opt-out metadata. It is an interoperability and documentation artifact, not the executable source for server dispatch.
 
-OpenRPC describes request methods and their params/results. DotCraft extensions record direction, module, capability, stability, notification semantics, and opt-out metadata where the base format is insufficient.
+### 8.5 Contract hash
 
-OpenRPC is an interoperability and documentation artifact. It is not the executable source for server dispatch.
+`contract.sha256` is the SHA-256 digest of the canonical Manifest and all referenced Schema files. Inputs sort by logical path and use UTF-8 with LF line endings. Each hash entry is the logical path, one zero byte, the canonical file bytes, and one zero byte. OpenRPC is excluded as a redundant projection.
 
-### 9.5 Contract hash
+Generated SDKs expose the hash as protocol metadata. It identifies an exact contract shape; it does not replace semantic version compatibility checks.
 
-`contract.sha256` is the SHA-256 digest of the canonical Manifest and all referenced Schema files. Inputs sort by logical path and use UTF-8 with LF line endings. Each hash entry is the logical path, one zero byte, the canonical file bytes, and one zero byte. OpenRPC is excluded because it is a redundant projection.
-
-Generated SDKs expose the hash as protocol metadata. The hash identifies an exact contract shape; it does not replace semantic version compatibility checks.
-
-## 10. ProtocolGen commands
-
-The repo-local CLI provides:
+## 9. ProtocolGen commands
 
 ```text
 dotnet run --project tools/DotCraft.ProtocolGen -- generate
@@ -345,66 +213,24 @@ dotnet run --project tools/DotCraft.ProtocolGen -- check
 dotnet run --project tools/DotCraft.ProtocolGen -- diff --against <baseline>
 ```
 
-Every command accepts `--profile stable|experimental`; `stable` is the default. Repeated `--module` options limit `validate` to selected bundled modules without changing type identities.
+Every command accepts `--profile stable|experimental` (default `stable`). `--module` limits `validate` to selected bundled modules without changing type identities.
 
-- `generate` writes all selected artifacts and generated SDK files.
-- `validate` builds and validates the Contracts/IR graph without invoking language code generators or changing tracked files.
-- `check` generates into an isolated temporary directory and reports drift from checked-in outputs.
-- `diff` classifies changes between two contract packages.
+- `generate` writes all contract artifacts and generated SDK files. A failure leaves checked-in artifacts unchanged.
+- `validate` builds and validates the Contracts/IR graph without running language emitters or changing tracked files.
+- `check` regenerates in isolation and reports drift from checked-in outputs.
+- `diff` classifies changes between two contract packages (§12.4).
 
-Generation first compiles and validates the complete Contract IR, then renders every contract and SDK output into an isolated staging directory. Files are normalized before hashing. Installation replaces each destination through a same-directory temporary file only after the complete staged output succeeds; generation failures before installation leave checked-in artifacts unchanged. `check` performs the same construction and validation without writing repository files.
+## 10. Language bindings
 
-## 11. Language binding generation
+### 10.1 Generated surface
 
-### 11.1 .NET
+The server and .NET SDK reference `DotCraft.Protocol` directly; no second copy of the DTOs exists. Generated .NET helpers are typed per method and call the exact descriptor member recorded in the Manifest. Generated server-notification classification distinguishes unknown methods from malformed known messages.
 
-The server and .NET SDK reference `DotCraft.Protocol`. No second generated copy of the DTOs exists.
+TypeScript DTOs are emitted from the IR: interfaces, string unions, discriminated unions, JSON value aliases, the Session item payload map with a known/unknown classifier, four direction-specific method maps, and exhaustive known notification and server-request envelope unions for typed dispatch and host IPC. Method literals infer params and result types.
 
-The compile-time generator emits typed low-level helpers such as:
+### 10.2 Handwritten layer
 
-```csharp
-Task<ThreadStartResult> ThreadStartAsync(
-    ThreadStartParams parameters,
-    CancellationToken cancellationToken = default);
-```
-
-The .NET SDK exposes descriptor-typed `RequestAsync` / `NotifyAsync` APIs. Unknown extensions use separately named `RequestRawAsync` / `NotifyRawAsync` methods; there is no arbitrary-string overload on the typed methods.
-
-Each Manifest method records the public `AppServerRpc` descriptor member used by generated .NET bindings. This is additive metadata in Manifest format version 1; it avoids guessing descriptor identifiers from Wire method spelling without changing Contract IR's format version.
-
-The generator also classifies cataloged server notifications by their Contracts params DTO. Unknown methods remain distinguishable from malformed known messages.
-
-### 11.2 TypeScript
-
-ProtocolGen writes:
-
-```text
-sdk/typescript/src/generated/appserver/
-|-- models.generated.ts
-|-- client-requests.generated.ts
-|-- client-notifications.generated.ts
-|-- server-requests.generated.ts
-|-- server-notifications.generated.ts
-|-- item-payloads.generated.ts
-`-- method-groups.generated.ts
-```
-
-The TypeScript emitter consumes Contract IR directly. It generates interfaces, string unions, discriminated unions, JSON value aliases, the Session item payload map and known/unknown classifier, four direction-specific method maps, and exhaustive known notification/server-request envelope unions suitable for typed dispatch and host IPC boundaries.
-
-```typescript
-export interface ClientRequestMap {
-  "thread/start": {
-    params: ThreadStartParams;
-    result: ThreadStartResult;
-  };
-}
-```
-
-The low-level client uses method literals to infer params and result types. Unknown methods remain available only through explicitly named raw APIs. `@dotcraft/sdk/contracts` re-exports these I/O-free generated artifacts.
-
-### 11.3 Handwritten SDK layer
-
-All language bindings keep these components handwritten:
+Every language binding keeps these handwritten:
 
 - transports and response correlation;
 - initialization gating, timeouts, lifecycle state, and opt-in reconnect;
@@ -415,55 +241,19 @@ All language bindings keep these components handwritten:
 - language-specific exception types;
 - explicitly named raw escape hatches.
 
-Generated files remain internal low-level building blocks unless a language binding spec explicitly exports them.
+Known operations use generated maps, descriptors, or helpers. Unknown extensions use separately named raw methods so a misspelled known method cannot bypass compile-time checking; typed methods have no arbitrary-string overload. Generated files are internal building blocks unless a language binding spec exports them. Host adapters may project generated contracts across IPC but must not fork the contract model.
 
-Known operations use generated maps, descriptors, or mixins. Unknown extensions use separately named raw methods so a misspelled known method cannot silently bypass compile-time checking. Host adapters may project generated contracts across IPC, but must not fork the contract model.
+## 11. Typed server integration
 
-The .NET high-level layer directly exposes Contracts DTOs for initialize, Thread, Turn, provider/model, MCP, App Binding, approval, user input, Runtime Dynamic Tool callbacks, snapshots, and terminal Run state. High-level handles, reducers, Hub helpers, authoring attributes, and exceptions remain SDK-owned because they are not Wire DTOs.
+The server maps handlers, notification writers, and reverse requests by typed descriptor, never by unrelated strings and `object?` handlers. Typed dispatch owns parameter deserialization, validation, handler invocation, result serialization, cancellation propagation, and stable error mapping, and preserves response-before-notification ordering and notification filtering. Handlers receive Contracts params and return Contracts results.
 
-## 12. Typed server integration
+Domain mapping between contract DTOs and domain commands/models is explicit. Contract DTOs must not become persistence or domain models, and generic JSON round trips are not a substitute for mapping: feature-owned mappers read or construct fields explicitly so contract drift is visible to compilation and tests.
 
-The server maps typed descriptors rather than unrelated strings and `object?` handlers:
+The generic JSON-RPC envelope, transport interfaces, and raw extension interface remain available. The server accepts unmodeled third-party extensions only through the raw extension interface; bundled extensions register every method through a typed descriptor. Every SDK exposes explicitly named raw request and notification APIs and a distinct raw listener for unknown notifications.
 
-```csharp
-public void Map<TParams, TResult>(
-    RpcRequest<TParams, TResult> method,
-    RpcHandler<TParams, TResult> handler);
-```
+## 12. Protocol evolution
 
-Notification and reverse-request writers accept the same descriptor identities:
-
-```csharp
-await writer.NotifyAsync(ThreadRpc.Started, notification, cancellationToken);
-await connection.RequestAsync(ApprovalRpc.Request, parameters, cancellationToken);
-```
-
-Typed dispatch owns parameter deserialization, validation, handler invocation, result serialization, cancellation propagation, and stable error mapping. Handlers receive Contracts parameter DTOs and return Contracts result DTOs. Domain mapping remains explicit:
-
-```text
-Contract DTO -> Domain command/input
-Domain model -> Contract DTO
-```
-
-Contract DTOs must not become persistence or domain models.
-
-Generic JSON serialization round trips are not a substitute for domain mapping. Feature-owned mappers must read or construct the relevant fields explicitly so contract drift is visible to compilation and tests.
-
-The generic JSON-RPC envelope, transport interfaces, and raw extension interface remain available. Typed dispatch preserves response-before-notification ordering and notification filtering behavior.
-
-## 13. First-party modules and extensions
-
-Bundled first-party methods participate in the aggregate Catalog through stable module identifiers. Their DTOs remain in the pure Contracts assembly even when runtime implementations live in separate assemblies.
-
-The aggregate generator includes core and bundled modules in one contract package. Module filtering may produce a subset for validation or development, but the default package represents the complete bundled AppServer surface.
-
-Third-party extensions that do not ship a contract module continue to declare string method names and accept raw JSON. Dynamic third-party contract discovery is outside this contract package.
-
-Hub endpoints are not AppServer modules. They do not enter the RPC Catalog, Manifest, or AppServer OpenRPC document.
-
-## 14. Protocol evolution
-
-### 14.1 Wire invariants
+### 12.1 Wire invariants
 
 Contract and binding changes must preserve:
 
@@ -476,17 +266,15 @@ Contract and binding changes must preserve:
 - error codes and error-data shapes;
 - unknown-field and opaque JSON behavior.
 
-### 14.2 Executable authority
+### 12.2 Stability profiles
 
-The `DotCraft.Protocol` assembly is the sole executable authority for public AppServer DTOs and method associations. Runtime assemblies may retain domain-facing projection types, and SDKs may retain high-level models, but neither is an independent wire definition. Core request/result/notification DTOs and handwritten SDK wire DTOs are prohibited. Built-in registrations, notifications, fixed reverse requests, and canonical method-name constants are generated from typed descriptors. Handwritten method-name facades are not permitted.
+Every descriptor and public type carries stability metadata; bundled descriptors are stable unless declared otherwise. The stable profile contains stable entries only; the experimental profile contains stable and experimental entries. Filtering happens in the IR before any emitter runs.
 
-### 14.3 Raw extension boundary
+### 12.3 Change order
 
-Every SDK exposes explicitly named raw request and notification APIs. Unknown notifications are exposed through a distinct raw listener. The server accepts unmodeled third-party extensions only through the raw extension interface; bundled extensions must register every method through a typed descriptor.
+A contract change updates the owning protocol spec first, then the C# contracts and descriptors, then regenerates and checks artifacts. Source and generated artifact changes are reviewed and committed together.
 
-### 14.4 Diff classification
-
-Local protocol diff classifies changes as:
+### 12.4 Diff classification
 
 | Classification | Examples |
 |----------------|----------|
@@ -496,26 +284,6 @@ Local protocol diff classifies changes as:
 
 Closed-enum additions are reported separately as source-compatibility risks even when wire-compatible.
 
-## 15. Stability profiles
-
-Every descriptor and public type carries stability metadata. All current bundled descriptors are stable unless explicitly declared otherwise. Local generation supports two profiles:
-
-- stable output, containing stable contract entries only;
-- experimental output, containing stable and experimental entries.
-
-Experimental filtering happens in Contract IR before any emitter runs. Emitters must not remove experimental entries by rewriting generated text.
-
-## 16. Conformance assets
+## 13. Conformance assets
 
 Portable JSON fixtures under `specs/protocols/fixtures/` are shared by .NET and TypeScript. They use synthetic values and exercise the wire contract rather than repository-specific environments. Generated artifacts must reproduce byte-for-byte, with resolvable schema references and matching Manifest/OpenRPC method identities.
-
-## 17. Local artifact workflow
-
-Contract changes follow this order:
-
-1. Update the owning Markdown protocol spec.
-2. Update C# contract DTOs and RPC descriptors.
-3. Build Contracts and run analyzer validation.
-4. Run ProtocolGen `generate`.
-5. Run ProtocolGen `check` and the shared conformance tests.
-6. Review and commit the source and generated artifact changes together.

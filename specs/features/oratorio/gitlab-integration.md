@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.8.10 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-10-17 |
+| Date | 2026-10-19 |
 | Parent Spec | [Oratorio Design](./oratorio-design.md) |
 
 This document defines the product and behavior contract for GitLab as a
@@ -33,12 +33,10 @@ write audit and implementation delivery as GitHub-backed work.
 
 The integration must:
 
-- keep GitHub behavior unchanged alongside GitLab;
 - treat GitLab as a provider with its own endpoint, credentials, project
   identity, webhook verification, diff anchors, commit status and merge request
   semantics;
 - support GitLab.com, self-managed GitLab and Dedicated-style endpoints;
-- make GitHub and GitLab understandable side by side in Desktop Settings;
 - keep every external write backend-owned, explicit, auditable, retryable and
   separate from agent tool execution.
 
@@ -56,8 +54,10 @@ The integration must not:
 Provider capabilities, sync jobs, source write audit and canonical routing keys
 follow [Oratorio Design](oratorio-design.md#source-provider-model).
 
-Operators configure the full namespace path, including subgroups. A project's
-canonical key is GitLab, its instance and that full path. Issues and merge
+Operators configure the full namespace path, including subgroups, and paths
+are normalized without dropping them. A project's canonical key is GitLab, its
+instance and that full path; changing the instance requires workspace routes
+and automation lists to use the new keys. Issues and merge
 requests are identified by the project and GitLab's project-scoped number
 (`#N` for issues, `!N` for merge requests). GitLab's numeric project id is
 cached metadata, never routing identity.
@@ -65,7 +65,7 @@ cached metadata, never routing identity.
 ## 3. GitLab Provider Contract
 
 The baseline uses token authentication. OAuth setup, automatic webhook
-creation, RBAC administration and enterprise SSO are separate contracts.
+creation, RBAC administration and enterprise SSO are out of scope.
 
 ### 3.1 Configuration and Authentication
 
@@ -76,7 +76,8 @@ configured project.
 
 A project's access record is keyed by its canonical project key and holds the
 token kind, the write-only token, and an optional write-only webhook secret and
-signing token. The token kind (project, group or personal access token) is a
+signing token. Settings writes GitLab credentials only through these access
+records. The token kind (project, group or personal access token) is a
 label for the operator, not a permission claim. Matching is exact per project:
 a group or personal token is used for several projects by entering it on each,
 with no inheritance by group prefix.
@@ -90,9 +91,7 @@ requests in it. The UI and diagnostics show token presence and the capability
 observed per project, and never claim a scope that no capability check has
 verified.
 
-Writes act as the project's token identity. Operators should prefer project
-access tokens for single-project automation and use group or personal tokens
-only when broader access is intended.
+Writes act as the project's token identity.
 
 ### 3.2 Read Sync
 
@@ -162,9 +161,7 @@ The commit status targets the merge request's current head. Without a known
 head the status write fails on its own; the note may still succeed as a
 separately audited write.
 
-GitLab's merge request approval API is not part of the baseline. If it is ever
-used, it must be a separate explicit capability, since eligibility, tier,
-re-authentication and author or committer rules vary by instance.
+Oratorio does not use GitLab's merge request approval API.
 
 Review draft submission is provider-neutral; GitLab-specific behavior happens
 in validation and publication.
@@ -245,7 +242,7 @@ route, missing credentials, an invalid worktree, an empty diff, an invalid
 branch name, a failed commit, push or merge request creation, a conflict adding
 the generated task, and insufficient token permission.
 
-## 4. Desktop Settings and Operator UX
+## 4. Settings, Diagnostics, and Security
 
 Clients distinguish GitLab projects and merge requests from GitHub repositories
 and pull requests. Settings shows the endpoint, project routes, read, write and
@@ -255,23 +252,10 @@ GitLab credentials can be replaced, cleared or left unchanged, and are never
 shown. A project's access record lives as long as its project is configured or
 routed on the current instance; removing both removes its secrets on the next
 save. Changing the endpoint host clears the previous instance's access
-records. Saved changes apply without a restart.
-
-Auto Review uses the shared first-enable baseline and head-change re-review
-once read sync is available. Repository lists use canonical project keys.
-
-## 5. Diagnostics, Security, and Operations
+records. Saved changes apply without a restart. Repository lists such as Auto
+Review use canonical project keys.
 
 Diagnostics report the endpoint and derived API address without credentials,
 query or fragment, provider and per-project credential presence, read, write
 and webhook capability, and recent sync and write failures. They follow the
 parent's redacted audit contract; unknown provider settings fail validation.
-
-## 6. Configuration Invariants
-
-- Project paths are normalized without dropping subgroups.
-- Canonical project keys include provider and instance.
-- The API address is derived from the endpoint.
-- Settings writes GitLab credentials only through per-project access records.
-- Changing the instance requires workspace routes and automation lists to use
-  the new canonical project keys.

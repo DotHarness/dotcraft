@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.6 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-10-13 |
-| **Related Specs** | [Session Core](../architecture/session-core.md), [Memory](memory.md), [Automations Lifecycle](automations-lifecycle.md) |
+| **Date** | 2026-10-19 |
+| **Related Specs** | [Session Core](../architecture/session-core.md), [Memory](memory.md) |
 
 Purpose: Define **Dreams**, DotCraft's background consolidation of memory stores. A Dream Run reviews one [memory store](memory.md) together with the recent Threads that used it, and produces a consolidated version of that store. The new version is applied after review or automatically.
 
@@ -160,7 +160,7 @@ Dashboard may restore an applied run's baseline, under the mirror-image rule: on
 
 ### 6.7 Archive and permanent deletion
 
-Archiving is reversible and hides a run from default lists. It keeps the run directory, internal Thread, and trace. Desktop's **Archive** and **Archive all** both use `dreams/archive`, one request per run.
+Archiving is reversible and hides a run from default lists. It keeps the run directory, internal Thread, and trace.
 
 Permanent deletion is Dashboard-only, through the endpoints in §11. It removes the run directory and, best-effort, the run's internal Thread and trace. It never touches a store. A running run cannot be deleted, and bulk deletion fails with a conflict before deleting anything when any targeted run is running. A trace cleanup failure produces a successful partial response that names the affected Thread. Afterwards `state.json` is rebuilt from the newest remaining run, or cleared when none remain.
 
@@ -176,28 +176,7 @@ Permanent deletion is Dashboard-only, through the endpoints in §11. It removes 
 
 The model follows the top-level `ConsolidationModel` setting. Run state belongs in `.craft/dreams/`, not in configuration.
 
-Run state fields:
-
-| Field | Meaning |
-|-------|---------|
-| `id` | Run id. |
-| `scope` | The store's scope; absent for the workspace store. |
-| `status` | `running`, `succeeded`, `skipped`, `failed`, or `canceled`. |
-| `trigger` | `manual` or `scheduled`. |
-| `startedAt`, `endedAt` | Run timestamps. |
-| `candidateThreadCount` | Threads listed in the manifest. |
-| `evidenceThreadIds` | Threads the run searched or read through evidence tools. |
-| `evidenceSearchCount`, `evidenceReadCount` | Evidence tool calls used. |
-| `changes` | Memory file names the candidate added, updated, and deleted, and whether the index changed. |
-| `reviewStatus` | `pending`, `applied`, `discarded`, or `archived` when review state exists. |
-| `autoApplied` | Whether `Dreams.AutoApply` applied the run. |
-| `summary` | The run's own summary of what it changed. |
-| `errorType`, `message` | Failure or apply-conflict class and a short message. |
-| `threadId`, `turnId` | The Dream Run Thread and its Turn, filled as soon as known. |
-| `usage` | Token usage when available. |
-| `inputManifestPath` | Path to the run's manifest. |
-
-`dreams/status` additionally reports `nextRunAt`, the next scheduled check.
+A run's state records its id and store scope; its status (`running`, `succeeded`, `skipped`, `failed`, or `canceled`) and trigger (`manual` or `scheduled`); timestamps; the Threads listed in the manifest and those it actually searched or read, with evidence tool counts; the memory files the candidate added, updated, and deleted and whether the index changed; its review status (`pending`, `applied`, `discarded`, or `archived`) and whether `Dreams.AutoApply` applied it; its own summary; a failure or apply-conflict class and message; the Dream Run Thread and Turn, filled as soon as known; token usage when available; and the manifest path. `dreams/status` additionally reports `nextRunAt`, the next scheduled check.
 
 ## 8. Agent Context Integration
 
@@ -243,7 +222,7 @@ Required behavior:
 - Refresh status on `config/changed` whose `regions` contain `memory`, or whose key paths include a `Dreams.*` key or `Memory.Enabled`.
 - Disable **Run now** while a run is active, and poll `dreams/status` after `dreams/run` until it completes or the client times out.
 - Provide **Archive** and **Archive all** through `dreams/archive`. Desktop does not delete runs and does not show diffs or apply, discard, or cancel actions. Review happens in Dashboard, and the Review action is disabled with an explanation when no Dashboard URL is available.
-- Show concise succeeded, skipped, failed, and pending states, and label the capability Dreams.
+- Show concise succeeded, skipped, failed, and pending states.
 
 ## 11. Dashboard UX Contract
 

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.3 |
+| Version | 0.9.1 |
 | Status | Draft |
-| Date | 2026-10-06 |
+| Date | 2026-10-19 |
 | Parent spec | [Agent Profiles](agent-profiles.md) |
 
 This specification owns how an Agent Profile leaves one DotCraft installation as a file and arrives in another: the file an export writes, what an import reads from it, and what the receiving installation installs before the profile exists. [Agent Profiles](agent-profiles.md) owns the profile document and its sources.
@@ -63,25 +63,19 @@ Methods belong to the `agent/profiles` group.
 
 | Method | Purpose |
 |---|---|
-| `agent/profiles/export/plan` | `{id, source}` → the file name, the bound, and each offered package with its kind, name, display name, version, `.NET` flag, expanded size, marketplace name, and the reasons the document relies on it. |
-| `agent/profiles/export/read` | `{id, source, packages, offset}` → `{totalBytes, dataBase64}`. Offset `0` writes the package for the chosen `{kind, name}` list and returns the first chunk; later offsets continue it; a negative offset discards it. Chunks are at most 1 MiB. |
-| `agent/profiles/import/upload` | `{importId?, fileName, totalBytes, offset, dataBase64}` → `{importId, receivedBytes, preview?}`. The first chunk omits `importId`. The preview is returned with the last chunk. Chunks are at most 1 MiB. |
-| `agent/profiles/import/commit` | `{importId, name, description?, source, packages}` → the created profile entry. |
-| `agent/profiles/import/discard` | `{importId}` → `{}`. |
+| `agent/profiles/export/plan` | Returns the file name, the bound, and each offered package with its metadata, expanded size, and the reasons the document relies on it. |
+| `agent/profiles/export/read` | Offset `0` writes the package for the chosen packages and returns the first chunk; later offsets continue it; a negative offset discards it. |
+| `agent/profiles/import/upload` | Uploads a file in chunks. The first chunk allocates an `importId`; the last chunk returns the preview. |
+| `agent/profiles/import/commit` | Installs the chosen packages and creates the profile under the chosen name, description, and location. |
+| `agent/profiles/import/discard` | Discards an uploaded import. |
+
+Chunks are at most 1 MiB.
 
 Errors are invalid-params errors whose `data.code` is one of the stable codes `agentPackageInvalid`, `agentPackageTooLarge`, `importExpired`, `agentNameTaken`, and `packageNotFound`; a document that does not validate returns the Agent Profile validation error. Clients localize them.
 
 ## Desktop
 
-- The Agents page toolbar carries Import beside New agent. Import opens a dialog that accepts a dropped or chosen `.zip` or `.md` and states the bound.
+- The Agents page offers Import, which accepts a dropped or chosen `.zip` or `.md` and states the bound.
 - The preview step shows the name-derived avatar with the editable name, the description, the save location, the packages with one switch per installable package and the state of the others, and one warning line for unresolved names. Import stays disabled while the name is empty or taken or the document has errors. Choose another file discards the staged import.
 - Success closes the dialog and opens the imported profile in the editor. Each installed plugin that carries .NET code then opens its plugin dialog at the trust step, one after another.
-- The editor's More actions menu carries Export… for created user and workspace profiles. Export opens a dialog listing the offered packages with switches and their sizes, and a note that MCP server settings are not included. The server enforces the bound when it writes the file. Export writes the file through the system save dialog.
-
-## Acceptance scenarios
-
-- A profile exported with one workspace skill and one marketplace plugin imports into an installation holding neither but holding that marketplace: both install and the profile opens in the editor.
-- Importing the same file again lists both packages as installed, installs nothing, and refuses the taken name until the user renames it.
-- A Profile document alone imports under the chosen name and lists the skills it names that nobody provides.
-- A zip with an entry outside it is refused and creates nothing.
-- A .NET plugin in an import installs untrusted and its plugin dialog asks for trust after the import; an expired import is refused.
+- The editor offers Export for created user and workspace profiles. Export lists the offered packages with switches and sizes, notes that MCP server settings are not included, and saves through the system save dialog.

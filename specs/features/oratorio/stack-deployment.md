@@ -2,10 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.8.10 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-10-17 |
-| Related Specs | [Oratorio Design](oratorio-design.md), [Runtime Module Boundaries](../../architecture/runtime-module-boundaries.md) |
+| Date | 2026-10-19 |
+| Parent Spec | [Oratorio Design](oratorio-design.md) |
+| Related Specs | [Runtime Module Boundaries](../../architecture/runtime-module-boundaries.md), [Server Webhook Ingress](server-webhook-ingress.md) |
 
 ## Overview
 
@@ -19,15 +20,11 @@ so worktrees Oratorio creates open in AppServer without path translation.
 - **Oratorio**: headless sync, automation, review, delivery, settings API and
   realtime stream.
 - **Webhook gateway**: optional overlay exposing only declared webhook paths
-  ([Server Webhook Ingress](server-webhook-ingress.md)).
+  (Server Webhook Ingress).
 
 AppServer, Dashboard and Oratorio bind to host loopback by default. Remote
 Desktop access uses separate SSH tunnels. The webhook gateway is the only
 component meant for public traffic.
-
-The DotCraft image and the Oratorio Server image are built separately from the
-repository; the DotCraft side also owns the official Compose stack, its
-configuration renderer and the webhook overlay.
 
 Managed worktrees live inside the shared Workspace. Oratorio's state and its
 writable configuration persist in the deployment's Oratorio state directory;
@@ -108,12 +105,8 @@ cloning repositories or invoking Docker.
 - Initializing into a non-empty target is rejected.
 - Invalid providers, source keys, Workspace paths, ports and missing required
   values fail before anything is written.
-- Writes use same-directory temporary files and atomic replacement where
-  supported.
+- File writes are atomic where supported.
 - Lifecycle failures exit non-zero and keep bounded, redacted diagnostics.
 - Doctor reports a missing or read-only DotCraft user state mount, so an
-  image-only upgrade is not mistaken for a complete update. Existing Compose
-  files are migrated explicitly; upgrade never rewrites locally customized
-  Compose.
-- Disabling webhook ingress keeps the base stack, state, secrets and
-  certificate state.
+  image-only upgrade is not mistaken for a complete update. Upgrade never
+  rewrites locally customized Compose.

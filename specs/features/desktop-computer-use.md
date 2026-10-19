@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.1 |
+| **Version** | 0.9.1 |
 | **Status** | Draft |
-| **Date** | 2026-10-03 |
+| **Date** | 2026-10-19 |
 | **Parent Specs** | [Desktop Node REPL](node-repl.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define how DotCraft Desktop lets the agent observe and operate native desktop applications on the user's Windows computer through the thread-bound Node REPL.
@@ -21,10 +21,10 @@ This spec covers:
 
 This spec does not define:
 
-- Browser automation; see [Desktop In-App Browser Runtime](desktop-inapp-browser.md) and [Chrome Browser Runtime](chrome-browser-runtime.md).
+- Browser automation, which the Desktop browser runtimes own.
 - macOS or Linux computer use.
 - Remote control of Satellite machines; Satellite excludes remote input by design.
-- Mentioning applications in the composer to pre-authorize them. That is a later extension.
+- Pre-authorizing applications from the composer.
 
 ## 2. Goals
 
@@ -39,7 +39,7 @@ This spec does not define:
 ```text
 NodeReplJs ──ext/nodeRepl/evaluate──► Desktop main ──► thread REPL worker
                                                           └─ dotcraft.computer.* (host calls)
-Desktop main: ComputerUseManager (one per Desktop process)
+Desktop main: computer use runtime (one per Desktop process)
   ├─ API adapter ──► cua-driver (stdio MCP child process)
   ├─ application identity, blocked applications, authorization
   ├─ ext/nodeRepl/requestApproval ──► AppServer turn approval service
@@ -50,7 +50,7 @@ Desktop main: ComputerUseManager (one per Desktop process)
 - **Desktop main** owns the driver process, the application authorization state and all user-facing computer use surfaces. The REPL worker only relays host calls; it never receives the driver path.
 - **cua-driver** is the execution layer. It is an external MIT-licensed binary pinned to one version and shipped with the Windows Desktop package.
 
-The Node REPL is not an OS sandbox. The skill forbids launching the driver or native input tools directly; the authorization boundary described here applies to `dotcraft.computer`.
+The Node REPL is not an OS sandbox. The skill forbids launching the driver or native input tools directly; the authorization boundary applies to `dotcraft.computer`.
 
 ## 4. Host API
 
@@ -101,7 +101,7 @@ Driver error codes such as `stale_element_token` or `ambiguous_window_target` pa
 ## 5. Application Identity
 
 - A packaged application is identified by its Application User Model ID. A desktop application is identified by the absolute path of its executable.
-- Desktop main resolves identity from the window handle, not from driver-reported process names. For windows hosted by `ApplicationFrameHost.exe` the identity comes from the hosted core window's process.
+- Desktop main resolves identity from the window handle, not from driver-reported process names. For a hosted packaged-app frame, identity comes from the hosted window's process.
 - Display names come from the Start menu entry for packaged applications and from the executable's version information for desktop applications, falling back to the file name.
 - Identities compare case-insensitively.
 - Resolution results are cached per window handle until the turn ends. A window whose application cannot be resolved fails with `app_unidentified`.
@@ -148,8 +148,7 @@ For each gated call, Desktop main:
 
 ### 8.2 Driver process
 
-- Desktop starts `cua-driver.exe mcp --direct` lazily on the first gated or listing call, with telemetry and update checks disabled, and verifies the reported version before use.
-- The runtime speaks the minimal MCP subset required: `initialize` and `tools/call`. Only the driver tools needed by Section 4 are called.
+- Desktop starts the driver lazily on the first gated or listing call, with telemetry and update checks disabled, and verifies its version before use. Only the driver tools needed by Section 4 are called.
 - A driver process serves at most one turn. When the turn that owns computer use ends, Desktop stops admitting calls for it, waits a bounded time for the in-flight call and closes the driver. A call from another turn closes the previous turn's driver first.
 - Desktop teardown and application quit close the driver.
 
@@ -161,20 +160,18 @@ For each gated call, Desktop main:
 
 ### 8.4 Stop affordance and lock
 
-- From the first computer use call until the turn ends, Desktop shows a non-focusable status pill reading "DotCraft is using your computer · Esc to cancel" at the top of the primary display, and a breathing brand-gradient glow around that display's edges. Both ignore the pointer and are excluded from screen capture; the driver's own agent cursor is the only cursor overlay.
-- While the pill is visible, Escape stops computer use for the turn. Desktop suspends its Escape shortcut while the runtime itself injects Escape.
+- From the first computer use call until the turn ends, Desktop shows a non-focusable status indicator on the primary display that names the stop key, plus an edge glow. Both ignore the pointer and are excluded from screen capture; the driver's own cursor is the only cursor overlay.
+- While the indicator is visible, Escape stops computer use for the turn. Escape that the runtime itself injects does not trigger the stop.
 - Locking the workstation stops computer use for the turn.
-- Stopping terminates the driver, hides the pill and glow, and makes later calls in the same turn fail with `computer_use_stopped`. The turn itself continues so the model can report what happened.
+- Stopping terminates the driver, hides the indicator, and makes later calls in the same turn fail with `computer_use_stopped`. The turn itself continues so the model can report what happened.
 
 ## 9. Presentation
 
 - Screenshots produced by `get_window_state` appear in the `NodeReplJs` tool result image output.
 - The computer use approval card asks whether DotCraft may use the named application and offers the three choices in Section 7.
-- Settings › Computer use shows the Control group (Any app, Chrome) and the Always-allowed apps group with an empty state.
+- Settings › Computer use offers the control toggles (Any app, Chrome) and the always-allowed application list.
 
 ## 10. Packaging
 
-- The Windows build downloads the pinned `cua-driver` release archive for the target architecture, verifies its SHA-256 and Authenticode signer, and packages `cua-driver.exe` with its MIT license under the Desktop resources `bin/cua-driver` directory.
-- Driver staging uses the repository's shared artifact downloader for progress, bounded downloads, and a SHA-256-verified cache outside the disposable staging directory. Extraction/signature waits are bounded, and cached archives still pass the executable signature check before packaging.
-- Downloads use up to eight concurrent byte-range requests when supported, retry failed ranges while keeping completed ranges, and validate the assembled archive before caching. Servers without range support use a single response.
+- The Windows package ships the pinned `cua-driver` release for the target architecture with its MIT license, after verifying its SHA-256 and Authenticode signer; a cached archive is re-verified before packaging.
 - No other driver components, installers or scheduled tasks are shipped or registered.

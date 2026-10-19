@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.8 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-19 |
 
 This specification defines the stable ownership, dependency, composition, and lifecycle rules for
 the DotCraft runtime.
@@ -38,38 +38,33 @@ Embedded application
   Protocol, but does not require Runtime as its host.
 - `DotCraft.App` is the official composition root. It selects entry points, providers, optional
   features, logging, process policy, and exit behavior.
-- `DotCraft.RemoteTools` owns the Remote Tool Host feature and depends on Core, Runtime's provider-free
-  plugin execution facade, the MCP ASP.NET
-  transport, and the `DotCraft.Protocol.ScreenView` contracts in Protocol for the screen view frame
-  format. A Remote Tool Host is an application-selected provider-free host. Its feature implementation owns
-  remote-tool transport, registry, leases, and Host policy; `DotCraft.App` owns CLI and process
-  composition. It MUST NOT cause Runtime to enable a provider, Session Core, or AppServer implicitly.
+- `DotCraft.RemoteTools` owns the Remote Tool Host feature: remote-tool transport, registry, leases,
+  and Host policy. It depends on Core, Runtime's provider-free plugin execution facade, the MCP
+  ASP.NET transport, and the screen view contracts in Protocol. `DotCraft.App` owns its CLI and
+  process composition. It must not cause Runtime to enable a provider, Session Core, or AppServer.
 - An optional feature owns its behavior and depends on Core. Core never depends on a feature
   implementation.
-- Dependency cycles are not permitted. A project reference must not be added merely to make a move
-  compile.
+- Dependency cycles are not permitted.
 
 `DotCraft.Imaging` is a provider-independent image capability used by Agents and Core. It depends
-only on the .NET BCL and owns codecs, pixel resampling and image resource limits. Model input budgets
+only on the .NET BCL and owns codecs, pixel resampling, and image resource limits. Model input budgets
 and content adaptation belong to Agents; platform capture and screenshot policy belong to Core.
-Imaging does not depend on either consumer, Runtime, Protocol or a platform UI framework. See
-[Image processing](image-processing.md) for its contract.
+Imaging does not depend on either consumer, Runtime, Protocol, or a platform UI framework.
 
 ## Core ownership
 
 Core represents what DotCraft is. It contains the implementations and domain contracts for the
 session model, agent orchestration, tools, context, memory, skills, plugins, MCP, LSP, security,
 configuration, modules, workspace semantics, and platform capabilities several hosts share, such as
-desktop capture (`DotCraft.Screen`).
+desktop capture.
 
 Core contracts are added only when they belong to the product kernel or support multiple
 independent consumers. They are capability-oriented, feature-neutral, and no broader than required.
-Concrete orchestration details and persistence internals are not exposed to complete an extraction.
 
 Domain models use functional namespaces such as `DotCraft.Sessions`, `DotCraft.Tools`,
 `DotCraft.Memory`, and `DotCraft.Workspaces`. Assemblies and namespaces named only for a technical
 role, such as `.Abstractions`, are not introduced. A domain type does not use transport-oriented
-names such as `Wire` merely because AppServer projects it to a protocol contract.
+names merely because AppServer projects it to a protocol contract.
 
 Core does not own JSON-RPC handlers, protocol mappers, transport DTOs, client proxies, ASP.NET
 hosting, process entry-point selection, or web-channel pooling.
@@ -87,7 +82,8 @@ Runtime represents how a host creates, starts, and stops DotCraft. Its public AP
 
 Runtime does not automatically enable a model provider, AppServer, or an optional feature. The
 host selects those capabilities explicitly. Runtime does not reference a desktop UI framework;
-WPF, WinUI, services, command-line applications, and tests use the same Generic Host contract.
+desktop applications, services, command-line applications, and tests use the same Generic Host
+contract.
 
 ## AppServer ownership
 
@@ -100,17 +96,16 @@ AppServer represents how clients access Core through the DotCraft protocol. Its 
 - transport-specific feature contexts and client proxies;
 - the optional `AddDotCraftAppServer` registration entry point.
 
-AppServer delegates session work to the `ISessionService` registered by the host. It does not create
+AppServer delegates session work to the session service registered by the host. It does not create
 a second session kernel. Closing a connection releases transport resources; the owning host decides
 whether and when Runtime stops.
 
 ## Application and feature ownership
 
 The optional Model Service hosts credential-backed provider HTTP access without Session Core or
-workspace tools. Its reusable endpoints belong to `DotCraft.ModelService`; its HTTP client belongs
-to `DotCraft.Agents.Remote`, and the transport contract belongs to Agents. `DotCraft.App` owns the
-standalone command and file configuration. Embedded hosts provide their own authorization and
-storage.
+workspace tools. Its reusable endpoints belong to `DotCraft.ModelService`; its client and transport
+contract belong to Agents. `DotCraft.App` owns the standalone command and file configuration.
+Embedded hosts provide their own authorization and storage.
 
 The mobile relay (`dotcraft relay serve`) forwards phone tunnels for Hub without Session Core,
 workspace tools, or providers. Like Hub, it belongs to `DotCraft.App`.
@@ -119,13 +114,13 @@ The official application owns CLI, ACP, AppServer, and Hub entry-point selection
 process policy, web-channel pooling, shared web addresses, logging policy, and exit codes are
 application responsibilities rather than Runtime contracts.
 
-Compile-time module discovery remains supported. Modules contribute services and domain
-capabilities through dependency injection; they do not select process hosts or mix protocol,
-channel, tool, and UI-projection responsibilities in one contract. Tool providers contribute
-through the Core tool-source contract. Protocol registration belongs to AppServer. Channel creation
-and web hosting belong to the application or the feature that owns the channel. Configuration-schema
-generation and application module registration each require an explicit opt-in; an embedded Harness
-can expose the schema without composing product modules or host factories.
+Modules contribute services and domain capabilities through compile-time discovery and dependency
+injection; they do not select process hosts or mix protocol, channel, tool, and UI-projection
+responsibilities in one contract. Tool providers contribute through the Core tool-source contract.
+Protocol registration belongs to AppServer. Channel creation and web hosting belong to the
+application or the feature that owns the channel. Configuration-schema generation and application
+module registration each require an explicit opt-in; an embedded Harness can expose the schema
+without composing product modules or host factories.
 
 Features do not depend on one another for optional collaboration. The composition root connects
 them through the narrowest applicable domain contract. Module names are identifiers, not control
@@ -146,9 +141,8 @@ The owning Generic Host controls the lifecycle:
 5. Host shutdown stops new work, converges owned activity, and disposes resources in ownership
    order.
 
-A startup failure never exposes a partially ready Runtime. Resources acquired before failure are
-released through the host startup-failure path. Stop and disposal are safe when invoked through the
-normal Generic Host lifecycle.
+A startup failure never exposes a partially ready Runtime; resources acquired before failure are
+released through the host startup-failure path.
 
 Missing model providers, model preferences, and provider implementations are validated when an
 operation first builds an agent or otherwise requires model access. A Runtime without a resolvable
@@ -165,24 +159,17 @@ AppServer through the .NET Generic Host. It supplies workspace, data, and user-d
 `WorkspaceRuntime` to access kernel capabilities. Session capabilities do not require AppServer.
 When AppServer is selected, direct and protocol calls share the same Core instances.
 
-## Ownership and extraction rules
+## Ownership rules
 
 A responsibility has one owner. Its implementation, resources, configuration binding, and behavior
-tests move together. Host wiring tests remain with the composition root.
+tests live together; host wiring tests live with the composition root.
 
-Do not use compatibility shims, type forwarding, module-name branches, or friend-assembly access as
+Compatibility shims, type forwarding, module-name branches, and friend-assembly access are not
 substitutes for a clear dependency boundary. Production internals are not broadened for tests.
 
 ## Test boundaries
 
-Tests follow the production responsibility they verify. Kernel tests remain with Core, AppServer
-behavior tests remain with AppServer, Runtime lifecycle tests remain with Runtime, feature behavior
-tests remain with the feature, and host wiring tests remain with the composition root.
-
-Test projects do not reference other test projects. Substantial support shared by multiple owners
-may live in a narrowly scoped test-support assembly, but it must not become a general utility layer.
-Tests assert public behavior, state, persisted data, wire payloads, and lifecycle results rather than
-repository layout or source text.
-
-A boundary change is complete when ownership is unambiguous, dependencies remain one-way, existing
-observable behavior is preserved, and the former owner contains no residual implementation.
+Tests follow the production responsibility they verify. Test projects do not reference other test
+projects. Substantial support shared by multiple owners may live in a narrowly scoped test-support
+assembly, but it must not become a general utility layer. Tests assert public behavior, state,
+persisted data, wire payloads, and lifecycle results rather than repository layout or source text.

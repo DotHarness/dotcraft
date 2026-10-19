@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.10 |
+| **Version** | 0.9.1 |
 | **Status** | Draft |
-| **Date** | 2026-10-18 |
+| **Date** | 2026-10-19 |
 
 Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, App Binding, and AppServer clients.
 
@@ -54,15 +54,15 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 8 | Mode protocol | Mode selection and transition rules. |
 | 9 | User-input request protocol | Included only when the tool is available. |
 | 10 | Bootstrap files | DotCraft-owned workspace bootstrap files. Repository `AGENTS.md` content is excluded and belongs to project instructions (§4a). |
-| 11 | Memory | Memory instructions with the own store path and each attached store's path, name, description, and access. Holds no memory content; the index arrives as the `memory_index` world-state section (§4b). Omitted when the Thread has memory disabled. See [Memory](../features/memory.md#5-memory-in-the-prompt). |
+| 11 | Memory | Memory instructions with the own store path and each attached store's path, name, description, and access. Holds no memory content; the index arrives as the `memory_index` world-state section (§4b). Omitted when the Thread has memory disabled. |
 | 12 | Skill self-learning | Included only when skill management is available. |
 | 13 | Always-loaded skills | Full content for enabled skills marked always-loaded that the thread's skill policy permits. |
-| 14 | Skills summary | How to choose and load a skill. Holds no catalog; the available skills arrive as the `skills` world-state section (搂4b). See [Skills](skills.md#4-prompt-loading-and-references). |
+| 14 | Skills summary | How to choose and load a skill. Holds no catalog; the available skills arrive as the `skills` world-state section (§4b). |
 | 15 | Custom command summary | Available custom commands. |
 | 16 | Global prompt context | Process-wide prompt extension points. |
 | 17 | Deferred capability discovery | Included only when deferred loading is active. |
 | 18 | Role instructions | Final role-level specialization for the thread, except for native SubAgents. |
-| 19 | Developer instructions | Instructions from the application that started the thread (`developerInstructions`), after role instructions, except for native SubAgents. On protocols with a developer role the same text travels as a developer-role thread context item ahead of the turn's user message instead (§4b), as Codex places its developer instructions, and this section is omitted. |
+| 19 | Developer instructions | Instructions from the application that started the thread (`developerInstructions`), after role instructions, except for native SubAgents. On protocols with a developer role the same text travels as a developer-role thread context item ahead of the turn's user message instead (§4b), and this section is omitted. |
 
 Working style owns progress messages and the distinction between commentary and final responses;
 question routing and waiting follow the user-coordination guidance. Response style owns expression,
@@ -75,7 +75,7 @@ No section may depend on the identity of the running thread or on an attached cl
 that content belongs to thread context items (§4b), which is also why section 18 excludes native
 SubAgent role instructions.
 
-Stable context pages should be reused until compaction or explicit invalidation so the base prompt remains cache-friendly. Each `AgentFactory` owns exactly one required context-page manager and creates it when its caller does not provide one. Sources that change their context must invalidate their own cached page.
+Stable context pages are reused until compaction or explicit invalidation so the base prompt remains cache-friendly. Each agent has exactly one context-page manager, and sources that change their context invalidate their own cached page.
 
 ## 3. Agent Profile Injection
 
@@ -89,9 +89,9 @@ Profile-backed thread flow:
 4. The runtime builds the normal base instructions.
 5. `roleInstructions` are appended as the final role-level section.
 
-Profile frontmatter maps to structured configuration and policy. The profile body maps only to role instructions. Agent Profiles must not set or simulate a full-prompt replacement path.
+Profile frontmatter maps to structured configuration and policy. The profile body maps only to role instructions. Agent Profiles never set or simulate a full-prompt replacement.
 
-Existing profile-backed threads keep their persisted configuration until an explicit profile refresh updates them.
+Profile-backed threads keep their persisted configuration until an explicit profile refresh updates them.
 
 ## 4. Role Instructions
 
@@ -103,7 +103,7 @@ Rules:
 - Role instructions may specialize behavior, tone, task scope, and role boundaries.
 - Runtime policy wins over role text when they conflict.
 - App-provided context must not become role instructions unless a first-party runtime owns that role contract.
-- An application that starts a thread states its own contract through `developerInstructions` (section 20), which follows role instructions and never replaces them.
+- An application that starts a thread states its own contract through `developerInstructions` (base section 19), which follows role instructions and never replaces them.
 
 Known writers:
 
@@ -163,7 +163,7 @@ Current writers:
 |--------|---------|
 | Native session-backed SubAgent | Child role text and role boundaries. |
 | AppServer client binding | Runtime additional context and client-rendered capabilities such as visualizations (§9). |
-| Thread configuration | `developerInstructions`, on protocols with a developer role only; elsewhere they stay base section 20. |
+| Thread configuration | `developerInstructions`, on protocols with a developer role only; elsewhere they stay base section 19. |
 | Persistent state | State that persists across turns, written only when it changes. |
 | Turn interruption | A `turn_aborted` event at the end of an intentionally interrupted turn or active-turn fork snapshot. |
 
@@ -194,9 +194,8 @@ Full-prompt replacement is reserved for internal isolated assistants with intent
 
 Rules:
 
-- Ordinary user threads, Agent Profiles, and App Binding apps must not use full-prompt replacement.
-- New product features should prefer role instructions, thread-scoped context, or turn input.
-- A full override must be paired with a narrow tool/capability profile.
+- Ordinary user threads, Agent Profiles, and App Binding apps never use full-prompt replacement.
+- A full override is paired with a narrow tool/capability profile.
 
 ## 6. SubAgents
 
@@ -208,7 +207,7 @@ DotCraft has three SubAgent-related prompt paths:
 | Native session-backed child | A normal thread with narrowed configuration and the same generated base instructions as its parent. Role text is a thread context item (§4b). |
 | External CLI child | Role text is prepended to the external task prompt; it does not use DotCraft's generated base instruction pipeline. |
 
-SubAgent communications are delivered as materialized user-role input, not system prompt sections. Ordinary messages and tasks a parent sends with `SendMessage` share a structured envelope whose `Message Type` is respectively `MESSAGE` or `NEW_TASK`; a child's result reaches its parent as a task notification (see [Background Tasks](background-tasks.md) §5). The envelope also identifies the recipient task path and sender path before the payload. The persisted native/display input remains clean client-facing text, while the materialized input preserves the exact structured envelope sent to the model.
+SubAgent communications are delivered as materialized user-role input, not system prompt sections. Ordinary messages and tasks a parent sends with `SendMessage` share a structured envelope whose `Message Type` is respectively `MESSAGE` or `NEW_TASK`; a child's result reaches its parent as a task notification. The envelope also identifies the recipient task path and sender path before the payload. The persisted native/display input remains clean client-facing text, while the materialized input preserves the exact structured envelope sent to the model.
 
 ## 7. App Binding and MCP guidance
 
@@ -276,4 +275,4 @@ Choose the narrowest layer:
 | Per-turn operational facts | Turn input / runtime reminder. |
 | Internal isolated assistant with complete custom prompt | Full-prompt override with a narrow capability profile. |
 
-New context providers must identify ownership, lifecycle, prompt placement, cache invalidation behavior, and enforcement boundaries.
+A new context provider identifies its ownership, lifecycle, prompt placement, cache invalidation behavior, and enforcement boundaries.

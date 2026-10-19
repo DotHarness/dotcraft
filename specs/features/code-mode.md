@@ -2,15 +2,15 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.7 |
+| **Version** | 0.9.1 |
 | **Status** | Draft |
-| **Date** | 2026-10-06 |
-| **Parent Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Session Core](../architecture/session-core.md), [Prompt Cache](../architecture/prompt-cache.md), [Dynamic Workflows](dynamic-workflows.md) |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Shell Command Safety](../architecture/shell-command-safety.md) |
+| **Date** | 2026-10-19 |
+| **Parent Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Session Core](../architecture/session-core.md), [Prompt Cache](../architecture/prompt-cache.md) |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Shell Command Safety](../architecture/shell-command-safety.md) |
 
 Purpose: define the `CodeMode` tool, which lets the model write one JavaScript program that calls the
 thread's other tools as functions, filters their results, and returns only what the model needs. It
-also defines the shared script host that runs both code mode programs and Dynamic Workflow scripts.
+also defines the shared script host that runs code mode programs and workflow scripts.
 
 Code mode reduces model round trips and keeps intermediate tool results out of model context. It adds
 no capability: every effect of a program happens through a nested tool call that passes the same
@@ -23,14 +23,14 @@ This specification owns:
 - the `Tools.CodeMode` configuration and its Desktop setting;
 - the model-facing `CodeMode` tool, its description, and the nested tool surface;
 - the program runtime contract, nested invocation, output, and per-thread store;
-- the shared script host and its worker process, which Dynamic Workflows also uses;
+- the shared script host and its worker process, which workflow scripts also use;
 - Session projection and Desktop presentation of code mode activity.
 
 [Tool Architecture](../architecture/tools-architecture.md) owns registration, exposure, dispatch, and
-item projection. [Dynamic Workflows](dynamic-workflows.md) keeps its script API, journal, replay, and
-child-agent contracts and runs its scripts on the shared host.
+item projection. Features that run their own scripts on the shared host keep their script API,
+journal, replay, and child-agent contracts.
 
-Out of scope for this version: yielding a running program back to the model and resuming it with a
+Out of scope: yielding a running program back to the model and resuming it with a
 `wait` tool, calling `tools.*` from the Desktop `NodeReplJs` runtime, per-model default modes, and
 engines other than Jint.
 
@@ -70,15 +70,14 @@ Values are case-insensitive. Changing it marks tool snapshots dirty; a running T
 Clients read and write it through the configuration methods, and the change notification lists the
 `Tools.CodeMode.Mode` key path.
 
-Desktop presents the setting as one row in the Tools group of Settings › General, with three choices
-labelled by outcome rather than by mechanism: off, scripts alongside tools, and scripts only. The setting
-describes what the agent can do, not the engine behind it. Desktop reads the current value from the
-workspace config and refreshes it when a change notification lists `Tools.CodeMode.Mode`.
+Desktop presents the setting as one Tools setting with three choices labelled by outcome rather than
+mechanism (off, scripts alongside tools, scripts only), and refreshes it when a change notification
+lists `Tools.CodeMode.Mode`.
 
 In `only` mode the deferred-search registration disappears once every deferred registration is on the
 nested surface, because those tools are reached through `ALL_TOOLS` and could not be called directly.
 
-Code mode requires the script worker (§9), which starts lazily. An `CodeMode` call whose worker cannot start
+Code mode requires the script worker (§9), which starts lazily. A `CodeMode` call whose worker cannot start
 fails with `code_mode_unavailable`. A later snapshot build retries the start before applying the mode;
 when it still fails, `on` falls back to direct tools for that snapshot and records one warning for the
 thread, and `only` fails the Turn with a stable `code_mode_unavailable` error rather than silently
@@ -86,11 +85,9 @@ removing tools.
 
 An application that embeds DotCraft through the Harness opts into code mode by setting
 `DotCraftHarnessOptions.CodeModeWorkerHost` to the name of its own executable or assembly, which must
-serve `script-worker code-mode` by calling `CodeModeWorkerRunner.RunAsync` with its standard streams.
-Without that option the Harness registers no code mode, whatever `Mode` says. The DotCraft application
-registers it through its module; both paths call `AddDotCraftCodeMode`, which also accepts the cell and
-worker limits for hosts that need others than §9.3. When the worker cannot start, `only` fails the Turn
-with `CodeModeUnavailableException`, whose message starts with `code_mode_unavailable`.
+serve `script-worker code-mode` by running `CodeModeWorkerRunner.RunAsync` over its standard streams.
+Without that option the Harness registers no code mode, whatever `Mode` says. Embedding hosts may
+supply cell and worker limits other than §9.3.
 
 ## 4. Model-Facing Surface
 
@@ -129,9 +126,8 @@ The optional first line `// @exec: {"timeout_ms": 60000, "max_output_tokens": 10
 limits. Only those two keys are accepted; `timeout_ms` is at most 3,600,000 and `max_output_tokens` at
 most 100,000, counted at 4 characters per token. Unknown keys, invalid JSON, or values outside these
 limits fail the call before execution. The pragma line is replaced by an empty line so stack trace
-line numbers match the submitted source. The `timeout_ms` clock starts once the worker has accepted the program. The
-worker runs one empty program through its engine before it reports ready, so neither process start
-nor first-use engine warm-up counts against a program's timeout.
+line numbers match the submitted source. The `timeout_ms` clock starts once the worker has accepted the
+program; neither process start nor first-use engine warm-up counts against it.
 
 ### 4.2 Description
 
@@ -229,7 +225,7 @@ on a limit violation. Nested calls still pending at that point are cancelled and
 
 ## 6. Nested Invocation
 
-Every nested call goes through `IToolDispatcher.DispatchAsync` with the Turn's snapshot as it was before
+Every nested call goes through the common tool dispatcher with the Turn's snapshot as it was before
 code mode finalization (so tools hidden from the model in `only` mode stay dispatchable), a call id of
 the form `exec-<uuid>`, audience `Model`, and origin `ToolInvocationOrigin("codeMode", <CodeMode call id>)`.
 Authority, argument validation, mode guards, `PreToolUse` and post hooks, approval, file access checks,
@@ -298,7 +294,7 @@ for the thread and is not persisted across AppServer restarts.
 
 ### 9.1 Shared host
 
-`DotCraft.Scripting` owns the script host used by both code mode and Dynamic Workflows:
+The script host is shared by code mode and workflow scripts:
 
 - launching the host executable as `<host> script-worker <kind>`, where `host` is `dotcraft` unless the
   embedding application names its own and `kind` is `workflow` or `code-mode`, and supervising it. The
@@ -309,10 +305,8 @@ for the thread and is not persisted across AppServer restarts.
 - host calls: a worker request with an id, answered by exactly one host result or cancellation;
 - RSS monitoring, wall-clock deadlines, cancellation, and process-tree termination.
 
-Each feature supplies its own globals and host-call handlers. Dynamic Workflows keeps a worker per
-execution attempt, its journal, and its deterministic replay; its `agent.request` and `agent.result`
-messages are host calls on the shared protocol. Code mode uses one long-lived worker per AppServer
-process.
+Each feature supplies its own globals and host-call handlers; workflow scripts keep a worker per
+execution attempt. Code mode uses one long-lived worker per AppServer process.
 
 ### 9.2 Code mode worker
 
@@ -330,11 +324,10 @@ names the cause, and starts a new worker on the next `CodeMode`. It never retrie
 
 ### 9.3 Engine constraints
 
-Every engine is created with strict mode, string compilation disabled, task interop, a statement
-limit, a recursion limit, a `LimitMemory` ceiling, a regex timeout no longer than the cell deadline,
-and a Promise timeout. Because Jint's allocation limit restarts across asynchronous continuations, the
-worker's resident memory is also capped by the host; that cap is the guarantee, and the engine limit
-only stops a single runaway segment early.
+Every engine runs in strict mode with string compilation disabled, a statement limit, a recursion
+limit, a memory ceiling, a regex timeout no longer than the cell deadline, and a Promise timeout. The
+host's cap on the worker's resident memory is the memory guarantee; the engine ceiling only stops a
+single runaway segment early.
 
 Default cell limits are a 300-second deadline, 256 MiB per cell, 50,000,000 statements, recursion
 depth 256, 2,048 nested calls, 1 MiB per nested result entering the engine, and 8 MiB of total output.

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-19 |
 | **Parent Specs** | [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define the behavior contract for DotCraft's Chrome-backed browser automation runtime. Browser work is thread-bound, session-scoped, cancellable, recoverable, and safe to diagnose without exposing Chrome profile data.
@@ -16,7 +16,7 @@ This spec covers:
 - Thread-bound Chrome browser automation exposed through `NodeReplJs`.
 - Browser session identity, command lifecycle, tab ownership, timeout, cancellation, diagnostics, and cleanup semantics.
 - Chrome extension and native host backend connectivity.
-- Compatibility expectations between the Desktop embedded browser backend and the Chrome backend.
+- The browser session and tab ownership model shared with other browser backends.
 - Agent-facing recovery expectations for Chrome setup and runtime failures.
 
 This spec does not define:
@@ -98,7 +98,7 @@ The AppServer `capabilities.browserUse` object may advertise optional browser me
 
 ## 5. Evaluation and Error Isolation
 
-Browser command timeout or cancellation rejects only the current promise and preserves the REPL process. Outer evaluation cancellation follows the [Node REPL contract](node-repl.md): it first cancels pending Chrome commands for the active `evaluationId`, then terminates the process. Late Chrome results cannot reach a replacement evaluation.
+Browser command timeout or cancellation rejects only the current promise and preserves the REPL process. Outer evaluation cancellation follows the [Node REPL contract](node-repl.md): it first cancels pending Chrome commands for the active `evaluationId` (§7), then terminates the process.
 
 ## 6. Chrome Host Transport
 
@@ -109,9 +109,9 @@ The Chrome backend does not use a fixed TCP port. After Chrome starts the native
 | Windows | `\\.\pipe\dotcraft-chrome-<pid>-<nonce>` |
 | macOS/Linux | `<tempdir>/dotcraft-chrome-<pid>-<nonce>.sock` |
 
-Desktop discovers candidates by scanning the platform pipe prefix, connecting to candidates, sending `getInfo`, and selecting a protocol-compatible backend. Discovery must not fall back to the historical fixed TCP port.
+Desktop discovers candidates by scanning the platform pipe prefix, connecting, sending `getInfo`, and selecting a protocol-compatible backend. There is no TCP fallback.
 
-The browser-client and native host use 4-byte little-endian length-prefixed JSON frames. Newline-delimited JSON is not part of the Chrome host protocol.
+The browser client and native host use 4-byte little-endian length-prefixed JSON frames.
 
 ### Command Envelope
 
@@ -248,11 +248,9 @@ Finalize returns a summary:
 Browser command results must be bounded:
 
 - `tab.evaluate(fnOrSource, arg, { timeoutMs, maxBytes })` has a default maximum serialized result size of 1 MB.
-- Callers may request a smaller `maxBytes` but cannot raise the default cap through public JS API.
-- Oversized results fail with `ResultTooLarge`.
-- `ResultTooLarge` includes the configured limit and a coarse actual or estimated serialized size when known, but never includes the oversized content.
+- Callers may request a smaller `maxBytes` but cannot raise the default cap through the public JS API.
+- Oversized results fail with `ResultTooLarge`, which includes the configured limit and a coarse actual or estimated size when known, never the oversized content.
 - Content reads use `maxLength` where available.
-- Large pages and logs should be read with page-side filtering, smaller chunks, or bounded content reads rather than full-document evaluate results.
 
 ## 10. Setup Status and Diagnostics
 
@@ -269,7 +267,7 @@ Browser command results must be bounded:
 }
 ```
 
-`bridge` remains a compatibility alias for `backend`; new code should use `backend`.
+`bridge` mirrors `backend`; consumers read `backend`.
 
 Each setup check uses:
 
@@ -297,8 +295,6 @@ Forbidden diagnostics:
 - native host manifest paths;
 - oversized result content.
 
-Desktop settings use "Chrome backend" / "Chrome 后端" terminology.
-
 Overall setup status priority:
 
 1. Chrome missing
@@ -308,11 +304,7 @@ Overall setup status priority:
 5. Backend disconnected
 6. Connected
 
-Backend disconnected recovery text:
-
-> Make sure Chrome is open, click the DotCraft Chrome extension icon, then refresh status.
-
-The Chrome extension popup remains lightweight: connected state shows that the backend is ready, disconnected state directs the user to start/reconnect the backend, and `pipePath` is never rendered.
+When the backend is disconnected, recovery directs the user to open Chrome, click the DotCraft Chrome extension icon, and refresh status. The extension popup shows only whether the backend is ready or needs reconnecting and never renders the pipe path.
 
 ## 11. Error Categories and Recovery
 

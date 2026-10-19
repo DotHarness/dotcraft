@@ -2,19 +2,18 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.1 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-10-03 |
+| **Date** | 2026-10-19 |
 | **Parent Specs** | [Session Core](session-core.md), [Prompt Composition](prompt-composition.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
 
-The stable-prefix/cache-point selection algorithm lives in `DotCraft.Agents`. Session Core supplies
-policy and diagnostics. Placement and marking belong to the provider integration that builds the
-request: the integration composes the caching middleware inside its own client chain and writes its
-native marker directly, so no provider-neutral marker representation crosses the boundary. A provider
-that forwards inference elsewhere therefore carries only the policy, and placement happens wherever
-the provider request is finalized.
+The stable-prefix/cache-point selection algorithm belongs to the provider-neutral agent layer;
+Session Core supplies policy and diagnostics. Placement and marking belong to the provider
+integration that builds the request, which writes its native marker directly, so no
+provider-neutral marker representation crosses the boundary. A provider that forwards inference
+elsewhere carries only the policy, and placement happens wherever the provider request is finalized.
 
 ## 1. Concepts
 
@@ -82,20 +81,19 @@ Invariants the runtime must uphold:
 - **`reasoning` is always an object**. Effort and summary fields are present only when configured, but the object itself remains part of the stable request shape.
 - **Input is rebuilt deterministically each turn**. Reasoning items keep their original `encrypted_content` blob byte-for-byte. Re-encrypting or stripping them breaks prefix equality.
 - **Canonical Responses history is append-only between explicit replacement boundaries**.
-  Version-1 threads reuse completed provider items directly and map only the new local MEAI tail;
+  Requests reuse completed provider items directly and map only the new local MEAI tail;
   compaction, protocol return, and incompatible fork materialization establish a new prefix
   generation as specified by
   [Canonical OpenAI Responses Provider History](responses-provider-history.md).
-- **Namespaced tools keep their provider-visible namespace shape**. Runtime tools with a namespace are serialized as Responses `namespace` tool definitions that wrap local child `function` definitions. The namespace is the canonical `ToolName.namespace`; a child definition's name is only `ToolName.name`, never a flattened `namespace__name`. Namespaced `function_call` input items retain that same namespace and local name. Matching `function_call_output` input items are correlated by `call_id` and must not include `namespace`; prompt-cache request-shape hashes must reflect only the legal provider-visible request shape so flat and namespaced tools cannot share the same tool-schema hash.
-- **Native tool search returns the same composite definitions used by direct projection**. A deferred result describes one namespace once and returns its children under their local names. Results are keyed by the full canonical `ToolName`, so equal child names in different namespaces remain independent. Historical `tool_search_output` items keep discovered schemas provider-visible, while local execution resolves against the current Turn snapshot without re-injecting those schemas after an Agent rebuild. The local search tool has canonical identity `SearchTools`; the OpenAI Responses adapter serializes it with the provider-owned `tool_search` wire shape.
-- **No volatile content in system / assistant turns**. Timestamps, randomised tool ordering, in-place mutation of caller options — all forbidden inside the cached prefix. Volatile content belongs only at the tail of the latest user turn.
+- **Namespaced tools keep their provider-visible namespace shape**. Runtime tools with a namespace are serialized as Responses `namespace` tool definitions that wrap local child `function` definitions. The namespace is the tool's canonical namespace; a child definition's name is only its local name, never a flattened `namespace__name`. Namespaced `function_call` input items retain that same namespace and local name. Matching `function_call_output` input items are correlated by `call_id` and do not include `namespace`; request-shape hashes reflect only the legal provider-visible request shape, so flat and namespaced tools cannot share a tool-schema hash.
+- **Native tool search returns the same composite definitions used by direct projection**. A deferred result describes one namespace once and returns its children under their local names. Results are keyed by the full canonical tool name, so equal child names in different namespaces remain independent. Historical `tool_search_output` items keep discovered schemas provider-visible, while local execution resolves against the current Turn snapshot without re-injecting those schemas after an Agent rebuild. The local search tool has canonical identity `SearchTools`; the OpenAI Responses adapter serializes it with the provider-owned `tool_search` wire shape.
+- **No volatile content in system / assistant turns** (§3 rule 2).
 
 ### 2.3 `openai-responses` — ChatGPT OAuth path
 
 The [OpenAI Subscription Auth specification](openai-subscription-auth.md#responses-request-contract)
-owns the complete OAuth Responses wire contract. Model metadata and the internal Lite developer gate
-select the standard or Lite wire dialect; the gate currently defaults to standard Responses.
-Standard OAuth Responses follows §2.2 with top-level `instructions` and `tools`. Responses
+owns the complete OAuth Responses wire contract. Model metadata and an internal Lite developer gate
+(off by default) select the standard or Lite wire dialect. Standard OAuth Responses follows §2.2 with top-level `instructions` and `tools`. Responses
 Lite projects those stable values into leading developer input items, sets
 `reasoning.context=all_turns`, and disables parallel tool execution. Both dialects consume the same
 canonical provider history and preserve the same append-only input prefix between explicit
@@ -107,12 +105,11 @@ compact requests remain uncompressed.
 
 OAuth routing fields and authoritative header/body identity come from the authentication contract.
 
-Provider metadata and same-turn `x-codex-turn-state` are routing/runtime metadata. They are
-not model-visible prompt content and MUST NOT be considered part of DotCraft's prompt-prefix
-identity. Prompt-cache diagnostics may record separate metadata fingerprints for debugging, but
-changes in `turn_id`, `turn_started_at_unix_ms`, `x-codex-turn-state`, or other provider runtime
-metadata MUST NOT be classified as prompt/input/tool drift. Omitting OAuth-unsupported transport
-parameters such as `max_output_tokens` likewise MUST NOT be reported as prompt-prefix drift.
+Provider metadata and same-turn `x-codex-turn-state` are routing/runtime metadata, not
+model-visible prompt content, and are not part of DotCraft's prompt-prefix identity. Changes in
+`turn_id`, `turn_started_at_unix_ms`, `x-codex-turn-state`, or other provider runtime metadata, and
+omitted OAuth-unsupported transport parameters such as `max_output_tokens`, are never classified as
+prompt/input/tool drift.
 
 ### 2.4 `anthropic`
 
@@ -128,16 +125,12 @@ Breakpoint placement contract:
 2. **Snapshot prefix** — marked at the last message of a captured snapshot so successive maintenance forks reuse the snapshot segment.
 3. **Maintenance fork cache mode** — maintenance forks are one-shot and execute no tools. They use `readOnlyPrefix`: they mark only the reusable system / snapshot prefix, do not mark the appended maintenance task tail, and do not commit remembered breakpoints.
 
-Anthropic cache markers are provider-visible content-block annotations. They MUST NOT be implemented
-by splitting, duplicating, reordering, or otherwise changing the semantic shape of messages. In
-particular, tool results for a single assistant tool-use turn remain one grouped tool-result message:
-if an assistant message emits multiple `tool_use` blocks, the immediately following provider-visible
-user/tool-result message contains one `tool_result` block per `tool_use`, each `tool_use_id` appears
-exactly once, and the `tool_result` blocks stay at the front of that message's content array. When a
-cache breakpoint lands on one result inside such a grouped message, DotCraft marks that existing
-result block in place and preserves the surrounding result blocks and message boundary. Prompt-cache
-shaping is allowed to clone selected content blocks request-locally, but it is not allowed to mutate
-the persisted thread rollout or rewrite the tool-use/tool-result pairing.
+Anthropic cache markers are provider-visible content-block annotations. They never split, duplicate,
+reorder, or otherwise change the semantic shape of messages. Tool results for a single assistant
+tool-use turn remain one grouped tool-result message: one `tool_result` block per `tool_use`, each
+`tool_use_id` exactly once, at the front of that message's content array. A breakpoint that lands on
+one result inside such a message marks that block in place. Cache shaping may clone selected content
+blocks request-locally but never mutates the persisted rollout or the tool-use/tool-result pairing.
 
 The cache write that produced a segment counts as `cache_write_input_tokens` on that call and as `cached_input_tokens` on subsequent calls; both fields surface in trace.
 
@@ -166,7 +159,6 @@ replaying the turn's latest sampling request before the TTL runs out.
    own event and never counts toward the turn's token usage or context estimate. A failed keepalive
    is traced and stops warming; it never fails the turn.
 
-Deferred discovery and provider-flat identity follow [Tool Architecture](tools-architecture.md#54-exposure).
 Anthropic native discovery adds `anthropic-beta: advanced-tool-use-2025-11-20`; discovered definitions
 use `defer_loading: true` and results use `tool_reference` blocks. Optional fields stay absent unless
 enabled, including `strict` for non-strict tools. The names-only inventory enters request-local
@@ -178,7 +170,7 @@ The names-only inventory is part of the Anthropic message prefix rather than the
 
 For `openai-responses`, each provider request records a `PromptCacheRequestShape` trace event before transport. The event records SHA-256 hashes and counts for provider-visible byte shapes: instructions, tools, reasoning configuration, the full input array, and each ordered input item. It also records the serialized input byte count, the one-based stream attempt number, and aggregate response-item ID coverage (eligible, present, generated, missing, and invalid-source counts) without storing request content.
 
-Prompt-cache investigations compare adjacent `PromptCacheRequestShape` events by `inputItemHashes` from the start of the array. A long common prefix with only appended tail items means the provider-visible prefix stayed stable; an early hash mismatch means the prefix changed at or before that input item. Retries share the existing request index and increment `attemptNumber`, so their request shapes can be compared directly. If `inputItemHashes` stay stable but `promptCacheKeyHash` changes, the cache identity changed. If both stay stable but cached reads drop, the trace should classify the evidence as provider/cache-routing-side rather than a DotCraft prefix mutation.
+Adjacent `PromptCacheRequestShape` events are compared by `inputItemHashes` from the start of the array: a long common prefix with only appended tail items means the provider-visible prefix stayed stable, and an early mismatch locates the change. Retries share the request index and increment `attemptNumber`. A changed `promptCacheKeyHash` with stable item hashes means the cache identity changed; when both are stable but cached reads drop, the evidence points to provider cache routing rather than a DotCraft prefix mutation.
 
 When a full-history native SubAgent session is bound to its direct parent, tracing captures the parent's latest `PromptCacheRequestShape` as an immutable fork anchor. The child's first request shape produces exactly one `SubAgentPrefixDiagnostic` with one of three statuses:
 
@@ -206,11 +198,11 @@ drift counters.
 
 These rules apply to every protocol unless the protocol contract above explicitly overrides them.
 
-1. **Byte-stable prefix.** Anything inside the cacheable prefix — system prompt, tools, prior turns — must be identical byte-for-byte between requests on the same thread. Adding a single character anywhere in the prefix invalidates the cache for the whole prefix.
-2. **Volatile content only at the tail.** Timestamps, runtime context, mode banners and any other request-local state must live in the user message of the current turn, never in system content, tools, or prior assistant turns.
-3. **Tool order is part of the prefix.** Tools must be enumerated in a stable order across requests on the same thread. Re-sorting tools (alphabetically, by category, etc.) between turns is a cache-break. Ordinary tool-loop control must not remove or reorder provider-visible tools to manufacture a terminal sampling request.
-4. **Reasoning items round-trip verbatim.** When a model emits a reasoning item with `encrypted_content`, the next request must pass that exact blob back. Decrypting and re-encrypting, dropping the field, or normalising whitespace inside it all break the cache.
-5. **Reasoning configuration is part of the cache key.** Provider-visible thinking / reasoning settings must be treated as a cache-key dimension for diagnostics. A change in reasoning effort, reasoning output visibility, or provider thinking mode can explain a cache read drop even when messages and tools are unchanged.
+1. **Byte-stable prefix.** Anything inside the cacheable prefix — system prompt, tools, prior turns — is identical byte-for-byte between requests on the same thread.
+2. **Volatile content only at the tail.** Timestamps, runtime context, mode banners, randomized ordering, and any other request-local state live in the user message of the current turn, never in system content, tools, or prior assistant turns.
+3. **Tool order is part of the prefix.** Tools are enumerated in a stable order across requests on the same thread. Tool-loop control does not remove or reorder provider-visible tools to manufacture a terminal sampling request.
+4. **Reasoning items round-trip verbatim.** A reasoning item's `encrypted_content` is passed back byte-for-byte in later requests.
+5. **Reasoning configuration is part of the cache key.** Provider-visible thinking / reasoning settings are a cache-key dimension for diagnostics: a change in reasoning effort, output visibility, or thinking mode can explain a cache read drop even when messages and tools are unchanged.
 6. **Root lineage is the Responses cache identity.** `prompt_cache_key`, `session-id`, and
    `client_metadata.session_id` MUST use the root cache-session thread id. `thread-id`,
    `x-client-request-id`, and `client_metadata.thread_id` MUST use the current executing thread id.
@@ -218,28 +210,23 @@ These rules apply to every protocol unless the protocol contract above explicitl
    child-scoped execution identity; ordinary user forks start a new root identity.
    A shared key influences cache routing but does not require every request in the lineage to have
    the same complete input. Cache reads remain limited to exact prefixes present in both requests.
-7. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
-8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. Maintenance forks use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache-session or current-thread routing identity.
-9. **Tool identity shape is cache state.** Provider projection and replay preserve the immutable
-   identities in [Tool Architecture](tools-architecture.md#6-identity-model); cache shaping does not
-   rename, regroup, or reorder definitions.
-
+7. **One canonical body per request.** Wire bodies contain no duplicate top-level JSON keys, so downstream policies and inspectors can parse the body as a flat object.
+8. **Internal cache state may be narrower than provider identity.** Remembered breakpoints are tracked per internal state key, separately for the main conversation and each maintenance fork, so they do not overwrite each other's history. This internal key never replaces provider-visible cache-session or current-thread routing identity.
+9. **Tool identity shape is cache state.** Provider projection and replay preserve immutable tool
+   identities; cache shaping does not rename, regroup, or reorder definitions.
 10. **Thread-scoped context is history, not prefix.** Content that depends on the running thread or on an attached client connection MUST NOT reach the system prompt / `instructions` channel on any protocol. It travels as a thread context item, placed and carried as specified in [Prompt Composition](prompt-composition.md).
-11. **Thread context items append; they do not mutate.** Rewriting an already-sent item, or rebuilding the system prompt because a binding or capability changed, invalidates the whole cached prefix and is forbidden. Replacing native SubAgent role instructions is the one exception and establishes an explicit replacement boundary.
+11. **Thread context items append; they do not mutate.** Rewriting an already-sent item, or rebuilding the system prompt because a binding or capability changed, would invalidate the whole cached prefix and is not done. Replacing native SubAgent role instructions is the one exception and establishes an explicit replacement boundary.
 
 ## 4. Failure modes the runtime must guard against
 
 | Symptom | Required guard |
 |---------|----------------|
-| Cache-control field set in caller options never reaches the wire | Runtime MUST verify the field survives any chat-client wrapper layer; tests must assert wire-level presence, not just in-memory presence on the option object |
-| Duplicate top-level JSON keys in the wire body | Runtime MUST emit a canonical body. If the underlying serializer cannot be coerced, a pipeline-level deduplicator MUST run before transport |
-| Volatile content leaks into the cached prefix | Prompt construction MUST keep timestamps, runtime context, and any other request-local data confined to the latest user turn |
-| Reasoning encrypted content mutated between turns | Conversion layers MUST pass `encrypted_content` through unchanged; round-trip tests cover the case |
+| Cache-control field set in caller options never reaches the wire | The field survives every chat-client wrapper layer to the wire body |
 | Cache-read drop after reasoning settings change | Prompt-cache diagnostics MUST include a reasoning/thinking fingerprint and classify the drop as a request-shape change instead of likely server-side routing |
 | Maintenance fork writes an unneeded tail breakpoint | Fork cache shaping MUST use `readOnlyPrefix`, mark only the reusable prefix, and skip committing fork-local remembered breakpoints |
 | Provider sticky-routing flap (ChatGPT OAuth) | Recognised as an upstream limitation. The runtime reports observed coverage faithfully and does not retry just to chase a higher hit rate |
 | Provider returns an empty post-tool response | After at least one tool result has been returned to the model, a normally completed response with no assistant content, reasoning output, or tool call ends the turn successfully without retrying or emitting `agent_empty_response`. An interrupted stream or explicit provider error still fails the turn |
-| A tool identity cannot be represented by the target provider | Request serialization fails locally with stable `invalid_provider_tool_identity` diagnostics before HTTP transport; the runtime must not send a request known to violate the provider's name/length grammar |
+| A tool identity cannot be represented by the target provider | Request serialization fails locally with stable `invalid_provider_tool_identity` diagnostics before HTTP transport |
 
 ## 5. Measurement contract
 

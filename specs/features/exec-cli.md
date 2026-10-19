@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.10 |
+| **Version** | 0.9.1 |
 | **Status** | Draft |
-| **Date** | 2026-10-18 |
+| **Date** | 2026-10-19 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Hub Architecture](../architecture/hub-architecture.md), [Session Core](../architecture/session-core.md) |
 
@@ -14,7 +14,7 @@ Purpose: define `dotcraft exec`, the non-interactive command that runs agent wor
 
 `dotcraft exec` submits one Turn in a DotCraft workspace and reports its outcome. It is an AppServer client. It connects through the local Hub, or to `--remote`, and never runs its own Session Core. Threads it creates are ordinary workspace threads, so Desktop and other clients see them and can continue them.
 
-A caller that cannot be modified relies on this command alone. One example is another coding agent driving DotCraft from its shell tool. The caller sends a task and reads back the answer, the files the Turn changed, and any images it generated. It can continue the same thread later, and it can stop a Turn that is still running.
+A typical caller is another coding agent driving DotCraft from its shell tool: it sends a task, reads back the answer, changed files, and generated images, and may later continue the thread or stop a running Turn.
 
 ## 2. Goals
 
@@ -36,7 +36,7 @@ A caller that cannot be modified relies on this command alone. One example is an
 - No MCP server.
 - No AppServer protocol additions. Exec uses existing methods and fields only.
 - No job store, job listing, or result cache.
-- No agent profile or provider selection in this version.
+- No agent profile or provider selection.
 
 ## 4. Command Contract
 
@@ -188,24 +188,9 @@ User-input requests receive empty answers, as the protocol defines for clients t
 - **Waiting.** Exec waits for the Turn's terminal notification, with no time limit of its own.
 - **Ctrl+C / SIGINT.** Exec sends `turn/interrupt` for its running Turn, keeps waiting for the terminal notification, then exits `1`.
 - **Killed without a chance to interrupt.** The Turn keeps running on the AppServer, because Turn execution outlives the submitting connection. `dotcraft exec interrupt` stops it. It resolves the workspace as in §5, then finds the thread's running Turn and sends `turn/interrupt`.
-- **Hub lifetime.** A Hub or AppServer that exec started keeps running after exec exits, whether exec finished normally, was interrupted, or had its process tree terminated. Exec starts the Hub through a short-lived launcher that detaches it into its own session (Unix) or without a console (Windows) and exits, so the Hub is neither a descendant of exec nor reached by exec's console signals.
+- **Hub lifetime.** A Hub or AppServer that exec started keeps running after exec exits, whether exec finished normally, was interrupted, or had its process tree terminated. The Hub is detached so that it is neither a descendant of exec nor reached by exec's console signals.
 
 ## 9. Constraints And Compatibility
 
 - **Provider.** Exec requires a configured provider. It does not map model ids to providers. An unknown model fails when the provider is called, and exec reports that as a failed Turn.
 - **Machine contracts.** Callers parse only stdout, `-o` files, and `--json` events. The stderr wording is for humans and may change.
-
-## 10. Acceptance Checklist
-
-- [ ] stdout holds only the final message of a completed Turn, and the exit status follows §4.2.
-- [ ] Outside a DotCraft workspace, exec exits `1` without contacting the Hub.
-- [ ] `resume <id>` and `resume --last` continue the right thread. A running thread is reported, not queued.
-- [ ] `-m`, `-i`, `--auto-approve`, and `--ephemeral` reach `thread/start`, `thread/config/update`, and `turn/start` as specified.
-- [ ] Generated image paths appear on stderr and in `--json`, with no image bytes on stdout. Large images do not break the connection.
-- [ ] `--json` emits the events and item types in §6.3.
-- [ ] Declined approvals do not fail the run.
-- [ ] Ctrl+C and `exec interrupt` stop a running Turn. A Hub started by exec survives exec's termination.
-
-## 11. Open Questions
-
-None.

@@ -2,16 +2,16 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.8 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-19 |
 
 Sources: Claude Code, Codex, and Cursor on the AppServer host.
 
 ## Ownership and scope
 
 The import module owns detection, conversion, atomic installation, history, and scheduled passes.
-Session conversion and continuation follow [Session import](session-import.md). Configuration uses
+Session conversion and continuation belong to the session import feature. Configuration uses
 the `AgentImport` section exclusively. Desktop presents user-scoped tools and setup, current-project
 configuration, and chat sessions as separate selectable groups. Import never creates another workspace.
 
@@ -46,7 +46,6 @@ variables have dedicated conversions.
 
 `import/detect`, `import/run`, `import/settings/get`, `import/settings/set`, and `import/history/list`
 are exposed through `extensions.agentImport`. Progress uses `import/progress` and `import/completed`.
-There are no `import/sessions/*` aliases. All repository clients update with the protocol.
 
 Detection returns source, category, scope, identity, name, source/destination paths, state, and a
 machine-readable diagnostic. Clients submit identities and fingerprints, never destination paths.
@@ -73,7 +72,6 @@ workspace catches up when next started. Global passes coordinate through a proce
 last-check time.
 
 Setup sync only fills missing destinations, never updates or deletes installed content. Deleting a
-destination permits later reimport while that category remains selected. Session append rules remain
-unchanged. History and needs-attention entries link to the existing management surfaces and chats.
+destination permits later reimport while that category remains selected. History and needs-attention entries link to the existing management surfaces and chats.
 Hooks require trust; MCP authentication and missing environment variables remain visible actions.
 All supported Desktop locales expose the same flows.

@@ -2,18 +2,18 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.9 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-10-15 |
+| Date | 2026-10-19 |
 
-The Desktop implements `NodeReplJs` with one lazily created Electron utility process per task. This execution contract is shared by the in-app browser and Chrome clients and by Windows computer use. The existing evaluate/cancel request and text, image, logs, result and error response fields remain unchanged.
+The Desktop implements `NodeReplJs` with one lazily created Electron utility process per task. This execution contract is shared by the in-app browser and Chrome clients and by Windows computer use. Evaluation uses an evaluate/cancel request whose response carries text, images, logs, a result, and an error.
 
 ## Evaluation
 
 - V8's native inspector REPL mode evaluates each complete code cell inside a Node context. Top-level `const`, `let`, destructuring, functions, closures and classes persist across calls and turns.
 - Top-level `await` and dynamic `import()` use native Node semantics. Module caches and working directories belong to the task process.
 - Lexical bindings may be redeclared across calls. Duplicate declarations inside a single cell and top-level `return` report errors.
-- `nodeRepl.write(value)` and console output produce logs. Expression completion values populate `resultText`. `await nodeRepl.emitImage(image)` uses the existing Desktop image conversion and output handling.
+- `nodeRepl.write(value)` and console output produce logs. Expression completion values populate `resultText`. `await nodeRepl.emitImage(image)` adds an image to the evaluation's output.
 - Syntax errors, JavaScript errors and browser command failures preserve the process and side effects already performed. They do not implicitly reset or roll back the environment.
 - This is a Node execution environment, not an OS sandbox. Browser control still goes through the browser client's documented APIs and host policy boundary.
 
@@ -21,9 +21,9 @@ Assignment to `const` is an error. Existing closures observe a redeclared bindin
 
 `nodeRepl.cwd` exposes the active workspace directory and `nodeRepl.homeDir` exposes the host user's home directory. Host-specific paths remain available through `dotcraft`.
 
-The model-visible declaration uses the existing `[ToolDeclaration]` generator for its name, description and parameter schema. The plugin descriptor adds runtime plugin identity and namespace; invocation remains a plugin-native proxy to preserve multimodal results, metadata and binding leases. `code` remains required; `title` is an optional short, user-facing description of the run, and `timeoutSeconds` remains an optional integer with no schema default. Generated declarations reject additional properties. The browser, Chrome and computer skills ask for a `title` on every call.
+The model-visible declaration is a generated tool declaration; the plugin descriptor adds runtime plugin identity and namespace, and invocation is a plugin-native proxy that preserves multimodal results, metadata and binding leases. `code` is required; `title` is an optional short, user-facing description of the run, and `timeoutSeconds` is an optional integer with no schema default. Additional properties are rejected. The browser, Chrome and computer skills ask for a `title` on every call.
 
-Policy and approval keep the plugin-native definition identity, and thread plugin policy matches the runtime plugin as the source. The registration is presented as Core-native with presentation `core.node-repl` and option `surface` set to the runtime plugin (`browser`, `chrome` or `computer`), so Desktop can trust it for rendering. Desktop labels a call with its `title`, truncated to 80 characters; without one it names the surface ("Used the browser", "Used Chrome", "Used the computer"). The row's icon follows the surface, and a tool group names the surface as one of its kinds. The expanded row shows the result text and images, not the code.
+Policy and approval keep the plugin-native definition identity, and thread plugin policy matches the runtime plugin as the source. The registration is presented as Core-native with presentation `core.node-repl` and option `surface` set to the runtime plugin (`browser`, `chrome` or `computer`), so Desktop can trust it for rendering. Desktop labels a call with its `title`, or names the surface without one; the row's icon follows the surface, and the expanded row shows the result text and images, not the code.
 
 ## Process ownership and cancellation
 

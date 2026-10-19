@@ -2,42 +2,41 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.8.5 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-10-12 |
+| **Date** | 2026-10-19 |
 | **Parent Specs** | [Session Core](session-core.md), [Model Runtime](model-runtime.md) |
 
 ## Overview
 
-Microsoft.Extensions.AI (MEAI) `ChatMessage` history remains DotCraft's provider-neutral agent
+Microsoft.Extensions.AI (MEAI) `ChatMessage` history is DotCraft's provider-neutral agent
 history. OpenAI Responses additionally requires the exact ordered response-item sequence that was
 sent to and returned by the provider. Reconstructing that sequence from turn-aggregated MEAI
 messages changes item grouping across turns and invalidates otherwise reusable prompt-cache
 prefixes.
 
-For opted-in threads, DotCraft therefore maintains a second, Responses-native history. It is the
-source of truth for the Responses `input` array only. MEAI history remains the source of truth for
-request-local model execution, UI projection, provider-neutral recovery, and every non-Responses
-protocol. Token estimation normally uses MEAI history or a valid provider usage anchor. An active
-opaque provider-native compaction generation instead supplies its own context estimator. Session Core owns both histories and persists them
-through the rollout contracts defined in [Session Core](session-core.md).
+DotCraft therefore maintains a second, Responses-native history. It is the source of truth for the
+Responses `input` array only. MEAI history is the source of truth for request-local model execution,
+UI projection, provider-neutral recovery, and every non-Responses protocol. Token estimation uses
+MEAI history or a valid provider usage anchor, except that an active opaque provider-native
+compaction generation supplies its own context estimator. Session Core owns both histories and
+persists them through the rollout contracts defined in [Session Core](session-core.md).
 
 Session Core stores only the provider id, normalized protocol, and opaque JSON items through the
-provider-neutral `IProviderConversationHistory` contract in `DotCraft.Agents`. The OpenAI
-integration owns validation, projection, retry-abort handling, compact transport, and all
-interpretation of those JSON items.
+provider-neutral history contract. The OpenAI integration owns validation, projection, retry-abort
+handling, compact transport, and all interpretation of those JSON items.
 
 ## Activation
 
 The canonical provider-history capability is selected when the thread is created and persisted in
 the canonical `thread_opened` baseline as `providerHistorySchemaVersion = 1`.
 
-- Every current thread and fork uses version 1.
-- A missing or unsupported capability version is a rollout error and is not inferred or migrated.
+- Every thread and fork uses version 1.
+- A missing or unsupported capability version is a rollout error and is not inferred.
 - The capability is internal rollout state and is not part of the public SessionThread/AppServer
   schema.
 - Both API-key and ChatGPT OAuth `openai-responses` runtimes consume the capability.
-- Version 1 is consumed only for server-managed history. Client-managed history uses direct
+- The capability is consumed only for server-managed history. Client-managed history uses direct
   per-request mapping because the caller, rather than the rollout, owns its preceding prefix.
 - Anthropic and OpenAI Chat Completions never consume or mutate Responses provider history.
 
@@ -68,49 +67,48 @@ corresponding local tool is executed.
 
 ## Request construction
 
-For a version-1 thread, a normal `ProviderRequestKind.Turn` Responses request input is:
+A normal Turn request's Responses input is:
 
 1. the current canonical generation;
 2. plus only the current MEAI sampling tail not already represented by that generation.
 
-Auxiliary `ProviderRequestKind.Compaction` requests use the
-messages supplied by their caller. They retain the active request identity and cache-routing
+Auxiliary compaction requests use the messages supplied by their caller. They retain the active request identity and cache-routing
 metadata, but they do not consume, append, abort, or otherwise mutate the active canonical
 provider-history generation. A provider-native compact backend captures its input through the
 provider compaction bridge instead of the ordinary Responses sampling adapter.
 
 The turn runtime captures the MEAI baseline before the current user input enters the agent.
-Coverage includes persisted AGENTS.md messages. Native compaction and ordinary sampling must use
-the same complete projection; filtering instructions is confined to local summary requests and
-must not shorten the list used to capture or install native coverage.
+Coverage includes persisted AGENTS.md messages. Native compaction and ordinary sampling use the same
+complete projection; filtering instructions is confined to local summary requests and does not
+shorten the list used to capture or install native coverage.
 
 Coverage is an append-only message boundary measured against the sanitizer-normalized sampling
 projection used for provider requests, not against the raw MEAI collection shape. Raw baselines,
 replacement histories, and compaction inputs are normalized when they enter that projection. The
-function-invocation wrapper then passes the already-prepared sampling buffer through the live tool
-loop. Provider-history preparation and coverage marking must use that buffer directly rather than
-sanitize it again. This keeps newly appended real tool results beyond the covered provider-output
-prefix so the next request maps them without rewriting the canonical generation.
+live tool loop reuses the already-prepared sampling buffer, and provider-history preparation and
+coverage marking use it without sanitizing again, so newly appended tool results stay beyond the
+covered provider-output prefix and the next request maps them without rewriting the canonical
+generation.
 
 Request-local history sanitization is not a conversation-history replacement. A sanitizer may
 repair an incomplete tool pair or remove content that is invalid for a role in the current request,
-but that projection must not replace, truncate, reorder, or regenerate the canonical Responses
+but that projection never replaces, truncates, reorders, or regenerates the canonical Responses
 generation. Object identity or collection shape changes produced by sanitization are never evidence
 that canonical history changed.
 
-The existing Responses mapper remains authoritative for converting local MEAI content, assigning
+The Responses mapper is authoritative for converting local MEAI content, assigning
 locally generated item IDs, and sanitizing invalid IDs. A correlation index derived from canonical
 calls is supplied when mapping a tail so a result for a native tool-search call remains a
 `tool_search_output` and a result for a `custom_tool_call` remains a `custom_tool_call_output`.
 
 Canonical history supplies the original input sequence. Base-instruction prefixes are request-local:
-they must not enter persisted history, advance message coverage, or change existing item IDs and
-tool-call correlation. Existing developer messages retain their positions.
+they never enter persisted history, advance message coverage, or change existing item IDs and
+tool-call correlation. Developer messages already in history keep their positions.
 
-Sampling and compaction must use the same instruction prefix. Standard requests place it before
+Sampling and compaction use the same instruction prefix. Standard requests place it before
 history; Lite places its tool catalog before the prefix. Compaction puts its trigger last and builds
 replacement history from the original canonical input without the prefix. Request diagnostics
-must describe the final input sent to the provider.
+describe the final input sent to the provider.
 
 When tools are present, `ChatOptions.ToolMode` maps to the final Responses `tool_choice` field:
 
@@ -129,11 +127,10 @@ has the same byte shape.
 
 ## Lifecycle
 
-One `OpenAIResponsesProviderHistoryContext` belongs to one active Thread/Turn sampling chain and has
-one consumer. Preparing input, beginning or ending an attempt, appending provider output, marking
-MEAI projection coverage, replacing history, aborting, and snapshotting are transitions of that
-single state machine. Supporting concurrent consumers would require serializing the complete
-transition set; adding an isolated lock to one method is not sufficient.
+One provider-history context belongs to one active Thread/Turn sampling chain and has one consumer.
+Preparing input, beginning or ending an attempt, appending provider output, marking MEAI projection
+coverage, replacing history, aborting, and snapshotting are transitions of that single state
+machine.
 
 - **Retry:** provider-output entries carry an attempt id. Immediately before an attempt is
   deliberately retried, DotCraft appends an abort tombstone and removes that attempt from live
@@ -145,19 +142,18 @@ transition set; adding an isolated lock to one method is not sufficient.
 - **Rollback:** entries for removed turns are excluded. A replacement whose covered turn no longer
   survives is invalid and replay continues to an earlier baseline.
 - **Compaction:** a neutral replacement maps the final compacted MEAI history once. A
-  provider-native replacement installs the client-built Responses v2 replacement without changing
+  provider-native replacement installs the client-built Responses replacement without changing
   MEAI history. Both atomically install a new provider-history generation and context-window identity.
-  A replacement produced by
-  pre-turn compaction covers the newest terminal Turn, the same Turn as its neutral checkpoint, so
+  A replacement produced by pre-turn compaction covers the newest terminal Turn, the same Turn as its neutral checkpoint, so
   rolling back the Turn that triggered it keeps the generation.
 - **Protocol change:** leaving Responses leaves the generation untouched. Returning after
   non-Responses turns creates a replacement from current MEAI history and advances the context
   window before the next Responses request.
-- **Fork:** a whole-turn fork copies an exact canonical prefix when available. Partial or legacy
-  forks create a new snapshot from the fork materialization. Fork state is copied, never linked.
+- **Fork:** a whole-turn fork copies an exact canonical prefix when available. Partial forks, and
+  forks without an exact prefix, create a new snapshot from the fork materialization. Fork state is copied, never linked.
 - **Thread context items:** canonical input carries the SubAgent role item materialized at the fork
   boundary and any client context item appended for the turn. Both are ordinary input items: later
-  requests append after them, and adapters must not move them at request time. A role-instruction
+  requests append after them, and adapters do not move them at request time. A role-instruction
   update or clear rebuilds canonical input from the neutral replacement. An item added to MEAI
   history before the turn's canonical baseline is already covered and is never projected, so client
   context is appended after the baseline is taken.
@@ -172,9 +168,9 @@ provider adapter normalization, retry preparation, and ordinary tool-loop projec
 
 Responses reasoning `content`, `summary`, and `encrypted_content` are distinct replay fields.
 Plain `reasoning_text` must survive projection, local compaction, fork materialization, and cold
-resume; encrypted content is not a substitute for it, and summary text must not be reclassified as
+resume; encrypted content is not a substitute for it, and summary text is never reclassified as
 plain reasoning. The OpenAI adapter stores a versioned replay item in content-scoped additional
-properties, using the existing model-history codec without changing the rollout schema.
+properties within the model-history encoding, without changing the rollout schema.
 
 Streaming fragments share an attempt-local reasoning item envelope which is finalized from the
 completed native item. Agent aggregation preserves provider-declared content groups, so adjacent
@@ -182,11 +178,11 @@ reasoning items remain separate even when neither has encrypted content. Group i
 metadata, not a ChatMessage ID. Completion does not repeat text already emitted as deltas.
 
 When rebuilding neutral history, the mapper prefers this envelope, then an available native raw
-reasoning item, then the existing legacy encrypted-content fallback. Invalid or unsupported envelopes
-fail with `responses_reasoning_metadata_invalid` instead of silently losing replay data. Legacy text
-without a known source is not guessed to be plain reasoning. Existing canonical generations remain
-authoritative and are not rewritten or automatically repaired. Replay envelopes must not be included
-in display-history projections, context exports, or diagnostics.
+reasoning item, then encrypted content. Invalid or unsupported envelopes fail with
+`responses_reasoning_metadata_invalid` instead of silently losing replay data. Text without a known
+source is not guessed to be plain reasoning. Canonical generations remain authoritative and are not
+rewritten or automatically repaired. Replay envelopes are excluded from display-history
+projections, context exports, and diagnostics.
 
 Responses reasoning output is assistant-authored content even when the provider SDK leaves the
 corresponding MEAI streaming update role unset. Before an update enters a cross-service-call
@@ -206,8 +202,8 @@ stable internal error `responses_provider_history_corrupt` for Responses samplin
 prevent the domain thread or generic MEAI history from being read or used by another protocol.
 
 Provider-history records are internal recovery state. Context search, previews, and ordinary
-context export must not index or expose their item JSON. Encrypted reasoning is intentionally
-durable but must never be copied into diagnostics.
+context export do not index or expose their item JSON. Encrypted reasoning is intentionally
+durable but is never copied into diagnostics.
 
 ### Display-history projection boundary
 
@@ -217,18 +213,16 @@ is provider-neutral. `provider_history_*` records never create or update `thread
 these records, then advances the projection checkpoint without deserializing, copying, indexing,
 searching, or exposing their raw JSON.
 
-Malformed provider-history payload does not block domain Turn or Item pagination. It remains an
-error only when the active Responses sampling path requires that provider-native recovery state.
-Consequently the display projection cannot contain Responses item JSON, encrypted reasoning,
-provider response IDs, or any future provider-native recovery payload.
+Malformed provider-history payload does not block domain Turn or Item pagination. It is an error
+only when the active Responses sampling path requires that provider-native recovery state. The
+display projection never contains Responses item JSON, encrypted reasoning, provider response IDs,
+or other provider-native recovery payload.
 
 ## Maintenance isolation
 
 Maintenance forks create a detached auxiliary request context for each work item, including
 fallback requests. Identity and diagnostics are explicit; provider history, compaction bridges,
 mutable conversation state, and parent tool-loop/retry callbacks are not shared. Auxiliary HTTP
-attempts must not overwrite parent attempt diagnostics, and tool argument normalization must not
-modify captured source messages.
-
-Auxiliary requests must not acquire a provider-history bridge through service lookup. Normal Turn
-coverage validation remains strict.
+attempts do not overwrite parent attempt diagnostics, tool argument normalization does not modify
+captured source messages, and auxiliary requests never acquire a provider-history bridge. Normal
+Turn coverage validation remains strict.

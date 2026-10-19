@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
-| **Related Specs** | [Design System](../architecture/DESIGN.md) |
+| **Date** | 2026-10-19 |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Design System](../architecture/DESIGN.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the conversation turn navigation rail, which lets a user see the shape of a long thread, preview any earlier user message, and jump to it.
 
@@ -53,7 +53,7 @@ The feature is owned by Desktop. It reads the AppServer history methods, and use
 
 - Each user message that the transcript renders as a user bubble is one entry. A turn with several visible user messages has several entries. Guidance and subagent-mailbox messages, which the transcript hides, have none.
 - Entries are ordered oldest to newest by Turn and then by Item position.
-- An entry's **label** is its message text, trimmed. An entry with no text shows the "(No content)" label.
+- An entry's **label** is its message text, trimmed. An entry with no text shows a no-content label.
 - An entry's **response** is the last agent message that follows its user message in the same Turn, before the next entry's user message. It may be empty.
 - An entry's **outputs** are defined in §8. Only the last entry of a Turn carries outputs.
 
@@ -76,19 +76,17 @@ The feature is owned by Desktop. It reads the AppServer history methods, and use
 
 ### 5.1 Visibility
 
-- The rail is shown for the active thread when it has at least 4 entries and the conversation's reading column leaves at least 48px between the conversation area's leading edge and the column.
-- The rail is re-evaluated when the window, the conversation area, or the column resizes.
-- It fades in once when it first appears for a thread. Reduced motion skips the fade.
+- The rail is shown for the active thread when it has at least 4 entries and the reading column leaves room for it beside the conversation area's leading edge. It is re-evaluated whenever the window, conversation area, or column resizes.
 
 ### 5.2 Placement
 
 - The rail is vertically centred at the leading edge of the conversation area, above the transcript, and does not scroll with it.
-- The rail has a maximum height of the smaller of 70% of the viewport and 40rem. Beyond that, the rail scrolls on its own with faded edges and no visible scrollbar.
+- The rail has a bounded height; beyond it, the rail scrolls on its own without a visible scrollbar.
 - The rail keeps the first active entry (§5.3) in view as the transcript scrolls.
 
 ### 5.3 Marker states
 
-- **Active** entries are those whose part of the transcript intersects the conversation viewport, ignoring its top 16px. The first entry of a Turn owns the whole Turn block; a later entry owns its own user bubble. Several entries can be active at once.
+- **Active** entries are those whose part of the transcript intersects the conversation viewport. The first entry of a Turn owns the whole Turn block; a later entry owns its own user bubble. Several entries can be active at once.
 - The entry under the pointer, the keyboard-focused entry, and the scrub target are each the **target**. The target's marker extends fully. Its neighbours extend part way, less with each step away, up to three steps.
 - While another entry is the target, active entries lose their highlight so only one entry reads as selected.
 - Bookmarked entries stay fully visible at rest and carry a dot at the end of their marker.
@@ -101,25 +99,25 @@ Rendering cost remains bounded to the visible rail. Entry updates preserve uncha
 
 ### 6.1 Jumping
 
-- Clicking an entry scrolls the transcript smoothly so its user bubble sits at the top of the conversation viewport, then flashes the bubble once. Reduced motion jumps without animation.
+- Clicking an entry scrolls the transcript smoothly so its user bubble sits at the top of the conversation viewport, then flashes the bubble once (§6.3). Reduced motion jumps without animation.
 - Clicking a placeholder first reveals its Turn (§6.4), then jumps.
 - Pressing on the rail and dragging along it scrubs: the entry under the pointer becomes the scrub target and the transcript jumps to it immediately, without smooth scrolling. Placeholders are skipped while scrubbing. Releasing the pointer ends scrubbing and does not also count as a click.
-- `Alt+ArrowUp` jumps to the previous entry above the viewport's top edge and `Alt+ArrowDown` to the next one below it, allowing 24px of tolerance. It works wherever focus is in the window except a text input or a dialog, and uses the same smooth scroll and flash. If the previous entry is a placeholder, Desktop reveals it first.
+- `Alt+ArrowUp` jumps to the previous entry above the viewport's top edge and `Alt+ArrowDown` to the next one below it, with a small tolerance. It works wherever focus is in the window except a text input or a dialog, and uses the same smooth scroll and flash. If the previous entry is a placeholder, Desktop reveals it first.
 - Each marker is a button. Tab moves focus between entries, and focusing an entry opens its preview card.
 
 ### 6.2 Preview card
 
-- Hovering or focusing an entry opens its preview card beside the rail, vertically centred on the marker. The card opens after 250ms. Moving between entries within 300ms of a card closing opens the next card immediately.
+- Hovering or focusing an entry opens its preview card beside the rail after a short delay. Moving between entries shortly after a card closes opens the next card immediately.
 - The card shows the entry's label on one line, then up to three lines of the response rendered as compact Markdown, then its outputs (§8). Links and images in the response are rendered as plain text.
 - A Turn triggered by an automation shows the automation origin icon before its label.
-- For a placeholder, Desktop starts loading the preview after the pointer rests on the entry for 150ms, or immediately on keyboard focus. The card shows a loading skeleton, announced as "Loading preview".
+- For a placeholder, Desktop starts loading the preview once the pointer rests on the entry briefly, or immediately on keyboard focus. The card shows a loading state.
 - Loading a preview reads the Turn's Items with `thread/items/list`, derives the entries of §4.1 from them, and trims each label and response to 240 characters.
-- A preview that fails to load shows "Preview unavailable". Desktop does not retry it within the same generation.
+- A preview that fails to load says so. Desktop does not retry it within the same generation.
 - The card closes when the pointer leaves the rail and the card, or focus leaves the rail. The pointer can travel into the card to reach its bookmark toggle.
 
 ### 6.3 Flash
 
-The flash is a single background pulse on the user bubble: it brightens immediately, holds briefly, and fades back to the bubble's own fill over 1400ms. It confirms which message the jump landed on and has no other meaning.
+The flash is a single background pulse on the user bubble that fades back to its own fill. It confirms which message the jump landed on and has no other meaning.
 
 ### 6.4 Revealing an unloaded turn
 
@@ -131,7 +129,7 @@ The flash is a single background pulse on the user bubble: it brightens immediat
 
 ## 7. Bookmarks
 
-- The preview card has a bookmark toggle labelled "Bookmark turn" or, when set, "Remove bookmark".
+- The preview card has a bookmark toggle.
 - A bookmark belongs to one entry: the pair of its Turn id and its user message Item id. A placeholder cannot be bookmarked until its preview has loaded, and an entry whose user message has no server Item id yet cannot be bookmarked.
 - A placeholder whose Turn holds a bookmarked entry is shown as bookmarked, so bookmarks in unloaded history stay visible after a restart.
 - Bookmarks are stored per workspace and thread in Desktop settings, survive restarts, and never leave the device.
@@ -147,21 +145,17 @@ The flash is a single background pulse on the user bubble: it brightens immediat
   - each image the Turn generated, as an **image** output.
 - Files are selected by the same rule the transcript uses for turn artifacts.
 - Outputs are de-duplicated by kind and label, ordered web previews first, then files, then images.
-- The card shows at most two outputs, each with its icon and label, then "+N" for the rest.
+- The card shows at most two outputs, each with its icon and label, then a count of the rest.
 
 ## 9. Accessibility and localization
 
-- The rail is a navigation landmark labelled "User messages".
-- Each entry button is labelled "Jump to user message N", or "Jump to user message N, bookmarked turn", where N is its 1-based position in the rail.
-- Active entries carry `aria-current`. An open preview card describes its entry through `aria-describedby`.
-- The bookmark toggle is a pressed/unpressed button.
-- The loading skeleton is exposed as a status with the "Loading preview" text.
+- The rail is a labelled navigation landmark. Each entry button names its 1-based position and whether it is bookmarked.
+- Active entries are marked current, and an open preview card describes its entry.
+- The bookmark toggle is a pressed/unpressed button, and the preview loading state is exposed as a status.
 - All strings are localized in every supported Desktop locale.
 
-## 10. Constraints and compatibility
+## 10. Constraints
 
-- Turn metadata supplies `backwardsCursor` for the targeted history reads in §6.4. Persisted sessions do not change.
 - With an AppServer that returns no `backwardsCursor`, unloaded Turns get no placeholders: the rail covers loaded history only, and appears once that reaches four entries.
-- History admission follows §6.4: the Turn listing is metadata only, and history pages are loaded only for scrolling toward a gap or an explicit reveal.
 - A thread still being created has no rail.
 - Remote workspaces behave the same as local ones.

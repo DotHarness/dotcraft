@@ -2,9 +2,9 @@
 
 | Field | Value  |
 | ----- | ------ |
-| Version      | 0.8.10    |
+| Version      | 0.9.1    |
 | Status       | Living |
-| Date         | 2026-10-17        |
+| Date         | 2026-10-19        |
 | Parent Specs | [Automations Lifecycle](../automations-lifecycle.md) |
 
 Oratorio is DotCraft's built-in agent project management product. It runs as
@@ -19,9 +19,7 @@ cards and the task page. Detailed conversation, approval decisions, plan
 inspection, file, terminal and preview views, and turn-by-turn interaction
 belong in DotCraft Desktop.
 
-This document is the canonical product and behavior contract for Oratorio:
-boundaries, domain behavior, source semantics, runtime contracts and validation
-expectations.
+This document is the canonical product and behavior contract for Oratorio.
 
 ## 1. Product Boundary
 
@@ -88,9 +86,8 @@ Runtime topology:
   separate authenticated SSH tunnels for AppServer and Oratorio. The remote
   service owns orchestration, durable state, source sync, managed worktrees,
   dispatch, reconciliation and source writes.
-- The Oratorio API is never exposed publicly. The optional webhook gateway
-  exposes only the provider webhook endpoint ([Server Webhook
-  Ingress](server-webhook-ingress.md)).
+- The Oratorio API is never exposed publicly. An optional webhook gateway
+  may expose only the provider webhook endpoint.
 - In a remote deployment the Oratorio backend and AppServer must reach the same
   repository workspace and managed worktrees at the same absolute paths. The
   local Desktop filesystem is never used for remote execution.
@@ -171,15 +168,16 @@ Required lifecycle behavior:
   count as requested follow-up work on their own. The bounded exceptions are:
   - a pull request conversation command accepted through verified command
     intake, which may request a read-only review of an already configured
-    repository ([GitHub Mention Review](github-mention-review.md)); and
+    repository; and
   - human review comments on the generated pull or merge request of an
     originating implementation item, which feed that item's next round under
     the gated Implementation Follow-up loop (§6.2, §8).
 
 ## 4. Domain and API Contract
 
-The backend owns workflow truth. Desktop renders the state the API returns and
-never invents domain transitions.
+The backend owns workflow truth. Clients render the lifecycle, capability and
+validation state the API returns; they never invent domain transitions or treat
+local presentation state as a domain change.
 
 Domain records:
 
@@ -213,8 +211,8 @@ Every item in list and detail responses carries its **latest Oratorio result**:
 none, no issues, findings, changes ready, delivered, or follow-ups. It is
 derived from the newer of the item's latest review draft and latest
 implementation draft, and from its follow-up drafts still waiting for a
-decision; pending follow-ups take precedence over the rest. The result stays until a newer draft replaces it, so
-the board shows it without extra requests.
+decision; pending follow-ups take precedence over the rest. The result stays
+until a newer draft replaces it, so the board shows it without extra requests.
 
 The API is versioned and returns errors as a stable code with a readable
 message. It covers:
@@ -332,7 +330,7 @@ writes:
 
 Writes are possible only when GitHub writes are enabled and GitHub App
 authentication is available. Otherwise Oratorio records a failed source write
-with a stable reason instead of hiding the problem.
+with a stable reason.
 
 GitHub App installations are chosen per GitHub instance and repository owner,
 not from one global installation. A configured owner installation covers every
@@ -356,18 +354,14 @@ Inline comments use GitHub's line-based diff anchors rather than deprecated
 diff positions. Oratorio renders concrete suggestions as GitHub suggestion
 blocks inside the comment.
 
-Installing the GitHub App is not a merge gate by itself. Repositories must
-require the Oratorio check through branch protection or rulesets.
-
 Oratorio never merges. A GitHub approving review is written only for an
 explicit operator approval. Commits, branch pushes and pull request creation
 happen only through implementation delivery (§6.2).
 
-Every intended write is recorded with its item, round, and decision or draft,
-and the timeline shows its queued, succeeded and failed attempts. Write
-failures are retryable and never roll back a recorded decision or item
-transition; check-gated repositories rely on the check state as the external
-merge gate when a write fails.
+Every write is recorded with its item, round, and decision or draft, and the
+timeline shows its attempts. Write failures are retryable and never roll back a
+recorded decision or item transition; check-gated repositories rely on the
+check state as the external merge gate when a write fails.
 
 ### 5.3 Local Tasks
 
@@ -454,7 +448,7 @@ Validation:
   range after line-ending normalization;
 - a comment-only finding needs a line and a reason; lines are positive, a start
   line is not after its line, and sides are left or right;
-- unknown kinds, missing details and undeclared details are invalid arguments;
+- unknown kinds and missing details are invalid arguments;
 - a suggestion whose replacement equals the existing text is skipped with a
   warning;
 - a summary-only draft needs no diff reads;
@@ -490,8 +484,7 @@ asks for a duplicate draft. An operator cancellation remains authoritative.
 merge request succeeds, Oratorio publishes its draft to the provider right away
 as a comment-only review: the summary plus the accepted inline findings, with
 concrete suggestions rendered as native suggestions and comment-only findings
-as prose. On GitHub this is one `COMMENT` review; GitLab publication is defined
-in [GitLab Integration](gitlab-integration.md). Publication never approves,
+as prose. On GitHub this is one `COMMENT` review. Publication never approves,
 requests changes, merges, closes, or changes branch protection, and it never
 records an Oratorio decision: the task stays Awaiting Review until the operator
 decides. There is no manual publish step and no editing of a draft before
@@ -796,7 +789,7 @@ description, new operator feedback, the current task and the available tools.
 
 The agent prompt never contains a serialized context dump, full round history,
 the full source snapshot, the full imported comment history or every prior
-summary, unless a product change deliberately changes this contract. Stable run
+summary. Stable run
 rules, source write boundaries, draft formatting and submission rules, and
 Discussion tool rules belong in the thread-stable guidance, not in each turn.
 That guidance is stable for the thread's lifetime and never carries per-run or
@@ -848,7 +841,7 @@ Managed worktrees and concurrency:
   run executes in the managed worktree.
 - If the base checkout is missing or not a Git repository, preparation fails
   clearly; Oratorio never silently runs against a shared workspace.
-- Review preparation uses the run's frozen `TargetHeadSha`, not the source
+- Review preparation uses the run's frozen target head commit, not the source
   item's latest head. A missing review target SHA fails preparation. If the
   commit is absent locally, Oratorio fetches that exact SHA from origin and
   creates the worktree at that commit, independently of provider review refs
@@ -908,15 +901,7 @@ submit again before ending the turn. The final summary describes what was
 submitted and any remaining warnings; the tool call remains the structured
 result.
 
-## 9. Desktop Renderer Behavior Contract
-
-Clients render server-owned lifecycle, capability and validation state. They
-never invent transitions or treat local presentation state as a domain change.
-[Desktop DESIGN](../../architecture/DESIGN.md) governs shared visual
-primitives; [Oratorio Native Surfaces](oratorio-frontend.md) defines the
-Oratorio surfaces.
-
-## 10. Operations and Validation
+## 9. Operations and Validation
 
 Self-hosted Oratorio requires operator authentication, encrypted secret
 handling, health checks, bounded diagnostics and a single-node operating model.

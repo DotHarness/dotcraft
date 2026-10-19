@@ -2,101 +2,101 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.7.8 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-09-28 |
+| Date | 2026-10-19 |
 | Parent Specs | [In-app browser](desktop-inapp-browser.md) |
 
 ## Purpose and scope
 
-Provide accurate embedded-browser automation and preserve user-selected context from pasted text, web pages, assistant responses, code diffs, and file previews through the existing Desktop composer. Browser runtime details remain owned by the in-app browser specification; this specification owns the complete user workflow and context contract.
+Provide accurate embedded-browser interaction and preserve user-selected context from pasted text, web pages, assistant responses, code diffs, and file previews through the Desktop composer. The [in-app browser runtime](desktop-inapp-browser.md) owns page hosting, command identity, supported APIs, readiness, browser policy, and turn-terminal tab cleanup; this specification owns the user workflows and the context contract.
 
-Included capabilities are browser observation and interaction accuracy, the browser toolbar, ordinary user downloads, page selection, find/zoom/context-menu controls, capability-based runtime documentation, turn-scoped tab cleanup, pasted-text attachments, response annotations, and user/model line comments on diffs and file previews.
+Included: the browser toolbar, user downloads, find/zoom/context-menu controls, page references, pasted-text attachments, response annotations, and user and model line comments on diffs and file previews.
 
-Task sorting and sidebar changes, general document editing, cross-origin iframe input, AX APIs, account migration, and new browser permission systems are outside this feature.
+Out of scope: general document editing, cross-origin iframe input, accessibility-tree APIs, and new browser permission systems.
+
+## Runtime boundaries
+
+Electron Main owns downloads, page-selection capture, and browser controls, scoped to the requesting window. Renderer overlays stay above live pages without hiding or recreating them. Selection capture targets its source page. Browser runtime cleanup continues while the renderer shows another task or workspace.
 
 ## Reply text interactions
 
-Reply selections share one active overlay per renderer window. A new selection replaces the previous one. The content-sized action strip offers **Add to chat** and **Comment**, separated by a hairline; the comment editor has its own input width. Only selections contained within one completed reply can become response annotations. The overlay preserves a source/Range snapshot while the editor has focus, uses a viewport-clamped portal above the selection (below when necessary), and follows scrolling and resizing.
+One reply-selection overlay is active per window; a new selection replaces it. It offers **Add to chat** and **Comment**. Only a selection contained within one completed reply can become a response annotation, and an empty selection never becomes one. The overlay keeps its source selection while the comment editor has focus and follows scrolling and resizing.
 
-Outside pointer-down, Escape, a context menu outside the comment editor, task changes, and source unmount dismiss the overlay. Passive dismissal retains an unfinished comment in window memory keyed by source and selection; explicit cancellation or saving clears that draft. Opening or closing a native menu never clears the text selection or automatically reopens the overlay. The editor retains its own input context menu.
+Outside pointer-down, Escape, an outside context menu, task changes, and source unmount dismiss the overlay. Passive dismissal keeps an unfinished comment in memory keyed by source and selection; explicit cancel or save clears it. Opening or closing a native menu never clears the text selection or reopens the overlay.
 
-Reply body context menus use Electron native menus through a typed preload boundary scoped to the requesting window. On Windows a nonempty selection offers Search with Google, a separator, Copy (Ctrl+C), and Select All. Without a selection only Select All remains. Search opens an encoded Google query in the system browser; Copy and Select All use the requesting WebContents' native operations. macOS omits Select All in the context menu, following the reference platform convention. The message footer retains whole-message copying, and specialized link, file, input, and embedded-page menus retain their ownership.
-
-## Runtime and host boundaries
-
-The [in-app browser runtime](desktop-inapp-browser.md) owns persistent page hosting, command identity, supported APIs, readiness, browser policy and turn-terminal tab cleanup. This feature uses those host-owned operations through typed preload APIs.
-
-Electron main owns downloads, page-selection capture and browser controls. Renderer portals must remain above live pages without hiding or recreating them. Selection capture targets its source page. Browser runtime cleanup remains active while the renderer shows another task or workspace.
+Reply bodies use native context menus. With a selection they offer Search with Google (opened in the system browser), Copy, and Select All; without one, only Select All. macOS omits Select All, following platform convention. Link, file, input, and embedded-page menus keep their own behavior.
 
 ## Browser user workflows
 
 ### Toolbar
 
-The browser toolbar is a 40px strip whose controls all share the 28px catalog control band: Back, Forward, Reload or Stop, the address field, the annotation toggle, and the options menu trigger. The address field sits on the same band, grows with the row up to 770px, and carries the open-in-system-browser action inside its trailing edge, revealed on hover or on keyboard focus within the field; there is no standalone external-browser button. Escape in the address field returns focus to the page. While a page loads, Reload becomes Stop and a 2px pulsing bar runs along the toolbar's bottom edge; the bar is decorative, hidden from assistive technology, and rests as a static rule under reduced motion.
+The toolbar holds Back, Forward, Reload or Stop, the address field, the annotation toggle, and the options menu. Open-in-system-browser is an action inside the address field, revealed on hover or focus. Escape in the address field returns focus to the page. While a page loads, Reload becomes Stop and a decorative progress indicator shows, static under reduced motion.
 
 ### Downloads
 
-User downloads save automatically in the configured directory (system Downloads by default), with numbered names for collisions. Browser settings exposes Location/Change using the system directory picker and Download history/Manage. The chosen location persists across restart and applies only to subsequent downloads; existing file paths remain unchanged. Downloads do not prompt for a location on each transfer. Main owns DownloadItem instances and persisted records. Records include source tab/thread, file name, byte progress when known, state, and completed local path. Interrupted downloads remain recognizable after restart; resuming the underlying transfer across restart is not required.
+User downloads save automatically to the configured directory (system Downloads by default) without prompting, with numbered names on collision. Browser settings exposes the download location and download history. A changed location persists and applies only to later downloads.
 
-The options menu's Downloads action opens Browser settings at Download history; the toolbar has no standalone Downloads control. The history page has search, an all-time history section, an empty state, cancellation, opening completed files, individual record removal, and Clear all. Clearing history removes finished records only, without deleting local files or interrupting active transfers. Navigation does not clear download records. Agent download-wait, upload, and filechooser APIs are not enabled by user download support.
+Main owns active transfers and persisted records. A record holds source tab and thread, file name, byte progress when known, state, and completed local path. Interrupted downloads remain recognizable after restart; resuming them is not required.
+
+The options menu's Downloads action opens download history, which supports search, cancellation, opening completed files, removing individual records, and Clear all. Clearing removes finished records only, never local files or active transfers. Navigation does not clear records. User download support does not enable agent download, upload, or file-chooser APIs.
 
 ### Find, zoom, and context actions
 
-Find exposes query, current match, total matches, next/previous, and close. Results belong to the initiating tab and query. Ctrl/Cmd+F, Enter/Shift+Enter, and Escape work when the native page has focus. Find is a top-right floating capsule shared with application search presentation, not a toolbar row. Its empty query shows only the input and actions; a nonempty query reveals navigation and result count in a second row inside the capsule. Opening or updating find does not resize the page.
+Find exposes query, current match, total matches, next/previous, and close. Results belong to the initiating tab and query. Ctrl/Cmd+F, Enter/Shift+Enter, and Escape work while the page has focus. Find floats over the page and never resizes it.
 
-Zoom belongs to the page and supports increase, decrease, and reset to 100%. The options menu lists Find in page, a separator, the zoom group, a separator, Downloads and Inspect, a separator, and Browser settings. Rows are text-only; the zoom group is a compact minus/read-only percentage/plus stepper with a separate reset button disabled at 100%. Browser settings opens the Browser settings tab without opening Download history. Zoom actions keep the menu open. The options popup anchors to its trigger, fit the viewport, and restore focus on keyboard dismissal. Context actions support copying a link, opening it in a new browser tab or externally, and inspecting the page element. Inspect targets the embedded page, not the application renderer.
+Zoom belongs to the page and supports increase, decrease, and reset to 100%. The options menu groups Find in page; zoom; Downloads and Inspect; and Browser settings. Zoom actions keep the menu open, and keyboard dismissal restores focus to the trigger. Page context actions copy a link, open it in a new browser tab or externally, and inspect the element. Inspect targets the embedded page, not the application.
 
 ### Page references
 
-Users can select text, an element, or a rectangle. Selection captures a fixed URL/title, text or element summary, and an image when needed. The result goes to the originating task's draft, with editable comment and removable reference. Subsequent navigation cannot change an existing draft reference. Region captures use the selected page and its current scale. The annotation control selects an element on click or a region on drag; a native text-selection context action captures selected text. The annotation control is a mode toggle: idle it is a 28px icon-only control with a tooltip; active it grows in place to show its icon and the Annotating label and reads as pressed. While the mode is active an interaction layer covers the page: page hover and click are blocked, wheel scrolling still reaches the page, the pointer is a crosshair, and the element under the pointer is outlined in the application accent at that element's own corner radius. A drag past 4px replaces the element outline with a dashed region box and a speech-bubble pointer. Escape during a drag cancels only the drag; Escape with no drag leaves the mode; Escape in the comment editor discards the comment and returns to the page. The page-side accent follows the application accent. While commenting, a captured page image holds the source in place above the live guest, blocking interaction with the covered page. Only the selected image is stored as a task attachment; the full-page preview is transient.
+Users select text, an element, or a region. A selection captures a fixed URL and title, the text or element summary, and an image when needed, at the page's current scale. The result goes to the originating task's draft with an editable comment and a removable reference; later navigation never changes it.
+
+The annotation toggle is a mode. While active, an interaction layer covers the page: hover and click are blocked, wheel scrolling still reaches the page, and the element under the pointer is outlined in the application accent. Click selects an element; drag selects a region. A native text-selection context action captures selected text. Escape cancels an in-progress drag, otherwise leaves the mode; Escape in the comment editor discards the comment.
+
+The selected element or region stays outlined while the compact comment editor is open beside it. While commenting, a captured image holds the page in place and blocks interaction with it. Only the selected image is stored as a task attachment; any full-page preview is transient.
 
 ## Composer context
 
 ### Pasted text
 
-Pastes of at least 5,000 characters create real UTF-8 text attachments without truncating their content. The composer displays a preview and provides open/remove. Attachments with known lengths from 5,000 through 25,000 characters also offer restoration into the text field.
+Pastes of at least 5,000 characters become UTF-8 text attachments without truncation. The composer shows a preview and offers open and remove; attachments with known length up to 25,000 characters also offer restoring into the text field. Pasted text and files share one attachment row. A pending attachment blocks submission until it is ready or removed.
 
-Pasted text and ordinary files share one horizontally scrollable attachment row. A pasted card uses a single truncated text excerpt as its title, with a restore action or the pasted-text identity beneath it. Full text and character count belong in the preview, not the compact composer card. Pending file creation uses the same card footprint and disables submission until the content is ready or removed.
-
-Submission contains a reversible file reference, not automatic expansion of the entire file into the prompt. The complete file remains accessible through existing file capabilities for the task's host. File references do not imply that AppServer reads or materializes file bodies.
-
-### Feedback sources
-
-Browser annotation starts from the browser toolbar. The selected element or region stays outlined with a dashed accent outline and a speech-bubble marker at its bottom-right corner. The compact comment editor sits 25px from the selection, preferring the right side, then the left, then below, then above, and keeps 16px from the page edges. Response text selection exposes separate Add to chat and Comment actions beside the selected text; it never substitutes a predefined excerpt for an empty selection.
+Submission carries a reversible file reference, not the expanded file. The file stays accessible through the task host's file capabilities; a reference does not imply AppServer reads or materializes the file body.
 
 ### Line comments
 
-Line comments belong to the Changes panel diff, in unified and split views, and to text file previews. They appear at their code lines as cards rather than in a detached comments section. The in-transcript edited-files card and external-change review carry no line comments.
+Line comments belong to the Changes panel diff (unified and split) and to text file previews, shown as cards at their lines. The in-transcript edited-files card and external-change review carry no line comments.
 
-A diff starts a comment from the hover "+" on a row's line-number edge, or on keyboard focus of that control. Clicking line numbers selects lines and Shift+click extends the selection on the same side; "+" on a selected line comments on the whole selection, and dragging from "+" selects a range. A file preview starts a comment from a Comment action beside a non-empty text selection; a rendered Markdown preview switches to source first. A line that already ends a comment or an open draft does not start another.
+In a diff, a comment starts from a per-row add control on the line-number edge (hover or keyboard focus). Line numbers select lines, Shift+click extends on the same side, and the add control on a selection comments on the whole selection; dragging from it selects a range. In a file preview, a comment starts from a Comment action beside a non-empty text selection; rendered Markdown switches to source first. A line that already ends a comment or open draft does not start another.
 
-A draft opens focused, with Cancel, dictation, and a Comment action that stays disabled while the text is empty. Enter submits and returns focus to the task composer, Shift+Enter inserts a newline, and Escape or Cancel discards the draft. Any number of drafts may be open; they persist in memory per thread until submitted or discarded, so collapsing a file or switching tasks does not discard them. A submitted comment stays on its line as the same card, showing only Delete until its text is focused; editing then offers Delete, Cancel, dictation, and Save, and Cancel restores the saved text. The card names its author, with the profile avatar for the reader, and its line as `L` (old side) or `R` (new side) plus the line number, with a range as start and end.
+A draft opens focused with Cancel, dictation, and Comment, which stays disabled while empty. Enter submits and returns focus to the task composer, Shift+Enter inserts a newline, Escape or Cancel discards. Any number of drafts may be open; they persist in memory per thread until submitted or discarded. A submitted comment stays on its line and can be edited (with Cancel restoring the saved text) or deleted. The card names its author and its line as `L` (old side) or `R` (new side) with the line number or range.
 
 ### Composer summary
 
-The composer summarizes feedback in two count pills: line comments (`N comments`) and page and response annotations (`N annotations`). Hovering or clicking a pill opens its list; the pill's remove action clears everything it counts. A line comment row names its file as a reference that opens it, its side as `L` or `R`, and its line or range, followed by the comment; it does not repeat the selected code, and the comment is edited or deleted on its card at the line. The annotations list shows page annotations first, as what was selected and the comment, then numbered response annotations with `Selected text:` and `User comment:`, each offering edit and removal on hover or focus. Sent messages show the same pills and lists without actions. Pasted text retains its separate file-card presentation. The compact editor used for page and response annotations exposes dictation while empty and a circular 28px primary confirm action with a check glyph once populated, and never submits empty text; editing an existing comment has explicit cancel/save controls. Dictation targets the active comment and is discarded with that editor, without replacing the task composer draft. Comments use existing field and action primitives, without a full-width form beneath the source or duplicate selected text in the compact annotation editor.
+The composer summarizes feedback in two counts: line comments, and page plus response annotations. Each opens its list; its remove action clears everything it counts.
 
-The single-line comment editor keeps the same height and text baseline when focus changes or dictation and save actions switch. Action controls do not determine the input height.
+- A line comment row names its file (opening it), side, and line or range, then the comment. It does not repeat the code; editing happens on the card.
+- The annotations list shows page annotations first, then numbered response annotations with their selected text and comment, each editable and removable.
+- Sent messages show the same summaries read-only.
 
-Response annotations retain source thread/turn/item, selected text, and the user's comment. Diff annotations retain file, old/new side, line range, selected code snapshot, and comment. A file-preview comment is a diff annotation on the new side. User annotations and model review comments remain separate data sources.
+The compact annotation editor offers dictation while empty and a confirm action once populated, never submits empty text, and keeps its height stable as actions change. Dictation targets the active comment and never replaces the task composer draft.
 
-Model review comments are parsed from completed assistant responses' `code-comment` directives and mapped to their file and line positions. Commentary text is not a source of finalized review comments. This does not introduce multi-user review state or automatic remapping across revisions.
+### Annotation data
+
+- Response annotations keep source thread, turn, and item, the selected text, and the comment.
+- Diff annotations keep file, old/new side, line range, the selected code snapshot, and the comment. A file-preview comment is a diff annotation on the new side.
+- Model review comments come from `code-comment` directives in completed assistant responses, mapped to file and line. Commentary text is never a source. User annotations and model review comments are separate sources. There is no multi-user review state or remapping across revisions.
 
 ### Submission and recovery
 
-Pasted-file references, page references, and response/diff annotations use typed `contextRef` input parts. Native input persists the complete source record; server materialization produces model-visible text and image parts. A page screenshot belongs to its context and is not also submitted as an ordinary image. Context goes through the same start, enqueue, update, and steer paths as normal composer input; attachment-only and feedback-only drafts count as nonempty input.
+Pasted-file references, page references, and response and diff annotations are submitted as typed `contextRef` input parts, and Desktop submissions carry a `clientUserMessageId` (see [AppServer Protocol](../protocols/appserver-protocol.md#inputpart)). A page image belongs to its context and is not also submitted as an ordinary image. Context uses the same start, enqueue, update, and steer paths as normal input; attachment-only and feedback-only drafts count as non-empty.
 
-Native parts are the source of truth for message presentation, queue editing, and historical draft restoration. Model text is never decoded into UI state. Missing metadata must not expose an operation whose preconditions cannot be established, such as restoring an unknown-length pasted file into the editor.
+Native input parts are the source of truth for message presentation, queue editing, and draft restoration; model text is never decoded into UI state. An operation whose preconditions cannot be established from the metadata, such as restoring an unknown-length paste, is not offered. Optimistic messages reconcile only by `clientUserMessageId`, never by content or timing; queue edits keep the id and a new submission gets a new one.
 
-Desktop submissions carry a UUID `clientUserMessageId` through start, enqueue, steer, persistence, and user-message events. Queue edits retain that identity; a new submission gets a new identity. Optimistic messages reconcile by this identity within the thread, never by text, image count, or time proximity. This is correlation, not a retry idempotency contract.
+Sent messages show read-only feedback with each image once, including a missing-image state. Live, acknowledged, and reloaded messages present identically.
 
-Sent messages show read-only feedback summaries and source details using the same presentation primitives as the composer. Screenshots appear once within their owning feedback, with preview and a missing-image state. Pasted text retains its file-card presentation. Live, acknowledged, and reloaded messages have the same content and layout.
+Plain-text drafts persist locally. Unsent attachment and feedback drafts survive task navigation in memory, not necessarily application restart. Sending clears a draft only after acceptance; failure preserves it. Welcome and task drafts follow the same conversion rules.
 
-Plain-text drafts persist locally. Unsent attachment and feedback drafts survive task navigation in memory; restoring every unsent attachment after application restart is not required. Sending clears the corresponding draft only after acceptance. Failed submissions preserve it. Welcome drafts and task drafts follow the same content conversion rules.
+## Presentation
 
-## Presentation and compatibility
-
-UI follows [Desktop DESIGN](../architecture/DESIGN.md), locale catalogs and shared component conventions. The maintained design system previews production components through its adapter boundary; simulated native operations are labelled as such. A successful design preview does not validate Electron input, view stacking, downloads, or capture coordinates. The design system previews the page-side selection layer by running the shared selection script inside a same-origin fixture frame; that preview validates hover, drag, pointer and Escape behavior, not guest capture or coordinates.
-
-Existing ordinary text, file, command, skill, and image inputs remain usable. Existing explicit browser finalize calls remain supported. Persistent data is descriptive of final behavior and contains no delivery-stage terminology.
+UI follows [Desktop DESIGN](../architecture/DESIGN.md#line-comments) and shared component conventions. Design-system previews do not validate Electron input, view stacking, downloads, or capture coordinates.

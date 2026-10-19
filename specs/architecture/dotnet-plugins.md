@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.7.8 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-19 |
 
 This specification defines trusted, in-process .NET plugins. The shared plugin manifest,
 discovery, installation, and content contributions remain owned by
@@ -52,23 +52,21 @@ installation, enablement, and trust as separate decisions:
 - `plugin/setTrusted` identifies the plugin; the server computes the currently accepted
   fingerprint. Clients do not choose the fingerprint. Grant adds that exact pair; revoke removes
   only that exact pair, leaving other grants for the same plugin id intact.
-- Changed .NET execution bytes or manifest contract require a grant for their new fingerprint. They do
-  not erase grants for earlier fingerprints. Revocation stops the active generation and its dependants when it
-  withdraws the active fingerprint's grant.
+- Changed .NET execution bytes or manifest contract require a grant for the new fingerprint without
+  erasing earlier grants. Revoking the active fingerprint's grant stops the active generation and
+  its dependants.
 - A grant that cannot be persisted is not applied and activates nothing.
 - Workspace configuration cannot grant .NET trust.
 - Discovery, installation, and metadata preflight do not execute plugin code. Enabling an
   installed plugin may execute code only when all admission requirements, including an existing
   matching grant, are satisfied.
 
-The authoring build in §7.6 grants one exact plugin id and fingerprint process-local execution
-qualification. It neither writes nor substitutes a durable trust grant. That qualification applies
-only to the development bundle published by the current host process and is lost when the process
-exits.
+The authoring build in §7.6 grants one exact plugin id and fingerprint a process-local execution
+qualification for the development bundle it published. It neither writes nor substitutes a durable
+grant and is lost when the process exits.
 
-Marketplace or publisher information is display evidence, not a verified identity. Signature
-verification, publisher attestation, and capability permissions are outside this version.
-Lower-trust extensibility should use out-of-process tools, hooks, workflows, or channel adapters.
+Marketplace or publisher information is display evidence, not a verified identity. Lower-trust
+extensibility uses out-of-process tools, hooks, workflows, or channel adapters.
 
 ## 3. Host ABI and assembly identity
 
@@ -84,18 +82,14 @@ name. A bundle copy of a shared assembly is ignored. Other dependencies resolve 
 generation shadow copy and its `.deps.json`. This preserves type identity for contribution
 contracts while keeping plugin-private dependencies collectible.
 
-The host supplies `DotCraft.Imaging` for image processing.
-A deployed plugin's private image dependencies follow the bundle rules above; in-host authoring
-uses only the assemblies the current host supplies. The image capability is defined in
+The host supplies `DotCraft.Imaging` as a shared assembly; the capability is defined in
 [Image processing](image-processing.md).
 
 The public host surface is a version-bound ABI, not an append-only compatibility promise:
 
 - `dotnet.minHostVersion` is a hard admission floor.
 - A plugin built against a different compatible host version loads best-effort; missing members
-  may still fail on first use.
-- Authors should compile and test against each supported DotCraft minor line and declare the
-  earliest host whose APIs they actually use.
+  may still fail on first use. Plugins declare the earliest host whose APIs they actually use.
 
 Provider plugins may export typed service-contract assemblies to direct dependants. Exported
 assembly simple names must be unique within each consumer's dependency closure. The host validates
@@ -152,8 +146,7 @@ Call-time points resolve the current list for each operation. Five kernel contra
 while an agent is built: `IToolSource`, `IToolRestriction`, `IChatMiddleware`,
 `IAgentContextSource`, and `ISubAgentRuntimeSource`. Their mutations invalidate live thread agents
 for the next turn; an in-flight operation keeps the view it started with. Prompt sections,
-assemblers, and commands remain dynamically resolved. Command changes release the cached command
-summary, while thread-prompt changes release pages for the current providers.
+assemblers, and commands remain dynamically resolved.
 
 ### 4.3 Failure semantics
 
@@ -269,34 +262,24 @@ Local admission copies the complete plugin into an immutable accepted snapshot. 
 verifies that copy, and each activation loads a separate shadow copy so install/remove can change
 the installed directory without mutating a live generation.
 
-The remote execution host instead installs verified bundles at
-`workspaces/<workspaceId>/plugins/<pluginId>/<contentFingerprint>/` and loads them directly.
-Admission retains metadata and the installed path; it does not copy bundle files. Upload staging
-is promoted before activation, under the workspace preparation lock and owner authorization.
-Binding publication still requires final lease, authorization, cancellation, and tool-contract checks.
-Installed content is never overwritten; writable plugin state belongs in `DataRoot`.
-Unchanged preparations and reconnects reuse the installation. Settings or source-generation
-changes may replace the runtime generation without duplicating its files.
-
-Remote installations remain cached on disconnect. Replaced content is removed only after its
-accepted references and collectible generations have released it; failed file deletion is retried
-by existing reclaim polling and subsequent successful preparations. A current installation must
-not be deleted by an older generation's delayed reclaim. Interrupted uploads are discarded;
-verified installations may remain after failed activation for a later retry. Local export snapshots
-and local shadow-copy lifecycle are unaffected.
+A [remote tool host](remote-tool-host.md) instead installs verified bundles immutably at
+`workspaces/<workspaceId>/plugins/<pluginId>/<contentFingerprint>/` and loads them in place.
+Uploads are promoted before activation under the workspace preparation lock and owner
+authorization; binding publication still requires final lease, authorization, cancellation, and
+tool-contract checks. Writable plugin state belongs in `DataRoot`. Unchanged preparations and
+reconnects reuse the installation, and installations stay cached on disconnect. Replaced content is
+removed only after every accepted reference and collectible generation has released it, and an
+older generation's delayed reclaim never deletes a current installation. Interrupted uploads are
+discarded; verified installations may remain after failed activation for a later retry.
 
 .NET trust uses a separate execution fingerprint. It includes the canonical plugin id, version,
 managed entry contract, exported API declarations, dependencies, and every non-Desktop bundle
 entry that in-process code can read. The raw manifest and `desktop/` tree are replaced by those
 normalized managed fields, so presentation-only changes do not invalidate .NET trust. The
-deployment-only `.builtin` marker is absent from both fingerprints and runtime snapshots.
+deployment-only `.builtin` marker is absent from both fingerprints and runtime snapshots. Both
+fingerprints are SHA-256 digests over a versioned, unambiguous canonical encoding of the bundle tree.
 
-Both fingerprints use versioned canonical streams. Every directory and file record carries an
-entry kind and an explicit UTF-8 path length; file records also carry an explicit content length
-before their bytes. This makes different bundle trees unambiguous before SHA-256 is applied.
-
-Metadata preflight uses `System.Reflection.Metadata` and does not load or execute the entry
-assembly. It validates the target framework, host floor, entry type shape, declared assemblies,
+Metadata preflight does not load or execute the entry assembly. It validates the target framework, host floor, entry type shape, declared assemblies,
 dependency metadata, and `.deps.json`. Deterministic failures produce coded blockers before an ALC
 is created.
 
@@ -317,12 +300,11 @@ Blocked <-> Stopped -> Activating -> Active -> Deactivating -> Stopped
 Only one live generation exists per plugin id. Updates stop the previous generation before
 activating the accepted replacement; there is no automatic rollback.
 
-Request cancellation may cancel waiting to acquire the runtime mutation lock. Once a transition
-starts, caller cancellation must not strand a node in `Activating` or `Deactivating`. The activation
-timeout and cleanup timeout bound how long ordinary mutation paths wait, not how long ignored
-cancellation may keep plugin code alive. Until that code actually settles, the runtime retains the
-pending transition: it cannot activate a replacement or tear down a provider that the pending
-generation may still call.
+Request cancellation may cancel only the wait for the runtime mutation lock; it never strands a node
+in `Activating` or `Deactivating`. Activation and cleanup timeouts bound how long ordinary mutations
+wait, not how long plugin code that ignores cancellation stays alive. Until that code settles, the
+runtime retains the pending transition and neither activates a replacement nor tears down a
+provider the pending generation may still call.
 
 ### 7.3 Activation transaction
 
@@ -338,10 +320,8 @@ Activation performs:
 8. publish `Active`, then start tracked background work.
 
 Any failure before commit discards staged registrations, disposes constructed plugin-owned
-objects, requests ALC unload, and leaves no callable route. A timed-out callback that ignores
-cancellation can never commit. The runtime retains it as a pending activation until the callback
-settles and its functional teardown finishes; no replacement generation or dependency-provider
-teardown may overlap it.
+objects, requests ALC unload, and leaves no callable route. A timed-out callback can never commit;
+it remains a pending activation as described in §7.2.
 
 ### 7.4 Deactivation and reclaim
 
@@ -359,9 +339,8 @@ Deactivation performs:
 After step 1 no new resolution reaches the plugin. Retained host adapters reject later calls with
 an unavailable failure and never invoke their raw target. For an ordinary mutation,
 `CleanupTimeout` bounds the wait for steps 3-5. If functional teardown is still running, the node
-remains `Deactivating`; reactivation and dependency-provider teardown wait for its actual
-completion. Only then may it enter `Reclaiming`, where only collectible-context and shadow-file
-reclaim remain.
+remains `Deactivating` (§7.2). Only after it completes may the node enter `Reclaiming`, where only
+collectible-context and shadow-file reclaim remain.
 
 Host shutdown waits for actual functional teardown so consumers finish before their providers and
 the host root are disposed. That safety wait is deliberately not bounded by `CleanupTimeout`; an
@@ -374,16 +353,14 @@ reactivation, dependent teardown, or shutdown.
 
 ### 7.5 Dependencies and typed exports
 
-Providers activate before consumers; consumers stop before providers. A dependency version is a
-minimum within one compatibility line, not an unbounded lower constraint: stable versions must be
-greater than or equal to the minimum and share its major version, while `0.x` versions must also
-share its minor version. Missing, disabled, blocked, too-old, or incompatible-line providers block
-the consumer. Cycles and API assembly-name conflicts are deterministic blockers.
+Providers activate before consumers; consumers stop before providers. Dependency versions follow
+the compatibility-line rule of the shared manifest. Missing, disabled, blocked, too-old, or
+incompatible-line providers block the consumer. Cycles and API assembly-name conflicts are deterministic blockers.
 
 Across upgrades within one compatibility line, a provider must preserve each exported API
 assembly's identity: simple name, `AssemblyVersion`, culture, and public-key token. A breaking API
-change requires a new compatibility line and should normally use a new plugin id and API assembly
-identity so old and new consumers cannot bind accidentally.
+change requires a new compatibility line, normally with a new plugin id and API assembly identity so
+old and new consumers cannot bind accidentally.
 
 `IPluginDependencyResolver` is activation-only. A consumer may capture a direct provider export
 for its generation. Correctness relies on dependency stop order and tracked work; exported objects
@@ -408,21 +385,14 @@ output are admitted by the same parser, metadata preflight, fingerprinting, gene
 contribution rules as an installed bundle. The project contains no `.csproj`, and authoring never
 restores NuGet packages or resolves arbitrary machine assemblies.
 
-Before emitting the assembly, the authoring compiler MUST run the host-matched
-`ToolFunctionGenerator` using the compilation's language options. It runs only that fixed tool
-generator, not module discovery or plugin-supplied analyzers. Generated sources belong to the
-in-memory compilation and MUST NOT be written into `src/`. The plugin compilation reference
-allowlist remains unchanged; Runtime, Generators and Roslyn are host implementation dependencies,
-not additional plugin API references.
+Before emit, the authoring compiler runs the host-matched strongly typed tool generator, and only
+that generator (no module discovery or plugin-supplied analyzers). Generated sources stay in the
+in-memory compilation and are never written into `src/`; they add no plugin API references.
+Generator diagnostics keep stable codes and relative source locations with `phase=generate`; a
+generation error fails preparation before emit.
 
-Generator diagnostics preserve stable codes, invariant English messages and relative source
-locations with `phase=generate`. Generation errors fail preparation before emit and MUST preserve
-published bytes and the active generation.
-
-The Host carries its matching generator and compiler runtime. `DotCraft.Harness` exposes that
-generator as its build analyzer and runtime authoring dependency. Authoring uses the Host's preserved
-compilation reference pack, including in extracted single-file deployments, without SDK lookup,
-restore or network access at execution time.
+The host carries its matching generator, compiler runtime, and compilation reference pack, so
+authoring works in single-file deployments without SDK lookup, restore, or network access.
 
 The stable `DotNetPlugin` tool namespace follows the Host's configured tool-loading strategy and
 exposes two operations:
@@ -479,15 +449,11 @@ AppServer projects plugin state; it does not own another plugin runtime.
   counts, diagnostics, contributed tools, and restart recommendation.
 - Workspace plugin mutations are serialized from their first config/filesystem read through
   runtime reconcile and snapshot publication. `plugin/list` and `plugin/view` are serialized against
-  that publication boundary, so a response cannot combine a post-mutation projection with the
-  preceding revision.
+  that boundary, so a response never combines a post-mutation projection with the preceding revision.
 - .NET generation revocation cannot veto a mutation. Quiescing root-backed content contributions
   can fail; that failure aborts the filesystem/config mutation and restores the prior projection.
-Protocol projections serialize this committed state without owning an independent runtime.
 
 ## 10. Non-goals
-
-Non-goals for this version:
 
 - managed-code sandboxing, signatures, publisher identity, or capability permissions;
 - runtime NuGet restore, third-party package resolution, or dependency version-range solving;

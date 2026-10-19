@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
-| **Related Specs** | [Session Core](../architecture/session-core.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
+| **Date** | 2026-10-19 |
+| **Parent Specs** | [Session Core](../architecture/session-core.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define DotCraft lifecycle hooks as a durable runtime contract. Hooks let
 user config, workspace config, and enabled plugins run trusted local commands at
@@ -41,12 +41,9 @@ commands through hook-management APIs. Clients may only write user-local state:
 Config and plugin hooks are unmanaged and do not run until trusted. Installing
 or enabling a plugin does not trust its hooks. Any behavior-changing edit changes
 the hook hash and returns the hook to `modified` until the user trusts the new
-hash. State is stored in user-global config so personal trust and disable choices
-are not committed to a workspace.
-
-Plugin hooks should be presented as a plugin-level trust decision. Clients may
-still store trust per hook through the underlying `Hooks.State` entries, but
-ordinary users should trust all current hooks from one plugin together.
+hash. State lives in user-global config so personal trust and disable choices
+are never committed to a workspace. Plugin hooks are trusted as one plugin-level
+decision, stored per hook in `Hooks.State`.
 
 Runtime execution order is:
 
@@ -66,7 +63,7 @@ DotCraft recognizes these event names:
 |-------|---------|----------|----------------|
 | `SessionStart` | First usable turn for a thread/session. | No | Yes |
 | `UserPromptSubmit` | A user prompt is submitted, before prompt assembly and model execution; also each user steering input before it is admitted into the running turn (SubAgent follow-up tasks are not user prompts and skip it). Blocking a steering input drops only that input. | Yes | Yes |
-| `PrePrompt` | DotCraft-native compatibility event before the assembled user prompt is sent. | Yes | Yes |
+| `PrePrompt` | Before the assembled user prompt is sent. | Yes | Yes |
 | `PreToolUse` | Before a tool executes. | Yes | Yes |
 | `PermissionRequest` | Before a permission prompt is shown. | Yes | No |
 | `PostToolUse` | After a tool succeeds. | No | Yes |
@@ -78,9 +75,8 @@ DotCraft recognizes these event names:
 | `Stop` | After the assistant response for a turn, before queued follow-up work starts. | No | Continuation |
 | `StopFailure` | After Stop hook execution fails or a Stop-triggered continuation fails. | No | No |
 
-`PrePrompt` is retained for existing DotCraft hooks. New plugin ecosystems should
-prefer `UserPromptSubmit` because it runs before baseline capture, tool use, and
-prompt assembly.
+`UserPromptSubmit` runs before baseline capture, tool use, and prompt assembly;
+`PrePrompt` runs after assembly.
 
 ## 3. Hook File Shape
 
@@ -126,10 +122,9 @@ Supported command fields:
 | `asyncRewake` | boolean | If output requests continuation, enqueue a hook-origin follow-up turn. |
 | `rewakeMessage` | string | Prefix for model-visible continuation feedback. |
 | `rewakeSummary` | string | Short user-visible continuation summary. |
-| `once` | boolean | Reserved for future per-session de-duplication. |
 
-Reserved handler types are `prompt`, `agent`, and `http`. DotCraft may list them
-with diagnostics but does not execute them until a later spec version.
+Handler types `prompt`, `agent`, and `http` are reserved: they are listed with
+diagnostics and not executed.
 
 ## 4. Matching
 
@@ -149,7 +144,7 @@ payload for that tool. For shell tools, the payload is the command string. For
 file tools, it is the path and relevant edit/write text. If the condition cannot
 be evaluated, the hook does not run.
 
-DotCraft must provide stable aliases for common tools:
+Stable aliases for common tools:
 
 | DotCraft capability | Required aliases |
 |---------------------|------------------|
@@ -161,8 +156,8 @@ DotCraft must provide stable aliases for common tools:
 
 ## 5. Hook Input
 
-Command hooks receive one JSON object on stdin. DotCraft emits both camelCase
-fields and snake_case fields for compatibility. Unknown fields must be ignored.
+Command hooks receive one JSON object on stdin. Every field is emitted in both
+camelCase and snake_case. Hooks ignore unknown fields.
 
 Common fields:
 
@@ -174,7 +169,7 @@ Common fields:
 | `hookEventName` / `hook_event_name` | Event name. |
 | `source` | Source kind: `user`, `workspace`, `plugin`, or `managed`. |
 | `pluginId` / `plugin_id` | Owning plugin id when available. |
-| `transcriptPath` / `transcript_path` | Reserved transcript path when available. |
+| `transcriptPath` / `transcript_path` | Transcript path when available. |
 | `model` | Current model id when available. |
 | `permissionMode` / `permission_mode` | Current approval/permission mode when available. |
 
@@ -246,14 +241,10 @@ Plugin hook commands may use:
 | `${DOTCRAFT_PLUGIN_ROOT}` | Absolute plugin root. |
 | `${DOTCRAFT_PLUGIN_DATA}` | Canonical host-side plugin data directory. |
 
-DotCraft injects the same names as environment variables. Compatibility aliases
-may be injected for imported plugin ecosystems, but DotCraft-authored examples
-must use `DOTCRAFT_*` names.
-
-When `UserDataPath` is configured, the plugin data directory is
-`<UserDataPath>/plugins/<id>/data`; otherwise it is `<DataPath>/plugin-data/<id>`.
-Hooks, LSP servers, and .NET activation use the same resolved directory. Plugin data paths
-must not be committed into workspace config, and hook examples must not contain real machine paths.
+DotCraft injects the same names as environment variables, plus aliases for
+imported plugin ecosystems. The data directory is resolved as defined in
+[Plugin Architecture](../architecture/plugin-architecture.md) and is never
+committed into workspace config.
 
 ## 8. AppServer And Desktop Projection
 
@@ -270,11 +261,10 @@ snapshot, and emits `config/changed` with region `hooks`.
 enabled plugin into the same per-hook state map, refreshes the runtime snapshot,
 and emits `config/changed` with region `hooks`.
 
-Clients should display hooks grouped by source and event, show trust state and
-condition/execution metadata. User and workspace hooks may expose per-hook
-enable/disable and trust actions. Plugin hook details should expose a single
-plugin-level trust action and read-only per-hook inspection. Clients must not edit
-commands.
+Clients display hooks grouped by source and event with trust state and
+condition/execution metadata. User and workspace hooks expose per-hook
+enable/disable and trust actions; plugin hooks expose one plugin-level trust
+action and read-only per-hook inspection. Clients never edit commands.
 
 Hook run notifications are best-effort and transient. They include run id, hook
 key, event, thread id, turn id, status, duration, exit code, output entries, and

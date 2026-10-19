@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.10 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-10-17 |
+| **Date** | 2026-10-19 |
 
 Purpose: Define how DotCraft configuration fields are declared, layered, read, written, applied at runtime, and exposed to AppServer clients.
 
@@ -16,7 +16,7 @@ Domain operations that persist configuration as a side effect keep their own met
 
 ## 2. Goals
 
-- A configuration field is declared once, as a C# property with `[ConfigField]` metadata, and needs no further wiring to be readable, writable, validated, applied, and reported to clients.
+- A configuration field is declared once, as a property with `[ConfigField]` metadata, and needs no further wiring to be readable, writable, validated, applied, and reported to clients.
 - Clients read and change configuration through generic key-path methods, so adding a field never changes the wire contract.
 - Reload metadata describes real behavior: what a field says about how it takes effect is what the runtime does.
 - Clients read the configuration of the server they are connected to, never local files, regardless of how the connection was established.
@@ -31,7 +31,7 @@ The build generates one descriptor per field from these attributes. A descriptor
 - the key path: the dot-joined on-disk property names from the root, for example `InstantInterruptEnabled` or `Tools.CodeMode.Mode`;
 - the value type, the default value, bounds and options, and sensitivity;
 - the effective reload behavior (`Hot`, `SubsystemRestart`, or `ProcessRestart`) and subsystem key;
-- typed accessors that read and assign the field on an `AppConfig` instance without reflection.
+- accessors that read and assign the field on the configuration instance.
 
 Fields marked `Ignore` produce no descriptor. Collection sections keyed by a root key (`RootKey`) are not addressable field by field; they are written through their domain methods.
 
@@ -76,7 +76,7 @@ A write applies one or more edits to a single target layer. Each edit names a ke
 
 The write result reports the target layer's new version and file path. When a higher-precedence layer still determines an edited field's effective value, the result status is `okOverridden` with the overriding layer and the masked effective value; otherwise it is `ok`.
 
-A layer can also be replaced as a whole document, which is how the Dashboard saves its settings editor. Each `***` value in the document is restored as in step 4, so masked secrets survive a read-edit-save round trip. The replacement then follows steps 1, 6, and 7 and the rules of §5.5, with the semantic validators of every changed key path, and is applied and announced as in §5.3.
+A layer can also be replaced as a whole document, as a settings editor does. Each `***` value in the document is restored as in step 4, so masked secrets survive a read-edit-save round trip. The replacement then follows steps 1, 6, and 7 and the rules of §5.5, with the semantic validators of every changed key path, and is applied and announced as in §5.3.
 
 Results and error messages never contain a sensitive value.
 
@@ -90,7 +90,7 @@ The field's reload behavior then decides when the change takes effect:
 - `SubsystemRestart`: the handler registered for the field's subsystem key runs once per write with the changed key paths of that subsystem.
 - `ProcessRestart`: the value is stored and takes effect after the AppServer restarts.
 
-Every `Hot` or `SubsystemRestart` field either is read at use time or has a registered subsystem handler. A field whose change cannot be honored without a restart is declared `ProcessRestart`.
+Every `Hot` or `SubsystemRestart` field either is read at use time or has a registered subsystem handler, and a test enforces it. A field whose change cannot be honored without a restart is declared `ProcessRestart`.
 
 Finally the service raises one change event with the write's source and the changed key paths. A write that changes no effective value raises no event. The event carries key paths only, never values.
 
@@ -134,68 +134,44 @@ Applying a change to `Providers` replaces the runtime provider set, so new model
 
 ## 6. AppServer contract
 
-Configuration methods are available when the server advertises `capabilities.workspaceConfigManagement`.
+Configuration methods are available when the server advertises `capabilities.workspaceConfigManagement`. Parameter and result shapes are owned by the protocol contracts; this section defines their semantics.
 
 ### 6.1 `config/read`
 
-Params: `includeLayers` (boolean, optional, default `false`).
-
-Result:
-
-- `config`: the effective configuration object, keyed by on-disk property names, with sensitive values masked.
-- `origins`: an object mapping each key path whose value comes from a file layer to `{ name, version }`.
-- `layers`: present when `includeLayers` is `true`; the `user` then `workspace` layer, each `{ name, version, config }` with sensitive values masked.
-
-A layer `name` is `{ "type": "user", "file": <path> }` or `{ "type": "workspace", "file": <path> }`.
+Returns the effective configuration keyed by on-disk property names and the origins map, each origin naming its layer (`user` or `workspace`, with its file path) and version. With `includeLayers`, it also returns the `user` then `workspace` layer, each with its own content and version. Sensitive values are masked everywhere.
 
 ### 6.2 `config/value/write`
 
-Params: `keyPath` (string; a segment that contains `.`, `"` or `\` is written in double quotes with `\` escaping, for example `ProviderPreferences."openai.personal"`), `value` (any JSON, `null` removes, `"***"` keeps a stored sensitive value), `mergeStrategy` (`replace` or `upsert`), `filePath` (string or `null`; a layer `file` from `config/read`, defaulting to the workspace layer, or to the user layer when the key path is under `Providers`), `expectedVersion` (string or `null`).
-
-Result: `status` (`ok` or `okOverridden`), `version`, `filePath`, and `overriddenMetadata` (`{ message, overridingLayer, effectiveValue }`) when overridden.
+Writes one edit (§5.2). A key-path segment that contains `.`, `"`, or `\` is written in double quotes with `\` escaping, for example `ProviderPreferences."openai.personal"`. The target layer is named by a layer file path from `config/read`, defaulting as in §5.2 step 1. The result carries the status (`ok` or `okOverridden` with the overriding layer and masked effective value), the new version, and the file path.
 
 ### 6.3 `config/batchWrite`
 
-Params: `edits` (array of `{ keyPath, value, mergeStrategy }`), `filePath`, `expectedVersion`. The edits apply atomically to one layer with the same rules and result as `config/value/write`; when `filePath` is omitted and every edit is under `Providers`, the batch targets the user layer; a batch that mixes `Providers` edits with other keys must name the user layer in `filePath` or is rejected with `configValidationError`.
+Applies several edits atomically to one layer with the same rules and result as `config/value/write`. A batch that mixes `Providers` edits with other keys must name the user layer (§5.5).
 
 ### 6.4 Errors
 
-Write failures are JSON-RPC invalid-request errors whose `data.configWriteErrorCode` is `configLayerReadonly`, `configVersionConflict`, `configValidationError`, or `configSchemaUnknownKey`, with an English message. Provider rule failures, including a `Providers` edit aimed at the workspace layer or made while a remote model service manages providers, use `configValidationError`.
+Write failures are JSON-RPC invalid-request errors whose `data.configWriteErrorCode` is `configLayerReadonly`, `configVersionConflict`, `configValidationError`, or `configSchemaUnknownKey`. Provider rule failures use `configValidationError`.
 
 ### 6.5 `config/changed`
 
-The notification's `regions` lists the changed configuration key paths for configuration writes. A change that includes `Providers` also lists the `providers` domain tag. Domain operations that change persisted state outside field-level configuration (skills, plugins, MCP, hooks, external channels, SubAgent settings, source control) report their existing domain tags. Clients refresh configuration views when any key path under a prefix they display appears, refresh provider views on `providers`, and keep their domain refresh rules for other domain tags.
+The notification's `regions` lists the changed configuration key paths for configuration writes. A change that includes `Providers` also lists the `providers` domain tag. Domain operations that change persisted state outside field-level configuration (skills, plugins, MCP, hooks, external channels, SubAgent settings, source control) report their own domain tags. Clients refresh configuration views when a key path under a prefix they display appears and refresh provider views on `providers`.
+
+Region key paths are the canonical key paths from the descriptor registry. Clients match them against configuration keys case-insensitively, because file layers may spell keys in any case.
 
 ### 6.6 Provider views and sign-in
 
-`provider/list` is the read view of providers: each configured provider, or with a remote model service each provider it manages, with resolved defaults, capability flags, and `hasApiKey` instead of its key. `provider/test` probes a saved provider or an unsaved draft. Neither writes configuration.
+`provider/list` is the read view of providers: each configured provider, or with a remote model service each provider it manages, with resolved defaults, capability flags, and whether a key is set instead of the key. `provider/test` probes a saved provider or an unsaved draft. Neither writes configuration.
 
-`auth/openai/login` and `auth/openai/logout` persist their provider binding as one configuration write to the user layer, with the method name as `source`. The binding is subject to the same validation, layer rule, application, and change notification as any other write.
+`auth/openai/login` and `auth/openai/logout` persist their provider binding as one configuration write to the user layer, with the method name as `source`, subject to the same validation, layer rule, application, and change notification as any other write.
 
 ## 7. Clients
 
-Desktop reads configuration with `config/read` (including layers when a view distinguishes workspace overrides from user defaults) and writes with `config/value/write` or `config/batchWrite` against the server it is connected to, for local, SSH-managed, and manually configured remote connections alike. Defaults come from the effective configuration, not from client constants. A setting control applies its change optimistically, restores the previous value and reports an error when the write fails, and refreshes when `config/changed` names one of its key paths.
+Clients read and write configuration only through these methods against the server they are connected to, for local, SSH-managed, and manually configured remote connections alike. Defaults come from the effective configuration, not from client constants. A setting control applies its change optimistically, restores the previous value and reports an error when the write fails, and refreshes when `config/changed` names one of its key paths.
 
-The provider editor lists providers with `provider/list` and saves with `config/batchWrite` on `Providers.<id>`: a new or edited provider writes its fields, an untouched secret is sent as `***` or left out, and deleting writes `null` to `Providers.<id>`.
+A provider editor lists providers with `provider/list` and saves with `config/batchWrite` on `Providers.<id>`: an untouched secret is sent as `***` or left out, and deleting writes `null` to `Providers.<id>`.
 
 ## 8. Constraints
 
 - Configuration has no field-specific request or response members, and providers have no mutation methods of their own.
 - No component other than the configuration service writes a configuration file for a field-level change, and every configuration file write is atomic under the shared lock.
 - Sensitive values never leave the server through configuration reads, write results, error messages, or change notifications.
-- Provider definitions are written only to the user layer.
-- Region key paths are the canonical key paths from the descriptor registry. Clients match them against configuration keys case-insensitively, because file layers may spell keys in any case, and do not invent region names.
-
-## 9. Acceptance checklist
-
-- Adding a boolean field with `[ConfigField]` makes it readable through `config/read`, writable through `config/value/write`, validated, applied according to its reload behavior, and reported in `config/changed`, with no change to the protocol contract or to server request handlers.
-- A Desktop setting on a manually configured remote connection shows and changes the remote server's value.
-- Writing an invalid value, an unknown key path, or with a stale expected version leaves the file unchanged and returns the matching error code.
-- Writing a sensitive field such as `AppServer.WebSocket.Token` or `Providers.<id>.ApiKey` stores the new value; a following `config/read` shows `***`; writing `***` leaves the stored value unchanged; writing `null` removes it; no response or notification contains the value.
-- A `config/batchWrite` on `Providers.<id>` without `filePath` creates the provider in the user layer, `provider/list` then lists it with resolved defaults, and a new Turn uses it; writing `null` to `Providers.<id>` deletes it.
-- A `Providers` edit naming the workspace layer, made while a remote model service manages providers, with an unsupported protocol, an invalid endpoint, an out-of-range bound, or `chatgptOAuth` on a non-OpenAI protocol fails with `configValidationError` and leaves the file unchanged.
-- Deleting the provider that the effective `ProviderId` selects, or writing a `ProviderId` that names no provider, fails with `configValidationError`.
-- A `Providers` change emits `config/changed` listing `Providers` and `providers`.
-- Subscription sign-in and sign-out update the provider binding in the user layer and emit `config/changed` with the auth method as `source`.
-- A workspace override that hides a user-layer write reports `okOverridden`.
-- Every `Hot` or `SubsystemRestart` field is read at use time or has a registered subsystem handler, and a test enforces it.

@@ -2,23 +2,20 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.10 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-10-17 |
+| Date | 2026-10-19 |
 
-DotCraft natively supports authenticating outgoing model requests against a user's ChatGPT
-subscription (Plus, Pro, Team, Business, Enterprise, Edu) as an alternative to the standard
-pay-as-you-go OpenAI API key. This document specifies the protocol, on-disk shape, and the touch
-points across Core, CLI, AppServer, and Desktop.
+DotCraft can authenticate outgoing model requests against a user's ChatGPT subscription (Plus,
+Pro, Team, Business, Enterprise, Edu) as an alternative to a pay-as-you-go OpenAI API key. This
+document specifies the OAuth protocol, credential storage, request routing, and host boundaries.
 
 ## Status & risk
 
-This auth path is not part of any published OpenAI SDK. It targets the same
-`chatgpt.com/backend-api/codex` surface that ChatGPT's official desktop clients consume, using a
-public OAuth `client_id` that OpenAI's backend currently honours for third-party use. The protocol
-is subject to change at OpenAI's discretion. Treat this as a best-effort capability: if OpenAI
-rotates the `client_id` or changes the `originator` allow-list, DotCraft will need a corresponding
-update.
+This auth path is not part of any published OpenAI SDK. It targets the
+`chatgpt.com/backend-api/codex` surface consumed by ChatGPT's official clients, using a public
+OAuth `client_id` that OpenAI's backend honours for third-party use. The protocol may change at
+OpenAI's discretion; it is a best-effort capability.
 
 ## Authentication mechanism
 
@@ -41,45 +38,40 @@ The authorize URL additionally carries `id_token_add_organizations=true` and
 `codex_cli_simplified_flow=true`, both required by the upstream backend.
 
 The loopback listener accepts a callback only when its `state` matches the pending authorization.
-It answers any other request with an error page and keeps waiting, so stray requests to the
-callback port cannot end sign-in. A matching callback that carries an OAuth `error` or no `code`
-ends the flow. The listener binds the host's `localhost` resolution, which may be IPv6-only;
-port forwards to it target `localhost`, not a literal loopback address.
+It answers any other request with an error page and keeps waiting. A matching callback that
+carries an OAuth `error` or no `code` ends the flow. The listener binds the host's `localhost`
+resolution, which may be IPv6-only; port forwards to it target `localhost`, not a literal loopback
+address.
 
 ## Credential refresh lifecycle
 
-The OAuth implementation accepts host-owned token storage. The official local host uses
-`auth.json`; an embedded model service may use encrypted database storage. Remote workers obtain
-only provider metadata and authentication status. The model service owns token reads and refresh
-for their requests; workers never receive those credentials.
+Token storage is host-owned: the local host uses `auth.json`; an embedded model service may use
+encrypted database storage. Remote workers obtain only provider metadata and authentication
+status. The model service owns token reads and refresh for their requests; workers never receive
+credentials.
 
-Token access is serialized within each process. A normal token read refreshes credentials when any
-of these conditions is true:
+Token access is serialized within each process. A normal token read refreshes credentials when
+`last_refresh` is absent or at least 8 days old, or the access-token JWT expires within 5 minutes.
 
-- `last_refresh` is absent;
-- `last_refresh` is at least 8 days old;
-- the access-token JWT expires within 5 minutes.
+A forced token read first reloads `auth.json` under the process auth lock. If the stored token
+bundle changed and belongs to the same ChatGPT account, DotCraft adopts it without contacting the
+token endpoint. A missing token bundle, a missing refresh token, or a known account-id mismatch
+ends recovery as not signed in.
 
-A forced token read first reloads `auth.json` while holding the process auth lock. If the stored
-token bundle changed and belongs to the same ChatGPT account, DotCraft adopts it without contacting
-the token endpoint. A missing token bundle, a missing refresh token, or a known account-id mismatch
-terminates recovery with `OpenAIAuthFailureReason.NotSignedIn`.
-
-When authority refresh is required, DotCraft sends the configured refresh grant and persists the
-result atomically. An omitted `id_token`, `access_token`, or `refresh_token` retains the
-corresponding current value. A returned `id_token` may update the stored account id. A successful
-refresh sets `last_refresh` to the current time.
+An authority refresh sends the refresh grant and persists the result atomically. An omitted
+`id_token`, `access_token`, or `refresh_token` retains the current value. A returned `id_token`
+may update the stored account id. Success sets `last_refresh` to the current time.
 
 Refresh failures use the error code from `error.code`, a string `error`, or top-level `code`.
 `refresh_token_expired`, `refresh_token_reused`, and `refresh_token_invalidated` are permanent
-failures for every HTTP status. An unclassified HTTP 401 is also permanent. Before surfacing a
-permanent failure, DotCraft reloads `auth.json` once more so a same-account token rotation completed
-during the authority request can satisfy the operation. Other HTTP failures and transport failures
-produce `OpenAIAuthFailureReason.Network` and leave the current token bundle available.
+for every HTTP status; an unclassified HTTP 401 is also permanent. Before surfacing a permanent
+failure, DotCraft reloads `auth.json` once more so a concurrent same-account rotation can satisfy
+the operation. Other HTTP and transport failures are network failures and leave the current token
+bundle available.
 
 ## On-disk credential layout
 
-`~/.craft/auth.json` (chmod 0600 on Unix; Windows ACL granting only the current user):
+`~/.craft/auth.json` (0600 on Unix; Windows ACL granting only the current user):
 
 ```json
 {
@@ -94,30 +86,18 @@ produce `OpenAIAuthFailureReason.Network` and leave the current token bundle ava
 }
 ```
 
-`access_token` and `id_token` are JWTs. DotCraft reads (but does not verify) the payload to
-extract `chatgpt_account_id`, `chatgpt_plan_type`, `chatgpt_user_id`, `email`, and `exp`. The
-`chatgpt_plan_type` claim drives the plan tier shown in the Desktop composer footer
-(`free`, `plus`, `pro`, `business`, `enterprise`, `edu`).
+DotCraft reads (but does not verify) the JWT payloads to extract `chatgpt_account_id`,
+`chatgpt_plan_type` (`free`, `plus`, `pro`, `business`, `enterprise`, `edu`), `chatgpt_user_id`,
+`email`, and `exp`. The plan type is exposed to clients as the account's plan tier.
 
 ## Installation identifier
 
-`~/.craft/installation_id` (plain text, 0644 on Unix):
-
-```
-11111111-2222-4333-8444-555555555555
-```
-
-The installation id is a per-machine UUID v4 generated on first launch and reused across processes
-and login sessions. ChatGPT's `/backend-api/codex` surface uses the id to bucket prompt-cache
-shards; including it materially improves `prompt_cache_key` hit rate on
-`chatgpt.com/backend-api/codex/responses`. The id is therefore sent both as the
-`x-codex-installation-id` HTTP header on every Responses-family request and inside the request
-body's `client_metadata` map on create-response `/responses` requests. Compact requests do not
-carry `client_metadata`. The id is not an auth secret and is not shared with the API-key code path.
-
-If the file is missing or contains an invalid value, DotCraft regenerates a fresh UUID v4 and
-overwrites the file. The id is *never* tied to a specific ChatGPT account; switching accounts
-preserves the installation id.
+`~/.craft/installation_id` (plain text UUID v4, 0644 on Unix) is a per-machine id generated on
+first launch and reused across processes and sessions. The ChatGPT backend uses it to bucket
+prompt-cache shards. It is sent as the `x-codex-installation-id` header on every Responses-family
+request and in `client_metadata` on create-response `/responses` requests (not on compact
+requests). It is not an auth secret, is not used on the API-key path, and is never tied to an
+account; switching accounts preserves it. A missing or invalid file is regenerated.
 
 ## Model API routing
 
@@ -127,33 +107,23 @@ preserves the installation id.
 | ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/responses` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs`, `x-codex-installation-id: <uuid>`, `session-id: <root_thread_id>`, `thread-id: <current_thread_id>`, `x-client-request-id: <current_thread_id>`, `x-codex-window-id: <window_id>`, `x-codex-turn-metadata: <json>`, `x-codex-turn-state: <state>` when established in the same logical turn |
 | ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/models` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs` |
 
-ChatGPT OAuth requests intentionally remove the OpenAI .NET SDK's `X-Stainless-*` platform
-metadata headers before transport. The Codex-compatible path owns its request identity through the
-headers above and the DotCraft/Codex user agent; this keeps its wire shape aligned with the Codex
-client under `references/codex` without changing the SDK defaults used by API-key or compatible
-OpenAI endpoints.
+ChatGPT OAuth requests strip the OpenAI SDK's `X-Stainless-*` platform metadata headers; the OAuth
+path owns its request identity through the headers above and the DotCraft user agent. API-key and
+compatible endpoints keep SDK defaults.
 
-For HTTP Responses, DotCraft sends `session-id`, `thread-id`, and `x-client-request-id` plus the
-body-level `prompt_cache_key`. `session-id` and the default cache key use the root cache-session
-identity; `thread-id` and `x-client-request-id` use the currently executing DotCraft thread.
-They are equal for root threads and ordinary user forks. A subagent shares its root thread's cache
-session while retaining its child thread as the execution and correlation identity. On
-create-response requests, `session_id` and `thread_id` are also body-level `client_metadata` keys.
-Compact requests carry only the corresponding headers and compact body fields.
+`session-id` and the default `prompt_cache_key` use the root cache-session thread; `thread-id` and
+`x-client-request-id` use the currently executing thread. They are equal for root threads and
+ordinary forks; a subagent shares its root's cache session while keeping its own thread as the
+execution identity. These per-thread hints give the backend a finer cache-affinity anchor than the
+account id alone. Without an active thread id, DotCraft omits them and logs the degraded routing
+shape once.
 
-Each thread/session header gives the ChatGPT backend's prompt-cache shards a finer-grained anchor
-than `chatgpt-account-id` alone so that requests on the same thread tend to land on the cache node
-that already has the prefix warm. If there is no active thread id, DotCraft sends the request
-without these thread-scoped hints and logs the degraded sticky-routing shape once for diagnosis.
+`chatgpt-account-id` is resolved per request from the signed-in token store, falling back to the
+configured value. If the configured value is stale, DotCraft logs a warning once and routes with
+the token-store value.
 
-`chatgpt-account-id` is resolved per request from the signed-in token/account store via
-`IOpenAIAuthService.GetAccountId()`, then falls back to the runtime/config value. If the runtime
-value is stale and differs from the signed-in token account, DotCraft logs a warning once and uses
-the token/account-store value for request routing.
-
-On the ChatGPT OAuth path, outgoing `/responses` request bodies are additionally augmented with
-a `client_metadata` map carrying request metadata. `x-codex-turn-metadata` is the canonical metadata
-envelope for the Responses API, and flat fields expose the routing identities used by the provider:
+Create-response `/responses` bodies carry a `client_metadata` map. `x-codex-turn-metadata` is the
+canonical metadata envelope; flat fields expose the routing identities:
 
 ```json
 {
@@ -168,33 +138,28 @@ envelope for the Responses API, and flat fields expose the routing identities us
 }
 ```
 
-Metadata augmentation applies only to request URIs whose path ends in `/responses`. Other caller-provided `client_metadata` entries are
-preserved, but provider-reserved keys are authoritative runtime state. Caller-provided values for
-`x-codex-installation-id`, `session_id`, `thread_id`, `turn_id`, `x-codex-window-id`, and
-`x-codex-turn-metadata` are overwritten when they differ from DotCraft's active runtime context so
-the header and body use one sticky-routing identity.
+Augmentation applies only to request paths ending in `/responses`. Other caller-provided
+`client_metadata` entries are preserved, but the reserved keys above are overwritten with
+DotCraft's runtime values so header and body share one routing identity.
 
 ## Thread conversation and request identity
 
-Session Core constructs one immutable `ThreadConversationIdentity` at the model-invocation
-lifecycle boundary. It contains the current, root, parent, and fork-source thread ids; turn id;
-context-window id; request kind; thread source; and subagent kind. Optional lineage fields remain
-absent when the corresponding relationship does not exist. Starting another turn or replacing the
-context window creates a new snapshot instead of mutating the active snapshot.
+Session Core builds one immutable thread conversation identity at the model-invocation boundary:
+current, root, parent, and fork-source thread ids; turn id; context-window id; request kind;
+thread source; and subagent kind. Absent relationships stay absent. A new turn or context window
+produces a new snapshot.
 
-The OpenAI Responses adapter derives one request identity from that snapshot:
+The Responses adapter derives one request identity from that snapshot:
 
 | Request value | Source |
 |---|---|
-| `session-id` / `client_metadata.session_id` | `ThreadConversationIdentity.RootThreadId` |
-| `thread-id` / `client_metadata.thread_id` | `ThreadConversationIdentity.CurrentThreadId` |
-| `x-client-request-id` | `ThreadConversationIdentity.CurrentThreadId` |
-| Default `prompt_cache_key` | `ThreadConversationIdentity.RootThreadId` |
-| Turn, window, parent, fork, source, and subagent metadata | Corresponding immutable lifecycle fields |
+| `session-id` / `client_metadata.session_id` | Root thread id |
+| `thread-id` / `client_metadata.thread_id` | Current thread id |
+| `x-client-request-id` | Current thread id |
+| Default `prompt_cache_key` | Root thread id |
+| Turn, window, parent, fork, source, and subagent metadata | Corresponding snapshot fields |
 
-For a native Session Core subagent created through the thread-spawn lifecycle, provider
-compatibility metadata uses the provider taxonomy rather than DotCraft's internal runtime
-taxonomy:
+For a native subagent created through thread spawn, provider metadata uses the provider taxonomy:
 
 | Provider projection | Value |
 |---|---|
@@ -202,185 +167,130 @@ taxonomy:
 | `client_metadata["x-openai-subagent"]` | `collab_spawn` |
 | `x-codex-turn-metadata.subagent_kind` | `thread_spawn` |
 
-The subagent's DotCraft runtime type, profile, role, parent, and root lineage remain on its Session
-Core thread source and spawn edge. They are not replaced by these provider-facing compatibility
-values. This projection does not participate in root/current thread resolution and therefore does
-not change `session-id`, `thread-id`, `x-client-request-id`, or `prompt_cache_key`.
+This projection does not replace the subagent's Session Core lineage and does not affect
+`session-id`, `thread-id`, `x-client-request-id`, or `prompt_cache_key`.
 
-An explicit caller-provided `prompt_cache_key` remains authoritative over the derived default.
-Requests made outside a Session Core scope retain the existing active-session compatibility
-fallback. The adapter resolves that fallback once into the request identity. Request mapping,
-OAuth headers, and `client_metadata` consume the resolved identity and do not independently infer
-thread or source values from tracing state.
+An explicit caller `prompt_cache_key` overrides the derived default. Requests outside a Session
+Core scope resolve the active session once into the request identity; headers, mapping, and
+`client_metadata` consume that resolved identity rather than inferring it from tracing state.
+Routing identity comes from Session lineage, never from Responses item history.
 
-Provider state that can change within a logical turn is not part of
-`ThreadConversationIdentity`. In particular, `x-codex-turn-state` remains a separately synchronized
-turn-scoped value: responses may establish it, retries and later requests in the same turn may
-reuse it, and ending the runtime scope discards it.
-
-Thread/request identity remains independent from the canonical Responses item history defined in
-[Canonical OpenAI Responses Provider History](responses-provider-history.md). The provider-history
-capability changes only the Responses `input` source; routing identity is derived from Session
-lineage and never inferred from item history.
+`x-codex-turn-state` is not part of the snapshot. It is turn-scoped provider state: DotCraft never
+fabricates it, captures the first non-empty response header in a logical turn, replays it on later
+`/responses` requests and 401 recovery attempts in that turn, and discards it when the turn's
+runtime scope ends. It is never persisted.
 
 ## Responses request contract
 
-ChatGPT OAuth model metadata describes eligibility for two internal HTTP dialects. A cached
-`/models` entry with `use_responses_lite=true` marks a model as Responses Lite capable; `false`, a
-missing field, or an unknown model selects the standard Responses SDK path. The latest matching
-endpoint/account/client-version cache entry takes precedence over the bundled catalog, and catalog
-refresh remains outside the sampling boundary. The bundled catalog supplies the same eligibility
-metadata for offline fallback. An internal developer gate currently keeps Lite disabled so eligible
-models retain parallel tool execution through standard Responses.
-Enabling that gate makes the metadata selection effective. This is not a user-configurable setting
-and never enables Lite for API-key Responses runtimes.
+ChatGPT OAuth model metadata selects between two HTTP dialects. A `/models` entry with
+`use_responses_lite=true` marks a model as Responses Lite capable; `false`, missing, or unknown
+selects standard Responses. The latest matching endpoint/account/client-version cache entry takes
+precedence over the bundled catalog, which supplies the same metadata offline. An internal
+developer gate keeps Lite disabled so eligible models retain parallel tool execution; it is not
+user-configurable and never applies to API-key runtimes.
 
-Both dialects share the canonical Responses history, OAuth routing headers, `store=false`, encrypted
-reasoning inclusion, stable item IDs, and prompt-cache identity described below. The standard dialect
-uses the SDK's top-level `tools` field. Model metadata supplies the default
-`parallel_tool_calls` value; the Lite dialect always forces that value to `false`. The standard
-dialect does not send the Responses Lite header or apply Lite body mapping.
+Both dialects share canonical Responses history, OAuth routing headers, `store=false`,
+`reasoning.encrypted_content` inclusion, a `reasoning` object (empty or with configured effort and
+summary), stable item ids, and prompt-cache identity. Standard uses top-level `tools` and the
+model's default `parallel_tool_calls`. Lite:
 
-All `openai-responses` requests, including API-key and compatible endpoints, must carry effective
-base instructions in one developer message before the original input and omit top-level
-`instructions`. Instruction sources retain their merge order and caller overrides, including
-explicit removal. Whitespace-only instructions produce no prefix.
+- carries `x-openai-internal-codex-responses-lite: true`;
+- moves tool definitions into a leading developer `additional_tools` input item before the
+  base-instruction prefix and history;
+- removes top-level `tools` and `max_output_tokens`, strips image `detail`, and sets
+  `reasoning.context=all_turns`;
+- always sends `parallel_tool_calls=false`, including requests without tools.
 
-The prefix identity must remain stable for unchanged instructions within the current execution
-thread across turns, retries, cold resume, and compaction. Instruction changes, child threads, and
-forks must produce a different identity. Request construction must preserve caller options.
+Tool choice maps `none`, `auto`, `required`, or a required function choice in both dialects.
 
-Every OAuth `/responses` request advertises
-`x-codex-beta-features: remote_compaction_v2`. The Lite dialect additionally carries
-`x-openai-internal-codex-responses-lite: true`. Sampling requests carry
-`Accept: text/event-stream` and serialize the complete JSON body before applying Zstandard level 3
-compression, independently of the selected dialect. Compact requests are not compressed. The Lite
-body moves tool definitions into a leading developer
-`additional_tools` input item before the shared base-instruction prefix and original history.
-It removes the top-level `tools` and `max_output_tokens` fields, strips
-image `detail` values, and sets `reasoning.context=all_turns`. Sampling requests use `store=false`
-and `stream=true`.
+All `openai-responses` requests, including API-key and compatible endpoints, carry effective base
+instructions in one developer message before the original input and omit top-level
+`instructions`. Instruction sources keep their merge order and caller overrides, including
+explicit removal; whitespace-only instructions produce no prefix. The prefix identity stays stable
+for unchanged instructions within the current thread across turns, retries, cold resume, and
+compaction, and differs for changed instructions, child threads, and forks.
 
-Tool choice retains the value resolved by the standard Responses mapper:
-`ChatOptions.ToolMode` maps to `none`, `auto`, `required`, or a required function choice. The
-Responses Lite endpoint requires explicit `parallel_tool_calls=false`, including requests without
-tools. Ordinary sampling and v2 compaction share this restriction and the same streaming, storage,
-reasoning inclusion, client metadata, and tool-choice shaping.
+Every OAuth `/responses` request sends `x-codex-beta-features: remote_compaction_v2`. Sampling
+requests use `stream=true`, `Accept: text/event-stream`, and Zstandard level 3 compression of the
+complete JSON body; compact requests are not compressed.
 
-Every OAuth `/responses` request uses `store=false`, includes
-`reasoning.encrypted_content`, and contains a `reasoning` object. The object may be empty or carry
-the configured effort and summary fields. The default `prompt_cache_key` is the root cache-session
-thread id; an explicit caller value remains authoritative.
-Installation, window, Turn, parent-thread, subagent, and same-Turn provider state are projected only
-when the corresponding runtime values exist.
+Every outbound input item that supports an id has a stable id of the form `<prefix>_<suffix>`.
+Valid provider ids are preserved. Missing ids are assigned before first send and retained in
+model history so tool loops, retries, and resumed sessions replay the same ids. Invalid ids are
+replaced or omitted without changing tool `call_id`. Local prefixes follow the item type (`msg`,
+`rs`, `fc`, `fco`, `tsc`, `tso`, `ig`).
 
-Every outbound Responses input item that supports an item ID has a stable ID with a non-empty
-type prefix and suffix separated by `_`. Provider-returned valid IDs are preserved. Missing IDs
-are assigned before the item first enters a provider request and are retained in model-history
-metadata so subsequent tool loops, rollback retries, and resumed sessions replay the same IDs.
-DotCraft replaces or omits invalid IDs without changing tool `call_id`; item IDs and
-tool-call correlation IDs are separate identities. Locally generated IDs use the corresponding
-Responses item prefix (`msg`, `rs`, `fc`, `fco`, `tsc`, `tso`, or `ig`).
+For threads using provider-history schema version 1, completed raw provider items and newly mapped
+local input items are durably appended to the canonical Responses history, and later requests
+consume that sequence directly. A missing capability version is a rollout error.
 
-For a thread whose rollout uses the required provider-history schema version 1, completed raw provider
-items and newly mapped local input items are durably appended to the canonical Responses history.
-Later requests consume that item sequence directly instead of reconstructing prior turns from
-aggregated MEAI messages. A missing capability version is a rollout error.
+Request-shape diagnostics report serialized input size and aggregate item-id coverage only, never
+item contents, credentials, or protected reasoning data.
 
-`PromptCacheRequestShape` diagnostics report the serialized input byte count and only aggregate
-item-ID coverage: eligible, present, generated, missing, and invalid-source counts. They never
-record item contents, credentials, or reasoning protected data.
+The OAuth transport omits `max_output_tokens` because the backend rejects it; the value remains a
+local budget (compaction still enforces its summary limit). API-key requests may send it.
 
-The OAuth `/responses` transport omits the top-level `max_output_tokens` request field even when a
-caller sets `ChatOptions.MaxOutputTokens`, because this backend path rejects that parameter. The
-value remains available to DotCraft runtime code as a local budget, and compaction summaries still
-enforce `SummaryMaxOutputTokens` after the response is received. API-key Responses requests may
-send the field.
+When an OAuth stream completes with only a `server_error` frame and no delivered output, DotCraft
+replays the sampling request under a bounded budget. Usage, error, and echoed tool-result updates
+from failed attempts stay buffered and are neither surfaced nor executed. Exhausting the budget
+surfaces the final provider message and request id. A stream that breaks after delivering output
+falls under the turn-level retry contract in [Model Runtime](model-runtime.md).
 
-`x-codex-turn-state` is request-scoped provider state. DotCraft never fabricates it. The OAuth
-pipeline captures the first non-empty `x-codex-turn-state` response header observed during a
-logical Session Core turn and replays that value on subsequent `/responses` requests in the same
-turn, including every bounded 401 recovery attempt. The stored value is discarded when the logical
-turn's runtime scope ends and is not persisted to thread history, trace events, or the next user
-turn.
-
-When the ChatGPT OAuth stream completes carrying only a `server_error` frame and no delivered model
-output, DotCraft replays that sampling request under a bounded budget. Usage, error, and echoed
-tool-result updates from the failed attempt remain buffered and are not surfaced or executed.
-Exhausting the budget surfaces the final provider message and request ID. A stream that breaks
-after delivering output is handled by the turn-level retry contract in
-[Model Runtime](model-runtime.md), not by this replay.
-
-Every completed stream attempt records a sanitized `ProviderResponseDiagnostic` trace event with
-`eventType=stream_attempt`. The event identifies the logical request by its existing request index
-and records the one-based attempt number, retry limit, outcome, retry decision, normalized failure
-kind, duration, and whether visible output was emitted. OpenAI Responses attempts additionally
-record the final HTTP status and upstream request ID when available. Routing values are recorded
-only as SHA-256 hashes of `session-id`, `thread-id`, and `prompt_cache_key`; credentials, account
-identifiers, request or response bodies, prompts, and raw routing values are never persisted.
+Each completed stream attempt records a sanitized `ProviderResponseDiagnostic` trace event with
+`eventType=stream_attempt`: request index, one-based attempt number, retry limit, outcome, retry
+decision, normalized failure kind, duration, whether visible output was emitted, and, for OpenAI
+Responses, final HTTP status and upstream request id. Routing values appear only as SHA-256 hashes
+of `session-id`, `thread-id`, and `prompt_cache_key`; credentials, account ids, bodies, prompts,
+and raw routing values are never persisted.
 
 ## Responses compaction transport
 
-ChatGPT OAuth server-managed Responses compaction sends a streaming `POST /responses`
-request with a trailing `compaction_trigger`, using the configured OAuth client's endpoint and
-pipeline. Standard and Lite requests use the same dialect, body shaping, compression policy,
-client metadata, routing and turn-state rules as ordinary sampling.
-
-DotCraft consumes raw SSE completion events without executing tools or appending intermediate
-outputs to live history. Exactly one raw compaction item and `response.completed` are required.
-The client-built retained-message window followed by that item becomes the next canonical
-generation after the rollout commit. SDK response-item objects and MEAI `RawRepresentation` are
-not persistence formats. Persisted legacy windows remain readable; new calls never use the old
-compact endpoint.
+Server-managed compaction sends a streaming `POST /responses` with a trailing
+`compaction_trigger`, using the same endpoint, dialect, body shaping, compression policy, client
+metadata, routing, and turn-state rules as sampling. DotCraft consumes raw SSE events without
+executing tools or appending intermediate output to live history. Exactly one raw compaction item
+and `response.completed` are required. The retained-message window followed by that item becomes
+the next canonical generation after the rollout commit.
 
 ## HTTP 401 recovery
 
-OAuth SDK `/responses` requests use a bounded recovery sequence:
+OAuth `/responses` requests use a bounded sequence:
 
-1. Send the request with the current access token.
-2. On HTTP 401, reload `auth.json`. If a same-account token bundle changed, reapply all request
-   headers and retry with that access token.
-3. If no token changed, or the disk-token retry also returns HTTP 401, perform a forced token read.
-   This reloads disk state again and contacts the token endpoint only when no newer token is
-   available. Reapply all request headers and retry once.
-4. Return the final provider response. No request can enter another 401 recovery cycle.
+1. Send with the current access token.
+2. On HTTP 401, reload `auth.json`. If a same-account token bundle changed, reapply all headers and
+   retry.
+3. If nothing changed, or that retry also returns 401, perform a forced token read (authority
+   refresh only when no newer token exists), reapply headers, and retry once.
+4. Return the final provider response; no request enters a second recovery cycle.
 
-The sequence sends at most three provider requests. Each attempt captures response
-`x-codex-turn-state`, and subsequent attempts replay the state within the same logical Turn.
-Authentication recovery failures preserve the most recent provider HTTP 401 for the caller.
+At most three provider requests are sent. Each attempt captures `x-codex-turn-state` for later
+attempts in the same turn. Recovery failures preserve the most recent provider 401 for the caller.
 
-The direct `/models`, usage, and image-edit clients send at most two provider requests. After the
-initial HTTP 401 they perform one forced token read, which adopts a same-account disk rotation or
-refreshes at the authority, then retry once.
+The direct `/models`, usage, and image-edit clients send at most two requests: after a 401 they
+perform one forced token read and retry once.
 
-### Optional ChatGPT OAuth request profiles
+### Optional request profiles
 
-DotCraft defaults to its normal `DotCraft/<version>` User-Agent and does not send `OpenAI-Beta`.
-Two opt-in environment variables allow controlled A/B testing against the ChatGPT OAuth path:
+By default OAuth requests use the `DotCraft/<version>` User-Agent and no `OpenAI-Beta` header. Two
+opt-in environment variables exist for controlled A/B testing; their backend effects are not a
+public contract:
 
 | Variable | Effect |
 |---|---|
-| `DOTCRAFT_CHATGPT_OAUTH_UA_PROFILE=codex` | Use the alternate User-Agent profile (`codex_cli_rs/<version> (<os>; <arch>) dotcraft`) on OAuth-bound SDK requests |
+| `DOTCRAFT_CHATGPT_OAUTH_UA_PROFILE=codex` | Use `codex_cli_rs/<version> (<os>; <arch>) dotcraft` as the User-Agent on OAuth-bound SDK requests |
 | `DOTCRAFT_CHATGPT_OAUTH_OPENAI_BETA=<value>` | Send `OpenAI-Beta: <value>` on OAuth Responses-family requests |
 
-These switches are intentionally not enabled by default because their backend effects are not part
-of a public contract and must be evaluated with live token A/B data (`cached_input_tokens`,
-401/403 rate, first-token latency, and rate-limit headers).
+### Provider normalization and model catalog
 
-Session Core establishes the provider turn runtime scope before invoking the model. Requests outside
-Session Core still receive OAuth auth headers and installation metadata, but may omit turn/window
-metadata when no active thread context is available.
+Session Core establishes the provider turn scope before invoking the model. Requests outside
+Session Core still carry auth headers and installation metadata but may omit turn/window metadata.
 
-When `AuthMethod = chatgptOAuth`, `Protocol` is normalized to `openai-responses`. The Endpoint and
-ApiKey fields configured on the provider are ignored at runtime in favour of the values above. The
-model catalog is loaded from the ChatGPT backend with the same OAuth credentials:
-`GET https://chatgpt.com/backend-api/codex/models?client_version=<accepted-version>`. DotCraft
-caches the account-scoped response under `~/.craft/model-catalog-cache.json` for five minutes and
-falls back to the bundled model catalog
-when the network is unavailable. The `client_version` query carries a fixed compatible client
-version rather than DotCraft's app version, because the ChatGPT backend uses that value to decide
-which models are eligible for the client. Supporting a model that requires a newer client version
-means raising that constant.
+When `AuthMethod = chatgptOAuth`, `Protocol` is normalized to `openai-responses` and the
+provider's configured Endpoint and ApiKey are ignored. The model catalog comes from
+`GET https://chatgpt.com/backend-api/codex/models?client_version=<accepted-version>` with the same
+credentials, cached per account in `~/.craft/model-catalog-cache.json` for five minutes, with the
+bundled catalog as the offline fallback. `client_version` is a fixed compatible client version, not
+DotCraft's app version, because the backend uses it to decide model eligibility.
 
 ## Configuration shape
 
@@ -400,31 +310,27 @@ Per-provider entry in `~/.craft/config.json`:
 }
 ```
 
-`AuthMethod` is either `apiKey` (default) or `chatgptOAuth`. `ChatGptAccountId` /
-`ChatGptPlanType` are read-only metadata populated by the login flow and shown in the UI; users
-should not edit them by hand. `chatgptOAuth` requires an OpenAI protocol.
+`AuthMethod` is `apiKey` (default) or `chatgptOAuth`, which requires an OpenAI protocol.
+`ChatGptAccountId` / `ChatGptPlanType` are read-only metadata written by login.
 
 ### Provider binding
 
-Login binds the selected provider, `openai` unless the caller names another id, to the signed-in
-account: it sets `AuthMethod` to `chatgptOAuth`, `Protocol` to `openai-responses`, and
-`ChatGptAccountId` / `ChatGptPlanType` from the account, removing either when the account omits it,
-and creates the provider when it is absent. When the user layer has no `ProviderId`, login also
-selects the bound provider; when the provider has no remembered model, it records a manual
-preference for the default subscription model. Logout sets `AuthMethod` to `apiKey` and removes the
-account metadata; it leaves the provider and its selection in place.
+Login binds the selected provider (`openai` unless another id is named) to the signed-in account:
+it sets `AuthMethod` to `chatgptOAuth`, `Protocol` to `openai-responses`, and the account metadata
+(removing fields the account omits), creating the provider if absent. When the user layer has no
+`ProviderId`, login also selects the bound provider; when the provider has no remembered model, it
+records a manual preference for the default subscription model. Logout sets `AuthMethod` to
+`apiKey` and removes account metadata, leaving the provider and its selection in place.
 
 Inside a workspace runtime, `auth/openai/login` and `auth/openai/logout` apply the binding as one
-write through the [configuration service](configuration.md) to the user layer, so it follows the
-provider rules, takes effect for new Turns, and announces `config/changed` with the method name as
-`source`. A rejected login binding keeps the saved tokens and reports the failure; logout clears
-tokens even when its binding cannot be written. The CLI commands below run without a workspace
-runtime and write the same binding to the user configuration file directly.
+user-layer write through the [configuration service](configuration.md), taking effect for new
+Turns and announcing `config/changed` with the method name as `source`. A rejected login binding
+keeps the saved tokens and reports the failure; logout clears tokens even when its binding cannot
+be written. The CLI writes the same binding directly to the user configuration file.
 
 ## Usage / rate-limit telemetry
 
-DotCraft polls the ChatGPT rate-limit endpoint for the signed-in account so the Desktop composer
-can show plan-tier usage:
+DotCraft polls the ChatGPT rate-limit endpoint for the signed-in account:
 
 | Item | Value |
 |---|---|
@@ -434,16 +340,14 @@ can show plan-tier usage:
 | Polling | 5 min default; debounced 30 s for manual triggers |
 | Fields read | `plan_type`, `rate_limit.primary_window.{used_percent,limit_window_seconds,reset_at}`, `rate_limit.secondary_window.*`, `credits.{has_credits,unlimited,balance}`, `rate_limit_reached_type.type` |
 
-The poller starts automatically when an account is signed in and shuts down on logout. Failures
-back off exponentially (10m → 20m → 40m → 60m cap) without affecting other DotCraft features.
+Polling runs while an account is signed in. Failures back off exponentially (10m, 20m, 40m, 60m
+cap) without affecting other features.
 
-`primary_window` and `secondary_window` are upstream slot names, not stable display semantics.
-Clients determine whether a window is the 5-hour or weekly limit from `limit_window_seconds`
-(18,000 seconds and 604,800 seconds respectively, with a ±5% tolerance). Either slot may be absent,
-and a weekly-only promotion may return the weekly window in `primary_window`. Presentation surfaces
-must omit absent windows rather than rendering an empty 5-hour or weekly placeholder. Unknown
-durations remain visible under generic primary/secondary usage labels instead of being mislabeled as
-5-hour or weekly limits.
+`primary_window` and `secondary_window` are upstream slot names, not display semantics. Clients
+classify a window as 5-hour or weekly from `limit_window_seconds` (18,000 or 604,800, ±5%). Either
+slot may be absent, and a weekly-only promotion may put the weekly window in `primary_window`.
+Absent windows are omitted rather than shown as empty placeholders; unknown durations use generic
+primary/secondary labels.
 
 ## CLI commands
 
@@ -453,21 +357,18 @@ dotcraft auth openai logout  [--provider-id <id>]
 dotcraft auth openai status
 ```
 
-`login` opens the system browser to the authorize URL, waits on the loopback callback, persists
-tokens, and updates the global provider registry. `--no-browser` prints the URL only (useful for
-headless setups). `logout` revokes the refresh token at OpenAI and deletes the local `auth.json`.
+`login` opens the system browser, waits on the loopback callback, persists tokens, and binds the
+provider. `--no-browser` prints the URL only. `logout` revokes the refresh token at OpenAI and
+deletes the local `auth.json`.
 
-`dotcraft setup` and the Desktop wizard accept `--auth-method chatgptOAuth` on the bootstrapped
-provider. The wizard signs in before completion using `auth openai login --no-bind`: tokens are
-saved immediately, while provider configuration is saved only when setup is submitted.
-Login and setup model discovery use the same host-selected user data directory.
+`dotcraft setup` and the setup wizard accept `--auth-method chatgptOAuth`. The wizard signs in
+before completion with `auth openai login --no-bind`: tokens are saved immediately, provider
+configuration only when setup is submitted. Login and setup model discovery use the same
+host-selected user data directory.
 
-The official Docker Stack stores this user data at `/root/.craft`, backed by its
-deployment-local `state/dotcraft`. A headless auth helper uses that same mount
-and a host-network loopback listener for the CLI login flow. Separate Stack
-deployments must not share the directory: they may select different models and
-refresh tokens independently. Automated tools run in the DotCraft container,
-which also mounts this user data directory.
+A containerized deployment keeps this user data in one deployment-local mount, shared by the
+DotCraft container and a headless auth helper that uses a host-network loopback listener for
+login. Separate deployments must not share the directory, since they refresh tokens independently.
 
 ## Host access boundary
 
@@ -480,20 +381,17 @@ clients must never persist or log an exposed token.
 
 | Source | Symptom | DotCraft behaviour |
 |---|---|---|
-| 401 from `chatgpt.com/backend-api/codex/responses` | Access token rejected | Pipeline policy tries a same-account disk rotation, then authority refresh, with at most two retries |
-| `refresh_token_expired` / `_reused` / `_invalidated` from token endpoint | Refresh token permanently invalid and no newer same-account credentials exist | `OpenAIAuthException` with explicit reason; user must re-login |
-| Network error during refresh | Transient | Caller sees `OpenAIAuthFailureReason.Network`; old access token is left in place |
-| User cancels browser flow | Callback with matching `state` carries `error` or no `code` | `OpenAIAuthException(Unknown, "Sign-in was not completed")` |
-| Stray request on the callback port | Missing or mismatched `state` | Error page; the listener keeps waiting for the real callback |
+| 401 from `chatgpt.com/backend-api/codex/responses` | Access token rejected | Same-account disk rotation, then authority refresh, at most two retries |
+| `refresh_token_expired` / `_reused` / `_invalidated` | Refresh token permanently invalid and no newer same-account credentials | Auth failure with explicit reason; user must sign in again |
+| Network error during refresh | Transient | Network failure; old access token stays in place |
+| User cancels browser flow | Matching callback carries `error` or no `code` | Sign-in reported as not completed |
+| Stray request on the callback port | Missing or mismatched `state` | Error page; listener keeps waiting |
 
 ## Limitations
 
-- The `client_id` is a public identifier that several third-party clients also use; OpenAI's
-  backend cannot distinguish DotCraft from any other client sharing that id on this code path.
-  Rate limits and account-level usage caps apply globally to that identity.
-- Model requests use only the `/backend-api/codex` surface. Chat-Completions, Assistants, Batch,
-  and Files endpoints are not available on the ChatGPT backend. Desktop voice input additionally
-  uploads audio to `/backend-api/transcribe` from Electron Main.
-- The bundled fallback catalog is only an offline/setup fallback. Signed-in ChatGPT OAuth providers
-  use `/backend-api/codex/models` as the source of truth, including newly enabled account-specific
-  models.
+- The `client_id` is shared with other third-party clients; the backend cannot distinguish
+  DotCraft, and rate limits and usage caps apply to that identity.
+- Model requests use only `/backend-api/codex`. Chat Completions, Assistants, Batch, and Files are
+  unavailable on the ChatGPT backend.
+- The bundled catalog is only an offline/setup fallback; signed-in providers use
+  `/backend-api/codex/models` as the source of truth.

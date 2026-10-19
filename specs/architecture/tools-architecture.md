@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.10 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-10-17 |
+| Date | 2026-10-19 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 
 ## 1. Purpose
@@ -16,28 +16,24 @@ The architecture has four goals:
 1. one source-neutral registration and dispatch pipeline;
 2. explicit authority, exposure, identity, and audience boundaries;
 3. consistent AppServer tool semantics across server and clients;
-4. standards-based interactive tool UI through MCP Apps, while retaining DotCraft-specific App Binding as a small authorization and connection control plane.
-
-The affected protocol specification MUST be updated in the same implementation change whenever one of these shared rules changes.
+4. standards-based interactive tool UI through MCP Apps, while retaining App Binding as a small authorization and connection control plane.
 
 ### 1.1 Specification ownership
 
 | Specification | Owns |
 |---|---|
-| this document | cross-source identity, layer boundaries, exposure, authority, execution, result audiences, and presentation invariants |
-| `session-core.md` | Thread/Turn/Item persistence, generic lifecycle, event ordering, archive/resume/fork semantics |
-| `appserver-protocol.md` | JSON-RPC method names, DTOs, capability negotiation, notifications, and transport serialization |
-| `app-binding.md` | app discovery, principal/connection handoff, thread binding state, capability authorization, revoke/rebind/audit |
+| this document | cross-source identity, layer boundaries, exposure, authority, execution, result audiences, presentation invariants, and the semantics of built-in tools |
+| [Session Core](session-core.md) | Thread/Turn/Item persistence, generic lifecycle, event ordering, archive/resume/fork semantics |
+| the AppServer protocol | JSON-RPC method names, DTOs, capability negotiation, notifications, and transport serialization |
+| the App Binding protocol | app discovery, principal/connection handoff, thread binding state, capability authorization, revoke/rebind/audit |
 | MCP and MCP Apps standards | MCP capability, tool/resource/result, Apps metadata, and bridge wire contracts |
-| plugin/SDK/client specifications | source authoring, language APIs, and UI mapping of the architecture/protocol contracts |
 
-Downstream specifications MUST reference these semantics rather than copy and locally redefine them. The owning protocol specification is authoritative for serialization details.
+Consumers reference these semantics rather than redefining them.
 
 ## 2. Non-goals
 
 This specification does not:
 
-- replace the complete AppServer or Session Core architecture;
 - define general app discovery, marketplace, or plugin installation UX;
 - make every tool source use the same transport or session item type;
 - require interactive UI for a tool to be correct;
@@ -52,12 +48,11 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** ar
 
 | Term | Definition |
 |---|---|
-| **Tool Source** | A component that contributes tool registrations. Examples: Core native tools, a plugin, an MCP server, or a Runtime Dynamic client. |
+| **Tool Source** | A component that contributes tool registrations: Core native tools, a plugin, an MCP server, or a Runtime Dynamic client. |
 | **Tool Definition** | An immutable source-qualified semantic definition: identity, model-facing name, description, schemas, hints, and presentation link. |
 | **Tool Runtime Binding** | A live or stub binding from a definition to an executor, lifecycle lease, authority reference, availability, and revision. |
 | **Tool Registration** | The resolved source-neutral join of a definition, runtime-binding reference, exposure defaults, and safe provenance for snapshot planning. |
 | **Tool Projection Shape** | The source-declared Session lifecycle shape for an invocation: a standard call/result pair or one specialized lifecycle item. |
-| **Tool Runtime** | The executor implementation used by a live runtime binding. |
 | **Tool Authority** | The server-authoritative decision that a registration is permitted for a thread and invocation context. |
 | **Tool Exposure** | Whether and how a permitted tool is published to the model. |
 | **Effective Tool Snapshot** | The immutable set of registrations and model-visible definitions selected for one Turn. |
@@ -67,11 +62,9 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** ar
 | **Runtime Dynamic Tool** | A thread-scoped callback implemented by the connected AppServer client. It is connection-owned and not a general external app integration mechanism. |
 | **Binding MCP** | An MCP server connection authorized for one App Binding and added independently to one thread. |
 
-**Runtime Dynamic Tool** is the canonical term for client-owned callbacks. App Binding tools use binding-scoped MCP sessions.
-
 ## 5. Architectural layers
 
-The architecture has five layers: Definition, Binding/Authority, Exposure, Execution, and Presentation. Source discovery and provenance belong to the Definition layer; `ToolRegistration` is the normalized boundary object passed from Definition into the remaining layers. Implementations MAY combine classes, but MUST preserve these semantic boundaries and invariants.
+The architecture has five layers: Definition, Binding/Authority, Exposure, Execution, and Presentation. Source discovery and provenance belong to the Definition layer; the registration is the normalized boundary object passed from Definition into the remaining layers.
 
 ```text
 Source -> Definition/Registration -> Binding/Authority -> Exposure -> Execution -> Presentation
@@ -79,373 +72,234 @@ Source -> Definition/Registration -> Binding/Authority -> Exposure -> Execution 
 
 ### 5.1 Definition and source
 
-The source discovers or declares a definition and owns source-specific lifecycle state. A source MUST NOT decide final model visibility solely by itself.
-
-Canonical sources are:
+The source discovers or declares a definition and owns source-specific lifecycle state. A source MUST NOT decide final model visibility by itself.
 
 | Source kind | Lifecycle | Executor owner | Typical examples |
 |---|---|---|---|
 | Core Native | process/workspace | DotCraft server | file, web, subagent |
 | Plugin Native | plugin enablement | trusted in-process plugin | plugin-contributed functions, managed channel tools |
 | MCP | MCP connection/session | MCP server | workspace, thread, plugin, or binding MCP |
-| Runtime Dynamic | AppServer connection + thread | connected AppServer client | Desktop thread management, client-owned run callbacks |
+| Runtime Dynamic | AppServer connection + thread | connected AppServer client | client-owned thread management and run callbacks |
 
-Core Native file and shell tools execute in the DotCraft process environment.
-For Docker Stack deployments, that environment is the DotCraft container.
+Core Native file and shell tools execute in the DotCraft process environment; for Docker Stack deployments, that is the DotCraft container.
 
 ### 5.2 Registration boundary
 
-A source contribution MUST separate durable semantic definition from live executability:
+A source contribution separates durable semantic definition from live executability:
 
-- `ToolDefinition` contains `ToolDefinitionId`, `ToolName`, `SourceToolId`, schemas, safe source provenance, approval/policy hints, and optional presentation link;
-- `ToolRuntimeBinding` contains `RuntimeBindingId`, definition reference, executor handle, lifecycle/connection lease, `AuthorityRef`, availability, and binding revision;
-- `ToolRegistration` is the resolved planning join and contains references/revisions plus the source-declared projection shape rather than persisting a live executor inside the definition.
+- a definition contains `ToolDefinitionId`, `ToolName`, `SourceToolId`, schemas, safe source provenance, approval/policy hints, and optional presentation link;
+- a runtime binding contains `RuntimeBindingId`, definition reference, executor handle, lifecycle/connection lease, authority reference, availability, and binding revision;
+- a registration is the resolved planning join and carries references, revisions, and the source-declared projection shape rather than a live executor.
 
 This split MUST represent a stable definition with a replaced MCP connection, a durable grant with an offline executor, and persisted items with no current runtime. Source-specific opaque state and live executor handles are never model-visible and never stored in durable definition snapshots.
 
-The runtime registry MUST retain executable registrations that are hidden from the model. Model-visible definition generation is a projection of the runtime registry, not the registry itself. The source catalog, runtime registry, per-thread effective snapshot, local renderer registry, and MCP Apps resource broker are separate indexes with different owners; none may be used as an alias for another.
+The runtime registry retains executable registrations that are hidden from the model; model-visible definitions are a projection of it. The source catalog, runtime registry, per-thread effective snapshot, local renderer registry, and MCP Apps resource broker are separate indexes with different owners; none is an alias for another.
 
 ### 5.3 Binding and authority
 
-Authority determines whether a registration is usable by a thread and whether a particular invocation can dispatch. Authority inputs include thread configuration, plugin state, App Binding state, mode policy, approval policy, MCP annotations, and connection health. Source-owned business invariants remain the native service's execution-boundary responsibility and are not required to become a generic authority record.
+Authority determines whether a registration is usable by a thread and whether a particular invocation can dispatch. Inputs include thread configuration, plugin state, App Binding state, mode policy, approval policy, MCP annotations, and connection health. Source-owned business invariants remain the native service's execution-boundary responsibility.
 
-Authorization MUST be server-authoritative. Arguments, renderer metadata, an iframe, or a remote source MUST NOT expand authority.
-
-`IToolAuthorityEvaluator` is required when execution authority has a live, independently revocable reference or revision that is not fully owned by the source service or binding lease. A source that declares such authority MUST fail closed when it cannot be resolved. Native services may own execution-boundary validation for their own business state.
+Authorization MUST be server-authoritative. Arguments, renderer metadata, an iframe, or a remote source MUST NOT expand authority. A source whose execution authority has a live, independently revocable reference MUST fail closed when that reference cannot be resolved.
 
 ### 5.4 Exposure
 
-Exposure determines publication to the model after authority is established. The canonical values are:
+Exposure determines publication to the model after authority is established:
 
 | Value | Model publication |
 |---|---|
-| `Direct` | Definition is included directly in the model tool list. |
-| `Deferred` | Definition is discoverable through the deferred-tool mechanism and not included directly. |
-| `DirectModelOnly` | Definition is directly visible as a normal model tool but excluded from the nested code-mode tool surface. |
-| `Hidden` | Definition is not visible to the model; the executor MAY remain callable by an authorized host path. |
+| `Direct` | Included directly in the model tool list. |
+| `Deferred` | Discoverable through the deferred-tool mechanism and not included directly. |
+| `DirectModelOnly` | Directly visible as a normal model tool but excluded from any nested script tool surface. |
+| `Hidden` | Not visible to the model; the executor MAY remain callable by an authorized host path. |
 
-`ToolExposure` controls model and code-mode publication only. Host/app invocation eligibility is a separate invocation-audience/capability decision. App visibility MUST NOT introduce additional `ToolExposure` values. For MCP Apps, the stable visibility contract maps independently to model-visible and app-callable decisions.
+Exposure controls model publication only. Host/app invocation eligibility is a separate invocation-audience decision, and app visibility MUST NOT introduce additional exposure values. For MCP Apps, visibility maps independently to model-visible and app-callable decisions.
 
-Deferred discovery MUST be finalized from the effective snapshot rather than from an independent provider-only surface. When the final snapshot contains searchable deferred registrations, planning MUST add a real Core Native search registration and runtime to the same registry with canonical identity `ToolName(null, "SearchTools")`. Provider adapters preserve that canonical identity in runtime and Session history while translating provider-owned wire shapes; OpenAI Responses serializes the tool as client-executed `tool_search` and maps its `tool_search_call` and `tool_search_output` callbacks to `SearchTools`. When no searchable deferred registration remains, the search registration MUST be absent. Schema sanitization that replaces a search registration MUST preserve its deferred-search registry capability for downstream provider projection. Provider-native result content MAY be retained by the normalized execution result and durable model history when required for replay, but the search invocation still uses the common dispatcher and Session projection pipeline.
+Deferred discovery is finalized from the effective snapshot. When the final snapshot contains searchable deferred registrations, planning adds a real Core Native search registration with canonical identity `ToolName(null, "SearchTools")` to the same registry; otherwise the search registration is absent. Provider adapters keep that canonical identity in runtime and Session history while translating provider-owned wire shapes: OpenAI Responses serializes it as client-executed `tool_search` and maps `tool_search_call` / `tool_search_output` to `SearchTools`. Schema sanitization preserves the search registration's deferred-search capability. Provider-native result content MAY be retained in the execution result and durable model history for replay; the invocation still uses the common dispatcher and Session projection.
 
-OpenAI Responses native search keeps discovered definitions provider-visible through historical `tool_search_output` items rather than adding them to later top-level tool lists. Every deferred registration in the current Turn snapshot MUST remain locally resolvable regardless of whether the current Agent instance observed its search result. This local lookup MUST NOT persist discovery state, re-add deferred definitions to the provider tool list, or resolve a registration absent from the current snapshot.
+On OpenAI Responses, discovered definitions stay provider-visible through historical `tool_search_output` items rather than later top-level tool lists. Every deferred registration in the current Turn snapshot remains locally resolvable whether or not the current Agent instance observed its search result. This lookup does not persist discovery state, re-add definitions to the tool list, or resolve registrations absent from the snapshot.
 
-Anthropic native search MAY accept `select:` queries for deterministic discovery. Every selector MUST match an exact, case-sensitive provider flat name; canonical local names and case variants are not aliases. Keyword search MAY match canonical names and other searchable metadata, but every result MUST expose the selected registration's provider flat name. Result limits MUST be applied before activation. Provider callbacks resolve through the snapshot's exact reverse index using that same identity.
+Anthropic native search MAY accept `select:` queries. Every selector MUST match an exact, case-sensitive provider flat name; canonical local names and case variants are not aliases. Keyword search MAY match canonical names and other metadata, but results expose provider flat names. Result limits apply before activation, and callbacks resolve through the snapshot's exact reverse index.
 
-Before each Anthropic native deferred sampling request, the runtime MUST provide a request-local names-only inventory of every deferred provider-flat identity. The inventory is ordinally sorted, remains unchanged when a tool is activated, and is regenerated from the current Turn snapshot after history replacement. Exact tool references replayed from model history reactivate matching identities in the current deferred index before tool schemas are projected, so rebuilding an Agent does not invalidate its history. The inventory and replayed activation are Anthropic request shaping: they MUST NOT be persisted as additional history, summarized by compaction, added to shared base instructions, or emitted on OpenAI protocol paths.
+Before each Anthropic native deferred sampling request, the runtime provides a request-local, ordinally sorted, names-only inventory of every deferred provider-flat identity, regenerated from the current Turn snapshot. Exact tool references replayed from model history reactivate matching identities before tool schemas are projected, so rebuilding an Agent does not invalidate its history. The inventory and replayed activation are request shaping only: they are never persisted, summarized by compaction, added to shared instructions, or emitted on OpenAI paths.
 
 ### 5.5 Execution
 
-All sources MUST converge on this ordered source-neutral dispatch pipeline. Planning context selects an immutable snapshot, but it is not invocation identity. At the model callback boundary, Session execution MUST create an immutable `ToolInvocationContext` containing the live thread, Turn, call, audience, cancellation, approval, and authority inputs. A planning Turn id MUST NOT be used as a substitute for the live Turn id. Dispatch and recording MUST use only that explicit invocation context after the boundary. A host invocation without a Turn MAY execute when its audience is authorized, but it MUST NOT create a Session Turn item.
+All sources converge on one ordered dispatch pipeline. Planning selects an immutable snapshot but is not invocation identity: at the model callback boundary, Session execution creates an immutable `ToolInvocationContext` containing the live thread, Turn, call, audience, cancellation, approval, and authority inputs, and dispatch and recording use only that context. A host invocation without a Turn MAY execute when its audience is authorized, but creates no Session item.
 
-1. resolve the provider callback identity to the exact canonical `ToolName` in the Turn snapshot, using the composite namespace/name for namespace-capable protocols and the snapshot's flat alias index for flat-only protocols;
-2. atomically create or upsert the source-appropriate started projection from the resolved registration;
+1. resolve the provider callback identity to the exact canonical `ToolName` in the Turn snapshot (composite for namespace-capable protocols, the flat alias index otherwise);
+2. atomically create or upsert the started projection from the resolved registration;
 3. verify snapshot exposure and invocation audience;
 4. check binding lease, live authority, and policy;
-5. validate arguments at the owning boundary: Host-owned sources validate against their declared schema, while MCP arguments remain JSON objects and are validated by the owning MCP server;
+5. validate arguments at the owning boundary: host-owned sources against their declared schema; MCP arguments remain JSON objects validated by the MCP server;
 6. apply mode/thread/native guards and MCP annotation policy;
 7. run `PreToolUse` hooks;
 8. resolve approval;
-9. execute through `IToolRuntime`, classifying timeout and caller cancellation separately;
+9. execute, classifying timeout and caller cancellation separately;
 10. normalize result audiences, require model fallback where applicable, and enforce result limits;
 11. project the terminal Session lifecycle;
 12. run `PostToolUse` or `PostToolUseFailure` hooks.
 
-A runtime may own source-specific execution approval. It must use the common approval identity
-and terminal-result contract without prompting twice for the same operation.
+A runtime may own source-specific execution approval; it uses the common approval identity and terminal-result contract without prompting twice for the same operation.
 
-Every path after step 2 MUST terminalize the same projection, including validation, authority, policy, approval, cancellation, timeout, execution, and normalization failures. `ToolExecution` MAY separately indicate when the approved runtime actually begins. Source adapters MAY add transport-specific lifecycle behavior, but MUST NOT duplicate common approval, result audience, or error normalization rules.
+Every path after step 2 MUST terminalize the same projection, including validation, authority, policy, approval, cancellation, timeout, execution, and normalization failures. A separate execution signal MAY indicate when the approved runtime actually begins.
 
-Host-owned tools that start external work MUST pass the invocation cancellation token to the component that owns that work. That owner MUST distinguish caller cancellation from its own timeout, stop and drain foreground resources before propagating caller cancellation, and leave explicitly detached background resources under their separate control-plane lifecycle. A tool MUST NOT report cancellation merely by abandoning a still-running foreground operation.
+Host-owned tools that start external work pass the invocation cancellation token to the owner of that work. The owner distinguishes caller cancellation from its own timeout, stops and drains foreground resources before propagating cancellation, and leaves explicitly detached background resources under their own lifecycle. A tool MUST NOT report cancellation merely by abandoning a still-running foreground operation.
 
-MCP input schemas are preserved as declared and follow the MCP JSON Schema contract. The Host MUST NOT apply the restricted Plugin/Runtime Dynamic schema validator to MCP arguments or reject valid composition and reference keywords before dispatch. Server-reported protocol and tool-execution input errors remain normal terminal MCP results. Oversized model-visible text is projected as a bounded preview without changing a successful source result into a failure. Raw MCP content, structured content, and metadata use an independent bounded persistence projection.
+MCP input schemas are preserved as declared under the MCP JSON Schema contract; the Host MUST NOT apply the restricted plugin/Runtime Dynamic validator to MCP arguments. Server-reported input errors remain normal terminal MCP results. Oversized model-visible text is projected as a bounded preview without turning success into failure. Raw MCP content, structured content, and metadata use an independent bounded persistence projection.
 
-Image generation is the Core Native tool `image_gen.imagegen`, dispatched through the common pipeline like any other local tool. Image requests go to the image provider: `Tools.ImageGeneration.Provider` when set, otherwise the conversation's effective provider; a configured provider is resolved with `Tools.ImageGeneration.Model` as its model. Planning publishes the tool only when `Tools.ImageGeneration.Enabled` is on and the image provider resolves, uses an OpenAI protocol, has `SupportsImageGeneration`, and has usable credentials: ChatGPT OAuth, model-service routing, or a non-empty API key. A configured provider that is missing or fails these checks withholds the tool; the conversation provider is never used as a fallback. The conversation provider's protocol does not matter, since the tool projects like any other namespaced tool. Only when the conversation provider signs in through the OAuth backend (`IsChatGptOAuth`), which reserves this name and input schema, does the definition carry `dotcraft/reservedSchema`, which sends the schema verbatim with `strict: false`; on every other conversation provider the schema passes through the normal sanitizer and `strict` stays unset. `SupportsImageGeneration` defaults to on for ChatGPT OAuth and for API-key providers on the official OpenAI endpoint, and to off for other endpoints; `SupportsFreeformTools` (§6.1) is a separate provider field with the same default rule. The model-visible arguments are `prompt`, optional `transparent_background`, and at most one of `referenced_image_paths` or `num_last_images_to_include`, each limited by `Tools.ImageGeneration.MaxReferenceImages`; unknown arguments are rejected. The runtime sends one JSON request to the provider's base endpoint: `images/generations`, or `images/edits` with the reference images as data URLs. Every request carries the image Turn id header and the `originator` header; the backend image request id from the response headers and the image's `generation_id` are kept on the `ImageGeneration` item, and the request id is kept on failures too. Paths are read through the file access guard; on a remote route they are read through `dotcraft/remoteToolHost/images/read`, which applies the Host's `ReadFile` authorization. Recent images are taken newest-first from user input, tool output images, and earlier generated images, then sent in conversation order. A successful result saves the PNG under the thread's generated-images directory, or through the captured remote route, and returns the image plus a saved-path hint of at most 1024 bytes as model content; the hint is omitted when saving fails. Request and API failures, including usage limits, are returned to the model as error text. Plan mode does not restrict the tool.
+#### 5.5.1 Image generation
 
-Generic web search remains the built-in `WebSearch` tool. `Tools.Web.SearchProvider` defaults to `Auto`: ChatGPT OAuth retains the subscription path below; otherwise explicit `Exa`, `Bing`, or `DeepSeek` selections win, while `Auto` uses DeepSeek only when the effective conversation provider supports official DeepSeek search and is authenticated, falling back to Exa before execution in other cases. After DeepSeek is selected, explicit search credential errors are reported rather than switching providers. Persisted explicit choices are not migrated. Runtime search failures never switch providers. `WebFetch` is independent and unchanged.
+Image generation is the Core Native tool `image_gen.imagegen`. The image provider is `Tools.ImageGeneration.Provider` when set (with `Tools.ImageGeneration.Model`), otherwise the conversation's effective provider. Planning publishes the tool only when `Tools.ImageGeneration.Enabled` is on and the image provider resolves, uses an OpenAI protocol, has `SupportsImageGeneration`, and has usable credentials (ChatGPT OAuth, model-service routing, or a non-empty API key). A configured provider that fails these checks withholds the tool; the conversation provider is never a fallback.
 
-DeepSeek capability is identified by the official HTTPS `api.deepseek.com` endpoint (including OpenAI and Anthropic compatibility paths), never by provider or model name. Remote providers additionally require the service-advertised `webSearchBackend: "deepseek"`; absent metadata means unsupported. `Tools.Web.DeepSeekCredentialSource` defaults to `Provider`: `DeepSeekProvider` selects an existing provider without requiring a model, or an empty value prefers the effective conversation provider and then the only supported, authenticated candidate. Multiple candidates require explicit selection. Selecting automatic provider reuse persists an empty string in the selected configuration layer so it overrides an inherited provider id; deleting the entry restores inheritance. Missing, unauthenticated, or unsupported explicit providers return actionable errors. `ApiKey` mode instead uses `DeepSeekApiKey`, then `DEEPSEEK_API_KEY`, without borrowing another provider's credentials. Keys are referenced rather than copied, remain secret, and changes rebuild thread agents.
+When the conversation provider signs in through ChatGPT OAuth, which reserves this name and schema, the definition carries `dotcraft/reservedSchema` and is sent verbatim with `strict: false`; otherwise the schema is sanitized normally. `SupportsImageGeneration` and `SupportsFreeformTools` (§6.1) default to on for ChatGPT OAuth and for API-key providers on the official OpenAI endpoint, and off elsewhere.
 
-DeepSeek searches post `query`, `count`, and `need_content: false` to `https://api.deepseek.com/v1/tools/search` with Bearer authentication. The existing 1–10 result limit stays unchanged. Queries longer than 128 Unicode scalar values return an error without truncation. Results preserve upstream order and map `summary` (falling back to `snippet`) to the existing snippet field and `date` to published date. Empty results succeed; invalid responses, HTTP failures, and timeouts return tool error text while caller cancellation propagates. Remote provider credentials stay on the model service, using its authorized `tools/search` operation and existing provider transport.
+Arguments are `prompt`, optional `transparent_background`, and at most one of `referenced_image_paths` or `num_last_images_to_include`, each limited by `Tools.ImageGeneration.MaxReferenceImages`; unknown arguments are rejected. The runtime calls `images/generations`, or `images/edits` with reference images. Referenced paths are read through the file access guard, or on a remote route through the Host under its `ReadFile` authorization. Recent images are taken newest-first from user input, tool output images, and earlier generated images, then sent in conversation order. The backend request id and the image's `generation_id` are kept on the `ImageGeneration` item; the request id is kept on failures too.
 
-Subscription web search is the Core Native tool `web.run`. Planning publishes it only when the conversation's effective provider resolves, uses an OpenAI protocol, and signs in through the OAuth backend (`IsChatGptOAuth`). On that runtime the Core source withholds the built-in `WebSearch`, so the model sees one search tool; `WebFetch` and every other provider are unaffected. The backend reserves this name and input schema, so the definition always carries `dotcraft/reservedSchema` and is sent verbatim with `strict: false`. The arguments are batched commands (`search_query`, `image_query`, `open`, `click`, `find`, `screenshot`, `finance`, `weather`, `sports`, `time`, `response_length`); empty arguments mean no commands. The runtime posts one JSON request to `{endpoint}/alpha/search` with the OAuth headers and a `User-Agent`. On a model-service route the request goes through the model service, which forwards `alpha/search` with the provider's credentials like its other model operations. The request `id` is the DotCraft thread id, because the service keeps browsing state per id and later `open` and `find` commands refer to earlier results by ref id. `model` is the conversation model, `commands` are the arguments with null values removed, `settings` allows direct callers with external web access, and `max_output_tokens` is 10000. `input` is a text-only tail of the current conversation starting at the second-to-last user message: user text as `input_text` and assistant text as `output_text`, without system, developer, thread-context, tool, or reasoning content, and without the runtime reminder appended to user messages. Assistant text in the tail is capped at about 4000 characters by dropping the oldest assistant text first. The response `output` is returned to the model verbatim, including citation markers; the response `results` become the `WebSearch` item's results; `encrypted_output` is ignored. HTTP, network, timeout, and response failures are returned to the model as error text, and caller cancellation propagates. Plan mode does not restrict the tool.
+A successful result saves the PNG under the thread's generated-images directory, or through the captured remote route, and returns the image plus a bounded saved-path hint as model content; the hint is omitted when saving fails. Request and API failures, including usage limits, are returned to the model as error text. Plan mode does not restrict the tool. Tool images entering model input use the shared image capability, which owns model size budgets, format selection, and failure placeholders.
+
+#### 5.5.2 Web search
+
+Generic web search is the built-in `WebSearch` tool; `WebFetch` is independent. `Tools.Web.SearchProvider` defaults to `Auto`: on ChatGPT OAuth the subscription path below applies; otherwise explicit `Exa`, `Bing`, or `DeepSeek` wins, and `Auto` uses DeepSeek only when the effective conversation provider supports official DeepSeek search and is authenticated, else Exa. Once DeepSeek is selected, credential errors are reported rather than switching providers, and runtime failures never switch providers.
+
+DeepSeek capability is identified by the official HTTPS `api.deepseek.com` endpoint (including OpenAI and Anthropic compatibility paths), never by provider or model name; remote providers additionally require the service-advertised `webSearchBackend: "deepseek"`. `Tools.Web.DeepSeekCredentialSource` defaults to `Provider`: `DeepSeekProvider` selects a provider, or an empty value prefers the effective conversation provider and then the only supported, authenticated candidate; multiple candidates require explicit selection. Choosing automatic reuse persists an empty string so it overrides an inherited provider id. `ApiKey` mode uses `DeepSeekApiKey`, then `DEEPSEEK_API_KEY`, without borrowing another provider's credentials. Keys are referenced, never copied, and changes rebuild thread agents. On remote providers the model service performs the search with its own credentials.
+
+DeepSeek search keeps the 1–10 result limit, rejects queries longer than 128 Unicode scalar values without truncating, and preserves upstream order. Empty results succeed; invalid responses, HTTP failures, and timeouts return tool error text; caller cancellation propagates.
+
+Subscription web search is the Core Native tool `web.run`, published only when the conversation provider resolves, uses an OpenAI protocol, and signs in through ChatGPT OAuth. On that runtime `WebSearch` is withheld so the model sees one search tool. The definition always carries `dotcraft/reservedSchema`. Arguments are batched commands (`search_query`, `image_query`, `open`, `click`, `find`, `screenshot`, `finance`, `weather`, `sports`, `time`, `response_length`); empty arguments mean no commands. The runtime posts one request to the backend `alpha/search` operation, through the model service on a model-service route. The request id is the DotCraft thread id, because the backend keeps browsing state per id and later commands refer to earlier results. The request input is a text-only tail of the conversation from the second-to-last user message, excluding system, developer, thread-context, tool, reasoning, and runtime-reminder content, with assistant text capped by dropping the oldest first. The response `output` returns to the model verbatim, including citation markers, and the response `results` become the `WebSearch` item's results. Failures return error text; caller cancellation propagates. Plan mode does not restrict the tool.
 
 ### 5.6 Presentation
-
-Tool images promoted into model input and image-generation references use the Agents image adapter
-and [managed image capability](image-processing.md). The adapter owns model size and patch budgets,
-format selection and failure placeholders.
 
 Presentation is optional enhancement after correctness. Every model-visible tool result MUST have a usable model/text fallback. Presentation has two independent mechanisms:
 
 - **MCP Apps**, for server-provided interactive resources and bidirectional host/view communication;
-- **local renderer registry**, for trusted DotCraft/Desktop renderers selected by server-controlled provenance and `PresentationId`.
+- **local renderer registry**, for trusted DotCraft renderers selected by server-controlled provenance and `PresentationId`.
 
 Remote MCP metadata MUST NOT select an arbitrary local renderer.
 
 ## 6. Identity model
 
-Tool identity is intentionally split into semantic, source-routing, runtime, and provider-projection identities:
+Tool identity is split into semantic, source-routing, runtime, and provider-projection identities:
 
 | Identity | Purpose | Stability boundary |
 |---|---|---|
 | `SourceToolId` | Real identifier understood by the source/executor | Source connection or persisted source contract |
-| `ToolDefinitionId` | DotCraft source-qualified semantic definition identity | Stable across reconnects while semantic identity is unchanged |
+| `ToolDefinitionId` | Source-qualified semantic definition identity | Stable across reconnects while semantic identity is unchanged |
 | `ToolName(namespace, name)` | Canonical model and router identifier | Effective snapshot and persisted invocation history |
 | `RuntimeBindingId` | Live executor/authority lease identity | One binding/session generation |
-| `PresentationId` | Trusted renderer selection | Core/Desktop presentation contract |
+| `PresentationId` | Trusted renderer selection | Core/client presentation contract |
 | `ProviderFlatName` | Deterministic flat alias for providers that cannot represent namespaces | Effective snapshot and persisted invocation history |
 
-`ToolName` MUST be a true composite value with ordinal, case-sensitive equality. Its optional `namespace` and required `name` are model-visible components, not encoded source-routing data. Each present component MUST be non-empty and match `^[A-Za-z0-9_]+$`; its deterministic flat form (`name`, or `namespace + "__" + name`) MUST fit within 64 ASCII bytes. Two tools MAY have the same `name` in different namespaces. Deferred indexes, activated-tool sets, provider definitions, callbacks, and Session history MUST preserve the full composite identity.
+`ToolName` is a composite value with ordinal, case-sensitive equality. Its optional `namespace` and required `name` are model-visible components, not encoded routing data. Each present component MUST be non-empty and match `^[A-Za-z0-9_]+$`; its flat form (`name`, or `namespace + "__" + name`) MUST fit within 64 ASCII bytes. Two tools MAY share a `name` in different namespaces. Deferred indexes, activated-tool sets, provider definitions, callbacks, and Session history preserve the full composite identity.
 
-Source adapters SHOULD choose stable namespaces. Controlled non-MCP declarations that violate the component grammar MUST be rejected or quarantined at registration; they MUST NOT be silently rewritten into a different semantic identity.
+Source adapters SHOULD choose stable namespaces. Non-MCP declarations that violate the grammar are rejected or quarantined at registration, never silently rewritten.
 
-MCP is normalized as one deterministic batch because an individual tool cannot detect sanitization collisions:
+MCP is normalized as one deterministic batch:
 
-1. The namespace seed is `mcp__` plus the origin's declared server name when present, otherwise its collision-safe runtime name. The child seed is the raw MCP tool name.
-2. Every Unicode scalar value outside ASCII letters, digits, and underscore is replaced with one `_`; hyphen is deliberately normalized even when a particular provider accepts it so one identity works across all supported providers. The source string is not Unicode-normalized before sanitization or hashing.
-3. A namespace is limited to 49 ASCII bytes. A longer namespace becomes its first 36 bytes, `_`, and the first 12 lowercase hexadecimal characters of SHA-1 over the UTF-8 bytes of the unsanitized seed.
-4. The child limit is `64 - namespaceLength - 2`, reserving `__` for a flat alias. A longer child is truncated using the same `prefix + "_" + 12-character SHA-1` form within that limit.
-5. If distinct catalog source identities sanitize to the same namespace, each conflicting namespace receives a suffix derived from SHA-1 of its full source identity. If distinct raw tools in one source sanitize to the same child, each conflicting child receives a suffix derived from SHA-1 of `sourceIdentity + NUL + rawToolName`. Truncation is reapplied after suffixing. Ordinary catalogs scope their runtime identity to the server source family; binding catalogs use the binding id independently of the current connection's routing name.
-6. Collision groups and suffixes are computed from ordinally sorted full seeds, so results do not depend on MCP enumeration or source discovery order. Any duplicate that remains after this algorithm is quarantined rather than resolved by last-write-wins.
+1. The namespace seed is `mcp__` plus the origin's declared server name, otherwise its collision-safe runtime name. The child seed is the raw MCP tool name.
+2. Every Unicode scalar value outside ASCII letters, digits, and underscore becomes one `_` (hyphen included, so one identity works across providers). No Unicode normalization precedes sanitization or hashing.
+3. A namespace is limited to 49 ASCII bytes; a longer one becomes its first 36 bytes, `_`, and the first 12 lowercase hex characters of SHA-1 over the UTF-8 unsanitized seed.
+4. The child limit is `64 - namespaceLength - 2`; a longer child is truncated with the same `prefix + "_" + 12-hex` form.
+5. Distinct source identities that sanitize to the same namespace each receive a suffix from SHA-1 of the full source identity; distinct raw tools in one source that collide receive a suffix from SHA-1 of `sourceIdentity + NUL + rawToolName`. Truncation is reapplied after suffixing. Ordinary catalogs scope source identity to the server source family; binding catalogs use the binding id.
+6. Collision groups are computed from ordinally sorted full seeds, so results do not depend on enumeration order. A remaining duplicate is quarantined, not resolved by last-write-wins.
 
-For MCP, `runtimeName` identifies the effective connection and may contain plugin/source delimiters; `SourceToolId` is the exact raw name sent to MCP `tools/call`; neither is a model namespace. The effective snapshot keeps the exact mapping `ToolName -> (ToolDefinitionId, RuntimeBindingId, runtimeName, SourceToolId)`. Desktop, an iframe, and provider adapters MUST NOT reconstruct the MCP route by parsing or prefixing `ToolName`.
+For MCP, `runtimeName` identifies the effective connection and `SourceToolId` is the exact raw name sent to `tools/call`; neither is a model namespace. The snapshot keeps the exact mapping `ToolName -> (ToolDefinitionId, RuntimeBindingId, runtimeName, SourceToolId)`. Clients, Views, and provider adapters MUST NOT reconstruct the MCP route by parsing or prefixing `ToolName`.
 
-Live ordinary catalogs and approved App Binding catalogs share this normalization pass. Binding definitions retain their source identity, descriptions, schemas, annotations, audiences, and exposure across connection loss; only their executor and lease change. Candidate binding catalogs are withheld. Persisted MCP invocation items and MCP App resource operations use the actual executor's routing name and generation, separately from the binding's authority revision.
+Ordinary and approved App Binding catalogs share this normalization. Binding definitions retain identity, descriptions, schemas, annotations, audiences, and exposure across connection loss; only executor and lease change. Candidate binding catalogs are withheld. Persisted MCP items and MCP App resource operations record the executor's routing name and generation separately from the binding's authority revision.
 
-Direct publication, deferred indexes, native tool-search results, and provider callbacks MUST all use the same canonical `ToolName` namespace. In a namespace-capable tool-search result, the outer container name is the canonical namespace and every child name is the canonical local name; a `ProviderFlatName` MUST NOT be nested as a child name. A canonical namespace appears at most once in one provider projection or search result. Raw MCP server, runtime, and source identities are restricted to routing, authority, generation lookup, and provenance. A deferred descriptor is searchable metadata, not an identity authority, and its namespace MUST exactly equal its definition's canonical namespace. Provider callbacks containing an invalid or unknown namespace fail closed as an unresolved tool call; constructing a `ToolName` from untrusted callback data MUST NOT throw an exception that fails the Turn.
+Direct publication, deferred indexes, native tool-search results, and provider callbacks all use the same canonical namespace. In a namespace-capable search result, the container name is the canonical namespace and each child is the canonical local name; a `ProviderFlatName` is never nested as a child. A namespace appears at most once per projection or search result. Raw MCP server, runtime, and source identities are restricted to routing, authority, generation lookup, and provenance. A deferred descriptor's namespace equals its definition's canonical namespace. Callbacks with an invalid or unknown namespace fail closed as an unresolved tool call and never fail the Turn.
 
-The MCP initialize result's optional `instructions` value is the model-visible description of that server's canonical tool namespace. It is untrusted tool metadata, not a system prompt, role instruction, App Binding context block, or source of authority. The description follows the same normalization and size limits as other model-visible descriptions and MUST remain attached to the exact MCP server generation that returned it. Direct and deferred namespace-capable provider projections use the same normalized description. A namespace with no description uses the provider-neutral generic description. If model-visible registrations in one canonical namespace contain multiple distinct non-empty descriptions, projection uses the generic description, emits one safe `conflicting_namespace_description` snapshot diagnostic, and still emits exactly one namespace container. Reconnecting one server MUST NOT reuse another server's description. Binding MCP snapshots retain the approved description while offline and remove it on revocation. A description-only change follows the ordinary non-expanding capability-diff rule.
+The MCP initialize result's optional `instructions` value is the model-visible description of that server's namespace. It is untrusted tool metadata, not a system prompt or source of authority; it follows the normal description limits and stays attached to the server generation that returned it. A namespace without one uses a generic description. If registrations in one namespace carry distinct non-empty descriptions, projection uses the generic description, emits one `conflicting_namespace_description` snapshot diagnostic, and still emits exactly one namespace container. Binding MCP snapshots retain the approved description while offline and remove it on revocation. A description-only change follows the non-expanding capability-diff rule.
 
-Provider projection follows the provider's native identity shape:
+Provider projection follows the provider's identity shape:
 
-- a namespace-capable protocol serializes `ToolName(namespace, name)` as a namespace definition plus local child name and returns the same tuple on its function call;
-- a flat-only protocol uses the snapshot's `ProviderFlatName`, which is `name` for a top-level tool and `namespace + "__" + name` for a namespaced tool after the normalization above;
-- the snapshot owns both `ToolName -> ProviderFlatName` and `ProviderFlatName -> ToolName` indexes; if distinct canonical tuples produce the same flat alias, every conflicting alias is truncated as needed and suffixed from SHA-1 over the UTF-8 bytes of `namespace-or-empty + NUL + name`;
-- dispatch MUST NOT parse a flat alias to recover a namespace, and namespace-capable protocols MUST NOT flatten a composite identity before dispatch.
+- a namespace-capable protocol serializes a namespace definition plus local child name and returns the same tuple on its call;
+- a flat-only protocol uses the snapshot's `ProviderFlatName`;
+- the snapshot owns both directions of the flat index; distinct tuples that produce the same alias are truncated as needed and suffixed from SHA-1 over `namespace-or-empty + NUL + name`;
+- dispatch MUST NOT parse a flat alias to recover a namespace, and namespace-capable protocols MUST NOT flatten before dispatch.
 
-A provider that forwards a call elsewhere projects nothing itself, so the composite identity has to travel as data. The declaration it sends carries `ToolName(namespace, name)` and `ProviderFlatName`, and whatever rebuilds it at the far end presents the same identity to the real provider. A rebuilt declaration is never invoked where it was rebuilt; the tool runs where it was declared.
+A provider that forwards a call elsewhere sends `ToolName(namespace, name)` and `ProviderFlatName` as data, and the far end presents the same identity to the real provider. A rebuilt declaration is never invoked where it was rebuilt; the tool runs where it was declared.
 
-Provider/model call identifiers, canonical `ToolName`, `ProviderFlatName`, source-routing identities, and Session item identifiers are different identities. They MUST be stored and projected separately and MUST survive resume, fork, compaction, and history reconstruction without being substituted for, parsed from, or regenerated from one another.
+Provider call identifiers, canonical `ToolName`, `ProviderFlatName`, source-routing identities, and Session item identifiers are stored and projected separately and survive resume, fork, compaction, and history reconstruction without being substituted for, parsed from, or regenerated from one another.
 
 ### 6.1 Freeform input
 
-A definition MAY declare a freeform input: a raw string constrained by a grammar (syntax and definition
-text), plus the name of the one required string parameter that carries it. Its input schema MUST be an
-object with that parameter. Freeform input is a projection choice, not a separate identity or dispatch
-path: every call reaches the dispatcher as an object with that parameter.
+A definition MAY declare a freeform input: a raw string constrained by a grammar (syntax and definition text) plus the name of the one required string parameter that carries it. Its input schema is an object with that parameter. Freeform input is a projection choice, not a separate identity or dispatch path: every call reaches the dispatcher as an object with that parameter.
 
-- Freeform support is a provider capability, `SupportsFreeformTools`, resolved with the provider
-  runtime. An explicit provider value wins; otherwise it is on for the `chatgptOAuth` auth method and for API-key
-  providers using an OpenAI protocol against the official OpenAI endpoint, and off for every other
-  endpoint, since Responses-compatible third-party endpoints may reject `custom` tools.
-- OpenAI Responses on a provider with freeform support projects the definition as a `custom` tool whose
-  `format` is `{ "type": "grammar", "syntax", "definition" }`, with no `parameters` or `strict`, inside
-  a namespace container when the name has a namespace. A `custom_tool_call` becomes a call whose
-  arguments are `{ <parameter>: input }` and is marked as a custom call; its result is sent as
-  `custom_tool_call_output` with `call_id` and `output`.
-- Every other protocol, and Responses on a provider without freeform support, projects the ordinary
-  function with the input schema.
-- Dispatch marks a call as a custom call when its registration declares freeform input, whatever
-  protocol or provider produced it, so live model history carries the mark. Projections without
-  freeform support ignore the mark and keep projecting the ordinary function call.
-- A standard `ToolCall` item records whether its dispatched registration declared freeform input. The
-  flag is persisted with the item and never projected to the wire. History rebuilt from Session items
-  marks a recorded freeform call as a custom call.
-- Replay on Responses with freeform support sends a call as `custom_tool_call` only when it is marked
-  as a custom call, and its output as `custom_tool_call_output`; otherwise both are function items.
-  Replay never consults the request's declared tools. Canonical provider history keeps the provider's
-  own items unchanged; a request to a Responses provider without freeform support sends its
-  `custom_tool_call` items as `function_call` items with arguments `{ <parameter>: input }` and their
-  outputs as `function_call_output`, taking the parameter from the request's freeform tools and
-  `input` for an undeclared name.
+- Support is the provider capability `SupportsFreeformTools`. An explicit provider value wins; otherwise it is on for ChatGPT OAuth and for API-key OpenAI-protocol providers on the official OpenAI endpoint, and off elsewhere, since compatible third-party endpoints may reject `custom` tools.
+- OpenAI Responses with freeform support projects a `custom` tool whose `format` is `{ "type": "grammar", "syntax", "definition" }`, without `parameters` or `strict`, inside a namespace container when namespaced. A `custom_tool_call` becomes a call with arguments `{ <parameter>: input }` marked as a custom call; its result is sent as `custom_tool_call_output`.
+- Every other protocol, and Responses without freeform support, projects the ordinary function.
+- Dispatch marks a call as custom when its registration declares freeform input, whatever produced it. A standard `ToolCall` item persists that flag (never on the wire), and history rebuilt from items marks recorded freeform calls as custom.
+- Replay on Responses with freeform support sends `custom_tool_call` / `custom_tool_call_output` only for calls marked custom, never consulting the request's declared tools. A request to a Responses provider without freeform support sends stored `custom_tool_call` items as `function_call` with arguments `{ <parameter>: input }` (the parameter from the request's freeform tools, `input` for an undeclared name) and their outputs as `function_call_output`.
 - Schema sanitization never rewrites a freeform definition.
 
 ## 7. Core contracts
 
-The following conceptual contracts have separate responsibilities:
-
 | Contract | Responsibility |
 |---|---|
-| `ToolName`, `ProviderFlatName`, `SourceToolId`, `ToolDefinitionId`, `RuntimeBindingId` | Typed canonical, flat-provider, source, semantic-definition, and live-binding identities. |
+| `ToolName`, `ProviderFlatName`, `SourceToolId`, `ToolDefinitionId`, `RuntimeBindingId` | Typed identities. |
 | `IToolSource` | Contribute definitions and runtime bindings for a planning context. |
-| `ToolDefinition` | Immutable source-qualified semantic definition. |
-| `ToolRuntimeBinding` | Executor, lifecycle lease, authority, availability, and revision. |
-| `ToolRegistration` | Resolve a definition and binding reference for planning. |
 | `IToolRuntime` | Execute one authorized invocation using an invocation context. |
-| `IToolBindingLease` | Perform live availability/revocation/generation checks for a binding. |
-| `IToolAuthorityEvaluator` | Evaluate a source-declared live authority reference when the source has independently revocable authority. It is optional only when the source service or lease owns all live validation. |
-| `IToolDispatcher` | Apply the common invocation pipeline and dispatch to the selected runtime. |
-| `ToolPlanningContext` | Immutable inputs used to assemble the next Turn snapshot, including trusted `ToolPlanningThreadKind`; its Turn identity is not an execution identity. |
-| `ToolInvocationContext` | Immutable live thread, Turn, call, audience, cancellation, approval, and authority inputs captured at the execution boundary. |
-| `ToolExecutionResult` | Normalized result and stable failure information. |
-| `ToolError` | Stable error code, English fallback, and optional structured parameters. |
-| `EffectiveToolSnapshot` | Immutable per-Turn registration set plus canonical, composite-provider, and flat-alias indexes/model definitions. |
-| `ToolPresentationDescriptor` | Trusted local `PresentationId` plus bounded renderer options. It contains no free-form renderer selector. |
-| `ProviderHostedCapabilityPlan` | Provider-adapter declarations that are not local `IToolRuntime` tools. |
+| `IToolBindingLease` | Live availability/revocation/generation checks for a binding. |
+| `IToolDispatcher` | The common invocation pipeline. |
+| `ToolPlanningContext` | Immutable inputs for the next Turn snapshot, including `ToolPlanningThreadKind`; its Turn identity is not an execution identity. |
+| `ToolInvocationContext` | Live thread, Turn, call, audience, cancellation, approval, and authority inputs captured at the execution boundary. |
+| `ToolExecutionResult` / `ToolError` | Normalized result; stable error code, English fallback, and optional structured parameters. |
+| `EffectiveToolSnapshot` | Per-Turn registration set plus canonical, composite-provider, and flat-alias indexes. |
+| `ToolPresentationDescriptor` | Trusted `PresentationId` plus bounded renderer options; no free-form renderer selector. |
 
-`ToolPlanningThreadKind` is a trusted Session-derived classification with values `UserTopLevel`, `SubAgentChild`, `Unattended`, `Internal`, and `Unknown`. It is derived once when constructing `ToolPlanningContext` from persisted thread origin/source/visibility/configuration. Sources MUST treat `Unknown` as ineligible for privileged entrypoint tools and MUST NOT replace this classification with source-local channel-name denylists.
+`ToolPlanningThreadKind` is a trusted Session-derived classification (`UserTopLevel`, `SubAgentChild`, `Unattended`, `Internal`, `Unknown`), derived once from persisted thread origin, source, visibility, and configuration. Sources treat `Unknown` as ineligible for privileged entrypoint tools and do not replace this classification with channel-name denylists.
 
-Modules contribute tools through `GetToolSources()` and the typed source, definition, binding, registration, and runtime contracts. Production modules MUST NOT use `IAgentToolProvider` or a source-local dispatcher.
+Modules contribute tools only through tool sources and the typed contracts above.
 
 ### 7.1 Compile-time C# tool declarations
 
-Every first-party tool whose model-visible contract is known at C# compile time MUST derive its name, description, input schema, and output schema from `DotCraft.Generators`. This applies both to ordinary generated `AIFunction` tools and to tools that retain a custom `IToolRuntime` or provider-specific wrapper. Generated declarations are immutable and may be consumed independently from the generated executable function.
+Every first-party tool whose model-visible contract is known at compile time derives its name, description, input schema, and output schema from the DotCraft source generator, including tools with a custom runtime or provider-specific wrapper. Declaration-only contracts use the typed declaration surface rather than JSON Schema strings or hand-built schema objects; conditional input relationships use an explicit discriminator plus runtime validation.
 
-Declaration-only contracts MUST use the typed declaration surface rather than embedding JSON Schema strings or constructing static schema objects by hand. Conditional input relationships SHOULD use an explicit discriminator plus runtime validation when they cannot be represented by the supported typed schema attributes. Production declarations MUST NOT embed raw JSON Schema fragments as an escape hatch.
+Generated parameter objects are closed by default, including nested DTOs; explicitly open JSON values remain open. CLR enum parameters are model-visible camelCase strings unless `JsonStringEnumMemberName` overrides a value; invocation deserializes with the same rules and rejects numeric enum values.
 
-Generated tool parameter objects are closed by default, including statically known nested DTOs; explicitly open JSON values such as `JsonObject` and `JsonNode` remain open. CLR enum parameters are model-visible strings whose default wire names are camelCase. `JsonStringEnumMemberName` is reserved for values that cannot be derived by that convention. Generated invocation wrappers deserialize enum inputs with the same naming rules and reject numeric enum values without changing result serialization.
-
-Schemas discovered or supplied at runtime are exempt from this rule. Exempt sources include MCP servers, plugins, channel adapters, App Bindings, runtime dynamic tools, and provider translation layers that preserve or transform a schema owned by another boundary.
+Schemas discovered or supplied at runtime are exempt: MCP servers, plugins, channel adapters, App Bindings, Runtime Dynamic tools, and provider translation layers.
 
 ### 7.2 Strongly typed tool implementations
 
-Native and .NET plugin authors SHOULD implement ordinary tools as methods marked with `[Tool]`
-or `[GeneratedTool]`, with typed business parameters and constructor-supplied services. An
-`AIFunctionToolSource` selects generated functions and supplies namespace, exposure and policy
-configuration; its shared adapter owns registration and JSON argument conversion. Custom
-`IToolRuntime` implementations and `[ToolDeclaration]` remain available for specialized adapters.
+Native and .NET plugin authors SHOULD implement ordinary tools as methods marked `[Tool]` or `[GeneratedTool]`, with typed business parameters and constructor-supplied services; a tool source supplies namespace, exposure, and policy, and the shared adapter owns registration and argument conversion. `[ToolDeclaration]` and custom runtimes remain available for specialized adapters. The generator also emits a per-type factory returning every executable tool on one instance.
 
-A tool's trusted presentation is part of its declaration, not a source decision. A method declares
-it with `[ToolPresentation(id, Operation = ...)]` and any further bounded options with
-`[ToolPresentationOption(key, value)]`; the generator validates the identifier and the 4,096-byte
-option budget and carries the descriptor on the generated declaration. Sources MUST NOT select
-presentation by tool name. Provenance still decides which renderers may honor it, so the same
-declaration on a plugin tool selects only plugin renderers.
+A tool's trusted presentation is part of its declaration: `[ToolPresentation(id, Operation = ...)]` plus bounded `[ToolPresentationOption(key, value)]` options, validated against a 4,096-byte option budget. Sources MUST NOT select presentation by tool name. Provenance still decides which renderers may honor it, so the same declaration on a plugin tool selects only plugin renderers. Core may add one option derived from an invocation when recording its item, only for a fact Core alone resolves: `memory`, which marks a file tool call targeting the Thread's memory store.
 
-Core may add an option derived from one invocation when recording its Item, and only for a fact
-that Core alone resolves. The one such option is `memory`, which marks a file tool call that
-targets the Thread's memory store; see [Memory](../features/memory.md#8-presentation).
+A method MAY request one required, by-value `ToolInvocationContext` parameter for live invocation identity. That parameter and `CancellationToken` are excluded from the model schema and JSON binding, and model arguments cannot override them. Each invocation receives its own context; a function that requires context fails before its business method runs when none is supplied. Task isolation remains the business service's responsibility.
 
-The generator also emits a per-type factory that returns every executable tool declared on one
-instance. A source uses it when it exposes the whole type and names individual factories only when
-it exposes a deliberate subset or gates a tool on its planning context.
+Methods returning `ToolExecutionResult` (directly or as a task) keep the result object; it has no generated output schema, and a null result is `tool_result_invalid`. Methods returning `AIContent` or a collection of it return model content, also without an output schema. Other return values keep their serialization. An explicit business result, including an uncertain external outcome, is never overwritten by the adapter, and returning an envelope cannot acquire host-private result authority.
 
-A method MAY request one required, non-nullable, by-value `ToolInvocationContext` parameter when it
-needs live invocation identity. The generator MUST exclude this parameter and `CancellationToken`
-from model schema and JSON binding. Model arguments MUST NOT override injected context.
+Exception conversion preserves the category, supplies a nonempty fallback, and keeps the original exception and call identity in host diagnostics. Cancellation remains cancellation. Native and remote results preserve failure content and structured data alongside the success flag.
 
-`AIFunctionToolRuntime` MUST carry its received context in a fresh `AIFunctionArguments.Context`
-for each invocation. Generated functions read that separate context through the host-owned base
-class, never from model arguments, mutable shared state or a planning identity. Invoking a function
-that requires context without supplying it fails before its business method runs. Independent and
-concurrent calls MUST receive their own thread, Turn, call, workspace and execution-location values.
-Task isolation remains the business service's responsibility using that live identity.
+### 7.3 File tools
 
-Methods declared to return `ToolExecutionResult`, `Task<ToolExecutionResult>` or
-`ValueTask<ToolExecutionResult>` retain the result object through generated marshalling. The
-runtime envelope has no generated output schema, and a null envelope is `tool_result_invalid`.
-Methods returning `AIContent` or a collection of it return model content, not structured data, and
-also have no generated output schema.
-Ordinary return values retain their existing serialization behavior. An explicit business result,
-including an uncertain external outcome, MUST NOT be overwritten by the adapter.
+File mutation success reflects the disk write. A later diff-reporting failure produces a warning without turning a completed write into a failure; the [file-change payload](session-core.md#toolresult) records the write outcome independently of the diff. An unknown write outcome invalidates the local aggregate diff; a rejected write leaves it intact.
 
-`WriteFile`, `EditFile`, `Exec`, `WriteStdin`, and `Transfer` return `ToolExecutionResult` directly.
-Success, errors, model text and structured content belong to that result.
-Ordinary-value and rich-content tools retain their own return contracts.
+`ReadFile`, `WriteFile`, and `EditFile` decode a file as UTF-8 unless a UTF-8, UTF-16, or UTF-32 byte-order mark selects that encoding. They return an error for bytes that are not valid text in that encoding and never rewrite such a file; `GrepFiles` still searches it.
 
-File mutation success reflects the disk write. Subsequent diff reporting failures produce warnings
-without changing a completed write into a failure; the [file-change payload](session-core.md#toolresult)
-records the write outcome independently of the available diff.
-An unknown write outcome invalidates the local aggregate diff; a rejected write leaves it intact.
+`GrepFiles` accepts a file or directory path; a file target reports its name and matching line numbers, directories recurse, and include patterns filter directory scans. No file is skipped for size. Path authorization, binary-file filtering, cancellation, the search timeout, and the match limit always apply. Missing targets are reported as missing paths.
 
-Exception conversion preserves the category, supplies a nonempty fallback, and retains the original
-exception and call identity in host diagnostics. Cancellation remains cancellation. Native and remote
-results preserve failure content and structured data alongside the normalized success flag.
+`EditFile` treats `oldText` and `newText` as already-decoded strings. It matches in stages: non-overlapping exact substrings, then whole-line sequences ignoring trailing whitespace, then leading and trailing whitespace, then common Unicode punctuation and space differences. A stage with no candidates advances; a stage with several candidates rejects the edit without writing. A unique match is replaced at its source range; normalization never becomes replacement content. `replaceAll` uses exact matches only. Line-ending and encoding policies apply; replacement text is not reformatted. A snippet ending in LF includes the trailing empty segment, which must match an empty or whitespace-only line or the file's final empty segment.
 
-`ReadFile`, `WriteFile`, and `EditFile` decode an existing file as UTF-8 unless a UTF-8, UTF-16, or
-UTF-32 byte-order mark selects that encoding. They return an error instead of decoding bytes that are
-not valid text in that encoding and never rewrite such a file; `GrepFiles` still searches it.
+### 7.4 Shell execution
 
-`GrepFiles` accepts a file or directory path. A file target searches only that file and reports its
-name and matching line numbers; directory targets recurse. Include patterns filter directory scans.
-Neither search backend skips files based on size. Both preserve path authorization, binary-file
-filtering, cancellation, the search timeout, and the match limit. The managed backend scans lines
-incrementally rather than loading the entire file. Missing targets are reported as missing paths.
+A returned command result is a successful tool invocation even when its exit code is nonzero; the exit code and `CommandExecution` status describe the command. Launch, authorization, infrastructure, timeout, and cancellation failures remain tool failures. Commands preserve their quoting; output is decoded as UTF-8 with replacement, never splitting characters at stream boundaries.
 
-`EditFile` treats `oldText` and `newText` as already JSON-decoded strings and does not reinterpret
-literal escape sequences. It first counts non-overlapping exact substring matches, then matches whole-line sequences ignoring
-trailing whitespace, leading and trailing whitespace, and finally common Unicode punctuation
-and space differences, in that order. A stage with no candidates advances to the next stage;
-a stage with multiple candidates rejects the edit without writing. A unique match is replaced
-at its recorded source range. Comparison normalization never becomes replacement content.
-`replaceAll` uses exact substring matches only. Existing line-ending and encoding policies still
-apply; editing does not automatically format or reindent replacement text.
-Whole-line matching includes the trailing empty segment when a snippet ends in LF, so that segment
-must match an empty or whitespace-only line (or the file's final empty segment).
+Background terminal output is retained in a 1 MiB buffer that keeps the beginning and end independently of the complete disk log. Truncated previews split the character budget between those excerpts and mark the omitted middle; truncated foreground results include the log path. Live output is limited to 8 KiB per delta, 10,000 deltas per terminal, and the configured live-byte budget; exhaustion stops notifications while logging and execution continue. Completion follows output drain and log flush, but once the process has exited, output that does not reach end of stream within 2 seconds is not awaited, so a descendant holding the pipes cannot keep the terminal open. An exited process releases its active entry even if metadata persistence fails, and its final snapshot is readable as soon as completion is notified.
 
-Result forwarding preserves source containment and audience normalization; a source cannot acquire
-host-private result authority by returning an envelope.
+The model reads a terminal through a per-terminal cursor. `Exec` returns the bounded preview of all output so far; `WriteStdin` returns only output after the cursor, bounded by `maxOutputChars` with the same head and tail excerpts, marking any gap the buffer no longer holds and naming the log. Both move the cursor to the end. Empty `WriteStdin` input waits for `yieldTimeMs` (30 seconds by default, capped by `Tools.Shell.Background.MaxYieldTimeMs`) and returns early on exit; it reads final output and exit code until retention expires. Nonempty input to an exited terminal fails. End-of-text (`\u0003`) is written like any other input and does not stop the process. The model stops a terminal with `TaskStop`, which stops its process tree. Client terminal reads and writes return the full bounded snapshot and do not move the model cursor.
 
-Generated declarations own reusable input/output serializer options with independent resolvers so
-schema and serialization metadata do not pin a retired plugin load context.
+`Exec` rejects a command whose first segment is only a delay of two seconds or more (`sleep N`, any seconds or milliseconds form of `Start-Sleep`, or `timeout /t N`) and directs the model to `runInBackground` and the completion notification. Shorter delays, delays inside a larger script, and `runInBackground` commands are allowed.
 
-### 7.3 Shell execution
+`Exec` and `WriteStdin` accept `waitFor`, a .NET regular expression matched against unread output as it arrives. A match ends the wait early: `Exec` returns the session ID of the still-running process, even for a foreground command, and `WriteStdin` returns the new output; the result names the matching line. Exit, the wait time, cancellation, and foreground hand-over still end the wait. A pattern that does not compile fails before a process starts or input is written. Each evaluation has a one-second timeout and sees only retained output.
 
-Background terminal output uses bounded process-read and live-notification queues. A 1 MiB UTF-8
-buffer retains the beginning and end independently of the complete disk log. Truncated previews
-split the requested character budget between those excerpts, mark the omitted middle, and preserve
-character boundaries. Foreground command results include the complete log path when truncated.
-Real-time output is limited to 8 KiB per delta, 10,000 deltas per terminal, and the configured
-live-byte budget. Exhaustion stops data
-notifications while logging and process execution continue. Both running and recovered previews
-remain bounded; completion follows output drain and log flush. Once the process has exited, output
-that does not reach end of stream within 2 seconds is not waited for, so a descendant that inherited
-the output pipes cannot hold the terminal open.
-
-The model reads a terminal through a cursor kept per terminal session. `Exec` returns the bounded
-preview of all output so far and moves the cursor to its end. `WriteStdin` waits, then returns
-only output after the cursor, bounded by `maxOutputChars` with the same head and tail excerpts,
-and moves the cursor to the end. When the retained buffer no longer holds the start of that
-output, the result marks the gap and names the complete log. Empty `WriteStdin` input waits for
-`yieldTimeMs` (30 seconds by default, capped by `Tools.Shell.Background.MaxYieldTimeMs`) and returns early when the process exits. It reads
-final output and exit code after completion or recovery, until retention expires. Nonempty input
-to an exited terminal fails. End-of-text (`\u0003`) is written like any other input; it does not
-stop the process. The model stops a terminal with `TaskStop` (see
-[Background Tasks](background-tasks.md) §4.1), which stops its process tree; a terminal that
-exits within the `TaskStop` wait produces no completion notification. Client terminal reads and writes
-keep returning the full bounded snapshot and do not move the model cursor.
-
-`Exec` rejects a command whose first segment is only a delay of two seconds or more: `sleep N`,
-`Start-Sleep N` in any of its seconds or milliseconds forms, or `timeout /t N`. The error
-directs the model to `runInBackground` and the completion notification. Delays under two seconds,
-delays inside a larger script, and `runInBackground` commands are not rejected.
-
-`Exec` and `WriteStdin` accept `waitFor`, a .NET regular expression matched against output the
-model has not yet read, as that output arrives. A match ends the wait early. `Exec` then returns
-the session ID of the still-running process, including for a foreground command, and
-`WriteStdin` returns the new output. The result names the matching line. Process exit, the wait
-time, caller cancellation, and foreground hand-over still end the wait. A pattern that does not
-compile fails the call before a process starts or input is written. Each evaluation has a
-one-second timeout, and matching sees only output still retained in the bounded buffer.
-
-A stall watchdog checks running terminals every 5 seconds. A terminal reports a stall when
-its output has not grown for `Tools.Shell.Background.StallWatchdogSeconds` (45 seconds, 0
-disables) and its last nonempty output line looks like an interactive prompt: a `(y/n)`,
-`[y/n]`, or `(yes/no)` choice, `Press Enter` or `Press any key`, `Continue?`, `Overwrite?`, or a
-question starting with "Do you", "Would you", "Shall I", "Are you sure", or "Ready to". Silence
-without such a line is checked again only after another full interval. A stall is reported once
-until the terminal produces more output. The report publishes `terminal/stalled` with the
-bounded snapshot. It ends a waiting `WriteStdin`, whose result says the process appears to be
-waiting for input. When no model call is waiting and the terminal is armed for a completion
-notification, it delivers a stall task notification (see [Background Tasks](background-tasks.md) §5).
-The stall notification leaves the terminal armed for its completion notification.
-
-An exited process releases its active entry even if metadata persistence fails. Its in-memory final
-snapshot remains readable; metadata failures are diagnosed without changing the known exit code.
-Completion notifications must allow observers to read that final snapshot immediately.
-Shell commands preserve their quoting. Output uses UTF-8 replacement decoding without encoding
-detection; stream boundaries must not split characters. Logs and events use UTF-8.
-
-A returned command result is a successful tool invocation even when its exit code is nonzero.
-The exit code and CommandExecution status describe the command outcome. Launch, authorization,
-execution infrastructure, timeout and cancellation failures remain tool failures.
+A stall watchdog checks running terminals every 5 seconds. A terminal stalls when its output has not grown for `Tools.Shell.Background.StallWatchdogSeconds` (45 seconds; 0 disables) and its last nonempty line looks like an interactive prompt: a `(y/n)`, `[y/n]`, or `(yes/no)` choice, `Press Enter`, `Press any key`, `Continue?`, `Overwrite?`, or a question starting with "Do you", "Would you", "Shall I", "Are you sure", or "Ready to". A stall is reported once until more output arrives: it publishes `terminal/stalled` with the bounded snapshot, ends a waiting `WriteStdin` with a result saying the process appears to wait for input, and, when no model call is waiting and the terminal is armed for completion notification, delivers a stall task notification. The terminal stays armed for its completion notification.
 
 ## 8. Snapshot and invalidation semantics
 
-Each Turn MUST execute against one immutable `EffectiveToolSnapshot`. Registration, schema, exposure, and presentation changes take effect on the next Turn. This preserves prompt-cache and invocation consistency.
+Each Turn executes against one immutable `EffectiveToolSnapshot`. Registration, schema, exposure, and presentation changes take effect on the next Turn, preserving prompt-cache and invocation consistency.
 
-The following changes invalidate the next snapshot:
+The following invalidate the next snapshot:
 
 - workspace, thread, plugin, or binding MCP configuration changes;
 - tool-source enablement changes;
@@ -454,31 +308,29 @@ The following changes invalidate the next snapshot:
 - external channel tool connection publication, disconnection, or replacement;
 - mode or profile changes that truly alter the runtime surface.
 
-Immediate safety checks are not frozen. Revocation, disconnect, expired authority, binding removal, and execution-policy invalidation MUST block dispatch immediately, including an invocation named in an older snapshot.
+Immediate safety checks are not frozen. Revocation, disconnect, expired authority, binding removal, and execution-policy invalidation block dispatch immediately, including for an invocation named in an older snapshot.
 
-Adapter-declared channel tools are connection-bound. Their `RuntimeBindingId`, descriptor set, lease, and executor must refer to the same initialized adapter connection. A lease check followed by invocation must not retarget the call to a newer connection. When the connection changes, the current Turn keeps its immutable snapshot but loses dispatch authority; the next Turn rebuilds against the new connection.
+Adapter-declared channel tools are connection-bound: binding id, descriptor set, lease, and executor refer to the same adapter connection, and a call is never retargeted to a newer connection. When the connection changes, the current Turn keeps its snapshot but loses dispatch authority; the next Turn rebuilds.
 
-Operational mode restrictions SHOULD keep stable tool schemas and enforce policy at execution time unless the mode represents a genuinely different role or runtime surface.
+Operational mode restrictions SHOULD keep stable tool schemas and enforce policy at execution time unless the mode is a genuinely different role or runtime surface.
 
 ## 9. Result and audience contract
 
-The normalized result has three audience-separated payloads:
-
 | Field | Audience | Rule |
 |---|---|---|
-| `content` | model and text fallback clients | Text/image content appropriate for model history. A successful model-visible call MUST produce non-empty model content. |
-| `structuredContent` | client/view only | Structured application data. It MUST NOT be automatically inserted into model context. |
-| `_meta` | host/view only | Private host or UI metadata. It MUST never enter model context. |
+| `content` | model and text fallback clients | Text/image content for model history. A successful model-visible call MUST produce non-empty model content. |
+| `structuredContent` | client/view only | Structured application data, never automatically inserted into model context. |
+| `_meta` | host/view only | Private host or UI metadata that never enters model context. |
 
-Failures MUST include a concise textual fallback plus stable `errorCode`; `errorMessage` is an English fallback and MAY be accompanied by structured parameters.
+Failures include a concise textual fallback plus stable `errorCode`; `errorMessage` is an English fallback and MAY carry structured parameters.
 
-`structuredContent` MUST NOT be silently serialized into model content. A source that returns structured data without useful model content violates the contract. Adapters MAY generate an explicit, bounded model summary when they know the semantic shape; ACP is required to do so for structured-only successful results.
+`structuredContent` is never silently serialized into model content; a source returning structured data without useful model content violates the contract. Adapters MAY generate an explicit, bounded model summary when they know the semantic shape; ACP does so for structured-only successful results.
 
-On the Dynamic wire, `contentItems` is the transport spelling for rich content and structured client data uses `structuredContent`. MCP results preserve standard `content`, `structuredContent`, and `_meta` semantics. Native/plugin results use the same normalized internal audiences.
+On the Dynamic wire, `contentItems` carries rich content and `structuredContent` carries client data. MCP results preserve standard `content`, `structuredContent`, and `_meta` semantics. Native and plugin results use the same audiences.
 
 ## 10. Session item projection
 
-The common runtime does not require a single Session item type. Each registration MUST declare exactly one projection shape; the common recorder MUST NOT infer that shape from a provider call name or result payload. Projection communicates source and transport semantics:
+Each registration declares exactly one projection shape; the recorder never infers it from a call name or result payload.
 
 | Invocation source | Target projection |
 |---|---|
@@ -488,65 +340,58 @@ The common runtime does not require a single Session item type. Each registratio
 | Core Native image generation | one `ImageGeneration` lifecycle item; no companion `ToolCall` or `ToolResult` |
 | Core Native subscription web search | one `WebSearch` lifecycle item; no companion `ToolCall` or `ToolResult` |
 
-Plugin invocations use the standard `ToolCall` and `ToolResult` items. Plugin provenance (`pluginId`, `functionId`, namespace) MUST remain available on that projection.
+Plugin provenance (`pluginId`, `functionId`, namespace) remains available on the standard projection.
 
-Items MUST record canonical `ToolName`, deterministic `ProviderFlatName`, definition identity, runtime-binding identity and revisions where applicable, snapshot revision, `SourceToolId` or source provenance where safe, trusted presentation, call identifier, arguments, status, duration, success, stable failure data, and audience-safe result fields. MCP items additionally record the exact runtime server name used for routing. Sensitive credentials and raw connection state MUST NOT be persisted.
+Items record canonical `ToolName`, `ProviderFlatName`, definition identity, runtime-binding identity and revisions where applicable, snapshot revision, safe source provenance, trusted presentation, call identifier, arguments, status, duration, success, stable failure data, and audience-safe result fields. MCP items also record the runtime server name used for routing. Credentials and raw connection state are never persisted.
 
-History reconstruction MUST use the persisted canonical tuple for namespace-capable protocols and the persisted flat alias for flat-only protocols. It MUST NOT consult the current tool inventory, parse a flat alias, or regenerate an alias from current normalization rules. This makes replay independent of reconnects, renamed plugin runtimes, source ordering, and later tool-set changes.
+History reconstruction uses the persisted canonical tuple for namespace-capable protocols and the persisted flat alias for flat-only protocols, never the current inventory, alias parsing, or regenerated aliases. Replay is therefore independent of reconnects, renamed plugin runtimes, source ordering, and later tool-set changes.
 
-Items of a call dispatched with an invocation origin persist that origin's kind, which is never projected to the wire. History reconstruction MUST skip items whose origin is `codeMode`, because the model saw only the enclosing `CodeMode` result; see [Code Mode](../features/code-mode.md).
+Items of a call dispatched with an invocation origin persist that origin's kind, which is never projected to the wire. History reconstruction skips items whose origin is `codeMode`, because the model saw only the enclosing call's result.
 
-Session projection MUST be atomic per Turn, call identifier, and projection shape. Streaming argument observation and dispatcher lifecycle recording MUST upsert the same call item rather than create competing items. A specialized lifecycle item transitions in place from started to exactly one terminal state. A standard projection creates or updates exactly one `ToolCall` and appends exactly one terminal `ToolResult`. Cancellation, timeout, rejection, and execution failure race through the same terminal guard; no path may publish a second terminal result or leave an accepted registered call permanently started.
+Projection is atomic per Turn, call identifier, and projection shape. Streaming argument observation and dispatcher recording upsert the same item. A specialized lifecycle item transitions in place from started to exactly one terminal state; a standard projection creates or updates exactly one `ToolCall` and appends exactly one terminal `ToolResult`. Cancellation, timeout, rejection, and failure race through the same terminal guard; no path publishes a second terminal result or leaves an accepted call permanently started.
 
 ## 11. Runtime Dynamic Tools
 
-Runtime Dynamic Tools are restricted to callbacks owned by the active AppServer client for a thread.
+Runtime Dynamic Tools are callbacks owned by the active AppServer client for a thread.
 
 ### 11.1 Declaration
 
 The wire declaration is a tagged union:
 
-- `Function`: `{ type: "function", name, description, inputSchema, deferLoading?, approval? }`; a top-level function is normalized to `ToolName(null, name)` and therefore has no namespace;
+- `Function`: `{ type: "function", name, description, inputSchema, deferLoading?, approval? }`; a top-level function is `ToolName(null, name)`;
 - `Namespace`: `{ type: "namespace", name, description, tools: Function[] }`; contained functions inherit that namespace.
 
-`approval` is the only DotCraft-specific declaration field. Generic exposure and output schema are not Dynamic wire fields: `deferLoading` maps to Direct/Deferred and other policy/exposure decisions remain server-owned. Namespacing is semantic, not a string-prefix convention. Namespace functions may be direct or deferred, but any function with `deferLoading: true` MUST be contained by a namespace. The normalized runtime identity is the composite `ToolName(namespace, name)`; for a top-level Function, `namespace` is exactly `null` and MUST NOT be replaced with a source-owned default. Runtime Dynamic registrations are runtime-managed operational capabilities and MUST remain available independently of Agent Profile tool allow/deny policy; mode policy, approval policy, connection leases, and Thread/Turn authority still apply.
+`approval` is the only DotCraft-specific field; `deferLoading` maps to Direct/Deferred and other exposure decisions stay server-owned. Any function with `deferLoading: true` MUST be inside a namespace. A top-level function's namespace is exactly `null`, never a source-owned default. Runtime Dynamic registrations are runtime-managed and stay available independently of Agent Profile tool allow/deny lists; mode policy, approval policy, connection leases, and Thread/Turn authority still apply.
 
 ### 11.2 Lifetime
 
 Declarations and callbacks are connection-owned. Resume requires explicit rebinding:
 
-- omitted declarations: keep the currently bound declaration set only when the request comes from that binding's current owning connection generation;
-- empty array: clear/unbind Runtime Dynamic Tools;
-- non-empty array: atomically replace the declaration set.
+- omitted declarations keep the bound set only when the request comes from the binding's current owning connection generation;
+- an empty array clears Runtime Dynamic Tools;
+- a non-empty array atomically replaces the set.
 
-A new or non-owning connection cannot take over by omitting declarations; it MUST submit a non-empty replacement and pass thread/connection authority. Whether a non-owner may clear with `[]` is likewise decided by thread authority, never by payload possession. Every binding has a connection-generation/lease identity. Failed replacement leaves the previous valid live binding unchanged.
+A new or non-owning connection cannot take over by omitting declarations; it submits a non-empty replacement and passes thread/connection authority. Whether a non-owner may clear with `[]` is decided by thread authority. Failed replacement leaves the previous binding unchanged.
 
-Live executors are never persisted. DotCraft MAY persist a non-sensitive last-known declaration summary for diagnostics. After disconnect the summary is not exposed as a live executor. Calls fail quickly with a stable disconnect category. Timeout and protocol failures use distinct stable error categories.
+Live executors are never persisted; a non-sensitive last-known declaration summary MAY be kept for diagnostics but is never a live executor. After disconnect, calls fail quickly with a stable disconnect category; timeout and protocol failures use distinct categories.
 
 ### 11.3 Dynamic content items
 
 The Dynamic `contentItems` wire supports exactly:
 
-- `{ "type": "text", "text": string }`, where text is non-empty after validation;
+- `{ "type": "text", "text": string }`, non-empty;
 - `{ "type": "image", "mediaType": string, "url": string }`;
 - `{ "type": "image", "mediaType": string, "dataBase64": string }`.
 
-An image item MUST provide exactly one of `url` or `dataBase64`; data URLs are not accepted in `url`. URLs, media types, decoded sizes, item counts, and total result size are validated against limits owned by the AppServer protocol. Unknown item types or invalid shapes make the callback result invalid rather than being inserted into model history. A successful model-visible Dynamic call MUST still include at least one useful text item; images are additive, not the only fallback.
+An image item provides exactly one of `url` or `dataBase64`; data URLs are not accepted in `url`. Sizes and counts are validated against limits owned by the AppServer protocol. Unknown or invalid items make the callback result invalid. A successful model-visible Dynamic call still includes at least one useful text item.
 
 ### 11.4 Result and lifecycle
 
-`DynamicToolCall` uses `inProgress`, `completed`, or `failed`. At start, `success` is absent/null; completion includes `durationMs`, audience-separated result fields, and stable errors. `itemId` and provider/model `callId` MUST remain separate.
-
-Runtime Dynamic metadata does not define iframe UI. Interactive UI uses MCP Apps.
+`DynamicToolCall` uses `inProgress`, `completed`, or `failed`. At start `success` is null; completion includes `durationMs`, audience-separated result fields, and stable errors. `itemId` and provider `callId` stay separate. Runtime Dynamic metadata does not define iframe UI; interactive UI uses MCP Apps.
 
 ## 12. MCP architecture
 
-MCP is the standard external tool and interactive app transport. DotCraft supports four independent MCP origins:
-
-1. workspace configuration, including enabled plugin-contributed servers;
-2. per-thread configuration;
-3. App Binding MCP sessions;
-4. future server-managed origins explicitly described by another spec.
+MCP is the standard external tool and interactive app transport. DotCraft supports three independent MCP origins: workspace configuration (including enabled plugin-contributed servers), per-thread configuration, and App Binding MCP sessions.
 
 ### 12.1 Thread configuration semantics
 
@@ -558,134 +403,111 @@ MCP is the standard external tool and interactive app transport. DotCraft suppor
 | `[]` | disable user-configured workspace/plugin MCP for this thread |
 | non-empty | replace workspace/plugin MCP with this thread list |
 
-Binding MCP is additive and independent. It is never removed or overridden by the three-state thread list.
+Binding MCP is additive and is never removed or overridden by the thread list.
 
-### 12.1.1 Policy boundary
+#### 12.1.1 Policy boundary
 
-MCP registrations are governed by the thread's MCP policy — server selection and namespaced tool selectors — and MUST NOT participate in the Agent Profile's ordinary tool allow/deny name lists. An MCP origin is chosen by workspace configuration, by the host that owns the thread, or by an App Binding, none of which the Profile author enumerates; a name list written without that origin in view would withhold its tools silently. Mode policy, approval policy, connection leases, and Thread/Turn authority still apply.
+MCP registrations are governed by the thread's MCP policy (server selection and namespaced tool selectors), not by the Agent Profile's tool allow/deny name lists: MCP origins are chosen by configuration, the thread's host, or an App Binding, which the Profile author does not enumerate, so a name list would withhold their tools silently. Mode policy, approval policy, connection leases, and Thread/Turn authority still apply.
 
-### 12.2 AppServer MCP surface
+### 12.2 Runtime and control surface
 
-DotCraft uses the following fixed method names for the MCP runtime/control surface:
+OAuth login and standard form and URL elicitation forwarding are generic MCP control-plane capabilities exposed through the AppServer protocol. Thread archive/disposal closes thread and binding MCP sessions. Status distinguishes workspace, thread, plugin, and binding origins, and a server that fails to start reports the server and the reason whatever its origin.
 
-- `mcpServerStatus/list`;
-- `mcpServer/resource/read`;
-- `mcpServer/tool/call`;
-- `mcpServer/oauth/login`;
-- `config/mcpServer/reload`;
-- `mcpServer/startupStatus/updated`;
-- `mcpServer/oauthLogin/completed`;
-- `mcpServer/elicitation/request`.
+Streamable HTTP is only an OAuth candidate transport and does not by itself imply that authentication is supported or required. Runtime status, not transport shape or error text, is the authority for OAuth UX: clients offer authentication only when the server reports `authStatus: "notLoggedIn"`, as reauthentication when `failureReason: "reauthenticationRequired"`. Unknown discovery results fail closed. A connected server with usable OAuth credentials reports `authStatus: "oAuth"`.
 
-The `mcp/*` methods remain DotCraft's workspace configuration-management surface and MUST NOT be reused as aliases for these runtime methods. OAuth plus standard form and URL elicitation forwarding are generic MCP control-plane capabilities. Desktop MUST provide a generic interaction for those flows. MCP Apps resource rendering and AppBridge follow the presentation contract in Section 13.
-
-Thread archive/disposal MUST close thread and binding MCP sessions. Configuration changes invalidate the next snapshot. Status output MUST distinguish workspace, thread, plugin, and binding origins. A server that fails to start MUST report the server and the reason, whatever origin it came from; a thread-origin server is not exempt because its lifetime is one Thread.
-
-Streamable HTTP is only an OAuth candidate transport; it MUST NOT by itself imply that authentication is supported or required. Runtime status, rather than transport shape or error-text matching, is the authority for OAuth UX. Desktop exposes an authentication action only when the effective server reports `authStatus: "notLoggedIn"`; `failureReason: "reauthenticationRequired"` changes that action to reauthentication. Unknown discovery results fail closed and do not expose an OAuth action. A connected server with usable OAuth credentials reports `authStatus: "oAuth"` but does not show a primary authentication action.
-
-MCP startup readiness depends on initialization and tool discovery. Optional resource and resource-template inventory MUST NOT cause an otherwise usable server to fail startup. Lightweight `toolsAndAuthOnly` status reads do not enumerate resources; full status reads may enumerate them independently and treat enumeration failure as an empty optional inventory.
+Startup readiness depends on initialization and tool discovery. Optional resource and resource-template inventory never fails an otherwise usable server; `toolsAndAuthOnly` status reads do not enumerate resources, and full reads treat enumeration failure as an empty inventory.
 
 ### 12.3 Approval
 
-MCP tool approval evaluates standard annotations such as read-only, destructive, and open-world behavior together with thread policy and DotCraft authority. Registration or App Binding approval does not bypass invocation approval. MCP App-initiated tool calls use the same policy.
+MCP tool approval evaluates standard annotations (read-only, destructive, open-world) together with thread policy and DotCraft authority. Registration or App Binding approval does not bypass invocation approval. MCP App-initiated calls use the same policy.
 
 ## 13. MCP Apps host
 
-DotCraft targets the stable MCP Apps extension `io.modelcontextprotocol/ui` dated 2026-01-26. Core uses validated wrappers over raw MCP metadata. Client package selection and View presentation behavior belong to the applicable client specification.
+DotCraft targets the stable MCP Apps extension `io.modelcontextprotocol/ui` dated 2026-01-26. Every DotCraft MCP session advertises support for `text/html;profile=mcp-app`; the capability belongs to the session lifecycle and does not change as clients connect or disconnect. View presentation behavior belongs to the client.
 
-Every DotCraft MCP session advertises support for `text/html;profile=mcp-app`. The MCP capability belongs to the session lifecycle and does not change when Desktop connects or disconnects.
+### 13.1 Supported capabilities
 
-### 13.1 Required first-version capabilities
+The host supports only capabilities it advertises:
 
-The host supports only capabilities it advertises. The first version includes:
-
-- inline and fullscreen display modes; picture-in-picture is excluded;
+- inline and fullscreen display modes (no picture-in-picture);
 - same-server tool and resource access;
 - logging and safe external-link requests;
 - `ui/message`;
 - `ui/update-model-context`.
 
-`ui/message` submits a new source-marked Turn. It is accepted only from a live, visible view and is rate-limited.
+`ui/message` submits a new source-marked Turn; it is accepted only from a live, visible view and is rate-limited.
 
-`ui/update-model-context` stores one last-write-wins value per live view. That value is injected once into the next user- or UI-message Turn and then consumed. It is not durable thread configuration and is not independently appended to history.
-
-An ordinary user Turn atomically consumes all pending contexts for its thread. An accepted `ui/message` consumes only the originating view's context. Context is injected as bounded, untrusted transient input and cannot alter authority, policy, or system instructions.
+`ui/update-model-context` stores one last-write-wins value per live view, injected once into the next user- or UI-message Turn and then consumed. It is not durable thread configuration and is not appended to history. An ordinary user Turn consumes all pending contexts for its thread; an accepted `ui/message` consumes only its view's context. Context is bounded, untrusted transient input and cannot alter authority, policy, or system instructions.
 
 ### 13.2 Visibility and authority
 
-An omitted MCP Apps visibility value means model-and-app visibility. App-only tools are hidden from the model. A view may call only tools from the same MCP server that are visible to the app, and every call passes normal authority and approval.
+An omitted visibility value means model-and-app visibility. App-only tools stay in the registry but are excluded from model projection. A view may call only same-server tools visible to the app, and every call passes normal authority and approval.
 
-Tool visibility controls invocation authority, not presentation eligibility. A terminal result may render its associated View when the persisted `ui://` association still matches the current tool definition and runtime even when the originating tool is not app-visible. Such a View may call only the same-server tools that independently grant app visibility; rendering the View does not make its originating tool app-callable.
+Visibility controls invocation authority, not presentation eligibility. A terminal result may render its View when the persisted `ui://` association still matches the current tool definition and runtime, even if the originating tool is not app-visible; rendering does not make that tool app-callable.
 
-Visibility is read only from nested `_meta.ui`. An empty array means neither audience. A declaration containing an unknown visibility value is invalid and exposes the tool to neither audience. App-only tools remain in the canonical registry but are excluded from model projection.
+Visibility is read only from nested `_meta.ui`. An empty array means neither audience; an unknown value invalidates the declaration and exposes the tool to neither audience.
 
-UI linkage uses `_meta.ui.resourceUri` as the canonical declaration. `_meta["ui/resourceUri"]` is accepted only when the nested field is absent. An invalid present nested declaration fails closed and MUST NOT be replaced by the alias. The resource URI MUST be absolute and use `ui://`. The response MUST match that URI, use `text/html;profile=mcp-app`, and contain exactly one text document or base64 blob.
+UI linkage uses `_meta.ui.resourceUri`; `_meta["ui/resourceUri"]` is accepted only when the nested field is absent, and an invalid nested declaration fails closed rather than falling back to the alias. The URI MUST be absolute `ui://`. The response MUST match that URI, use `text/html;profile=mcp-app`, and contain exactly one text document or base64 blob.
 
-Tool results preserve the audience contract: model `content`, view-only `structuredContent`, and host/view-only `_meta`.
+MCP App presentation has three lifetimes. The normalized `ui://` association and bounded result are persisted with the terminal `McpToolCall`. Availability is derived from the current definition, runtime, and authority whenever a client projects the item; AppServer may project non-persistent `mcpApp.available = true` as advisory evidence, never as reusable authority. The View document, bridge connection, resource body, and opaque `viewHandle` exist only for one active View and are never persisted.
 
-MCP App presentation has three distinct lifetimes. The normalized `ui://` resource association and the bounded tool result are persisted with the terminal `McpToolCall`. Availability is derived from the current tool definition, runtime, and authority whenever a client projects that item. AppServer may project non-persistent `mcpApp.available = true` as advisory current availability evidence; it is not reusable authority. The View document, bridge connection, resource body, and opaque `viewHandle` exist only for one active View and are never persisted.
+Core issues a new opaque `viewHandle` for every View, resolving to immutable server/session, authority revision, `SourceToolId`, and resource URI. The View sends only stable MCP Apps messages, allowed tool names/arguments, and the handle; it cannot select server, session, binding, source tool, or resource URI.
 
-Core/AppServer issues a new opaque `viewHandle` for every interactive View. The trusted host resolves it to immutable server/session, authority revision, `SourceToolId`, and resource URI. The View may send only stable MCP Apps messages, tool names/arguments allowed by its advertised capability, and the opaque handle through the host-controlled channel; it cannot select or override server id, session id, binding id, source tool id, or resource URI. Client hosts and Views never construct an MCP source name by prefixing a canonical `ToolName`.
+History reads and resume may advertise a new View only when the persisted association matches the current registration and authority; opening it fetches the current resource and binds a new handle to the current MCP generation, never restoring a previous View, handle, pending context, or permission. Offline, removed, changed, or revoked associations render the generic result. Rollback, archive, delete, generation replacement, binding revoke, plugin disable, configuration replacement, disconnect, and explicit close invalidate affected handles immediately.
 
-History reads and resume may advertise a new View only when the persisted association still matches the current MCP registration and current authority. Opening that item fetches the current resource and creates a new handle bound to the current MCP generation. It never restores a previous View, handle, pending context, or permission. Offline, removed, changed, or revoked associations render the generic result. Rollback, archive, delete, runtime generation replacement, binding revoke, plugin disable, configuration replacement, disconnect, and explicit close invalidate affected live handles immediately.
-
-App-initiated `tools/call` uses the common dispatcher with App audience and a server-generated call id. It does not create a Turn, Session tool item, or provider-history entry. `ui/message` is the only view action that submits or queues a source-marked Turn.
+App-initiated `tools/call` uses the common dispatcher with App audience and a server-generated call id; it creates no Turn, Session item, or provider-history entry.
 
 ### 13.3 Isolation
 
-A capable View host MUST isolate untrusted resources, enforce declared and host policy, and scope every bridge operation to one live handle. A View MUST NOT gain filesystem, shell, arbitrary network, cross-server tool, host-process, or unrelated client authority. Resource `domain` metadata does not choose a real origin. Safe links are limited to HTTPS, `mailto`, and explicit loopback HTTP.
+A View host isolates untrusted resources, enforces declared and host policy, and scopes every bridge operation to one live handle. A View gains no filesystem, shell, arbitrary network, cross-server tool, host-process, or unrelated client authority. Resource `domain` metadata does not choose a real origin. Safe links are limited to HTTPS, `mailto`, and explicit loopback HTTP.
 
 ## 14. Presentation boundary
 
-Presentation is optional and MUST preserve useful model/text fallback content. Local renderers and assistant visualizations are separate presentation paths; neither grants additional tool execution authority.
+Presentation is optional and preserves model/text fallback content. Local renderers and assistant visualizations are separate paths; neither grants tool execution authority.
 
 ### 14.1 Trusted local renderer registry
 
-A trusted local renderer registry is independent of MCP Apps. Core renderers and installed, enabled Desktop Plugins may register renderers selected by an exact ordinal `PresentationId`. Active Desktop Plugin entries are ordered by priority and stable plugin/contribution identity, followed by the optimized Core renderer and generic fallback. Renderer registrations are withdrawn when their owning generation ends. Renderer-specific bounded options are validated by the selected renderer.
+A trusted local renderer registry is independent of MCP Apps. Core renderers and installed, enabled client plugins register renderers selected by exact ordinal `PresentationId`. Active plugin entries are ordered by priority and stable plugin/contribution identity, followed by the Core renderer and generic fallback. Registrations are withdrawn when their owning generation ends, and bounded options are validated by the selected renderer.
 
-The projected `PresentationId` selects only an already active local renderer; tool names, arguments, results, MCP metadata, and other payload data cannot provide module paths or executable code. Unknown or unavailable presentation ids use the Core or generic fallback. Client rendering families, grouping, and interaction behavior belong to the applicable client specification.
+The projected `PresentationId` selects only an already active local renderer; tool names, arguments, results, MCP metadata, and other payload data cannot supply module paths or code. Unknown or unavailable ids use the Core or generic fallback. Rendering families, grouping, and interaction belong to the client.
 
 ### 14.2 Assistant visualization boundary
 
-Visualization is an assistant-message presentation path, not a tool-result payload. A completed `AgentMessage` may reference a View with a visualization content reference on its own line, in either of two forms:
+Visualization is an assistant-message presentation path, not a tool-result payload. A completed `AgentMessage` may reference a View with a visualization content reference on its own line, in either form:
 
 ```text
 visualize{"path":"<absolute-path>/example-name.html"}
-\uE200visualize\uE202{"path":"<absolute-path>/example-name.html"}\uE201
+visualize{"path":"<absolute-path>/example-name.html"}
 ```
 
-The second form wraps the same JSON object in the private-use delimiters U+E200, U+E202, and U+E201. The JSON object contains a required absolute `path`, an optional non-empty `title` of at most 200 characters, and an optional `mode` whose only value is `"wide"`. A line with any other key, a malformed object, or an invalid value is not a reference. The path's file name MUST match `^[a-z0-9]+(?:-[a-z0-9]+)*\.html$` and it MUST NOT contain `.` or `..` segments.
+The second form wraps the same JSON object in the private-use delimiters U+E200, U+E202, and U+E201. The object has a required absolute `path`, an optional non-empty `title` of at most 200 characters, and an optional `mode` whose only value is `"wide"`. Any other key, a malformed object, or an invalid value is not a reference. The file name MUST match `^[a-z0-9]+(?:-[a-z0-9]+)*\.html$` and the path MUST NOT contain `.` or `..` segments.
 
-The reference remains ordinary persisted assistant text. It introduces no Session Item, delta, payload kind, or provider-history type. Clients without the capability retain the reference as text.
+The reference remains ordinary persisted assistant text and introduces no Session item, delta, payload kind, or provider-history type; clients without the capability show it as text.
 
-Only a completed `AgentMessage` containing the reference outside fenced code may authorize a View. The referenced path MUST resolve, case-insensitively on Windows, to a file directly inside `<SessionThread.WorkspacePath>/.craft/visualizations/<threadId>/`. Authoring uses ordinary file tools in that directory; execution and worktree overrides do not change ownership. Implementations MUST NOT fall back to a user-global directory. Ordinary file-tool execution, history, trace, and result semantics remain unchanged.
+Only a completed `AgentMessage` containing the reference outside fenced code may authorize a View. The path MUST resolve, case-insensitively on Windows, to a file directly inside `<SessionThread.WorkspacePath>/.craft/visualizations/<threadId>/`, with no user-global fallback; execution and worktree overrides do not change ownership. Authoring uses ordinary file tools.
 
-The model may rewrite an existing visualization file and reference the same path again in a later message. Opening a View always reads the current file, so every message that references the path shows its latest version. These files are transient workspace resources with no archive, fork, migration, or cross-device guarantee. Permanently deleting a thread deletes its visualization directory on a best-effort basis without following reparse points.
+Opening a View always reads the current file, so a rewritten file shows its latest version in every message that references it. These files are transient workspace resources with no archive, fork, migration, or cross-device guarantee. Permanently deleting a thread deletes its visualization directory on a best-effort basis without following reparse points.
 
-The host issues a connection-owned opaque handle after revalidating the active connection/thread binding, completed source item, exact referenced path, workspace boundary, reparse-point safety, and current file. The handle binds its source thread, Turn, Item, and path; a View cannot choose or override those identities. View follow-up starts or queues a source-marked Turn and cannot forge user or channel identity.
+The host issues a connection-owned opaque handle after revalidating the connection/thread binding, completed source item, exact path, workspace boundary, reparse-point safety, and current file. The handle binds its source thread, Turn, Item, and path, which a View cannot override. View follow-up starts or queues a source-marked Turn and cannot forge user or channel identity.
 
-A View may save a widget state snapshot `{ modelContent, privateContent }`, each any JSON value or `null`. The thread owns one snapshot per visualization, keyed by its normalized path (case-insensitive on Windows) and stored with the thread's persisted metadata, so every View of that path in the thread, on any client and after a reload, opens with the latest snapshot. Each save replaces the snapshot; a snapshot whose fields are both `null` is removed. Snapshots are deleted with their thread and are not copied by fork.
+A View may save a widget state snapshot `{ modelContent, privateContent }`, each any JSON value or `null`. The thread owns one snapshot per visualization, keyed by normalized path (case-insensitive on Windows) and stored with the thread's metadata, so every View of that path, on any client and after reload, opens with the latest snapshot. Each save replaces it; a snapshot with both fields `null` is removed. Snapshots are deleted with their thread and not copied by fork.
 
-Saving never starts a turn. `modelContent` reaches the model as the `visualization_state` [world-state section](world-state.md): before a model request, each visualization whose `modelContent` differs from what the model was last shown, including its first save, is delivered keyed by path, and one whose `modelContent` became `null` or was removed is delivered once as cleared; unchanged state is not repeated. The section labels `modelContent` as untrusted data written by the visualization, not instructions. `privateContent` restores View presentation only and never reaches the model, its context, or a follow-up. A follow-up may carry explicit View context, which the host appends to the user's message as a visible JSON block.
+Saving never starts a Turn. `modelContent` reaches the model as the `visualization_state` [world-state section](world-state.md): before a model request, each visualization whose `modelContent` differs from what the model last saw is delivered keyed by path, and one that became `null` or was removed is delivered once as cleared. The section labels `modelContent` as untrusted data, not instructions. `privateContent` restores View presentation only and never reaches the model. A follow-up may carry explicit View context, appended to the user's message as a visible JSON block.
 
 ## 15. App Binding boundary
 
-An application binding supplies independently revocable authority for its tool registrations.
-Binding identity, approved capability revision, live executor health, and model exposure remain
-separate facts. Capability expansion requires accepted authority before dispatch; revocation blocks
-existing snapshots immediately. Offline definitions may remain visible as non-executable stubs.
+An application binding supplies independently revocable authority for its tool registrations. Binding identity, approved capability revision, live executor health, and model exposure are separate facts. Capability expansion requires accepted authority before dispatch; revocation blocks existing snapshots immediately. Offline definitions may remain visible as non-executable stubs.
 
-Binding-scoped connections and credentials remain isolated from shared MCP connections. Credentials
-never enter model content, tool arguments, persisted definitions, or client-private result metadata.
+Binding-scoped connections and credentials stay isolated from shared MCP connections. Credentials never enter model content, tool arguments, persisted definitions, or client-private result metadata.
 
-## 18. Protocol consistency
+## 16. Protocol consistency
 
-Core, Desktop, and the .NET and TypeScript SDKs use the same canonical tool identity, Runtime Dynamic declaration, MCP Apps, and App Binding contracts. Unsupported fields and method names are rejected rather than interpreted as alternate protocol shapes.
+Core, clients, and the SDKs use the same canonical tool identity, Runtime Dynamic declaration, MCP Apps, and App Binding contracts. Unsupported fields and method names are rejected rather than interpreted as alternate shapes.
 
-## 19. Security invariants
+## 17. Security invariants
 
 1. A definition, View, remote server, or invocation argument cannot grant authority.
-2. Revocation and expiry are enforced at dispatch time, not only snapshot construction.
+2. Revocation and expiry are enforced at dispatch time, not only at snapshot construction.
 3. Model content, structured client content, and host-private metadata never cross audience boundaries implicitly.
 4. Remote metadata cannot select trusted local code.
 5. Binding MCP cannot launch local executables supplied by an app.
@@ -693,20 +515,10 @@ Core, Desktop, and the .NET and TypeScript SDKs use the same canonical tool iden
 7. Persisted diagnostics contain no bearer, credential, live executor, or sensitive `_meta`.
 8. Interactive UI is optional; text/model fallback remains sufficient for correctness.
 
-## 20. Observability and diagnostics
+## 18. Observability and diagnostics
 
-Diagnostics SHOULD identify:
+Diagnostics SHOULD identify canonical `ToolName` and safe provenance, provider projection shape and `ProviderFlatName` when used, source kind and MCP origin, snapshot revision, exposure and authority decision reason, approval decision, call/item identifiers, duration, outcome, stable error code, and connection/binding capability revision without secrets.
 
-- canonical `ToolName` and safe source provenance;
-- provider projection shape and `ProviderFlatName` when a flat alias is used;
-- source kind and MCP origin;
-- snapshot revision;
-- exposure and authority decision reason;
-- approval decision;
-- call/item identifiers;
-- duration, outcome, and stable error code;
-- connection/binding capability revision without secrets.
+Status and audit views distinguish declaration availability, model exposure, live executor health, and authority.
 
-Status and audit views MUST distinguish declaration availability, model exposure, live executor health, and authority. These states are not interchangeable.
-
-A capability that policy keeps out of the model's tool list MUST be recorded with its model-visible name, namespace, usage source, and the refusal that hid it. Such a capability produces no call, no result, and no error, so this record is the only evidence that it was withheld rather than absent.
+A capability that policy keeps out of the model's tool list is recorded with its model-visible name, namespace, usage source, and the refusal that hid it, since it produces no call, result, or error that would otherwise show it was withheld.

@@ -2,14 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.3 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-10-10 |
+| Date | 2026-10-19 |
 | Parent | [Runtime module boundaries](runtime-module-boundaries.md) |
-| Related Specs | [Tool architecture](tools-architecture.md), [Remote screen view](../features/remote-screen-view.md) |
+| Related Specs | [Tool architecture](tools-architecture.md) |
 
-This specification owns image normalization and screenshot encoding behavior. It defines the
-shared image capability and the policies applied by its consumers.
+This specification owns image normalization and screenshot encoding behavior: the shared image
+capability and the policies applied by its consumers.
 
 ## Responsibility boundaries
 
@@ -19,8 +19,8 @@ third-party image library, system codec or external process dependency.
 
 Agents owns model input limits, output format selection and failure placeholders. Core owns
 screenshot size and quality selection and integrates tool images and image-generation references.
-Remote screen view owns frame limits, retries and capture availability. Assembly dependencies
-follow the parent specification.
+Screen-streaming consumers own frame limits, retries and capture availability. Assembly
+dependencies follow the parent specification.
 
 ## Model image flow
 
@@ -70,8 +70,7 @@ failure to write retained metadata makes encoding fail.
 2. Image processing preserves the captured orientation and color channels, reducing width only
    when necessary and retaining the aspect ratio.
 3. Encode JPEG with 4:2:0 chroma sampling and quality constrained to 1 through 100.
-4. Capture reports an encoding failure through its capture result. Remote screen view applies
-   its own frame-size retries and availability rules.
+4. Capture reports an encoding failure through its capture result.
 
 ## Resource and failure contract
 

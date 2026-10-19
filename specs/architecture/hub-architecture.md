@@ -2,29 +2,22 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.1 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-10-03 |
+| **Date** | 2026-10-19 |
 
-Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services without changing the AppServer Protocol or replacing DotCraft's per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts on other machines: it accepts their outbound connections and relays each session — a tool session to a local AppServer, or a screen view to a local client — as an opaque byte stream. Hub is likewise the gateway paired phones use to reach workspace AppServers, relaying each phone connection to a local AppServer without interpreting it.
+Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services, without changing the AppServer Protocol or the per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts and the gateway for paired phones; in both roles it relays connections as opaque byte streams.
 
 ## 1. Motivation
 
-DotCraft is intentionally workspace-centric:
+DotCraft is workspace-centric: one AppServer process owns one workspace runtime and its `.craft/` state, sessions, memory, skills, tools, MCP servers, channels, and configuration. Clients speak AppServer Protocol to that workspace-bound server. This ownership model must be preserved.
 
-- One AppServer process owns one workspace runtime.
-- The AppServer loads that workspace's `.craft/` state, sessions, memory, skills, tools, MCP servers, channels, and configuration.
-- Desktop, CLI, ACP, and future clients speak AppServer Protocol to a workspace-bound server.
+Multiple local clients can open the same workspace without knowing an AppServer already exists. If each starts its own stdio AppServer, duplicate processes compete for files, MCP side effects, background work, ports, and runtime state.
 
-This ownership model is a feature and must be preserved.
+Hub acts like a local container manager:
 
-The local coordination problem is that multiple clients can open the same workspace without knowing an AppServer already exists. If each client starts its own stdio AppServer, the workspace can end up with duplicate processes competing for files, MCP side effects, background work, dashboard ports, API ports, and runtime state.
-
-Hub solves that by acting like a local container manager:
-
-- Each workspace still has its own AppServer.
-- Hub does not host workspace runtimes.
-- Hub does not proxy the AppServer Protocol traffic of local clients. It does relay Remote Tool Host sessions between a local AppServer and a paired remote machine (§6.1), and the AppServer connections of paired phones (§6.2), as opaque byte bridges that never interpret the relayed traffic.
+- Each workspace still has its own AppServer; Hub does not host workspace runtimes.
+- Hub does not proxy local clients' AppServer Protocol traffic. It relays Remote Tool Host sessions (§6.1) and paired phones' AppServer connections (§6.2) as opaque byte bridges that never interpret the traffic.
 - Hub helps local clients find or create the correct AppServer and then gets out of the hot path.
 
 ## 2. Design Principles
@@ -32,11 +25,11 @@ Hub solves that by acting like a local container manager:
 1. **Preserve per-workspace AppServer ownership.** Hub must not become a multi-workspace runtime process.
 2. **Do not change AppServer Protocol for local coordination.** No workspace routing fields are added to AppServer methods.
 3. **Keep Hub off the conversation hot path.** After bootstrap, clients connect directly to the AppServer WebSocket endpoint.
-4. **Use stdio for supervision, WebSocket for sharing.** Hub uses stdio to supervise managed AppServers; local clients use WebSocket to share the same AppServer.
-5. **Keep Hub local and single-user.** The Hub Local API always binds to loopback on the machine where Hub runs and uses same-user trust assumptions. A client on another machine reaches it only through an SSH local forward authenticated as that same OS user (§9.1). Hub may additionally open separate, opt-in listeners on a LAN address: the satellite listener, which serves only Remote Tool Host pairing and transport routes, and the mobile gateway, which serves only phone pairing and relay routes. Each listener is a separate application with its own route table, and no `/v1/*` endpoint is ever reachable from either.
+4. **Use stdio for supervision, WebSocket for sharing.** Hub supervises managed AppServers over stdio; local clients share them over WebSocket.
+5. **Keep Hub local and single-user.** The Hub Local API binds to loopback with same-user trust. A client on another machine reaches it only through an SSH local forward authenticated as the same OS user (§9.1). Hub may open two separate, opt-in LAN listeners: the satellite listener (Remote Tool Host pairing and transport only) and the mobile gateway (phone pairing and relay only). Each has its own route table; no `/v1/*` endpoint is reachable from either.
 6. **Keep standalone AppServer valid.** `dotcraft app-server` remains available for explicit remote hosting, CI, bots, and debugging.
-7. **Keep UI ownership in Desktop.** Hub is headless; tray and OS notifications belong to Desktop/Electron.
-8. **Keep product services closed and explicit.** Hub may supervise product-owned local services registered by DotCraft composition, but it is not a native-process extension point for plugins.
+7. **Keep UI ownership in Desktop.** Hub is headless; tray and OS notifications belong to Desktop.
+8. **Keep product services closed and explicit.** Hub may supervise product-owned services registered by DotCraft composition; it is not a native-process extension point for plugins.
 
 ## 3. Architecture
 
@@ -52,68 +45,41 @@ dotcraft hub
 
 dotcraft app-server, one per workspace
   - cwd = workspace root
-  - owns WorkspaceRuntime and .craft state
+  - owns the workspace runtime and .craft state
   - exposes AppServer Protocol over WebSocket
   - holds workspace appserver.lock
 
-Desktop / CLI
+Local clients
   - locate or start Hub
   - ask Hub to ensure the workspace AppServer
   - connect directly to the returned AppServer WebSocket URL
 ```
 
-Hub state lives under `~/.craft/hub/`. Hub itself only loads global configuration and must not require the current directory to be a `.craft` workspace.
+Hub state lives under `~/.craft/hub/`. Hub loads only global configuration and does not require the current directory to be a workspace.
 
-Hub also defines the default Chat workspace path `~/.craft/workspaces/chats` as a reusable local bootstrap target. This path is still a normal workspace root; Hub does not add any chat-specific AppServer Protocol routing.
+The default Chat workspace `~/.craft/workspaces/chats` is an ordinary workspace root that clients bootstrap through Hub; it adds no routing mode.
 
 ## 4. Hub Process
 
-Hub is started by `dotcraft hub` and runs as a global, per-user background process.
-
-Core properties:
-
-- It is workspace-independent.
-- It uses a single-instance `hub.lock` discovery file.
-- It exposes a loopback HTTP JSON API.
-- It publishes a random bearer token in `hub.lock`.
-- It stores best-effort registry metadata under `~/.craft/hub/appservers.json`.
-- It reports `tray=false`; tray presence is a Desktop capability, not a Hub capability.
-
-Hub may be started explicitly by the user, or automatically by Desktop, CLI, or tray bootstrap.
+`dotcraft hub` runs as a global, per-user background process. It is workspace-independent, uses a single-instance `hub.lock` discovery file, exposes a loopback HTTP JSON API, publishes a random bearer token in `hub.lock`, stores best-effort registry metadata in `~/.craft/hub/appservers.json`, and reports `tray=false`. Hub may be started by the user or automatically by a client or the tray.
 
 ## 5. Managed AppServer
 
-A Hub-managed AppServer is still a normal `dotcraft app-server` process.
+A Hub-managed AppServer is a normal `dotcraft app-server` process launched with:
 
-Managed launch contract:
+- working directory = workspace root;
+- mode `StdioAndWebSocket`, WebSocket on loopback;
+- WebSocket port and token, and Dashboard ports when enabled, allocated by Hub;
+- runtime overrides injected ephemerally, never rewriting `.craft/config.json`;
+- the stdio supervisor connection kept open for readiness and graceful shutdown.
 
-- Working directory is the workspace root.
-- AppServer mode is `StdioAndWebSocket`.
-- WebSocket host is loopback.
-- WebSocket port and token are allocated by Hub.
-- Dashboard ports are allocated by Hub when the service is enabled and available.
-- Runtime overrides are injected ephemerally and must not rewrite `.craft/config.json`.
-- Hub keeps the stdio supervisor connection open for readiness and graceful shutdown.
-
-Readiness requires:
-
-- Process is alive.
-- Stdio `initialize` handshake succeeds.
-- WebSocket endpoint accepts an AppServer `initialize` probe.
-- Workspace `appserver.lock` is owned by the expected process.
+Readiness requires a live process, a successful stdio `initialize`, a WebSocket endpoint that accepts an `initialize` probe, and workspace `appserver.lock` owned by the expected process.
 
 ## 6. Hub Local API
 
-Hub Local API is separate from AppServer Protocol. It must not expose `thread/*`, `turn/*`, `approval/*`, `mcp/*`, `skills/*`, `workspace/config/*`, or normal AppServer extension methods.
+The Hub Local API is separate from AppServer Protocol and must not expose `thread/*`, `turn/*`, `approval/*`, `mcp/*`, `skills/*`, `workspace/config/*`, or AppServer extension methods.
 
-Transport:
-
-- HTTP JSON over loopback.
-- Discovery through `~/.craft/hub/hub.lock`.
-- Mutating and management calls require `Authorization: Bearer <token>`.
-- `GET /v1/status` is public for local discovery.
-
-Required endpoints:
+Transport: HTTP JSON over loopback, discovered through `~/.craft/hub/hub.lock`. Mutating and management calls require `Authorization: Bearer <token>`; `GET /v1/status` is public.
 
 | Endpoint | Purpose |
 |----------|---------|
@@ -145,9 +111,7 @@ Required endpoints:
 | `PUT /v1/mobile/relay` | Set the relay URL and token that let phones reach the gateway from other networks. |
 | `DELETE /v1/mobile/relay` | Remove the relay. |
 
-`GET /v1/status` reports `capabilities.satellites: true` when Hub serves the `/v1/satellites*` routes and the satellite listener, and `capabilities.mobile: true` when it serves the `/v1/mobile*` routes and the mobile gateway, so a client can tell a Hub without them from a failure. The mutating `/v1/mobile*` routes other than `PUT /v1/mobile/relay` ignore any request body; clients may send `{}`.
-
-The Hub Local API remains loopback-only; the satellite and mobile routes above are for local AppServers and local clients, not for the remote machine or the phone.
+`GET /v1/status` reports `capabilities.satellites: true` when Hub serves the `/v1/satellites*` routes and the satellite listener, and `capabilities.mobile: true` when it serves the `/v1/mobile*` routes and the mobile gateway, so a client can tell a Hub without them from a failure. The mutating `/v1/mobile*` routes other than `PUT /v1/mobile/relay` ignore any request body; clients may send `{}`. These routes serve local AppServers and local clients, never the remote machine or the phone.
 
 Errors use this shape:
 
@@ -161,19 +125,15 @@ Errors use this shape:
 }
 ```
 
-`GET /v1/projects` answers `{ "projects": [{ "path", "displayName", "addedAt", "lastOpenedAt", "running" }] }`,
-most recently opened first, where `displayName` is the folder name, `addedAt` is when the project
-entered the list and never changes on a later open, so a client can keep a stable order, and
-`running` reflects the live registry. `POST /v1/projects/open` answers the project object. Both mutating routes emit a
-`projects.changed` event with no payload; clients re-read the list.
+`GET /v1/projects` answers `{ "projects": [{ "path", "displayName", "addedAt", "lastOpenedAt", "running" }] }`, most recently opened first. `displayName` is the folder name; `addedAt` is set when the project enters the list and never changes, so clients can keep a stable order; `running` reflects the live registry. `POST /v1/projects/open` answers the project object. Both mutating routes emit a payload-free `projects.changed` event; clients re-read the list.
 
-Default Chat helpers do not add another Hub endpoint. They resolve and initialize `~/.craft/workspaces/chats`, then call `POST /v1/appservers/ensure` with that concrete `workspacePath`.
+The default Chat workspace uses `POST /v1/appservers/ensure` with its concrete `workspacePath`; it has no dedicated endpoint.
 
 Common error codes include `unauthorized`, `workspaceNotFound`, `workspaceLocked`, `appServerStartFailed`, `appServerUnhealthy`, `portUnavailable`, `invalidNotification`, `satelliteNotFound`, `satelliteOffline`, `inviteInvalid`, `sessionConflict`, `sessionKindUnsupported`, `satelliteScreenUnsupported`, `gatewayOff`, `deviceNotFound`, `projectNotFound`, `invalidRequest`, and `hubInternalError`.
 
 ### 6.1 Satellite listener
 
-The satellite listener is a second, opt-in HTTP application that Hub binds to a configurable LAN address and a fixed port (`Hub.SatelliteHost`, `Hub.SatellitePort`, default `47600`). It is disabled by default, starts when the first invitation is minted or when at least one pairing exists, and serves only these routes:
+The satellite listener is a second, opt-in HTTP application bound to a configurable LAN address and a fixed port (`Hub.SatelliteHost`, `Hub.SatellitePort`, default `47600`). It is off by default, starts when the first invitation is minted or when at least one pairing exists, and serves only:
 
 | Route | Purpose |
 |-------|---------|
@@ -182,107 +142,76 @@ The satellite listener is a second, opt-in HTTP application that Hub binds to a 
 | `GET /satellite/control` | WebSocket. Control channel from a Remote Tool Host, authenticated by a one-time invite id on first connection or by the peer credential afterwards. |
 | `GET /satellite/data?peer=...&session=...` | WebSocket. Data connection opened by a Remote Tool Host in answer to `openSession`, authenticated by the peer credential. |
 
-`GET /i/{inviteId}` is content-negotiated and never consumes the invitation, so a person, a client, and the CLI may all read it, repeatedly, before anyone decides:
+`GET /i/{inviteId}` is content-negotiated and never consumes the invitation, so a person, a client, and the CLI may read it repeatedly before anyone decides:
 
 | `Accept` | Representation |
 |----------|----------------|
 | `application/json` | `{ inviteId, inviterDisplayName, expiresAt, hubEndpoint }`, the details a client needs to ask the machine owner for consent. |
-| `text/html` | A page naming the inviter, offering the installer download and an **Open in Satellite** action for `dotcraft://satellite/join?invite=<url-encoded invite URL>`, which it retries while the page stays open. It carries no external asset reference. |
+| `text/html` | A self-contained page naming the inviter, offering the installer and an **Open in Satellite** action for `dotcraft://satellite/join?invite=<url-encoded invite URL>`, retried while the page stays open. |
 | anything else | The plain-text join command, for a terminal. |
 
-`GET /satellite/installer` serves the Satellite installer that ships beside the running DotCraft executable. When that file is absent, Hub answers `404` with a short message pointing at the published releases rather than fabricating a download. Both routes answer `no-store`.
+`GET /satellite/installer` serves the Satellite installer shipped beside the running DotCraft executable; when absent, Hub answers `404` pointing at the published releases. Both routes answer `no-store`.
 
-Hub relays every data connection to the matching `/v1/satellites/{peerId}/bridge` WebSocket frame for frame, preserving message type and fragment boundaries, whatever the session kind and with no size limit of its own. It never parses, rewrites, inspects, logs, or persists the relayed payload and never holds a Remote Tool Host lease. The port is fixed rather than allocated because invitation URLs and stored peer endpoints must survive a Hub restart; when the port is unavailable, minting an invitation fails with `portUnavailable` and Hub does not fall back to another port.
+Hub relays every data connection to the matching `/v1/satellites/{peerId}/bridge` WebSocket frame for frame, preserving message type and fragment boundaries, for every session kind and with no size limit of its own. It never parses, rewrites, inspects, logs, or persists the payload and never holds a Remote Tool Host lease. The port is fixed because invitation URLs and stored peer endpoints must survive a Hub restart; when it is unavailable, minting an invitation fails with `portUnavailable` and Hub does not fall back to another port.
 
 The control channel, its frames, heartbeats, reconnect behavior, and the pairing ceremony are specified by [Remote Tool Host](remote-tool-host.md) §8 and §9.
 
 ### 6.2 Mobile gateway
 
-The mobile gateway is a second, opt-in listener that paired phones use to reach workspace AppServers. It serves HTTPS with a self-signed certificate that phones pin, on `Hub.MobileHost` and the fixed port `Hub.MobilePort` (default `47610`), and only `/m/*` routes: pairing, a project list, project ensure, a relayed AppServer WebSocket per project, and a gateway event socket. It refuses sources outside loopback and the private, link-local, shared (100.64/10), and unique-local ranges before the TLS handshake. Turning it on or off is a Hub Local API call (§6), and the choice survives Hub restarts.
+The mobile gateway is a second, opt-in listener that paired phones use to reach workspace AppServers. It serves HTTPS with a self-signed certificate that phones pin, on `Hub.MobileHost` and the fixed port `Hub.MobilePort` (default `47610`), and only `/m/*` routes: pairing, a project list, project ensure, a relayed AppServer WebSocket per project, and a gateway event socket. It refuses sources outside loopback and the private, link-local, shared (100.64/10), and unique-local ranges before the TLS handshake. Turning it on or off is a Hub Local API call, and the choice survives Hub restarts.
 
-When a relay is configured and the gateway is on, Hub also keeps an outbound WebSocket control channel to the user's relay, reconnecting with jittered backoff from 1 to 30 seconds. For each tunnel the relay opens, Hub connects the relay's accept route and a loopback TCP connection to the gateway port and copies bytes both ways without interpreting them, so a relayed phone reaches the gateway from loopback, completes TLS with the pinned certificate, and authenticates as on the local network. The relay runs as `dotcraft relay serve` on a server both sides reach; it is not part of Hub.
+When a relay is configured and the gateway is on, Hub keeps an outbound WebSocket control channel to the user's relay, reconnecting with jittered backoff from 1 to 30 seconds. For each tunnel the relay opens, Hub connects the relay's accept route to a loopback TCP connection to the gateway port and copies bytes both ways without interpreting them, so a relayed phone reaches the gateway from loopback, completes TLS with the pinned certificate, and authenticates as on the local network. The relay runs as `dotcraft relay serve` on a server both sides reach; it is not part of Hub.
 
-Hub emits `mobile.stateChanged`, `mobile.devicePaired`, `mobile.deviceRevoked`, and `mobile.deviceSeen` on SSE. The routes, wire shapes, pairing ceremony, relay protocol, error codes, and event payloads are owned by [DotCraft Mobile](../clients/mobile.md) §5–§7 and §12.
+Hub emits `mobile.stateChanged`, `mobile.devicePaired`, `mobile.deviceRevoked`, and `mobile.deviceSeen` on SSE. The `/m/*` routes, pairing ceremony, relay protocol, and event payloads are owned by the mobile client contract, not by this spec.
 
 ## 7. Registry, Locks, and State
 
 ### Hub Lock
 
-`~/.craft/hub/hub.lock` is the discovery file for the live Hub process. It records:
+`~/.craft/hub/hub.lock` is the discovery file for the live Hub. It records Hub pid, API base URL, bearer token, start time, Hub version, and optionally the path of the DotCraft executable that started Hub.
 
-- Hub pid.
-- API base URL.
-- bearer token.
-- start time.
-- Hub version.
-- Optional binary path for the DotCraft executable that started the Hub.
+Hub keeps `hub.lock` open for its lifetime; the file is both the cross-process mutex and the discovery metadata. Other processes may read it but cannot acquire or replace it while the handle is held. A leftover file with no live handle is stale and may be recovered.
 
-The Hub keeps `hub.lock` open for its lifetime. The same file is both the cross-process mutex and the discovery metadata: other processes may read it, but cannot acquire or replace it while the owner holds the file handle. A leftover file with no live handle is stale and may be recovered before a new Hub publishes replacement metadata.
-
-Clients must verify both process liveness and `/v1/status` before trusting the metadata. Local development clients may also compare the optional binary path against the expected development build and restart Hub when it points at another executable.
+Clients verify both process liveness and `/v1/status` before trusting the metadata. Development clients may compare the binary path against their expected build and restart Hub when it differs.
 
 ### Hub Registry
 
-`~/.craft/hub/appservers.json` stores best-effort known AppServer metadata:
+`~/.craft/hub/appservers.json` stores best-effort metadata for running AppServers — workspace and canonical path, display name, state, pid, endpoints and service status, server version, last started/seen — so a restarted Hub can find them again. An entry leaves the file when its AppServer exits; exit diagnostics and recent stderr are kept in memory for the Hub's lifetime only. The registry is never a list of past workspaces.
 
-- workspace path and canonical path.
-- display name.
-- state.
-- pid.
-- endpoints and service status.
-- server version.
-- last started/seen metadata.
-
-The registry describes AppServers that are running, so a restarted Hub can find them again. An entry
-leaves the file when its AppServer exits; exit diagnostics and recent stderr are kept in memory for
-the life of the Hub process only. The registry is never a list of past workspaces.
-
-The registry is not the source of truth for workspace ownership. The live OS process and workspace lock are authoritative.
-
-If Hub restarts and sees an old live workspace lock, it may display or return that AppServer as external/known, but it must not silently take over a process handle it did not start.
+The registry is not the source of truth for workspace ownership; the live OS process and workspace lock are. A restarted Hub that sees a live workspace lock may report that AppServer as external, but must not take over a process handle it did not start.
 
 ### Projects
 
-`~/.craft/hub/projects.json` is the computer's one list of projects: local workspaces a user opened
-in a client and has not removed, each with its path, the time it was added, and its last-opened time. Every local client shows
-and offers this list, and nothing else: Desktop's Projects, and the phone's projects. A client adds a
-project with `POST /v1/projects/open` when the user opens a workspace, and removes it with
-`POST /v1/projects/remove`. Starting an AppServer never adds a project, so automation, CLI runs,
-and tests leave the list alone. The default Chat workspace is not a project; clients show it on their
-own. Projects on other machines belong to the client that connects to them.
+`~/.craft/hub/projects.json` is the computer's one list of projects: local workspaces a user opened in a client and has not removed, each with its path, added time, and last-opened time. Every local client shows this list and nothing else as its projects. A client adds a project with `POST /v1/projects/open` when the user opens a workspace and removes it with `POST /v1/projects/remove`. Starting an AppServer never adds a project, so automation, CLI runs, and tests leave the list alone. The default Chat workspace is not a project. Projects on other machines belong to the client that connects to them.
 
 ### Satellite Registry
 
 `~/.craft/hub/satellites.json` stores paired Remote Tool Hosts and pending invitations:
 
-- peer id, display name, and the hash of the peer credential.
-- machine name, operating system, user, and build version reported by the peer.
-- last reported workspaces and last-seen time.
+- peer id, display name, and the hash of the peer credential;
+- machine name, operating system, user, and build version reported by the peer;
+- last reported workspaces and last-seen time;
 - pending invitations as the hash of the invite id, its label, and its expiry.
 
-Raw peer credentials and raw invite ids are never written to disk. Online state and open sessions are in-memory and Hub-lifetime scoped.
+Raw peer credentials and invite ids are never written to disk. Online state and open sessions are in memory for the Hub's lifetime.
 
 ### Mobile Registry
 
 `~/.craft/hub/mobile.json` stores the mobile gateway state:
 
-- whether the gateway is on, so Hub turns it back on at start.
-- paired phones: device id, display name, platform, OS version, app version, paired and last-seen times, and the hash of the device credential.
-- the current pairing code as its hash, its pairing id, and its expiry.
-- the computer id, 128 random bits created when the gateway first turns on, that names this computer to phones and on a relay.
-- the relay URL and relay token, when a relay is configured.
+- whether the gateway is on, so Hub turns it back on at start;
+- paired phones: device id, display name, platform, OS version, app version, paired and last-seen times, and the hash of the device credential;
+- the current pairing code as its hash, its pairing id, and its expiry;
+- the computer id, 128 random bits created when the gateway first turns on, that names this computer to phones and on a relay;
+- the relay URL and relay token, when configured.
 
-`~/.craft/hub/mobile-certificate.pfx` holds the gateway certificate and its private key, readable only by the user where the operating system allows. Raw device credentials and pairing codes are never written to disk. The relay token is stored as given because Hub presents it to the relay, so `mobile.json` is created readable only by the user on Unix-like systems. Connection and relay state are in-memory and Hub-lifetime scoped.
+`~/.craft/hub/mobile-certificate.pfx` holds the gateway certificate and private key, readable only by the user where the OS allows. Raw device credentials and pairing codes are never written to disk. The relay token is stored as given because Hub presents it to the relay, so `mobile.json` is created user-readable only on Unix-like systems. Connection and relay state are in memory for the Hub's lifetime.
 
 ### Workspace Lock
 
-Every AppServer, managed or direct, participates in `<workspace>/.craft/appserver.lock`.
+Every AppServer, managed or direct, holds `<workspace>/.craft/appserver.lock` open for its lifetime. The file is both the cross-process mutex and the owner metadata: pid, workspace path, managed-by-Hub flag, Hub URL, version, start time, and published endpoints. It is recoverable only when no process holds its handle; empty, partial, or stale metadata does not permit takeover while the handle is held.
 
-The AppServer keeps `appserver.lock` open for its lifetime. The same file is both the cross-process mutex and the owner metadata, including pid, workspace path, managed-by-Hub flag, Hub URL, version, start time, and published endpoints. Other processes may read the metadata, but cannot acquire or replace the file while the owner holds it.
-
-An existing lock file is recoverable only when no process holds its file handle. Empty, partially written, or stale metadata does not permit takeover while the handle remains held.
-
-When Hub encounters a live lock owned by a process it does not supervise, it should probe the published `appServerWebSocket` endpoint. If the endpoint accepts an AppServer initialize handshake, `ensure` may return that endpoint as an external running AppServer without taking ownership of the process. If the endpoint is missing or unhealthy, Hub must keep the workspace protected and return `workspaceLocked`.
+When Hub finds a live lock owned by a process it does not supervise, it probes the published `appServerWebSocket` endpoint. If it accepts an AppServer `initialize`, `ensure` may return it as an external running AppServer without taking ownership. Otherwise Hub keeps the workspace protected and returns `workspaceLocked`.
 
 ## 8. Lifecycle and Health
 
@@ -294,64 +223,58 @@ running -> stopping -> stopped
 unhealthy/exited -> starting, when ensure or restart is requested
 ```
 
-Hub start flow:
+Ensure flow:
 
 1. Canonicalize and validate the workspace.
 2. Reuse a healthy managed entry if one exists.
-3. Recover confirmed stale workspace locks, reuse a healthy external AppServer published by a live workspace lock, or refuse startup when a live lock cannot be safely reused.
+3. Recover confirmed stale workspace locks, reuse a healthy external AppServer published by a live lock, or refuse when a live lock cannot be safely reused.
 4. Allocate local endpoints.
 5. Start `dotcraft app-server`.
 6. Complete stdio and WebSocket readiness checks.
 7. Persist registry metadata.
 8. Return the AppServer WebSocket endpoint.
 
-Health checks are lightweight and only apply to processes supervised by the current Hub instance:
+Health checks apply only to processes supervised by the current Hub: process liveness, workspace lock ownership, and a short WebSocket `initialize` probe. On failure Hub marks the entry `unhealthy`, records diagnostics, and emits `appserver.unhealthy`. Hub never restarts automatically; restart is explicit or triggered by a later `ensure`.
 
-- process liveness.
-- workspace lock ownership.
-- short WebSocket `initialize` probe.
+Closing a local client does not stop a healthy managed AppServer or cancel started turns. Client connections and subscriptions are connection-scoped; turn execution is AppServer-scoped and continues until completion, failure, cancellation, Hub shutdown, or explicit stop/restart.
 
-If health fails, Hub marks the entry `unhealthy`, records diagnostics, and emits `appserver.unhealthy`. Hub does not automatically restart unhealthy or exited AppServers; restart is explicit or triggered by a later `ensure`.
+`POST /v1/appservers/ensure` is non-destructive for a healthy running AppServer. If a client reconnects with sidecar settings that differ from the running process, Hub returns the existing endpoint and reports services needing recreation as `serviceStatus.<service>.state = "restartRequired"` with a reason. Only explicit restart, stop, Hub shutdown, or ensure of an unhealthy/exited entry may stop a managed AppServer.
 
-Closing Desktop or another local client does not stop a healthy Hub-managed AppServer and must not cancel already-started persisted turns. The client WebSocket connection and passive subscriptions are connection-scoped; active turn execution remains AppServer-scoped and continues in the background until completion, failure, cancellation, Hub shutdown, or explicit AppServer stop/restart.
-
-`POST /v1/appservers/ensure` is a non-destructive reconnect/bootstrap operation for a healthy running AppServer. If a local client reconnects with sidecar settings that differ from the running process, Hub must return the existing AppServer endpoint instead of stopping or replacing the process. Services that require AppServer recreation to apply the new settings should be reported with `serviceStatus.<service>.state = "restartRequired"` and a diagnostic reason. Only explicit `POST /v1/appservers/restart`, `POST /v1/appservers/stop`, Hub shutdown, or a later ensure of an unhealthy/exited entry may stop a managed AppServer.
-
-Hub shutdown stops AppServers it manages, releases local state, and removes its `hub.lock`.
+Hub shutdown stops AppServers it manages, releases local state, and removes `hub.lock`.
 
 ### Product-owned local services
 
-Hub may also supervise a fixed, composition-registered set of user-level product services. This is a deliberately thin process-lifecycle facility, not plugin discovery or a general process launcher. A client selects only a registered `serviceId` and may provide the resolved executable path; arguments, environment shape, state root, health path, and readiness contract are owned by DotCraft composition.
+Hub may supervise a fixed, composition-registered set of user-level product services. This is a thin process-lifecycle facility, not plugin discovery or a general process launcher. A client selects only a registered `serviceId` and may provide the resolved executable path; arguments, environment, state root, health path, and readiness are owned by DotCraft composition.
 
-Service entries are in-memory and scoped to the current Hub lifetime. Concurrent ensure calls for the same service coalesce. Hub allocates a loopback endpoint and ephemeral bearer, starts the process with the standard `DOTCRAFT_MANAGED_SERVICE_*` environment, waits for a standard JSON ready record, and confirms `/health`. It detects process exit and supports explicit ensure, status, stop, and restart. Hub shutdown terminates services it started. It does not persist service credentials, automatically restart failed services, proxy service traffic, expose service discovery to plugins, or generalize AppServer management through this facility.
+Service entries are in memory for the Hub's lifetime. Concurrent ensures for one service coalesce. Hub allocates a loopback endpoint and ephemeral bearer, starts the process with the standard `DOTCRAFT_MANAGED_SERVICE_*` environment, waits for a standard JSON ready record, and confirms `/health`. It detects exit and supports ensure, status, stop, and restart; shutdown terminates services it started. It does not persist service credentials, restart failed services automatically, proxy service traffic, or expose service discovery to plugins.
 
 ### Satellite peers
 
-Hub accepts one outbound control connection per paired Remote Tool Host, tracks its online state from heartbeats, brokers data sessions of either kind on demand, and emits `satellite.joined`, `satellite.online`, `satellite.offline`, and `satellite.revoked` lifecycle events on SSE. The first `satellite.joined` event carries `{ peerId, inviteId }`, where `inviteId` names the one-time invitation consumed by that pairing; later presence events carry only `peerId`. Hub does not start, stop, supervise, or update the remote process; the remote machine owns its lifecycle. Hub shutdown closes all satellite connections; peers reconnect on their own when Hub returns.
+Hub accepts one outbound control connection per paired Remote Tool Host, tracks online state from heartbeats, brokers data sessions of either kind on demand, and emits `satellite.joined`, `satellite.online`, `satellite.offline`, and `satellite.revoked` on SSE. The first `satellite.joined` carries `{ peerId, inviteId }`, naming the consumed invitation; later presence events carry only `peerId`. Hub does not start, stop, supervise, or update the remote process. Hub shutdown closes all satellite connections; peers reconnect when Hub returns.
 
 ## 9. Client Bootstrap and UX
 
-Local clients should default to Hub-managed local mode:
+Local clients default to Hub-managed local mode:
 
 1. Determine the target workspace.
 2. Locate a live Hub through `hub.lock`.
-3. Start Hub if no live Hub exists and auto-start is enabled.
+3. Start Hub if none is live and auto-start is enabled.
 4. Call `POST /v1/appservers/ensure`.
 5. Connect to the returned AppServer WebSocket URL.
-6. Perform normal AppServer Protocol handshake.
-7. Continue without Hub in the normal conversation path.
+6. Perform the normal AppServer Protocol handshake.
+7. Continue without Hub in the conversation path.
 
-Desktop and CLI expose local mode as Hub-managed local execution. Explicit remote WebSocket mode remains available and bypasses Hub.
+Explicit remote WebSocket mode remains available and bypasses Hub.
 
 ### 9.1 Remote Hub over SSH
 
-Desktop may use the Hub of another machine it reaches over SSH, as specified in [Remote Machines over SSH](../features/remote-server-management.md). That Hub is an ordinary Hub run by the remote user: it binds loopback on its own machine, is single-user, and is unchanged by being used remotely.
+A client may use the Hub of another machine it reaches over SSH. That Hub is an ordinary Hub run by the remote user: it binds loopback on its own machine, is single-user, and is unchanged by being used remotely.
 
 - The client starts the remote Hub over SSH detached from the session; a second start while a Hub holds `hub.lock` exits without effect.
 - The client reads the remote `hub.lock` over SSH, opens an SSH local forward to the port in `apiBaseUrl`, and trusts the metadata only after `GET /v1/status` answers through the forward.
 - `POST /v1/appservers/ensure` takes the remote absolute workspace path. The client forwards the port of the returned `appServerWebSocket` endpoint and connects to it; it follows `appserver.running` and `port.allocated` events, or ensures again, when that port changes.
 
-The remote client mode differs from local bootstrap:
+Remote client mode differs from local bootstrap:
 
 - It never reads a local lock, checks a process id, or starts a local Hub.
 - It never stops or restarts a remote Hub because its binary differs from the client's; the remote Hub is stopped only by an explicit user update of DotCraft on that machine.
@@ -359,110 +282,78 @@ The remote client mode differs from local bootstrap:
 - It never mints satellite invitations, so the remote satellite listener stays off.
 - Disconnecting closes forwards only; the remote Hub and its AppServers keep running.
 
-Local mode does not require users to configure AppServer or Dashboard ports. Hub owns those runtime allocations for managed processes.
+Local mode does not require users to configure AppServer or Dashboard ports.
 
-When a Desktop window closes during a running turn, notification delivery to that window is best-effort and may stop immediately. Reopening the workspace should reuse the same managed AppServer and recover the thread state through normal AppServer Protocol reads or subscriptions.
+When a client window closes during a running turn, notification delivery to it may stop immediately. Reopening the workspace reuses the same managed AppServer and recovers thread state through normal AppServer Protocol reads or subscriptions.
 
-Clients should present failures as local runtime availability problems, such as:
-
-- Hub could not start.
-- Workspace is locked by another live process.
-- Managed AppServer failed during startup.
-- AppServer endpoint did not become ready.
-- Managed AppServer became unhealthy or exited.
+Clients present failures as local runtime availability problems: Hub could not start, the workspace is locked by another live process, the AppServer failed during startup or did not become ready, or it became unhealthy or exited.
 
 ## 10. Tray and Notifications
 
-Hub remains headless. Desktop owns the tray process.
+Hub remains headless and never displays OS UI. Desktop owns the tray process, which:
 
-Tray responsibilities:
-
-- Run as an independent Desktop background process.
-- Enforce one tray process per user.
-- Start or discover Hub.
-- Show Hub and known workspace status without exposing AppServer terminology in user-facing tray labels.
-- Open recent or running workspaces.
-- Restart or stop Hub-managed AppServers through Hub Protocol.
-- Treat tray Exit as exiting DotCraft Desktop: first ask every registered Desktop window on the
-  current machine to quit through its authenticated local control endpoint, then stop Hub and
-  Hub-managed AppServers, and finally exit the tray process. This applies equally to Local,
-  Remote, disconnected, and workspace-free windows. A failed or stale window registration must
-  not block Hub shutdown.
-- Display OS notifications for Hub `notification.requested` events.
+- runs as an independent Desktop background process, one per user;
+- starts or discovers Hub;
+- shows Hub and workspace status without AppServer terminology in user-facing labels;
+- opens recent or running workspaces, and restarts or stops managed AppServers through Hub;
+- treats tray Exit as exiting DotCraft Desktop: it asks every registered Desktop window on the machine to quit through its authenticated local control endpoint, then stops Hub and its AppServers, then exits. This applies to every window regardless of connection state; a failed or stale window registration must not block Hub shutdown;
+- displays OS notifications for Hub `notification.requested` events.
 
 Notification flow:
 
 1. A client or managed AppServer calls `POST /v1/notifications/request`.
-2. Hub validates the request and emits `notification.requested` on SSE.
-3. Desktop tray receives the event and displays the OS notification with the DotCraft app icon.
-4. Clicking the notification opens the related action URL. Desktop workspace links may activate an existing workspace window before starting a new one.
+2. Hub validates it and emits `notification.requested` on SSE.
+3. The tray displays the OS notification with the DotCraft app icon.
+4. Clicking opens the related action URL; workspace links may activate an existing window.
 
-A managed AppServer requests four kinds of turn notification. Each names the chat by its display name:
+A managed AppServer requests four kinds of turn notification, each naming the chat by its display name (never its internal id):
 
-| Kind | Raised when | Title / body | Desktop setting |
-|------|-------------|--------------|-----------------|
-| `turnCompleted` | A turn completes | "DotCraft task completed" / the chat finished | Task completion: `never`, `always`, or `whenUnfocused` |
-| `turnFailed` | A turn fails | "DotCraft task failed" / the chat failed | Task completion |
-| `approvalRequested` | A turn starts waiting on an approval | The chat name / "Needs your approval" | Approval requests: on or off, shown only when unfocused |
-| `inputRequested` | A turn starts waiting on a question | The chat name / "Has a question for you" | Questions: on or off, shown only when unfocused |
+| Kind | Raised when | Desktop setting |
+|------|-------------|-----------------|
+| `turnCompleted` | A turn completes | Task completion: `never`, `always`, or `whenUnfocused` |
+| `turnFailed` | A turn fails | Task completion |
+| `approvalRequested` | A turn starts waiting on an approval | Approval requests: on (default) or off, shown only when unfocused |
+| `inputRequested` | A turn starts waiting on a question | Questions: on (default) or off, shown only when unfocused |
 
-`never` and off suppress the OS notification and `always` displays it. `whenUnfocused`, and the approval and question kinds while they are on, display it only when no focused Desktop window has the related workspace as its foreground workspace. Because tray runs in a separate process, it checks a Desktop workspace activation endpoint using a read-only window-state query; if the window state cannot be queried, the notification is treated as unfocused and remains visible. The approval and question settings are on by default.
+`never` and off suppress the notification; `always` displays it. `whenUnfocused`, and the approval and question kinds while on, display it only when no focused Desktop window has the related workspace in the foreground. The tray queries a read-only Desktop window-state endpoint; if the state cannot be queried, the notification is treated as unfocused.
 
-`approvalRequested` and `inputRequested` are raised once per request, when the AppServer starts waiting on it. Resolving a request raises nothing, whichever client answers it, and clients that receive or replay a pending request, such as a Desktop window or a phone, do not display an OS notification of their own while this path can deliver it. One request therefore produces at most one notification however many clients watch the thread.
+`approvalRequested` and `inputRequested` are raised once per request, when the AppServer starts waiting. Resolving a request raises nothing. Clients that receive or replay a pending request do not raise their own OS notification while this path can deliver it, so one request produces at most one notification however many clients watch the thread.
 
-Desktop may connect one window to multiple Hub-managed local AppServers at once. These secondary connections are client connections only: Hub continues to own one AppServer runtime per workspace, and Desktop must not start stopped recent workspaces merely to populate the multi-workspace UI.
+Turn notifications are for user-visible work: they are suppressed for internal-only helper threads (such as threads with `dotcraft.internal` metadata or internal suggestion origins) and SubAgent threads. Only threads originating from `dotcraft-desktop` may attach a `dotcraft://workspace/open` action; other origins set `openDesktopOnClick=false`.
 
-Turn-related OS notifications are for user-visible work. AppServer-managed turn notifications of every kind must suppress internal-only helper threads, such as threads marked with `dotcraft.internal` metadata or known internal origins used for welcome suggestions and commit-message suggestions, and SubAgent threads. User-visible copy should use the thread display name instead of the internal thread ID.
-
-For AppServer-managed turn notifications, Desktop-opening actions are allowed only when the thread originated from `dotcraft-desktop`. Other origins may still request a notification, but they must not attach a `dotcraft://workspace/open` action and should set `openDesktopOnClick=false`.
-
-Hub itself never displays OS UI.
+A client may connect to multiple managed AppServers at once. These are client connections only; Hub still owns one runtime per workspace, and clients must not start stopped workspaces merely to populate a multi-workspace UI.
 
 ## 11. Port and Endpoint Management
 
-Managed endpoints bind to loopback by default.
+Managed endpoints bind to loopback. Hub allocates ports for the AppServer WebSocket and, when enabled, the Dashboard.
 
-Hub allocates ports for:
-
-- AppServer WebSocket.
-- Dashboard when enabled.
-
-The satellite listener and the mobile gateway are the only endpoints that bind a non-loopback address. Each uses a fixed configured port instead of an allocated one: the satellite listener `Hub.SatellitePort` (default `47600`), because invitation URLs and the endpoints stored by paired Remote Tool Hosts must survive a Hub restart, and the mobile gateway `Hub.MobilePort` (default `47610`), because paired phones store it. Neither falls back to another port when its own is taken. The mobile relay binds nothing on the computer: Hub dials out to the relay and reaches the gateway over loopback.
+The satellite listener and the mobile gateway are the only endpoints that bind a non-loopback address. Each uses a fixed configured port that paired peers store — `Hub.SatellitePort` (default `47600`) and `Hub.MobilePort` (default `47610`) — and neither falls back to another port when its own is taken. The mobile relay binds nothing on the computer: Hub dials out and reaches the gateway over loopback.
 
 If optional modules are disabled or unavailable, Hub reports service status as `disabled` or `unavailable` and still starts the AppServer.
 
-Desktop and other local clients, never a remote client (§9.1), may pass local runtime tool hints, such as a resolved bundled `rg` path, Electron-as-Node path, Electron run-as-Node flag, bundled TypeScript modules directory, and bundled built-in plugin roots, in `POST /v1/appservers/ensure` or restart requests. Hub persists these hints under `~/.craft/hub/runtime.json` and forwards them only as AppServer process environment variables: `DOTCRAFT_RG_PATH`, `DOTCRAFT_NODE_BIN`, `DOTCRAFT_NODE_RUN_AS_NODE`, `DOTCRAFT_MODULES_DIR`, and `DOTCRAFT_BUILTIN_PLUGIN_ROOTS`. Hub must not expose secrets in runtime-tool status payloads; `serviceStatus.typescriptRuntime` may report `allocated`, `unavailable`, or `restartRequired`.
+Local clients, never a remote client (§9.1), may pass runtime tool hints — bundled `rg` path, Node binary path, run-as-Node flag, bundled TypeScript modules directory, and built-in plugin roots — in ensure or restart requests. Hub persists them in `~/.craft/hub/runtime.json` and forwards them only as AppServer environment variables: `DOTCRAFT_RG_PATH`, `DOTCRAFT_NODE_BIN`, `DOTCRAFT_NODE_RUN_AS_NODE`, `DOTCRAFT_MODULES_DIR`, and `DOTCRAFT_BUILTIN_PLUGIN_ROOTS`. Runtime-tool status never exposes secrets; `serviceStatus.typescriptRuntime` may be `allocated`, `unavailable`, or `restartRequired`.
 
-Hub must not silently rewrite unrelated user-configured ports for native channels, webhook modules, or future integrations unless a service explicitly participates in Hub-managed runtime overrides.
+Hub does not rewrite user-configured ports for channels, webhook modules, or other integrations unless a service explicitly participates in Hub-managed runtime overrides.
 
 ## 12. Security Model
 
 Hub is a same-user local coordinator, not a security boundary against malicious processes running as the same OS user.
 
-Security constraints:
-
-- Hub API binds to loopback.
-- Managed AppServer endpoints bind to loopback.
-- Hub API uses bearer token authorization for protected endpoints.
-- Managed AppServer WebSocket endpoints use per-process tokens when available.
-- The satellite listener may bind a non-loopback address. It is disabled by default, serves no `/v1/*` route, and authenticates every connection with a one-time invite id or a per-peer bearer credential of which Hub stores only the hash. Profile v1 uses plain `ws://` and assumes a trusted intranet; invitations are single-use and expire. Screen frames relayed for a peer inherit this profile.
-- The mobile gateway may bind a non-loopback address. It is disabled by default, serves no `/v1/*` route, refuses sources outside loopback and private ranges before TLS, and serves TLS with a self-signed certificate that phones pin by fingerprint. Every route but pairing requires a per-device bearer credential of which Hub stores only the hash; pairing codes are single-use, expire after 10 minutes, and are never stored raw. A paired phone holds the authority of the Hub's OS user, and Hub authenticates the relayed AppServer connection itself, so the phone never receives a Hub or AppServer token.
-- The mobile relay connection is outbound only and authenticates with a relay token the user chooses. The relay sees TLS ciphertext between the phone and the gateway and never a device credential, project, or chat; a relay or token holder can drop or refuse tunnels but cannot impersonate the gateway, because phones pin its certificate.
+- The Hub API and managed AppServer endpoints bind to loopback. The Hub API requires its bearer token on protected endpoints; managed AppServer WebSockets use per-process tokens when available.
+- The satellite listener may bind a non-loopback address. It is off by default, serves no `/v1/*` route, and authenticates every connection with a one-time invite id or a per-peer bearer credential stored only as a hash. It uses plain `ws://` and assumes a trusted intranet; invitations are single-use and expire. Relayed screen frames inherit this profile.
+- The mobile gateway may bind a non-loopback address. It is off by default, serves no `/v1/*` route, refuses sources outside loopback and private ranges before TLS, and serves TLS with a self-signed certificate that phones pin by fingerprint. Every route but pairing requires a per-device bearer credential stored only as a hash; pairing codes are single-use, expire after 10 minutes, and are never stored raw. A paired phone holds the authority of the Hub's OS user; Hub authenticates the relayed AppServer connection itself, so the phone never receives a Hub or AppServer token.
+- The mobile relay connection is outbound only and authenticates with a user-chosen relay token. The relay sees only TLS ciphertext between phone and gateway; a relay or token holder can drop or refuse tunnels but cannot impersonate the gateway, because phones pin its certificate.
 - A client on another machine reaches Hub only through an SSH local forward authenticated as the Hub's OS user (§9.1); the Hub token travels over that SSH session and is held only in the client's memory.
-- Multi-user Hub scenarios, and remote access other than satellite pairing, the mobile gateway and its relay, and SSH forwarding, require a separate security design.
+- Multi-user Hub scenarios, and remote access other than satellite pairing, the mobile gateway and relay, and SSH forwarding, require a separate security design.
 
 ## 13. Compatibility
 
-AppServer Protocol is unchanged. Clients still use existing AppServer methods after connecting to the workspace AppServer.
+AppServer Protocol is unchanged; clients use existing methods after connecting to the workspace AppServer. The default Chat workspace is a product alias for a concrete workspace path, not a routing mode or thread type.
 
-The default Chat workspace is compatible with this rule: it is a product alias for a concrete workspace path, not a new routing mode or thread type.
-
-Existing AppServer modes remain valid:
-
-| Mode | Status |
+| AppServer mode | Status |
 |------|--------|
 | `stdio` | Supported for direct subprocess clients and debugging. |
 | `websocket` | Supported for explicit remote/local hosting. |
 | `stdio + websocket` | Required for Hub-managed AppServers. |
 
-ACP itself remains an AppServer client bridge: it translates editor ACP stdio traffic to the existing AppServer wire protocol. It does not require AppServer Protocol changes. If local ACP mode starts its own workspace AppServer subprocess, only that bootstrap path may later choose to use Hub to avoid duplicate local AppServer ownership.
+ACP is an AppServer client bridge that translates editor ACP stdio traffic to the AppServer wire protocol and requires no protocol changes.

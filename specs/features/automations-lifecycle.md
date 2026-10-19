@@ -2,172 +2,157 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.10 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-10-18 |
+| Date | 2026-10-19 |
+| Parent Specs | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 Automations is the single workspace capability for scheduled agent work. The optional
-DotCraft.Automations module owns storage, scheduling, execution, presets and delivery.
-Hosts supply their existing ISessionService. Core and Runtime do not depend on the module.
+Automations module owns storage, scheduling, execution, presets and delivery, running work
+through the host's existing session service. Core and Runtime do not depend on the module;
+a disabled module exposes neither commands nor tools.
 
 ## Contracts
 
-JSON uses camelCase. AutomationDefinition has id, version (positive integer), name,
-prompt, status (active/paused/completed), executionMode (thread/independent), nullable
-targetThreadId, workspaceMode (project/worktree), optional agentProfileId,
-approvalPolicy (workspaceScope/fullAuto), schedule, notificationPolicy (important/all/failures),
-optional origin, createdAt, updatedAt and nullable nextRunAt (UTC ISO timestamps).
+An automation definition has a server-owned id, positive version, origin and timestamps, and
+editable name, prompt, status, execution mode, optional target thread, workspace mode, optional
+agent profile, approval policy, schedule and notification policy. Enumerations:
+
+| Field | Values |
+|---|---|
+| status | active, paused, completed |
+| executionMode | thread, independent |
+| workspaceMode | project, worktree |
+| approvalPolicy | workspaceScope, fullAuto |
+| notificationPolicy | important, all, failures |
+
 Runs auto-approve their tool calls. Under workspaceScope, file and shell tools are refused
 outside the run's workspace; under fullAuto, access outside it is auto-approved.
-Origin preserves channel, userId, groupId and deliveryTarget independently of execution.
-An origin with a channel and a deliveryTarget is a channel origin. An origin captured from a chat
-may also describe that chat's kind (chatKind) and label (chatLabel); without a kind, the run's chat
-is an unspecified chat. The host captures origin; models cannot impersonate a creator
-or change the chat a run speaks to.
 
-Completed is a server-owned terminal state for a one-shot definition after its attempt.
-Create and update inputs accept active or paused only. A completed definition is read-only;
-it may be run manually or deleted, but it cannot be edited, paused or resumed.
+Origin preserves channel, userId, groupId and deliveryTarget independently of execution. An
+origin with a channel and a deliveryTarget is a channel origin. An origin captured from a chat may
+also carry that chat's kind and label; without a kind, the run's chat is unspecified. The host
+captures origin; models cannot impersonate a creator or change the chat a run speaks to.
 
-AutomationRun has id, automationId, definitionVersion, status
-(queued/running/succeeded/failed/cancelled/interrupted), createdAt, nullable startedAt,
-completedAt, scheduledAt (null for manual runs), threadId, turnId, summary, error and worktree, plus deliveryStatus
-(pending/sent/skipped/failed) and nullable deliveryError. Worktrees belong to runs.
+Completed is a server-owned terminal state for a one-shot definition after its attempt. Create
+and update accept only active or paused. A completed definition is read-only: it may be run
+manually or deleted, but not edited, paused or resumed.
 
-Store definitions atomically at .craft/automations/<id>/automation.json and
-runs/<runId>.json. Only this namespace is loaded; other `.craft` data remains untouched.
-The prompt is the only execution content.
+A run records its definition version, status (queued, running, succeeded, failed, cancelled,
+interrupted), timestamps including scheduledAt (null for manual runs), thread and turn, summary,
+error, worktree, and delivery status (pending, sent, skipped, failed) with delivery error.
+Worktrees belong to runs.
 
-| Method | Parameters | Result |
-|---|---|---|
-| automation/list | {} | { automations } |
-| automation/read | { automationId } | { automation } |
-| automation/create | { automation } (editable fields) | { automation } |
-| automation/update | { automationId, expectedVersion, automation } | { automation } |
-| automation/delete | { automationId } | { ok } |
-| automation/run | { automationId } | { run } |
-| automation/runs/list | { automationId } | { runs } |
-| automation/runs/read | { automationId, runIds, read } | { runs } |
-| automation/presets/list | { locale? } | { presets } |
+Definitions are stored atomically at `.craft/automations/<id>/automation.json` with runs at
+`runs/<runId>.json`; nothing else under `.craft` is touched. The prompt is the only execution
+content.
 
-All require the automations capability. Update checks expectedVersion and rejects
-stale writes with `automation.versionConflict` (-32056). Missing definitions return
-`automation.notFound` (-32051); unavailable lifecycle operations use -32052 with a
-stable `automation.*` code. Invalid definitions use -32602 with a specific validation
-code. Error data contains the stable code/messageKey and an English fallback. Server-owned id, version, origin and timestamps are not editable.
-automation/updated sends { automationId, automation?, removed };
-automation/run/updated sends { run }. Reconnection reloads a snapshot.
+| Method | Purpose |
+|---|---|
+| automation/list | List definitions. |
+| automation/read | Read one definition. |
+| automation/create | Create from editable fields. |
+| automation/update | Update with `expectedVersion`. |
+| automation/delete | Delete a definition. |
+| automation/run | Queue a manual run. |
+| automation/runs/list | List a definition's runs. |
+| automation/runs/read | Set or clear read receipts for a batch of runs. |
+| automation/presets/list | List localized presets. |
 
-Run `readAt` is nullable and persisted separately from execution state. Missing receipts
-mean unread. A receipt refers to the observed completion timestamp, so completion
-produces unread results without execution writes overwriting later reading actions.
-The read operation validates the complete batch (1–200 distinct run IDs) before
-writing and publishes the affected runs through `automation/run/updated`.
+All require the automations capability. Stale updates fail with `automation.versionConflict`
+(-32056); missing definitions with `automation.notFound` (-32051); unavailable lifecycle
+operations with -32052 and a stable `automation.*` code; invalid definitions with -32602 and a
+specific validation code. Error data carries the stable code/messageKey and an English fallback.
+`automation/updated` reports a changed or removed definition; `automation/run/updated` reports a
+run. Reconnection reloads a snapshot.
 
-Previous runs derive archived state from their associated chat, retain archived
-rows, and restore the chat through `thread/unarchive`. Archiving uses `thread/archive`,
-including its effect on other runs in that chat; it never changes the automation's
-schedule. Running chats cannot be archived. Reading succeeds only after the target
-turn is displayed. Bulk archive deduplicates chat IDs and reports partial failures.
-Task-list and detail pause/resume share a pending state and preserve unsaved drafts.
-The task-list subtitle owns schedule and relative next-run timing. Active tasks show
-the schedule followed by the next-run countdown; paused and completed tasks show
-their lifecycle label without a countdown. Details do not repeat next-run timing.
+Run `readAt` is persisted separately from execution state; a missing receipt means unread. A
+receipt refers to the observed completion timestamp, so execution writes never overwrite later
+reads. A read validates the whole batch (1–200 distinct run IDs) before writing and publishes the
+affected runs.
 
-The Automation tool calls the same service for list/read/create/update/pause/resume/
-delete/run, returning { operation, automation?, run? }. Its generated function schema
-uses the same JSON representation as AppServer: `schedule.at` is an ISO 8601
-`string` with `date-time` format, never an object shaped from CLR date properties.
-The model-visible action, lifecycle, execution, workspace, approval, notification and
-schedule-kind fields are closed enums. Text and numeric bounds are expressed in the
-schema as well as enforced by the service.
-`notificationPolicy` belongs to the nested editable automation definition and applies only to
-definitions without a channel origin. At the
-model-tool boundary, blank optional identifiers are treated as omitted, omitted modes
-use their declared defaults, and thread mode without a target binds
-the trusted thread from the tool planning snapshot. AppServer validation remains strict.
-Trusted core.automation presentation selects client cards. Queue acceptance is not run success.
-The deterministic /automate list|show|pause|resume|run|remove command is registered
-by the module as ICommandHandler. Its registration supplies a stable description key
-and module-owned English fallback for command discovery and dynamic channel menus.
-Runtime registers DI handlers using the Core contract.
-Disabled modules expose neither commands nor tools.
+Previous runs derive archived state from their chat. Archiving and restoring use
+`thread/archive` and `thread/unarchive`, affecting every run in that chat and never the schedule.
+Running chats cannot be archived. Bulk archive deduplicates chats and reports partial failures.
+
+The `Automation` model tool calls the same service for list, read, create, update, pause, resume,
+delete and run, returning `{ operation, automation?, run? }`. Its schema uses the AppServer JSON
+representation (`schedule.at` is an ISO 8601 date-time string), closed enums for every mode and
+kind, and the same text and numeric bounds the service enforces. At the tool boundary, blank
+optional identifiers are omitted, omitted modes use defaults, and thread mode without a target
+binds the trusted thread from the tool planning snapshot; AppServer validation remains strict.
+`notificationPolicy` applies only to definitions without a channel origin. The `core.automation`
+presentation selects client cards. Queue acceptance is not run success.
+
+The module registers the deterministic `/automate list|show|pause|resume|run|remove` command with
+a stable description key and English fallback for command discovery and channel menus.
 
 ## Schedule and execution
 
-AutomationSchedule has kind (at/every/daily/weekdays/weekly), nullable at (UTC ISO),
-everyMs, hour, minute, timeZone, days (ISO Monday=1 through Sunday=7).
-Wall-clock schedules require a valid explicit time zone. Desktop creation resolves the
-current system IANA time zone, falling back to UTC, and persists it without exposing a
-routine time-zone field. Editing preserves the stored zone. Weekly means calendar dates,
-not 168 hours. Interval schedules advance from planned times, not completion times.
-DST gaps advance to the next valid local instant; repeated local times fire once.
+A schedule has kind (at, every, daily, weekdays, weekly), `at` (UTC ISO), `everyMs`, `hour`,
+`minute`, `timeZone`, and `days` (ISO Monday=1 through Sunday=7). Wall-clock schedules require a
+valid explicit time zone; Desktop creation persists the system IANA zone (UTC fallback) and
+editing preserves the stored zone. Weekly means calendar dates, not 168 hours. Intervals advance
+from planned times, not completion times. DST gaps advance to the next valid local instant;
+repeated local times fire once.
 
-A definition runs serially. Missed triggers coalesce into at most one run, including
-restart recovery. A durable run claim records scheduledAt so recovery advances an
-occurrence even if the host stopped before saving the definition nextRunAt. Busy target conversations wait without interrupting user work.
-Pause prevents subsequent dispatch and does not cancel active work. Edits apply to
-later runs; current runs use a definition snapshot. Manual run preserves paused state
-and periodic nextRunAt. Running definitions cannot be deleted. One-shot definitions
-complete after the attempt and retain history. Failures are not automatically replayed;
-periodic jobs continue at the next occurrence. Interrupted runs are recorded on restart.
+A definition runs serially. Missed triggers coalesce into at most one run, including after
+restart. A durable run claim records scheduledAt so recovery advances the occurrence even if the
+host stopped before saving nextRunAt. Busy target conversations wait without interrupting user
+work. Pause prevents later dispatch without cancelling active work. Edits apply to later runs;
+current runs use a definition snapshot. A manual run preserves paused state and periodic
+nextRunAt. Running definitions cannot be deleted. One-shot definitions complete after the attempt
+and keep history. Failures are never replayed; periodic jobs continue at the next occurrence.
+Interrupted runs are recorded on restart.
 
-Follow-ups default to thread mode and continue the specified conversation. Independent
-runs create a new conversation each time and name the automation as their memory scope,
-so successive runs share one long-term memory that the agent maintains, rather
-than a reported field. They capture memory extraction as disabled. Thread mode carries continuity in the target conversation and
-names no scope. Independent run conversations record the automation id as their channel context.
-A channel-origin run conversation is bound to the origin chat
-([Channel Messaging](channel-messaging.md) §4.1); a thread-mode run uses the target conversation's
-own chat binding. An independent channel-origin run sends to other chats only under fullAuto;
-under workspaceScope such sends are refused. Record exact turn ids. Git workspaces default to a fresh worktree per
-run; non-Git use project mode. Reported summaries have a hard size limit.
-Explicit worktree provisioning failure is an error, never a silent fallback. Missing or
+Thread mode (the default for follow-ups) continues the target conversation, which carries
+continuity. Independent runs create a new conversation each time, record the automation id as
+their channel context, and name the automation as their memory scope so successive runs share one
+agent-maintained long-term memory; memory extraction is disabled for them. A channel-origin run
+conversation is bound to the origin chat; a thread-mode run uses the target conversation's own
+chat binding. An independent channel-origin run may send to other chats only under fullAuto.
+
+Exact turn ids are recorded. Git workspaces default to a fresh worktree per run; non-Git use
+project mode. Worktree provisioning failure is an error, never a silent fallback. Missing or
 archived targets and missing profiles fail clearly. Bound threads inherit capabilities;
-independent runs resolve the selected profile and apply unattended workspace policy.
-Ordinary turn completion ends the run; no CompleteLocalTask or workflow iteration.
+independent runs resolve the selected profile and apply unattended workspace policy. Ordinary
+turn completion ends the run. Reported summaries have a hard size limit.
 
-The host must be online. This feature provides no cloud execution. Deletion stops future
-work but preserves historical conversations and dirty worktrees. Conservative clean
-worktree retention remains available.
+The host must be online; there is no cloud execution. Deletion stops future work but preserves
+historical conversations and dirty worktrees.
 
 ## Delivery and user experience
 
 Every run persists. A channel-origin run speaks to its origin chat only through
-`SendChannelMessage`, and decides itself whether there is anything to say. The host delivers
-nothing after a successful channel-origin run. When a channel-origin run fails, times out or is
-interrupted, the host sends one fixed failure notice naming the automation to the origin chat,
-because the agent can no longer send. A run cancelled because its definition was paused before
-dispatch sends nothing. The summary of a channel-origin run is its last agent message; reported
-outcomes do not apply. For channel-origin runs, deliveryStatus is sent when the failure notice was
-delivered, skipped for a successful run, and failed when the notice could not be delivered.
+`SendChannelMessage` and decides itself whether to say anything; the host delivers nothing after
+success. When a channel-origin run fails, times out or is interrupted, the host sends one fixed
+failure notice naming the automation, because the agent can no longer send. A run cancelled by a
+pause before dispatch sends nothing. The summary of a channel-origin run is its last agent
+message. Its deliveryStatus is sent when the failure notice was delivered, skipped on success,
+and failed when the notice could not be delivered.
 
-Runs without a channel origin keep the Desktop result notification. Follow-ups default to
-important notifications, independent runs to all results. Failures qualify for notification.
-An optional structured outcome may mark unchanged successful work as non-important; missing
-importance is conservatively important.
+Runs without a channel origin use the Desktop result notification: follow-ups default to
+important, independent runs to all. Failures always qualify. An optional structured outcome may
+mark unchanged successful work as non-important; missing importance counts as important.
 
-Persist the execution terminal state before attempting delivery. Delivery failure is
-distinct from execution failure and cannot replay agent work. If the host stops during
-delivery, recovery marks the pending delivery as failed without resending or rerunning.
+The execution terminal state persists before delivery. Delivery failure is distinct from
+execution failure and never replays agent work. If the host stops during delivery, recovery marks
+the delivery failed without resending or rerunning.
 
-Creation defaults to conversation. The primary action opens the Welcome composer with a
-localized starting instruction and an explicit `$automations` skill reference; the built-in
-skill teaches the unified Automation tool and is available only when that tool is available.
-The Automations page does not insert an intermediate creation banner. Manual creation and
-editing share a detail panel:
-editable title, prompt, detail rows, frequency rows and advanced settings. Dirty drafts
-show Save/Cancel; failed saves preserve drafts. Fields depend on execution mode; channel-origin
-definitions show no notification setting. Presets
-contain name, prompt and optional defaults and seed conversation without creating a job.
-The browse surface uses the DotCraft catalog title and search/filter controls. Existing
-definitions precede suggestions when present; the empty surface leads with suggestions.
-The detail rail preserves both the definition list and suggestions. Active uses the small
-accent status treatment. Pause/resume is a direct toolbar action; the overflow contains
-icon-labelled Run now and Delete actions. Completed definitions render as read-only history.
-Desktop uses a menu-based, locale-formatted time selector rather than native time input
-chrome, while the stored time zone remains explicit in the definition.
-Cards preserve the operation snapshot and open the latest definition; deletion is handled
-without stale navigation. Run navigation uses automation id and run id, locating the exact
-turn for follow-ups. triggerKind is automation; triggerRefId is the definition id.
-Production components mount in the maintained design system with deterministic fixtures.
+Creation defaults to conversation: the primary action opens the Welcome composer with a starting
+instruction and an explicit `$automations` skill reference. The built-in skill teaches the
+`Automation` tool and is available only with it. Presets contain a name, prompt and optional
+defaults and seed a conversation without creating a job.
+
+Manual creation and editing share a detail panel with editable title, prompt, schedule and
+advanced settings whose fields depend on execution mode; channel-origin definitions show no
+notification setting. Dirty drafts show Save/Cancel, and failed saves preserve drafts. Existing
+definitions precede suggestions; an empty surface leads with suggestions. Pause/resume is a direct
+action sharing pending state between list and detail; Run now and Delete are in the overflow.
+Completed definitions render as read-only history. The task list shows the schedule and, for
+active tasks only, the next-run countdown.
+
+Cards keep the operation snapshot and open the latest definition, handling deletion without stale
+navigation. Run navigation uses automation id and run id and locates the exact turn for
+follow-ups; reading a run succeeds only after that turn is displayed. Run conversations use
+`triggerKind = "automation"` and `triggerRefId` = the definition id.

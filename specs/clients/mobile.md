@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.8.4 |
+| Version | 0.9.1 |
 | Status | Draft |
-| Date | 2026-10-11 |
+| Date | 2026-10-19 |
 | Parent spec | [Hub Architecture](../architecture/hub-architecture.md) |
 | Related Specs | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
 
@@ -16,7 +16,7 @@ questions, sends follow-up messages, stops work, and starts new chats in the com
 
 The phone is an ordinary AppServer client. It reaches the computer through the **mobile gateway**,
 an opt-in Hub listener that pairs phones and relays their AppServer connections to the workspace
-AppServers Hub already manages. The AppServer Protocol carries the conversation unchanged.
+AppServers Hub manages. The AppServer Protocol carries the conversation unchanged.
 
 ```
 Phone app ──TLS, pinned certificate──> Hub mobile gateway ──loopback──> workspace AppServers
@@ -27,14 +27,13 @@ Phone app ──TLS, pinned certificate──> Hub mobile gateway ──loopback
 ## 2. Goals
 
 - Pair a phone with one scan, and let the user see and revoke every paired phone on the computer.
-- Pair one phone with several computers and switch between them, while work on every one of them
-  stays connected and can reach the user.
+- Pair one phone with several computers and switch between them, while work on each stays
+  connected and can reach the user.
 - Read a chat as it streams, answer its approvals and questions, add a message, or stop it.
 - Start a new chat in any project on the computer, including one whose runtime is not running.
 - Compose like on Desktop: attach photos and files, switch to plan mode, and insert commands and
   skills.
-- See what a chat changed, open a file it refers to, and check how much context and account usage
-  remain.
+- See what a chat changed, open a file it refers to, and check remaining context and account usage.
 - Keep a dropped connection invisible apart from a status line: reconnect, catch up, and replay
   anything still waiting for an answer.
 
@@ -46,8 +45,7 @@ Phone app ──TLS, pinned certificate──> Hub mobile gateway ──loopback
   Desktop plugin surfaces.
 - Controlling a computer that belongs to someone else. A pairing grants the phone the authority of
   the computer's signed-in user, and the product says so.
-- iOS in this version. The app ships for Android first; the wire contract stays platform-neutral so
-  iOS can follow without changes to Hub.
+- iOS. The app ships for Android; the wire contract stays platform-neutral.
 - A push service. While work is running or waiting, the phone keeps a live session in the background
   and posts its own notifications (§8.5).
 - A hosted public relay. Users who want access from other networks run their own relay (§12).
@@ -56,17 +54,17 @@ Phone app ──TLS, pinned certificate──> Hub mobile gateway ──loopback
 
 | Part | Owner | Role |
 |---|---|---|
-| Mobile app | `mobile/` in this repository; Expo and React Native, TypeScript; named DotCraft, with the application id `com.dotharness.dotcraft`; Android first, iOS later | Pairs with one or more computers, keeps one gateway connection per running project of each, renders chats. Uses the `@dotcraft/sdk` contracts and wire client over the pinned transport described below. |
+| Mobile app | `mobile/` in this repository; application id `com.dotharness.dotcraft` | Pairs with one or more computers, keeps one gateway connection per running project of each, renders chats. Uses the `@dotcraft/sdk` contracts and wire client over the pinned transport. |
 | Mobile gateway | Hub (§5) | Opt-in TLS listener on the computer: pairing, device credentials, project list, AppServer relay. |
 | Workspace AppServers | Hub-managed, unchanged | Own threads, turns, approvals, and history exactly as for Desktop. |
 | Phones segment | Desktop Connections settings (§9) | Turns the gateway on and off, shows the pairing code, lists and revokes phones. |
 
-Phones reject self-signed certificates by default, so the app connects through a small native module
-that trusts only the certificate whose fingerprint was pinned at pairing, for both HTTPS requests and
-WebSockets. It never falls back to system trust or to unencrypted connections.
+The app connects only through a transport that trusts the certificate whose fingerprint was pinned
+at pairing, for both HTTPS and WebSockets. It never falls back to system trust or unencrypted
+connections.
 
 The phone never receives a Hub token or an AppServer process token. Hub authenticates each relayed
-connection to its AppServer itself, so the phone's device credential is the only secret it holds.
+connection to its AppServer itself, so the device credential is the only secret the phone holds.
 
 ## 5. Mobile gateway
 
@@ -74,36 +72,33 @@ connection to its AppServer itself, so the phone's device credential is the only
 
 The gateway is a Hub-hosted HTTPS application bound to `Hub.MobileHost` (default `0.0.0.0`) on the
 fixed port `Hub.MobilePort` (default `47610`). It is off by default. Turning it on starts the
-listener and records the choice in `~/.craft/hub/mobile.json`, so the gateway comes back when Hub
-restarts. Turning it off stops the listener, closes every relayed connection and event socket, and
-keeps paired devices so turning it on again needs no new pairing. The port is fixed because paired
-phones store it; when the port is unavailable, turning the gateway on fails with `portUnavailable`,
-the gateway state becomes `failed`, and Hub does not fall back to another port.
+listener and records the choice in `~/.craft/hub/mobile.json`, so it returns when Hub restarts.
+Turning it off stops the listener, closes every relayed connection and event socket, and keeps
+paired devices. The port is fixed because paired phones store it; when it is unavailable, turning
+the gateway on fails with `portUnavailable`, the state becomes `failed`, and Hub does not fall back
+to another port.
 
-The listener serves TLS only. The first time the gateway is turned on, Hub creates a self-signed
-ECDSA P-256 certificate whose subject alternative name is the computer name, valid for 20 years, and
-stores it as `~/.craft/hub/mobile-certificate.pfx`, readable only by the user where the operating
-system allows. Later starts reuse it, so the fingerprint survives restarts. The fingerprint is the
-SHA-256 of the DER-encoded certificate, in lowercase hexadecimal. Phones pin the fingerprint
-delivered in the pairing code (§6) and refuse any other certificate.
+The listener serves TLS only. When the gateway is first turned on, Hub creates a self-signed ECDSA
+P-256 certificate whose subject alternative name is the computer name, valid for 20 years, stored as
+`~/.craft/hub/mobile-certificate.pfx` and reused afterwards so the fingerprint survives restarts. The
+fingerprint is the lowercase hexadecimal SHA-256 of the DER-encoded certificate. Phones pin the
+fingerprint delivered in the pairing code (§6) and refuse any other certificate.
 
 The gateway accepts connections only from loopback, private IPv4 ranges (10/8, 172.16/12,
-192.168/16), link-local addresses (169.254/16, fe80::/10), the shared address range 100.64/10 used
-by private networks such as Tailscale, and IPv6 unique local addresses (fc00::/7). An IPv4-mapped
-IPv6 source is judged by its IPv4 address. Any other source is closed as soon as it is accepted,
-before the TLS handshake.
+192.168/16), link-local addresses (169.254/16, fe80::/10), the shared range 100.64/10 used by
+private networks such as Tailscale, and IPv6 unique local addresses (fc00::/7). An IPv4-mapped IPv6
+source is judged by its IPv4 address. Any other source is closed before the TLS handshake.
 
-Hub advertises the addresses a phone may try: the IPv4 addresses of the computer's network
-interfaces that are up, excluding loopback and auto-configured 169.254/16 addresses, with the address
-of the default route first. Private-network addresses such as Tailscale's are included. The list is
-part of the pairing code and of `GET /m/hello`, so a phone refreshes it on every successful
+Hub advertises the addresses a phone may try: the IPv4 addresses of up network interfaces,
+excluding loopback and auto-configured 169.254/16, with the default route's address first. The list
+is part of the pairing code and of `GET /m/hello`, so a phone refreshes it on every successful
 connection.
 
 ### 5.2 Routes
 
 Every route except `POST /m/pair` requires `Authorization: Bearer <device credential>`; a missing,
 unknown, or revoked credential is answered `401 unauthorized`. The gateway serves no `/v1/*` route.
-Bodies are JSON with camelCase fields, and times are ISO-8601 strings.
+Bodies are JSON with camelCase fields; times are ISO-8601 strings.
 
 | Route | Purpose |
 |---|---|
@@ -143,17 +138,16 @@ Response:
 }
 ```
 
-`platform` is `ios` or `android`; `displayName` is required, and `osVersion` and `appVersion` are
-free-form strings. A malformed request is answered `400 invalidRequest` before the code is checked,
-so it does not use the code up.
+`platform` is `ios` or `android`; `displayName` is required; `osVersion` and `appVersion` are
+free-form. A malformed request is answered `400 invalidRequest` before the code is checked, so it
+does not use the code up.
 
 `GET /m/hello` answers `{ "computerId", "name", "version", "port", "fingerprint", "addresses" }`,
-with the meanings of `computer` above and `version` the DotCraft version.
+with the meanings above and `version` the DotCraft version.
 
 `computerId` is 128 random bits encoded as base64url, created with the gateway and kept in
-`~/.craft/hub/mobile.json`. It never changes for that computer, even when its name, addresses, or
-certificate change, so a phone keys everything it keeps about a computer by it and recognizes a
-computer it already paired.
+`~/.craft/hub/mobile.json`. It never changes, even when the computer's name, addresses, or
+certificate change, so a phone keys everything about a computer by it.
 
 `GET /m/projects` answers:
 
@@ -174,19 +168,21 @@ computer it already paired.
 `POST /m/projects/{projectId}/ensure` answers one project object, with `running` true once the
 AppServer is up.
 
-The projects are Hub's project list (Hub Architecture §7 Projects), the same list Desktop shows, plus
-the default Chat workspace; a project removed on the computer disappears from the phone. A
-`projectId` that is not in that list is answered `404 projectNotFound` by every `/m/projects` route. `projectId` is the first 24 hexadecimal digits of the SHA-256 of the normalized workspace
-path, case-folded on Windows, so it is stable and never reveals the path. `displayName` is the
-folder name; the default Chat workspace is always listed, as `Chats`. `kind` is `chats` for the default Chat workspace and `project` otherwise; the phone identifies Chats by `kind`, never by name. `lastActiveAt` is the time the
-project was last opened, or `null` for Chats, and projects are ordered by it, most recent first.
+The projects are Hub's project list ([Hub Architecture §7](../architecture/hub-architecture.md#7-registry-locks-and-state)),
+plus the default Chat workspace; a project removed on the computer disappears from the phone. A
+`projectId` not in that list is answered `404 projectNotFound` by every `/m/projects` route.
+`projectId` is the first 24 hexadecimal digits of the SHA-256 of the normalized workspace path,
+case-folded on Windows, so it is stable and never reveals the path. `displayName` is the folder
+name; the default Chat workspace is always listed as `Chats` with `kind` `chats` (otherwise
+`project`), and the phone identifies it by `kind`, never by name. `lastActiveAt` is the last-opened
+time, or `null` for Chats; projects are ordered by it, most recent first.
 
 The relay is opaque: Hub opens the AppServer's loopback WebSocket with that process's token and
-copies frames in both directions, preserving message type and fragment boundaries. It never parses,
-rewrites, logs, or persists relayed payloads. Closing either side closes the other. A relay for a
-project whose AppServer is not running is answered `409 projectNotRunning` before the upgrade.
+copies frames both ways, preserving message type and fragment boundaries. It never parses, rewrites,
+logs, or persists payloads. Closing either side closes the other. A relay for a project whose
+AppServer is not running is answered `409 projectNotRunning` before the upgrade.
 
-Errors use the Hub error shape (§6 of [Hub Architecture](../architecture/hub-architecture.md)):
+Errors use the Hub error shape ([Hub Architecture §6](../architecture/hub-architecture.md#6-hub-local-api)):
 
 | Code | Status | When |
 |---|---|---|
@@ -198,9 +194,9 @@ Errors use the Hub error shape (§6 of [Hub Architecture](../architecture/hub-ar
 | `appServerStartFailed` | 500 | Ensure could not start the project. The error carries no workspace path or diagnostics. |
 | `hubInternalError` | 500 | Unexpected failure. |
 
-Hub closes a gateway WebSocket with the close reason `deviceRevoked` (status 1008) when the phone is
-revoked, and `gatewayOff` (status 1001) when the gateway turns off. When Hub itself stops, it closes
-them without a reason, and the phone treats the computer as offline.
+Hub closes a gateway WebSocket with reason `deviceRevoked` (status 1008) when the phone is revoked,
+and `gatewayOff` (status 1001) when the gateway turns off. When Hub itself stops, it closes them
+without a reason, and the phone treats the computer as offline.
 
 ### 5.3 Gateway events
 
@@ -219,22 +215,20 @@ closes that phone's, or every phone's, relays and event sockets within one secon
 ## 6. Pairing and devices
 
 1. On the computer, the user turns on the gateway and opens **Add phone**. Hub mints a pairing code:
-   128 random bits encoded as base64url, single-use, valid for 10 minutes, of which Hub stores only
-   the hash. Minting replaces the previous code, so only the most recent unexpired code is valid.
-   Each code has a `pairingId` that names it in Hub events without revealing it.
+   128 random bits encoded as base64url, single-use, valid for 10 minutes, stored only as a hash.
+   Minting replaces the previous code, so only the most recent unexpired code is valid. Each code
+   has a `pairingId` that names it in Hub events without revealing it.
 2. Desktop shows the code as a QR code encoding
-   `dotcraft://pair?v=1&id=<computerId>&name=<computer>&port=<port>&fp=<sha256>&addr=<a1>,<a2>&code=<code>`, with
-   each value URL-encoded and the addresses joined by commas. The QR code is the only pairing path;
-   it carries the certificate fingerprint, so the phone never trusts a certificate on first use.
-3. The phone scans it, connects to the first reachable address with the pinned certificate, and
-   shows "Allow this phone to control <computer>?" with **Allow**.
-4. **Allow** calls `POST /m/pair` with the code, the phone's display name, platform, OS version, and
-   app version. Hub returns a `deviceId` and a device credential of 256 random bits encoded as
-   base64url, and emits `mobile.devicePaired` with the code's `pairingId` so Desktop moves to the
-   paired state without polling.
-5. The phone stores the credential in the Android Keystore and the computer record
-   (computerId, name, addresses, port, fingerprint, deviceId) in app storage, both keyed by
-   `computerId`.
+   `dotcraft://pair?v=1&id=<computerId>&name=<computer>&port=<port>&fp=<sha256>&addr=<a1>,<a2>&code=<code>`,
+   each value URL-encoded and addresses comma-joined. The QR code is the only pairing path; it
+   carries the fingerprint, so the phone never trusts a certificate on first use.
+3. The phone scans it, connects to the first reachable address with the pinned certificate, and asks
+   the user to allow this phone to control the named computer.
+4. **Allow** calls `POST /m/pair`. Hub returns a `deviceId` and a device credential of 256 random
+   bits encoded as base64url, and emits `mobile.devicePaired` with the code's `pairingId` so Desktop
+   moves to the paired state without polling.
+5. The phone stores the credential in the Android Keystore and the computer record (computerId,
+   name, addresses, port, fingerprint, deviceId) in app storage, both keyed by `computerId`.
 
 The credential travels only in the `Authorization` header. It never enters URLs, logs, traces, model
 context, or session data, and Hub never logs a pairing code. Hub stores the credential's hash with
@@ -242,24 +236,24 @@ the device record in `~/.craft/hub/mobile.json`: `deviceId`, display name, platf
 version, paired time, and last-seen time.
 
 Revoking a phone on the computer deletes its record and closes its connections; the phone receives
-`deviceRevoked` on `/m/events` when connected, or `unauthorized` on its next request, and then
-forgets that computer. Removing a computer on the phone calls `DELETE /m/device` when reachable and
-forgets the computer either way. Neither touches the phone's other computers.
+`deviceRevoked` on `/m/events` when connected, or `unauthorized` on its next request, and forgets
+that computer. Removing a computer on the phone calls `DELETE /m/device` when reachable and forgets
+the computer either way. Neither touches the phone's other computers.
 
-## 7. Hub Local API additions
+## 7. Hub Local API for the gateway
 
-Desktop manages the gateway through loopback Hub Local API routes, protected by the Hub token:
+Desktop manages the gateway through the loopback Hub Local API routes listed in
+[Hub Architecture §6](../architecture/hub-architecture.md#6-hub-local-api), protected by the Hub
+token. Their mobile-specific results:
 
-| Endpoint | Purpose |
+| Endpoint | Result |
 |---|---|
 | `GET /v1/mobile` | The gateway state object. |
-| `POST /v1/mobile/enable` | Turn the gateway on and answer the state object. A port conflict answers `409 portUnavailable` and leaves the state `failed` with that `failureCode`. |
-| `POST /v1/mobile/disable` | Turn the gateway off and answer the state object. Devices are kept. |
-| `POST /v1/mobile/pairings` | Mint a pairing code. Answers `409 gatewayOff` unless the gateway is on. |
-| `DELETE /v1/mobile/devices/{deviceId}` | Revoke a phone. Answers `204`, or `404 deviceNotFound`. |
-
-The `POST` routes ignore their request body; Desktop sends `{}`. `GET /v1/status` reports
-`capabilities.mobile: true` when Hub serves these routes.
+| `POST /v1/mobile/enable` | The state object. A port conflict answers `409 portUnavailable` and leaves the state `failed` with that `failureCode`. |
+| `POST /v1/mobile/disable` | The state object. Devices are kept. |
+| `POST /v1/mobile/pairings` | `{ "pairingId", "qrPayload", "expiresAt" }`, where `qrPayload` is the `dotcraft://pair` URL of §6. Answers `409 gatewayOff` unless the gateway is on. |
+| `DELETE /v1/mobile/devices/{deviceId}` | `204`, or `404 deviceNotFound`. |
+| `PUT` / `DELETE /v1/mobile/relay` | The state object (§12.2). |
 
 The state object:
 
@@ -279,23 +273,21 @@ The state object:
       "lastSeenAt": "2026-10-03T08:12:00+00:00",
       "connected": true
     }
-  ]
+  ],
+  "relay": null
 }
 ```
 
 `state` is `off`, `on`, or `failed`. A `failed` state adds `failureCode`, such as `portUnavailable`,
-and an English `failureMessage`; both fields are absent otherwise. `port` is `Hub.MobilePort`.
-`lastSeenAt` is `null` until the phone first connects, and `connected` is true while the phone has a
-relay or event socket open.
+and an English `failureMessage`. `port` is `Hub.MobilePort`. `lastSeenAt` is `null` until the phone
+first connects; `connected` is true while the phone has a relay or event socket open. `relay` is
+described in §12.2.
 
-`POST /v1/mobile/pairings` answers `{ "pairingId", "qrPayload", "expiresAt" }`, where `qrPayload` is
-the `dotcraft://pair` URL of §6.
-
-Hub SSE adds these events, in the existing event envelope:
+Hub SSE events, in the standard event envelope:
 
 | Event | `data` |
 |---|---|
-| `mobile.stateChanged` | The state object, whenever the gateway turns on, turns off, or fails, and whenever the relay or its `state` changes (§12.2). |
+| `mobile.stateChanged` | The state object, whenever the gateway turns on, turns off, or fails, and whenever the relay or its `state` changes. |
 | `mobile.devicePaired` | `{ deviceId, displayName, platform, pairingId }`. |
 | `mobile.deviceRevoked` | `{ deviceId }`, whether the computer or the phone removed the pairing. |
 | `mobile.deviceSeen` | `{ deviceId, lastSeenAt, connected }` when the phone's first socket opens, when its last socket closes, and on `GET /m/hello` at most once a minute per phone. |
@@ -304,275 +296,215 @@ Hub SSE adds these events, in the existing event envelope:
 
 ### 8.1 Computers and connections
 
-The app pairs with any number of computers. Scanning a computer it has not paired adds it once the
-computer is allowed, and selects it; scanning a computer it already paired, recognized by
-`computerId`, replaces that computer's pairing once allowed and removes the old pairing from the
-computer. Abandoning a pairing changes nothing. Every computer keeps its own credential, record,
-status, projects, and chats, and one computer's failure, revocation, or removal leaves the others as
-they are. The app remembers which computer is selected; screens below Home belong to the computer
-they were opened from, so a chat, a project, and New chat always name one computer.
+The app pairs with any number of computers. Scanning an unpaired computer adds and selects it once
+allowed; scanning one already paired, recognized by `computerId`, replaces its pairing once allowed
+and removes the old pairing from the computer. Abandoning a pairing changes nothing. Each computer
+keeps its own credential, record, status, projects, and chats, and one computer's failure,
+revocation, or removal leaves the others alone. The app remembers the selected computer; every
+screen below Home belongs to the computer it was opened from.
 
-While in the foreground, and during a live session in the background (§8.5), the app keeps, for
-every paired computer, its `/m/events` socket and one relayed AppServer connection per running
-project; otherwise it closes them in the background. Each relayed connection initializes as an
-approval-capable client that supports user-input requests, streaming, and background terminal
-notifications, and opts out of `terminal/outputDelta`, because the phone reads terminal output from
-snapshots rather than live.
+In the foreground, and during a background live session (§8.5), the app keeps for every paired
+computer its `/m/events` socket and one relayed AppServer connection per running project; otherwise
+it closes them in the background. Each relayed connection initializes as an approval-capable client
+that supports user-input requests, streaming, and background terminal notifications, and opts out
+of `terminal/outputDelta`, reading terminal output from snapshots instead.
 
 - **Status.** A computer is **online** when a gateway route answers, **connecting** while trying
   addresses, and **offline** otherwise. Offline shows its last known projects and chats read-only.
-- **Reconnect.** Each computer reconnects on its own, with exponential backoff and jitter from 1 to
-  30 seconds, restarted immediately when the
-  app returns to the foreground or the phone's network changes; a repeated report of the same network
-  is not a change. Only launch, a return to the foreground, a
-  network change, or a dropped connection shows connecting; once the computer is offline, background
-  retries keep it offline until one succeeds.
+- **Reconnect.** Each computer reconnects independently with exponential backoff and jitter from 1
+  to 30 seconds, restarted immediately when the app returns to the foreground or the network
+  changes (a repeated report of the same network is not a change). Only launch, foreground return,
+  a network change, or a dropped connection shows connecting; background retries keep an offline
+  computer offline until one succeeds.
 - **Catching up.** After any reconnect the app follows the AppServer recovery rules: read the thread
   header, reload history head pages, and subscribe again. Subscribing replays pending approvals and
-  questions, so nothing waiting is lost while the phone was away.
-- **Refresh.** Pulling down Home, a project, or a chat refreshes its computer, and the indicator
-  stays until the refresh settles. Online, the phone reloads the project list, connects projects
-  that started, lists the chats of every connected project again, rereads the workspace approval
-  default, and on a chat reads that chat's header and history head pages again. Offline, access
-  off, or waiting for the next backoff retry, it reconnects at once and settles with that attempt;
-  while an attempt is already running it settles with that one. A computer whose identity changed
-  does nothing.
+  questions, so nothing waiting is lost.
+- **Refresh.** Pulling down Home, a project, or a chat refreshes its computer until the refresh
+  settles. Online, the phone reloads the project list, connects newly started projects, relists
+  chats, rereads the workspace approval default, and on a chat rereads its header and history head
+  pages. Offline, with access off, or waiting for a backoff retry, it reconnects at once and settles
+  with that attempt (or with one already running). A computer whose identity changed does nothing.
 
 ### 8.2 Screens
 
 | Screen | Content |
 |---|---|
 | Pair | Camera scan, the Allow confirmation, and a connected confirmation. |
-| Home | One computer at a time, the selected one. No screen title. The top row centers the mascot, **DotCraft**, the selected computer's status, and a chevron; tapping it opens a menu with **Add computer** and **Settings**, so the row has no other button. Under it, a row of computer chips, one per paired computer with its status dot and name, switches the selected computer; the selected chip is filled. Both rows stay in place while the lists scroll. **Projects** lists the computer's projects, marking those whose runtime is not running, with no trailing chevron or chat state; **Recent** lists the chats of its running projects with a trailing state, so a chat waiting on the user shows **needs approval** or **needs answer** there, and is left out while there are none, so the compact composer is the only invitation to start. Pulling the lists down refreshes them (§8.1). A search button at the end of the top row turns the row into a search field over chat titles. At the bottom, a compact composer with Add (**+**) and the composer's placeholder expands in place into New chat for the most recently used project with the keyboard up: the top row stays and gains a Back button at its start, the lists give way to an empty page, and Back folds it again, keeping any draft in the compact composer. A tap on the empty page only dismisses the keyboard. |
-| Project | Opened by tapping a project. The top bar names the project and the computer; the body lists the project's chats, newest first, or greets with the mascot when it has none, above the same compact composer as Home; pulling it down refreshes it (§8.1). Opening it starts a project whose runtime is not running, so its chats and model controls load; Home never starts a project by itself. |
-| New chat | The expanded compact composer, on Home or a project. Its composer is the chat's composer, so the model, reasoning, approval policy, and Plan mode are set before the first message. A project row above the composer names the project and switches it from the computer's projects, most recently used first. Expanding it starts a project whose runtime is not running. Send keeps the message in the composer and shows a spinner while the computer creates the chat; the chat then opens in place, without a page transition, showing the message at once with the composer where it was and the keyboard up. If the message does not go through, it returns to the chat's composer with the send error. |
-| Chat | A floating top bar over the transcript: Back, the chat title with its project and computer, the context ring, and a menu. The ring fills with the share of the context window in use; tapping it opens Status. The transcript follows Desktop's turn layout: a finished turn folds everything before its final reply into one **Worked for** row that expands, keeping steering messages, the last plan card, and generated images in view; consecutive tool calls of one kind (file reads, commands, file writes, web) group into one expandable row; reasoning shows only while it streams and then as **Thought for**; Copy sits under the final reply of a completed turn, and a completed turn that changed files ends its final reply with an **Edited** card that opens Changes for that turn; a created plan shows as a plan card. While an approval, a question, or a plan confirmation waits, the decision card closes the transcript and the composer is hidden. The composer card uses Desktop's placeholder and carries Add (**+**), the approval policy, and the model controls; while a turn runs it adds a message to the turn and a Stop control interrupts it. While a turn runs and has changed files, a changes pill above the composer opens Changes for it; the pill goes when the turn ends. The composer floats over the transcript, which fades out behind it. Pulling the transcript down refreshes the chat (§8.1), with the indicator below the top bar. While any of the chat's background tasks runs (§8.3), a pill above the composer in the changes pill's style counts them, such as "2 running tasks", and opens Background tasks; the two pills sit side by side, and the tasks pill is absent when none runs. While a decision card replaces the composer, the tasks pill sits above the card. Scrolled away from the latest message, a round button above the composer returns to the bottom; while a turn runs it shows wave dots instead of the arrow. |
-| Add menu | **Photo**, **File**, and **Plan mode**, which shows a check while it is on. |
+| Home | The selected computer: its status and a menu with **Add computer** and **Settings**; one chip per paired computer to switch selection; **Projects**, marking those not running; **Recent** chats of running projects with their state, omitted when empty; search over chat titles; and a compact composer that expands in place into New chat for the most recently used project, keeping any draft when folded back. |
+| Project | The project's chats, newest first, above the compact composer. Opening it starts a project that is not running, so its chats and model controls load; Home never starts a project by itself. |
+| New chat | The expanded composer, which is the chat's composer, so model, reasoning, approval policy, and Plan mode are set before the first message; a project switcher lists the computer's projects, most recently used first. Expanding it starts a stopped project. Send keeps the message while the chat is created, then opens the chat in place; a failed send returns the message with the error. |
+| Chat | Top bar with Back, title, project and computer, the context ring (opens Status), and the chat menu. The transcript follows Desktop's turn layout: a finished turn folds work before its final reply into one **Worked for** row (keeping steering messages, the last plan card, and generated images visible); consecutive tool calls of one kind group; reasoning shows while streaming, then as **Thought for**; Copy follows a completed turn's final reply; a completed turn that changed files ends with an **Edited** card. While a decision waits, the decision card ends the transcript and the composer is hidden. The composer carries Add, the approval policy, and model controls; during a turn it steers and offers Stop. Pills above the composer open Changes (while a running turn has changed files) and Background tasks (while any of the chat's background tasks runs). A jump-to-latest control appears when scrolled away. |
+| Add menu | **Photo**, **File**, and **Plan mode** (checked while on). |
 | Picker | Commands and skills matching what follows `/` or `$` in the composer. |
-| Changes | Every file the turn changed with its additions and deletions; each file expands to its diff. Paths are shown relative to the chat's `effectiveWorkspacePath`, which is also the base for relative file links in the transcript. |
-| File | One file from the computer, read-only, with **Download**, which saves it to the phone's `Download/DotCraft/` folder. Images open full screen with the same Download. |
-| Background tasks | A sheet titled **Background tasks**, opened from the running tasks pill. **Running**, expanded, and **Completed** with its count, collapsed, each fold in place. Each task is a card: its kind's icon, its title in bold and wrapping, and a line with its kind and how long it has run or ran, such as "Shell · 4m 28s", ending with **Stopped** or **Failed** when it did not finish normally. A running task ends with a Stop button; a finished task ends with a chevron that expands its detail in place: a shell task's last output lines, an agent's role, or a workflow's agent count. |
-| Status | Opened from the context ring: context left, account usage when the chat's provider reports it, the project folder, and the chat ID to copy. |
-| Decision card | One card for every decision a chat waits on: an approval, a question, or a plan confirmation. It is the last entry of the transcript, held at the bottom of the screen when the chat is short, and scrolls with it, so earlier messages stay one swipe away. Like the composer, it shows the focus border only while its text field is in use. The composer stays hidden until the decision is made. |
+| Changes | Every file the turn changed with additions and deletions, each expandable to its diff. Paths are relative to the chat's `effectiveWorkspacePath`, which is also the base for relative file links in the transcript. |
+| File | One read-only file from the computer with **Download** to the phone's `Download/DotCraft/` folder. Images open full screen. |
+| Background tasks | **Running** (expanded) and **Completed** (collapsed, counted). Each task shows its kind, title, and elapsed or total duration, marked Stopped or Failed when it did not finish normally. Running tasks offer Stop; finished tasks expand to their detail: a shell task's last output lines, an agent's role, or a workflow's agent count. |
+| Status | Context left, account usage when the provider reports it, the project folder, and the chat ID to copy. |
+| Decision card | One card for every decision a chat waits on: an approval, a question, or a plan confirmation. It is the last transcript entry and scrolls with it; the composer stays hidden until the decision is made. |
 | Settings | Every paired computer with its status and Remove, **Add computer**, and app information. |
 
-Every screen below Home leads with the same framed Back button as the chat's top bar, including
-over the pairing camera.
-
 Chat states use one vocabulary: **running**, **needs approval**, **needs answer**, **done**,
-**failed**. They come from `thread/list` runtime snapshots and `thread/status/changed`. A stopped
-turn is done and shows a Stopped line. Thread summaries do not carry the last turn's result, so a
-list shows **failed** only for a chat whose failure the phone has seen.
+**failed**, from `thread/list` runtime snapshots and `thread/status/changed`. A stopped turn is done
+and shows a Stopped line. Thread summaries do not carry the last turn's result, so a list shows
+**failed** only for a failure the phone has seen.
 
 ### 8.3 Working with a chat
 
-- The phone lists and starts chats under the Desktop channel identity, so the computer and the phone
-  show the same chats, and a chat started on either can be continued on the other.
-- New chat ensures the project's AppServer when it is not running, starts a thread with the
-  project's defaults, and calls `turn/start`.
-- A message sent while a turn runs uses `turn/steer` when the server accepts steering and
-  `turn/enqueue` otherwise; Stop calls `turn/interrupt`.
-- The decision card shows one request at a time and counts the others waiting in the chat. Its
-  options are Desktop's numbered choice rows: a row is selected by tapping it, a selected row answers
-  when tapped again, and **Submit** answers with the selected row. A row's description sits behind
-  its info icon.
-- An approval in the card asks its question over Desktop's detail panel (type, operation, target,
-  reason), then **Allow once**, **Allow for session**, and **Reject** as option rows. **Submit** is
-  named after the selected row and answers `item/approval/request` with `accept`,
-  `acceptForSession`, or `decline`; while another row is selected, **Reject** sits beside it. The phone never offers `acceptAlways`, because a permanent grant belongs on the
-  computer. An approval has no dismiss; **Reject** declines it.
-- A question in the card follows Desktop's question format: the question, its options as rows, and
-  an **Other** row for typed text. A request with several questions pages through them with
-  **Previous** and **Next** beside the question, and **Submit** answers
-  `item/tool/requestUserInput` with every answer. **Dismiss** answers a non-blocking request with no
-  answers and interrupts the turn for a blocking one, as Desktop does.
-- The chat menu is a popover under the top bar's menu button, headed by the chat title. It offers
-  the basic chat actions Desktop's chat menu has: Copy session ID, Rename (`thread/rename`, in a
-  sheet), Fork (`thread/fork` into the same project, opening the copy), and Archive
-  (`thread/archive`, returning to the list, last and in the error colour). Stop stays on the
-  composer's stop button. Worktree forks, pinning,
-  and actions that open things on the computer stay on Desktop.
-- The model sheet lists its settings the way Desktop's model picker does: provider, model, and
-  reasoning effort are each one row showing the current value, and tapping a row expands its choices
-  in place and collapses the others; speed stays a Fast switch.
+- The phone lists and starts chats under the Desktop channel identity, so a chat started on either
+  can be continued on the other.
+- New chat ensures the project's AppServer when needed, starts a thread with the project's defaults,
+  and calls `turn/start`.
+- A message sent during a turn uses `turn/steer` when the server accepts steering and `turn/enqueue`
+  otherwise; Stop calls `turn/interrupt`.
+- The decision card shows one request at a time and counts the others waiting. Options are choice
+  rows: tapping selects, tapping a selected row answers, and **Submit** answers with the selection.
+- An approval shows its type, operation, target, and reason, with **Allow once**, **Allow for
+  session**, and **Reject**, answering `item/approval/request` with `accept`, `acceptForSession`, or
+  `decline`. The phone never offers `acceptAlways`; permanent grants belong on the computer. An
+  approval has no dismiss.
+- A question follows Desktop's format: options as rows plus **Other** for typed text, paging through
+  multiple questions; **Submit** answers `item/tool/requestUserInput` with every answer.
+  **Dismiss** answers a non-blocking request with no answers and interrupts the turn for a blocking
+  one, as Desktop does.
+- The chat menu offers Copy session ID, Rename (`thread/rename`), Fork (`thread/fork` into the same
+  project, opening the copy), and Archive (`thread/archive`, returning to the list). Worktree forks,
+  pinning, and actions that open things on the computer stay on Desktop.
 - The composer shows the chat's model, reasoning effort, speed, and approval policy (`prompt` or
-  `autoApprove`). Any other chat policy, and New chat until the user picks one, shows the computer's
-  `Permissions.DefaultApprovalPolicy` for the project (`autoApprove`, else `prompt`), read with
-  `config/read` when the project's AppServer advertises `workspaceConfigManagement` and again on
-  `config/changed` for that key. Changing one sends the whole configuration with
-  `thread/config/update`, which takes effect from the next turn. New chat starts on the model `model/list` marks `isDefault` for the
-  provider, and switching provider selects that provider's `isDefault` model; the `thread/start`
-  configuration names that provider and model, and carries reasoning, speed, and approval policy
-  only when the user changed them, so AppServer fills the rest from the provider's preference.
-  Models and their reasoning and speed options come from `model/list`, never from rules in the app,
-  and each control is hidden when the server lacks its capability. The phone never changes a chat's
-  Agent Profile.
-- **+** opens the Add menu. **Photo** picks images from the photo library; the phone scales each to
-  at most 2048 px on its longer side and re-encodes it as JPEG. Before the message is sent, the
-  phone writes each photo to `<project>/.craft/attachments/images/<id>.jpg` with
-  `fs/createDirectory` and `fs/writeFile` and sends it as a `localImage` part, so the agent can
-  reach the file by path in later turns, as it does for images sent from Desktop or a channel.
-  **File** picks any document up to 2 MiB; before the message is sent, the phone creates
-  `<project>/.craft/attachments/<id>/` with `fs/createDirectory`, writes the file there with
-  `fs/writeFile`, and sends a `fileRef` to it. Attachments wait in the composer as removable
-  thumbnails and chips until sent. A message that fails to send, or whose upload fails, returns to
-  the composer, and a notice tucked behind the top of the composer card says so, naming the file for
-  a failed upload, with **Retry**, which sends the draft as it is; editing the draft dismisses it. A
-  file over the limit is refused when picked. **Photo** and **File** are hidden when the server
-  lacks `capabilities.fileSystem`.
-- **Plan mode** in the Add menu turns plan mode on, or off when it is on, with `thread/mode/set` (`plan` or `agent`); New chat in plan mode
-  starts the thread with `mode: plan`. While on, the composer shows a Plan chip that turns it off.
-  A successful `CreatePlan` shows in the transcript as Desktop's plan card: the Plan badge, the
-  title, and the start of the plan body under a fade with **Expand plan**; the card's chevron or
-  **Expand plan** opens the whole body and its to-dos in place, and Copy copies the plan. When the
-  server reports a pending plan confirmation, the decision card
-  asks **Implement this plan?** with **Yes, implement this plan** and a row to say how to adjust it,
-  then **Submit**: yes switches the chat to `agent` and sends "Implement the plan.", the same as
-  Desktop, and a typed adjustment is sent as feedback and stays in plan mode. **Dismiss** closes the
-  card and returns the composer in plan mode. When the switch to `agent` fails, nothing is sent and
-  the failure is reported. A chat that runs an Agent Profile has no
-  **Plan mode** item or Plan chip, because its agent keeps a fixed capability scope, as on Desktop.
+  `autoApprove`). Any other chat policy, and New chat until the user picks one, shows the project's
+  `Permissions.DefaultApprovalPolicy` (`autoApprove`, else `prompt`), read with `config/read` when the
+  AppServer advertises `workspaceConfigManagement` and again on `config/changed` for that key.
+  Changing a setting sends the whole configuration with `thread/config/update`, effective from the
+  next turn. New chat starts on the provider's `isDefault` model from `model/list`, and switching
+  provider selects that provider's `isDefault` model; `thread/start` names provider and model and
+  carries reasoning, speed, and approval policy only when the user changed them, so AppServer fills
+  the rest from the provider's preference. Models and their options come from `model/list`, never
+  from app rules, and each control is hidden when the server lacks its capability. The phone never
+  changes a chat's Agent Profile.
+- **Photo** picks images, scales each to at most 2048 px on its longer side, and re-encodes it as
+  JPEG. Before sending, the phone writes each photo to
+  `<project>/.craft/attachments/images/<id>.jpg` with `fs/createDirectory` and `fs/writeFile` and
+  sends it as a `localImage` part, so the agent can reach it by path later. **File** picks any
+  document up to 2 MiB, writes it under `<project>/.craft/attachments/<id>/`, and sends a `fileRef`.
+  Attachments wait in the composer until sent. A failed send or upload returns the draft to the
+  composer with a notice (naming the file for a failed upload) and **Retry**. A file over the limit
+  is refused when picked. **Photo** and **File** are hidden without `capabilities.fileSystem`.
+- **Plan mode** toggles with `thread/mode/set` (`plan` or `agent`); New chat in plan mode starts the
+  thread with `mode: plan`. A successful `CreatePlan` shows as Desktop's plan card, expandable to
+  the full body and to-dos, with Copy. A pending plan confirmation appears in the decision card with
+  an implement option and a row to describe adjustments: implementing switches the chat to `agent`
+  and sends "Implement the plan." as Desktop does; an adjustment is sent as feedback and stays in
+  plan mode. **Dismiss** returns the composer in plan mode. If the switch to `agent` fails, nothing
+  is sent and the failure is reported. A chat running an Agent Profile has no Plan mode, because its
+  agent keeps a fixed capability scope.
 - Typing `/` at the start of a word opens the Picker with custom commands from `command/list` and
-  enabled skills from `skills/list`; `$` opens it with skills only. Choosing one puts the reference inline in the
-  text at the cursor, as `/name` or `$name` styled as a reference, the way Desktop's composer keeps
-  references in the text; a reference is deleted as a whole and is sent as a `commandRef` or
-  `skillRef` in its place. Built-in commands are not offered.
-- The changes pill shows only while the chat's turn runs and has changed files: the number of files
-  and the added and deleted lines, from `turn/diff/updated`, or from the turn's `fileChange` results
-  until a diff arrives. It goes when the turn completes, is stopped, or fails. A completed turn that
-  changed files ends with an **Edited** card after its final reply: `Edited <file>` for one file,
-  `Edited N files` otherwise, with the added and deleted lines; a reopened chat rebuilds it from the
-  turn's `fileChange` results in history, as Desktop does. A stopped or failed turn has no card.
-  Tapping the pill or a card opens Changes for that turn. The phone offers no Undo.
-- Tapping a file chip, or a file's name in Changes, opens File with `fs/readFile`. Text shows with its
-  syntax with long lines wrapped, and images show as images. Markdown opens as its rendered preview,
-  with leading YAML frontmatter shown as a card of keys and values, and the header switches between
-  View source and View preview; another type, or a file over the read limit, shows its name and
-  path to copy. Without `capabilities.fileSystem`, a file chip only shows its path.
-- The context ring starts from the `contextUsage` in `thread/read` and follows the `contextUsage`
-  carried by `item/usage/delta` and by terminal compaction events, as Desktop's ring does; a chat
-  without a snapshot shows an empty ring. Status shows the share of the context window left with
-  tokens used and the window size. When the chat's provider signs in with ChatGPT,
-  it also shows each usage window from `auth/openai/usage` with the share left and its reset time.
-- Sheets have no close button: tapping outside a sheet or the system Back closes it. Dragging the
-  grabber up expands a sheet to full screen, and dragging it down returns it to its height or, past
-  that, closes it. Download
-  writes through Android's shared Downloads collection, so it needs no storage permission; on
-  Android 9 and earlier the phone says saving there is not supported.
-- Replies render Markdown with the same GitHub-flavored rules as Desktop. An image in a reply shows
-  inline: a web image loads directly and an image on the computer is read with `fs/readFile`. A link to a local file shows
-  as a file chip with its name that opens File. Web links open the browser. File and skill
-  references in user messages show as chips, and photos sent with a message show as thumbnails in
-  it, from the moment it is sent. As on Desktop, a chip is tinted text with an icon and no box,
-  sitting on the line's baseline so it never changes the line height. An image a message refers to by `localImage` path, from the phone
-  or any other client, is read with `fs/readFile` to show its thumbnail.
-  Math uses Desktop's delimiters; the phone does not typeset it, so a formula shows its TeX source
-  styled as inline code, or as a code block for display math.
-- The phone renders neither Generative UI blocks nor visualizations. Each top-level `dotcraft-ui`
-  block shows as a tool activity line for interactive content whose details hold its source, a
-  visualization reference line is left out, and Copy keeps only the prose.
-- A tool activity line shows the tool kind's icon and fits one line, ending in an ellipsis; tapping it
-  shows the full command or target and its output. A running tool says what it is doing in the
-  present tense, such as "Running: npm test" or "Editing release.ps1", using Desktop's wording, and
-  ends with how long it has run, such as "12.3s". Commands and patterns show as plain text, as on
-  Desktop.
-- Work in progress shimmers instead of showing a spinner, following Desktop's `RunningShimmer`: a
-  running tool line, the streaming reasoning line, and an image being generated dim to the shimmer base colour, and every four seconds, starting shortly after they
-  appear, one highlight crosses the text at 450 px per second in a band half the text's width up to
-  80 px. The highlight is a copy hidden from screen readers. With reduced motion the text stays
-  dimmed and still.
+  enabled skills from `skills/list`; `$` opens skills only. A choice is inserted inline as `/name` or
+  `$name`, deleted as a whole, and sent as a `commandRef` or `skillRef`. Built-in commands are not
+  offered.
+- The changes pill shows the file count and added and deleted lines from `turn/diff/updated`, or
+  from the turn's `fileChange` results until a diff arrives, and goes when the turn ends. A
+  completed turn that changed files ends with an **Edited** card with the same counts, rebuilt from
+  history's `fileChange` results on reopen; stopped or failed turns have none. Both open Changes for
+  that turn. The phone offers no Undo.
+- A file chip or a file in Changes opens File with `fs/readFile`. Text shows syntax-highlighted with
+  wrapping, images as images, and Markdown as a rendered preview (leading YAML frontmatter as a
+  key/value card) switchable to source. Other types, or files over the read limit, show the name and
+  path to copy. Without `capabilities.fileSystem`, a chip only shows its path.
+- The context ring starts from `contextUsage` in `thread/read` and follows `contextUsage` in
+  `item/usage/delta` and terminal compaction events, as on Desktop; without a snapshot it is empty.
+  Status shows context left with tokens used and window size, and, for a ChatGPT sign-in, each usage
+  window from `auth/openai/usage` with share left and reset time.
+- Download writes through Android's shared Downloads collection and needs no storage permission; on
+  Android 9 and earlier saving there is not supported.
+- Replies render GitHub-flavored Markdown as on Desktop. Images show inline: web images load
+  directly; images on the computer, including those referenced by `localImage` from any client, are
+  read with `fs/readFile`. Local file links show as file chips that open File; web links open the
+  browser. File and skill references in user messages show as chips, and sent photos as thumbnails.
+  Math is not typeset: formulas show their TeX source as code.
+- The phone renders neither Generative UI blocks nor visualizations. A top-level `dotcraft-ui` block
+  shows as a tool activity line whose details hold its source; a visualization reference line is
+  omitted; Copy keeps only prose.
+- A tool activity line fits one line with the tool kind's icon; tapping shows the full command or
+  target and output. A running tool reads in the present tense using Desktop's wording, with
+  elapsed time. In-progress text (running tools, streaming reasoning, generating images) uses
+  Desktop's shimmer treatment, still under reduced motion.
 - A message the computer sends to start a turn when a Workflow finishes (`triggerKind` `workflow`)
-  shows as a user message under **Sent from workflow** with the workflow icon, the way Desktop marks
-  it, rather than as something the user typed.
+  shows as a user message marked as sent from the workflow.
 - A background task notification (`triggerKind` `terminal` or `subagent`, or `workflow` with a
-  `triggerStatus`) is never a user message. When it is the input that started a turn, the turn has
-  no user message, and its **Worked for** row starts with the task kind's icon, as Desktop marks the
-  activity boundary. The row's accessible name adds how the task ended in Desktop's wording, such
-  as "Background command finished: npm test" or "Subagent failed: reviewer", or "Started by a
-  subagent" without a label; the phone shows no hover text. A notification drained into a running
-  turn adds nothing.
-- Background task tools read as Desktop names them. An `Exec` whose result came back while its
-  command keeps running stays a running line while its turn runs; once the turn has ended it reads
-  "Started background terminal with {command}", and "Background terminal stopped with {command}"
-  when the command was then cancelled. `SpawnAgent` reads "Spawned {name}" ("Starting {name}" while
-  it runs), `SendMessage` "Sent message to {target}", and `ListAgents` "Listed agents". `TaskStop`
-  reads "Stopped background terminal {label}", "Stopped subagent {label}", or "Stopped workflow
-  {label}" from its result, "Stopping …" while it runs or when the result says `stopping`; it opens
-  to the subagent's last message when the result carries one.
+  `triggerStatus`) is never a user message. When it starts a turn, the turn has no user message and
+  its **Worked for** row starts with the task kind's icon; its accessible name says how the task
+  ended, in Desktop's wording. A notification drained into a running turn adds nothing.
+- Background task tools read as Desktop names them: an `Exec` still running after its result stays a
+  running line while its turn runs and afterwards reads as a started (or stopped) background
+  terminal; `SpawnAgent`, `SendMessage`, `ListAgents`, and `TaskStop` read as Desktop labels them,
+  and `TaskStop` opens to the subagent's last message when its result carries one.
 - **Background tasks** are the chat's work that outlives its turns, from three sources, each used
   only when `initialize` reports its capability:
-  - shell commands that run in the background: `terminal/list` for the thread, keeping terminals
-    started with `runInBackground` and terminals still running after the turn that ran them, such as
-    a command handed over after its yield time. A running terminal of the chat's active turn is left
-    out until that turn ends, as on Desktop, and the list is read again when it ends. A listed
-    terminal stays listed once it ends. They follow `terminal/started`, `terminal/completed`, and
-    `terminal/cleaned`, and Stop calls `terminal/stop` (`capabilities.backgroundTerminals`);
-  - SubAgents: `subagent/children/list` for the chat with child threads, without closed children; it
-    is read again on `subagent/graph/changed` for the chat and on `thread/status/changed` for one of
-    its children, a child running per its thread runtime, and Stop calls `turn/interrupt` on the
-    child thread's active turn, which leaves the child open for the agent to continue. An agent's card adds its model from the child thread's configuration and how many tokens it has used, such as "Agent · 4m 25s · atlas-2 · 275.3k tokens": the sum of its turns' `tokenUsage` from `thread/turns/list`, raised to `total` from each `thread/tokenUsage/updated` for the child. The count never goes down, so a refresh that reads an older sum keeps the live total. A child that
-    is not running reads how its latest turn ended, from `thread/turns/list`: completed, failed, or
-    stopped when it was cancelled. A child that disappears from the list while running counts as
-    stopped (`capabilities.subAgentSessions`);
-  - Workflow runs: `workflow/run/list` for the thread, read again on `workflow/run/updated`; paused
-    runs count as running, Stop calls `workflow/run/stop` when the run's controls allow it and the
-    capability lists `stop` (`capabilities.extensions.dynamicWorkflows`).
+  - Background shell commands (`capabilities.backgroundTerminals`): `terminal/list` for the thread,
+    keeping terminals started with `runInBackground` and terminals still running after their turn. A
+    running terminal of the active turn is left out until that turn ends, as on Desktop, and the
+    list is reread then. A listed terminal stays listed once it ends. They follow
+    `terminal/started`, `terminal/completed`, and `terminal/cleaned`; Stop calls `terminal/stop`.
+  - SubAgents (`capabilities.subAgentSessions`): `subagent/children/list` without closed children,
+    reread on `subagent/graph/changed` for the chat and `thread/status/changed` for a child. A child
+    runs per its thread runtime; Stop calls `turn/interrupt` on its active turn, leaving it open. An
+    agent's card adds its model and tokens used: the sum of its turns' `tokenUsage` from
+    `thread/turns/list`, raised to `total` from each `thread/tokenUsage/updated`, never decreasing.
+    A non-running child reads how its latest turn ended (completed, failed, or stopped when
+    cancelled). A child that disappears while running counts as stopped.
+  - Workflow runs (`capabilities.extensions.dynamicWorkflows`): `workflow/run/list` for the thread,
+    reread on `workflow/run/updated`; paused runs count as running; Stop calls `workflow/run/stop`
+    when the run's controls allow it and the capability lists `stop`.
 
-  The phone loads a chat's tasks when it opens or subscribes to the chat, and reloads every chat
-  whose tasks it knows after it reconnects to the project. Notifications are honoured for any chat
-  the phone lists, and repeated refreshes of one source for one chat coalesce into one request at a
-  time. Background tasks never mark the chat itself as running.
+  The phone loads a chat's tasks when it opens or subscribes to the chat and reloads every known
+  chat's tasks after reconnecting to the project. Notifications are honoured for any listed chat,
+  and repeated refreshes of one source for one chat coalesce into one request at a time. Background
+  tasks never mark the chat itself as running.
 
 ### 8.4 Mascot
 
-The app renders the DotCraft mascot with the shared `@dotcraft/avatar` package, so the rig, palette,
-and motion match Desktop. It marks moments, not every screen:
+The app renders the DotCraft mascot with the shared `@dotcraft/avatar` package, so it matches
+Desktop. It marks moments, not every screen:
 
 | Moment | Mascot |
 |---|---|
-| Home | In the top row, aligned by its drawn shape rather than its box, reflecting the selected computer: idle when online, looking around while connecting, asleep when offline or when phone access is off, and holding up its question sign while any of its chats needs you. |
-| Pair | Greets on the scan screen, waits while the phone reaches the computer, and celebrates once when pairing completes. |
+| Home | Reflects the selected computer: idle when online, looking around while connecting, asleep when offline or phone access is off, and holding up its question sign while any chat needs the user. |
+| Pair | Greets on the scan screen, waits while reaching the computer, and celebrates when pairing completes. |
 | Transitions | Opening a chat while history loads, a project starting, and reconnecting show the mascot working with one line saying what is happening, in place of skeleton rows. |
-| Chat | A new chat's empty transcript greets with the mascot; a chat that runs an Agent Profile shows that profile's name-derived avatar there instead. The composer carries no mascot, so its controls keep the room. |
+| Chat | A new chat's empty transcript greets with the mascot; a chat running an Agent Profile shows that profile's avatar instead. |
 | Empty and error states | Empty lists, the revoked notice, and the identity-changed notice pair one sentence with a matching expression. |
 
-The mascot is the original brand appearance; the phone does not read the Desktop pet's outfit.
-Motion follows the phone's reduced-motion setting, and the mascot is decorative to screen readers.
+The mascot uses the original brand appearance, not the Desktop pet's outfit. Motion follows the
+reduced-motion setting, and the mascot is decorative to screen readers.
 
 ### 8.5 Live session
 
-When the app moves to the background while any chat on any computer is running or waiting on the
-user, or has a background task running (§8.3), it keeps its connections in an Android foreground service of type `connectedDevice` and shows
-one ongoing notification. It follows one chat across all computers, the most recent one waiting on
-the user or else the most recently updated running one: its title, and its pending approval or
-question, its latest tool step such as "Edited release.ps1", or that it is thinking or replying. The
-notification's header names the followed chat's computer, or counts the chats, such as "2 running · 1
-needs you", when more than one is running or waiting, and tapping the notification opens the followed
-chat on its computer. On Android 16 and later the notification asks to be
-promoted to a Live Update, so it stays in the status bar the way a live activity does, with the
-followed chat's state, such as "Running", as its status bar chip. A chat that is followed only for
-its background tasks shows how many run, such as "2 running tasks", with a "Running" chip, and does
-not count as a running chat in the header.
+When the app moves to the background while any chat on any computer is running, waiting on the
+user, or has a background task running, it keeps its connections in an Android foreground service of
+type `connectedDevice` with one ongoing notification. The notification follows one chat across all
+computers — the most recent one waiting on the user, else the most recently updated running one —
+showing its title and its pending request, latest tool step, or that it is thinking or replying. Its
+header names the followed chat's computer, or counts running and waiting chats when there are
+several; tapping opens the followed chat. On Android 16 and later it requests promotion to a Live
+Update with the followed chat's state as its status chip. A chat followed only for its background
+tasks shows their count and does not count as a running chat in the header.
 
-- During a live session the phone subscribes to every running or waiting chat, and to every chat with
-  a background task running, because pending requests and turn results reach only subscribed
-  connections ([AppServer Protocol](../protocols/appserver-protocol.md) §7.6). So the turn the
-  computer starts when a Workflow finishes reaches the phone and ends in the usual done or failed
-  notification. The phone knows the tasks of chats it has opened or whose task notifications arrived
-  while it was connected; a task started while the phone was away, in a chat it has not opened since,
-  does not keep a live session.
-- A new approval posts a heads-up notification naming the chat, and its computer when more than one
-  is paired, with **Allow once** and **Reject**
-  actions that answer without opening the app; its body opens the chat.
+- During a live session the phone subscribes to every running or waiting chat and every chat with a
+  running background task, because pending requests and turn results reach only subscribed
+  connections ([AppServer Protocol](../protocols/appserver-protocol.md) §7.6). So the turn a finished
+  Workflow starts reaches the phone and ends in the usual done or failed notification. Tasks started
+  while the phone was away, in a chat it has not opened since, do not keep a live session.
+- A new approval posts a heads-up notification naming the chat (and its computer when more than one
+  is paired) with **Allow once** and **Reject** actions that answer without opening the app; its body
+  opens the chat.
 - A new question posts a notification that opens the chat.
-- A turn that ends while the app is in the background posts one notification: done or failed.
-- The session ends, its connections close, and its ongoing, approval, and question notifications go
-  away when nothing has been running, waiting, or running in the background for two minutes, when the user chooses **Disconnect** on the
-  ongoing notification, or when every computer with work has been unreachable for two minutes. Done and failed
-  notifications stay. Returning to the app continues normally.
-- Android cannot ask for permission from the background, so the app asks for notification permission
-  once, the first time a chat is running or waiting while the app is open. Without it, the app closes
-  its connections in the background as it does outside a live session.
+- A turn that ends while the app is in the background posts one done or failed notification.
+- The session ends, closing its connections and its ongoing, approval, and question notifications,
+  when nothing has been running, waiting, or running in the background for two minutes, when the user
+  chooses **Disconnect** on the ongoing notification, or when every computer with work has been
+  unreachable for two minutes. Done and failed notifications stay.
+- Android cannot request permission from the background, so the app requests notification
+  permission the first time a chat is running or waiting while it is open. Without it, the app
+  closes connections in the background as outside a live session.
 
 ### 8.6 Localization
 
@@ -580,44 +512,39 @@ The app ships the same locales as Desktop and follows the phone's language.
 
 ## 9. Desktop Phones segment
 
-The Connections settings page gains a **Phones** segment for the phones that may control this
-computer. It follows the segment rules of [Desktop Client](desktop-client.md) §6.7.
+The **Phones** segment of Desktop's Connections settings turns the gateway on and off, mints
+pairing codes, and lists and revokes phones through §7. Its Desktop rules are owned by
+[Desktop Client](desktop-client.md) §6.15. The contract it relies on:
 
-- A switch, "Allow phones to control this computer", maps to enable and disable. Its description
-  states that a paired phone can do anything the user can do in DotCraft on this computer.
-- **Add phone** opens a dialog that mints a pairing code and shows the QR code, its expiry, and
-  a refresh action. Hub keeps one unexpired code at a time, so refreshing or minting again
-  invalidates the previous code. The dialog moves to a paired state on `mobile.devicePaired` for the
-  code it minted, and a failed mint shows the error with a retry.
-- The list shows each phone's name, platform, and last-seen time, with Remove behind a confirmation.
-  It stays visible while phone access is off or failed, so a phone can be removed without turning
-  access on.
-- When the gateway fails to start, the segment shows the reason, such as the port being in use.
+- The access switch maps to enable and disable, and its description states that a paired phone can
+  do anything the user can do in DotCraft on this computer.
+- Hub keeps one unexpired code at a time, so minting again invalidates the previous code. The
+  pairing dialog moves to its paired state on `mobile.devicePaired` for the code it minted.
+- The phone list stays available while access is off or failed, so a phone can be removed without
+  turning access on.
 - The Hub token and pairing codes never enter the renderer's persisted state.
 
 ## 10. Attention notifications
 
-AppServer-managed notifications gain two kinds beside `turnCompleted` and `turnFailed`:
-`approvalRequested` when a turn starts waiting on an approval, and `inputRequested` when it starts
-waiting on a question. They follow the same suppression and origin rules, and Desktop settings can
-turn each kind off. They exist so the user learns that work is blocked, whether the answer then
-comes from the computer or the phone.
+Turns that start waiting on an approval or a question raise the `approvalRequested` and
+`inputRequested` notifications defined in
+[Hub Architecture §10](../architecture/hub-architecture.md#10-tray-and-notifications), so the user
+learns that work is blocked whether the answer then comes from the computer or the phone.
 
 ## 11. Multi-client rules
 
 A phone and a Desktop window may watch the same thread. Pending approvals and questions belong to
 the thread: both receive them, the first answer resolves each one and both dismiss it, and a
-connection that goes away never resolves one. A request waits without a timeout until it is
-answered or its turn ends, so a phone that reconnects or opens the chat later can still answer it.
-The AppServer owns these guarantees; see [AppServer Protocol](../protocols/appserver-protocol.md)
-§7.6.
+connection that goes away never resolves one. A request waits without a timeout until answered or
+its turn ends, so a phone that reconnects or opens the chat later can still answer it. The AppServer
+owns these guarantees; see [AppServer Protocol](../protocols/appserver-protocol.md) §7.6.
 
 ## 12. Off-network access
 
 A relay lets a phone reach the gateway from any network. The user runs it on a server both sides can
-reach, with `dotcraft relay serve` or the relay container image. The relay forwards bytes and nothing
-else: the phone still speaks TLS to the gateway with the pinned certificate and its device
-credential, so the relay sees only ciphertext and never a credential, project, or chat.
+reach, with `dotcraft relay serve` or the relay container image. The relay forwards bytes only: the
+phone still speaks TLS to the gateway with the pinned certificate and its device credential, so the
+relay sees only ciphertext and never a credential, project, or chat.
 
 ### 12.1 Relay
 
@@ -631,97 +558,58 @@ reverse proxy that terminates public TLS. The token may come from `DOTCRAFT_RELA
 | `GET /r/connect?host=<hostId>` | Phone | Opens a tunnel to that computer. Answered `404 hostOffline` when the computer has no control channel. |
 | `GET /r/accept?tunnel=<tunnelId>` | Hub | Hub's side of a tunnel, authenticated by the relay token. |
 
-For each phone connection the relay picks a random `tunnelId`, sends `{ "type": "open", "tunnel": "…" }`
-on the host's control channel, and splices the phone's socket with Hub's `/r/accept` socket for that
-tunnel once it arrives within ten seconds, or closes the phone's socket. Tunnel payloads are binary
-WebSocket messages carrying the raw bytes of one TCP stream. The relay keeps no state beyond live
-sockets, logs no payloads, and closes a tunnel when either side closes. Its errors use the Hub error
-shape; a missing or wrong token is answered `401 unauthorized`.
+For each phone connection the relay picks a random `tunnelId`, sends
+`{ "type": "open", "tunnel": "…" }` on the host's control channel, and splices the phone's socket
+with Hub's `/r/accept` socket for that tunnel if it arrives within ten seconds, otherwise closing the
+phone's socket. Tunnel payloads are binary WebSocket messages carrying the raw bytes of one TCP
+stream. The relay keeps no state beyond live sockets, logs no payloads, and closes a tunnel when
+either side closes. Its errors use the Hub error shape; a missing or wrong token is answered
+`401 unauthorized`.
 
 The host id is the computer's `computerId` (§5.2). Reaching a host id still requires the pinned
 certificate and a device credential.
 
 ### 12.2 Hub
 
-When the gateway is on and a relay is configured, Hub keeps the control channel open, reconnecting
-with jittered backoff from 1 to 30 seconds. For each `open` it connects `/r/accept` and a loopback TCP
-connection to the gateway port and copies bytes both ways, so relayed phones arrive at the gateway
-from loopback and follow §5 unchanged.
+When the gateway is on and a relay is configured, Hub keeps the control channel open with jittered
+backoff from 1 to 30 seconds. For each `open` it connects `/r/accept` to a loopback TCP connection to
+the gateway port and copies bytes both ways, so relayed phones arrive from loopback and follow §5
+unchanged.
 
-The relay URL and token are set from the Phones segment and stored in `~/.craft/hub/mobile.json`.
-The Hub Local API adds `PUT /v1/mobile/relay` with `{ "url", "token" }` and `DELETE /v1/mobile/relay`,
-both answering the state object, which gains `relay: { "url", "state" }` with `state` `connecting`,
-`connected`, or `failed`, or `relay: null` when none is configured. `url` is the relay's base URL with
-an `https` or `wss` scheme (`http` and `ws` are accepted for testing); Hub and phones append the route
-paths to it and connect with the matching WebSocket scheme. A malformed URL or an empty token is
-answered `400 invalidRequest`. While the gateway is off, the relay stays configured but Hub does not
-connect, and clients present it as paused rather than by its `state`. The token never appears in the
-state object or in events.
+The relay URL and token are stored in `~/.craft/hub/mobile.json` and set with
+`PUT /v1/mobile/relay` (`{ "url", "token" }`) or removed with `DELETE /v1/mobile/relay`. The state
+object carries `relay: { "url", "state" }` with `state` `connecting`, `connected`, or `failed`, or
+`relay: null`. `url` is the relay's base URL with an `https` or `wss` scheme (`http` and `ws` are
+accepted for testing); Hub and phones append the route paths and connect with the matching
+WebSocket scheme. A malformed URL or empty token is answered `400 invalidRequest`. While the gateway
+is off, the relay stays configured but Hub does not connect, and clients present it as paused. The
+token never appears in the state object or events.
 
 The pairing payload adds `relay=<url>` when a relay is configured, and `GET /m/hello` adds `relay`
 (`{ "url" }` or `null`), so phones paired before the relay was set learn it on their next direct
-connection.
+connection. Setting the relay does not change existing pairings.
 
 ### 12.3 Phone
 
-The phone tries the computer's direct addresses first, each with a three-second connect timeout, and
-then the relay, and keeps using whichever path answered for that connection. Over the relay, each TLS
-connection the phone would open to the gateway runs through its own tunnel: the relay base URL with
-its scheme mapped to `ws` or `wss`, followed by `/r/connect?host=<hostId>`. It carries the same pinned
-certificate, device credential, routes, and AppServer protocol as on the local network. The computer
-is offline when neither path answers, including when the relay answers `hostOffline`. Release builds
-allow only `https` and `wss` relays.
-
-### 12.4 Desktop
-
-The Phones segment adds **Access from anywhere** with the relay address and token, a status line for
-`relay.state`, and Remove. Setting it does not change existing pairings.
+The phone tries the computer's direct addresses first, each with a three-second connect timeout, then
+the relay, and keeps whichever path answered for that connection. Over the relay, each TLS
+connection the phone would open runs through its own tunnel: the relay base URL with its scheme
+mapped to `ws` or `wss`, followed by `/r/connect?host=<hostId>`, carrying the same pinned certificate,
+device credential, routes, and AppServer protocol. The computer is offline when neither path
+answers, including when the relay answers `hostOffline`. Release builds allow only `https` and `wss`
+relays.
 
 ## 13. Failure behavior
 
 | Situation | Behavior |
 |---|---|
-| Gateway port in use | Turning on fails with `portUnavailable` and the state becomes `failed`; the Phones segment shows the reason. Hub retries the port on its next start while the gateway stays on. |
-| Certificate mismatch | The phone refuses to connect to that computer and shows on its Home that its identity changed, with Remove as the only action. Other computers are unaffected. |
+| Gateway port in use | Turning on fails with `portUnavailable` and the state becomes `failed`; Desktop shows the reason. Hub retries the port on its next start while the gateway stays on. |
+| Certificate mismatch | The phone refuses that computer and shows that its identity changed, with Remove as the only action. Other computers are unaffected. |
 | Pairing code expired or used | `pairingCodeInvalid`; the phone asks for a new code. |
-| Device revoked | The phone forgets that computer with a notice that it removed this phone, and selects another paired computer; with none left it returns to Pair with the notice. |
+| Device revoked | The phone forgets that computer with a notice and selects another paired computer; with none left it returns to Pair with the notice. |
 | Relay requested for a stopped project | `projectNotRunning` before the upgrade; the phone treats the project as stopped. |
-| Project AppServer stops | The relay closes; open chats of that project become read-only with a notice that the project stopped on the computer and a Start action, and the phone reconnects when `/m/events` reports it started. |
+| Project AppServer stops | The relay closes; open chats of that project become read-only with a notice and a Start action, and the phone reconnects when `/m/events` reports it started. |
 | Computer asleep or unreachable | The computer shows offline. |
 | Relay unreachable or wrong token | Hub reports `relay.state` `failed` and keeps retrying; phones on the local network are unaffected. |
-| Gateway turned off | Connections close with `gatewayOff`; the phone keeps the last synced chats read-only and shows that phone access is off on the computer. It remembers that reason until a connection succeeds again, so a restarted app still says access is off rather than offline. |
-| Project cannot start | Opening a project that is not running while the computer is offline or access is off, or when its start fails, says the computer can't start that project right now. |
-
-## 14. Acceptance checklist
-
-- A phone pairs by one scan and appears in the Phones segment without a refresh; revoking it
-  disconnects it within one second.
-- The phone never trusts a certificate other than the pinned one.
-- One phone pairs with two computers, switches between them from Home, and each shows only its own
-  projects and chats; scanning a computer again replaces its pairing instead of adding a second one.
-- With chats running on two computers, the phone stays connected to both, the background live
-  session follows them together, and an approval from either can be answered from its notification.
-- Removing, revoking, or an identity change on one computer leaves the other working.
-- An approval answered on the phone resolves it on the computer, and the reverse.
-- A message sent from the phone during a turn reaches that turn; Stop interrupts it.
-- New chat works in a project whose AppServer was not running.
-- After the phone loses its connection mid-turn, it catches up without duplicates and shows any
-  approval still waiting.
-- No credential or token appears in URLs, logs, or traces.
-- Through a relay, the phone works from another network exactly as on the local network, and the
-  relay never sees a credential or plaintext.
-- With work running, the phone keeps a live session in the background, and an approval can be
-  answered from its notification.
-- A photo and a file sent from the phone reach the agent and land under the project's
-  `.craft/attachments/`, where the agent can reach them by path after the turn.
-- Plan mode on the phone ends in **Implement this plan?** in the decision card, and yes continues
-  the chat in agent mode.
-- Approvals, questions, and plan confirmations all use the decision card, never a second copy of
-  the same request; the transcript above it scrolls while the composer stays hidden.
-- Commands and skills chosen in the Picker arrive as `commandRef` and `skillRef`.
-- Changes lists the same files and line counts as Desktop for the same turn, and a file chip opens
-  the file's contents.
-- Status shows the same context share as Desktop and, for a ChatGPT sign-in, the usage windows.
-- A chat whose turn ended while a Workflow and a background command keep running shows "2 running
-  tasks"; each can be stopped from Background tasks, and with the app in the background the phone
-  stays connected until they finish and posts the notification of the turn the Workflow starts.
+| Gateway turned off | Connections close with `gatewayOff`; the phone keeps the last synced chats read-only and shows that phone access is off, remembering that reason until a connection succeeds again so a restarted app does not report it as merely offline. |
+| Project cannot start | Opening a stopped project while the computer is offline or access is off, or when its start fails, reports that the computer can't start that project right now. |

@@ -2,22 +2,21 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7.8 |
+| Version | 0.9.1 |
 | Status | Draft |
-| Date | 2026-09-28 |
+| Date | 2026-10-19 |
 | Parent spec | [Remote Tool Host](../architecture/remote-tool-host.md) |
 | Related Specs | [Hub Architecture](../architecture/hub-architecture.md), [Remote Screen View](../features/remote-screen-view.md) |
 
 ## Overview
 
 DotCraft Satellite is the Windows tray application that makes a Remote Tool Host operable by a
-non-technical machine owner. A colleague installs it once, accepts an invitation from an engineer
-in one consent window, and from then on the engineer's DotCraft agent can run tools on that
-machine while the owner sees who is connected and can stop it at any time.
+non-technical machine owner. A colleague installs it once, accepts an engineer's invitation in one
+consent window, and from then on the engineer's DotCraft agent can run tools on that machine while
+the owner sees who is connected and can stop it at any time.
 
-The product name in user-facing copy is Satellite (卫星). Internal identifiers keep the technical
-terms: the specification is Remote Tool Host, the CLI noun is `tool-host`, the project is
-`DotCraft.Satellite`, and the executable is `dotcraft-satellite.exe`, matching `dotcraft.exe`.
+The user-facing product name is Satellite (卫星). Technical identifiers keep the Remote Tool Host
+terms: the CLI noun is `tool-host`, and the executable is `dotcraft-satellite.exe`.
 
 The key words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are normative.
 
@@ -32,83 +31,75 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are normative.
 
 ## Application boundary
 
-Satellite MUST host the Remote Tool Host runtime in-process through the public hosting entry point
-of `DotCraft.RemoteTools`. It MUST NOT spawn `dotcraft.exe` to serve. Exactly one Satellite process
-and one tray icon run per signed-in user. In normal tray mode the process ends only through the
-explicit quit action, uninstall, or external process termination. Closing, hiding, or losing an
-auxiliary window such as the island or consent surface MUST NOT stop the Remote Tool Host runtime
-or its Hub control connection; a failed island degrades to the tray surface.
+Satellite MUST host the Remote Tool Host runtime in-process through its public hosting entry point
+and MUST NOT spawn `dotcraft.exe` to serve. Exactly one Satellite process and one tray icon run per
+signed-in user. In tray mode the process ends only through explicit quit, uninstall, or external
+termination. Closing or losing an auxiliary window such as the island or consent surface MUST NOT
+stop the runtime or its Hub control connection; a failed island degrades to the tray.
 
 Satellite may connect through DotCraft Hub or an embedding service using the
-[Remote Tool Host contract](../architecture/remote-tool-host.md#21-embedded-execution-surface).
-Satellite owns device consent and visibility; application conversations and permissions belong to
-the embedding product. An embedding product may host its own Remote Tool Host under its own state
-root; those pairings belong to the product.
+[embedded execution surface](../architecture/remote-tool-host.md#21-embedded-execution-surface).
+Satellite owns device consent and visibility; conversations and permissions belong to the embedding
+product. An embedding product may host its own Remote Tool Host under its own state root; those
+pairings belong to the product.
 
 Tool sessions follow the [execution-session lifecycle](../architecture/remote-tool-host.md#52-execution-session-ownership).
-Owner pause, disconnect, authorization changes, and revoke retain their device-level effect.
+Owner pause, disconnect, authorization changes, and revoke keep their device-level effect.
 
-Satellite requires the WebView2 Runtime, which ships with Windows 11 and with Microsoft Edge.
-Without it the consent window shows a message saying so and offers Decline only.
+Satellite requires the WebView2 Runtime. Without it the consent window says so and offers Decline
+only.
 
 ## State sharing with the CLI
 
-Satellite and `dotcraft tool-host *` MUST resolve the same state root
-`~/.craft/remote-tool-host/` and the same credential-store prefix. `dotcraft tool-host status` on
-the machine MUST reflect state written by Satellite and vice versa. Satellite MUST NOT introduce a
-second state root or an environment override.
+Satellite and `dotcraft tool-host *` MUST resolve the same state root `~/.craft/remote-tool-host/`
+and the same credential-store prefix, so `dotcraft tool-host status` reflects state written by
+Satellite and vice versa. Satellite MUST NOT introduce a second state root or an environment
+override.
 
-When Satellite is running, `dotcraft tool-host join` MUST forward the invitation to the running
-Satellite instead of pairing directly, so the consent window is always the path by which a
-credential is stored. The hand-off is the user-level named pipe `DotCraft.Satellite.<user SID>`,
-carrying one JSON line `{"kind":"join","url":"<invite-url>"}`. When no listener answers within a
-short probe, the CLI pairs directly.
+When Satellite is running, `dotcraft tool-host join` MUST forward the invitation to it instead of
+pairing directly, so the consent window is always the path by which a credential is stored. The
+hand-off is the user-level named pipe `DotCraft.Satellite.<user SID>`, carrying one JSON line
+`{"kind":"join","url":"<invite-url>"}`. When no listener answers within a short probe, the CLI pairs
+directly.
 
 ## Consent
 
 Satellite MUST show inviter and Hub before storing credentials. Consent offers `fullAccess`
-(default) and `workspacePreferred` as two side-by-side cards, the default first, each stating its
-consequences in copy that is visible whether or not that card is selected. `workspacePreferred`
-allows ordinary task-folder file operations and asks the local owner before external files, new
-commands, nonempty terminal input and language-server execution. This is approval-based, not an
-OS sandbox. Full access remains subject to Windows permissions and Host deny policy.
+(default) and `workspacePreferred` side by side, the default first, each stating its consequences
+whether or not it is selected. `workspacePreferred` allows ordinary task-folder file operations and
+asks the local owner before external files, new commands, nonempty terminal input, and
+language-server execution. This is approval-based, not an OS sandbox. Full access remains subject
+to Windows permissions and Host deny policy.
 
-Selecting the workspace card MUST open the folder picker on that transition alone, so choosing a
-folder never requires typing a path. Selecting an already-selected card MUST NOT reopen it; a
-distinct change action does. Cancelling the picker keeps the card selected and keeps the
-suggested folder. A new per-pairing task folder is suggested and created only on acceptance. The
-owner may choose an existing folder instead. Whole drives and user profiles remain invalid. An
-unusable folder MUST NOT block full access, which is not scoped to a folder. Reauthorizing an
-existing pairing MUST NOT open the picker.
+Selecting the workspace option MUST open the folder picker on that transition alone, so choosing a
+folder never requires typing a path; reselecting it does not reopen the picker, a distinct change
+action does. Cancelling the picker keeps the option and the suggested folder. A new per-pairing task
+folder is suggested and created only on acceptance; the owner may choose an existing folder instead.
+Whole drives and user profiles are invalid. An unusable folder MUST NOT block full access.
+Reauthorizing an existing pairing MUST NOT open the picker.
 
-Owner requests show the inviter and exact operation, offer Allow once or Deny, queue serially,
-and expire after two minutes. Cancellation, disconnect, pause, revoke and authorization changes
+Owner requests show the inviter and exact operation, offer Allow once or Deny, queue serially, and
+expire after two minutes. Cancellation, disconnect, pause, revoke, and authorization changes
 invalidate pending decisions. No local UI means deny. Inviter approval never replaces owner
-approval. Shell approval explicitly covers possible effects outside the task folder.
-Existing pairings with no mode require local reauthorization. The tray exposes mode, folder and
-authorization management. Mode changes drain execution resources before changing authorization.
+approval. Shell approval explicitly covers possible effects outside the task folder. A pairing with
+no authorization mode requires local reauthorization. The tray exposes mode, folder, and
+authorization management; mode changes drain execution resources before changing authorization.
 
 Viewing the machine's screen ([Remote Screen View](../features/remote-screen-view.md)) needs no
-separate consent: pairing lends the machine, and a view is available to every pairing whose
-authorization is valid while sharing is not paused. Pause refuses new views and ends live ones;
-disconnect, revoke and authorization changes end them. The owner is always shown that it is
-happening, on the island and by notification.
+separate consent: a view is available to every pairing whose authorization is valid while sharing is
+not paused. Pause refuses new views and ends live ones; disconnect, revoke, and authorization
+changes end them. The owner is always shown that it is happening, on the island and by notification.
 
 Parsing an invitation link MUST be a pure operation. Filling the window costs exactly one `GET` of
-the invitation URL, which reads the inviter and expiry and writes nothing on either
-machine; a failed or unanswered fetch MUST still show the window with whatever the link itself
-carries. Nothing is stored and no pairing exists until the owner chooses Allow. Decline leaves no
-trace beyond an audit entry. The inviter name is attacker-influenced text: it MUST be rendered
-as plain text and MUST be length-capped.
+the invitation URL, which writes nothing on either machine; a failed fetch MUST still show the window
+with whatever the link carries. Nothing is stored and no pairing exists until the owner chooses
+Allow. Decline leaves no trace beyond an audit entry. The inviter name is attacker-influenced: it
+MUST be rendered as plain text and length-capped.
 
 The consent window uses a standard title bar and the DotCraft accent color regardless of the
-operating-system accent, so a security prompt looks the same on every machine.
-
-The window's content is a web page hosted in a WebView2 control. The page owns the look and
-receives every string it renders from the Satellite catalogs, inserting the inviter name as text;
-the window owns the title bar, the size, the folder picker and the accept path. Its layout,
-colour, type and the mascot artwork rendered from the shared avatar package are specified by the
-design lab entry for `flows/satellite-consent`.
+operating-system accent, so a security prompt looks the same on every machine. Its content is a
+hosted web page that receives every string from the Satellite catalogs; the window owns the title
+bar, size, folder picker, and accept path.
 
 ## States
 
@@ -121,126 +112,108 @@ Satellite has exactly four states with the precedence `offline > paused > connec
 | `connected` | at least one data session is open, of either kind; a screen view alone is enough |
 | `standby` | paired, control connection up, no data session |
 
-The tray icon, its tooltip, and the menu status line MUST reflect the current state. The menu MUST
-show who is connected and since when. The island carries the current command, so work running on the
-machine is visible without opening anything. Offline outranks paused so the owner is never told that
-resuming would help while the Hub is unreachable.
+The tray icon, tooltip, and menu status line MUST reflect the current state, and the menu MUST show
+who is connected and since when. Offline outranks paused so the owner is never told that resuming
+would help while the Hub is unreachable.
 
 ## Island
 
-The island is a floating capsule at the top of the primary display, above the other windows, with
-no taskbar or Alt-Tab presence. It MUST be visible whenever at least one pairing exists, in every
-one of the four states, so a machine that is lent out always says so and a capsule never comes and
-goes on its own. It is hidden only while no pairing exists and while its page failed to load. It
-has no close or hide action and no grip: the whole capsule surface drags, and its position is
-remembered per display in `~/.craft/satellite.json`.
+The island is a floating capsule at the top of the primary display, above other windows, with no
+taskbar or Alt-Tab presence. It MUST be visible whenever at least one pairing exists, in every state,
+so a lent-out machine always says so. It is hidden only while no pairing exists or its page failed to
+load. It has no close or hide action; the whole capsule drags, and its position is remembered per
+display in `~/.craft/satellite.json`.
 
-Outside `connected` the capsule is quiet: one line, the dish glyph, no rows, no pulse, no hover
-expansion, no pinning, and no approval. `standby` says the machine is ready; `paused` says sharing
-is paused and offers the one resume action, in the tray's words; `offline` says the machine is not
-connected, with the glyph dimmed. The quiet line uses the tray status strings. At sign-in the
-capsule waits a short grace for the first dial before it says `offline`, so a machine that connects
-within seconds never flashes the not-connected line.
+Outside `connected` the capsule is one quiet line using the tray status wording, with no rows,
+expansion, or approval: `standby` says the machine is ready; `paused` says sharing is paused and
+offers resume; `offline` says the machine is not connected. At sign-in the capsule waits a short
+grace for the first dial before showing `offline`, so a machine that connects within seconds never
+flashes it.
 
-Within `connected` its states have the precedence `approval > running > expanded > compact`. Compact names the peer
-and when it connected, or counts the machines when there are several. Running names the operation
-in the same vocabulary the approval request uses, previews the command on one truncated line, and
-counts concurrent tools. Expanded, on hover or click, keeps the compact line and adds only what it
-does not say: one detail row per connected machine with its access mode and connection time, with
-disconnect and open-task-folder on the row, and the machine-wide pause once under the rows. A
-single machine's row omits the name the line above already carries; several machines are named
-per row. Nothing is repeated between the line and the rows. Approval names the inviter, the
-operation and the target, counts the requests waiting behind it, and shows the time left.
+Within `connected` its states have the precedence `approval > running > expanded > compact`:
 
-While a machine's screen is being viewed, the capsule's glyph becomes an eye in the same tone as
-the dish it replaces, and that machine's detail row ends with "Screen shared". The marker changes
-no mode, uses no colour, and has no action of its own: pause is the owner's answer.
+- **Compact** names the peer and when it connected, or counts machines when there are several.
+- **Running** names the current operation in the approval vocabulary, previews the command on one
+  truncated line, and counts concurrent tools, so work on the machine is visible without opening
+  anything.
+- **Expanded** (hover or click) adds one row per connected machine with its access mode and
+  connection time, disconnect and open-task-folder actions, and one machine-wide pause. Nothing
+  already on the compact line is repeated.
+- **Approval** names the inviter, operation, and target, counts queued requests, and shows the time
+  left.
 
-Text the island renders from a peer or an inviter is attacker-influenced: it MUST be rendered as
-plain text, length-capped, and truncated to one line, with the full value available on hover.
+While a machine's screen is being viewed, the capsule's glyph becomes an eye and that machine's row
+says the screen is shared. The marker changes no mode, uses no colour, and has no action; pause is
+the owner's answer.
 
-Its surface is a translucent elevated fill (`#242424` at 90% in dark, white at 92% in light) with
-no border line: the edge is a rim light that follows the pointer, and a soft shadow separates it
-from the desktop. The capsule is a web page hosted in a WebView2 control inside a per-pixel
-transparent, always-on-top window. The page owns the look and the motion; the window owns
-geometry, input and the desktop: it places the capsule, hands the page its box on every state
-change, keeps the margin around the capsule transparent to the mouse so clicks there reach
-whatever is under it, and drags.
+Text from a peer or inviter is attacker-influenced: it MUST be rendered as plain text, length-capped,
+and truncated to one line, with the full value on hover.
 
-Every size property — the entrance drop, width, height and corner radius — follows one spring
-(stiffness 400, damping 30, mass 1) from one start time, so the capsule reads as a shape that
-stretches rather than a box swapped for another box. The content inside cross-fades under that
-motion: what is leaving fades out over 120ms while the shape is already moving, and what replaces
-it lands over 260ms after a 90ms delay.
-
-Its geometry, colour, type and motion are specified by the design lab entry for
-`components/satellite-island`, and its localized copy reuses the consent and approval keys.
+The capsule is a hosted web page in a transparent, always-on-top window. The page owns look and
+motion; the window owns geometry, input, and dragging, and keeps the margin around the capsule
+click-through. Size changes animate as one continuous shape. Localized copy reuses the consent and
+approval keys.
 
 ## Notifications
 
-Satellite MUST raise an operating-system notification when a peer connects, when it disconnects,
-when it starts viewing the screen, and when it stops. Notifications MUST NOT include command output,
-file contents, or any credential.
+Satellite MUST raise an operating-system notification when a peer connects, disconnects, starts
+viewing the screen, and stops. Notifications MUST NOT include command output, file contents, or any
+credential.
 
-An owner request MUST be answered on the island, where the owner is already being told that the
-machine is in use, and it expires there. It MUST NOT be raised as a notification.
+An owner request MUST be answered and expire on the island, never as a notification.
 
 ## Invitation link
 
-The invitation URL served by the Hub is `http://<hub-host>:<port>/i/<inviteId>`. Opened in a
-browser it is the whole install path: the page names the inviter, offers the
-Satellite installer from the same Hub, and repeatedly attempts to open the equivalent deep link
-`dotcraft://satellite/join?invite=<url-encoded invitation URL>`, so the consent window appears as
-soon as Satellite exists on the machine. Satellite MUST accept both forms
-in `join`, MUST reject invitations whose Hub endpoint is not an `http` or `https` URL, and MUST
-reject expired invitations with a message that tells the owner to ask for a new link.
+The Hub's invitation URL is `http://<hub-host>:<port>/i/<inviteId>`. Opened in a browser it is the
+whole install path: the page names the inviter, offers the Satellite installer from the same Hub,
+and repeatedly attempts the deep link `dotcraft://satellite/join?invite=<url-encoded invitation URL>`,
+so consent appears as soon as Satellite exists on the machine. Satellite MUST accept both forms in
+`join`, MUST reject invitations whose Hub endpoint is not an `http` or `https` URL, and MUST reject
+expired invitations with a message telling the owner to ask for a new link.
 
 ## Coexistence with Desktop
 
-Registration of the `dotcraft://` URL protocol under `HKCU\Software\Classes` follows one rule:
+Registration of the `dotcraft://` protocol under `HKCU\Software\Classes` follows one rule:
 
-- when no handler is registered, or the registered handler is a stale path to Satellite itself,
-  Satellite registers or repairs the handler;
-- when another program owns the handler, Satellite MUST NOT overwrite it. It publishes its
-  executable path under `HKCU\Software\DotCraft\Satellite`, and Desktop forwards every
-  `dotcraft://satellite/*` link to that executable. Desktop never completes a pairing itself.
+- when no handler is registered, or the handler is a stale path to Satellite itself, Satellite
+  registers or repairs it;
+- when another program owns the handler, Satellite MUST NOT overwrite it. It publishes its executable
+  path under `HKCU\Software\DotCraft\Satellite`, and Desktop forwards every `dotcraft://satellite/*`
+  link there. Desktop never completes a pairing itself.
 
-Satellite MUST provide a paste-invite-link action in its tray menu so an invitation can be accepted
-regardless of which program owns the protocol handler.
+The tray menu MUST offer a paste-invite-link action so an invitation can be accepted regardless of
+who owns the protocol handler.
 
-When Desktop is installed on the same machine, its Connections page carries a Share this PC segment
-that presents the same runtime state Satellite owns: whether Satellite is installed, who may run
-tools here, which folder each of them may reach, and when they were paired. Desktop reads that
-state; Satellite remains the only writer of pairings and credentials.
+When Desktop is installed on the same machine, it may present Satellite's runtime state (installed
+or not, who may run tools here, their reachable folder, and when they were paired). Desktop only
+reads that state; Satellite remains the only writer of pairings and credentials.
 
 ## Autostart and lifecycle
 
 Satellite registers login autostart under the current user's `Run` key with a background flag that
 suppresses any window. Installing Satellite autostart MUST remove the CLI autostart entry, and
 `dotcraft tool-host autostart install` MUST refuse while Satellite autostart exists, so a machine
-never runs two Remote Tool Host processes against the same state root.
+never runs two Remote Tool Host processes against one state root.
 
-A second Satellite instance MUST hand any invitation it was started with to the running instance
-and exit without initializing its user interface.
+A second Satellite instance MUST hand any invitation it was started with to the running instance and
+exit without initializing its user interface.
 
-A control/data connection failure or an unexpected runtime completion leaves the tray alive.
+A control or data connection failure or an unexpected runtime completion leaves the tray alive.
 Diagnostics follow [Logging](../architecture/logging.md) and exclude credentials, RPC arguments,
-command output and file contents. Tray callback failures are contained to the affected operation;
+command output, and file contents. Tray callback failures are contained to the affected operation;
 island failures disable the island while the tray and Remote Tool Host remain available.
 
 ## Localization
 
 Simplified Chinese and English are required. A missing translation MUST fall back to English and
-MUST NOT surface a raw key. Adding a locale MUST NOT require a code change beyond adding the
-catalog. Locale resolution follows the Desktop alias table (`zh`, `zh-CN`, `zh-SG` map to
-`zh-Hans`).
+MUST NOT surface a raw key. Adding a locale requires only adding its catalog. Locale resolution
+follows the Desktop alias table (`zh`, `zh-CN`, `zh-SG` map to `zh-Hans`).
 
 ## Installer and update
 
 Satellite ships as a per-user installer that requires no elevation and provides an update channel.
-The installer version follows the DotCraft product version, and the inviting machine's Hub serves
-the copy that matches its own build, so the two ends cannot drift apart between the invitation and
-the pairing. Uninstall MUST stop the runtime, remove
+Its version follows the DotCraft product version, and the inviting Hub serves the matching build, so
+the two ends cannot drift between invitation and pairing. Uninstall MUST stop the runtime, remove
 autostart, remove the protocol handler only when Satellite owns it, remove the notification
 registration, and offer to revoke every pairing, defaulting to revoke, so no live shared secret
-outlives the application that used it.
+outlives the application.

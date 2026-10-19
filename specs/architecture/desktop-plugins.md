@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.8.10 |
+| Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-10-17 |
+| Date | 2026-10-19 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -22,11 +22,11 @@ Six contribution families provide convenience APIs for common integrations. They
 
 ## Trust and runtime model
 
-Desktop Plugin code executes in the same renderer realm as DotCraft. Installation and enablement are the trust decision. The architecture does not introduce a permission system, JavaScript sandbox, process boundary, or separate Extension Host for Desktop Plugins.
+Desktop Plugin code executes in the same renderer realm as DotCraft. Installation and enablement are the trust decision. There is no permission system, JavaScript sandbox, process boundary, or separate Extension Host for Desktop Plugins.
 
-Plugins may use the public SDK, the renderer DOM, browser APIs available in the realm, global CSS, and the existing preload API. Direct DOM access and selectors against DotCraft-owned markup are allowed, but only the public SDK is a compatibility contract. DotCraft may change internal elements, class names, stores, and component structure without preserving a plugin that depends on them. This distinction is about compatibility, not access control.
+Plugins may use the public SDK, the renderer DOM, browser APIs, global CSS, and the preload API. Only the public SDK is a compatibility contract; DotCraft may change internal elements, class names, stores, and component structure without preserving plugins that depend on them. This distinction is about compatibility, not access control.
 
-MCP Apps remain a separate sandboxed path for untrusted interactive tool content. They are not Desktop Plugins and do not participate in this renderer runtime.
+MCP Apps remain a separate sandboxed path for untrusted interactive tool content and do not participate in this runtime.
 
 ## Plugin settings
 
@@ -44,97 +44,69 @@ await host.settings.mutate("workspace", [
 `get()` returns the plugin's validated schema, personal and workspace values, effective value, and
 the scopes writable through the current AppServer connection. `mutate(scope, operations)` accepts
 only `personal` or `workspace`, targets the activated plugin id implicitly, and returns the new
-snapshot. Operations are `{ op: "set", key, value }` and `{ op: "unset", key }`. The host validates
-all operations and the resulting namespace before writing.
+snapshot. The host validates all operations and the resulting namespace before writing.
 
-The API is an AppServer projection, not renderer-local storage. An activated generation reads its
-initial snapshot explicitly and follows every later write through `onChange`. Configuration is for
-small settings values. Images, databases, and caches remain backend-owned data and must not be
-placed in `plugin-config.json`.
+The API is an AppServer projection of [plugin configuration](plugin-architecture.md), not
+renderer-local storage. Configuration holds small settings values; images, databases, and caches
+remain backend-owned data.
 
 ### Settings changes
 
-`settings.onChange(listener)` is generation-owned and delivers a complete snapshot only when
-stored configuration changes. Subscription itself and rejected writes emit nothing; callers obtain
-the initial state with `get()`. A mutation response and its AppServer notification represent one
-change and must not produce duplicate delivery. An older asynchronous read cannot replace a newer
-published snapshot. One plugin's listeners share configuration observation.
-
-Changes cover writes through the connected AppServer, not external edits of `plugin-config.json`.
-Plugin settings do not provide revisions, conflict resolution, secrets, or filesystem operations.
+`settings.onChange(listener)` is generation-owned and delivers a complete snapshot only when stored
+configuration changes through the connected AppServer. Subscribing and rejected writes emit nothing.
+A mutation response and its AppServer notification are one change and are delivered once. An older
+asynchronous read never replaces a newer published snapshot. External edits of `plugin-config.json`
+are not observed. Plugin settings provide no revisions, conflict resolution, secrets, or filesystem
+operations.
 
 ### Settings and appearance contract
 
-A plugin settings page is built from the Host's settings shell, groups, and rows. Ordinary controls — switches, selects, sliders — go in a row's control slot; previews, media pickers, theme choices, and other wide visual choices go in a block row or a flush group so a plugin never nests a decorative card inside a settings card. The visual grammar those pieces follow is defined in [Desktop DESIGN.md](DESIGN.md#plugin-surfaces).
+A plugin settings page is built from the Host's settings shell, groups, and rows; the visual grammar is defined in [Desktop DESIGN.md](DESIGN.md#plugin-surfaces). The Host UI Kit is the settings control boundary: plugins use its shared controls instead of restyling native controls. A hidden native file input may still invoke the platform file picker when the visible trigger is a Host control.
 
-The Host UI Kit is the settings control boundary. Plugins use its shared controls instead of restyling native selects, segmented controls, switches, or ranges. A hidden native file input may still invoke the platform file picker when the visible trigger is a Host control. Opaque colour choices use Core's shared picker, requested through `host.ui.pickColor`; a plugin never owns its portal, focus lifecycle, validation, or localization. A folder choice uses `host.ui.pickFolder({ title })`, which opens the platform folder dialog and resolves to the chosen absolute path on the Desktop machine, or `null` when cancelled; `title` is already localized.
+- `host.ui.pickColor` opens Core's shared colour picker; the Host owns its portal, focus, validation, and localization.
+- `host.ui.pickFolder({ title })` opens the platform folder dialog and resolves to the chosen absolute path on the Desktop machine, or `null` when cancelled; `title` is already localized.
+- Continuous controls preview locally and persist on commit: `Slider` `onValueChange` tracks the live value and `onValueCommit` reports the final value once. Intermediate values are never sent through AppServer.
 
-Continuous controls preview locally and persist when the interaction commits. `Slider` `onValueChange` tracks the pointer or keyboard value, while `onValueCommit` reports the final value once at the end of the gesture. Do not send each intermediate delta through AppServer or write it to configuration storage.
+Global appearance is Host-owned. A plugin may contribute a theme-seed override or request backdrop presentation through `host.appearance`; it never writes Desktop's private CSS custom properties. Core Appearance preferences remain the base layer. Each generation owns at most one theme override and one backdrop contribution, removed when the generation is disposed.
 
-Global appearance is a Host-owned composition. A plugin may contribute a theme-seed override or request backdrop presentation through `host.appearance`; it must not write Desktop's private CSS custom properties. Core Appearance preferences remain the base layer. Each generation owns one theme override and one backdrop contribution, and Desktop removes both when that generation is disabled, reloaded, or disposed.
-
-An `app.background` surface renders media only. When it also requests backdrop presentation, the window frame becomes transparent, and the menu bar, panel body, and welcome surface each composite one Host-owned neutral layer over the media. The panel body is shared by sidebar and main, so the main surface's rounded corner reveals the same neutral layer instead of raw media. A plugin must not place a second translucent sidebar or main layer over that body: compounded alpha makes one opacity setting mean different things across the shell.
-
-Persistent window telemetry belongs in the Host-owned `app.status` rail, not in a freely positioned `app.overlay`. The rail keeps compact readouts and Core indicators on one alignment line and owns their spacing and window inset; contributions do not position themselves against the viewport. Use tabular numerals for changing measurements, omit unavailable facts instead of presenting false zeroes, and keep passive readouts click-through. `app.overlay` remains the surface for decorative or independently positioned content.
+When an `app.background` contribution requests backdrop presentation, the window frame becomes transparent and the Host composites one neutral layer over the media for the menu bar, the shared sidebar/main panel body, and the welcome surface. A plugin does not add its own translucent sidebar or main layer over that body.
 
 ## Package contract
 
 A top-level plugin owns at most one Desktop module, sharing its id, version, enabled state and
 interface metadata under [Plugin Architecture](plugin-architecture.md). Managed dependencies do
-not order Desktop activation. The inline `desktop` declaration owns executable Desktop code:
-optional `description`, `entry`, and `styles`; executable output, chunks and assets remain under
-manifest-relative `./desktop/dist/`. Free-form capability labels do not grant renderer authority.
-
-### Bundled assets
-
-Every plugin under `desktop/resources/plugins/dotcraft-bundled/plugins` shares
-the DotCraft release version in its `.craft-plugin/plugin.json`. The release
-version bump script discovers those plugins and updates their manifests together.
+not order Desktop activation. The inline `desktop` declaration owns executable Desktop code;
+output, chunks, and assets stay under `./desktop/dist/`. Free-form capability labels grant no
+renderer authority. Bundled plugins carry the DotCraft release version in their manifests.
 
 Imported assets resolve against the importing module's installed source and revision, including
 split chunks; CSS URLs remain stylesheet-relative. Bundles use the Desktop-owned React/JSX runtime
 and do not ship another React implementation. The Host UI kit and published theme tokens are
 supported authoring contracts; private renderer components and properties are not.
 
-### UI kit prop names
+### UI kit
 
-Value controls use `onValueChange` and `ariaLabel`; boolean controls use `onChange`.
-Host adapters preserve these SDK names independently of internal component prop names.
+Value controls use `onValueChange` and `ariaLabel`; boolean controls use `onChange`. These SDK
+names are stable independently of internal component props.
 
-### Menus
+`Menu` opens a Host menu from a plugin-rendered trigger passed as its child. Its `items` are
+`{ label, onSelect, icon?, disabled?, danger?, checked? }`, `{ type: "separator" }`, and
+`{ type: "label", label }`. The Host owns placement, keyboard navigation, dismissal, and layering.
 
-`Menu` opens a Host menu from a plugin-rendered trigger, such as a row's overflow `IconButton`. It
-takes the trigger as its child and an `items` list of `{ label, onSelect, icon?, disabled?, danger?, checked? }`
-entries, `{ type: "separator" }`, and `{ type: "label", label }`. The Host owns placement, keyboard
-navigation, dismissal, and layering, as it does for Core menus.
+A plugin main view that browses or manages a collection uses the Host catalog frame:
 
-### Catalog pages
+- `CatalogPage` takes `{ title, actions?, search?, filters?, children }` and renders the top band with `actions`, a pinned header with `title` and a search row, and a scrolling body centred on the catalog column. `search` is `{ value, placeholder, onValueChange }`. `filters` is `{ ariaLabel, groups }`, each group `{ label, icon?, value, options, onValueChange }` with options `{ value, label }`; the first option is the unfiltered choice. The band has no navigation slot for plugins.
+- `CatalogSection` titles one body group with `{ title, children }`.
+- `CatalogToolbarButton` is an icon-only band action, `{ icon, label, onClick }`, whose label is also its tooltip.
+- `SplitButton` is a principal action with alternatives: `{ label, onClick, items, menuLabel, icon?, variant?, disabled?, ariaLabel? }`, where `variant` is `primary` or `secondary` and `items` follow `Menu` items.
 
-A plugin main view that browses or manages a collection uses the Host catalog frame instead of
-copying its sizes. `CatalogPage` takes `{ title, actions?, search?, filters?, children }` and renders
-the catalog top band with `actions` on the right, the pinned header with `title` as the hero and a
-search row, and the scrolling body that centres `children` on the catalog column. `search` is
-`{ value, placeholder, onValueChange }`. `filters` is `{ ariaLabel, groups }`, where each group is
-`{ label, icon?, value, options, onValueChange }` and options are `{ value, label }`; the first
-option is the unfiltered choice, and the filter button reads active while any group holds another
-value. The band carries no navigation slot for plugins.
+Rows and tables inside a group remain plugin code built from theme tokens.
 
-`CatalogSection` titles one group of the body with `{ title, children }`. `CatalogToolbarButton`
-is the band's icon-only action, `{ icon, label, onClick }`, whose label is also its tooltip.
-`SplitButton` is the band's principal action with alternatives: `{ label, onClick, items, menuLabel,
-icon?, variant?, disabled?, ariaLabel? }`, where `variant` is `primary` or `secondary` and `items`
-use `{ label, onSelect, icon?, disabled? }` like `Menu` items. Rows and tables inside a group stay
-plugin code built from theme tokens.
-
-### Agent identity
-
-`AgentAvatar` renders the avatar Core shows for an agent, using `{ name: string; size?: number; animated?: boolean }`. `name` is the agent nickname, the same value the Subagents tab uses, so a plugin and Core always draw the same character for the same agent. The Host supplies the component; a plugin does not bundle the avatar package to recreate it.
-
-`UserAvatar` renders the Desktop user's own Profile avatar, using `{ size?: number }`, for content the user wrote. It falls back to the user's initials and then to a person glyph, as Core does for line comments.
-
-### Markdown
-
-`Markdown` renders a Markdown string with the renderer Core uses for messages, using `{ content: string }`. Links open externally, Mermaid fences stay code, and wide content scrolls inside the block instead of widening the plugin surface. A plugin does not bundle its own Markdown parser to show source or agent text.
+`AgentAvatar` (`{ name, size?, animated? }`) renders the avatar Core shows for an agent nickname,
+so a plugin and Core draw the same character for the same agent. `UserAvatar` (`{ size? }`) renders
+the Desktop user's Profile avatar with Core's fallbacks. `Markdown` (`{ content }`) renders with
+Core's message renderer: links open externally, Mermaid fences stay code, and wide content scrolls
+inside the block. Plugins use these instead of bundling their own avatar or Markdown packages.
 
 ## Activation contract
 
@@ -147,45 +119,45 @@ export function activate(host: DesktopPluginHost):
   | Promise<void | DesktopPluginActivation>
 ```
 
-Calling the kernel primitives during activation registers work directly into the new generation. Returning `DesktopPluginActivation` provides the six contribution arrays and an optional `dispose()` callback. A plugin may use either form or combine them.
+Kernel calls during activation register directly into the new generation and take effect
+immediately. Returning `DesktopPluginActivation` provides the six contribution arrays and an
+optional `dispose()` callback. A plugin may use either form or both.
 
-Every effect, UI registration, service provider, event listener, returned contribution, style, and Host-owned subscription created during activation belongs to the same generation. Kernel calls take effect immediately. If activation later fails, the runtime disposes everything already registered by that generation.
+Every effect, UI registration, service provider, event listener, returned contribution, style, and
+Host-owned subscription created during activation belongs to that generation. If activation fails,
+the runtime disposes everything the generation already registered.
 
 ## Kernel primitives
 
 ### Effects
 
-`effect(setup)` runs renderer-local setup and may return cleanup. Use it for timers, observers, browser listeners, subscriptions, and imperative integrations without a natural React owner. Registrations from the other primitives are already generation-owned and need no duplicate effect cleanup.
+`effect(setup)` runs renderer-local setup and may return cleanup, for timers, observers, listeners, and imperative integrations without a React owner. Registrations from the other primitives are already generation-owned.
 
 ### UI composition
 
 Every public UI insertion point is a named surface. `ui.add`, `ui.replace`, and `ui.wrap` take a surface name and a React component:
 
-- `add` keeps all active registrations. The surface decides where its additive content appears.
-- `replace` selects the last active registration. Disposing it restores the previous replacement, or the surface's default content when none remains.
-- `wrap` composes around the current surface. A later registration is the outer wrapper. Disposing any wrapper recomposes the remaining chain without it.
+- `add` keeps all active registrations, ordered by an optional `order` (default 100) and then registration order. The surface decides where additive content appears.
+- `replace` selects the last active registration. Disposing it restores the previous replacement, or the default content. A replaced default is not mounted; disposal remounts the current fallback.
+- `wrap` composes around the current surface; a later registration is the outer wrapper. Disposing any wrapper recomposes the remaining chain.
 
-`add` takes an optional `order`, defaulting to 100. Additions render by ascending order and then registration order. `replace` and `wrap` use registration order only, preserving their disposal stack.
+"Later" means actual registration order, including across plugins, whether the surface belongs to Core or another plugin. Handles may be disposed early; otherwise the generation disposes them.
 
-While a replacement is active, the replaced default component tree is not mounted. Disposing the replacement remounts the current fallback rather than revealing a hidden, still-running implementation.
-
-“Later” means actual registration order, including across plugins. The same rules apply whether the target surface belongs to Core or another plugin. Registration handles may be disposed early; otherwise the generation disposes them automatically.
-
-UI composition does not imply ownership of backend behavior. Replacing `composer`, for example, replaces its renderer surface but does not silently create a Session API, tool, or AppServer method.
+UI composition does not imply ownership of backend behavior. Replacing `composer` replaces its renderer surface but creates no Session API, tool, or AppServer method.
 
 ### Services
 
-`services.provide` publishes a renderer-local service, and `services.use` returns a synchronous snapshot of the last active provider. Desktop modules may activate concurrently, so consumers resolve a service at the point of use and handle `undefined`; manifest dependencies do not make a Desktop provider ready first. Removing a provider reveals the previous provider, or makes the service unavailable when none remains. A service needed by CLI, remote clients, another process, or a required ordered dependency belongs in .NET or an AppServer protocol.
+`services.provide` publishes a renderer-local service, and `services.use` returns a synchronous snapshot of the last active provider. Desktop modules may activate concurrently, so consumers resolve at the point of use and handle `undefined`; manifest dependencies do not make a provider ready first. Removing a provider reveals the previous one. A service needed by CLI, remote clients, another process, or an ordered dependency belongs in .NET or an AppServer protocol.
 
 ### Events
 
-`events.on` subscribes to a renderer-local event, and `events.emit` publishes one. Use events for occurrence notifications that do not need a service reference. Listeners are generation-owned. Events do not persist Session data or become AppServer notifications.
+`events.on` subscribes to a renderer-local event and `events.emit` publishes one, for occurrence notifications that need no service reference. Listeners are generation-owned. Events neither persist Session data nor become AppServer notifications.
 
 ## Surface contract
 
-A surface provides a stable name, typed render context, default content when applicable, and the three composition modes. Its name is the compatibility boundary; the DOM produced inside the surface is not.
+A surface provides a stable name, typed render context, default content when applicable, and the three composition modes. Its name is the compatibility boundary; the DOM inside it is not.
 
-The formal Core surfaces are:
+The Core surfaces are:
 
 | Surface | Placement and default |
 | --- | --- |
@@ -193,16 +165,16 @@ The formal Core surfaces are:
 | `app.background` | An empty decorative seat behind the application shell. Core's normal background remains inside `app`. |
 | `app.overlay` | An empty seat in front of the application shell, click-through by default. |
 | `app.status` | The Host-owned trailing status rail at the bottom-right of the window. Empty by default and click-through outside interactive contributions. |
-| `composer` | The complete mounted Composer, including new-chat welcome, pre-thread embedded, and active-thread states. Core supplies the normal implementation. |
-| `composer.mascot` | The Composer mascot's 58 × 58 logical-pixel visual stage. Core supplies the DotCraft robot and keeps ownership of placement, interaction, bubbles, menus, and outer motion. |
+| `composer` | The complete mounted Composer, including new-chat welcome, pre-thread embedded, and active-thread states. |
+| `composer.mascot` | The Composer mascot's visual stage. Core supplies the DotCraft robot and keeps placement, interaction, bubbles, menus, and outer motion. |
 | `composer.before` | Additive content immediately before the Composer body. Empty by default. |
 | `composer.after` | Additive content immediately after the Composer shell. Empty by default. |
-| `composer.input` | The complete attachment and rich-input region. Core supplies the normal input implementation. |
-| `composer.input.attachments` | The attachment strip inside the input region. Core supplies the current image and file attachments. |
-| `composer.input.editor` | The rich editor and its anchored popovers. Core supplies the normal editor. |
-| `composer.toolbar` | The complete control row inside the Composer card. Core supplies the leading and trailing control groups. |
-| `composer.toolbar.leading` | The leading control group. Core supplies command, permission, mode, goal, and voice-status controls when applicable. |
-| `composer.toolbar.trailing` | The trailing control group. Core supplies context usage, model, voice, and submit controls when applicable. |
+| `composer.input` | The complete attachment and rich-input region. |
+| `composer.input.attachments` | The attachment strip inside the input region. |
+| `composer.input.editor` | The rich editor and its anchored popovers. |
+| `composer.toolbar` | The complete control row inside the Composer card. |
+| `composer.toolbar.leading` | The leading control group: command, permission, mode, goal, and voice-status controls when applicable. |
+| `composer.toolbar.trailing` | The trailing control group: context usage, model, voice, and submit controls when applicable. |
 | `composer.toolbar.commands` | The command picker control. |
 | `composer.toolbar.permissions` | The approval-policy control. |
 | `composer.toolbar.mode` | The active profile or plan-mode control. |
@@ -211,33 +183,33 @@ The formal Core surfaces are:
 | `composer.toolbar.model` | The provider and model control. |
 | `composer.toolbar.voice` | The voice input control. |
 | `composer.toolbar.submit` | The current submit, queue, stop, approval, or reply action. |
-| `composer.status` | The status row below the Composer card. Core supplies the workspace row when applicable. |
-| `composer.status.workspace` | The context row: project, Run on, work location, branch, worktree, or changelist controls. The row is Core content; its individual chips are not surfaces. |
+| `composer.status` | The status row below the Composer card. |
+| `composer.status.workspace` | The context row: project, Run on, work location, branch, worktree, or changelist controls. Its individual chips are not surfaces. |
 | `composer.status.subscription` | The ChatGPT subscription indicator when applicable. |
-| `composer.status.trailing` | The trailing end of the status row, opposite the context row. Core contributes nothing; it is reserved for compact, persistent readouts. |
+| `composer.status.trailing` | The trailing end of the status row, reserved for compact persistent readouts. Empty by default. |
 | `thread.header.actions` | The action group in the active thread header, between the overflow menu and the Detail Panel toggle. Empty by default. |
-| `conversation.aside.leading` | A seat beside the leading edge of the conversation reading column, for transient or ambient content. Empty by default. |
+| `conversation.aside.leading` | A seat beside the leading edge of the conversation reading column. Empty by default. |
 | `conversation.aside.trailing` | A seat beside the trailing edge of the conversation reading column, for panels that accompany the conversation. Empty by default. |
 
-`app.background`, `app.overlay`, and `app.status` share the application context. The overlay mounts after the application, so its content paints over the shell without a plugin having to consume the single `app` wrapper. The seat sets `pointer-events: none`, and the property inherits, so a floating readout stays click-through by default and a plugin that wants clicks opts back in with `pointer-events: auto` on its own element. That default keeps a decorative overlay from swallowing the interface underneath it, which is the failure a plugin cannot recover from once shipped.
+`app.background`, `app.overlay`, and `app.status` share the application context. The overlay paints over the shell without consuming the single `app` wrapper. Overlay, status, and aside seats are click-through (`pointer-events: none`, inherited); a contribution opts back in on its own interactive elements.
 
-`app.status` is for compact, persistent diagnostics and status readouts rather than freely positioned overlays. The Host owns its bottom-right inset, horizontal ordering, spacing, and coexistence with Core indicators. Contributions render before the trailing Core indicator and must not position themselves against the viewport. A contribution may opt back into pointer events for a real control, but passive telemetry remains click-through.
+`app.status` holds compact, persistent status readouts. The Host owns its inset, ordering, spacing, and coexistence with Core indicators; contributions render before the trailing Core indicator and never position themselves against the viewport. Passive readouts stay click-through. `app.overlay` is for decorative or independently positioned content.
 
-Composer surface contexts use `threadId: null` whenever the Composer has not created or attached to a real Session thread, including welcome and detached embedded Composers. They carry the real thread id after attachment.
+Composer surface contexts use `threadId: null` until the Composer attaches to a real Session thread, including welcome and detached embedded Composers.
 
-Every internal Composer surface remains mounted while its Composer region exists, even when its Core default is not applicable to the current provider, compact mode, minimal chrome, or decision state. A plugin uses the shared Composer context to decide whether its own content applies. `add` renders after the current default or replacement. A plugin that needs content before a Core control uses `wrap`, renders its content first, and then renders `children`. Replacing an internal control removes that Core behavior; the plugin owns any replacement behavior and receives no private control callbacks.
+Every internal Composer surface stays mounted while its Composer region exists, even when its Core default does not apply to the current state; a plugin uses the shared Composer context to decide whether its content applies. `add` renders after the current default or replacement; content that must precede a Core control uses `wrap`. Replacing an internal control removes that Core behavior, and the plugin receives no private control callbacks.
 
-`composer.mascot` inherits the Composer context and adds the resolved mascot activity, expression, semantic light, base size, submit revision, reasoning effort, speed, and reduced-motion preference. Replacing it swaps only the visual character, so an image, SVG, canvas, Lottie player, or React component continues to ride Core's Composer positioning and outer motion. Additions share the same visual stage and act as overlays or accessories. The context exposes product state rather than private CSS classes or the default robot's internal idle vocabulary.
+`composer.mascot` adds the resolved mascot activity, expression, semantic light, base size, submit revision, reasoning effort, speed, and reduced-motion preference to the Composer context. Replacing it swaps only the visual character, which continues to ride Core's positioning and outer motion; additions act as overlays or accessories. `submitRevision` increments for each submit, even when state does not otherwise change. Plugin-specific occurrences use `events`. Replacing the complete `composer` surface is the way to own placement, bubbles, menus, or interaction. The error-screen mascot and Agent Profile avatars are unaffected.
 
-Stable mascot activity is a snapshot delivered through React context. `submitRevision` increments for repeated submit occurrences that may not otherwise change state. Plugin-specific occurrences continue to use `events.on` and `events.emit`; Core does not duplicate every mascot state transition onto the renderer event bus. Replacing the complete `composer` surface remains the escape hatch for plugins that also want to own placement, bubbles, menus, or interaction behavior. The error-screen mascot and Agent Profile avatars are separate surfaces and are not affected by `composer.mascot`.
+On the new-chat Welcome screen, `composer` covers the complete pre-thread experience (app selector, hero, input, workspace footer, quick starts), which shares one draft and voice lifecycle and is replaced atomically.
 
-On the new-chat Welcome screen, `composer` deliberately covers the complete pre-thread composition experience, including its app selector, hero, input, workspace footer, and quick starts. Those elements share one draft and voice lifecycle and are replaced atomically.
+The SDK's `PluginSurface` component declares and renders a plugin-owned surface from its `name` and typed `context`. Core or another plugin may target it with `add`, `replace`, or `wrap` regardless of activation order; registrations render whenever it is mounted. Plugin-qualified names are recommended but not enforced.
 
-These are the first stable surfaces, not a capability ceiling. The SDK's `PluginSurface` component declares and renders a plugin-owned surface from its `name` and typed `context`. Plugin-qualified names are recommended but not enforced. Core or another plugin may target it with `add`, `replace`, or `wrap`, regardless of activation order. It exists while mounted; registrations targeting it remain generation-owned and render whenever it is present.
+Core surface names are closed. The Host warns about unknown names rooted at `app`, `composer`, `thread`, or `conversation` but still stores the registration. Plugin-owned names remain open.
 
 ### Thread and conversation surfaces
 
-`thread.header.actions` and the two conversation asides mount only while a real Session thread shows its Chat view. They are absent on the new-chat Welcome screen and while a conversation view contribution replaces the message stream. They share one thread context:
+`thread.header.actions` and the two conversation asides mount only while a real Session thread shows its Chat view, not on the new-chat Welcome screen or while a conversation view contribution replaces the message stream. They share one thread context:
 
 ```ts
 interface DesktopPluginThreadSurfaceContext {
@@ -247,9 +219,9 @@ interface DesktopPluginThreadSurfaceContext {
 }
 ```
 
-`thread.header.actions` holds compact controls that act on the current thread. A contribution renders a single icon button from the UI kit; the Host owns spacing, order relative to Core controls, and the header height.
+`thread.header.actions` holds compact controls for the current thread, each a single UI-kit icon button; the Host owns spacing, order, and header height.
 
-The conversation asides add layout to that context:
+The conversation asides add layout:
 
 ```ts
 interface DesktopPluginConversationAsideContext extends DesktopPluginThreadSurfaceContext {
@@ -259,23 +231,19 @@ interface DesktopPluginConversationAsideContext extends DesktopPluginThreadSurfa
 }
 ```
 
-Each aside is a seat between the edge of the message stream and the reading column. It spans the visible stream height and does not scroll with messages. Like `app.overlay`, the seat sets `pointer-events: none`, and a contribution opts back in on its own interactive elements.
+Each aside is a seat between the message stream edge and the reading column, spanning the visible stream height without scrolling with messages.
 
-Layout belongs to the Host and depends only on width. During a shell panel transition, the Host uses the conversation's target width rather than its interpolated measured width, so contributions and the reading-column shift start their transitions with the shell. Embedded conversations without a shell target use their measured stream width. The side space is half the difference between the stream width and the reading column width:
+The Host owns layout, which depends only on the side space: half the difference between the stream width and the reading column width. During a shell panel transition it uses the target width, so contributions transition with the shell.
 
-- `overlay`: the side space is under 180 logical pixels.
-- `shift`: the side space is from 180 up to, but not including, 400 logical pixels.
-- `gutter`: the side space is 400 logical pixels or more.
+- `overlay`: side space under 180 logical pixels; a pin has no layout effect, and the contribution shows a compact or popover form instead of a panel.
+- `shift`: 180 up to 400 logical pixels; while any trailing pin is live, the reading column, the Composer, and the controls docked above it move 153 logical pixels toward the leading edge.
+- `gutter`: 400 logical pixels or more; the column stays centered.
 
-A trailing contribution calls `pin` while it shows a panel beside the conversation and disposes the handle when it stops. In `shift`, while any trailing pin is live, the reading column moves 153 logical pixels toward the leading edge. The Composer and the controls docked above it, the running turn's changes strip and the scroll-to-bottom button, move with it. In `gutter`, the column stays centered. In `overlay`, a pin has no effect on layout. A contribution keeps its pin and shows a compact or popover form instead of a panel.
-
-`width` is the seat's current width in logical pixels. That is the side space, plus the shift for the trailing seat, or minus the shift for the leading seat. `conversation.aside.leading` never pins. While the [turn navigation rail](../features/turn-navigation.md) is shown, the rail keeps the outermost lane, and the leading seat starts after it. Layout changes, including the column shift, animate unless reduced motion is requested. They never remount contributions.
-
-The Core surface names above are closed. The Host warns about unknown names rooted at `app`, `composer`, `thread`, or `conversation` but still stores the registration. Plugin-owned names remain open because their surface may mount later.
+A trailing contribution calls `pin` while it shows a panel and disposes the handle when it stops. `conversation.aside.leading` never pins. `width` is the seat's width: the side space plus the shift for the trailing seat, or minus it for the leading seat. When Core shows a rail in the outermost leading lane, the leading seat starts after it. Layout changes animate unless reduced motion is requested and never remount contributions.
 
 ## Convenience contributions
 
-The existing contribution contract remains the recommended concise API for common product integrations:
+The convenience contribution contract is the concise API for common integrations:
 
 | Contribution | Convenience behavior |
 | --- | --- |
@@ -286,57 +254,52 @@ The existing contribution contract remains the recommended concise API for commo
 | Tool renderer | Adds exact-presentation rendering with Core and generic fallbacks. |
 | Message action | Adds an action to the standard assistant-message action area. |
 
-These six kinds are convenience APIs, not a closed set or authorization list. Their ordering, fallback, localization, and navigation behavior remains host-owned. Tool renderers change presentation only; MCP App presentation remains on its sandboxed path. Composer UI uses `ui.add`, `ui.replace`, or `ui.wrap` against named surfaces instead of a separate contribution family.
+These kinds are not an authorization list. Their ordering, fallback, localization, and navigation remain Host-owned. Tool renderers change presentation only; MCP App presentation stays on its sandboxed path. Composer UI uses named surfaces rather than a separate contribution family.
 
-### Localized labels
+A contribution label carries a `default` string and an optional `translations` map. The Host resolves it against the normalized app locale it reports through `environment`, normalizing translation keys too (`zh`, `zh-CN`, and `zh-Hans` are one entry). A key outside the supported locale set never matches; the label falls back to `default`.
 
-A contribution label carries a `default` string and an optional `translations` map. The Host resolves it against the same normalized app locale it reports through `environment`, and it matches a translation key by normalizing that key too, so `zh`, `zh-CN`, and `zh-Hans` are one entry rather than three misses. A key outside the supported set falls back to `default` instead of claiming the English entry, because normalization resolves an unknown tag to English and a Portuguese translation must not be served to English readers.
-
-### Contribution icons
-
-A contribution may supply a React icon component; otherwise the Host renders a fallback glyph. Core does not publish a separate glyph-name vocabulary.
+A contribution may supply a React icon component; otherwise the Host renders a fallback glyph. There is no glyph-name vocabulary.
 
 ## Runtime lifecycle
 
-`PluginInfo.desktop` reports the optional contribution description, manifest-relative entry and style declarations, plus a content revision over the normalized executable declaration and complete `./desktop/dist/` tree. The revision identifies executable content for cache busting, generation replacement, and remote matching. Presentation-only description changes do not alter it. It remains independent from the .NET execution fingerprint.
+`PluginInfo.desktop` reports the optional description, manifest-relative entry and style declarations, and a content revision over the normalized executable declaration and complete `./desktop/dist/` tree. The revision identifies executable content for cache busting, generation replacement, and remote matching; description changes do not alter it, and it is independent from the .NET execution fingerprint.
 
-For each installed and enabled plugin, Desktop authorizes its local root, loads its styles and revisioned module, opens a generation, and calls `activate` once. Kernel calls apply as they occur; any returned convenience activation is validated and registered afterward.
+For each installed and enabled plugin, Desktop authorizes its local root, loads its styles and revisioned module, opens a generation, and calls `activate` once. Kernel calls apply as they occur; a returned convenience activation is validated and registered afterward.
 
-The whole content revision is the iteration and reload unit. Refreshing an already active revision is a no-op. Development requires rebuilding the revision and refreshing or re-enabling the plugin. This architecture does not provide a file watcher, HMR, component-level reload, or a partial-generation patch path.
+The whole content revision is the reload unit. Refreshing an already active revision is a no-op; development iterates by rebuilding the revision and refreshing or re-enabling the plugin. There is no file watcher, HMR, component-level reload, or partial-generation patch.
 
-Disable, uninstall, revision replacement, or Desktop shutdown disposes the complete generation. This withdraws components, styles, subscriptions, services, effects, and module routes and invokes an optional returned `dispose()` once. UI registries reveal the next replacement, remove additive entries, and recompose wrappers.
+Disable, uninstall, revision replacement, or Desktop shutdown disposes the complete generation: components, styles, subscriptions, services, effects, and module routes are withdrawn and a returned `dispose()` runs once. UI registries reveal the next replacement, remove additive entries, and recompose wrappers. Invalidation withdraws Host-owned resources immediately; a new revision does not wait for an unfinished `activate()` or `dispose()`, and a late activation result cannot publish.
 
-Invalidation withdraws Host-owned resources immediately. A new revision does not wait for an unfinished `activate()` or returned `dispose()` promise; a late activation result is stale and cannot publish.
+Activation failure is reported through Desktop logging and toast surfaces and disposes the failed generation, including registrations that were already visible.
 
-Activation failure reports through existing Desktop logging and toast surfaces and disposes the failed generation, including registrations that were already visible.
+### Remote workspaces
 
-With a local AppServer, Desktop resolves the installed plugin root. With a remote AppServer advertising `desktopPluginArtifacts`, Desktop downloads the installed plugin's Desktop output through `plugin/desktop/read`. The package remains installed only in the remote workspace; its other contributions and configuration remain remote. The client cache contains only a minimal manifest and `desktop/dist`, never source, credentials, or managed/MCP executables outside that tree.
+With a local AppServer, Desktop resolves the installed plugin root. With a remote AppServer advertising `desktopPluginArtifacts`, Desktop downloads the installed plugin's Desktop output through `plugin/desktop/read`. The package stays installed only in the remote workspace, with its other contributions and configuration. The client cache holds only a minimal manifest and `desktop/dist`, never source, credentials, or other executables.
 
-Desktop asks once before running downloaded code from a remote workspace. The remembered grant covers subsequent plugin installs and revisions from that source and workspace, independently of server-side .NET trust. Declining leaves remote contributions usable. The plugin page allows retrying, granting, or revoking local execution. Revocation and workspace switching invalidate pending loads and withdraw active contributions.
+Desktop asks once before running downloaded code from a remote workspace. The remembered grant covers later installs and revisions from that source and workspace, independently of server-side .NET trust. Declining leaves the other remote contributions usable; the plugin page allows retrying, granting, or revoking local execution. Revocation and workspace switching invalidate pending loads and withdraw active contributions.
 
-The main process keys authorization and caches by the stable remote connection identity and server-reported `plugin/list.workspacePath`. SSH identity uses host/stack identity rather than the tunnel port. Downloads use bounded chunks and staging; the client rejects unsafe archive paths and links and recomputes the existing Desktop revision before publishing. Module routes are source-scoped as well as revision-scoped. Only a current, authorized target may activate. Cache failures do not fall back to another revision or a same-named local plugin.
+Authorization and caches are keyed by the stable remote connection identity (for SSH, host/stack identity rather than tunnel port) and the server-reported `plugin/list.workspacePath`. Downloads are bounded and staged; the client rejects unsafe archive paths and links and recomputes the revision before publishing. Module routes are source- and revision-scoped, and only a current, authorized target activates. Cache failures never fall back to another revision or a same-named local plugin.
 
-Verified cache entries survive disconnects. Superseded revisions and removed plugins are pruned after active routes release them. When the remote server does not advertise the artifact capability, Desktop does not activate its Desktop contributions and the Plugins page explains that the server must be updated. Other remote plugin contributions remain available. Desktop never substitutes locally packaged code for remote Desktop output. This adds no file watching, HMR, second installation, or Agent plugin-management API.
+Verified cache entries survive disconnects; superseded revisions and removed plugins are pruned after active routes release them. When the server does not advertise the artifact capability, Desktop does not activate its Desktop contributions and explains that the server must be updated; other remote contributions remain available. Desktop never substitutes locally packaged code for remote Desktop output.
 
 ## Host and compatibility contract
 
-Every Desktop Plugin receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, open targets, project actions, notifications, AppServer, MCP tool calls, App Binding, App Surfaces, workspaces, and Oratorio. It is a supported authoring API, not a security membrane. Private stores, routes, components, DOM, and CSS remain reachable to trusted code but are not compatibility contracts. Main-process validation remains a service invariant rather than a plugin permission.
+Every Desktop Plugin receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, open targets, project actions, notifications, AppServer, MCP tool calls, App Binding, App Surfaces, workspaces, and Oratorio. It is a supported authoring API, not a security membrane. Main-process validation remains a service invariant rather than a plugin permission.
+
+Every `onChange` subscription below is generation-owned, carries a complete snapshot, and fires only when a value actually changes.
 
 ### Environment changes
 
-`environment` reads the applied theme, its seed, and the UI locale, and `environment.onChange` notifies when any of them changes. Each notification carries a complete snapshot and fires only when a value differs from the one last delivered. The subscription is generation-owned like every other Host registration.
+`environment` reads the applied theme, its seed, and the UI locale; `environment.onChange` notifies when any of them changes. The Host owns the observation; how Core announces a change is not part of the contract.
 
-`environment.themeSeed` is the four values Desktop derives its palette from: `surface`, `ink`, `accent`, and a 0-100 `contrast`. It is on the snapshot because the theme name alone cannot express a recolor — a user changing the accent leaves `theme` at `dark`, and a plugin that cached a computed color would never re-read. `surface` is the base plane, which is the page in dark and the card in light, so both variants move away from it the same way. A plugin that only needs colors should read the published tokens rather than re-deriving the ramp from the seed.
+`environment.themeSeed` is the four values Desktop derives its palette from: `surface` (the base plane: the page in dark, the card in light), `ink`, `accent`, and a 0-100 `contrast`. It is part of the snapshot because a recolor can leave `theme` unchanged. A plugin that only needs colors reads the published tokens.
 
-The Host owns the observation. A plugin does not watch `documentElement` for the theme attribute or the language attribute, and how Core announces a change is an implementation detail of the runtime rather than part of this contract.
-
-`environment.locale` is one of `en`, `zh-Hans`, `ja`, `ko`, `es`, `fr`, or `de`. The Host normalizes browser tags such as `zh-CN` and `en-US` before publishing the typed SDK value.
+`environment.locale` is one of `en`, `zh-Hans`, `ja`, `ko`, `es`, `fr`, or `de`; browser tags are normalized before publishing.
 
 ### Session state
 
 `session` reads the foreground workspace, the active thread, that thread's mode, and whether a turn
-is busy. `session.onChange` notifies when any of the four changes, carries a complete snapshot, fires
-only on an actual change, and is generation-owned like every other Host registration.
+is busy; `session.onChange` notifies when any of them changes.
 
 ```ts
 interface DesktopPluginSessionSnapshot {
@@ -347,17 +310,14 @@ interface DesktopPluginSessionSnapshot {
 }
 ```
 
-`session.workspacePath` is the foreground workspace and matches the `active` entry from
-`workspaces.listLocalProjects()`. A Composer surface reads its thread's workspace from
-`context.workspacePath`, which may differ.
-
-`busy` means a turn is running or waiting on user input. Approval state, Composer variant, and
-minimal chrome remain on the Composer surface context; `workspaces` owns workspace lists and
-switching.
+`session.workspacePath` matches the `active` entry from `workspaces.listLocalProjects()`; a Composer
+surface's `context.workspacePath` may differ. `busy` means a turn is running or waiting on user
+input. Approval state, Composer variant, and minimal chrome remain on the Composer surface context;
+`workspaces` owns workspace lists and switching.
 
 ### SubAgent state
 
-`subagents` reads the SubAgent children Desktop tracks for a parent thread. These are the children its Subagents tab lists. `subagents.list(parentThreadId)` returns a snapshot. `subagents.onChange(parentThreadId, listener)` notifies with a complete snapshot whenever a listed child's identity or state changes.
+`subagents.list(parentThreadId)` returns the SubAgent children Desktop tracks for a parent thread (those its Subagents tab lists). `subagents.onChange(parentThreadId, listener)` notifies when a listed child's identity or state changes.
 
 ```ts
 interface DesktopPluginSubAgent {
@@ -369,20 +329,19 @@ interface DesktopPluginSubAgent {
 }
 ```
 
-`state` is a product reading, not the wire status. `waiting` means the child's active Turn needs approval or user input. `done` covers a completed or closed child.
-
-
-`subagents.reveal(parentThreadId, childThreadId)` opens the parent thread's Subagents tab with that child selected.
+`state` is a product reading, not the wire status: `waiting` means the child's active Turn needs approval or user input, and `done` covers a completed or closed child. `subagents.reveal(parentThreadId, childThreadId)` opens the parent's Subagents tab with that child selected.
 
 ### Navigation
 
-`navigation` opens product destinations. `openExternal(url)` opens an `http` or `https` URL in the user's default browser and handles a `dotcraft:` link inside Desktop exactly as if the operating system had delivered it; it rejects other schemes. A plugin adds or opens a project and starts a chat with a prefilled message through `dotcraft://threads/new` ([Desktop client §5.2](../clients/desktop-client.md#52-start-a-new-conversation)). `openFile(path)` opens a workspace file in the Detail Panel file viewer. `openDetailPanel(tab)` opens the current thread's Detail Panel on `changes`, `plan`, or `subagents`. `openAutomation(automationId)` opens that automation in the Automations view. `revealToolCall(threadId, callId)` opens that thread and reveals the tool item with that call id in the conversation, as described in [Desktop client](../clients/desktop-client.md); a background terminal's `callId` names the `Exec` call that started it. `openMainView` remains limited to the plugin's own main views.
+`navigation` opens product destinations:
 
-`openPath(path, { target?, line?, column? })` opens a local path in another app ([Desktop client
-§5.17](../clients/desktop-client.md#517-open-in-another-app)). `target` is an id returned by
-`listOpenTargets()`, such as `fileManager` or `custom:<id>`; without it the path's effective default
-target is used. `line` and `column` reach editors that accept a position. It rejects on a remote
-workspace and when the target is not available.
+- `openExternal(url)` opens an `http` or `https` URL in the default browser and handles a `dotcraft:` link exactly as if the operating system had delivered it; other schemes are rejected. A plugin starts a chat with a prefilled message through `dotcraft://threads/new` ([Desktop client §5.2](../clients/desktop-client.md#52-start-a-new-conversation)).
+- `openFile(path)` opens a workspace file in the Detail Panel file viewer.
+- `openDetailPanel(tab)` opens the current thread's Detail Panel on `changes`, `plan`, or `subagents`.
+- `openAutomation(automationId)` opens that automation in the Automations view.
+- `revealToolCall(threadId, callId)` opens that thread and reveals the tool item with that call id; a background terminal's `callId` names the `Exec` call that started it.
+- `openMainView` is limited to the plugin's own main views.
+- `openPath(path, { target?, line?, column? })` opens a local path in another app ([Desktop client §5.17](../clients/desktop-client.md#517-open-in-another-app)). `target` is an id from `listOpenTargets()`, such as `fileManager` or `custom:<id>`; without it the path's default target is used. It rejects on a remote workspace or an unavailable target.
 
 ### Project actions
 
@@ -394,30 +353,31 @@ workspace and when the target is not available.
   actions `{ id, name, icon, command }` for this platform, most recently run first — plus the
   selected environment id.
 - `onChange(workspacePath, listener)` delivers the same result when an environment file, the
-  selection, or the run order changes. It is generation-owned.
+  selection, or the run order changes.
 - `select(workspacePath, environmentId)` changes the selected environment.
 - `run({ threadId, environmentId, actionId })` runs an action in the conversation's terminal.
 - `openTerminal({ threadId })` opens a terminal tab at the workspace root.
 - `promptAddAction({ workspacePath, environmentId? })` opens the Host's add-action dialog and
-  resolves to `{ environmentId, action }` for the saved action, or `null` when cancelled or when the
-  action does not run on this platform.
+  resolves to `{ environmentId, action }`, or `null` when cancelled or when the action does not run
+  on this platform.
 
 ### Host commands
 
 A plugin runs a program on the AppServer host through `appServer.request("command/exec", …)`
-([AppServer protocol §25C](../protocols/appserver-protocol.md#25c-command-execution-methods)), for
-example to launch an editor or read a command-line tool's JSON output. On a remote workspace the
-program runs on the remote machine.
+([AppServer protocol §25C](../protocols/appserver-protocol.md#25c-command-execution-methods)). On a
+remote workspace the program runs on the remote machine.
 
 ### MCP tool calls
 
-`mcp.callTool({ server, tool, arguments?, threadId? })` calls a tool on an MCP server through
-`mcpServer/tool/call` and returns its raw MCP result. The call passes through the server's normal
-authority, approval, and hook pipeline. With `threadId`, it runs on that thread. Without it, the Host
-uses one hidden ephemeral thread on the current AppServer connection: started on first use with
+`mcp.callTool({ server, tool, arguments?, threadId? })` calls an MCP tool through
+`mcpServer/tool/call` and returns its raw MCP result, through the server's normal authority,
+approval, and hook pipeline. With `threadId`, it runs on that thread. Without it, the Host uses one
+hidden ephemeral thread on the current AppServer connection, started on first use with
 `approvalPolicy = deny`, shared by every plugin, and replaced after a reconnect or workspace switch.
-A call never moves to another connection: when the connection changes before dispatch the call fails, and only a missing hidden thread on the same connection is recreated and retried once. An approval-gated call on that thread is rejected, and the rejection comes back as the tool result;
-a plugin that needs the user's approval passes the thread the user is looking at.
+A call never moves to another connection: it fails if the connection changes before dispatch, and
+only a missing hidden thread on the same connection is recreated and retried once. An
+approval-gated call on the hidden thread is rejected as its tool result; a plugin that needs the
+user's approval passes the thread the user is looking at.
 
 ### AppServer notifications
 
@@ -427,4 +387,4 @@ change delivery to built-in surfaces. Bridged server requests have one responder
 
 ## .NET and AppServer boundary
 
-Pure UI stays in the Desktop Plugin; Core does not mirror surfaces, renderer services, or renderer events into C#. Add a .NET plugin or AppServer contract only for backend execution, durable host-owned state, Agent tools or hooks, other clients, or cross-process coordination. A bundle may ship both modules, but neither is required by the other. Renderer composition does not alter Agent prompts, tools, or backend authority.
+Pure UI stays in the Desktop Plugin; Core does not mirror surfaces, renderer services, or renderer events into C#. A .NET plugin or AppServer contract is needed only for backend execution, durable host-owned state, Agent tools or hooks, other clients, or cross-process coordination. A bundle may ship both modules, but neither requires the other. Renderer composition does not alter Agent prompts, tools, or backend authority.

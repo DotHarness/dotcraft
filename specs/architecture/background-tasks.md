@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.10 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-10-17 |
+| **Date** | 2026-10-19 |
 | **Parent Specs** | [Session Core](session-core.md), [Tool Architecture](tools-architecture.md) |
-| **Related Specs** | [SubAgent Core](../features/subagents.md), [Dynamic Workflows](../features/dynamic-workflows.md), [Prompt Cache](prompt-cache.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
+| **Related Specs** | [Prompt Cache](prompt-cache.md) |
 
 Purpose: define one model-facing task model for work that keeps running after the tool call that
 started it: background terminals, SubAgents, and Dynamic Workflows. The model stops any of them with
@@ -29,7 +29,7 @@ its own execution runtime, persistence, and client protocol.
 - A unified AppServer `task/*` protocol. `terminal/*`, `subagent/*`, and `workflow/run/*` are the
   client contracts.
 - Line-level output monitoring (a Monitor tool) and notifications for Remote Tool Host terminals.
-- Changes to the shared discussion board or to agent-to-agent `MESSAGE` delivery.
+- The shared discussion board and agent-to-agent `MESSAGE` delivery.
 
 ## 3. Task model
 
@@ -98,12 +98,10 @@ Authority:
 A SubAgent role that denies Agent control may still stop its own shell tasks. `TaskStop` carries a
 `core.task` presentation with `options.operation = "stop"` and `options.kind` set to the task kind.
 
-### 4.2 `WriteStdin`
+`Exec` and `WriteStdin` semantics, including the empty-input wait, belong to
+[Tool Architecture](tools-architecture.md#74-shell-execution).
 
-`WriteStdin` writes input and reads unread output, including the empty-input wait. Input that is
-only Ctrl+C is ordinary input and does not settle the terminal.
-
-### 4.3 `SendMessage`
+### 4.2 `SendMessage`
 
 `SendMessage(target, message)` both messages and continues Agents:
 
@@ -117,7 +115,7 @@ only Ctrl+C is ordinary input and does not settle the terminal.
 
 A target whose spawn edge was closed by a client is an error.
 
-### 4.4 `SpawnAgent`, `ListAgents`, `Workflow`, `Exec`
+### 4.3 `SpawnAgent`, `ListAgents`, `Workflow`, `Exec`
 
 Their results name the task id and tell the model that a notification arrives when the task ends.
 
@@ -134,16 +132,14 @@ exactly one notification to its owner, unless the task is already `notified`:
 
 A client stop (`terminal/stop`, `turn/interrupt` on a SubAgent child, `subagent/close`,
 `workflow/run/stop`) still notifies and records the stop origin as `user`. A stop requested through
-the `/stop all` or `/tasks stop` command ([Channel Messaging and Commands](../features/channel-messaging.md) §12.2)
-goes through the task registry with stop origin `user`; like `TaskStop`, a task that settles within
-the wait owes no notification, because the command's reply reports it. A shell stall (see [Tool Architecture](tools-architecture.md) §7.3) sends a
+the `/stop all` or `/tasks stop` command goes through the task registry with stop origin `user`; like `TaskStop`, a task that settles within
+the wait owes no notification, because the command's reply reports it. A shell stall (see [Tool Architecture](tools-architecture.md#74-shell-execution)) sends a
 notification without settling the task; its completion notification still follows.
 
 ### 5.2 Envelope
 
-The notification is a queued input. Its display text is one line, for example `Background command
-finished (exit code 0): npm run build`, `Subagent docs_reviewer finished`, or `Workflow
-review-change was stopped by the user`; clients show it, and the model receives only:
+The notification is a queued input. Clients show a one-line display text naming the task and how it
+ended; the model receives only:
 
 ```text
 <task_notification>
@@ -195,15 +191,9 @@ An Agent's ending reaches its parent only as a task notification. The mailbox ca
 
 Clients control tasks through `terminal/*`, `subagent/*`, and `workflow/run/*`, and stop a SubAgent
 by interrupting the child thread's active turn with `turn/interrupt`, which leaves it open as the
-model's `TaskStop` does. `subagent/close` closes the child.
-
-Desktop:
-
-- A `TaskStop` call renders as one row naming what stopped: "Stopped background terminal
-  {command}", "Stopped subagent {name}", "Stopped workflow {name}".
-- A Turn started by any task notification marks its activity boundary with the kind's icon instead
-  of a bubble, names the task and how it ended on hover, and the icon reveals the tool call that
-  started the task in the conversation.
+model's `TaskStop` does. `subagent/close` closes the child. A Turn started by a task notification is
+presented by its task origin rather than as a user message, and identifies the tool call that started
+the task.
 
 ## 7. Constraints
 
@@ -211,19 +201,4 @@ Desktop:
 - An external SubAgent runtime's `supportsFollowupTask` capability governs whether `SendMessage` can
   continue it.
 - CodeMode and direct calls obey the same `TaskStop` and `SendMessage` contracts.
-- Tool results and notifications carry English text; Desktop owns localized presentation.
-
-## 8. Acceptance
-
-- The model stops a background command, a SubAgent, and a Workflow with `TaskStop`, gets the settled
-  status in the result, and receives no further notification for them.
-- A stopped SubAgent continues after `SendMessage`.
-- A command, a SubAgent, and a Workflow that end while their owner is idle each wake it with the same
-  envelope; several ending together wake it once.
-- A notification that arrives during a Turn reaches the model at its next sampling boundary.
-- A user stop from any client tells the model it was the user.
-- A wake loop stops after the configured limit and the held notification arrives with the next user
-  input.
-- The background-work tool surface is exactly the one in §4, in tools, prompts, roles,
-  configuration, and documentation.
-- Turns woken by any task kind show their origin and reveal the starting tool call.
+- Tool results and notifications carry English text; clients own localized presentation.

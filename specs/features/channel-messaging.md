@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.8.10 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-10-18 |
+| **Date** | 2026-10-19 |
 | **Parent Specs** | [External Channel Adapter](../protocols/external-channel-adapter.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 Purpose: Define how an agent speaks in social channels served by external channel adapters: one
@@ -46,12 +46,10 @@ channel-agnostic: nothing in this specification adds channel behavior to
 ## 3. Non-goals
 
 - Reactions, message edits, recalls, polls, buttons, @-mentions and quoted replies sent by the model.
-  They may become capability bits and optional tool fields later.
 - A directory or search tool for chats and contacts.
 - Sending from a thread that has no chat binding, such as an unbound Desktop thread.
 - Delivery-recovery Turns, silence tokens, or automatic fallback delivery of the final reply.
-- Platform operations that are not messaging, such as document or calendar access; those remain
-  adapter `channelTools`.
+- Platform operations that are not messaging, such as document or calendar access (§11).
 
 ## 4. Chat binding
 
@@ -69,11 +67,8 @@ A root thread has a chat binding when one of these holds:
 | Bound by App Binding | The verified channel binding target ([App Binding](../protocols/app-binding.md) §7). |
 | An automation run whose definition has a channel origin | The origin's channel and delivery target, with the origin's chat kind and label when it has them; without a kind the chat is unspecified. A thread-mode run into a thread that already has a binding uses that thread's binding. |
 
-SubAgent threads, Workflow children and other non-root threads have no chat binding.
-
-An App Binding binding binds its chat in every state that keeps a verified target until it is
-revoked. Only an `active` binding can deliver; any other state, such as `offline`, keeps the binding
-but fails delivery (§10).
+SubAgent threads, Workflow children and other non-root threads have no chat binding. An App Binding
+binding's chat lifecycle is defined in §10.
 
 ### 4.2 Membership
 
@@ -129,18 +124,7 @@ reachable targets (§5). The section is sent again only when that snapshot chang
   conversation stays in the thread;
 - the membership (§4.2);
 - the text format and accepted attachment kinds;
-- which other chats the adapter can reach (§5 `targets`).
-
-Shape, with values substituted:
-
-```text
-## Channel
-This conversation is connected to the {displayName} {chat kind} "{label}" ({address}).
-People in the chat see only what you send with SendChannelMessage. Everything else you write stays in this conversation.
-{membership: "Messages from every member arrive here with the sender's name." | "This conversation holds only one member's messages in that {chat kind}; other members' messages are not here."}
-The chat renders {text format} and accepts {attachment kinds}.
-{targets: "You can send to other {displayName} groups and direct chats by address." | omitted when neither is reachable}
-```
+- which other chats the adapter can reach (§5 `targets`), omitted when none are reachable.
 
 While the binding exists but its facts are unavailable, the section takes no snapshot and sends
 nothing, so the model keeps what it was last told. This covers a channel that is not connected, a
@@ -163,8 +147,7 @@ its Request Source lines and adds:
 - `SenderAddress`, when the adapter reports the sender's direct address;
 - `Trigger`, naming the automation for a Turn an automation started.
 
-Turns started by task notifications or goal continuation keep their existing input; they need no
-additional channel line.
+Turns started by task notifications or goal continuation carry no additional channel line.
 
 ## 7. `SendChannelMessage`
 
@@ -177,29 +160,10 @@ and channel, so it does not change with capabilities, connection state or mode. 
 in its own words rather than from a script. It is runtime-managed, so Agent Profile tool lists do
 not hide it from a bound root thread.
 
-### 7.2 Schema
+### 7.2 Parameters
 
-```json
-{
-  "type": "object",
-  "properties": {
-    "text": { "type": "string" },
-    "attachments": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "path": { "type": "string", "description": "Path of a file on this computer." },
-          "kind": { "type": "string", "enum": ["image", "file", "audio", "video"] },
-          "name": { "type": "string" }
-        },
-        "required": ["path"]
-      }
-    },
-    "to": { "type": "string" }
-  }
-}
-```
+The tool takes `text`, `attachments` (each with a required `path` and optional `kind` and `name`) and
+`to`.
 
 - At least one of `text` and `attachments` is present.
 - `path` names a file on the host running DotCraft that the Turn's file access policy lets it read,
@@ -261,31 +225,23 @@ and the parts delivered before the failure:
 ### 7.6 Presentation
 
 The tool call carries a `core.channel` presentation. Desktop renders it as one row naming where the
-message went, for example "Sent to {displayName} · {label}", with the text and attachments available on
-expand. A failed send shows the error in the same row.
+message went, with the text and attachments available on expand. A failed send shows the error in the
+same row.
 
 ## 8. Inbound messages and chat activity
 
-- An inbound message is still ordinary user input in the bound thread, with its `SenderContext`.
-- When the thread has an active regular Turn, the adapter adds the message to it with `turn/steer`.
-  When the Turn cannot accept steering, the adapter queues it with `turn/enqueue`. When no Turn is
-  active, it starts one with `turn/start`. The adapter does not retry `turn/start` while a Turn runs.
+- An inbound message is ordinary user input in the bound thread, with its `SenderContext`. The
+  adapter steers it into an active Turn, queues it, or starts a Turn as
+  [External Channel Adapter](../protocols/external-channel-adapter.md#72-thread-and-turn-management)
+  defines.
 - The adapter does not project `agentMessage` text, reasoning, plans, generated images or any other
   Item into the chat.
-- The adapter may show activity it owns, which the model is not told about:
-  - an acknowledgement reaction once the message is accepted;
-  - a typing indicator while the Turn runs;
-  - a status card, posted when a Turn the adapter started is still running after 20 seconds and
-    patched silently through `working`, `retrying`, `failed`, `stopped` and `done`. A Turn that fails
-    before then posts the card directly as `failed`. The card is never withdrawn and settles on the
-    elapsed time.
-- An adapter without a status card sends one short generic notice when a Turn it started fails. The
-  notice carries no diagnostic detail.
+- The adapter may show activity it owns, which the model is not told about: an acknowledgement
+  reaction, a typing indicator, and a status card for a long-running Turn, or one short generic
+  notice when a Turn fails if it has no status card. Each adapter uses whichever of these its
+  platform offers.
 - Approval and user-input requests keep their platform presentation
-  ([External Channel Adapter](../protocols/external-channel-adapter.md) §11).
-
-Each adapter uses whichever of these its platform offers; an adapter whose platform offers none shows
-no activity.
+  ([External Channel Adapter](../protocols/external-channel-adapter.md#8-approval-flow-in-external-channels)).
 
 ## 9. Automations
 
@@ -297,12 +253,13 @@ no activity.
   interrupted, the host sends one fixed failure notice to the origin chat, because the agent can no
   longer send.
 - The run's summary remains the last agent message and is shown in Desktop.
-- Automations without a channel origin keep their existing Desktop result notification.
+- Automations without a channel origin report their result through Desktop notification.
 
 ## 10. App Binding
 
-A thread bound to a chat through App Binding speaks to it only through `SendChannelMessage`. The tool
-stays published in every binding state that keeps a verified target, so a binding going offline does
+A thread bound to a chat through App Binding speaks to it only through `SendChannelMessage`. The
+binding binds its chat in every state that keeps a verified target until it is revoked; only an
+`active` binding can deliver. The tool stays published in every binding state that keeps a verified target, so a binding going offline does
 not change the thread's tools ([App Binding](../protocols/app-binding.md) §6.3). The tool resolves
 the binding revision and verified target at call time, and a call fails with `channelUnavailable`
 unless the binding is `active` then. Revocation removes the binding: later calls fail, the tool is
@@ -346,10 +303,10 @@ adapter-owned account commands such as personal authorization.
 | `/sessions` | List this conversation's recent threads, including archived ones, most recently active first, with a number, title and last activity. | conversation | run | everyone |
 | `/resume <n or thread id>` | Make that thread from `/sessions` the conversation's current thread: unarchive it and archive the current one. | conversation | interruptFirst | everyone |
 | `/compact` | Compact the thread's context. | current thread | reject | everyone |
-| `/automate list\|show\|pause\|resume\|run\|remove` | Unchanged ([Automations lifecycle](automations-lifecycle.md)). | automations created from this conversation | run | admin |
+| `/automate list\|show\|pause\|resume\|run\|remove` | Manage automations ([Automations lifecycle](automations-lifecycle.md)). | automations created from this conversation | run | admin |
 | `/help` | List the commands the sender may use. | none | run | everyone |
-| `/init` | Unchanged. | workspace | reject | admin |
-| `/debug` | Unchanged. | current thread | run | admin |
+| `/init` | Create an `AGENTS.md` with instructions for DotCraft. | workspace | reject | admin |
+| `/debug` | Toggle debug mode. | current thread | run | admin |
 
 A conversation is a thread identity: the current thread's origin channel, user id and channel
 context. It has one current thread: the newest active thread for its identity. `/new` and
@@ -358,10 +315,12 @@ thread, the adapter switches its current thread to it.
 
 A chat bound to a thread through App Binding (§4.1) belongs to that thread. While the binding is not
 revoked, `/new`, `/resume` and `/sessions` archive nothing and answer that the chat is bound to a
-DotCraft conversation and must be unbound in DotCraft first. `/sessions` and `/tasks` number entries in creation order, so a number never moves when a newer
-thread or task appears; `/resume` and `/tasks stop` accept that number or the entry's id, and the
-choices they return carry the id. `/model`, `/mode`, `/sessions`
-and `/tasks` return choices (§12.5) that select a model, a mode, a thread or a task to stop.
+DotCraft conversation and must be unbound in DotCraft first.
+
+`/sessions` and `/tasks` number entries in creation order, so a number never moves when a newer thread
+or task appears; `/resume` and `/tasks stop` accept that number or the entry's id, and the choices
+they return carry the id. `/model`, `/mode`, `/sessions` and `/tasks` return choices (§12.5) that
+select a model, a mode, a thread or a task to stop.
 
 ### 12.3 Authority
 
@@ -372,8 +331,8 @@ forwarded at all.
 
 ### 12.4 Approval replies
 
-Approval prompts are not registry commands. In addition to buttons and the existing reply keywords,
-every adapter accepts `/approve`, `/approve session` and `/deny` as replies to the sender's pending
+Approval prompts are not registry commands. In addition to buttons and reply keywords, every adapter
+accepts `/approve`, `/approve session` and `/deny` as replies to the sender's pending
 approval. An approval is the pending approval of the sender who started the Turn that raised it, or of
 the thread's only sender when the thread holds one sender's messages; these replies never answer
 another member's approval.
@@ -394,35 +353,3 @@ models `/model` lists.
   approvals with them. Otherwise it shows choices as a numbered list with each choice's command, and
   approvals as reply keywords.
 - `/help` and native menus list only the commands the sender may use.
-
-## 13. Acceptance checklist
-
-- [ ] An answer the agent writes without calling `SendChannelMessage` never appears in the chat, on
-      every channel, including text written between tool calls.
-- [ ] `SendChannelMessage` delivers text, an image and a file to the bound chat on every channel that
-      supports them, and a captioned single attachment where captions are supported.
-- [ ] An unsupported audio or video attachment is delivered as a file and the result says so; an
-      unsupported kind with no file fallback fails before anything is sent.
-- [ ] A retried call with the same Turn and call id does not post twice.
-- [ ] `to` sends to another group and to a direct chat on the same channel, and to a chat on another
-      connected channel; each asks for approval, `acceptForSession` covers later sends to the same
-      address, and an address the target channel cannot reach fails with `unsupportedTarget`.
-- [ ] The channel section names the platform, chat, address, membership, text format and
-      attachments; it is not sent again when nothing changed or while the channel is disconnected,
-      and a binding that is gone retires it once.
-- [ ] A message sent while a Turn runs reaches that Turn as guidance.
-- [ ] Each adapter shows the activity its platform offers (§8); a status card appears only for a Turn
-      over 20 seconds and settles on `done` or `failed`.
-- [ ] A channel-origin automation run that sends nothing leaves the chat silent; one that calls
-      `SendChannelMessage` posts in the origin chat, with attachments; a failed run posts one fixed
-      failure notice.
-- [ ] An App Binding thread delivers only through the tool; an offline binding keeps the tool and
-      fails the call with `channelUnavailable`, and a revoked binding removes the tool.
-- [ ] No adapter declares a messaging `channelTool`; non-messaging `channelTools` still work.
-- [ ] Every command in §12.2 behaves as specified on an adapter with interactive controls and on a
-      text-only adapter, and `/stop` runs immediately during a Turn on every channel.
-- [ ] `/stop` leaves a background shell running; `/stop all` stops it and clears queued input.
-- [ ] `/new` then `/sessions` then `/resume 2` returns to the previous thread and keeps one current
-      thread for the conversation.
-- [ ] `/new` in a chat bound through App Binding is refused and archives nothing.
-- [ ] A non-admin sender cannot run `/model`, and native menus hide it for them.

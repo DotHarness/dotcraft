@@ -2,187 +2,86 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.8 |
+| **Version** | 0.9.1 |
 | **Status** | Living |
-| **Date** | 2026-09-28 |
+| **Date** | 2026-10-19 |
 | **Parent Specs** | [SubAgent Core](subagents.md), [Session Core](../architecture/session-core.md) |
 
-Purpose: extend the shared SubAgent Core contract for external coding CLIs while preserving DotCraft-owned approval semantics and, when enabled, allowing later turns to continue the same external CLI session without introducing a long-lived REPL process.
+Purpose: extend the shared SubAgent Core contract for external coding CLIs while preserving DotCraft-owned approval semantics and, when enabled, allowing later tasks to continue the same external CLI session without a long-lived process.
 
 ## 1. Context
 
-An external SubAgent follows [SubAgent Core](subagents.md) for child identity, tasks, communication and parent ownership. This specification owns external process launch, approval-mode mapping and optional session resume.
+An external SubAgent follows [SubAgent Core](subagents.md) for child identity, tasks, communication, native runtime behavior, and parent ownership. This specification owns external process launch, approval-mode mapping, and optional session resume.
 
-## 2. Runtime Model
+DotCraft is the policy owner; subagents are execution engines. External CLI execution mode is selected from DotCraft approval mode, cancellation terminates the delegated process tree, and resumable sessions still use short-lived subprocesses owned by DotCraft.
 
-### 2.1 Runtime Types
+Runtime types are `native` and `cli-oneshot`.
 
-Current runtime types:
+## 2. Profiles
 
-- `native`
-- `cli-oneshot`
+Profiles are the runtime-specific extension point and part of workspace configuration.
 
-### 2.2 Core Principle
+| Fields | Purpose |
+|--------|---------|
+| `runtime`, `bin`, `args`, `env` | Process selection and base command line. |
+| `workingDirectoryMode` | How the child working directory is chosen. |
+| `supportsStreaming`, `supportsResume` | Advertised runtime capabilities. |
+| `trustLevel` | Profile trust tier. |
+| `permissionModeMapping` | Extra launch args per approval mode (section 4). |
+| `timeout` | Per-task execution limit. |
+| `resumeArgTemplate`, `resumeSessionIdJsonPath`, `resumeSessionIdRegex` | Session resume (section 3.2). |
 
-DotCraft is the policy owner. Subagents are execution engines.
+When `supportsResume=true`, the profile must define `resumeArgTemplate` and at least one session-id extractor.
 
-That means:
+## 3. Execution
 
-- native subagent tool calls must keep DotCraft approval behavior
-- external CLI execution mode must be selected from DotCraft approval mode
-- cancellation must reliably terminate delegated runtime process trees
-- resumable external CLI behavior must still use short-lived subprocess launches owned by DotCraft
+### 3.1 One process per task
 
-## 3. Core Abstractions
+Each delegated task runs one subprocess. DotCraft cannot introspect the CLI's internal tool calls, so policy is applied at launch. The command line is assembled in this order: `args`, resume args from `resumeArgTemplate`, mapped approval args, configured output-file args, then the task payload. The subprocess is bound to a platform cleanup primitive so cancellation terminates its full process tree.
 
-### 3.1 `ISubAgentRuntime`
+Progress maps to SubAgent progress, the final output returns as the standard tool result, and cancellation is reported as normal Turn cancellation.
 
-The runtime creates a session handle, executes a task with progress events, cancels owned process trees and disposes the handle. Launch context carries the resolved working directory, mapped approval arguments, parent approval context and optional external `resumeSessionId`. A successful result may return a session id for later tasks.
+### 3.2 Resumable sessions
 
-### 3.2 `SubAgentProfile`
+Supported CLIs may expose a stable non-interactive session id. DotCraft stores it in thread metadata and reuses it for later tasks. A fresh process is still launched for every task. Resume is profile-driven and gated by the workspace switch `EnableExternalCliSessionResume` (default `false`), which affects only profiles with `supportsResume=true`.
 
-Profiles remain the runtime-specific extension point.
+Matching:
 
-Shared fields:
+- primary key: `profile + normalized label + workingDirectory`;
+- without a `label`, DotCraft resumes only when exactly one saved candidate matches `profile + workingDirectory`; ambiguous cases start a new session.
 
-- `runtime`, `bin`, `args`, `env`
-- `workingDirectoryMode`
-- `supportsStreaming`, `supportsResume`
-- `trustLevel`
-- `permissionModeMapping`
-- `timeout`
+Persistence:
 
-Resume-specific external CLI fields:
+- only successful runs update stored ids;
+- a successful resume that returns no new id keeps the previous one;
+- disabling the switch stops reuse but does not delete stored ids.
 
-- `resumeArgTemplate`
-- `resumeSessionIdJsonPath`
-- `resumeSessionIdRegex`
+### 3.3 Built-in resume profiles
 
-When `supportsResume=true`, the profile must define:
+| Profile | Base args | Resume args | Final message | Session id |
+|---------|-----------|-------------|---------------|------------|
+| `codex-cli` | `codex exec --skip-git-repo-check` | `resume {sessionId}` | Output file | Regex over stdout JSON lines (`thread_id`) |
+| `cursor-cli` | `cursor-agent -p --output-format json` | `--resume {sessionId}` | JSON stdout | `session_id` |
 
-- `resumeArgTemplate`
-- at least one session-id extractor (`resumeSessionIdJsonPath` or `resumeSessionIdRegex`)
+## 4. Approval and permission mapping
 
-### 3.3 `SubAgentCoordinator`
+DotCraft resolves one of three approval modes from the active approval service:
 
-Coordinator owns orchestration logic only:
+| Mode | Origin | Intent |
+|------|--------|--------|
+| `interactive` | A real user is present to answer approvals. | Conservative defaults; prompt on sensitive actions. |
+| `auto-approve` | Headless automation that approves automatically. | Skip prompts; permissive runtime flags. |
+| `restricted` | Deny-all, unknown, or absent approval service. | DotCraft-side approvals are denied; the runtime launches in its most conservative mode. |
 
-- resolve profile and runtime
-- resolve current approval mode from the active `IApprovalService`
-- look up `permissionModeMapping[mode]` and attach mapped args to the launch context
-- optionally resolve a prior external CLI session id from the thread-scoped session store
-- propagate `ApprovalContext`, `IApprovalService`, and optional `resumeSessionId` into the runtime
-- route event/progress back to DotCraft session pipeline
-- persist any newly returned external session id after a successful run
-- aggregate final result to main agent
-
-## 4. Execution and Coordination
-
-### 4.1 Native Runtime
-
-Native execution follows [SubAgent Core](subagents.md#41-native-runtime); this specification adds no native runtime policy.
-
-### 4.2 External CLI Runtime
-
-Uses one subprocess per delegated task. DotCraft cannot introspect the external CLI's internal tool calls, so policy is applied at launch:
-
-- base args come from `profile.Args`
-- optional resume args come from `resumeArgTemplate`
-- mapped args from `permissionModeMapping[mode]` are appended after resume args
-- output-file args are appended before the task payload when configured
-- subprocess is bound to a platform-specific cleanup primitive so cancellation can terminate the full process tree
-
-### 4.3 Resumable External CLI Sessions
-
-Supported external CLIs may expose a stable non-interactive session/chat/thread id. DotCraft stores that id in thread metadata and reuses it later.
-
-Important boundaries:
-
-- DotCraft still launches a fresh process for every delegated task
-- DotCraft does not keep a long-lived child process between turns
-- resume is profile-driven and workspace-controlled
-- resume is off by default
-
-Matching behavior:
-
-- primary match key: `profile + normalized label + workingDirectory`
-- when `label` is absent, DotCraft auto-resumes only if there is exactly one saved candidate for the same `profile + workingDirectory`
-- ambiguous no-label cases start a new external session
-
-Persistence behavior:
-
-- session ids are stored in thread metadata
-- only successful runs update stored ids
-- when a resume call succeeds but returns no new id, DotCraft keeps the previous one
-- disabling the workspace switch stops reuse but does not delete stored ids
-
-### 4.4 Built-in Resume Profiles
+Native approval inheritance follows [SubAgent Core](subagents.md#7-role-tools-and-approval-policy). For external CLIs, DotCraft reads `permissionModeMapping[mode]`, splits it into args, and appends them before the task payload; a missing entry adds no args. The mapping is advisory: DotCraft selects the safest available flags, but enforcement depends on the external CLI.
 
 Built-in defaults:
 
-- `codex-cli`
-  - base args: `codex exec --skip-git-repo-check`
-  - resume args: `resume {sessionId}`
-  - final message: output file
-  - session id extraction: regex from stdout JSON lines (`thread_id`)
-- `cursor-cli`
-  - base args: `cursor-agent -p --output-format json`
-  - resume args: `--resume {sessionId}`
-  - final message: JSON stdout
-  - session id extraction: `session_id`
-
-## 5. Approval and Permission Propagation
-
-### 5.1 Approval Modes
-
-DotCraft exposes three stable modes the subagent layer understands:
-
-| Mode | Origin `IApprovalService` | Intent |
-|------|---------------------------|--------|
-| `interactive` | `SessionApprovalService` / `ConsoleApprovalService` | Real user present; conservative defaults, prompt on sensitive actions |
-| `auto-approve` | `AutoApproveApprovalService` | Headless automation channel; skip prompts, use permissive runtime flags |
-| `restricted` | `DenyApprovalService`, unknown or `null` services | DotCraft-side approval needs are denied as tool results; runtime should launch in its most conservative mode |
-
-### 5.2 Native Subagent Propagation
-
-Native approval inheritance follows [SubAgent Core](subagents.md#7-role-tools-and-approval-policy). External CLI policy is translated at launch as defined below.
-
-### 5.3 External CLI Permission Mapping
-
-External CLIs keep their own approval/sandbox semantics. DotCraft translates its own policy into the external CLI's launch flags:
-
-- coordinator resolves the mode with `SubAgentApprovalModeResolver`
-- coordinator reads `profile.PermissionModeMapping[mode]` and splits it into args
-- mapped args are appended to the subprocess command line before the task payload is delivered
-- a missing mapping entry is treated as "no extra args"
-
-This mapping is advisory: DotCraft declares intent and selects the safest available flag set; actual enforcement still depends on the external CLI implementation.
-
-### 5.4 Built-in Profile Defaults
-
-| Profile | `trustLevel` | Notable mapping defaults |
-|---------|--------------|--------------------------|
+| Profile | `trustLevel` | Mapping |
+|---------|--------------|---------|
 | `native` | `trusted` | N/A |
 | `codex-cli` | `prompt` | `interactive` → `--sandbox read-only`; `auto-approve` → `--dangerously-bypass-approvals-and-sandbox`; `restricted` → `--sandbox read-only` |
 | `cursor-cli` | `prompt` | `interactive` → `--mode ask --trust --approve-mcps`; `auto-approve` → `--mode auto --trust --approve-mcps`; `restricted` → `--mode ask` |
-| `custom-cli-oneshot` | `restricted` | Empty mapping by default |
+| `custom-cli-oneshot` | `restricted` | Empty |
 
-## 6. Integration with Existing DotCraft Systems
-
-### 6.1 Session/Event Pipeline
-
-External runtime support reuses the existing session event delivery:
-
-- progress mapped to `SubAgentProgress`
-- final output returned as standard tool result payload
-- cancellation reflected as normal turn cancellation result
-
-### 6.2 Desktop Settings
-
-Desktop exposes one workspace-scoped switch in SubAgents settings:
-
-- `EnableExternalCliSessionResume`
-- default `false`
-- affects only profiles with `supportsResume=true`
-
-Desktop also exposes resume-specific profile fields for custom external CLI profiles.
+Desktop exposes the resume switch and resume-specific fields for custom external CLI profiles in SubAgents settings.
