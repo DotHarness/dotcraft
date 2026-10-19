@@ -174,12 +174,12 @@ function requestOnce(url: URL, options: LinkPreviewRequest, deadline: number): P
       (response) => {
         const status = response.statusCode ?? 0
         if (status >= 300 && status < 400 && response.headers.location) {
-          response.resume()
+          response.destroy()
           resolve({ redirect: response.headers.location })
           return
         }
         if (status < 200 || status >= 300) {
-          response.resume()
+          response.destroy()
           reject(new Error(`HTTP ${status}`))
           return
         }
