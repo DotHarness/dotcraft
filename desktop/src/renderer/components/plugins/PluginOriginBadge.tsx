@@ -53,7 +53,7 @@ function originMarketplace(marketplaces: MarketplaceEntry[], plugin: PluginEntry
 }
 
 function marketplaceDocumentPath(marketplace: MarketplaceEntry): string {
-  const root = marketplace.source.replace(/[\\/]+$/, '')
+  const root = (marketplace.root ?? marketplace.source).replace(/[\\/]+$/, '')
   if (!marketplace.marketplacePath) return root
   const separator = root.includes('\\') ? '\\' : '/'
   return `${root}${separator}${marketplace.marketplacePath.replace(/[\\/]/g, separator)}`
