@@ -99,6 +99,10 @@ Use the [development guide's validation entry points](.agents/skills/dotcraft-de
 - Use inline React styles only for values that genuinely depend on runtime data. Put static presentation in owned CSS.
 - Do not mix a source-only style move with selector cleanup, formatting, cascade layers, or visual changes. Preserve effective rule order and verify production-mounted surfaces through the design system.
 
+## Review Guidelines
+
+Breaking changes are allowed: older saved threads, configuration, clients, and hosts may stop working after a change. Do not flag missing backward compatibility; flag added aliases, legacy parsers, or migration code instead.
+
 ## Go Deeper
 
 - Runtime boundaries: `specs/architecture/runtime-module-boundaries.md`
