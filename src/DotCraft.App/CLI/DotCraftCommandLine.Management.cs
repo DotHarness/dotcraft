@@ -65,6 +65,7 @@ public static partial class DotCraftCommandLine
         verify.SetAction((_, cancellationToken) => AuthCliRunner.VerifyAsync(cancellationToken));
         openAi.Subcommands.Add(verify);
         auth.Subcommands.Add(openAi);
+        auth.Subcommands.Add(CreateProviderAuthCommand());
         return auth;
     }
 

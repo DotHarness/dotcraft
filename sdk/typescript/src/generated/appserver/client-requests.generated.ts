@@ -128,6 +128,14 @@ export interface ClientRequestMethods {
   "plugin/skill/read": { params: Models.PluginSkillReadParams; result: Models.PluginSkillReadResult };
   "plugin/view": { params: Models.PluginViewParams; result: Models.PluginViewResult };
   "profile/insights": { params: Models.ProfileInsightsParams; result: Models.ProfileInsightsResult };
+  "provider/auth/cancel": { params: Models.ProviderAuthOperationParams; result: Models.RpcEmpty };
+  "provider/auth/input": { params: Models.ProviderAuthInputParams; result: Models.RpcEmpty };
+  "provider/auth/login": { params: Models.ProviderAuthLoginParams; result: Models.ProviderAuthLoginState };
+  "provider/auth/logout": { params: Models.ProviderAuthInstanceParams; result: Models.RpcEmpty };
+  "provider/auth/state": { params: Models.ProviderAuthOperationParams; result: Models.ProviderAuthLoginState };
+  "provider/auth/status": { params: Models.ProviderAuthInstanceParams; result: Models.ProviderAuthStatusResult };
+  "provider/auth/usage": { params: Models.ProviderAuthInstanceParams; result: Models.ProviderAuthUsageResult };
+  "provider/backend/list": { params: Models.RpcEmpty; result: Models.ProviderBackendListResult };
   "provider/list": { params: Models.ProviderListParams; result: Models.ProviderListResult };
   "provider/test": { params: Models.ProviderTestParams; result: Models.ProviderTestResult };
   "remoteToolHost/connect": { params: Models.RemoteToolHostConnectParams; result: Models.RemoteToolHostConnectResult };

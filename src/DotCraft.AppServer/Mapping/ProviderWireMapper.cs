@@ -1,3 +1,4 @@
+using DotCraft.Agents;
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
 using Contract = DotCraft.Protocol.AppServer;
@@ -6,25 +7,58 @@ namespace DotCraft.AppServer;
 
 public static class ProviderContractMapper
 {
-    public static IReadOnlyList<Contract.ProviderInfo> BuildProviderInfos(AppConfig config)
+    public static async Task<IReadOnlyList<Contract.ProviderInfo>> BuildProviderInfosAsync(
+        AppConfig config, IModelRuntimeResolver? resolver, CancellationToken ct)
+    {
+        var infos = new List<Contract.ProviderInfo>();
+        foreach (var (id, provider) in config.Providers.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            var runtime = ResolveRuntime(config, id, resolver);
+            bool? authenticated = null;
+            if (provider.BackendId is not null)
+            {
+                authenticated = false;
+                if (runtime is not null && resolver is not null)
+                {
+                    try
+                    {
+                        var auth = resolver.Resolve(runtime).GetService(typeof(IProviderAuthenticator))
+                            as IProviderAuthenticator;
+                        authenticated = auth is null ? string.IsNullOrEmpty(runtime.AuthMethod)
+                            : (await auth.GetStatusAsync(ct).ConfigureAwait(false)).IsAuthenticated;
+                    }
+                    catch (Exception exception) when (exception is not OperationCanceledException) { }
+                }
+            }
+            infos.Add(BuildProviderInfo(id, provider, runtime, authenticated));
+        }
+        return infos;
+    }
+
+    public static IReadOnlyList<Contract.ProviderInfo> BuildProviderInfos(AppConfig config, IModelRuntimeResolver? resolver = null)
     {
         return config.Providers
             .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(pair => BuildProviderInfo(pair.Key, pair.Value))
+            .Select(pair => BuildProviderInfo(pair.Key, pair.Value, ResolveRuntime(config, pair.Key, resolver)))
             .ToList();
     }
 
     public static Contract.ProviderInfo BuildProviderInfo(
         string id,
-        AppConfig.ModelProviderConfig provider)
+        AppConfig.ModelProviderConfig provider,
+        EffectiveModelRuntime? runtime = null,
+        bool? authenticated = null)
     {
-        var protocol = ModelProviderProtocols.Normalize(provider.Protocol);
-        var authMethod = ModelProviderAuthMethods.Normalize(provider.AuthMethod);
+        var custom = !string.IsNullOrWhiteSpace(provider.BackendId);
+        var protocol = custom ? runtime?.Protocol ?? provider.Protocol : ModelProviderProtocols.Normalize(provider.Protocol);
+        var authMethod = custom ? runtime?.AuthMethod ?? provider.AuthMethod : ModelProviderAuthMethods.Normalize(provider.AuthMethod);
         return new Contract.ProviderInfo
         {
             Id = id,
+            BackendId = custom ? provider.BackendId! : default(Protocol.Optional<string>),
             ManagedBy = provider.RemoteAuthentication is null ? default : "modelService",
-            IsAuthenticated = provider.RemoteAuthentication is null ? default : provider.RemoteAuthentication.IsAuthenticated,
+            IsAuthenticated = authenticated is { } ready ? ready
+                : provider.RemoteAuthentication is null ? default(Protocol.Optional<bool>) : provider.RemoteAuthentication.IsAuthenticated,
             DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? id : provider.DisplayName.Trim(),
             Protocol = protocol,
             ApiKey = string.IsNullOrWhiteSpace(provider.ApiKey) ? null : "********",
@@ -43,8 +77,17 @@ public static class ProviderContractMapper
             ChatGptPlanType = authMethod == ModelProviderAuthMethods.ChatGptOAuth && !string.IsNullOrWhiteSpace(provider.ChatGptPlanType)
                 ? provider.ChatGptPlanType.Trim()
                 : null,
-            Capabilities = MapProviderCapabilities(ModelProviderCapabilities.ForProtocol(protocol))
+            Capabilities = MapProviderCapabilities(custom
+                ? runtime?.Capabilities ?? new ModelProviderCapabilities { StreamingChat = false, ToolCalling = false, ModelListing = false, TokenUsageReporting = false }
+                : ModelProviderCapabilities.ForProtocol(protocol))
         };
+    }
+
+    private static EffectiveModelRuntime? ResolveRuntime(AppConfig config, string id, IModelRuntimeResolver? resolver)
+    {
+        if (resolver is null || string.IsNullOrWhiteSpace(config.Providers[id].BackendId)) return null;
+        try { return resolver.Normalize(ModelProviderResolver.ResolveProvider(config, id)); }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException) { return null; }
     }
 
     internal static Contract.ModelReasoningCapability? MapReasoningCapability(

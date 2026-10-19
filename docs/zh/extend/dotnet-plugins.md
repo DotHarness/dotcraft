@@ -168,6 +168,37 @@ internal sealed class PluginTool : AIFunctionToolSource
 
 后台工作走 `context.Lifetime.Run`。它在激活提交后启动，拆卸开始时通过 `Lifetime.Stopping` 取消。裸线程、静态事件订阅、无人跟踪的 Task 和全局缓存都可能钉住可回收的加载上下文：路由仍会立即停止，但内存要等到残留引用释放后才能回收，很多时候只能等进程重启。
 
+## 提供模型后端 {#provide-a-model-backend}
+
+实现 `IModelBackend`，在激活期间通过 `IModelBackendSource` 注册。
+描述符声明后端 ID、支持的协议、认证方式和能力。
+`CreateProvider(ModelBackendContext)` 为每个配置实例返回 `IModelProvider`。
+后端 ID 必须唯一，不能使用保留的 `builtin.` 前缀。
+
+[.NET 插件示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample#try-the-offline-model-backend)
+演示模型发现、聊天和交互式登录。启用并信任 Review Core 后，在配置中添加其后端：
+
+```json
+{
+  "Providers": {
+    "review-demo": {
+      "BackendId": "acme.review-backend",
+      "AuthMethod": "demo"
+    }
+  },
+  "ProviderPreferences": {
+    "review-demo": { "Model": "review-echo" }
+  },
+  "ProviderId": "review-demo"
+}
+```
+
+通过 `IProviderAuthenticator` 实现登录，返回标准的 `IChatClient` 响应和工具调用来执行模型请求。
+`ModelBackendContext.Credentials` 保存当前实例的凭据，token 刷新放在其 `ModifyAsync` 回调中。
+
+重试、提示词来源、原生历史和生命周期要求见
+[后端契约](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/model-backend-plugins.md)。
+
 ## 编写强类型工具 {#write-typed-tools}
 
 插件工具与内置工具使用同一套生成方法包装器。工作区配置与服务放在构造函数里，JSON 参数与默认值交给生成器处理。`AIFunctionToolSource` 提供注册，宿主负责赋予插件的 `PluginNative` 身份与 generation 生命周期。普通强类型工具不需要实现 `IToolRuntime`，也不需要手工解析 `JsonObject`。

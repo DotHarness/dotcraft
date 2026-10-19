@@ -107,7 +107,7 @@ public sealed partial class SessionService
             currentConfig,
             thread.Configuration?.ProviderId,
             thread.Configuration?.Model);
-        if (!string.Equals(runtime.Protocol, ModelProviderProtocols.OpenAIResponses, StringComparison.Ordinal))
+        if (runtime.BackendId is null && !runtime.IsOpenAIResponses)
             return null;
         var factory = agentFactory.RuntimeContext.ChatClientRegistry
             .GetProviderService<IProviderHistorySessionFactory>(runtime);
@@ -123,7 +123,7 @@ public sealed partial class SessionService
             runtime,
             identity,
             await persistence.LoadProviderHistoryAsync(thread, identity.ContextWindowId, ct).ConfigureAwait(false));
-        if (!snapshot.IsNativeCompacted)
+        if (!snapshot.IsNativeCompacted || !HistoryMatchesRuntime(runtime, snapshot.Identity))
             return null;
 
         var context = factory.CreateSession(identity, snapshot, history, sink: null);

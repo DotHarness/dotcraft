@@ -378,6 +378,7 @@ public sealed class AppServerHost(
                 RuntimeRefreshers = _services.GetServices<ISessionRuntimeRefresher>().ToArray(),
                 ChatClientRegistry = _services.GetRequiredService<ChatClientRegistry>(),
                 ModelProviderRegistry = _services.GetRequiredService<ModelProviderRegistry>(),
+                ProviderAuthentication = _services.GetService<ProviderAuthenticationCoordinator>(),
                 BackgroundTerminalService = _services.GetService<IBackgroundTerminalService>(),
                 ContextPageManager = runtime.ContextPageManager,
                 DreamsService = runtime.DreamsService,

@@ -3038,6 +3038,102 @@ export interface ProfileInsightsResult {
   [key: string]: unknown;
 }
 
+export interface ProviderAuthChoice {
+  id: string;
+  label: string;
+  [key: string]: unknown;
+}
+
+export interface ProviderAuthEvent {
+  kind: string;
+  message?: string | null;
+  url?: string | null;
+  userCode?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ProviderAuthInputParams {
+  loginId: string;
+  promptId: string;
+  value: string;
+  [key: string]: unknown;
+}
+
+export interface ProviderAuthInstanceParams {
+  providerId: string;
+  [key: string]: unknown;
+}
+
+export interface ProviderAuthLoginParams {
+  method?: string | null;
+  providerId: string;
+  [key: string]: unknown;
+}
+
+export interface ProviderAuthLoginState {
+  authentication?: ProviderAuthStatusResult | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  event?: ProviderAuthEvent | null;
+  loginId: string;
+  prompt?: ProviderAuthPrompt | null;
+  promptId?: string | null;
+  providerId: string;
+  revision: number;
+  status: string;
+  [key: string]: unknown;
+}
+
+export interface ProviderAuthOperationParams {
+  loginId: string;
+  [key: string]: unknown;
+}
+
+export interface ProviderAuthPrompt {
+  choices?: ProviderAuthChoice[] | null;
+  kind: string;
+  message: string;
+  [key: string]: unknown;
+}
+
+export interface ProviderAuthStatusResult {
+  accountId?: string | null;
+  displayName?: string | null;
+  email?: string | null;
+  failureCode?: string | null;
+  failureMessage?: string | null;
+  isAuthenticated: boolean;
+  planType?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ProviderAuthUsageResult {
+  available: boolean;
+  snapshot?: JsonValue;
+  [key: string]: unknown;
+}
+
+export interface ProviderAuthenticationMethodInfo {
+  displayName: string;
+  id: string;
+  kind: string;
+  [key: string]: unknown;
+}
+
+export interface ProviderBackendInfo {
+  authenticationMethods: ProviderAuthenticationMethodInfo[];
+  defaultProtocol: string;
+  displayName: string;
+  id: string;
+  protocols: string[];
+  [key: string]: unknown;
+}
+
+export interface ProviderBackendListResult {
+  backends: ProviderBackendInfo[];
+  [key: string]: unknown;
+}
+
 export interface ProviderCapabilities {
   cachedInputUsageReporting?: boolean;
   extendedThinking?: boolean;
@@ -3056,6 +3152,7 @@ export interface ProviderCapabilities {
 export interface ProviderInfo {
   apiKey?: string | null;
   authMethod?: string;
+  backendId?: string;
   capabilities?: ProviderCapabilities;
   chatGptAccountId?: string | null;
   chatGptPlanType?: string | null;

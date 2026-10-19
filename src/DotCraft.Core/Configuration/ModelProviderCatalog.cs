@@ -6,11 +6,19 @@ namespace DotCraft.Configuration;
 public static class ModelProviderCatalog
 {
     // A catalog belongs to the provider stack that fetched it, not to the process.
-    private static readonly ConditionalWeakTable<ModelProviderRegistry, ModelProviderCatalogCache> Caches = new();
+    private static readonly ConditionalWeakTable<IModelRuntimeResolver, ModelProviderCatalogCache> Caches = new();
+
+    public static Task<ModelCatalogResult> FetchAsync(
+        AppConfig config,
+        ModelProviderRegistry providerRegistry,
+        string? providerId = null,
+        ModelCatalogRefreshStrategy refreshStrategy = ModelCatalogRefreshStrategy.OnlineIfUncached,
+        CancellationToken cancellationToken = default) =>
+        FetchAsync(config, (IModelRuntimeResolver)providerRegistry, providerId, refreshStrategy, cancellationToken);
 
     public static async Task<ModelCatalogResult> FetchAsync(
         AppConfig config,
-        ModelProviderRegistry providerRegistry,
+        IModelRuntimeResolver providerRegistry,
         string? providerId = null,
         ModelCatalogRefreshStrategy refreshStrategy = ModelCatalogRefreshStrategy.OnlineIfUncached,
         CancellationToken cancellationToken = default)
@@ -21,7 +29,7 @@ public static class ModelProviderCatalog
         EffectiveModelRuntime runtime;
         try
         {
-            runtime = ModelProviderResolver.ResolveProvider(config, providerId);
+            runtime = providerRegistry.Normalize(ModelProviderResolver.ResolveProvider(config, providerId));
         }
         catch (ModelProviderConfigurationException ex)
         {
@@ -30,6 +38,10 @@ public static class ModelProviderCatalog
         catch (ArgumentException ex)
         {
             return Failure(ModelCatalogErrorCode.Unknown, ex.Message);
+        }
+        catch (ModelBackendUnavailableException ex)
+        {
+            return Failure(ModelCatalogErrorCode.UnsupportedProtocol, ex.Message);
         }
 
         var cache = Caches.GetValue(providerRegistry, static _ => new ModelProviderCatalogCache());
@@ -46,20 +58,26 @@ public static class ModelProviderCatalog
     }
 
     private static async Task<ModelCatalogResult> FetchFromProviderAsync(
-        ModelProviderRegistry providerRegistry,
+        IModelRuntimeResolver providerRegistry,
         EffectiveModelRuntime runtime,
         CancellationToken cancellationToken)
     {
         try
         {
-            var catalog = providerRegistry.GetService<IModelCatalogProvider>(runtime.Protocol);
-            return catalog == null
+            var catalog = providerRegistry.Resolve(runtime).GetService(typeof(IModelCatalogProvider)) as IModelCatalogProvider;
+            var result = catalog == null
                 ? Failure(
                     ModelCatalogErrorCode.UnsupportedProtocol,
                     $"Protocol '{runtime.Protocol}' does not support model listing.")
                 : await catalog.FetchModelsAsync(runtime, cancellationToken).ConfigureAwait(false);
+            return providerRegistry.Normalize(runtime).BackendGeneration == runtime.BackendGeneration
+                ? result : Failure(ModelCatalogErrorCode.UnsupportedProtocol, "The model backend changed during catalog refresh.");
         }
         catch (ModelProviderNotRegisteredException ex)
+        {
+            return Failure(ModelCatalogErrorCode.UnsupportedProtocol, ex.Message);
+        }
+        catch (ModelBackendUnavailableException ex)
         {
             return Failure(ModelCatalogErrorCode.UnsupportedProtocol, ex.Message);
         }

@@ -162,9 +162,15 @@ public sealed record EffectiveModelRuntime(
     DotCraft.Agents.ProviderRequestAdaptation? RequestAdaptation = null,
     string? WebSearchBackend = null)
 {
-    public bool IsOpenAICompatible => ModelProviderProtocols.IsOpenAIProtocol(Protocol);
-    public bool IsOpenAIResponses => ModelProviderProtocols.IsOpenAIResponses(Protocol);
-    public bool IsChatGptOAuth => ModelProviderAuthMethods.IsChatGptOAuth(AuthMethod);
+    public string? BackendId { get; init; }
+    public string BackendSettingsJson { get; init; } = "{}";
+    public string? BackendGeneration { get; init; }
+    public string? ConfigurationSource { get; init; }
+    public bool BackendOwnsRetry { get; init; }
+
+    public bool IsOpenAICompatible => BackendId is null && ModelProviderProtocols.IsOpenAIProtocol(Protocol);
+    public bool IsOpenAIResponses => BackendId is null && ModelProviderProtocols.IsOpenAIResponses(Protocol);
+    public bool IsChatGptOAuth => BackendId is null && ModelProviderAuthMethods.IsChatGptOAuth(AuthMethod);
 }
 
 /// <summary>Stable model-catalog failure classifications.</summary>

@@ -20,12 +20,13 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
         ContributionOrigin origin,
         PluginCallGate callGate,
         object generationOwnedEntry,
-        bool toolsOnly = false)
+        bool toolsOnly = false,
+        CancellationToken stopping = default)
     {
         _registry = registry;
         _toolsOnly = toolsOnly;
         _inner = registry.CreateRegistrar(origin);
-        _invocation = new PluginInvocation(origin.Name!, origin.Generation!, callGate);
+        _invocation = new PluginInvocation(origin.Name!, origin.Generation!, callGate, stopping);
         _generationOwnedEntry = generationOwnedEntry ?? throw new ArgumentNullException(nameof(generationOwnedEntry));
     }
 

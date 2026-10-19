@@ -35,6 +35,8 @@ internal sealed class ProviderHistoryEntry
 
 internal sealed class ProviderHistoryItemsAppendedPayload
 {
+    public string? BackendId { get; init; }
+    public string? ProviderId { get; init; }
     public int SchemaVersion { get; init; }
     public string ThreadId { get; init; } = string.Empty;
     public string TurnId { get; init; } = string.Empty;
@@ -48,6 +50,8 @@ internal sealed class ProviderHistoryItemsAppendedPayload
 
 internal sealed class ProviderHistoryReplacedPayload
 {
+    public string? BackendId { get; init; }
+    public string? ProviderId { get; init; }
     public int SchemaVersion { get; init; }
     public string ThreadId { get; init; } = string.Empty;
     public string Protocol { get; init; } = string.Empty;
@@ -60,6 +64,8 @@ internal sealed class ProviderHistoryReplacedPayload
 
 internal sealed class ProviderHistoryAttemptAbortedPayload
 {
+    public string? BackendId { get; init; }
+    public string? ProviderId { get; init; }
     public int SchemaVersion { get; init; }
     public string ThreadId { get; init; } = string.Empty;
     public string TurnId { get; init; } = string.Empty;
@@ -75,6 +81,10 @@ internal sealed record ProviderHistorySnapshot(
     string? CoveredThroughTurnId,
     bool IsNativeCompacted = false)
 {
+    public string Protocol { get; init; } = ProviderHistorySchema.OpenAIResponsesProtocol;
+    public string? BackendId { get; init; }
+    public string? ProviderId { get; init; }
+
     public static ProviderHistorySnapshot Empty(string contextWindowId) =>
         new(contextWindowId, contextWindowId, [], null);
 }

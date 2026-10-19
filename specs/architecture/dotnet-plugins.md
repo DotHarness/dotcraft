@@ -177,6 +177,7 @@ The catalog reuses kernel contracts. Capability tiers are:
 | Compaction | `ICompactionSummarizer` | B | Per compaction |
 | Compaction | `ICompactableToolPolicy` | A, B | Per compaction |
 | Model pipeline | `IChatMiddleware` | A, B | Materialized; returned client is host-gated, including streams |
+| Model backend | `IModelBackendSource` | A | Workspace-only unique backend ID; factories, clients and supported capabilities are gated; see [Model backend plugins](model-backend-plugins.md) |
 | Tools | `IToolSource` | A | Materialized through the §8 projection |
 | Tools | `IToolPolicyEvaluator`, `IToolApprovalEvaluator` | A, B | Per dispatch, first denial wins |
 | Tools | `IToolInvocationRecorder` | A, B | Per dispatch, contained fan-out |
@@ -458,6 +459,6 @@ AppServer projects plugin state; it does not own another plugin runtime.
 - managed-code sandboxing, signatures, publisher identity, or capability permissions;
 - runtime NuGet restore, third-party package resolution, or dependency version-range solving;
 - root DI mutation, dynamic module loading, Session Core or persistence replacement;
-- external model-provider contributions;
+- independent ModelService deployment of backend plugins;
 - overlapping generations, automatic rollback, Native AOT, or bundle filesystem watching;
 - guaranteed ALC collection.

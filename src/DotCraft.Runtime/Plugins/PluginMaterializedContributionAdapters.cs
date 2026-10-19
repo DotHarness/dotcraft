@@ -120,8 +120,9 @@ internal sealed class PluginChatClient : IChatClient
         CancellationToken cancellationToken = default) =>
         _invocation.InvokeAsync(new Func<Task<ChatResponse>>(async () =>
         {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _invocation.Stopping);
             var response = await _target.Value
-                .GetResponseAsync(messages, options, cancellationToken)
+                .GetResponseAsync(messages, options, linked.Token)
                 .ConfigureAwait(false);
             PluginObjectGraphGuard.EnsureHostOwnedGraph(response, "chat response");
             return response;
@@ -133,6 +134,8 @@ internal sealed class PluginChatClient : IChatClient
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         using var lease = _invocation.Enter();
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _invocation.Stopping);
+        cancellationToken = linked.Token;
         IAsyncEnumerator<ChatResponseUpdate> enumerator;
         try
         {

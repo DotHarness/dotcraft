@@ -1,4 +1,5 @@
 using DotCraft.Commands.Custom;
+using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
 using DotCraft.Memory;
@@ -74,15 +75,19 @@ public sealed class PromptBuilder(
             Sources = _sources
         };
 
-        var prompt = SystemPromptComposition.Compose(
-            _contributions.Resolve<ISystemPromptSection>(threadId),
+        var document = PromptProvenanceComposition.Compose(
+            _contributions.ResolveEntries<ISystemPromptSection>(threadId),
             context,
             _logger);
 
-        return SystemPromptComposition.ApplyAssembler(
+        var prompt = SystemPromptComposition.ApplyAssembler(
             _contributions.Resolve<ISystemPromptAssembler>(threadId),
-            prompt,
+            document.Text,
             context,
             _logger);
+        ProviderRequestContextScope.Current?.PromptSources.Register(prompt,
+            prompt == document.Text ? document.Fragments :
+                [new ProviderPromptFragment("assembler", ProviderPromptSourceKind.Opaque, prompt, "instructions")]);
+        return prompt;
     }
 }

@@ -71,6 +71,9 @@ public sealed partial class ThreadStore
             ModelHistory = modelHistory,
             ProviderHistory = new ThreadRecoveryProviderSnapshot
             {
+                Protocol = providerHistory.Protocol,
+                BackendId = providerHistory.BackendId,
+                ProviderId = providerHistory.ProviderId,
                 SchemaVersion = ProviderHistorySchema.CurrentSchemaVersion,
                 GenerationId = providerHistory.GenerationId,
                 ContextWindowId = providerHistory.ContextWindowId,
@@ -262,7 +265,9 @@ public sealed partial class ThreadStore
         {
             SchemaVersion = snapshot.ProviderHistory.SchemaVersion,
             ThreadId = snapshot.Thread.ThreadId,
-            Protocol = ProviderHistorySchema.OpenAIResponsesProtocol,
+            Protocol = snapshot.ProviderHistory.Protocol,
+            BackendId = snapshot.ProviderHistory.BackendId,
+            ProviderId = snapshot.ProviderHistory.ProviderId,
             GenerationId = snapshot.ProviderHistory.GenerationId,
             ContextWindowId = snapshot.ProviderHistory.ContextWindowId,
             CoveredThroughTurnId = snapshot.TerminalTurn.TurnId,
@@ -277,7 +282,10 @@ public sealed partial class ThreadStore
         ProviderHistorySnapshot actual,
         string terminalTurnId)
     {
-        if (!string.Equals(expected.GenerationId, actual.GenerationId, StringComparison.Ordinal)
+        if (!string.Equals(expected.Protocol, actual.Protocol, StringComparison.Ordinal)
+            || !string.Equals(expected.BackendId, actual.BackendId, StringComparison.Ordinal)
+            || !string.Equals(expected.ProviderId, actual.ProviderId, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(expected.GenerationId, actual.GenerationId, StringComparison.Ordinal)
             || !string.Equals(expected.ContextWindowId, actual.ContextWindowId, StringComparison.Ordinal)
             || !string.Equals(actual.CoveredThroughTurnId, terminalTurnId, StringComparison.Ordinal)
             || expected.IsNativeCompacted != actual.IsNativeCompacted

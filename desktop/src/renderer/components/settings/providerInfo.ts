@@ -1,4 +1,4 @@
-import { normalizeProviderProtocol, type DesktopProviderProtocol } from '../../../shared/providerProtocols'
+import { normalizeProviderProtocol } from '../../../shared/providerProtocols'
 
 interface ProviderCapabilitiesWire {
   streamingChat?: boolean
@@ -13,9 +13,10 @@ interface ProviderCapabilitiesWire {
 }
 
 export interface ProviderInfoWire {
+  backendId?: string
   id: string
   displayName: string
-  protocol: DesktopProviderProtocol
+  protocol: string
   apiKey?: string | null
   managedBy?: string
   isAuthenticated?: boolean
@@ -42,8 +43,9 @@ export function normalizeProviderList(value: unknown): ProviderInfoWire[] {
       const rawAuthMethod = typeof raw.authMethod === 'string' ? raw.authMethod.toLowerCase() : ''
       return {
         id,
+        backendId: typeof raw.backendId === 'string' ? raw.backendId : undefined,
         displayName: typeof raw.displayName === 'string' && raw.displayName.trim() !== '' ? raw.displayName : id,
-        protocol: normalizeProviderProtocol(raw.protocol),
+        protocol: raw.backendId && typeof raw.protocol === 'string' ? raw.protocol : normalizeProviderProtocol(raw.protocol),
         apiKey: typeof raw.apiKey === 'string' ? raw.apiKey : null,
         managedBy: raw.managedBy,
         isAuthenticated: raw.isAuthenticated,

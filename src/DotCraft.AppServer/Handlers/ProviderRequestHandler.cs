@@ -16,7 +16,8 @@ internal sealed class ProviderRequestHandler(
     string? workspaceCraftPath,
     IAppConfigMonitor? appConfigMonitor,
     ModelProviderRegistry? modelProviderRegistry,
-    bool supportsUltraReasoning) : IAppServerDomainHandler
+    bool supportsUltraReasoning,
+    IModelRuntimeResolver? runtimeResolver = null) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -29,19 +30,19 @@ internal sealed class ProviderRequestHandler(
         table.Map(Protocol.AppServer.AppServerRpc.AuthOpenAiUsage, HandleAuthOpenAiUsageAsync);
     }
 
-    private Task<object?> HandleProviderListAsync(AppServerTypedRequest<Contract.ProviderListParams> request, CancellationToken ct)
+    private async Task<object?> HandleProviderListAsync(AppServerTypedRequest<Contract.ProviderListParams> request, CancellationToken ct)
     {
         _ = request;
         _ = ct;
         EnsureProviderManagementAvailable();
 
         var config = workspaceConfig.LoadCurrentMergedConfig();
-        return Task.FromResult<object?>(new Contract.ProviderListResult
+        return new Contract.ProviderListResult
         {
             ManagedBy = config.ModelService is null ? default : new Protocol.Optional<string>("modelService"),
             Providers = new Protocol.Optional<IReadOnlyList<Contract.ProviderInfo>>(
-                ProviderContractMapper.BuildProviderInfos(config))
-        });
+                await ProviderContractMapper.BuildProviderInfosAsync(config, runtimeResolver, ct).ConfigureAwait(false))
+        };
     }
 
     private async Task<object?> HandleModelListAsync(AppServerTypedRequest<Contract.ModelListParams> request, CancellationToken ct)
@@ -55,7 +56,7 @@ internal sealed class ProviderRequestHandler(
             ?? AppConfig.LoadWithGlobalFallback(Path.Combine(workspaceCraftPath, "config.json"), workspaceConfig.EffectiveGlobalConfigPath);
         var result = await ModelProviderCatalog.FetchAsync(
             config,
-            RequireProviderRegistry(),
+            RequireModelResolver(),
             NormalizeOptionalString(ValueOrDefault(p.ProviderId)),
             ModelCatalogRefreshStrategy.OnlineIfUncached,
             ct);
@@ -92,7 +93,7 @@ internal sealed class ProviderRequestHandler(
         {
             result = await ModelProviderCatalog.FetchAsync(
                 config,
-                RequireProviderRegistry(),
+                RequireModelResolver(),
                 providerId,
                 ModelCatalogRefreshStrategy.Online,
                 ct);
@@ -129,7 +130,7 @@ internal sealed class ProviderRequestHandler(
             };
             result = await ModelProviderCatalog.FetchAsync(
                 draftConfig,
-                RequireProviderRegistry(),
+                RequireModelResolver(),
                 draftProviderId,
                 ModelCatalogRefreshStrategy.Online,
                 ct);
@@ -282,6 +283,8 @@ internal sealed class ProviderRequestHandler(
     private ModelProviderRegistry RequireProviderRegistry() =>
         modelProviderRegistry
         ?? throw AppServerErrors.InvalidRequest("Model providers are not available in this server build.");
+
+    private IModelRuntimeResolver RequireModelResolver() => runtimeResolver ?? RequireProviderRegistry();
 
     private TService? GetOpenAIService<TService>() where TService : class
     {

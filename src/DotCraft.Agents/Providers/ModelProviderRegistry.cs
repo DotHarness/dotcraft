@@ -29,7 +29,7 @@ public sealed class ModelProviderNotRegisteredException(string protocol)
 }
 
 /// <summary>Immutable registry of explicitly composed model providers.</summary>
-public sealed class ModelProviderRegistry
+public sealed class ModelProviderRegistry : IModelRuntimeResolver
 {
     private readonly IReadOnlyDictionary<string, IModelProvider> _providers;
     private readonly IReadOnlyCollection<string> _protocols;
@@ -64,6 +64,16 @@ public sealed class ModelProviderRegistry
     /// <summary>Gets the registered normalized protocol identifiers.</summary>
     public IReadOnlyCollection<string> Protocols => _protocols;
 
+    public EffectiveModelRuntime Normalize(EffectiveModelRuntime runtime)
+    {
+        if (!string.IsNullOrWhiteSpace(runtime.BackendId))
+            throw new ModelBackendUnavailableException(runtime.BackendId);
+        return runtime;
+    }
+
+    public IModelProvider Resolve(EffectiveModelRuntime runtime) =>
+        Resolve(Normalize(runtime).Protocol);
+
     /// <summary>Resolves the unique provider that owns a protocol.</summary>
     public IModelProvider Resolve(string protocol)
     {
@@ -84,7 +94,7 @@ public sealed class ModelProviderRegistry
     public IChatClient CreateChatClient(EffectiveModelRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
-        return Resolve(runtime.Protocol).CreateChatClient(runtime)
+        return Resolve(runtime).CreateChatClient(runtime)
             ?? throw new InvalidOperationException("The model provider returned a null chat client.");
     }
 

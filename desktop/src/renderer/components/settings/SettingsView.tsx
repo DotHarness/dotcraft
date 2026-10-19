@@ -3,6 +3,7 @@ import { createProvider, deleteProvider, ProviderExistsError, providerIdExists, 
 import { BrowserDownloadsSettings } from './BrowserDownloadsSettings'
 import { BrowserDownloadHistory } from './BrowserDownloadHistory'
 import { ChatGptOAuthPanel } from './ChatGptOAuthPanel'
+import { ModelBackendSettings } from './backends/ModelBackendSettings'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import {
   Hand,
@@ -2120,6 +2121,7 @@ export function SettingsView({
                       </div>
                     </SettingsGroup>
 
+                    <ModelBackendSettings providers={providers} onChanged={reloadProviders} />
                     <ImageGenerationSettingsGroup
                       providers={providers}
                       providersLoading={providersLoading}
@@ -2162,7 +2164,7 @@ export function SettingsView({
                           </div>
                         )}
 
-                        {!providersLoading && providers.map((provider) => {
+                        {!providersLoading && providers.filter((provider) => !provider.backendId).map((provider) => {
                           const active = provider.id === selectedProviderId
                           const rememberedMainAgentPreference = active
                             ? workspacePreference
@@ -3205,6 +3207,9 @@ export function SettingsView({
 }
 
 function providerProblem(provider: ProviderInfoWire, t: ReturnType<typeof useT>): string | null {
+  if (provider.backendId) {
+    return provider.isAuthenticated ? null : t('settings.llm.backends.unauthenticated')
+  }
   if (provider.managedBy === 'modelService') {
     return provider.isAuthenticated ? null : t('settings.llm.serviceAuthenticationRequired')
   }

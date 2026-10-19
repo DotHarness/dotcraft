@@ -77,6 +77,16 @@ internal sealed class ContributionPoint<TContract> : ContributionPoint
     {
         lock (_gate)
         {
+            if (entry.Contribution is IModelBackendSource source)
+            {
+                var id = source.Backend.Descriptor.Id;
+                if (entry.Scope != ContributionScope.Workspace || entry.ReplaceTarget is not null || entry.TargetName is not null)
+                    throw new InvalidOperationException("Model backends must be workspace-scoped without replacement options.");
+                if (string.IsNullOrWhiteSpace(id) || id.Any(char.IsWhiteSpace) || id.StartsWith("builtin.", StringComparison.Ordinal))
+                    throw new InvalidOperationException("The model backend identifier is invalid or reserved.");
+                if (_entries.Any(existing => existing.Contribution is IModelBackendSource other && other.Backend.Descriptor.Id == id))
+                    throw new InvalidOperationException($"Model backend '{id}' is already registered.");
+            }
             _entries.Add(entry);
             Publish(logger);
         }

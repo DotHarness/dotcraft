@@ -87,7 +87,18 @@ public static class ServiceRegistration
             contributions: sp.GetRequiredService<IContributionView>(),
             logger: sp.GetService<ILoggerFactory>()?.CreateLogger<ToolDispatcher>()));
         services.AddSingleton<ModelProviderRegistry>();
-        services.AddSingleton(sp => new ChatClientRegistry(sp.GetRequiredService<ModelProviderRegistry>()));
+        services.AddSingleton(sp => new ModelBackendResolver(
+            sp.GetRequiredService<ModelProviderRegistry>(), sp.GetRequiredService<IContributionView>(),
+            paths.UserData.RootPath ?? paths.Data.RootPath, Path.Combine(paths.Data.RootPath, "config.json")));
+        services.AddSingleton<IModelRuntimeResolver>(sp => sp.GetRequiredService<ModelBackendResolver>());
+        services.AddSingleton<ProviderAuthenticationCoordinator>();
+        services.AddSingleton(sp =>
+        {
+            var resolver = sp.GetRequiredService<ModelBackendResolver>();
+            var clients = new ChatClientRegistry(sp.GetRequiredService<ModelProviderRegistry>(), resolver);
+            resolver.Changed += clients.InvalidateBackends;
+            return clients;
+        });
         services.AddSingleton(paths);
         services.TryAddSingleton(_ => new PluginDiscoveryService(paths));
         services.TryAddSingleton<PluginConfigStore>();

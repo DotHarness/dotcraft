@@ -106,3 +106,7 @@ export async function updateProvider(previous: ProviderInfoWire, fields: Provide
 export async function deleteProvider(id: string): Promise<void> {
   await writeProviderEntry(id, null, 'replace')
 }
+
+export async function createBackendProvider(id: string, value: ProviderValue): Promise<void> {
+  await writeProviderEntry(id, value, 'replace', await readVersionWithoutProvider(id))
+}

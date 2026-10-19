@@ -303,7 +303,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 _contributionScope.RegisterAgentContributions(agentFactory);
 
                 var sessionService = SessionServiceFactory.Create(agentFactory, null, Services);
-                _contributionScope.AttachPropagation(sessionService, contextPageManager);
+                _contributionScope.AttachPropagation(sessionService, contextPageManager, Services.GetRequiredService<ModelBackendResolver>());
                 sessionService.ThreadCreatedForBroadcast = thread => ThreadStarted?.Invoke(thread);
                 sessionService.ThreadDeletedForBroadcast = threadId => ThreadDeleted?.Invoke(threadId);
                 sessionService.ThreadRenamedForBroadcast = thread => ThreadRenamed?.Invoke(thread);
@@ -385,7 +385,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     dreamsRunner,
                     _appConfigMonitor,
                     loggerFactory?.CreateLogger<DreamsService>());
-                await dreamsService.StartAsync(ct);
 
                 var descriptors = Services.GetService<IConfigDescriptorRegistry>()
                     ?? throw new InvalidOperationException(
@@ -408,6 +407,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 pluginRuntime = Services.GetRequiredService<DotNetPluginRuntimeManager>();
                 await pluginRuntime.StartAsync(ct);
                 pluginRuntimeStarted = true;
+                await dreamsService.StartAsync(ct);
 
                 _started = new StartedState(
                     agentFactory,

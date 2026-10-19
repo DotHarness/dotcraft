@@ -1,0 +1,43 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.row {
+  padding: 14px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border-default);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.url {
+  overflow-wrap: anywhere;
+}
+
+.error {
+  color: var(--error-text);
+}
+
+.details > summary {
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.details[open] > summary {
+  margin-bottom: 12px;
+}

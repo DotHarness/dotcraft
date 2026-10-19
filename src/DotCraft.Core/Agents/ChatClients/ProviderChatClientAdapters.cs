@@ -34,7 +34,8 @@ internal static class ProviderChatClientAdapters
         bool useDefaultReasoning = true)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        UseFlatToolIdentity(builder, runtime.Protocol);
+        if (runtime.BackendId is null)
+            UseFlatToolIdentity(builder, runtime.Protocol);
 
         _ = useDefaultReasoning;
         builder.Use(innerClient => new ProviderPipelineOptionsChatClient(

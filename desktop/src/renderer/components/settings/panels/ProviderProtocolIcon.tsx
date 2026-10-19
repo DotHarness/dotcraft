@@ -1,12 +1,13 @@
 import type { CSSProperties, JSX } from 'react'
 import { ProviderMark, type ProviderMarkKind } from '../../ui/ProviderMark'
+import { Plug } from 'lucide-react'
 import {
   ANTHROPIC_PROTOCOL,
   normalizeProviderProtocol,
-  type DesktopProviderProtocol
+  tryNormalizeProviderProtocol
 } from '../../../../shared/providerProtocols'
 
-export type ProviderProtocol = DesktopProviderProtocol
+export type ProviderProtocol = string
 
 interface ProviderProtocolIconProps {
   protocol: ProviderProtocol
@@ -23,7 +24,9 @@ export function ProviderProtocolIcon({
 }: ProviderProtocolIconProps): JSX.Element {
   return (
     <span style={frameStyle(size)} aria-hidden="true">
-      <ProviderMark kind={getProviderProtocolMarkKind(protocol)} size={size} style={MARK_STYLE} />
+      {tryNormalizeProviderProtocol(protocol)
+        ? <ProviderMark kind={getProviderProtocolMarkKind(protocol)} size={size} style={MARK_STYLE} />
+        : <Plug size={size} />}
     </span>
   )
 }

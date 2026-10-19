@@ -82,7 +82,7 @@ internal static class DotCraftApplication
             return await ModelCatalogCliRunner.RunAsync(cliArgs, cancellationToken);
         }
 
-        var workspacePath = cliArgs.Exec?.WorkspacePath ?? Directory.GetCurrentDirectory();
+        var workspacePath = cliArgs.ProviderAuthWorkspacePath ?? cliArgs.Exec?.WorkspacePath ?? Directory.GetCurrentDirectory();
         var botPath = Path.Combine(workspacePath, ".craft");
         if (cliArgs.Mode == CommandLineArgs.RunMode.Setup)
         {
@@ -276,6 +276,15 @@ internal static class DotCraftApplication
                         options.UserDataPath = HubPaths.ForCurrentUser().CraftHomePath;
                     });
 
+            if (cliArgs.Mode == CommandLineArgs.RunMode.ProviderAuth)
+            {
+                await using var authenticationProvider = services.BuildServiceProvider();
+                var runtime = authenticationProvider.GetRequiredService<DotCraft.Runtime.WorkspaceRuntime>();
+                await runtime.StartAsync(moduleRegistry, cancellationToken);
+                return await ProviderAuthCliRunner.RunAsync(
+                    authenticationProvider.GetRequiredService<DotCraft.Agents.ProviderAuthenticationCoordinator>(),
+                    config, cliArgs, cancellationToken);
+            }
             var (provider, host) = hostBuilder.Build(services);
             await using var providerLifetime = provider;
             await using (host)

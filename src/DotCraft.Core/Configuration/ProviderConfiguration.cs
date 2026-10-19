@@ -51,6 +51,18 @@ public static class ProviderConfiguration
         if (provider == null)
             return $"'{ProviderKeyPath(id)}' must be an object.";
 
+        if (!string.IsNullOrWhiteSpace(provider.BackendId))
+        {
+            if (provider.BackendSettings is null)
+                return $"'{ProviderKeyPath(id, "BackendSettings")}' must be an object.";
+            if (provider.BackendId.Any(char.IsWhiteSpace))
+                return $"'{ProviderKeyPath(id, "BackendId")}' must not contain whitespace.";
+            if (provider.NetworkTimeoutSeconds < 1 || provider.MaxOutputTokens < 1 || provider.StreamIdleTimeoutMs < 1
+                || provider.StreamMaxRetries is < 0 or > ModelProviderDefaults.MaxStreamMaxRetries)
+                return $"'{ProviderKeyPath(id)}' has invalid request limits.";
+            return null;
+        }
+
         string protocol;
         try
         {

@@ -17,6 +17,9 @@
     "authMethod": {
       "type": "string"
     },
+    "backendId": {
+      "type": "string"
+    },
     "capabilities": {
       "$ref": "./ProviderCapabilities.schema.json"
     },

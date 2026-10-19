@@ -125,6 +125,19 @@ internal static class DotNetPluginSampleEffects
             ProviderId,
             "model call");
         ledger.Prove<IChatMiddleware>();
+        using var resolver = new ModelBackendResolver(new ModelProviderRegistry([]), host.Registry, Path.GetTempPath());
+        var config = new DotCraft.Configuration.AppConfig
+        {
+            Providers = new()
+            {
+                ["review-demo"] = new() { BackendId = "acme.review-backend", Protocol = "review-native" }
+            }
+        };
+        var backendClient = new ChatClientRegistry(new ModelProviderRegistry([]), resolver)
+            .GetChatClient(config, "review-demo", "review-echo");
+        var backendResponse = await backendClient.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")]);
+        Assert.Equal("review-backend:hello", backendResponse.Text);
+        ledger.Prove<IModelBackendSource>();
     }
 
     /// <summary>Both bundles' Tools dispatch, and the four dispatch stages change what dispatch does.</summary>

@@ -11820,6 +11820,412 @@
       },
       "additionalProperties": true
     },
+    "ProviderAuthChoice": {
+      "title": "ProviderAuthChoice",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "label"
+      ]
+    },
+    "ProviderAuthEvent": {
+      "title": "ProviderAuthEvent",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "userCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "kind"
+      ]
+    },
+    "ProviderAuthInputParams": {
+      "title": "ProviderAuthInputParams",
+      "type": "object",
+      "properties": {
+        "loginId": {
+          "type": "string"
+        },
+        "promptId": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "loginId",
+        "promptId",
+        "value"
+      ]
+    },
+    "ProviderAuthInstanceParams": {
+      "title": "ProviderAuthInstanceParams",
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "providerId"
+      ]
+    },
+    "ProviderAuthLoginParams": {
+      "title": "ProviderAuthLoginParams",
+      "type": "object",
+      "properties": {
+        "method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "providerId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "providerId"
+      ]
+    },
+    "ProviderAuthLoginState": {
+      "title": "ProviderAuthLoginState",
+      "type": "object",
+      "properties": {
+        "authentication": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderAuthStatusResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errorMessage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderAuthEvent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "loginId": {
+          "type": "string"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderAuthPrompt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "promptId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "loginId",
+        "providerId",
+        "revision",
+        "status"
+      ]
+    },
+    "ProviderAuthOperationParams": {
+      "title": "ProviderAuthOperationParams",
+      "type": "object",
+      "properties": {
+        "loginId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "loginId"
+      ]
+    },
+    "ProviderAuthPrompt": {
+      "title": "ProviderAuthPrompt",
+      "type": "object",
+      "properties": {
+        "choices": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ProviderAuthChoice"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "message"
+      ]
+    },
+    "ProviderAuthStatusResult": {
+      "title": "ProviderAuthStatusResult",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "displayName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failureCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failureMessage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "isAuthenticated": {
+          "type": "boolean"
+        },
+        "planType": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "isAuthenticated"
+      ]
+    },
+    "ProviderAuthUsageResult": {
+      "title": "ProviderAuthUsageResult",
+      "type": "object",
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "snapshot": {}
+      },
+      "additionalProperties": true,
+      "required": [
+        "available"
+      ]
+    },
+    "ProviderAuthenticationMethodInfo": {
+      "title": "ProviderAuthenticationMethodInfo",
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "displayName",
+        "id",
+        "kind"
+      ]
+    },
+    "ProviderBackendInfo": {
+      "title": "ProviderBackendInfo",
+      "type": "object",
+      "properties": {
+        "authenticationMethods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProviderAuthenticationMethodInfo"
+          }
+        },
+        "defaultProtocol": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "protocols": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "authenticationMethods",
+        "defaultProtocol",
+        "displayName",
+        "id",
+        "protocols"
+      ]
+    },
+    "ProviderBackendListResult": {
+      "title": "ProviderBackendListResult",
+      "type": "object",
+      "properties": {
+        "backends": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProviderBackendInfo"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "backends"
+      ]
+    },
     "ProviderCapabilities": {
       "title": "ProviderCapabilities",
       "type": "object",
@@ -11875,6 +12281,9 @@
           ]
         },
         "authMethod": {
+          "type": "string"
+        },
+        "backendId": {
           "type": "string"
         },
         "capabilities": {

@@ -77,10 +77,10 @@ public sealed partial class SessionService
                 : ToOpaqueHistory(model, identity,
                     await persistence.LoadProviderHistoryAsync(thread, identity.ContextWindowId, ct));
         // An empty native baseline will be populated from neutral history on the next request.
-        if (snapshot.Items.Count == 0)
+        if (snapshot.Items.Count == 0 || !HistoryMatchesRuntime(model, snapshot.Identity))
             return null;
         identity = identity with { ContextWindowId = snapshot.Identity.ContextWindowId };
         return factory.CreateSession(identity, snapshot, [],
-            thread.Ephemeral ? null : new SessionProviderHistorySink(persistence));
+            thread.Ephemeral ? null : new SessionProviderHistorySink(persistence, model.BackendId, model.ProviderId));
     }
 }

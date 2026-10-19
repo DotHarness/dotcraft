@@ -16,12 +16,14 @@ public sealed class ChatClientRegistry
     private const bool EnableChatGptResponsesLite = false;
 
     private readonly ModelProviderRegistry _providerRegistry;
+    private readonly IModelRuntimeResolver _runtimeResolver;
     private readonly ConcurrentDictionary<EffectiveModelRuntime, IChatClient> _chatClients = new();
 
     [ActivatorUtilitiesConstructor]
-    public ChatClientRegistry(ModelProviderRegistry providerRegistry)
+    public ChatClientRegistry(ModelProviderRegistry providerRegistry, IModelRuntimeResolver? runtimeResolver = null)
     {
         _providerRegistry = providerRegistry ?? throw new ArgumentNullException(nameof(providerRegistry));
+        _runtimeResolver = runtimeResolver ?? providerRegistry;
     }
 
     /// <summary>Creates an empty registry for hosts and tests that only resolve configuration metadata.</summary>
@@ -42,6 +44,14 @@ public sealed class ChatClientRegistry
     }
 
     internal ModelProviderRegistry ProviderRegistry => _providerRegistry;
+    public IModelRuntimeResolver RuntimeResolver => _runtimeResolver;
+
+    public void InvalidateBackends()
+    {
+        // Generation teardown owns plugin objects; cache eviction must not dispose admitted calls.
+        foreach (var key in _chatClients.Keys.Where(key => key.BackendId is not null))
+            _chatClients.TryRemove(key, out _);
+    }
 
     /// <summary>
     /// Resolves the effective MainAgent runtime for a workspace or thread.
@@ -108,24 +118,29 @@ public sealed class ChatClientRegistry
     public IChatClient GetChatClient(EffectiveModelRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
+        runtime = _runtimeResolver.Normalize(runtime);
 
         var normalizedRuntime = runtime with
         {
             Model = NormalizeRequiredModel(runtime.Model),
-            Protocol = ModelProviderProtocols.Normalize(runtime.Protocol),
+            Protocol = runtime.BackendId is null ? ModelProviderProtocols.Normalize(runtime.Protocol) : runtime.Protocol,
             EndPoint = runtime.EndPoint.Trim(),
             ApiKey = runtime.ApiKey.Trim(),
             NetworkTimeoutSeconds = Math.Max(1, runtime.NetworkTimeoutSeconds),
-            MaxOutputTokens = NormalizeMaxOutputTokens(runtime.Protocol, runtime.MaxOutputTokens),
+            MaxOutputTokens = runtime.BackendId is null ? NormalizeMaxOutputTokens(runtime.Protocol, runtime.MaxOutputTokens) : runtime.MaxOutputTokens,
             StreamMaxRetries = Math.Clamp(runtime.StreamMaxRetries, 0, ModelProviderDefaults.MaxStreamMaxRetries),
             StreamIdleTimeoutMs = Math.Max(1, runtime.StreamIdleTimeoutMs),
-            AuthMethod = ModelProviderAuthMethods.Normalize(runtime.AuthMethod),
+            AuthMethod = runtime.BackendId is null ? ModelProviderAuthMethods.Normalize(runtime.AuthMethod) : runtime.AuthMethod,
             ChatGptAccountId = string.IsNullOrWhiteSpace(runtime.ChatGptAccountId) ? null : runtime.ChatGptAccountId.Trim(),
             UseResponsesLite = runtime.IsChatGptOAuth && runtime.UseResponsesLite
         };
         return _chatClients.GetOrAdd(normalizedRuntime, static (runtime, registry) =>
         {
-            var client = registry._providerRegistry.CreateChatClient(runtime);
+            var client = registry._runtimeResolver.Resolve(runtime).CreateChatClient(runtime);
+            if (runtime.BackendId is not null)
+                client = new ProviderPromptChatClient(client);
+            if (runtime.BackendOwnsRetry)
+                return client;
 
             return new StreamRetryingChatClient(
                 client,
@@ -139,7 +154,7 @@ public sealed class ChatClientRegistry
     /// <summary>Resolves an optional capability for a provider runtime.</summary>
     public TService? GetProviderService<TService>(EffectiveModelRuntime runtime)
         where TService : class =>
-        _providerRegistry.GetService<TService>(runtime.Protocol);
+        _runtimeResolver.Resolve(runtime).GetService(typeof(TService)) as TService;
 
     /// <summary>
     /// Gets a cached provider-neutral chat client for a provider/model pair.
@@ -179,6 +194,7 @@ public sealed class ChatClientRegistry
 
     private EffectiveModelRuntime ResolveRuntimeMetadata(AppConfig config, EffectiveModelRuntime runtime)
     {
+        runtime = _runtimeResolver.Normalize(runtime);
         if (!runtime.IsChatGptOAuth)
             return runtime with
             {
