@@ -1629,6 +1629,9 @@ export const MESSAGES_EN = {
   'settings.usage.breakdown.cached': 'Cached input',
   'settings.usage.breakdown.cacheWrite': 'Cache write',
   'settings.usage.breakdown.output': 'Output',
+  'settings.binarySource.label': 'Runtime',
+  'settings.binarySource.hint': 'Choose which dotcraft executable starts this workspace.',
+  'settings.binarySource.pathLabel': 'Executable path',
   'settings.binarySource.bundled': 'Bundled (recommended)',
   'settings.binarySource.path': 'System PATH',
   'settings.binarySource.custom': 'Custom path',
@@ -4215,6 +4218,7 @@ export const MESSAGES_EN = {
   'settings.subAgents.custom.inputMode.env': 'Via an environment variable',
   'settings.subAgents.custom.inputMode.envHint':
     'The named env var is set to the task text before launch.',
+  'settings.subAgents.custom.inputModeLabel': 'Method',
   'settings.subAgents.custom.inputArgTemplateLabel': 'Argument template',
   'settings.subAgents.custom.inputArgTemplateHint':
     '{task} is replaced with the task text at launch.',

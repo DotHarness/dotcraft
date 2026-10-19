@@ -11,7 +11,6 @@ import { FolderIcon } from '../../../ui/AppIcons'
 import { Button } from '../../../ui/Button'
 import { Input } from '../../../ui/Input'
 import { InputWithAction } from '../../../ui/InputWithAction'
-import { SelectionCard } from '../../../ui/SelectionCard'
 import { SecretInput } from '../../../channels/FormShared'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useWorkspaceProjectsStore } from '../../../../stores/workspaceProjectsStore'
@@ -42,6 +41,7 @@ export interface WorkspaceSegmentProps {
 }
 
 const BINARY_SOURCES: BinarySource[] = ['bundled', 'path', 'custom']
+const BINARY_SOURCE_MENU_MIN_WIDTH = 300
 
 const BINARY_SOURCE_KEYS: Record<BinarySource, { title: MessageKey; description: MessageKey; notFound: MessageKey }> = {
   bundled: {
@@ -156,46 +156,50 @@ export function WorkspaceSegment({
       </SettingsGroup>
 
       <SettingsGroup title={t('settings.group.localAppServer')}>
-        <SettingsRow orientation="block" style={inertInRemoteMode}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-            {BINARY_SOURCES.map((source) => {
-              const keys = BINARY_SOURCE_KEYS[source]
-              const showError = !resolvingBinary && !resolvedBinaryPath
-              return (
-                <SelectionCard
-                  key={source}
-                  name="settings-binary-source"
-                  value={source}
-                  active={binarySource === source}
-                  onSelect={() => onBinarySourceChange(source)}
-                  title={t(keys.title)}
-                  description={t(keys.description)}
-                  errorHint={showError ? t(keys.notFound) : undefined}
-                  extra={
-                    source === 'custom' ? (
-                      <InputWithAction
-                        id="settings-binary-path"
-                        inputRef={binaryPathInputRef}
-                        mono
-                        value={binaryPath}
-                        onChange={(e) => onBinaryPathChange(e.target.value)}
-                        placeholder={t('settings.binaryPlaceholder')}
-                        onInputClick={(e) => e.stopPropagation()}
-                        actionIcon={<FolderIcon size={16} />}
-                        actionLabel={t('settings.binaryBrowse')}
-                        onAction={(e) => {
-                          e.stopPropagation()
-                          onPickBinary()
-                        }}
-                      />
-                    ) : undefined
-                  }
-                />
-              )
-            })}
-            {resolvingBinary && <div style={settingsHintStyle(false)}>{t('settings.binaryResolving')}</div>}
-          </div>
-        </SettingsRow>
+        <SettingsRow
+          style={inertInRemoteMode}
+          label={t('settings.binarySource.label')}
+          description={resolvingBinary
+            ? t('settings.binaryResolving')
+            : resolvedBinaryPath
+              ? t('settings.binarySource.hint')
+              : <span style={settingsErrorTextStyle(false)}>{t(BINARY_SOURCE_KEYS[binarySource].notFound)}</span>}
+          htmlFor="settings-binary-source"
+          control={
+            <SettingsSelect
+              id="settings-binary-source"
+              value={binarySource}
+              menuMinWidth={BINARY_SOURCE_MENU_MIN_WIDTH}
+              onValueChange={(source) => onBinarySourceChange(source as BinarySource)}
+              options={BINARY_SOURCES.map((source) => ({
+                value: source,
+                label: t(BINARY_SOURCE_KEYS[source].title),
+                description: t(BINARY_SOURCE_KEYS[source].description)
+              }))}
+            />
+          }
+        />
+        {binarySource === 'custom' && (
+          <SettingsRow
+            style={inertInRemoteMode}
+            label={t('settings.binarySource.pathLabel')}
+            htmlFor="settings-binary-path"
+            orientation="block"
+            control={
+              <InputWithAction
+                id="settings-binary-path"
+                inputRef={binaryPathInputRef}
+                mono
+                value={binaryPath}
+                onChange={(e) => onBinaryPathChange(e.target.value)}
+                placeholder={t('settings.binaryPlaceholder')}
+                actionIcon={<FolderIcon size={16} />}
+                actionLabel={t('settings.binaryBrowse')}
+                onAction={() => onPickBinary()}
+              />
+            }
+          />
+        )}
 
         {connectionDirty && (
           <SettingsRow

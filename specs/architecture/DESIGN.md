@@ -1627,8 +1627,13 @@ effective choice cannot serve, a one-line warning notice under the rows says so
 and links to the fix.
 
 Each page or segment has one principal action, in primary neutral inversion;
-refresh and other quiet actions beside it stay frameless icon buttons. Option cards
-show their choice through the selected state alone, with no status pill. An inline
+refresh and other quiet actions beside it stay frameless icon buttons.
+
+A choice among options is a row whose control is a select. Each option may carry a
+one-line description in the menu, and the chosen one shows a check. Two or three
+short label-only options may use a segmented control instead. Settings never use
+bordered radio cards; framed tiles are reserved for visual previews such as theme
+thumbnails. Workspace onboarding keeps its own selection cards. An inline
 notice uses the shared banner geometry (14px padding, 12px gap, a 20px glyph, a
 13px/600 title with an optional secondary line) in the level's colour, with no
 dismiss control; the header's refresh is the retry.
