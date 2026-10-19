@@ -1198,6 +1198,7 @@ export interface ClientCapabilities {
   mcpElicitation?: boolean | null;
   nodeRepl?: NodeReplCapability | null;
   optOutNotificationMethods?: string[] | null;
+  remoteHost?: boolean | null;
   requestUserInputSupport?: boolean | null;
   streamingSupport?: boolean | null;
   toolExecutionLifecycle?: boolean | null;

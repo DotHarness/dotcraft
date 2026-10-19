@@ -174,6 +174,10 @@ public sealed class ClientCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? McpElicitation { get; init; }
 
+    [JsonPropertyName("remoteHost")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? RemoteHost { get; init; }
+
     [JsonPropertyName("channelAdapter")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ChannelAdapterCapability? ChannelAdapter { get; init; }

@@ -80,8 +80,7 @@ public static class RuntimeContextBuilder
 
     private static bool IsLocalSenderId(string? senderId) =>
         string.IsNullOrWhiteSpace(senderId)
-        || string.Equals(senderId, "local", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(senderId, "dotcraft-desktop", StringComparison.OrdinalIgnoreCase);
+        || string.Equals(senderId, "local", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsWorkspaceChannelContextForWorkspace(string? channelContext, string? workspacePath)
     {

@@ -261,13 +261,8 @@ describe('PlanApprovalComposer', () => {
     await waitFor(() => {
       const turnStartCall = appServerSendRequest.mock.calls.find(([method]) => method === 'turn/start')
       expect(turnStartCall).toBeDefined()
-      const payload = turnStartCall?.[1] as {
-        threadId: string
-        identity?: { channelContext?: string; workspacePath?: string }
-      }
+      const payload = turnStartCall?.[1] as { threadId: string }
       expect(payload.threadId).toBe(nextThreadId)
-      expect(payload.identity?.channelContext).toBe(`workspace:${nextWorkspacePath}`)
-      expect(payload.identity?.workspacePath).toBe(nextWorkspacePath)
     })
     expect(useUIStore.getState().planApprovalDismissed[nextTurnId]).toBe(true)
     expect(useUIStore.getState().planApprovalDismissed[initialTurnId]).not.toBe(true)

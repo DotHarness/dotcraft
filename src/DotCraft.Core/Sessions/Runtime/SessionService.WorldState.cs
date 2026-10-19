@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Channels;
 using DotCraft.Context;
 using DotCraft.Context.WorldState;
 using DotCraft.Memory;
@@ -24,7 +25,8 @@ public sealed partial class SessionService
         AgentModeManager? modeManager,
         bool hasActivePlan,
         ThreadGoal? threadGoal,
-        string? sessionStartHookContext)
+        string? sessionStartHookContext,
+        ClientSurface? clientSurface)
     {
         var world = WorldStateComposer.Build(
             [
@@ -47,7 +49,8 @@ public sealed partial class SessionService
             SessionStartHookContext = sessionStartHookContext,
             MemoryStore = memoryStores?.Own,
             AttachedMemoryStores = memoryStores?.Attached ?? [],
-            Skills = ResolveSkillCatalog(thread, turnId)
+            Skills = ResolveSkillCatalog(thread, turnId),
+            ClientSurface = clientSurface
         };
 
         var baseline = _runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
@@ -148,7 +151,8 @@ public sealed partial class SessionService
             modeManager,
             hasActivePlan,
             goal,
-            sessionStartHookContext);
+            sessionStartHookContext,
+            clientSurface: null);
         CommitWorldStateUpdate(thread.Id, turnId, update, modeManager);
         return update.Items;
     }

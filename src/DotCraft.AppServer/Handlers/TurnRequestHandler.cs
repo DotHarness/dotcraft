@@ -500,12 +500,14 @@ internal sealed class TurnRequestHandler(
                 UserId = sender?.SenderId ?? connection.ClientInfo?.Name ?? "anonymous",
                 GroupId = sender?.GroupId,
                 DefaultDeliveryTarget = (await sessionService.GetThreadAsync(threadId)).ChannelContext,
-                Chat = connection.TryGetThreadChat(threadId, out var chat) ? chat : null
+                Chat = connection.TryGetThreadChat(threadId, out var chat) ? chat : null,
+                Surface = connection.Surface
             }
             : new ChannelSessionInfo
             {
-                Channel = connection.HasAcpExtensions ? "acp" : "cli",
-                UserId = connection.ClientInfo?.Name ?? "anonymous"
+                Channel = connection.Surface.Id,
+                UserId = "local",
+                Surface = connection.Surface
             };
     }
 

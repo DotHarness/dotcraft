@@ -67,7 +67,7 @@ public sealed class RuntimeContextBuilderTests
     }
 
     [Theory]
-    [InlineData("desktop")]
+    [InlineData("dotcraft-desktop")]
     [InlineData("cli")]
     [InlineData("acp")]
     public void BuildBlock_PreservesLocalSourceWithoutRedundantWorkspaceOrSender(string channel)
@@ -77,7 +77,7 @@ public sealed class RuntimeContextBuilderTests
             initiator: new TurnInitiatorContext
             {
                 ChannelName = channel,
-                UserId = "dotcraft-desktop",
+                UserId = "local",
                 ChannelContext = $"workspace:{workspace}"
             },
             workspacePath: workspace);

@@ -114,6 +114,9 @@ public sealed class ClientConnectionCapabilities
     /// <summary>Whether the client can answer MCP form and URL elicitation requests.</summary>
     public bool? McpElicitation { get; set; }
 
+    /// <summary>Whether the user's device is a different machine from the one running this server.</summary>
+    public bool? RemoteHost { get; set; }
+
     /// <summary>
     /// Channel adapter capability (external-channel-adapter.md §5.1).
     /// Null for regular clients (CLI, VS Code, etc.).

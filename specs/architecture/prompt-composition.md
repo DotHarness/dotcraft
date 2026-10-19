@@ -254,6 +254,16 @@ State that persists across turns — the environment, the current mode and the a
 active goal's identity and status, and capability availability — is not a runtime reminder. It is
 delivered through the append-on-change thread context contract in §4b.
 
+The reminder's Request Source names the turn's channel, which for AppServer connections is the
+server-resolved client surface id ([AppServer Protocol §3.2](../protocols/appserver-protocol.md#32-initialize)).
+The `client_surface` WorldState section states only what departs from the defaults the base
+instructions assume: a terminal shows replies as plain text, optionally with the configured ASCII
+visualization guidance, and tools run on the workspace host rather than the user's device. Desktop,
+editor, and API clients on the same machine add nothing, and chat facts stay in `channel_chat`. Notes
+that stop applying are retired once. A turn with no client surface, such as an automation run, leaves
+the section unchanged, and SubAgent threads never render it. Base instructions and tool schemas stay
+unchanged when the client changes.
+
 Dynamic fields stay out of the base instructions so they remain stable for prompt caching.
 
 ## 10. Authority And Conflict Rules

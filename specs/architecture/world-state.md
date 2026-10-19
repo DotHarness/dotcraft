@@ -29,8 +29,8 @@ A **section** owns one coherent piece of that state. A section has:
 
 State qualifies as a section when it persists across turns and the model must be told when it moves:
 the environment the agent runs in, the active mode and the actions that mode allows, an active goal's
-identity and status, the availability of a capability such as a remote tool host, the chat a channel
-conversation is connected to, the model-visible state saved by a visualization, the memory index,
+identity and status, the availability of a capability such as a remote tool host, the client surface the latest request
+came from, the chat a channel conversation is connected to, the model-visible state saved by a visualization, the memory index,
 the Skills the agent may use, and equivalent state contributed by a plugin.
 
 The following are not sections and stay in the turn's own reminder:

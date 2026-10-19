@@ -108,13 +108,7 @@ export async function submitOptimisticTurn(
       input: echo.inputParts,
       clientUserMessageId: echo.clientUserMessageId,
       ...(sentAsGoal ? { sentAsGoal: true } : {}),
-      ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
-      identity: {
-        channelName: 'dotcraft-desktop',
-        userId: 'local',
-        channelContext: `workspace:${identityPath}`,
-        workspacePath: identityPath
-      }
+      ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {})
     })
     const res = result as { turn?: { id?: string } }
     if (res.turn?.id && echo.onScreen) {
@@ -139,13 +133,7 @@ export async function reissueFailedTurn({
   await window.api.appServer.sendRequest('turn/start', {
     threadId,
     input: [],
-    ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
-    identity: {
-      channelName: 'dotcraft-desktop',
-      userId: 'local',
-      channelContext: `workspace:${identityPath}`,
-      workspacePath: identityPath
-    }
+    ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {})
   })
 }
 

@@ -63,6 +63,9 @@ public sealed class AppServerConnection
     /// <summary>Client-declared capabilities from the <c>initialize</c> params.</summary>
     public ClientConnectionCapabilities? ClientCapabilities => _clientCapabilities;
 
+    /// <summary>The client surface resolved from <c>initialize</c>; the generic API surface before it.</summary>
+    public ClientSurface Surface { get; private set; } = ClientSurfaceResolver.Resolve(null, null);
+
     /// <summary>True when the client declared stable MCP Apps host support.</summary>
     public bool SupportsMcpApps => _clientCapabilities?.McpApps == true;
 
@@ -238,6 +241,7 @@ public sealed class AppServerConnection
 
         _clientInfo = info;
         _clientCapabilities = caps;
+        Surface = ClientSurfaceResolver.Resolve(info, caps);
         _optOutMethods = caps?.OptOutNotificationMethods is { Count: > 0 }
             ? new HashSet<string>(caps.OptOutNotificationMethods, StringComparer.Ordinal)
             : null;

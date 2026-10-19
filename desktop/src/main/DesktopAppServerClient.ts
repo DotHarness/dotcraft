@@ -38,6 +38,7 @@ export interface DesktopAppServerClientOptions {
   initializeTimeoutMs?: number | null
   initializeProfile?: InitializeProfile
   autoReconnect?: boolean
+  remoteHost?: boolean
 }
 
 export type NotificationCallback = (method: string, params: unknown) => void
@@ -85,6 +86,7 @@ export class DesktopAppServerClient extends EventEmitter {
   private readonly browserSubscriptions: BrowserTurnSubscriptions
   private readonly initializeTimeoutMs: number | null
   private readonly initializeProfile: InitializeProfile
+  private readonly remoteHost: boolean
   private notificationCallbacks: NotificationCallback[] = []
   private serverRequestHandler: ServerRequestHandler | null = null
   private disposed = false
@@ -102,6 +104,7 @@ export class DesktopAppServerClient extends EventEmitter {
       : new DesktopStreamTransport(stdoutOrTransport, stdinOrUndefined!)
     this.initializeTimeoutMs = options.initializeTimeoutMs ?? INITIALIZE_REQUEST_TIMEOUT_MS
     this.initializeProfile = options.initializeProfile ?? 'foreground'
+    this.remoteHost = options.remoteHost ?? false
     this.wire = new DotCraftWireClient(transport, {
       autoReconnect: options.autoReconnect ?? false,
       defaultTimeoutMs: options.defaultTimeoutMs ?? 30_000,
@@ -224,7 +227,10 @@ export class DesktopAppServerClient extends EventEmitter {
       streamingSupport: true,
       configChange: true,
       optOutNotifications: [],
-      extraCapabilities: buildInitializeCapabilities(profile)
+      extraCapabilities: {
+        ...buildInitializeCapabilities(profile),
+        ...(this.remoteHost ? { remoteHost: true } : {})
+      }
     })
     return this.currentInitializeResult()!
   }
