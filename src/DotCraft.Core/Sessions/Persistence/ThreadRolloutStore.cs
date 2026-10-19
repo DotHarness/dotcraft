@@ -22,10 +22,18 @@ internal sealed class ThreadRolloutStore
     internal ThreadRolloutStore(
         string botPath,
         Func<string, CancellationToken, Task>? beforeDeleteAsync)
+        : this(botPath, beforeDeleteAsync, new OrderedRolloutWriter(JsonOptions))
+    {
+    }
+
+    internal ThreadRolloutStore(
+        string botPath,
+        Func<string, CancellationToken, Task>? beforeDeleteAsync,
+        IRolloutWriter writer)
     {
         _activeDir = Path.Combine(botPath, "threads", "active");
         _archivedDir = Path.Combine(botPath, "threads", "archived");
-        _writer = new OrderedRolloutWriter(JsonOptions);
+        _writer = writer;
         _beforeDeleteAsync = beforeDeleteAsync;
         Directory.CreateDirectory(_activeDir);
         Directory.CreateDirectory(_archivedDir);

@@ -28,7 +28,7 @@ public sealed partial class SessionService
             try
             {
                 var delta = session.Skip(committer.PersistedModelHistoryCount).Concat(update.Messages).ToArray();
-                await persist(delta, cancellationToken);
+                await persist(delta, InitialInputRecorded ? cancellationToken : CancellationToken.None);
                 session.AddRange(update.Messages);
                 InitialInputRecorded = true;
                 committer.PersistedModelHistoryCount = session.Count;
