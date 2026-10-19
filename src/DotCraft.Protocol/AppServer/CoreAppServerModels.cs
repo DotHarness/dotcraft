@@ -5497,6 +5497,19 @@ public sealed class ThreadForkResult : ExtensibleJsonObject
 
 }
 
+/// <summary>Executable wire contract for ThreadGitInfo.</summary>
+public sealed class ThreadGitInfo : ExtensibleJsonObject
+{
+    [JsonPropertyName("branch")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Branch { get; init; }
+
+    [JsonPropertyName("originUrl")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> OriginUrl { get; init; }
+
+}
+
 /// <summary>Executable wire contract for ThreadGoalClearParams.</summary>
 public sealed class ThreadGoalClearParams : ExtensibleJsonObject
 {

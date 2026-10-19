@@ -1083,6 +1083,10 @@ public sealed class SessionThread : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public ThreadWorktreeInfo? Worktree { get; init; }
 
+    [JsonPropertyName("gitInfo")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public ThreadGitInfo? GitInfo { get; init; }
+
     [JsonPropertyName("userId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? UserId { get; init; }
@@ -1346,6 +1350,10 @@ public sealed class ThreadSummary : ExtensibleJsonObject
     [JsonPropertyName("worktree")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ThreadWorktreeInfo?> Worktree { get; init; }
+
+    [JsonPropertyName("gitInfo")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ThreadGitInfo> GitInfo { get; init; }
 
     [JsonPropertyName("createdAt")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

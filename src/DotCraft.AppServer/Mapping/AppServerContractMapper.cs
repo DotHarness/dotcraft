@@ -43,6 +43,7 @@ public static class AppServerContractMapper
         ParentThreadId = value.ParentThreadId,
         Ephemeral = value.Ephemeral,
         Worktree = value.Worktree is null ? null : WorktreeContractMapper.ToContract(value.Worktree),
+        GitInfo = value.GitInfo is null ? null : ThreadContractMapper.ToContract(value.GitInfo),
         UserId = value.UserId,
         OriginChannel = value.OriginChannel,
         ChannelContext = value.ChannelContext,

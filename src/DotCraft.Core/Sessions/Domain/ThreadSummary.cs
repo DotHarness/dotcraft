@@ -145,6 +145,8 @@ public sealed class ThreadSummary
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public ThreadWorktreeInfo? Worktree { get; set; }
 
+    public ThreadGitInfo? GitInfo { get; set; }
+
     public ThreadStatus Status { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
@@ -209,6 +211,7 @@ public sealed class ThreadSummary
             ForkedFromId = thread.ForkedFromId,
             Ephemeral = thread.Ephemeral,
             Worktree = thread.Worktree,
+            GitInfo = thread.GitInfo,
             Status = thread.Status,
             CreatedAt = thread.CreatedAt,
             LastActiveAt = thread.LastActiveAt,

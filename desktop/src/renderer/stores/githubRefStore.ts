@@ -12,6 +12,7 @@ import { normalizeGitPathKey } from './gitStore'
 const RESULT_TTL_MS = 60_000
 const FAILURE_TTL_MS = 5_000
 const REPO_TTL_MS = 5 * 60_000
+const ORIGIN_PULL_REFRESH_MS = 30_000
 
 interface GithubRefEntry<T> {
   status: 'loading' | 'resolved'
@@ -19,14 +20,16 @@ interface GithubRefEntry<T> {
   updatedAt: number | null
 }
 
-type Slice = 'refs' | 'branchPulls' | 'repos'
+type Slice = 'refs' | 'branchPulls' | 'originPulls' | 'repos'
 
 interface GithubRefStore {
   refs: Record<string, GithubRefEntry<GithubRefResult>>
   branchPulls: Record<string, GithubRefEntry<GithubBranchPullResult>>
+  originPulls: Record<string, GithubRefEntry<GithubBranchPullResult>>
   repos: Record<string, GithubRefEntry<GithubRepo | null>>
   ensureRef(target: GithubRefTarget): Promise<void>
   ensureBranchPull(path: string, branch: string, options?: { force?: boolean }): Promise<void>
+  ensureOriginPull(originUrl: string, branch: string): Promise<void>
   ensureRepo(path: string): Promise<void>
 }
 
@@ -43,6 +46,13 @@ function branchPullKey(path: string, branch: string): string {
   const pathKey = normalizeGitPathKey(path.trim())
   const branchName = branch.trim()
   return pathKey && branchName ? `${pathKey}\n${branchName}` : ''
+}
+
+function originPullKey(originUrl: string, branch: string): string {
+  const origin = originUrl.trim()
+  const branchName = branch.trim()
+  return origin && branchName ? `${origin}
+${branchName}` : ''
 }
 
 function ttlFor(result: unknown): number {
@@ -87,6 +97,7 @@ export const useGithubRefStore = create<GithubRefStore>((set, get) => {
   return {
     refs: {},
     branchPulls: {},
+    originPulls: {},
     repos: {},
 
     ensureRef(target) {
@@ -101,6 +112,16 @@ export const useGithubRefStore = create<GithubRefStore>((set, get) => {
         () => window.api.github.getBranchPullRequest(path.trim(), branch.trim()),
         UNAVAILABLE,
         options?.force === true
+      )
+    },
+
+    ensureOriginPull(originUrl, branch) {
+      return ensure<GithubBranchPullResult>(
+        'originPulls',
+        originPullKey(originUrl, branch),
+        ttlFor,
+        () => window.api.github.getOriginBranchPullRequest(originUrl.trim(), branch.trim()),
+        UNAVAILABLE
       )
     },
 
@@ -138,4 +159,33 @@ export function useBranchPullRequest(path: string | null | undefined, branch: st
     if (key && path && branch) void useGithubRefStore.getState().ensureBranchPull(path, branch)
   }, [branch, key, path])
   return result?.status === 'ready' ? result.ref : null
+}
+
+export function useOriginBranchPullRequest(
+  originUrl: string | null | undefined,
+  branch: string | null | undefined,
+  enabled: boolean
+): GithubPullSummary | null {
+  const key = enabled && originUrl && branch ? originPullKey(originUrl, branch) : ''
+  const result = useGithubRefStore((state) => (key ? state.originPulls[key]?.result ?? null : null))
+  const pull = result?.status === 'ready' ? result.ref : null
+  const pullOpen = pull != null && pull.state !== 'merged' && pull.state !== 'closed'
+  useEffect(() => {
+    if (!key || !originUrl || !branch) return
+    const refresh = (): void => {
+      void useGithubRefStore.getState().ensureOriginPull(originUrl, branch)
+    }
+    refresh()
+    window.addEventListener('focus', refresh)
+    const timer = pullOpen
+      ? window.setInterval(() => {
+          if (document.hasFocus()) refresh()
+        }, ORIGIN_PULL_REFRESH_MS)
+      : undefined
+    return () => {
+      window.removeEventListener('focus', refresh)
+      window.clearInterval(timer)
+    }
+  }, [branch, key, originUrl, pullOpen])
+  return pull
 }

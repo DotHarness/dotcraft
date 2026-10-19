@@ -23,6 +23,9 @@ internal static class ThreadContractMapper
         Ephemeral = value.Ephemeral,
         Worktree = Protocol.Optional<Contract.ThreadWorktreeInfo?>.FromValue(
             value.Worktree is null ? null : WorktreeContractMapper.ToContract(value.Worktree)),
+        GitInfo = value.GitInfo is null
+            ? default
+            : Protocol.Optional<Contract.ThreadGitInfo>.FromValue(ToContract(value.GitInfo)),
         CreatedAt = value.CreatedAt,
         LastActiveAt = value.LastActiveAt,
         TurnCount = value.TurnCount,
@@ -33,6 +36,12 @@ internal static class ThreadContractMapper
         OriginPresentation = value.OriginPresentation is null ? null : ToContract(value.OriginPresentation),
         Metadata = value.Metadata,
         Turns = null
+    };
+
+    public static Contract.ThreadGitInfo ToContract(Domain.ThreadGitInfo value) => new()
+    {
+        Branch = value.Branch is null ? default : Protocol.Optional<string>.FromValue(value.Branch),
+        OriginUrl = value.OriginUrl is null ? default : Protocol.Optional<string>.FromValue(value.OriginUrl)
     };
 
     public static Contract.ThreadSource ToContract(Domain.ThreadSource value) => new()

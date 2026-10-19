@@ -887,6 +887,7 @@ public sealed partial class SessionService
                 }
                 eventChannel.EmitTurnStarted(turn);
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted, turn);
+                RecordThreadGitInfo(thread, turnContext.Workspace.Cwd);
                 await ContributionLifecycle.TurnStartedAsync(turnKey, CancellationToken.None);
                 if (userItem != null)
                 {
