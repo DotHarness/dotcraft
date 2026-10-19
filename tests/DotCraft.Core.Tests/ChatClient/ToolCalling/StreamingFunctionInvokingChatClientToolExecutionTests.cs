@@ -8,6 +8,29 @@ namespace DotCraft.Tests.Agents;
 public sealed partial class StreamingFunctionInvokingChatClientTests
 {
     [Theory]
+    [InlineData(false, 2)]
+    [InlineData(true, 1)]
+    public async Task GetStreamingResponseAsync_PreservesTerminationWhenToolThrows(bool terminate, int expectedRequests)
+    {
+        var inner = new RoundTripFakeChatClient();
+        using var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [AIFunctionFactory.Create(() => "unused", name: "GetStatus")],
+            FunctionInvoker = (context, _) =>
+            {
+                context.Terminate = terminate;
+                throw new InvalidOperationException("tool failed");
+            }
+        };
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+
+        Assert.Equal(expectedRequests, inner.Calls.Count);
+        var result = Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionResultContent>());
+        Assert.IsType<InvalidOperationException>(result.Exception);
+    }
+
+    [Theory]
     [InlineData("structured-error", "failed", false, "rejected")]
     [InlineData("exception-result", "failed", false, "rejected")]
     [InlineData("success", "completed", true, null)]

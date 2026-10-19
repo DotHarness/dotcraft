@@ -854,7 +854,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
         {
             toolExecution?.CompleteFailure(SanitizeToolFailureMessage(ex.Message));
             await NotifyToolHandlerFinishedAsync(toolExecution, call.Name, call.CallId, cancellationToken);
-            return new FunctionInvocationOutcome(call, FunctionInvocationStatus.Exception, null, ex, false, hookFeedback.ToArray());
+            return new FunctionInvocationOutcome(call, FunctionInvocationStatus.Exception, null, ex, context.Terminate, hookFeedback.ToArray());
         }
         catch (Exception ex)
         {
