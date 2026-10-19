@@ -22,6 +22,7 @@ public sealed partial class SessionService
 
         public async Task UpdateAsync(string threadId, ThreadConfiguration config, CancellationToken ct)
         {
+            MemoryScopes.ValidateAttachments(config.MemoryStores);
             var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
             using (await owner.AcquireThreadAgentLockAsync(threadId, ct))
             {
@@ -31,7 +32,6 @@ public sealed partial class SessionService
                     config,
                     config.Cwd,
                     config.RuntimeWorkspaceRoots);
-                MemoryScopes.ValidateAttachments(config.MemoryStores);
                 thread.Configuration.MemoryScope = previous?.MemoryScope;
                 thread.Configuration.MemoryStores ??= previous?.MemoryStores;
                 thread.Configuration.MemoryEnabled = previous?.MemoryEnabled;
