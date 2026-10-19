@@ -233,7 +233,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 Services.GetService<ISkillMutationApplier>(),
                 contextPageManager,
                 Paths.UserData.RootPath,
-                contributionRegistry), ContributionOrigin.Builtin));
+                contributionRegistry,
+                Services.GetService<IProviderHttpTransport>()), ContributionOrigin.Builtin));
             toolSources.Add(new CollectedToolSource(new ImageGenerationToolSource(
                 Config,
                 chatClientRegistry,

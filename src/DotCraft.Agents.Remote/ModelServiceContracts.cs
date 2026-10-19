@@ -15,7 +15,8 @@ public sealed record RemoteModelProvider(
     ProviderAuthenticationStatus Authentication,
     int? MaxOutputTokens = null,
     int NetworkTimeoutSeconds = 300,
-    IReadOnlyDictionary<string, ProviderRequestAdaptation>? Models = null);
+    IReadOnlyDictionary<string, ProviderRequestAdaptation>? Models = null,
+    string? WebSearchBackend = null);
 
 public sealed record ModelServiceCatalog(string CallerId, IReadOnlyList<RemoteModelProvider> Providers);
 

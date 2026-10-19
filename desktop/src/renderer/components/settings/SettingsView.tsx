@@ -2128,7 +2128,7 @@ export function SettingsView({
                       onAddProvider={providerEditingEnabled ? startCreateProvider : undefined}
                     />
 
-                    <WebSearchSettingsGroup />
+                    <WebSearchSettingsGroup providers={providers} providersLoading={providersLoading} />
 
                     <SettingsGroup
                       title={t('settings.llm.providersTitle')}

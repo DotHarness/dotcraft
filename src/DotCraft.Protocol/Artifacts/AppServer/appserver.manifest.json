@@ -15084,6 +15084,13 @@
           "required": false,
           "nullable": false,
           "const": null
+        },
+        {
+          "name": "webSearchBackend",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
         }
       ],
       "variants": []

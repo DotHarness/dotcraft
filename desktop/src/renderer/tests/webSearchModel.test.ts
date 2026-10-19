@@ -1,10 +1,39 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  EXA_KEY_MASK,
+  SECRET_KEY_MASK,
+  canProviderSearchDeepSeek,
+  isSearchProviderAuthenticated,
   isSecretStored,
-  resolveExaKeyCommit
+  resolveSecretKeyCommit
 } from '../components/settings/panels/webSearch/webSearchModel'
+import { normalizeProviderList } from '../components/settings/providerInfo'
+
+describe('search provider metadata', () => {
+  it('uses server capabilities instead of guessing from provider or model names', () => {
+    const [legacy, supported, unauthenticated] = normalizeProviderList({
+      providers: [
+        { id: 'deepseek', hasApiKey: true },
+        {
+          id: 'account',
+          webSearchBackend: 'deepseek',
+          managedBy: 'modelService',
+          isAuthenticated: true
+        },
+        {
+          id: 'expired',
+          webSearchBackend: 'deepseek',
+          managedBy: 'modelService',
+          isAuthenticated: false
+        }
+      ]
+    })
+    expect(canProviderSearchDeepSeek(legacy)).toBe(false)
+    expect(canProviderSearchDeepSeek(supported)).toBe(true)
+    expect(isSearchProviderAuthenticated(supported)).toBe(true)
+    expect(isSearchProviderAuthenticated(unauthenticated)).toBe(false)
+  })
+})
 
 describe('isSecretStored', () => {
   it('treats the masked read value as stored and empty values as unset', () => {
@@ -14,18 +43,23 @@ describe('isSecretStored', () => {
   })
 })
 
-describe('resolveExaKeyCommit', () => {
+describe('resolveSecretKeyCommit', () => {
   it('does nothing when the field was not edited or still shows the mask', () => {
-    expect(resolveExaKeyCommit(null, true)).toEqual({ kind: 'none' })
-    expect(resolveExaKeyCommit(EXA_KEY_MASK, true)).toEqual({ kind: 'none' })
+    expect(resolveSecretKeyCommit(null, true)).toEqual({ kind: 'none' })
+    expect(resolveSecretKeyCommit(SECRET_KEY_MASK, true)).toEqual({
+      kind: 'none'
+    })
   })
 
   it('clears a stored key when the field is emptied', () => {
-    expect(resolveExaKeyCommit('  ', true)).toEqual({ kind: 'clear' })
-    expect(resolveExaKeyCommit('', false)).toEqual({ kind: 'none' })
+    expect(resolveSecretKeyCommit('  ', true)).toEqual({ kind: 'clear' })
+    expect(resolveSecretKeyCommit('', false)).toEqual({ kind: 'none' })
   })
 
   it('saves a new trimmed key', () => {
-    expect(resolveExaKeyCommit(' exa-key ', true)).toEqual({ kind: 'set', value: 'exa-key' })
+    expect(resolveSecretKeyCommit(' exa-key ', true)).toEqual({
+      kind: 'set',
+      value: 'exa-key'
+    })
   })
 })

@@ -5078,6 +5078,7 @@ Clients must check `capabilities.providerManagement` before calling `provider/li
 | `protocol` | string | Provider protocol. Supported values are `openai-chat-completions`, `openai-responses`, and `anthropic`. |
 | `apiKey` | string? | Redacted secret marker when a key is present; raw secrets are never returned. |
 | `hasApiKey` | boolean | Whether the provider has an API key configured. |
+| `webSearchBackend` | string? | Optional built-in search backend identifier. `"deepseek"` identifies official DeepSeek search support. Omitted for unsupported providers; remote providers require service-advertised support. Authentication is reported separately. |
 | `managedBy` | string? | `modelService` for providers administered by the remote service. |
 | `isAuthenticated` | boolean? | Credential availability reported by the remote service. |
 | `endPoint` | string | Configured provider base URL. Empty means the protocol's official default endpoint. |

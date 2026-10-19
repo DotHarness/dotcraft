@@ -23,6 +23,7 @@ public static class RemoteModelConfiguration
             MaxOutputTokens = provider.MaxOutputTokens,
             NetworkTimeoutSeconds = provider.NetworkTimeoutSeconds,
             RemoteAuthentication = provider.Authentication,
+            RemoteWebSearchBackend = provider.WebSearchBackend,
             RemoteModels = provider.Models
         }, StringComparer.OrdinalIgnoreCase);
     }

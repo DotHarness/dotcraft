@@ -678,37 +678,6 @@ public sealed partial class AppConfig
         public int MaxConsecutiveWakes { get; set; } = 3;
     }
 
-    [ConfigSection("Tools.Web", DisplayName = "Tools > Web", Order = 22)]
-    public sealed class WebToolsConfig
-    {
-        /// <summary>
-        /// Maximum characters to extract from fetched content (default: 50000).
-        /// </summary>
-        [ConfigField(Min = 0)]
-        public int MaxChars { get; set; } = 50000;
-
-        [ConfigField(Min = 1, Hint = "seconds")]
-        public int Timeout { get; set; } = 30;
-
-        [ConfigField(Min = 1, Hint = "bytes")]
-        public long MaxResponseBytes { get; set; } = 5_000_000;
-
-        /// <summary>
-        /// Default maximum number of search results to return (default: 5, range: 1-10).
-        /// </summary>
-        [ConfigField(Min = 1, Max = 10)]
-        public int SearchMaxResults { get; set; } = 5;
-
-        /// <summary>
-        /// Search provider: "Bing" (globally accessible) or "Exa" (AI-optimized, free via MCP).
-        /// </summary>
-        [ConfigField(FieldType = "select", Options = ["Exa", "Bing"], Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.ThreadAgents)]
-        public string SearchProvider { get; set; } = WebSearchProvider.Exa;
-
-        [ConfigField(Sensitive = true, Hint = "Exa API key; empty uses EXA_API_KEY or the free rate-limited endpoint", Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.ThreadAgents)]
-        public string ExaApiKey { get; set; } = string.Empty;
-    }
-
     [ConfigSection("Tools.Lsp", DisplayName = "Tools > LSP", Order = 24)]
     public sealed class LspToolsConfig
     {

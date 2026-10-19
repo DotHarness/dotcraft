@@ -32,6 +32,7 @@ public sealed class WebSearchToolProviderTests : IDisposable
     public static TheoryData<string, AppConfig, bool> Availability => new()
     {
         { "subscription oauth", OAuthConfig(), true },
+        { "subscription with explicit DeepSeek search", OAuthConfig(searchProvider: "DeepSeek"), true },
         { "subscription oauth chat completions", OAuthConfig(ModelProviderProtocols.OpenAIChatCompletions), true },
         { "api key", ApiKeyConfig(), false },
         { "anthropic", AnthropicConfig(), false }
@@ -272,7 +273,7 @@ public sealed class WebSearchToolProviderTests : IDisposable
             new RuntimeBindingId("native:web-search:run:1"), 1, DateTimeOffset.UtcNow,
             WorkspacePath: _root);
 
-    private static AppConfig OAuthConfig(string protocol = ModelProviderProtocols.OpenAIResponses)
+    private static AppConfig OAuthConfig(string protocol = ModelProviderProtocols.OpenAIResponses, string searchProvider = "Auto")
     {
         var config = new AppConfig
         {
@@ -284,6 +285,7 @@ public sealed class WebSearchToolProviderTests : IDisposable
             Protocol = protocol,
             AuthMethod = ModelProviderAuthMethods.ChatGptOAuth
         };
+        config.Tools.Web.SearchProvider = searchProvider;
         return config;
     }
 

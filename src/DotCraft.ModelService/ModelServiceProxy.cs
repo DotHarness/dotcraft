@@ -27,7 +27,10 @@ internal sealed class ModelServiceProxy(
         var descriptions = await Task.WhenAll(providers.Select(provider =>
             provider.Description.Models is null
                 ? ModelServiceProviderCatalog.DescribeAsync(provider, context.RequestAborted)
-                : Task.FromResult(provider.Description))).ConfigureAwait(false);
+                : Task.FromResult(provider.Description with
+                {
+                    WebSearchBackend = ProviderWebSearchBackend.Resolve(provider.Runtime.EndPoint, provider.Runtime.AuthMethod)
+                }))).ConfigureAwait(false);
         await context.Response.WriteAsJsonAsync(
             new ModelServiceCatalog(caller.Id, descriptions),
             context.RequestAborted).ConfigureAwait(false);
@@ -46,7 +49,9 @@ internal sealed class ModelServiceProxy(
             await ErrorAsync(context, 403, "provider_forbidden", "This client cannot use the requested provider.");
             return;
         }
-        if (!IsAllowedOperation(provider.Runtime.Protocol, context.Request.Method, operation))
+        if (!(context.Request.Method == "POST" && operation == "tools/search"
+            ? ProviderWebSearchBackend.Resolve(provider.Runtime.EndPoint, provider.Runtime.AuthMethod) == ProviderWebSearchBackend.DeepSeek
+            : IsAllowedOperation(provider.Runtime.Protocol, context.Request.Method, operation)))
         {
             await ErrorAsync(context, 404, "operation_not_supported", "This model operation is not supported.");
             return;
@@ -162,7 +167,8 @@ internal sealed class ModelServiceProxy(
     {
         var endpoint = new Uri(provider.Runtime.EndPoint.TrimEnd('/') + "/");
         using var request = new HttpRequestMessage(new HttpMethod(context.Request.Method),
-            new Uri(endpoint, operation + context.Request.QueryString));
+            operation == "tools/search" ? ProviderWebSearchBackend.DeepSeekSearchEndpoint
+                : new Uri(endpoint, operation + context.Request.QueryString));
         foreach (var header in context.Request.Headers)
             if (ModelServiceProtocol.IsRequestHeader(header.Key))
                 request.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
@@ -174,7 +180,7 @@ internal sealed class ModelServiceProxy(
                     || header.Key.Equals("Content-Encoding", StringComparison.OrdinalIgnoreCase))
                     request.Content.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
         }
-        if (provider.Runtime.Protocol == ModelProviderProtocols.Anthropic)
+        if (operation != "tools/search" && provider.Runtime.Protocol == ModelProviderProtocols.Anthropic)
             request.Headers.TryAddWithoutValidation("x-api-key", token);
         else
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);

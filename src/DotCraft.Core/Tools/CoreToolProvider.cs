@@ -31,7 +31,8 @@ public sealed class CoreToolSource(
     ISkillMutationApplier? skillMutationApplier = null,
     IContextPageManager? contextPageManager = null,
     string? userDataPath = null,
-    IContributionView? contributions = null) : AIFunctionToolSource
+    IContributionView? contributions = null,
+    IProviderHttpTransport? providerHttpTransport = null) : AIFunctionToolSource
 {
     /// <inheritdoc />
     public override string SourceId => "core-native";
@@ -199,8 +200,7 @@ public sealed class CoreToolSource(
             policy: shellPolicy);
         tools.AddRange(GeneratedToolFunctions.All(shellTools));
 
-        // Web tools
-        var webTools = new WebTools(config.Tools.Web);
+        var webTools = new WebTools(config, mainRuntime, providerHttpTransport);
         var hostedWebSearch = WebSearchToolSource.IsSupportedRuntime(mainRuntime);
         tools.AddRange(GeneratedToolFunctions.All(webTools)
             .Where(tool => !hostedWebSearch || tool.Name != nameof(WebTools.WebSearch)));

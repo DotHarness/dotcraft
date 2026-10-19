@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using DotCraft.Agents;
 using DotCraft.Agents.Remote;
 using DotCraft.Configuration;
 using DotCraft.Harness;
@@ -10,6 +11,22 @@ namespace DotCraft.Tests.Harness;
 
 public sealed class RemoteModelRuntimeConnectionTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData("deepseek")]
+    public void RemoteCatalogPreservesOptionalSearchSupportWithoutUpstreamCredentials(string? backend)
+    {
+        var config = new AppConfig { ModelService = new() { Endpoint = "https://service.test", Token = "caller" } };
+        RemoteModelConfiguration.Apply(config, new ModelServiceCatalog("caller", [
+            new RemoteModelProvider("account", "Account", "anthropic", "https://api.deepseek.com/anthropic",
+                "apiKey", false, false, new ProviderAuthenticationStatus(true), WebSearchBackend: backend)
+        ]));
+        var runtime = ModelProviderResolver.ResolveProvider(config, "account");
+        Assert.Equal(backend, runtime.WebSearchBackend);
+        Assert.True(runtime.IsRemote);
+        Assert.Empty(runtime.ApiKey);
+    }
+
     [Fact]
     public async Task CatalogRefresh_ReportsTheProviderRegistryRegionOnlyWhenTheCatalogChanges()
     {

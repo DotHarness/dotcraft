@@ -179,20 +179,86 @@ public sealed class ModelServiceTransportTests
         Assert.Contains("prompt_tokens", await response.Content.ReadAsStringAsync());
     }
 
+    [Theory]
+    [InlineData(ModelProviderProtocols.OpenAIChatCompletions, "https://api.deepseek.com/v1")]
+    [InlineData(ModelProviderProtocols.Anthropic, "https://api.deepseek.com/anthropic")]
+    public async Task DeepSeekSearchUsesServerCredentialsAndCanonicalEndpoint(string protocol, string endpoint)
+    {
+        string? path = null;
+        await using var fixture = await Fixture.CreateAsync(request =>
+        {
+            path = request.RequestUri!.ToString();
+            Assert.Equal("Bearer upstream-secret", request.Headers.Authorization!.ToString());
+            Assert.False(request.Headers.Contains("x-api-key"));
+            Assert.DoesNotContain("caller-secret", request.Headers.ToString());
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"results":[]}""", Encoding.UTF8, "application/json")
+            });
+        }, endpoint, protocol);
+        using var client = fixture.Transport.CreateClient("primary", new Uri(endpoint));
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint + "/tools/search")
+        {
+            Content = new StringContent("""{"query":"test","count":5,"need_content":false}""", Encoding.UTF8, "application/json")
+        };
+        request.Headers.TryAddWithoutValidation("x-api-key", "worker-secret");
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("https://api.deepseek.com/v1/tools/search", path);
+        Assert.Equal("tools/search", fixture.Access.Call!.Context.Operation);
+        var description = ModelServiceProviderCatalog.Describe(
+            (await fixture.Access.GetProvidersAsync(new ModelServiceCaller("stack-a"), default))[0], []);
+        Assert.Equal("deepseek", description.WebSearchBackend);
+        Assert.DoesNotContain("upstream-secret", System.Text.Json.JsonSerializer.Serialize(description));
+    }
+
+    [Fact]
+    public async Task DeepSeekSearchIsRejectedForOtherProviders()
+    {
+        await using var fixture = await Fixture.CreateAsync(_ => throw new Xunit.Sdk.XunitException("Unexpected upstream call."));
+        var error = await Assert.ThrowsAsync<ModelServiceException>(() =>
+            fixture.ProviderClient.PostAsync("https://upstream.example/v1/tools/search", new StringContent("{}")));
+        Assert.Equal("operation_not_supported", error.Code);
+    }
+
+    [Fact]
+    public async Task CancellingDeepSeekSearchStopsTheUpstreamRequest()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var fixture = await Fixture.CreateAsync(_ => throw new InvalidOperationException(),
+            "https://api.deepseek.com/v1", cancellableSend: async (_, token) =>
+            {
+                started.SetResult();
+                try { await Task.Delay(Timeout.Infinite, token); }
+                finally { stopped.TrySetResult(); }
+                throw new InvalidOperationException();
+            });
+        using var client = fixture.Transport.CreateClient("primary", new Uri("https://api.deepseek.com/v1"));
+        using var cancellation = new CancellationTokenSource();
+        var sending = client.PostAsync("https://api.deepseek.com/v1/tools/search", new StringContent("{}"), cancellation.Token);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await cancellation.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sending);
+        await stopped.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
     private sealed class Fixture(WebApplication app, HttpClient client, Access access, RemoteProviderTransport transport) : IAsyncDisposable
     {
         public Access Access => access;
         public RemoteProviderTransport Transport => transport;
         public HttpClient ProviderClient { get; } = transport.CreateClient("primary", new Uri("https://upstream.example/v1"));
-        public static async Task<Fixture> CreateAsync(Func<HttpRequestMessage, Task<HttpResponseMessage>> send)
+        public static async Task<Fixture> CreateAsync(Func<HttpRequestMessage, Task<HttpResponseMessage>> send,
+            string endpoint = "https://upstream.example/v1", string protocol = ModelProviderProtocols.OpenAIResponses,
+            Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? cancellableSend = null)
         {
             var builder = WebApplication.CreateBuilder();
             builder.WebHost.UseTestServer();
-            var access = new Access();
+            var access = new Access { Endpoint = endpoint, Protocol = protocol };
             builder.Services.AddSingleton<IModelServiceAccess>(access);
             builder.Services.AddSingleton<IModelServiceObserver>(access);
             builder.Services.AddDotCraftModelService();
-            builder.Services.AddHttpClient("DotCraft.ModelService.Upstream").ConfigurePrimaryHttpMessageHandler(() => new Handler(send));
+            builder.Services.AddHttpClient("DotCraft.ModelService.Upstream").ConfigurePrimaryHttpMessageHandler(() => new Handler(cancellableSend ?? ((request, _) => send(request))));
             var app = builder.Build();
             app.MapDotCraftModelService();
             await app.StartAsync();
@@ -208,13 +274,15 @@ public sealed class ModelServiceTransportTests
         }
     }
 
-    private sealed class Handler(Func<HttpRequestMessage, Task<HttpResponseMessage>> send) : HttpMessageHandler
+    private sealed class Handler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request);
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request, cancellationToken);
     }
 
     private sealed class Access : IModelServiceAccess, IModelServiceObserver
     {
+        public string Endpoint { get; init; } = "https://upstream.example/v1";
+        public string Protocol { get; init; } = ModelProviderProtocols.OpenAIResponses;
         public bool Revoked { get; set; }
         public bool ThrowOnUsage { get; set; }
         public ModelServiceCall? Call { get; private set; }
@@ -222,10 +290,10 @@ public sealed class ModelServiceTransportTests
             ValueTask.FromResult(!Revoked && context.Request.Headers.Authorization == "Bearer caller-secret" ? new ModelServiceCaller("stack-a") : null);
         public Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ModelServiceProvider>>([
-                new(new RemoteModelProvider("primary", "Primary", ModelProviderProtocols.OpenAIResponses,
-                    "https://upstream.example/v1", "apiKey", true, true, new ProviderAuthenticationStatus(true)),
-                    new EffectiveModelRuntime("primary", "", ModelProviderProtocols.OpenAIResponses, "Primary", "upstream-secret",
-                        "https://upstream.example/v1", 30, null, ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses)))
+                new(new RemoteModelProvider("primary", "Primary", Protocol,
+                    Endpoint, "apiKey", true, true, new ProviderAuthenticationStatus(true)),
+                    new EffectiveModelRuntime("primary", "", Protocol, "Primary", "upstream-secret",
+                        Endpoint, 30, null, ModelProviderCapabilities.ForProtocol(Protocol)))
             ]);
         public ValueTask<IDisposable?> BeginRequestAsync(ModelServiceCaller caller, ModelServiceRequestContext request, CancellationToken cancellationToken) => ValueTask.FromResult<IDisposable?>(null);
         public ValueTask OnCompletedAsync(ModelServiceCall call, CancellationToken cancellationToken)
