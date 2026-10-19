@@ -105,6 +105,7 @@ export function OratorioBoard({
   const [repository, setRepository] = useState(initialState?.repository ?? 'all')
   const [assignee, setAssignee] = useState(initialState?.assignee ?? 'all')
   const [selected, setSelected] = useState<OratorioTask | null>(() => serverTasks.find((task) => task.id === initialState?.selectedTaskId) ?? null)
+  const pendingSelection = useRef(selected ? null : initialState?.selectedTaskId ?? null)
   const [syncing, setSyncing] = useState(false)
   const [taskItems, setTaskItems] = useState(serverTasks)
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -115,7 +116,12 @@ export function OratorioBoard({
   const scrollTop = useRef(initialState?.scrollTop ?? 0)
 
   function reportState(): void {
-    onStateChange?.({ mode, query, repository, assignee, selectedTaskId: selected?.id ?? null, scrollTop: scrollTop.current })
+    onStateChange?.({ mode, query, repository, assignee, selectedTaskId: selected?.id ?? pendingSelection.current, scrollTop: scrollTop.current })
+  }
+
+  function selectTask(task: OratorioTask | null): void {
+    pendingSelection.current = null
+    setSelected(task)
   }
 
   useEffect(() => {
@@ -135,11 +141,13 @@ export function OratorioBoard({
   }, [serverTasks])
 
   useEffect(() => {
-    const selectedId = initialState?.selectedTaskId
+    const selectedId = pendingSelection.current
     if (!selectedId) return
     const initialTask = taskItems.find((task) => task.id === selectedId)
-    if (initialTask) setSelected(initialTask)
-  }, [initialState?.selectedTaskId, taskItems])
+    if (!initialTask) return
+    pendingSelection.current = null
+    setSelected(initialTask)
+  }, [taskItems])
 
   useEffect(() => {
     const task = selectedRef.current
@@ -269,7 +277,7 @@ export function OratorioBoard({
                 </header>
                 <div className="ora-column__stack dc-scrollbar-stable">
                   {columnTasks.length ? columnTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} t={t} relativeTime={relativeTime} selected={selected?.id === task.id} onOpen={() => setSelected(task)} onDragStart={() => setDraggingId(task.id)} onDragEnd={() => setDraggingId(null)} />
+                    <TaskCard key={task.id} task={task} t={t} relativeTime={relativeTime} selected={selected?.id === task.id} onOpen={() => selectTask(task)} onDragStart={() => setDraggingId(task.id)} onDragEnd={() => setDraggingId(null)} />
                   )) : <p className="ora-board__empty">{t('noTasks')}</p>}
                 </div>
               </section>
@@ -282,7 +290,7 @@ export function OratorioBoard({
           tasks={tasks}
           t={t}
           relativeTime={relativeTime}
-          onOpen={setSelected}
+          onOpen={selectTask}
           hasMore={hasMore}
           onLoadMore={onLoadMore}
           initialScrollTop={scrollTop.current}
@@ -296,12 +304,12 @@ export function OratorioBoard({
           task={selected}
           presentation="drawer"
           closeOnEscape={!newTaskOpen}
-          onBack={() => setSelected(null)}
+          onBack={() => selectTask(null)}
           onExpand={() => onOpenDetail(selected)}
           onOpenThread={() => onOpenThread(selected)}
           onTaskChange={(nextTask) => {
             setTaskItems((items) => items.map((task) => task.id === nextTask.id ? nextTask : task))
-            setSelected(nextTask)
+            selectTask(nextTask)
           }}
         />
       ) : null}
@@ -310,7 +318,7 @@ export function OratorioBoard({
         void onCreateTask(draft).then((task) => {
           setTaskItems((items) => [task, ...items.filter((item) => item.id !== task.id)])
           setNewTaskOpen(false)
-          setSelected(task)
+          selectTask(task)
           showOratorioToast({ message: t('localTaskCreated'), tone: 'success' })
         }).catch(() => showOratorioToast({ message: t('localTaskNotCreated'), tone: 'error' }))
       }} /> : null}
