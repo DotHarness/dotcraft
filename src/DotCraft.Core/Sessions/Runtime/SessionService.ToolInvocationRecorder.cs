@@ -320,7 +320,7 @@ public sealed partial class SessionService
         long snapshotRevision,
         string callId,
         JsonObject? arguments,
-        string? memory = null)
+        MemoryPresentationMark? memory = null)
     {
         item.Status = ItemStatus.Started;
         item.CompletedAt = null;
@@ -443,7 +443,7 @@ public sealed partial class SessionService
 
     private static ToolPresentationPayload? ToSessionPresentation(
         ToolPresentationDescriptor? presentation,
-        string? memory = null,
+        MemoryPresentationMark? memory = null,
         JsonObject? arguments = null)
     {
         if (presentation is null)
@@ -451,8 +451,12 @@ public sealed partial class SessionService
         var options = new JsonObject();
         foreach (var (name, value) in presentation.Options)
             options[name] = JsonNode.Parse(value.GetRawText());
-        if (memory is not null)
-            options[MemoryPresentationOption] = memory;
+        if (memory is { } mark)
+        {
+            options[MemoryPresentationOption] = mark.Kind;
+            if (mark.Store is { } store)
+                options[MemoryStorePresentationOption] = new JsonObject { ["id"] = store.Id, ["name"] = store.Name };
+        }
         if (ResolveTaskPresentationKind(presentation, arguments) is { } taskKind)
             options[TaskKindPresentationOption] = taskKind;
         return new ToolPresentationPayload

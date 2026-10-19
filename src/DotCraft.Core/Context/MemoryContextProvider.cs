@@ -32,7 +32,8 @@ public sealed class MemoryContextProvider(
     IReadOnlyList<string>? workspaceRoots = null,
     ILoggerFactory? loggerFactory = null,
     IContributionView? contributions = null,
-    ThreadSkillsPolicy? skillsPolicy = null) : AIContextProvider
+    ThreadSkillsPolicy? skillsPolicy = null,
+    IReadOnlyList<AttachedMemoryStore>? attachedMemoryStores = null) : AIContextProvider
 {
     private readonly PromptBuilder _promptBuilder = new(
         memoryStore,
@@ -52,7 +53,8 @@ public sealed class MemoryContextProvider(
         workspaceRoots,
         loggerFactory?.CreateLogger<PromptBuilder>(),
         contributions,
-        skillsPolicy);
+        skillsPolicy,
+        attachedMemoryStores);
 
     public ValueTask<string> ProvideInstructionsAsync(CancellationToken cancellationToken = default)
     {

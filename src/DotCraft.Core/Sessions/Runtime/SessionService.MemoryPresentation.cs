@@ -1,15 +1,19 @@
 using System.Text.Json.Nodes;
-using DotCraft.Security;
+using DotCraft.Memory;
 using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
+
+internal readonly record struct MemoryPresentationMark(string Kind, MemoryStoreAttachment? Store);
 
 public sealed partial class SessionService
 {
     internal const string MemoryPresentationOption = "memory";
 
-    /// <summary>The <c>memory</c> option of a file tool call whose target lies inside the Thread's memory store, or null.</summary>
-    private string? ResolveMemoryPresentation(
+    internal const string MemoryStorePresentationOption = "memoryStore";
+
+    /// <summary>The memory mark of a file tool call whose target lies inside one of the Thread's memory stores, or null.</summary>
+    private MemoryPresentationMark? ResolveMemoryPresentation(
         ToolDefinition definition,
         JsonObject? arguments,
         string? workspacePath,
@@ -26,8 +30,8 @@ public sealed partial class SessionService
         return mark is not null
                && configuration is not null and not { MemoryEnabled: false }
                && FileToolAccess.TryResolveTarget(definition.Id.SourceToolId.Value, arguments, workspacePath, out _, out var target)
-               && WorkspaceBoundary.IsWithin(target, ResolveMemoryStore(configuration).MemoryDirectoryPath)
-            ? mark
+               && ResolveMemoryStores(configuration).Classify(target) is { } store
+            ? new MemoryPresentationMark(mark, store.Attached?.Attachment)
             : null;
     }
 }

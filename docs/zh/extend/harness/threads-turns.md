@@ -45,6 +45,44 @@ var recentThreads = await sessions.FindThreadsAsync(
     ct: cancellationToken);
 ```
 
+## 挂载共享记忆库
+
+每个 Thread 都有自己的记忆库。要让多个 Thread 共享知识，比如一个团队的所有 agent 都应该知道的内容，可以在 Thread 配置里在它旁边挂载最多八个记忆库。每个挂载项包含 `Id`、`Name`、供模型判断哪些内容该存进去的 `Description`，以及访问权限 `read` 或 `readWrite`：
+
+```csharp
+using DotCraft.Memory;
+
+var thread = await sessions.CreateThreadAsync(
+    identity,
+    new ThreadConfiguration
+    {
+        MemoryStores =
+        [
+            new MemoryStoreAttachment("team", "Team", "What every agent of this team should know.", MemoryStoreAccess.ReadWrite),
+            new MemoryStoreAttachment("policy", "Policy", "Rules maintained by administrators.", MemoryStoreAccess.Read)
+        ]
+    },
+    ct: cancellationToken);
+```
+
+挂载的记忆库位于 `<data>/memory-stores/<id>/`，使用普通的记忆文件格式。它的内容归应用所有，应用可以随时替换其中的文件，运行中的 Thread 会在下一步看到变化。把带有 `MemoryStores` 的配置传给 `UpdateThreadConfigurationAsync`，会替换 Thread 的挂载项。
+
+要在写入落盘前检查内容，可以注册 `IMemoryWriteGate`。agent 用普通的文件工具写挂载的记忆库，每次写入 `readWrite` 记忆库都必须得到所有 gate 的放行。被拒绝时，工具调用会带着你给出的原因失败，agent 可以改写这条记忆，或者改存到自己的记忆库：
+
+```csharp
+builder.Services.AddSingleton<IMemoryWriteGate, TeamMemoryGate>();
+
+sealed class TeamMemoryGate : IMemoryWriteGate
+{
+    public ValueTask<MemoryWriteDecision> EvaluateAsync(MemoryWriteRequest request, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(request.Content?.Contains('@') == true
+            ? MemoryWriteDecision.Reject("Shared memories must not contain email addresses.")
+            : MemoryWriteDecision.Admit);
+}
+```
+
+请求里包含记忆库、文件在库内的路径、这次写入是新建、编辑还是删除文件，以及写入前后的内容。agent 把挂载的记忆写空即表示删除。完整约定见 [Memory 规范](https://github.com/DotHarness/dotcraft/blob/main/specs/features/memory.md)。
+
 ## 提交输入
 
 文本输入使用字符串重载。读取返回的事件流，直到 Turn 结束。

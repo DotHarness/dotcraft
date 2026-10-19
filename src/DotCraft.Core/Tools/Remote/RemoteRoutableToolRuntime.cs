@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Security;
+using DotCraft.Memory;
 using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
@@ -14,7 +14,7 @@ internal sealed class RemoteRoutableToolRuntime(
     IToolRuntime localRuntime,
     IRemoteToolHostClient remoteClient,
     ToolBindingAvailability localAvailability = ToolBindingAvailability.Available,
-    string? memoryStoreDirectory = null) : IToolRuntime
+    ThreadMemoryStores? memoryStores = null) : IToolRuntime
 {
     private readonly ToolDefinition _definition = definition ?? throw new ArgumentNullException(nameof(definition));
     private readonly IToolRuntime _localRuntime = localRuntime ?? throw new ArgumentNullException(nameof(localRuntime));
@@ -62,10 +62,10 @@ internal sealed class RemoteRoutableToolRuntime(
         && BackgroundTaskKinds.Of(taskId.Trim()) != BackgroundTaskKinds.Shell;
 
     private bool TargetsMemoryStore(ToolInvocationContext context, JsonObject arguments) =>
-        memoryStoreDirectory is not null
+        memoryStores is not null
         && _definition.Id.Kind == ToolSourceKind.CoreNative
         && FileToolAccess.TryResolveTarget(_definition.Id.SourceToolId.Value, arguments, context.WorkspacePath, out _, out var target)
-        && WorkspaceBoundary.IsWithin(target, memoryStoreDirectory);
+        && memoryStores.Classify(target) is not null;
 
     public async ValueTask<ToolExecutionResult> InvokeAsync(
         ToolInvocationContext context,
@@ -103,7 +103,7 @@ internal static class RemoteToolRegistrationRouter
     public static IReadOnlyList<ToolRegistration> Wrap(
         IReadOnlyList<ToolRegistration> registrations,
         IRemoteToolHostClient? remoteClient,
-        string? memoryStoreDirectory = null)
+        ThreadMemoryStores? memoryStores = null)
     {
         ArgumentNullException.ThrowIfNull(registrations);
         if (remoteClient is null)
@@ -127,7 +127,7 @@ internal static class RemoteToolRegistrationRouter
                 binding.Id,
                 binding.DefinitionId,
                 new RemoteRoutableToolRuntime(registration.Definition, binding.Runtime, remoteClient, binding.Availability,
-                    memoryStoreDirectory),
+                    memoryStores),
                 binding.Lease,
                 binding.AuthorityReference,
                 binding.Revision,

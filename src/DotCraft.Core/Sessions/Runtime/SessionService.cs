@@ -1276,6 +1276,9 @@ public sealed partial class SessionService(
     private MemoryStore ResolveMemoryStore(ThreadConfiguration? config) =>
         MemoryScopes.ForThread(config, agentFactory.RuntimeContext.MemoryStore, DataPath);
 
+    private ThreadMemoryStores ResolveMemoryStores(ThreadConfiguration? config) =>
+        new(ResolveMemoryStore(config), MemoryScopes.AttachedStores(config, DataPath));
+
     private ThreadLoadGate AddThreadLoadGateReference(string threadId)
     {
         lock (_threadLoadGatesLock)

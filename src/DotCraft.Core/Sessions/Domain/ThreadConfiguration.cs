@@ -23,6 +23,13 @@ public sealed class ThreadConfiguration
     public string? MemoryScope { get; set; }
 
     /// <summary>
+    /// Stores attached beside the Thread's own, in the order the model sees them. Unlike the scope, replacing the
+    /// configuration replaces them; a replacement that leaves them unset keeps the Thread's current ones.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<DotCraft.Memory.MemoryStoreAttachment>? MemoryStores { get; set; }
+
+    /// <summary>
     /// Whether this Thread uses and maintains memory, captured from the workspace at creation. Unset means enabled.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

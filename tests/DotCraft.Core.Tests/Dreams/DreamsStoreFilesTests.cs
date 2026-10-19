@@ -1,3 +1,4 @@
+using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Tools;
 using Xunit;
@@ -33,7 +34,7 @@ public sealed class DreamsStoreFilesTests : IDisposable
         var baseline = DreamsStoreFiles.Read(Store);
         Task<bool>? replacement = null;
         var replacedDuringWrite = true;
-        var tools = new FileTools(_root, memoryStoreDirectory: Store)
+        var tools = new FileTools(_root, memoryStores: new ThreadMemoryStores(new MemoryStore(Path.GetDirectoryName(Store)!), []))
         {
             ChangeReporter = change =>
             {

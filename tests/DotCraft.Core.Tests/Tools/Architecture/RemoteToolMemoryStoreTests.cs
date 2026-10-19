@@ -1,3 +1,4 @@
+using DotCraft.Memory;
 using System.Text.Json.Nodes;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Tools;
@@ -17,11 +18,12 @@ public sealed partial class RemoteToolHostCoreTests
             var dataPath = Path.Combine(workspace, ".craft");
             var store = Path.Combine(dataPath, "memory");
             Directory.CreateDirectory(store);
+            var stores = new ThreadMemoryStores(new MemoryStore(dataPath), []);
             var client = new FakeRemoteClient();
             client.SetRoute("thread-1");
             var registrations = await new WriteFileSource(workspace).GetRegistrationsAsync(new ToolPlanningContext(
-                "thread-1", "turn-1", workspace, dataPath, "agent", null, [], 1, memoryStoreDirectory: store));
-            var snapshot = new EffectiveToolSnapshotBuilder().Build(RemoteToolRegistrationRouter.Wrap(registrations, client, store), 1);
+                "thread-1", "turn-1", workspace, dataPath, "agent", null, [], 1, memoryStores: stores));
+            var snapshot = new EffectiveToolSnapshotBuilder().Build(RemoteToolRegistrationRouter.Wrap(registrations, client, stores), 1);
 
             async Task<ToolExecutionResult> WriteAsync(string path, string? target = null)
             {
@@ -58,7 +60,7 @@ public sealed partial class RemoteToolHostCoreTests
         protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
         {
             yield return GeneratedToolFunctions.FileTools_WriteFile(
-                new FileTools(workspace, memoryStoreDirectory: context.MemoryStoreDirectory));
+                new FileTools(workspace, memoryStores: context.MemoryStores));
         }
     }
 }

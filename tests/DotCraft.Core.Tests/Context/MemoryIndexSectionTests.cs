@@ -147,6 +147,56 @@ public sealed class MemoryIndexSectionTests : IDisposable
     private void WriteIndex(params string[] lines) =>
         File.WriteAllText(_store.IndexFilePath, string.Join('\n', lines));
 
+    [Fact]
+    public void AttachedStores_FollowTheOwnIndexAndUpdateSeparately()
+    {
+        WriteIndex(Branches);
+        var shared = Attached("org", "Organization");
+        File.WriteAllText(Path.Combine(shared.DirectoryPath, MemoryStore.IndexFileName), Release);
+
+        var first = _world.RenderFull(Context([shared]));
+        var text = MemoryText(first);
+        Assert.True(text.IndexOf(Branches, StringComparison.Ordinal) < text.IndexOf("Organization", StringComparison.Ordinal));
+        Assert.Contains(Release, text, StringComparison.Ordinal);
+
+        Assert.Null(MemoryTextOrNull(_world.Render(Context([shared]), first.Snapshot, sectionIdsInHistory: null)));
+
+        File.WriteAllText(Path.Combine(shared.DirectoryPath, MemoryStore.IndexFileName), Release + "\n" + Tests);
+        var update = MemoryText(_world.Render(Context([shared]), first.Snapshot, sectionIdsInHistory: null));
+        Assert.Contains(Tests, update, StringComparison.Ordinal);
+        Assert.DoesNotContain(Branches, update, StringComparison.Ordinal);
+        Assert.DoesNotContain(Release, update, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AttachingAndDetachingAStore_IsAnnounced()
+    {
+        WriteIndex(Branches);
+        var shared = Attached("org", "Organization");
+        File.WriteAllText(Path.Combine(shared.DirectoryPath, MemoryStore.IndexFileName), Release);
+
+        var alone = _world.RenderFull(Context());
+        var attached = _world.Render(Context([shared]), alone.Snapshot, sectionIdsInHistory: null);
+        Assert.Contains(Release, MemoryText(attached), StringComparison.Ordinal);
+        Assert.DoesNotContain(Branches, MemoryText(attached), StringComparison.Ordinal);
+
+        var detached = MemoryText(_world.Render(Context(), attached.Snapshot, sectionIdsInHistory: null));
+        Assert.Contains("Organization", detached, StringComparison.Ordinal);
+        Assert.DoesNotContain(Release, detached, StringComparison.Ordinal);
+    }
+
+    private AttachedMemoryStore Attached(string id, string name) =>
+        Assert.Single(MemoryScopes.AttachedStores(
+            new ThreadConfiguration { MemoryStores = [new MemoryStoreAttachment(id, name, "Shared knowledge.", MemoryStoreAccess.ReadWrite)] },
+            _root));
+
+    private WorldStateContext Context(IReadOnlyList<AttachedMemoryStore> attached) => new()
+    {
+        Thread = new SessionThread { Id = "thread_memory", WorkspacePath = _root },
+        MemoryStore = _store,
+        AttachedMemoryStores = attached
+    };
+
     private WorldStateContext Context(MemoryStore? memory) => new()
     {
         Thread = new SessionThread { Id = "thread_memory", WorkspacePath = _root },

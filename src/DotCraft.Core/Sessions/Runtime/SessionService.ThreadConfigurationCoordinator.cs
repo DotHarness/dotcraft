@@ -1,3 +1,5 @@
+using DotCraft.Memory;
+
 namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
@@ -29,7 +31,9 @@ public sealed partial class SessionService
                     config,
                     config.Cwd,
                     config.RuntimeWorkspaceRoots);
+                MemoryScopes.ValidateAttachments(config.MemoryStores);
                 thread.Configuration.MemoryScope = previous?.MemoryScope;
+                thread.Configuration.MemoryStores ??= previous?.MemoryStores;
                 thread.Configuration.MemoryEnabled = previous?.MemoryEnabled;
                 thread.Configuration.MemoryAutoExtract = previous?.MemoryAutoExtract;
                 owner.SetThreadAgent(threadId, await owner.BuildAgentForThreadAsync(thread, ct));

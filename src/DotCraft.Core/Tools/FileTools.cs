@@ -28,8 +28,11 @@ public sealed class FileTools(
     TimeSpan? searchTimeout = null,
     IReadOnlyList<string>? workspaceRoots = null,
     bool managedSearchOnly = false,
-    string? memoryStoreDirectory = null)
+    ThreadMemoryStores? memoryStores = null,
+    Func<IReadOnlyList<IMemoryWriteGate>>? memoryWriteGates = null)
 {
+    private readonly MemoryFileWrites _memory = new(memoryStores, memoryWriteGates);
+
     private const int DefaultGrepMatches = 100;
 
     private const int MaxGrepMatches = 2000;
@@ -64,9 +67,9 @@ public sealed class FileTools(
         requireApprovalOutsideWorkspace,
         approvalService,
         blacklist,
-        trustedReadPaths,
+        [.. trustedReadPaths ?? [], .. memoryStores?.ReadOnlyDirectories ?? []],
         workspaceRoots,
-        memoryStoreDirectory is null ? null : [memoryStoreDirectory]);
+        memoryStores is null ? null : [.. memoryStores.WritableDirectories]);
     private readonly RipgrepFileSearcher _ripgrep = new(ripgrepPath);
     private readonly TimeSpan _searchTimeout = NormalizeSearchTimeout(searchTimeout);
 
@@ -152,21 +155,19 @@ public sealed class FileTools(
     private static IList<AIContent> ReadFileTextResult(string text) => [new TextContent(text)];
 
     private IList<AIContent> ReadTextFileResult(string fullPath, string text) =>
-        ReadFileTextResult(!text.StartsWith("Error", StringComparison.Ordinal)
-                           && memoryStoreDirectory is not null
-                           && MemoryFiles.ReadNote(memoryStoreDirectory, fullPath) is { } note
+        ReadFileTextResult(!text.StartsWith("Error", StringComparison.Ordinal) && _memory.ReadNote(fullPath) is { } note
             ? text + "\n\n" + note
             : text);
 
-    private string MemoryIndexWriteNotice(string fullPath, string content) =>
-        memoryStoreDirectory is not null && MemoryIndex.WriteNotice(memoryStoreDirectory, fullPath, content) is { } notice
-            ? "\n\n" + notice
-            : string.Empty;
-
-    private async Task<IDisposable?> AcquireMemoryStoreLockAsync(string fullPath) =>
-        memoryStoreDirectory is not null && WorkspaceBoundary.IsWithin(fullPath, memoryStoreDirectory)
-            ? await PathAsyncMutex.AcquireDirectoryAsync(memoryStoreDirectory)
-            : null;
+    private ToolExecutionResult DeleteMemoryFile(FileWriteOutcome outcome, string fullPath, string path, string before, AttachedMemoryStore store)
+    {
+        outcome.BeginWrite();
+        File.Delete(fullPath);
+        return outcome.Complete(
+            CreateFileChange(fullPath, FileChangeKind.Update, before, string.Empty),
+            $"Deleted {path} from {store.Attachment.Name}.",
+            ChangeReporter);
+    }
 
     private static bool TryGetImageMediaType(string fullPath, out string mediaType)
     {
@@ -195,14 +196,12 @@ public sealed class FileTools(
             var validateResult = await ValidatePathAsync(fullPath, "write", path);
             if (validateResult != null)
                 return outcome.Fail(validateResult, ToolErrorCodes.AccessDenied);
+            if (_memory.ReadOnlyRefusal(fullPath) is { } readOnly)
+                return outcome.Fail(readOnly, ToolErrorCodes.AccessDenied);
 
-            using (await AcquireMemoryStoreLockAsync(fullPath))
+            using (await _memory.LockAsync(fullPath))
             using (await PathAsyncMutex.AcquireAsync(fullPath))
             {
-                var directory = Path.GetDirectoryName(fullPath);
-                if (!string.IsNullOrEmpty(directory))
-                    Directory.CreateDirectory(directory);
-
                 var existedBefore = File.Exists(fullPath);
                 var (before, encoding, error) = existedBefore
                     ? await TextFileEncoding.ReadAsync(fullPath, path)
@@ -211,12 +210,22 @@ public sealed class FileTools(
                     return outcome.Fail(error, ToolErrorCodes.InputInvalid);
                 content = RestoreLineEndings(NormalizeToLf(content), before != null && UsesCrLf(before));
 
+                var admission = await _memory.AdmitAsync(fullPath, before, content);
+                if (admission.Refusal is { } refusal)
+                    return outcome.Fail(refusal, ToolErrorCodes.AccessDenied);
+                if (admission.DeletesFrom is { } store)
+                    return DeleteMemoryFile(outcome, fullPath, path, before!, store);
+
+                var directory = Path.GetDirectoryName(fullPath);
+                if (!string.IsNullOrEmpty(directory))
+                    Directory.CreateDirectory(directory);
+
                 outcome.BeginWrite();
                 await WriteAllTextEnsuringDirectoryAsync(fullPath, content, encoding);
                 var lineCount = content.Split('\n').Length;
                 var result = outcome.Complete(
                     CreateFileChange(fullPath, existedBefore ? FileChangeKind.Update : FileChangeKind.Add, before, content),
-                    $"Successfully wrote {content.Length} bytes ({lineCount} lines) to {path}" + MemoryIndexWriteNotice(fullPath, content),
+                    $"Successfully wrote {content.Length} bytes ({lineCount} lines) to {path}" + _memory.WriteNotice(fullPath, content),
                     ChangeReporter);
                 await NotifyLspFileChangedAsync(fullPath, content);
                 return result;
@@ -248,10 +257,12 @@ public sealed class FileTools(
 
             if (string.IsNullOrEmpty(oldText))
                 return outcome.Fail("Error: oldText is required. Provide the exact snippet to find and replace.", ToolErrorCodes.InputInvalid);
+            if (_memory.ReadOnlyRefusal(fullPath) is { } readOnly)
+                return outcome.Fail(readOnly, ToolErrorCodes.AccessDenied);
 
             ToolExecutionResult result;
             string? writtenContent;
-            using (await AcquireMemoryStoreLockAsync(fullPath))
+            using (await _memory.LockAsync(fullPath))
             using (await PathAsyncMutex.AcquireAsync(fullPath))
             {
                 if (!File.Exists(fullPath))
@@ -265,10 +276,16 @@ public sealed class FileTools(
                 if (prepared.WrittenContent == null)
                     return outcome.Fail(prepared.Result, ToolErrorCodes.InputInvalid);
 
+                var admission = await _memory.AdmitAsync(fullPath, content, prepared.WrittenContent);
+                if (admission.Refusal is { } refusal)
+                    return outcome.Fail(refusal, ToolErrorCodes.AccessDenied);
+                if (admission.DeletesFrom is { } store)
+                    return DeleteMemoryFile(outcome, fullPath, path, content!, store);
+
                 outcome.BeginWrite();
                 await TextFileEncoding.WriteAsync(fullPath, prepared.WrittenContent, encoding);
                 result = outcome.Complete(CreateFileChange(fullPath, FileChangeKind.Update, content, prepared.WrittenContent),
-                    prepared.Result + MemoryIndexWriteNotice(fullPath, prepared.WrittenContent), ChangeReporter);
+                    prepared.Result + _memory.WriteNotice(fullPath, prepared.WrittenContent), ChangeReporter);
                 writtenContent = prepared.WrittenContent;
             }
 

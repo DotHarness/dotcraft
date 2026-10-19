@@ -651,6 +651,21 @@ public sealed class SessionServiceLifecycleTests : IDisposable
         Assert.Null(loaded?.Configuration?.McpServers);
     }
 
+    [Fact]
+    public async Task ThreadConfiguration_MemoryStoreAttachments_SurvivePersistence()
+    {
+        var attachments = new List<DotCraft.Memory.MemoryStoreAttachment>
+        {
+            new("org", "Organization", "What every Agent of the organization should know.", DotCraft.Memory.MemoryStoreAccess.ReadWrite),
+            new("policy", "Policy", "Rules maintained by administrators.", DotCraft.Memory.MemoryStoreAccess.Read)
+        };
+        var thread = await _svc.CreateThreadAsync(MakeIdentity(), new ThreadConfiguration { Mode = "agent", MemoryStores = attachments });
+
+        var loaded = await _store.LoadThreadAsync(thread.Id);
+
+        Assert.Equal(attachments, loaded!.Configuration!.MemoryStores);
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------

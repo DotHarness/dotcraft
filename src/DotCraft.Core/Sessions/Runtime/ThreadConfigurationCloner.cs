@@ -8,6 +8,7 @@ internal static class ThreadConfigurationCloner
     {
         AgentProfileId = source.AgentProfileId,
         MemoryScope = source.MemoryScope,
+        MemoryStores = source.MemoryStores == null ? null : [.. source.MemoryStores],
         MemoryEnabled = source.MemoryEnabled,
         MemoryAutoExtract = source.MemoryAutoExtract,
         AgentProfileSource = source.AgentProfileSource,

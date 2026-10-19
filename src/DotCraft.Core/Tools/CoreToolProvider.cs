@@ -4,6 +4,7 @@ using DotCraft.Context;
 using DotCraft.Contributions;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Lsp;
+using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Sessions;
@@ -86,7 +87,7 @@ public sealed class CoreToolSource(
 
         return FileToolAccess.TryGet(function.Name, out var access)
             ? FileApproval(access.PathArgument, access.Operation, context.WorkspacePath, context.WorkspaceRoots,
-                context.MemoryStoreDirectory, trustedRead: access.Operation == "read")
+                context, trustedRead: access.Operation == "read")
             : null;
     }
 
@@ -103,7 +104,7 @@ public sealed class CoreToolSource(
         string operation,
         string workspacePath,
         IReadOnlyList<string> workspaceRoots,
-        string? memoryStoreDirectory,
+        ToolPlanningContext context,
         bool trustedRead = false) => new
     {
         kind = "file",
@@ -112,12 +113,10 @@ public sealed class CoreToolSource(
         workspacePath,
         workspaceRoots,
         outsideWorkspaceOnly = true,
-        trustedReadPaths = trustedRead && userDataPath != null
-            ? new[] { userDataPath }
+        trustedReadPaths = trustedRead
+            ? (string[])[.. userDataPath == null ? [] : new[] { userDataPath }, .. context.MemoryStores?.ReadOnlyDirectories ?? []]
             : Array.Empty<string>(),
-        trustedPaths = memoryStoreDirectory == null
-            ? Array.Empty<string>()
-            : new[] { memoryStoreDirectory }
+        trustedPaths = (string[])[.. context.MemoryStores?.WritableDirectories ?? []]
     };
 
     /// <inheritdoc />
@@ -171,7 +170,8 @@ public sealed class CoreToolSource(
             ripgrepPath: config.Tools.File.RipgrepPath,
             searchTimeout: fileSearchTimeout,
             workspaceRoots: context.WorkspaceRoots,
-            memoryStoreDirectory: context.MemoryStoreDirectory);
+            memoryStores: context.MemoryStores,
+            memoryWriteGates: contributions is null ? null : () => contributions.Resolve<IMemoryWriteGate>(context.ThreadId));
         tools.AddRange(GeneratedToolFunctions.All(fileTools));
 
         // LSP tool

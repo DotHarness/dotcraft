@@ -45,6 +45,44 @@ var recentThreads = await sessions.FindThreadsAsync(
     ct: cancellationToken);
 ```
 
+## Attach shared memory stores
+
+A Thread keeps its own memory store. To let several Threads share knowledge, such as what every agent of a team should know, attach up to eight stores beside it in the Thread configuration. Each attachment has an `Id`, a `Name`, a `Description` the model uses to decide what belongs there, and an access of `read` or `readWrite`:
+
+```csharp
+using DotCraft.Memory;
+
+var thread = await sessions.CreateThreadAsync(
+    identity,
+    new ThreadConfiguration
+    {
+        MemoryStores =
+        [
+            new MemoryStoreAttachment("team", "Team", "What every agent of this team should know.", MemoryStoreAccess.ReadWrite),
+            new MemoryStoreAttachment("policy", "Policy", "Rules maintained by administrators.", MemoryStoreAccess.Read)
+        ]
+    },
+    ct: cancellationToken);
+```
+
+An attached store lives at `<data>/memory-stores/<id>/` and uses the ordinary memory file format. Its content belongs to the application, which may replace the files at any time; running Threads see the change at their next step. Passing a configuration with `MemoryStores` to `UpdateThreadConfigurationAsync` replaces a Thread's attachments.
+
+To check writes before they reach disk, register an `IMemoryWriteGate`. The agent writes attached stores with its ordinary file tools, and every gate must admit each write to a `readWrite` store. A rejection fails the tool call with your reason, so the agent can rewrite the memory or keep it in its own store:
+
+```csharp
+builder.Services.AddSingleton<IMemoryWriteGate, TeamMemoryGate>();
+
+sealed class TeamMemoryGate : IMemoryWriteGate
+{
+    public ValueTask<MemoryWriteDecision> EvaluateAsync(MemoryWriteRequest request, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(request.Content?.Contains('@') == true
+            ? MemoryWriteDecision.Reject("Shared memories must not contain email addresses.")
+            : MemoryWriteDecision.Admit);
+}
+```
+
+The request names the store, the file's path in it, whether the write creates, edits, or deletes the file, and its content before and after. The agent deletes an attached memory by writing it empty. See [Memory specification](https://github.com/DotHarness/dotcraft/blob/main/specs/features/memory.md) for the full contract.
+
 ## Submit input
 
 Use the string overload for text input. Read the returned event stream until the Turn ends.
