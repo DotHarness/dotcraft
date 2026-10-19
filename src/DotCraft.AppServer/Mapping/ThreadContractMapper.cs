@@ -169,9 +169,11 @@ internal static class ThreadContractMapper
 
     private static Contract.AppBindingToolCapability ToContract(AppBindingToolCapability value) => new()
     {
-        Namespace = value.Namespace,
-        Name = value.Name,
+        SourceToolName = value.SourceToolName,
+        Description = value.Description,
+        NamespaceDescription = OmitIfNull(value.NamespaceDescription),
         InputSchema = JsonSerializer.SerializeToElement(value.InputSchema, SessionWireJsonOptions.Default),
+        OutputSchema = value.OutputSchema is null ? default : Protocol.Optional<JsonElement?>.FromValue(JsonSerializer.SerializeToElement(value.OutputSchema, SessionWireJsonOptions.Default)),
         Visibility = Protocol.Optional<IReadOnlyList<string>>.FromValue(value.Visibility),
         Annotations = JsonSerializer.SerializeToElement(value.Annotations, SessionWireJsonOptions.Default),
         Ui = value.Ui is null

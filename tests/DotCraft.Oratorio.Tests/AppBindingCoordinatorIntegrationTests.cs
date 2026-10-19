@@ -1,7 +1,9 @@
 using DotCraft.AppBinding;
+using DotCraft.Configuration;
 using DotCraft.Mcp;
 using DotCraft.Oratorio.Integrations;
 using DotCraft.Sessions;
+using DotCraft.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -13,6 +15,88 @@ public sealed class AppBindingCoordinatorIntegrationTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"dotcraft-oratorio-binding-{Guid.NewGuid():N}");
     private string CraftPath => Path.Combine(_root, ".craft");
+
+    [Fact]
+    public async Task ApprovedBoardTools_RetainDefinitionsAcrossRestartAndRebind_AndCallRealServer()
+    {
+        await using var app = new TestOratorioApp();
+        app.UseKestrel(0);
+        using var httpClient = app.CreateClient();
+        var control = new AppBindingService();
+        var request = control.StartConnection(CraftPath, "com.dotharness.oratorio", "user");
+        var connection = control.Connect(CraftPath, new AppConnectionConnectCommand
+        {
+            ConnectionRequestId = request.ConnectionRequestId, RequestToken = request.RequestToken
+        });
+        var enabled = control.Enable(CraftPath, "thread-1", "com.dotharness.oratorio", "user");
+        var authority = app.Services.GetRequiredService<OratorioBindingMcpRuntime>();
+        var endpoint = new Uri(httpClient.BaseAddress!, $"/dotcraft/bindings/{enabled.BindingId}/mcp").ToString();
+        var bearer = authority.Issue(enabled.BindingId, 0);
+        await using var runtime = new TestThreadMcpRuntime();
+        var activated = await new AppBindingCoordinator(control).ActivateAsync(CraftPath, connection.Principal.PrincipalId,
+            new AppBindingActivateCommand { BindingRequestId = enabled.BindingRequestId, Endpoint = endpoint, Bearer = bearer },
+            runtime, CancellationToken.None);
+        Assert.Equal(AppBindingStates.Active, activated.State);
+        var config = new AppConfig();
+        config.Tools.DeferredLoading.Strategy = AppConfig.DeferredLoadingStrategy.Simulated;
+        config.Tools.DeferredLoading.DeferThreshold = 1;
+        var context = new ToolPlanningContext("thread-1", null, _root, CraftPath, "agent", null, null, 1);
+        var online = await new McpToolSource(await runtime.GetEffectiveMcpRuntimeAsync("thread-1"), config,
+            [new AppBindingToolCatalogContributor(control)]).GetRegistrationsAsync(context);
+        Assert.Equal(4, online.Count);
+        Assert.All(online, registration => Assert.Equal(ToolExposure.Deferred, registration.Exposure));
+
+        await runtime.SetBindingMcpServersAsync("thread-1", enabled.BindingId, [], CancellationToken.None);
+        var restarted = new AppBindingService();
+        var offline = await new McpToolSource(null, config, [new AppBindingToolCatalogContributor(restarted)])
+            .GetRegistrationsAsync(context);
+        AssertSameDefinitions(online, offline);
+        var offlineRead = Assert.Single(offline, registration => registration.Definition.Id.SourceToolId.Value == "ListBoardItems");
+        var failed = await DispatchAsync(offline, offlineRead);
+        Assert.Equal(AppBindingErrorCodes.Offline, failed.Error?.Code);
+
+        var previous = restarted.GetBinding(CraftPath, enabled.BindingId);
+        var rebound = await new AppBindingCoordinator(restarted).RebindAsync(CraftPath, connection.Principal.PrincipalId,
+            new AppBindingRebindCommand
+            {
+                BindingId = enabled.BindingId, AuthorityRevision = previous.AuthorityRevision,
+                Endpoint = endpoint, Bearer = authority.Issue(enabled.BindingId, previous.AuthorityRevision)
+            }, runtime, CancellationToken.None);
+        Assert.Equal(AppBindingStates.Active, rebound.State);
+        Assert.Empty(rebound.PendingChanges);
+        var manager = await runtime.GetEffectiveMcpRuntimeAsync("thread-1");
+        var reconnected = await new McpToolSource(manager, config, [new AppBindingToolCatalogContributor(restarted)])
+            .GetRegistrationsAsync(context);
+        AssertSameDefinitions(online, reconnected);
+        var read = Assert.Single(reconnected, registration => registration.Definition.Id.SourceToolId.Value == "ListBoardItems");
+        var status = Assert.Single(await manager!.ListStatusesAsync());
+        Assert.Equal(status.Name, McpToolRouting.ServerName(read));
+        Assert.Equal(await manager.GetGenerationAsync(status.Name), McpToolRouting.Generation(read));
+        var result = await DispatchAsync(reconnected, read);
+        Assert.True(result.Success, result.Error?.Message ?? result.Content);
+        Assert.Equal(ToolErrorCodes.Unavailable, (await DispatchAsync(offline, offlineRead)).Error?.Code);
+    }
+
+    private static void AssertSameDefinitions(IReadOnlyList<ToolRegistration> expected, IReadOnlyList<ToolRegistration> actual)
+    {
+        Assert.Equal(expected.Count, actual.Count);
+        foreach (var previous in expected)
+        {
+            var current = Assert.Single(actual, registration => registration.Definition.Id == previous.Definition.Id);
+            Assert.Equal(previous.Definition.Name, current.Definition.Name);
+            Assert.Equal(previous.Definition.Description, current.Definition.Description);
+            Assert.Equal(previous.Definition.NamespaceDescription, current.Definition.NamespaceDescription);
+            Assert.Equal(previous.Definition.InputSchema.GetRawText(), current.Definition.InputSchema.GetRawText());
+            Assert.Equal(previous.Definition.OutputSchema?.GetRawText(), current.Definition.OutputSchema?.GetRawText());
+            Assert.Equal(previous.Exposure, current.Exposure);
+            Assert.Equal(previous.InvocationAudiences, current.InvocationAudiences);
+            Assert.Equal(previous.Deferred, current.Deferred);
+        }
+    }
+
+    private static ValueTask<ToolExecutionResult> DispatchAsync(IReadOnlyList<ToolRegistration> registrations, ToolRegistration target) =>
+        new ToolDispatcher().DispatchAsync(new EffectiveToolSnapshotBuilder().Build(registrations, 1), target.Definition.Name,
+            [], new ToolInvocationRequest("thread-1", "turn-1", "call-1", ToolInvocationAudience.Model));
 
     [Fact]
     public async Task Activation_accepts_binding_runtime_name_after_thread_composition()

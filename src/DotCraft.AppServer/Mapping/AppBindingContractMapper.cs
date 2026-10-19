@@ -132,9 +132,11 @@ internal static class AppBindingContractMapper
 
     public static Contract.AppBindingToolCapability ToContract(AppBindingToolCapability value) => new()
     {
-        Namespace = value.Namespace,
-        Name = value.Name,
+        SourceToolName = value.SourceToolName,
+        Description = value.Description,
+        NamespaceDescription = OmitIfNull(value.NamespaceDescription),
         InputSchema = JsonSerializer.SerializeToElement(value.InputSchema),
+        OutputSchema = value.OutputSchema is null ? default : Protocol.Optional<JsonElement?>.FromValue(JsonSerializer.SerializeToElement(value.OutputSchema)),
         Visibility = value.Visibility.ToArray(),
         Annotations = JsonSerializer.SerializeToElement(value.Annotations),
         Ui = value.Ui is null

@@ -8,6 +8,26 @@ namespace DotCraft.Core.Tests.Mcp;
 public sealed partial class McpToolNamingTests
 {
     [Fact]
+    public void NormalizeBatch_StableBindingIdentitySurvivesRuntimeRenameAndNameCollisions()
+    {
+        var initial = McpToolNaming.NormalizeBatch([
+            new McpToolIdentityInput("binding-route", "com.example.board", "read-card", "binding:one"),
+            new McpToolIdentityInput("binding-route", "com.example.board", "read_card", "binding:one"),
+            new McpToolIdentityInput("ordinary-route", "com_example_board", "read-card")
+        ]);
+        var renamed = McpToolNaming.NormalizeBatch([
+            new McpToolIdentityInput("binding-route~2", "com.example.board", "read-card", "binding:one"),
+            new McpToolIdentityInput("binding-route~2", "com.example.board", "read_card", "binding:one"),
+            new McpToolIdentityInput("ordinary-route", "com_example_board", "read-card")
+        ]);
+
+        Assert.Equal(initial.Select(tool => tool.ToolName), renamed.Select(tool => tool.ToolName));
+        Assert.Equal("binding-route~2", renamed[0].RuntimeName);
+        Assert.Equal("read-card", renamed[0].RawToolName);
+        Assert.NotEqual(renamed[0].ToolName, renamed[1].ToolName);
+    }
+
+    [Fact]
     public void NormalizeBatch_SanitizesModelIdentityAndPreservesRawRoute()
     {
         var identity = Assert.Single(McpToolNaming.NormalizeBatch([

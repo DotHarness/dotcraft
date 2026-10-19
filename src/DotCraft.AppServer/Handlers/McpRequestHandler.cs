@@ -22,6 +22,7 @@ internal sealed class McpRequestHandler(
     IAppConfigMonitor? appConfigMonitor,
     Action<McpServerStatusSnapshot>? broadcastMcpStatusChanged,
     IThreadToolDispatchService? threadToolDispatcher,
+    IThreadToolSnapshotService? threadToolSnapshots,
     IThreadMcpRuntimeService? threadMcpRuntimeService,
     IThreadAgentRefreshService? threadAgentRefreshService) : IAppServerDomainHandler
 {
@@ -333,7 +334,7 @@ internal sealed class McpRequestHandler(
         if (mcpClientManager == null)
             throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.McpServerToolCall);
 
-        if (threadToolDispatcher == null)
+        if (threadToolDispatcher == null || threadToolSnapshots == null)
             throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.McpServerToolCall);
 
         var arguments = new JsonObject();
@@ -344,13 +345,16 @@ internal sealed class McpRequestHandler(
                 arguments[name] = JsonNode.Parse(value.GetRawText());
         }
 
-        var dispatched = await threadToolDispatcher.DispatchThreadToolAsync(
-            threadId,
-            McpToolNaming.CanonicalToolName(serverName, toolName),
-            arguments,
-            $"host_{Guid.NewGuid():N}",
-            ToolInvocationAudience.Host,
-            ct);
+        var snapshot = await threadToolSnapshots.GetEffectiveToolSnapshotAsync(threadId, ct);
+        var registration = snapshot.Registrations.Values.SingleOrDefault(candidate =>
+            candidate.Definition.Id.Kind == ToolSourceKind.Mcp
+            && McpToolRouting.ServerName(candidate) == serverName
+            && candidate.Definition.Id.SourceToolId.Value == toolName);
+        var dispatched = registration is null
+            ? ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.NotFound, "The MCP tool is not registered in this thread."))
+            : await threadToolDispatcher.DispatchThreadToolAsync(
+                threadId, registration.Definition.Name, arguments,
+                $"host_{Guid.NewGuid():N}", ToolInvocationAudience.Host, ct);
         var result = dispatched.RawSourceResult is { } raw
             ? raw.Deserialize<CallToolResult>(SessionWireJsonOptions.Default)
             : null;

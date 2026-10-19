@@ -100,7 +100,7 @@ internal static class McpAppEligibilityResolver
         if (!context.Snapshot.Registrations.TryGetValue(canonicalName, out var registration)
             || registration.Definition.Id.ToString() != payload.ToolDefinitionId
             || registration.Definition.Id.Kind != ToolSourceKind.Mcp
-            || !string.Equals(registration.Definition.Id.SourceId, payload.Server, StringComparison.Ordinal)
+            || !string.Equals(McpToolRouting.ServerName(registration), payload.Server, StringComparison.Ordinal)
             || !string.Equals(registration.Definition.Id.SourceToolId.Value, payload.SourceToolId, StringComparison.Ordinal)
             || !McpAppMetadataParser.TryGetToolMetadata(registration.Definition, out var appMetadata)
             || appMetadata.ResourceUri is null
@@ -121,7 +121,8 @@ internal static class McpAppEligibilityResolver
             && registration.Binding.Revision != payload.BindingRevision)
             return null;
 
-        var generation = registration.Binding.Revision;
+        if (McpToolRouting.Generation(registration) is not { } generation)
+            return null;
         return new McpAppEligibility(
             payload,
             registration,

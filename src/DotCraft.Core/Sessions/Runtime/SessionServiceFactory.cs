@@ -2,6 +2,7 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
 using DotCraft.Logging;
+using DotCraft.Mcp;
 using DotCraft.Plugins;
 using DotCraft.Security;
 using DotCraft.Tools.BackgroundTerminals;
@@ -56,7 +57,8 @@ public static class SessionServiceFactory
             loggerFactory: loggerFactory,
             runtimeRefreshers: sp.GetServices<ISessionRuntimeRefresher>(),
             toolSnapshotFinalizers: sp.GetServices<IToolSnapshotFinalizer>(),
-            backgroundTaskKinds: sp.GetServices<IBackgroundTaskKind>());
+            backgroundTaskKinds: sp.GetServices<IBackgroundTaskKind>(),
+            mcpToolCatalogContributors: sp.GetServices<IMcpToolCatalogContributor>());
         sessionService.ThreadTitleGenerator = new ModelThreadTitleGenerator(
             agentFactory.RuntimeContext.ChatClientRegistry,
             () => appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config);

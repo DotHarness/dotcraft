@@ -140,13 +140,19 @@ During `syncing`, DotCraft reads the MCP tool catalog and every MCP Apps resourc
 
 The durable normalized summary contains only information needed for display, semantic comparison, offline stubs and audit:
 
-- canonical tool identity and input schema;
+- the raw MCP `sourceToolName`, description, namespace description, input schema, and optional output schema;
 - visibility and risk/approval annotations;
 - UI resource association;
 - normalized CSP, domain, and permissions;
 - source/content/security hashes used for diagnostics.
 
 It never contains a credential, live executor, resource body, result `_meta`, or private tool output.
+
+`sourceToolName` is the exact MCP tool name, not a model-callable identifier. The owning binding's `appId` supplies the declared namespace seed, and its binding id supplies the stable source identity. Capability comparison uses `sourceToolName` within that binding; changes in projected callable names do not expand authority. Approved and candidate tools retain their own descriptions and namespace descriptions.
+
+Ordinary live MCP catalogs and approved binding catalogs are collected before one shared model-name normalization pass. Binding catalogs remain present across active, syncing, offline, and needs-confirmation states; candidate catalogs never enter this pass. Normalization preserves raw names for routing, uses the stable source identity for collision hashes, and enforces the existing 64-byte flattened-name limit. A binding's runtime routing name and connection generation do not determine its model identity.
+
+New binding catalogs are validated before approval. A rejected catalog must not replace the approved baseline or affect sibling bindings.
 
 An unavailable or invalid UI resource excludes that presentation but does not remove an otherwise text-correct tool. A presentation that later becomes usable is a capability expansion.
 
@@ -168,6 +174,8 @@ While `needsConfirmation`, candidate capabilities are not callable. Acceptance a
 ### 6.3 Offline stubs
 
 An offline binding preserves model-visible, schema-stable registrations from its last approved snapshot for prompt-cache stability. Their live lease fails before remote dispatch with `AppBindingOffline`. A revoked binding exposes no stub.
+
+Online and offline registrations use the same definition construction, including schema sanitization, description, namespace description, visibility, and deferred-loading policy. Only the runtime binding and lease change. Active calls require the exact binding id, approved capability revision, authority revision, and MCP connection generation; protocol calls use the raw `sourceToolName`. An unavailable connection cannot make approved definitions executable.
 
 Turn snapshots remain immutable, but revocation and authority-revision checks apply at dispatch time and override an older snapshot.
 

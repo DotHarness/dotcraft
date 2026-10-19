@@ -143,7 +143,7 @@ internal static class AppBindingCapabilityDiffer
         else if (node != null) set.Add(node.ToJsonString());
         return set;
     }
-    private static string Key(AppBindingToolCapability tool) => $"{tool.Namespace}.{tool.Name}";
+    private static string Key(AppBindingToolCapability tool) => tool.SourceToolName;
     private static AppBindingCapabilityChange Change(string kind, string tool, string detail) =>
         new() { Kind = kind, Tool = tool, Detail = detail };
 }

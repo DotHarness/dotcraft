@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Mcp;
 using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Configuration;
@@ -599,7 +600,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             return true;
         }
 
-        var server = registration.Definition.Id.SourceId;
+        var server = McpToolRouting.ServerName(registration);
         if (policy.Servers != null && !MatchesAny(server, policy.Servers, allowWildcards: false))
         {
             reason = "The thread MCP policy does not allow this MCP server.";

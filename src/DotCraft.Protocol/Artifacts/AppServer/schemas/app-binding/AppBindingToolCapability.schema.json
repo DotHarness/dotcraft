@@ -5,11 +5,22 @@
   "type": "object",
   "properties": {
     "annotations": {},
-    "inputSchema": {},
-    "name": {
+    "description": {
       "type": "string"
     },
-    "namespace": {
+    "inputSchema": {},
+    "namespaceDescription": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "outputSchema": {},
+    "sourceToolName": {
       "type": "string"
     },
     "ui": {

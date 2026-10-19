@@ -4,7 +4,7 @@ using DotCraft.Sessions.Wire;
 namespace DotCraft.AppBinding;
 
 /// <summary>Owns App Binding durable authority, principal credentials, and state transitions.</summary>
-public sealed class AppBindingService
+public sealed partial class AppBindingService
 {
     private static readonly TimeSpan SurfaceLeaseLifetime = TimeSpan.FromMinutes(2);
     private const int MaxChannelCodeFailures = 10;
@@ -433,94 +433,6 @@ public sealed class AppBindingService
             Audit(state, "binding.syncing", principal.PrincipalId, binding.AppId, binding.ThreadId,
                 binding.BindingId, binding.AuthorityRevision);
             return Clone(binding);
-        });
-    }
-
-    public AppBindingSnapshot CompleteSync(
-        string workspaceCraftPath,
-        string bindingId,
-        IReadOnlyList<AppBindingToolCapability> tools)
-    {
-        var normalized = tools.OrderBy(tool => tool.Namespace, StringComparer.Ordinal)
-            .ThenBy(tool => tool.Name, StringComparer.Ordinal).ToList();
-        var now = DateTimeOffset.UtcNow;
-        return Store(workspaceCraftPath).Update(state =>
-        {
-            var binding = RequireLiveBinding(state, bindingId);
-            var nextRevision = Math.Max(binding.ApprovedCapabilityRevision,
-                binding.CandidateCapabilityRevision ?? 0) + 1;
-            if (binding.ApprovedCapabilityRevision == 0)
-            {
-                binding.ApprovedTools = normalized;
-                binding.ApprovedCapabilityRevision = nextRevision;
-                binding.State = AppBindingStates.Active;
-                binding.PendingChanges.Clear();
-                Audit(state, "capabilities.initial-approved", binding.PrincipalId, binding.AppId,
-                    binding.ThreadId, binding.BindingId, binding.AuthorityRevision, nextRevision);
-            }
-            else
-            {
-                var changes = AppBindingCapabilityDiffer.FindExpansions(binding.ApprovedTools, normalized);
-                if (changes.Count == 0)
-                {
-                    binding.ApprovedTools = normalized;
-                    binding.ApprovedCapabilityRevision = nextRevision;
-                    binding.CandidateTools.Clear();
-                    binding.CandidateCapabilityRevision = null;
-                    binding.PendingChanges.Clear();
-                    binding.State = AppBindingStates.Active;
-                    Audit(state, "capabilities.auto-accepted", binding.PrincipalId, binding.AppId,
-                        binding.ThreadId, binding.BindingId, binding.AuthorityRevision, nextRevision);
-                }
-                else
-                {
-                    binding.CandidateTools = normalized;
-                    binding.CandidateCapabilityRevision = nextRevision;
-                    binding.PendingChanges = changes;
-                    binding.State = AppBindingStates.NeedsConfirmation;
-                    Audit(state, "capabilities.confirmation-required", binding.PrincipalId, binding.AppId,
-                        binding.ThreadId, binding.BindingId, binding.AuthorityRevision, nextRevision);
-                }
-            }
-            binding.FailureReason = null;
-            binding.UpdatedAt = now;
-            return ToWire(binding);
-        });
-    }
-
-    public AppBindingSnapshot ConfirmCapabilities(
-        string workspaceCraftPath,
-        ThreadAppBindingConfirmCapabilitiesCommand parameters,
-        string actor)
-    {
-        var accept = string.Equals(parameters.Decision, "accept", StringComparison.OrdinalIgnoreCase);
-        var reject = string.Equals(parameters.Decision, "reject", StringComparison.OrdinalIgnoreCase);
-        if (!accept && !reject)
-            throw AppBindingErrors.InvalidInput("'decision' must be 'accept' or 'reject'.");
-        return Store(workspaceCraftPath).Update(state =>
-        {
-            var binding = RequireLiveBinding(state, parameters.BindingId);
-            if (!string.Equals(binding.ThreadId, parameters.ThreadId, StringComparison.Ordinal)
-                || binding.State != AppBindingStates.NeedsConfirmation
-                || binding.CandidateCapabilityRevision != parameters.CandidateRevision)
-                throw AppBindingErrors.Conflict("The candidate capability revision is stale.");
-            if (accept)
-            {
-                binding.ApprovedTools = binding.CandidateTools;
-                binding.ApprovedCapabilityRevision = parameters.CandidateRevision;
-                binding.State = AppBindingStates.Active;
-            }
-            else
-            {
-                binding.State = AppBindingStates.Active;
-            }
-            binding.CandidateTools = [];
-            binding.CandidateCapabilityRevision = null;
-            binding.PendingChanges = [];
-            binding.UpdatedAt = DateTimeOffset.UtcNow;
-            Audit(state, accept ? "capabilities.accepted" : "capabilities.rejected", actor, binding.AppId,
-                binding.ThreadId, binding.BindingId, binding.AuthorityRevision, parameters.CandidateRevision);
-            return ToWire(binding);
         });
     }
 

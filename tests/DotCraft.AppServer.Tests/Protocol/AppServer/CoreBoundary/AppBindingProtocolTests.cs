@@ -22,6 +22,39 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
+    public async Task BindingList_PublishesRawToolIdentityAndApprovedDescriptions()
+    {
+        WriteHandoffAppPlugin();
+        var control = new AppBindingService();
+        using var harness = CreateHarness(control);
+        await harness.InitializeAsync();
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        var request = control.StartConnection(DataPath, "com.example.handoff", "user");
+        var principal = control.Connect(DataPath, new AppConnectionConnectCommand
+        {
+            ConnectionRequestId = request.ConnectionRequestId, RequestToken = request.RequestToken
+        });
+        var enabled = control.Enable(DataPath, thread.Id, "com.example.handoff", "user");
+        control.BeginActivation(DataPath, principal.Principal.PrincipalId, enabled.BindingId, null,
+            "http://127.0.0.1:9000/mcp", enabled.BindingRequestId);
+        control.CompleteSync(DataPath, enabled.BindingId, [new AppBindingToolCapability
+        {
+            SourceToolName = "read-card", Description = "Read board cards", NamespaceDescription = "Board operations",
+            InputSchema = new System.Text.Json.Nodes.JsonObject { ["type"] = "object" }, Visibility = ["model"]
+        }]);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest("thread/appBindings/list", new { threadId = thread.Id }));
+        using var response = await ReadSuccessResponseAsync(harness.Transport);
+        var binding = response.RootElement.GetProperty("result").GetProperty("bindings")[0];
+        var tool = binding.GetProperty("approvedTools")[0];
+        Assert.Equal("read-card", tool.GetProperty("sourceToolName").GetString());
+        Assert.Equal("Read board cards", tool.GetProperty("description").GetString());
+        Assert.Equal("Board operations", tool.GetProperty("namespaceDescription").GetString());
+        Assert.False(tool.TryGetProperty("namespace", out _));
+        Assert.False(tool.TryGetProperty("name", out _));
+    }
+
+    [Fact]
     public async Task UndeclaredAppBindingMethod_ReturnsMethodNotFound()
     {
         using var harness = CreateHarness();
