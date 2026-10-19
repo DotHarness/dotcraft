@@ -105,7 +105,7 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
                 throw new InvalidOperationException(status?.LastError ?? "The binding MCP session did not become ready.");
             var inventory = await probe.GetInventoryAsync(serverName, cancellationToken)
                             ?? throw new InvalidOperationException("The binding MCP inventory is unavailable.");
-            var capabilities = await BuildCapabilitiesAsync(binding.AppId, serverName, inventory, probe, cancellationToken);
+            var capabilities = await BuildCapabilitiesAsync(serverName, inventory, probe, cancellationToken);
             var completed = controlPlane.CompleteSync(craftPath, binding.BindingId, capabilities);
             if (completed.State == AppBindingStates.Active)
             {
@@ -276,7 +276,6 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
     }
 
     private static async Task<List<AppBindingToolCapability>> BuildCapabilitiesAsync(
-        string appId,
         string serverName,
         McpServerInventorySnapshot inventory,
         McpClientManager manager,
@@ -300,6 +299,8 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
             annotations["readOnly"] = hints?.ReadOnlyHint == true;
             annotations["destructive"] = hints?.DestructiveHint != false;
             annotations["openWorld"] = hints?.OpenWorldHint != false;
+            if (hints is not null)
+                annotations["mcp/toolAnnotations"] = JsonSerializer.SerializeToNode(hints);
             AppBindingUiCapability? ui = null;
             if (metadata.ResourceUri != null && uiUris.Count < MaxUiResources)
             {
@@ -308,9 +309,11 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
             }
             tools.Add(new AppBindingToolCapability
             {
-                Namespace = appId,
-                Name = function.Name,
+                SourceToolName = function.Name,
+                Description = string.IsNullOrWhiteSpace(function.Description) ? function.Name : function.Description,
+                NamespaceDescription = inventory.ServerInstructions,
                 InputSchema = JsonNode.Parse(function.JsonSchema.GetRawText()) as JsonObject ?? new JsonObject(),
+                OutputSchema = function.ReturnJsonSchema is { } output ? JsonNode.Parse(output.GetRawText())!.AsObject() : null,
                 Visibility = visibility,
                 Annotations = annotations,
                 Ui = ui

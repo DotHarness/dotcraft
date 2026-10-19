@@ -415,13 +415,21 @@ public sealed class AppBindingToolCapability : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<JsonElement> InputSchema { get; init; }
 
-    [JsonPropertyName("name")]
+    [JsonPropertyName("sourceToolName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Name { get; init; }
+    public Optional<string> SourceToolName { get; init; }
 
-    [JsonPropertyName("namespace")]
+    [JsonPropertyName("description")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Namespace { get; init; }
+    public Optional<string> Description { get; init; }
+
+    [JsonPropertyName("namespaceDescription")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> NamespaceDescription { get; init; }
+
+    [JsonPropertyName("outputSchema")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement?> OutputSchema { get; init; }
 
     [JsonPropertyName("ui")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.AppBinding;
+using DotCraft.Mcp;
 using DotCraft.Context;
 using DotCraft.GenerativeUi;
 using DotCraft.Visualizations;
@@ -47,7 +48,7 @@ public static class AppServerServiceCollectionExtensions
             ProfileBuilderSystemPromptProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, AppBindingProtocolExtension>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, NodeReplProtocolExtension>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, AppBindingOfflineToolSource>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IMcpToolCatalogContributor, AppBindingToolCatalogContributor>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, ManagedChannelToolSource>());
         return services;
     }

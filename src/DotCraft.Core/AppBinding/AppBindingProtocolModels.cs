@@ -80,9 +80,12 @@ public sealed class AppBindingSnapshot
 
 public sealed class AppBindingToolCapability
 {
-    public string Namespace { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
+    public string SourceToolName { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string? NamespaceDescription { get; set; }
     public JsonObject InputSchema { get; set; } = new();
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonObject? OutputSchema { get; set; }
     public List<string> Visibility { get; set; } = [];
     public JsonObject Annotations { get; set; } = new();
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

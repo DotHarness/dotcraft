@@ -9,7 +9,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Mcp;
 
-public sealed class McpStreamableHttpSessionRecoveryIntegrationTests
+public sealed partial class McpStreamableHttpSessionRecoveryIntegrationTests
 {
     [Fact]
     public async Task StableBaseline_StartsWithInitializeAndNeverProbesDiscovery()
@@ -333,7 +333,7 @@ public sealed class McpStreamableHttpSessionRecoveryIntegrationTests
                   "result": {
                     "tools": [
                       {
-                        "name": "demo_tool",
+                        "name": {{JsonSerializer.Serialize(_options.ToolName)}},
                         "description": "Demo tool",
                         "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
                       }
@@ -588,6 +588,7 @@ public sealed class McpStreamableHttpSessionRecoveryIntegrationTests
 
         public sealed class Options
         {
+            public string ToolName { get; init; } = "demo_tool";
             public bool SupportsModernDiscovery { get; init; }
             public bool ExpireFirstToolCall { get; init; }
             public bool BareStaleToolCall404 { get; init; }

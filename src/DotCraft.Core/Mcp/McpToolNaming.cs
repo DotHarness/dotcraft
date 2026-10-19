@@ -8,17 +8,22 @@ namespace DotCraft.Mcp;
 internal readonly record struct McpToolIdentityInput
 {
     /// <summary>Creates an MCP tool identity input.</summary>
-    public McpToolIdentityInput(string runtimeName, string? declaredName, string rawToolName)
+    public McpToolIdentityInput(string runtimeName, string? declaredName, string rawToolName, string? sourceIdentity = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(runtimeName);
         ArgumentException.ThrowIfNullOrWhiteSpace(rawToolName);
         if (declaredName is not null)
             ArgumentException.ThrowIfNullOrWhiteSpace(declaredName);
+        if (sourceIdentity is not null)
+            ArgumentException.ThrowIfNullOrWhiteSpace(sourceIdentity);
 
+        SourceIdentity = sourceIdentity ?? runtimeName;
         RuntimeName = runtimeName;
         DeclaredName = declaredName;
         RawToolName = rawToolName;
     }
+
+    public string SourceIdentity { get; }
 
     /// <summary>Gets the collision-free MCP runtime name used for routing.</summary>
     public string RuntimeName { get; }
@@ -77,14 +82,14 @@ public static class McpToolNaming
 
         var namespaceBases = inputs
             .Select(static input => new NamespaceCandidate(
-                input.RuntimeName,
+                input.SourceIdentity,
                 NamespacePrefix + SanitizeComponent(input.DeclaredName ?? input.RuntimeName),
                 NamespacePrefix + (input.DeclaredName ?? input.RuntimeName)))
             .Distinct()
             .ToArray();
         var collidingNamespaceBases = namespaceBases
             .GroupBy(static candidate => candidate.Base, StringComparer.Ordinal)
-            .Where(static group => group.Select(static candidate => candidate.RuntimeName)
+            .Where(static group => group.Select(static candidate => candidate.SourceIdentity)
                 .Distinct(StringComparer.Ordinal).Skip(1).Any())
             .Select(static group => group.Key)
             .ToHashSet(StringComparer.Ordinal);
@@ -92,9 +97,9 @@ public static class McpToolNaming
 
         var candidates = inputs
             .Select(input => new ToolCandidate(
-                namespaces[input.RuntimeName],
+                namespaces[input.SourceIdentity],
                 SanitizeComponent(input.RawToolName),
-                input.RuntimeName + "\0" + input.RawToolName,
+                input.SourceIdentity + "\0" + input.RawToolName,
                 input.RawToolName))
             .ToArray();
         var collidingToolBases = candidates
@@ -107,7 +112,7 @@ public static class McpToolNaming
 
         return inputs.Select(input =>
         {
-            var rawIdentity = input.RuntimeName + "\0" + input.RawToolName;
+            var rawIdentity = input.SourceIdentity + "\0" + input.RawToolName;
             var toolName = resolvedTools[rawIdentity];
             return new McpToolIdentity(
                 input.RuntimeName,
@@ -120,7 +125,7 @@ public static class McpToolNaming
 
     private static void ValidateServerDeclarations(IReadOnlyList<McpToolIdentityInput> inputs)
     {
-        foreach (var group in inputs.GroupBy(static input => input.RuntimeName, StringComparer.Ordinal))
+        foreach (var group in inputs.GroupBy(static input => input.SourceIdentity, StringComparer.Ordinal))
         {
             var declarations = group.Select(static input => input.DeclaredName)
                 .Distinct(StringComparer.Ordinal)
@@ -141,19 +146,19 @@ public static class McpToolNaming
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
         var used = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var candidate in candidates.OrderBy(static candidate => candidate.RuntimeName, StringComparer.Ordinal))
+        foreach (var candidate in candidates.OrderBy(static candidate => candidate.SourceIdentity, StringComparer.Ordinal))
         {
             var collides = collidingBases.Contains(candidate.Base);
             var value = collides || candidate.Base.Length > MaxNamespaceLength
                 ? FitWithHash(
                     candidate.Base,
-                    collides ? candidate.RuntimeName : candidate.RawSeed,
+                    collides ? candidate.SourceIdentity : candidate.RawSeed,
                     MaxNamespaceLength)
                 : candidate.Base;
             if (!used.Add(value))
                 throw new InvalidOperationException($"MCP namespace normalization produced duplicate '{value}'.");
 
-            result.Add(candidate.RuntimeName, value);
+            result.Add(candidate.SourceIdentity, value);
         }
 
         return result;
@@ -213,7 +218,7 @@ public static class McpToolNaming
         return Convert.ToHexString(hash).ToLowerInvariant()[..HashLength];
     }
 
-    private readonly record struct NamespaceCandidate(string RuntimeName, string Base, string RawSeed);
+    private readonly record struct NamespaceCandidate(string SourceIdentity, string Base, string RawSeed);
 
     private readonly record struct ToolCandidate(
         string Namespace,

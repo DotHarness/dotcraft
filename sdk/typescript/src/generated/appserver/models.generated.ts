@@ -452,9 +452,11 @@ export interface AppBindingRequestedNotification {
 
 export interface AppBindingToolCapability {
   annotations?: JsonValue;
+  description?: string;
   inputSchema?: JsonValue;
-  name?: string;
-  namespace?: string;
+  namespaceDescription?: string | null;
+  outputSchema?: JsonValue;
+  sourceToolName?: string;
   ui?: AppBindingUiCapability | null;
   visibility?: string[];
   [key: string]: unknown;

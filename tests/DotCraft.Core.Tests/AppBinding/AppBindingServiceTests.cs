@@ -188,7 +188,7 @@ public sealed class AppBindingServiceTests : IDisposable
 
     private static AppBindingToolCapability Tool(string name, bool required) => new()
     {
-        Namespace = "example", Name = name, Visibility = ["model"],
+        SourceToolName = name, Description = name, Visibility = ["model"],
         InputSchema = new JsonObject
         {
             ["type"] = "object",

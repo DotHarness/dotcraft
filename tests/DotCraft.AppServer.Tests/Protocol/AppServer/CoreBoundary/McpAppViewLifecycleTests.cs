@@ -20,8 +20,10 @@ public sealed class McpAppViewLifecycleTests : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), $"McpAppViewTests_{Guid.NewGuid():N}");
 
-    [Fact]
-    public async Task Eligibility_RequiresPersistedAssociationExactTurnAndCurrentRegistration()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Eligibility_RequiresPersistedAssociationExactTurnAndCurrentRegistration(bool bindingOwned)
     {
         await using var manager = await CreateConnectedManagerAsync();
         var generation = Assert.NotNull(await manager.GetGenerationAsync("review"));
@@ -30,7 +32,7 @@ public sealed class McpAppViewLifecycleTests : IDisposable
             "show",
             McpAppVisibility.Model,
             resourceUri: "ui://review/show",
-            generation);
+            generation, bindingOwned ? "binding:board" : null);
         var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 4);
         var item = new SessionItem
         {
@@ -51,6 +53,7 @@ public sealed class McpAppViewLifecycleTests : IDisposable
                 SnapshotRevision = snapshot.Revision,
                 McpGeneration = generation,
                 Server = "review",
+                Origin = bindingOwned ? "binding" : "workspace",
                 SourceToolId = "show",
                 CallId = "call-1",
                 Status = "completed",
@@ -75,6 +78,7 @@ public sealed class McpAppViewLifecycleTests : IDisposable
             CancellationToken.None);
 
         Assert.NotNull(eligible);
+        Assert.Equal(generation, eligible.Generation);
         Assert.Equal("ui://review/show", eligible.AppMetadata.ResourceUri?.AbsoluteUri.TrimEnd('/'));
         Assert.Null(wrongTurn);
     }
@@ -365,8 +369,10 @@ public sealed class McpAppViewLifecycleTests : IDisposable
         Assert.Null(transport.TryReadSent());
     }
 
-    [Fact]
-    public async Task ViewProtocol_EnforcesServerVisibility_AndCapturesMessageContextOnce()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ViewProtocol_EnforcesServerVisibility_AndCapturesMessageContextOnce(bool bindingOwned)
     {
         Directory.CreateDirectory(_tempDir);
         var sessions = new TestableSessionService(new ThreadStore(_tempDir));
@@ -377,19 +383,22 @@ public sealed class McpAppViewLifecycleTests : IDisposable
         await using var transport = new InMemoryTransport();
         await using var manager = await CreateConnectedManagerAsync();
         var generation = Assert.NotNull(await manager.GetGenerationAsync("review"));
-        var source = Registration("review", "show", McpAppVisibility.Model, resourceUri: "ui://review/show", generation);
-        var appTool = Registration("review", "comment", McpAppVisibility.App, resourceUri: null, generation);
-        var modelOnly = Registration("review", "private", McpAppVisibility.Model, resourceUri: null, generation);
+        var stableSourceId = bindingOwned ? "binding:board" : null;
+        var commentName = "comment-card";
+        var source = Registration("review", "show", McpAppVisibility.Model, resourceUri: "ui://review/show", generation, stableSourceId);
+        var appTool = Registration("review", commentName, McpAppVisibility.App, resourceUri: null, generation, stableSourceId);
+        var modelOnly = Registration("review", "private", McpAppVisibility.Model, resourceUri: null, generation, stableSourceId);
         var otherServer = Registration("other", "foreign", McpAppVisibility.App, resourceUri: null, generation);
         var snapshot = new EffectiveToolSnapshotBuilder().Build([source, appTool, modelOnly, otherServer], revision: 4);
         var snapshots = new SnapshotSource(snapshot);
         var contexts = new McpAppTransientContextStore();
         var views = new McpAppViewRegistry();
+        var dispatcher = new DispatchService();
         using var handler = new McpAppRequestHandler(
             sessions,
             connection,
             transport,
-            new DispatchService(),
+            dispatcher,
             snapshots,
             new McpRuntimeService(manager),
             contexts,
@@ -401,7 +410,7 @@ public sealed class McpAppViewLifecycleTests : IDisposable
             TurnId = "turn-1",
             SourceItemId = "item-1",
             ServerName = "review",
-            Origin = "workspace",
+            Origin = bindingOwned ? "binding" : "workspace",
             Generation = generation,
             ToolName = source.Definition.Name,
             DefinitionId = source.Definition.Id,
@@ -419,7 +428,7 @@ public sealed class McpAppViewLifecycleTests : IDisposable
         var listed = Assert.IsType<Contract.McpAppViewToolsListResult>(await list(
             InMemoryTransport.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewToolsList, new { viewHandle = view.Handle }),
             CancellationToken.None));
-        Assert.Equal(["comment"], listed.Tools.Value!.Select(static tool => tool.Name.Value));
+        Assert.Equal([commentName], listed.Tools.Value!.Select(static tool => tool.Name.Value));
 
         Assert.True(table.TryGet(DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewToolCall, out var call));
         var error = await Assert.ThrowsAsync<AppServerException>(() => call(
@@ -435,6 +444,18 @@ public sealed class McpAppViewLifecycleTests : IDisposable
                 new { viewHandle = view.Handle, tool = "show", arguments = new { } }),
             CancellationToken.None));
         Assert.Equal("unauthorized", Assert.IsType<AppServerErrorData>(sourceError.ErrorData).Code);
+
+        _ = await call(
+            InMemoryTransport.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewToolCall,
+                new { viewHandle = view.Handle, tool = commentName, arguments = new { } }), CancellationToken.None);
+        Assert.Equal(appTool.Definition.Name, dispatcher.LastToolName);
+
+        new McpRequestHandler(manager, new AppServerMcpConfigService(null, manager, null, null, null),
+            transport, null, null, dispatcher, snapshots, new McpRuntimeService(manager), null).RegisterMethods(table);
+        Assert.True(table.TryGet(DotCraft.Protocol.AppServer.AppServerMethodNames.McpServerToolCall, out var hostCall));
+        _ = await hostCall(InMemoryTransport.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpServerToolCall,
+            new { threadId = "thread-1", server = "review", tool = commentName, arguments = new { } }), CancellationToken.None);
+        Assert.Equal(appTool.Definition.Name, dispatcher.LastToolName);
 
         Assert.True(table.TryGet(DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewModelContextUpdate, out var updateContext));
         _ = await updateContext(
@@ -517,30 +538,31 @@ public sealed class McpAppViewLifecycleTests : IDisposable
         string name,
         McpAppVisibility visibility,
         string? resourceUri,
-        long generation)
+        long generation,
+        string? stableSourceId = null)
     {
         var sourceToolId = new SourceToolId(name);
-        var definitionId = new ToolDefinitionId(ToolSourceKind.Mcp, server, sourceToolId);
+        var definitionId = new ToolDefinitionId(ToolSourceKind.Mcp, stableSourceId ?? server, sourceToolId);
         var metadata = new McpAppToolMetadata(
             resourceUri is null ? null : new Uri(resourceUri),
             visibility);
         var definition = new ToolDefinition(
             definitionId,
-            McpToolNaming.CanonicalToolName(server, name),
+            McpToolNaming.CanonicalToolName(stableSourceId is null ? server : "com.example.board", name),
             name,
             JsonDocument.Parse("""{"type":"object"}""").RootElement.Clone(),
             annotations: new Dictionary<string, JsonElement>
             {
                 [McpAppMetadataParser.ToolAnnotationKey] = McpAppMetadataParser.ToDefinitionAnnotation(metadata)
             },
-            provenance: new ToolProvenance(ToolSourceKind.Mcp, server));
+            provenance: new ToolProvenance(ToolSourceKind.Mcp, stableSourceId ?? server, stableSourceId is null ? "workspace" : "binding"));
         var binding = new ToolRuntimeBinding(
             new RuntimeBindingId($"mcp:{server}:{name}:{generation}"),
             definitionId,
-            new FakeRuntime(),
+            new FakeRuntime(server, generation),
             ToolBindingLeases.AlwaysAvailable,
             $"mcp:{server}:{generation}",
-            generation);
+            stableSourceId is null ? generation : generation + 7);
         var audiences = ToolInvocationAudience.Host;
         if (visibility.HasFlag(McpAppVisibility.App))
             audiences |= ToolInvocationAudience.App;
@@ -614,6 +636,7 @@ public sealed class McpAppViewLifecycleTests : IDisposable
 
     private sealed class DispatchService : IThreadToolDispatchService
     {
+        public ToolName? LastToolName { get; private set; }
         public Task<ToolExecutionResult> DispatchThreadToolAsync(
             string threadId,
             ToolName toolName,
@@ -621,12 +644,17 @@ public sealed class McpAppViewLifecycleTests : IDisposable
             string callId,
             ToolInvocationAudience audience = ToolInvocationAudience.Host,
             CancellationToken cancellationToken = default,
-            ToolInvocationOrigin? origin = null) =>
-            Task.FromResult(ToolExecutionResult.Succeeded("ok"));
+            ToolInvocationOrigin? origin = null)
+        {
+            LastToolName = toolName;
+            return Task.FromResult(ToolExecutionResult.Succeeded("ok"));
+        }
     }
 
-    private sealed class FakeRuntime : IToolRuntime
+    private sealed class FakeRuntime(string serverName, long generation) : IToolRuntime, IMcpToolRuntimeMetadata
     {
+        public string ServerName => serverName;
+        public long Generation => generation;
         public ValueTask<ToolExecutionResult> InvokeAsync(
             ToolInvocationContext context,
             JsonObject arguments,

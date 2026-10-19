@@ -251,11 +251,10 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
         try
         {
             var snapshot = await _snapshots!.GetEffectiveToolSnapshotAsync(state.ThreadId, cancellationToken).ConfigureAwait(false);
-            var canonicalName = McpToolNaming.CanonicalToolName(state.ServerName, toolName);
-            if (!snapshot.Registrations.TryGetValue(canonicalName, out var registration)
-                || registration.Definition.Id.Kind != ToolSourceKind.Mcp
-                || !string.Equals(registration.Definition.Id.SourceId, state.ServerName, StringComparison.Ordinal)
-                || !string.Equals(registration.Definition.Id.SourceToolId.Value, toolName, StringComparison.Ordinal)
+            var registration = snapshot.Registrations.Values.SingleOrDefault(candidate =>
+                IsAppVisibleTool(candidate, state.ServerName)
+                && string.Equals(candidate.Definition.Id.SourceToolId.Value, toolName, StringComparison.Ordinal));
+            if (registration is null
                 || !registration.InvocationAudiences.HasFlag(ToolInvocationAudience.App)
                 || !McpAppMetadataParser.TryGetToolMetadata(registration.Definition, out var metadata)
                 || !metadata.Visibility.HasFlag(McpAppVisibility.App))
@@ -263,7 +262,7 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
 
             var result = await _dispatcher!.DispatchThreadToolAsync(
                 state.ThreadId,
-                canonicalName,
+                registration.Definition.Name,
                 ToJsonObject(ValueOrDefault(parameters.Arguments)),
                 $"app_{Guid.NewGuid():N}",
                 ToolInvocationAudience.App,
@@ -410,7 +409,7 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
 
     private static bool IsAppVisibleTool(ToolRegistration registration, string serverName) =>
         registration.Definition.Id.Kind == ToolSourceKind.Mcp
-        && string.Equals(registration.Definition.Id.SourceId, serverName, StringComparison.Ordinal)
+        && string.Equals(McpToolRouting.ServerName(registration), serverName, StringComparison.Ordinal)
         && registration.InvocationAudiences.HasFlag(ToolInvocationAudience.App)
         && McpAppMetadataParser.TryGetToolMetadata(registration.Definition, out var metadata)
         && metadata.Visibility.HasFlag(McpAppVisibility.App);

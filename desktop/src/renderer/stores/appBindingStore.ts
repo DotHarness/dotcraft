@@ -41,7 +41,7 @@ export interface ThreadAppBindingSummary {
   authorityRevision?: number
   approvedCapabilityRevision?: number
   candidateCapabilityRevision?: number | null
-  approvedTools?: Array<{ namespace?: string; name?: string; [key: string]: unknown }>
+  approvedTools?: Array<{ sourceToolName?: string; description?: string; namespaceDescription?: string | null; [key: string]: unknown }>
   failureReason?: string | null
 }
 

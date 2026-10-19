@@ -136,7 +136,8 @@ public sealed partial class SessionService
     {
         if (agentFactory.RuntimeContext.McpClientManager != null
             || agentFactory.ToolSources.Any(source => source is IThreadScopedToolSource)
-            || pluginToolSourceProviders?.Any() == true)
+            || pluginToolSourceProviders?.Any() == true
+            || mcpToolCatalogContributors?.Any() == true)
         {
             return true;
         }
@@ -369,34 +370,7 @@ public sealed partial class SessionService
             ThreadWorkspaceResolver.Resolve(thread));
         threadRuntimeState.SkillCatalogSource = SkillCatalogSource.For(toolContext);
 
-        var bindingMcpServers = threadRuntimeState.GetBindingMcpServers();
-        if (config.McpServers is not null || bindingMcpServers.Count > 0)
-        {
-            var inheritedMcpServers = config.McpServers is null && toolContext.McpClientManager is not null
-                ? await toolContext.McpClientManager.ListConfigsAsync(ct)
-                : [];
-            var effectiveMcpServers = McpServerComposition.Compose(
-                thread.Id,
-                config.McpServers,
-                inheritedMcpServers,
-                bindingMcpServers);
-            var threadMcpManager = threadRuntimeState.McpManager
-                ?? new McpClientManager(dotCraftPaths, loggerFactory?.CreateLogger<McpClientManager>());
-            await threadMcpManager.ConnectAsync(effectiveMcpServers, ct);
-            await threadMcpManager.WaitForStartupCompletionAsync(ct);
-            threadRuntimeState.McpManager = threadMcpManager;
-            toolContext = CloneContextWithMcpManager(toolContext, threadMcpManager);
-        }
-        else
-        {
-            if (threadRuntimeState.McpManager is { } obsoleteThreadManager)
-            {
-                threadRuntimeState.McpManager = null;
-                await obsoleteThreadManager.DisposeAsync();
-            }
-            if (toolContext.McpClientManager != null)
-                await toolContext.McpClientManager.WaitForStartupCompletionAsync(ct);
-        }
+        toolContext = await PrepareMcpToolContextAsync(thread, threadRuntimeState, config, toolContext, ct);
 
         toolContext.DeferredToolActivationIndex = null;
         var capabilityPolicy = new ThreadCapabilityPolicyEvaluator(config, toolContext);
@@ -409,8 +383,7 @@ public sealed partial class SessionService
                 .Where(static source => source is UserCoordinationToolSource)
                 .ToList()
             : agentFactory.GetToolSources(thread.Id).ToList();
-        if (!config.UseToolProfileOnly && toolContext.McpClientManager is not null)
-            snapshotSources.Add(new McpToolSource(toolContext.McpClientManager, currentConfig));
+        AddMcpToolSource(snapshotSources, toolContext, currentConfig, config.UseToolProfileOnly);
         if (!config.UseToolProfileOnly && pluginToolSourceProviders is not null)
         {
             snapshotSources.AddRange(

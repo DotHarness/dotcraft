@@ -177,7 +177,7 @@ public sealed class AppServerRequestHandler(
         new ToolRequestHandler(),
         new FileSystemRequestHandler(services.AppConfigMonitor, connection, transport),
         new CommandExecRequestHandler(services.AppConfigMonitor, services.HostWorkspacePath, connection),
-        new McpRequestHandler(services.McpClientManager, McpConfig, transport, services.AppConfigMonitor, services.BroadcastMcpStatusChanged, sessionService as IThreadToolDispatchService, sessionService as IThreadMcpRuntimeService, sessionService as IThreadAgentRefreshService),
+        new McpRequestHandler(services.McpClientManager, McpConfig, transport, services.AppConfigMonitor, services.BroadcastMcpStatusChanged, sessionService as IThreadToolDispatchService, sessionService as IThreadToolSnapshotService, sessionService as IThreadMcpRuntimeService, sessionService as IThreadAgentRefreshService),
         new McpAppRequestHandler(
             sessionService,
             connection,
