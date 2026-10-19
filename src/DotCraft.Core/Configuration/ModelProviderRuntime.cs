@@ -114,6 +114,14 @@ public static class ModelProviderResolver
         return provider.SupportsFreeformTools ?? ResolveOpenAIHostedCapabilityDefault(provider);
     }
 
+    public static string? ResolveWebSearchBackend(AppConfig.ModelProviderConfig provider)
+    {
+        if (provider.RemoteAuthentication is not null && provider.RemoteWebSearchBackend != ProviderWebSearchBackend.DeepSeek)
+            return null;
+
+        return ProviderWebSearchBackend.Resolve(provider.EndPoint, provider.AuthMethod);
+    }
+
     private static bool ResolveOpenAIHostedCapabilityDefault(AppConfig.ModelProviderConfig provider)
     {
         var configuredAuthMethod = string.IsNullOrWhiteSpace(provider.AuthMethod)
@@ -215,7 +223,8 @@ public static class ModelProviderResolver
                     ? null
                     : Path.GetDirectoryName(config.GlobalConfigPath),
                 IsRemote: config.ModelService is not null,
-                CallerNamespace: config.ModelService?.CallerId);
+                CallerNamespace: config.ModelService?.CallerId,
+                WebSearchBackend: ResolveWebSearchBackend(provider));
             return true;
         }
 

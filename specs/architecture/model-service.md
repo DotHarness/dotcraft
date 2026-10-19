@@ -62,3 +62,9 @@ Each Stack has a separate inference credential. Only the model service and its l
 the upstream credential directory. Worker containers retain their own workspace and user state.
 Remote providers are managed by the service; worker clients can select models and read status,
 but cannot mutate providers or start or revoke upstream authentication.
+
+## DeepSeek search
+
+Provider catalogs optionally advertise `webSearchBackend: "deepseek"` for official DeepSeek API-key providers. The absence of this field disables remote DeepSeek search, including on older services. This metadata contains no credentials and is carried through the worker's effective provider metadata and AppServer provider list.
+
+`POST tools/search` uses the existing provider HTTP transport, caller authorization, correlation context, timeout, cancellation, and observers. The service accepts it only for a configured official DeepSeek provider, independently of whether its model protocol is OpenAI or Anthropic. It maps the logical operation to `https://api.deepseek.com/v1/tools/search` and injects the provider's API key using Bearer authentication. Client authorization and Anthropic model authentication headers are never forwarded as search credentials. Search does not require a model, does not execute workspace tools, and never falls back to worker credentials. Other providers cannot use this operation.

@@ -103,6 +103,9 @@
     },
     "supportsImageGeneration": {
       "type": "boolean"
+    },
+    "webSearchBackend": {
+      "type": "string"
     }
   },
   "additionalProperties": true

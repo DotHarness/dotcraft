@@ -45,14 +45,37 @@
 | `Tools.Web.Timeout` | Web 请求超时时间（秒） | `30` |
 | `Tools.Web.MaxResponseBytes` | Web 抓取最多读取的字节数，超出部分会被截断 | `5000000` |
 | `Tools.Web.SearchMaxResults` | 联网搜索默认返回结果数 | `5` |
-| `Tools.Web.SearchProvider` | 搜索引擎提供商：`Bing` / `Exa` | `Exa` |
+| `Tools.Web.SearchProvider` | `Auto` / `Exa` / `Bing` / `DeepSeek` | `Auto` |
 | `Tools.Web.ExaApiKey` | 你的 Exa API Key。为空时读取 `EXA_API_KEY`，两者都没有时 Exa 搜索使用有频率限制的免费接口 | `""` |
+| `Tools.Web.DeepSeekCredentialSource` | `Provider` 复用已有提供商，`ApiKey` 使用独立搜索密钥 | `Provider` |
+| `Tools.Web.DeepSeekProvider` | 要复用的提供商 ID。为空时优先使用当前可用的提供商，否则使用唯一可用的 DeepSeek 提供商 | `""` |
+| `Tools.Web.DeepSeekApiKey` | `ApiKey` 模式下的独立搜索密钥。为空时读取 `DEEPSEEK_API_KEY` | `""` |
 
-在 Desktop 中，可以在 **设置 → 模型提供商 → 联网搜索** 中选择搜索服务并填写 Exa API Key。
+在 Desktop 的 **设置 → 模型提供商 → 联网搜索** 中选择搜索服务。自动模式在对话使用已认证的官方 DeepSeek 提供商时使用 DeepSeek，否则使用 Exa。除 ChatGPT 订阅对话外，明确选择的 Exa、Bing 或 DeepSeek 优先于自动选择。
+
+### 使用 DeepSeek 搜索
+
+选择 **DeepSeek**，即可为任意对话模型使用 DeepSeek 搜索。默认复用已有的 DeepSeek 提供商，无需重复填写 API Key。DotCraft 优先使用当前可用的提供商，否则使用唯一可用的提供商。有多个账号时，选择要使用的提供商。支持官方 DeepSeek 的 OpenAI 兼容和 Anthropic 兼容端点，第三方模型中转服务不适用。
+
+若要使用独立的搜索账号，选择 **独立 API Key** 并填写密钥，或设置 `DEEPSEEK_API_KEY`：
+
+```json
+{
+  "Tools": {
+    "Web": {
+      "SearchProvider": "DeepSeek",
+      "DeepSeekCredentialSource": "ApiKey",
+      "DeepSeekApiKey": "your-deepseek-api-key"
+    }
+  }
+}
+```
+
+远程模型服务声明支持 DeepSeek 搜索时，也会复用服务端的凭据。若提供商无法用于搜索，请升级服务。搜索调用单独计费，价格见 [DeepSeek 官方说明](https://api-docs.deepseek.com/zh-cn/guides/search/)。网页抓取仍由 DotCraft 直接下载网页。
 
 ### 使用 ChatGPT 订阅联网搜索
 
-当对话使用[通过 ChatGPT 登录](./models#使用-chatgpt-登录)的提供商时，联网搜索改由你的订阅自带的搜索服务完成，工具为 `web.run`，不再提供 `WebSearch`。它可以搜索、打开并阅读网页，查询金融、天气、体育和时间信息，回答中会引用所用的网页。`Tools.Web.SearchProvider`、`Tools.Web.ExaApiKey` 和 `Tools.Web.SearchMaxResults` 对它不生效。`WebFetch` 不受影响，继续使用上表中的配置。
+当对话使用[通过 ChatGPT 登录](./models#使用-chatgpt-登录)的提供商时，联网搜索改由你的订阅自带的搜索服务完成，工具为 `web.run`，不再提供 `WebSearch`。它可以搜索、打开并阅读网页，查询金融、天气、体育和时间信息，回答中会引用所用的网页。通用搜索服务、凭据和结果数量设置对它不生效。`WebFetch` 不受影响，继续使用上表中的配置。
 
 ## 工具结果
 

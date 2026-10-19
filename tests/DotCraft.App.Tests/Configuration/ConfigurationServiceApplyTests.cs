@@ -69,8 +69,10 @@ public sealed class ConfigurationServiceApplyTests
         Assert.False(fixture.Monitor.Current.InstantInterruptEnabled);
     }
 
-    [Fact]
-    public async Task Write_WebSearchSettings_RebuildsThreadAgents()
+    [Theory]
+    [InlineData("Bing", "Tools.Web.ExaApiKey")]
+    [InlineData("DeepSeek", "Tools.Web.DeepSeekApiKey")]
+    public async Task Write_WebSearchSettings_RebuildsThreadAgents(string provider, string keyPath)
     {
         using var fixture = new ConfigurationServiceFixture();
         IReadOnlyList<string>? keyPaths = null;
@@ -82,16 +84,16 @@ public sealed class ConfigurationServiceApplyTests
 
         await fixture.Service.WriteAsync(
             [
-                ConfigurationServiceFixture.Edit("Tools.Web.SearchProvider", "\"Bing\""),
-                ConfigurationServiceFixture.Edit("Tools.Web.ExaApiKey", "\"exa-test\"")
+                ConfigurationServiceFixture.Edit("Tools.Web.SearchProvider", $"\"{provider}\""),
+                ConfigurationServiceFixture.Edit(keyPath, "\"search-test\"")
             ],
             filePath: null,
             expectedVersion: null,
             source: "test");
 
         Assert.NotNull(keyPaths);
-        Assert.Equal(["Tools.Web.ExaApiKey", "Tools.Web.SearchProvider"], keyPaths.Order(StringComparer.Ordinal));
-        Assert.Equal("Bing", fixture.Monitor.Current.Tools.Web.SearchProvider);
+        Assert.Equal([keyPath, "Tools.Web.SearchProvider"], keyPaths.Order(StringComparer.Ordinal));
+        Assert.Equal(provider, fixture.Monitor.Current.Tools.Web.SearchProvider);
     }
 
     [Fact]

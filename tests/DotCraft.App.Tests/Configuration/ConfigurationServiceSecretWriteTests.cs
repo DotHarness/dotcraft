@@ -11,6 +11,7 @@ public sealed class ConfigurationServiceSecretWriteTests
 
     [Theory]
     [InlineData("DashBoard.Password")]
+    [InlineData("Tools.Web.DeepSeekApiKey")]
     [InlineData("AppServer.WebSocket.Token")]
     [InlineData("CLI.AppServerToken")]
     [InlineData("Acp.AppServerToken")]

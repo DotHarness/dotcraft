@@ -159,7 +159,8 @@ public sealed record EffectiveModelRuntime(
     string? ProviderStateDirectory = null,
     bool IsRemote = false,
     string? CallerNamespace = null,
-    DotCraft.Agents.ProviderRequestAdaptation? RequestAdaptation = null)
+    DotCraft.Agents.ProviderRequestAdaptation? RequestAdaptation = null,
+    string? WebSearchBackend = null)
 {
     public bool IsOpenAICompatible => ModelProviderProtocols.IsOpenAIProtocol(Protocol);
     public bool IsOpenAIResponses => ModelProviderProtocols.IsOpenAIResponses(Protocol);

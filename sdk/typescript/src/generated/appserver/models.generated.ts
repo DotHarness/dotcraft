@@ -3068,6 +3068,7 @@ export interface ProviderInfo {
   streamIdleTimeoutMs?: number | null;
   streamMaxRetries?: number | null;
   supportsImageGeneration?: boolean;
+  webSearchBackend?: string;
   [key: string]: unknown;
 }
 

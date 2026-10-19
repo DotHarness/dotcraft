@@ -43,6 +43,10 @@ public static class ModelServiceProviderCatalog
                 ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(runtime.EndPoint, model, thinkingCatalogPath),
                 ModelThinkingAdapterCatalog.ResolveAnthropicMessageContentAdapter(runtime.EndPoint, model, thinkingCatalogPath));
         }, StringComparer.OrdinalIgnoreCase);
-        return source.Description with { Models = models };
+        return source.Description with
+        {
+            Models = models,
+            WebSearchBackend = ProviderWebSearchBackend.Resolve(runtime.EndPoint, runtime.AuthMethod)
+        };
     }
 }

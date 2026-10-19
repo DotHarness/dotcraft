@@ -29,6 +29,7 @@ public static class ProviderContractMapper
             Protocol = protocol,
             ApiKey = string.IsNullOrWhiteSpace(provider.ApiKey) ? null : "********",
             HasApiKey = !string.IsNullOrWhiteSpace(provider.ApiKey),
+            WebSearchBackend = ModelProviderResolver.ResolveWebSearchBackend(provider) is { } backend ? backend : default(Protocol.Optional<string>),
             EndPoint = provider.EndPoint?.Trim() ?? string.Empty,
             NetworkTimeoutSeconds = provider.NetworkTimeoutSeconds,
             MaxOutputTokens = provider.MaxOutputTokens,

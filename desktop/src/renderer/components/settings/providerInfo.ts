@@ -20,6 +20,7 @@ export interface ProviderInfoWire {
   managedBy?: string
   isAuthenticated?: boolean
   hasApiKey: boolean
+  webSearchBackend?: string
   endPoint: string
   networkTimeoutSeconds?: number | null
   supportsImageGeneration?: boolean
@@ -47,6 +48,7 @@ export function normalizeProviderList(value: unknown): ProviderInfoWire[] {
         managedBy: raw.managedBy,
         isAuthenticated: raw.isAuthenticated,
         hasApiKey: raw.hasApiKey === true,
+        webSearchBackend: typeof raw.webSearchBackend === 'string' ? raw.webSearchBackend : undefined,
         endPoint: typeof raw.endPoint === 'string' ? raw.endPoint : '',
         networkTimeoutSeconds:
           typeof raw.networkTimeoutSeconds === 'number' && Number.isFinite(raw.networkTimeoutSeconds)

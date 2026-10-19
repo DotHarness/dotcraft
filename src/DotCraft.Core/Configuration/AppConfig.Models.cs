@@ -23,6 +23,9 @@ public sealed partial class AppConfig
         public ProviderAuthenticationStatus? RemoteAuthentication { get; set; }
 
         [JsonIgnore]
+        public string? RemoteWebSearchBackend { get; set; }
+
+        [JsonIgnore]
         public IReadOnlyDictionary<string, ProviderRequestAdaptation>? RemoteModels { get; set; }
 
         public string DisplayName { get; set; } = string.Empty;
@@ -62,6 +65,7 @@ public sealed partial class AppConfig
         public ModelProviderConfig Clone() => new()
         {
             RemoteAuthentication = RemoteAuthentication,
+            RemoteWebSearchBackend = RemoteWebSearchBackend,
             RemoteModels = RemoteModels,
             DisplayName = DisplayName,
             Protocol = Protocol,

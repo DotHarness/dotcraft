@@ -45,14 +45,37 @@ Background commands, subagents, and workflows report back to the agent when they
 | `Tools.Web.Timeout` | Web request timeout in seconds | `30` |
 | `Tools.Web.MaxResponseBytes` | Max bytes read from a fetched page; longer pages are truncated | `5000000` |
 | `Tools.Web.SearchMaxResults` | Default search result count | `5` |
-| `Tools.Web.SearchProvider` | `Bing` / `Exa` | `Exa` |
+| `Tools.Web.SearchProvider` | `Auto` / `Exa` / `Bing` / `DeepSeek` | `Auto` |
 | `Tools.Web.ExaApiKey` | Your Exa API key; empty uses `EXA_API_KEY`, and without either Exa search uses the free, rate-limited endpoint | `""` |
+| `Tools.Web.DeepSeekCredentialSource` | `Provider` reuses an existing provider. `ApiKey` uses an independent search key | `Provider` |
+| `Tools.Web.DeepSeekProvider` | Provider id to reuse. Empty prefers the current eligible provider, then the only available DeepSeek provider | `""` |
+| `Tools.Web.DeepSeekApiKey` | Independent search key in `ApiKey` mode. Empty reads `DEEPSEEK_API_KEY` | `""` |
 
-In Desktop, choose the search service and enter your Exa API key under **Settings → Model providers → Web search**.
+In Desktop, choose a search service under **Settings → Model providers → Web search**. Automatic mode uses DeepSeek when the conversation uses an authenticated official DeepSeek provider, and Exa otherwise. An explicit Exa, Bing, or DeepSeek selection takes precedence outside ChatGPT subscription conversations.
+
+### Search with DeepSeek
+
+Select **DeepSeek** to use its search with any conversation model. By default, DotCraft reuses your existing DeepSeek provider without asking for its API key again. It prefers the current eligible provider, or the only available provider. Select a provider when you have multiple accounts. Providers using the official OpenAI-compatible or Anthropic-compatible DeepSeek endpoint are supported. Third-party model gateways do not qualify.
+
+For an independent search account, select **Independent API key** and enter its key or set `DEEPSEEK_API_KEY`:
+
+```json
+{
+  "Tools": {
+    "Web": {
+      "SearchProvider": "DeepSeek",
+      "DeepSeekCredentialSource": "ApiKey",
+      "DeepSeekApiKey": "your-deepseek-api-key"
+    }
+  }
+}
+```
+
+Remote model service providers also reuse their server-side credentials when the service advertises DeepSeek search support. Upgrade the service if the provider is unavailable for search. Search calls are billed separately according to [DeepSeek pricing](https://api-docs.deepseek.com/zh-cn/guides/search/). Web fetch continues to download pages directly.
 
 ### Web search with a ChatGPT subscription
 
-When the conversation uses a provider that [signs in with ChatGPT](./models#sign-in-with-chatgpt), web search runs through your subscription's search service as the `web.run` tool instead of `WebSearch`. It can search, open and read pages, and look up finance, weather, sports, and time data, and the answer cites the pages it used. `Tools.Web.SearchProvider`, `Tools.Web.ExaApiKey`, and `Tools.Web.SearchMaxResults` do not apply to it. `WebFetch` is unchanged and keeps using the settings above.
+When the conversation uses a provider that [signs in with ChatGPT](./models#sign-in-with-chatgpt), web search runs through your subscription's search service as the `web.run` tool instead of `WebSearch`. It can search, open and read pages, and look up finance, weather, sports, and time data, and the answer cites the pages it used. The generic search provider, credential, and result-count settings do not apply to it. `WebFetch` is unchanged and keeps using the settings above.
 
 ## Tool results
 
