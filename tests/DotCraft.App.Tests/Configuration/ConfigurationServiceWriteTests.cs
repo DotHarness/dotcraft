@@ -140,6 +140,22 @@ public sealed class ConfigurationServiceWriteTests
     }
 
     [Fact]
+    public async Task Write_EmptySearchProviderOverridesInheritedAccountAfterReload()
+    {
+        using var fixture = new ConfigurationServiceFixture(user: """
+            { "Tools": { "Web": { "DeepSeekProvider": "inherited-account" } } }
+            """);
+
+        Assert.Equal("inherited-account", fixture.Monitor.Current.Tools.Web.DeepSeekProvider);
+        var result = await fixture.WriteAsync("Tools.Web.DeepSeekProvider", "\"\"");
+
+        Assert.Equal(ConfigWriteStatus.Ok, result.Status);
+        Assert.Empty(ConfigurationServiceFixture.ReadFile(fixture.WorkspacePath)["Tools"]!["Web"]!["DeepSeekProvider"]!.GetValue<string>());
+        Assert.Equal("inherited-account", ConfigurationServiceFixture.ReadFile(fixture.UserPath)["Tools"]!["Web"]!["DeepSeekProvider"]!.GetValue<string>());
+        Assert.Empty(AppConfig.LoadWithGlobalFallback(fixture.WorkspacePath, fixture.UserPath).Tools.Web.DeepSeekProvider);
+    }
+
+    [Fact]
     public async Task Write_UpsertDeepMergesObject_ReplaceSetsWholeValue()
     {
         using var fixture = new ConfigurationServiceFixture(workspace: """

@@ -159,7 +159,7 @@ export function WebSearchSettingsGroup({
                     options={providerOptions}
                     disabled={provider.pending || providersLoading}
                     ariaLabel={t('settings.llm.webSearch.deepSeekProvider')}
-                    onValueChange={(value) => void provider.set(value || null)}
+                    onValueChange={(value) => void provider.set(value)}
                   />
                 </div>
               }

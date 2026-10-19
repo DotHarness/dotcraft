@@ -59,6 +59,18 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('web search configuration', () => {
+  it('overrides an inherited provider with an explicit automatic selection', () => {
+    config.values['Tools.Web.DeepSeekProvider'] = 'inherited-account'
+    render(<WebSearchSettingsGroup providers={[]} providersLoading={false} />)
+
+    fireEvent.change(
+      screen.getByLabelText('settings.llm.webSearch.deepSeekProvider'),
+      { target: { value: '' } }
+    )
+
+    expect(config.write).toHaveBeenCalledWith('Tools.Web.DeepSeekProvider', '')
+  })
+
   it('saves provider reuse without asking for a duplicate key', () => {
     render(
       <WebSearchSettingsGroup
