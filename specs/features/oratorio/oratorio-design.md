@@ -848,10 +848,15 @@ Managed worktrees and concurrency:
   run executes in the managed worktree.
 - If the base checkout is missing or not a Git repository, preparation fails
   clearly; Oratorio never silently runs against a shared workspace.
-- Fetching a review target that the checkout lacks uses the same Oratorio
-  source credentials as writes (§5.2). Without a configured credential the
-  fetch is anonymous and works only for public repositories; otherwise
-  preparation fails and names the missing credential.
+- Review preparation uses the run's frozen `TargetHeadSha`, not the source
+  item's latest head. A missing review target SHA fails preparation. If the
+  commit is absent locally, Oratorio fetches that exact SHA from origin and
+  creates the worktree at that commit, independently of provider review refs
+  and `FETCH_HEAD`.
+- Fetching a target commit uses the same Oratorio source credentials as
+  writes (§5.2). Without a configured credential the fetch is anonymous and
+  works only for public repositories. Private repository fetch failures name
+  the missing credential.
 - Each work item has a deterministic worktree and branch, so later rounds can
   reuse a clean, valid worktree. Worktrees live under the configured managed
   root, inside the repository by default, and branches use the configured
@@ -874,6 +879,9 @@ Managed worktrees and concurrency:
   attempts setting counts the initial run. Intermediate failures keep the round
   and the source review gate pending; only success or exhausted retries
   complete the gate.
+- Target commit fetch failures use `reviewTargetFetchFailed` and participate
+  in that same bounded run retry policy. Each attempt fetches at most once.
+  Automatic-review deduplication remains in effect after retries are exhausted.
 - A queued review retry stays bound to its head commit. If sync sees a new head
   before the retry starts, Oratorio cancels the queued run as superseded, marks
   the round superseded, closes the old head's gate, and leaves the new head

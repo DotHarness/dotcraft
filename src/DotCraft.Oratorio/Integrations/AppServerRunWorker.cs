@@ -16,7 +16,7 @@ using DotCraft.Oratorio.Services;
 
 namespace DotCraft.Oratorio.Integrations;
 
-public sealed class AppServerRunWorker(
+public sealed partial class AppServerRunWorker(
     IServiceScopeFactory scopeFactory,
     IClock clock,
     IDotCraftAppServerProcessManager processManager,
@@ -700,77 +700,6 @@ public sealed class AppServerRunWorker(
             _ => reasonMessage
         };
 
-    private async Task<string> PrepareExecutionWorkspaceAsync(string runId, string baseWorkspacePath, CancellationToken ct)
-    {
-        if (!options.CurrentValue.ManagedWorktreesEnabled)
-        {
-            await MarkWorktreeNotRequiredAsync(runId, baseWorkspacePath, ct);
-            return baseWorkspacePath;
-        }
-
-        WorktreePrepareRequest request;
-        using (var scope = scopeFactory.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-            var run = await LoadRunAsync(db, runId, ct);
-            var now = clock.UtcNow;
-            run.BaseWorkspacePath = baseWorkspacePath;
-            run.WorktreeStatus = WorktreeStatus.Preparing;
-            run.WorktreeErrorCode = null;
-            run.WorktreeErrorMessage = null;
-            run.ProgressPercent = Math.Max(run.ProgressPercent, 8);
-            run.StatusMessage = "Preparing managed Git worktree.";
-            run.LastHeartbeatAt = now;
-            run.Item!.UpdatedAt = now;
-            await db.SaveChangesAsync(ct);
-
-            var item = run.Item;
-            string? stackOntoBranch = null;
-            string? stackOntoSha = null;
-            if (run.Purpose == RunPurpose.Implementation && run.DispatchTrigger == RunDispatchTrigger.AutoFollowUp)
-            {
-                var generatedPr = await db.Items.AsNoTracking()
-                    .Where(x =>
-                        x.ParentItemId == item.ItemId &&
-                        x.Kind == ItemKind.PullRequest &&
-                        (x.Source == "github" || x.Source == "gitlab") &&
-                        x.SourceState == SourceState.Open)
-                    .OrderByDescending(x => x.CreatedAt)
-                    .FirstOrDefaultAsync(ct);
-                if (generatedPr is not null)
-                {
-                    stackOntoBranch = generatedPr.Branch;
-                    stackOntoSha = generatedPr.HeadSha;
-                }
-            }
-
-            request = new WorktreePrepareRequest(
-                run.RunId,
-                item.ItemId,
-                item.Source,
-                item.ExternalId,
-                item.Repository,
-                item.Branch,
-                item.HeadSha,
-                baseWorkspacePath,
-                stackOntoBranch,
-                stackOntoSha,
-                await ResolveWorktreeFetchRefAsync(db, run, ct));
-        }
-
-        try
-        {
-            var result = await worktreeManager.PrepareAsync(request, ct);
-            await MarkWorktreeReadyAsync(runId, result, ct);
-            return result.WorktreePath;
-        }
-        catch (WorktreeException ex)
-        {
-            await MarkWorktreeFailedAsync(runId, baseWorkspacePath, ex.Code, ex.Message, ct);
-            throw;
-        }
-    }
-
     private async Task<OratorioDynamicToolSet> BuildDynamicToolSetAsync(string runId, CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
@@ -924,72 +853,6 @@ public sealed class AppServerRunWorker(
         {
             return false;
         }
-    }
-
-    private async Task MarkWorktreeNotRequiredAsync(string runId, string baseWorkspacePath, CancellationToken ct)
-    {
-        using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-        var run = await LoadRunAsync(db, runId, ct);
-        if (IsTerminal(run.Status))
-        {
-            return;
-        }
-
-        run.BaseWorkspacePath = baseWorkspacePath;
-        run.WorktreeStatus = WorktreeStatus.NotRequired;
-        run.LastHeartbeatAt = clock.UtcNow;
-        await db.SaveChangesAsync(ct);
-    }
-
-    private async Task MarkWorktreeReadyAsync(string runId, WorktreePrepareResult result, CancellationToken ct)
-    {
-        using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-        var run = await LoadRunAsync(db, runId, ct);
-        if (IsTerminal(run.Status))
-        {
-            return;
-        }
-
-        var now = clock.UtcNow;
-        run.BaseWorkspacePath = result.BaseWorkspacePath;
-        run.WorktreePath = result.WorktreePath;
-        run.WorktreeBranch = result.WorktreeBranch;
-        run.BaseRef = result.BaseRef;
-        run.BaseSha = result.BaseSha;
-        run.WorktreeStatus = WorktreeStatus.Ready;
-        run.WorktreeErrorCode = null;
-        run.WorktreeErrorMessage = null;
-        run.ProgressPercent = Math.Max(run.ProgressPercent, 15);
-        run.StatusMessage = "Managed Git worktree is ready.";
-        run.LastHeartbeatAt = now;
-        run.Item!.UpdatedAt = now;
-        AddTimeline(run, TimelineEventKind.RunStarted, ActorKind.System, "oratorio/worktree", "Managed worktree ready", result.WorktreePath, now);
-        await db.SaveChangesAsync(ct);
-    }
-
-    private async Task MarkWorktreeFailedAsync(string runId, string baseWorkspacePath, string code, string message, CancellationToken ct)
-    {
-        using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-        var run = await LoadRunAsync(db, runId, ct);
-        if (IsTerminal(run.Status))
-        {
-            return;
-        }
-
-        var now = clock.UtcNow;
-        run.BaseWorkspacePath = baseWorkspacePath;
-        run.WorktreeStatus = WorktreeStatus.Failed;
-        run.WorktreeErrorCode = code;
-        run.WorktreeErrorMessage = message;
-        run.ProgressPercent = 100;
-        run.StatusMessage = message;
-        run.LastHeartbeatAt = now;
-        run.Item!.UpdatedAt = now;
-        AddTimeline(run, TimelineEventKind.RunFailed, ActorKind.System, "oratorio/worktree", "Managed worktree preparation failed", message, now);
-        await db.SaveChangesAsync(ct);
     }
 
     private async Task MarkDispatchingAsync(string runId, string endpoint, string appServerIdentity, CancellationToken ct)
@@ -1390,8 +1253,8 @@ public sealed class AppServerRunWorker(
                 "appServerFailed" or
                 "appServerTimedOut" or
                 "appServerStalled" or
-                "appServerRunnerInterrupted" or
-                "gitCommandFailed" ||
+                "appServerRunnerInterrupted" ||
+            IsTransientPreparationError(errorCode) ||
             (RequiresReviewDraft(run) && IsReviewThreadRecoveryError(errorCode));
     }
 
@@ -1405,7 +1268,7 @@ public sealed class AppServerRunWorker(
         string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
 
     private static bool IsTransientPreparationError(string code) =>
-        code is "gitCommandFailed";
+        code is "gitCommandFailed" or "reviewTargetFetchFailed";
 
     private async Task ConsumeNotificationsAsync(string runId, IDotCraftAppServerClient client, string threadId, CancellationToken ct)
     {
@@ -1787,79 +1650,6 @@ public sealed class AppServerRunWorker(
 
     private static bool IsTerminal(RunStatus status) =>
         status is RunStatus.Succeeded or RunStatus.Failed or RunStatus.Cancelled or RunStatus.TimedOut;
-
-    private static async Task<string?> ResolveWorktreeFetchRefAsync(OratorioDbContext db, OratorioRun run, CancellationToken ct)
-    {
-        var item = run.Item;
-        if (item is null || string.IsNullOrWhiteSpace(item.HeadSha))
-        {
-            return null;
-        }
-
-        if (run.Purpose == RunPurpose.ReviewAnalysis && item.Kind == ItemKind.PullRequest)
-        {
-            return ResolveReviewTargetFetchRef(item.Source, item.ExternalId);
-        }
-
-        if (item.Kind != ItemKind.LocalTask ||
-            string.IsNullOrWhiteSpace(item.ParentItemId) ||
-            string.IsNullOrWhiteSpace(item.GeneratedFromDraftId))
-        {
-            return null;
-        }
-
-        var parent = await db.Items.AsNoTracking()
-            .Where(x => x.ItemId == item.ParentItemId)
-            .Select(x => new
-            {
-                x.Source,
-                x.ExternalId,
-                x.Kind,
-                x.Repository,
-                x.HeadSha
-            })
-            .FirstOrDefaultAsync(ct);
-
-        if (parent is null ||
-            parent.Kind != ItemKind.PullRequest ||
-            !SameRepository(parent.Repository, item.Repository) ||
-            !string.Equals(NullIfWhiteSpace(parent.HeadSha), NullIfWhiteSpace(item.HeadSha), StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return ResolveReviewTargetFetchRef(parent.Source, parent.ExternalId);
-    }
-
-    private static string? ResolveReviewTargetFetchRef(string source, string externalId)
-    {
-        if (source == "github" && TryParseSourceNumber(externalId, '#', out var pullRequestNumber))
-        {
-            return $"refs/pull/{pullRequestNumber}/head";
-        }
-
-        if (source == "gitlab" && TryParseSourceNumber(externalId, '!', out var mergeRequestIid))
-        {
-            return $"refs/merge-requests/{mergeRequestIid}/head";
-        }
-
-        return null;
-    }
-
-    private static bool SameRepository(string? left, string? right) =>
-        !string.IsNullOrWhiteSpace(left) &&
-        !string.IsNullOrWhiteSpace(right) &&
-        string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
-
-    private static string? NullIfWhiteSpace(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static bool TryParseSourceNumber(string externalId, char marker, out int number)
-    {
-        number = 0;
-        var index = externalId.LastIndexOf(marker);
-        return index >= 0 && int.TryParse(externalId[(index + 1)..], out number);
-    }
 
     private static bool SamePath(string? left, string? right)
     {

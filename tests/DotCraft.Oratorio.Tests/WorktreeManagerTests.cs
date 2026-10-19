@@ -8,7 +8,7 @@ namespace DotCraft.Oratorio.Tests;
 public sealed class WorktreeManagerTests
 {
     [Fact]
-    public async Task PrepareAsync_GitHubPullRequestFetchesProviderHeadRef_WhenLocalShaIsMissing()
+    public async Task PrepareAsync_GitHubPullRequestFetchesExactCommit_WhenLocalShaIsMissing()
     {
         var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: true, mismatchReviewRef: false);
         try
@@ -24,8 +24,7 @@ public sealed class WorktreeManagerTests
                 "example-owner/oratorio",
                 "feature/review-target",
                 repository.ExpectedHeadSha,
-                repository.CheckoutPath,
-                ReviewTargetFetchRef: "refs/pull/184/head"), CancellationToken.None);
+                repository.CheckoutPath), CancellationToken.None);
 
             Assert.Equal(repository.ExpectedHeadSha, result.BaseRef);
             Assert.Equal(repository.ExpectedHeadSha, result.BaseSha);
@@ -38,7 +37,7 @@ public sealed class WorktreeManagerTests
     }
 
     [Fact]
-    public async Task PrepareAsync_GitLabMergeRequestFetchesProviderHeadRef_WhenLocalShaIsMissing()
+    public async Task PrepareAsync_GitLabMergeRequestFetchesExactCommit_WhenLocalShaIsMissing()
     {
         var repository = await CreateReviewTargetRepositoryAsync("refs/merge-requests/7/head", pushReviewRef: true, mismatchReviewRef: false);
         try
@@ -54,8 +53,7 @@ public sealed class WorktreeManagerTests
                 "gitlab:gitlab.example.test/group/project",
                 "feature/review-target",
                 repository.ExpectedHeadSha,
-                repository.CheckoutPath,
-                ReviewTargetFetchRef: "refs/merge-requests/7/head"), CancellationToken.None);
+                repository.CheckoutPath), CancellationToken.None);
 
             Assert.Equal(repository.ExpectedHeadSha, result.BaseRef);
             Assert.Equal(repository.ExpectedHeadSha, result.BaseSha);
@@ -68,7 +66,7 @@ public sealed class WorktreeManagerTests
     }
 
     [Fact]
-    public async Task PrepareAsync_ReviewTargetFetchRefMissing_FailsWithStableCode()
+    public async Task PrepareAsync_TargetCommitMissing_FailsWithStableCode()
     {
         var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: false, mismatchReviewRef: false);
         try
@@ -82,8 +80,7 @@ public sealed class WorktreeManagerTests
                 "example-owner/oratorio",
                 "feature/review-target",
                 repository.ExpectedHeadSha,
-                repository.CheckoutPath,
-                ReviewTargetFetchRef: "refs/pull/184/head"), CancellationToken.None));
+                repository.CheckoutPath), CancellationToken.None));
 
             Assert.Equal("reviewTargetFetchFailed", error.Code);
         }
@@ -94,26 +91,27 @@ public sealed class WorktreeManagerTests
     }
 
     [Fact]
-    public async Task PrepareAsync_ReviewTargetFetchRefMismatch_FailsWithStableCode()
+    public async Task PrepareAsync_FetchesExactCommit_WhenPullRequestRefIsStale()
     {
         var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: true, mismatchReviewRef: true);
         try
         {
+            Assert.False(await GitSucceedsAsync(repository.CheckoutPath, ["cat-file", "-e", $"{repository.ExpectedHeadSha}^{{commit}}"]));
             var manager = CreateManager(repository.Root);
-            var error = await Assert.ThrowsAsync<WorktreeException>(() => manager.PrepareAsync(new WorktreePrepareRequest(
-                "run-mismatched-pr-ref",
-                "item-mismatched-pr-ref",
+            var result = await manager.PrepareAsync(new WorktreePrepareRequest(
+                "run-stale-pr-ref",
+                "item-stale-pr-ref",
                 "github",
                 "pr:example-owner/oratorio#184",
                 "example-owner/oratorio",
-                "feature/review-target",
+                "review-target",
                 repository.ExpectedHeadSha,
-                repository.CheckoutPath,
-                ReviewTargetFetchRef: "refs/pull/184/head"), CancellationToken.None));
+                repository.CheckoutPath), CancellationToken.None);
 
-            Assert.Equal("reviewTargetHeadUnresolved", error.Code);
-            Assert.Contains(repository.ExpectedHeadSha, error.Message, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains(repository.MismatchedHeadSha, error.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(repository.ExpectedHeadSha, result.BaseSha);
+            Assert.Equal(repository.ExpectedHeadSha, (await GitAsync(result.WorktreePath, ["rev-parse", "HEAD"])).Trim());
+            Assert.Equal(repository.MismatchedHeadSha, (await GitAsync(Path.Combine(repository.Root, "remote.git"),
+                ["rev-parse", "refs/pull/184/head"])).Trim());
         }
         finally
         {
@@ -138,8 +136,7 @@ public sealed class WorktreeManagerTests
                 "example-owner/oratorio",
                 "feature/review-target",
                 repository.ExpectedHeadSha,
-                repository.CheckoutPath,
-                ReviewTargetFetchRef: "refs/pull/184/head"), CancellationToken.None);
+                repository.CheckoutPath), CancellationToken.None);
 
             Assert.Equal(("github", "example-owner/oratorio"), credentials.RequestedItem);
         }
@@ -168,8 +165,7 @@ public sealed class WorktreeManagerTests
                 "example-owner/oratorio",
                 "feature/review-target",
                 repository.ExpectedHeadSha,
-                repository.CheckoutPath,
-                ReviewTargetFetchRef: "refs/pull/184/head"), CancellationToken.None);
+                repository.CheckoutPath), CancellationToken.None);
 
             Assert.Equal(repository.ExpectedHeadSha, result.BaseSha);
             Assert.Equal(repository.ExpectedHeadSha, (await GitAsync(result.WorktreePath, ["rev-parse", "HEAD"])).Trim());
@@ -199,8 +195,7 @@ public sealed class WorktreeManagerTests
                 "example-owner/oratorio",
                 "feature/review-target",
                 repository.ExpectedHeadSha,
-                repository.CheckoutPath,
-                ReviewTargetFetchRef: "refs/pull/184/head"), CancellationToken.None);
+                repository.CheckoutPath), CancellationToken.None);
 
             Assert.Equal(repository.ExpectedHeadSha, result.BaseSha);
         }
@@ -225,8 +220,7 @@ public sealed class WorktreeManagerTests
                 "example-owner/oratorio",
                 "feature/review-target",
                 repository.ExpectedHeadSha,
-                repository.CheckoutPath,
-                ReviewTargetFetchRef: "refs/pull/184/head"), CancellationToken.None));
+                repository.CheckoutPath), CancellationToken.None));
 
             Assert.Equal("reviewTargetFetchFailed", error.Code);
             Assert.Contains("No source credentials were available", error.Message, StringComparison.Ordinal);
@@ -304,6 +298,7 @@ public sealed class WorktreeManagerTests
         await GitAsync(sourcePath, ["push", "origin", "main"]);
         if (pushReviewRef)
         {
+            await GitAsync(sourcePath, ["push", "origin", "review-target"]);
             var reviewSha = mismatchReviewRef ? mismatchedHeadSha : expectedHeadSha;
             await GitAsync(sourcePath, ["push", "origin", $"{reviewSha}:{reviewRef}"]);
         }
