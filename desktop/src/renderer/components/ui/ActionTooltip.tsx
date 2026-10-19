@@ -26,6 +26,7 @@ interface ActionTooltipProps {
   placement?: TooltipPlacement
   disabledReason?: string
   multiline?: boolean
+  detail?: string
   children: ReactNode
   wrapperClassName?: string
   wrapperStyle?: CSSProperties
@@ -47,6 +48,7 @@ export function ActionTooltip({
   placement = 'top',
   disabledReason,
   multiline = false,
+  detail,
   children,
   wrapperClassName,
   wrapperStyle
@@ -55,6 +57,7 @@ export function ActionTooltip({
   const { visible, anchorRef, overlayRef, open, hide } = useTransientOverlay<HTMLSpanElement, HTMLDivElement>()
   const [position, setPosition] = useState<TooltipPosition>({ left: 0, top: 0 })
   const tooltipLabel = disabledReason || label
+  const tooltipDetail = disabledReason ? undefined : detail
   const shown = visible && tooltipLabel.trim() !== ''
   const child = Children.only(children)
   const describedChild = isValidElement(child)
@@ -71,7 +74,7 @@ export function ActionTooltip({
 
     const tooltipRect = tooltip.getBoundingClientRect()
     setPosition(placeTooltip(anchorRect(anchor), tooltipRect, placement))
-  }, [shown, placement, tooltipLabel, shortcut, alternateShortcuts])
+  }, [shown, placement, tooltipLabel, tooltipDetail, shortcut, alternateShortcuts])
 
   const shortcutGroups = !disabledReason ? [shortcut, ...(alternateShortcuts ?? [])].filter(Boolean) as ShortcutSpec[] : []
 
@@ -93,7 +96,11 @@ export function ActionTooltip({
           id={tooltipId}
           ref={overlayRef}
           role="tooltip"
-          className={multiline ? 'dc-action-tooltip dc-action-tooltip--multiline' : 'dc-action-tooltip'}
+          className={[
+            'dc-action-tooltip',
+            multiline && 'dc-action-tooltip--multiline',
+            tooltipDetail && 'dc-action-tooltip--detail'
+          ].filter(Boolean).join(' ')}
           data-multiline={multiline ? 'true' : undefined}
           style={{
             position: 'fixed',
@@ -105,6 +112,7 @@ export function ActionTooltip({
           }}
         >
           <span className="dc-action-tooltip__label">{tooltipLabel}</span>
+          {tooltipDetail && <span className="dc-action-tooltip__detail">{tooltipDetail}</span>}
           {shortcutGroups.length > 0 && (
             <span aria-hidden="true" className="dc-action-tooltip__shortcuts">
               {shortcutGroups.map((shortcutGroup, index) => (

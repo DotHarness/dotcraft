@@ -316,6 +316,40 @@ public sealed class MarketplaceManagerTests
     }
 
     [Fact]
+    public async Task Discovery_KeepsMarketplaceOnManagedInstallOnly()
+    {
+        var craftHome = NewTempDir();
+        var manager = NewManager(craftHome, new FakeGitFetcher(root =>
+        {
+            WriteMarketplace(root, "example-marketplace", plugins: ["example-plugin", "owned-plugin"]);
+            WritePlugin(Path.Combine(root, "plugins", "example-plugin"), "example-plugin");
+            WritePlugin(Path.Combine(root, "plugins", "owned-plugin"), "owned-plugin");
+        }));
+        await manager.AddAsync(new MarketplaceAddRequest("owner/repo"), CancellationToken.None);
+
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.AddRange(
+            PluginsConfigPersistence.ReadPluginRegistries(ConfigPath(craftHome)));
+        var userPlugins = Path.Combine(craftHome, "plugins");
+        Assert.DoesNotContain(
+            new BuiltInPluginDeployer(userPlugins, [], config.Plugins, craftHome).DeployPlugin("example-plugin"),
+            diagnostic => diagnostic.Severity == PluginDiagnosticSeverity.Error);
+        WritePlugin(Path.Combine(userPlugins, "owned-plugin"), "owned-plugin");
+        var workspace = NewTempDir();
+
+        var plugins = new PluginDiscoveryService(userPlugins, [], craftHome)
+            .DiscoverAll(config, workspace, Path.Combine(workspace, ".craft"))
+            .Plugins;
+
+        var installed = Assert.Single(plugins, plugin => plugin.Manifest.Id == "example-plugin");
+        Assert.True(installed.Installed);
+        Assert.Equal("example-marketplace", installed.MarketplaceName);
+        var owned = Assert.Single(plugins, plugin => plugin.Manifest.Id == "owned-plugin");
+        Assert.True(owned.Installed);
+        Assert.Null(owned.MarketplaceName);
+    }
+
+    [Fact]
     public void Discovery_ReportsMissingMaterializedRootInsteadOfFetching()
     {
         var craftHome = NewTempDir();

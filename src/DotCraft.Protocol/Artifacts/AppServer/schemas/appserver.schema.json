@@ -8499,6 +8499,16 @@
             }
           ]
         },
+        "marketplacePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "name": {
           "type": "string"
         },

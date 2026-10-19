@@ -133,10 +133,22 @@ public sealed class PluginDiscoveryService(
         diagnostics.AddRange(builtInDiscovery.Diagnostics);
         foreach (var builtIn in builtInDiscovery.Plugins)
         {
-            if (!seen.Add(builtIn.Manifest.Id))
+            if (seen.Add(builtIn.Manifest.Id))
+            {
+                discovered.Add(builtIn);
                 continue;
+            }
 
-            discovered.Add(builtIn);
+            if (builtIn.MarketplaceName == null)
+                continue;
+            var index = discovered.FindIndex(plugin =>
+                string.Equals(plugin.Manifest.Id, builtIn.Manifest.Id, StringComparison.OrdinalIgnoreCase));
+            if (index >= 0
+                && discovered[index].SourceKind == PluginDiscoverySourceKind.UserGlobal
+                && BuiltInPluginDeployer.IsManagedBuiltInPluginRoot(discovered[index].Manifest.RootPath))
+            {
+                discovered[index] = discovered[index] with { MarketplaceName = builtIn.MarketplaceName };
+            }
         }
 
         return new PluginDiscoveryResult(

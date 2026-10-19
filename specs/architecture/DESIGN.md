@@ -432,6 +432,14 @@ View-level color assignment stays neutral:
   the workspace are `Installed in <workspace>`, because that group is the state
   that changes with the workspace. The band's tabs and breadcrumb and the hero above the search
   row never carry workspace scope.
+- A plugin from a marketplace the user added carries an origin mark right after
+  its name, in its catalog row and on its detail page: `GitBranch` for a Git
+  marketplace, `FolderClosed` for a local one, `FileArchive` for an archive, in
+  secondary text at 14px in a row and 18px beside the detail title. Its tooltip
+  names the marketplace (`From the <name> Git marketplace`, `From <name>`), and a
+  local one adds its marketplace document path as a muted second line. The
+  host-provided default marketplace, bundled plugins, and user-owned installs
+  carry no mark.
 - Catalog browse and manage pages separate their controls and groups with space
   and heading weight, not with rules: no rule under the hero/search header or
   manage toolbar, and none above a group. A rule above the first group is a frame

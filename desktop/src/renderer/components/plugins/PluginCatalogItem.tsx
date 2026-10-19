@@ -5,6 +5,7 @@ import { styles as catalogStyles } from '../catalog/CatalogSurface'
 import { Button } from '../ui/Button'
 import { IdentityMark, type IdentityMarkRole } from '../ui/IdentityMark'
 import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
+import { PluginOriginBadge } from './PluginOriginBadge'
 
 export function PluginCatalogItem({
   plugin,
@@ -50,7 +51,10 @@ export function PluginCatalogItem({
     >
       <PluginIcon plugin={plugin} role="list" />
       <span style={pluginText}>
-        <strong style={catalogStyles.rowTitle}>{pluginTitle(plugin)}</strong>
+        <span style={catalogStyles.rowTitleLine}>
+          <strong style={catalogStyles.rowTitle}>{pluginTitle(plugin)}</strong>
+          <PluginOriginBadge plugin={plugin} />
+        </span>
         <span style={catalogStyles.rowDesc}>{pluginSubtitle(plugin)}</span>
       </span>
       <span style={catalogStyles.statusIcon}>
