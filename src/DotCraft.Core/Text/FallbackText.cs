@@ -89,27 +89,24 @@ public static class FallbackText
     public static string CommandHelpAdminSuffix => Format("command.help.admin_suffix");
 
     // Auth commands
-    public static string AuthOpenAiLoginStarting => Format("auth.openai.login.starting");
-    public static string AuthOpenAiLoginUrl(string url) => Format("auth.openai.login.url", url);
-    public static string AuthOpenAiLoginWaiting(int port) => Format("auth.openai.login.waiting", port);
-    public static string AuthOpenAiLoginSuccess(string account, string plan) => Format("auth.openai.login.success", account, plan);
-    public static string AuthOpenAiLoginCancelled => Format("auth.openai.login.cancelled");
-    public static string AuthOpenAiLoginFailed(string reason) => Format("auth.openai.login.failed", reason);
-    public static string AuthOpenAiLoginBound(string providerId) => Format("auth.openai.login.bound", providerId);
-    public static string AuthOpenAiLogoutSuccess => Format("auth.openai.logout.success");
-    public static string AuthOpenAiLogoutUnbound(string providerId) => Format("auth.openai.logout.unbound", providerId);
-    public static string AuthOpenAiStatusSignedIn(string account, string plan, string lastRefresh)
-        => Format("auth.openai.status.signed_in", account, plan, lastRefresh);
-    public static string AuthOpenAiStatusSignedOut => Format("auth.openai.status.signed_out");
-    public static string AuthOpenAiUsageHeader => Format("auth.openai.usage.header");
-    public static string AuthOpenAiUsageWindowFiveHour => Format("auth.openai.usage.window.fiveHour");
-    public static string AuthOpenAiUsageWindowWeekly => Format("auth.openai.usage.window.weekly");
-    public static string AuthOpenAiUsageWindowPrimary => Format("auth.openai.usage.window.primary");
-    public static string AuthOpenAiUsageWindowSecondary => Format("auth.openai.usage.window.secondary");
-    public static string AuthOpenAiUsageUnavailable(string reason) => Format("auth.openai.usage.unavailable", reason);
-    public static string AuthOpenAiUsageCreditsBalance(string balance) => Format("auth.openai.usage.credits.balance", balance);
-    public static string AuthOpenAiUsageCreditsUnlimited => Format("auth.openai.usage.credits.unlimited");
-    public static string AuthOpenAiUsageLimitReached(string kind) => Format("auth.openai.usage.limitReached", kind);
+    public static string AuthLoginStarting(string providerId) => Format("auth.login.starting", providerId);
+    public static string AuthLoginUrl(string url) => Format("auth.login.url", url);
+    public static string AuthLoginDeviceCode(string code, string url) => Format("auth.login.deviceCode", code, url);
+    public static string AuthLoginWaiting => Format("auth.login.waiting");
+    public static string AuthLoginCancelled => Format("auth.login.cancelled");
+    public static string AuthLoginFailed(string reason) => Format("auth.login.failed", reason);
+    public static string AuthLogoutSuccess(string providerId) => Format("auth.logout.success", providerId);
+    public static string AuthStatusSignedIn(string account, string plan) => Format("auth.status.signedIn", account, plan);
+    public static string AuthStatusSignedOut(string providerId) => Format("auth.status.signedOut", providerId);
+    public static string AuthVerifySuccess(string model) => Format("auth.verify.success", model);
+    public static string AuthUsageHeader => Format("auth.usage.header");
+    public static string AuthUsageWindowFiveHour => Format("auth.usage.window.fiveHour");
+    public static string AuthUsageWindowWeekly => Format("auth.usage.window.weekly");
+    public static string AuthUsageWindowPrimary => Format("auth.usage.window.primary");
+    public static string AuthUsageWindowSecondary => Format("auth.usage.window.secondary");
+    public static string AuthUsageCreditsBalance(string balance) => Format("auth.usage.credits.balance", balance);
+    public static string AuthUsageCreditsUnlimited => Format("auth.usage.credits.unlimited");
+    public static string AuthUsageLimitReached(string kind) => Format("auth.usage.limitReached", kind);
 
     private const string EnglishJson = """
 {
@@ -214,26 +211,24 @@ public static class FallbackText
   "hub.notification.approval_requested.body": "Needs your approval",
   "hub.notification.input_requested.body": "Has a question for you",
   "hub.notification.thread.default": "Current chat",
-  "auth.openai.login.starting": "Starting Sign in with ChatGPT...",
-  "auth.openai.login.url": "If your browser does not open automatically, visit:\n  {0}",
-  "auth.openai.login.waiting": "Waiting for browser authorization on http://localhost:{0}/auth/callback ...",
-  "auth.openai.login.success": "Signed in as {0} (plan: {1}).",
-  "auth.openai.login.cancelled": "Sign-in was cancelled.",
-  "auth.openai.login.failed": "Sign-in failed: {0}",
-  "auth.openai.login.bound": "Provider '{0}' is now using ChatGPT subscription auth.",
-  "auth.openai.logout.success": "Signed out of ChatGPT.",
-  "auth.openai.logout.unbound": "Provider '{0}' switched back to API key auth.",
-  "auth.openai.status.signed_in": "Signed in as {0} (plan: {1}). Last refreshed {2}.",
-  "auth.openai.status.signed_out": "Not signed in. Run `dotcraft auth openai login` to start.",
-  "auth.openai.usage.header": "Usage:",
-  "auth.openai.usage.window.fiveHour": "5h window ",
-  "auth.openai.usage.window.weekly": "Weekly    ",
-  "auth.openai.usage.window.primary": "Usage     ",
-  "auth.openai.usage.window.secondary": "Secondary ",
-  "auth.openai.usage.unavailable": "Couldn't fetch usage: {0}",
-  "auth.openai.usage.credits.balance": "{0}",
-  "auth.openai.usage.credits.unlimited": "unlimited",
-  "auth.openai.usage.limitReached": "Limit reached ({0}); requests may fail until reset."
+  "auth.login.starting": "Signing in to provider '{0}'...",
+  "auth.login.url": "If your browser does not open automatically, visit:\n  {0}",
+  "auth.login.deviceCode": "Enter code {0} at {1}",
+  "auth.login.waiting": "Waiting for authorization in the browser...",
+  "auth.login.cancelled": "Sign-in was cancelled.",
+  "auth.login.failed": "Sign-in failed: {0}",
+  "auth.logout.success": "Signed out of provider '{0}'.",
+  "auth.status.signedIn": "Signed in as {0} (plan: {1}).",
+  "auth.status.signedOut": "Not signed in. Run `dotcraft auth login {0}` to start.",
+  "auth.verify.success": "Credentials refreshed; model '{0}' is listed in the catalog.",
+  "auth.usage.header": "Usage:",
+  "auth.usage.window.fiveHour": "5h window ",
+  "auth.usage.window.weekly": "Weekly    ",
+  "auth.usage.window.primary": "Usage     ",
+  "auth.usage.window.secondary": "Secondary ",
+  "auth.usage.credits.balance": "{0}",
+  "auth.usage.credits.unlimited": "unlimited",
+  "auth.usage.limitReached": "Limit reached ({0}); requests may fail until reset."
 }
 """;
 }

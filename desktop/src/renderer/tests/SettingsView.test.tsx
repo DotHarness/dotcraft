@@ -897,13 +897,6 @@ describe('SettingsView', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'New provider' }))
     expect(await screen.findByLabelText('Provider id')).toBeInTheDocument()
-    const protocolSelect = await screen.findByRole('combobox', { name: 'Protocol' })
-    expect(protocolSelect).toHaveTextContent('OpenAI-Responses')
-    fireEvent.click(protocolSelect)
-    expect(await screen.findByRole('option', { name: 'OpenAI-Responses' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'OpenAI-Legacy' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'Anthropic' })).toBeInTheDocument()
-    fireEvent.keyDown(protocolSelect, { key: 'Escape' })
     const endpointInput = await screen.findByPlaceholderText('https://api.openai.com/v1') as HTMLInputElement
     fireEvent.change(endpointInput, { target: { value: 'https://models.example.test/v1' } })
 
@@ -931,9 +924,8 @@ describe('SettingsView', () => {
       }), 25_000)
     })
 
-    const protocolSelect = await screen.findByRole('combobox', { name: 'Protocol' })
-    fireEvent.click(protocolSelect)
-    fireEvent.click(await screen.findByRole('option', { name: 'OpenAI-Legacy' }))
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Connection type' }))
+    fireEvent.click(await screen.findByRole('option', { name: /OpenAI-Legacy/ }))
     appServerSendRequest.mockClear()
     fireEvent.click(await screen.findByRole('button', { name: 'Create provider' }))
 
@@ -1058,48 +1050,6 @@ describe('SettingsView', () => {
       expect.anything()
     )
     expect(screen.getByLabelText('Provider id')).toHaveValue('openai')
-  })
-
-  it('locks id and displayName to canonical values when ChatGPT subscription auth is selected', async () => {
-    enableProviderManagement()
-    renderView()
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'New provider' }))
-
-    const idInput = await screen.findByLabelText('Provider id') as HTMLInputElement
-    const displayNameInput = await screen.findByLabelText('Display name') as HTMLInputElement
-    fireEvent.change(idInput, { target: { value: 'my-custom' } })
-    fireEvent.change(displayNameInput, { target: { value: 'My Custom' } })
-    expect(idInput.value).toBe('my-custom')
-    expect(displayNameInput.value).toBe('My Custom')
-    expect(idInput).not.toHaveAttribute('readonly')
-    const createButtonBefore = screen.queryByRole('button', { name: 'Create provider' })
-    expect(createButtonBefore).toBeInTheDocument()
-
-    // Pick the ChatGPT auth method via the auth-method toggle card. Use getByText to bypass
-    // the role-traversal jsdom quirk triggered by complex CSS on nested OAuth-panel buttons.
-    const chatgptCardLabel = screen.getByText('Sign in with ChatGPT')
-    fireEvent.click(chatgptCardLabel.closest('button') as HTMLButtonElement)
-    await waitFor(() => {
-      // 'openai' already exists in the test fixture, so the next free slug is 'openai-2'.
-      expect(idInput.value).toBe('openai-2')
-    })
-    expect(displayNameInput.value).toBe('OpenAI (ChatGPT)')
-    expect(idInput).toHaveAttribute('readonly')
-    expect(displayNameInput).toHaveAttribute('readonly')
-
-    // Toggle back to API key — previous user-typed values must restore.
-    const apiKeyCardLabels = screen.getAllByText('API key')
-    // The auth-method toggle renders the label inside a <button>; the field label is a <label>.
-    const apiKeyButtonLabel = apiKeyCardLabels.find((el) => el.closest('button')) as HTMLElement
-    fireEvent.click(apiKeyButtonLabel.closest('button') as HTMLButtonElement)
-    await waitFor(() => {
-      expect(idInput.value).toBe('my-custom')
-    })
-    expect(displayNameInput.value).toBe('My Custom')
-    expect(idInput).not.toHaveAttribute('readonly')
-    expect(displayNameInput).not.toHaveAttribute('readonly')
   })
 
   it('uses provider rows to apply the workspace provider without a restart banner', async () => {

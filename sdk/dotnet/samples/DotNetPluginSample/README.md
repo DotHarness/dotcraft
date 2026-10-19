@@ -48,6 +48,18 @@ After changing Desktop source, rerun `verify-desktop.ps1` and refresh the plugin
 either plugin demonstrates that its effects, surfaces, services, events, and UI are withdrawn as one
 generation.
 
+## Try the offline model backend
+
+In model settings, create a provider using **Local review demo**, sign in with `demo`, and select
+`review-echo`. Responses echo the latest user message locally.
+
+For CLI login, use the [example configuration](../../../../docs/extend/dotnet-plugins.md#provide-a-model-backend)
+and run this command from the workspace:
+
+```sh
+dotcraft auth login review-demo
+```
+
 ## Run a live smoke test
 
 Run the bundles through a real AppServer and the current local Model Provider:

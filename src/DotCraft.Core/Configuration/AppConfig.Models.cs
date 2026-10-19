@@ -19,6 +19,11 @@ public sealed partial class AppConfig
 
     public sealed class ModelProviderConfig
     {
+        private string? _protocol;
+        private string? _authMethod;
+        public string? BackendId { get; set; }
+        public System.Text.Json.Nodes.JsonObject BackendSettings { get; set; } = new();
+
         [JsonIgnore]
         public ProviderAuthenticationStatus? RemoteAuthentication { get; set; }
 
@@ -30,19 +35,21 @@ public sealed partial class AppConfig
 
         public string DisplayName { get; set; } = string.Empty;
 
-        public string Protocol { get; set; } = ModelProviderProtocols.OpenAIChatCompletions;
+        public string Protocol
+        {
+            get => _protocol ?? (string.IsNullOrWhiteSpace(BackendId) ? ModelProviderProtocols.OpenAIChatCompletions : string.Empty);
+            set => _protocol = value;
+        }
 
         [ConfigField(Sensitive = true)]
         public string ApiKey { get; set; } = string.Empty;
 
         [ConfigField(Hint = "Authentication method: 'apiKey' or 'chatgptOAuth' (OpenAI subscription).")]
-        public string AuthMethod { get; set; } = ModelProviderAuthMethods.ApiKey;
-
-        [ConfigField(Hint = "Populated by Sign in with ChatGPT; do not edit manually.")]
-        public string ChatGptAccountId { get; set; } = string.Empty;
-
-        [ConfigField(Hint = "Populated by Sign in with ChatGPT; do not edit manually.")]
-        public string ChatGptPlanType { get; set; } = string.Empty;
+        public string AuthMethod
+        {
+            get => _authMethod ?? (string.IsNullOrWhiteSpace(BackendId) ? ModelProviderAuthMethods.ApiKey : string.Empty);
+            set => _authMethod = value;
+        }
 
         /// <summary>Empty values use the protocol's official default endpoint.</summary>
         public string EndPoint { get; set; } = string.Empty;
@@ -64,6 +71,8 @@ public sealed partial class AppConfig
 
         public ModelProviderConfig Clone() => new()
         {
+            BackendId = BackendId,
+            BackendSettings = (System.Text.Json.Nodes.JsonObject)BackendSettings.DeepClone(),
             RemoteAuthentication = RemoteAuthentication,
             RemoteWebSearchBackend = RemoteWebSearchBackend,
             RemoteModels = RemoteModels,
@@ -71,8 +80,6 @@ public sealed partial class AppConfig
             Protocol = Protocol,
             ApiKey = ApiKey,
             AuthMethod = AuthMethod,
-            ChatGptAccountId = ChatGptAccountId,
-            ChatGptPlanType = ChatGptPlanType,
             EndPoint = EndPoint,
             NetworkTimeoutSeconds = NetworkTimeoutSeconds,
             MaxOutputTokens = MaxOutputTokens,

@@ -104,19 +104,17 @@ describe('files and usage', () => {
     })
   })
 
-  it('loads account usage windows and which providers sign in with an account', async () => {
+  it('loads account usage windows for the default provider and per selected provider', async () => {
     const { harness, state, projectId } = await connected()
     const project = projectId('dotcraft')
-    await harness.link().loadUsage(project)
-    const models = state().models[project]
-    expect(models.usage?.map((window) => [window.seconds, window.percentLeft])).toEqual([
+    await harness.link().loadUsage(project, null)
+    await harness.link().loadUsage(project, 'local')
+    const usage = state().models[project].usage
+    expect(usage.studio?.map((window) => [window.seconds, window.percentLeft])).toEqual([
       [18_000, 73],
       [604_800, 91],
     ])
-    expect(models.providers.map((provider) => [provider.id, provider.signsIn])).toEqual([
-      ['studio', true],
-      ['local', false],
-    ])
+    expect(usage.local).toEqual([])
   })
 })
 

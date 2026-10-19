@@ -16,12 +16,6 @@
     "approvalFlow": {
       "type": "boolean"
     },
-    "authOpenAiOAuth": {
-      "type": "boolean"
-    },
-    "authOpenAiUsage": {
-      "type": "boolean"
-    },
     "automations": {
       "type": "boolean"
     },

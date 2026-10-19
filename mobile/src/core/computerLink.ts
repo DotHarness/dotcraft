@@ -364,9 +364,9 @@ export class ComputerLink {
     await this.send(key, plainMessage('Implement the plan.'))
   }
 
-  async loadUsage(projectId: string): Promise<void> {
+  async loadUsage(projectId: string, providerId: string | null): Promise<void> {
     const connection = this.connections.get(projectId)
-    if (connection?.ready) await connection.loadUsage()
+    if (connection?.ready) await connection.loadUsage(providerId)
   }
 
   async readFile(projectId: string, path: string): Promise<string> {

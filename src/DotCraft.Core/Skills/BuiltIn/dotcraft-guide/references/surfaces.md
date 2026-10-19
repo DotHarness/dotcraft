@@ -35,7 +35,7 @@ Hard rules: never hand-edit `state.db`, `threads/*.jsonl`, or anything under `ru
 | `hooks.json` | user-editable | Personal hooks, applied before workspace hooks |
 | `skills/` | user-editable | User-global skills, available in every workspace |
 | `plugins/` | mixed | Installed plugins, available in every workspace. Install through Desktop > Plugins |
-| `auth.json` `mcp-auth.json` | never touch | OAuth tokens written by `dotcraft auth openai login` and the MCP OAuth flow |
+| `auth.json` `mcp-auth.json` | never touch | OAuth tokens written by `dotcraft auth login` and the MCP OAuth flow |
 | `bin/` | runtime-owned | Default install directory of the `dotcraft` CLI from the install script |
 | `hub/` | runtime-owned | Hub state: `hub.lock`, the AppServer registry, and runtime tool paths |
 | `workspaces/chats/` | runtime-owned | Default chat workspaces the Hub creates |

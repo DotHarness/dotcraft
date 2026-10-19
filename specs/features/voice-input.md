@@ -106,10 +106,10 @@ The worker starts lazily for the first transcription, stays alive for reuse, and
 The ChatGPT route is available when all of these hold:
 
 1. The Desktop setting `voice.chatGptTranscription` is on (default on).
-2. The connected AppServer advertises `authOpenAiOAuth`.
-3. `auth/openai/status` with `includeToken: true` reports `loggedIn: true` and returns `authToken` (see [OpenAI Subscription Auth](../architecture/openai-subscription-auth.md#host-access-boundary)).
+2. The connected AppServer advertises `providerManagement` and `provider/list` contains a `chatgptOAuth` provider.
+3. `provider/auth/status` for that provider with `includeToken: true` reports `isAuthenticated: true` and returns `authToken` (see [Provider authentication](../protocols/provider-auth.md#status)).
 
-Main refreshes availability, without keeping the token, when the AppServer connection changes, when `auth/openai/usage/updated` arrives, and when the setting changes. Main reads a fresh token for every request and never caches, persists, logs, or forwards it.
+Main refreshes availability, without keeping the token, when the AppServer connection changes, when `provider/auth/usage/updated` arrives, and when the setting changes. Main reads a fresh token for every request and never caches, persists, logs, or forwards it.
 
 Request contract:
 

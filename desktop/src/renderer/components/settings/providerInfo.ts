@@ -1,4 +1,4 @@
-import { normalizeProviderProtocol, type DesktopProviderProtocol } from '../../../shared/providerProtocols'
+import { normalizeProviderProtocol } from '../../../shared/providerProtocols'
 
 interface ProviderCapabilitiesWire {
   streamingChat?: boolean
@@ -13,9 +13,10 @@ interface ProviderCapabilitiesWire {
 }
 
 export interface ProviderInfoWire {
+  backendId?: string
   id: string
   displayName: string
-  protocol: DesktopProviderProtocol
+  protocol: string
   apiKey?: string | null
   managedBy?: string
   isAuthenticated?: boolean
@@ -25,9 +26,7 @@ export interface ProviderInfoWire {
   networkTimeoutSeconds?: number | null
   supportsImageGeneration?: boolean
   capabilities?: ProviderCapabilitiesWire
-  authMethod?: 'apiKey' | 'chatgptOAuth'
-  chatGptAccountId?: string | null
-  chatGptPlanType?: string | null
+  authMethod?: string
 }
 
 export function normalizeProviderList(value: unknown): ProviderInfoWire[] {
@@ -39,11 +38,12 @@ export function normalizeProviderList(value: unknown): ProviderInfoWire[] {
       const raw = item as Partial<ProviderInfoWire>
       const id = typeof raw.id === 'string' ? raw.id.trim() : ''
       if (!id) return null
-      const rawAuthMethod = typeof raw.authMethod === 'string' ? raw.authMethod.toLowerCase() : ''
+      const rawAuthMethod = typeof raw.authMethod === 'string' ? raw.authMethod.trim() : ''
       return {
         id,
+        backendId: typeof raw.backendId === 'string' ? raw.backendId : undefined,
         displayName: typeof raw.displayName === 'string' && raw.displayName.trim() !== '' ? raw.displayName : id,
-        protocol: normalizeProviderProtocol(raw.protocol),
+        protocol: raw.backendId && typeof raw.protocol === 'string' ? raw.protocol : normalizeProviderProtocol(raw.protocol),
         apiKey: typeof raw.apiKey === 'string' ? raw.apiKey : null,
         managedBy: raw.managedBy,
         isAuthenticated: raw.isAuthenticated,
@@ -56,14 +56,14 @@ export function normalizeProviderList(value: unknown): ProviderInfoWire[] {
             : null,
         supportsImageGeneration: raw.supportsImageGeneration === true,
         capabilities: raw.capabilities,
-        authMethod: rawAuthMethod === 'chatgptoauth' ? 'chatgptOAuth' : 'apiKey',
-        chatGptAccountId: typeof raw.chatGptAccountId === 'string' && raw.chatGptAccountId.trim() !== ''
-          ? raw.chatGptAccountId
-          : null,
-        chatGptPlanType: typeof raw.chatGptPlanType === 'string' && raw.chatGptPlanType.trim() !== ''
-          ? raw.chatGptPlanType
-          : null
+        authMethod: normalizeAuthMethod(rawAuthMethod, typeof raw.backendId === 'string')
       }
     })
     .filter((item): item is ProviderInfoWire => item != null)
+}
+
+function normalizeAuthMethod(value: string, backend: boolean): string {
+  if (value.toLowerCase() === 'chatgptoauth') return 'chatgptOAuth'
+  if (backend) return value
+  return 'apiKey'
 }

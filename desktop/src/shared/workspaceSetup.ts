@@ -22,8 +22,6 @@ export interface WorkspaceSetupProviderSummary {
   endPoint: string
   networkTimeoutSeconds?: number | null
   authMethod?: ProviderAuthMethod
-  chatGptAccountId?: string | null
-  chatGptPlanType?: string | null
 }
 
 export interface WorkspaceUserConfigDefaults {
@@ -66,8 +64,6 @@ export interface WorkspaceSetupProviderDraft {
   endPoint: string
   networkTimeoutSeconds?: number | null
   authMethod?: ProviderAuthMethod
-  chatGptAccountId?: string | null
-  chatGptPlanType?: string | null
 }
 
 export interface WorkspaceSetupRequest {
@@ -93,6 +89,12 @@ export interface WorkspaceSetupRunResult {
 export type WorkspaceSetupModelListRequest =
   | { providerId: string }
   | { provider: WorkspaceSetupProviderDraft }
+
+export interface WorkspaceSetupSignInResult {
+  kind: 'success' | 'error'
+  errorCode?: string
+  errorMessage?: string
+}
 
 export type WorkspaceSetupModelListResult =
   | { kind: 'success'; models: WorkspaceSetupModelCatalogItem[] }

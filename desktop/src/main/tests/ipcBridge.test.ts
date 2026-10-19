@@ -790,16 +790,17 @@ describe('registerIpcHandlers', () => {
 
   it('never lets the renderer request the ChatGPT access token', async () => {
     const client = {
-      sendRequest: vi.fn().mockResolvedValue({ loggedIn: true })
+      sendRequest: vi.fn().mockResolvedValue({ isAuthenticated: true })
     }
     const handlers = registerHandlersForTest('/workspace', () => client as never)
-    const params = { includeToken: true, refreshToken: true }
+    const params = { providerId: 'openai', includeToken: true, refreshToken: true }
 
-    await handlers.get('appserver:send-request')?.({}, 'auth/openai/status', params)
-    await handlers.get('appserver:send-request-raw')?.({}, 'auth/openai/status', params)
+    await handlers.get('appserver:send-request')?.({}, 'provider/auth/status', params)
+    await handlers.get('appserver:send-request-raw')?.({}, 'provider/auth/status', params)
 
     expect(client.sendRequest).toHaveBeenCalledTimes(2)
     for (const call of client.sendRequest.mock.calls) {
+      expect(call[1]).toMatchObject({ providerId: 'openai' })
       expect(call[1]).not.toHaveProperty('includeToken')
       expect(call[1]).not.toHaveProperty('refreshToken')
     }

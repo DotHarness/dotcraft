@@ -77,6 +77,9 @@ public sealed class DotCraftCommandLineTests
     }
 
     [Theory]
+    [InlineData("auth", "status")]
+    [InlineData("auth", "login")]
+    [InlineData("auth", "login", "openai", "--stdin")]
     [InlineData("setup", "--unknown")]
     [InlineData("app-server", "--listen", "http://localhost:9100")]
     [InlineData("tool-host", "join")]

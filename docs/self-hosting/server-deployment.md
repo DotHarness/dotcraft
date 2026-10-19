@@ -52,7 +52,7 @@ ssh -N -L 1455:localhost:1455 -L 1457:localhost:1457 user@host
 On the server, run the login command from the deployment directory:
 
 ```bash
-docker compose --profile auth run --rm auth dotcraft auth openai login --no-browser
+docker compose --profile auth run --rm auth dotcraft auth login openai --no-browser
 ```
 
 The command prints an authorization URL. Complete the login in your browser, then start the services:

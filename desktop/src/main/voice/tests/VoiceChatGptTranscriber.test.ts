@@ -129,39 +129,57 @@ describe('ChatGptVoiceTranscriber', () => {
 })
 
 describe('readAppServerChatGptAuth', () => {
-  it('reads nothing from an AppServer without ChatGPT sign-in support', async () => {
-    const client = { sendRequest: vi.fn() }
+  const capabilities = { providerManagement: true }
+  const providers = {
+    providers: [
+      { id: 'anthropic', authMethod: 'apiKey', hasApiKey: true },
+      { id: 'chatgpt', authMethod: 'chatgptOAuth', isAuthenticated: true }
+    ]
+  }
+
+  function appServer(status: unknown, list: unknown = providers) {
+    return {
+      sendRequest: vi.fn(async (method: string) => method === 'provider/list' ? list : status)
+    }
+  }
+
+  it('reads nothing from an AppServer without provider management', async () => {
+    const client = appServer({ isAuthenticated: true, authToken: 'token-a' })
 
     await expect(readAppServerChatGptAuth(client, {}, false)).resolves.toBeNull()
-    await expect(readAppServerChatGptAuth(null, { authOpenAiOAuth: true }, false)).resolves.toBeNull()
+    await expect(readAppServerChatGptAuth(null, capabilities, false)).resolves.toBeNull()
     expect(client.sendRequest).not.toHaveBeenCalled()
   })
 
-  it('returns the token and account and forwards a refresh request', async () => {
-    const client = {
-      sendRequest: vi.fn(async () => ({ loggedIn: true, accountId: 'account-a', authToken: 'token-a' }))
-    }
-    const capabilities = { authOpenAiOAuth: true }
+  it('reads nothing when no provider signs in with ChatGPT', async () => {
+    const client = appServer({ isAuthenticated: true, authToken: 'token-a' }, { providers: [{ id: 'anthropic', authMethod: 'apiKey' }] })
+
+    await expect(readAppServerChatGptAuth(client, capabilities, false)).resolves.toBeNull()
+    expect(client.sendRequest.mock.calls.map(([method]) => method)).toEqual(['provider/list'])
+  })
+
+  it('returns the token and account of the ChatGPT provider and forwards a refresh request', async () => {
+    const client = appServer({ isAuthenticated: true, accountId: 'account-a', authToken: 'token-a' })
 
     await expect(readAppServerChatGptAuth(client, capabilities, false)).resolves.toEqual(auth('token-a', 'account-a'))
     await readAppServerChatGptAuth(client, capabilities, true)
 
-    expect(client.sendRequest.mock.calls.map(([method, params]) => [method, params])).toEqual([
-      ['auth/openai/status', { includeToken: true }],
-      ['auth/openai/status', { includeToken: true, refreshToken: true }]
+    expect(client.sendRequest.mock.calls
+      .filter(([method]) => method === 'provider/auth/status')
+      .map(([, params]) => params)).toEqual([
+      { providerId: 'chatgpt', includeToken: true },
+      { providerId: 'chatgpt', includeToken: true, refreshToken: true }
     ])
   })
 
-  it('reports no sign-in without a token or a login', async () => {
-    const capabilities = { authOpenAiOAuth: true }
+  it('reports no sign-in without a token or an authenticated status', async () => {
     const statuses = [
-      { loggedIn: true, accountId: 'account-a' },
-      { loggedIn: false, authToken: 'token-a' },
+      { isAuthenticated: true, accountId: 'account-a' },
+      { isAuthenticated: false, authToken: 'token-a' },
       null
     ]
     for (const status of statuses) {
-      const client = { sendRequest: vi.fn(async () => status) }
-      await expect(readAppServerChatGptAuth(client, capabilities, false)).resolves.toBeNull()
+      await expect(readAppServerChatGptAuth(appServer(status), capabilities, false)).resolves.toBeNull()
     }
   })
 })

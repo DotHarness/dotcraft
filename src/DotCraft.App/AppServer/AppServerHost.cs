@@ -378,6 +378,7 @@ public sealed class AppServerHost(
                 RuntimeRefreshers = _services.GetServices<ISessionRuntimeRefresher>().ToArray(),
                 ChatClientRegistry = _services.GetRequiredService<ChatClientRegistry>(),
                 ModelProviderRegistry = _services.GetRequiredService<ModelProviderRegistry>(),
+                ProviderAuthentication = _services.GetService<ProviderAuthenticationCoordinator>(),
                 BackgroundTerminalService = _services.GetService<IBackgroundTerminalService>(),
                 ContextPageManager = runtime.ContextPageManager,
                 DreamsService = runtime.DreamsService,
@@ -1148,18 +1149,20 @@ public sealed class AppServerHost(
 
     private void BroadcastOpenAiUsageChanged(DotCraft.Auth.OpenAI.OpenAIUsageSnapshot? snapshot)
     {
-        var result = Auth.OpenAI.OpenAIUsageMapping.ToWire(
+        var notifications = ProviderUsageMapping.ToChatGptNotifications(
+            _services.GetRequiredService<IAppConfigMonitor>().Current,
             DotCraft.Auth.OpenAI.OpenAIProviderProjection.ToProviderUsage(snapshot));
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.AuthOpenAiUsageUpdated))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderAuthUsageUpdated))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.NotifyContractAsync(Contract.AppServerRpc.AuthOpenAiUsageUpdated, result, CancellationToken.None);
+                    foreach (var notification in notifications)
+                        await transport.NotifyContractAsync(Contract.AppServerRpc.ProviderAuthUsageUpdated, notification, CancellationToken.None);
                 }
                 catch
                 {

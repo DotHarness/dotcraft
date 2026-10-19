@@ -1,0 +1,52 @@
+.authorization {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.link {
+  width: fit-content;
+  color: var(--accent);
+  font-size: var(--type-ui-size);
+}
+
+.message {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--type-hint-size);
+  line-height: var(--type-hint-line-height);
+  overflow-wrap: anywhere;
+}
+
+.code {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.codeValue {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--type-ui-size);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  user-select: all;
+}
+
+.prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+}

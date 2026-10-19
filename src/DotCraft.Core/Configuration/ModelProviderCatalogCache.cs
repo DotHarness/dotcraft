@@ -29,10 +29,12 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
         return string.Join(
             '\n',
             runtime.ProviderId,
+            runtime.BackendId ?? string.Empty,
+            runtime.BackendGeneration ?? string.Empty,
+            runtime.BackendSettingsJson,
             runtime.Protocol,
             runtime.EndPoint.TrimEnd('/').ToLowerInvariant(),
             runtime.AuthMethod,
-            runtime.ChatGptAccountId ?? string.Empty,
             Fingerprint(runtime.ApiKey));
     }
 

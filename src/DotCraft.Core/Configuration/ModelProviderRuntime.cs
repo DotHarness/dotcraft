@@ -1,6 +1,6 @@
 namespace DotCraft.Configuration;
 
-public static class ModelProviderResolver
+public static partial class ModelProviderResolver
 {
     public const string MissingProviderMessage = "Create or select a model provider.";
 
@@ -105,17 +105,18 @@ public static class ModelProviderResolver
     public static bool ResolveImageGenerationSupport(AppConfig.ModelProviderConfig provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
-        return provider.SupportsImageGeneration ?? ResolveOpenAIHostedCapabilityDefault(provider);
+        return provider.SupportsImageGeneration ?? (provider.BackendId is null && ResolveOpenAIHostedCapabilityDefault(provider));
     }
 
     public static bool ResolveFreeformToolSupport(AppConfig.ModelProviderConfig provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
-        return provider.SupportsFreeformTools ?? ResolveOpenAIHostedCapabilityDefault(provider);
+        return provider.SupportsFreeformTools ?? (provider.BackendId is null && ResolveOpenAIHostedCapabilityDefault(provider));
     }
 
     public static string? ResolveWebSearchBackend(AppConfig.ModelProviderConfig provider)
     {
+        if (provider.BackendId is not null) return null;
         if (provider.RemoteAuthentication is not null && provider.RemoteWebSearchBackend != ProviderWebSearchBackend.DeepSeek)
             return null;
 
@@ -168,6 +169,11 @@ public static class ModelProviderResolver
     {
         if (config.Providers.TryGetValue(providerId, out var provider))
         {
+            if (!string.IsNullOrWhiteSpace(provider.BackendId))
+            {
+                runtime = ResolveBackendConfiguration(config, providerId, provider);
+                return true;
+            }
             var configuredAuthMethod = string.IsNullOrWhiteSpace(provider.AuthMethod)
                 ? ModelProviderAuthMethods.ApiKey
                 : provider.AuthMethod.Trim();
@@ -193,9 +199,9 @@ public static class ModelProviderResolver
             var hostedCapabilityDefault = DefaultSupportsOpenAIHostedCapability(protocol, endPoint, configuredAuthMethod);
             var supportsImageGeneration = provider.SupportsImageGeneration ?? hostedCapabilityDefault;
             var supportsFreeformTools = provider.SupportsFreeformTools ?? hostedCapabilityDefault;
-            var accountId = string.IsNullOrWhiteSpace(provider.ChatGptAccountId)
+            var accountId = string.IsNullOrWhiteSpace(provider.RemoteAuthentication?.AccountId)
                 ? null
-                : provider.ChatGptAccountId.Trim();
+                : provider.RemoteAuthentication.AccountId.Trim();
 
             // API key is irrelevant in OAuth mode; the OpenAIClientProvider injects a placeholder so
             // the SDK still constructs a client.

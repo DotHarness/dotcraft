@@ -107,7 +107,7 @@ public sealed partial class SessionService
             currentConfig,
             thread.Configuration?.ProviderId,
             thread.Configuration?.Model);
-        if (!string.Equals(runtime.Protocol, ModelProviderProtocols.OpenAIResponses, StringComparison.Ordinal))
+        if (!runtime.IsOpenAIResponses)
             return null;
         var factory = agentFactory.RuntimeContext.ChatClientRegistry
             .GetProviderService<IProviderHistorySessionFactory>(runtime);

@@ -731,7 +731,7 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 
 **Providers and models** (when `providerManagement` is available)
 
-- Personal providers are listed with `provider/list` and created, edited, tested (`provider/test`, with no hidden chat requests), and deleted from Settings.
+- Personal providers, including [model backend](../architecture/model-backend-plugins.md) instances, are listed together with `provider/list` and created, edited, tested (`provider/test`, with no hidden chat requests), and deleted from Settings. An instance whose backend is unavailable stays listed with that problem and keeps its configuration.
 - The provider editor writes `Providers.<id>` in the user layer with `config/batchWrite`: an untouched API key is sent as `***` or omitted, delete writes `null`, and per-provider toggles write `Providers.<id>.<Field>`. It rejects ids that already exist and passes the layer's `expectedVersion` to avoid overwriting concurrent edits. `openai` is an ordinary provider id; the server rejects deleting the selected provider.
 - Provider credentials and endpoints are personal; workspace saves write `ProviderId` and the selected provider's `ProviderPreferences.<id>` entry. Each preference holds model, reasoning, and speed, and a workspace record atomically overrides the personal one for that provider.
 - Main and Subagent model settings use the shared picker. Subagent can inherit (removing its provider-specific record) or be customized starting from the main preference.
@@ -779,11 +779,16 @@ When `capabilities.extensions.agentImport` is present, Settings shows an Import 
 
 Settings has a Computer use tab. Its control list toggles the bundled `computer` plugin (any app) and `chrome` plugin, installing the plugin when missing and disabling without uninstalling; Chrome reports its extension state. An always-allowed applications list shows an empty state when empty, supports removal after confirmation, and gains entries only from always-allow approval answers ([5.6](#56-approval-handling)). On platforms without computer use, only Chrome is offered and the allow list is hidden.
 
-#### 6.7.3 ChatGPT Account Controls
+#### 6.7.3 Provider Sign-in
 
-The provider editor offers API-key and ChatGPT authentication, and workspace setup offers Sign in with ChatGPT. OAuth replaces key and endpoint fields with sign-in/out controls; pending authorization exposes a copyable URL. Authenticated providers load the account model catalog; missing credentials or catalog failures offer sign-in and retry. A valid OAuth provider is not rejected for lacking an API key, successful login opens the saved provider without activating another workspace, and a late response cannot switch another editor. Credential and refresh rules belong to [OpenAI subscription authentication](../architecture/openai-subscription-auth.md).
+The provider editor chooses one connection type, which sets the API format and authentication method together: OpenAI-Responses API, OpenAI-Legacy API, Anthropic API, ChatGPT subscription, and each backend from `provider/backend/list` (one entry per method when a backend declares several). The type is fixed once the provider is saved. Workspace setup offers Sign in with ChatGPT.
 
-Composers show a usage control for the active OAuth provider summarizing the most constrained remaining-headroom window, with details listing available windows, remaining usage, reset time, and optional credits and limit warnings.
+- An API type shows key and endpoint fields. A type that signs in shows one sign-in row driven by [provider authentication](../protocols/provider-auth.md): the connection's name, a hint with the signed-in account and plan or the next step, and Sign in, Cancel, or Sign out. A new provider is saved before its first sign-in; one that is already signed in completes without opening a browser.
+- While signing in, an Authorization row opens the `auth_url` page, shows a device code for entry, and answers backend prompts in place with secret answers masked; saving waits until sign-in ends. Desktop subscribes before starting login and reads state to recover missed updates; it does not poll.
+- Failures show a localized message in the hint with Sign in available again.
+- Authenticated providers load their model catalog; missing credentials or catalog failures offer sign-in and retry. A provider that signs in is not rejected for lacking an API key, and a late response cannot switch another editor. ChatGPT credential and refresh rules belong to [OpenAI subscription authentication](../architecture/openai-subscription-auth.md).
+
+Composers show a usage control for the active provider when `provider/auth/usage` reports usage, summarizing the most constrained remaining-headroom window, with details listing available windows, remaining usage, reset time, and optional credits and limit warnings.
 
 ### 6.8 Channel Modules
 

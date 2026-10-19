@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ChatGptUsageSnapshot, ChatGptUsageWindow } from '../stores/providersStore'
+import type { ProviderUsageSnapshot, ProviderUsageWindow } from '../stores/providersStore'
 import {
   formatCreditsBalance,
   classifyChatGptUsageWindow,
@@ -44,9 +44,9 @@ describe('ChatGPT usage window shaping', () => {
 })
 
 function snapshot(
-  primary: ChatGptUsageWindow | null,
-  secondary: ChatGptUsageWindow | null
-): ChatGptUsageSnapshot {
+  primary: ProviderUsageWindow | null,
+  secondary: ProviderUsageWindow | null
+): ProviderUsageSnapshot {
   return {
     available: true,
     planType: 'pro',
@@ -58,7 +58,7 @@ function snapshot(
   }
 }
 
-function windowWithDuration(windowSeconds: number): ChatGptUsageWindow {
+function windowWithDuration(windowSeconds: number): ProviderUsageWindow {
   return {
     usedPercent: 2,
     windowSeconds,

@@ -95,7 +95,9 @@ public sealed class AppServerTestHarness : IDisposable
         LspServerManager? lspServerManager = null,
         PluginConfigStore? pluginConfigStore = null,
         DotCraft.Tools.IRemoteToolHostClient? remoteToolHostClient = null,
-        Action<Contract.RemoteToolHostRouteChangedNotification>? broadcastRemoteToolHostRouteChanged = null)
+        Action<Contract.RemoteToolHostRouteChangedNotification>? broadcastRemoteToolHostRouteChanged = null,
+        IModelRuntimeResolver? modelRuntimeResolver = null,
+        ProviderAuthenticationCoordinator? providerAuthentication = null)
     {
         _tempDir = Path.Combine(
             Path.GetTempPath(),
@@ -171,7 +173,8 @@ public sealed class AppServerTestHarness : IDisposable
                 PlanStore = planStore,
                 ContextPageManager = contextPageManager,
                 ModelProviderRegistry = providerRegistry,
-                ChatClientRegistry = new ChatClientRegistry(providerRegistry),
+                ChatClientRegistry = new ChatClientRegistry(providerRegistry, modelRuntimeResolver),
+                ProviderAuthentication = providerAuthentication,
                 LoggerFactory = loggerFactory,
                 TraceStore = traceStore,
                 UsageAnalytics = usageAnalytics,

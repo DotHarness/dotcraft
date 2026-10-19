@@ -312,7 +312,7 @@ public sealed class ResponsesLiteWireTests : IDisposable
         MaxOutputTokens: null,
         ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses),
         AuthMethod: ModelProviderAuthMethods.ChatGptOAuth,
-        ChatGptAccountId: "stale-config-account",
+        AccountId: "stale-config-account",
         UseResponsesLite: useResponsesLite);
 
     private static EffectiveModelRuntime ApiKeyRuntime(string endpoint = "https://example.test/v1") => new(

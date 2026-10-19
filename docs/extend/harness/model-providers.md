@@ -55,7 +55,7 @@ In this mode the provider resolves differently:
 - `ApiKey` and `EndPoint` are ignored. Requests go to the ChatGPT backend at `https://chatgpt.com/backend-api/codex`.
 - Every request attaches a fresh access token from the token bundle stored as `auth.json` in the user data directory. Tokens refresh automatically, and a `401` first adopts credentials rotated by another process before refreshing at the issuer.
 
-Sign-in happens once, outside provider configuration. `IOpenAIAuthService`, registered together with the OpenAI provider, runs the PKCE browser login through `LoginAsync` and persists the tokens. On a machine with the DotCraft app, `dotcraft auth openai login` does the same and also writes the provider entry into the global configuration. `ChatGptAccountId` and `ChatGptPlanType` are written by that flow — treat them as read-only metadata. Signing out with `LogoutAsync` or `dotcraft auth openai logout` deletes the tokens and reverts the provider to `apiKey`.
+Sign-in happens once, outside provider configuration. `IOpenAIAuthService`, registered together with the OpenAI provider, runs the PKCE browser login through `LoginAsync` and persists the tokens. On a machine with the DotCraft app, `dotcraft auth login <provider-id>` does the same for a provider already configured with `chatgptOAuth`. Signing in never writes configuration; the account id and plan come from the stored tokens, and one sign-in serves every `chatgptOAuth` provider on the machine. Signing out with `LogoutAsync` or `dotcraft auth logout <provider-id>` deletes the tokens for all of them and leaves provider configuration unchanged.
 
 ## Configure Anthropic
 

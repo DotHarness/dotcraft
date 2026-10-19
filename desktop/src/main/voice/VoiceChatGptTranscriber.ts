@@ -7,6 +7,7 @@ import type { VoiceTranscriber, VoiceTranscriptionResult } from './VoiceWorkerCl
 const TRANSCRIBE_URL = 'https://chatgpt.com/backend-api/transcribe'
 const ORIGINATOR = 'codex_cli_rs'
 const AUTH_STATUS_TIMEOUT_MS = 30_000
+const PROVIDER_LIST_TIMEOUT_MS = 20_000
 
 export interface VoiceChatGptAuth {
   authToken: string
@@ -26,19 +27,31 @@ export async function readAppServerChatGptAuth(
   capabilities: Record<string, unknown> | undefined,
   refresh: boolean
 ): Promise<VoiceChatGptAuth | null> {
-  if (!client || capabilities?.authOpenAiOAuth !== true) return null
+  if (!client || capabilities?.providerManagement !== true) return null
+  const providerId = findChatGptProviderId(await client.sendRequest('provider/list', {}, PROVIDER_LIST_TIMEOUT_MS))
+  if (!providerId) return null
   const status = await client.sendRequest(
-    'auth/openai/status',
-    refresh ? { includeToken: true, refreshToken: true } : { includeToken: true },
+    'provider/auth/status',
+    refresh ? { providerId, includeToken: true, refreshToken: true } : { providerId, includeToken: true },
     AUTH_STATUS_TIMEOUT_MS
   )
   if (typeof status !== 'object' || status === null) return null
-  const { loggedIn, authToken, accountId } = status as Record<string, unknown>
-  if (loggedIn !== true || typeof authToken !== 'string' || authToken.length === 0) return null
+  const { isAuthenticated, authToken, accountId } = status as Record<string, unknown>
+  if (isAuthenticated !== true || typeof authToken !== 'string' || authToken.length === 0) return null
   return {
     authToken,
     accountId: typeof accountId === 'string' && accountId.length > 0 ? accountId : undefined
   }
+}
+
+function findChatGptProviderId(result: unknown): string | null {
+  const providers = typeof result === 'object' && result !== null ? (result as { providers?: unknown }).providers : null
+  if (!Array.isArray(providers)) return null
+  const candidates = providers.filter((provider): provider is { id: string; isAuthenticated?: unknown } =>
+    typeof provider === 'object' && provider !== null &&
+    typeof (provider as Record<string, unknown>).id === 'string' &&
+    String((provider as Record<string, unknown>).authMethod).toLowerCase() === 'chatgptoauth')
+  return (candidates.find((provider) => provider.isAuthenticated === true) ?? candidates[0])?.id ?? null
 }
 
 export class ChatGptVoiceTranscriber implements VoiceTranscriber {

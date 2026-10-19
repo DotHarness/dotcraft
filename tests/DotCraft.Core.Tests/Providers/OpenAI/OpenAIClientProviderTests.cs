@@ -1073,7 +1073,7 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
         MaxOutputTokens: null,
         ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses),
         AuthMethod: ModelProviderAuthMethods.ChatGptOAuth,
-        ChatGptAccountId: accountId,
+        AccountId: accountId,
         UseResponsesLite: useResponsesLite);
 
     private OpenAIClientProvider CreateOAuthProvider(

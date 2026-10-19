@@ -8,16 +8,18 @@ internal sealed class PluginInvocation
     private readonly PluginCallGate _gate;
     private bool _targetsDetached;
 
-    public PluginInvocation(string pluginId, string generationId, PluginCallGate gate)
+    public PluginInvocation(string pluginId, string generationId, PluginCallGate gate, CancellationToken stopping = default)
     {
         PluginId = pluginId;
         GenerationId = generationId;
         _gate = gate;
+        Stopping = stopping;
     }
 
     public string PluginId { get; }
 
     public string GenerationId { get; }
+    public CancellationToken Stopping { get; }
 
     public IDisposable Enter() => _gate.TryEnter()
         ?? throw new PluginContributionUnavailableException(PluginId, GenerationId);

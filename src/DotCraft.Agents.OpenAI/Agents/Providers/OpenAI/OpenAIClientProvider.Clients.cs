@@ -140,7 +140,7 @@ public sealed partial class OpenAIClientProvider
                 runtime.ApiKey,
                 NormalizeNetworkTimeoutSeconds(runtime.NetworkTimeoutSeconds),
                 authMethod,
-                runtime.ChatGptAccountId);
+                runtime.AccountId);
         }
     }
 

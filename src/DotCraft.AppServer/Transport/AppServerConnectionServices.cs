@@ -95,6 +95,7 @@ public sealed record AppServerConnectionServices
     public IAppConfigMonitor? AppConfigMonitor { get; init; }
     public ChatClientRegistry? ChatClientRegistry { get; init; }
     public ModelProviderRegistry? ModelProviderRegistry { get; init; }
+    public ProviderAuthenticationCoordinator? ProviderAuthentication { get; init; }
     public IBackgroundTerminalService? BackgroundTerminalService { get; init; }
 
     public IRemoteToolHostClient? RemoteToolHostClient { get; init; }

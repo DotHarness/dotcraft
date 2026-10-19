@@ -12,7 +12,7 @@ import type {
   UserInputResponseResult,
 } from '@dotcraft/sdk/contracts'
 import { DotCraftWireClient, ERR_TURN_IN_PROGRESS, JsonRpcError } from '@dotcraft/sdk/wire'
-import { signsInWithAccount, usageWindows } from './accountUsage'
+import { usageWindows } from './accountUsage'
 import { AttachmentUploadError, uploadAttachments, uploadPhotos, type UploadedPhoto } from './attachments'
 import type { BackgroundTask } from './backgroundTasks'
 import { BackgroundTaskSync } from './backgroundTaskSync'
@@ -82,7 +82,7 @@ const now = () => new Date().toISOString()
 
 function providerEntries(result: ProviderListResult): ProjectModels['providers'] {
   return (result.providers ?? []).flatMap((provider) =>
-    provider.id ? [{ id: provider.id, name: provider.displayName || provider.id, signsIn: signsInWithAccount(provider.authMethod) }] : [],
+    provider.id ? [{ id: provider.id, name: provider.displayName || provider.id }] : [],
   )
 }
 
@@ -167,7 +167,7 @@ export class ProjectConnection {
         fileSystem: capabilities?.fileSystem === true,
         canListCommands: capabilities?.commandManagement === true,
         canListSkills: capabilities?.skillsManagement === true,
-        canReadUsage: capabilities?.authOpenAiUsage === true,
+        canReadUsage: capabilities?.providerManagement === true,
       },
     })
     const tasks = new BackgroundTaskSync(client, this.projectId, this.store)
@@ -261,7 +261,9 @@ export class ProjectConnection {
     client.on('turn/diff/updated', ({ threadId, turnId, diff }) => this.route(threadId, { kind: 'diff', turnId, diff }))
     client.on('item/usage/delta', (params) => this.contextChanged(params.threadId, usageDeltaUpdate(params)))
     client.on('system/event', (params) => this.contextChanged(params.threadId, systemEventUpdate(params)))
-    client.on('auth/openai/usage/updated', (params) => this.store.dispatch({ type: 'usage', projectId: this.projectId, windows: usageWindows(params) }))
+    client.on('provider/auth/usage/updated', (params) =>
+      this.store.dispatch({ type: 'usage', projectId: this.projectId, providerId: params.providerId, windows: usageWindows(params) }),
+    )
     client.on('config/changed', ({ regions }) => {
       if (changesWorkspaceApproval(regions)) void this.loadApprovalDefault(client).catch(() => undefined)
     })
@@ -547,17 +549,15 @@ export class ProjectConnection {
     if (providers) this.store.dispatch({ type: 'providers', projectId: this.projectId, providers: providerEntries(providers) })
   }
 
-  async loadUsage(): Promise<void> {
+  async loadUsage(providerId: string | null): Promise<void> {
     const client = this.requireClient()
-    const capabilities = client.initializeResult?.capabilities
-    if (!capabilities?.authOpenAiUsage) return
-    const known = (this.store.getState().models[this.projectId]?.providers.length ?? 0) > 0
-    const [usage, providers] = await Promise.all([
-      client.request('auth/openai/usage', {}),
-      capabilities.providerManagement && !known ? client.request('provider/list', {}) : null,
-    ])
-    if (providers) this.store.dispatch({ type: 'providers', projectId: this.projectId, providers: providerEntries(providers) })
-    this.store.dispatch({ type: 'usage', projectId: this.projectId, windows: usageWindows(usage) })
+    if (!client.initializeResult?.capabilities?.providerManagement) return
+    const defaultProvider = () => this.store.getState().models[this.projectId]?.defaultProviderId ?? null
+    if (!providerId && !defaultProvider()) await this.loadModels(null)
+    const id = providerId ?? defaultProvider()
+    if (!id) return
+    const usage = await client.request('provider/auth/usage', { providerId: id })
+    this.store.dispatch({ type: 'usage', projectId: this.projectId, providerId: id, windows: usageWindows(usage) })
   }
 
   async readFile(path: string): Promise<string> {

@@ -40,7 +40,7 @@ Three protocols exist. There are no others.
 | `openai-responses` | `https://api.openai.com/v1` | OpenAI Responses API providers |
 | `anthropic` | `https://api.anthropic.com` | Anthropic |
 
-An empty `EndPoint` uses the protocol default. `AuthMethod` is `apiKey` (default, reads `ApiKey`) or `chatgptOAuth`, which is only meaningful for the OpenAI protocols and is set up by `dotcraft auth openai login` or Desktop Settings > Model providers. Do not hand-write `chatgptOAuth` credentials; `ChatGptAccountId` and `ChatGptPlanType` are written by the login flow.
+An empty `EndPoint` uses the protocol default. `AuthMethod` is `apiKey` (default, reads `ApiKey`) or `chatgptOAuth`, which is only meaningful for the OpenAI protocols and is signed in with `dotcraft auth login <provider-id>` or Desktop Settings > Model providers. Do not hand-write `chatgptOAuth` credentials.
 
 ## Model capability catalog
 

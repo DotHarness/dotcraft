@@ -36,10 +36,6 @@ export interface ClientRequestMethods {
   "app/surface/resolve": { params: Models.AppSurfaceResolveParams; result: Models.AppSurface };
   "app/threadInput/enqueue": { params: Models.AppThreadInputEnqueueParams; result: Models.AppThreadInputEnqueueResult };
   "app/view": { params: Models.AppViewParams; result: Models.AppViewResult };
-  "auth/openai/login": { params: Models.AuthOpenAiLoginParams; result: Models.AuthOpenAiStatusResult };
-  "auth/openai/logout": { params: Models.AuthOpenAiLogoutParams; result: Models.AuthOpenAiStatusResult };
-  "auth/openai/status": { params: Models.AuthOpenAiStatusParams; result: Models.AuthOpenAiStatusResult };
-  "auth/openai/usage": { params: Models.RpcEmpty; result: Models.AuthOpenAiUsageResult };
   "automation/create": { params: Models.AutomationCreateParams; result: Models.AutomationReadResult };
   "automation/delete": { params: Models.AutomationIdParams; result: Models.AutomationDeleteResult };
   "automation/list": { params: Models.RpcEmpty; result: Models.AutomationListResult };
@@ -128,6 +124,14 @@ export interface ClientRequestMethods {
   "plugin/skill/read": { params: Models.PluginSkillReadParams; result: Models.PluginSkillReadResult };
   "plugin/view": { params: Models.PluginViewParams; result: Models.PluginViewResult };
   "profile/insights": { params: Models.ProfileInsightsParams; result: Models.ProfileInsightsResult };
+  "provider/auth/cancel": { params: Models.ProviderAuthOperationParams; result: Models.RpcEmpty };
+  "provider/auth/input": { params: Models.ProviderAuthInputParams; result: Models.RpcEmpty };
+  "provider/auth/login": { params: Models.ProviderAuthLoginParams; result: Models.ProviderAuthLoginState };
+  "provider/auth/logout": { params: Models.ProviderAuthInstanceParams; result: Models.RpcEmpty };
+  "provider/auth/state": { params: Models.ProviderAuthOperationParams; result: Models.ProviderAuthLoginState };
+  "provider/auth/status": { params: Models.ProviderAuthStatusParams; result: Models.ProviderAuthStatusResult };
+  "provider/auth/usage": { params: Models.ProviderAuthInstanceParams; result: Models.ProviderAuthUsageResult };
+  "provider/backend/list": { params: Models.RpcEmpty; result: Models.ProviderBackendListResult };
   "provider/list": { params: Models.ProviderListParams; result: Models.ProviderListResult };
   "provider/test": { params: Models.ProviderTestParams; result: Models.ProviderTestResult };
   "remoteToolHost/connect": { params: Models.RemoteToolHostConnectParams; result: Models.RemoteToolHostConnectResult };

@@ -19,9 +19,7 @@ public static class ProviderHostedCapabilityPlanner
 {
     internal static ProviderHostedCapabilityPlan Build(AgentRuntimeContext context)
     {
-        var deferredMode = DeferredToolLoadingPlanner.ResolveMode(
-            context.Config.Tools.DeferredLoading,
-            context.EffectiveProviderProtocol);
+        var deferredMode = DeferredToolLoadingPlanner.ResolveMode(context);
         return new ProviderHostedCapabilityPlan
         {
             DeferredToolSearch = deferredMode == DeferredToolLoadingMode.Off
@@ -29,7 +27,7 @@ public static class ProviderHostedCapabilityPlanner
                 : new DeferredToolSearchPlan(
                     deferredMode,
                     context.Config.Tools.DeferredLoading.Strategy.ToString(),
-                    Configuration.ModelProviderProtocols.Normalize(context.EffectiveProviderProtocol),
+                    context.EffectiveProviderProtocol.Trim().ToLowerInvariant(),
                     context.Config.Tools.DeferredLoading.MaxSearchResults,
                     context.TraceCollector)
         };

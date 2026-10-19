@@ -55,7 +55,7 @@ appConfig.Providers["openai"] = new AppConfig.ModelProviderConfig
 - `ApiKey` 与 `EndPoint` 会被忽略，请求发往 ChatGPT 后端 `https://chatgpt.com/backend-api/codex`。
 - 每个请求都会附带最新的 access token，来自用户数据目录下 `auth.json` 中保存的 token 包。token 自动刷新，收到 `401` 时会先采用其他进程轮换后的凭据，再向签发方刷新。
 
-登录只需一次，且发生在 Provider 配置之外。与 OpenAI Provider 一同注册的 `IOpenAIAuthService` 通过 `LoginAsync` 执行 PKCE 浏览器登录并持久化 token。装有 DotCraft 应用的机器上，`dotcraft auth openai login` 完成同样的事，还会把 Provider 条目写进全局配置。`ChatGptAccountId` 与 `ChatGptPlanType` 由该流程写入，当作只读元数据即可。用 `LogoutAsync` 或 `dotcraft auth openai logout` 退出登录会删除 token，并把 Provider 还原为 `apiKey`。
+登录只需一次，且发生在 Provider 配置之外。与 OpenAI Provider 一同注册的 `IOpenAIAuthService` 通过 `LoginAsync` 执行 PKCE 浏览器登录并持久化 token。装有 DotCraft 应用的机器上，`dotcraft auth login <provider-id>` 为已配置为 `chatgptOAuth` 的 Provider 完成同样的事。登录从不写入配置，账号 id 与订阅档位来自已保存的 token，一次登录即可供本机所有 `chatgptOAuth` Provider 使用。用 `LogoutAsync` 或 `dotcraft auth logout <provider-id>` 退出登录会删除这些 Provider 共用的 token，Provider 配置保持不变。
 
 ## 配置 Anthropic
 

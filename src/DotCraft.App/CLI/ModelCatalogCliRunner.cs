@@ -41,23 +41,7 @@ public static class ModelCatalogCliRunner
             var config = AppConfig.Load(globalPath);
             string? providerId = args.SetupProviderId;
             if (args.ModelCatalogReadStdin)
-            {
-                var json = await input.ReadToEndAsync(cancellationToken);
-                var draft = JsonSerializer.Deserialize<ProviderDraft>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                }) ?? throw new InvalidOperationException("Provider draft is required.");
-                providerId = string.IsNullOrWhiteSpace(draft.Id) ? "setup" : draft.Id.Trim();
-                config.Providers[providerId] = new AppConfig.ModelProviderConfig
-                {
-                    DisplayName = draft.DisplayName,
-                    Protocol = draft.Protocol,
-                    ApiKey = draft.ApiKey,
-                    AuthMethod = draft.AuthMethod,
-                    EndPoint = draft.EndPoint,
-                    NetworkTimeoutSeconds = draft.NetworkTimeoutSeconds
-                };
-            }
+                providerId = ApplyProviderDraft(config, await input.ReadToEndAsync(cancellationToken));
 
             var auth = new OpenAIAuthManager(new OpenAITokenStore(paths.CraftHomePath));
             if (config.Providers.TryGetValue(providerId ?? string.Empty, out var provider)
@@ -114,6 +98,25 @@ public static class ModelCatalogCliRunner
             await writeResult(new { kind = "error", errorMessage = ex.Message });
             return 0;
         }
+    }
+
+    internal static string ApplyProviderDraft(AppConfig config, string json)
+    {
+        var draft = JsonSerializer.Deserialize<ProviderDraft>(json, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        }) ?? throw new InvalidOperationException("Provider draft is required.");
+        var providerId = string.IsNullOrWhiteSpace(draft.Id) ? "setup" : draft.Id.Trim();
+        config.Providers[providerId] = new AppConfig.ModelProviderConfig
+        {
+            DisplayName = draft.DisplayName,
+            Protocol = draft.Protocol,
+            ApiKey = draft.ApiKey,
+            AuthMethod = draft.AuthMethod,
+            EndPoint = draft.EndPoint,
+            NetworkTimeoutSeconds = draft.NetworkTimeoutSeconds
+        };
+        return providerId;
     }
 
     private static async Task WriteAsync(object value)

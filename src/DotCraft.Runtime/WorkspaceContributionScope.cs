@@ -119,11 +119,12 @@ internal sealed class WorkspaceContributionScope(IContributionRegistry registry)
     }
 
     /// <summary>Starts propagating registry mutations into per-thread agent invalidations and context page releases.</summary>
-    public void AttachPropagation(ISessionService sessionService, IContextPageManager? contextPageManager = null)
+    public void AttachPropagation(ISessionService sessionService, IContextPageManager? contextPageManager = null,
+        ModelBackendResolver? backends = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (sessionService is IThreadAgentRefreshService refreshService)
-            _propagationBridge = new ContributionPropagationBridge(_registry, refreshService, contextPageManager);
+            _propagationBridge = new ContributionPropagationBridge(_registry, refreshService, contextPageManager, backends);
     }
 
     /// <summary>Removes every contribution and subscription this scope owns. Idempotent.</summary>

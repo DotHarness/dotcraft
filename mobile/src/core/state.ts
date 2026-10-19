@@ -63,9 +63,9 @@ export interface ProjectModels {
   canReadUsage: boolean
   approvalDefault: ApprovalPolicy
   defaultProviderId: string | null
-  providers: { id: string; name: string; signsIn: boolean }[]
+  providers: { id: string; name: string }[]
   catalogs: Record<string, ModelCatalogItem[]>
-  usage: UsageWindow[] | null
+  usage: Record<string, UsageWindow[]>
 }
 
 export type PendingRequest =
@@ -171,7 +171,7 @@ export type ComputerAction =
       projectId: string
       capabilities: Pick<ProjectModels, 'canConfigure' | 'canListModels' | 'canFork' | 'fileSystem' | 'canListCommands' | 'canListSkills' | 'canReadUsage'>
     }
-  | { type: 'usage'; projectId: string; windows: UsageWindow[] }
+  | { type: 'usage'; projectId: string; providerId: string; windows: UsageWindow[] }
   | { type: 'approvalDefault'; projectId: string; policy: ApprovalPolicy }
   | { type: 'references'; projectId: string; entries: ReferenceEntry[] }
   | { type: 'catalog'; projectId: string; providerId: string; models: ModelCatalogItem[]; isDefault: boolean }
@@ -231,7 +231,7 @@ function patchModels(state: ComputerState, projectId: string, patch: Partial<Pro
     defaultProviderId: null,
     providers: [],
     catalogs: {},
-    usage: null,
+    usage: {},
   }
   return { ...state, models: { ...state.models, [projectId]: { ...current, ...patch } } }
 }
@@ -380,7 +380,9 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
     case 'capabilities':
       return patchModels(state, action.projectId, action.capabilities)
     case 'usage':
-      return patchModels(state, action.projectId, { usage: action.windows })
+      return patchModels(state, action.projectId, {
+        usage: { ...state.models[action.projectId]?.usage, [action.providerId]: action.windows },
+      })
     case 'approvalDefault':
       return patchModels(state, action.projectId, { approvalDefault: action.policy })
     case 'references':

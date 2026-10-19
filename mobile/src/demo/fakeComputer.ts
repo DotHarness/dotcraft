@@ -388,7 +388,6 @@ export class FakeComputer {
               fileSystem: true,
               commandManagement: this.commands.length > 0,
               skillsManagement: this.skills.length > 0,
-              authOpenAiUsage: this.accountUsage !== undefined,
               workspaceConfigManagement: true,
               backgroundTerminals: true,
               subAgentSessions: true,
@@ -404,8 +403,11 @@ export class FakeComputer {
         return { result: { profiles: this.profiles } }
       case 'provider/list':
         return { result: { providers: this.providers.map(({ id, displayName, authMethod }) => ({ id, displayName, authMethod: authMethod ?? 'apiKey' })) } }
-      case 'auth/openai/usage':
-        return this.accountUsage ? { result: this.accountUsage } : { error: { code: -32601, message: `Method not found: ${method}` } }
+      case 'provider/auth/usage': {
+        const provider = this.providers.find((entry) => entry.id === params.providerId)
+        if (!provider) return { error: { code: -32600, message: `Model provider '${params.providerId}' is not configured.` } }
+        return { result: this.accountUsage && /oauth$/i.test(provider.authMethod ?? '') ? this.accountUsage : { available: false } }
+      }
       case 'model/list': {
         const provider = this.providers.find((entry) => entry.id === (params.providerId ?? this.providers[0]?.id))
         if (!provider) return { result: { success: false, providerId: params.providerId ?? null, models: [], errorCode: 'ProviderNotFound' } }

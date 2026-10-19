@@ -81,13 +81,8 @@ public sealed partial class SessionService
             currentConfig,
             thread.Configuration?.ProviderId,
             thread.Configuration?.Model);
-        if (!string.Equals(
-                runtime.Protocol,
-                ModelProviderProtocols.OpenAIResponses,
-                StringComparison.Ordinal))
-        {
+        if (!runtime.IsOpenAIResponses)
             return null;
-        }
 
         if (!TrySnapshotInMemoryHistory(session, out var baselineHistory))
             baselineHistory = [];
@@ -190,7 +185,7 @@ public sealed partial class SessionService
             currentConfig,
             thread.Configuration?.ProviderId,
             thread.Configuration?.Model);
-        if (!string.Equals(runtime.Protocol, ModelProviderProtocols.OpenAIResponses, StringComparison.Ordinal)
+        if (!runtime.IsOpenAIResponses
             || !TrySnapshotInMemoryHistory(session, out var replacementHistory))
         {
             return;

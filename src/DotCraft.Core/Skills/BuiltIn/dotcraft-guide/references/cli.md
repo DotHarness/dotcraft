@@ -30,7 +30,7 @@ Both are read-only, so they are available in Plan mode. `config show --json` on 
 
 | Command | Does |
 |---|---|
-| `dotcraft auth openai login \| logout \| status` | OpenAI credentials, including Sign in with ChatGPT |
+| `dotcraft auth login \| status \| logout \| verify <provider-id>` | Provider sign-in, including Sign in with ChatGPT |
 | `dotcraft skill verify \| install` | Verify and install a skill candidate. Use through `$skill-installer` |
 | `dotcraft context export \| search` | Export one thread as Markdown, or search saved thread context |
 | `dotcraft stack init \| add-project \| doctor \| status \| logs \| restart \| upgrade \| webhook` | Self-hosted Stack deployment |

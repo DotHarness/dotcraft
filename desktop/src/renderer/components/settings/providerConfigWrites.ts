@@ -5,7 +5,8 @@ import type { ProviderInfoWire } from './providerInfo'
 export interface ProviderFields {
   displayName: string
   protocol: string
-  authMethod: 'apiKey' | 'chatgptOAuth'
+  backendId: string | null
+  authMethod: string
   apiKey: string | null
   endPoint: string
   networkTimeoutSeconds: number | null
@@ -24,9 +25,14 @@ export function providerIdExists(providers: readonly ProviderInfoWire[], id: str
 export function providerCreateValue(fields: ProviderFields): ProviderValue {
   const value: ProviderValue = { Protocol: fields.protocol }
   if (fields.displayName) value.DisplayName = fields.displayName
-  if (fields.authMethod === 'chatgptOAuth') value.AuthMethod = fields.authMethod
-  else if (fields.apiKey) value.ApiKey = fields.apiKey
-  if (fields.endPoint) value.EndPoint = fields.endPoint
+  if (fields.backendId) {
+    value.BackendId = fields.backendId
+    if (fields.authMethod) value.AuthMethod = fields.authMethod
+  } else {
+    if (fields.authMethod === 'chatgptOAuth') value.AuthMethod = fields.authMethod
+    else if (fields.apiKey) value.ApiKey = fields.apiKey
+    if (fields.endPoint) value.EndPoint = fields.endPoint
+  }
   if (fields.networkTimeoutSeconds != null) value.NetworkTimeoutSeconds = fields.networkTimeoutSeconds
   if (fields.supportsImageGeneration != null) value.SupportsImageGeneration = fields.supportsImageGeneration
   return value
@@ -38,9 +44,10 @@ export function providerUpdateValue(previous: ProviderInfoWire, fields: Provider
     if (before !== after) value[key] = after === '' ? null : after
   }
   if ((fields.displayName || previous.id) !== previous.displayName) value.DisplayName = fields.displayName || null
+  change('BackendId', previous.backendId ?? '', fields.backendId ?? '')
   change('Protocol', previous.protocol, fields.protocol)
   change('AuthMethod', previous.authMethod ?? 'apiKey', fields.authMethod)
-  change('EndPoint', previous.endPoint, fields.endPoint)
+  change('EndPoint', previous.endPoint, fields.backendId ? '' : fields.endPoint)
   change('NetworkTimeoutSeconds', previous.networkTimeoutSeconds ?? null, fields.networkTimeoutSeconds)
   const previousImageGeneration = previous.supportsImageGeneration === true
   if (fields.supportsImageGeneration == null) {
@@ -51,7 +58,7 @@ export function providerUpdateValue(previous: ProviderInfoWire, fields: Provider
   ) {
     value.SupportsImageGeneration = fields.supportsImageGeneration
   }
-  if (fields.authMethod === 'chatgptOAuth') {
+  if (fields.backendId || fields.authMethod === 'chatgptOAuth') {
     if (previous.hasApiKey) value.ApiKey = null
   } else if (fields.apiKey !== null) {
     value.ApiKey = fields.apiKey || null

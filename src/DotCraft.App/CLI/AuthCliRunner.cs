@@ -1,221 +1,266 @@
-using DotCraft.Auth.OpenAI;
+using System.Diagnostics;
+using System.Threading.Channels;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Contributions;
 using DotCraft.Hub;
 using DotCraft.Text;
+using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 
 namespace DotCraft.CLI;
 
 internal static class AuthCliRunner
 {
-    public static Task<int> LoginAsync(
-        string? providerId,
-        bool noBrowser,
-        bool noBind,
-        CancellationToken cancellationToken)
+    public static Task<int> RunStandaloneAsync(CommandLineArgs args, CancellationToken ct) =>
+        RunStandaloneAsync(args, HubPaths.ForCurrentUser(), Console.In, ct);
+
+    internal static async Task<int> RunStandaloneAsync(
+        CommandLineArgs args, HubPaths paths, TextReader input, CancellationToken ct)
     {
-        var effectiveProviderId = string.IsNullOrWhiteSpace(providerId)
-            ? "openai"
-            : providerId.Trim();
-        return HandleLoginAsync(
-            CreateManager(),
-            effectiveProviderId,
-            InitHelper.GetGlobalConfigPath(),
-            noBrowser,
-            noBind,
-            cancellationToken);
+        var config = AppConfig.Load(paths.GlobalConfigPath);
+        if (args.AuthReadStdin)
+            args = args with { SetupProviderId = ModelCatalogCliRunner.ApplyProviderDraft(config, await input.ReadToEndAsync(ct)) };
+        await using var services = new ServiceCollection()
+            .AddOpenAIModelProvider(paths.CraftHomePath)
+            .AddAnthropicModelProvider()
+            .BuildServiceProvider();
+        using var resolver = new ModelBackendResolver(
+            new ModelProviderRegistry(services.GetServices<IModelProvider>()), new NoContributions(), paths.CraftHomePath);
+        await using var coordinator = new ProviderAuthenticationCoordinator(resolver);
+        return await RunAsync(coordinator, resolver, config, args, ct);
     }
 
-    public static Task<int> LogoutAsync(string? providerId, CancellationToken cancellationToken)
-    {
-        var effectiveProviderId = string.IsNullOrWhiteSpace(providerId)
-            ? "openai"
-            : providerId.Trim();
-        return HandleLogoutAsync(
-            CreateManager(),
-            effectiveProviderId,
-            InitHelper.GetGlobalConfigPath(),
-            cancellationToken);
-    }
-
-    public static Task<int> StatusAsync(bool noUsage, CancellationToken cancellationToken) =>
-        HandleStatusAsync(CreateManager(), noUsage, cancellationToken);
-
-    public static async Task<int> VerifyAsync(CancellationToken cancellationToken)
+    public static async Task<int> RunAsync(ProviderAuthenticationCoordinator auth, IModelRuntimeResolver resolver,
+        AppConfig config, CommandLineArgs args, CancellationToken ct)
     {
         try
         {
-            var config = AppConfig.Load(InitHelper.GetGlobalConfigPath());
-            var providerId = config.ProviderId;
-            if (string.IsNullOrWhiteSpace(providerId)
-                || !config.Providers.TryGetValue(providerId, out var provider)
-                || provider.AuthMethod != ModelProviderAuthMethods.ChatGptOAuth)
-                throw new InvalidOperationException("The selected provider must use ChatGPT subscription authentication.");
-
-            var model = ModelPreferenceRules.Find(config.ProviderPreferences, providerId)?.Model;
-            if (string.IsNullOrWhiteSpace(model))
-                throw new InvalidOperationException("Select a model for the ChatGPT subscription provider.");
-
-            var auth = CreateManager();
-            await auth.GetAccessTokenAsync(true, cancellationToken);
-            var catalog = await ModelProviderCatalog.FetchAsync(
-                config,
-                new ModelProviderRegistry([new OpenAIClientProvider(auth)]),
-                providerId,
-                ModelCatalogRefreshStrategy.Online,
-                cancellationToken);
-            if (!catalog.Success)
-                throw new InvalidOperationException(catalog.ErrorMessage ?? "Could not load the ChatGPT model catalog.");
-            if (!catalog.Models.Any(entry => string.Equals(entry.Id, model, StringComparison.Ordinal)))
-                throw new InvalidOperationException($"Model '{model}' is not listed in the ChatGPT model catalog.");
-
-            AnsiConsole.MarkupLine("[green]ChatGPT credentials refreshed; selected model is listed in the catalog.[/]");
-            return 0;
+            if (args.AuthAction == "verify")
+                return await VerifyAsync(auth, resolver, config, args.SetupProviderId ?? config.ProviderId, ct);
+            var providerId = args.SetupProviderId ?? throw new ArgumentException("A provider identifier is required.");
+            return args.AuthAction switch
+            {
+                "login" => await LoginAsync(auth, config, providerId, args, ct),
+                "status" => await StatusAsync(auth, config, providerId, ct),
+                "logout" => await LogoutAsync(auth, config, providerId, ct),
+                _ => throw new ArgumentException($"Unknown auth action '{args.AuthAction}'.")
+            };
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException)
+        {
+            AnsiConsole.MarkupLine($"[yellow]{FallbackText.AuthLoginCancelled.EscapeMarkup()}[/]");
+            return 130;
+        }
+        catch (Exception ex)
         {
             AnsiConsole.MarkupLine($"[red]{ex.Message.EscapeMarkup()}[/]");
             return 1;
         }
     }
 
-    private static OpenAIAuthManager CreateManager() => new(
-        new OpenAITokenStore(HubPaths.ForCurrentUser().CraftHomePath));
-
-    private static async Task<int> HandleLoginAsync(
-        OpenAIAuthManager authService,
-        string providerId,
-        string globalConfigPath,
-        bool noBrowser,
-        bool noBind,
-        CancellationToken cancellationToken)
+    private static async Task<int> LoginAsync(ProviderAuthenticationCoordinator auth, AppConfig config,
+        string providerId, CommandLineArgs args, CancellationToken ct)
     {
-        AnsiConsole.MarkupLine($"[green]{FallbackText.AuthOpenAiLoginStarting}[/]");
+        var owner = Guid.NewGuid().ToString("N");
+        var states = Channel.CreateUnbounded<ProviderLoginState>();
+        void OnChanged(string changedOwner, ProviderLoginState state)
+        {
+            if (changedOwner == owner) states.Writer.TryWrite(state);
+        }
 
-        OpenAIAuthStatus status;
+        AnsiConsole.MarkupLine($"[green]{FallbackText.AuthLoginStarting(providerId).EscapeMarkup()}[/]");
+        auth.Changed += OnChanged;
         try
         {
-            status = await authService.LoginAsync(
-                openBrowser: !noBrowser,
-                onAuthorizationUrl: url =>
+            var state = auth.Login(config, providerId, args.AuthMethod, owner, ct);
+            ProviderLoginEvent? shown = null;
+            string? answered = null;
+            while (true)
+            {
+                if (state.Event is { } notification && !ReferenceEquals(notification, shown))
                 {
-                    AnsiConsole.MarkupLine(FallbackText.AuthOpenAiLoginUrl(url).EscapeMarkup());
-                    AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthOpenAiLoginWaiting(OpenAIAuthConstants.RedirectPortPrimary).EscapeMarkup()}[/]");
-                },
-                cancellationToken);
+                    shown = notification;
+                    ShowEvent(notification, args.AuthNoBrowser);
+                }
+                switch (state.Status)
+                {
+                    case "completed":
+                        var status = state.Authentication ?? new ProviderAuthenticationStatus(true);
+                        AnsiConsole.MarkupLine($"[green]{FallbackText.AuthStatusSignedIn(Account(status), Plan(status)).EscapeMarkup()}[/]");
+                        return 0;
+                    case "cancelled":
+                        AnsiConsole.MarkupLine($"[yellow]{FallbackText.AuthLoginCancelled.EscapeMarkup()}[/]");
+                        return 130;
+                    case "failed":
+                        AnsiConsole.MarkupLine($"[red]{FallbackText.AuthLoginFailed(state.ErrorMessage ?? state.ErrorCode ?? string.Empty).EscapeMarkup()}[/]");
+                        return 1;
+                }
+                if (state.Prompt is { } prompt && state.PromptId is { } promptId && promptId != answered)
+                {
+                    answered = promptId;
+                    state = await AnswerPromptAsync(auth, state, prompt, promptId, owner, states.Reader, ct);
+                    if (state.PromptId != promptId)
+                        continue;
+                }
+                var next = await states.Reader.ReadAsync(ct);
+                if (next.Id == state.Id && next.Revision > state.Revision)
+                    state = next;
+            }
         }
-        catch (OperationCanceledException)
+        finally
         {
-            AnsiConsole.MarkupLine($"[yellow]{FallbackText.AuthOpenAiLoginCancelled}[/]");
-            return 130;
+            auth.Changed -= OnChanged;
+            auth.CancelOwner(owner);
         }
-        catch (OpenAIAuthException ex)
-        {
-            AnsiConsole.MarkupLine($"[red]{FallbackText.AuthOpenAiLoginFailed(ex.Message).EscapeMarkup()}[/]");
-            return 1;
-        }
-
-        var accountDisplay = MaskAccount(status.AccountId);
-        var planDisplay = string.IsNullOrEmpty(status.PlanType) ? "unknown" : status.PlanType!;
-
-        AnsiConsole.MarkupLine($"[green]✓ {FallbackText.AuthOpenAiLoginSuccess(accountDisplay, planDisplay).EscapeMarkup()}[/]");
-
-        if (!noBind)
-        {
-            OpenAIAuthBindingPersistence.BindProviderToOAuth(
-                providerId,
-                OpenAIProviderProjection.ToProviderStatus(status),
-                globalConfigPath);
-            AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthOpenAiLoginBound(providerId).EscapeMarkup()}[/]");
-        }
-        return 0;
     }
 
-    private static async Task<int> HandleLogoutAsync(
-        OpenAIAuthManager authService,
-        string providerId,
-        string globalConfigPath,
-        CancellationToken cancellationToken)
+    private static async Task<int> StatusAsync(ProviderAuthenticationCoordinator auth, AppConfig config,
+        string providerId, CancellationToken ct)
     {
-        await authService.LogoutAsync(cancellationToken);
-        OpenAIAuthBindingPersistence.UnbindProvider(providerId, globalConfigPath);
-        AnsiConsole.MarkupLine($"[green]✓ {FallbackText.AuthOpenAiLogoutSuccess}[/]");
-        AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthOpenAiLogoutUnbound(providerId).EscapeMarkup()}[/]");
-        return 0;
-    }
-
-    private static async Task<int> HandleStatusAsync(OpenAIAuthManager authService, bool skipUsage, CancellationToken cancellationToken)
-    {
-        var status = authService.GetStatus();
-        if (!status.LoggedIn)
+        var status = await auth.GetStatusAsync(config, providerId, ct);
+        if (!status.IsAuthenticated)
         {
-            AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthOpenAiStatusSignedOut}[/]");
+            AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthStatusSignedOut(providerId).EscapeMarkup()}[/]");
+            if (status.FailureMessage is { } failure)
+                AnsiConsole.MarkupLine($"[grey]{failure.EscapeMarkup()}[/]");
             return 0;
         }
-
-        var account = MaskAccount(status.AccountId);
-        var plan = string.IsNullOrEmpty(status.PlanType) ? "unknown" : status.PlanType!;
-        var lastRefresh = status.LastRefresh?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—";
-        AnsiConsole.MarkupLine($"[green]{FallbackText.AuthOpenAiStatusSignedIn(account, plan, lastRefresh).EscapeMarkup()}[/]");
-
-        if (status.AccessTokenExpiresAt is { } expires)
-            AnsiConsole.MarkupLine($"[grey]Access token expires {expires.ToLocalTime():yyyy-MM-dd HH:mm}.[/]");
-
-        if (skipUsage)
-            return 0;
-
-        await PrintUsageAsync(authService, cancellationToken).ConfigureAwait(false);
+        AnsiConsole.MarkupLine($"[green]{FallbackText.AuthStatusSignedIn(Account(status), Plan(status)).EscapeMarkup()}[/]");
+        if (await auth.ReadUsageAsync(config, providerId, ct) is { } usage)
+            PrintUsage(usage);
         return 0;
     }
 
-    private static async Task PrintUsageAsync(OpenAIAuthManager authService, CancellationToken cancellationToken)
+    private static async Task<int> LogoutAsync(ProviderAuthenticationCoordinator auth, AppConfig config,
+        string providerId, CancellationToken ct)
     {
-        var usageClient = new OpenAIUsageClient(authService);
-        OpenAIUsageSnapshot snapshot;
+        await auth.LogoutAsync(config, providerId, ct);
+        AnsiConsole.MarkupLine($"[green]{FallbackText.AuthLogoutSuccess(providerId).EscapeMarkup()}[/]");
+        return 0;
+    }
+
+    private static async Task<int> VerifyAsync(ProviderAuthenticationCoordinator auth, IModelRuntimeResolver resolver,
+        AppConfig config, string? providerId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(providerId))
+            throw new InvalidOperationException("Select a provider to verify.");
+        await auth.GetAccessTokenAsync(config, providerId, forceRefresh: true, ct);
+        if (!(await auth.GetStatusAsync(config, providerId, ct)).IsAuthenticated)
+            throw new InvalidOperationException($"Provider '{providerId}' is not signed in.");
+        var model = ModelPreferenceRules.Find(config.ProviderPreferences, providerId)?.Model;
+        if (string.IsNullOrWhiteSpace(model))
+            throw new InvalidOperationException($"Select a model for provider '{providerId}'.");
+        var catalog = await ModelProviderCatalog.FetchAsync(config, resolver, providerId, ModelCatalogRefreshStrategy.Online, ct);
+        if (!catalog.Success)
+            throw new InvalidOperationException(catalog.ErrorMessage ?? $"Could not load the model catalog of provider '{providerId}'.");
+        if (!catalog.Models.Any(entry => string.Equals(entry.Id, model, StringComparison.Ordinal)))
+            throw new InvalidOperationException($"Model '{model}' is not listed in the catalog of provider '{providerId}'.");
+        AnsiConsole.MarkupLine($"[green]{FallbackText.AuthVerifySuccess(model).EscapeMarkup()}[/]");
+        return 0;
+    }
+
+    private static void ShowEvent(ProviderLoginEvent notification, bool noBrowser)
+    {
+        if (notification.Kind == "device_code" && notification.UserCode is { } code && notification.Url is { } verificationUrl)
+            AnsiConsole.MarkupLine(FallbackText.AuthLoginDeviceCode(code, verificationUrl).EscapeMarkup());
+        else if (notification.Kind == "auth_url" && notification.Url is { } authorizationUrl)
+        {
+            AnsiConsole.MarkupLine(FallbackText.AuthLoginUrl(authorizationUrl).EscapeMarkup());
+            AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthLoginWaiting.EscapeMarkup()}[/]");
+        }
+        else if (notification.Message is { } message)
+            AnsiConsole.MarkupLine(message.EscapeMarkup());
+        if (!noBrowser && notification.Kind is "auth_url" or "device_code" && notification.Url is { } url)
+            TryOpenBrowser(url);
+    }
+
+    private static async Task<ProviderLoginState> AnswerPromptAsync(ProviderAuthenticationCoordinator auth,
+        ProviderLoginState state, ProviderLoginPrompt prompt, string promptId, string owner,
+        ChannelReader<ProviderLoginState> states, CancellationToken ct)
+    {
+        using var reading = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var input = Task.Run(() => ReadPromptAsync(prompt, reading.Token), CancellationToken.None);
+        while (true)
+        {
+            var changed = states.WaitToReadAsync(ct).AsTask();
+            if (await Task.WhenAny(input, changed) == input)
+            {
+                try
+                {
+                    auth.Respond(state.Id, promptId, await input, owner);
+                }
+                catch (ProviderAuthenticationException exception) when (exception.Code == "ProviderLoginPromptStale")
+                {
+                }
+                return state;
+            }
+            await changed;
+            while (states.TryRead(out var next))
+            {
+                if (next.Id != state.Id || next.Revision <= state.Revision)
+                    continue;
+                state = next;
+                if (state.PromptId != promptId)
+                {
+                    reading.Cancel();
+                    return state;
+                }
+            }
+        }
+    }
+
+    private static Task<string> ReadPromptAsync(ProviderLoginPrompt prompt, CancellationToken ct)
+    {
+        if (prompt.Kind == "select" && prompt.Choices is { Count: > 0 } choices)
+            return AnsiConsole.PromptAsync(new SelectionPrompt<string>()
+                .Title(Markup.Escape(prompt.Message)).AddChoices(choices.Select(choice => choice.Id))
+                .UseConverter(id => choices.Single(choice => choice.Id == id).Label), ct);
+        var input = new TextPrompt<string>(Markup.Escape(prompt.Message));
+        if (prompt.Kind == "secret") input.Secret();
+        return AnsiConsole.PromptAsync(input, ct);
+    }
+
+    private static void TryOpenBrowser(string url)
+    {
         try
         {
-            snapshot = await usageClient.FetchAsync(cancellationToken).ConfigureAwait(false);
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
         }
-        catch (OpenAIAuthException ex)
+        catch (Exception)
         {
-            AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthOpenAiUsageUnavailable(ex.Message).EscapeMarkup()}[/]");
-            return;
         }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
+    }
 
+    private static void PrintUsage(ProviderUsageSnapshot usage)
+    {
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[white]{FallbackText.AuthOpenAiUsageHeader}[/]");
-        foreach (var displayWindow in OpenAIUsageWindowPresentation.Shape(snapshot))
+        AnsiConsole.MarkupLine($"[white]{FallbackText.AuthUsageHeader.EscapeMarkup()}[/]");
+        foreach (var displayWindow in ProviderUsageWindowPresentation.Shape(usage))
             PrintWindow(WindowLabel(displayWindow.Kind), displayWindow.Window);
 
-        if (snapshot.Credits is { } credits && credits.HasCredits)
+        if (usage.Credits is { HasCredits: true } credits)
         {
             var balance = credits.Unlimited
-                ? FallbackText.AuthOpenAiUsageCreditsUnlimited
-                : FallbackText.AuthOpenAiUsageCreditsBalance(credits.Balance ?? "—");
+                ? FallbackText.AuthUsageCreditsUnlimited
+                : FallbackText.AuthUsageCreditsBalance(credits.Balance ?? "—");
             AnsiConsole.MarkupLine($"  [white]Credits[/]    {balance.EscapeMarkup()}");
         }
 
-        if (!string.IsNullOrEmpty(snapshot.LimitReachedKind))
-        {
-            AnsiConsole.MarkupLine($"[yellow]{FallbackText.AuthOpenAiUsageLimitReached(snapshot.LimitReachedKind).EscapeMarkup()}[/]");
-        }
+        if (!string.IsNullOrEmpty(usage.LimitReachedKind))
+            AnsiConsole.MarkupLine($"[yellow]{FallbackText.AuthUsageLimitReached(usage.LimitReachedKind).EscapeMarkup()}[/]");
     }
 
-    private static string WindowLabel(OpenAIUsageWindowKind kind) => kind switch
+    private static string WindowLabel(ProviderUsageWindowKind kind) => kind switch
     {
-        OpenAIUsageWindowKind.FiveHour => FallbackText.AuthOpenAiUsageWindowFiveHour,
-        OpenAIUsageWindowKind.Weekly => FallbackText.AuthOpenAiUsageWindowWeekly,
-        OpenAIUsageWindowKind.Primary => FallbackText.AuthOpenAiUsageWindowPrimary,
-        OpenAIUsageWindowKind.Secondary => FallbackText.AuthOpenAiUsageWindowSecondary,
+        ProviderUsageWindowKind.FiveHour => FallbackText.AuthUsageWindowFiveHour,
+        ProviderUsageWindowKind.Weekly => FallbackText.AuthUsageWindowWeekly,
+        ProviderUsageWindowKind.Primary => FallbackText.AuthUsageWindowPrimary,
+        ProviderUsageWindowKind.Secondary => FallbackText.AuthUsageWindowSecondary,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
     };
 
-    private static void PrintWindow(string label, RateLimitWindow window)
+    private static void PrintWindow(string label, ProviderRateLimitWindow window)
     {
         var bar = BuildBar(window.UsedPercent);
         var color = ColorForUsage(window.UsedPercent);
@@ -247,13 +292,27 @@ internal static class AuthCliRunner
         return $"{(int)ts.TotalMinutes}m";
     }
 
-    private static string MaskAccount(string? accountId)
+    private static string Account(ProviderAuthenticationStatus status)
     {
+        if (!string.IsNullOrEmpty(status.Email))
+            return status.Email;
+        if (!string.IsNullOrEmpty(status.DisplayName))
+            return status.DisplayName;
+        var accountId = status.AccountId;
         if (string.IsNullOrEmpty(accountId))
             return "(no account id)";
-        if (accountId.Length <= 8)
-            return accountId;
-        return accountId[..4] + "…" + accountId[^4..];
+        return accountId.Length <= 8 ? accountId : accountId[..4] + "…" + accountId[^4..];
     }
 
+    private static string Plan(ProviderAuthenticationStatus status) =>
+        string.IsNullOrEmpty(status.PlanType) ? "unknown" : status.PlanType;
+
+    private sealed class NoContributions : IContributionView
+    {
+        public IReadOnlyList<TContract> Resolve<TContract>(string? threadId = null)
+            where TContract : class, IContributionContract => [];
+        public IReadOnlyList<ContributionEntry<TContract>> ResolveEntries<TContract>(string? threadId = null)
+            where TContract : class, IContributionContract => [];
+        public long GetRevision<TContract>() where TContract : class, IContributionContract => 0;
+    }
 }

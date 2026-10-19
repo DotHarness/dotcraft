@@ -11,7 +11,6 @@ import type { MessageKey } from '../../../../../shared/locales'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { SettingsSelect } from '../../ui/SettingsSelect'
 import { ToggleSwitch } from '../../../channels/ToggleSwitch'
-import { SelectionCard } from '../../../ui/SelectionCard'
 import { Input, Textarea } from '../../../ui/Input'
 import {
   EditableKeyValueList,
@@ -50,6 +49,8 @@ type InputModeOption = {
   labelKey: MessageKey
   hintKey: MessageKey
 }
+
+const INPUT_MODE_MENU_MIN_WIDTH = 320
 
 const INPUT_MODE_OPTIONS: InputModeOption[] = [
   {
@@ -283,36 +284,40 @@ export function CustomProfileEditor({
         <SettingsRow
           label={t('settings.subAgents.custom.workingDirLabel')}
           description={t('settings.subAgents.custom.workingDirHint')}
-          orientation="block"
-        >
-          <RadioGroup
-            name="subagent-working-dir"
-            value={state.workingDirectoryMode}
-            onChange={(value) => updateState('workingDirectoryMode', value)}
-            options={WORKING_DIR_OPTIONS.map((option) => ({
-              value: option.value,
-              label: t(option.labelKey)
-            }))}
-          />
-        </SettingsRow>
+          control={
+            <SettingsSelect
+              value={state.workingDirectoryMode}
+              ariaLabel={t('settings.subAgents.custom.workingDirLabel')}
+              onValueChange={(value) => updateState('workingDirectoryMode', value)}
+              options={WORKING_DIR_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.labelKey)
+              }))}
+            />
+          }
+        />
       </SettingsGroup>
 
       <SettingsGroup
         title={t('settings.subAgents.custom.inputTitle')}
         description={t('settings.subAgents.custom.inputDescription')}
       >
-        <SettingsRow orientation="block">
-          <RadioGroup
-            name="subagent-input-mode"
-            value={state.inputMode}
-            onChange={(value) => updateState('inputMode', value)}
-            options={INPUT_MODE_OPTIONS.map((option) => ({
-              value: option.value,
-              label: t(option.labelKey),
-              description: t(option.hintKey)
-            }))}
-          />
-        </SettingsRow>
+        <SettingsRow
+          label={t('settings.subAgents.custom.inputModeLabel')}
+          control={
+            <SettingsSelect
+              value={state.inputMode}
+              ariaLabel={t('settings.subAgents.custom.inputModeLabel')}
+              menuMinWidth={INPUT_MODE_MENU_MIN_WIDTH}
+              onValueChange={(value) => updateState('inputMode', value)}
+              options={INPUT_MODE_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.labelKey),
+                description: t(option.hintKey)
+              }))}
+            />
+          }
+        />
         {state.inputMode === 'arg-template' && (
           <SettingsRow
             label={t('settings.subAgents.custom.inputArgTemplateLabel')}
@@ -349,18 +354,18 @@ export function CustomProfileEditor({
       >
         <SettingsRow
           label={t('settings.subAgents.custom.outputFormatLabel')}
-          orientation="block"
-        >
-          <RadioGroup
-            name="subagent-output-format"
-            value={state.outputFormat}
-            onChange={(value) => updateState('outputFormat', value)}
-            options={OUTPUT_FORMAT_OPTIONS.map((option) => ({
-              value: option.value,
-              label: t(option.labelKey)
-            }))}
-          />
-        </SettingsRow>
+          control={
+            <SettingsSelect
+              value={state.outputFormat}
+              ariaLabel={t('settings.subAgents.custom.outputFormatLabel')}
+              onValueChange={(value) => updateState('outputFormat', value)}
+              options={OUTPUT_FORMAT_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.labelKey)
+              }))}
+            />
+          }
+        />
         {state.outputFormat === 'json' && (
           <>
             <SettingsRow
@@ -650,37 +655,6 @@ export function CustomProfileEditor({
           {saving ? t('settings.subAgents.saving') : t('settings.subAgents.save')}
         </Button>
       </div>
-    </div>
-  )
-}
-
-interface RadioOption {
-  value: string
-  label: string
-  description?: string
-}
-
-interface RadioGroupProps {
-  name: string
-  value: string
-  onChange: (value: string) => void
-  options: RadioOption[]
-}
-
-function RadioGroup({ name, value, onChange, options }: RadioGroupProps): JSX.Element {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      {options.map((option) => (
-        <SelectionCard
-          key={option.value}
-          name={name}
-          value={option.value}
-          active={option.value === value}
-          onSelect={() => onChange(option.value)}
-          title={option.label}
-          description={option.description}
-        />
-      ))}
     </div>
   )
 }

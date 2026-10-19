@@ -2287,7 +2287,7 @@ async function connectViaWebSocket(
       role: entry.role
     })
     if (foreground == null) return
-    if (foreground && method === 'auth/openai/usage/updated') refreshVoiceChatGptAvailability()
+    if (foreground && method === 'provider/auth/usage/updated') refreshVoiceChatGptAvailability()
 
     if (mainWindow && !mainWindow.isDestroyed()) {
       applyWorkspaceThreadNotification(entry, method, params)
@@ -2626,7 +2626,7 @@ function createSecondaryWorkspaceConnection(
       role: entry.role
     })
     if (foreground == null) return
-    if (foreground && method === 'auth/openai/usage/updated') refreshVoiceChatGptAvailability()
+    if (foreground && method === 'provider/auth/usage/updated') refreshVoiceChatGptAvailability()
 
     applyWorkspaceThreadNotification(entry, method, params)
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2839,7 +2839,7 @@ function buildCallbacks(): IpcHandlerCallbacks {
     onListSetupModels: async (request: WorkspaceSetupModelListRequest) => {
       return listSetupModels(request, { settings: sharedSettings })
     },
-    onLoginSetupChatGpt: async (providerId: string) => loginSetupChatGpt(providerId, sharedSettings),
+    onLoginSetupChatGpt: async (request: WorkspaceSetupModelListRequest) => loginSetupChatGpt(request, { settings: sharedSettings }),
     onOpenNewWindow: () => {
       openNewProcess()
     },

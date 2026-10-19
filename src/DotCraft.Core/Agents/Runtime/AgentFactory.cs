@@ -621,6 +621,7 @@ public sealed class AgentFactory : IAsyncDisposable
         if (warmsPromptCache)
             requestAdaptedChatClient = new PromptCacheWarmingChatClient(requestAdaptedChatClient, promptCaching.ResolveTtl());
         if (deferredRegistry is { Mode: DeferredToolLoadingMode.Native }
+            && runtime.BackendId is null
             && string.Equals(runtime.Protocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal))
         {
             requestAdaptedChatClient = new AnthropicDeferredToolCatalogChatClient(

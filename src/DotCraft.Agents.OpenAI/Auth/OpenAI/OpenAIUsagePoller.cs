@@ -77,6 +77,11 @@ internal sealed class OpenAIUsagePoller : IOpenAIUsageService, IAsyncDisposable
         if (sinceLast < ManualRefreshDebounce)
         {
             _logger.LogTrace("Skipping usage refresh: only {Ms}ms since last attempt.", sinceLast.TotalMilliseconds);
+            if (CurrentSnapshot is null)
+            {
+                await _fetchGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                _fetchGate.Release();
+            }
             return CurrentSnapshot;
         }
 

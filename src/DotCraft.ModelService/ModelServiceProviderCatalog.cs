@@ -9,6 +9,8 @@ public static class ModelServiceProviderCatalog
     public static async Task<RemoteModelProvider> DescribeAsync(ModelServiceProvider source, CancellationToken cancellationToken)
     {
         var runtime = source.Runtime;
+        if (runtime.BackendId is not null)
+            throw new InvalidOperationException("Local model backends are not supported by the model service.");
         IModelProvider provider = runtime.Protocol == ModelProviderProtocols.Anthropic
             ? new AnthropicClientProvider() : new OpenAIClientProvider(source.Authentication);
         var catalog = await ((IModelCatalogProvider)provider).FetchModelsAsync(runtime, cancellationToken).ConfigureAwait(false);
@@ -29,6 +31,8 @@ public static class ModelServiceProviderCatalog
     public static RemoteModelProvider Describe(ModelServiceProvider source, IEnumerable<string> modelIds)
     {
         var runtime = source.Runtime;
+        if (runtime.BackendId is not null)
+            throw new InvalidOperationException("Local model backends are not supported by the model service.");
         IModelProvider provider = runtime.Protocol == ModelProviderProtocols.Anthropic
             ? new AnthropicClientProvider() : new OpenAIClientProvider(source.Authentication);
         var thinkingCatalogPath = runtime.ProviderStateDirectory is null

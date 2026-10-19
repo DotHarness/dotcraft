@@ -15,12 +15,13 @@ internal static class DeferredToolLoadingPlanner
 {
     public static DeferredToolLoadingMode ResolveMode(
         AppConfig.DeferredLoadingConfig config,
-        string protocol)
+        string protocol,
+        bool? nativeSupported = null)
     {
-        var normalizedProtocol = ModelProviderProtocols.Normalize(protocol);
-        var supportsNative =
+        var normalizedProtocol = nativeSupported.HasValue ? protocol.Trim().ToLowerInvariant() : ModelProviderProtocols.Normalize(protocol);
+        var supportsNative = nativeSupported ?? (
             normalizedProtocol == ModelProviderProtocols.OpenAIResponses
-            || normalizedProtocol == ModelProviderProtocols.Anthropic;
+            || normalizedProtocol == ModelProviderProtocols.Anthropic);
         return config.Strategy switch
         {
             AppConfig.DeferredLoadingStrategy.Off => DeferredToolLoadingMode.Off,
@@ -36,12 +37,22 @@ internal static class DeferredToolLoadingPlanner
         };
     }
 
+    public static DeferredToolLoadingMode ResolveMode(AgentRuntimeContext context)
+    {
+        if (context.Config.Providers.Values.All(provider => string.IsNullOrWhiteSpace(provider.BackendId)))
+            return ResolveMode(context.Config.Tools.DeferredLoading, context.EffectiveProviderProtocol);
+        var runtime = context.ChatClientRegistry.ResolveMainRuntime(context.Config, context.EffectiveProviderId, context.EffectiveMainModel);
+        return ResolveMode(context.Config.Tools.DeferredLoading, context.EffectiveProviderProtocol,
+            runtime.BackendId is null ? null : runtime.Capabilities.NativeDeferredToolLoading
+                && runtime.Protocol is ModelProviderProtocols.Anthropic or ModelProviderProtocols.OpenAIResponses);
+    }
+
     public static void Apply(List<AITool> tools, AgentRuntimeContext context)
     {
         context.DeferredToolActivationIndex = null;
         var cfg = context.Config.Tools.DeferredLoading;
-        var normalizedProtocol = ModelProviderProtocols.Normalize(context.EffectiveProviderProtocol);
-        var mode = ResolveMode(cfg, context.EffectiveProviderProtocol);
+        var normalizedProtocol = context.EffectiveProviderProtocol.Trim().ToLowerInvariant();
+        var mode = ResolveMode(context);
         if (mode == DeferredToolLoadingMode.Off || tools.Count == 0)
             return;
 

@@ -20,6 +20,8 @@ internal static class PluginContributionAdapters
     {
         object adapted = target switch
         {
+            IModelBackendSource value when typeof(TContract) == typeof(IModelBackendSource) =>
+                new PluginModelBackendSourceAdapter(value, invocation),
             ISystemPromptSection value when typeof(TContract) == typeof(ISystemPromptSection) =>
                 new SystemPromptSectionAdapter(value, invocation),
             ISystemPromptAssembler value when typeof(TContract) == typeof(ISystemPromptAssembler) =>

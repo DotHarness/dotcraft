@@ -157,7 +157,8 @@ internal sealed class PluginGeneration
                 ContributionOrigin.Plugin(snapshot.Manifest.Id, generationId),
                 calls,
                 entry,
-                host.ToolsOnly);
+                host.ToolsOnly,
+                lifetime.Stopping);
             exports = new PluginServiceExportRegistry(
                 snapshot.Manifest.Id,
                 new HashSet<Assembly>(exportedApis.Values, ReferenceEqualityComparer.Instance));

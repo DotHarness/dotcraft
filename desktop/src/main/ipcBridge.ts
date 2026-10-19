@@ -96,7 +96,8 @@ import type {
   WorkspaceSetupRequest,
   WorkspaceStatusPayload,
   WorkspaceSetupModelListRequest,
-  WorkspaceSetupModelListResult
+  WorkspaceSetupModelListResult,
+  WorkspaceSetupSignInResult
 } from '../shared/workspaceSetup'
 import type { WorkspaceSetupResult } from './workspaceSetup'
 import type { RemoteStack } from '../shared/dockerDeployments'
@@ -767,7 +768,7 @@ export interface IpcHandlerCallbacks {
   onListSetupModels: (
     request: WorkspaceSetupModelListRequest
   ) => Promise<WorkspaceSetupModelListResult>
-  onLoginSetupChatGpt?: (providerId: string) => Promise<{ kind: 'success' | 'error'; errorCode?: string; errorMessage?: string }>
+  onLoginSetupChatGpt?: (request: WorkspaceSetupModelListRequest) => Promise<WorkspaceSetupSignInResult>
   onOpenNewWindow: () => void
   onRestartManagedAppServer: () => Promise<void>
   onRetryAppServerConnection?: (request?: RetryConnectionRequest) => Promise<void>
@@ -990,6 +991,12 @@ export function registerIpcHandlers(
     }
   })
 
+  const withoutTokenRequest = (params: unknown): Record<string, unknown> => {
+    if (params == null || typeof params !== 'object') return {}
+    const { includeToken: _includeToken, refreshToken: _refreshToken, ...rest } = params as Record<string, unknown>
+    return rest
+  }
+
   // Failures answer with an envelope rather than throwing: Electron would otherwise
   // flatten the JSON-RPC code and `data` to a message.
   const sendAppServerRequest = async (
@@ -1012,7 +1019,7 @@ export function registerIpcHandlers(
       }
       const requestParams = withDesktopRequestIdentity(
         method,
-        method === 'auth/openai/status' ? {} : params ?? {},
+        method === 'provider/auth/status' ? withoutTokenRequest(params) : params ?? {},
         callbacks?.getWorkspaceStatus().workspacePath
       )
       const requestGeneration = onStarted?.(client, requestParams)
@@ -1558,9 +1565,9 @@ export function registerIpcHandlers(
     }
   )
 
-  handleSafe('workspace:login-setup-chatgpt', async (_event, providerId: string) => {
-    if (!callbacks?.onLoginSetupChatGpt) return { kind: 'error' }
-    return callbacks.onLoginSetupChatGpt(providerId)
+  handleSafe('workspace:login-setup-chatgpt', async (_event, request: WorkspaceSetupModelListRequest) => {
+    if (!callbacks?.onLoginSetupChatGpt) return { kind: 'error' } satisfies WorkspaceSetupSignInResult
+    return callbacks.onLoginSetupChatGpt(request)
   })
 
   handleSafe('workspace:open-new-window', () => {

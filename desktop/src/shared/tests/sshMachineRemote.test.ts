@@ -223,12 +223,14 @@ describe('model readiness', () => {
       providers: [
         { id: 'anthropic', hasApiKey: true },
         { id: 'empty', hasApiKey: false },
-        { id: 'oauth', authMethod: 'chatgptOAuth', chatGptAccountId: 'acct' }
+        { id: 'oauth', authMethod: 'chatgptOAuth', isAuthenticated: true },
+        { id: 'signed-out', authMethod: 'chatgptOAuth', isAuthenticated: false, hasApiKey: true }
       ]
     }
     expect(hasUsableModel(list, 'Anthropic')).toBe(true)
     expect(hasUsableModel(list, 'empty')).toBe(false)
     expect(hasUsableModel(list, 'oauth')).toBe(true)
+    expect(hasUsableModel(list, 'signed-out')).toBe(false)
     expect(hasUsableModel(list, 'missing')).toBe(false)
     expect(hasUsableModel(list, '')).toBe(false)
     expect(hasUsableModel({ managedBy: 'modelService', providers: [{ id: 'svc', hasApiKey: true, isAuthenticated: false }] }, 'svc')).toBe(false)

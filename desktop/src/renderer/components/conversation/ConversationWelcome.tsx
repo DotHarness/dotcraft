@@ -20,7 +20,7 @@ import { BookText, Bot, Bug, FileText, ListChecks, Sparkles, Target } from 'luci
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useModelCatalogStore, type InferenceSpeedWire } from '../../stores/modelCatalogStore'
-import { useProvidersStore, useChatGptOAuthSummary } from '../../stores/providersStore'
+import { useProvidersStore, useProviderSummary } from '../../stores/providersStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -62,7 +62,7 @@ import { ComposerCommandTrigger } from './ComposerCommandTrigger'
 import { SparkIcon } from '../ui/AppIcons'
 import { RichInputArea, type RichInputAreaHandle } from './RichInputArea'
 import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
-import { ChatGptUsageBadge } from './ChatGptUsageBadge'
+import { ProviderUsageBadge } from './ProviderUsageBadge'
 import { ApprovalPolicyPicker, type VisibleApprovalPolicy } from './ApprovalPolicyPicker'
 import {
   ComposerCustomProfileLabel,
@@ -311,7 +311,7 @@ function ConversationWelcomeCore({
   const modelCatalogErrorMessage = useModelCatalogStore((s) => s.errorMessage)
   const loadModels = useModelCatalogStore((s) => s.loadIfNeeded)
   const activeCatalogProviderId = useModelCatalogStore((s) => s.providerId)
-  const activeChatGptProvider = useChatGptOAuthSummary(activeCatalogProviderId)
+  const activeUsageProvider = useProviderSummary(activeCatalogProviderId)
   const reloadProviders = useProvidersStore((s) => s.reload)
   const providerOptions = useProvidersStore((s) => s.providers)
   const { addThread, setActiveThreadId } = useThreadStore()
@@ -1845,7 +1845,7 @@ function ConversationWelcomeCore({
                       onWelcomeChangelistChange={setWelcomeChangelist}
                     />
                   )}
-                  subscription={openingWorkspace ? null : <ChatGptUsageBadge provider={activeChatGptProvider} />}
+                  subscription={openingWorkspace ? null : <ProviderUsageBadge provider={activeUsageProvider} />}
                 />
               }
             />

@@ -409,10 +409,7 @@ export function hasUsableModel(result: ProviderListLike | null | undefined, prov
   if (!provider) return false
   if (serviceManaged || provider.managedBy === 'modelService') return provider.isAuthenticated === true
   const authMethod = typeof provider.authMethod === 'string' ? provider.authMethod.toLowerCase() : ''
-  if (authMethod === 'chatgptoauth') {
-    return provider.isAuthenticated === true ||
-      (typeof provider.chatGptAccountId === 'string' && provider.chatGptAccountId.trim() !== '')
-  }
+  if (authMethod === 'chatgptoauth') return provider.isAuthenticated === true
   return provider.hasApiKey === true || provider.isAuthenticated === true
 }
 

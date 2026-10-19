@@ -168,10 +168,10 @@ export function WorkspaceSetupWizard({
     }))
   }
 
-  async function loginChatGpt(providerId: string, setState: (state: SetupSignInState) => void): Promise<boolean> {
+  async function loginChatGpt(request: WorkspaceSetupModelListRequest, setState: (state: SetupSignInState) => void): Promise<boolean> {
     setState({ phase: 'pending' })
     try {
-      const result = await window.api.workspace.loginSetupChatGpt(providerId)
+      const result = await window.api.workspace.loginSetupChatGpt(request)
       if (result.kind === 'success') {
         setState({ phase: 'signedIn' })
         return true
@@ -185,12 +185,12 @@ export function WorkspaceSetupWizard({
 
   async function signInNewConnection(): Promise<void> {
     if (signIn.phase === 'pending') return
-    if (await loginChatGpt(connections.chatgpt.draft.id, setSignIn)) goTo('model')
+    if (await loginChatGpt({ provider: finalDraft('chatgpt', connections.chatgpt, providers) }, setSignIn)) goTo('model')
   }
 
   async function signInSavedProvider(): Promise<void> {
     if (!savedProvider || savedSignIn.phase === 'pending') return
-    if (await loginChatGpt(savedProvider.id, setSavedSignIn)) setCatalogNonce((value) => value + 1)
+    if (await loginChatGpt({ providerId: savedProvider.id }, setSavedSignIn)) setCatalogNonce((value) => value + 1)
   }
 
   async function changeLocale(next: AppLocale): Promise<void> {

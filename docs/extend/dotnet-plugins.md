@@ -168,6 +168,45 @@ Teardown revokes contribution handles, signals `Stopping`, drains admitted calls
 
 Background work goes through `context.Lifetime.Run`. It starts after activation commits and is cancelled through `Lifetime.Stopping` when teardown begins. Raw threads, static event subscriptions, untracked tasks, and global caches can pin the collectible load context: routing still stops immediately, but memory is not reclaimed until the stray reference is released, often only at process restart.
 
+## Provide a model backend
+
+Implement `IModelBackend` and register it through `IModelBackendSource` during activation.
+Its descriptor declares the backend ID, supported protocols, authentication methods and capabilities.
+`CreateProvider(ModelBackendContext)` returns an `IModelProvider` for each configured instance.
+Backend IDs must be unique.
+
+The [.NET plugin sample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample#try-the-offline-model-backend)
+demonstrates model discovery, chat and interactive login. After enabling and trusting Review Core,
+add its backend to configuration:
+
+```json
+{
+  "Providers": {
+    "review-demo": {
+      "BackendId": "acme.review-backend",
+      "AuthMethod": "demo"
+    }
+  },
+  "ProviderPreferences": {
+    "review-demo": { "Model": "review-echo" }
+  },
+  "ProviderId": "review-demo"
+}
+```
+
+Implement `IProviderAuthenticator` for sign-in and return standard `IChatClient` responses and tool
+calls for model execution. `ModelBackendContext.Credentials` stores credentials for the instance.
+Run token refresh inside its `ModifyAsync` callback.
+
+Desktop lists backend instances with the other providers, creates them from the same provider
+editor, and signs them in with the shared sign-in control. From a terminal,
+`dotcraft auth login review-demo` signs in with the configured `AuthMethod`; `--method <id>` picks
+another declared method and `--workspace <path>` names the workspace that enables the plugin.
+AppServer clients drive the same flow through the `provider/auth/*` methods.
+
+See the [backend contract](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/model-backend-plugins.md)
+for request, authentication and lifetime requirements.
+
 ## Write typed tools
 
 Plugin tools use the same generated method wrappers as built-in tools. Keep workspace configuration and services in constructors; let the generator handle JSON parameters and defaults. `AIFunctionToolSource` supplies registrations, and the host assigns the plugin's `PluginNative` identity and generation lifetime. You do not need to implement `IToolRuntime` or parse `JsonObject` by hand for ordinary typed tools.

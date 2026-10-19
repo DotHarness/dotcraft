@@ -70,8 +70,6 @@ Provider object fields:
 | `Protocol` | Provider protocol: `anthropic`, `openai-chat-completions`, or `openai-responses`. Empty values default to `openai-chat-completions`. | `openai-chat-completions` |
 | `ApiKey` | Provider API key; prefer `${ENV_NAME}` environment variable references | Empty |
 | `AuthMethod` | Authentication method: `apiKey` uses the static `ApiKey`; `chatgptOAuth` authenticates with a ChatGPT subscription account (OpenAI protocols only, see below). Unrecognized values fall back to `apiKey` | `apiKey` |
-| `ChatGptAccountId` | ChatGPT account id written by the Sign in with ChatGPT flow; do not edit manually | Empty |
-| `ChatGptPlanType` | ChatGPT plan tier written by the Sign in with ChatGPT flow (`free`, `plus`, `pro`, `business`, `enterprise`, `edu`); do not edit manually | Empty |
 | `EndPoint` | Provider base URL; empty values use the protocol default endpoint | OpenAI protocols: `https://api.openai.com/v1`; `anthropic`: `https://api.anthropic.com` |
 | `NetworkTimeoutSeconds` | Per-provider request timeout, overriding the global `NetworkTimeoutSeconds` | Empty |
 | `MaxOutputTokens` | Per-provider default maximum output tokens, applied when a request does not set its own | Empty |
@@ -94,7 +92,7 @@ Provider object fields:
 }
 ```
 
-A `chatgptOAuth` provider authenticates with a ChatGPT subscription instead of an API key. Run `dotcraft auth openai login` to sign in — it stores the OAuth token bundle as `auth.json` in the user data directory, writes the provider entry above into the global configuration, makes it the default provider when none is selected, and seeds a default model preference when the provider has none. In this mode `ApiKey` and `EndPoint` are ignored and the effective protocol is always `openai-responses`; the resolution rules live in [Configure model providers](../extend/harness/model-providers). `dotcraft auth openai logout` deletes the tokens and reverts the provider to `apiKey`.
+A `chatgptOAuth` provider authenticates with a ChatGPT subscription instead of an API key. Save the provider entry above, then run `dotcraft auth login openai` to sign in — it opens the browser and stores the OAuth token bundle as `auth.json` in the user data directory. Signing in does not change configuration, and one sign-in serves every `chatgptOAuth` provider on the machine. In this mode `ApiKey` and `EndPoint` are ignored and the effective protocol is always `openai-responses`; the resolution rules live in [Configure model providers](../extend/harness/model-providers). `dotcraft auth status openai` shows the signed-in account, and `dotcraft auth logout openai` deletes the tokens, signing out every `chatgptOAuth` provider.
 
 ## Reasoning and prompt caching
 

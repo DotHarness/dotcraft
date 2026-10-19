@@ -15,11 +15,14 @@ internal sealed class ContributionPropagationBridge : IDisposable
         typeof(IToolSource),
         typeof(IToolRestriction),
         typeof(IChatMiddleware),
+        typeof(IModelBackendSource),
         typeof(IAgentContextSource),
         typeof(ISubAgentRuntimeSource)
     ];
 
     private readonly IContributionRegistry _registry;
+    private readonly ModelBackendResolver? _backends;
+    private readonly Action? _backendChanged;
     private readonly EventHandler<ContributionsChangedEventArgs> _handler;
     private int _disposed;
 
@@ -28,10 +31,17 @@ internal sealed class ContributionPropagationBridge : IDisposable
     internal ContributionPropagationBridge(
         IContributionRegistry registry,
         IThreadAgentRefreshService refreshService,
-        IContextPageManager? contextPageManager = null)
+        IContextPageManager? contextPageManager = null,
+        ModelBackendResolver? backends = null)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         ArgumentNullException.ThrowIfNull(refreshService);
+        _backends = backends;
+        if (backends is not null)
+        {
+            _backendChanged = refreshService.InvalidateThreadAgents;
+            backends.Changed += _backendChanged;
+        }
         _handler = (_, args) =>
         {
             if (args.Includes<ICodeCommand>())
@@ -53,6 +63,8 @@ internal sealed class ContributionPropagationBridge : IDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
         _registry.Changed -= _handler;
+        if (_backends is not null && _backendChanged is not null)
+            _backends.Changed -= _backendChanged;
     }
 
     private static bool AffectsThreadState(ContributionsChangedEventArgs args)
