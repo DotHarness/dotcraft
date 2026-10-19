@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text;
-using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Tools;
 using Xunit;
@@ -14,78 +13,77 @@ public sealed class WebFetchTests
     [Fact]
     public async Task NonSuccessStatusReturnsBodyAsResult()
     {
-        var root = await Fetch(_ => Html(HttpStatusCode.NotFound, "<html><body><h1>Not here</h1><p>Try the index.</p></body></html>"));
+        var result = await Fetch(_ => Html(HttpStatusCode.NotFound, "<html><body><h1>Not here</h1><p>Try the index.</p></body></html>"));
 
-        Assert.False(root.TryGetProperty("error", out _));
-        Assert.Equal(404, root.GetProperty("status").GetInt32());
-        Assert.Equal("markdown", root.GetProperty("extractor").GetString());
-        Assert.Contains("Not here", root.GetProperty("text").GetString());
-        Assert.Equal(PageUrl, root.GetProperty("url").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("notice").GetString()));
+        Assert.True(result.Success);
+        Assert.StartsWith($"Fetched {PageUrl} (HTTP 404, markdown).", result.Content);
+        Assert.Contains("Not here", result.Content);
+        Assert.Equal(PageUrl, result.StructuredContent!.Value.GetProperty("url").GetString());
     }
 
     [Fact]
     public async Task StreamedBodyOverByteCapIsTruncated()
     {
         var config = new AppConfig.WebToolsConfig { MaxResponseBytes = 10 };
-        var root = await Fetch(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        var result = await Fetch(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new UnknownLengthContent("0123456789abcdefghij", "text/plain")
         }, config);
 
-        Assert.True(root.GetProperty("truncated").GetBoolean());
-        Assert.Equal("0123456789", root.GetProperty("text").GetString());
-        Assert.Equal("raw", root.GetProperty("extractor").GetString());
+        Assert.True(result.StructuredContent!.Value.GetProperty("truncated").GetBoolean());
+        Assert.EndsWith("\n\n0123456789", result.Content);
     }
 
     [Fact]
     public async Task DeclaredLengthOverByteCapIsError()
     {
         var config = new AppConfig.WebToolsConfig { MaxResponseBytes = 10 };
-        var root = await Fetch(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        var result = await Fetch(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("0123456789abcdefghij", Encoding.UTF8, "text/plain")
         }, config);
 
-        Assert.Contains("limit", root.GetProperty("error").GetString());
-        Assert.Equal(PageUrl, root.GetProperty("url").GetString());
+        Assert.False(result.Success);
+        Assert.Contains("limit", result.Content);
     }
 
     [Fact]
     public async Task UnsupportedContentTypeIsError()
     {
-        var root = await Fetch(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        var result = await Fetch(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new ByteArrayContent([0x25, 0x50, 0x44, 0x46]) { Headers = { { "Content-Type", "application/pdf" } } }
         });
 
-        Assert.Contains("application/pdf", root.GetProperty("error").GetString());
+        Assert.False(result.Success);
+        Assert.Contains("application/pdf", result.Content);
     }
 
     [Fact]
     public async Task UnknownCharsetIsError()
     {
-        var root = await Fetch(_ =>
+        var result = await Fetch(_ =>
         {
             var content = new ByteArrayContent("hello"u8.ToArray());
             content.Headers.TryAddWithoutValidation("Content-Type", "text/plain; charset=x-made-up");
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
         });
 
-        Assert.Contains("x-made-up", root.GetProperty("error").GetString());
+        Assert.False(result.Success);
+        Assert.Contains("x-made-up", result.Content);
     }
 
     [Fact]
     public async Task DeclaredCharsetIsUsedForDecoding()
     {
-        var root = await Fetch(_ =>
+        var result = await Fetch(_ =>
         {
             var content = new ByteArrayContent(Encoding.GetEncoding("gb2312").GetBytes("中文内容"));
             content.Headers.TryAddWithoutValidation("Content-Type", "text/plain; charset=gb2312");
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
         });
 
-        Assert.Equal("中文内容", root.GetProperty("text").GetString());
+        Assert.EndsWith("\n\n中文内容", result.Content);
     }
 
     [Theory]
@@ -96,24 +94,26 @@ public sealed class WebFetchTests
     public async Task MaxCharsIsClampedToConfiguredLimit(int requested, int expectedLength)
     {
         var config = new AppConfig.WebToolsConfig { MaxChars = 8 };
-        var root = await Fetch(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        var result = await Fetch(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("abcdefghijklmnop", Encoding.UTF8, "text/plain")
         }, config, requested);
 
-        Assert.Equal(expectedLength, root.GetProperty("length").GetInt32());
-        Assert.True(root.GetProperty("truncated").GetBoolean());
+        var structured = result.StructuredContent!.Value;
+        Assert.Equal(expectedLength, structured.GetProperty("length").GetInt32());
+        Assert.True(structured.GetProperty("truncated").GetBoolean());
     }
 
     [Fact]
     public async Task RedirectIsFollowedAndReportedAsFinalUrl()
     {
-        var root = await Fetch(request => request.RequestUri!.AbsolutePath == "/docs/page"
+        var result = await Fetch(request => request.RequestUri!.AbsolutePath == "/docs/page"
             ? new HttpResponseMessage(HttpStatusCode.Found) { Headers = { Location = new Uri("/docs/moved", UriKind.Relative) } }
             : Html(HttpStatusCode.OK, "<p>Moved content</p>"));
 
-        Assert.Equal("http://93.184.216.34/docs/moved", root.GetProperty("finalUrl").GetString());
-        Assert.Contains("Moved content", root.GetProperty("text").GetString());
+        Assert.Equal("http://93.184.216.34/docs/moved", result.StructuredContent!.Value.GetProperty("finalUrl").GetString());
+        Assert.StartsWith($"Fetched http://93.184.216.34/docs/moved (redirected from {PageUrl})", result.Content);
+        Assert.Contains("Moved content", result.Content);
     }
 
     [Fact]
@@ -123,9 +123,10 @@ public sealed class WebFetchTests
         {
             Headers = { Location = new Uri("http://169.254.169.254/latest/meta-data/") }
         });
-        var root = await Fetch(handler);
+        var result = await Fetch(handler);
 
-        Assert.Contains("169.254.169.254", root.GetProperty("error").GetString());
+        Assert.False(result.Success);
+        Assert.Contains("169.254.169.254", result.Content);
         Assert.Single(handler.Requests);
     }
 
@@ -136,9 +137,10 @@ public sealed class WebFetchTests
         {
             Headers = { Location = new Uri(PageUrl) }
         });
-        var root = await Fetch(handler);
+        var result = await Fetch(handler);
 
-        Assert.Contains("redirects", root.GetProperty("error").GetString());
+        Assert.False(result.Success);
+        Assert.Contains("redirects", result.Content);
         Assert.Equal(6, handler.Requests.Count);
     }
 
@@ -148,9 +150,7 @@ public sealed class WebFetchTests
         var handler = new StubHttpHandler(_ => throw new InvalidOperationException("must not send"));
         var tools = new WebTools(new AppConfig.WebToolsConfig(), null, new HttpClient(handler));
 
-        using var output = JsonDocument.Parse(await tools.WebFetch("http://127.0.0.1:8080/admin"));
-
-        Assert.True(output.RootElement.TryGetProperty("error", out _));
+        Assert.False((await tools.WebFetch("http://127.0.0.1:8080/admin")).Success);
         Assert.Empty(handler.Requests);
     }
 
@@ -171,21 +171,17 @@ public sealed class WebFetchTests
         Assert.Contains("Google", ex.Message);
     }
 
-    private static Task<JsonElement> Fetch(
+    private static Task<ToolExecutionResult> Fetch(
         Func<HttpRequestMessage, HttpResponseMessage> respond,
         AppConfig.WebToolsConfig? config = null,
         int? maxChars = null) =>
         Fetch(new StubHttpHandler(respond), config, maxChars);
 
-    private static async Task<JsonElement> Fetch(
+    private static Task<ToolExecutionResult> Fetch(
         StubHttpHandler handler,
         AppConfig.WebToolsConfig? config = null,
-        int? maxChars = null)
-    {
-        var tools = new WebTools(config ?? new AppConfig.WebToolsConfig(), null, new HttpClient(handler));
-        using var document = JsonDocument.Parse(await tools.WebFetch(PageUrl, maxChars: maxChars));
-        return document.RootElement.Clone();
-    }
+        int? maxChars = null) =>
+        new WebTools(config ?? new AppConfig.WebToolsConfig(), null, new HttpClient(handler)).WebFetch(PageUrl, maxChars: maxChars);
 
     private static HttpResponseMessage Html(HttpStatusCode status, string html) =>
         new(status) { Content = new StringContent(html, Encoding.UTF8, "text/html") };

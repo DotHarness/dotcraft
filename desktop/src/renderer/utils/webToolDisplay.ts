@@ -9,11 +9,6 @@ export interface WebSearchResultRow {
   domain: string
 }
 
-export type WebSearchResultDisplay =
-  | { kind: 'results'; rows: WebSearchResultRow[] }
-  | { kind: 'empty'; message: string }
-  | { kind: 'error'; message: string }
-
 export function isWebToolKind(kind: ToolKind | null): kind is WebToolKind {
   return kind === 'webSearch' || kind === 'webFetch' || kind === 'toolSearch'
 }
@@ -96,48 +91,6 @@ export function formatToolSearchCompletedLabel(
   return count === 1
     ? translate(locale, 'toolCall.searchTools.completed.single')
     : translate(locale, 'toolCall.searchTools.completed.multiple', { count })
-}
-
-export function parseWebSearchResultDisplay(result: string | undefined): WebSearchResultDisplay | null {
-  const trimmed = result?.trim() ?? ''
-  if (trimmed === '') return null
-
-  let root: unknown
-  try {
-    root = JSON.parse(trimmed) as unknown
-  } catch {
-    return null
-  }
-
-  return parseWebSearchResult(peelJsonStringWrapper(root))
-}
-
-function parseWebSearchResult(root: unknown): WebSearchResultDisplay | null {
-  if (root === null || typeof root !== 'object' || Array.isArray(root)) return null
-  const obj = root as Record<string, unknown>
-
-  if ('error' in obj && obj.error != null) {
-    const msg = String(obj.error).trim()
-    return msg ? { kind: 'error', message: msg } : null
-  }
-
-  const resultsProp = obj.results
-  if (!Array.isArray(resultsProp)) {
-    const msg = typeof obj.message === 'string' ? obj.message.trim() : ''
-    return msg ? { kind: 'empty', message: msg } : null
-  }
-
-  const count = resultsProp.length
-  if (count === 0) {
-    return { kind: 'empty', message: 'No results found.' }
-  }
-
-  const rows = toWebSearchResultRows(resultsProp)
-  if (rows.length === 0) {
-    return { kind: 'empty', message: 'No results found.' }
-  }
-
-  return { kind: 'results', rows }
 }
 
 export function toWebSearchResultRows(entries: readonly unknown[]): WebSearchResultRow[] {

@@ -169,10 +169,10 @@ describe('webSearch display model', () => {
   })
 
   it('treats the built-in WebSearch tool as a search on its query argument', () => {
-    const results = JSON.stringify({ results: [{ title: 'Docs', url: 'https://docs.dotcraft.ai/start' }] })
+    const results = { results: [{ title: 'Docs', url: 'https://docs.dotcraft.ai/start' }] }
     const tool = (patch: Partial<ConversationItem>): Partial<ConversationItem> => ({ arguments: { query: 'release site:github.com' }, ...patch })
 
-    expect(getWebSearchToolDisplay(tool({ result: results }), { running: true, success: true }, 'en')).toMatchObject({
+    expect(getWebSearchToolDisplay(tool({ structuredResult: results }), { running: true, success: true }, 'en')).toMatchObject({
       state: 'running',
       label: 'Searching the web',
       detail: ' for release | github.com',
@@ -180,16 +180,13 @@ describe('webSearch display model', () => {
     })
     expect(getWebSearchToolDisplay(tool({ arguments: undefined, argumentsPreview: '{"query":"dotn' }), { running: true, success: true }, 'en').detail)
       .toBe(' for dotn')
-    expect(getWebSearchToolDisplay(tool({ result: results }), { running: false, success: true }, 'en')).toMatchObject({
+    expect(getWebSearchToolDisplay(tool({ result: 'Web search results', structuredResult: results }), { running: false, success: true }, 'en')).toMatchObject({
       state: 'completed',
       label: 'Searched the web',
-      sources: [{ title: 'Docs', url: 'https://docs.dotcraft.ai/start', domain: 'docs.dotcraft.ai' }]
+      sources: [{ title: 'Docs', url: 'https://docs.dotcraft.ai/start', domain: 'docs.dotcraft.ai' }],
+      errorMessage: ''
     })
-    expect(getWebSearchToolDisplay(tool({ result: JSON.stringify({ message: 'No results found.' }) }), { running: false, success: true }, 'en'))
-      .toMatchObject({ state: 'completed', sources: [], errorMessage: '' })
-    expect(getWebSearchToolDisplay(tool({ result: JSON.stringify({ error: 'rate limited' }) }), { running: false, success: true }, 'en'))
-      .toMatchObject({ state: 'failed', label: 'Failed: Searched the web', errorMessage: 'rate limited' })
-    expect(getWebSearchToolDisplay(tool({ errorMessage: 'boom' }), { running: false, success: false }, 'en'))
-      .toMatchObject({ state: 'failed', errorMessage: 'boom' })
+    expect(getWebSearchToolDisplay(tool({ result: 'Request failed: rate limited' }), { running: false, success: false }, 'en'))
+      .toMatchObject({ state: 'failed', label: 'Failed: Searched the web', errorMessage: 'Request failed: rate limited' })
   })
 })

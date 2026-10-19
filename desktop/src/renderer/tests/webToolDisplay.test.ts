@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formatInvocationDisplay,
   invocationNeedsCallingPrefix,
-  parseWebSearchResultDisplay
+  toWebSearchResultRows
 } from '../utils/webToolDisplay'
 
 describe('formatInvocationDisplay', () => {
@@ -25,46 +25,15 @@ describe('invocationNeedsCallingPrefix', () => {
   })
 })
 
-describe('parseWebSearchResultDisplay', () => {
-  it('parses structured WebSearch rows into sources', () => {
-    const json = JSON.stringify({
-      query: 'q',
-      provider: 'exa',
-      results: [
-        { title: 'DotCraft Docs', url: 'https://docs.dotcraft.ai/start', snippet: 'Guide' },
-        { url: 'https://www.example.com/a' },
-        { title: 'No url' }
-      ]
-    })
-
-    expect(parseWebSearchResultDisplay(json)).toEqual({
-      kind: 'results',
-      rows: [
-        { title: 'DotCraft Docs', url: 'https://docs.dotcraft.ai/start', domain: 'docs.dotcraft.ai' },
-        { title: 'example.com', url: 'https://www.example.com/a', domain: 'example.com' }
-      ]
-    })
-  })
-
-  it('passes through message-only no-result payloads', () => {
-    expect(parseWebSearchResultDisplay(JSON.stringify({ query: 'x', message: 'No results found.' }))).toEqual({
-      kind: 'empty',
-      message: 'No results found.'
-    })
-  })
-
-  it('double-decodes JSON string wrappers', () => {
-    const inner = JSON.stringify({ results: [{ title: 'Hi', url: 'https://z.com' }] })
-    const outer = JSON.stringify(inner)
-    const parsed = parseWebSearchResultDisplay(outer)
-
-    expect(parsed?.kind).toBe('results')
-    if (parsed?.kind === 'results') {
-      expect(parsed.rows[0]?.domain).toBe('z.com')
-    }
-  })
-
-  it('returns null for invalid WebSearch JSON', () => {
-    expect(parseWebSearchResultDisplay('not-json')).toBeNull()
+describe('toWebSearchResultRows', () => {
+  it('keeps results with a URL and falls back to the domain for missing titles', () => {
+    expect(toWebSearchResultRows([
+      { title: 'DotCraft Docs', url: 'https://docs.dotcraft.ai/start', snippet: 'Guide' },
+      { url: 'https://www.example.com/a' },
+      { title: 'No url' }
+    ])).toEqual([
+      { title: 'DotCraft Docs', url: 'https://docs.dotcraft.ai/start', domain: 'docs.dotcraft.ai' },
+      { title: 'example.com', url: 'https://www.example.com/a', domain: 'example.com' }
+    ])
   })
 })
