@@ -112,11 +112,9 @@ export function ProviderUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.E
 
   return (
     <div ref={wrapperRef} style={{ position: 'relative' }}>
-      {open ? badgeButton : (
-        <ActionTooltip label={tooltipLabel} placement="top">
-          {badgeButton}
-        </ActionTooltip>
-      )}
+      <ActionTooltip label={open ? '' : tooltipLabel} placement="top">
+        {badgeButton}
+      </ActionTooltip>
       {open && (
         <div style={popoverWrapperStyle()}>
           <ProviderUsagePopover

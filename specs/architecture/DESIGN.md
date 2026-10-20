@@ -1178,8 +1178,9 @@ and state already say.
   subscription status (right after the branch). Context-row chips share one 28px
   footer pill in `--composer-footer-text` and open their menus upward.
 - Every capsule in either row is transparent at rest, takes
-  `--sidebar-control-hover` on hover and `--sidebar-control-active` while its menu
-  is open, and shows an accent outline only for keyboard focus. The label keeps its
+  `--sidebar-control-hover` on hover and keeps it while its menu is open, so
+  opening a menu does not change the fill, and shows an accent outline only for
+  keyboard focus. The label keeps its
   colour; there is no pressed fill and no opaque fill.
 - Send is one 32px button whose glyph follows the turn: Send at rest or with a
   draft to steer or queue, Stop while a turn runs with an empty draft, a spinner

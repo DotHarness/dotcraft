@@ -32,7 +32,7 @@
 }
 
 .dc-composer-pill[aria-expanded="true"] {
-  background: var(--sidebar-control-active);
+  background: var(--sidebar-control-hover);
 }
 
 .dc-composer-icon-control:focus-visible,
