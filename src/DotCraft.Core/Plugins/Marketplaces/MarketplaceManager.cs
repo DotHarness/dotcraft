@@ -165,11 +165,10 @@ public sealed class MarketplaceManager
         return new MarketplaceRemoveOutcome(marketplaceName, existed ? root : null);
     }
 
-    /// <summary>
-    /// Re-fetches one marketplace, or every configured marketplace when <paramref name="name"/> is omitted.
-    /// A failure for one marketplace is reported without failing the others.
-    /// </summary>
-    public async Task<MarketplaceRefreshOutcome> RefreshAsync(string? name, CancellationToken ct)
+    public async Task<MarketplaceRefreshOutcome> RefreshAsync(
+        string? name,
+        CancellationToken ct,
+        AppConfig.PluginsConfig? pluginsConfig = null)
     {
         var configured = PluginsConfigPersistence.ReadPluginRegistries(_configPath).ToList();
         var marketplaceName = name?.Trim();
@@ -177,12 +176,7 @@ public sealed class MarketplaceManager
             ? Enumerable.Range(0, configured.Count).ToList()
             : [configured.FindIndex(entry => IsSameName(entry, marketplaceName))];
 
-        if (!string.IsNullOrEmpty(marketplaceName) && targets[0] < 0)
-        {
-            throw new MarketplaceException(
-                MarketplaceErrorCodes.NotFound,
-                $"Marketplace '{marketplaceName}' is not configured.");
-        }
+        targets.RemoveAll(index => index < 0);
 
         var refreshed = new List<MarketplaceEntry>();
         var errors = new List<MarketplaceFailure>();
@@ -201,7 +195,47 @@ public sealed class MarketplaceManager
             }
         }
 
+        var hostSources = PluginSourceRegistryCatalog.ArchiveSourcesFor(new AppConfig.PluginsConfig
+        {
+            DisableDefaultPluginRegistry = pluginsConfig?.DisableDefaultPluginRegistry == true
+        });
+        foreach (var source in hostSources.DistinctBy(source => (source.Url, source.MarketplacePath)))
+        {
+            if (configured.Any(entry => MatchesSource(entry,
+                    new MarketplaceSource(MarketplaceSourceKind.Archive, source.Url), source.MarketplacePath)))
+                continue;
+
+            var entry = HostMarketplaceEntry(source);
+            if (!string.IsNullOrEmpty(marketplaceName)
+                && !string.Equals(entry.Name, marketplaceName, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var result = await _archiveSync.SyncAsync(
+                source.Url, source.MarketplacePath, entry.Name, force: true, ct).ConfigureAwait(false);
+            if (result != PluginRegistrySyncResult.Activated)
+                errors.Add(new MarketplaceFailure(entry.Name, MarketplaceErrorCodes.FetchFailed,
+                    $"Marketplace '{entry.Name}' could not be downloaded."));
+            else
+                refreshed.Add(HostMarketplaceEntry(source));
+        }
+
+        if (!string.IsNullOrEmpty(marketplaceName) && refreshed.Count == 0 && errors.Count == 0)
+            throw new MarketplaceException(MarketplaceErrorCodes.NotFound,
+                $"Marketplace '{marketplaceName}' is not configured.");
+
         return new MarketplaceRefreshOutcome(refreshed, errors);
+    }
+
+    private MarketplaceEntry HostMarketplaceEntry(PluginRegistrySource source)
+    {
+        var snapshot = new PluginRegistryArchiveCache(_craftHome).SnapshotRootFor(source.Url, source.MarketplacePath);
+        var root = MarketplaceDocumentLoader.ResolveRoot(snapshot, source.MarketplacePath);
+        var document = root == null ? null : MarketplaceDocumentLoader.TryLoad(
+            Path.Combine(root, MarketplaceDocumentLoader.NormalizeRelativePath(source.MarketplacePath)), out _);
+        return new MarketplaceEntry(
+            document?.Name?.Trim() ?? source.Name, document?.Interface?.DisplayName,
+            MarketplaceSourceKind.Archive, source.Url, null, [], source.MarketplacePath,
+            root, null, null, Removable: false);
     }
 
     private async Task<MarketplaceEntry> RefreshOneAsync(

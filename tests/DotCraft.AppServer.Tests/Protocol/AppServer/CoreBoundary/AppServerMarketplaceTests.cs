@@ -250,6 +250,7 @@ public sealed class AppServerMarketplaceTests : IDisposable
     private AppServerTestHarness CreateHarness()
     {
         var config = new AppConfig { GlobalConfigPath = Path.Combine(_userCraftHome, "config.json") };
+        config.Plugins.DisableDefaultPluginRegistry = true;
         var loader = new SkillsLoader(_workspaceCraftPath);
         return new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,

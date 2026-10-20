@@ -33,7 +33,7 @@ Installing works the same as any other plugin: choose **Marketplaces** in the pu
 
 ## Refresh and remove
 
-When a publisher adds or updates plugins, choose **Marketplaces** in the publisher filter, find the marketplace heading, open **Marketplace actions**, and select **Refresh**. The catalog updates in place.
+When a publisher adds or updates plugins, select **Refresh** in the Plugins toolbar to update all marketplace catalogs, including the default marketplace. To update just one marketplace, choose **Marketplaces** in the publisher filter, find its heading, open **Marketplace actions**, and select **Refresh**. The catalog updates in place.
 
 **Remove**, in the same **Marketplace actions** menu, drops the marketplace. Its catalog disappears from DotCraft, and plugins you already installed stay until you uninstall them.
 

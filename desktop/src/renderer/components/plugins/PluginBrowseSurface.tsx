@@ -60,6 +60,7 @@ export function PluginBrowseSurface({
   pluginMarketplaces,
   remoteWorkspaceActive,
   loading,
+  refreshing,
   error,
   diagnostics,
   plugins,
@@ -91,6 +92,7 @@ export function PluginBrowseSurface({
   pluginMarketplaces: boolean
   remoteWorkspaceActive: boolean
   loading: boolean
+  refreshing: boolean
   error: string | null
   diagnostics: PluginDiagnosticEntry[]
   plugins: PluginEntry[]
@@ -128,6 +130,7 @@ export function PluginBrowseSurface({
             <CatalogToolbarIconButton
               label={t('plugins.refresh')}
               onClick={onRefresh}
+              disabled={refreshing}
               icon={<RefreshIcon size={15} />}
             />
             <CatalogToolbarIconButton

@@ -4,6 +4,7 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { usePluginStore } from '../stores/pluginStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
+import { useToastStore } from '../stores/toastStore'
 import { translate } from '../../shared/locales'
 import {
   appServerSendRequest,
@@ -158,21 +159,54 @@ describe('PluginsView catalog', () => {
     expect(appServerSendRequest.mock.calls.length).toBe(initialCalls)
   })
 
-  it('refreshes plugins from the toolbar refresh action', async () => {
-    appServerSendRequest.mockResolvedValue({
-      plugins: [browserUsePlugin],
-      diagnostics: [], snapshotRevision: 1
+  it('refreshes marketplace snapshots before re-reading plugins from the toolbar', async () => {
+    useConnectionStore.getState().setStatus({
+      status: 'connected', capabilities: { pluginManagement: true, pluginMarketplaces: true }
     })
-
+    let refreshed = false
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'marketplace/refresh') {
+        refreshed = true
+        return { errors: [] }
+      }
+      return { plugins: [{ ...browserUsePlugin, version: refreshed ? '0.6.2' : '0.6.1' }], diagnostics: [], snapshotRevision: 1 }
+    })
     renderPluginsView()
-
-    expect(await screen.findByText('Browser')).toBeInTheDocument()
-    const initialCalls = appServerSendRequest.mock.calls.length
+    await screen.findByText('Browser')
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
 
-    await waitFor(() => {
-      expect(appServerSendRequest.mock.calls.length).toBeGreaterThan(initialCalls)
+    await waitFor(() => expect(usePluginStore.getState().plugins[0].version).toBe('0.6.2'))
+    expect(appServerSendRequest).toHaveBeenNthCalledWith(2, 'marketplace/refresh', {})
+    expect(appServerSendRequest).toHaveBeenNthCalledWith(3, 'plugin/list', { includeDisabled: true })
+  })
+
+  it('keeps refresh local when marketplace management is unavailable', async () => {
+    appServerSendRequest.mockResolvedValue({ plugins: [browserUsePlugin], diagnostics: [], snapshotRevision: 1 })
+    renderPluginsView()
+    await screen.findByText('Browser')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledTimes(2))
+    expect(appServerSendRequest).toHaveBeenLastCalledWith('plugin/list', { includeDisabled: true })
+  })
+
+  it('reports per-marketplace refresh failures without a success toast', async () => {
+    useConnectionStore.getState().setStatus({
+      status: 'connected', capabilities: { pluginManagement: true, pluginMarketplaces: true }
     })
+    appServerSendRequest.mockImplementation(async (method: string) => method === 'marketplace/refresh'
+      ? { errors: [{ name: 'default', code: 'MarketplaceFetchFailed', message: 'Download failed' }] }
+      : { plugins: [browserUsePlugin], diagnostics: [], snapshotRevision: 1 })
+    renderPluginsView()
+    await screen.findByText('Browser')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    await waitFor(() => expect(useToastStore.getState().toasts).toEqual([
+      expect.objectContaining({ message: 'Download failed', type: 'error' })
+    ]))
+    expect(usePluginStore.getState().plugins[0].id).toBe('browser')
   })
 })

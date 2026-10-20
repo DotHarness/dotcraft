@@ -149,7 +149,9 @@ Adding a marketplace never installs a plugin.
 
 Refresh re-fetches one marketplace or every configured marketplace. Git marketplaces are re-fetched at their configured reference, local marketplaces are re-validated in place, and archive marketplaces re-download their snapshot. A failure for one marketplace is reported for that marketplace and does not fail the others.
 
-Refresh also covers the host-provided default registry, which is supplied by the environment rather than by configuration. A refresh that names no marketplace includes it; a refresh may also name it explicitly.
+Refresh also covers host-provided archive registries, including the default registry supplied by the environment rather than configuration. A refresh that names no marketplace includes them; a refresh may also name one using its cached marketplace document name (or its source label before the first successful download). Sources already covered by a configured marketplace are not downloaded a second time. Host-provided failures use the same per-marketplace errors as configured sources.
+
+Desktop's Plugins toolbar refresh runs this operation before re-reading the catalog. Per-marketplace refresh uses the same result feedback, and a failed source leaves its cached catalog available. Catalog reads and entering the page remain offline. After refresh, an open plugin Skill preview is re-read; closed previews are not fetched.
 
 ### 7.4 Remove
 
@@ -177,7 +179,7 @@ An archive download is bounded by a timeout sized for a repository archive rathe
 
 Each archive source records both its last successful activation and its last attempt. A successful activation is reused until the refresh interval elapses. A failed attempt is not retried until a backoff interval has elapsed, and the backoff grows with consecutive failures up to the refresh interval, so a source that has never activated does not re-download on every pass.
 
-The host supplies the default registry through the environment, so it has no configuration entry to refresh from. DotCraft syncs it once per process shortly after startup, off any request path, and again whenever a refresh operation runs. Concurrent syncs of one source coalesce into a single download. When a startup sync activates a new snapshot, DotCraft advances the plugin snapshot revision so connected clients reload the catalog.
+The host supplies the default registry through the environment, so it has no configuration entry to refresh from. DotCraft syncs it once per process shortly after startup, off any request path, and again when a refresh operation targets it. Concurrent syncs of one source coalesce into a single download. When a startup sync activates a new snapshot, DotCraft advances the plugin snapshot revision so connected clients reload the catalog.
 
 ### 7.8 Unavailable sources
 

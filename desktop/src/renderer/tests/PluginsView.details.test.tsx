@@ -1,5 +1,6 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { usePluginStore } from '../stores/pluginStore'
 import {
   appServerSendRequest,
   browserUsePlugin,
@@ -31,6 +32,29 @@ describe('PluginsView details', () => {
     const dialog = await screen.findByRole('dialog')
     expect(await within(dialog).findByText('Unable to load skill contents.')).toBeInTheDocument()
     expect(within(dialog).queryByText('Skill not found: browser')).not.toBeInTheDocument()
+  })
+
+  it('re-reads only an open skill preview when the catalog refreshes', async () => {
+    let content = '# Original skill'
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'plugin/list') return { plugins: [browserUsePlugin], diagnostics: [], snapshotRevision: 1 }
+      if (method === 'plugin/view') return { plugin: browserUsePlugin, snapshotRevision: 1 }
+      if (method === 'plugin/skill/read') return { content }
+      return { errors: [] }
+    })
+    renderPluginsView()
+    fireEvent.click(await screen.findByText('Control the in-app browser with DotCraft'))
+    fireEvent.click(await screen.findByText('browser'))
+    expect(await screen.findByRole('heading', { name: 'Original skill' })).toBeInTheDocument()
+
+    content = '# Updated skill'
+    await act(async () => { await usePluginStore.getState().refreshMarketplace() })
+    expect(await screen.findByRole('heading', { name: 'Updated skill' })).toBeInTheDocument()
+
+    fireEvent.click(within(screen.getByRole('dialog')).getAllByRole('button', { name: 'Close' })[0])
+    const previewReads = appServerSendRequest.mock.calls.filter(([method]) => method === 'plugin/skill/read').length
+    await act(async () => { await usePluginStore.getState().refreshMarketplace() })
+    expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'plugin/skill/read')).toHaveLength(previewReads)
   })
 
   it('shows plugin-bundled MCP content on plugin details', async () => {

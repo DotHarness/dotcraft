@@ -239,7 +239,8 @@ public sealed class MarketplaceManagerTests
         await manager.AddAsync(new MarketplaceAddRequest(healthy), CancellationToken.None);
 
         fetcher.FailWith = new MarketplaceException(MarketplaceErrorCodes.RefNotFound, "missing ref");
-        var result = await manager.RefreshAsync(name: null, CancellationToken.None);
+        var result = await manager.RefreshAsync(name: null, CancellationToken.None,
+            new AppConfig.PluginsConfig { DisableDefaultPluginRegistry = true });
 
         Assert.Equal(["local-marketplace"], result.Marketplaces.Select(entry => entry.Name).ToArray());
         var failure = Assert.Single(result.Errors);

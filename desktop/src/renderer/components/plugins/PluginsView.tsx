@@ -115,6 +115,7 @@ export function PluginsView(): JSX.Element {
   const [enablingPluginId, setEnablingPluginId] = useState<string | null>(null)
   const [enablingLspId, setEnablingLspId] = useState<string | null>(null)
   const [addMarketplaceOpen, setAddMarketplaceOpen] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [pluginSkillPreview, setPluginSkillPreview] = useState<PluginSkillPreview | null>(null)
 
   useEffect(() => {
@@ -124,6 +125,31 @@ export function PluginsView(): JSX.Element {
   useEffect(() => {
     if (mode === 'manage') void fetchSkills()
   }, [fetchSkills, mode])
+
+  const previewPluginId = pluginSkillPreview?.pluginId
+  const previewSkillName = pluginSkillPreview?.skill.name
+  useEffect(() => {
+    if (!previewPluginId || !previewSkillName) return
+    const skill = plugins.find((plugin) => plugin.id === previewPluginId)?.skills
+      .find((entry) => entry.name === previewSkillName)
+    if (!skill) {
+      setPluginSkillPreview(null)
+      return
+    }
+    setPluginSkillPreview((current) => current ? { ...current, skill, loading: true, failed: false } : current)
+    void window.api.appServer.sendRequest('plugin/skill/read', {
+      id: previewPluginId,
+      name: previewSkillName
+    }).then((result) => {
+      setPluginSkillPreview((current) => current?.pluginId === previewPluginId && current.skill.name === previewSkillName
+        ? { ...current, content: result.content, loading: false }
+        : current)
+    }).catch(() => {
+      setPluginSkillPreview((current) => current?.pluginId === previewPluginId && current.skill.name === previewSkillName
+        ? { ...current, loading: false, failed: true }
+        : current)
+    })
+  }, [plugins, previewPluginId, previewSkillName])
 
   // Removing the last marketplace leaves the marketplace mode with nothing to show,
   // so the listing returns to the unfiltered view rather than looking empty.
@@ -234,19 +260,6 @@ export function PluginsView(): JSX.Element {
         loading: true,
         failed: false
       })
-      try {
-        const result = await window.api.appServer.sendRequest('plugin/skill/read', {
-          id: plugin.id,
-          name
-        })
-        setPluginSkillPreview((current) => current?.pluginId === plugin.id && current.skill.name === name
-          ? { ...current, content: result.content, loading: false }
-          : current)
-      } catch {
-        setPluginSkillPreview((current) => current?.pluginId === plugin.id && current.skill.name === name
-          ? { ...current, loading: false, failed: true }
-          : current)
-      }
       return
     }
 
@@ -254,17 +267,23 @@ export function PluginsView(): JSX.Element {
     await selectSkill(effectiveSkill.name)
   }
 
-  async function handleRefreshMarketplace(marketplace: MarketplaceEntry): Promise<void> {
+  async function handleRefreshMarketplace(marketplace?: MarketplaceEntry): Promise<void> {
+    if (refreshing) return
+    setRefreshing(true)
     try {
-      const errors = await refreshMarketplace(marketplace.name)
-      const failure = errors.find((entry) => entry.name === marketplace.name)
-      if (failure) {
-        addToast(failure.message, 'error')
+      if (!pluginMarketplaces) {
+        await fetchPlugins()
         return
       }
-      addToast(t('plugins.marketplace.refreshSuccess'), 'success')
+      const errors = await refreshMarketplace(marketplace?.name)
+      for (const failure of errors) addToast(failure.message, 'error')
+      const catalogError = usePluginStore.getState().error
+      if (catalogError) addToast(catalogError, 'error')
+      else if (errors.length === 0) addToast(t('plugins.marketplace.refreshSuccess'), 'success')
     } catch (err) {
       addToast(err instanceof Error ? err.message : t('plugins.marketplace.refreshFailed'), 'error')
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -583,6 +602,7 @@ export function PluginsView(): JSX.Element {
       pluginMarketplaces={pluginMarketplaces}
       remoteWorkspaceActive={remoteWorkspaceActive}
       loading={initialPluginLoading}
+      refreshing={refreshing}
       error={error}
       diagnostics={visibleDiagnostics}
       plugins={browsePlugins}
@@ -596,7 +616,7 @@ export function PluginsView(): JSX.Element {
       addMarketplaceOpen={addMarketplaceOpen}
       installDialog={installDialog}
       onSurfaceChange={setSurface}
-      onRefresh={() => void fetchPlugins()}
+      onRefresh={() => void handleRefreshMarketplace()}
       onManage={() => { setManagePluginQuery(''); setMode('manage') }}
       onQueryChange={setBrowseQuery}
       onPublisherFilterChange={setPublisherFilter}

@@ -2,10 +2,15 @@ using System.IO.Compression;
 using System.Net;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
+using DotCraft.Plugins.Marketplaces;
 using Xunit;
 
 namespace DotCraft.Core.Tests.Plugins;
 
+[CollectionDefinition("Plugin registry environment", DisableParallelization = true)]
+public sealed class PluginRegistryEnvironmentCollection;
+
+[Collection("Plugin registry environment")]
 public sealed class PluginRegistrySyncServiceTests
 {
     private const string MarketplacePath = ".craft/plugins/marketplace.json";
@@ -110,6 +115,68 @@ public sealed class PluginRegistrySyncServiceTests
             Environment.SetEnvironmentVariable(
                 PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName,
                 previous);
+        }
+    }
+
+    [Theory]
+    [InlineData("default-marketplace", false)]
+    [InlineData(null, false)]
+    [InlineData(null, true)]
+    public async Task MarketplaceRefresh_RefreshesHostDefaultOnce(string? name, bool configured)
+    {
+        var previous = Environment.GetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName);
+        var previousAdditional = Environment.GetEnvironmentVariable(PluginSourceRegistryCatalog.AdditionalRegistriesEnvironmentVariableName);
+        try
+        {
+            Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName, RegistryUrl);
+            Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.AdditionalRegistriesEnvironmentVariableName, RegistryUrl);
+            var craftHome = NewTempDir();
+            new PluginRegistryArchiveCache(craftHome).Activate(RegistryUrl, MarketplacePath, CreateArchive("default-marketplace"));
+            if (configured)
+                PluginsConfigPersistence.WritePluginRegistries(Path.Combine(craftHome, "config.json"),
+                    [new AppConfig.PluginRegistryConfig { Name = "default-marketplace", SourceType = "archive", Url = RegistryUrl }]);
+            var handler = StubHandler.Serving(CreateArchive("default-marketplace"));
+            var manager = new MarketplaceManager(craftHome,
+                archiveSync: new PluginRegistrySyncService(craftHome, handler: handler));
+
+            var result = await manager.RefreshAsync(name, CancellationToken.None);
+
+            Assert.Empty(result.Errors);
+            var marketplace = Assert.Single(result.Marketplaces);
+            Assert.Equal("default-marketplace", marketplace.Name);
+            Assert.Equal(1, handler.RequestCount);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName, previous);
+            Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.AdditionalRegistriesEnvironmentVariableName, previousAdditional);
+        }
+    }
+
+    [Fact]
+    public async Task MarketplaceRefresh_ReportsHostDefaultFailureAndKeepsCachedSnapshot()
+    {
+        var previous = Environment.GetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName);
+        try
+        {
+            Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName, RegistryUrl);
+            var craftHome = NewTempDir();
+            var snapshot = new PluginRegistryArchiveCache(craftHome)
+                .Activate(RegistryUrl, MarketplacePath, CreateArchive("default-marketplace"));
+            var manager = new MarketplaceManager(craftHome, archiveSync: new PluginRegistrySyncService(
+                craftHome, handler: StubHandler.Failing(HttpStatusCode.InternalServerError)));
+
+            var result = await manager.RefreshAsync("default-marketplace", CancellationToken.None);
+
+            Assert.Empty(result.Marketplaces);
+            var failure = Assert.Single(result.Errors);
+            Assert.Equal("default-marketplace", failure.Name);
+            Assert.Equal(MarketplaceErrorCodes.FetchFailed, failure.Code);
+            Assert.True(File.Exists(Path.Combine(snapshot, MarketplacePath)));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName, previous);
         }
     }
 

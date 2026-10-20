@@ -1,7 +1,6 @@
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Plugins.Marketplaces;
-using Microsoft.Extensions.Logging;
 using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.AppServer;
@@ -75,11 +74,8 @@ internal sealed partial class PluginRequestHandler
         var commitToken = EnterMutationCommit(ct);
         var name = Read(request.Params.Name);
         var result = await RunMarketplaceOperationAsync(
-            () => CreateMarketplaceManager().RefreshAsync(name, commitToken)).ConfigureAwait(false);
-
-        // The host-provided default registry has no configuration entry for the manager to refresh.
-        if (string.IsNullOrWhiteSpace(name))
-            await SyncHostProvidedRegistriesAsync(commitToken).ConfigureAwait(false);
+            () => CreateMarketplaceManager().RefreshAsync(name, commitToken, appConfigMonitor?.Current?.Plugins))
+            .ConfigureAwait(false);
 
         var discovery = NotifyMarketplaceChanged(Protocol.AppServer.AppServerMethodNames.MarketplaceRefresh);
         return await WriteMarketplaceMutationAsync(
@@ -97,22 +93,6 @@ internal sealed partial class PluginRequestHandler
                 .ToList()
             },
             ct).ConfigureAwait(false);
-    }
-
-    private async Task SyncHostProvidedRegistriesAsync(CancellationToken ct)
-    {
-        var configPath = workspaceConfig.PersonalConfigPath;
-        if (string.IsNullOrWhiteSpace(configPath))
-            return;
-
-        var craftHome = Path.GetDirectoryName(Path.GetFullPath(configPath));
-        if (string.IsNullOrWhiteSpace(craftHome))
-            return;
-
-        var sync = new PluginRegistrySyncService(
-            craftHome,
-            diagnostic => logger?.LogWarning("{Code}: {Message}", diagnostic.Code, diagnostic.Message));
-        await sync.SyncDueAsync(appConfigMonitor?.Current?.Plugins, force: true, ct).ConfigureAwait(false);
     }
 
     private void RequireMarketplaceSupport(string method)
