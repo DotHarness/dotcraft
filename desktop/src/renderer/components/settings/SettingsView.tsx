@@ -54,7 +54,6 @@ import { useSettingsWorkspaceConfigChangeEffects } from '../../hooks/useSettings
 import { stringifyComposerDraftSegments } from '../conversation/richInputSerialization'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { RefreshIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
@@ -1901,20 +1900,6 @@ export function SettingsView({
                   <>
                     <SettingsGroup
                       title={t('settings.llm.workspaceTitle')}
-                      description={
-                        selectedProvider
-                          ? t('settings.llm.workspaceDescriptionForProvider', { name: selectedProvider.displayName })
-                          : t('settings.llm.workspaceDescription')
-                      }
-                      headerAction={
-                        <IconButton
-                          icon={<RefreshIcon size={15} />}
-                          label={t('settings.llm.refreshModels')}
-                          tooltipLabel={t('settings.llm.refreshModels')}
-                          disabled={providerModelLoading || !selectedProviderId}
-                          onClick={() => void reloadProviderPreferences(selectedProviderId)}
-                        />
-                      }
                       flush
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -2021,15 +2006,6 @@ export function SettingsView({
                     <SettingsGroup
                       title={t('settings.llm.providersTitle')}
                       description={providersLoading ? t('settings.llm.providersLoading') : providersCountLabel}
-                      headerAction={
-                        <IconButton
-                          icon={<RefreshIcon size={15} />}
-                          label={t('settings.llm.refreshProviders')}
-                          tooltipLabel={t('settings.llm.refreshProviders')}
-                          disabled={providersLoading}
-                          onClick={() => void reloadProviders()}
-                        />
-                      }
                       flush
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
