@@ -3333,7 +3333,6 @@ export const MESSAGES_EN = {
   'composer.balanceUsage.toppedUp': 'Topped up',
   'composer.balanceUsage.empty': 'No balance reported.',
   'composer.balanceUsage.insufficient': 'Balance is insufficient; requests may fail until you top up.',
-  'composer.balanceUsage.topUp': 'Top up',
   'composer.modelHeading': 'Model',
   'composer.providerHeading': 'Provider',
   'composer.providerModelUnavailable': 'No models are available for this provider. Configure it in Model providers settings.',

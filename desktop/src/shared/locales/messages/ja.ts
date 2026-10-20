@@ -3840,7 +3840,6 @@ export const MESSAGES_JA = {
   'composer.balanceUsage.toppedUp': 'チャージ残高',
   'composer.balanceUsage.empty': '残高情報がありません。',
   'composer.balanceUsage.insufficient': '残高が不足しています。チャージするまでリクエストが失敗する可能性があります。',
-  'composer.balanceUsage.topUp': 'チャージ',
   'composer.modelHeading': 'モデル',
   'composer.providerHeading': 'プロバイダー',
   'composer.providerModelUnavailable': 'このプロバイダーで利用できるモデルがありません。モデルプロバイダー設定で構成してください。',

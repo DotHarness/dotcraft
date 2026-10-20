@@ -3279,7 +3279,6 @@ export const MESSAGES_ZH_HANS = {
   'composer.balanceUsage.toppedUp': '充值余额',
   'composer.balanceUsage.empty': '未返回余额信息。',
   'composer.balanceUsage.insufficient': '余额不足，充值前请求可能失败。',
-  'composer.balanceUsage.topUp': '去充值',
   'composer.modelHeading': '模型',
   'composer.providerHeading': '提供商',
   'composer.providerModelUnavailable': '此提供商没有可用模型。请前往“模型提供商”设置进行配置。',

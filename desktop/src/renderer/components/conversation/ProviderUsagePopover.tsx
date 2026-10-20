@@ -2,7 +2,6 @@ import { useEffect, useState, type CSSProperties, type JSX } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { ProviderUsageBalance, ProviderUsageSnapshot, ProviderUsageWindow } from '../../stores/providersStore'
 import { formatBalanceAmount } from '../../utils/providerBalance'
-import { Button } from '../ui/Button'
 import { formatPlanName } from '../../utils/chatgptPlan'
 import {
   formatCreditsBalance,
@@ -13,13 +12,11 @@ import {
 interface ProviderUsagePopoverProps {
   title: string
   usage: ProviderUsageSnapshot | null
-  topUpUrl?: string | null
-  onClose: () => void
 }
 
 const POPOVER_WIDTH = 280
 
-export function ProviderUsagePopover({ title, usage, topUpUrl, onClose: _onClose }: ProviderUsagePopoverProps): JSX.Element {
+export function ProviderUsagePopover({ title, usage }: ProviderUsagePopoverProps): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const [now, setNow] = useState(() => Date.now())
@@ -98,17 +95,6 @@ export function ProviderUsagePopover({ title, usage, topUpUrl, onClose: _onClose
             ? t('composer.balanceUsage.insufficient')
             : t('composer.chatgptUsage.limitReached', { kind: usage.limitReachedKind })}
         </div>
-      )}
-
-      {balances && topUpUrl && (
-        <Button
-          variant="secondary"
-          size="sm"
-          style={{ alignSelf: 'flex-start' }}
-          onClick={() => { void window.api.shell.openExternal(topUpUrl).catch(() => undefined) }}
-        >
-          {t('composer.balanceUsage.topUp')}
-        </Button>
       )}
     </div>
   )

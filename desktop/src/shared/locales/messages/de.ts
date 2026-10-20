@@ -3841,7 +3841,6 @@ export const MESSAGES_DE = {
   'composer.balanceUsage.toppedUp': 'Aufgeladen',
   'composer.balanceUsage.empty': 'Kein Guthaben gemeldet.',
   'composer.balanceUsage.insufficient': 'Das Guthaben reicht nicht aus; Anfragen können bis zum Aufladen fehlschlagen.',
-  'composer.balanceUsage.topUp': 'Aufladen',
   'composer.modelHeading': 'Modell',
   'composer.providerHeading': 'Anbieter',
   'composer.providerModelUnavailable': 'Für diesen Anbieter sind keine Modelle verfügbar. Konfiguriere ihn in den Modellanbieter-Einstellungen.',

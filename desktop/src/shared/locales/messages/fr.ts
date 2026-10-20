@@ -3842,7 +3842,6 @@ export const MESSAGES_FR = {
   'composer.balanceUsage.toppedUp': 'Rechargé',
   'composer.balanceUsage.empty': 'Aucun solde signalé.',
   'composer.balanceUsage.insufficient': 'Le solde est insuffisant ; les requêtes peuvent échouer jusqu’à la recharge.',
-  'composer.balanceUsage.topUp': 'Recharger',
   'composer.modelHeading': 'Modèle',
   'composer.providerHeading': 'Fournisseur',
   'composer.providerModelUnavailable': 'Aucun modèle n’est disponible pour ce fournisseur. Configurez-le dans les réglages des fournisseurs de modèles.',

@@ -3840,7 +3840,6 @@ export const MESSAGES_KO = {
   'composer.balanceUsage.toppedUp': '충전 잔액',
   'composer.balanceUsage.empty': '잔액 정보가 없습니다.',
   'composer.balanceUsage.insufficient': '잔액이 부족합니다. 충전할 때까지 요청이 실패할 수 있습니다.',
-  'composer.balanceUsage.topUp': '충전하기',
   'composer.modelHeading': '모델',
   'composer.providerHeading': '제공자',
   'composer.providerModelUnavailable': '이 제공자에 사용할 수 있는 모델이 없습니다. 모델 제공자 설정에서 구성하세요.',

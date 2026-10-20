@@ -20,7 +20,7 @@ import {
   type ChatGptUsageDisplayWindow,
   type ChatGptUsageWindowKind
 } from '../../utils/chatgptUsageWindows'
-import { formatBalanceAmount, providerTopUpUrl } from '../../utils/providerBalance'
+import { formatBalanceAmount } from '../../utils/providerBalance'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ProviderMark, type ProviderMarkKind } from '../ui/ProviderMark'
 import { getProviderProtocolMarkKind } from '../settings/panels/ProviderProtocolIcon'
@@ -117,12 +117,7 @@ export function ProviderUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.E
       </ActionTooltip>
       {open && (
         <div style={popoverWrapperStyle()}>
-          <ProviderUsagePopover
-            title={title}
-            usage={usage}
-            topUpUrl={providerTopUpUrl(provider)}
-            onClose={() => setOpen(false)}
-          />
+          <ProviderUsagePopover title={title} usage={usage} />
         </div>
       )}
     </div>
