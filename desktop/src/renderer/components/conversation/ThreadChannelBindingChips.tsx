@@ -41,7 +41,7 @@ export function ThreadChannelBindingChips({ bindings }: { bindings: ThreadAppBin
             wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
           >
             <span className={styles.chip} aria-label={tooltip}>
-              <ChannelIconBadge channelName={channelName} size={12} framed={false} tooltip={tooltip} />
+              <ChannelIconBadge channelName={channelName} size={12} tooltip={tooltip} />
               <span className={styles.label}>{target ?? channel}</span>
             </span>
           </ActionTooltip>

@@ -38,7 +38,7 @@ export function threadOriginBadge({
         label={presentation.displayName}
         tooltip={t('threadEntry.originMember', { name: presentation.displayName })}
         size={14}
-        framed={false}
+
         muted
       />
     )
@@ -55,7 +55,7 @@ export function threadOriginBadge({
             : t('threadEntry.originApp', { app: thread.originApp.displayName })
         }
         size={14}
-        framed={false}
+
         muted
       />
     )
@@ -70,7 +70,7 @@ export function threadOriginBadge({
           : t('threadEntry.originChannel', { channel: thread.originChannel })
       }
       size={14}
-      framed={false}
+
       muted
     />
   )

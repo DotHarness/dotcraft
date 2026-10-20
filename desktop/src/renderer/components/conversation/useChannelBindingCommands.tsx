@@ -85,7 +85,7 @@ export function useChannelBindingCommands({
         label: `/bind ${name}`,
         description: t('channelBinding.bind.description', { channel: getChannelVisualMeta(name).label }),
         keywords: ['bind', name],
-        icon: <ChannelIconBadge channelName={name} size={15} framed={false} />
+        icon: <ChannelIconBadge channelName={name} size={15} />
       }
     }),
     ...active.map((binding) => {
@@ -95,7 +95,7 @@ export function useChannelBindingCommands({
         label: active.length === 1 ? '/unbind' : `/unbind ${name}`,
         description: t('channelBinding.stop', { channel: getChannelVisualMeta(name).label }),
         keywords: ['unbind', name],
-        icon: <ChannelIconBadge channelName={name} size={15} framed={false} muted />
+        icon: <ChannelIconBadge channelName={name} size={15} muted />
       }
     })
   ], [active, bindable, t])

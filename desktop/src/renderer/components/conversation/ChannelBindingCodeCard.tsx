@@ -57,7 +57,7 @@ function PendingCodeCard({ pending }: { pending: PendingChannelBinding }): JSX.E
   return (
     <div className={styles.card} role="status">
       <span className={styles.icon} aria-hidden>
-        <ChannelIconBadge channelName={pending.channelName} size={24} framed={false} />
+        <ChannelIconBadge channelName={pending.channelName} size={24} />
       </span>
       <span className={styles.text}>
         <span className={styles.title}>{t('channelBinding.pending.title', { command, channel })}</span>

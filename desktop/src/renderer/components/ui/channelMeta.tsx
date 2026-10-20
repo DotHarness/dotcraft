@@ -17,8 +17,6 @@ export interface ChannelVisualMeta {
   kind: ChannelVisualKind
   renderIcon?: ChannelIconRenderer
   iconSrc?: string
-  iconScale?: number
-  needsBackdrop?: boolean
 }
 
 const IMG_ICON_STYLE: CSSProperties = {
@@ -41,16 +39,14 @@ function createBrandMeta(
   id: string,
   label: string,
   tooltip: string,
-  src: string,
-  iconScale = 1,
-  needsBackdrop = false
+  src: string
 ): ChannelVisualMeta {
-  return { id, label, tooltip, kind: 'brand', iconSrc: src, iconScale, needsBackdrop }
+  return { id, label, tooltip, kind: 'brand', iconSrc: src }
 }
 
 const CHANNEL_META = new Map<string, ChannelVisualMeta>([
-  ['qq', createBrandMeta('qq', 'QQ', 'QQ', qqIcon, 1.12, true)],
-  ['wecom', createBrandMeta('wecom', 'WeCom', 'WeCom', wecomIcon, 1.12, true)],
+  ['qq', createBrandMeta('qq', 'QQ', 'QQ', qqIcon)],
+  ['wecom', createBrandMeta('wecom', 'WeCom', 'WeCom', wecomIcon)],
   ['weixin', createBrandMeta('weixin', 'WeChat', 'WeChat', weixinIcon)],
   ['wechat', createBrandMeta('weixin', 'WeChat', 'WeChat', weixinIcon)],
   ['telegram', createBrandMeta('telegram', 'Telegram', 'Telegram', telegramIcon)],
@@ -83,19 +79,15 @@ export function getChannelVisualMeta(channelName: string, fallbackTooltip?: stri
 export function ChannelIconBadge({
   channelName,
   tooltip,
-  active = false,
   muted = false,
   size = 30,
-  framed = true,
   iconSrc,
   label
 }: {
   channelName: string
   tooltip?: string
-  active?: boolean
   muted?: boolean
   size?: number
-  framed?: boolean
   /** Explicit branded icon (data URL / safe URL), e.g. an app-origin badge — bypasses the static channel map. */
   iconSrc?: string
   /** Display label/tooltip fallback when using an explicit iconSrc. */
@@ -107,21 +99,9 @@ export function ChannelIconBadge({
         label: label ?? channelName,
         tooltip: tooltip ?? label ?? channelName,
         kind: 'brand',
-        iconSrc,
-        iconScale: 1,
-        needsBackdrop: false
+        iconSrc
       }
     : getChannelVisualMeta(channelName, tooltip)
-  const brandMaskSize = framed
-    ? meta.needsBackdrop
-      ? Math.max(18, size - 8)
-      : size
-    : size
-  const brandIconSize = Math.min(
-    brandMaskSize,
-    Math.round((brandMaskSize - (meta.needsBackdrop ? 4 : 0)) * (meta.iconScale ?? 1))
-  )
-  const systemIconSize = framed ? Math.max(16, size - 10) : size
   return (
     <span
       title={tooltip ?? meta.tooltip}
@@ -129,69 +109,19 @@ export function ChannelIconBadge({
       style={{
         width: `${size}px`,
         height: `${size}px`,
-        borderRadius: 'var(--identity-mark-radius-list)',
-        border: framed
-          ? active
-            ? '1px solid color-mix(in srgb, var(--accent) 55%, transparent)'
-            : '1px solid var(--border-default)'
-          : '0 solid transparent',
-        background: framed
-          ? active
-            ? 'color-mix(in srgb, var(--accent) 12%, var(--bg-secondary))'
-            : meta.kind === 'brand'
-              ? 'color-mix(in srgb, var(--bg-secondary) 84%, white 16%)'
-              : 'var(--bg-secondary)'
-          : 'transparent',
-        color: muted ? 'var(--text-dimmed)' : active ? 'var(--accent)' : 'var(--text-secondary)',
+        borderRadius: `${Math.max(2, Math.round(size * 0.22))}px`,
+        overflow: 'hidden',
+        color: muted ? 'var(--text-dimmed)' : 'var(--text-secondary)',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        boxSizing: 'border-box',
         flexShrink: 0
       }}
     >
       {meta.kind === 'brand' && meta.iconSrc ? (
-        meta.needsBackdrop ? (
-          <span
-            style={{
-              width: `${brandMaskSize}px`,
-              height: `${brandMaskSize}px`,
-              borderRadius: 'var(--identity-mark-radius-compact)',
-              background: active
-                ? 'color-mix(in srgb, white 88%, var(--accent) 12%)'
-                : 'color-mix(in srgb, white 78%, var(--bg-tertiary) 22%)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
-              flexShrink: 0
-            }}
-          >
-            <img
-              src={meta.iconSrc}
-              alt=""
-              aria-hidden="true"
-              style={{
-                ...IMG_ICON_STYLE,
-                width: `${brandIconSize}px`,
-                height: `${brandIconSize}px`
-              }}
-            />
-          </span>
-        ) : (
-          <img
-            src={meta.iconSrc}
-            alt=""
-            aria-hidden="true"
-            style={{
-              ...IMG_ICON_STYLE,
-              width: `${brandIconSize}px`,
-              height: `${brandIconSize}px`
-            }}
-          />
-        )
+        <img src={meta.iconSrc} alt="" aria-hidden="true" style={IMG_ICON_STYLE} />
       ) : (
-        meta.renderIcon?.(systemIconSize)
+        meta.renderIcon?.(size)
       )}
     </span>
   )
