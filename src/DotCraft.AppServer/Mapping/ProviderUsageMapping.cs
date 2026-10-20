@@ -17,6 +17,7 @@ public static class ProviderUsageMapping
                 Primary = ToWire(snapshot.Primary),
                 Secondary = ToWire(snapshot.Secondary),
                 Credits = ToWire(snapshot.Credits),
+                Balances = snapshot.Balances?.Select(balance => ToWire(balance)).ToArray(),
                 LimitReachedKind = snapshot.LimitReachedKind
             };
 
@@ -40,6 +41,7 @@ public static class ProviderUsageMapping
             Primary = result.Primary,
             Secondary = result.Secondary,
             Credits = result.Credits,
+            Balances = result.Balances,
             LimitReachedKind = result.LimitReachedKind
         };
     }
@@ -59,4 +61,12 @@ public static class ProviderUsageMapping
             Unlimited = credits.Unlimited,
             Balance = credits.Balance
         };
+
+    private static Contract.ProviderAuthUsageBalance ToWire(ProviderBalance balance) => new()
+    {
+        Currency = balance.Currency,
+        Total = balance.Total,
+        Granted = balance.Granted,
+        ToppedUp = balance.ToppedUp
+    };
 }

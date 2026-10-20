@@ -65,7 +65,8 @@ public sealed record ProviderUsageSnapshot(
     ProviderRateLimitWindow? Primary = null,
     ProviderRateLimitWindow? Secondary = null,
     ProviderCreditStatus? Credits = null,
-    string? LimitReachedKind = null);
+    string? LimitReachedKind = null,
+    IReadOnlyList<ProviderBalance>? Balances = null);
 
 public sealed record ProviderRateLimitWindow(
     int UsedPercent,
@@ -76,6 +77,12 @@ public sealed record ProviderCreditStatus(
     bool HasCredits,
     bool Unlimited,
     string? Balance);
+
+public sealed record ProviderBalance(
+    string Currency,
+    string Total,
+    string Granted,
+    string ToppedUp);
 
 /// <summary>Generates or edits images through an optional provider capability.</summary>
 public interface IProviderImageGeneration

@@ -21,6 +21,7 @@ function usage(overrides: Partial<ProviderUsageSnapshot> = {}): ProviderUsageSna
     primary: null,
     secondary: null,
     credits: null,
+    balances: null,
     limitReachedKind: null,
     fetchedAt: '2026-07-13T05:00:00.000Z',
     ...overrides
@@ -61,12 +62,42 @@ describe('ProviderUsageBadge', () => {
     act(() => notify?.({ method: 'provider/auth/usage/updated', params: { providerId: 'OpenAI', ...usage({ primary: window }) } }))
     expect(await screen.findByRole('button', { name: /60% left this week/i })).toBeInTheDocument()
   })
+
+  it('shows a DeepSeek balance and reads it again after a turn completes', async () => {
+    let notify: ((payload: { method: string; params: unknown }) => void) | null = null
+    let total = '110.00'
+    const sendRequest = vi.fn(async () => ({
+      available: true,
+      fetchedAt: '2026-10-20T05:00:00.000Z',
+      balances: [{ currency: 'CNY', total, granted: '10.00', toppedUp: '100.00' }]
+    }))
+    installDesktopApiMock({
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
+      appServer: {
+        sendRequest,
+        onNotification: (callback: (payload: { method: string; params: unknown }) => void) => {
+          notify = callback
+          return () => { notify = null }
+        }
+      }
+    })
+    useConnectionStore.setState({ capabilities: { providerManagement: true } })
+
+    renderBadge({ id: 'deepseek', displayName: 'DeepSeek', protocol: 'anthropic', authMethod: 'apiKey', webSearchBackend: 'deepseek' })
+
+    expect(await screen.findByRole('button', { name: /110\.00/ })).toBeInTheDocument()
+    total = '99.50'
+    act(() => notify?.({ method: 'turn/completed', params: { threadId: 't', turn: { id: 'turn' } } }))
+    expect(await screen.findByRole('button', { name: /99\.50/ })).toBeInTheDocument()
+    expect(sendRequest).toHaveBeenLastCalledWith('provider/auth/usage', { providerId: 'deepseek' }, 30_000)
+  })
+
 })
 
-function renderBadge(): void {
+function renderBadge(target: ProviderSummary = provider): void {
   render(
     <LocaleProvider>
-      <ProviderUsageBadge provider={provider} />
+      <ProviderUsageBadge provider={target} />
     </LocaleProvider>
   )
 }

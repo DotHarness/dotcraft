@@ -3055,6 +3055,14 @@ export interface ProviderAuthStatusResult {
   [key: string]: unknown;
 }
 
+export interface ProviderAuthUsageBalance {
+  currency: string;
+  granted: string;
+  toppedUp: string;
+  total: string;
+  [key: string]: unknown;
+}
+
 export interface ProviderAuthUsageCredits {
   balance?: string | null;
   hasCredits: boolean;
@@ -3064,6 +3072,7 @@ export interface ProviderAuthUsageCredits {
 
 export interface ProviderAuthUsageResult {
   available: boolean;
+  balances?: ProviderAuthUsageBalance[] | null;
   credits?: ProviderAuthUsageCredits | null;
   fetchedAt?: string | null;
   limitReachedKind?: string | null;
@@ -3075,6 +3084,7 @@ export interface ProviderAuthUsageResult {
 
 export interface ProviderAuthUsageUpdatedNotification {
   available: boolean;
+  balances?: ProviderAuthUsageBalance[] | null;
   credits?: ProviderAuthUsageCredits | null;
   fetchedAt?: string | null;
   limitReachedKind?: string | null;

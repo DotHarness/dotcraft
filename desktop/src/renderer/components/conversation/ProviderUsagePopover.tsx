@@ -1,6 +1,8 @@
 import { useEffect, useState, type CSSProperties, type JSX } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
-import type { ProviderUsageSnapshot, ProviderUsageWindow } from '../../stores/providersStore'
+import type { ProviderUsageBalance, ProviderUsageSnapshot, ProviderUsageWindow } from '../../stores/providersStore'
+import { formatBalanceAmount } from '../../utils/providerBalance'
+import { Button } from '../ui/Button'
 import { formatPlanName } from '../../utils/chatgptPlan'
 import {
   formatCreditsBalance,
@@ -11,12 +13,13 @@ import {
 interface ProviderUsagePopoverProps {
   title: string
   usage: ProviderUsageSnapshot | null
+  topUpUrl?: string | null
   onClose: () => void
 }
 
 const POPOVER_WIDTH = 280
 
-export function ProviderUsagePopover({ title, usage, onClose: _onClose }: ProviderUsagePopoverProps): JSX.Element {
+export function ProviderUsagePopover({ title, usage, topUpUrl, onClose: _onClose }: ProviderUsagePopoverProps): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const [now, setNow] = useState(() => Date.now())
@@ -38,6 +41,7 @@ export function ProviderUsagePopover({ title, usage, onClose: _onClose }: Provid
   const planName = formatPlanName(usage.planType)
   const displayWindows = shapeChatGptUsageWindows(usage)
   const hasSupplementalUsage = usage.credits?.hasCredits === true || usage.limitReachedKind != null
+  const balances = displayWindows.length === 0 ? usage.balances : null
   return (
     <div style={containerStyle()} role="dialog" aria-label={title}>
       <div style={headerRowStyle()}>
@@ -65,7 +69,15 @@ export function ProviderUsagePopover({ title, usage, onClose: _onClose }: Provid
         />
       ))}
 
-      {displayWindows.length === 0 && !hasSupplementalUsage && (
+      {balances?.map((balance) => (
+        <BalanceRow key={balance.currency} balance={balance} locale={locale} t={t} />
+      ))}
+
+      {balances?.length === 0 && (
+        <div style={emptyStateStyle()}>{t('composer.balanceUsage.empty')}</div>
+      )}
+
+      {displayWindows.length === 0 && !hasSupplementalUsage && !balances && (
         <div style={emptyStateStyle()}>{t('composer.chatgptUsage.unavailable')}</div>
       )}
 
@@ -82,9 +94,47 @@ export function ProviderUsagePopover({ title, usage, onClose: _onClose }: Provid
 
       {usage.limitReachedKind && (
         <div style={limitWarnStyle()}>
-          {t('composer.chatgptUsage.limitReached', { kind: usage.limitReachedKind })}
+          {usage.limitReachedKind === 'balance'
+            ? t('composer.balanceUsage.insufficient')
+            : t('composer.chatgptUsage.limitReached', { kind: usage.limitReachedKind })}
         </div>
       )}
+
+      {balances && topUpUrl && (
+        <Button
+          variant="secondary"
+          size="sm"
+          style={{ alignSelf: 'flex-start' }}
+          onClick={() => { void window.api.shell.openExternal(topUpUrl).catch(() => undefined) }}
+        >
+          {t('composer.balanceUsage.topUp')}
+        </Button>
+      )}
+    </div>
+  )
+}
+
+interface BalanceRowProps {
+  balance: ProviderUsageBalance
+  locale: string
+  t: (key: string, vars?: Record<string, string | number>) => string
+}
+
+function BalanceRow({ balance, locale, t }: BalanceRowProps): JSX.Element {
+  return (
+    <div style={windowRowStyle()}>
+      <div style={windowLabelRowStyle()}>
+        <span style={windowLabelStyle()}>{t('composer.balanceUsage.total')}</span>
+        <span style={balanceTotalStyle()}>{formatBalanceAmount(balance.total, balance.currency, locale)}</span>
+      </div>
+      <div style={windowFooterStyle()}>
+        <span>{t('composer.balanceUsage.granted')}</span>
+        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatBalanceAmount(balance.granted, balance.currency, locale)}</span>
+      </div>
+      <div style={windowFooterStyle()}>
+        <span>{t('composer.balanceUsage.toppedUp')}</span>
+        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatBalanceAmount(balance.toppedUp, balance.currency, locale)}</span>
+      </div>
     </div>
   )
 }
@@ -230,6 +280,10 @@ function windowFooterStyle(): CSSProperties {
     justifyContent: 'space-between',
     gap: 8
   }
+}
+
+function balanceTotalStyle(): CSSProperties {
+  return { fontSize: 15, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)' }
 }
 
 function creditsRowStyle(): CSSProperties {

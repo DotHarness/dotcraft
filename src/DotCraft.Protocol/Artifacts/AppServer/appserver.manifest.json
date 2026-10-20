@@ -14979,6 +14979,45 @@
       "variants": []
     },
     {
+      "id": "core.ProviderAuthUsageBalance",
+      "name": "ProviderAuthUsageBalance",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ProviderAuthUsageBalance.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "currency",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "granted",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "toppedUp",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "total",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ProviderAuthUsageCredits",
       "name": "ProviderAuthUsageCredits",
       "module": "core",
@@ -15023,6 +15062,13 @@
           "type": "boolean",
           "required": true,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "balances",
+          "type": "array<core.ProviderAuthUsageBalance>",
+          "required": false,
+          "nullable": true,
           "const": null
         },
         {
@@ -15083,6 +15129,13 @@
           "type": "boolean",
           "required": true,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "balances",
+          "type": "array<core.ProviderAuthUsageBalance>",
+          "required": false,
+          "nullable": true,
           "const": null
         },
         {

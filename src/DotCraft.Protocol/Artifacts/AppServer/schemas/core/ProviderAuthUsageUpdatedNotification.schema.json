@@ -7,6 +7,19 @@
     "available": {
       "type": "boolean"
     },
+    "balances": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./ProviderAuthUsageBalance.schema.json"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "credits": {
       "anyOf": [
         {

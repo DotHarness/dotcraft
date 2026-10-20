@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.2 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-20 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -788,7 +788,7 @@ The provider editor chooses one connection type, which sets the API format and a
 - Failures show a localized message in the hint with Sign in available again.
 - Authenticated providers load their model catalog; missing credentials or catalog failures offer sign-in and retry. A provider that signs in is not rejected for lacking an API key, and a late response cannot switch another editor. ChatGPT credential and refresh rules belong to [OpenAI subscription authentication](../architecture/openai-subscription-auth.md).
 
-Composers show a usage control for the active provider when `provider/auth/usage` reports usage, summarizing the most constrained remaining-headroom window, with details listing available windows, remaining usage, reset time, and optional credits and limit warnings.
+Composers show a usage control for the active provider when `provider/auth/usage` reports usage, summarizing the most constrained remaining-headroom window, with details listing available windows, remaining usage, reset time, and optional credits and limit warnings. When usage reports `balances` instead of windows, the control shows the provider's mark and the first balance amount, warns when the balance is insufficient, and its details list total, granted and topped-up amounts per currency with a link to the provider's top-up page. Desktop requests usage again when a turn of the active provider completes.
 
 ### 6.8 Channel Modules
 
