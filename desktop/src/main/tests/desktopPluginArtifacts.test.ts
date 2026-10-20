@@ -42,6 +42,36 @@ async function fixture() {
   return { root, archive, files, request, read, source }
 }
 
+it('keeps local module routes across workspace rebinding until the generation is removed', async () => {
+  const f = await fixture()
+  let connection: DesktopPluginConnection = {
+    identity: {}, source: 'local', remote: false, supported: true, workspacePath: '/one',
+    list: async () => ({ plugins: [] }), read: f.read
+  }
+  const manager = new DesktopPluginModules({
+    connection: () => connection,
+    cache: new DesktopPluginArtifactCache(join(f.root, 'cache')),
+    grants: () => [], saveGrants: async () => {}
+  })
+  const source = await manager.context()
+  const request = { ...f.request, rootPath: join(f.root, 'original'), sourceKey: source.sourceKey }
+  const route = await manager.register(request)
+  const lazyUrl = new URL('lazy.mjs', route.entryUrl).href
+  expect((await handlePluginFileRequest(new Request(route.entryUrl))).status).toBe(200)
+
+  const pending = manager.register(request)
+  manager.prepareConnectionChange()
+  connection = { ...connection, identity: {}, workspacePath: '/two' }
+  await expect(pending).rejects.toThrow('source changed')
+  expect((await handlePluginFileRequest(new Request(lazyUrl))).status).toBe(200)
+  expect(await manager.context()).toMatchObject({ sourceKey: source.sourceKey, workspacePath: '/two' })
+  expect(await (await handlePluginFileRequest(new Request(lazyUrl))).text()).toContain('lazy = true')
+
+  await manager.remove(request)
+  expect((await handlePluginFileRequest(new Request(route.entryUrl))).status).toBe(403)
+  manager.dispose()
+})
+
 describe('remote Desktop artifacts', () => {
   it('validates, reuses and repairs the same revision cache without a local installation', async () => {
     const f = await fixture()

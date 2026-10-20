@@ -11,6 +11,7 @@ import {
 import { DesktopPluginRuntime } from '../plugins/desktopPluginRuntime'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useToastStore } from '../stores/toastStore'
+import { useConnectionStore } from '../stores/connectionStore'
 import { installDesktopApiMock } from './desktopApiMock'
 import type { RawNotificationPayload } from '../../shared/appServerBoundary'
 
@@ -164,6 +165,21 @@ describe('host.settings.onChange', () => {
     api.notify()
     await waitFor(() => expect(api.reads()).toBe(2))
     expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('refreshes the same listener without publishing a mutation from the previous connection', async () => {
+    const api = installSettingsApi()
+    const listener = vi.fn()
+    const host = await activate((host) => host.settings.onChange(listener))
+    await waitFor(() => expect(api.reads()).toBe(1))
+    api.hold('plugin/config/mutate')
+    const pending = host.settings.mutate('personal', [{ op: 'set', key: 'accent', value: 'green' }])
+    api.state.stored = { accent: 'red' }
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+    await waitFor(() => expect(listener).toHaveBeenCalledWith(snapshotOf({ accent: 'red' })))
+    api.release(0)
+    await pending
+    expect(listener).toHaveBeenCalledOnce()
   })
 
   it('notifies each listener once and re-reads once for three listeners', async () => {

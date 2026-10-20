@@ -13,15 +13,23 @@ const channels = {
   removeModule: 'desktop-plugin:remove-module'
 }
 let modules: DesktopPluginModules | null = null
+let bindings: {
+  getClient: () => DesktopAppServerClient | null
+  callbacks: IpcHandlerCallbacks | undefined
+  workspacePath: string
+}
 
 export function registerDesktopPluginModuleIpc(
   getClient: () => DesktopAppServerClient | null,
   callbacks: IpcHandlerCallbacks | undefined,
   workspacePath: string
 ): void {
-  unregisterDesktopPluginModuleIpc()
-  modules = new DesktopPluginModules({
+  for (const channel of Object.values(channels)) ipcMain.removeHandler(channel)
+  modules?.prepareConnectionChange(!!callbacks?.getWorkspaceStatus().remote || callbacks?.getSettings().connectionMode === 'remote')
+  bindings = { getClient, callbacks, workspacePath }
+  modules ??= new DesktopPluginModules({
     connection() {
+      const { getClient, callbacks, workspacePath } = bindings
       const client = getClient()
       if (!client) throw new Error('AppServer is not connected.')
       const settings = callbacks?.getSettings()
@@ -46,10 +54,11 @@ export function registerDesktopPluginModuleIpc(
     },
     cache: new DesktopPluginArtifactCache(path.join(app.getPath('userData'), 'desktop-plugin-cache')),
     grants: () => {
-      const grants = callbacks?.getSettings().remoteDesktopPluginGrants
+      const grants = bindings.callbacks?.getSettings().remoteDesktopPluginGrants
       return Array.isArray(grants) ? grants.filter(key => typeof key === 'string' && /^[0-9a-f]{64}$/.test(key)) : []
     },
     saveGrants: async grants => {
+      const { callbacks } = bindings
       if (!callbacks) throw new Error('Desktop settings are unavailable.')
       await callbacks.updateSettings({ remoteDesktopPluginGrants: grants })
     }
@@ -65,8 +74,11 @@ export function registerDesktopPluginModuleIpc(
   })
 }
 
-export function unregisterDesktopPluginModuleIpc(): void {
-  modules?.dispose()
-  modules = null
+export function unregisterDesktopPluginModuleIpc(preserveModules = false): void {
+  if (preserveModules) modules?.prepareConnectionChange()
+  else {
+    modules?.dispose()
+    modules = null
+  }
   for (const channel of Object.values(channels)) ipcMain.removeHandler(channel)
 }

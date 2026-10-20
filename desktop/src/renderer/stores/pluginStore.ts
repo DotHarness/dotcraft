@@ -226,6 +226,9 @@ interface PluginState {
   snapshotRevision: number
   /** Revision of the last unfiltered list, the only complete-workspace baseline. */
   completeSnapshotRevision: number
+  catalogStatus: 'pending' | 'ready' | 'error'
+  hasCompleteCatalog: boolean
+  workspaceEpoch: number
 
   resetForWorkspaceChange(): void
   fetchPlugins(): Promise<void>
@@ -257,6 +260,9 @@ export const usePluginStore = create<PluginState>((set, get) => ({
   detailLoading: false,
   snapshotRevision: 0,
   completeSnapshotRevision: 0,
+  catalogStatus: 'pending',
+  hasCompleteCatalog: false,
+  workspaceEpoch: 0,
 
   resetForWorkspaceChange() {
     ++pluginListRequestToken
@@ -269,7 +275,10 @@ export const usePluginStore = create<PluginState>((set, get) => ({
       selectedPlugin: null,
       detailLoading: false,
       snapshotRevision: 0,
-      completeSnapshotRevision: 0
+      completeSnapshotRevision: 0,
+      catalogStatus: 'pending',
+      hasCompleteCatalog: false,
+      workspaceEpoch: get().workspaceEpoch + 1
     })
   },
 
@@ -305,12 +314,14 @@ export const usePluginStore = create<PluginState>((set, get) => ({
           : state.selectedPluginId,
         snapshotRevision,
         completeSnapshotRevision: snapshotRevision,
+        catalogStatus: 'ready',
+        hasCompleteCatalog: true,
         loading: false
       }))
     } catch (e: unknown) {
       if (requestToken !== pluginListRequestToken) return
       const msg = e instanceof Error ? e.message : String(e)
-      set({ error: msg, loading: false })
+      set({ error: msg, loading: false, catalogStatus: 'error' })
     }
   },
 

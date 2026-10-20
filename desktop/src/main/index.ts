@@ -1309,7 +1309,7 @@ function registerDesktopIpcHandlers(
   getWireClient: () => DesktopAppServerClient | null
 ): void {
   if (ipcHandlersRegistered) {
-    unregisterIpcHandlers()
+    unregisterIpcHandlers({ preserveDesktopPluginModules: true })
     ipcHandlersRegistered = false
   }
   try {

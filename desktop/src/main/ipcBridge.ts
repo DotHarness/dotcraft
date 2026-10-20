@@ -2345,7 +2345,7 @@ export function broadcastServerRequest(win: BrowserWindow, payload: ServerReques
 }
 
 /** Must run before re-registering handlers on a workspace switch. */
-export function unregisterIpcHandlers(): void {
+export function unregisterIpcHandlers(options: { preserveDesktopPluginModules?: boolean } = {}): void {
   for (const channel of SSH_MACHINES_CHANNELS) {
     ipcMain.removeHandler(channel)
   }
@@ -2442,13 +2442,13 @@ export function unregisterIpcHandlers(): void {
   viewerTextWatchManager.disposeAll()
   ipcMain.removeHandler('workspace:viewer:authorize-file')
   ipcMain.removeHandler('workspace:viewer:to-viewer-url')
-  unregisterDesktopPluginModuleIpc()
+  unregisterDesktopPluginModuleIpc(options.preserveDesktopPluginModules)
   ipcMain.removeHandler('desktop-plugin:app-surface-get-json')
   ipcMain.removeHandler('desktop-plugin:app-surface-post-json')
   ipcMain.removeHandler('desktop-plugin:app-connection-status')
   ipcMain.removeHandler('desktop-plugin:app-connection-start')
   ipcMain.removeHandler('desktop-plugin:app-open')
-  clearDesktopPluginModuleRoutes()
+  if (!options.preserveDesktopPluginModules) clearDesktopPluginModuleRoutes()
   for (const channel of BROWSER_FEEDBACK_CHANNELS) ipcMain.removeHandler(channel)
   ipcMain.removeHandler('viewer:browser:create')
   ipcMain.removeHandler('viewer:browser:destroy')

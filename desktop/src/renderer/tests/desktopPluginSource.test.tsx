@@ -16,7 +16,7 @@ const plugin = { id: 'remote-ui', installed: true, enabled: true, desktop: { rev
 let stop: (() => void) | undefined
 beforeEach(() => {
   confirm.mockReset()
-  usePluginStore.setState({ plugins: [] })
+  usePluginStore.setState({ plugins: [], catalogStatus: 'ready', hasCompleteCatalog: true, workspaceEpoch: 0 })
   useConnectionStore.setState({ status: 'connected', connectionEpoch: 1 })
   useDesktopPluginSource.setState({ source: null, errors: {}, busy: false })
 })
@@ -104,7 +104,7 @@ describe('remote Desktop source authorization', () => {
     await waitFor(() => expect(useDesktopPluginSource.getState().source?.sourceKey).toBe(currentSource.sourceKey))
     expect(reconcile).not.toHaveBeenCalledWith([plugin], currentSource.sourceKey)
     expect(usePluginStore.getState().plugins).toEqual([])
-    usePluginStore.setState({ plugins: [plugin] })
+    usePluginStore.setState({ plugins: [plugin], catalogStatus: 'ready', hasCompleteCatalog: true })
     await waitFor(() => expect(reconcile).toHaveBeenCalledWith([plugin], currentSource.sourceKey))
   })
 })

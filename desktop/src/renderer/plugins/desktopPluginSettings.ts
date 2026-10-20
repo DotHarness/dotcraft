@@ -1,3 +1,4 @@
+import { useConnectionStore } from '../stores/connectionStore'
 import type {
   DesktopPluginSettingsMutation,
   DesktopPluginSettingsScope,
@@ -29,13 +30,14 @@ export async function mutateDesktopPluginSettings(
   scope: DesktopPluginSettingsScope,
   operations: readonly DesktopPluginSettingsMutation[]
 ): Promise<SettingsSnapshot> {
+  const connectionEpoch = useConnectionStore.getState().connectionEpoch
   const snapshot = await (window.api.appServer.sendRequestRaw('plugin/config/mutate', {
     id: pluginId,
     scope,
     operations
   }) as Promise<SettingsSnapshot>)
   const entry = entries.get(pluginId)
-  if (entry) {
+  if (entry && useConnectionStore.getState().connectionEpoch === connectionEpoch) {
     entry.issued += 1
     publish(pluginId, snapshot)
   }
@@ -71,12 +73,23 @@ function createEntry(pluginId: string): PluginSettingsEntry {
 
 function startWatching(): void {
   if (stopWatching) return
-  stopWatching = window.api.appServer.onNotificationRaw((notification) => {
+  const stopNotifications = window.api.appServer.onNotificationRaw((notification) => {
     if (notification.method !== 'config/changed') return
     const regions = (notification.params as { regions?: unknown } | null | undefined)?.regions
     if (!Array.isArray(regions) || !regions.includes(PLUGIN_CONFIG_REGION)) return
     for (const [pluginId, entry] of entries) refresh(pluginId, entry)
   })
+  const stopConnection = useConnectionStore.subscribe((next, previous) => {
+    if (next.connectionEpoch === previous.connectionEpoch) return
+    for (const [pluginId, entry] of entries) {
+      entry.issued += 1
+      if (next.status === 'connected') refresh(pluginId, entry)
+    }
+  })
+  stopWatching = () => {
+    stopNotifications()
+    stopConnection()
+  }
 }
 
 function refresh(pluginId: string, entry: PluginSettingsEntry): void {

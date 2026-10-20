@@ -38,20 +38,27 @@ export class DesktopPluginModules {
     if (this.disposed || this.options.connection().identity !== connection.identity) throw new Error('Desktop plugin source changed.')
     const workspacePath = snapshot?.workspacePath || connection.workspacePath
     if (connection.remote && connection.supported && !snapshot?.workspacePath) throw new Error('Remote plugin workspace identity is missing.')
-    const sourceKey = desktopPluginSourceKey(connection.source, workspacePath)
+    const sourceKey = connection.remote
+      ? desktopPluginSourceKey(connection.source, workspacePath)
+      : desktopPluginSourceKey('local', '')
     const source = {
       sourceKey, workspacePath, remote: connection.remote, supported: connection.supported,
       trusted: !connection.remote || (connection.supported && this.options.grants().includes(sourceKey))
     }
     if (this.source?.sourceKey !== sourceKey || this.connectionIdentity !== connection.identity) {
-      this.epoch++
-      this.clearRoutes()
+      this.prepareConnectionChange(connection.remote)
     }
     this.snapshot = snapshot
     this.source = source
     this.connectionIdentity = connection.identity
     await this.prune()
     return source
+  }
+
+  prepareConnectionChange(remote = false): void {
+    this.epoch++
+    if (remote || this.source?.remote) this.clearRoutes()
+    this.snapshot = null
   }
 
   async setTrusted(sourceKey: string, trusted: boolean): Promise<DesktopPluginSource> {

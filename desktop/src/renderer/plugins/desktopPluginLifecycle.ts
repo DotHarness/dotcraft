@@ -31,7 +31,7 @@ interface ActiveGeneration {
   activation: DesktopPluginActivation
   styles: HTMLLinkElement[]
   scope: DesktopPluginCleanupScope
-  sourceKey?: string
+  target: DesktopPluginTarget
 }
 
 interface PendingGeneration {
@@ -93,6 +93,17 @@ export class DesktopPluginRuntime {
       this.tokens.set(pluginId, token)
       const pendingTeardown = this.invalidatePending(pluginId)
       this.scheduleReplace(pluginId, target ?? null, token, pendingTeardown)
+    }
+  }
+
+  prepareForWorkspaceChange(): void {
+    if (this.stopped) return
+    for (const pluginId of this.desired.keys()) {
+      this.tokens.set(pluginId, (this.tokens.get(pluginId) ?? 0) + 1)
+      void this.invalidatePending(pluginId)
+      const active = this.active.get(pluginId)
+      if (active) this.desired.set(pluginId, active.target)
+      else this.desired.delete(pluginId)
     }
   }
 
@@ -176,7 +187,7 @@ export class DesktopPluginRuntime {
       styles = installStyles(pluginId, target.revision, route.styleUrls)
       publishDesktopPluginGeneration(generation)
       if (this.pending.get(pluginId) === pending) this.pending.delete(pluginId)
-      this.active.set(pluginId, { generation, activation, styles, scope, sourceKey: target.sourceKey })
+      this.active.set(pluginId, { generation, activation, styles, scope, target })
       published = true
       activation = null
       styles = []
@@ -214,7 +225,7 @@ export class DesktopPluginRuntime {
     if (active.activation.dispose) void callCleanup(active.activation.dispose)
     disposeDesktopPluginCleanupScope(active.scope)
     removeStyles(active.styles)
-    await this.removeModule(pluginId, active.generation.revision, active.sourceKey)
+    await this.removeModule(pluginId, active.generation.revision, active.target.sourceKey)
   }
 
   private invalidatePending(pluginId: string): Promise<void> {

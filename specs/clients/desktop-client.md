@@ -100,6 +100,7 @@ Desktop uses the SDK Wire reconnect profile. Already-written requests fail on di
 - Window state may be remembered, but protocol state never leaks across workspaces.
 - A switch resets the active thread selection unless the new workspace has a valid remembered equivalent.
 - Workspace-scoped panels and capabilities are rehydrated from the new foreground AppServer; secondary workspace state never drives them.
+- During local-to-local switching, unchanged plugins keep their instances, icons, and usable sidebar entries. The target workspace's complete plugin catalog determines additions, removals, and replacements according to the [Desktop Plugin lifecycle](../architecture/desktop-plugins.md#runtime-lifecycle).
 
 ### 3.6 Multiple Windows
 

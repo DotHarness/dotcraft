@@ -15,6 +15,7 @@ export const useDesktopPluginSource = create<{
 let retry: (() => void) | null = null
 let authorize: (() => Promise<void>) | null = null
 let revoke: (() => Promise<void>) | null = null
+let prepareWorkspaceChange: ((localTarget: boolean) => void) | null = null
 
 export function reportDesktopPluginError(id: string, error: unknown): void {
   useDesktopPluginSource.setState(state => ({ errors: { ...state.errors, [id]: String(error) } }))
@@ -28,6 +29,10 @@ export function clearDesktopPluginError(id: string): void {
   })
 }
 
+export function prepareDesktopPluginWorkspaceChange(localTarget: boolean): void {
+  prepareWorkspaceChange?.(localTarget)
+}
+
 export function retryDesktopPlugins(): void { retry?.() }
 export async function authorizeDesktopPlugins(): Promise<void> { await authorize?.() }
 export async function revokeDesktopPlugins(): Promise<void> { await revoke?.() }
@@ -35,24 +40,33 @@ export async function revokeDesktopPlugins(): Promise<void> { await revoke?.() }
 export function observeDesktopPluginSource(runtime: DesktopPluginRuntime): () => void {
   let issued = 0
   let stopped = false
+  let retainingLocal = false
   let dialog: ConfirmDialogRequest | null = null
   const asked = new Set<string>()
   const t = (key: string, vars?: Record<string, string>) => translate(normalizeLocale(document.documentElement.lang), key, vars)
 
+  prepareWorkspaceChange = (localTarget) => {
+    retainingLocal = localTarget && (useDesktopPluginSource.getState().source?.remote === false || retainingLocal)
+    if (retainingLocal) runtime.prepareForWorkspaceChange()
+    else runtime.reconcile([])
+  }
+
   const sync = async (forcePrompt = false): Promise<void> => {
     if (dialog || useConnectionStore.getState().status !== 'connected') return
     const token = ++issued
-    const current = () => !stopped && token === issued
+    const workspaceEpoch = usePluginStore.getState().workspaceEpoch
+    const current = () => !stopped && token === issued && workspaceEpoch === usePluginStore.getState().workspaceEpoch
     useDesktopPluginSource.setState({ busy: true })
     try {
       const source = await window.api.desktopPlugins.context()
       if (!current()) return
       if (useDesktopPluginSource.getState().source?.sourceKey !== source.sourceKey) {
-        runtime.reconcile([])
+        if (!retainingLocal || source.remote) runtime.reconcile([])
         useDesktopPluginSource.setState({ errors: {} })
       }
       useDesktopPluginSource.setState({ source })
       clearDesktopPluginError('source')
+      if (source.remote || !source.trusted) retainingLocal = false
       if (source.remote && !source.supported) {
         runtime.reconcile([])
         return
@@ -77,14 +91,26 @@ export function observeDesktopPluginSource(runtime: DesktopPluginRuntime): () =>
         if (!current()) return
         useDesktopPluginSource.setState({ source: trusted })
       }
-      if (current()) runtime.reconcile(usePluginStore.getState().plugins, source.sourceKey)
+      if (current()) {
+        const catalog = usePluginStore.getState()
+        if (!catalog.hasCompleteCatalog) return
+        runtime.reconcile(catalog.plugins, source.sourceKey)
+        retainingLocal = false
+      }
     } catch (error) {
-      if (current()) reportDesktopPluginError('source', error)
+      if (current()) {
+        if (retainingLocal) {
+          retainingLocal = false
+          runtime.reconcile([])
+        }
+        reportDesktopPluginError('source', error)
+      }
     } finally {
       if (current()) useDesktopPluginSource.setState({ busy: false })
     }
   }
   retry = () => {
+    retainingLocal = false
     runtime.reconcile([])
     useDesktopPluginSource.setState({ errors: {} })
     void sync()
@@ -111,8 +137,12 @@ export function observeDesktopPluginSource(runtime: DesktopPluginRuntime): () =>
     }
   }
   const stopPlugins = usePluginStore.subscribe((next, previous) => {
+    if (next.catalogStatus === 'error' && !next.hasCompleteCatalog) {
+      retainingLocal = false
+      runtime.reconcile([])
+    }
     if (next.plugins !== previous.plugins) {
-      if (!next.plugins.length) runtime.reconcile([])
+      if (!next.plugins.length && (!retainingLocal || next.hasCompleteCatalog)) runtime.reconcile([])
       void sync()
     }
   })
@@ -122,7 +152,7 @@ export function observeDesktopPluginSource(runtime: DesktopPluginRuntime): () =>
     dialog?.dismiss()
     dialog = null
     asked.clear()
-    runtime.reconcile([])
+    prepareDesktopPluginWorkspaceChange(next.status === 'connected' || next.status === 'connecting')
     useDesktopPluginSource.setState({ source: null, errors: {}, busy: false })
     usePluginStore.getState().resetForWorkspaceChange()
     if (next.status === 'connected') void sync()
@@ -134,7 +164,7 @@ export function observeDesktopPluginSource(runtime: DesktopPluginRuntime): () =>
     dialog?.dismiss()
     stopPlugins()
     stopConnection()
-    retry = authorize = revoke = null
+    retry = authorize = revoke = prepareWorkspaceChange = null
     useDesktopPluginSource.setState({ source: null, errors: {}, busy: false })
   }
 }

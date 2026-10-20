@@ -272,6 +272,8 @@ Disable, uninstall, revision replacement, or Desktop shutdown disposes the compl
 
 Activation failure is reported through Desktop logging and toast surfaces and disposes the failed generation, including registrations that were already visible.
 
+Local Desktop generations and their immutable module routes survive local workspace switches. Installed, enabled plugins with the same id, resolved root, version, and content revision keep their instances, original icons, and usable navigation; the target workspace's complete catalog removes or replaces changed entries. Pending activations are invalidated at the switch, and failure to discover the target catalog withdraws retained generations. Host session state and AppServer operations follow the foreground workspace, and settings listeners refresh for the new connection. Remote switches retain their source-scoped teardown and authorization rules.
+
 ### Remote workspaces
 
 With a local AppServer, Desktop resolves the installed plugin root. With a remote AppServer advertising `desktopPluginArtifacts`, Desktop downloads the installed plugin's Desktop output through `plugin/desktop/read`. The package stays installed only in the remote workspace, with its other contributions and configuration. The client cache holds only a minimal manifest and `desktop/dist`, never source, credentials, or other executables.

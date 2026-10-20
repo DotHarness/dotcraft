@@ -32,6 +32,7 @@ import { useProvidersStore } from './stores/providersStore'
 import { useMcpStore, type McpServerStatusWire } from './stores/mcpStore'
 import { useSkillsStore } from './stores/skillsStore'
 import { usePluginStore } from './stores/pluginStore'
+import { prepareDesktopPluginWorkspaceChange } from './plugins/desktopPluginSource'
 import { useHooksStore } from './stores/hooksStore'
 import { usePendingRestartStore } from './stores/pendingRestartStore'
 import { isSubAgentChildClosed, useSubAgentStore } from './stores/subAgentStore'
@@ -416,7 +417,8 @@ function isThreadNotFoundError(error: unknown): boolean {
   return /ThreadNotFound|thread not found/i.test(message)
 }
 
-function resetWorkspaceScopedRendererState(): void {
+function resetWorkspaceScopedRendererState(preserveLocalPlugins = false): void {
+  prepareDesktopPluginWorkspaceChange(preserveLocalPlugins)
   useThreadStore.getState().reset()
   useConversationStore.getState().reset()
   useModelCatalogStore.getState().reset()
@@ -1591,7 +1593,7 @@ export function App(): JSX.Element {
 
     prevForegroundThreadListIdentityKeyRef.current = nextIdentityKey
     threadListReloadGenerationRef.current += 1
-    resetWorkspaceScopedRendererState()
+    resetWorkspaceScopedRendererState(!remoteWorkspaceActive)
     if (
       status === 'connected' &&
       nextKey &&
@@ -1599,7 +1601,7 @@ export function App(): JSX.Element {
     ) {
       void reloadThreadList()
     }
-  }, [activeProjectKey, foregroundThreadListIdentityKey, foregroundThreadListKey, protocolWorkspacePath, reloadThreadList, status])
+  }, [activeProjectKey, foregroundThreadListIdentityKey, foregroundThreadListKey, protocolWorkspacePath, reloadThreadList, remoteWorkspaceActive, status])
 
   useEffect(() => {
     if (status === 'connected' && prevStatusRef.current !== 'connected') {

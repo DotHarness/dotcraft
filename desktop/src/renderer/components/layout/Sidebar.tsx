@@ -7,10 +7,7 @@ import { useThreadStore } from '../../stores/threadStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { useSshMachinesStore } from '../../stores/sshMachinesStore'
 import { addToast } from '../../stores/toastStore'
-import {
-  resolveDesktopPluginLabel,
-  useDesktopPluginRegistry
-} from '../../plugins/desktopPluginRegistry'
+import { resolveDesktopPluginLabel, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { NewThreadButton } from '../sidebar/NewThreadButton'
 import { ThreadSearch } from '../sidebar/ThreadSearch'
