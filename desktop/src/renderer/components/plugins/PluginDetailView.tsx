@@ -17,7 +17,7 @@ import { AppBindingPanel } from './AppBindingPanel'
 import { MorphingActionPill } from './MorphingActionPill'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
 import { PluginContentIcon } from './PluginContentIcon'
-import { PluginOriginBadge } from './PluginOriginBadge'
+import { PluginOriginBadge, pluginOriginTitleClassName } from './PluginOriginBadge'
 import { PluginSkillsSection } from './PluginSkillsSection'
 import { displayCategory } from './pluginCatalogModel'
 import styles from './PluginDetailView.module.css'
@@ -78,7 +78,7 @@ export function PluginDetailView({
         <div style={detailIdentityRow}>
           <div style={detailIdentity}>
             <div style={detailTitleLine}>
-              <h1 style={detailTitle}>{pluginTitle(plugin)}</h1>
+              <h1 className={pluginOriginTitleClassName} style={detailTitle}>{pluginTitle(plugin)}</h1>
               <PluginOriginBadge plugin={plugin} size="hero" />
             </div>
             <p style={detailSubtitle}>{pluginSubtitle(plugin)}</p>
@@ -303,7 +303,7 @@ const detailIconRow: CSSProperties = { display: 'flex', alignItems: 'flex-start'
 const detailIdentityRow: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px 20px', marginTop: 16 }
 const detailIdentity: CSSProperties = { display: 'flex', minWidth: 'min(100%, 280px)', flex: '1 1 360px', flexDirection: 'column', gap: 6 }
 const detailActions: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12 }
-const detailTitleLine: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }
+const detailTitleLine: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, minHeight: 'var(--type-detail-title-line-height)' }
 const detailTitle: CSSProperties = { margin: 0, fontSize: 'var(--type-detail-title-size)', fontWeight: 'var(--type-detail-title-weight)', lineHeight: 'var(--type-detail-title-line-height)' }
 const detailSubtitle: CSSProperties = { margin: 0, color: 'var(--text-secondary)', fontSize: 'var(--type-body-size)', lineHeight: 'var(--type-body-line-height)' }
 const detailIconButton: CSSProperties = { width: 32, height: 32, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', textDecoration: 'none' }

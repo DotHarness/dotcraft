@@ -6,3 +6,7 @@
   border-radius: 4px;
   color: var(--text-secondary);
 }
+
+.title {
+  text-box: trim-both cap alphabetic;
+}

@@ -391,8 +391,8 @@ Desktop surfaces favor dense but organized operational layouts.
 - Group titles name scope (installed by the user versus provided by the
   workspace); the band and the hero never carry workspace scope.
 - An item from a user-added source carries a small origin mark after its name, in
-  secondary text, with a tooltip naming the source. Host-provided and user-owned
-  items carry no mark.
+  secondary text, centered on the name's cap height, with a tooltip naming the
+  source. Host-provided and user-owned items carry no mark.
 - Controls and groups separate with space and heading weight, not rules.
 - Top bars prefer icon-only actions with tooltips for repeated management
   commands such as Refresh and Manage, keeping the labelled action for the one

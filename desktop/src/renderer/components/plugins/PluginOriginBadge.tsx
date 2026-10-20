@@ -5,6 +5,8 @@ import { usePluginStore, type MarketplaceEntry, type PluginEntry } from '../../s
 import { ActionTooltip } from '../ui/ActionTooltip'
 import styles from './PluginOriginBadge.module.css'
 
+export const pluginOriginTitleClassName = styles.title
+
 const ORIGINS: Record<MarketplaceEntry['sourceType'], { icon: LucideIcon; key: 'git' | 'local' | 'archive' }> = {
   git: { icon: GitBranch, key: 'git' },
   local: { icon: FolderClosed, key: 'local' },

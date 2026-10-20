@@ -5,7 +5,7 @@ import { styles as catalogStyles } from '../catalog/CatalogSurface'
 import { Button } from '../ui/Button'
 import { IdentityMark, type IdentityMarkRole } from '../ui/IdentityMark'
 import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
-import { PluginOriginBadge } from './PluginOriginBadge'
+import { PluginOriginBadge, pluginOriginTitleClassName } from './PluginOriginBadge'
 
 export function PluginCatalogItem({
   plugin,
@@ -51,8 +51,8 @@ export function PluginCatalogItem({
     >
       <PluginIcon plugin={plugin} role="list" />
       <span style={pluginText}>
-        <span style={catalogStyles.rowTitleLine}>
-          <strong style={catalogStyles.rowTitle}>{pluginTitle(plugin)}</strong>
+        <span style={rowTitleLine}>
+          <strong className={pluginOriginTitleClassName} style={rowTitle}>{pluginTitle(plugin)}</strong>
           <PluginOriginBadge plugin={plugin} />
         </span>
         <span style={catalogStyles.rowDesc}>{pluginSubtitle(plugin)}</span>
@@ -138,3 +138,9 @@ function iconAction(rowActive: boolean): CSSProperties {
     transition: 'background-color 120ms ease'
   }
 }
+
+const rowTitleLine: CSSProperties = {
+  ...catalogStyles.rowTitleLine,
+  minHeight: `calc(${catalogStyles.rowTitle.fontSize} * ${catalogStyles.rowTitle.lineHeight})`
+}
+const rowTitle: CSSProperties = { ...catalogStyles.rowTitle, paddingBlock: '4px', marginBlock: '-4px' }
