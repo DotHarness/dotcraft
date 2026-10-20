@@ -216,6 +216,7 @@ const badgeStyle: CSSProperties = {
 
 const balanceBadgeStyle: CSSProperties = {
   ...badgeStyle,
+  color: 'var(--composer-footer-text)',
   width: 'auto',
   minWidth: '70px',
   maxWidth: '140px',
