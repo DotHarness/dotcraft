@@ -799,7 +799,7 @@ This section defines the user-visible workflow for TypeScript channel modules co
 - Desktop may list discoverable channel modules from static metadata without executing module logic.
 - Modules load from bundled and user-installed locations; a user-installed module overrides a bundled one with the same `moduleId`. Identity is canonicalized by `moduleId`, not folder name.
 - Invalid metadata skips that entry without breaking the list.
-- Browse and detail surfaces may use optional `interface` metadata (`shortDescription`, `longDescription`, `previewPrompt`), localized with the same fallback rules as display names; technical details (package, source, variant, transport, capabilities) belong in the detail information area.
+- Browse and detail surfaces may use optional `interface` metadata (`shortDescription`, `longDescription`, `previewPrompt`), localized with the same fallback rules as display names; technical details (package, source, transport, and readable capabilities such as channel tools or interactive setup) belong in the detail information area; the variant appears only where a channel has several ([6.8.6](#686-variants)).
 
 #### 6.8.2 Configuration Workflow
 

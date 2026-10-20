@@ -1,5 +1,6 @@
 import { useT } from '../../contexts/LocaleContext'
 import { ChannelFormPage } from './ChannelFormPage'
+import { transportLabel } from './channelInfoLabels'
 import {
   ChannelModuleDetailPage,
   type ChannelModuleDetailMode
@@ -24,12 +25,6 @@ interface ExternalChannelDetailPageProps {
   onToggleEnabled: () => void
   onDelete: () => void
   onBack: () => void
-}
-
-function transportLabel(transport: ExternalChannelConfigWire['transport']): string {
-  if (transport === 'websocket') return 'WebSocket'
-  if (transport === 'managedWebsocket') return 'Managed WebSocket'
-  return 'Subprocess'
 }
 
 /**

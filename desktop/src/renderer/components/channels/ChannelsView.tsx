@@ -12,6 +12,7 @@ import {
 import { RefreshIcon } from '../ui/AppIcons'
 import type { ChannelConnectionState } from './ChannelCard'
 import { ChannelCatalogItem } from './ChannelCatalogItem'
+import { capabilityLabels, transportLabel } from './channelInfoLabels'
 import { ModuleConfigForm } from './ModuleConfigForm'
 import {
   ChannelModuleDetailPage,
@@ -1181,6 +1182,7 @@ export function ChannelsView(): JSX.Element {
     const moduleActive =
       selectedModuleStatus?.processState === 'starting' ||
       selectedModuleStatus?.processState === 'running'
+    const capabilities = capabilityLabels(selectedModule.capabilitySummary, t)
     const infoItems = [
       { label: t('channels.detail.package'), value: selectedModule.packageName },
       {
@@ -1190,12 +1192,8 @@ export function ChannelsView(): JSX.Element {
             ? t('channels.modules.source.bundled')
             : t('channels.modules.source.user')
       },
-      { label: t('channels.detail.variant'), value: selectedModule.variant },
-      { label: t('channels.detail.transports'), value: selectedModule.supportedTransports.join(', ') },
-      {
-        label: t('channels.detail.capabilities'),
-        value: formatCapabilitySummary(selectedModule.capabilitySummary)
-      }
+      { label: t('channels.detail.transports'), value: selectedModule.supportedTransports.map(transportLabel).join(', ') },
+      ...(capabilities.length > 0 ? [{ label: t('channels.detail.capabilities'), value: capabilities.join(', ') }] : [])
     ]
 
     return (
@@ -1349,14 +1347,6 @@ export function ChannelsView(): JSX.Element {
 
     </div>
   )
-}
-
-function formatCapabilitySummary(summary: Record<string, unknown> | undefined): string {
-  if (!summary || Object.keys(summary).length === 0) return '-'
-  const enabledCapabilities = Object.entries(summary)
-    .filter(([, value]) => value === true)
-    .map(([key]) => key)
-  return enabledCapabilities.length > 0 ? enabledCapabilities.join(', ') : '-'
 }
 
 const page: CSSProperties = catalogStyles.page
