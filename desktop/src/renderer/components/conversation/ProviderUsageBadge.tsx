@@ -6,7 +6,7 @@ import {
   type JSX
 } from 'react'
 import { Plug } from 'lucide-react'
-import { useT } from '../../contexts/LocaleContext'
+import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import {
   useProviderUsage,
@@ -20,8 +20,9 @@ import {
   type ChatGptUsageDisplayWindow,
   type ChatGptUsageWindowKind
 } from '../../utils/chatgptUsageWindows'
+import { formatBalanceAmount, providerTopUpUrl } from '../../utils/providerBalance'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { ProviderMark } from '../ui/ProviderMark'
+import { ProviderMark, type ProviderMarkKind } from '../ui/ProviderMark'
 import { getProviderProtocolMarkKind } from '../settings/panels/ProviderProtocolIcon'
 import { ProviderUsagePopover } from './ProviderUsagePopover'
 
@@ -31,6 +32,7 @@ interface ProviderUsageBadgeProps {
 
 export function ProviderUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Element | null {
   const t = useT()
+  const locale = useLocale()
   const providerId = provider?.id ?? null
   const usage = useProviderUsage(providerId)
   const providerManagement = useConnectionStore((state) => state.capabilities?.providerManagement === true)
@@ -69,9 +71,19 @@ export function ProviderUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.E
   const pressuredWindow = selectPressuredWindow(displayWindows)
   const remaining = remainingPercent(pressuredWindow?.window ?? null)
   const accentColor = colorForRemaining(remaining)
-  const tooltipLabel = formatUsageTooltipLabel(displayWindows, t)
+  const balanceMode = usage.balances != null && displayWindows.length === 0
+  const firstBalance = usage.balances?.[0] ?? null
+  const balanceText = firstBalance ? formatBalanceAmount(firstBalance.total, firstBalance.currency, locale) : '—'
+  const insufficientBalance = usage.limitReachedKind === 'balance'
+  const tooltipLabel = balanceMode
+    ? insufficientBalance
+      ? t('composer.balanceBadge.insufficient')
+      : t('composer.balanceBadge.tooltip', { amount: balanceText })
+    : formatUsageTooltipLabel(displayWindows, t)
+  const markKind = providerMarkKind(provider)
 
   const ariaParts = [[label, planName].filter(Boolean).join(' ')]
+  if (balanceMode) ariaParts.push(tooltipLabel)
   for (const display of displayWindows) {
     ariaParts.push(formatUsageAriaLabel(display.kind, remainingPercent(display.window) ?? 0, t))
   }
@@ -83,14 +95,18 @@ export function ProviderUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.E
       aria-expanded={open}
       aria-label={ariaParts.join(' – ')}
       className="dc-composer-pill"
-      style={badgeStyle}
+      style={balanceMode ? balanceBadgeStyle : badgeStyle}
     >
-      {provider.authMethod === 'chatgptOAuth' || tryNormalizeProviderProtocol(provider.protocol)
-        ? <ProviderMark kind={getProviderProtocolMarkKind(provider.protocol)} size={14} style={iconStyle()} />
+      {markKind
+        ? <ProviderMark kind={markKind} size={14} style={iconStyle()} />
         : <Plug size={14} style={iconStyle()} aria-hidden />}
-      <span style={miniTrackStyle()} aria-hidden>
-        <span style={{ ...miniFillStyle(), width: `${remaining ?? 0}%`, background: accentColor }} />
-      </span>
+      {balanceMode ? (
+        <span style={balanceTextStyle(insufficientBalance)} aria-hidden>{balanceText}</span>
+      ) : (
+        <span style={miniTrackStyle()} aria-hidden>
+          <span style={{ ...miniFillStyle(), width: `${remaining ?? 0}%`, background: accentColor }} />
+        </span>
+      )}
     </button>
   )
 
@@ -103,11 +119,23 @@ export function ProviderUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.E
       )}
       {open && (
         <div style={popoverWrapperStyle()}>
-          <ProviderUsagePopover title={title} usage={usage} onClose={() => setOpen(false)} />
+          <ProviderUsagePopover
+            title={title}
+            usage={usage}
+            topUpUrl={providerTopUpUrl(provider)}
+            onClose={() => setOpen(false)}
+          />
         </div>
       )}
     </div>
   )
+}
+
+function providerMarkKind(provider: ProviderSummary): ProviderMarkKind | null {
+  if (provider.webSearchBackend === 'deepseek') return 'deepseek'
+  return provider.authMethod === 'chatgptOAuth' || tryNormalizeProviderProtocol(provider.protocol)
+    ? getProviderProtocolMarkKind(provider.protocol)
+    : null
 }
 
 function selectPressuredWindow(windows: ChatGptUsageDisplayWindow[]): ChatGptUsageDisplayWindow | null {
@@ -184,6 +212,25 @@ const badgeStyle: CSSProperties = {
   overflow: 'hidden',
   flexShrink: 0,
   cursor: 'pointer'
+}
+
+const balanceBadgeStyle: CSSProperties = {
+  ...badgeStyle,
+  color: 'var(--composer-footer-text)',
+  width: 'auto',
+  minWidth: '70px',
+  maxWidth: '140px',
+  padding: '0 9px'
+}
+
+function balanceTextStyle(insufficient: boolean): CSSProperties {
+  return {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    fontVariantNumeric: 'tabular-nums',
+    color: insufficient ? 'var(--error, #f85149)' : undefined
+  }
 }
 
 function iconStyle(): CSSProperties {

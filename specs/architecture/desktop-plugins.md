@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.9.1 |
+| Version | 0.9.2 |
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-10-20 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -185,7 +185,7 @@ The Core surfaces are:
 | `composer.toolbar.submit` | The current submit, queue, stop, approval, or reply action. |
 | `composer.status` | The status row below the Composer card. |
 | `composer.status.workspace` | The context row: project, Run on, work location, branch, worktree, or changelist controls. Its individual chips are not surfaces. |
-| `composer.status.subscription` | The ChatGPT subscription indicator when applicable. |
+| `composer.status.subscription` | The provider usage indicator (subscription windows or account balance) when applicable. |
 | `composer.status.trailing` | The trailing end of the status row, reserved for compact persistent readouts. Empty by default. |
 | `thread.header.actions` | The action group in the active thread header, between the overflow menu and the Detail Panel toggle. Empty by default. |
 | `conversation.aside.leading` | A seat beside the leading edge of the conversation reading column. Empty by default. |

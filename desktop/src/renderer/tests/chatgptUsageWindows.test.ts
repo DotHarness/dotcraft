@@ -53,6 +53,7 @@ function snapshot(
     primary,
     secondary,
     credits: null,
+    balances: null,
     limitReachedKind: null,
     fetchedAt: '2026-07-13T05:00:00.000Z'
   }

@@ -4,6 +4,7 @@ public static class ProviderWebSearchBackend
 {
     public const string DeepSeek = "deepseek";
     public static Uri DeepSeekSearchEndpoint { get; } = new("https://api.deepseek.com/v1/tools/search");
+    public static Uri DeepSeekBalanceEndpoint { get; } = new("https://api.deepseek.com/user/balance");
 
     public static string? Resolve(string endpoint, string? authMethod)
     {

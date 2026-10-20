@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.1 |
+| Version | 0.9.2 |
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-10-20 |
 
 Provider authentication signs a configured provider in and out and reports its account state and
 usage. One Core coordinator serves built-in providers and [model backends](../architecture/model-backend-plugins.md);
@@ -81,9 +81,16 @@ and carries no account metadata.
 
 `provider/auth/usage` takes `providerId` and returns `available`, `fetchedAt`, `planType`,
 `primary` and `secondary` windows (`usedPercent`, `windowSeconds`, `resetAt`), `credits`
-(`hasCredits`, `unlimited`, `balance`) and `limitReachedKind`. A provider without usage returns
-`available: false`. `provider/auth/usage/updated` carries `providerId` and the same fields; the host
-sends one for each configured provider whose usage changed after polling, login or logout.
+(`hasCredits`, `unlimited`, `balance`), `balances` and `limitReachedKind`. A provider without usage
+returns `available: false`. `provider/auth/usage/updated` carries `providerId` and the same fields; the
+host sends one for each configured provider whose usage changed after polling, login or logout.
+
+`balances` lists prepaid account balances, one per currency, each with `currency`, `total`,
+`granted` and `toppedUp` as decimal strings. A built-in API-key provider whose endpoint is the
+official DeepSeek API reports its DeepSeek account balance this way; `limitReachedKind` is
+`balance` when DeepSeek reports the balance insufficient for calls. The host reads the balance on
+request with the provider's key, reuses a result for up to 30 seconds, and does not poll, so clients
+request usage again after a turn completes. A failed balance read returns `available: false`.
 
 ## Model service
 

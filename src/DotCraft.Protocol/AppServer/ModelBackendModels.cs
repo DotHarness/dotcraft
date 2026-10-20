@@ -109,6 +109,7 @@ public sealed class ProviderAuthUsageResult
     [JsonPropertyName("primary")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageWindow? Primary { get; init; }
     [JsonPropertyName("secondary")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageWindow? Secondary { get; init; }
     [JsonPropertyName("credits")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageCredits? Credits { get; init; }
+    [JsonPropertyName("balances")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyList<ProviderAuthUsageBalance>? Balances { get; init; }
     [JsonPropertyName("limitReachedKind")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? LimitReachedKind { get; init; }
 }
 
@@ -121,6 +122,7 @@ public sealed class ProviderAuthUsageUpdatedNotification
     [JsonPropertyName("primary")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageWindow? Primary { get; init; }
     [JsonPropertyName("secondary")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageWindow? Secondary { get; init; }
     [JsonPropertyName("credits")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public ProviderAuthUsageCredits? Credits { get; init; }
+    [JsonPropertyName("balances")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyList<ProviderAuthUsageBalance>? Balances { get; init; }
     [JsonPropertyName("limitReachedKind")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? LimitReachedKind { get; init; }
 }
 
@@ -136,6 +138,14 @@ public sealed class ProviderAuthUsageCredits
     [JsonPropertyName("hasCredits")] public bool HasCredits { get; init; }
     [JsonPropertyName("unlimited")] public bool Unlimited { get; init; }
     [JsonPropertyName("balance")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Balance { get; init; }
+}
+
+public sealed class ProviderAuthUsageBalance
+{
+    [JsonPropertyName("currency")] public string Currency { get; init; } = string.Empty;
+    [JsonPropertyName("total")] public string Total { get; init; } = string.Empty;
+    [JsonPropertyName("granted")] public string Granted { get; init; } = string.Empty;
+    [JsonPropertyName("toppedUp")] public string ToppedUp { get; init; } = string.Empty;
 }
 
 public sealed partial class ProviderInfo

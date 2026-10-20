@@ -11913,6 +11913,31 @@
         "isAuthenticated"
       ]
     },
+    "ProviderAuthUsageBalance": {
+      "title": "ProviderAuthUsageBalance",
+      "type": "object",
+      "properties": {
+        "currency": {
+          "type": "string"
+        },
+        "granted": {
+          "type": "string"
+        },
+        "toppedUp": {
+          "type": "string"
+        },
+        "total": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "currency",
+        "granted",
+        "toppedUp",
+        "total"
+      ]
+    },
     "ProviderAuthUsageCredits": {
       "title": "ProviderAuthUsageCredits",
       "type": "object",
@@ -11946,6 +11971,19 @@
       "properties": {
         "available": {
           "type": "boolean"
+        },
+        "balances": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ProviderAuthUsageBalance"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "credits": {
           "anyOf": [
@@ -12020,6 +12058,19 @@
       "properties": {
         "available": {
           "type": "boolean"
+        },
+        "balances": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ProviderAuthUsageBalance"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "credits": {
           "anyOf": [

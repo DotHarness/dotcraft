@@ -12,8 +12,11 @@ public sealed class ProviderAuthenticationException(string code, string message)
     public string Code { get; } = code;
 }
 
-public sealed class ProviderAuthenticationCoordinator(ModelBackendResolver resolver) : IAsyncDisposable
+public sealed class ProviderAuthenticationCoordinator(
+    ModelBackendResolver resolver, HttpClient? balanceClient = null, TimeProvider? time = null) : IAsyncDisposable
 {
+    private static readonly HttpClient DefaultBalanceClient = new();
+    private readonly DeepSeekBalanceReader _deepSeekBalance = new(balanceClient ?? DefaultBalanceClient, time ?? TimeProvider.System);
     private const string ChatGptInstanceKey = ModelProviderAuthMethods.ChatGptOAuth;
     private static readonly ProviderAuthenticationMethod ApiKeyMethod = new(ModelProviderAuthMethods.ApiKey, "API key", "apiKey");
     private static readonly ProviderAuthenticationMethod ChatGptMethod = new(ModelProviderAuthMethods.ChatGptOAuth, "ChatGPT", "oauth");
@@ -129,7 +132,12 @@ public sealed class ProviderAuthenticationCoordinator(ModelBackendResolver resol
         }
         var runtime = resolver.Normalize(ModelProviderResolver.ResolveProvider(config, providerId));
         if (string.IsNullOrWhiteSpace(runtime.BackendId) && !runtime.IsChatGptOAuth)
-            return null;
+        {
+            return runtime.WebSearchBackend == ProviderWebSearchBackend.DeepSeek && !runtime.IsRemote
+                && !string.IsNullOrWhiteSpace(runtime.ApiKey)
+                ? await _deepSeekBalance.ReadAsync(runtime.ApiKey.Trim(), ct).ConfigureAwait(false)
+                : null;
+        }
         var usage = resolver.Resolve(runtime).GetService(typeof(IProviderUsageReader)) as IProviderUsageReader;
         return usage is null ? null : await usage.ReadAsync(ct).ConfigureAwait(false);
     }
