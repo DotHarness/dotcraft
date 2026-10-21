@@ -317,6 +317,10 @@ surface's `context.workspacePath` may differ. `busy` means a turn is running or 
 input. Approval state, Composer variant, and minimal chrome remain on the Composer surface context;
 `workspaces` owns workspace lists and switching.
 
+`workspaces.readImageAttachment(path)` returns an image the user attached to a local workspace's
+conversation as a data URL. It reads only Desktop's image attachment folders and rejects any other
+path, a non-image file, an oversized image, or a remote workspace.
+
 ### SubAgent state
 
 `subagents.list(parentThreadId)` returns the SubAgent children Desktop tracks for a parent thread (those its Subagents tab lists). `subagents.onChange(parentThreadId, listener)` notifies when a listed child's identity or state changes.
@@ -341,6 +345,7 @@ interface DesktopPluginSubAgent {
 - `openFile(path)` opens a workspace file in the Detail Panel file viewer.
 - `openDetailPanel(tab)` opens the current thread's Detail Panel on `changes`, `plan`, or `subagents`.
 - `openAutomation(automationId)` opens that automation in the Automations view.
+- `openSkill(name)` opens that skill in the Skills view.
 - `revealToolCall(threadId, callId)` opens that thread and reveals the tool item with that call id; a background terminal's `callId` names the `Exec` call that started it.
 - `openMainView` is limited to the plugin's own main views.
 - `openPath(path, { target?, line?, column? })` opens a local path in another app ([Desktop client §5.17](../clients/desktop-client.md#517-open-in-another-app)). `target` is an id from `listOpenTargets()`, such as `fileManager` or `custom:<id>`; without it the path's default target is used. It rejects on a remote workspace or an unavailable target.

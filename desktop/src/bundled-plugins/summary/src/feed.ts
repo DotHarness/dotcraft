@@ -20,7 +20,15 @@ export interface SummaryTerminal {
   readonly callId: string | null
 }
 
+export interface SummaryWorkflow {
+  readonly runId: string
+  readonly name: string
+  readonly paused: boolean
+}
+
 export interface SummaryState {
+  readonly ready: boolean
+  readonly workflows: readonly SummaryWorkflow[]
   readonly subagents: readonly DesktopPluginSubAgent[]
   readonly automations: readonly SummaryAutomation[]
   readonly plan: SummaryPlan | null
@@ -38,8 +46,16 @@ interface TerminalSnapshot {
   readonly status?: string
 }
 
+interface WorkflowRunSnapshot {
+  readonly runId: string
+  readonly threadId: string
+  readonly name: string
+  readonly status: string
+}
+
 const ITEM_PAGE_LIMIT = 500
 const TURN_PAGE_LIMIT = 100
+const WORKFLOW_PAGE_LIMIT = 50
 
 export function startSummaryFeed(
   host: DesktopPluginHost,
@@ -52,10 +68,14 @@ export function startSummaryFeed(
   let reconcileInFlight = false
   let reconcileQueued = false
   const runningTerminals = new Map<string, { command: string; turnId: string | null; callId: string | null }>()
+  const returnedCalls = new Set<string>()
+  let pendingLoads = 5
   const endedTerminals = new Set<string>()
   let activeTurnId: string | null = null
   let runtimeReceived = false
   let state: SummaryState = {
+    ready: false,
+    workflows: [],
     subagents: host.subagents.list(threadId),
     automations: [],
     plan: null,
@@ -72,6 +92,14 @@ export function startSummaryFeed(
 
   const addItems = (incoming: readonly SummaryItem[]): void => {
     if (incoming.length === 0) return
+    let returned = false
+    for (const item of incoming) {
+      const callId = item.type === 'toolResult' ? item.payload.callId : null
+      if (typeof callId === 'string' && !returnedCalls.has(callId)) {
+        returnedCalls.add(callId)
+        returned = true
+      }
+    }
     const next = [...state.items]
     const keyOf = (item: SummaryItem): string => `${item.turnId}:${item.id}`
     const positions = new Map(next.map((item, index) => [keyOf(item), index]))
@@ -85,11 +113,14 @@ export function startSummaryFeed(
       }
     }
     publish({ items: next })
+    if (returned) publishTerminals()
   }
 
   const publishTerminals = (): void => publish({
     terminals: [...runningTerminals]
-      .filter(([, terminal]) => !activeTurnId || terminal.turnId !== activeTurnId)
+      .filter(([, terminal]) => !activeTurnId
+        || terminal.turnId !== activeTurnId
+        || (terminal.callId !== null && returnedCalls.has(terminal.callId)))
       .map(([sessionId, terminal]) => ({ sessionId, command: terminal.command, callId: terminal.callId }))
   })
 
@@ -97,12 +128,52 @@ export function startSummaryFeed(
     const sessionId = terminal?.sessionId
     if (!terminal || !sessionId || terminal.threadId !== threadId || endedTerminals.has(sessionId)) return false
     if (!ended && terminal.status === 'running') {
-      runningTerminals.set(sessionId, { command: terminal.command ?? '', turnId: terminal.turnId ?? null, callId: terminal.callId ?? null })
+      runningTerminals.set(sessionId, {
+        command: terminal.command ?? '',
+        turnId: terminal.turnId ?? null,
+        callId: terminal.callId ?? null
+      })
     } else {
       endedTerminals.add(sessionId)
       runningTerminals.delete(sessionId)
     }
     return true
+  }
+
+  const settleLoad = (): void => {
+    pendingLoads -= 1
+    if (pendingLoads === 0) publish({ ready: true })
+  }
+
+  const upsertWorkflow = (run: WorkflowRunSnapshot): void => {
+    const others = state.workflows.filter((workflow) => workflow.runId !== run.runId)
+    if (run.status !== 'running' && run.status !== 'paused') {
+      if (others.length !== state.workflows.length) publish({ workflows: others })
+      return
+    }
+    const index = state.workflows.findIndex((workflow) => workflow.runId === run.runId)
+    const next = [...others]
+    next.splice(index < 0 ? next.length : index, 0, { runId: run.runId, name: run.name, paused: run.status === 'paused' })
+    publish({ workflows: next })
+  }
+
+  const loadWorkflows = async (): Promise<void> => {
+    try {
+      const result = await host.appServer.request('workflow/run/list', { threadId, limit: WORKFLOW_PAGE_LIMIT })
+      if (disposed) return
+      for (const run of [...(result.runs ?? [])].reverse()) upsertWorkflow(run)
+    } catch {
+      return
+    }
+  }
+
+  const refreshWorkflow = async (runId: string): Promise<void> => {
+    try {
+      const result = await host.appServer.request('workflow/run/read', { threadId, runId })
+      if (!disposed && result.run) upsertWorkflow(result.run)
+    } catch {
+      return
+    }
   }
 
   const readItemsPage = (cursor: string | null) => host.appServer.request('thread/items/list', {
@@ -238,6 +309,10 @@ export function startSummaryFeed(
     publish({ automations: next })
   })
 
+  const stopWorkflows = host.appServer.onNotification('workflow/run/updated', (params) => {
+    if (params.threadId === threadId) void refreshWorkflow(params.runId)
+  })
+
   const stopTurnStarted = host.appServer.onNotification('turn/started', (params) => {
     if (params.turn.threadId === threadId) void reconcileRollback()
   })
@@ -263,10 +338,7 @@ export function startSummaryFeed(
   ]
 
   onChange(state)
-  void loadHistory()
-  void loadAutomations()
-  void loadThread()
-  void loadTerminals()
+  for (const load of [loadHistory, loadAutomations, loadThread, loadTerminals, loadWorkflows]) void load().finally(settleLoad)
 
   return () => {
     disposed = true
@@ -275,6 +347,7 @@ export function startSummaryFeed(
     stopTurnDiff()
     stopPlan()
     stopAutomations()
+    stopWorkflows()
     stopTurnStarted()
     stopRuntime()
     for (const stop of stopTerminals) stop()

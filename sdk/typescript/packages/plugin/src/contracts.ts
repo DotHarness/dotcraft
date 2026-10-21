@@ -214,6 +214,7 @@ export interface DesktopPluginNavigation {
   listOpenTargets(): Promise<DesktopPluginOpenTarget[]>;
   openDetailPanel(tab: DesktopPluginDetailPanelTab): void;
   openAutomation(automationId: string): void;
+  openSkill(name: string): void;
   /** Opens the thread and reveals the tool item with this call id in its conversation. */
   revealToolCall(threadId: string, callId: string): void;
   onOpenUrl(listener: (url: string) => boolean): DesktopPluginDispose;
@@ -454,6 +455,8 @@ export interface DesktopPluginLocalProject {
 
 export interface DesktopPluginWorkspaceReader {
   listLocalProjects(): Promise<readonly DesktopPluginLocalProject[]>;
+  /** Returns an image attached in a local workspace's conversation as a data URL; rejects any other path. */
+  readImageAttachment(path: string): Promise<string>;
 }
 
 export interface DesktopPluginOratorioContext {

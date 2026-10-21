@@ -138,6 +138,77 @@ describe('Summary feed', () => {
     stop()
   })
 
+  it('lists a command of the active turn once its Exec call has returned', async () => {
+    const { host, notify } = createHost({
+      'thread/read': () => ({ thread: { plan: null, runtime: { activeTurnId: 't2' } } }),
+      'terminal/list': () => ({
+        terminals: [
+          { sessionId: 'dev', threadId: 'thread-1', turnId: 't2', callId: 'call-dev', command: 'npm run dev', status: 'running' },
+          { sessionId: 'build', threadId: 'thread-1', turnId: 't2', callId: 'call-build', command: 'npm run build', status: 'running' }
+        ]
+      })
+    })
+    let state: SummaryState | null = null
+    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    await settle()
+
+    expect(state!.terminals).toEqual([])
+
+    notify('item/completed', {
+      threadId: 'thread-1',
+      turnId: 't2',
+      item: { id: 'r1', turnId: 't2', type: 'toolResult', status: 'completed', createdAt: '2026-10-01T10:05:00Z', payload: { callId: 'call-dev' } }
+    })
+
+    expect(state!.terminals.map((entry) => entry.sessionId)).toEqual(['dev'])
+    stop()
+  })
+
+  it('lists running and paused workflow runs and follows their updates', async () => {
+    const runs: Record<string, { status: string }> = { run_b: { status: 'running' } }
+    const { host, notify } = createHost({
+      'workflow/run/list': () => ({
+        runs: [
+          { runId: 'run_c', threadId: 'thread-1', name: 'done', status: 'succeeded' },
+          { runId: 'run_b', threadId: 'thread-1', name: 'review', status: 'running' },
+          { runId: 'run_a', threadId: 'thread-1', name: 'audit', status: 'paused' }
+        ]
+      }),
+      'workflow/run/read': ({ runId }: { runId: string }) => ({ run: { runId, threadId: 'thread-1', name: 'review', ...runs[runId] } })
+    })
+    let state: SummaryState | null = null
+    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    await settle()
+
+    expect(state!.workflows).toEqual([
+      { runId: 'run_a', name: 'audit', paused: true },
+      { runId: 'run_b', name: 'review', paused: false }
+    ])
+
+    runs.run_b = { status: 'succeeded' }
+    notify('workflow/run/updated', { threadId: 'thread-1', runId: 'run_b', reason: 'terminal' })
+    await settle()
+    expect(state!.workflows.map((run) => run.runId)).toEqual(['run_a'])
+    stop()
+  })
+
+  it('reports ready only after every initial read settles, even when one fails', async () => {
+    let releaseItems: (value: unknown) => void = () => undefined
+    const { host } = createHost({
+      'thread/items/list': () => new Promise((resolve) => { releaseItems = resolve }),
+      'workflow/run/list': () => Promise.reject(new Error('unsupported'))
+    })
+    let state: SummaryState | null = null
+    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    await settle()
+    expect(state!.ready).toBe(false)
+
+    releaseItems({ data: [], nextCursor: null })
+    await settle()
+    expect(state!.ready).toBe(true)
+    stop()
+  })
+
   it('follows terminal notifications without reviving a terminal that ended while the list loaded', async () => {
     let releaseList: (value: unknown) => void = () => undefined
     const { host, notify } = createHost({

@@ -161,6 +161,15 @@
   color: var(--text-secondary);
 }
 
+.conversation-summary-thumbnail {
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-default);
+  border-radius: 3px;
+  object-fit: cover;
+}
+
 .conversation-summary-row__label,
 .conversation-summary-row__inline {
   min-width: 0;

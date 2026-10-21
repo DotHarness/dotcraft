@@ -515,6 +515,14 @@ useEffect(() => {
 }, [host]);
 ```
 
+### Show attached images
+
+`host.workspaces.readImageAttachment(path)` returns an image the user attached in a local workspace's conversation as a data URL, ready for an `<img>`. Pass the path from the user message's image input. It rejects any path outside Desktop's image attachment folders, a file that is not an image, an oversized image, and any path in a remote workspace, so keep a fallback icon:
+
+```tsx
+host.workspaces.readImageAttachment(path).then(setSrc, () => setSrc(null));
+```
+
 ### Follow SubAgents
 
 `host.subagents` reads the SubAgents Desktop tracks for a parent thread, the same ones its Subagents tab lists. `list` returns a snapshot. `onChange` sends the complete list again whenever a child's identity or state changes:
@@ -551,6 +559,7 @@ host.subagents.onChange(threadId, render);
 | `openFile(path)` | A workspace file in the Detail Panel file viewer. A relative path resolves against the current thread's workspace. |
 | `openDetailPanel(tab)` | The current thread's Detail Panel on `changes`, `plan`, or `subagents`. |
 | `openAutomation(automationId)` | That automation in the Automations view. |
+| `openSkill(name)` | That skill in the Skills view. |
 | `revealToolCall(threadId, callId)` | That thread, scrolled to the tool call with that call id, opened and briefly highlighted. A background terminal's `callId` names the command that started it. |
 | `openExternal(url)` | An http(s) URL in the user's default browser, or a `dotcraft:` link inside Desktop. Other schemes are rejected. |
 | `openPath(path, options?)` | A local file or folder in another installed app. See [Open a path in another app](#open-a-path-in-another-app). |

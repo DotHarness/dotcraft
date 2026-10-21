@@ -1,9 +1,7 @@
 import { Box } from 'lucide-react'
 import type { JSX, ReactNode } from 'react'
 import { translate, type AppLocale } from '../../../shared/locales'
-import { usePluginStore } from '../../stores/pluginStore'
-import { useSkillsStore } from '../../stores/skillsStore'
-import { useUIStore } from '../../stores/uiStore'
+import { openSkill } from '../../utils/openSkill'
 
 const SKILL_NAME_TOKEN = '__DOTCRAFT_SKILL_NAME__'
 
@@ -31,16 +29,6 @@ export function renderSkillToolLabel(
 }
 
 export function SkillRef({ name }: { name: string }): JSX.Element {
-  const openSkill = async (): Promise<void> => {
-    usePluginStore.getState().clearSelection()
-    const ui = useUIStore.getState()
-    ui.setPluginCatalogSurface('skills')
-    ui.setActiveMainView('skills')
-    const skills = useSkillsStore.getState()
-    await skills.fetchSkills()
-    await skills.selectSkill(name)
-  }
-
   return (
     <button
       type="button"
@@ -49,7 +37,7 @@ export function SkillRef({ name }: { name: string }): JSX.Element {
       onClick={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        void openSkill()
+        void openSkill(name)
       }}
     >
       <Box size={12} strokeWidth={2.25} aria-hidden />

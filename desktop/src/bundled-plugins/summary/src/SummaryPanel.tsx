@@ -1,11 +1,12 @@
 import { AgentAvatar, type DesktopPluginHost } from '@dotcraft/plugin'
 import { Box, ChevronUp, Clock, FileText, Globe, Lightbulb, Link, Server } from 'lucide-react'
 import { useEffect, useMemo, useState, type JSX } from 'react'
-import { BackgroundProcessesSection } from './BackgroundProcessesSection'
+import { BackgroundTasksSection } from './BackgroundTasksSection'
 import { EnvironmentSection } from './EnvironmentSection'
-import { startSummaryFeed, type SummaryAutomation, type SummaryState } from './feed'
+import type { SummaryAutomation, SummaryState } from './feed'
 import { fill, stringsFor, type SummaryStrings } from './i18n'
-import { changeTotals, extractSources, hasWebSearch, type Source, type SourceKind } from './sources'
+import { changeTotals, extractSources, hasWebSearch, workflowCallIds, type Source, type SourceKind } from './sources'
+import { useSummaryState } from './store'
 import { GLYPH, Row, Section } from './SummaryRows'
 
 const SOURCE_LIMIT = 3
@@ -16,15 +17,6 @@ const SOURCE_GLYPHS: Record<SourceKind, typeof FileText> = {
   skill: Box,
   mcp: Server,
   web: Globe
-}
-
-function useSummaryState(host: DesktopPluginHost, threadId: string): SummaryState | null {
-  const [state, setState] = useState<SummaryState | null>(null)
-  useEffect(() => {
-    setState(null)
-    return startSummaryFeed(host, threadId, setState)
-  }, [host, threadId])
-  return state
 }
 
 function SubagentsRow({ host, state, strings }: {
@@ -89,6 +81,20 @@ function workspaceName(workspacePath: string | null): string | null {
   return name || null
 }
 
+function SourceThumbnail({ host, path }: { host: DesktopPluginHost; path: string }): JSX.Element {
+  const [src, setSrc] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    setSrc(null)
+    host.workspaces.readImageAttachment(path).then(
+      (url) => { if (!cancelled) setSrc(url) },
+      () => undefined
+    )
+    return () => { cancelled = true }
+  }, [host, path])
+  return src ? <img className="conversation-summary-thumbnail" src={src} alt="" draggable={false} /> : <FileText {...GLYPH} />
+}
+
 function SourceRows({ host, sources, webSearch, strings }: {
   host: DesktopPluginHost
   sources: readonly Source[]
@@ -103,6 +109,7 @@ function SourceRows({ host, sources, webSearch, strings }: {
     if (!target) return undefined
     if (source.kind === 'file') return () => void host.navigation.openFile(target)
     if (source.kind === 'web') return () => void host.navigation.openExternal(target)
+    if (source.kind === 'skill') return () => host.navigation.openSkill(target)
     return undefined
   }
   return (
@@ -113,7 +120,9 @@ function SourceRows({ host, sources, webSearch, strings }: {
         return (
           <Row
             key={`${source.kind}:${source.id}`}
-            leading={<Glyph {...GLYPH} />}
+            leading={source.image && source.target
+              ? <SourceThumbnail host={host} path={source.target} />
+              : <Glyph {...GLYPH} />}
             label={source.title}
             title={source.kind === 'skill' || source.kind === 'mcp' ? source.title : source.id}
             onClick={open(source)}
@@ -152,16 +161,17 @@ export function SummaryPanel({
   const webSearch = useMemo(() => hasWebSearch(items ?? []), [items])
   const turnDiffs = state?.turnDiffs
   const changes = useMemo(() => changeTotals(items ?? [], turnDiffs), [items, turnDiffs])
+  const workflowCalls = useMemo(() => workflowCallIds(items ?? []), [items])
   const header = (
     <header className="conversation-summary__header">{workspaceName(workspacePath) ?? strings.panelLabel}</header>
   )
 
-  if (!state) return <div className="conversation-summary" data-variant={variant}>{header}</div>
+  if (!state?.ready) return <div className="conversation-summary" data-variant={variant}>{header}</div>
 
   const plan = state.plan
   const planLabel = plan ? plan.title || fill(strings.progressCount, { done: plan.done, total: plan.total }) : ''
   const empty = !changes && !plan && state.subagents.length === 0 && state.automations.length === 0
-    && state.terminals.length === 0 && sources.length === 0 && !webSearch
+    && state.terminals.length === 0 && state.workflows.length === 0 && sources.length === 0 && !webSearch
 
   return (
     <div className="conversation-summary" data-variant={variant}>
@@ -185,7 +195,14 @@ export function SummaryPanel({
         </Section>
       ) : null}
 
-      <BackgroundProcessesSection host={host} threadId={threadId} terminals={state.terminals} strings={strings} />
+      <BackgroundTasksSection
+        host={host}
+        threadId={threadId}
+        terminals={state.terminals}
+        workflows={state.workflows}
+        workflowCalls={workflowCalls}
+        strings={strings}
+      />
 
       {state.automations.length > 0 ? (
         <Section title={strings.scheduled}>

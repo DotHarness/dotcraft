@@ -31,7 +31,9 @@ export interface SummaryStrings {
   readonly openTerminal: string
   readonly setUpEnvironment: string
   readonly fixEnvironment: string
-  readonly backgroundProcesses: string
+  readonly backgroundTasks: string
+  readonly stopWorkflow: string
+  readonly stopWorkflowFailed: string
   readonly backgroundTerminal: string
   readonly stopBackgroundTerminals: string
   readonly stopBackgroundTerminalsFailed: string
@@ -67,7 +69,9 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     openTerminal: 'Open terminal',
     setUpEnvironment: 'Set up local environment',
     fixEnvironment: 'Fix local environment',
-    backgroundProcesses: 'Background processes',
+    backgroundTasks: 'Background tasks',
+    stopWorkflow: 'Stop workflow',
+    stopWorkflowFailed: 'Unable to stop the workflow',
     backgroundTerminal: 'Background terminal',
     stopBackgroundTerminals: 'Stop all background terminals',
     stopBackgroundTerminalsFailed: 'Unable to stop background terminals'
@@ -101,7 +105,9 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     openTerminal: '打开终端',
     setUpEnvironment: '设置本地环境',
     fixEnvironment: '修复本地环境',
-    backgroundProcesses: '后台进程',
+    backgroundTasks: '后台任务',
+    stopWorkflow: '停止工作流',
+    stopWorkflowFailed: '无法停止工作流',
     backgroundTerminal: '后台终端',
     stopBackgroundTerminals: '停止所有后台终端',
     stopBackgroundTerminalsFailed: '无法停止后台终端'
@@ -135,7 +141,9 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     openTerminal: 'ターミナルを開く',
     setUpEnvironment: 'ローカル環境をセットアップ',
     fixEnvironment: 'ローカル環境を修正',
-    backgroundProcesses: 'バックグラウンドプロセス',
+    backgroundTasks: 'バックグラウンドタスク',
+    stopWorkflow: 'ワークフローを停止',
+    stopWorkflowFailed: 'ワークフローを停止できません',
     backgroundTerminal: 'バックグラウンドターミナル',
     stopBackgroundTerminals: 'すべてのバックグラウンドターミナルを停止',
     stopBackgroundTerminalsFailed: 'バックグラウンドターミナルを停止できません'
@@ -169,7 +177,9 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     openTerminal: '터미널 열기',
     setUpEnvironment: '로컬 환경 설정',
     fixEnvironment: '로컬 환경 수정',
-    backgroundProcesses: '백그라운드 프로세스',
+    backgroundTasks: '백그라운드 작업',
+    stopWorkflow: '워크플로 중지',
+    stopWorkflowFailed: '워크플로를 중지할 수 없습니다',
     backgroundTerminal: '백그라운드 터미널',
     stopBackgroundTerminals: '모든 백그라운드 터미널 중지',
     stopBackgroundTerminalsFailed: '백그라운드 터미널을 중지할 수 없습니다'
@@ -203,7 +213,9 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     openTerminal: 'Abrir terminal',
     setUpEnvironment: 'Configurar entorno local',
     fixEnvironment: 'Corregir entorno local',
-    backgroundProcesses: 'Procesos en segundo plano',
+    backgroundTasks: 'Tareas en segundo plano',
+    stopWorkflow: 'Detener el flujo de trabajo',
+    stopWorkflowFailed: 'No se pudo detener el flujo de trabajo',
     backgroundTerminal: 'Terminal en segundo plano',
     stopBackgroundTerminals: 'Detener todas las terminales en segundo plano',
     stopBackgroundTerminalsFailed: 'No se pudieron detener las terminales en segundo plano'
@@ -237,7 +249,9 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     openTerminal: 'Ouvrir un terminal',
     setUpEnvironment: 'Configurer l’environnement local',
     fixEnvironment: 'Corriger l’environnement local',
-    backgroundProcesses: 'Processus en arrière-plan',
+    backgroundTasks: 'Tâches en arrière-plan',
+    stopWorkflow: 'Arrêter le workflow',
+    stopWorkflowFailed: 'Impossible d’arrêter le workflow',
     backgroundTerminal: 'Terminal en arrière-plan',
     stopBackgroundTerminals: 'Arrêter tous les terminaux en arrière-plan',
     stopBackgroundTerminalsFailed: 'Impossible d’arrêter les terminaux en arrière-plan'
@@ -271,7 +285,9 @@ const CATALOG: Record<SummaryLocale, SummaryStrings> = {
     openTerminal: 'Terminal öffnen',
     setUpEnvironment: 'Lokale Umgebung einrichten',
     fixEnvironment: 'Lokale Umgebung reparieren',
-    backgroundProcesses: 'Hintergrundprozesse',
+    backgroundTasks: 'Hintergrundaufgaben',
+    stopWorkflow: 'Workflow beenden',
+    stopWorkflowFailed: 'Workflow konnte nicht beendet werden',
     backgroundTerminal: 'Hintergrundterminal',
     stopBackgroundTerminals: 'Alle Hintergrundterminals beenden',
     stopBackgroundTerminalsFailed: 'Hintergrundterminals konnten nicht beendet werden'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changeTotals, diffTotals, extractSources, hasWebSearch, rolledBackTurns, toSummaryItem, type SummaryItem } from './sources'
+import { changeTotals, diffTotals, extractSources, hasWebSearch, rolledBackTurns, toSummaryItem, workflowCallIds, type SummaryItem } from './sources'
 
 let counter = 0
 
@@ -54,10 +54,44 @@ describe('Summary sources', () => {
     expect(sources).toEqual([
       { kind: 'mcp', id: 'tracker', title: 'tracker', target: null },
       { kind: 'web', id: 'https://example.com/guide', title: 'example.com', target: 'https://example.com/guide' },
-      { kind: 'file', id: 'src/app/main.ts', title: 'main.ts', target: '/work/src/app/main.ts' },
-      { kind: 'skill', id: 'release-notes', title: 'release-notes', target: null },
+      { kind: 'skill', id: 'release-notes', title: 'release-notes', target: 'release-notes' },
       { kind: 'mcp', id: 'wiki', title: 'wiki', target: null }
     ])
+  })
+
+  it('lists the files, images, and skills the user provided, but not files the agent read', () => {
+    const sources = extractSources([
+      item('userMessage', {
+        nativeInputParts: [
+          { type: 'text', text: 'Compare these' },
+          { type: 'fileRef', path: 'specs/summary.md', displayPath: 'specs/summary.md' },
+          { type: 'localImage', path: '/work/.craft/attachments/images/shot.png', fileName: 'Screenshot.png' },
+          { type: 'skillRef', name: 'design-prototype' }
+        ],
+        images: [{ path: '/work/.craft/attachments/images/shot.png', fileName: 'Screenshot.png' }]
+      }),
+      item('userMessage', { triggerKind: 'terminal', nativeInputParts: [{ type: 'fileRef', path: 'build.log' }] }),
+      call('c1', 'ReadFile', { path: '/work/references/chatgpt-app' }),
+      result('c1', 'ReadFile', 'listing'),
+      call('c2', 'SkillView', { name: 'design-prototype' }),
+      result('c2', 'SkillView', '# Design Prototype')
+    ], '/work')
+
+    expect(sources).toEqual([
+      { kind: 'file', id: 'specs/summary.md', title: 'summary.md', target: 'specs/summary.md', image: false },
+      { kind: 'file', id: '.craft/attachments/images/shot.png', title: 'Screenshot.png', target: '/work/.craft/attachments/images/shot.png', image: true },
+      { kind: 'skill', id: 'design-prototype', title: 'design-prototype', target: 'design-prototype' }
+    ])
+  })
+
+  it('maps each Workflow run to the call that started it', () => {
+    expect([...workflowCallIds([
+      call('w1', 'Workflow', { mode: 'name', name: 'review' }),
+      result('w1', 'Workflow', '{"runId":"run_1","name":"review","status":"running"}'),
+      call('w2', 'Workflow', {}),
+      result('w2', 'Workflow', 'not json'),
+      result('x', 'Exec', '{"runId":"run_2"}')
+    ])]).toEqual([['run_1', 'w1']])
   })
 
   it('ignores failed reads and missing skills', () => {
@@ -73,6 +107,7 @@ describe('Summary sources', () => {
 
   it('accepts only source item types from the wire', () => {
     expect(toSummaryItem({ id: 'a', type: 'agentMessage', payload: {} }, 't1')).toBeNull()
+    expect(toSummaryItem({ id: 'u', type: 'userMessage', payload: {} }, 't1')?.type).toBe('userMessage')
     expect(toSummaryItem({ id: 'w', type: 'webSearch', payload: {} }, 't1')?.type).toBe('webSearch')
     expect(toSummaryItem({ id: 'a', type: 'toolCall', payload: { callId: 'c' }, createdAt: '2026-10-01T00:00:00Z' }, 't1'))
       .toEqual({ id: 'a', turnId: 't1', type: 'toolCall', createdAt: '2026-10-01T00:00:00Z', payload: { callId: 'c' } })

@@ -12,8 +12,10 @@ import type {
 } from '@dotcraft/sdk/contracts'
 
 import { requestColorPickerDialog } from '../components/ui/ColorPickerDialog'
+import { loadLocalImageDataUrl } from '../components/conversation/imagePreview/galleryImages'
 import { requestConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useAutomationsStore } from '../stores/automationsStore'
+import { useConversationStore } from '../stores/conversationStore'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
 import { requestToolCallReveal } from '../stores/toolCallRevealStore'
@@ -21,6 +23,7 @@ import { removeToast, showToast } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { openWorkspaceFileViewer } from '../utils/conversationDeepLink'
+import { openSkill } from '../utils/openSkill'
 import { openWorkspaceThread } from '../utils/openWorkspaceThread'
 import { openSubAgent } from '../utils/subAgentNavigation'
 import { toAbsoluteWorkspacePath } from '../utils/workspacePaths'
@@ -228,6 +231,9 @@ export function createDesktopPluginHost(
         useAutomationsStore.getState().selectAutomation(automationId)
         useUIStore.getState().setActiveMainView('automations')
       },
+      openSkill(name) {
+        void openSkill(name)
+      },
       revealToolCall(threadId, callId) {
         requestToolCallReveal(threadId, { callId })
         if (useThreadStore.getState().activeThreadId === threadId) useUIStore.getState().setActiveMainView('conversation')
@@ -404,6 +410,12 @@ export function createDesktopPluginHost(
             name: project.name,
             active: project.state === 'foreground'
           }))
+      },
+      async readImageAttachment(path) {
+        if (useConversationStore.getState().remoteWorkspaceActive) {
+          throw new Error('Image attachments are unavailable in a remote workspace.')
+        }
+        return loadLocalImageDataUrl(path)
       }
     },
     oratorio: {

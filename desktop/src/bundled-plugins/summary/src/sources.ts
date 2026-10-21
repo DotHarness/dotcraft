@@ -13,9 +13,10 @@ export interface Source {
   readonly id: string
   readonly title: string
   readonly target: string | null
+  readonly image?: boolean
 }
 
-const SOURCE_ITEM_TYPES = new Set(['toolCall', 'toolResult', 'mcpToolCall', 'webSearch'])
+const SOURCE_ITEM_TYPES = new Set(['userMessage', 'toolCall', 'toolResult', 'mcpToolCall', 'webSearch'])
 
 export function isSourceItemType(type: string): boolean {
   return SOURCE_ITEM_TYPES.has(type)
@@ -98,6 +99,11 @@ export function extractSources(items: readonly SummaryItem[], workspacePath: str
     const payload = item.payload
     const callId = stringOf(payload.callId) ?? item.id
 
+    if (item.type === 'userMessage') {
+      for (const source of userSources(payload, workspacePath)) add(source)
+      continue
+    }
+
     if (item.type === 'mcpToolCall') {
       const server = stringOf(payload.server)
       if (server) add({ kind: 'mcp', id: server, title: server, target: null })
@@ -122,16 +128,9 @@ export function extractSources(items: readonly SummaryItem[], workspacePath: str
       const url = stringOf(args.url)
       const normalized = url ? normalizeUrl(url) : null
       if (succeeded && normalized) add({ kind: 'web', id: normalized, title: domainOf(normalized), target: normalized })
-    } else if (kind === 'read') {
-      const path = stringOf(args.path)
-      if (succeeded && path) {
-        const relative = relativePath(path, workspacePath)
-        const slash = relative.lastIndexOf('/')
-        add({ kind: 'file', id: relative, title: relative.slice(slash + 1), target: path })
-      }
     } else if (kind === 'skillView') {
       const name = stringOf(args.name)?.trim()
-      if (succeeded && name && skillLoaded(result)) add({ kind: 'skill', id: name, title: name, target: null })
+      if (succeeded && name && skillLoaded(result)) add({ kind: 'skill', id: name, title: name, target: name })
     }
   }
 
@@ -162,6 +161,49 @@ export function rolledBackTurns(
     if (complete || Date.parse(item.createdAt) > boundary) removed.add(item.turnId)
   }
   return removed
+}
+
+export function workflowCallIds(items: readonly SummaryItem[]): Map<string, string> {
+  const workflowCalls = new Set<string>()
+  const runs = new Map<string, string>()
+  for (const item of items) {
+    const callId = stringOf(item.payload.callId)
+    if (!callId) continue
+    if (item.type === 'toolCall' && stringOf(item.payload.toolName)?.toLowerCase() === 'workflow') workflowCalls.add(callId)
+    else if (item.type === 'toolResult' && workflowCalls.has(callId) && typeof item.payload.result === 'string') {
+      try {
+        const runId = stringOf((JSON.parse(item.payload.result) as { runId?: unknown }).runId)
+        if (runId) runs.set(runId, callId)
+      } catch {
+        continue
+      }
+    }
+  }
+  return runs
+}
+
+// Task notifications and mailbox deliveries are model-facing, so they carry no user-provided sources.
+function userSources(payload: Record<string, unknown>, workspacePath: string | null): Source[] {
+  if (stringOf(payload.triggerKind) || payload.deliveryMode === 'subagentMailbox') return []
+  const sources: Source[] = []
+  const file = (path: string | null, name?: string | null, image = false): void => {
+    if (!path) return
+    const relative = relativePath(path, workspacePath)
+    sources.push({ kind: 'file', id: relative, title: name || relative.slice(relative.lastIndexOf('/') + 1), target: path, image })
+  }
+  const parts = Array.isArray(payload.nativeInputParts) ? payload.nativeInputParts : []
+  for (const part of parts) {
+    if (!isRecord(part)) continue
+    if (part.type === 'fileRef') file(stringOf(part.path))
+    else if (part.type === 'localImage') file(stringOf(part.path), stringOf(part.fileName), true)
+    else if (part.type === 'skillRef') {
+      const name = stringOf(part.name)?.trim()
+      if (name) sources.push({ kind: 'skill', id: name, title: name, target: name })
+    }
+  }
+  const images = Array.isArray(payload.images) ? payload.images : []
+  for (const image of images) if (isRecord(image)) file(stringOf(image.path), stringOf(image.fileName), true)
+  return sources
 }
 
 function skillLoaded(result: string): boolean {
@@ -196,7 +238,7 @@ function relativePath(path: string, workspacePath: string | null): string {
     : normalized.replace(/^\.\//, '')
 }
 
-type SourceToolKind = 'webSearch' | 'webFetch' | 'read' | 'skillView'
+type SourceToolKind = 'webSearch' | 'webFetch' | 'skillView'
 
 function sourceKindOf(payload: Record<string, unknown>): SourceToolKind | null {
   const source = isRecord(payload.source) ? payload.source : null
@@ -206,8 +248,6 @@ function sourceKindOf(payload: Record<string, unknown>): SourceToolKind | null {
   switch (stringOf(presentation.presentationId)) {
     case 'core.web':
       return operation === 'search' ? 'webSearch' : operation === 'fetch' ? 'webFetch' : null
-    case 'core.read-file':
-      return operation === 'read' ? 'read' : null
     case 'core.skill-view':
       return 'skillView'
     default:

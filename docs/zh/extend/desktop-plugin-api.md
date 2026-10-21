@@ -511,6 +511,14 @@ useEffect(() => {
 }, [host]);
 ```
 
+### 显示附加的图片
+
+`host.workspaces.readImageAttachment(path)` 以 data URL 返回用户在本地 workspace 会话中附加的图片，可以直接用于 `<img>`。传入用户消息里图片输入的路径。Desktop 图片附件目录以外的路径、非图片文件、过大的图片以及远程 workspace 中的路径都会被拒绝，所以请保留一个后备图标：
+
+```tsx
+host.workspaces.readImageAttachment(path).then(setSrc, () => setSrc(null));
+```
+
 ### 跟随 SubAgent
 
 `host.subagents` 读取 Desktop 为某个父 thread 跟踪的 SubAgent，也就是它的 Subagents 标签页列出的那些。`list` 返回快照。只要某个子 SubAgent 的身份或状态发生变化，`onChange` 就会重新发送完整列表：
@@ -547,6 +555,7 @@ host.subagents.onChange(threadId, render);
 | `openFile(path)` | Detail Panel 文件查看器中的一个 workspace 文件。相对路径基于当前 thread 的 workspace 解析。 |
 | `openDetailPanel(tab)` | 当前 thread 的 Detail Panel，并切到 `changes`、`plan` 或 `subagents`。 |
 | `openAutomation(automationId)` | Automations 视图中的该自动化任务。 |
+| `openSkill(name)` | Skills 视图中的该技能。 |
 | `revealToolCall(threadId, callId)` | 该 thread，并滚动到这个 call id 对应的工具调用，展开后短暂高亮。后台终端的 `callId` 指向启动它的命令。 |
 | `openExternal(url)` | 在用户默认浏览器中打开 http(s) URL，或在 Desktop 内处理 `dotcraft:` 链接。其他 scheme 会被拒绝。 |
 | `openPath(path, options?)` | 用其他已安装的应用打开本地文件或文件夹。见[用其他应用打开路径](#用其他应用打开路径)。 |

@@ -4,12 +4,14 @@ import { initializeSettings } from './settings'
 import { SummaryAside } from './SummaryAside'
 import { SummaryHeaderAction } from './SummaryHeaderAction'
 import { SummaryIcon } from './SummaryIcon'
+import { disposeSummaryFeeds } from './store'
 import { resetView, toggleSummary } from './view'
 import './styles/index.css'
 
 export const activate: DesktopPluginActivate = async (host) => {
   await initializeSettings(host.settings)
   host.effect(() => resetView)
+  host.effect(() => disposeSummaryFeeds)
 
   host.ui.add('thread.header.actions', SummaryHeaderAction)
   host.ui.add('conversation.aside.trailing', SummaryAside)
