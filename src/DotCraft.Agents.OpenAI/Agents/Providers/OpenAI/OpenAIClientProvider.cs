@@ -69,6 +69,7 @@ public sealed partial class OpenAIClientProvider :
             new Dictionary<Type, object>
             {
                 [typeof(IToolCallArgumentsDeltaExtractor)] = OpenAIToolCallArgumentsDeltaExtractor.Instance,
+                [typeof(IModelStreamOutputStartClassifier)] = OpenAIResponsesOutputStartClassifier.Instance,
                 [typeof(IProviderFailureClassifier)] =
                     new OpenAIProviderFailureClassifier(runtime.IsChatGptOAuth)
             });

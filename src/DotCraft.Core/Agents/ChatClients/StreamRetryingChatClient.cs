@@ -19,7 +19,8 @@ internal sealed record StreamRetryOptions(
 /// </summary>
 internal sealed class StreamRetryingChatClient(
     IChatClient innerClient,
-    StreamRetryOptions retryOptions)
+    StreamRetryOptions retryOptions,
+    TimeProvider? timeProvider = null)
     : DelegatingChatClient(innerClient), IStreamRetryBudget
 {
     private const int FailedAttemptDisposeTimeoutMs = 2_000;
@@ -27,6 +28,11 @@ internal sealed class StreamRetryingChatClient(
     private readonly IProviderFailureClassifier _classifier =
         innerClient.GetService(typeof(IProviderFailureClassifier)) as IProviderFailureClassifier
             ?? DefaultProviderFailureClassifier.Instance;
+
+    private readonly IModelStreamOutputStartClassifier? _outputStartClassifier =
+        innerClient.GetService(typeof(IModelStreamOutputStartClassifier)) as IModelStreamOutputStartClassifier;
+
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public int MaxStreamRetries => retryOptions.MaxRetries;
 
@@ -61,6 +67,8 @@ internal sealed class StreamRetryingChatClient(
             ProviderFailure? classifiedFailure = null;
 
             using var attemptCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var attemptStartedAt = _timeProvider.GetTimestamp();
+            long? firstOutputAt = null;
             var enumerator = base.GetStreamingResponseAsync(messages, options, attemptCancellation.Token)
                 .GetAsyncEnumerator(attemptCancellation.Token);
             try
@@ -84,6 +92,11 @@ internal sealed class StreamRetryingChatClient(
 
                     var update = enumerator.Current;
                     receivedAnyUpdate = true;
+                    var receivedAt = _timeProvider.GetTimestamp();
+                    if (firstOutputAt is null && (_outputStartClassifier?.IsOutputStart(update) ?? true))
+                        firstOutputAt = receivedAt;
+                    if (firstOutputAt is { } outputStartedAt)
+                        StampRequestTiming(update, attemptStartedAt, outputStartedAt, receivedAt);
                     if (IsVisibleUpdate(update))
                     {
                         if (!emittedVisibleUpdate)
@@ -253,6 +266,22 @@ internal sealed class StreamRetryingChatClient(
                 transport?.SessionIdHash,
                 transport?.ThreadIdHash,
                 transport?.PromptCacheKeyHash));
+    }
+
+    private void StampRequestTiming(
+        ChatResponseUpdate update,
+        long attemptStartedAt,
+        long outputStartedAt,
+        long receivedAt)
+    {
+        foreach (var usage in update.Contents.OfType<UsageContent>())
+        {
+            TokenUsageRequestTiming.Attach(
+                usage,
+                new TokenUsageRequestTiming(
+                    _timeProvider.GetElapsedTime(attemptStartedAt, outputStartedAt).TotalMilliseconds,
+                    _timeProvider.GetElapsedTime(outputStartedAt, receivedAt).TotalMilliseconds));
+        }
     }
 
     private async Task<MoveNextResult> MoveNextWithIdleTimeoutAsync(

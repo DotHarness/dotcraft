@@ -5063,6 +5063,7 @@ export interface UsageDeltaNotification {
   llmCallDelta?: number;
   outputTokens?: number;
   reasoningOutputTokens?: number;
+  requestTiming?: UsageRequestTiming | null;
   threadId?: string;
   totalInputTokens?: number | null;
   totalOutputTokens?: number | null;
@@ -5107,6 +5108,12 @@ export interface UsageHistorySeries {
 export interface UsageHistoryValue {
   key?: string;
   value?: number;
+  [key: string]: unknown;
+}
+
+export interface UsageRequestTiming {
+  firstOutputLatencyMs: number;
+  generationMs: number;
   [key: string]: unknown;
 }
 

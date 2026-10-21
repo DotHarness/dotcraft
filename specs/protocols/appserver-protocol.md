@@ -840,6 +840,7 @@ Emitted once per LLM iteration with non-zero usage, carrying that iteration's **
 - `turnInputTokens`, `turnOutputTokens` (alias `totalOutputTokens`), `turnLlmCalls`: cumulative billing totals so far in the Turn.
 - `contextInputTokens` (alias `totalInputTokens`): the latest request's input snapshot — context occupancy, not billing.
 - `contextUsage`: the full context snapshot; its `tokens` may include output/cache pressure and exceed `contextInputTokens`.
+- `requestTiming`: `{ firstOutputLatencyMs, generationMs }` for the LLM request this delta belongs to, measured by the host on the provider stream. `firstOutputLatencyMs` runs from sending the successful attempt to the provider's first output event; `generationMs` runs from that event to this usage report. Provider events that only acknowledge the request (Responses `response.created`, `response.queued`, `response.in_progress`) are not output events. A retried attempt restarts both. When a request reports usage more than once, each delta carries the timing so far and the last one is final. Output token throughput is `Σ outputTokens / Σ generationMs`.
 
 Rules:
 

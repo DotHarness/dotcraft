@@ -474,6 +474,13 @@ public sealed class AppServerEventDispatcher
             TurnInputTokens = OmitIfNull(usage.TurnInputTokens),
             TurnOutputTokens = OmitIfNull(usage.TurnOutputTokens),
             TurnLlmCalls = OmitIfNull(usage.TurnLlmCalls),
+            RequestTiming = usage.RequestTiming is { } timing
+                ? Protocol.Optional<Contract.UsageRequestTiming?>.FromValue(new Contract.UsageRequestTiming
+                {
+                    FirstOutputLatencyMs = timing.FirstOutputLatencyMs,
+                    GenerationMs = timing.GenerationMs
+                })
+                : default,
             ContextUsage = usage.ContextUsage is null
                 ? default
                 : Protocol.Optional<Contract.ContextUsageSnapshot?>.FromValue(

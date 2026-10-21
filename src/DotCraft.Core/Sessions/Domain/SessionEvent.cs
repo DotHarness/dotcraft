@@ -298,7 +298,17 @@ public sealed record UsageDeltaPayload
     /// event when they have not received a thread snapshot yet.
     /// </summary>
     public ContextUsageSnapshot? ContextUsage { get; init; }
+
+    /// <summary>
+    /// Host-measured timing of the LLM request this delta belongs to, so far.
+    /// </summary>
+    public UsageRequestTiming? RequestTiming { get; init; }
 }
+
+/// <summary>
+/// Time from sending a request to the provider's first output event, and from that event to the usage report.
+/// </summary>
+public sealed record UsageRequestTiming(double FirstOutputLatencyMs, double GenerationMs);
 
 /// <summary>
 /// Payload for turn/diff/updated events: the latest complete snapshot of the Turn's aggregated diff.

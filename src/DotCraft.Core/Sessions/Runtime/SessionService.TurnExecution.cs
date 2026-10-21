@@ -1839,7 +1839,10 @@ public sealed partial class SessionService
                                                 turnInputTokens: inputTokens,
                                                 turnOutputTokens: outputTokens,
                                                 turnLlmCalls: llmCallCount,
-                                                contextUsage: contextUsage);
+                                                contextUsage: contextUsage,
+                                                requestTiming: TokenUsageRequestTiming.TryGet(usage) is { } timing
+                                                    ? new UsageRequestTiming(timing.FirstOutputLatencyMs, timing.GenerationMs)
+                                                    : null);
                                             turn.TokenUsage = CombineTurnUsage(
                                                 inputTokens,
                                                 outputTokens,

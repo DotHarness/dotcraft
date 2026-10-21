@@ -16,7 +16,7 @@ afterEach(() => {
 })
 
 describe('Token HUD usage', () => {
-  it('aggregates client-observed throughput and scopes totals to the current chat', async () => {
+  it('aggregates host-measured throughput and scopes totals to the current chat', async () => {
     vi.useFakeTimers()
     const notifications = new Map<string, (params: any) => void>()
     const request = vi.fn().mockResolvedValue({
@@ -44,34 +44,39 @@ describe('Token HUD usage', () => {
       }
     } as unknown as DesktopPluginHost
 
-    let observedAtMs = 0
-    const stop = startUsageFeed(host, () => observedAtMs)
+    const stop = startUsageFeed(host)
     await vi.advanceTimersByTimeAsync(0)
     expect(getUsage().totalTokens).toBe(9_000)
     expect(getUsage().cacheHitRate).toBeCloseTo(0.75)
 
     notifications.get('turn/started')?.({ turn: { id: 'turn-1', threadId: 'thread-1' } })
     notifications.get('item/usage/delta')?.({
-      threadId: 'thread-1', outputTokens: 20
+      threadId: 'thread-1', turnId: 'turn-1', turnLlmCalls: 1, outputTokens: 20
     })
     expect(getUsage().tokensPerSecond).toBeNull()
-    observedAtMs = 1_000
-    notifications.get('item/agentMessage/delta')?.({
-      threadId: 'thread-1', turnId: 'turn-1', delta: 'Hello'
-    })
-    observedAtMs = 3_000
+    expect(getUsage().waitingForSample).toBe(true)
     notifications.get('item/usage/delta')?.({
-      threadId: 'thread-1', turnId: 'turn-1', outputTokens: 60
+      threadId: 'other-thread',
+      turnLlmCalls: 1,
+      outputTokens: 999,
+      requestTiming: { firstOutputLatencyMs: 1, generationMs: 1_000 }
     })
-    observedAtMs = 4_000
-    notifications.get('item/toolCall/argumentsDelta')?.({
-      threadId: 'thread-1', turnId: 'turn-1', delta: '{'
-    })
-    observedAtMs = 5_000
     notifications.get('item/usage/delta')?.({
-      threadId: 'thread-1', turnId: 'turn-1', outputTokens: 60
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      turnLlmCalls: 2,
+      outputTokens: 60,
+      requestTiming: { firstOutputLatencyMs: 1_000, generationMs: 2_000 }
+    })
+    notifications.get('item/usage/delta')?.({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      turnLlmCalls: 3,
+      outputTokens: 60,
+      requestTiming: { firstOutputLatencyMs: 3_000, generationMs: 1_000 }
     })
     expect(getUsage().tokensPerSecond).toBe(40)
+    expect(getUsage().firstTokenLatencyMs).toBe(2_000)
     expect(getUsage().waitingForSample).toBe(false)
 
     notifications.get('thread/tokenUsage/updated')?.({
@@ -172,15 +177,15 @@ describe('Token HUD usage', () => {
       }
     } as unknown as DesktopPluginHost
 
-    let observedAtMs = 0
-    const stop = startUsageFeed(host, () => observedAtMs)
+    const stop = startUsageFeed(host)
     await vi.runAllTicks()
     notifications.get('turn/started')?.({ turn: { id: 'turn-1', threadId: 'thread-1' } })
-    observedAtMs = 1_000
-    notifications.get('item/agentMessage/delta')?.({ threadId: 'thread-1', turnId: 'turn-1' })
-    observedAtMs = 3_000
     notifications.get('item/usage/delta')?.({
-      threadId: 'thread-1', turnId: 'turn-1', outputTokens: 60
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      turnLlmCalls: 1,
+      outputTokens: 60,
+      requestTiming: { firstOutputLatencyMs: 1_000, generationMs: 2_000 }
     })
     expect(getUsage().tokensPerSecond).toBe(30)
     expect(getUsage().firstTokenLatencyMs).toBe(1_000)
@@ -194,11 +199,12 @@ describe('Token HUD usage', () => {
 
     notifications.get('turn/started')?.({ turn: { id: 'turn-2', threadId: 'thread-2' } })
     expect(getUsage().tokensPerSecond).toBe(30)
-    observedAtMs = 5_000
-    notifications.get('item/agentMessage/delta')?.({ threadId: 'thread-2', turnId: 'turn-2' })
-    observedAtMs = 6_000
     notifications.get('item/usage/delta')?.({
-      threadId: 'thread-2', turnId: 'turn-2', outputTokens: 20
+      threadId: 'thread-2',
+      turnId: 'turn-2',
+      turnLlmCalls: 1,
+      outputTokens: 20,
+      requestTiming: { firstOutputLatencyMs: 2_000, generationMs: 1_000 }
     })
     expect(getUsage().tokensPerSecond).toBe(20)
     expect(getUsage().firstTokenLatencyMs).toBe(2_000)
@@ -206,58 +212,6 @@ describe('Token HUD usage', () => {
 
     notifications.get('turn/completed')?.({ turn: { id: 'turn-2', threadId: 'thread-2' } })
     expect(getUsage().tokensPerSecond).toBe(20)
-    stop()
-  })
-
-  it('averages first-token latency per model request, ignoring tool time and items inside one response', async () => {
-    vi.useFakeTimers()
-    const notifications = new Map<string, (params: any) => void>()
-    const host = {
-      session: {
-        workspacePath: '/workspace/example',
-        threadId: 'thread-1',
-        mode: 'agent',
-        busy: false,
-        onChange: () => () => undefined
-      },
-      appServer: {
-        request: vi.fn().mockResolvedValue({}),
-        onNotification: (method: string, listener: (params: any) => void) => {
-          notifications.set(method, listener)
-          return () => notifications.delete(method)
-        }
-      }
-    } as unknown as DesktopPluginHost
-
-    let observedAtMs = 0
-    const stop = startUsageFeed(host, () => observedAtMs)
-    await vi.runAllTicks()
-    notifications.get('turn/started')?.({ turn: { id: 'turn-1', threadId: 'thread-1' } })
-
-    observedAtMs = 2_000
-    notifications.get('item/reasoning/delta')?.({ threadId: 'thread-1', turnId: 'turn-1' })
-    expect(getUsage().firstTokenLatencyMs).toBe(2_000)
-
-    observedAtMs = 2_500
-    notifications.get('item/completed')?.({
-      threadId: 'thread-1', turnId: 'turn-1', item: { id: 'item-1', type: 'reasoningContent' }
-    })
-    observedAtMs = 2_600
-    notifications.get('item/agentMessage/delta')?.({ threadId: 'thread-1', turnId: 'turn-1' })
-    expect(getUsage().firstTokenLatencyMs).toBe(2_000)
-
-    observedAtMs = 3_000
-    notifications.get('item/usage/delta')?.({
-      threadId: 'thread-1', turnId: 'turn-1', outputTokens: 40
-    })
-    observedAtMs = 9_000
-    notifications.get('item/completed')?.({
-      threadId: 'thread-1', turnId: 'turn-1', item: { id: 'item-2', type: 'toolResult' }
-    })
-    observedAtMs = 9_800
-    notifications.get('item/agentMessage/delta')?.({ threadId: 'thread-1', turnId: 'turn-1' })
-
-    expect(getUsage().firstTokenLatencyMs).toBe(1_400)
     stop()
   })
 

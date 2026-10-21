@@ -1,12 +1,12 @@
 import type { DesktopPluginHost } from '@dotcraft/plugin'
-import { ThroughputMeter, type ContentKind } from './throughput'
+import { ThroughputMeter, type RequestTiming } from './throughput'
 
 export interface UsageState {
   readonly tokensPerSecond: number | null
   readonly waitingForSample: boolean
   readonly totalTokens: number | null
   readonly cacheHitRate: number | null
-  /** Mean first-token latency over the current turn's model requests. */
+  /** Mean host-measured first-output latency over the current turn's model requests. */
   readonly firstTokenLatencyMs: number | null
   readonly threadUsage: ThreadUsageSnapshot | null
 }
@@ -60,10 +60,7 @@ function update(patch: Partial<UsageState>): void {
   for (const listener of listeners) listener(current)
 }
 
-export function startUsageFeed(
-  host: DesktopPluginHost,
-  now: () => number = () => globalThis.performance.now()
-): () => void {
+export function startUsageFeed(host: DesktopPluginHost): () => void {
   let disposed = false
   let refreshTimer: ReturnType<typeof globalThis.setTimeout> | null = null
   let threadId = host.session.threadId
@@ -118,7 +115,7 @@ export function startUsageFeed(
     threadId = session.threadId
     activeTurnId = null
     liveTotalsSeen = false
-    meter.endTurn()
+    meter.startTurn()
     update({ threadUsage: null, waitingForSample: session.busy })
     showTotals(null)
     void refreshThreadUsage()
@@ -131,30 +128,16 @@ export function startUsageFeed(
   const stopStarted = host.appServer.onNotification('turn/started', (params) => {
     if (params.turn.threadId !== threadId) return
     activeTurnId = params.turn.id
-    meter.startTurn(now())
+    meter.startTurn()
     update({ waitingForSample: true })
-  })
-
-  const observeContent = (kind: ContentKind) => (params: { threadId?: string; turnId?: string | null }): void => {
-    if (!inActiveTurn(params)) return
-    meter.content(now(), kind)
-    showThroughput()
-  }
-  const stopAgentMessage = host.appServer.onNotification('item/agentMessage/delta', observeContent('text'))
-  const stopReasoning = host.appServer.onNotification('item/reasoning/delta', observeContent('reasoning'))
-  const stopToolArguments = host.appServer.onNotification('item/toolCall/argumentsDelta', observeContent('toolArguments'))
-
-  const stopItemCompleted = host.appServer.onNotification('item/completed', (params) => {
-    if (!inActiveTurn(params)) return
-    meter.itemCompleted(now())
   })
 
   const stopDelta = host.appServer.onNotification('item/usage/delta', (params) => {
     if (!inActiveTurn(params)) return
-    meter.usage(now(), {
+    meter.usage({
       llmCall: positiveNumber(params.turnLlmCalls),
       outputTokens: positiveNumber(params.outputTokens) ?? 0,
-      reasoningTokens: positiveNumber(params.reasoningOutputTokens) ?? 0
+      timing: toRequestTiming(params.requestTiming)
     })
     showThroughput()
   })
@@ -171,8 +154,6 @@ export function startUsageFeed(
     if (params.turn.threadId !== threadId) return
     if (activeTurnId !== null && params.turn.id !== activeTurnId) return
     activeTurnId = null
-    meter.endTurn()
-    showThroughput()
     update({ waitingForSample: false })
     scheduleThreadUsage(0)
   }
@@ -185,10 +166,6 @@ export function startUsageFeed(
     if (refreshTimer !== null) globalThis.clearTimeout(refreshTimer)
     stopSession()
     stopStarted()
-    stopAgentMessage()
-    stopReasoning()
-    stopToolArguments()
-    stopItemCompleted()
     stopDelta()
     stopTokenUsage()
     stopCompleted()
@@ -203,6 +180,13 @@ function numberOrNull(value: unknown): number | null {
 
 function positiveNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
+}
+
+function toRequestTiming(value: unknown): RequestTiming | null {
+  const timing = value as { firstOutputLatencyMs?: unknown; generationMs?: unknown } | null | undefined
+  const firstOutputLatencyMs = numberOrNull(timing?.firstOutputLatencyMs)
+  const generationMs = numberOrNull(timing?.generationMs)
+  return firstOutputLatencyMs === null || generationMs === null ? null : { firstOutputLatencyMs, generationMs }
 }
 
 function textOrNull(value: unknown): string | null {

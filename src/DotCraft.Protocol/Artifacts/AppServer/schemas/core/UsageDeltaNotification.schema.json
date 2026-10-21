@@ -59,6 +59,16 @@
       "minimum": -9007199254740991,
       "maximum": 9007199254740991
     },
+    "requestTiming": {
+      "anyOf": [
+        {
+          "$ref": "./UsageRequestTiming.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "threadId": {
       "type": "string"
     },

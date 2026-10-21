@@ -20584,6 +20584,16 @@
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
         },
+        "requestTiming": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UsageRequestTiming"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "threadId": {
           "type": "string"
         },
@@ -20793,6 +20803,23 @@
         }
       },
       "additionalProperties": true
+    },
+    "UsageRequestTiming": {
+      "title": "UsageRequestTiming",
+      "type": "object",
+      "properties": {
+        "firstOutputLatencyMs": {
+          "type": "number"
+        },
+        "generationMs": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "firstOutputLatencyMs",
+        "generationMs"
+      ]
     },
     "UsageSummaryParams": {
       "title": "UsageSummaryParams",

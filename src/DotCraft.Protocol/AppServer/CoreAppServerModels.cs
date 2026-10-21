@@ -6299,6 +6299,10 @@ public sealed class UsageDeltaNotification : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<long> ReasoningOutputTokens { get; init; }
 
+    [JsonPropertyName("requestTiming")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<UsageRequestTiming?> RequestTiming { get; init; }
+
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ThreadId { get; init; }
@@ -6330,6 +6334,17 @@ public sealed class UsageDeltaNotification : ExtensibleJsonObject
     [JsonSafeInteger]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<long?> TurnOutputTokens { get; init; }
+
+}
+
+/// <summary>Executable wire contract for UsageRequestTiming.</summary>
+public sealed class UsageRequestTiming : ExtensibleJsonObject
+{
+    [JsonPropertyName("firstOutputLatencyMs")]
+    public required double FirstOutputLatencyMs { get; init; }
+
+    [JsonPropertyName("generationMs")]
+    public required double GenerationMs { get; init; }
 
 }
 

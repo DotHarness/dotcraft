@@ -163,7 +163,8 @@ internal sealed class SessionEventChannel(
         long? turnInputTokens = null,
         long? turnOutputTokens = null,
         int? turnLlmCalls = null,
-        ContextUsageSnapshot? contextUsage = null) =>
+        ContextUsageSnapshot? contextUsage = null,
+        UsageRequestTiming? requestTiming = null) =>
         Write(SessionEventType.UsageDelta, null, new UsageDeltaPayload
         {
             InputTokens = inputTokens,
@@ -178,7 +179,8 @@ internal sealed class SessionEventChannel(
             TurnInputTokens = turnInputTokens,
             TurnOutputTokens = turnOutputTokens ?? totalOutputTokens,
             TurnLlmCalls = turnLlmCalls,
-            ContextUsage = contextUsage
+            ContextUsage = contextUsage,
+            RequestTiming = requestTiming
         });
 
     // -------------------------------------------------------------------------
