@@ -1,5 +1,8 @@
 import type { FollowUpQueueMode } from '../../shared/desktopSettings'
-import type { InputPart } from '../types/conversation'
+import type { InputPart, QueuedTurnInput } from '../types/conversation'
+
+/** The server's queue after an enqueue, or null for a steer. */
+export type ComposerFollowUpResult = { queuedInput?: QueuedTurnInput; queuedInputs?: QueuedTurnInput[] } | null
 
 export async function sendComposerFollowUp({
   clientUserMessageId = crypto.randomUUID(),
@@ -13,7 +16,7 @@ export async function sendComposerFollowUp({
   threadId: string
   activeTurnId: string | null
   input: InputPart[]
-}): Promise<void> {
+}): Promise<ComposerFollowUpResult> {
   if (mode === 'steer') {
     if (!activeTurnId || activeTurnId.startsWith('local-turn-')) {
       throw new Error('The active turn is not ready for steering yet. Your draft was preserved.')
@@ -25,7 +28,7 @@ export async function sendComposerFollowUp({
       input,
       sender: undefined
     })
-  } else {
-    await window.api.appServer.sendRequest('turn/enqueue', { threadId, input, clientUserMessageId, sender: undefined })
+    return null
   }
+  return await window.api.appServer.sendRequest('turn/enqueue', { threadId, input, clientUserMessageId, sender: undefined }) as ComposerFollowUpResult
 }

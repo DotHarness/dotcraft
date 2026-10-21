@@ -71,6 +71,7 @@ import { ComposerCommandTrigger } from './ComposerCommandTrigger'
 import { ContextUsageRing } from './ContextUsageRing'
 import { ApprovalPolicyPicker } from './ApprovalPolicyPicker'
 import { QueuedInputDock } from './QueuedInputDock'
+import { useQueuedInputEditing } from './useQueuedInputEditing'
 import {
   COMPOSER_FOOTER_CONTROL_HEIGHT,
   ComposerCustomProfileLabel,
@@ -265,7 +266,6 @@ function InputComposerCore({
   const [profilePickerOpen, setProfilePickerOpen] = useState(false)
   const [goalBusy, setGoalBusy] = useState(false)
   const [compactBusy, setCompactBusy] = useState(false)
-  const [editingQueuedInputId, setEditingQueuedInputId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [dragOverThread, setDragOverThread] = useState(false)
   const [editorFocused, setEditorFocused] = useState(false)
@@ -278,7 +278,6 @@ function InputComposerCore({
   const [appliedPrefillRequestId, setAppliedPrefillRequestId] = useState<number | null>(null)
   const threadReferences = useComposerThreadReferences(threadId, richRef)
   const sendInFlightRef = useRef(false)
-  const editingQueuedInputIdRef = useRef<string | null>(null)
   const pendingModeChangeRef = useRef<Promise<unknown> | null>(null)
   const applyingHistoryRef = useRef(false)
   const historyDraftRef = useRef<ComposerDraftSnapshot | null>(null)
@@ -527,6 +526,31 @@ function InputComposerCore({
     applyComposerSnapshot(restoreRequest, restoreRequest.files, restoreRequest.images)
     useComposerContextStore.getState().consumeRestore(threadId)
   }, [restoreRequest, applyComposerSnapshot, threadId])
+
+  const applyQueuedDraft = useCallback((draft: ComposerDraftSnapshot): void => {
+    applyComposerSnapshot(draft, draft.files, draft.images)
+    latestDraftRef.current = {
+      clientUserMessageId: draft.clientUserMessageId,
+      text: draft.text,
+      contexts: draft.contexts,
+      segments: [...draft.segments],
+      files: [...draft.files],
+      images: [...draft.images]
+    }
+    if (threadComposerDraftHasContent(draft)) {
+      useComposerDraftStore.getState().saveDraft(threadId, draft)
+    } else {
+      useComposerDraftStore.getState().clearDraft(threadId)
+    }
+    setHistoryCursor(null)
+    historyDraftRef.current = null
+    window.setTimeout(() => richRef.current?.focus(), 0)
+  }, [applyComposerSnapshot, threadId])
+  const reportQueueEditError = useCallback((err: unknown): void => {
+    addToast(t('composer.queueEditFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+  }, [t])
+  const queuedEditing = useQueuedInputEditing({ threadId, applyDraft: applyQueuedDraft, onError: reportQueueEditError })
+  const { placeEditedSubmission, hasEditPosition, clearEditPosition } = queuedEditing
 
   const handleComposerContentChange = useCallback((): void => {
     latestDraftRef.current = {
@@ -1133,7 +1157,8 @@ function InputComposerCore({
       messageId: string,
       parts: InputPart[],
       displayText: string,
-      mode: 'queue' | 'steer'
+      mode: 'queue' | 'steer',
+      placeEdited = false
     ): Promise<void> => {
       const echo: QueuedTurnInput = {
         id: `local-${messageId}`,
@@ -1147,7 +1172,8 @@ function InputComposerCore({
       const conversation = useConversationStore.getState()
       conversation.setQueuedInputs([...conversation.queuedInputs, echo])
       try {
-        await sendComposerFollowUp({ clientUserMessageId: messageId, mode, threadId, activeTurnId, input: parts })
+        const result = await sendComposerFollowUp({ clientUserMessageId: messageId, mode, threadId, activeTurnId, input: parts })
+        if (placeEdited) await placeEditedSubmission(result)
       } catch (err) {
         const latest = useConversationStore.getState()
         latest.setQueuedInputs(latest.queuedInputs.filter((item) => item.id !== echo.id))
@@ -1282,6 +1308,8 @@ function InputComposerCore({
     if (isBusyForInput) {
       if (sendInFlightRef.current) return
       sendInFlightRef.current = true
+      const editingQueued = hasEditPosition()
+      const mode = editingQueued ? 'queue' : followUpMode
       const submission = submissionSnapshot()
       const clientUserMessageId = submission.clientUserMessageId ?? crypto.randomUUID()
       const { inputParts, visibleText } = buildComposerInputParts({
@@ -1294,9 +1322,9 @@ function InputComposerCore({
       })
       try {
         clearComposerForSubmission()
-        await sendFollowUpWithEcho(clientUserMessageId, inputParts, visibleText, followUpMode)
+        await sendFollowUpWithEcho(clientUserMessageId, inputParts, visibleText, mode, editingQueued)
       } catch (err) {
-        console.error(`turn/${followUpMode === 'steer' ? 'steer' : 'enqueue'} failed:`, err)
+        console.error(`turn/${mode === 'steer' ? 'steer' : 'enqueue'} failed:`, err)
         restoreComposerSubmission(submission)
         addToast(err instanceof Error ? err.message : String(err), 'error')
       } finally {
@@ -1336,6 +1364,7 @@ function InputComposerCore({
         attachmentFallbackThreadName: t('toast.attachmentMessage'),
         throwOnStartError: true
       })
+      clearEditPosition()
     } catch (err) {
       console.error('turn/start failed:', err)
       const currentMaintenanceKind = useConversationStore.getState().maintenanceKind
@@ -1356,7 +1385,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
+  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
@@ -1388,51 +1417,6 @@ function InputComposerCore({
       addToast(err instanceof Error ? err.message : String(err), 'error')
     }
   }, [threadId])
-
-  const editQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
-    if (editingQueuedInputIdRef.current) return
-    const queued = useConversationStore.getState().queuedInputs.find((item) => item.id === queuedInputId)
-    if (!queued || (queued.status !== 'queued' && queued.status !== 'guidancePending') || queued.triggerKind || queued.sentAsGoal === true) return
-
-    editingQueuedInputIdRef.current = queuedInputId
-    setEditingQueuedInputId(queuedInputId)
-    try {
-      const draft = await queuedInputToComposerDraft(queued)
-      const res = await window.api.appServer.sendRequest('turn/queue/remove', {
-        threadId,
-        queuedInputId
-      }) as { queuedInputs?: unknown[] }
-
-      useConversationStore.getState().setQueuedInputs((res.queuedInputs ?? []) as QueuedTurnInput[])
-      applyComposerSnapshot(draft, draft.files, draft.images)
-      latestDraftRef.current = {
-        clientUserMessageId: draft.clientUserMessageId,
-        text: draft.text,
-        contexts: draft.contexts,
-        segments: [...draft.segments],
-        files: [...draft.files],
-        images: [...draft.images]
-      }
-      if (threadComposerDraftHasContent(draft)) {
-        useComposerDraftStore.getState().saveDraft(threadId, draft)
-      } else {
-        useComposerDraftStore.getState().clearDraft(threadId)
-      }
-      setHistoryCursor(null)
-      historyDraftRef.current = null
-      window.setTimeout(() => richRef.current?.focus(), 0)
-    } catch (err) {
-      addToast(
-        t('composer.queueEditFailed', {
-          error: err instanceof Error ? err.message : String(err)
-        }),
-        'error'
-      )
-    } finally {
-      editingQueuedInputIdRef.current = null
-      setEditingQueuedInputId(null)
-    }
-  }, [applyComposerSnapshot, threadId, t])
 
   const sendQueuedInputInSideChat = useCallback(async (queuedInputId: string): Promise<void> => {
     const queued = useConversationStore.getState().queuedInputs.find((item) => item.id === queuedInputId)
@@ -1781,10 +1765,10 @@ function InputComposerCore({
             queuedInputs={visibleQueuedInputs}
             onQueueSteer={(id: string) => { void steerQueuedInput(id) }}
             onQueueRemove={(id: string) => { void removeQueuedInput(id) }}
-            onQueueEdit={(id: string) => { void editQueuedInput(id) }}
+            onQueueEdit={(id: string) => { void queuedEditing.editQueuedInput(id) }}
             onQueueReorder={(orderedIds: string[]) => { void reorderQueuedInputs(orderedIds) }}
             onQueueSideChat={canOpenSideChat ? (id: string) => { void sendQueuedInputInSideChat(id) } : undefined}
-            editingQueuedInputId={editingQueuedInputId}
+            editingQueuedInputId={queuedEditing.editingQueuedInputId}
           />
         )}
         topAccessoryVisible={hasBackgroundActivityDock}
@@ -2056,7 +2040,7 @@ function InputComposerCore({
             submit={!isWaitingApproval && !isWaitingInput ? (
               isBusyForInput ? (
                 canSend ? (
-                  <ComposerSubmitButton mode={followUpMode} onClick={sendMessage} />
+                  <ComposerSubmitButton mode={queuedEditing.isEditingQueuedInput ? 'queue' : followUpMode} onClick={sendMessage} />
                 ) : (
                   <ComposerSubmitButton
                     mode={stopping ? 'stopping' : 'stop'}

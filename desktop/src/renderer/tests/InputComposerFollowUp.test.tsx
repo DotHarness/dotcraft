@@ -160,6 +160,29 @@ describe('InputComposer follow-up routing', () => {
     expect(sendRequest).not.toHaveBeenCalledWith('turn/queue/update', expect.anything())
   })
 
+  it('returns an edited queued message to its place even when follow-ups steer', async () => {
+    const entry = (id: string) => ({
+      id, threadId: 'thread-1', displayText: id, status: 'queued' as const, createdAt: '2025-01-01T00:00:00Z',
+      nativeInputParts: [{ type: 'text' as const, text: id }]
+    })
+    useConversationStore.setState({ queuedInputs: [entry('first'), entry('middle'), entry('last')] })
+    sendRequest.mockImplementation(async (method: string, params: { orderedQueuedInputIds?: string[] }) => {
+      if (method === 'turn/queue/remove') return { queuedInputs: [entry('first'), entry('last')] }
+      if (method === 'turn/enqueue') return { queuedInput: entry('edited'), queuedInputs: [entry('first'), entry('last'), entry('edited')] }
+      if (method === 'turn/queue/reorder') return { queuedInputs: params.orderedQueuedInputIds!.map(entry) }
+      return {}
+    })
+    renderComposer()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Queued message actions' })[1])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit queued message' }))
+    await screen.findByRole('button', { name: 'Queue message' })
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' })
+    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/queue/reorder', {
+      threadId: 'thread-1', orderedQueuedInputIds: ['first', 'edited', 'last']
+    }))
+    expect(sendRequest).not.toHaveBeenCalledWith('turn/steer', expect.anything())
+  })
+
   it.each(['queue', 'steer'] as const)('preserves structured commands, file references and images through %s', async (mode) => {
     useComposerPreferencesStore.getState().hydrate({ followUpQueueMode: mode })
     useComposerDraftStore.getState().saveDraft('thread-1', {
