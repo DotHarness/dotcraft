@@ -7,7 +7,7 @@
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `MaxSessionQueueSize` | 每个 Session 最大排队请求数，`0` 表示无限制 | `3` |
-| `InstantInterruptEnabled` | 运行中的 turn 收到消息时，如果当前模型请求尚未产生输出或正在等待重试，立即带上该消息重新发起请求 | `true` |
+| `InstantInterruptEnabled` | 运行中的 turn 收到消息时，即使模型正在思考或回复，也立即打断当前请求并带上该消息重新发起；正在等待重试时同样立即重发 | `true` |
 | `AgentInterruptMessageEnabled` | 向模型说明 turn 被主动中断，包括从运行中的 turn 分叉 | `true` |
 
 ## 建议

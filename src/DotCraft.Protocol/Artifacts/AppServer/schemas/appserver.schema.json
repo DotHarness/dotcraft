@@ -18308,6 +18308,9 @@
             }
           ]
         },
+        "queuePaused": {
+          "type": "boolean"
+        },
         "running": {
           "type": "boolean"
         },
@@ -20279,6 +20282,36 @@
           "items": {
             "$ref": "#/$defs/QueuedTurnInput"
           }
+        }
+      },
+      "additionalProperties": true
+    },
+    "TurnQueueStartParams": {
+      "title": "TurnQueueStartParams",
+      "type": "object",
+      "properties": {
+        "queuedInputId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "TurnQueueStartResponse": {
+      "title": "TurnQueueStartResponse",
+      "type": "object",
+      "properties": {
+        "turnId": {
+          "type": "string"
         }
       },
       "additionalProperties": true

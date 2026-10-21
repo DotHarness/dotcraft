@@ -28,6 +28,8 @@ export function useComposerRunState(external: boolean, runtime: ComposerRuntime 
   const isWaitingApproval = !external && turnStatus === 'waitingApproval'
   const isWaitingInput = !external && turnStatus === 'waitingInput'
   const isMaintenanceActive = !external && maintenanceKind === 'compacting'
+  const lastTurnStatus = turns[turns.length - 1]?.status
+  const queuePaused = !external && turnStatus === 'idle' && lastTurnStatus === 'cancelled' && queuedInputs.length > 0
   return {
     turns,
     historyTurns: runtime?.turns ?? turns,
@@ -41,6 +43,7 @@ export function useComposerRunState(external: boolean, runtime: ComposerRuntime 
     isWaitingInput,
     isMaintenanceActive,
     isBusyForInput: isRunning || isMaintenanceActive,
+    queuePaused,
     followUpMode: isRunning ? (runtime ? 'steer' as const : followUpPreference) : 'queue' as const
   }
 }

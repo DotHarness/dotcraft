@@ -636,6 +636,7 @@ Request cancellation of a turn. Params `threadId`, `turnId`; result `{}`. Cancel
 
 - Shutdown stops foreground external work owned by the active tool invocation, but not terminal sessions already detached to the background; those use terminal stop or cleanup operations.
 - Before emitting `turn/cancelled`, the server resolves the turn's pending approvals and user-input requests ([Section 7.6](#76-pending-requests-and-multiple-connections)), finalizes streaming agent/reasoning items with their accumulated text, and persists the cancelled turn. Later turns on server-managed threads include the cancelled turn's input and partial assistant output in model context.
+- After the cancelled turn is persisted, steers it had not admitted return to the queue. The queue then stays paused: nothing in it starts automatically until `turn/queue/start` resumes it or a new turn completes normally.
 - Interrupting a SubAgent child's active turn stops the child as the model's `TaskStop` does: the spawn edge stays open and the parent receives a task notification ([Background Tasks](../architecture/background-tasks.md) §5).
 - The server cold-loads a thread not yet in the process. If cold-load recovery finds the requested Turn non-terminal, it persists it as `cancelled`, emits `turn/cancelled` with reason `"interrupted"`, and the request succeeds idempotently.
 
@@ -652,7 +653,7 @@ Add input to an active regular Turn without creating a Turn. Params `threadId`, 
 - Succeeds only when `expectedTurnId` matches the active regular Turn and it still accepts guidance. Maintenance Turns, internal threads, and SubAgent children are rejected. A mismatch is terminal for the request; clients keep the draft and report the failure rather than enqueueing it or retargeting it.
 - The input is stored atomically as a `guidancePending` queue record. No Turn is created and no `turn/started` is emitted.
 - Before the next model sample after a tool round or final answer (after any compaction), every pending guidance input for the Turn is admitted in queue order. Each runs the `UserPromptSubmit` hook; an admitted input becomes a `userMessage` with `deliveryMode = "guidance"` and its queue record is removed under the same lock. A blocked input is removed without an Item and reported through `system/event` `guidanceBlocked`.
-- With `InstantInterruptEnabled` (default on), a steer that arrives before the current model request has produced output, or while a failed stream awaits retry, makes the server abandon and reissue that request with the steer admitted.
+- With `InstantInterruptEnabled` (default on), a steer that arrives while the current model request is streaming, including during reasoning or assistant text, or while a failed stream awaits retry, makes the server abandon and reissue that request with the steer admitted. Output already streamed stays in the Turn, and its complete tool calls run before the reissue.
 
 ### 5.2.3 `turn/queue/remove`
 
@@ -669,6 +670,13 @@ Set a queued input's delivery status before admission. Params `threadId`, `expec
 - `guidancePending` requires an active regular Turn matching `expectedTurnId`; the change is made under the per-thread queue lock and broadcast. Repeating it is idempotent. Admission follows `turn/steer`, rechecking status and target Turn under the lock.
 - `queued` is idempotent for an already-queued item. A `guidancePending` item returns to its queue position when its bound Turn matches `expectedTurnId` (the Turn need not still be active). If admission already won the lock, the update fails with not-found. Admitted input is never retracted.
 - When the Turn ends before admission, its pending items return to `queued`.
+
+### 5.2.6 `turn/queue/start`
+
+Start one queued input as a new Turn now. Params `threadId`, optional `queuedInputId` (default: the first `queued` item). Result: `{ turnId }`.
+
+- Fails with `-32012` while a Turn or blocking maintenance is active, leaving the queue unchanged, and with not-found for an unknown `queuedInputId`.
+- A queue paused because the latest Turn was cancelled resumes: after this Turn completes, the rest of the queue starts in order. `thread/read` reports the pause as `runtime.queuePaused`.
 
 ### 5.3 `workspace/commitMessage/suggest`
 
@@ -722,6 +730,7 @@ A workspace-level broadcast of a thread's aggregated **runtime snapshot**, deliv
 - `waitingOnPlanConfirmation`: the latest completed turn ran in plan mode with a successful `CreatePlan` call (a matching successful tool result in the same Turn) and the next `turn/start` has not yet cleared it. Later tool calls or output in that Turn, such as `TaskStop` cleanup, do not clear it.
 - `busy`: the thread cannot start a new turn because a turn, approval, input request, or blocking maintenance is active.
 - `maintenanceKind`: current blocking maintenance (`"compacting"`), omitted when none.
+- `queuePaused`: the latest Turn was cancelled, so queued input waits for `turn/queue/start` ([5.2.6](#526-turnqueuestart)).
 
 Emitted when the snapshot changes because a turn starts or ends, an approval or user-input request is created or resolved, plan confirmation is set or cleared, or maintenance starts or completes. The server should emit only on effective change; duplicates are allowed and the latest payload replaces the cached snapshot. Clients ignore unknown `runtime` fields.
 

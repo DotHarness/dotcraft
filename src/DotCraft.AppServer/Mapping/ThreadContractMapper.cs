@@ -82,7 +82,8 @@ internal static class ThreadContractMapper
         WaitingOnInput = value.WaitingOnInput,
         WaitingOnPlanConfirmation = value.WaitingOnPlanConfirmation,
         Busy = value.Busy,
-        MaintenanceKind = OmitIfNull(value.MaintenanceKind)
+        MaintenanceKind = OmitIfNull(value.MaintenanceKind),
+        QueuePaused = value.QueuePaused
     };
 
     public static Contract.ThreadGoal ToContract(Domain.ThreadGoalSnapshot value) => new()

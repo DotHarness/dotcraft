@@ -30,7 +30,12 @@ public sealed partial class StreamingFunctionInvokingChatClient
 
         public bool Interrupted { get; private set; }
 
-        public bool HoldsOutput => IsOpen || Interrupted;
+        public bool OutputStarted { get; private set; }
+
+        /// <summary>Output is held only until it proves effective, so a request preempted before then shows nothing.</summary>
+        public bool HoldsOutput => !OutputStarted && (IsOpen || Interrupted);
+
+        public void MarkOutputStarted() => OutputStarted = true;
 
         public static InstantInterruptWindow? TryOpen(CancellationToken cancellationToken) =>
             StreamingGuidanceRuntimeScope.Current?.WaitForInstantInterruptAsync is { } waitAsync

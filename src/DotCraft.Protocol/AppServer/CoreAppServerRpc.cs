@@ -280,6 +280,8 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<TurnQueueReorderParams, TurnQueueReorderResponse> TurnQueueReorder = new("turn/queue/reorder", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", errors: CommonErrors);
 
+    public static readonly RpcRequest<TurnQueueStartParams, TurnQueueStartResponse> TurnQueueStart = new("turn/queue/start", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", errors: CommonErrors);
+
     public static readonly RpcRequest<TurnQueueUpdateParams, TurnQueueUpdateResult> TurnQueueUpdate = new("turn/queue/update", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", errors: CommonErrors);
 
     public static readonly RpcRequest<UsageHistoryParams, UsageHistoryResult> UsageHistory = new("usage/history", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);

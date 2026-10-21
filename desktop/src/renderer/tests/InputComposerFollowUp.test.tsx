@@ -255,6 +255,29 @@ describe('InputComposer follow-up routing', () => {
     expect(textbox).toHaveTextContent('continue Fix login')
   })
 
+  it.each([
+    ['alternate', ['turn/queue/remove', 'turn/start']],
+    ['confirm', ['turn/start']],
+    ['cancel', []]
+  ] as const)('asks before sending into a queue paused by an interrupt (%s)', async (choice, methods) => {
+    const choose = vi.fn().mockResolvedValue(choice)
+    ;(window as Window & { __choiceDialog?: unknown }).__choiceDialog = choose
+    useConversationStore.setState({
+      turnStatus: 'idle',
+      activeTurnId: null,
+      turns: [{ id: 'turn-1', threadId: 'thread-1', status: 'cancelled', startedAt: '2026-01-01T00:00:00Z', items: [] }],
+      queuedInputs: [{ id: 'queued-1', threadId: 'thread-1', displayText: 'later', status: 'queued', createdAt: '2026-01-01T00:00:00Z' }]
+    })
+    sendRequest.mockImplementation(async (method: string) => method === 'turn/queue/remove' ? { queuedInputs: [] } : {})
+    renderComposer()
+
+    fireEvent.keyDown(draft(), { key: 'Enter' })
+
+    await waitFor(() => expect(choose).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(sendRequest.mock.calls.map(([method]) => method).filter((method) => method.startsWith('turn/'))).toEqual(methods))
+    delete (window as Window & { __choiceDialog?: unknown }).__choiceDialog
+  })
+
   it('queues maintenance follow-ups even when Steer is preferred', async () => {
     useConversationStore.setState({ turnStatus: 'idle', activeTurnId: null, maintenanceKind: 'compacting' })
     renderComposer()

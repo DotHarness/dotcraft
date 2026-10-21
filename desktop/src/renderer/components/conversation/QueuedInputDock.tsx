@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { CornerDownRight, GripVertical, ListChecks, MessagesSquare, Pencil, Trash2 } from 'lucide-react'
+import { CornerDownRight, GripVertical, ListChecks, MessagesSquare, Pencil, Play, Send, Trash2 } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Spinner } from '../ui/Spinner'
 import { useT } from '../../contexts/LocaleContext'
@@ -37,7 +37,10 @@ interface QueuedInputDockProps {
   onQueueEdit?: (id: string) => void
   onQueueReorder?: (orderedQueuedInputIds: string[]) => void
   onQueueSideChat?: (id: string) => void
+  onQueueSendNow?: (id: string) => void
+  onQueueResume?: () => void
   editingQueuedInputId?: string | null
+  paused?: boolean
 }
 
 /** The inputs queued behind the running turn, shown above the composer. */
@@ -48,7 +51,10 @@ export function QueuedInputDock({
   onQueueEdit,
   onQueueReorder,
   onQueueSideChat,
-  editingQueuedInputId = null
+  onQueueSendNow,
+  onQueueResume,
+  editingQueuedInputId = null,
+  paused = false
 }: QueuedInputDockProps): JSX.Element | null {
   const t = useT()
   const queuedIds = useMemo(() => queuedInputs.map((item) => item.id), [queuedInputs])
@@ -78,8 +84,18 @@ export function QueuedInputDock({
     <div data-testid="subagent-dock" style={dockFrameStyle}>
       <div style={dockHeaderStyle}>
         <div style={headerStaticStyle}>
-          <DockTitle title={title} />
+          <DockTitle title={title} paused={paused} />
         </div>
+        {paused && onQueueResume && (
+          <Button
+            variant="ghost"
+            size="sm"
+            iconLeft={<Play size={13} strokeWidth={1.9} />}
+            onClick={onQueueResume}
+          >
+            {t('composer.queueResume')}
+          </Button>
+        )}
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -93,6 +109,7 @@ export function QueuedInputDock({
             onEdit={onQueueEdit}
             onReorder={onQueueReorder}
             onSideChat={onQueueSideChat}
+            onSendNow={onQueueSendNow}
             editingQueuedInputId={editingQueuedInputId}
           />
         </SortableContext>
@@ -101,11 +118,13 @@ export function QueuedInputDock({
   )
 }
 
-function DockTitle({ title }: { title: string }): JSX.Element {
+function DockTitle({ title, paused }: { title: string; paused: boolean }): JSX.Element {
+  const t = useT()
   return (
     <span style={titleStyle}>
       <ListChecks size={13} aria-hidden="true" style={{ color: 'var(--text-dimmed)' }} />
       <span>{title}</span>
+      {paused && <span style={pausedLabelStyle}>· {t('composer.queuePaused')}</span>}
     </span>
   )
 }
@@ -119,6 +138,7 @@ function QueuedInputDockSection({
   onEdit,
   onReorder,
   onSideChat,
+  onSendNow,
   editingQueuedInputId
 }: {
   queuedInputs: QueuedTurnInput[]
@@ -129,6 +149,7 @@ function QueuedInputDockSection({
   onEdit?: (id: string) => void
   onReorder?: (orderedQueuedInputIds: string[]) => void
   onSideChat?: (id: string) => void
+  onSendNow?: (id: string) => void
   editingQueuedInputId?: string | null
 }): JSX.Element {
   const t = useT()
@@ -154,6 +175,7 @@ function QueuedInputDockSection({
             onRemove={onRemove}
             onEdit={onEdit}
             onSideChat={onSideChat}
+            onSendNow={onSendNow}
             onKeyboardMove={moveQueuedInput}
             editing={editingQueuedInputId === item.id}
           />
@@ -170,6 +192,7 @@ function QueuedInputDockRow({
   onRemove,
   onEdit,
   onSideChat,
+  onSendNow,
   onKeyboardMove,
   editing
 }: {
@@ -179,6 +202,7 @@ function QueuedInputDockRow({
   onRemove?: (id: string) => void
   onEdit?: (id: string) => void
   onSideChat?: (id: string) => void
+  onSendNow?: (id: string) => void
   onKeyboardMove?: (id: string, delta: -1 | 1) => void
   editing: boolean
 }): JSX.Element {
@@ -197,6 +221,14 @@ function QueuedInputDockRow({
   } = useSortable({ id: item.id, disabled: isGuidancePending || isLocalEcho })
   const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
   const menuEntries: ContextMenuEntry[] = []
+  if (onSendNow) {
+    menuEntries.push({
+      label: t('composer.queueSendNow'),
+      icon: <Send size={14} aria-hidden />,
+      disabled: item.status !== 'queued' || isLocalEcho,
+      onClick: () => { setMenuPosition(null); onSendNow(item.id) }
+    })
+  }
   if (onEdit) {
     menuEntries.push({
       label: t('composer.queueEdit'),
@@ -365,6 +397,10 @@ const headerStaticStyle: CSSProperties = {
   alignItems: 'center',
   padding: '4px 0 3px',
   color: 'var(--text-secondary)'
+}
+
+const pausedLabelStyle: CSSProperties = {
+  color: 'var(--text-dimmed)'
 }
 
 const titleStyle: CSSProperties = {

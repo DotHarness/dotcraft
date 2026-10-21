@@ -4566,6 +4566,7 @@ export interface ThreadRuntimeState {
   activeTurnStartedAt?: string | null;
   busy?: boolean;
   maintenanceKind?: string | null;
+  queuePaused?: boolean;
   running?: boolean;
   waitingOnApproval?: boolean;
   waitingOnInput?: boolean;
@@ -4987,6 +4988,17 @@ export interface TurnQueueReorderParams {
 
 export interface TurnQueueReorderResponse {
   queuedInputs?: QueuedTurnInput[];
+  [key: string]: unknown;
+}
+
+export interface TurnQueueStartParams {
+  queuedInputId?: string | null;
+  threadId?: string;
+  [key: string]: unknown;
+}
+
+export interface TurnQueueStartResponse {
+  turnId?: string;
   [key: string]: unknown;
 }
 

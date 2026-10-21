@@ -144,11 +144,12 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         Assert.DoesNotContain(history.Messages.SelectMany(message => message.Contents), content => content is TextReasoningContent);
     }
 
-    [Fact]
-    public async Task GetStreamingResponseAsync_UserSteerAfterOutputWaitsForTheNextBoundary()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetStreamingResponseAsync_UserSteerAfterOutputReissuesWithThePartialOutputKept(bool reasoning)
     {
         var outputDelivered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstRequestCancelled = false;
         var inner = new GatedStreamChatClient(async (index, ct, emit) =>
         {
@@ -158,10 +159,12 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
                 return;
             }
 
-            await emit(Text("partial"));
+            await emit(reasoning
+                ? new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent("thinking")])
+                : Text("partial"));
             try
             {
-                await release.Task.WaitAsync(ct);
+                await Task.Delay(TimeSpan.FromSeconds(10), ct);
             }
             catch (OperationCanceledException)
             {
@@ -178,7 +181,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         {
             await foreach (var update in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
             {
-                if (update.Text == "partial")
+                if (update.Contents.Count > 0)
                     outputDelivered.TrySetResult();
             }
         }
@@ -186,16 +189,48 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var run = ConsumeAsync();
         await outputDelivered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         steer.Submit("steer");
-        await Task.Delay(200);
-        release.TrySetResult();
         await run.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.False(firstRequestCancelled);
+        Assert.True(firstRequestCancelled);
         Assert.Equal(2, inner.Requests.Count);
-        Assert.Equal(
-            ["user:start", "assistant:partial answer", "user:steer"],
-            inner.Requests[1].Select(message => $"{message.Role}:{message.Text}"));
-        Assert.Equal([StreamingGuidanceBoundary.TurnStart, StreamingGuidanceBoundary.AnswerBoundary], steer.Boundaries);
+        Assert.Equal("user:steer", $"{inner.Requests[1][^1].Role}:{inner.Requests[1][^1].Text}");
+        Assert.DoesNotContain(inner.Requests[1], message => message.Text.Contains("answer", StringComparison.Ordinal));
+        Assert.Equal([StreamingGuidanceBoundary.TurnStart, StreamingGuidanceBoundary.AfterTools], steer.Boundaries);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_UserSteerAfterACompleteToolCallRunsItOnceBeforeTheReissue()
+    {
+        var callStreamed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var toolRuns = 0;
+        var inner = new GatedStreamChatClient(async (index, ct, emit) =>
+        {
+            if (index > 0)
+            {
+                await emit(Text("done"));
+                return;
+            }
+
+            await emit(ToolCall("call-1", "GetStatus"));
+            callStreamed.TrySetResult();
+            await Task.Delay(TimeSpan.FromSeconds(10), ct);
+        });
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [AIFunctionFactory.Create(() => { toolRuns++; return "ok"; }, name: "GetStatus")]
+        };
+        var steer = new InstantSteer();
+        using var guidance = StreamingGuidanceRuntimeScope.Set(steer.Context);
+
+        var run = CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+        await callStreamed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        steer.Submit("steer");
+        await run.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(1, toolRuns);
+        Assert.Equal(2, inner.Requests.Count);
+        Assert.Contains(inner.Requests[1], message => message.Contents.OfType<FunctionResultContent>().Any());
+        Assert.Equal("user:steer", $"{inner.Requests[1][^1].Role}:{inner.Requests[1][^1].Text}");
     }
 
     [Fact]

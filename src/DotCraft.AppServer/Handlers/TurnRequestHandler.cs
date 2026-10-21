@@ -33,6 +33,7 @@ internal sealed class TurnRequestHandler(
         table.Map(Contract.AppServerRpc.TurnQueueRemove, HandleTurnQueueRemoveAsync);
         table.Map(Contract.AppServerRpc.TurnQueueReorder, HandleTurnQueueReorderAsync);
         table.Map(Contract.AppServerRpc.TurnQueueUpdate, HandleTurnQueueUpdateAsync);
+        table.Map(Contract.AppServerRpc.TurnQueueStart, HandleTurnQueueStartAsync);
         table.Map(Contract.AppServerRpc.TurnInterrupt, HandleTurnInterruptAsync);
     }
 
@@ -342,6 +343,19 @@ internal sealed class TurnRequestHandler(
             QueuedInputs = Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
                 TurnContractMapper.ToContract(queuedInputs))
         });
+    }
+
+    private async Task<AppServerTypedResult<Contract.TurnQueueStartResponse>> HandleTurnQueueStartAsync(
+        AppServerTypedRequest<Contract.TurnQueueStartParams> request,
+        CancellationToken ct)
+    {
+        var p = request.Params;
+        var threadId = Require(p.ThreadId, "'threadId' is required.");
+        var queuedInputId = p.QueuedInputId.IsSet && !string.IsNullOrWhiteSpace(p.QueuedInputId.Value)
+            ? p.QueuedInputId.Value
+            : null;
+        var turnId = await sessionService.StartQueuedTurnAsync(threadId, queuedInputId, ct);
+        return AppServerTypedResult<Contract.TurnQueueStartResponse>.FromResult(new() { TurnId = turnId });
     }
 
     private async Task<AppServerTypedResult<Contract.TurnQueueReorderResponse>> HandleTurnQueueReorderAsync(

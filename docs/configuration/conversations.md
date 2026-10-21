@@ -7,7 +7,7 @@ Queueing and interrupts while a turn runs, composer suggestions, context compact
 | Field | Description | Default |
 |-------|-------------|---------|
 | `MaxSessionQueueSize` | Maximum queued requests per session; `0` means unlimited | `3` |
-| `InstantInterruptEnabled` | Restart the current model request with a mid-turn message that arrives before the request produces output or while it waits to retry | `true` |
+| `InstantInterruptEnabled` | Interrupt the current model request, even while it is thinking or replying, and restart it with a mid-turn message; also cuts short a wait to retry | `true` |
 | `AgentInterruptMessageEnabled` | Tell the model when a turn is intentionally interrupted, including an active-turn fork | `true` |
 
 ## Suggestions

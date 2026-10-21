@@ -10,11 +10,16 @@ export interface ConfirmDialogOptions {
   cancelLabel?: string
   danger?: boolean
   alert?: boolean
+  /** A destructive alternative shown before the confirm button; choosing it resolves to `'alternate'`. */
+  alternateLabel?: string
 }
+
+export type ConfirmDialogChoice = 'confirm' | 'alternate' | 'cancel'
 
 interface ConfirmDialogProps extends ConfirmDialogOptions {
   onConfirm: () => void
   onCancel: () => void
+  onAlternate?: () => void
 }
 
 export function ConfirmDialog({
@@ -24,8 +29,10 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   danger = false,
   alert = false,
+  alternateLabel,
   onConfirm,
-  onCancel
+  onCancel,
+  onAlternate
 }: ConfirmDialogProps): JSX.Element {
   const initialFocusRef = useRef<HTMLButtonElement>(null)
 
@@ -101,6 +108,11 @@ export function ConfirmDialog({
               {cancelLabel}
             </Button>
           )}
+          {alternateLabel && onAlternate && (
+            <Button onClick={onAlternate} variant="danger">
+              {alternateLabel}
+            </Button>
+          )}
           <Button
             ref={alert ? initialFocusRef : undefined}
             onClick={onConfirm}
@@ -121,11 +133,15 @@ export function ConfirmDialog({
 // prop-drill dialog state through the tree.
 
 interface DialogState extends ConfirmDialogOptions {
-  resolve: (value: boolean) => void
+  resolve: (value: ConfirmDialogChoice) => void
 }
 
 export interface ConfirmDialogRequest {
   result: Promise<boolean>
+  dismiss(): void
+}
+
+type ChoiceDialogPromise = Promise<ConfirmDialogChoice> & {
   dismiss(): void
 }
 
@@ -135,6 +151,7 @@ type ConfirmDialogPromise = Promise<boolean> & {
 
 type ConfirmDialogWindow = Window & {
   __confirmDialog?: (opts: ConfirmDialogOptions) => ConfirmDialogPromise
+  __choiceDialog?: (opts: ConfirmDialogOptions) => ChoiceDialogPromise
 }
 
 /**
@@ -146,9 +163,9 @@ export function ConfirmDialogHost(): JSX.Element | null {
 
   // Expose the trigger function globally so useConfirmDialog() can reach it
   useEffect(() => {
-    ;(window as ConfirmDialogWindow).__confirmDialog = (opts) => {
-      let settle!: (value: boolean) => void
-      const result = new Promise<boolean>((resolve) => {
+    const choose = (opts: ConfirmDialogOptions): ChoiceDialogPromise => {
+      let settle!: (value: ConfirmDialogChoice) => void
+      const result = new Promise<ConfirmDialogChoice>((resolve) => {
         settle = resolve
         setState({ ...opts, resolve })
       })
@@ -156,20 +173,27 @@ export function ConfirmDialogHost(): JSX.Element | null {
         dismiss() {
           setState((current) => {
             if (current?.resolve !== settle) return current
-            settle(false)
+            settle('cancel')
             return null
           })
         }
       })
     }
+    const host = window as ConfirmDialogWindow
+    host.__choiceDialog = choose
+    host.__confirmDialog = (opts) => {
+      const choice = choose(opts)
+      return Object.assign(choice.then((value) => value === 'confirm'), { dismiss: choice.dismiss })
+    }
     return () => {
-      delete (window as ConfirmDialogWindow).__confirmDialog
+      delete host.__confirmDialog
+      delete host.__choiceDialog
     }
   }, [])
 
   if (!state) return null
 
-  function finish(result: boolean): void {
+  function finish(result: ConfirmDialogChoice): void {
     state!.resolve(result)
     setState(null)
   }
@@ -177,8 +201,9 @@ export function ConfirmDialogHost(): JSX.Element | null {
   return (
     <ConfirmDialog
       {...state}
-      onConfirm={() => finish(true)}
-      onCancel={() => finish(false)}
+      onConfirm={() => finish('confirm')}
+      onCancel={() => finish('cancel')}
+      onAlternate={state.alternateLabel ? () => finish('alternate') : undefined}
     />
   )
 }
@@ -190,6 +215,14 @@ export function ConfirmDialogHost(): JSX.Element | null {
 export function useConfirmDialog(): (opts: ConfirmDialogOptions) => Promise<boolean> {
   return useCallback(
     (opts: ConfirmDialogOptions) => (window as ConfirmDialogWindow).__confirmDialog!(opts),
+    []
+  )
+}
+
+/** Shows a dialog whose `alternateLabel` adds a third choice. */
+export function useChoiceDialog(): (opts: ConfirmDialogOptions) => Promise<ConfirmDialogChoice> {
+  return useCallback(
+    (opts: ConfirmDialogOptions) => (window as ConfirmDialogWindow).__choiceDialog!(opts),
     []
   )
 }

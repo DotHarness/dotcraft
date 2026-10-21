@@ -83,6 +83,47 @@ public sealed partial class SessionServiceInterruptionTests
     }
 
     [Fact]
+    public async Task InterruptingATurn_PausesTheQueueUntilAnExplicitStartResumesIt()
+    {
+        var client = new InterruptibleClient();
+        await using var factory = Factory();
+        var service = Service(factory, client, new ThreadStore(root));
+        var thread = await service.CreateThreadAsync(Identity());
+        var completed = new List<string?>();
+        var allCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.ThreadRuntimeSignalForBroadcast = (_, signal, turn) =>
+        {
+            if (signal != SessionThreadRuntimeSignal.TurnCompleted)
+                return;
+            lock (completed)
+            {
+                completed.Add(turn?.Input?.AsUserMessage?.Text);
+                if (completed.Count == 2)
+                    allCompleted.TrySetResult();
+            }
+        };
+        var run = Drain(service.SubmitInputAsync(thread.Id, [new TextContent("first")]));
+        await client.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await service.EnqueueTurnInputAsync(thread.Id, [new TextContent("one")]);
+        var second = await service.EnqueueTurnInputAsync(thread.Id, [new TextContent("two")]);
+        client.Block = false;
+
+        await service.CancelTurnAsync(thread.Id, thread.Turns[^1].Id);
+        await run.WaitAsync(TimeSpan.FromSeconds(10));
+        await service.TryStartNextQueuedTurnAsync(thread.Id);
+
+        Assert.Single(thread.Turns);
+        Assert.True(service.GetThreadRuntimeSnapshot(thread).QueuePaused);
+
+        await service.StartQueuedTurnAsync(thread.Id, second.Id);
+        await allCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(["two", "one"], completed);
+        Assert.Empty(thread.QueuedInputs);
+        Assert.False(service.GetThreadRuntimeSnapshot(thread).QueuePaused);
+    }
+
+    [Fact]
     public async Task CompletedTurnItemCut_DoesNotGenerateInterruption()
     {
         var client = new InterruptibleClient { Block = false };

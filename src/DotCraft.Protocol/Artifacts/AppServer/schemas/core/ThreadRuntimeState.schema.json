@@ -38,6 +38,9 @@
         }
       ]
     },
+    "queuePaused": {
+      "type": "boolean"
+    },
     "running": {
       "type": "boolean"
     },

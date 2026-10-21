@@ -200,6 +200,7 @@ export interface ClientRequestMethods {
   "turn/interrupt": { params: Models.TurnInterruptParams; result: Models.RpcEmpty };
   "turn/queue/remove": { params: Models.TurnQueueRemoveParams; result: Models.TurnQueueRemoveResponse };
   "turn/queue/reorder": { params: Models.TurnQueueReorderParams; result: Models.TurnQueueReorderResponse };
+  "turn/queue/start": { params: Models.TurnQueueStartParams; result: Models.TurnQueueStartResponse };
   "turn/queue/update": { params: Models.TurnQueueUpdateParams; result: Models.TurnQueueUpdateResult };
   "turn/start": { params: Models.TurnStartParams; result: Models.TurnStartResult };
   "turn/steer": { params: Models.TurnSteerParams; result: Models.TurnSteerResult };

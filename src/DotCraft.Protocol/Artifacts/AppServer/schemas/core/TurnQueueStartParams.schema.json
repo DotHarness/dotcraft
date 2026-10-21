@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/TurnQueueStartParams.schema.json",
+  "title": "TurnQueueStartParams",
+  "type": "object",
+  "properties": {
+    "queuedInputId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "threadId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

@@ -114,7 +114,8 @@ public static class SessionWireMapper
         WaitingOnInput = runtime.WaitingOnInput,
         WaitingOnPlanConfirmation = runtime.WaitingOnPlanConfirmation,
         Busy = runtime.Busy,
-        MaintenanceKind = runtime.MaintenanceKind
+        MaintenanceKind = runtime.MaintenanceKind,
+        QueuePaused = runtime.QueuePaused
     };
 
     /// <summary>

@@ -5625,6 +5625,10 @@ public sealed class ThreadRuntimeState : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> MaintenanceKind { get; init; }
 
+    [JsonPropertyName("queuePaused")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> QueuePaused { get; init; }
+
     [JsonPropertyName("running")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Running { get; init; }
@@ -6177,6 +6181,28 @@ public sealed class TurnQueueReorderResponse : ExtensibleJsonObject
     [JsonPropertyName("queuedInputs")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<QueuedTurnInput>> QueuedInputs { get; init; }
+
+}
+
+/// <summary>Executable wire contract for TurnQueueStartParams.</summary>
+public sealed class TurnQueueStartParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("queuedInputId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> QueuedInputId { get; init; }
+
+    [JsonPropertyName("threadId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ThreadId { get; init; }
+
+}
+
+/// <summary>Executable wire contract for TurnQueueStartResponse.</summary>
+public sealed class TurnQueueStartResponse : ExtensibleJsonObject
+{
+    [JsonPropertyName("turnId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> TurnId { get; init; }
 
 }
 

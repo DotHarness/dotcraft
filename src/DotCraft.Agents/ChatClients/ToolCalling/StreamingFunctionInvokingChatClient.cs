@@ -279,8 +279,8 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                     NormalizeFunctionCallArguments(update.Contents);
                     updates.Add(update);
                     CopyFunctionCalls(update.Contents, functionCalls);
-                    if (interruptWindow is { IsOpen: true } && HasEffectiveProviderOutput([update]))
-                        interruptWindow.Close();
+                    if (interruptWindow is { OutputStarted: false } && HasEffectiveProviderOutput([update]))
+                        interruptWindow.MarkOutputStarted();
 
                     if (functionCalls.Count == 0 && interruptWindow?.HoldsOutput != true)
                     {

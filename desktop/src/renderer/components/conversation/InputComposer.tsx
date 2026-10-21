@@ -72,6 +72,7 @@ import { ContextUsageRing } from './ContextUsageRing'
 import { ApprovalPolicyPicker } from './ApprovalPolicyPicker'
 import { QueuedInputDock } from './QueuedInputDock'
 import { useQueuedInputEditing } from './useQueuedInputEditing'
+import { usePausedQueueActions } from './usePausedQueueActions'
 import {
   COMPOSER_FOOTER_CONTROL_HEIGHT,
   ComposerCustomProfileLabel,
@@ -85,7 +86,7 @@ import { ComposerWorkspaceFooter } from './ComposerWorkspaceFooter'
 import { useResolvedProfileName } from '../../stores/agentProfileNameStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
-import { useConfirmDialog } from '../ui/ConfirmDialog'
+import { useChoiceDialog, useConfirmDialog } from '../ui/ConfirmDialog'
 import { ConversationColumn } from './ConversationColumn'
 import { resolveComposerMascotEffectState } from './composerMascotEffectState'
 import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
@@ -321,6 +322,7 @@ function InputComposerCore({
     isWaitingInput,
     isMaintenanceActive,
     isBusyForInput,
+    queuePaused,
     followUpMode
   } = useComposerRunState(hasSubmitOverride, runtime)
   const rawMascotInteraction = useComposerMascot({ threadId, workspacePath })
@@ -332,6 +334,7 @@ function InputComposerCore({
   const hasBackgroundActivityDock = visibleQueuedInputs.length > 0
   const locale = useLocale()
   const confirm = useConfirmDialog()
+  const choose = useChoiceDialog()
   const activeMainView = useUIStore((s) => s.activeMainView)
   const desktopCommandContributions = useDesktopPluginRegistry((s) => s.commands)
 
@@ -551,6 +554,7 @@ function InputComposerCore({
   }, [t])
   const queuedEditing = useQueuedInputEditing({ threadId, applyDraft: applyQueuedDraft, onError: reportQueueEditError })
   const { placeEditedSubmission, hasEditPosition, clearEditPosition } = queuedEditing
+  const { resumeQueue, sendQueuedNow, clearPausedQueue } = usePausedQueueActions(threadId, t)
 
   const handleComposerContentChange = useCallback((): void => {
     latestDraftRef.current = {
@@ -1334,6 +1338,18 @@ function InputComposerCore({
     }
 
     if (sendInFlightRef.current) return
+    if (queuePaused) {
+      const pausedCount = useConversationStore.getState().queuedInputs.filter((item) => !item.triggerKind).length
+      const choice = await choose({
+        title: t('composer.pausedQueueSubmit.title'),
+        message: t('composer.pausedQueueSubmit.description', { count: pausedCount }),
+        confirmLabel: t('composer.pausedQueueSubmit.send'),
+        alternateLabel: t('composer.pausedQueueSubmit.clear'),
+        cancelLabel: t('common.cancel')
+      })
+      if (choice === 'cancel') return
+      if (choice === 'alternate') await clearPausedQueue()
+    }
     sendInFlightRef.current = true
     const capturedImages = [...inputImages]
     const capturedFiles = [...inputFiles]
@@ -1385,7 +1401,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
+  }, [activeTurnId, clearComposerForSubmission, compactThreadContext, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isSideChat, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
@@ -1768,6 +1784,9 @@ function InputComposerCore({
             onQueueEdit={(id: string) => { void queuedEditing.editQueuedInput(id) }}
             onQueueReorder={(orderedIds: string[]) => { void reorderQueuedInputs(orderedIds) }}
             onQueueSideChat={canOpenSideChat ? (id: string) => { void sendQueuedInputInSideChat(id) } : undefined}
+            onQueueSendNow={queuePaused ? (id: string) => { void sendQueuedNow(id) } : undefined}
+            onQueueResume={queuePaused ? () => { void resumeQueue() } : undefined}
+            paused={queuePaused}
             editingQueuedInputId={queuedEditing.editingQueuedInputId}
           />
         )}

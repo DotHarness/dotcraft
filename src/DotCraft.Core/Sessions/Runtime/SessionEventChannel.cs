@@ -22,6 +22,8 @@ internal sealed class SessionEventChannel(
 
     private int _eventSequence;
 
+    public string TurnId => turnId;
+
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------

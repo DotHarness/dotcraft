@@ -98,7 +98,8 @@ public static class AppServerContractMapper
         Busy = value.Busy,
         MaintenanceKind = value.MaintenanceKind is null
             ? default
-            : Optional<string?>.FromValue(value.MaintenanceKind)
+            : Optional<string?>.FromValue(value.MaintenanceKind),
+        QueuePaused = value.QueuePaused
     };
 
     /// <summary>Projects the complete public Session Wire item shape into Contracts.</summary>

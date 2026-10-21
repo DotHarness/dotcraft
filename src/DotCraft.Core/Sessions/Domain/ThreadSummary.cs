@@ -52,6 +52,9 @@ public sealed class ThreadSummaryRuntime
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? MaintenanceKind { get; set; }
 
+    /// <summary>True when the latest Turn was cancelled, so queued input waits for an explicit start.</summary>
+    public bool QueuePaused { get; set; }
+
     /// <summary>
     /// Creates a runtime snapshot from persisted thread state only.
     /// Process-local maintenance state is added by <see cref="ISessionService.GetThreadRuntimeSnapshot"/>.
@@ -85,9 +88,13 @@ public sealed class ThreadSummaryRuntime
             WaitingOnInput = false,
             WaitingOnPlanConfirmation = waitingOnPlanConfirmation,
             MaintenanceKind = maintenanceKind,
-            Busy = maintenanceKind is not null
+            Busy = maintenanceKind is not null,
+            QueuePaused = IsQueuePaused(thread)
         };
     }
+
+    internal static bool IsQueuePaused(SessionThread thread) =>
+        thread.Turns.LastOrDefault()?.Status == TurnStatus.Cancelled;
 
     internal static bool ContainsSuccessfulCreatePlanInPlanMode(SessionThread thread, SessionTurn turn)
     {

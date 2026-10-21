@@ -159,6 +159,8 @@ public sealed class SessionRuntimeSnapshot
     public bool Busy { get; set; }
 
     public string? MaintenanceKind { get; set; }
+
+    public bool QueuePaused { get; set; }
 }
 
 /// <summary>

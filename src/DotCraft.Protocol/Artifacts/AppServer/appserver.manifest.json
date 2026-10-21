@@ -22583,6 +22583,13 @@
           "const": null
         },
         {
+          "name": "queuePaused",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "running",
           "type": "boolean",
           "required": false,
@@ -24783,6 +24790,49 @@
         {
           "name": "queuedInputs",
           "type": "array<core.QueuedTurnInput>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.TurnQueueStartParams",
+      "name": "TurnQueueStartParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TurnQueueStartParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "queuedInputId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.TurnQueueStartResponse",
+      "name": "TurnQueueStartResponse",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TurnQueueStartResponse.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "turnId",
+          "type": "string",
           "required": false,
           "nullable": false,
           "const": null
@@ -33128,6 +33178,26 @@
       "direction": "clientToServer",
       "paramsType": "core.TurnQueueReorderParams",
       "resultType": "core.TurnQueueReorderResponse",
+      "module": "core",
+      "capability": null,
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "turn/queue/start",
+      "descriptorMember": "TurnQueueStart",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.TurnQueueStartParams",
+      "resultType": "core.TurnQueueStartResponse",
       "module": "core",
       "capability": null,
       "scope": "thread",

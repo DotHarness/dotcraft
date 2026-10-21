@@ -369,6 +369,8 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.ToolListResult))]
 [JsonSerializable(typeof(AppServer.TurnQueueRemoveParams))]
 [JsonSerializable(typeof(AppServer.TurnQueueRemoveResponse))]
+[JsonSerializable(typeof(AppServer.TurnQueueStartParams))]
+[JsonSerializable(typeof(AppServer.TurnQueueStartResponse))]
 [JsonSerializable(typeof(AppServer.TurnQueueReorderParams))]
 [JsonSerializable(typeof(AppServer.TurnQueueReorderResponse))]
 [JsonSerializable(typeof(AppServer.TurnQueueUpdateParams))]

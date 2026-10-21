@@ -321,7 +321,31 @@ public sealed partial class SessionService
             return queueSnapshot;
         }
 
-        public async Task TryStartNextAsync(string threadId, CancellationToken ct)
+        public Task TryStartNextAsync(string threadId, CancellationToken ct) =>
+            StartAsync(threadId, queuedInputId: null, explicitStart: false, ct);
+
+        /// <summary>Starts a chosen or the first queued input on an idle thread, even while the queue is paused.</summary>
+        public async Task<string> StartQueuedAsync(string threadId, string? queuedInputId, CancellationToken ct)
+        {
+            var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
+            if (thread.Status != ThreadStatus.Active)
+                throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot start queued input.");
+            if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
+                || (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Maintenance != null))
+            {
+                throw new InvalidOperationException($"Thread '{threadId}' already has a running Turn.");
+            }
+            if (queuedInputId is not null
+                && thread.QueuedInputs.All(q => !string.Equals(q.Id, queuedInputId, StringComparison.Ordinal)))
+            {
+                throw new KeyNotFoundException($"Queued input '{queuedInputId}' not found.");
+            }
+
+            return await StartAsync(threadId, queuedInputId, explicitStart: true, ct)
+                ?? throw new InvalidOperationException($"Thread '{threadId}' has no queued input to start.");
+        }
+
+        private async Task<string?> StartAsync(string threadId, string? queuedInputId, bool explicitStart, CancellationToken ct)
         {
             QueuedTurnInput? queued = null;
             SessionThread? thread = null;
@@ -335,14 +359,18 @@ public sealed partial class SessionService
                         thread = cachedThread;
 
                     var queue = thread.QueuedInputs.ToList();
-                    var notificationsMayWake = owner.MayWakeForTaskNotifications(thread);
-                    var queueIndex = queue.FindIndex(q => string.Equals(q.Status, "queued", StringComparison.Ordinal)
-                        && (notificationsMayWake || !IsTaskNotification(q)));
+                    if (!explicitStart && ThreadSummaryRuntime.IsQueuePaused(thread))
+                        return null;
+                    var notificationsMayWake = explicitStart || owner.MayWakeForTaskNotifications(thread);
+                    var queueIndex = queuedInputId is not null
+                        ? queue.FindIndex(q => string.Equals(q.Id, queuedInputId, StringComparison.Ordinal))
+                        : queue.FindIndex(q => string.Equals(q.Status, "queued", StringComparison.Ordinal)
+                            && (notificationsMayWake || !IsTaskNotification(q)));
                     if (queueIndex < 0
                         || thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
                         || (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Maintenance != null))
                     {
-                        return;
+                        return null;
                     }
 
                     queued = queue[queueIndex];
@@ -361,7 +389,7 @@ public sealed partial class SessionService
 
                 var content = await ResolveInputPartsAsync(queued.MaterializedInputParts.ToList(), ct);
                 if (content.Count == 0)
-                    return;
+                    return null;
 
                 using var triggerScope = CreateQueuedInputTriggerScope(queued);
                 if (!owner._runtimeRegistry.TryGetRuntime(threadId, out var activeRuntime))
@@ -383,13 +411,14 @@ public sealed partial class SessionService
                     },
                     ct);
                 var events = eventChannel.ReadAllAsync(ct);
-                if (SubAgentSessionControl.TryObserveQueuedChildTurn(owner, thread, events))
-                    return;
-
-                _ = Task.Run(async () =>
+                if (!SubAgentSessionControl.TryObserveQueuedChildTurn(owner, thread, events))
                 {
-                    await foreach (var _ in events.WithCancellation(CancellationToken.None)) { }
-                }, CancellationToken.None);
+                    _ = Task.Run(async () =>
+                    {
+                        await foreach (var _ in events.WithCancellation(CancellationToken.None)) { }
+                    }, CancellationToken.None);
+                }
+                return eventChannel.TurnId;
             }
             catch (Exception ex)
             {
@@ -418,6 +447,9 @@ public sealed partial class SessionService
                     if (queueSnapshot != null)
                         owner.PublishQueueUpdated(thread.Id, queueSnapshot);
                 }
+                if (explicitStart)
+                    throw;
+                return null;
             }
         }
 
