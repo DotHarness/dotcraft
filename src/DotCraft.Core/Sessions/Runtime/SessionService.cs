@@ -1681,8 +1681,10 @@ public sealed partial class SessionService(
             return;
         }
 
+        var captured = CaptureRunningTurnItems(thread);
         await persistence.SaveThreadAsync(thread, ct);
         SetMaterializedIfCurrent(thread, materialized: true);
+        MarkTurnItemsPersisted(captured);
     }
 
     private async Task<bool> SettleOrphanedCommandsAsync(SessionThread thread, CancellationToken ct)
@@ -1783,8 +1785,10 @@ public sealed partial class SessionService(
             return;
         }
 
+        var captured = CaptureRunningTurnItems(thread);
         await persistence.SaveTurnAsync(thread, turn, ct);
         SetMaterializedIfCurrent(thread, materialized: true);
+        MarkTurnItemsPersisted(captured);
     }
 
     private async Task PersistTurnCommitWithMaterializationAsync(

@@ -699,12 +699,14 @@ Each thread is an append-only JSONL rollout. Every line is a record `{ kind, tim
 - `thread_opened` — thread baseline, including the versioned source union and `providerHistorySchemaVersion`.
 - `turn_started`, `item_appended`, `turn_completed` — incremental Turn records, still readable.
 - `turn_state_replaced` — a complete Turn mutation. The normal terminal path writes one per Turn; replay replaces that Turn atomically, including its ordered Items, terminal state, input, usage, and error. Streaming deltas and other transient updates are never recorded.
-- `queued_input_added`, `queued_input_removed`, `queued_input_reordered`.
+- `queued_input_added`, `queued_input_removed`, `queued_input_updated`, `queued_input_reordered`.
 - `model_history_messages_appended`, `context_compacted` — model-visible history (Section 9.3).
 - `provider_history_items_appended`, `provider_history_replaced`, `provider_history_attempt_aborted` — protocol-native provider history.
 - `thread_rolled_back` — rollback (Section 9.7).
 
 Session Core reconstructs a Thread by replaying the rollout in order.
+
+A change is persisted as the records it produces. Queue changes append their `queued_input_*` record, and new or changed Items of a running Turn append `item_appended` against what that Turn has already persisted. Only lifecycle writes such as creation, configuration, and archive compare the Thread with its replayed rollout; Item and queue writes never read the rollout.
 
 `thread_opened.source` is a DotCraft-owned versioned union (`schemaVersion = 1`), not a serialized runtime type. The user variant stores `kind` and optional `spawnedFromThreadId`; the subagent variant also stores parent thread, root thread, parent turn, parent call, depth, path, task, nickname, role, profile, runtime, and all send, resume, message, follow-up, and close capabilities. A source or `GitInfo` change appends a new `thread_opened`; replay uses the latest. Every rollout begins with a canonical `thread_opened`. An unknown source schema version or structurally invalid source is an identity safety error that stops replay; it is never downgraded to an ordinary user thread.
 

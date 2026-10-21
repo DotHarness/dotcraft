@@ -71,7 +71,7 @@ public sealed partial class SessionService
                 queue.Add(queued);
                 thread.QueuedInputs = queue;
                 thread.LastActiveAt = DateTimeOffset.UtcNow;
-                await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                await owner.PersistThreadChangesAsync(thread, [RolloutChangeRecords.QueuedInputAdded(threadId, queued)], ct);
                 queueSnapshot = queue.ToList();
             }
 
@@ -125,7 +125,7 @@ public sealed partial class SessionService
 
                 activeTurnId = activeTurn.Id;
                 var queue = thread.QueuedInputs.ToList();
-                queue.Add(new QueuedTurnInput
+                var steered = new QueuedTurnInput
                 {
                     Id = SessionIdGenerator.NewQueuedInputId(),
                     ThreadId = threadId,
@@ -142,10 +142,11 @@ public sealed partial class SessionService
                     TriggerRefId = triggerInfo?.RefId,
                     TriggerStatus = triggerInfo?.Status,
                     SentAsGoal = inputSnapshot?.SentAsGoal
-                });
+                };
+                queue.Add(steered);
                 thread.QueuedInputs = queue;
                 thread.LastActiveAt = DateTimeOffset.UtcNow;
-                await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                await owner.PersistThreadChangesAsync(thread, [RolloutChangeRecords.QueuedInputAdded(threadId, steered)], ct);
                 queueSnapshot = queue.ToList();
             }
 
@@ -174,7 +175,11 @@ public sealed partial class SessionService
 
                 thread.QueuedInputs = queue;
                 thread.LastActiveAt = DateTimeOffset.UtcNow;
-                await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                await owner.PersistThreadChangesAsync(
+                    thread,
+                    [RolloutChangeRecords.QueuedInputRemoved(threadId, queuedInputId, thread.LastActiveAt)],
+                    ct,
+                    deleteUnreferencedAttachments: false);
                 queueSnapshot = queue.ToList();
             }
 
@@ -204,7 +209,10 @@ public sealed partial class SessionService
                 {
                     thread.QueuedInputs = reordered;
                     thread.LastActiveAt = DateTimeOffset.UtcNow;
-                    await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                    await owner.PersistThreadChangesAsync(
+                        thread,
+                        [RolloutChangeRecords.QueuedInputReordered(threadId, reordered.Select(static q => q.Id).ToList(), thread.LastActiveAt)],
+                        ct);
                 }
 
                 queueSnapshot = thread.QueuedInputs.ToList();
@@ -269,7 +277,10 @@ public sealed partial class SessionService
                     queue[queueIndex] = queued with { Status = "guidancePending", ReadyAfterTurnId = turn.Id };
                     thread.QueuedInputs = queue;
                     thread.LastActiveAt = DateTimeOffset.UtcNow;
-                    await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                    await owner.PersistThreadChangesAsync(
+                        thread,
+                        [RolloutChangeRecords.QueuedInputUpdated(threadId, queue[queueIndex], thread.LastActiveAt)],
+                        ct);
                     queueSnapshot = queue.ToList();
                     changed = true;
                 }
@@ -283,7 +294,10 @@ public sealed partial class SessionService
                     queue[queueIndex] = queued with { Status = "queued" };
                     thread.QueuedInputs = queue;
                     thread.LastActiveAt = DateTimeOffset.UtcNow;
-                    await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                    await owner.PersistThreadChangesAsync(
+                        thread,
+                        [RolloutChangeRecords.QueuedInputUpdated(threadId, queue[queueIndex], thread.LastActiveAt)],
+                        ct);
                     queueSnapshot = queue.ToList();
                     changed = true;
                 }
@@ -335,7 +349,11 @@ public sealed partial class SessionService
                     queue.RemoveAt(queueIndex);
                     thread.QueuedInputs = queue;
                     thread.LastActiveAt = DateTimeOffset.UtcNow;
-                    await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                    await owner.PersistThreadChangesAsync(
+                        thread,
+                        [RolloutChangeRecords.QueuedInputRemoved(threadId, queued.Id, thread.LastActiveAt)],
+                        ct,
+                        deleteUnreferencedAttachments: false);
                     queueSnapshot = queue.ToList();
                 }
 
@@ -389,7 +407,10 @@ public sealed partial class SessionService
                         {
                             queue.Insert(0, queued);
                             thread.QueuedInputs = queue;
-                            await owner.PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                            var records = new List<ThreadRolloutRecord> { RolloutChangeRecords.QueuedInputAdded(threadId, queued) };
+                            if (queue.Count > 1)
+                                records.Add(RolloutChangeRecords.QueuedInputReordered(threadId, queue.Select(static q => q.Id).ToList(), thread.LastActiveAt));
+                            await owner.PersistThreadChangesAsync(thread, records, CancellationToken.None);
                             queueSnapshot = queue.ToList();
                         }
                     }

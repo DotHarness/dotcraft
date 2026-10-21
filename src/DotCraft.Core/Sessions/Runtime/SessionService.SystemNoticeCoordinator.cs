@@ -190,7 +190,7 @@ public sealed partial class SessionService
                     broker.PublishItemEvent(SessionEventType.ItemCompleted, turn.Id, item);
                 }
 
-                await owner.PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                await owner.PersistTurnItemsAsync(thread, turn, materialize: true, CancellationToken.None);
             }
             catch (Exception exception)
             {

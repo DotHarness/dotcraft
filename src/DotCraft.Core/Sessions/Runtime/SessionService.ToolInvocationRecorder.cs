@@ -77,7 +77,7 @@ public sealed partial class SessionService
             channel.EmitItemStarted(item);
         if (commandExecutionItem is not null)
             channel.EmitItemStarted(commandExecutionItem);
-        await PersistThreadIfMaterializedAsync(runtime.Thread, cancellationToken).ConfigureAwait(false);
+        await PersistTurnItemsAsync(runtime.Thread, turn, materialize: false, cancellationToken).ConfigureAwait(false);
     }
 
     internal static SessionItem? RegisterCommandExecutionForInvocation(
@@ -278,7 +278,7 @@ public sealed partial class SessionService
             RecordQueuedSystemNotices(context, turnRuntime, turn, channel);
         }
 
-        await PersistThreadIfMaterializedAsync(runtime.Thread, cancellationToken).ConfigureAwait(false);
+        await PersistTurnItemsAsync(runtime.Thread, turn, materialize: false, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

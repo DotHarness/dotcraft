@@ -248,7 +248,7 @@ public sealed partial class SessionService
 
                 turn.Items.Add(item);
                 thread.LastActiveAt = now;
-                await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                await PersistTurnItemsAsync(thread, turn, materialize: true, CancellationToken.None);
                 eventChannel.EmitItemStarted(item);
                 eventChannel.EmitItemCompleted(item);
             }
@@ -278,7 +278,7 @@ public sealed partial class SessionService
 
                 turn.Items.Add(item);
                 thread.LastActiveAt = startedAt;
-                await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                await PersistTurnItemsAsync(thread, turn, materialize: true, CancellationToken.None);
                 eventChannel.EmitItemStarted(item);
 
                 var (rootThreadId, agentPath) = ResolveInputActivityTarget();
@@ -378,7 +378,7 @@ public sealed partial class SessionService
                     Status = status
                 };
                 thread.LastActiveAt = item.CompletedAt.Value;
-                await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                await PersistTurnItemsAsync(thread, turn, materialize: true, CancellationToken.None);
                 eventChannel.EmitItemCompleted(item);
                 return new UserCoordinationSleepResult(actualDurationMs, status);
             }
@@ -512,7 +512,7 @@ public sealed partial class SessionService
                 IReadOnlyList<QueuedTurnInput> queueSnapshot;
                 using (await AcquireThreadQueueLockAsync(threadId, CancellationToken.None))
                 {
-                    var changed = false;
+                    var restored = new List<QueuedTurnInput>();
                     var queue = thread.QueuedInputs.ToList();
                     for (var i = queue.Count - 1; i >= 0; i--)
                     {
@@ -524,15 +524,18 @@ public sealed partial class SessionService
                         }
 
                         queue[i] = queued with { Status = "queued" };
-                        changed = true;
+                        restored.Add(queue[i]);
                     }
 
-                    if (!changed)
+                    if (restored.Count == 0)
                         return;
 
                     thread.QueuedInputs = queue;
                     thread.LastActiveAt = DateTimeOffset.UtcNow;
-                    await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                    await PersistThreadChangesAsync(
+                        thread,
+                        restored.Select(queued => RolloutChangeRecords.QueuedInputUpdated(thread.Id, queued, thread.LastActiveAt)).ToList(),
+                        CancellationToken.None);
                     queueSnapshot = queue.ToList();
                 }
 

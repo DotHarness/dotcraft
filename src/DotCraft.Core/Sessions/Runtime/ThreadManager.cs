@@ -203,6 +203,8 @@ internal sealed class TurnExecutionState : IDisposable
 
     public CancellationTokenSource? Cancellation { get; set; }
 
+    public PersistedTurnItems PersistedItems { get; } = new();
+
     public bool IntentionallyInterrupted { get; private set; }
 
     public void Interrupt()

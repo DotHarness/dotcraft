@@ -95,6 +95,25 @@ public sealed partial class ThreadStore : IAsyncDisposable
     }
 
     /// <summary>
+    /// Appends the records of an Item or queue change without replaying the rollout. A thread whose
+    /// rollout is missing or must move is saved whole instead.
+    /// </summary>
+    internal async Task AppendThreadChangesAsync(
+        SessionThread thread,
+        IReadOnlyList<ThreadRolloutRecord> records,
+        bool deleteUnreferencedAttachments,
+        CancellationToken ct = default)
+    {
+        if (records.Count == 0)
+            return;
+
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
+        var result = await _rolloutStore.AppendChangeRecordsAsync(thread, records, ct)
+            ?? await _rolloutStore.SaveThreadAsync(thread, await _rolloutStore.LoadThreadAsync(thread.Id, ct), ct);
+        await TryUpdateThreadProjectionAsync(thread, result, ct, deleteUnreferencedAttachments);
+    }
+
+    /// <summary>
     /// Appends a rollback record for an already-pruned thread and updates metadata/cache.
     /// </summary>
     public async Task RollbackThreadAsync(
@@ -560,7 +579,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
                     }
                     if (thread == null)
                         continue;
-                    UpdateThreadProjection(thread, path, length);
+                    UpdateThreadProjection(thread, path, length, deleteUnreferencedAttachments: true);
                 }
 
                 if (unreadableThreadIds.Count == 0 && DateTimeOffset.UtcNow - _lastOrphanSweep >= OrphanSweepInterval)
@@ -681,11 +700,12 @@ public sealed partial class ThreadStore : IAsyncDisposable
     private async Task TryUpdateThreadProjectionAsync(
         SessionThread thread,
         RolloutAppendResult result,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool deleteUnreferencedAttachments = true)
     {
         try
         {
-            UpdateThreadProjection(thread, result.Path, result.Receipt.ConfirmedOffset);
+            UpdateThreadProjection(thread, result.Path, result.Receipt.ConfirmedOffset, deleteUnreferencedAttachments);
         }
         catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
         {
@@ -696,7 +716,11 @@ public sealed partial class ThreadStore : IAsyncDisposable
         await TryProjectHistoryAsync(thread.Id, result, ct);
     }
 
-    private void UpdateThreadProjection(SessionThread thread, string rolloutPath, long projectedRolloutOffset)
+    private void UpdateThreadProjection(
+        SessionThread thread,
+        string rolloutPath,
+        long projectedRolloutOffset,
+        bool deleteUnreferencedAttachments)
     {
         var previousPaths = _attachmentStore.LoadCandidatePaths(thread.Id);
         using var connection = StateDatabase.OpenConnection();
@@ -715,8 +739,11 @@ public sealed partial class ThreadStore : IAsyncDisposable
             projectedRolloutOffset);
         transaction.Commit();
 
-        _attachmentStore.CleanupCandidates(
-            previousPaths.Except(currentPaths, StringComparer.OrdinalIgnoreCase));
+        if (deleteUnreferencedAttachments)
+        {
+            _attachmentStore.CleanupCandidates(
+                previousPaths.Except(currentPaths, StringComparer.OrdinalIgnoreCase));
+        }
     }
 
     private async Task TryUpdateRolloutOffsetProjectionAsync(

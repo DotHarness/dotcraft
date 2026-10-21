@@ -57,6 +57,32 @@ public sealed partial class SessionServiceRuntimeSignalTests
         Assert.Equal(snapshot.MaterializedInputParts, restored.MaterializedInputParts);
     }
 
+    [Fact]
+    public async Task RemovingQueuedInput_KeepsItsAttachedImage()
+    {
+        using var model = new HistoryBoundaryClient((_, _, _) => Task.FromResult<AIContent>(new TextContent("unused")));
+        await using var factory = CreateAgentFactory(model);
+        var service = CreateService(factory, model, useStreamingFunctionInvoker: true);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        var imageDir = Path.Combine(_tempDir, "attachments", "images");
+        Directory.CreateDirectory(imageDir);
+        var imagePath = Path.Combine(imageDir, "queued.png");
+        await File.WriteAllBytesAsync(imagePath, [1, 2, 3]);
+        SessionInputPart[] parts =
+        [
+            new() { Type = "text", Text = "look" },
+            new() { Type = "localImage", Path = imagePath }
+        ];
+        var queued = await service.EnqueueTurnInputAsync(
+            thread.Id,
+            [new TextContent("look")],
+            inputSnapshot: new SessionInputSnapshot { NativeInputParts = parts, MaterializedInputParts = parts, DisplayText = "look" });
+
+        await service.RemoveQueuedTurnInputAsync(thread.Id, queued.Id);
+
+        Assert.True(File.Exists(imagePath));
+    }
+
     private static SessionInputSnapshot StructuredSnapshot()
     {
         SessionInputContext[] contexts = [

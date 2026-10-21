@@ -193,6 +193,23 @@ internal sealed class ThreadRolloutStore
         return new RolloutAppendResult(targetPath, receipt);
     }
 
+    /// <summary>Appends change records to the thread's current rollout, or returns null when it must be saved whole.</summary>
+    public async Task<RolloutAppendResult?> AppendChangeRecordsAsync(
+        SessionThread thread,
+        IReadOnlyList<ThreadRolloutRecord> records,
+        CancellationToken ct = default)
+    {
+        var path = ResolveExistingPath(thread.Id);
+        if (path == null
+            || !string.Equals(path, GetExpectedPath(thread.Id, thread.Status == ThreadStatus.Archived), StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var receipt = await AppendRecordsAsync(thread.Id, path, records, ct);
+        return new RolloutAppendResult(path, receipt);
+    }
+
     public async Task<RolloutAppendResult> AppendThreadBaselineAsync(SessionThread thread, CancellationToken ct = default)
     {
         var path = ResolveExistingPath(thread.Id);
@@ -658,7 +675,7 @@ internal sealed class ThreadRolloutStore
             {
                 records.Add(CreateTurnStartedRecord(turn));
                 foreach (var item in turn.Items)
-                    records.Add(CreateItemAppendedRecord(turn.Id, item));
+                    records.Add(RolloutChangeRecords.ItemAppended(turn.Id, item));
 
                 if (turn.Status != TurnStatus.Running)
                     records.Add(CreateTurnCompletedRecord(turn));
@@ -673,7 +690,7 @@ internal sealed class ThreadRolloutStore
 
             records.Add(CreateTurnStartedRecord(turn));
             foreach (var item in turn.Items)
-                records.Add(CreateItemAppendedRecord(turn.Id, item));
+                records.Add(RolloutChangeRecords.ItemAppended(turn.Id, item));
 
             if (turn.Status != TurnStatus.Running)
                 records.Add(CreateTurnCompletedRecord(turn));
@@ -712,7 +729,7 @@ internal sealed class ThreadRolloutStore
                 if (i >= previousTurn.Items.Count
                     || !JsonEquals(previousTurn.Items[i], currentTurn.Items[i]))
                 {
-                    records.Add(CreateItemAppendedRecord(currentTurn.Id, currentTurn.Items[i]));
+                    records.Add(RolloutChangeRecords.ItemAppended(currentTurn.Id, currentTurn.Items[i]));
                 }
             }
 
@@ -758,51 +775,16 @@ internal sealed class ThreadRolloutStore
         var previousQueue = previous?.QueuedInputs ?? [];
         var currentQueue = current.QueuedInputs;
         foreach (var queued in currentQueue.Where(q => previousQueue.All(p => !string.Equals(p.Id, q.Id, StringComparison.Ordinal))))
-        {
-            records.Add(new ThreadRolloutRecord
-            {
-                Kind = RolloutKinds.QueuedInputAdded,
-                Timestamp = queued.CreatedAt,
-                QueuedInputAdded = new QueuedInputAddedPayload
-                {
-                    ThreadId = current.Id,
-                    QueuedInput = queued
-                }
-            });
-        }
+            records.Add(RolloutChangeRecords.QueuedInputAdded(current.Id, queued));
 
         foreach (var removed in previousQueue.Where(p => currentQueue.All(q => !string.Equals(q.Id, p.Id, StringComparison.Ordinal))))
-        {
-            records.Add(new ThreadRolloutRecord
-            {
-                Kind = RolloutKinds.QueuedInputRemoved,
-                Timestamp = current.LastActiveAt,
-                QueuedInputRemoved = new QueuedInputRemovedPayload
-                {
-                    ThreadId = current.Id,
-                    QueuedInputId = removed.Id,
-                    LastActiveAt = current.LastActiveAt
-                }
-            });
-        }
+            records.Add(RolloutChangeRecords.QueuedInputRemoved(current.Id, removed.Id, current.LastActiveAt));
 
         foreach (var currentQueued in currentQueue)
         {
             var previousQueued = previousQueue.FirstOrDefault(q => string.Equals(q.Id, currentQueued.Id, StringComparison.Ordinal));
-            if (previousQueued == null || string.Equals(previousQueued.Status, currentQueued.Status, StringComparison.Ordinal))
-                continue;
-
-            records.Add(new ThreadRolloutRecord
-            {
-                Kind = RolloutKinds.QueuedInputUpdated,
-                Timestamp = current.LastActiveAt,
-                QueuedInputUpdated = new QueuedInputUpdatedPayload
-                {
-                    ThreadId = current.Id,
-                    QueuedInput = currentQueued,
-                    LastActiveAt = current.LastActiveAt
-                }
-            });
+            if (previousQueued != null && !string.Equals(previousQueued.Status, currentQueued.Status, StringComparison.Ordinal))
+                records.Add(RolloutChangeRecords.QueuedInputUpdated(current.Id, currentQueued, current.LastActiveAt));
         }
 
         var previousQueueIds = previousQueue.Select(q => q.Id).ToList();
@@ -811,17 +793,7 @@ internal sealed class ThreadRolloutStore
             && !previousQueueIds.SequenceEqual(currentQueueIds, StringComparer.Ordinal)
             && previousQueueIds.ToHashSet(StringComparer.Ordinal).SetEquals(currentQueueIds))
         {
-            records.Add(new ThreadRolloutRecord
-            {
-                Kind = RolloutKinds.QueuedInputReordered,
-                Timestamp = current.LastActiveAt,
-                QueuedInputReordered = new QueuedInputReorderedPayload
-                {
-                    ThreadId = current.Id,
-                    OrderedQueuedInputIds = currentQueueIds,
-                    LastActiveAt = current.LastActiveAt
-                }
-            });
+            records.Add(RolloutChangeRecords.QueuedInputReordered(current.Id, currentQueueIds, current.LastActiveAt));
         }
 
         if (previous == null || previous.Status != current.Status || previous.LastActiveAt != current.LastActiveAt)
@@ -947,20 +919,6 @@ internal sealed class ThreadRolloutStore
                     Initiator = turn.Initiator,
                     Items = []
                 }
-            }
-        };
-    }
-
-    private static ThreadRolloutRecord CreateItemAppendedRecord(string turnId, SessionItem item)
-    {
-        return new ThreadRolloutRecord
-        {
-            Kind = RolloutKinds.ItemAppended,
-            Timestamp = item.CompletedAt ?? item.CreatedAt,
-            ItemAppended = new ItemAppendedPayload
-            {
-                TurnId = turnId,
-                Item = item
             }
         };
     }

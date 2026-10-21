@@ -48,6 +48,13 @@ public sealed class SessionPersistenceService(
     internal Task CommitTurnAsync(TurnPersistenceCommit commit, CancellationToken ct = default)
         => threadStore.CommitTurnAsync(commit, ct);
 
+    internal Task AppendThreadChangesAsync(
+        SessionThread thread,
+        IReadOnlyList<ThreadRolloutRecord> records,
+        bool deleteUnreferencedAttachments,
+        CancellationToken ct = default)
+        => threadStore.AppendThreadChangesAsync(thread, records, deleteUnreferencedAttachments, ct);
+
     internal WorkspaceStateDatabase StateDatabase => _stateRuntime;
 
     internal string DataPath => threadStore.DataPath;
