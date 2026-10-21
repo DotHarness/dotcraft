@@ -9,6 +9,9 @@ public static class SystemPromptSectionNames
     /// <summary>The available SubAgent profiles, present only when <c>SpawnAgent</c> is exposed.</summary>
     public const string SubAgentProfiles = "subagent-profiles";
 
+    /// <summary>How the agent waits for commands, SubAgents, and Workflow runs that continue in the background.</summary>
+    public const string BackgroundTasks = "background-tasks";
+
     /// <summary>SubAgent spawning and coordination guidance.</summary>
     public const string SubAgentLifecycle = "subagent-lifecycle";
 

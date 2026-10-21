@@ -119,6 +119,12 @@ A target whose spawn edge was closed by a client is an error.
 
 Their results name the task id and tell the model that a notification arrives when the task ends.
 
+### 4.4 Waiting
+
+The model waits for a task only through its notification. Its guidance treats the result as unknown
+until then, rules out polling and duplicating the task's work, and has it end its turn when no
+independent work remains, so the notification starts the next Turn (§5.3).
+
 ## 5. Notifications
 
 ### 5.1 When a notification is sent

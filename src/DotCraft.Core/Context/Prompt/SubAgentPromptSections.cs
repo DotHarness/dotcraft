@@ -22,31 +22,20 @@ internal static class SubAgentPromptSections
         if (!context.IsToolAvailable("SpawnAgent"))
             return null;
 
-        var controls = new List<string>();
-        if (context.IsToolAvailable("ListAgents"))
-            controls.Add("Use `ListAgents` to list live agents in the current root thread tree.");
-        if (context.IsToolAvailable("SendMessage"))
-            controls.Add("Use `SendMessage` to give a child more work or continue it.");
-        if (context.IsToolAvailable("TaskStop"))
-            controls.Add("Use `TaskStop` to stop a child's work that is no longer needed.");
-
-        var controlsText = controls.Count == 0
-            ? "- Track spawned agent paths and manage their results explicitly with the tools currently available."
-            : "- " + string.Join("\n- ", controls);
+        var continuation = context.IsToolAvailable("SendMessage")
+            ? "\n- Give a child more work with `SendMessage` to its `agentPath` instead of spawning a new one."
+            : string.Empty;
 
         return
 $$"""
-## SubAgent Lifecycle
+## Delegating to SubAgents
 
-Use `SpawnAgent` for independent work that can run while you continue the main task.
+Use `SpawnAgent` for sizeable, independent work: parallel tracks, or reading across many files when you only need the conclusion. Each child re-establishes context and reports back, so do small, bounded tasks yourself and do not spawn children to re-check work you can verify inline.
 
-- Handle immediate blockers yourself. Delegate parallel exploration, verification, or implementation in separate areas.
-- Give each child a specific, self-contained task. Use `agentRole: "explorer"` for read-only research and `agentRole: "worker"` for bounded execution.
-- Address the child by the returned `agentPath`.
-- You are notified when a child finishes. Do not poll, sleep, or predict its result; continue other work or end your turn.
-- Set `model` or `reasoningEffort` only when the user, applicable `AGENTS.md` instructions, or skill instructions explicitly request it. Overrides require `forkTurns` to be `"none"` or a positive integer string.
-{{controlsText}}
-- When a child finishes, review and integrate its result without redoing the same work.
+- Brief each child precisely once. A child with the default `forkTurns` inherits this conversation, so state what to do and what is out of scope. A child with `forkTurns: "none"` starts with no context, so explain the goal, what you already know, and the report you need. Give concrete paths and changes instead of "based on your findings, fix it".
+- Use `agentRole: "explorer"` for read-only research and `agentRole: "worker"` for changes, giving each worker the files it owns. Start independent children together.
+- A child's report is visible only to you. Relay what matters, and check a worker's actual changes before reporting them as done.{{continuation}}
+- Set `model` or `reasoningEffort` only when the user, `AGENTS.md`, or a skill asks for it. Overrides require `forkTurns` to be `"none"` or a positive integer string.
 """;
     }
 }

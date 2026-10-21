@@ -92,13 +92,55 @@ public sealed partial class CodeModeSessionTests : IDisposable
         });
     }
 
+    [Fact]
+    public async Task OnlyMode_KeepsGuidanceForToolsReachedThroughCodeMode()
+    {
+        var config = AppConfigTestFactory.CreateOpenAI();
+        config.Tools.CodeMode.Mode = AppConfig.CodeModeSetting.Only;
+        var chatClient = new ExecChatClient("text('ok');");
+        var dispatcher = new ToolDispatcher();
+        await using var host = new CodeModeWorkerHost(new ManagedChildProcessFactory(), _tempDir, new CodeModeLimits());
+        await using var agentFactory = new AgentFactory(
+            dotcraftPath: _tempDir,
+            workspacePath: _tempDir,
+            config: config,
+            memoryStore: new MemoryStore(_tempDir),
+            skillsLoader: new SkillsLoader(_tempDir),
+            approvalService: new SessionScopedApprovalService(new AutoApproveApprovalService()),
+            blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
+            chatClient: chatClient,
+            toolDispatcher: dispatcher,
+            toolSources: [new EchoToolSource("SpawnAgent")]);
+        var service = new SessionService(
+            agentFactory,
+            new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent(),
+            new SessionPersistenceService(new ThreadStore(_tempDir)),
+            new SessionGate(),
+            toolSnapshotFinalizers: [new CodeModeToolFinalizer(() => config, host, new CodeModeStore(), dispatcher)]);
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "u",
+            WorkspacePath = _tempDir
+        });
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        await foreach (var _ in service.SubmitInputAsync(thread.Id, [new TextContent("start")]))
+        {
+        }
+
+        Assert.DoesNotContain("SpawnAgent", chatClient.ToolNames);
+        Assert.Contains("## Delegating to SubAgents", chatClient.Instructions, StringComparison.Ordinal);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_tempDir, recursive: true); }
         catch { }
     }
 
-    private sealed class EchoToolSource : IToolSource
+    private sealed class EchoToolSource(string name = "Echo") : IToolSource
     {
         public string SourceId => "echo-test";
 
@@ -106,10 +148,10 @@ public sealed partial class CodeModeSessionTests : IDisposable
             ToolPlanningContext context,
             CancellationToken cancellationToken = default)
         {
-            var id = new ToolDefinitionId(ToolSourceKind.CoreNative, SourceId, new SourceToolId("Echo"));
+            var id = new ToolDefinitionId(ToolSourceKind.CoreNative, SourceId, new SourceToolId(name));
             var definition = new ToolDefinition(
                 id,
-                new ToolName(null, "Echo"),
+                new ToolName(null, name),
                 "Echo a value.",
                 JsonSerializer.SerializeToElement(new { type = "object", properties = new { value = new { type = "string" } } }));
             var binding = new ToolRuntimeBinding(
@@ -140,6 +182,8 @@ public sealed partial class CodeModeSessionTests : IDisposable
 
         public IReadOnlyList<string> ToolNames { get; private set; } = [];
 
+        public string Instructions { get; private set; } = string.Empty;
+
         public IReadOnlyDictionary<string, string> Descriptions { get; private set; } = new Dictionary<string, string>();
 
         public FunctionResultContent? ExecResult { get; private set; }
@@ -158,6 +202,10 @@ public sealed partial class CodeModeSessionTests : IDisposable
             if (Interlocked.Increment(ref _requests) == 1)
             {
                 ToolNames = options?.Tools?.Select(static tool => tool.Name).ToArray() ?? [];
+                Instructions = string.Join('\n', chatMessages
+                    .Where(static message => message.Role == ChatRole.System)
+                    .Select(static message => message.Text)
+                    .Prepend(options?.Instructions ?? string.Empty));
                 Descriptions = options?.Tools?.ToDictionary(static tool => tool.Name, static tool => tool.Description)
                                ?? new Dictionary<string, string>();
                 yield return new ChatResponseUpdate(ChatRole.Assistant,

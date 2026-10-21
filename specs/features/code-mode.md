@@ -76,6 +76,8 @@ lists `Tools.CodeMode.Mode`.
 
 In `only` mode the deferred-search registration disappears once every deferred registration is on the
 nested surface, because those tools are reached through `ALL_TOOLS` and could not be called directly.
+System prompt sections that depend on tool availability still treat nested tools as available
+([Prompt Composition](../architecture/prompt-composition.md#2-base-instruction-pipeline)).
 
 Code mode requires the script worker (§9), which starts lazily. A `CodeMode` call whose worker cannot start
 fails with `code_mode_unavailable`. A later snapshot build retries the start before applying the mode;

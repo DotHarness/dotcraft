@@ -490,7 +490,10 @@ public sealed class AgentFactory : IAsyncDisposable
                 snapshot,
                 planningContext,
                 invocation,
-                cancellationToken));
+                cancellationToken),
+            snapshot.ModelHiddenDefinitions
+                .Concat(snapshot.DeferredDefinitions.Values.SelectMany(static group => group))
+                .Select(definition => snapshot.ProviderFlatNames[definition.Name]));
     }
 
     private void PrepareSnapshotDeferredTools(
@@ -539,7 +542,8 @@ public sealed class AgentFactory : IAsyncDisposable
         AgentModeManager? modeManager,
         AgentRuntimeContext ctx,
         string? instructions = null,
-        Func<FunctionInvocationContext, CancellationToken, ValueTask<object?>>? functionInvoker = null)
+        Func<FunctionInvocationContext, CancellationToken, ValueTask<object?>>? functionInvoker = null,
+        IEnumerable<string>? indirectToolNames = null)
     {
         // Snapshot-backed declarations execute through ToolDispatcher, which owns the
         // common policy and hook pipeline. Keep client-side evaluators only
@@ -642,8 +646,14 @@ public sealed class AgentFactory : IAsyncDisposable
         // Custom instructions: compose no context pipeline so ChatOptions.Instructions is the system prompt (e.g. commit-suggest).
         if (string.IsNullOrWhiteSpace(instructions))
         {
+            var callableToolNames = Array.AsReadOnly(
+                tools.Select(static tool => tool.Name)
+                    .Concat(indirectToolNames ?? [])
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+                    .ToArray());
             string? subAgentProfilesSection = null;
-            if (tools.Any(t => string.Equals(t.Name, "SpawnAgent", StringComparison.OrdinalIgnoreCase)))
+            if (callableToolNames.Contains("SpawnAgent", StringComparer.OrdinalIgnoreCase))
             {
                 subAgentProfilesSection = SubAgentProfilePromptSectionBuilder.Build(
                     ctx.Config.SubAgentProfiles,
@@ -680,6 +690,7 @@ public sealed class AgentFactory : IAsyncDisposable
             promptInputs = new AgentPromptInputs
             {
                 ToolNames = sortedToolNames,
+                CallableToolNames = callableToolNames,
                 DeferredMcpServerNames = deferredServerNames,
                 SubAgentProfilesSection = subAgentProfilesSection,
                 SkillVariantModeEnabled = skillVariantModeEnabled,
@@ -697,7 +708,7 @@ public sealed class AgentFactory : IAsyncDisposable
                 ctx.SkillsLoader,
                 ctx.BotPath,
                 ctx.WorkspacePath,
-                () => promptInputs.ToolNames,
+                () => promptInputs.CallableToolNames,
                 _customCommandLoader,
                 deferredMcpServerNames: promptInputs.DeferredMcpServerNames,
                 subAgentProfilesSection: promptInputs.SubAgentProfilesSection,

@@ -22,7 +22,7 @@ public sealed class AgentTools(
 {
     private static readonly JsonSerializerOptions ResultJsonOptions = new(JsonSerializerOptions.Web);
 
-    [Description("Spawn a subagent as a child thread for concrete, bounded work that can run while the parent continues. Omit model to use the configured SubAgent or runtime default; set model only when an explicit override is needed.")]
+    [Description("Start a subagent in the background. You will be notified when it finishes. Omit model to use the configured SubAgent or runtime default, and set it only when an explicit override is needed.")]
     [Tool]
     [ToolPresentation("core.subagent", Operation = "spawn")]
     public async Task<string> SpawnAgent(
@@ -75,11 +75,11 @@ public sealed class AgentTools(
             waitForCompletion: false,
             subAgentCoordinator,
             cancellationToken);
-        result.Message ??= "The subagent is working in the background. You will be notified when it finishes; do not predict its result.";
+        result.Message ??= "The subagent is working in the background. You will be notified when it finishes. You know nothing about its result until then, so do not predict it or repeat its work. Continue other work, or briefly tell the user what you started and end your response.";
         return SerializeResult(result);
     }
 
-    [Description("Send a message to another agent. A subagent you spawned starts or continues work on it, even after it finished or was stopped. Other agents receive it in their mailbox without starting a turn.")]
+    [Description("Send a message to another agent. A subagent you spawned works on it in the background, even after it finished or was stopped, and you will be notified when it finishes. Other agents receive it in their mailbox without starting a turn.")]
     [Tool]
     [ToolPresentation("core.subagent", Operation = "sendMessage")]
     public async Task<string> SendMessage(
@@ -98,7 +98,7 @@ public sealed class AgentTools(
         return SerializeResult(result);
     }
 
-    [Description("List root and available SubAgent paths.")]
+    [Description("List root and available SubAgent paths. You will be notified when a subagent finishes, so do not use this to check its progress.")]
     [Tool]
     [ToolPresentation("core.subagent", Operation = "list")]
     public async Task<string> ListAgents(

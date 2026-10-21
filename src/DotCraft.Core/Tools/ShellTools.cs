@@ -47,14 +47,14 @@ public sealed class ShellTools
             approvalService);
     }
 
-    [Description("Execute a shell command and return its output. A command still running after the wait returns a session ID and keeps running. You will be notified when it finishes, so do not poll or sleep.")]
+    [Description("Execute a shell command and return its output. A command still running after the wait keeps running in the background and returns a session ID. You will be notified when it finishes, so do not poll or sleep.")]
     [Tool(MaxResultChars = 30_000)]
     [ToolPresentation("core.shell", Operation = "exec")]
     [ToolRpc]
     public async Task<ToolExecutionResult> Exec(
         [Description("The shell command to execute.")] string command,
         [Description("Optional working directory for the command.")] string? workingDir = null,
-        [Description("Run the command in the background when you do not need its result right away.")] bool runInBackground = false,
+        [Description("Run the command in the background when you do not need its result right away. You will be notified when it finishes. Do not append '&'.")] bool runInBackground = false,
         [Description("Maximum milliseconds to wait before returning a session ID for a still-running command. Commands that finish sooner return immediately. Omit this parameter to use the default.")] int? yieldTimeMs = null,
         [Description("Maximum output characters to return in this tool result.")] int? maxOutputChars = null,
         [Description("Keep stdin open so WriteStdin can send input to the running process. This is pipe-based, not a full PTY.")] bool interactive = false,
@@ -115,7 +115,7 @@ public sealed class ShellTools
             cancellationToken);
     }
 
-    [Description("Write input to a background terminal session and return the output produced since your last read.")]
+    [Description("Write input to an interactive background command and return the output produced since your last read. You will be notified when the command finishes, so do not use this to wait for it.")]
     [Tool(MaxResultChars = 30_000)]
     [ToolPresentation("core.shell", Operation = "writeStdin")]
     [ToolRpc]
@@ -389,7 +389,7 @@ public sealed class ShellTools
             sb.AppendLine($"Exit code: {snapshot.ExitCode}");
         if (snapshot.Status == BackgroundTerminalStatus.Running)
             sb.AppendLine(snapshot.CompletionNoticeArmed
-                ? "The command is still running in the background. You will be notified when it finishes."
+                ? "The command is still running in the background. You will be notified when it finishes, so do not poll it."
                 : "The command is still running in the background.");
         AppendWaitResult(sb, snapshot, waitedForPattern);
         if (snapshot.Truncated)

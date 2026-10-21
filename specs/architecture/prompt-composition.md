@@ -46,7 +46,7 @@ Ordinary generated agents build base instructions from stable sections in this o
 |-------|---------|-------|
 | 1 | Core identity and workspace | Product identity, workspace, environment, tool-use policy, and attribution rules. |
 | 2 | Available SubAgent profiles | Parent-facing summary for choosing visible SubAgent launch profiles. |
-| 3 | SubAgent lifecycle | Parent-facing guidance for spawning, messaging, waiting, and closing child agents. |
+| 3 | Background tasks and SubAgent delegation | Waiting for commands, SubAgents, and Workflow runs through their task notification, included when `Exec`, `SpawnAgent`, or `Workflow` is available. Delegation guidance follows when `SpawnAgent` is available. |
 | 4 | Working style | Progress updates and collaboration behavior. |
 | 5 | Response style | Final-answer and verbosity behavior. |
 | 6 | File editing workflow | File-editing and verification guidance. |
@@ -76,6 +76,8 @@ when reporting technical changes, rather than imposing a delivery checklist on e
 links follow the file-references section.
 
 Every section above is derived from configuration, workspace state, or the resolved tool surface.
+A tool counts as available when the model can call it in the Turn: directly, through Code Mode, or
+through deferred search.
 No section may depend on the identity of the running thread or on an attached client connection;
 that content belongs to thread context items (§4b), which is also why section 18 excludes native
 SubAgent role instructions.

@@ -10,6 +10,9 @@ public sealed record AgentPromptInputs
     /// <summary>Gets the tool names exposed to the model, ordered case-insensitively.</summary>
     public IReadOnlyList<string> ToolNames { get; init; } = [];
 
+    /// <summary>Gets every tool name the model can call, including tools reached through Code Mode or deferred search.</summary>
+    public IReadOnlyList<string> CallableToolNames { get; init; } = [];
+
     /// <summary>Gets the MCP servers whose tools are discovered on demand, or <see langword="null"/> when deferred loading is inactive.</summary>
     public IReadOnlyList<string>? DeferredMcpServerNames { get; init; }
 

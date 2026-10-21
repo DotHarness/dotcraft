@@ -79,7 +79,6 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
         var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync([source], planning);
         var definition = Assert.Single(snapshot.ModelVisibleDefinitions);
 
-        Assert.Equal("Start or resume a background Dynamic Workflow.", definition.Description);
         var properties = definition.InputSchema.GetProperty("properties");
         Assert.Equal(["mode", "script", "scriptPath", "name", "args", "resumeFromRunId"],
             properties.EnumerateObject().Select(static property => property.Name).ToArray());

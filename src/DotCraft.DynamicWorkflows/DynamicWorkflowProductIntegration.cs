@@ -23,7 +23,7 @@ internal enum DynamicWorkflowToolMode
 internal interface IDynamicWorkflowToolDeclaration
 {
     [ToolDeclaration(Name = "Workflow")]
-    [Description("Start or resume a background Dynamic Workflow.")]
+    [Description("Start or resume a Dynamic Workflow in the background. You will be notified when the run ends.")]
     void Workflow(
         [Description("Required workflow source mode.")] DynamicWorkflowToolMode mode,
         [Description("Required when mode is script.")] string script = "",
@@ -215,7 +215,7 @@ public sealed class DynamicWorkflowToolSource(
             ["name"] = run.Name,
             ["status"] = run.Status,
             ["scriptPath"] = run.ScriptPath,
-            ["message"] = "The workflow is running in the background. You will be notified when it finishes; do not predict its result."
+            ["message"] = "The workflow is running in the background. You will be notified when it finishes. You know nothing about its result until then, so do not predict it or repeat its work. Continue other work, or briefly tell the user what you started and end your response."
         }.ToJsonString();
     }
 }
