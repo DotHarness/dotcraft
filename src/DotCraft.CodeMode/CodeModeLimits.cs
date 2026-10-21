@@ -2,6 +2,7 @@ namespace DotCraft.CodeMode;
 
 public sealed record CodeModeLimits
 {
+    public TimeSpan DefaultYieldTime { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan DefaultTimeout { get; init; } = TimeSpan.FromSeconds(300);
     public TimeSpan MaxTimeout { get; init; } = TimeSpan.FromHours(1);
     public int DefaultMaxOutputTokens { get; init; } = 10_000;

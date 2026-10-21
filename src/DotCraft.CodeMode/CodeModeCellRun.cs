@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using DotCraft.Tools;
-using DotCraft.Utilities;
 
 namespace DotCraft.CodeMode;
 
@@ -17,37 +16,25 @@ internal sealed record CodeModeCellOutcome(
     string Status,
     string? Error,
     string? Stack,
-    JsonObject? StoreWrites);
+    JsonObject? StoreWrites,
+    bool StoreRejected = false);
 
 internal sealed class CodeModeCellRun(
     CodeModeExecDependencies dependencies,
     ToolInvocationContext context,
     CodeModeCellSession session,
-    PausableDeadline deadline,
-    CancellationToken turnToken) : IDisposable
+    CodeModeCell cell) : IDisposable
 {
     private readonly CodeModeLimits _limits = dependencies.Host.Limits;
-    private readonly CancellationTokenSource _nested = CancellationTokenSource.CreateLinkedTokenSource(turnToken);
+    private readonly CancellationTokenSource _nested = CancellationTokenSource.CreateLinkedTokenSource(cell.TerminationToken);
     private readonly SemaphoreSlim _concurrency = new(dependencies.Host.Limits.MaxConcurrentNestedCalls);
     private readonly List<Task> _dispatches = [];
-    private readonly List<CodeModeNestedCall> _calls = [];
     private int _callCount;
     private bool _drained;
 
-    public List<CodeModeOutputItem> Output { get; } = [];
-
-    public IReadOnlyList<CodeModeNestedCall> Calls
-    {
-        get
-        {
-            lock (_calls)
-                return _calls.ToArray();
-        }
-    }
-
     public async Task<CodeModeCellOutcome> RunAsync()
     {
-        var waitToken = deadline.Token;
+        var waitToken = cell.Deadline.Token;
         CancellationTokenSource? grace = null;
         string? stopError = null;
         var timedOut = false;
@@ -62,8 +49,8 @@ internal sealed class CodeModeCellRun(
                 }
                 catch (OperationCanceledException) when (grace is null)
                 {
-                    timedOut = !turnToken.IsCancellationRequested;
-                    grace = await StopAsync(timedOut ? CodeModeProtocol.TimeoutReason : "cancelled").ConfigureAwait(false);
+                    timedOut = !cell.TerminationRequested;
+                    grace = await StopAsync(timedOut ? CodeModeProtocol.TimeoutReason : CodeModeProtocol.Terminated).ConfigureAwait(false);
                     waitToken = grace.Token;
                     continue;
                 }
@@ -77,11 +64,6 @@ internal sealed class CodeModeCellRun(
                 {
                     case CodeModeCellEvent.WorkerFailed failed:
                         return Finish(timedOut, new CodeModeCellOutcome(CodeModeProtocol.Failed, $"The script stopped because {failed.Cause}.", null, null));
-                    case CodeModeCellEvent.StopRequested stop when grace is null:
-                        stopError = $"The script was stopped because {stop.Reason}.";
-                        grace = await StopAsync(stop.Reason).ConfigureAwait(false);
-                        waitToken = grace.Token;
-                        break;
                     case CodeModeCellEvent.Frame { Value: var frame }:
                         switch (frame.Type)
                         {
@@ -122,7 +104,7 @@ internal sealed class CodeModeCellRun(
             {
             }
             _drained = pending.All(static task => task.IsCompleted);
-            foreach (var call in Calls.Where(static call => call.Status == "running"))
+            foreach (var call in cell.Calls.Where(static call => call.Status == "running"))
                 call.Status = "cancelled";
         }
     }
@@ -137,7 +119,8 @@ internal sealed class CodeModeCellRun(
 
     private CodeModeCellOutcome Finish(bool timedOut, CodeModeCellOutcome outcome)
     {
-        turnToken.ThrowIfCancellationRequested();
+        if (cell.TerminationRequested)
+            return new CodeModeCellOutcome(CodeModeProtocol.Terminated, null, null, null);
         return timedOut
             ? outcome with { Status = CodeModeProtocol.TimedOut, StoreWrites = null }
             : outcome;
@@ -172,8 +155,7 @@ internal sealed class CodeModeCellRun(
         }
 
         var call = new CodeModeNestedCall(tool.JsName, "exec-" + Guid.NewGuid().ToString("N"));
-        lock (_calls)
-            _calls.Add(call);
+        cell.AddCall(call);
         var dispatch = Task.Run(() => DispatchAsync(call, tool, (JsonObject)arguments.DeepClone(), requestId));
         lock (_dispatches)
             _dispatches.Add(dispatch);
@@ -199,7 +181,7 @@ internal sealed class CodeModeCellRun(
         try
         {
             ToolExecutionResult result;
-            using (CodeModeApprovalScope.Enter(deadline))
+            using (CodeModeApprovalScope.Enter(cell.Approvals))
             {
                 result = await dependencies.Dispatcher.DispatchAsync(
                     dependencies.Snapshot,
@@ -245,11 +227,11 @@ internal sealed class CodeModeCellRun(
         switch (payload?["type"]?.GetValue<string>())
         {
             case "text" when payload["text"]?.GetValue<string>() is { } text:
-                Output.Add(new CodeModeOutputItem(text));
+                cell.AddOutput(new CodeModeOutputItem(text));
                 return true;
             case "image" when payload["mimeType"]?.GetValue<string>() is { } mimeType
                               && payload["data"]?.GetValue<string>() is { } data:
-                Output.Add(new CodeModeOutputItem(null, mimeType, data));
+                cell.AddOutput(new CodeModeOutputItem(null, mimeType, data));
                 return true;
             default:
                 return false;

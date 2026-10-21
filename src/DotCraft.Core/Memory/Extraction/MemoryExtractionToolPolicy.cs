@@ -8,6 +8,7 @@ namespace DotCraft.Memory.Extraction;
 internal sealed class MemoryExtractionToolPolicy(string storeDirectory) : IToolPolicyEvaluator
 {
     private static readonly ToolName CodeModeToolName = new(null, "CodeMode");
+    private static readonly ToolName CodeModeWaitToolName = new(null, "CodeModeWait");
 
     public ValueTask<ToolDispatchDecision> EvaluateAsync(
         ToolInvocationContext context,
@@ -22,7 +23,7 @@ internal sealed class MemoryExtractionToolPolicy(string storeDirectory) : IToolP
         if (definition.Id.Kind != ToolSourceKind.CoreNative)
             return Refuse();
         // Code mode dispatches each call its program makes through this policy.
-        if (definition.Name == CodeModeToolName || EffectiveToolSnapshot.IsDeferredToolSearch(registration))
+        if (definition.Name == CodeModeToolName || definition.Name == CodeModeWaitToolName || EffectiveToolSnapshot.IsDeferredToolSearch(registration))
             return ToolDispatchDecision.Allow;
         if (!FileToolAccess.TryResolveTarget(definition.Id.SourceToolId.Value, arguments, context.WorkspacePath, out var access, out var target))
             return Refuse();

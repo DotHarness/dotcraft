@@ -21,7 +21,7 @@ authority, approval, hook, and safety checks as a direct call.
 This specification owns:
 
 - the `Tools.CodeMode` configuration and its Desktop setting;
-- the model-facing `CodeMode` tool, its description, and the nested tool surface;
+- the model-facing `CodeMode` and `CodeModeWait` tools, their descriptions, and the nested tool surface;
 - the program runtime contract, nested invocation, output, and per-thread store;
 - the shared script host and its worker process, which workflow scripts also use;
 - Session projection and Desktop presentation of code mode activity.
@@ -30,8 +30,7 @@ This specification owns:
 item projection. Features that run their own scripts on the shared host keep their script API,
 journal, replay, and child-agent contracts.
 
-Out of scope: yielding a running program back to the model and resuming it with a
-`wait` tool, calling `tools.*` from the Desktop `NodeReplJs` runtime, per-model default modes, and
+Out of scope: calling `tools.*` from the Desktop `NodeReplJs` runtime, per-model default modes, and
 engines other than Jint.
 
 ## 2. Definitions
@@ -39,7 +38,7 @@ engines other than Jint.
 | Term | Meaning |
 |------|---------|
 | Program | The JavaScript source the model passes to one `CodeMode` call. |
-| Cell | One execution of one program, from start to its terminal outcome. |
+| Cell | One execution of one program, from start to its terminal outcome. A cell can outlive the `CodeMode` call that started it (§4.4). |
 | Nested call | A tool call a cell makes through `tools.<name>(...)`. |
 | Nested surface | The set of registrations a cell can call. |
 | Script host | The in-process service that owns script worker processes, frames, limits, and host calls. |
@@ -124,11 +123,12 @@ Either way the call reaches the dispatcher as the arguments `{ "code": <source> 
 mechanism is generic; [Tool Architecture](../architecture/tools-architecture.md#61-freeform-input)
 defines its projection and replay.
 
-The optional first line `// @exec: {"timeout_ms": 60000, "max_output_tokens": 10000}` sets per-call
-limits. Only those two keys are accepted; `timeout_ms` is at most 3,600,000 and `max_output_tokens` at
-most 100,000, counted at 4 characters per token. Unknown keys, invalid JSON, or values outside these
-limits fail the call before execution. The pragma line is replaced by an empty line so stack trace
-line numbers match the submitted source. The `timeout_ms` clock starts once the worker has accepted the
+The optional first line `// @exec: {"yield_time_ms": 10000, "timeout_ms": 60000, "max_output_tokens": 10000}`
+sets per-call limits. Only those three keys are accepted. `yield_time_ms`, default 10,000, is how long
+the call waits before yielding a still-running cell (§4.4); `timeout_ms`, default 300,000, ends the cell;
+both are at most 3,600,000. `max_output_tokens` is at most 100,000, counted at 4 characters per token.
+Unknown keys, invalid JSON, or values outside these limits fail the call before execution. The pragma
+line is replaced by an empty line so stack trace line numbers match the submitted source. The `timeout_ms` clock starts once the worker has accepted the
 program; neither process start nor first-use engine warm-up counts against it.
 
 ### 4.2 Description
@@ -143,7 +143,8 @@ The `CodeMode` description states, in this order:
 3. the calling convention: `await tools.<name>(args)` resolves to the result shape in that tool's
    declaration and rejects with an `Error` on failure, and calls still pending when the program ends
    are cancelled;
-4. the globals in §5.1, and each pragma field with its default;
+4. the globals in §5.1, each pragma field with its default, and that a still-running cell yields with
+   an id to pass to `CodeModeWait`;
 5. that unlisted tools exist and are found through `ALL_TOOLS`, when there are any;
 6. the shared MCP preamble, when any nested tool is an MCP tool;
 7. in `only` mode, the declarations of §4.3 for every non-deferred nested registration, grouped by
@@ -191,6 +192,36 @@ description naming its call form and result shape, for example
 
 Declarations and these lines are derived only from the snapshot, like the `CodeMode` description.
 
+### 4.4 Yielding and `CodeModeWait`
+
+A `CodeMode` call returns as soon as its cell ends, after `yield_time_ms`, or when a steer preempts it,
+whichever comes first. A cell still running at that point keeps running, and the call returns
+`Script running with cell ID <id>` with the output produced so far (§7). The yield timer does not
+fire while a nested call waits on an approval; a steer still preempts the call.
+
+A steer preempts a waiting call only when `InstantInterruptEnabled` is on: the pending guidance that
+would preempt a streaming model request (see [Session Core](../architecture/session-core.md)) also
+yields the waiting `CodeMode` or `CodeModeWait` call, so the reissued request sees the steer and can
+wait again, terminate the cell, or move on.
+
+`CodeModeWait` is registered next to `CodeMode` with canonical identity `ToolName(null, "CodeModeWait")`,
+the same projection, presentation, and `DirectModelOnly` exposure. Its arguments are:
+
+| Argument | Meaning |
+|----------|---------|
+| `cell_id` | Required. The id from `Script running with cell ID <id>`. |
+| `yield_time_ms` | How long to wait before yielding again. Default 10,000, at most 3,600,000. |
+| `max_tokens` | Output budget for this call's result. Default 10,000, at most 100,000. |
+| `terminate` | When true, stops the cell and returns its final result. |
+
+A wait returns only the output produced since the previous yield, or the cell's final result once it
+has ended; the final result is delivered once and then the cell is closed. A cell id that is unknown,
+already closed, or belongs to another thread fails the call with `not_found`.
+
+Cells belong to the Turn that started them. When that Turn ends, whatever its outcome, its cells that
+are still open are terminated and closed, so nested calls never run outside a Turn. A steer does not
+end the Turn, so cells survive it.
+
 ## 5. Program Runtime Contract
 
 ### 5.1 Globals
@@ -222,8 +253,8 @@ Each `tools.<name>(...)` call returns a Promise immediately and is dispatched as
 receives it, so `Promise.all` and `Promise.allSettled` run calls concurrently. A registration that the
 snapshot marks as sequential is still serialized by the dispatcher.
 
-A cell ends when its top-level program settles, when `exit()` runs, on timeout, on Turn cancellation, or
-on a limit violation. Nested calls still pending at that point are cancelled and recorded as cancelled.
+A cell ends when its top-level program settles, when `exit()` runs, on timeout, on `CodeModeWait`
+termination, when its Turn ends, or on a limit violation. Nested calls still pending at that point are cancelled and recorded as cancelled.
 
 ## 6. Nested Invocation
 
@@ -261,7 +292,7 @@ the item.
 
 ## 7. Output
 
-The `CodeMode` result is a header followed by the output items:
+The `CodeMode` and `CodeModeWait` result is a header followed by the output items:
 
 ```text
 Script completed
@@ -270,13 +301,16 @@ Output:
 ...
 ```
 
-The first line is `Script completed`, `Script failed`, or `Script timed out`. A failed cell appends
+The first line is `Script running with cell ID <id>` for a yielded cell, otherwise `Script completed`,
+`Script failed`, `Script timed out`, or `Script terminated`. Wall time is how long this call waited. A
+yielded result holds the output since the previous yield; a final result holds the rest. A failed cell appends
 `Script error:` with the stack trace, then lists the nested calls that ran before the failure with
 their status under `Tool calls made before the failure:`, because their effects are not undone.
 
-A completed, failed, or timed-out cell is a successful `CodeMode` call, as a nonzero exit code is for a
-command. Only an invalid pragma or an unavailable worker fails the call itself. The result's structured
-content says how the cell ended: `{ status: "completed" | "failed" | "timedOut", wallTimeMs, nestedCalls, error? }`.
+Every cell outcome is a successful call, as a nonzero exit code is for a command. Only an invalid
+pragma or argument, an unknown cell, or an unavailable worker fails the call itself. The result's
+structured content says how the cell stands: `{ status: "running" | "completed" | "failed" | "timedOut" | "terminated", cellId?, wallTimeMs, nestedCalls, error? }`,
+with `cellId` only while running.
 
 Text output is limited to `max_output_tokens`, default 10,000, using the common truncation policy:
 the beginning and end are kept around an elision marker, and the full text is written to the thread's
@@ -338,24 +372,24 @@ is a limit violation. The worker as a whole is capped at 1 GiB resident memory.
 
 ## 10. Session Projection and Presentation
 
-`CodeMode` is recorded as a standard `ToolCall` and `ToolResult`, so model history replays it exactly.
+`CodeMode` and `CodeModeWait` are recorded as standard `ToolCall` and `ToolResult` items, so model history replays them exactly.
 Each nested call is recorded through its own registration's projection (`ToolCall`/`ToolResult`,
 `McpToolCall`, `CommandExecution`, and so on) with its `exec-` call id. Every item of a nested call
 persists the invocation origin kind `codeMode` and, as `invocationSourceId`, the call id of the
-`CodeMode` call that made it, so the calls of concurrent cells stay apart; the wire item gains no
+`CodeMode` call that started the cell, even when it runs after that call yielded, so the calls of concurrent cells stay apart; the wire item gains no
 field. The `CodeMode` call carries the trusted presentation `core.code-mode`.
 
 When model history is rebuilt from items, nested call items are skipped, because the model saw only the
 `CodeMode` result. Compaction works on model history, so nested calls never reach it as model-visible tool
 calls.
 
-Desktop does not render the `CodeMode` call or its result. Nested calls appear as ordinary items in time
+Desktop does not render `CodeMode` or `CodeModeWait` calls or their results. Nested calls appear as ordinary items in time
 order, including approval cards and command output. Channels present no tool items and are unaffected.
 
 ## 11. Cancellation and Limits
 
-Interrupting the Turn cancels its running cells; each cell cancels its pending nested calls through the
-dispatcher's cancellation path before the Turn completes. Thread deletion cancels the thread's cells
+Interrupting the Turn cancels a waiting `CodeMode` or `CodeModeWait` call, and the Turn's end terminates
+its cells; each cell cancels its pending nested calls through the dispatcher's cancellation path. Thread deletion cancels the thread's cells
 and clears its store. AppServer shutdown terminates the worker.
 
 A cell that exceeds its deadline is terminated and returns `Script timed out` with the output produced

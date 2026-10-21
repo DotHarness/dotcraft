@@ -22,7 +22,8 @@ public static class CodeModeDescription
             "- `ALL_TOOLS` lists `{ name, description }` for every callable tool; each description ends with the tool's declaration.",
             "Only `text` and `image` produce output; the program's return value is ignored.",
             "",
-            $"An optional first line `// @exec: {{\"timeout_ms\": 60000, \"max_output_tokens\": 10000}}` sets this call's limits; `timeout_ms` defaults to {(long)limits.DefaultTimeout.TotalMilliseconds} and `max_output_tokens` to {limits.DefaultMaxOutputTokens}.",
+            $"An optional first line `// @exec: {{\"yield_time_ms\": 10000, \"timeout_ms\": 60000, \"max_output_tokens\": 10000}}` sets this call's limits; `yield_time_ms` defaults to {(long)limits.DefaultYieldTime.TotalMilliseconds}, `timeout_ms` to {(long)limits.DefaultTimeout.TotalMilliseconds}, and `max_output_tokens` to {limits.DefaultMaxOutputTokens}.",
+            "A program still running after `yield_time_ms` keeps running, and the call returns `Script running with cell ID <id>` with the output so far; pass the id to `CodeModeWait` for more output or the final result. `timeout_ms` ends the program.",
             "",
             mode == AppConfig.CodeModeSetting.Only
                 ? "The tools you can call from a program are declared below; they are not in your direct tool list."
@@ -36,6 +37,16 @@ public static class CodeModeDescription
             AppendDeclarations(lines, surface);
         return string.Join('\n', lines);
     }
+
+    public const string Wait = """
+        Wait on a `CodeMode` cell that is still running, and return its new output or its final result.
+        - Use it only after `CodeMode` returns `Script running with cell ID <id>`.
+        - `yield_time_ms` sets how long to wait before yielding again; it defaults to 10000 ms.
+        - `max_tokens` limits this call's output; it defaults to 10000 tokens.
+        - `terminate: true` stops the cell; false or omitted waits for output.
+        - A wait returns only the output since the last yield. Once the cell has ended, it returns the final result and closes the cell.
+        - A cell still running when this turn ends is stopped.
+        """;
 
     private static void AppendDeclarations(List<string> lines, CodeModeSurface surface)
     {

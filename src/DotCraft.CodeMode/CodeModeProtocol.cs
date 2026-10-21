@@ -16,6 +16,8 @@ internal static class CodeModeProtocol
     public const string Completed = "completed";
     public const string Failed = "failed";
     public const string TimedOut = "timedOut";
+    public const string Running = "running";
+    public const string Terminated = "terminated";
     public const string TimeoutReason = "timeout";
 
     public static string ErrorEnvelope(string error) =>

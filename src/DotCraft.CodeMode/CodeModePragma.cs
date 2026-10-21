@@ -4,13 +4,13 @@ using System.Text.RegularExpressions;
 
 namespace DotCraft.CodeMode;
 
-public sealed record CodeModeProgram(string Source, TimeSpan Timeout, int MaxOutputTokens);
+public sealed record CodeModeProgram(string Source, TimeSpan YieldTime, TimeSpan Timeout, int MaxOutputTokens);
 
 public static partial class CodeModePragma
 {
     public static bool TryParse(string? code, CodeModeLimits limits, out CodeModeProgram program, out string error)
     {
-        program = new CodeModeProgram(string.Empty, limits.DefaultTimeout, limits.DefaultMaxOutputTokens);
+        program = new CodeModeProgram(string.Empty, limits.DefaultYieldTime, limits.DefaultTimeout, limits.DefaultMaxOutputTokens);
         error = string.Empty;
         if (string.IsNullOrWhiteSpace(code))
         {
@@ -46,12 +46,21 @@ public static partial class CodeModePragma
             return false;
         }
 
+        var yieldTime = limits.DefaultYieldTime;
         var timeout = limits.DefaultTimeout;
         var maxOutputTokens = limits.DefaultMaxOutputTokens;
         foreach (var (key, value) in options)
         {
             switch (key)
             {
+                case "yield_time_ms":
+                    if (!TryReadInteger(value, 0, (long)limits.MaxTimeout.TotalMilliseconds, out var yieldMilliseconds))
+                    {
+                        error = $"yield_time_ms must be an integer from 0 to {(long)limits.MaxTimeout.TotalMilliseconds}.";
+                        return false;
+                    }
+                    yieldTime = TimeSpan.FromMilliseconds(yieldMilliseconds);
+                    break;
                 case "timeout_ms":
                     if (!TryReadInteger(value, 1, (long)limits.MaxTimeout.TotalMilliseconds, out var milliseconds))
                     {
@@ -69,13 +78,19 @@ public static partial class CodeModePragma
                     maxOutputTokens = (int)tokens;
                     break;
                 default:
-                    error = $"Unknown // @exec: option '{key}'. Only timeout_ms and max_output_tokens are accepted.";
+                    error = $"Unknown // @exec: option '{key}'. Only yield_time_ms, timeout_ms, and max_output_tokens are accepted.";
                     return false;
             }
         }
 
-        program = new CodeModeProgram(source, timeout, maxOutputTokens);
+        program = new CodeModeProgram(source, yieldTime, timeout, maxOutputTokens);
         return true;
+    }
+
+    internal static bool TryReadOptionalInteger(JsonNode? value, long min, long max, long fallback, out long result)
+    {
+        result = fallback;
+        return value is null || TryReadInteger(value, min, max, out result);
     }
 
     private static bool TryReadInteger(JsonNode? value, long min, long max, out long result)

@@ -13,6 +13,17 @@ internal interface ICodeModeToolDeclaration
     [Description("Run a JavaScript program that calls tools.")]
     void Exec(
         [Description("The JavaScript program. An optional first line `// @exec: {...}` sets this call's limits.")] string code);
+
+    [ToolDeclaration(Name = "CodeModeWait")]
+    [Description(CodeModeDescription.Wait)]
+    void Wait(
+        [ToolParameter(Name = "cell_id")]
+        [Description("The id from `Script running with cell ID <id>`.")] string cellId,
+        [ToolParameter(Name = "yield_time_ms")]
+        [Description("How long to wait before yielding again. Defaults to 10000 ms.")] int? yieldTimeMs = null,
+        [ToolParameter(Name = "max_tokens")]
+        [Description("Output token budget for this result. Defaults to 10000 tokens.")] int? maxTokens = null,
+        [Description("True stops the cell and returns its final result; false or omitted waits for output.")] bool terminate = false);
 }
 
 internal sealed class CodeModeToolFinalizer(
@@ -79,7 +90,7 @@ internal sealed class CodeModeToolFinalizer(
             presentation: new ToolPresentationDescriptor(new DotCraft.Tools.PresentationId(PresentationId), null),
             policyScope: ToolPolicyScope.RuntimeManaged,
             freeformInput: ExecInput);
-        var runtime = new CodeModeExecRuntime(new CodeModeExecDependencies(
+        var dependencies = new CodeModeExecDependencies(
             host,
             store,
             dispatcher,
@@ -87,32 +98,49 @@ internal sealed class CodeModeToolFinalizer(
             surface,
             context.WorkspacePath,
             context.DataPath,
-            current.Tools.ResultLimits.SpillPreviewLines));
-        var binding = new ToolRuntimeBinding(
-            new RuntimeBindingId($"{SourceId}:{declaration.Name}"),
-            definitionId,
-            runtime,
-            ToolBindingLeases.AlwaysAvailable,
-            SourceId,
+            current.Tools.ResultLimits.SpillPreviewLines);
+        var exec = Register(definition, new CodeModeExecRuntime(dependencies), context.Revision);
+
+        var waitDeclaration = DotCraft.GeneratedTools.CodeMode.GeneratedToolDeclarations
+            .ICodeModeToolDeclaration_Wait_Declaration;
+        var waitId = new ToolDefinitionId(ToolSourceKind.CoreNative, SourceId, new SourceToolId(waitDeclaration.Name));
+        var wait = Register(
+            new ToolDefinition(
+                waitId,
+                new ToolName(null, waitDeclaration.Name),
+                waitDeclaration.Description,
+                waitDeclaration.InputSchema,
+                provenance: new ToolProvenance(ToolSourceKind.CoreNative, SourceId),
+                presentation: new ToolPresentationDescriptor(new DotCraft.Tools.PresentationId(PresentationId), null),
+                policyScope: ToolPolicyScope.RuntimeManaged),
+            new CodeModeWaitRuntime(dependencies),
             context.Revision);
-        var exec = new ToolRegistration(
-            definition,
-            binding,
-            ToolProjectionShape.StandardPair,
-            ToolExposure.DirectModelOnly,
-            ToolInvocationAudience.Model);
         if (mode == AppConfig.CodeModeSetting.Only)
         {
             return new ToolSnapshotFinalization(
-                [exec],
+                [exec, wait],
                 surface.Tools.Select(static tool => tool.Registration.Definition.Name).ToHashSet());
         }
 
         var annotated = surface.Tools
             .Where(static tool => tool.Listed)
             .Select(WithCallLine);
-        return new ToolSnapshotFinalization([exec, .. annotated], new HashSet<ToolName>());
+        return new ToolSnapshotFinalization([exec, wait, .. annotated], new HashSet<ToolName>());
     }
+
+    private static ToolRegistration Register(ToolDefinition definition, IToolRuntime runtime, long revision) =>
+        new(
+            definition,
+            new ToolRuntimeBinding(
+                new RuntimeBindingId($"{SourceId}:{definition.Name.Name}"),
+                definition.Id,
+                runtime,
+                ToolBindingLeases.AlwaysAvailable,
+                SourceId,
+                revision),
+            ToolProjectionShape.StandardPair,
+            ToolExposure.DirectModelOnly,
+            ToolInvocationAudience.Model);
 
     private static ToolRegistration WithCallLine(CodeModeNestedTool tool)
     {

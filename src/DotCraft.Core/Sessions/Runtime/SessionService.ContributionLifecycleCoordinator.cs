@@ -110,6 +110,14 @@ public sealed partial class SessionService
             return combined;
         }
 
+        /// <summary>Collects container-registered observers that also observe turns, then the registry contributions.</summary>
+        private IReadOnlyList<ITurnLifecycleContributor> ResolveTurnContributors(string threadId)
+        {
+            var observers = owner._threadLifecycleObservers.OfType<ITurnLifecycleContributor>();
+            var contributed = Contributions?.Resolve<ITurnLifecycleContributor>(threadId) ?? [];
+            return observers.Concat(contributed).Distinct(ReferenceEqualityComparer.Instance).Cast<ITurnLifecycleContributor>().ToArray();
+        }
+
         private Task DispatchThreadAsync(
             SessionThread thread,
             Func<IThreadLifecycleContributor, SessionThread, CancellationToken, Task> callback,
@@ -132,7 +140,7 @@ public sealed partial class SessionService
             string transition,
             CancellationToken cancellationToken) =>
             ContributionRead.FanoutAsync(
-                Contributions?.Resolve<ITurnLifecycleContributor>(context.ThreadId),
+                ResolveTurnContributors(context.ThreadId),
                 (contributor, token) => new ValueTask(callback(contributor, context, token)),
                 (contributor, ex) => owner.Logger?.LogWarning(
                     ex,

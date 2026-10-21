@@ -26,6 +26,8 @@ public sealed class CodeModeWorkerHost(
 
     public string? UnavailableReason => _unavailableReason;
 
+    internal CodeModeCellRegistry OpenCells { get; } = new();
+
     public async Task<bool> TryStartAsync(CancellationToken cancellationToken)
     {
         try
@@ -39,13 +41,10 @@ public sealed class CodeModeWorkerHost(
         }
     }
 
-    public async Task<CodeModeCellSession> StartCellAsync(
-        string threadId,
-        JsonObject payload,
-        CancellationToken cancellationToken)
+    public async Task<CodeModeCellSession> StartCellAsync(JsonObject payload, CancellationToken cancellationToken)
     {
         var worker = await EnsureWorkerAsync(cancellationToken).ConfigureAwait(false);
-        var session = new CodeModeCellSession("cell_" + Guid.NewGuid().ToString("N"), threadId, worker);
+        var session = new CodeModeCellSession("cell_" + Guid.NewGuid().ToString("N"), worker);
         worker.Cells[session.Id] = session;
         try
         {
@@ -56,14 +55,6 @@ public sealed class CodeModeWorkerHost(
             await worker.FailAsync($"the worker could not accept the script ({ex.Message})").ConfigureAwait(false);
         }
         return session;
-    }
-
-    public void CancelThread(string threadId)
-    {
-        if (_worker is not { } worker)
-            return;
-        foreach (var session in worker.Cells.Values.Where(session => session.ThreadId == threadId))
-            session.RequestStop("the thread was deleted");
     }
 
     public async ValueTask DisposeAsync()
@@ -222,7 +213,6 @@ public abstract record CodeModeCellEvent
 {
     public sealed record Frame(ScriptProtocolFrame Value) : CodeModeCellEvent;
     public sealed record WorkerFailed(string Cause) : CodeModeCellEvent;
-    public sealed record StopRequested(string Reason) : CodeModeCellEvent;
 }
 
 public sealed class CodeModeCellSession
@@ -230,15 +220,13 @@ public sealed class CodeModeCellSession
     private readonly CodeModeWorkerHost.Worker _worker;
     private readonly Channel<CodeModeCellEvent> _events = Channel.CreateUnbounded<CodeModeCellEvent>();
 
-    internal CodeModeCellSession(string id, string threadId, CodeModeWorkerHost.Worker worker)
+    internal CodeModeCellSession(string id, CodeModeWorkerHost.Worker worker)
     {
         Id = id;
-        ThreadId = threadId;
         _worker = worker;
     }
 
     public string Id { get; }
-    public string ThreadId { get; }
     public ChannelReader<CodeModeCellEvent> Events => _events.Reader;
 
     public async Task SendAsync(string type, JsonObject? payload)
@@ -265,6 +253,4 @@ public sealed class CodeModeCellSession
     internal void Post(ScriptProtocolFrame frame) => _events.Writer.TryWrite(new CodeModeCellEvent.Frame(frame));
 
     internal void Fail(string cause) => _events.Writer.TryWrite(new CodeModeCellEvent.WorkerFailed(cause));
-
-    internal void RequestStop(string reason) => _events.Writer.TryWrite(new CodeModeCellEvent.StopRequested(reason));
 }

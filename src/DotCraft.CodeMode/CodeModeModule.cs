@@ -1,4 +1,5 @@
 using DotCraft.Configuration;
+using DotCraft.Contributions;
 using DotCraft.Modules;
 using DotCraft.Processes;
 using DotCraft.Scripting;
@@ -58,12 +59,19 @@ public static class CodeModeServiceCollectionExtensions
     }
 }
 
-internal sealed class CodeModeThreadObserver(CodeModeWorkerHost host, CodeModeStore store) : IThreadLifecycleObserver
+internal sealed class CodeModeThreadObserver(CodeModeWorkerHost host, CodeModeStore store)
+    : IThreadLifecycleObserver, ITurnLifecycleContributor
 {
     public Task OnThreadDeletingAsync(SessionThread thread, CancellationToken cancellationToken = default)
     {
-        host.CancelThread(thread.Id);
+        host.OpenCells.TerminateThread(thread.Id);
         store.Clear(thread.Id);
+        return Task.CompletedTask;
+    }
+
+    public Task OnTurnEndedAsync(TurnLifecycleContext context, CancellationToken cancellationToken = default)
+    {
+        host.OpenCells.TerminateTurn(context.ThreadId, context.TurnId);
         return Task.CompletedTask;
     }
 }

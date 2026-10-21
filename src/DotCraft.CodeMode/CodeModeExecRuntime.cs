@@ -1,11 +1,5 @@
-using System.Diagnostics;
-using System.Globalization;
-using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Tools;
-using DotCraft.Utilities;
-using Microsoft.Extensions.AI;
 
 namespace DotCraft.CodeMode;
 
@@ -33,12 +27,10 @@ internal sealed class CodeModeExecRuntime(CodeModeExecDependencies dependencies)
         if (!CodeModePragma.TryParse(code, limits, out var program, out var error))
             return ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.InputInvalid, error), error);
 
-        var stopwatch = Stopwatch.StartNew();
         CodeModeCellSession session;
         try
         {
             session = await dependencies.Host.StartCellAsync(
-                context.ThreadId,
                 StartPayload(program, context.ThreadId),
                 cancellationToken).ConfigureAwait(false);
         }
@@ -47,22 +39,15 @@ internal sealed class CodeModeExecRuntime(CodeModeExecDependencies dependencies)
             return ToolExecutionResult.Failed(new ToolError(UnavailableErrorCode, ex.Message), ex.Message);
         }
 
-        using var deadline = new PausableDeadline(program.Timeout, cancellationToken);
-        try
-        {
-            using var run = new CodeModeCellRun(dependencies, context, session, deadline, cancellationToken);
-            var outcome = await run.RunAsync().ConfigureAwait(false);
-            var storeRejected = outcome is { Status: CodeModeProtocol.Completed, StoreWrites: { } writes }
-                && !dependencies.Store.TryApply(
-                    context.ThreadId,
-                    writes["set"] as JsonObject ?? new JsonObject(),
-                    (writes["deleted"] as JsonArray ?? []).Select(static key => key!.GetValue<string>()));
-            return BuildResult(context, program, outcome, run.Output, run.Calls, storeRejected, stopwatch.Elapsed);
-        }
-        finally
-        {
-            session.Release();
-        }
+        var cell = CodeModeCell.Start(dependencies, context, session, program);
+        dependencies.Host.OpenCells.Add(cell);
+        return await CodeModeCellResponse.AwaitAsync(
+            dependencies,
+            context,
+            cell,
+            program.YieldTime,
+            program.MaxOutputTokens,
+            cancellationToken).ConfigureAwait(false);
     }
 
     private JsonObject StartPayload(CodeModeProgram program, string threadId)
@@ -97,76 +82,38 @@ internal sealed class CodeModeExecRuntime(CodeModeExecDependencies dependencies)
             }
         };
     }
+}
 
-    private ToolExecutionResult BuildResult(
+internal sealed class CodeModeWaitRuntime(CodeModeExecDependencies dependencies) : IToolRuntime
+{
+    public async ValueTask<ToolExecutionResult> InvokeAsync(
         ToolInvocationContext context,
-        CodeModeProgram program,
-        CodeModeCellOutcome outcome,
-        IReadOnlyList<CodeModeOutputItem> output,
-        IReadOnlyList<CodeModeNestedCall> calls,
-        bool storeRejected,
-        TimeSpan elapsed)
+        JsonObject arguments,
+        CancellationToken cancellationToken = default)
     {
-        var builder = new StringBuilder();
-        builder.Append(outcome.Status switch
-        {
-            CodeModeProtocol.Completed => "Script completed",
-            CodeModeProtocol.TimedOut => "Script timed out",
-            _ => "Script failed"
-        }).Append('\n');
-        builder.Append("Wall time ")
-            .Append(elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture))
-            .Append(" seconds\n");
-        builder.Append("Output:");
-        foreach (var item in output.Where(static item => item.Text is not null))
-            builder.Append('\n').Append(item.Text);
-        if (storeRejected)
-            builder.Append("\nStore writes were not saved: the store would exceed ")
-                .Append(CodeModeStore.MaxBytes / (1024 * 1024))
-                .Append(" MiB.");
-        if (outcome.Status == CodeModeProtocol.Failed)
-        {
-            builder.Append("\nScript error:\n").Append(outcome.Error ?? "The script failed.");
-            if (!string.IsNullOrWhiteSpace(outcome.Stack))
-                builder.Append('\n').Append(outcome.Stack.TrimEnd());
-            if (calls.Count > 0)
-            {
-                builder.Append("\nTool calls made before the failure:");
-                foreach (var call in calls)
-                    builder.Append("\n- tools.").Append(call.JsName).Append(": ").Append(call.Status);
-            }
-        }
+        var limits = dependencies.Host.Limits;
+        if (arguments["cell_id"] is not JsonValue idValue || !idValue.TryGetValue<string>(out var cellId) || string.IsNullOrWhiteSpace(cellId))
+            return Invalid("cell_id is required.");
+        var maxYieldMs = (long)limits.MaxTimeout.TotalMilliseconds;
+        if (!CodeModePragma.TryReadOptionalInteger(arguments["yield_time_ms"], 0, maxYieldMs, (long)limits.DefaultYieldTime.TotalMilliseconds, out var yieldMs))
+            return Invalid($"yield_time_ms must be an integer from 0 to {maxYieldMs}.");
+        if (!CodeModePragma.TryReadOptionalInteger(arguments["max_tokens"], 1, limits.MaxOutputTokens, limits.DefaultMaxOutputTokens, out var maxTokens))
+            return Invalid($"max_tokens must be an integer from 1 to {limits.MaxOutputTokens}.");
+        var terminate = arguments["terminate"] is JsonValue flag && flag.TryGetValue<bool>(out var requested) && requested;
 
-        var text = builder.ToString();
-        var maxChars = (int)Math.Min(int.MaxValue, (long)program.MaxOutputTokens * 4);
-        if (text.Length > maxChars)
-        {
-            text = (string)ToolResultProcessor.Process(
-                CodeModeSurface.CodeModeToolName.Name,
-                text,
-                maxChars,
-                context.WorkspacePath ?? dependencies.WorkspacePath,
-                dependencies.DataPath,
-                context.ThreadId,
-                dependencies.SpillPreviewLines,
-                context.CallId)!;
-        }
-
-        var images = output
-            .Where(static item => item.Data is not null)
-            .Select(static item => (AIContent)new DataContent(Convert.FromBase64String(item.Data!), item.MimeType!))
-            .ToList();
-        var structured = new JsonObject
-        {
-            ["status"] = outcome.Status,
-            ["wallTimeMs"] = (long)elapsed.TotalMilliseconds,
-            ["nestedCalls"] = calls.Count
-        };
-        if (outcome.Status == CodeModeProtocol.Failed)
-            structured["error"] = outcome.Error ?? "The script failed.";
-        return ToolExecutionResult.Succeeded(
-            text,
-            structuredContent: JsonSerializer.SerializeToElement(structured),
-            contentItems: images.Count == 0 ? null : [new TextContent(text), .. images]);
+        if (dependencies.Host.OpenCells.Find(context.ThreadId, cellId) is not { } cell)
+            return CodeModeCellResponse.NotFound(cellId);
+        return terminate
+            ? await CodeModeCellResponse.TerminateAsync(dependencies, context, cell, (int)maxTokens).ConfigureAwait(false)
+            : await CodeModeCellResponse.AwaitAsync(
+                dependencies,
+                context,
+                cell,
+                TimeSpan.FromMilliseconds(yieldMs),
+                (int)maxTokens,
+                cancellationToken).ConfigureAwait(false);
     }
+
+    private static ToolExecutionResult Invalid(string message) =>
+        ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.InputInvalid, message), message);
 }

@@ -20,6 +20,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     private const string SkillViewToolName = "SkillView";
     private const string SkillManageToolName = "SkillManage";
     private const string CodeModeToolName = "CodeMode";
+    private const string CodeModeWaitToolName = "CodeModeWait";
     private const string McpToolNamePrefix = "mcp__";
     private readonly HashSet<string> _runtimeManagedProviderToolNames = new(StringComparer.Ordinal);
 
@@ -226,6 +227,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 
         if (role.ToolAllowList.Count > 0
             && !string.Equals(toolName, CodeModeToolName, StringComparison.Ordinal)
+            && !string.Equals(toolName, CodeModeWaitToolName, StringComparison.Ordinal)
             && !role.ToolAllowList.Contains(toolName, StringComparer.Ordinal))
         {
             reason = $"The SubAgent role '{role.Name}' does not allow this tool.";

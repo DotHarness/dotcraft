@@ -16,7 +16,7 @@ public sealed class CodeModeApprovalScopeTests
             new ToolHostExecutionContext("thread_1", "turn_1", Path.GetTempPath(), approvals, null!));
 
         bool approved;
-        using (CodeModeApprovalScope.Enter(deadline))
+        using (CodeModeApprovalScope.Enter(new CodeModeApprovals(deadline)))
             approved = await ToolHostExecutionScope.Current!.ApprovalService.RequestFileApprovalAsync("write", "a.txt");
 
         Assert.True(approved);
