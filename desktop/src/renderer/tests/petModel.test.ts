@@ -3,7 +3,7 @@ import { itemOf, rarities } from '@dotcraft/avatar'
 import { DEFAULT_PET_SETTINGS, type PetSettings } from '../../shared/pet'
 import {
   EXCHANGE_COUNT, FIND_RUNTIME_MS, FIND_TOKEN_GOAL, appearanceOf, autoTray, bagTotal, exchangeItems, findReady, rollExchange, rollFind,
-  sanitizePetSettings, spareTotal, trayValid, wearItem, wouldClear
+  sanitizePetSettings, spareTotal, trayValid, wearItem
 } from '../pet/petModel'
 
 function settings(partial: Partial<PetSettings> = {}): PetSettings {
@@ -67,7 +67,6 @@ describe('pet outfit', () => {
     const owned = settings({ bag: { beanie: 1, 'forehead-goggles': 1 } })
     expect(wearItem(owned, 'wizard-hat')).toBe(owned)
     const goggles = wearItem(owned, 'forehead-goggles')
-    expect(wouldClear(goggles, 'beanie')).toEqual(['face'])
     const beanie = wearItem(goggles, 'beanie')
     expect(beanie.outfit).toMatchObject({ head: 'beanie', face: 'none' })
   })

@@ -1783,10 +1783,15 @@ while letting the collection's own colour show.
   two-row grid whose empty slots stay visible as dashed `--border-default`
   outlines, so an empty or filtered bag never collapses or moves the dial; longer
   collections scroll with a reserved gutter.
-- The exchange tray is ten 44px slots with the same dashed empty outlines; a filled
-  slot shows the item over its rarity glow. The result replaces the tray in place
-  with 112px art, the item name in `--type-heading`, its slot and feature in
-  `--type-secondary`, the rarity word, and primary and ghost actions.
+- The exchange lists the rarity's spares as a wrapping row of 44px tiles over
+  their rarity glow, each with its remaining `×n` count; a tile with none left
+  dims and stops taking selections. Below it, the tray is ten 44px slots with the
+  same dashed empty outlines; a filled slot shows the item over its rarity glow.
+  The trade's result is the find toast, so the exchange never changes shape.
+- An item's details card opens on hover or focus after the details-card delay:
+  an ordinary elevated surface 240px wide above the item (mirroring below), with
+  the full name at weight 600, the rarity word, then the slot and feature in
+  `--type-secondary`. Items carry no native title.
 - The find toast is the neutral toast card with 36px art over a stronger glow
   (uncommon 40% to legendary 66%) and no frame, the rarity word as its
   description, so a legendary never reads as a warning.

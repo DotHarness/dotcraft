@@ -236,7 +236,9 @@ All of this is gated on `data-effects="live"`.
 The default companion (the mascot in the Desktop composer, which can be detached onto the desktop)
 can be coloured and dressed with items from this collection. Agent Profile mascots keep their
 name-derived look; only the default companion is dressed. Desktop editing surfaces follow
-[Desktop DESIGN](../architecture/DESIGN.md#pet).
+[Desktop DESIGN](../architecture/DESIGN.md#pet). The composer mascot and the detached pet carry the
+same paint variables (`mascotEnergyStyle`), so reasoning-effort energy recolours the body and face
+marks from the companion's palette on both surfaces.
 
 ### 11.1 Settings Record
 
@@ -293,6 +295,10 @@ that wears it.
 - The bag lists every owned item with its copy count, filterable by all, wearing, or slot. Hovering
   an item tries it on; selecting wears it, or takes it off when worn.
 - The exchange trades exactly ten spare items of one rarity for one random item of the next rarity.
-  A worn copy is never a spare, and legendary items cannot be traded up. A fill action picks
-  duplicates first; the person may remove items before trading. When a trade spends the last copy
-  of a worn item, it comes off.
+  A worn copy is never a spare, and legendary items cannot be traded up. The person picks the items
+  from the rarity's spares, one copy per selection, or lets a fill action pick duplicates first, and
+  may remove any before trading. When a trade spends the last copy of a worn item, it comes off.
+- A trade's result is announced the way a find is: the same toast with the item, its rarity, and an
+  action that wears it.
+- Hovering or focusing any item, in the bag, the spares, or the tray, shows its full name, rarity,
+  slot, and feature.

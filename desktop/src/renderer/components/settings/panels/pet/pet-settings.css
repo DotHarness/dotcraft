@@ -1,4 +1,3 @@
-.pet-settings-eyebrow { color: var(--text-dimmed); font-size: var(--type-hint-size); line-height: var(--type-hint-line-height); }
 .pet-settings-meta { color: var(--text-secondary); font-size: var(--type-hint-size); line-height: var(--type-hint-line-height); }
 
 .pet-settings-look { display: grid; grid-template-columns: 232px minmax(0, 1fr); align-items: center; gap: 24px; }
@@ -42,20 +41,22 @@
 .pet-settings-tray-slot[data-filled='true']:hover { filter: brightness(1.12); }
 .pet-settings-exchange-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pet-settings-exchange-actions > .pet-settings-meta { margin-right: auto; }
-.pet-settings-reveal { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 18px; }
-.pet-settings-reveal-art { display: inline-flex; align-items: center; justify-content: center; width: 112px; height: 112px; border-radius: 12px; animation: pet-settings-arrive 360ms cubic-bezier(.22, 1, .36, 1); }
-.pet-settings-reveal-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.pet-settings-reveal-copy h3 { margin: 0; font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); font-weight: 600; }
-.pet-settings-reveal-copy p { margin: 0; color: var(--text-secondary); font-size: var(--type-secondary-size); line-height: var(--type-secondary-line-height); }
-.pet-settings-reveal-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
-@keyframes pet-settings-arrive { from { transform: scale(.86); opacity: 0; } to { transform: none; opacity: 1; } }
+.pet-settings-spares { display: flex; flex-wrap: wrap; gap: 6px; }
+.pet-settings-spare { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; background-color: var(--bg-tertiary); cursor: pointer; }
+.pet-settings-spare:hover:not(:disabled) { background-color: var(--bg-active); }
+.pet-settings-spare:disabled { opacity: .45; cursor: default; }
+.pet-settings-spare > .pet-settings-count { top: 1px; right: 4px; }
+:is(.pet-settings-spare, .pet-settings-tray-slot):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .pet-settings-rarity-word, .pet-find-rarity { color: var(--pet-rarity); font-weight: 500; }
-.pet-settings-reveal-art, .pet-settings-tray-slot[data-filled='true'] { background: radial-gradient(60% 60% at 50% 50%, color-mix(in srgb, var(--pet-rarity) var(--pet-glow, 0%), transparent), transparent 72%); }
-:is(.pet-settings-reveal, .pet-settings-tray-slot)[data-rarity='uncommon'] { --pet-glow: 22%; }
-:is(.pet-settings-reveal, .pet-settings-tray-slot)[data-rarity='rare'] { --pet-glow: 30%; }
-:is(.pet-settings-reveal, .pet-settings-tray-slot)[data-rarity='epic'] { --pet-glow: 38%; }
-:is(.pet-settings-reveal, .pet-settings-tray-slot)[data-rarity='legendary'] { --pet-glow: 46%; }
+:is(.pet-settings-spare, .pet-settings-tray-slot[data-filled='true']) { background-image: radial-gradient(60% 60% at 50% 50%, color-mix(in srgb, var(--pet-rarity) var(--pet-glow, 0%), transparent), transparent 72%); }
+:is(.pet-settings-spare, .pet-settings-tray-slot)[data-rarity='uncommon'] { --pet-glow: 22%; }
+:is(.pet-settings-spare, .pet-settings-tray-slot)[data-rarity='rare'] { --pet-glow: 30%; }
+:is(.pet-settings-spare, .pet-settings-tray-slot)[data-rarity='epic'] { --pet-glow: 38%; }
+:is(.pet-settings-spare, .pet-settings-tray-slot)[data-rarity='legendary'] { --pet-glow: 46%; }
+.pet-item-card { position: fixed; z-index: var(--z-tooltip); box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--glass-surface-strong); color: var(--text-primary); box-shadow: var(--tooltip-shadow); pointer-events: none; }
+.pet-item-card-name { font-weight: 600; overflow-wrap: anywhere; }
+.pet-item-card-feature { color: var(--text-secondary); font-size: var(--type-secondary-size); line-height: var(--type-secondary-line-height); }
 .pet-find-art { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; line-height: 0; background: radial-gradient(72% 72% at 50% 50%, color-mix(in srgb, var(--pet-rarity) var(--pet-glow, 0%), transparent), transparent 80%); }
 .pet-find-art[data-rarity='uncommon'] { --pet-glow: 40%; }
 .pet-find-art[data-rarity='rare'] { --pet-glow: 50%; }

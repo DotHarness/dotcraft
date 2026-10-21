@@ -54,3 +54,15 @@ export function mascotPaletteOf(spec?: { palette: number; skin?: SkinId | 'none'
   const paint: MascotPaintPalette = !spec || spec.palette === -1 ? DEFAULT_MASCOT_PALETTE : { ...paletteOf(spec), markM: paletteOf(spec).markL }
   return material ? { ...paint, ...material } : paint
 }
+
+/** CSS paint variables the effort-energy styles read; every energised mascot surface sets all of them. */
+export function mascotEnergyStyle(paint: MascotPaintPalette): Record<string, string> {
+  return {
+    '--mascot-body-dark': paint.bodyD,
+    '--mascot-body-mid': paint.bodyM,
+    '--mascot-body-light': paint.bodyL,
+    '--mascot-mark-dark': paint.markD,
+    '--mascot-mark-energy': paint.markM,
+    '--mascot-energy-accent': paint.accent
+  }
+}

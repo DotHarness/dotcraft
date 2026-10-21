@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type AnimationEvent, type CSSProperties } from 'react'
 import { AppearanceAvatar } from '../Avatar.js'
-import { deriveAppearance, mascotPaletteOf, type AvatarPose } from '../index.js'
+import { deriveAppearance, mascotEnergyStyle, mascotPaletteOf, type AvatarPose } from '../index.js'
 import { useComposerAvatarBehavior } from './useComposerAvatarBehavior.js'
 import { consumeMascotHandoff, recordMascotHandoff } from './mascotHandoff.js'
 import { useComposerProfile } from './useComposerProfile.js'
@@ -337,12 +337,7 @@ export function ComposerMascot({ name, appearance, appearanceOf = deriveAppearan
       data-mascot-anchor-offset={anchorOffset}
       onAnimationEnd={onAnimationEnd}
       style={{
-        '--mascot-body-dark': mascotPalette.bodyD,
-        '--mascot-body-mid': mascotPalette.bodyM,
-        '--mascot-body-light': mascotPalette.bodyL,
-        '--mascot-mark-dark': mascotPalette.markD,
-        '--mascot-mark-energy': mascotPalette.markM,
-        '--mascot-energy-accent': mascotPalette.accent,
+        ...mascotEnergyStyle(mascotPalette),
         '--mascot-profile-from-accent': profileTransition?.fromAccent ?? mascotPalette.accent,
         '--mascot-profile-to-accent': profileTransition?.toAccent ?? mascotPalette.accent,
         position: 'absolute',

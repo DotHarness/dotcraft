@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AppearanceAvatar, MascotIdleStage } from '@dotcraft/avatar/react'
-import { deriveAppearance, mascotPaletteOf } from '@dotcraft/avatar'
+import { deriveAppearance, mascotEnergyStyle, mascotPaletteOf } from '@dotcraft/avatar'
 import { safeAppearance } from '../../pet/petModel'
 import { MessageSquare, PanelTop } from 'lucide-react'
 import { PetActivitySurface } from './PetActivitySurface'
@@ -108,7 +108,7 @@ export function DesktopPet(): JSX.Element | null {
       data-pet-interactive data-dragging={reaction.dragging} data-motion={snapshot.reducedMotion ? 'off' : 'on'}
       data-mascot-theme={snapshot.theme} data-mascot-effort={snapshot.effort} data-mascot-speed={snapshot.speed}
       data-actions-side={position.x + position.size + 40 > window.innerWidth ? 'left' : 'right'}
-      style={{ left: position.x, top: position.y, '--mascot-energy-accent': mascotPaletteOf(look).accent } as CSSProperties} onAnimationEnd={idle.onAnimationEnd}>
+      style={{ left: position.x, top: position.y, ...mascotEnergyStyle(mascotPaletteOf(look)) } as CSSProperties} onAnimationEnd={idle.onAnimationEnd}>
       <MascotIdleStage>
         <button className="desktop-pet-drag" aria-label={t('desktopPet.drag')}
           style={{ transform: `rotate(${pose.rotation}deg) scale(${pose.scaleX}, ${pose.scaleY})` }}

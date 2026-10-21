@@ -43,7 +43,7 @@ export function PetPanel(): JSX.Element {
       {on && <>
         <PetLookGroup appearance={shown} settings={settings} pose={pose} preview={tryColour} onPreview={setTryColour}
           onPalette={(palette) => { setPalette(palette); setTryColour(null) }} onToggle={toggle} onTryOn={setTryOn} />
-        <PetExchangeGroup settings={settings} onWear={wear} />
+        <PetExchangeGroup settings={settings} />
       </>}
     </SettingsPanelShell>
   )

@@ -127,9 +127,6 @@ export function wearItem(settings: PetSettings, id: ItemId): PetSettings {
   const result = equip(appearanceOf({ ...settings, customization: true }), itemOf(id).slot, id)
   return { ...settings, outfit: outfitOf(result.appearance) }
 }
-export function wouldClear(settings: PetSettings, id: ItemId): Slot[] {
-  return equip(appearanceOf({ ...settings, customization: true }), itemOf(id).slot, id).cleared
-}
 export function clearSlot(settings: PetSettings, slot: Slot): PetSettings {
   return { ...settings, outfit: { ...settings.outfit, [slot]: 'none' } }
 }

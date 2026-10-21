@@ -7,6 +7,7 @@ import type { PetSettings } from '../../../../../shared/pet'
 import { useT } from '../../../../contexts/LocaleContext'
 import { bagEntries, isWorn } from '../../../../pet/petModel'
 import { Button } from '../../../ui/Button'
+import { PetItemButton } from './PetItemCard'
 
 interface PetBagPanelProps {
   settings: PetSettings
@@ -48,8 +49,8 @@ export function PetBagPanel({ settings, onToggle, onTryOn }: PetBagPanelProps): 
             const label = [name, rarityLabel, entry.count > 1 ? t('settings.pet.bag.copies', { count: entry.count }) : '', worn ? t('settings.pet.bag.wearing') : '']
               .filter(Boolean).join(', ')
             return (
-              <button key={entry.id} type="button" className="pet-settings-tile" data-worn={worn} data-rarity={rarity} aria-pressed={worn}
-                style={{ '--pet-rarity': rarityMeta[rarity].color } as CSSProperties} title={`${name} · ${rarityLabel}`} aria-label={label}
+              <PetItemButton key={entry.id} item={entry.id} className="pet-settings-tile" data-worn={worn} data-rarity={rarity} aria-pressed={worn}
+                style={{ '--pet-rarity': rarityMeta[rarity].color } as CSSProperties} aria-label={label}
                 onMouseEnter={() => onTryOn(entry.id)} onFocus={() => onTryOn(entry.id)} onBlur={() => onTryOn(null)} onClick={() => onToggle(entry.id)}>
                 {entry.count > 1 && <span className="pet-settings-count">×{entry.count}</span>}
                 <span className="pet-settings-tile-art">
@@ -57,7 +58,7 @@ export function PetBagPanel({ settings, onToggle, onTryOn }: PetBagPanelProps): 
                   {worn && <span className="pet-settings-tile-worn"><Check size={10} strokeWidth={3} aria-hidden="true" /></span>}
                 </span>
                 <span className="pet-settings-tile-name">{name}</span>
-              </button>
+              </PetItemButton>
             )
           })}
           {Array.from({ length: slots - entries.length }, (_, index) => <span key={index} className="pet-settings-slot" aria-hidden="true" />)}

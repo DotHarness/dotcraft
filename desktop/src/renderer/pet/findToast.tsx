@@ -5,16 +5,24 @@ import { normalizeLocale, translate } from '../../shared/locales'
 import { showToast } from '../stores/toastStore'
 import { usePetStore } from './petStore'
 
-export function showFindToast(id: ItemId): void {
+function showItemToast(id: ItemId, title: 'pet.find.title' | 'pet.exchange.title'): void {
   const locale = normalizeLocale(document.documentElement.lang)
   const rarity = itemOf(id).rarity
   const style = { '--pet-rarity': rarityMeta[rarity].color } as CSSProperties
   const name = translate(locale, `pet.item.${id}.name`)
   showToast({
     key: 'pet-find',
-    message: translate(locale, 'pet.find.title', { item: name }),
+    message: translate(locale, title, { item: name }),
     description: <span className="pet-find-rarity" style={style}>{translate(locale, `settings.pet.rarity.${rarity}`)}</span>,
     art: <span className="pet-find-art" data-rarity={rarity} style={style}><DecorationSwatch id={id} size={30} label={name} /></span>,
     action: { label: translate(locale, 'pet.find.wear'), onClick: () => usePetStore.getState().wear(id) }
   })
+}
+
+export function showFindToast(id: ItemId): void {
+  showItemToast(id, 'pet.find.title')
+}
+
+export function showExchangeToast(id: ItemId): void {
+  showItemToast(id, 'pet.exchange.title')
 }

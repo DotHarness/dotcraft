@@ -908,7 +908,7 @@ The Agent Builder edits an Agent Profile as a document beside the conversation, 
 The default companion can be colored and dressed with collectible items; the settings record, appearance source, find rule, and bag and exchange rules belong to the avatar feature. Desktop rules:
 
 - A personal Pet settings tab holds a customization switch, the companion with its color and bag, and exchange; with customization off, only the switch remains.
-- Finds arrive on their own and are announced through the shared toast stack with a wear action. Desktop advances the runtime gate periodically and counts every `item/usage/delta` it receives toward the token gate; timing and odds are not settings.
+- Finds arrive on their own and are announced through the shared toast stack with a wear action; an exchange's result uses the same toast. Desktop advances the runtime gate periodically and counts every `item/usage/delta` it receives toward the token gate; timing and odds are not settings.
 - All pet copy, including item names and feature lines, is client-owned and localized by item id (`pet.item.<id>.name`, `pet.item.<id>.feature`); a new item needs both keys in every shipped locale.
 
 Visual treatment follows [Desktop DESIGN.md](../architecture/DESIGN.md#pet).
