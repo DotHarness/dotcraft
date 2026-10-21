@@ -392,6 +392,17 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     }
 
     [Fact]
+    public void SubAgentExplorer_AllowsCodeMode()
+    {
+        var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent("call-1", "CodeMode", new Dictionary<string, object?>())).Kind);
+    }
+
+    [Fact]
     public void SubAgentExplorer_MatchesNamespacedToolsByProviderFlatName()
     {
         var context = CreateContext(source: SubAgentSource("explorer", depth: 1));

@@ -210,6 +210,8 @@ approval context, or workspace policy. Tool reachability and shell access are in
 default role denies Agent control; explorer permits read-only exploration; worker permits writes and
 Agent control within the depth limit. `TaskStop` on an Agent path requires Agent-control authority
 (an allow-list grants it by naming `TaskStop`); stopping the child's own shell tasks does not.
+A role allow-list does not gate `CodeMode`, because each nested call is authorized against the role
+on its own; a deny list may still name it.
 
 Role instructions are a thread context item after inherited history and before the initial task.
 Changing or clearing them establishes an explicit history replacement boundary before sampling. Task
