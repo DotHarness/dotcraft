@@ -296,8 +296,6 @@ describe('ConversationWelcome composer', () => {
       detailPanelWidth: 400,
       activeDetailTab: 'changes',
       selectedChangeKey: null,
-      autoShowTriggeredForTurn: null,
-      autoShowPlanForItem: null,
       composerPrefill: null,
       pendingWelcomeTurn: null,
       pendingThreadCreation: null,

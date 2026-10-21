@@ -125,7 +125,7 @@
 
 .dc-tool-panel {
   min-width: 0;
-  margin: 2px 0 6px;
+  padding: 2px 0 6px;
   color: var(--text-secondary);
   font-size: var(--conversation-secondary-size);
   line-height: var(--conversation-line-height);

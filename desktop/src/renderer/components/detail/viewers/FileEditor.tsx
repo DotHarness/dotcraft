@@ -86,7 +86,7 @@ export function FileEditor({
     ...(preview
       ? [
           markdown({ extensions: GFM }),
-          markdownEditing(theme, (href) => {
+          markdownEditing(theme, absolutePath, (href) => {
             const viewer = useViewerTabStore.getState()
             if (!viewer.currentThreadId || !viewer.currentWorkspacePath) return
             void openConversationLink({

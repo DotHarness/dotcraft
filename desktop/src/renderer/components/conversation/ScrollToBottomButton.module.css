@@ -1,3 +1,24 @@
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-default);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  backdrop-filter: var(--glass-blur-soft);
+  -webkit-backdrop-filter: var(--glass-blur-soft);
+  color: var(--text-secondary);
+  line-height: 0;
+  cursor: pointer;
+  transition: color 100ms ease;
+}
+
+.button:hover {
+  color: var(--text-primary);
+}
+
 .dots { display: flex; align-items: center; justify-content: center; gap: 4px; }
 .dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.7; }
 

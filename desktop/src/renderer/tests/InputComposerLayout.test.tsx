@@ -163,7 +163,6 @@ describe('InputComposer layout', () => {
       detailPanelWidth: 400,
       activeDetailTab: 'changes',
       selectedChangeKey: null,
-      autoShowTriggeredForTurn: null,
       composerPrefill: null,
       pendingWelcomeTurn: null,
       _pendingWelcomeTimer: null

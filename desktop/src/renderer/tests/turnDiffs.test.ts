@@ -92,19 +92,34 @@ describe('deriveItemDiffs', () => {
 })
 
 describe('foldHistoryTurnDiffs', () => {
-  it('produces one row per file-changing call in call order', () => {
+  it('composes a file edited by several calls into one row, in first-edit order', () => {
     const entry = fold([twoEditsOfA]).get('t1')
 
     expect(entry?.source).toBe('history')
-    expect(entry?.files.map((row) => row.key)).toEqual(['t1::a', 't1::b', 't1::c'])
-    expect(entry?.files.map((row) => row.diff.filePath)).toEqual(['src/a.ts', 'src/a.ts', 'src/b.ts'])
-    expect(entry?.files[2].diff.isNewFile).toBe(true)
+    expect(entry?.files.map((row) => row.key)).toEqual(['t1::src/a.ts', 't1::c'])
+    expect(entry?.files[0].diff).toMatchObject({ filePath: 'src/a.ts', additions: 1, deletions: 1 })
+    expect(entry?.files[0].diff.diffHunks.flatMap((hunk) => hunk.lines.map((line) => line.content))).toEqual(['x', 'z'])
+    expect(entry?.files[1].diff.isNewFile).toBe(true)
+  })
+
+  it('lists the calls separately when they do not apply in sequence and drops edits that cancel out', () => {
+    const disjoint = turn('t1', [
+      edit('a', fileChange('src/a.ts', updateDiff('src/a.ts', 'x', 'y'))),
+      edit('b', fileChange('src/a.ts', updateDiff('src/a.ts', 'q', 'z')))
+    ])
+    const undone = turn('t2', [
+      edit('a', fileChange('src/a.ts', updateDiff('src/a.ts', 'x', 'y'))),
+      edit('b', fileChange('src/a.ts', updateDiff('src/a.ts', 'y', 'x')))
+    ])
+
+    expect(fold([disjoint]).get('t1')?.files.map((row) => row.key)).toEqual(['t1::a', 't1::b'])
+    expect(fold([undone]).get('t2')).toBeUndefined()
   })
 
   it('keeps live entries and carries row status by key', () => {
     const live: TurnDiff = { turnId: 't2', source: 'live', files: [] }
     const turns = [twoEditsOfA, turn('t2', [edit('d', fileChange('src/d.ts', updateDiff('src/d.ts', 'x', 'y')))])]
-    const reverted = setTurnFileStatus(fold(turns), 't1', 't1::a', 'reverted')
+    const reverted = setTurnFileStatus(fold(turns), 't1', 't1::src/a.ts', 'reverted')
     const grown = [
       turn('t1', [...twoEditsOfA.items, edit('e', fileChange('src/e.ts', updateDiff('src/e.ts', 'x', 'y')))]),
       turns[1]
@@ -113,8 +128,7 @@ describe('foldHistoryTurnDiffs', () => {
 
     expect(next.get('t2')).toBe(live)
     expect(next.get('t1')?.files.map((row) => [row.key, row.diff.status])).toEqual([
-      ['t1::a', 'reverted'],
-      ['t1::b', 'written'],
+      ['t1::src/a.ts', 'reverted'],
       ['t1::c', 'written'],
       ['t1::e', 'written']
     ])
@@ -175,12 +189,12 @@ describe('applyLiveTurnDiff', () => {
     expect(second.get('t1')?.files.map((row) => [row.key, row.diff.status])).toEqual([['t1::src/b.ts', 'reverted']])
   })
 
-  it('falls back to per-call rows when the aggregate is unavailable', () => {
+  it('falls back to history rows when the aggregate is unavailable', () => {
     const live = applyLiveTurnDiff(history, turns, itemDiffs, 't1', parseUnifiedDiff(addDiff('src/b.ts')))
     const next = applyLiveTurnDiff(live, turns, itemDiffs, 't1', null)
 
     expect(next.get('t1')?.source).toBe('history')
-    expect(next.get('t1')?.files.map((row) => row.key)).toEqual(['t1::a', 't1::b', 't1::c'])
+    expect(next.get('t1')?.files.map((row) => row.key)).toEqual(['t1::src/a.ts', 't1::c'])
   })
 })
 
@@ -188,18 +202,18 @@ describe('setTurnFileStatus', () => {
   it('returns the same map when nothing changes', () => {
     const map = fold([twoEditsOfA])
 
-    expect(setTurnFileStatus(map, 't1', 't1::a', 'written')).toBe(map)
+    expect(setTurnFileStatus(map, 't1', 't1::src/a.ts', 'written')).toBe(map)
     expect(setTurnFileStatus(map, 't1', 't1::missing', 'reverted')).toBe(map)
-    expect(setTurnFileStatus(map, 'missing', 't1::a', 'reverted')).toBe(map)
+    expect(setTurnFileStatus(map, 'missing', 't1::src/a.ts', 'reverted')).toBe(map)
   })
 
   it('changes only the addressed row', () => {
     const map = fold([twoEditsOfA])
-    const next = setTurnFileStatus(map, 't1', 't1::b', 'reverted')
+    const next = setTurnFileStatus(map, 't1', 't1::c', 'reverted')
     const before = map.get('t1')!.files
     const after = next.get('t1')!.files
 
-    expect(after.map((row) => row.diff.status)).toEqual(['written', 'reverted', 'written'])
+    expect(after.map((row) => row.diff.status)).toEqual(['written', 'reverted'])
     expect(after[0]).toBe(before[0])
     expect(before[1].diff.status).toBe('written')
   })
@@ -218,20 +232,20 @@ describe('selectors', () => {
 
   it('summarizes each path once with summed counts and the latest status', () => {
     expect(threadFileSummaries(map)).toEqual([
-      { filePath: 'src/a.ts', additions: 3, deletions: 3, status: 'reverted' },
+      { filePath: 'src/a.ts', additions: 2, deletions: 2, status: 'reverted' },
       { filePath: 'src/b.ts', additions: 2, deletions: 0, status: 'written' }
     ])
   })
 
   it('totals a turn', () => {
-    expect(turnPatchTotals(map.get('t1')!.files)).toEqual({ additions: 4, deletions: 2, files: 2 })
+    expect(turnPatchTotals(map.get('t1')!.files)).toEqual({ additions: 3, deletions: 1, files: 2 })
     expect(turnPatchTotals([])).toEqual({ additions: 0, deletions: 0, files: 0 })
   })
 
   it('lists the written files of a turn once per path', () => {
     const next = setTurnFileStatus(map, 't1', 't1::c', 'reverted')
 
-    expect(turnWrittenFiles(next, 't1').map((row) => row.key)).toEqual(['t1::b'])
+    expect(turnWrittenFiles(next, 't1').map((row) => row.key)).toEqual(['t1::src/a.ts'])
     expect(turnWrittenFiles(next, 't2')).toEqual([])
   })
 })

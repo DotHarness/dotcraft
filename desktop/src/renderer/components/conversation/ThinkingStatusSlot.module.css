@@ -1,0 +1,17 @@
+.slot {
+  height: calc(var(--conversation-font-size) * var(--conversation-line-height) + 6px);
+  overflow: hidden;
+  font-size: var(--conversation-font-size);
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-standard);
+}
+
+.slot[data-visible='true'] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slot {
+    transition: none;
+  }
+}

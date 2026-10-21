@@ -24,19 +24,20 @@ function SubagentsRow({ host, state, strings }: {
   state: SummaryState
   strings: SummaryStrings
 }): JSX.Element {
-  const agents = state.subagents
-  const working = agents.filter((agent) => agent.state === 'working' || agent.state === 'waiting').length
-  const label = working > 0 ? fill(strings.working, { count: working }) : fill(strings.done, { count: agents.length })
-  const stack = agents.slice(0, AVATAR_LIMIT)
-  const overflow = agents.length - stack.length
+  const working = state.subagents.filter((agent) => agent.state === 'working' || agent.state === 'waiting')
+  const finished = state.subagents.filter((agent) => agent.state !== 'working' && agent.state !== 'waiting')
+  const label = working.length > 0 ? fill(strings.working, { count: working.length }) : fill(strings.done, { count: finished.length })
+  const meta = working.length > 0 && finished.length > 0 ? fill(strings.done, { count: finished.length }) : null
+  const shown = working.length > 0 ? working : finished
+  const stack = shown.slice(0, AVATAR_LIMIT)
+  const overflow = shown.length - stack.length
 
   return (
     <li>
       <button
         type="button"
         className="conversation-summary-row conversation-summary-row--action conversation-summary-row--subagents"
-        data-muted={working === 0 || undefined}
-        aria-label={`${strings.openSubagents}: ${label}`}
+        aria-label={`${strings.openSubagents}: ${meta ? `${label}, ${meta}` : label}`}
         onClick={() => host.navigation.openDetailPanel('subagents')}
       >
         <span className="conversation-summary-avatars" aria-hidden="true">
@@ -48,6 +49,7 @@ function SubagentsRow({ host, state, strings }: {
           {overflow > 0 ? <span className="conversation-summary-avatars__more">+{overflow}</span> : null}
         </span>
         <span className="conversation-summary-row__label">{label}</span>
+        {meta ? <span className="conversation-summary-row__inline">{meta}</span> : null}
       </button>
     </li>
   )

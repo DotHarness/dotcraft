@@ -8,6 +8,9 @@ import {
   type ParsedFilePatch
 } from '../utils/unifiedDiff'
 import { isFileWriteKind, resolveToolKind } from '../utils/toolKind'
+import { composeFilePatches } from '../utils/composeFilePatches'
+
+const pathKey = (filePath: string): string => filePath.replace(/\\/g, '/')
 
 interface FileChangeCall {
   item: ConversationItem
@@ -76,6 +79,27 @@ function historyRow(
   return withStatusOf(row, prior)
 }
 
+/** One composed row for a file edited by several calls, or null to list the calls separately; an empty list when the edits cancel out. */
+function composedRows(
+  turnId: string,
+  calls: readonly FileChangeCall[],
+  priorRows: ReadonlyMap<string, TurnFileChange>,
+  workspacePath?: string
+): TurnFileChange[] | null {
+  if (calls.some(({ change }) => change.truncated === true || !change.diff)) return null
+  const composed = composeFilePatches(calls.map(({ change }) => change.diff!))
+  if (composed == null) return null
+  if (composed === '') return []
+  const first = calls[0]!.change
+  const parsed = fileChangeEntryToTurnFileChange({ ...first, diff: composed, additions: 0, deletions: 0 }, turnId, '', workspacePath)
+  const additions = parsed.diff.diffHunks.reduce((sum, hunk) => sum + hunk.lines.filter((line) => line.type === 'add').length, 0)
+  const deletions = parsed.diff.diffHunks.reduce((sum, hunk) => sum + hunk.lines.filter((line) => line.type === 'remove').length, 0)
+  const key = `${turnId}::${parsed.diff.filePath}`
+  const prior = priorRows.get(key)
+  if (prior && prior.patchText === composed) return [prior]
+  return [withStatusOf({ ...parsed, key, diff: { ...parsed.diff, additions, deletions }, truncated: false }, prior)]
+}
+
 function foldTurn(
   turn: ConversationTurn,
   itemDiffs: ReadonlyMap<string, FileDiff>,
@@ -83,8 +107,15 @@ function foldTurn(
   workspacePath?: string
 ): TurnDiff | undefined {
   const priorRows = new Map(prior?.files.map((row) => [row.key, row] as const))
-  const files = fileChangeCalls(turn).map((call) =>
-    historyRow(turn.id, call, itemDiffs.get(call.item.id), priorRows.get(`${turn.id}::${call.item.id}`), workspacePath)
+  const byPath = new Map<string, FileChangeCall[]>()
+  for (const call of fileChangeCalls(turn)) {
+    const path = pathKey(call.change.path)
+    byPath.set(path, [...(byPath.get(path) ?? []), call])
+  }
+  const files = [...byPath.values()].flatMap((calls) =>
+    (calls.length > 1 ? composedRows(turn.id, calls, priorRows, workspacePath) : null)
+      ?? calls.map((call) =>
+        historyRow(turn.id, call, itemDiffs.get(call.item.id), priorRows.get(`${turn.id}::${call.item.id}`), workspacePath))
   )
   if (files.length === 0) return undefined
   if (prior && prior.files.length === files.length && files.every((row, index) => row === prior.files[index])) {
@@ -169,8 +200,6 @@ function turnDiffsNewestFirst(map: ReadonlyMap<string, TurnDiff>, turns: readonl
 export function latestTurnDiff(map: ReadonlyMap<string, TurnDiff>, turns: readonly ConversationTurn[]): TurnDiff | undefined {
   return turnDiffsNewestFirst(map, turns)[0]
 }
-
-const pathKey = (filePath: string): string => filePath.replace(/\\/g, '/')
 
 /** One summary per path. Rows are read in map order, so the status comes from the path's last row in the last turn. */
 export function threadFileSummaries(map: ReadonlyMap<string, TurnDiff>): ThreadFileSummary[] {

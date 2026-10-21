@@ -12,8 +12,7 @@ import { useImagePreview } from './imagePreview/useImagePreview'
 import { MessageCopyButton } from './MessageCopyButton'
 import {
   MessageOriginLine,
-  SentAsGoalMarker,
-  SteeredOriginLine
+  SentAsGoalMarker
 } from './MessageOriginMarkers'
 import { parseUserMessageSegments, segmentsFromNativeInputParts } from './parseUserMessageSegments'
 import type { ConversationItem, InputPart, UserMessageImageRef } from '../../types/conversation'
@@ -36,7 +35,6 @@ interface UserMessageBlockProps {
   imageDataUrls?: string[]
   images?: UserMessageImageRef[]
   createdAt?: string
-  deliveryMode?: ConversationItem['deliveryMode']
   triggerKind?: ConversationItem['triggerKind']
   triggerLabel?: string
   triggerRefId?: string
@@ -63,7 +61,6 @@ export function UserMessageBlock({
   imageDataUrls: persistedImageDataUrls,
   images: persistedImages,
   createdAt,
-  deliveryMode,
   triggerKind,
   triggerLabel,
   triggerRefId,
@@ -113,7 +110,6 @@ export function UserMessageBlock({
   const textSegments = segments
   const sentTime = formatMessageTime(createdAt)
   const actionsVisible = hovered || focusedWithin
-  const isGuidance = deliveryMode === 'guidance'
 
   useEffect(() => {
     if (!editing) return
@@ -186,7 +182,6 @@ export function UserMessageBlock({
           alignItems: 'flex-end'
         }}
       >
-        {!editing && isGuidance && <SteeredOriginLine />}
         {!editing && triggerKind && (
           <MessageOriginLine kind={triggerKind} label={triggerLabel} refId={triggerRefId} />
         )}

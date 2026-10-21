@@ -752,7 +752,7 @@ Carries the **complete latest snapshot** of the Turn's aggregated diff of tool-m
 - Only `WriteFile` and `EditFile` edits are tracked, including those of in-process SubAgents during the Turn; shell-made changes are not.
 - Emitted right after the `item/completed` of the `toolResult` that changed the aggregate, and once more before `turn/completed` or `turn/cancelled` if it changed since the last emission. Identical snapshots are not re-sent.
 - An empty `diff` means the edits cancel out or the aggregate is unavailable (edit on a Remote Tool Host, size cap exceeded, tracking invalidated). Clients then fall back to per-call `fileChange` diffs in `toolResult.structuredContent` ([Session Core, ToolResult](../architecture/session-core.md#toolresult)).
-- Not persisted; reloads rebuild changes from per-call diffs. Included in `thread/subscribe` replay.
+- Not persisted; reloads rebuild changes from per-call diffs, composing each file's sequential diffs into one. Included in `thread/subscribe` replay.
 
 #### `thread/queue/updated`
 

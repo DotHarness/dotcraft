@@ -451,7 +451,6 @@ const TurnBlock = memo(function TurnBlock({
           imageDataUrls={item.imageDataUrls}
           images={item.images}
           createdAt={item.createdAt}
-          deliveryMode={item.deliveryMode}
           triggerKind={showOrigin ? 'thread' : item.triggerKind}
           triggerLabel={showOrigin ? threadOrigin?.label : item.triggerLabel}
           triggerRefId={showOrigin ? threadOrigin?.refId : item.triggerRefId}

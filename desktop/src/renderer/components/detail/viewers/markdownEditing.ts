@@ -10,6 +10,7 @@ import { syntaxTree } from '@codemirror/language'
 import type { ThemeMode } from '../../../../shared/theme'
 import { renderMermaidSvg } from '../../conversation/MermaidDiagram'
 import { parseFrontmatter, type FrontmatterEntry } from '../../../utils/frontmatter'
+import { resolveMarkdownImageSource } from './markdownImageSource'
 
 const FRONTMATTER_SCAN_LENGTH = 16_384
 
@@ -23,15 +24,19 @@ const focused = StateField.define<boolean>({
     )
 })
 
-export function markdownEditing(theme: ThemeMode, openLink: (href: string) => void): Extension {
+export function markdownEditing(
+  theme: ThemeMode,
+  documentPath: string,
+  openLink: (href: string) => void
+): Extension {
   const decorations = StateField.define<DecorationSet>({
-    create: (state) => decorateMarkdown(state, theme),
+    create: (state) => decorateMarkdown(state, theme, documentPath),
     update(value, tr) {
       return tr.docChanged ||
         tr.selection ||
         tr.effects.some((effect) => effect.is(focusChanged)) ||
         syntaxTree(tr.startState) !== syntaxTree(tr.state)
-        ? decorateMarkdown(tr.state, theme)
+        ? decorateMarkdown(tr.state, theme, documentPath)
         : value
     },
     provide: (field) => EditorView.decorations.from(field)
@@ -79,7 +84,7 @@ export function markdownEditing(theme: ThemeMode, openLink: (href: string) => vo
   ]
 }
 
-function decorateMarkdown(state: EditorState, theme: ThemeMode): DecorationSet {
+function decorateMarkdown(state: EditorState, theme: ThemeMode, documentPath: string): DecorationSet {
   const ranges: ReturnType<Decoration['range']>[] = []
   const hasFocus = state.field(focused, false) ?? false
   const selected = (from: number, to: number) =>
@@ -134,6 +139,16 @@ function decorateMarkdown(state: EditorState, theme: ThemeMode): DecorationSet {
           for (let child = node.firstChild; child; child = child.nextSibling) {
             if (child.name.endsWith('Mark')) hide(child.from, child.to)
           }
+      }
+      if (name === 'Image' && !active) {
+        const url = node.getChild('URL')
+        const src = url ? resolveMarkdownImageSource(state.doc.sliceString(url.from, url.to), documentPath) : null
+        if (src) {
+          const markers = node.getChildren('LinkMark')
+          const alt = markers.length >= 2 ? state.doc.sliceString(markers[0]!.to, markers[1]!.from) : ''
+          ranges.push(Decoration.replace({ widget: new ImageWidget(src, alt) }).range(from, to))
+          return false
+        }
       }
       if (name === 'Link' || name === 'Autolink') {
         const url = node.getChild('URL')
@@ -284,6 +299,36 @@ class FrontmatterWidget extends WidgetType {
       element.append(term, detail)
     }
     return element
+  }
+}
+
+class ImageWidget extends WidgetType {
+  constructor(
+    private src: string,
+    private alt: string
+  ) {
+    super()
+  }
+  eq(other: ImageWidget) {
+    return other.src === this.src && other.alt === this.alt
+  }
+  toDOM(view: EditorView) {
+    const image = document.createElement('img')
+    image.className = 'dc-md-image'
+    image.src = this.src
+    image.alt = this.alt
+    image.addEventListener('load', () => view.requestMeasure())
+    image.addEventListener('error', () => {
+      const fallback = document.createElement('span')
+      fallback.className = 'dc-md-image-missing'
+      fallback.textContent = this.alt || this.src
+      image.replaceWith(fallback)
+      view.requestMeasure()
+    })
+    return image
+  }
+  ignoreEvent() {
+    return false
   }
 }
 

@@ -1220,6 +1220,13 @@ The transcript uses the Conversation type scale. Icon actions on its rows take t
 transcript row footprint, and framed actions on its cards use `outlineGhost` (see
 Buttons).
 
+### Floating transcript controls
+
+Controls that float over the transcript bottom, the jump-to-latest button and the
+running changes indicator, share one quiet surface: `--bg-primary` at 70% over a
+soft blur with a `--border-default` hairline and no drop shadow, so they read as
+the conversation's own background rather than raised chips.
+
 ### Message markers
 
 A user bubble holds only what the person wrote. Everything the client knows
@@ -1227,7 +1234,8 @@ A user bubble holds only what the person wrote. Everything the client knows
 
 Origin goes above the bubble: a right-aligned line of small icon plus label in
 `--text-tertiary`, with no pill, border, or fill, naming where the turn came from
-(steered conversation, another thread, an automation). When the origin has a
+(another thread, an automation). A message that steered a running turn carries
+no origin line; its place in the turn already says so. When the origin has a
 destination the line is a quiet action that lifts to `--text-secondary` on hover;
 otherwise it stays inert.
 

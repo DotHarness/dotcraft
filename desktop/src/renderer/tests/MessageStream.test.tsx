@@ -633,14 +633,15 @@ describe('MessageStream', () => {
 
     renderWithLocale(<MessageStream />)
 
+    const slotVisible = () => screen.getByTestId('thinking-status-slot').dataset.visible === 'true'
     expect(screen.getByText('Partial answer')).toBeInTheDocument()
-    expect(screen.queryByText('Thinking')).toBeNull()
+    expect(slotVisible()).toBe(false)
 
     act(() => {
       vi.advanceTimersByTime(2000)
     })
 
-    expect(screen.getByText('Thinking')).toBeInTheDocument()
+    expect(slotVisible()).toBe(true)
     const stalledText = screen.getByTestId('message-stream').textContent ?? ''
     expect(stalledText.indexOf('Partial answer')).toBeLessThan(stalledText.indexOf('Thinking'))
 
@@ -656,7 +657,7 @@ describe('MessageStream', () => {
       vi.advanceTimersByTime(500)
     })
 
-    expect(screen.queryByText('Thinking')).toBeNull()
+    expect(slotVisible()).toBe(false)
     expect(screen.getByText('Partial answer continued')).toBeInTheDocument()
   })
 

@@ -253,7 +253,6 @@ function dispatch(payload: { method: string; params: unknown }): void {
       const threadId = (p.threadId as string | undefined) ?? ''
       if (!threadId || !shouldUpdateActiveConversation(threadId)) break
       conv.onPlanUpdated(p as Record<string, unknown>)
-      useUIStore.getState().setActiveDetailTab('plan')
       break
     }
 
@@ -1647,7 +1646,7 @@ describe('notification dispatch payload format', () => {
     expect(s().plan).toBeNull()
   })
 
-  it('applies plan/updated for the active thread and opens the Plan tab', () => {
+  it('applies plan/updated for the active thread without opening or switching the detail panel', () => {
     useUIStore.setState({
       activeDetailTab: { kind: 'system', id: 'changes' },
       detailPanelPreferredVisible: false,
@@ -1667,8 +1666,8 @@ describe('notification dispatch payload format', () => {
 
     expect(s().plan?.title).toBe('Active Plan')
     expect(s().plan?.todos[0].content).toBe('Show this task')
-    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
-    expect(useUIStore.getState().detailPanelVisible).toBe(true)
+    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
+    expect(useUIStore.getState().detailPanelVisible).toBe(false)
   })
 
   it('ignores turn/diff/updated from non-active threads', () => {

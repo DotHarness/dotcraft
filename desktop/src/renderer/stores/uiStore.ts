@@ -182,9 +182,6 @@ export interface UIState {
   selectedChangeKey: string | null
   changesDiffModeByThread: Record<string, ChangesDiffMode>
   changesWordWrap: boolean
-  /** Prevents re-triggering the auto-show after the user manually hides the panel. */
-  autoShowTriggeredForTurn: string | null
-  autoShowPlanForItem: string | null
   /** Generic one-shot auto-show reasons to avoid repeated auto-open fights. */
   autoShowReasons: Set<string>
   composerPrefill: string | null
@@ -263,8 +260,6 @@ interface UIStore extends UIState {
   toggleChangesWordWrap(): void
   /** Open detail panel, switch to Changes tab, select the given row */
   showChangesForKey(key: string): void
-  markAutoShowForTurn(turnId: string): void
-  markAutoShowPlanForItem(itemId: string): void
   /** Auto-show detail panel once for a reason. Returns true when newly triggered. */
   maybeAutoShowForReason(reasonId: string): boolean
   resetAutoShowReasons(): void
@@ -383,8 +378,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   selectedChangeKey: null,
   changesDiffModeByThread: {},
   changesWordWrap: false,
-  autoShowTriggeredForTurn: null,
-  autoShowPlanForItem: null,
   autoShowReasons: new Set<string>(),
   composerPrefill: null,
   composerImageAttachmentRequest: null,
@@ -765,14 +758,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         detailPanelPreferredVisible
       )
     })
-  },
-
-  markAutoShowForTurn(turnId) {
-    set({ autoShowTriggeredForTurn: turnId })
-  },
-
-  markAutoShowPlanForItem(itemId) {
-    set({ autoShowPlanForItem: itemId })
   },
 
   maybeAutoShowForReason(reasonId) {

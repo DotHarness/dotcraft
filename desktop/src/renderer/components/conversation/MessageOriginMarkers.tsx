@@ -1,5 +1,5 @@
-import { Bot, CornerDownRight, MessagesSquare, Target, Workflow } from 'lucide-react'
-import { useLocale, useT } from '../../contexts/LocaleContext'
+import { Bot, MessagesSquare, Target, Workflow } from 'lucide-react'
+import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import { useAutomationsStore } from '../../stores/automationsStore'
 import { useThreadStore } from '../../stores/threadStore'
@@ -144,18 +144,6 @@ export function MessageOriginLine({
     <ActionTooltip label={hint} placement="top" wrapperStyle={{ display: 'inline-flex' }}>
       {line}
     </ActionTooltip>
-  )
-}
-
-/** Marks a message that steered a turn already in flight. */
-export function SteeredOriginLine(): JSX.Element {
-  const t = useT()
-
-  return (
-    <span className="dc-message-origin">
-      <CornerDownRight size={13} strokeWidth={1.8} aria-hidden />
-      <span>{t('conversation.steeredConversation')}</span>
-    </span>
   )
 }
 

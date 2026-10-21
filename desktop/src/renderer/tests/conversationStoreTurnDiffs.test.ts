@@ -60,34 +60,31 @@ beforeEach(() => {
 })
 
 describe('history turn diffs', () => {
-  it('builds item diffs and one row per edit from persisted file changes', () => {
+  it('builds item diffs and one row per file from persisted file changes', () => {
     s().setTurns(loadHistory(twoEditsOfA))
 
     expect([...s().itemDiffs.keys()]).toEqual(['a', 'b'])
     expect(s().turnDiffs.get('t1')?.source).toBe('history')
-    expect(rowsOf('t1')).toEqual([
-      ['t1::a', 'src/a.ts', 'written'],
-      ['t1::b', 'src/a.ts', 'written']
-    ])
+    expect(rowsOf('t1')).toEqual([['t1::src/a.ts', 'src/a.ts', 'written']])
   })
 
   it('shows diffs for remote workspaces too', () => {
     s().setRemoteWorkspaceActive(true)
     s().setTurns(loadHistory(twoEditsOfA))
 
-    expect(rowsOf('t1')).toHaveLength(2)
+    expect(rowsOf('t1')).toHaveLength(1)
   })
 
   it('keeps live entries and reverted rows when history reloads in place', () => {
     const history = loadHistory(twoEditsOfA, wireTurn('t2', [wireCall('c'), wireResult('c', fileChange('src/c.ts', addDiff('src/c.ts'), 2, 0, 'add'))]))
     s().setTurns(history)
     s().onTurnDiffUpdated({ turnId: 't2', diff: addDiff('src/c.ts') })
-    s().setTurnFileStatus('t1', 't1::a', 'reverted')
+    s().setTurnFileStatus('t1', 't1::src/a.ts', 'reverted')
 
     s().setTurns(history, { preserveExistingRealtime: true })
 
     expect(s().turnDiffs.get('t2')?.source).toBe('live')
-    expect(rowsOf('t1')[0]).toEqual(['t1::a', 'src/a.ts', 'reverted'])
+    expect(rowsOf('t1')[0]).toEqual(['t1::src/a.ts', 'src/a.ts', 'reverted'])
   })
 
   it('reset clears item and turn diffs', () => {

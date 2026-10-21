@@ -262,35 +262,6 @@ describe('UserMessageBlock trigger source pills', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('直接输入 · Inspect')
   })
 
-  it('renders guidance user messages with a steered conversation marker', () => {
-    renderWithLocale(
-      <UserMessageBlock
-        text="Focus on failing tests first"
-        deliveryMode="guidance"
-      />
-    )
-
-    expect(screen.getByText('Steered conversation')).toBeInTheDocument()
-  })
-
-  it('does not render the steered conversation marker for normal or queued user messages', () => {
-    const { rerender } = render(
-      <LocaleProvider>
-        <UserMessageBlock text="Normal message" />
-      </LocaleProvider>
-    )
-
-    expect(screen.queryByText('Steered conversation')).toBeNull()
-
-    rerender(
-      <LocaleProvider>
-        <UserMessageBlock text="Queued message" deliveryMode="queued" />
-      </LocaleProvider>
-    )
-
-    expect(screen.queryByText('Steered conversation')).toBeNull()
-  })
-
   it('opens workspace-external file chips in the internal viewer', async () => {
     renderWithLocale(
       <UserMessageBlock

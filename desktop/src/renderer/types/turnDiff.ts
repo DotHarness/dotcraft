@@ -15,7 +15,7 @@ export interface FileChangeStructuredContent {
 }
 
 export interface TurnFileChange {
-  /** `${turnId}::${itemId}` for history rows, `${turnId}::${path}` for live rows. */
+  /** `${turnId}::${path}` for live and composed rows, `${turnId}::${itemId}` for a single call's history row. */
   key: string
   turnId: string
   diff: FileDiff

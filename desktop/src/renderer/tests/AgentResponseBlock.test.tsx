@@ -652,6 +652,10 @@ describe('AgentResponseBlock tool transcript rendering', () => {
   })
 })
 
+function thinkingSlotVisible(): boolean {
+  return screen.queryByTestId('thinking-status-slot')?.dataset.visible === 'true'
+}
+
 describe('AgentResponseBlock tail tool aggregation timing', () => {
   beforeEach(() => {
     installDesktopApiMock({
@@ -661,7 +665,7 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       })
   })
 
-  it('shows the trailing run of a running turn as one active row that hosts Thinking', () => {
+  it('shows the trailing run of a running turn as one row and Thinking in the status slot', () => {
     const turn: ConversationTurn = {
       id: 'turn-tail-running',
       threadId: 'thread-1',
@@ -681,10 +685,12 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
 
     const rows = screen.getAllByTestId('tool-row')
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toHaveTextContent('Thinking')
+    expect(rows[0]).not.toHaveTextContent('Thinking')
+    expect(thinkingSlotVisible()).toBe(true)
+    expect(screen.getByTestId('thinking-status-slot')).toHaveTextContent('Thinking')
   })
 
-  it('shows live reasoning as the active row status instead of splitting the run', () => {
+  it('titles the status slot with live reasoning without splitting the run', () => {
     const turn: ConversationTurn = {
       id: 'turn-tail-unlocked',
       threadId: 'thread-1',
@@ -703,7 +709,7 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       ]
     }
 
-    const { container } = render(
+    render(
       <LocaleProvider>
         <AgentResponseBlock turn={turn} isRunning showIdleThinkingFallback activeItemIdOverride="reasoning-1" streamingReasoning={'**Planning the fix**'} />
       </LocaleProvider>
@@ -711,8 +717,30 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
 
     const rows = screen.getAllByTestId('tool-row')
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toHaveTextContent('Planning the fix')
-    expect(container.querySelector('.dc-thinking-row')).toBeNull()
+    expect(rows[0]).not.toHaveTextContent('Planning the fix')
+    expect(screen.getByTestId('thinking-status-slot')).toHaveTextContent('Planning the fix')
+  })
+
+  it('keeps the previous reasoning title between reasoning blocks', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-kept-title',
+      threadId: 'thread-1',
+      status: 'running',
+      startedAt: '2026-04-18T11:05:00.000Z',
+      items: [
+        { id: 'reasoning-1', type: 'reasoningContent', status: 'completed', reasoning: '**Reading the config**', createdAt: '2026-04-18T11:05:01.000Z' },
+        makeToolCallItem('tool-1', 'call-1', 'ReadFile', '2026-04-18T11:05:02.000Z', DECLARED),
+        { id: 'reasoning-2', type: 'reasoningContent', status: 'streaming', reasoning: '', createdAt: '2026-04-18T11:05:03.000Z' }
+      ]
+    }
+
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} isRunning showIdleThinkingFallback activeItemIdOverride="reasoning-2" streamingReasoning="" />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByTestId('thinking-status-slot')).toHaveTextContent('Reading the config')
   })
 
   it('keeps a settled restored explore run grouped before later live tools and approvals', () => {
@@ -1215,6 +1243,16 @@ describe('AgentResponseBlock idle running fallback', () => {
     expect(container.textContent).not.toContain('undefined')
   })
 
+  it('says it is waiting for the answer while a user-input request is open', () => {
+    useConversationStore.setState({
+      pendingUserInput: { bridgeId: 'bridge-1', threadId: 'thread-1', requestId: 'request-1', turnId: 'turn-waiting', isBlocking: true, questions: [] }
+    })
+    renderBlock({ id: 'turn-waiting', threadId: 'thread-1', status: 'running', startedAt: '2026-04-18T11:21:00.000Z', items: [] }, { isRunning: true, showIdleThinkingFallback: true })
+
+    expect(thinkingSlotVisible()).toBe(true)
+    expect(screen.getByTestId('thinking-status-slot')).toHaveTextContent('Waiting for your answer')
+  })
+
   it('does not reopen Thinking after the final agent message completes', () => {
     const turn: ConversationTurn = {
       id: 'turn-final-message-pending-completion',
@@ -1235,7 +1273,7 @@ describe('AgentResponseBlock idle running fallback', () => {
 
     renderBlock(turn, { isRunning: true, showIdleThinkingFallback: true })
 
-    expect(screen.queryByText('Thinking')).toBeNull()
+    expect(thinkingSlotVisible()).toBe(false)
     expect(screen.getByText('The work is complete.')).toBeInTheDocument()
   })
 
@@ -1323,14 +1361,14 @@ describe('AgentResponseBlock idle running fallback', () => {
       streamingMessageLastDeltaAt: Date.now()
     })
 
-    expect(screen.queryByText('Thinking')).toBeNull()
+    expect(thinkingSlotVisible()).toBe(false)
     expect(screen.getByText('Streaming answer')).toBeInTheDocument()
 
     act(() => {
       vi.advanceTimersByTime(1999)
     })
 
-    expect(screen.queryByText('Thinking')).toBeNull()
+    expect(thinkingSlotVisible()).toBe(false)
   })
 
   it('renders the fallback below non-empty assistant text after the stream stalls', () => {
@@ -1365,14 +1403,14 @@ describe('AgentResponseBlock idle running fallback', () => {
       </LocaleProvider>
     )
 
-    expect(screen.queryByText('Thinking')).toBeNull()
+    expect(thinkingSlotVisible()).toBe(false)
 
     act(() => {
       vi.advanceTimersByTime(2000)
     })
 
     expect(screen.getByText('Streaming answer')).toBeInTheDocument()
-    expect(screen.getByText('Thinking')).toBeInTheDocument()
+    expect(thinkingSlotVisible()).toBe(true)
     const text = container.textContent ?? ''
     expect(text.indexOf('Streaming answer')).toBeLessThan(text.indexOf('Thinking'))
   })
@@ -1414,7 +1452,7 @@ describe('AgentResponseBlock idle running fallback', () => {
       vi.advanceTimersByTime(2000)
     })
 
-    expect(screen.getByText('Thinking')).toBeInTheDocument()
+    expect(thinkingSlotVisible()).toBe(true)
 
     rerender(renderLive('Streaming answer continued', Date.now()))
     // Appended text reveals via the typewriter cadence; advance well under the
@@ -1423,12 +1461,12 @@ describe('AgentResponseBlock idle running fallback', () => {
       vi.advanceTimersByTime(500)
     })
 
-    expect(screen.queryByText('Thinking')).toBeNull()
+    expect(thinkingSlotVisible()).toBe(false)
     expect(screen.getByText('Streaming answer continued')).toBeInTheDocument()
     expect(screen.queryByText('Streaming answer', { exact: true })).toBeNull()
   })
 
-  it('does not render the fallback while a tool row is live', () => {
+  it('keeps Thinking visible while a tool row is live', () => {
     const turn: ConversationTurn = {
       id: 'turn-live-tool',
       threadId: 'thread-1',
@@ -1449,7 +1487,7 @@ describe('AgentResponseBlock idle running fallback', () => {
 
     renderBlock(turn, { isRunning: true, showIdleThinkingFallback: true })
 
-    expect(screen.queryByText('Thinking')).toBeNull()
+    expect(thinkingSlotVisible()).toBe(true)
     expect(screen.getByText(/FollowupTool/)).toBeInTheDocument()
   })
 
@@ -1482,7 +1520,7 @@ describe('AgentResponseBlock idle running fallback', () => {
     expect(screen.queryByText(/Reading file/i)).toBeNull()
   })
 
-  it('switches the activity row label and icon together when a tool hands over to thinking', () => {
+  it('keeps the settled row and Thinking when a tool hands over to thinking', () => {
     vi.useFakeTimers()
     const readItem = (status: 'started' | 'completed'): ConversationItem => ({
       id: 'tool-read-handover',
@@ -1509,14 +1547,12 @@ describe('AgentResponseBlock idle running fallback', () => {
     expect(icon()).not.toBeNull()
 
     rerender(renderTurn('completed'))
-    expect(screen.queryByText('Thinking')).toBeNull()
-    expect(icon()).not.toBeNull()
-
     act(() => {
       vi.advanceTimersByTime(1000)
     })
-    expect(screen.getByText('Thinking')).toBeInTheDocument()
-    expect(icon()).toBeNull()
+    expect(thinkingSlotVisible()).toBe(true)
+    expect(icon()).not.toBeNull()
+    expect(screen.getByTestId('tool-row')).not.toHaveTextContent('Thinking')
   })
 
   it('reopens Thinking after a tool completes following an intermediate agent message', () => {
@@ -2581,18 +2617,14 @@ describe('AgentResponseBlock guidance user messages', () => {
     const text = renderBlock(turn)
     const initialIndex = text.indexOf('initial request')
     const toolIndex = text.indexOf('Called FollowupTool')
-    const markerIndex = text.indexOf('Steered conversation')
     const guidanceIndex = text.indexOf('guide the active turn')
     const assistantIndex = text.indexOf('continuing after guidance')
 
     expect(initialIndex).toBe(-1)
     expect(toolIndex).toBeGreaterThan(-1)
-    expect(markerIndex).toBeGreaterThan(-1)
     expect(guidanceIndex).toBeGreaterThan(-1)
     expect(assistantIndex).toBeGreaterThan(-1)
     expect(toolIndex).toBeLessThan(guidanceIndex)
-    expect(toolIndex).toBeLessThan(markerIndex)
-    expect(markerIndex).toBeLessThan(guidanceIndex)
     expect(guidanceIndex).toBeLessThan(assistantIndex)
 
     const guidanceFlowItem = screen.getByText('guide the active turn').closest('[data-testid="conversation-flow-item"]')
@@ -2635,7 +2667,6 @@ describe('AgentResponseBlock guidance user messages', () => {
     expect(screen.queryByText('Called FollowupTool')).toBeNull()
     fireEvent.click(screen.getByRole('button', { expanded: false }))
     expect(screen.getByText('Called FollowupTool')).toBeInTheDocument()
-    expect(screen.getByText('Steered conversation')).toBeInTheDocument()
     expect(screen.getByText('guide the active turn')).toBeInTheDocument()
     expect(screen.getByText('final response')).toBeInTheDocument()
   })

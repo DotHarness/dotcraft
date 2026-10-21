@@ -30,8 +30,6 @@ beforeEach(() => {
     detailPanelPreferredVisible: true,
     detailPanelPreferredVisibleByThread: {},
     selectedChangeKey: null,
-    autoShowTriggeredForTurn: null,
-    autoShowPlanForItem: null,
     activeDetailTab: { kind: 'system', id: 'changes' },
     openSystemTabs: ['changes'],
     lastActiveSystemTab: 'changes',
@@ -139,40 +137,8 @@ describe('showChangesForKey', () => {
   })
 })
 
-describe('markAutoShowForTurn', () => {
-  it('stores the turn id that triggered auto-show', () => {
-    expect(ui().autoShowTriggeredForTurn).toBeNull()
-
-    ui().markAutoShowForTurn('turn-abc')
-
-    expect(ui().autoShowTriggeredForTurn).toBe('turn-abc')
-  })
-
-  it('allows override for a different turn', () => {
-    ui().markAutoShowForTurn('turn-1')
-    ui().markAutoShowForTurn('turn-2')
-    expect(ui().autoShowTriggeredForTurn).toBe('turn-2')
-  })
-})
-
-describe('markAutoShowPlanForItem', () => {
-  it('stores the CreatePlan item id that triggered plan auto-switch', () => {
-    expect(ui().autoShowPlanForItem).toBeNull()
-
-    ui().markAutoShowPlanForItem('item-plan-1')
-
-    expect(ui().autoShowPlanForItem).toBe('item-plan-1')
-  })
-
-  it('allows override for the next CreatePlan item', () => {
-    ui().markAutoShowPlanForItem('item-plan-1')
-    ui().markAutoShowPlanForItem('item-plan-2')
-    expect(ui().autoShowPlanForItem).toBe('item-plan-2')
-  })
-})
-
-describe('onPlanUpdated via store', () => {
-  it('setActiveDetailTab("plan") auto-shows the panel', () => {
+describe('setActiveDetailTab', () => {
+  it('shows a hidden panel on the requested tab', () => {
     useUIStore.setState({ detailPanelVisible: false })
 
     ui().setActiveDetailTab('plan')

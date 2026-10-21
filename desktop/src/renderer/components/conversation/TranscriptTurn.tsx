@@ -33,7 +33,6 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           imageDataUrls={item.imageDataUrls}
           images={item.images}
           createdAt={item.createdAt}
-          deliveryMode={item.deliveryMode}
           triggerKind={item.triggerKind}
           triggerLabel={item.triggerLabel}
           triggerRefId={item.triggerRefId}

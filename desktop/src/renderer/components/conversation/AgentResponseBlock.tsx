@@ -3,7 +3,8 @@ import { Image as ImageIcon } from 'lucide-react'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
-import { extractThinkingStatus } from './thinkingStatus'
+import { ThinkingStatusSlot } from './ThinkingStatusSlot'
+import { useTurnThinkingStatus } from './turnThinkingStatus'
 import { ToolCallCard, type ShellRuntimeScope } from './ToolCallCard'
 import { hasAvailableMcpApp } from './McpAppView'
 import { AgentMessage } from './AgentMessage'
@@ -69,8 +70,6 @@ export type HistoricalToolContentMode = 'full' | 'trimmed'
 
 type ConversationNodeKind = 'assistant' | 'tool' | 'user' | 'other'
 
-const STREAMING_MESSAGE_STALL_MS = 2000
-
 function normalizedErrorMessage(message: string | undefined): string {
   return (message ?? '').trim()
 }
@@ -106,7 +105,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
   const activeItemIdFromStore = useConversationStore((s) => s.activeItemId)
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
-  const locale = useLocale()
   const activeItemId =
     activeItemIdOverride !== undefined ? activeItemIdOverride : activeItemIdFromStore
   const citationSources = useWebCitationSources(turn, streamingMessage)
@@ -125,7 +123,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     ? defaultRenderableItems.filter(isTrimmedHistoryRenderableItem)
     : defaultRenderableItems
 
-  const canShowThinking = showIdleThinkingFallback && !isSleeping && pendingUserInput == null
   const offersCapacityRetry = !readOnly && isLastTurn && turn.status === 'failed'
     && turn.providerError === 'serverOverloaded'
   const lastErrorItemId = turn.items.findLast((item) => item.type === 'error')?.id
@@ -144,17 +141,11 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     if (entry.kind !== 'group' && entry.kind !== 'active') {
       return renderAggregatedEntry(entry, turn.threadId, turn.id, isRunning, shellRuntimeScope)
     }
-    const last = entry.items[entry.items.length - 1]
-    const thinkingLabel = entry.kind === 'active' && canShowThinking
-      ? (last.type === 'reasoningContent' ? extractThinkingStatus(reasoningText(last)) : undefined)
-        ?? translate(locale, 'conversation.thinking.streaming')
-      : undefined
     return (
       <ToolActivityRow
         key={`tools-${entry.items[0].id}`}
         items={entry.items}
         active={entry.kind === 'active'}
-        thinkingLabel={thinkingLabel}
         threadId={turn.threadId}
         turnId={turn.id}
         turnRunning={isRunning}
@@ -163,8 +154,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       />
     )
   }
-
-  let hostsThinking = false
 
   const renderItemSequence = (
     itemsToRender: ConversationItem[]
@@ -183,7 +172,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         }
         const isTrailingRun = toolRun[toolRun.length - 1] === renderableItems[renderableItems.length - 1]
         const entries = planToolRunRender(toolRun, { isRunning, isTrailingRun })
-        if (entries.some((entry) => entry.kind === 'active')) hostsThinking = true
         const runNodes = entries.map(renderToolRunEntry)
 
         if (entries.every((entry) => entry.kind === 'reasoning')) {
@@ -216,7 +204,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
               imageDataUrls={item.imageDataUrls}
               images={item.images}
               createdAt={item.createdAt}
-              deliveryMode={item.deliveryMode}
               triggerKind={item.triggerKind}
               triggerLabel={item.triggerLabel}
               triggerRefId={item.triggerRefId}
@@ -282,6 +269,15 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
   const collapseSourceItems = trimHistoricalToolContent ? defaultRenderableItems : renderableItems
   const activity = getTurnActivityState(turn, collapseSourceItems, isRunning)
+  const thinkingStatus = useTurnThinkingStatus({
+    items: renderableItems,
+    enabled: showIdleThinkingFallback && isRunning && !isSleeping,
+    activeItemId,
+    streamingMessage,
+    streamingMessageLastDeltaAt,
+    streamingReasoning,
+    waitingForAnswer: pendingUserInput != null
+  })
   const lastFinalAgentMessageIndex = activity.finalIndex
   const lastAgentMessageIndex =
     !isRunning && turn.status === 'completed'
@@ -295,23 +291,11 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       : null
   const collapsesIntermediate = activity.status === 'worked' && lastFinalAgentMessageIndex > 0
   const renderNodes: ConversationRenderNode[] = []
-  const streamingMessageStalled = useStreamingMessageStall({
-    enabled:
-      showIdleThinkingFallback &&
-      isRunning &&
-      streamingMessage.trim().length > 0 &&
-      hasActiveStreamingAgentMessage(renderableItems, activeItemId),
-    lastDeltaAt: streamingMessageLastDeltaAt
-  })
-  const shouldShowIdleThinkingFallback = canShowThinking
-    && shouldRenderIdleThinkingFallback({
-      items: renderableItems,
-      isRunning,
-      activeItemId,
-      streamingMessage,
-      streamingMessageStalled,
-      showThinkingContent
-    })
+  const thinkingStatusNode: ConversationRenderNode = {
+    key: `thinking-status-${turn.id}`,
+    kind: 'assistant',
+    node: <ThinkingStatusSlot status={thinkingStatus} />
+  }
   const activitySummary = (intermediateNodes: ConversationRenderNode[]): ConversationRenderNode => ({
     key: `turn-activity-${turn.id}`,
     kind: 'other',
@@ -327,17 +311,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       </TurnActivitySummary>
     )
   })
-
-  const idleThinkingNodes = (): ConversationRenderNode[] => {
-    if (!shouldShowIdleThinkingFallback || hostsThinking) return []
-    const liveReasoning = renderableItems.some((item) =>
-      item.type === 'reasoningContent' && item.status === 'streaming' && item.id === activeItemId)
-    return [{
-      key: `idle-thinking-${turn.id}`,
-      kind: 'assistant',
-      node: <ThinkingIndicator streaming statusText={liveReasoning ? extractThinkingStatus(streamingReasoning) : undefined} />
-    }]
-  }
 
   if (collapsesIntermediate && trimHistoricalToolContent) {
     const beforeFinalItems = collapseSourceItems.slice(0, lastFinalAgentMessageIndex)
@@ -364,7 +337,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       intermediateNodes.push(...renderItemSequence(renderableItems.slice(segmentStart, boundary)))
       segmentStart = boundary + 1
     }
-    if (activity.status === 'working') intermediateNodes.push(...idleThinkingNodes())
+    if (thinkingStatus.reserved && activity.status === 'working') intermediateNodes.push(thinkingStatusNode)
     renderNodes.push(activitySummary(intermediateNodes))
     renderNodes.push(...pinnedIndices.flatMap((pinnedIndex) => renderItemSequence([renderableItems[pinnedIndex]])))
     renderNodes.push(...renderItemSequence(renderableItems.slice(splitIndex)))
@@ -372,7 +345,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     renderNodes.push(...renderItemSequence(renderableItems))
   }
 
-  if (activity.status !== 'working') renderNodes.push(...idleThinkingNodes())
+  if (thinkingStatus.reserved && activity.status !== 'working') renderNodes.push(thinkingStatusNode)
 
   const hasMatchingErrorItem = turn.status === 'failed' && turn.error != null && turn.items.some(
     (item) => item.type === 'error' &&
@@ -578,7 +551,6 @@ const toolEntryWithOutputsStyle: CSSProperties = {
 interface ToolActivityRowProps {
   items: ConversationItem[]
   active: boolean
-  thinkingLabel?: string
   threadId: string
   turnId: string
   turnRunning: boolean
@@ -589,7 +561,6 @@ interface ToolActivityRowProps {
 function ToolActivityRow({
   items,
   active,
-  thinkingLabel,
   threadId,
   turnId,
   turnRunning,
@@ -606,11 +577,11 @@ function ToolActivityRow({
   }, [revealNonce])
   const tools = items.filter((item) => item.type !== 'reasoningContent')
   const liveTool = active ? tools.findLast((item) => isToolItemLive(item, { turnRunning })) : undefined
-  const working = liveTool != null || thinkingLabel != null
-  const iconItem = liveTool ?? (thinkingLabel == null ? getToolGroupIconItem(tools) : undefined)
+  const working = liveTool != null
+  const iconItem = liveTool ?? getToolGroupIconItem(tools)
   const { label, icon } = useHeldRowHeader({
     label: liveTool ? formatActiveToolLabel(liveTool, locale)
-      : thinkingLabel ?? formatToolGroupLabel(tools, locale, itemDiffs),
+      : formatToolGroupLabel(tools, locale, itemDiffs),
     icon: iconItem ? getToolRowIcon(iconItem) : undefined
   }, active)
 
@@ -825,105 +796,6 @@ function isTrimmedHistoryCollapsedItem(item: ConversationItem): boolean {
   if (item.type === 'error') return true
   if (item.type === 'systemNotice') return true
   return false
-}
-
-function shouldRenderIdleThinkingFallback({
-  items,
-  isRunning,
-  activeItemId,
-  streamingMessage,
-  streamingMessageStalled,
-  showThinkingContent
-}: {
-  items: ConversationItem[]
-  isRunning: boolean
-  activeItemId: string | null
-  streamingMessage: string
-  streamingMessageStalled: boolean
-  showThinkingContent: boolean
-}): boolean {
-  if (!isRunning) return false
-  if (isActivitySliceClosed(items)) return false
-
-  return !items.some((item) => {
-    if (item.type === 'reasoningContent' && item.status === 'streaming' && item.id === activeItemId) {
-      return showThinkingContent
-    }
-    if (item.type === 'agentMessage' && item.status === 'streaming' && item.id === activeItemId) {
-      return streamingMessage.trim().length > 0 && !streamingMessageStalled
-    }
-    if (isToolRowItem(item) && isToolItemLive(item, { turnRunning: true })) {
-      return true
-    }
-    if (
-      item.type === 'imageGeneration' &&
-      (item.imageGenerationStatus === 'inProgress' || item.status === 'started')
-    ) {
-      return true
-    }
-    if (item.type === 'approvalCard' && item.approvalState === 'pending') {
-      return true
-    }
-    return false
-  })
-}
-
-function isActivitySliceClosed(items: ConversationItem[]): boolean {
-  for (let index = items.length - 1; index >= 0; index--) {
-    const item = items[index]
-    if (item.type === 'agentMessage') {
-      return item.status === 'completed' && item.deliveryMode !== 'async'
-    }
-    if (
-      item.type === 'reasoningContent'
-      || item.type === 'userMessage'
-      || isToolRowItem(item)
-      || item.type === 'imageGeneration'
-      || item.type === 'approvalCard'
-    ) {
-      return false
-    }
-  }
-  return false
-}
-
-function hasActiveStreamingAgentMessage(
-  items: ConversationItem[],
-  activeItemId: string | null
-): boolean {
-  return items.some(
-    (item) =>
-      item.type === 'agentMessage' &&
-      item.status === 'streaming' &&
-      item.id === activeItemId
-  )
-}
-
-function useStreamingMessageStall({
-  enabled,
-  lastDeltaAt
-}: {
-  enabled: boolean
-  lastDeltaAt: number | null | undefined
-}): boolean {
-  const [, forceTick] = useState(0)
-
-  useEffect(() => {
-    if (!enabled || lastDeltaAt == null) return undefined
-
-    const elapsedMs = Date.now() - lastDeltaAt
-    if (elapsedMs >= STREAMING_MESSAGE_STALL_MS) return undefined
-
-    const timeoutId = setTimeout(() => {
-      forceTick((value) => value + 1)
-    }, STREAMING_MESSAGE_STALL_MS - elapsedMs)
-
-    return () => clearTimeout(timeoutId)
-  }, [enabled, lastDeltaAt])
-
-  if (!enabled) return false
-  if (lastDeltaAt == null) return true
-  return Date.now() - lastDeltaAt >= STREAMING_MESSAGE_STALL_MS
 }
 
 function hydrateToolCallItems(items: ConversationItem[]): ConversationItem[] {

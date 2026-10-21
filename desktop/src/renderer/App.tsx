@@ -8,7 +8,6 @@ import { initConnectionStore, useConnectionStore } from './stores/connectionStor
 import { useThreadStore, type ThreadRuntimeSnapshot } from './stores/threadStore'
 import {
   selectLatestCreatePlanTurnId,
-  selectStreamingPlanItemId,
   useConversationStore,
   type PendingApproval
 } from './stores/conversationStore'
@@ -2165,7 +2164,6 @@ export function App(): JSX.Element {
             const tid = (p.threadId as string | undefined) ?? ''
             if (!tid || !shouldUpdateActiveConversation(tid)) break
             conv.onPlanUpdated(p as Record<string, unknown>)
-            useUIStore.getState().setActiveDetailTab('plan')
             break
           }
 
@@ -2430,34 +2428,6 @@ export function App(): JSX.Element {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const activeTurnFileCount = useConversationStore((s) =>
-    s.activeTurnId ? (s.turnDiffs.get(s.activeTurnId)?.files.length ?? 0) : 0
-  )
-  const activeTurnIdForAutoShow = useConversationStore((s) => s.activeTurnId)
-  useEffect(() => {
-    if (activeTurnFileCount === 0) return
-    const uiState = useUIStore.getState()
-    const currentTurnId = activeTurnIdForAutoShow
-    if (!currentTurnId) return
-    if (uiState.autoShowTriggeredForTurn === currentTurnId) return
-    runWithoutAppNavigationRecording(() => {
-      useUIStore.getState().markAutoShowForTurn(currentTurnId)
-      useUIStore.getState().setActiveDetailTab('changes')
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTurnFileCount])
-
-  const streamingPlanItemId = useConversationStore(selectStreamingPlanItemId)
-  useEffect(() => {
-    if (!streamingPlanItemId) return
-    const uiState = useUIStore.getState()
-    if (uiState.autoShowPlanForItem === streamingPlanItemId) return
-    runWithoutAppNavigationRecording(() => {
-      useUIStore.getState().markAutoShowPlanForItem(streamingPlanItemId)
-      useUIStore.getState().setActiveDetailTab('plan')
-    })
-  }, [streamingPlanItemId])
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {

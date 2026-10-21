@@ -263,10 +263,6 @@
   margin-left: -6px;
 }
 
-.conversation-summary-row--subagents[data-muted] .conversation-summary-avatars__item {
-  opacity: 0.72;
-}
-
 .conversation-summary-avatars__more {
   margin-left: 4px;
   color: var(--text-secondary);

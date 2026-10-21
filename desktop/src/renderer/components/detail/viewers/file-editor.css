@@ -153,6 +153,15 @@
   text-decoration: underline;
   cursor: pointer;
 }
+.dc-file-editor--markdown .dc-md-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  vertical-align: middle;
+}
+.dc-file-editor--markdown .dc-md-image-missing {
+  color: var(--text-dimmed);
+}
 .dc-file-editor--markdown .dc-md-inline-code {
   border-radius: 4px;
   padding: 1px 3px;
