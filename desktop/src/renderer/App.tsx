@@ -22,6 +22,7 @@ import { useTransientOverlayStore } from './stores/transientOverlayStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
 import { useUserInputAutoResolutionBridge } from './hooks/useUserInputAutoResolutionBridge'
 import { useSatelliteNotices } from './hooks/useSatelliteNotices'
+import { useDelayedFlag, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS } from './hooks/useDelayedFlag'
 import { QuickOpenDialog } from './components/detail/QuickOpenDialog'
 import { ThreePanel } from './components/layout/ThreePanel'
 import { useAutomationsStore } from './stores/automationsStore'
@@ -639,6 +640,7 @@ export function App(): JSX.Element {
   const isExpectedRestart = useConnectionStore((s) => s.isExpectedRestart)
   const capabilities = useConnectionStore((s) => s.capabilities)
   const connectionEpoch = useConnectionStore((s) => s.connectionEpoch)
+  const workspaceOpening = useDelayedFlag(status === 'connecting', WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const foregroundChat = useWorkspaceProjectsStore((s) => s.chat)
   const showSlowConnectingHint = useSlowConnectingHint(status, workspacePath)
@@ -3638,7 +3640,7 @@ export function App(): JSX.Element {
                     workspacePath={workspaceStatus.remote?.workspaceDir?.trim() || workspacePath}
                     localWorkspacePath={workspacePath}
                     remoteWorkspace={remoteWorkspaceActive}
-                    workspaceOpening={status === 'connecting'}
+                    workspaceOpening={workspaceOpening}
                   />
                 )
           }

@@ -118,6 +118,16 @@ describe('ThreadEntry', () => {
     expect(gitInspectHead).toHaveBeenCalledWith('C:\\fixtures\\sample-project')
   })
 
+  it('closes the details card when the context menu opens', async () => {
+    renderThreadEntry(makeThread())
+    await openDetailsCard()
+
+    fireEvent.contextMenu(screen.getByTestId('thread-entry-thread-1'), { clientX: 20, clientY: 20 })
+
+    expect(await screen.findByRole('menu')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
   it('uses a worktree branch without probing Git again', async () => {
     renderThreadEntry(makeThread({
       workspacePath: 'C:\\fixtures\\sample-project',

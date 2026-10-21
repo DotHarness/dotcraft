@@ -6,6 +6,7 @@ import { discardRemovedVoiceOrigins } from '../voice/voiceOriginCleanupBridge'
 import { getSubAgentParentThreadId, isSubAgentThread } from '../utils/subAgentThreads'
 import { isHiddenThread } from '../../shared/hiddenThreads'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
+import { useWorkspaceProjectsStore } from './workspaceProjectsStore'
 export type { ThreadRuntimeSnapshot } from '../types/thread'
 
 export interface ParkedApproval {
@@ -266,9 +267,19 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   ...initialState,
 
   setThreadList(threads, projectKey = null) {
+    const previous = _get()
+    const nextProjectKey = normalizeWorkspaceProjectKey(projectKey)
+    const projects = useWorkspaceProjectsStore.getState()
+    if (previous.threadListProjectKey && previous.threadListProjectKey !== nextProjectKey) {
+      projects.keepUnreadCompleted(previous.threadListProjectKey, previous.unreadCompletedThreadIds)
+    }
+    const promotedUnread = nextProjectKey ? projects.takeUnreadCompleted(nextProjectKey) : []
+    const listedIds = new Set(threads.map((thread) => thread.id))
+    const unlistedUnread = promotedUnread.filter((id) => !listedIds.has(id))
+    if (nextProjectKey) projects.keepUnreadCompleted(nextProjectKey, unlistedUnread)
     set((state) => {
       const visibleThreads = threads.filter((thread) => !isHiddenThread(thread))
-      const threadListProjectKey = normalizeWorkspaceProjectKey(projectKey)
+      const threadListProjectKey = nextProjectKey
       const threadIds = new Set(visibleThreads.map((thread) => thread.id))
       const runtimeSnapshots = filterMapToThreadList(state.runtimeSnapshots, threadIds)
       const parkedApprovals = filterMapToThreadList(state.parkedApprovals, threadIds)
@@ -280,7 +291,10 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
         state.pendingPlanConfirmationThreadIds,
         threadIds
       )
-      const unreadCompletedThreadIds = filterSetToThreadList(state.unreadCompletedThreadIds, threadIds)
+      const unreadCompletedThreadIds = filterSetToThreadList(
+        new Set([...state.unreadCompletedThreadIds, ...promotedUnread]),
+        threadIds
+      )
       const goalSnapshots = filterMapToThreadList(state.goalSnapshots, threadIds)
 
       for (const thread of visibleThreads) {

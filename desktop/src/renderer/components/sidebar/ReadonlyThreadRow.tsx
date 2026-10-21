@@ -3,6 +3,7 @@ import { Archive, Copy, ExternalLink } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
+import { projectUnreadKey, useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { addToast } from '../../stores/toastStore'
 import type { ThreadSummary } from '../../types/thread'
 import { archiveWorkspaceThread } from '../../utils/archiveWorkspaceThread'
@@ -67,6 +68,9 @@ export function ReadonlyThreadRow({
   const displayName = thread.displayName ?? t('sidebar.newConversation')
   const relativeTime = formatRelativeTime(thread.lastActiveAt, new Date(), locale)
   const subAgent = isSubAgentThread(thread)
+  const unreadCompleted = useWorkspaceProjectsStore((s) =>
+    s.unreadCompletedByProject[projectUnreadKey(project)]?.includes(thread.id) === true)
+  const showUnreadCompletedDot = !running && !waiting && !subAgent && unreadCompleted
   const [onScreen, setOnScreen] = useState(false)
   const threadDetails = useThreadEntryDetails({
     thread: { ...thread, displayName },
@@ -135,7 +139,6 @@ export function ReadonlyThreadRow({
         alignItems: 'center',
         justifyContent: statusContentJustify,
         width: running ? '100%' : 'auto',
-        color: 'var(--text-dimmed)',
         fontSize: 'var(--type-secondary-size)',
         lineHeight: 'var(--type-secondary-line-height)',
         whiteSpace: 'nowrap',
@@ -154,10 +157,21 @@ export function ReadonlyThreadRow({
         <span className="dc-status-badge" data-size="compact" data-tone="warning">
           <span className="dc-status-badge__label">{t('projectsRail.awaitingResponse')}</span>
         </span>
+      ) : showUnreadCompletedDot ? (
+        <ActionTooltip label={t('threadEntry.unreadCompleted')}>
+          <span
+            className="dc-status-indicator"
+            role="img"
+            aria-label={t('threadEntry.unreadCompleted')}
+            data-testid={`project-thread-unread-completed-${rowProjectKey}-${thread.id}`}
+          >
+            <span className="dc-status-indicator__dot" data-tone="success" />
+          </span>
+        </ActionTooltip>
       ) : threadDetails.rowPull ? (
         <ThreadPullRequestGlyph pull={threadDetails.rowPull} />
       ) : (
-        relativeTime
+        <span className="dc-thread-row__time">{relativeTime}</span>
       )}
     </span>
   )

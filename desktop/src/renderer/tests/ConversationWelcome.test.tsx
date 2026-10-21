@@ -2068,6 +2068,21 @@ describe('ConversationWelcome composer', () => {
     expect(screen.queryByRole('button', { name: 'Explore this workspace' })).not.toBeInTheDocument()
   })
 
+  it('shows no opening skeletons for a connection that settles within the grace period', async () => {
+    useConnectionStore.setState({ status: 'connecting', capabilities: null })
+
+    renderWelcome()
+
+    expect(screen.queryByTestId('welcome-footer-skeleton')).not.toBeInTheDocument()
+    expect(screen.queryAllByTestId('welcome-suggestion-skeleton')).toHaveLength(0)
+    act(() => {
+      useConnectionStore.setState({ status: 'connected', capabilities: {} })
+    })
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(screen.queryByTestId('welcome-footer-skeleton')).not.toBeInTheDocument()
+    expect(screen.queryAllByTestId('welcome-suggestion-skeleton')).toHaveLength(0)
+  })
+
   it('does not request welcome suggestions when the workspace config disables them', async () => {
     serverConfig = { ...serverConfig, ...{
         WelcomeSuggestions: {

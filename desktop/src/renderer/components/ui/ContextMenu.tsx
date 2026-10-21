@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Check, ChevronRight } from 'lucide-react'
 import { useMenuAim } from '../../hooks/useMenuAim'
 import { ActionTooltip } from './ActionTooltip'
-import { LayerContext } from '../../contexts/LayerContext'
+import { LayerBoundary, LayerContext } from '../../contexts/LayerContext'
 
 export interface ContextMenuItem {
   type?: 'item'
@@ -481,7 +481,7 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200, aut
     </div>
   )
 
-  return createPortal(menu, document.body) as JSX.Element
+  return createPortal(<LayerBoundary>{menu}</LayerBoundary>, document.body) as JSX.Element
 }
 
 function MenuItemTrailing({ children }: { children: ReactNode }): JSX.Element {

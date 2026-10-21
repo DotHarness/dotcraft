@@ -30,6 +30,7 @@ import { useAppBindingStore } from '../../stores/appBindingStore'
 import { addToast } from '../../stores/toastStore'
 import { readConfigValue, useConfig, useConfigStore } from '../../stores/configStore'
 import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
+import { useDelayedFlag, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS } from '../../hooks/useDelayedFlag'
 import type { ComposerFileAttachment, ImageAttachment, ThreadMode } from '../../types/conversation'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import type { ThreadConfigurationWire, ThreadSummary } from '../../types/thread'
@@ -322,7 +323,7 @@ function ConversationWelcomeCore({
   const fetchAppBindings = useAppBindingStore((s) => s.fetchApps)
 
   const isConnected = connectionStatus === 'connected'
-  const openingWorkspace = connectionStatus === 'connecting'
+  const openingWorkspace = useDelayedFlag(connectionStatus === 'connecting', WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS)
   const busy = !isConnected
   const showMentionPopover = atQuery !== null && !mentionDismissed && !remoteWorkspace
   const canUseCommandPicker = capabilities?.commandManagement === true

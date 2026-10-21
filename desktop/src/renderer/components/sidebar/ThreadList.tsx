@@ -416,7 +416,6 @@ export function ThreadList({
         (loading && !foregroundListMatchesProject)
       )
       const cold = isColdProject(project) && !openingProject
-      const collapsed = cold || (!openingProject && collapsedProjectKeys.has(orderKey))
       const detailThreads = foregroundListMatchesProject
         ? orderSubAgentsAfterParents(visibleProjectThreads(threadList))
         : orderSubAgentsAfterParents(filterProjectThreads(project, ''))
@@ -438,6 +437,8 @@ export function ThreadList({
       const showProjectThreadSkeleton =
         openingProject &&
         (foregroundOpening || project.state === 'connecting' || projectThreads.length === 0)
+      // Only a project that shows its loading skeleton is forced open; a quick reload keeps its collapse.
+      const collapsed = cold || (!showProjectThreadSkeleton && collapsedProjectKeys.has(orderKey))
       return (
         <ProjectListItem
           key={projectKey}

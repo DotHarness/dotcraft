@@ -826,7 +826,9 @@ Five fills carry every state:
 There is no hollow, dashed, or translucent variant. A transitional state
 (connecting, testing, restarting, a turn still running) shows the shared spinner
 in the indicator's box rather than a colour, because a colour would claim a result
-that does not exist yet; the spinner reads at the row's own text colour. When the
+that does not exist yet; the spinner reads at the row's own text colour, the same
+in a background project's rows as in the foreground's, never the dimmed tone of a
+row's timestamp. When the
 label does not already name the state, the indicator carries its own accessible
 name.
 
@@ -983,7 +985,9 @@ Each annotation owns one axis:
 
 Mirroring happens inside an axis, never across it. A row's action rail sets the
 axis once for all its actions. Menus and popovers opened by those controls are
-places the pointer travels to and keep their own positioning.
+places the pointer travels to and keep their own positioning. Any menu, including
+a row's context menu, is a layer above the row: opening it closes the row's
+details card and tooltips, and they stay closed until the menu does.
 
 A tooltip is placed against the control's drawn box. An out-of-flow rail action
 must still anchor to what is drawn (or reserve its footprint), not to a collapsed

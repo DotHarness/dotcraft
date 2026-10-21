@@ -97,6 +97,7 @@ Desktop uses the SDK Wire reconnect profile. Already-written requests fail on di
 ### 3.5 Workspace Switching
 
 - Switching promotes one workspace to foreground and demotes the previous one to secondary when it can remain connected.
+- A switch that completes quickly, such as to a workspace whose AppServer is already running, shows no loading state. Opening placeholders (project thread skeletons, Welcome suggestion and footer skeletons) appear only while the connection is still pending after a short grace period, and reloading the foreground list never replaces or expands a project's known rows.
 - Window state may be remembered, but protocol state never leaks across workspaces.
 - A switch resets the active thread selection unless the new workspace has a valid remembered equivalent.
 - Workspace-scoped panels and capabilities are rehydrated from the new foreground AppServer; secondary workspace state never drives them.
@@ -131,6 +132,7 @@ Desktop uses the SDK Wire reconnect profile. Already-written requests fail on di
 - Secondary connections load thread summaries and consume only thread-list and runtime notifications; they do not receive turn, item, job, configuration, MCP, or server-request streams.
 - Only the latest-started complete thread-list load for a connection may update its cached summaries, so stale results never overwrite newer rows. Filtered, paginated, archived, or internal-thread queries do not replace the cache.
 - A failed background refresh keeps cached rows and retries with backoff; the project shows a list-load error only after retries are exhausted, and any later successful load clears it.
+- A secondary row whose thread stops running is marked unread and shows the unread dot, as foreground rows do, until the thread runs again or is opened. Promoting the project keeps its unread marks.
 - Remote projects are never background secondary connections. At most one remote project is active, and it is foreground-only. Disconnecting an unsaved remote project removes it from the rail; a saved SSH remote project stays listed without thread rows.
 
 **Actions**
