@@ -3437,6 +3437,8 @@ export const MESSAGES_ZH_HANS = {
   'plan.progressTitle': '进度',
   'plan.streamingDraftBadge': '正在制定计划…',
   'detailPanel.closeAria': '关闭详情面板',
+  'detailPanel.enterFullView': '进入全屏视图',
+  'detailPanel.exitFullView': '退出全屏视图',
   'detailPanel.closeTitle': '关闭详情面板 (Ctrl+Shift+B)',
   'detailPanel.tabChanges': '更改',
   'detailPanel.tabPlan': '检查项',

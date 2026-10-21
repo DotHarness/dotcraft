@@ -2513,6 +2513,8 @@ export const MESSAGES_ES = {
   'projectsRail.runningCount': '{{count}} en ejecución',
   'projectsRail.detailsNotLoaded': 'Sin cargar',
   'detailPanel.closeAria': 'Cerrar panel de detalles',
+  'detailPanel.enterFullView': 'Entrar en vista completa',
+  'detailPanel.exitFullView': 'Salir de la vista completa',
   'detailPanel.tabChanges': 'Cambios',
   'detailPanel.tabPlan': 'Comprobaciones',
   'detailPanel.tabSubagents': 'Subagentes',

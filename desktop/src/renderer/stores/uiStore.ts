@@ -146,6 +146,7 @@ export interface UIState {
   detailPanelPreferredVisible: boolean
   detailPanelPreferredVisibleByThread: Record<string, boolean>
   detailPanelVisible: boolean
+  detailPanelFullView: boolean
   /** User preference for detail panel width as a share of the main work surface. */
   detailPanelWidthRatio: number
   /** Last resolved detail panel width, used as a fallback before layout measurement. */
@@ -226,6 +227,8 @@ interface UIStore extends UIState {
   setSidebarWidth(width: number): void
   toggleDetailPanel(): void
   setDetailPanelVisible(visible: boolean): void
+  toggleDetailPanelFullView(): void
+  setDetailPanelFullView(fullView: boolean): void
   setResponsiveLayout(layout: 'full' | 'no-detail' | 'collapsed'): void
   setDetailPanelWidth(width: number, mainSurfaceWidth?: number | null): void
   setAgentBuilderChatWidth(width: number, splitWidth?: number | null): void
@@ -364,6 +367,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   detailPanelPreferredVisible: false,
   detailPanelPreferredVisibleByThread: {},
   detailPanelVisible: false,
+  detailPanelFullView: false,
   detailPanelWidthRatio: DETAIL_DEFAULT_WIDTH_RATIO,
   detailPanelWidth: DETAIL_DEFAULT_WIDTH,
   agentBuilderChatWidthRatio: AGENT_BUILDER_CHAT_DEFAULT_WIDTH_RATIO,
@@ -495,6 +499,19 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     }))
   },
 
+  toggleDetailPanelFullView() {
+    get().setDetailPanelFullView(!get().detailPanelFullView)
+  },
+
+  setDetailPanelFullView(fullView: boolean) {
+    if (!fullView) {
+      set({ detailPanelFullView: false })
+      return
+    }
+    get().setDetailPanelVisible(true)
+    if (canShowDetailPanelFullView(get())) set({ detailPanelFullView: true })
+  },
+
   setResponsiveLayout(layout) {
     set((state) => ({
       responsiveLayout: layout,
@@ -623,6 +640,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     set({
       activeDetailTab,
       detailPanelPreferredVisible,
+      detailPanelFullView: false,
       ...resolveResponsivePanels(
         state.responsiveLayout,
         state.sidebarPreferredCollapsed,
@@ -1021,6 +1039,20 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
   _pendingWelcomeTimer: null
 }))
+
+function canShowDetailPanelFullView(
+  state: Pick<UIState, 'detailPanelVisible' | 'activeMainView' | 'activeDetailTab'>
+): boolean {
+  return state.detailPanelVisible
+    && state.activeMainView === 'conversation'
+    && state.activeDetailTab.kind !== 'launcher'
+}
+
+useUIStore.subscribe((state) => {
+  if (state.detailPanelFullView && !canShowDetailPanelFullView(state)) {
+    useUIStore.setState({ detailPanelFullView: false })
+  }
+})
 
 export {
   SIDEBAR_DEFAULT_WIDTH,

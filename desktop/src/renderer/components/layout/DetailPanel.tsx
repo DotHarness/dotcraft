@@ -6,7 +6,7 @@ import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { latestTurnDiff, turnPatchTotals } from '../../stores/turnDiffs'
-import { FilePlus2, FolderOpen, ListChecks, SquareTerminal, Plus, X, Globe, PanelRight, MousePointer2, Bot, Workflow } from 'lucide-react'
+import { FilePlus2, FolderOpen, ListChecks, SquareTerminal, Plus, X, Globe, PanelRight, MousePointer2, Bot, Workflow, Maximize2, Minimize2 } from 'lucide-react'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
 import { SubagentsTab } from '../detail/SubagentsTab'
@@ -65,7 +65,9 @@ export function DetailPanel({
     openSystemTabs,
     setActiveDetailTab,
     setActiveViewerTab,
-    toggleDetailPanel
+    toggleDetailPanel,
+    detailPanelFullView,
+    toggleDetailPanelFullView
   } = useUIStore()
 
   const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
@@ -312,6 +314,23 @@ export function DetailPanel({
         )}
 
         <div style={{ flex: 1 }} />
+
+        {!isLauncher && (
+          <IconButton
+            size={28}
+            active={detailPanelFullView}
+            activeTone="neutral"
+            label={t(detailPanelFullView ? 'detailPanel.exitFullView' : 'detailPanel.enterFullView')}
+            tooltipLabel={t(detailPanelFullView ? 'detailPanel.exitFullView' : 'detailPanel.enterFullView')}
+            shortcut={ACTION_SHORTCUTS.toggleDetailFullView}
+            tooltipPlacement="bottom"
+            tooltipWrapperStyle={{ alignSelf: 'center' }}
+            onClick={toggleDetailPanelFullView}
+            icon={detailPanelFullView
+              ? <Minimize2 size={16} aria-hidden />
+              : <Maximize2 size={16} aria-hidden />}
+          />
+        )}
 
         <IconButton
           size={28}

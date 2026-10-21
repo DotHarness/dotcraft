@@ -6,6 +6,7 @@ export const ACTION_SHORTCUTS = {
   search: ['Mod', 'K'],
   toggleSidebar: ['Mod', 'B'],
   toggleDetailPanel: ['Mod', 'Shift', 'B'],
+  toggleDetailFullView: ['Mod', 'Shift', 'F'],
   quickOpen: ['Mod', 'P'],
   newBrowserTab: ['Mod', 'T'],
   viewChanges: ['Mod', 'Shift', 'G'],

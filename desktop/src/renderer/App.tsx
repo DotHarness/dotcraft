@@ -2531,6 +2531,16 @@ export function App(): JSX.Element {
         return
       }
 
+      if (ctrl && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
+        const target = e.target as HTMLElement | null
+        if (target?.closest('[role="dialog"], [aria-modal="true"]')) return
+        const ui = useUIStore.getState()
+        if (ui.activeMainView !== 'conversation') return
+        e.preventDefault()
+        ui.toggleDetailPanelFullView()
+        return
+      }
+
       if (ctrl && e.shiftKey && e.key === 'B') {
         e.preventDefault()
         useUIStore.getState().toggleDetailPanel()

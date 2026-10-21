@@ -2512,6 +2512,8 @@ export const MESSAGES_JA = {
   'projectsRail.runningCount': '{{count}} 件実行中',
   'projectsRail.detailsNotLoaded': '未読み込み',
   'detailPanel.closeAria': '詳細パネルを閉じる',
+  'detailPanel.enterFullView': 'フルビューに切り替え',
+  'detailPanel.exitFullView': 'フルビューを終了',
   'detailPanel.tabChanges': '変更点',
   'detailPanel.tabPlan': 'チェック',
   'detailPanel.tabSubagents': 'サブエージェント',

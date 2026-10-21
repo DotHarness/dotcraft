@@ -66,6 +66,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
     detailPanelVisible,
     detailPanelWidth,
     detailPanelWidthRatio,
+    detailPanelFullView,
     activeMainView
   } = useUIStore()
   const mainSurfaceRef = useRef<HTMLDivElement>(null)
@@ -90,6 +91,11 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
     mainSurfaceWidth,
     effectiveDetailPanelVisible
   )
+  const fullView = effectiveDetailPanelVisible && detailPanelFullView
+  const detailDividerVisible = effectiveDetailPanelVisible && !fullView
+  const detailShellWidth = fullView
+    ? Math.max(effectiveDetailPanelWidth, mainSurfaceWidth)
+    : effectiveDetailPanelWidth
 
   useEffect(() => {
     const element = mainSurfaceRef.current
@@ -237,9 +243,11 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
         <ResizeEdgeGlow active={sidebarDividerHighlighted} testId="sidebar-divider-glow" />
 
         <div
+          data-testid="conversation-column"
+          inert={fullView}
           style={{
             flex: 1,
-            minWidth: '400px',
+            minWidth: fullView ? '0px' : `${CONVERSATION_MIN_WIDTH}px`,
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
@@ -257,7 +265,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
         <div
           data-testid="detail-panel-shell"
           style={{
-            width: effectiveDetailPanelVisible ? `${effectiveDetailPanelWidth}px` : '0px',
+            width: `${detailShellWidth}px`,
             minWidth: effectiveDetailPanelVisible ? `${DETAIL_MIN_WIDTH}px` : '0px',
             flexShrink: 0,
             position: 'relative',
@@ -286,7 +294,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
             {effectiveDetailPanelVisible && detail}
           </div>
 
-          {effectiveDetailPanelVisible && (
+          {detailDividerVisible && (
             <DragHandle
               onDrag={handleDetailDrag}
               onActiveChange={setDetailDividerActive}
@@ -313,8 +321,8 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
               left: 0,
               width: '1px',
               background: 'var(--glass-border)',
-              opacity: effectiveDetailPanelVisible ? 1 : 0,
-              transition: effectiveDetailPanelVisible
+              opacity: detailDividerVisible ? 1 : 0,
+              transition: detailDividerVisible
                 ? 'opacity 0ms linear'
                 : `opacity 0ms linear ${DETAIL_PANEL_TRANSITION_MS}ms`,
               pointerEvents: 'none',
@@ -325,7 +333,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           {/* The resize highlight shares the exact moving edge. Hover/drag
               opacity remains independent from the panel transition. */}
           <ResizeEdgeGlow
-            active={effectiveDetailPanelVisible && detailDividerHighlighted}
+            active={detailDividerVisible && detailDividerHighlighted}
             testId="detail-divider-glow"
           />
         </div>

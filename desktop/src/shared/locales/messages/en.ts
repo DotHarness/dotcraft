@@ -3533,6 +3533,8 @@ export const MESSAGES_EN = {
   'plan.progressTitle': 'Progress',
   'plan.streamingDraftBadge': 'Drafting plan…',
   'detailPanel.closeAria': 'Close detail panel',
+  'detailPanel.enterFullView': 'Enter full view',
+  'detailPanel.exitFullView': 'Exit full view',
   'detailPanel.closeTitle': 'Close detail panel (Ctrl+Shift+B)',
   'detailPanel.tabChanges': 'Changes',
   'detailPanel.tabPlan': 'Checks',

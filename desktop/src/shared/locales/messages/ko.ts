@@ -2514,6 +2514,8 @@ export const MESSAGES_KO = {
   'projectsRail.runningCount': '실행 {{count}}개',
   'projectsRail.detailsNotLoaded': '로드되지 않음',
   'detailPanel.closeAria': '세부정보 패널 닫기',
+  'detailPanel.enterFullView': '전체 보기로 전환',
+  'detailPanel.exitFullView': '전체 보기 종료',
   'detailPanel.tabChanges': '변경 사항',
   'detailPanel.tabPlan': '체크',
   'detailPanel.tabSubagents': '서브 에이전트',
