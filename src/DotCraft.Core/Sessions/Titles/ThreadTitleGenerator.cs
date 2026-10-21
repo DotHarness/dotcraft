@@ -130,8 +130,12 @@ internal static class ThreadTitleText
 
     public static string? ParseGeneratedTitle(string? response)
     {
-        if (string.IsNullOrWhiteSpace(response) || !response.TrimStart().StartsWith('{'))
+        if (string.IsNullOrWhiteSpace(response))
             return null;
+
+        var trimmed = response.Trim();
+        if (!trimmed.StartsWith('{'))
+            return trimmed.Contains('\n') ? null : NormalizeTitle(trimmed);
 
         try
         {
@@ -147,18 +151,23 @@ internal static class ThreadTitleText
                 return null;
             }
 
-            var normalized = CollapseWhitespace(properties[0].Value.GetString() ?? string.Empty)
-                .Trim(WrappingQuotes)
-                .TrimEnd(TrailingPunctuation)
-                .TrimEnd();
-            return normalized.Length == 0
-                ? null
-                : TruncateRunes(normalized, MaxTitleCharacters);
+            return NormalizeTitle(properties[0].Value.GetString() ?? string.Empty);
         }
         catch (JsonException)
         {
             return null;
         }
+    }
+
+    private static string? NormalizeTitle(string title)
+    {
+        var normalized = CollapseWhitespace(title)
+            .Trim(WrappingQuotes)
+            .TrimEnd(TrailingPunctuation)
+            .TrimEnd();
+        return normalized.Length == 0
+            ? null
+            : TruncateRunes(normalized, MaxTitleCharacters);
     }
 
     private static string CollapseWhitespace(string text)

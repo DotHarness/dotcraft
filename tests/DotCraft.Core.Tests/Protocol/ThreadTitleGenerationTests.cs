@@ -264,19 +264,23 @@ public sealed class ModelThreadTitleGeneratorTests
     }
 
     [Fact]
-    public async Task GenerateAsync_NormalizesTitleAndRejectsInvalidStructuredOutput()
+    public async Task GenerateAsync_NormalizesTitleAndAcceptsOnlyJsonOrASingleLine()
     {
         var normalized = await GenerateAsync("{\"title\":\"“修复   登录流程！”\"}");
         var truncated = await GenerateAsync("{\"title\":\"" + string.Concat(Enumerable.Repeat("🧵", 40)) + "\"}");
         var unknownProperty = await GenerateAsync("{\"title\":\"Fix login\",\"extra\":true}");
         var invalidJson = await GenerateAsync("```json\n{\"title\":\"Fix login\"}\n```");
         var emptyTitle = await GenerateAsync("{\"title\":\"  \"}");
+        var plainText = await GenerateAsync("  “排查标题生成失效。”\n");
+        var multiLine = await GenerateAsync("Fix login\nBecause the user asked");
 
         Assert.Equal("修复 登录流程", normalized);
         Assert.Equal(36, truncated?.EnumerateRunes().Count());
         Assert.Null(unknownProperty);
         Assert.Null(invalidJson);
         Assert.Null(emptyTitle);
+        Assert.Equal("排查标题生成失效", plainText);
+        Assert.Null(multiLine);
     }
 
     [Fact]
