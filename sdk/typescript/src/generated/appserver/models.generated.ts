@@ -3785,6 +3785,7 @@ export interface SourceControlUpdateParams {
 export interface SubAgentChild {
   edge?: ThreadSpawnEdge;
   thread?: SessionThread | null;
+  toolCallCount?: number;
   [key: string]: unknown;
 }
 

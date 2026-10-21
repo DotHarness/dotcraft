@@ -16,13 +16,16 @@ afterEach(() => {
 })
 
 describe('Token HUD usage', () => {
-  it('aggregates client-observed throughput and refreshes workspace totals after a turn', async () => {
+  it('aggregates client-observed throughput and scopes totals to the current chat', async () => {
     vi.useFakeTimers()
     const notifications = new Map<string, (params: any) => void>()
     const request = vi.fn().mockResolvedValue({
-      totalTokens: 3_500_000,
-      totalInputTokens: 2_000_000,
-      cacheHitRate: 0.8162
+      threadId: 'thread-1',
+      turns: 2,
+      totalTokens: 9_000,
+      inputTokens: 8_000,
+      cachedInputTokens: 6_000,
+      groups: []
     })
     const host = {
       session: {
@@ -43,7 +46,10 @@ describe('Token HUD usage', () => {
 
     let observedAtMs = 0
     const stop = startUsageFeed(host, () => observedAtMs)
-    await vi.runAllTicks()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getUsage().totalTokens).toBe(9_000)
+    expect(getUsage().cacheHitRate).toBeCloseTo(0.75)
+
     notifications.get('turn/started')?.({ turn: { id: 'turn-1', threadId: 'thread-1' } })
     notifications.get('item/usage/delta')?.({
       threadId: 'thread-1', outputTokens: 20
@@ -65,17 +71,24 @@ describe('Token HUD usage', () => {
     notifications.get('item/usage/delta')?.({
       threadId: 'thread-1', turnId: 'turn-1', outputTokens: 60
     })
-
     expect(getUsage().tokensPerSecond).toBe(40)
     expect(getUsage().waitingForSample).toBe(false)
-    request.mockRejectedValueOnce(new Error('offline'))
+
+    notifications.get('thread/tokenUsage/updated')?.({
+      threadId: 'other-thread',
+      tokenUsage: { total: { totalTokens: 1, inputTokens: 1, cachedInputTokens: 0 } }
+    })
+    notifications.get('thread/tokenUsage/updated')?.({
+      threadId: 'thread-1',
+      tokenUsage: { total: { totalTokens: 12_000, inputTokens: 10_000, cachedInputTokens: 9_000 } }
+    })
+    expect(getUsage().totalTokens).toBe(12_000)
+    expect(getUsage().cacheHitRate).toBeCloseTo(0.9)
+
     notifications.get('turn/completed')?.({ turn: { id: 'turn-1', threadId: 'thread-1' } })
     await vi.advanceTimersByTimeAsync(0)
-    expect(getUsage().totalTokens).toBe(3_500_000)
-    expect(getUsage().cacheHitRate).toBeCloseTo(0.8162)
-    expect(request.mock.calls.map(([method]) => method)).toEqual([
-      'usage/summary', 'usage/thread', 'usage/summary', 'usage/thread'
-    ])
+    expect(getUsage().totalTokens).toBe(12_000)
+    expect(request.mock.calls.map(([method]) => method)).toEqual(['usage/thread', 'usage/thread'])
     stop()
   })
 

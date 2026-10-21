@@ -2124,6 +2124,7 @@ Params `parentThreadId`, `includeClosed` (default `false`), `includeThreads`. Re
 
 - `edge` carries parent and child ids, `parentTurnId`, `depth`, `agentPath`, `taskName`, `agentNickname`, `agentRole`, `profileName`, `runtimeType`, the `supportsSendMessage`/`supportsFollowupTask`/`supportsClose` flags, and `status`. `status: "open"` means the relationship is available for path-based control, not that the child is running. Edges without `agentPath` cannot be path targets.
 - With `includeThreads`, `thread` is the `thread/read` header, optionally with a `runtime` snapshot; clients use `thread.runtime.running` for activity and fetch bounded history only when expanding a child.
+- With `includeThreads`, each entry also carries `toolCallCount`: the number of `toolCall`, `mcpToolCall`, and `dynamicToolCall` Items across the child's Turns. A child's working size is `thread.contextUsage.tokens`, not cumulative billing.
 - Closed edges are returned only with `includeClosed` (for audit or settings surfaces); background-agent widgets keep the default so closed agents disappear.
 
 #### `subagent/sendMessage`

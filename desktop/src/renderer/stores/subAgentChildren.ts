@@ -1,5 +1,5 @@
 import type { SubAgentEntry } from '../types/toolCall'
-import type { ThreadConfigurationWire, ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
+import type { ContextUsageSnapshotWire, ThreadConfigurationWire, ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
 import { useThreadStore } from './threadStore'
 
 interface SubAgentEdgeWire {
@@ -26,7 +26,11 @@ interface SubAgentEdgeWire {
 
 export interface SubAgentChildWire {
   edge?: SubAgentEdgeWire
-  thread?: (ThreadSummary & { configuration?: ThreadConfigurationWire | null }) | null
+  thread?: (ThreadSummary & {
+    configuration?: ThreadConfigurationWire | null
+    contextUsage?: ContextUsageSnapshotWire | null
+  }) | null
+  toolCallCount?: number
 }
 
 export interface SubAgentChild {
@@ -47,7 +51,8 @@ export interface SubAgentChild {
   lastToolDisplay: string | null
   currentTool: string | null
   model: string | null
-  usedTokens: number | null
+  contextTokens: number | null
+  toolCallCount: number | null
   isCompleted: boolean
   isPlaceholder?: boolean
   runtime?: ThreadRuntimeSnapshot
@@ -138,7 +143,8 @@ export function childFromWire(parentThreadId: string, wire: SubAgentChildWire): 
     lastToolDisplay: null,
     currentTool: null,
     model: normalizeText(wire.thread?.configuration?.model) ?? normalizeText(wire.thread?.configuration?.Model),
-    usedTokens: null,
+    contextTokens: wire.thread?.contextUsage?.tokens ?? null,
+    toolCallCount: wire.toolCallCount ?? null,
     isCompleted,
     isPlaceholder: false,
     runtime,
@@ -171,7 +177,8 @@ export function mergeExistingProgress(next: SubAgentChild, existing: SubAgentChi
     lastToolDisplay: existing.lastToolDisplay,
     currentTool: isCompleted ? null : existing.currentTool,
     model: next.model ?? existing.model,
-    usedTokens: existing.usedTokens,
+    contextTokens: next.contextTokens ?? existing.contextTokens,
+    toolCallCount: next.toolCallCount ?? existing.toolCallCount,
     isCompleted,
     isPlaceholder: false,
     runtime
@@ -205,7 +212,8 @@ export function createPlaceholderChild(
     lastToolDisplay: display,
     currentTool: isCompleted ? null : progress.currentTool,
     model: null,
-    usedTokens: null,
+    contextTokens: null,
+    toolCallCount: null,
     isCompleted,
     isPlaceholder: true,
     runtime: {

@@ -4336,6 +4336,10 @@ public sealed class SubAgentChild : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<SessionThread?> Thread { get; init; }
 
+    [JsonPropertyName("toolCallCount")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int> ToolCallCount { get; init; }
+
 }
 
 /// <summary>Executable wire contract for SubAgentChildrenListParams.</summary>

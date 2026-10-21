@@ -191,8 +191,7 @@ public sealed class DynamicWorkflowProjectionService : ISessionServiceConsumer
             var child = await _sessionService.GetThreadAsync(agent.ChildThreadId, cancellationToken).ConfigureAwait(false);
             agent.InputTokens = child.Turns.Sum(static turn => turn.TokenUsage?.InputTokens ?? 0);
             agent.OutputTokens = child.Turns.Sum(static turn => turn.TokenUsage?.OutputTokens ?? 0);
-            agent.ToolCallCount = child.Turns.SelectMany(static turn => turn.Items).Count(static item =>
-                item.AsToolCall != null || item.AsMcpToolCall != null || item.AsDynamicToolCall != null);
+            agent.ToolCallCount = child.Turns.SelectMany(static turn => turn.Items).Count(static item => item.IsToolInvocation);
         }
         catch (KeyNotFoundException) { }
     }

@@ -86,6 +86,10 @@ public sealed class SessionItem
         Payload as DynamicToolCallPayload;
 
     [JsonIgnore]
+    public bool IsToolInvocation =>
+        Payload is ToolCallPayload or McpToolCallPayload or DynamicToolCallPayload;
+
+    [JsonIgnore]
     public ToolResultPayload? AsToolResult =>
         Payload as ToolResultPayload;
 

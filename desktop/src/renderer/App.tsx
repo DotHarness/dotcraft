@@ -2113,8 +2113,10 @@ export function App(): JSX.Element {
 
           case 'thread/tokenUsage/updated': {
             const threadId = (p.threadId as string | undefined) ?? ''
-            const total = (p.tokenUsage as { total?: { totalTokens?: number } } | undefined)?.total?.totalTokens
-            if (threadId && typeof total === 'number') useSubAgentStore.getState().updateChildUsage(threadId, total)
+            const last = (p.tokenUsage as { last?: { inputTokens?: number; outputTokens?: number } } | undefined)?.last
+            if (threadId && typeof last?.inputTokens === 'number') {
+              useSubAgentStore.getState().updateChildUsage(threadId, last.inputTokens + (last.outputTokens ?? 0))
+            }
             break
           }
 

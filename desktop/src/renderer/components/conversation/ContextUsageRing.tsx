@@ -5,9 +5,8 @@ import { formatCompactCount } from '../../utils/formatCompactCount'
 import { COMPOSER_FOOTER_CONTROL_HEIGHT } from './ComposerShell'
 
 /**
- * Share of the model context window consumed by the active thread. The ring
- * deliberately does NOT change color by severity — thresholds surface only in the
- * tooltip text — and renders nothing until a persisted snapshot exists.
+ * Share of the model context window consumed by the active thread. The ring does not
+ * change color by severity and renders nothing until a persisted snapshot exists.
  */
 export function ContextUsageRing(): JSX.Element | null {
   const t = useT()
@@ -45,10 +44,6 @@ export function ContextUsageRing(): JSX.Element | null {
   const trackColor = 'color-mix(in srgb, var(--composer-footer-text, #a5a5a5) 28%, transparent)'
   const formattedTokens = formatCompactCount(Math.min(usage.tokens, usage.contextWindow))
   const formattedWindow = formatCompactCount(usage.contextWindow)
-  const autoPercent = usage.contextWindow > 0
-    ? Math.round((usage.autoCompactThreshold / usage.contextWindow) * 100)
-    : 0
-  const percentLeft = Math.round(usage.percentLeft * 100)
   return (
     <div
       ref={anchorRef}
@@ -127,15 +122,11 @@ export function ContextUsageRing(): JSX.Element | null {
           <div>
             {t('contextRing.tooltip.used', {
               percent: ringData.percentUsed,
-              used: formattedTokens,
-              total: formattedWindow
+              left: 100 - ringData.percentUsed
             })}
           </div>
           <div style={{ color: 'var(--text-secondary, #a5a5a5)' }}>
-            {t('contextRing.tooltip.left', { percent: percentLeft })}
-          </div>
-          <div style={{ color: 'var(--text-secondary, #a5a5a5)' }}>
-            {t('contextRing.tooltip.autoCompact', { percent: autoPercent })}
+            {t('contextRing.tooltip.tokens', { used: formattedTokens, total: formattedWindow })}
           </div>
         </div>
       )}

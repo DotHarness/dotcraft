@@ -8,7 +8,6 @@ import {
   isSubAgentChildClosed, isSubAgentChildRunning, mergeExistingProgress,
   type SubAgentChild, type SubAgentChildWire
 } from './subAgentChildren'
-import { listThreadTurns } from '../utils/threadHistory'
 
 export { isSubAgentChildClosed, isSubAgentChildRunning, isTerminalSubAgentStatus } from './subAgentChildren'
 export type { SubAgentChild } from './subAgentChildren'
@@ -40,8 +39,7 @@ interface SubAgentStoreActions {
   setChildren(parentThreadId: string, children: SubAgentChild[], options?: SetChildrenOptions): void
   ensureChildren(parentThreadId: string): Promise<void>
   fetchChildren(parentThreadId: string, options?: FetchChildrenOptions): Promise<void>
-  fetchUsage(parentThreadId: string): Promise<void>
-  updateChildUsage(childThreadId: string, usedTokens: number): void
+  updateChildUsage(childThreadId: string, contextTokens: number): void
   interruptChild(child: SubAgentChild): Promise<void>
   updateProgress(parentThreadId: string, entries: SubAgentEntry[]): void
   updateChildRuntime(childThreadId: string, runtime: ThreadRuntimeSnapshot): void
@@ -65,24 +63,11 @@ interface ChildRequest {
   authoritative: boolean
 }
 
-const USAGE_TURN_PAGE_LIMIT = 100
+const STATS_REFRESH_MS = 2_000
 
-function turnTokens(usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | null | undefined): number {
-  if (!usage) return 0
-  return usage.totalTokens ?? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0)
-}
-
-function usageReadKey(child: SubAgentChild): string {
-  return `${child.threadSummary?.lastActiveAt ?? ''}:${isSubAgentChildRunning(child)}`
-}
-
-function laterUsage(current: number | null, next: number): number {
-  return current == null ? next : Math.max(current, next)
-}
-
-const usageReads = new Map<string, string>()
 const requests = new Map<string, ChildRequest>()
 const lifetimes = new Map<string, object>()
+const statsRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>()
 function lifetime(parentThreadId: string): object {
   let token = lifetimes.get(parentThreadId)
   if (!token) {
@@ -226,59 +211,25 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     return task.promise
   },
 
-  async fetchUsage(parentThreadId) {
-    if (!parentThreadId) return
-    const token = lifetime(parentThreadId)
-    const targets = (get().childrenByParent.get(parentThreadId) ?? [])
-      .filter((child) => child.isPlaceholder !== true && usageReads.get(child.childThreadId) !== usageReadKey(child))
-    if (targets.length === 0) return
-    for (const child of targets) usageReads.set(child.childThreadId, usageReadKey(child))
-    const totals = new Map<string, number>()
-    await Promise.all(targets.map(async (child) => {
-      try {
-        let total = 0
-        let cursor: string | null = null
-        do {
-          const page = await listThreadTurns(
-            (method, params) => window.api.appServer.sendRequest(method, params),
-            child.childThreadId,
-            cursor,
-            'descending',
-            USAGE_TURN_PAGE_LIMIT
-          )
-          for (const turn of page.turns) total += turnTokens(turn.tokenUsage)
-          cursor = page.nextCursor
-        } while (cursor)
-        totals.set(child.childThreadId, total)
-      } catch {
-        usageReads.delete(child.childThreadId)
-      }
-    }))
-    if (totals.size === 0 || lifetimes.get(parentThreadId) !== token) return
+  updateChildUsage(childThreadId, contextTokens) {
+    const parents: string[] = []
     set((state) => {
-      const current = state.childrenByParent.get(parentThreadId)
-      if (!current) return state
-      const childrenByParent = new Map(state.childrenByParent)
-      childrenByParent.set(parentThreadId, current.map((child) => {
-        const total = totals.get(child.childThreadId)
-        return total === undefined ? child : { ...child, usedTokens: laterUsage(child.usedTokens, total) }
-      }))
-      return { childrenByParent }
-    })
-  },
-
-  updateChildUsage(childThreadId, usedTokens) {
-    set((state) => {
-      let changed = false
       const childrenByParent = new Map(state.childrenByParent)
       for (const [parentThreadId, children] of childrenByParent) {
         if (!children.some((child) => child.childThreadId === childThreadId)) continue
-        changed = true
+        parents.push(parentThreadId)
         childrenByParent.set(parentThreadId, children.map((child) =>
-          child.childThreadId === childThreadId ? { ...child, usedTokens: laterUsage(child.usedTokens, usedTokens) } : child))
+          child.childThreadId === childThreadId ? { ...child, contextTokens } : child))
       }
-      return changed ? { childrenByParent } : state
+      return parents.length > 0 ? { childrenByParent } : state
     })
+    for (const parentThreadId of parents) {
+      if (statsRefreshTimers.has(parentThreadId)) continue
+      statsRefreshTimers.set(parentThreadId, setTimeout(() => {
+        statsRefreshTimers.delete(parentThreadId)
+        void get().fetchChildren(parentThreadId).catch(() => {})
+      }, STATS_REFRESH_MS))
+    }
   },
 
   async interruptChild(child) {
@@ -360,6 +311,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
 
   clearParent(parentThreadId) {
     lifetimes.delete(parentThreadId)
+    clearStatsRefresh(parentThreadId)
     requests.delete(parentThreadId)
     set((state) => {
       const childrenByParent = new Map(state.childrenByParent)
@@ -377,7 +329,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
   reset() {
     lifetimes.clear()
     requests.clear()
-    usageReads.clear()
+    for (const parentThreadId of [...statsRefreshTimers.keys()]) clearStatsRefresh(parentThreadId)
     set({
       childrenByParent: new Map(),
       discoveryByParent: new Map(),
@@ -386,3 +338,9 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     })
   }
 }))
+
+function clearStatsRefresh(parentThreadId: string): void {
+  const timer = statsRefreshTimers.get(parentThreadId)
+  if (timer !== undefined) clearTimeout(timer)
+  statsRefreshTimers.delete(parentThreadId)
+}

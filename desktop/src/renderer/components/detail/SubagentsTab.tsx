@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Square } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import {
@@ -63,13 +63,8 @@ function SubagentList({ parentThreadId }: { parentThreadId: string | null }): JS
   const children = useSubAgentStore((s) =>
     parentThreadId ? s.childrenByParent.get(parentThreadId) ?? EMPTY_CHILDREN : EMPTY_CHILDREN
   )
-  const fetchUsage = useSubAgentStore((s) => s.fetchUsage)
   const [finishedOpen, setFinishedOpen] = useState(false)
   const [closedOpen, setClosedOpen] = useState(false)
-
-  useEffect(() => {
-    if (parentThreadId) void fetchUsage(parentThreadId)
-  }, [parentThreadId, children, fetchUsage])
 
   const hasRunningSubagent = children.some(isSubAgentChildRunning)
   const elapsedNowMs = useElapsedNow(hasRunningSubagent)
@@ -195,6 +190,30 @@ function SubagentRow({
     : ended ?? (child.threadSummary?.lastActiveAt
       ? formatRelativeTime(child.threadSummary.lastActiveAt, new Date(elapsedNowMs), locale)
       : '')
+  const usageParts: Array<{ key: string; content: ReactNode }> = []
+  if (child.model) usageParts.push({ key: 'model', content: child.model })
+  if (child.toolCallCount != null) {
+    usageParts.push({
+      key: 'tools',
+      content: (
+        <>
+          <span className={styles.usageCount}>{child.toolCallCount}</span>
+          {' '}{t(child.toolCallCount === 1 ? 'subagentsPanel.toolUsesOne' : 'subagentsPanel.toolUsesOther')}
+        </>
+      )
+    })
+  }
+  if (child.contextTokens != null) {
+    usageParts.push({
+      key: 'tokens',
+      content: (
+        <>
+          <span className={styles.usageCount}>{formatCompactCount(child.contextTokens)}</span>
+          {' '}{t('subagentsPanel.tokens')}
+        </>
+      )
+    })
+  }
   const canOpen = child.isPlaceholder !== true
   const canStop = running && child.isPlaceholder !== true
   const stop = (): void => {
@@ -228,16 +247,14 @@ function SubagentRow({
             </span>
             {timeLabel && <span className={styles.time} data-ended={ended ? true : undefined}>{timeLabel}</span>}
           </span>
-          {(child.model || child.usedTokens != null) && (
+          {usageParts.length > 0 && (
             <span className={styles.usage}>
-              {child.model}
-              {child.model && child.usedTokens != null && ' · '}
-              {child.usedTokens != null && (
-                <span>
-                  <span className={styles.usageCount}>{formatCompactCount(child.usedTokens)}</span>
-                  {' '}{t('subagentsPanel.tokens')}
+              {usageParts.map((part, index) => (
+                <span key={part.key}>
+                  {index > 0 && ' · '}
+                  {part.content}
                 </span>
-              )}
+              ))}
             </span>
           )}
         </span>

@@ -249,11 +249,13 @@ internal sealed class SubAgentRequestHandler(
         foreach (var edge in edges)
         {
             Contract.SessionThread? thread = null;
+            int? toolCallCount = null;
             if (SubAgentContractMapper.Read(p.IncludeThreads) == true)
             {
                 var child = await sessionService.GetThreadAsync(edge.ChildThreadId, ct);
                 var enriched = await enrichThreadAsync(child, child.ToWire(includeTurns: false), ct);
                 thread = AppServerContractMapper.ToContract(enriched);
+                toolCallCount = child.Turns.SelectMany(static turn => turn.Items).Count(static item => item.IsToolInvocation);
             }
 
             data.Add(new Contract.SubAgentChild
@@ -261,7 +263,10 @@ internal sealed class SubAgentRequestHandler(
                 Edge = SubAgentContractMapper.ToContract(edge),
                 Thread = thread is null
                     ? default
-                    : Protocol.Optional<Contract.SessionThread?>.FromValue(thread)
+                    : Protocol.Optional<Contract.SessionThread?>.FromValue(thread),
+                ToolCallCount = toolCallCount is { } count
+                    ? Protocol.Optional<int>.FromValue(count)
+                    : default
             });
         }
 

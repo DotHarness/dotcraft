@@ -26,7 +26,8 @@ function makeChild(overrides: Partial<SubAgentChild> & Pick<SubAgentChild, 'chil
     lastToolDisplay: null,
     currentTool: null,
     model: null,
-    usedTokens: 0,
+    contextTokens: 0,
+    toolCallCount: null,
     isCompleted: false,
     runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false },
     ...overrides

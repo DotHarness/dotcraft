@@ -1,4 +1,5 @@
 import type { DesktopPluginHost } from '@dotcraft/plugin'
+import { ThroughputMeter, type ContentKind } from './throughput'
 
 export interface UsageState {
   readonly tokensPerSecond: number | null
@@ -23,6 +24,12 @@ export interface ThreadUsageSnapshot {
   readonly groups: readonly ThreadUsageGroup[]
 }
 
+interface SessionTotals {
+  readonly totalTokens: number
+  readonly inputTokens: number
+  readonly cachedInputTokens: number
+}
+
 export const EMPTY_USAGE: UsageState = {
   tokensPerSecond: null,
   waitingForSample: false,
@@ -32,8 +39,7 @@ export const EMPTY_USAGE: UsageState = {
   threadUsage: null
 }
 
-const SUMMARY_REFRESH_MS = 60_000
-const SUMMARY_DEBOUNCE_MS = 250
+const THREAD_USAGE_DEBOUNCE_MS = 250
 
 const listeners = new Set<(state: UsageState) => void>()
 let current = EMPTY_USAGE
@@ -59,74 +65,29 @@ export function startUsageFeed(
   now: () => number = () => globalThis.performance.now()
 ): () => void {
   let disposed = false
-  let summaryTimer: ReturnType<typeof globalThis.setTimeout> | null = null
-  let summaryInFlight = false
-  let summaryQueued = false
-  let observedTokens = 0
-  let observedDurationMs = 0
-  let sampleStartedAtMs: number | null = null
-  let latencySamples = 0
-  let latencyTotalMs = 0
-  let waitStartedAtMs: number | null = null
-  let activeTurnId: string | null = null
-
-  const refreshSummary = async (): Promise<void> => {
-    if (disposed) return
-    if (summaryInFlight) {
-      summaryQueued = true
-      return
-    }
-
-    summaryInFlight = true
-    try {
-      const result = await host.appServer.request('usage/summary', {})
-      if (disposed) return
-      const totalInputTokens = numberOrNull(result.totalInputTokens)
-      update({
-        totalTokens: numberOrNull(result.totalTokens),
-        cacheHitRate: totalInputTokens !== null && totalInputTokens > 0
-          ? ratioOrNull(result.cacheHitRate)
-          : null
-      })
-    } catch {
-      return
-    } finally {
-      summaryInFlight = false
-      if (summaryQueued && !disposed) {
-        summaryQueued = false
-        void refreshSummary()
-      }
-    }
-  }
-
-  const scheduleSummary = (delay = SUMMARY_DEBOUNCE_MS): void => {
-    if (summaryTimer !== null) globalThis.clearTimeout(summaryTimer)
-    summaryTimer = globalThis.setTimeout(() => {
-      summaryTimer = null
-      void refreshSummary()
-      void refreshThreadUsage()
-    }, delay)
-  }
-
-  const resetTurn = (waitingForSample: boolean): void => {
-    observedTokens = 0
-    observedDurationMs = 0
-    sampleStartedAtMs = null
-    latencySamples = 0
-    latencyTotalMs = 0
-    waitStartedAtMs = null
-    update({ waitingForSample })
-  }
-
-  update({ ...EMPTY_USAGE, waitingForSample: host.session.busy })
-  void refreshSummary()
-  const reconciliationTimer = globalThis.setInterval(() => {
-    void refreshSummary()
-    void refreshThreadUsage()
-  }, SUMMARY_REFRESH_MS)
-
-  let workspacePath = host.session.workspacePath
+  let refreshTimer: ReturnType<typeof globalThis.setTimeout> | null = null
   let threadId = host.session.threadId
+  let activeTurnId: string | null = null
+  let liveTotalsSeen = false
+  const meter = new ThroughputMeter()
+
+  const showTotals = (totals: SessionTotals | null): void => {
+    update({
+      totalTokens: totals?.totalTokens ?? null,
+      cacheHitRate: totals !== null && totals.inputTokens > 0
+        ? Math.min(1, totals.cachedInputTokens / totals.inputTokens)
+        : null
+    })
+  }
+
+  const showThroughput = (): void => {
+    const tokensPerSecond = meter.tokensPerSecond()
+    const firstTokenLatencyMs = meter.firstTokenLatencyMs()
+    update({
+      ...(firstTokenLatencyMs === null ? {} : { firstTokenLatencyMs }),
+      ...(tokensPerSecond === null ? {} : { tokensPerSecond, waitingForSample: false })
+    })
+  }
 
   async function refreshThreadUsage(): Promise<void> {
     const requestedThreadId = threadId
@@ -135,88 +96,85 @@ export function startUsageFeed(
       const result = await host.appServer.request('usage/thread', { threadId: requestedThreadId })
       if (disposed || threadId !== requestedThreadId) return
       update({ threadUsage: toThreadUsage(result) })
+      if (!liveTotalsSeen) showTotals(toSessionTotals(result))
     } catch {
       return
     }
   }
 
+  const scheduleThreadUsage = (delay = THREAD_USAGE_DEBOUNCE_MS): void => {
+    if (refreshTimer !== null) globalThis.clearTimeout(refreshTimer)
+    refreshTimer = globalThis.setTimeout(() => {
+      refreshTimer = null
+      void refreshThreadUsage()
+    }, delay)
+  }
+
+  update({ ...EMPTY_USAGE, waitingForSample: host.session.busy })
   void refreshThreadUsage()
 
   const stopSession = host.session.onChange((session) => {
-    if (session.workspacePath !== workspacePath) {
-      workspacePath = session.workspacePath
-      update({ totalTokens: null, cacheHitRate: null })
-      scheduleSummary(0)
-    }
-    if (session.threadId !== threadId) {
-      threadId = session.threadId
-      activeTurnId = null
-      resetTurn(session.busy)
-      update({ threadUsage: null })
-      void refreshThreadUsage()
-    }
+    if (session.threadId === threadId) return
+    threadId = session.threadId
+    activeTurnId = null
+    liveTotalsSeen = false
+    meter.endTurn()
+    update({ threadUsage: null, waitingForSample: session.busy })
+    showTotals(null)
+    void refreshThreadUsage()
   })
+
+  const inActiveTurn = (params: { threadId?: string; turnId?: string | null }): boolean =>
+    params.threadId === threadId
+    && (activeTurnId === null || params.turnId == null || params.turnId === activeTurnId)
 
   const stopStarted = host.appServer.onNotification('turn/started', (params) => {
     if (params.turn.threadId !== threadId) return
     activeTurnId = params.turn.id
-    resetTurn(true)
-    waitStartedAtMs = now()
+    meter.startTurn(now())
+    update({ waitingForSample: true })
   })
 
-  const observeModelOutput = (params: {
-    threadId: string
-    turnId?: string | null
-  }): void => {
-    if (params.threadId !== threadId) return
-    if (activeTurnId !== null && params.turnId != null && params.turnId !== activeTurnId) return
-    sampleStartedAtMs ??= now()
-    if (waitStartedAtMs === null) return
-    latencyTotalMs += Math.max(0, now() - waitStartedAtMs)
-    latencySamples += 1
-    waitStartedAtMs = null
-    update({ firstTokenLatencyMs: latencyTotalMs / latencySamples })
+  const observeContent = (kind: ContentKind) => (params: { threadId?: string; turnId?: string | null }): void => {
+    if (!inActiveTurn(params)) return
+    meter.content(now(), kind)
+    showThroughput()
   }
-  const stopAgentMessage = host.appServer.onNotification('item/agentMessage/delta', observeModelOutput)
-  const stopReasoning = host.appServer.onNotification('item/reasoning/delta', observeModelOutput)
-  const stopToolArguments = host.appServer.onNotification('item/toolCall/argumentsDelta', observeModelOutput)
+  const stopAgentMessage = host.appServer.onNotification('item/agentMessage/delta', observeContent('text'))
+  const stopReasoning = host.appServer.onNotification('item/reasoning/delta', observeContent('reasoning'))
+  const stopToolArguments = host.appServer.onNotification('item/toolCall/argumentsDelta', observeContent('toolArguments'))
 
-  // Anything finishing while a request is pending is local work, not provider
-  // latency, so the wait restarts at the last one.
   const stopItemCompleted = host.appServer.onNotification('item/completed', (params) => {
-    if (waitStartedAtMs === null) return
-    if (params.threadId !== threadId) return
-    if (activeTurnId !== null && params.turnId != null && params.turnId !== activeTurnId) return
-    waitStartedAtMs = now()
+    if (!inActiveTurn(params)) return
+    meter.itemCompleted(now())
   })
 
   const stopDelta = host.appServer.onNotification('item/usage/delta', (params) => {
+    if (!inActiveTurn(params)) return
+    meter.usage(now(), {
+      llmCall: positiveNumber(params.turnLlmCalls),
+      outputTokens: positiveNumber(params.outputTokens) ?? 0,
+      reasoningTokens: positiveNumber(params.reasoningOutputTokens) ?? 0
+    })
+    showThroughput()
+  })
+
+  const stopTokenUsage = host.appServer.onNotification('thread/tokenUsage/updated', (params) => {
     if (params.threadId !== threadId) return
-    if (activeTurnId !== null && params.turnId != null && params.turnId !== activeTurnId) return
-    const outputTokens = positiveNumber(params.outputTokens)
-    const durationMs = sampleStartedAtMs === null ? null : positiveNumber(now() - sampleStartedAtMs)
-    sampleStartedAtMs = null
-    // One notification per LLM iteration, so the turn's next request waits from here.
-    waitStartedAtMs = now()
-    if (outputTokens !== null && durationMs !== null) {
-      observedTokens += outputTokens
-      observedDurationMs += durationMs
-      update({
-        tokensPerSecond: observedTokens / (observedDurationMs / 1000),
-        waitingForSample: false
-      })
-    }
-    scheduleSummary()
+    const totals = toSessionTotals(params.tokenUsage?.total)
+    if (totals === null) return
+    liveTotalsSeen = true
+    showTotals(totals)
   })
 
   const finishTurn = (params: { turn: { id: string, threadId: string } }): void => {
     if (params.turn.threadId !== threadId) return
     if (activeTurnId !== null && params.turn.id !== activeTurnId) return
     activeTurnId = null
-    sampleStartedAtMs = null
-    waitStartedAtMs = null
+    meter.endTurn()
+    showThroughput()
     update({ waitingForSample: false })
-    scheduleSummary(0)
+    scheduleThreadUsage(0)
   }
   const stopCompleted = host.appServer.onNotification('turn/completed', finishTurn)
   const stopFailed = host.appServer.onNotification('turn/failed', finishTurn)
@@ -224,8 +182,7 @@ export function startUsageFeed(
 
   return () => {
     disposed = true
-    if (summaryTimer !== null) globalThis.clearTimeout(summaryTimer)
-    globalThis.clearInterval(reconciliationTimer)
+    if (refreshTimer !== null) globalThis.clearTimeout(refreshTimer)
     stopSession()
     stopStarted()
     stopAgentMessage()
@@ -233,6 +190,7 @@ export function startUsageFeed(
     stopToolArguments()
     stopItemCompleted()
     stopDelta()
+    stopTokenUsage()
     stopCompleted()
     stopFailed()
     stopCancelled()
@@ -247,14 +205,19 @@ function positiveNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
 }
 
-function ratioOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value)
-    ? Math.min(1, Math.max(0, value))
-    : null
-}
-
 function textOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null
+}
+
+function toSessionTotals(value: unknown): SessionTotals | null {
+  const usage = value as { totalTokens?: unknown; inputTokens?: unknown; cachedInputTokens?: unknown } | null
+  const totalTokens = numberOrNull(usage?.totalTokens)
+  if (totalTokens === null) return null
+  return {
+    totalTokens,
+    inputTokens: numberOrNull(usage?.inputTokens) ?? 0,
+    cachedInputTokens: numberOrNull(usage?.cachedInputTokens) ?? 0
+  }
 }
 
 function toThreadUsage(result: unknown): ThreadUsageSnapshot | null {
