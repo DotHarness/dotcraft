@@ -702,7 +702,9 @@ internal sealed class ThreadRolloutStore
                     return false;
             }
 
-            if (!statusChanged && !TurnCompletionMetadataEquivalent(previousTurn, currentTurn))
+            if (!statusChanged
+                && IsTerminal(currentTurn.Status)
+                && !TurnCompletionMetadataEquivalent(previousTurn, currentTurn))
                 return false;
 
             for (var i = 0; i < currentTurn.Items.Count; i++)
@@ -729,6 +731,9 @@ internal sealed class ThreadRolloutStore
                 && JsonEquals(previousTurn.Initiator, currentTurn.Initiator)
                 && JsonEquals(previousTurn.Input, currentTurn.Input);
         }
+
+        static bool IsTerminal(TurnStatus status) =>
+            status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Cancelled;
 
         static bool TurnCompletionMetadataEquivalent(SessionTurn previousTurn, SessionTurn currentTurn) =>
             previousTurn.Status == currentTurn.Status

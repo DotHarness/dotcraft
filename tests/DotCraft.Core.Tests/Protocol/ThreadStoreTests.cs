@@ -650,6 +650,7 @@ public sealed class ThreadStoreTests : IDisposable
             }
         };
         turn.Items.Add(toolCall);
+        turn.TokenUsage = new TokenUsageInfo { InputTokens = 10, OutputTokens = 1 };
         await _store.SaveThreadAsync(thread);
 
         toolCall.Status = ItemStatus.Completed;
@@ -671,6 +672,7 @@ public sealed class ThreadStoreTests : IDisposable
                 Success = true
             }
         });
+        turn.TokenUsage = new TokenUsageInfo { InputTokens = 20, OutputTokens = 2 };
         await _store.SaveThreadAsync(thread);
 
         turn.Status = TurnStatus.Completed;
@@ -708,6 +710,7 @@ public sealed class ThreadStoreTests : IDisposable
         Assert.Equal("hello", loadedTurn.Input?.AsUserMessage?.Text);
         Assert.Equal(ItemStatus.Completed, loadedTurn.Items[1].Status);
         Assert.Equal("world", loadedTurn.Items[2].AsToolResult?.Result);
+        Assert.Equal(20, loadedTurn.TokenUsage?.InputTokens);
     }
 
     [Fact]
