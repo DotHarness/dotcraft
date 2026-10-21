@@ -159,3 +159,46 @@ describe('agent profiles', () => {
     expect(offersPlanMode({ agentProfileId: 'reviewer' }, null)).toBe(false)
   })
 })
+
+describe('history pages', () => {
+  it('opens a long chat on its newest whole turns and reads older pages back to the first turn', async () => {
+    const computer = createStudio(new Date())
+    computer.streamDelayMs = 1
+    const thread = computer.projects.flatMap((project) => project.threads).find((candidate) => candidate.displayName === 'Rename the settings segments')!
+    const older = Array.from({ length: 8 }, (_, index) => ({
+      id: 'old-' + index,
+      threadId: thread.id,
+      status: 'completed' as const,
+      startedAt: '2026-09-01T08:00:00Z',
+      completedAt: '2026-09-01T08:01:00Z',
+    }))
+    thread.turns.unshift(...older)
+    thread.items.unshift(
+      ...older.flatMap((turn, index) => [
+        { id: turn.id + '-ask', turnId: turn.id, type: 'userMessage', status: 'completed', payload: { text: 'Question ' + index }, createdAt: turn.startedAt, completedAt: turn.startedAt },
+        { id: turn.id + '-reply', turnId: turn.id, type: 'agentMessage', status: 'completed', payload: { text: 'Answer ' + index, phase: 'final' }, createdAt: turn.startedAt, completedAt: turn.startedAt },
+      ]),
+    )
+    const harness = createHarness([computer])
+    harnesses.push(harness)
+    const state = () => harness.computerState()
+    await harness.session.boot()
+    await waitFor(() => state().link === 'online' && !state().syncing)
+    const key = Object.values(state().chats).find((chat) => chat.title === 'Rename the settings segments')!.key
+    harness.link().openChat(key)
+    await waitFor(() => state().details[key]?.loading === false)
+
+    const loaded = () => state().details[key].history
+    expect(loaded().turns).toHaveLength(5)
+    expect(loaded().olderCursor).toBeTruthy()
+    for (const turn of loaded().turns) {
+      expect(loaded().items.filter((item) => item.turnId === turn.id)).toHaveLength(thread.items.filter((item) => item.turnId === turn.id).length)
+    }
+
+    await harness.link().loadOlder(key)
+    await harness.link().loadOlder(key)
+    expect(loaded().turns.map((turn) => turn.id)).toEqual(thread.turns.map((turn) => turn.id))
+    expect(loaded().olderCursor).toBeNull()
+    expect(state().details[key].loadingOlder).toBe(false)
+  })
+})

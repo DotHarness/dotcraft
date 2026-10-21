@@ -5,7 +5,16 @@ import { chatState, needsYou, type ChatState } from './chatState'
 import { applyContext, type ContextUpdate, type ContextUsage } from './contextUsage'
 import type { ReferenceEntry } from './draft'
 import type { RelayInfo } from './gateway'
-import { applyEvent, emptyHistory, type ChatHistory, type Echo, type HistoryEvent, type HistoryItem } from './history'
+import {
+  applyEvent,
+  emptyHistory,
+  prependTurns,
+  type ChatHistory,
+  type Echo,
+  type HistoryEvent,
+  type HistoryItem,
+  type TurnPageEntry,
+} from './history'
 import type { PairingOffer } from './pairing'
 import type { ApprovalPolicy } from './threadConfig'
 
@@ -45,6 +54,7 @@ export interface ChatSummary {
 
 export interface ChatDetail {
   loading: boolean
+  loadingOlder?: boolean
   history: ChatHistory
   profileName: string | null
   config: ThreadConfiguration | null
@@ -177,6 +187,8 @@ export type ComputerAction =
   | { type: 'catalog'; projectId: string; providerId: string; models: ModelCatalogItem[]; isDefault: boolean }
   | { type: 'providers'; projectId: string; providers: ProjectModels['providers'] }
   | { type: 'history'; key: string; event: HistoryEvent }
+  | { type: 'olderLoading'; key: string; value: boolean }
+  | { type: 'olderLoaded'; key: string; cursor: string; turns: TurnPageEntry[]; olderCursor: string | null }
   | { type: 'echo'; key: string; echo: Echo }
   | { type: 'echoDropped'; key: string; clientId: string }
   | { type: 'pendingAdded'; key: string; request: PendingRequest }
@@ -368,6 +380,14 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
           },
         },
       }
+    case 'olderLoading': {
+      const detail = state.details[action.key]
+      return detail ? { ...state, details: { ...state.details, [action.key]: { ...detail, loadingOlder: action.value } } } : state
+    }
+    case 'olderLoaded':
+      // A reload while the page was read replaced the history and its cursor; drop the stale page.
+      if (state.details[action.key]?.history.olderCursor !== action.cursor) return state
+      return patchDetail(state, action.key, (history) => prependTurns(history, action.turns, action.olderCursor))
     case 'chatConfig': {
       const detail = state.details[action.key]
       return detail ? { ...state, details: { ...state.details, [action.key]: { ...detail, config: action.config } } } : state
@@ -492,10 +512,24 @@ function withoutImageData(item: HistoryItem): HistoryItem {
   return { ...item, payload: { ...item.payload, contentItems: contentItems.filter((entry: { type?: string }) => entry.type !== 'image') } }
 }
 
+const PERSISTED_ITEMS = 200
+
+/** Keeps the newest whole Turns within the Item budget, so the offline copy never holds part of a Turn. */
 function trimmed(history: ChatHistory): ChatHistory {
-  const items = history.items.slice(-200).map(withoutImageData)
-  const turnIds = new Set(items.map((item) => item.turnId))
-  return { items, turns: history.turns.filter((turn) => turnIds.has(turn.id)), echoes: [] }
+  const counts = new Map<string, number>()
+  for (const item of history.items) counts.set(item.turnId, (counts.get(item.turnId) ?? 0) + 1)
+  const kept = new Set<string>()
+  let total = 0
+  for (const turn of [...history.turns].reverse()) {
+    total += counts.get(turn.id) ?? 0
+    if (total > PERSISTED_ITEMS && kept.size > 0) break
+    kept.add(turn.id)
+  }
+  return {
+    items: history.items.filter((item) => kept.has(item.turnId)).map(withoutImageData),
+    turns: history.turns.filter((turn) => kept.has(turn.id)),
+    echoes: [],
+  }
 }
 
 function persistableComputer(state: ComputerState): PersistedComputer {

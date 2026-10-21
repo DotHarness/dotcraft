@@ -1,6 +1,6 @@
 import type { JsonValue } from '@dotcraft/sdk/contracts'
 import { describe, expect, it } from 'vitest'
-import { applyEvent, emptyHistory, historyFromPages, restoreEchoes, type ChatHistory } from './history'
+import { applyEvent, emptyHistory, historyFromTurns, prependTurns, restoreEchoes, type ChatHistory } from './history'
 import { buildTranscript as layout } from './transcript'
 
 // The trusted source and presentation the server declares on first-party tools.
@@ -36,7 +36,7 @@ function apply(history: ChatHistory, ...events: Parameters<typeof applyEvent>[1]
 
 describe('history catch-up', () => {
   it('replays buffered live events onto the reloaded pages without duplicates', () => {
-    const pages = historyFromPages([{ turnId: 't1', item: item('a', 'userMessage', { text: 'go' }) }], [turn('t1', 'running')])
+    const pages = historyFromTurns([{ turn: turn('t1', 'running'), items: [item('a', 'userMessage', { text: 'go' })] }], null)
     const next = apply(
       pages,
       { kind: 'item', item: item('a', 'userMessage', { text: 'go' }) },
@@ -49,19 +49,23 @@ describe('history catch-up', () => {
     expect(buildTranscript(next)).toMatchObject([
       { kind: 'user', id: 't1/a', text: 'go', added: false },
       { kind: 'assistant', id: 't1/m', text: 'Hello there', streaming: false },
+      { kind: 'thinking', visible: false },
     ])
   })
 
   it('freezes a message seen mid-stream until its final snapshot, so captured deltas cannot double or garble it', () => {
-    const pages = historyFromPages(
-      [{ turnId: 't1', item: item('m', 'agentMessage', { text: 'Partial' }, { status: 'started', completedAt: null }) }],
-      [turn('t1', 'running')],
+    const pages = historyFromTurns(
+      [{ turn: turn('t1', 'running'), items: [item('m', 'agentMessage', { text: 'Partial' }, { status: 'started', completedAt: null })] }],
+      null,
     )
     const doubled = apply(pages, { kind: 'delta', itemId: 'm', turnId: 't1', itemType: 'agentMessage', delta: 'Partial' })
-    expect(buildTranscript(doubled)).toMatchObject([{ kind: 'assistant', id: 't1/m', text: 'Partial', streaming: true }])
+    expect(buildTranscript(doubled)).toMatchObject([
+      { kind: 'assistant', id: 't1/m', text: 'Partial', streaming: true },
+      { kind: 'thinking', visible: false },
+    ])
 
     const missed = apply(emptyHistory(), { kind: 'delta', itemId: 'n', turnId: 't1', itemType: 'agentMessage', delta: 'middle of a sentence' })
-    expect(buildTranscript(missed)).toEqual([])
+    expect(buildTranscript(missed)).toMatchObject([{ kind: 'thinking', visible: true }])
     const done = apply(missed, { kind: 'item', item: item('n', 'agentMessage', { text: 'The start of the middle of a sentence' }) })
     expect(buildTranscript(done)).toMatchObject([{ kind: 'assistant', id: 't1/n', text: 'The start of the middle of a sentence', streaming: false }])
   })
@@ -74,12 +78,31 @@ describe('history catch-up', () => {
     })
     expect(buildTranscript(acknowledged)).toMatchObject([{ kind: 'user', id: 't1/u2', text: 'also run lint', added: true }])
 
-    const pages = historyFromPages([{ turnId: 't1', item: item('a', 'userMessage', { text: 'go', clientUserMessageId: 'c1' }) }], [turn('t1', 'running')])
+    const pages = historyFromTurns([{ turn: turn('t1', 'running'), items: [item('a', 'userMessage', { text: 'go', clientUserMessageId: 'c1' })] }], null)
     const restored = restoreEchoes(pages, [
       { clientId: 'c1', text: 'go', added: false },
       { clientId: 'c2', text: 'and then lint', added: true },
     ])
     expect(restored.echoes.map((echo) => echo.clientId)).toEqual(['c2'])
+  })
+})
+
+describe('history pages', () => {
+  it('puts older whole turns first, skips turns already loaded, and moves the cursor', () => {
+    const t2 = { ...turn('t2', 'completed') }
+    const head = historyFromTurns([{ turn: t2, items: [item('b', 'userMessage', { text: 'second' }, { turnId: 't2' })] }], 'older-1')
+    const older = prependTurns(
+      head,
+      [
+        { turn: turn('t1', 'completed'), items: [item('a', 'userMessage', { text: 'first' })] },
+        { turn: t2, items: [item('b', 'userMessage', { text: 'second' }, { turnId: 't2' })] },
+      ],
+      null,
+    )
+
+    expect(older.turns.map((entry) => entry.id)).toEqual(['t1', 't2'])
+    expect(older.items.map((entry) => entry.id)).toEqual(['a', 'b'])
+    expect(older.olderCursor).toBeNull()
   })
 })
 

@@ -38,7 +38,7 @@ export function Dock({
   const bottom = insets.bottom + 6
   if (!floating) {
     return (
-      <View style={[styles.dock, { paddingBottom: bottom, backgroundColor: colors.bgPrimary }]}>
+      <View style={[styles.dock, { paddingBottom: bottom, backgroundColor: colors.surfaceBottom }]}>
         {above}
         {children}
       </View>
@@ -52,16 +52,16 @@ export function Dock({
           <Svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 1 1">
             <Defs>
               <LinearGradient id="dockFade" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={colors.bgPrimary} stopOpacity={0} />
-                <Stop offset={FADE / 2 / (FADE + SEAM)} stopColor={colors.bgPrimary} stopOpacity={0.15} />
-                <Stop offset={FADE / (FADE + SEAM)} stopColor={colors.bgPrimary} stopOpacity={0.75} />
-                <Stop offset="1" stopColor={colors.bgPrimary} stopOpacity={0.75} />
+                <Stop offset="0" stopColor={colors.surfaceBottom} stopOpacity={0} />
+                <Stop offset={FADE / 2 / (FADE + SEAM)} stopColor={colors.surfaceBottom} stopOpacity={0.15} />
+                <Stop offset={FADE / (FADE + SEAM)} stopColor={colors.surfaceBottom} stopOpacity={0.75} />
+                <Stop offset="1" stopColor={colors.surfaceBottom} stopOpacity={0.75} />
               </LinearGradient>
             </Defs>
             <Rect x="0" y="0" width="1" height="1" fill="url(#dockFade)" />
           </Svg>
         </View>
-        <View pointerEvents="none" style={[styles.solid, { bottom: -bottom, backgroundColor: colors.bgPrimary }]} />
+        <View pointerEvents="none" style={[styles.solid, { bottom: -bottom, backgroundColor: colors.surfaceBottom }]} />
         {children}
       </View>
     </View>
@@ -120,7 +120,7 @@ export function CompactComposer({ draft, disabled, onPress }: { draft: MessageDr
   const insets = useSafeAreaInsets()
   const text = isEmptyDraft(draft) ? null : draftTitle(draft)
   return (
-    <View style={[styles.compactBar, { paddingBottom: insets.bottom + 6, backgroundColor: colors.bgPrimary }]}>
+    <View style={[styles.compactBar, { paddingBottom: insets.bottom + 6, backgroundColor: colors.surfaceBottom }]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t('home.newChat')}

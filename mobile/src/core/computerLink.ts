@@ -338,6 +338,12 @@ export class ComputerLink {
     if (connection?.ready && !connection.isOpen(threadId)) void connection.syncChat(threadId).catch(() => undefined)
   }
 
+  async loadOlder(key: string): Promise<void> {
+    const { projectId, threadId } = this.split(key)
+    const connection = this.connections.get(projectId)
+    if (connection?.ready && connection.isOpen(threadId)) await connection.loadOlder(threadId)
+  }
+
   closeChat(key: string): void {
     const count = this.views.get(key) ?? 0
     if (count > 1) {

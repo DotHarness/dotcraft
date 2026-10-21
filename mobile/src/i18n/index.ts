@@ -38,6 +38,8 @@ export interface I18n {
   date: (iso: string) => string
   dateTime: (iso: string) => string
   duration: (ms: number) => string
+  /** Joins activity phrases, lowercasing all but the first where the language allows it. */
+  phrases: (parts: string[]) => string
 }
 
 function createI18n(locale: AppLocale): I18n {
@@ -69,6 +71,11 @@ function createI18n(locale: AppLocale): I18n {
     },
     date: (iso) => shortDate(Date.parse(iso)),
     dateTime: (iso) => new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(Date.parse(iso)),
+    phrases(parts) {
+      return parts
+        .map((part, index) => (index === 0 || locale === 'de' ? part : part.charAt(0).toLocaleLowerCase(locale) + part.slice(1)))
+        .join(t('toolGroup.separator'))
+    },
     duration(ms) {
       const total = Math.max(0, Math.round(ms / 1000))
       const parts: [number, 'hour' | 'minute' | 'second', string][] = [

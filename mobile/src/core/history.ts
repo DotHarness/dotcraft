@@ -1,4 +1,4 @@
-import type { InputPart, SessionItem, SessionTurn, ThreadItemListEntry } from '@dotcraft/sdk/contracts'
+import type { InputPart, SessionItem, SessionTurn } from '@dotcraft/sdk/contracts'
 
 export interface HistoryItem {
   id: string
@@ -31,6 +31,14 @@ export interface ChatHistory {
   turns: HistoryTurn[]
   echoes: Echo[]
   diffs?: Record<string, string>
+  /** Cursor for the next page of older whole Turns; absent once the oldest Turn is loaded. */
+  olderCursor?: string | null
+}
+
+/** One Turn read with every one of its Items, so a page never holds part of a Turn. */
+export interface TurnPageEntry {
+  turn: SessionTurn
+  items: SessionItem[]
 }
 
 export type HistoryEvent =
@@ -76,12 +84,31 @@ function isStreamable(item: HistoryItem): boolean {
   return item.type === 'agentMessage' || item.type === 'reasoningContent'
 }
 
-export function historyFromPages(itemsDescending: ThreadItemListEntry[], turnsDescending: SessionTurn[]): ChatHistory {
-  const items = [...itemsDescending].reverse().map(({ item }) => {
-    const entry = itemFromWire(item)
-    return isStreamable(entry) && !isComplete(entry) ? { ...entry, partial: true } : entry
-  })
-  return { items, turns: [...turnsDescending].reverse().map(turnFromWire), echoes: [] }
+function pageItem(item: SessionItem): HistoryItem {
+  const entry = itemFromWire(item)
+  return isStreamable(entry) && !isComplete(entry) ? { ...entry, partial: true } : entry
+}
+
+/** The newest page of whole Turns, oldest first. */
+export function historyFromTurns(page: TurnPageEntry[], olderCursor: string | null): ChatHistory {
+  return {
+    items: page.flatMap((entry) => entry.items.map(pageItem)),
+    turns: page.map((entry) => turnFromWire(entry.turn)),
+    echoes: [],
+    olderCursor,
+  }
+}
+
+/** Puts a page of older whole Turns before the loaded ones, skipping any already present. */
+export function prependTurns(history: ChatHistory, page: TurnPageEntry[], olderCursor: string | null): ChatHistory {
+  const known = new Set(history.turns.map((turn) => turn.id))
+  const older = page.filter((entry) => !known.has(entry.turn.id))
+  return {
+    ...history,
+    items: [...older.flatMap((entry) => entry.items.map(pageItem)), ...history.items],
+    turns: [...older.map((entry) => turnFromWire(entry.turn)), ...history.turns],
+    olderCursor,
+  }
 }
 
 function indexOf(history: ChatHistory, turnId: string, id: string): number {

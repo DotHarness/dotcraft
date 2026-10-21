@@ -47,7 +47,7 @@ function Splash({ ready }: { ready: boolean }) {
     <Animated.View
       pointerEvents={ready ? 'none' : 'auto'}
       importantForAccessibility="no-hide-descendants"
-      style={[StyleSheet.absoluteFill, styles.splash, { backgroundColor: colors.bgPrimary, opacity }]}
+      style={[StyleSheet.absoluteFill, styles.splash, { backgroundColor: colors.surfaceBottom, opacity }]}
     >
       <Image source={SPLASH_ICON} style={styles.splashIcon} onLoad={() => SplashScreen.hide()} onError={() => SplashScreen.hide()} />
     </Animated.View>
@@ -68,12 +68,12 @@ function Gate() {
   }, [router, state.hydrated, state.order.length, top])
 
   return (
-    <View style={[styles.fill, { backgroundColor: colors.bgPrimary }]}>
+    <View style={[styles.fill, { backgroundColor: colors.surfaceBottom }]}>
       <Stack
         screenOptions={({ route }) => ({
           headerShown: false,
           animation: justSent(route.params) ? 'none' : 'slide_from_right',
-          contentStyle: { backgroundColor: colors.bgPrimary },
+          contentStyle: { backgroundColor: colors.surfaceBottom },
         })}
         screenListeners={({ navigation, route }) => ({
           transitionEnd: () => {
@@ -92,7 +92,7 @@ export default function RootLayout() {
   const i18n = useDeviceI18n(runtime.locale)
 
   useEffect(() => {
-    void SystemUI.setBackgroundColorAsync(theme.colors.bgPrimary)
+    void SystemUI.setBackgroundColorAsync(theme.colors.surfaceBottom)
   }, [theme])
 
   return (

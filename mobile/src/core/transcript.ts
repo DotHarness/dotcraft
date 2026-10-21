@@ -1,5 +1,6 @@
 import { isComplete, type ChatHistory, type HistoryItem, type HistoryTurn } from './history'
 import { parsePlanMarkdown } from './planMarkdown'
+import { groupTools, type ToolGroupLabel } from './toolGroups'
 import { turnChanges, type TurnChanges } from './turnChanges'
 import { userImages, userSegments, type ImageSource, type UserSegment } from './userSegments'
 
@@ -64,7 +65,7 @@ export type TranscriptEntry =
       copy: boolean
       changes: TurnChanges | null
     }
-  | { kind: 'reasoning'; id: string; text: string }
+  | { kind: 'thinking'; id: string; visible: boolean; heading: string | null }
   | {
       kind: 'tool'
       id: string
@@ -83,7 +84,7 @@ export type TranscriptEntry =
       added?: number
       removed?: number
     }
-  | { kind: 'toolGroup'; id: string; label: ToolGroupLabel; failed: boolean; children: ToolEntry[] }
+  | { kind: 'toolGroup'; id: string; label: ToolGroupLabel; icon: ToolIcon; failed: boolean; active: boolean; children: ToolEntry[] }
   | {
       kind: 'activity'
       id: string
@@ -101,10 +102,6 @@ export type TranscriptEntry =
 export type ToolEntry = Extract<TranscriptEntry, { kind: 'tool' }>
 
 export type ToolCategory = 'explore' | 'shell' | 'write' | 'web'
-
-export type ToolGroupLabel =
-  | { kind: 'explored' | 'ran' | 'created' | 'modified' | 'webSearched' | 'webFetched' | 'webUsed'; count: number }
-  | { kind: 'createdAndModified'; created: number; modified: number }
 
 const CATEGORIES: Record<string, ToolCategory> = {
   'core.read-file': 'explore',
@@ -468,72 +465,37 @@ function answersOf(payload: Record<string, unknown>): string {
     .join(', ')
 }
 
-function groupLabel(category: ToolCategory, items: ToolEntry[]): ToolGroupLabel {
-  if (category === 'explore') return { kind: 'explored', count: items.length }
-  if (category === 'shell') return { kind: 'ran', count: items.length }
-  if (category === 'web') {
-    const kind = items.every((item) => item.web === 'search') ? 'webSearched' : items.every((item) => item.web === 'fetch') ? 'webFetched' : 'webUsed'
-    return { kind, count: items.length }
-  }
-  const paths = new Map<string, boolean>()
-  for (const item of items) paths.set(item.path || item.id, (paths.get(item.path || item.id) ?? false) || item.created)
-  const created = [...paths.values()].filter(Boolean).length
-  const modified = paths.size - created
-  if (created > 0 && modified > 0) return { kind: 'createdAndModified', created, modified }
-  return created > 0 ? { kind: 'created', count: created } : { kind: 'modified', count: modified }
-}
-
-function aggregate(run: ToolEntry[]): TranscriptEntry[] {
-  const out: TranscriptEntry[] = []
-  let pending: ToolEntry[] = []
-  const flush = () => {
-    const category = pending[0]?.category
-    if (category && pending.length >= 2) {
-      out.push({
-        kind: 'toolGroup',
-        id: `group-${pending[0].id}`,
-        label: groupLabel(category, pending),
-        failed: category !== 'shell' && pending.some((item) => item.failed),
-        children: pending,
-      })
-    } else {
-      out.push(...pending)
-    }
-    pending = []
-  }
-  for (const item of run) {
-    if (item.live || !item.category) {
-      flush()
-      out.push(item)
-      continue
-    }
-    if (pending.length > 0 && pending[0].category !== item.category) flush()
-    pending.push(item)
-  }
-  flush()
-  return out
-}
-
-function groupTools(body: TranscriptEntry[], running: boolean): TranscriptEntry[] {
-  const out: TranscriptEntry[] = []
-  for (let index = 0; index < body.length; ) {
-    if (body[index].kind !== 'tool') {
-      out.push(body[index])
-      index += 1
-      continue
-    }
-    let end = index
-    while (end < body.length && body[end].kind === 'tool') end += 1
-    const run = body.slice(index, end) as ToolEntry[]
-    out.push(...(running && end === body.length ? run : aggregate(run)))
-    index = end
-  }
-  return out
-}
-
 function lastIndex(entries: TranscriptEntry[], test: (entry: TranscriptEntry) => boolean): number {
   for (let index = entries.length - 1; index >= 0; index -= 1) if (test(entries[index])) return index
   return -1
+}
+
+function showsWork(entry: TranscriptEntry): boolean {
+  switch (entry.kind) {
+    case 'tool':
+      return entry.live
+    case 'toolGroup':
+      return entry.children.some((child) => child.live)
+    case 'image':
+      return entry.status === 'inProgress'
+    case 'assistant':
+      return entry.streaming
+    default:
+      return false
+  }
+}
+
+function hidesThinking(entry: TranscriptEntry): boolean {
+  return (entry.kind === 'assistant' && entry.streaming) || (entry.kind === 'image' && entry.status === 'inProgress')
+}
+
+function lastIsFinalReply(entries: TranscriptEntry[]): boolean {
+  const last = entries.at(-1)
+  return last?.kind === 'assistant' && !last.streaming && last.phase !== 'commentary'
+}
+
+function thinkingEntry(turnId: string, body: TranscriptEntry[], heading: string | null): TranscriptEntry {
+  return { kind: 'thinking', id: `thinking-${turnId}`, visible: !body.some(hidesThinking) && !lastIsFinalReply(body), heading }
 }
 
 function layoutTurn(
@@ -543,14 +505,13 @@ function layoutTurn(
   running: boolean,
   changes: TurnChanges | null,
   origin: TaskWake | null = null,
+  heading: string | null = null,
 ): TranscriptEntry[] {
   let start = 0
   while (start < entries.length && entries[start].kind === 'user' && !(entries[start] as { added: boolean }).added) start += 1
   const opening = entries.slice(0, start)
-  const body = groupTools(
-    entries.slice(start).filter((entry) => entry.kind !== 'reasoning' || running),
-    running,
-  )
+  const body = groupTools(entries.slice(start), running)
+  const tail = running ? [thinkingEntry(turnId, body, heading)] : []
   const completed = !running && turn?.status === 'completed'
   const final =
     turn?.status === 'failed'
@@ -561,10 +522,10 @@ function layoutTurn(
     if (footer >= 0) body[footer] = { ...(body[footer] as Extract<TranscriptEntry, { kind: 'assistant' }>), copy: true, changes }
     else if (changes) body.push({ kind: 'changes', id: `changes-${turnId}`, changes })
   }
-  if (!turn) return [...opening, ...body]
+  if (!turn) return [...opening, ...body, ...tail]
   const status: Extract<TranscriptEntry, { kind: 'activity' }>['status'] | null =
     turn.status === 'cancelled' ? 'stopped' : final >= 0 || turn.status === 'completed' ? 'worked' : running ? 'working' : null
-  if (!status) return [...opening, ...body]
+  if (!status) return [...opening, ...body, ...tail]
   const finalAt = final >= 0 ? (body[final] as { at: string }).at || null : null
   const activity = {
     kind: 'activity' as const,
@@ -574,7 +535,7 @@ function layoutTurn(
     endedAt: status === 'worked' ? (finalAt ?? turn.completedAt ?? null) : (turn.completedAt ?? null),
     origin,
   }
-  if (status !== 'worked' || final <= 0) return [...opening, { ...activity, children: [] }, ...body]
+  if (status !== 'worked' || final <= 0) return [...opening, { ...activity, children: [] }, ...body, ...tail]
   const before = body.slice(0, final)
   const plan = lastIndex(before, (entry) => entry.kind === 'plan')
   const image = lastIndex(before, (entry) => entry.kind === 'image' && entry.status === 'completed' && entry.uri !== null)
@@ -584,6 +545,7 @@ function layoutTurn(
     { ...activity, children: before.filter((entry, index) => !pinned(entry, index)) },
     ...before.filter(pinned),
     ...body.slice(final),
+    ...tail,
   ]
 }
 
@@ -597,8 +559,9 @@ function latestIn(entries: TranscriptEntry[]): LatestActivity | null {
         return null
       case 'tool':
         return { kind: 'tool', verb: entry.verb, subject: entry.subject }
-      case 'reasoning':
-        return { kind: 'thinking' }
+      case 'thinking':
+        if (entry.visible && !entries.some(showsWork)) return { kind: 'thinking' }
+        break
       case 'assistant':
         if (entry.streaming) return { kind: 'replying' }
         break
@@ -646,6 +609,7 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
   let out: TranscriptEntry[] = []
   let live = false
   let wake: TaskWake | null = null
+  let heading: string | null = null
 
   const closeTurn = (turnId: string) => {
     const turn = turns.get(turnId)
@@ -654,10 +618,11 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
       out.push({ kind: 'notice', id: `turn-${turnId}`, tone: 'error', notice: 'turnFailed', ...(detail ? { detail } : {}) })
     }
     const changes = turn?.status === 'completed' ? turnChanges(history, turnId, workspacePath) : null
-    result.push(...layoutTurn(turnId, turn, out, turn ? !DONE.has(turn.status) : live, changes, wake))
+    result.push(...layoutTurn(turnId, turn, out, turn ? !DONE.has(turn.status) : live, changes, wake, heading))
     out = []
     live = false
     wake = null
+    heading = null
   }
 
   let currentTurn: string | null = null
@@ -709,8 +674,7 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
         break
       }
       case 'reasoningContent': {
-        const value = str(payload.text)
-        if (!isComplete(item)) out.push({ kind: 'reasoning', id: entryId(item), text: value })
+        heading = thinkingStatus(str(payload.text)) ?? heading
         break
       }
       case 'toolCall':

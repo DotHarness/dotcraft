@@ -176,7 +176,7 @@ function ComputerHome() {
     <Screen>
       <View
         onLayout={({ nativeEvent }) => setRowHeight(nativeEvent.layout.height)}
-        style={[styles.top, { backgroundColor: colors.bgPrimary }]}
+        style={[styles.top, { backgroundColor: colors.surfaceTop }]}
       >
         {searching ? (
           <View style={styles.searchRow}>

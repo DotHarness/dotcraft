@@ -54,9 +54,9 @@ export function ChatBar({
       <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" pointerEvents="none" preserveAspectRatio="none" viewBox="0 0 1 1">
         <Defs>
           <LinearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={colors.bgPrimary} stopOpacity={1} />
-            <Stop offset="0.6" stopColor={colors.bgPrimary} stopOpacity={0.85} />
-            <Stop offset="1" stopColor={colors.bgPrimary} stopOpacity={0} />
+            <Stop offset="0" stopColor={colors.surfaceTop} stopOpacity={1} />
+            <Stop offset="0.6" stopColor={colors.surfaceTop} stopOpacity={0.85} />
+            <Stop offset="1" stopColor={colors.surfaceTop} stopOpacity={0} />
           </LinearGradient>
         </Defs>
         <Rect x="0" y="0" width="1" height="1" fill="url(#fade)" />

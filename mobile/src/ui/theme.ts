@@ -3,6 +3,11 @@ import { Platform, type TextStyle } from 'react-native'
 
 const dark = {
   bgPrimary: '#141515',
+  /** Desktop's conversation surface: a vertical gradient between these two. */
+  surfaceTop: '#151616',
+  surfaceBottom: '#101111',
+  /** A control floating over the transcript, reading as the background. */
+  floatingSurface: 'rgba(16, 17, 17, 0.7)',
   bgSecondary: '#202020',
   bgTertiary: '#2a2a2a',
   bgElevated: '#242524',
@@ -46,6 +51,9 @@ const dark = {
 
 const light: typeof dark = {
   bgPrimary: '#f9f9f9',
+  surfaceTop: '#ffffff',
+  surfaceBottom: '#ffffff',
+  floatingSurface: 'rgba(255, 255, 255, 0.7)',
   bgSecondary: '#ffffff',
   bgTertiary: '#ededed',
   bgElevated: '#ffffff',

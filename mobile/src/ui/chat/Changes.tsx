@@ -37,9 +37,7 @@ export function ChangesPill({ changes, onPress }: { changes: TurnChanges; onPres
         { borderColor: colors.borderDefault, backgroundColor: pressed ? colors.bgTertiary : colors.bgElevated, boxShadow: colors.shadow1 },
       ]}
     >
-      <Txt numberOfLines={1} style={styles.shrink}>
-        {files}
-      </Txt>
+      <Txt numberOfLines={1}>{t('changes.title')}</Txt>
       <Counts added={changes.added} removed={changes.removed} />
     </Pressable>
   )
@@ -61,6 +59,9 @@ export function TurnChangesCard({ changes }: { changes: TurnChanges }) {
       onPress={() => open?.(changes.turnId)}
       style={({ pressed }) => [styles.card, { borderColor: colors.borderDefault, backgroundColor: pressed ? colors.bgTertiary : colors.bgSecondary }]}
     >
+      <View style={[styles.iconTile, { backgroundColor: colors.bgPrimary }]}>
+        <Icon name="squarePlusMinus" size={20} strokeWidth={1.5} color={colors.textSecondary} />
+      </View>
       <View style={styles.cardText}>
         <Txt numberOfLines={1} style={styles.name}>
           {title}
@@ -187,7 +188,6 @@ export function ChangesSheet({
 }
 
 const styles = StyleSheet.create({
-  shrink: { flexShrink: 1 },
   counts: { flexDirection: 'row', gap: 8 },
   count: { fontVariant: ['tabular-nums'], fontWeight: '500' },
   pill: {
@@ -201,7 +201,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: metrics.pill,
   },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
+  iconTile: { width: 40, height: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   cardText: { flex: 1, minWidth: 0, gap: 2 },
   files: { marginHorizontal: -12, gap: 2 },
   file: { borderRadius: metrics.rowRadius, overflow: 'hidden' },

@@ -70,24 +70,44 @@ describe('turn layout', () => {
     const [, activity, , final] = transcript
     expect(activity).toMatchObject({ status: 'worked', startedAt: '2026-10-04T08:00:00Z' })
     expect(activity.kind === 'activity' && activity.children.map((entry) => entry.kind)).toEqual(['assistant', 'toolGroup'])
-    expect(activity.kind === 'activity' && activity.children[1]).toMatchObject({ label: { kind: 'explored', count: 2 } })
+    expect(activity.kind === 'activity' && activity.children[1]).toMatchObject({ label: [{ part: 'explored', many: true }], active: false })
     expect(final).toMatchObject({ text: 'Here is the plan.', copy: true })
     expect(activity.kind === 'activity' && activity.children[0]).toMatchObject({ copy: false })
   })
 
-  it('keeps a running turn unfolded with its latest tool run ungrouped and its live reasoning shown', () => {
+  it('ends a running turn with one active row for its trailing run and one Thinking status that keeps the latest reasoning title', () => {
     const items = [
       item('userMessage', { text: 'Check the build' }),
+      item('reasoningContent', { text: '**Reading the config**' }),
       ...read('a.ts', 'c1'),
       ...read('b.ts', 'c2'),
-      item('reasoningContent', { text: '**Reading the config**' }, { status: 'started', completedAt: null }),
     ]
     const transcript = buildTranscript(history(items, 'running'))
-    expect(transcript.map((entry) => entry.kind)).toEqual(['user', 'activity', 'toolGroup', 'reasoning'])
+    expect(transcript.map((entry) => entry.kind)).toEqual(['user', 'activity', 'toolGroup', 'thinking'])
     expect(transcript[1]).toMatchObject({ status: 'working', endedAt: null, children: [] })
+    expect(transcript[2]).toMatchObject({ active: true, label: [{ part: 'explored', many: true }] })
+    expect(transcript[3]).toMatchObject({ visible: true, heading: 'Reading the config' })
 
-    const reading = buildTranscript(history(items.slice(0, -1), 'running'))
-    expect(reading.map((entry) => entry.kind)).toEqual(['user', 'activity', 'tool', 'tool'])
+    const calling = buildTranscript(history([...items, item('toolCall', { ...core('ReadFile'), callId: 'c3', arguments: { path: 'c.ts' } })], 'running'))
+    expect(calling.at(-1)).toMatchObject({ kind: 'thinking', visible: true })
+
+    const rethinking = buildTranscript(history([...items, item('reasoningContent', { text: '' }, { status: 'started', completedAt: null })], 'running'))
+    expect(rethinking.at(-1)).toMatchObject({ kind: 'thinking', visible: true, heading: 'Reading the config' })
+  })
+
+  it('groups consecutive calls of different kinds into one row naming each kind of work', () => {
+    const items = [
+      item('userMessage', { text: 'Fix the config' }),
+      ...read('a.ts', 'c1'),
+      item('toolCall', { ...core('EditFile'), callId: 'e1', arguments: { path: 'a.ts' } }),
+      item('toolResult', { ...core('EditFile'), callId: 'e1', result: 'ok', structuredContent: { changes: [{ kind: 'update', additions: 1, deletions: 1 }] } }),
+      item('agentMessage', { text: 'Fixed.', phase: 'final' }),
+    ]
+    const [, activity] = buildTranscript(history(items, 'completed'))
+    expect(activity.kind === 'activity' && activity.children[0]).toMatchObject({
+      kind: 'toolGroup',
+      label: [{ part: 'edited', many: false }, { part: 'explored', many: false }],
+    })
   })
 
   it('leaves background task notices out of the user messages', () => {

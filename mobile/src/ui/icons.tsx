@@ -247,6 +247,12 @@ const ICONS = {
     ['path', { d: 'M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12' }],
     ['path', { d: 'M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17' }],
   ],
+  squarePlusMinus: [
+    ['rect', { width: 16, height: 16, x: 4, y: 4, rx: 4 }],
+    ['path', { d: 'M12 7.5v5' }],
+    ['path', { d: 'M9.5 10h5' }],
+    ['path', { d: 'M9.5 16h5' }],
+  ],
   listChecks: [
     ['path', { d: 'M13 5h8' }],
     ['path', { d: 'M13 12h8' }],

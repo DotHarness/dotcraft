@@ -1,5 +1,6 @@
 import { useCallback, useState, type ReactElement, type ReactNode } from 'react'
 import { RefreshControl, ScrollView, StyleSheet, View, type RefreshControlProps, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native'
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useComputerLink } from '../app-state/SessionContext'
 import { camera, metrics, useTheme } from './theme'
@@ -11,10 +12,21 @@ export function Screen({ children, tone = 'default', style }: { children: ReactN
     <View
       style={[
         styles.screen,
-        { paddingTop: insets.top, backgroundColor: tone === 'camera' ? camera.background : colors.bgPrimary },
+        { paddingTop: insets.top, backgroundColor: tone === 'camera' ? camera.background : colors.surfaceBottom },
         style,
       ]}
     >
+      {tone === 'camera' ? null : (
+        <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" pointerEvents="none" preserveAspectRatio="none" viewBox="0 0 1 1">
+          <Defs>
+            <LinearGradient id="screenSurface" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={colors.surfaceTop} />
+              <Stop offset="1" stopColor={colors.surfaceBottom} />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="1" height="1" fill="url(#screenSurface)" />
+        </Svg>
+      )}
       {children}
     </View>
   )
@@ -74,7 +86,7 @@ export function ScrollArea({
 export function BottomBar({ children }: { children: ReactNode }) {
   const { colors } = useTheme()
   const insets = useSafeAreaInsets()
-  return <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 6, backgroundColor: colors.bgPrimary }]}>{children}</View>
+  return <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 6, backgroundColor: colors.surfaceBottom }]}>{children}</View>
 }
 
 export function Hero({ children }: { children: ReactNode }) {

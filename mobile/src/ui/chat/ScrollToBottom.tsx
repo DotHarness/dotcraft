@@ -61,7 +61,7 @@ export function ScrollToBottom({ visible, working, bottom, onPress }: { visible:
         onPress={onPress}
         style={({ pressed }) => [
           styles.button,
-          { backgroundColor: colors.bgElevated, borderColor: colors.borderDefault, boxShadow: colors.shadow1 },
+          { backgroundColor: colors.floatingSurface, borderColor: colors.borderDefault },
           pressed && { backgroundColor: colors.roundFillPressed },
         ]}
       >

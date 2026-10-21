@@ -7,6 +7,7 @@ import type {
   ProviderListResult,
   SessionThread,
   ThreadConfiguration,
+  ThreadItemsListResult,
   ThreadRuntimeState,
   TurnNotification,
   UserInputResponseResult,
@@ -21,7 +22,15 @@ import { followUpMethod } from './chatState'
 import { contextUsageOf, systemEventUpdate, usageDeltaUpdate, type ContextUpdate } from './contextUsage'
 import { inputParts, visibleText, type MessageDraft, type ReferenceEntry } from './draft'
 import { GatewayError, type GatewayClient } from './gateway'
-import { applyEvent, emptyHistory, historyFromPages, restoreEchoes, type HistoryEvent, type HistoryItem } from './history'
+import {
+  applyEvent,
+  emptyHistory,
+  historyFromTurns,
+  restoreEchoes,
+  type HistoryEvent,
+  type HistoryItem,
+  type TurnPageEntry,
+} from './history'
 import { HTTP_REJECTED } from './pinned'
 import { PinnedSocketTransport, SocketOpenError } from './pinnedSocketTransport'
 import type { PinnedSockets, SocketEnd } from './sockets'
@@ -30,6 +39,11 @@ import { chatKey, type ChatSummary, type ComputerAction, type ComputerState, typ
 import type { Store } from './store'
 
 const PHONE_IDENTITY = { channelName: 'dotcraft-desktop', userId: 'local' }
+
+/** Whole Turns per history page, as on Desktop: a fast first paint, and older pages load on demand. */
+const TURN_PAGE = 5
+/** Items per request while reading one Turn; the server's maximum. */
+const TURN_ITEM_PAGE = 500
 
 const OPTED_OUT_NOTIFICATIONS = ['item/toolCall/argumentsDelta', 'subagent/progress', 'plan/updated', 'terminal/outputDelta']
 
@@ -93,6 +107,7 @@ export class ProjectConnection {
   private readonly held = new Map<string, { resolve: (result: object) => void; reject: (error: Error) => void }>()
   private readonly subscribed = new Set<string>()
   private readonly capturing = new Map<string, HistoryEvent[]>()
+  private readonly loadingOlder = new Set<string>()
   private readonly lookedUp = new Set<string>()
   private profiles: AgentProfileEntry[] | null = null
   private readonly catalogs = new Map<string, Promise<void>>()
@@ -374,20 +389,16 @@ export class ProjectConnection {
         await client.request('thread/subscribe', { threadId })
         this.subscribed.add(threadId)
       }
-      const [read, turns, items] = await Promise.all([
-        client.request('thread/read', { threadId }),
-        client.request('thread/turns/list', { threadId, limit: 20, sortDirection: 'descending' }),
-        client.request('thread/items/list', { threadId, limit: 200, sortDirection: 'descending' }),
-      ])
+      const [read, page] = await Promise.all([client.request('thread/read', { threadId }), this.readTurnPage(client, threadId, null)])
       const thread = read.thread
       const profileId = thread.configuration?.agentProfileId
       const profileName = profileId ? await this.profileName(client, profileId) : null
       const history = restoreEchoes(
-        buffer.reduce(applyEvent, historyFromPages(items.data, turns.data)),
+        buffer.reduce(applyEvent, historyFromTurns(page.turns, page.nextCursor)),
         this.store.getState().details[key]?.history.echoes ?? [],
       )
       this.threadSeen(thread)
-      this.patch(threadId, { lastTurnFailed: !thread.runtime.running && turns.data[0]?.status === 'failed' })
+      this.patch(threadId, { lastTurnFailed: !thread.runtime.running && page.turns.at(-1)?.turn.status === 'failed' })
       this.store.dispatch({
         type: 'detailLoaded',
         key,
@@ -407,6 +418,54 @@ export class ProjectConnection {
     } finally {
       this.capturing.delete(threadId)
     }
+  }
+
+  /** Loads the next page of older whole Turns of an open chat; one load per chat at a time. */
+  async loadOlder(threadId: string): Promise<void> {
+    const key = this.key(threadId)
+    const cursor = this.store.getState().details[key]?.history.olderCursor
+    if (!cursor || this.loadingOlder.has(threadId)) return
+    this.loadingOlder.add(threadId)
+    this.store.dispatch({ type: 'olderLoading', key, value: true })
+    try {
+      const page = await this.readTurnPage(this.requireClient(), threadId, cursor)
+      this.store.dispatch({ type: 'olderLoaded', key, cursor, turns: page.turns, olderCursor: page.nextCursor })
+    } finally {
+      this.loadingOlder.delete(threadId)
+      this.store.dispatch({ type: 'olderLoading', key, value: false })
+    }
+  }
+
+  /** Reads one descending page of Turns and every Item of each, returned oldest first. */
+  private async readTurnPage(
+    client: DotCraftWireClient,
+    threadId: string,
+    cursor: string | null,
+  ): Promise<{ turns: TurnPageEntry[]; nextCursor: string | null }> {
+    const page = await client.request('thread/turns/list', { threadId, limit: TURN_PAGE, sortDirection: 'descending', ...(cursor ? { cursor } : {}) })
+    const turns = await Promise.all(
+      [...page.data].reverse().map(async (turn) => ({ turn, items: await this.readTurnItems(client, threadId, turn.id) })),
+    )
+    return { turns, nextCursor: page.nextCursor ?? null }
+  }
+
+  private async readTurnItems(client: DotCraftWireClient, threadId: string, turnId: string): Promise<TurnPageEntry['items']> {
+    const items: TurnPageEntry['items'] = []
+    let cursor: string | null = null
+    do {
+      const page: ThreadItemsListResult = await client.request('thread/items/list', {
+        threadId,
+        turnId,
+        limit: TURN_ITEM_PAGE,
+        sortDirection: 'ascending',
+        ...(cursor ? { cursor } : {}),
+      })
+      items.push(...page.data.map((entry) => entry.item))
+      const next: string | null = page.nextCursor ?? null
+      if (next !== null && next === cursor) throw new Error(`thread/items/list returned an unchanged cursor for turn ${turnId}`)
+      cursor = next
+    } while (cursor !== null)
+    return items
   }
 
   private dropAnswered(key: string, items: HistoryItem[]): void {

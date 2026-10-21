@@ -1,23 +1,23 @@
 import { useEffect, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { copyableAssistantText, splitAssistantText } from '../../core/assistantContent'
 import { workspaceFile } from '../../core/links'
 import {
   baseName,
-  thinkingStatus,
   type ToolEntry,
-  type ToolGroupLabel,
   type ToolIcon,
   type TaskWake,
   type TaskWakeKind,
   type ToolVerb,
   type TranscriptEntry,
 } from '../../core/transcript'
+import type { ToolGroupLabel, ToolGroupPart } from '../../core/toolGroups'
 import type { UserSegment } from '../../core/userSegments'
 import { useI18n, type I18n } from '../../i18n'
 import type { MessageId } from '../../i18n/messages/en'
 import { Icon, type IconName } from '../icons'
-import { Txt } from '../parts'
+import { nativeDriver, Txt } from '../parts'
+import { useReducedMotion } from '../motion'
 import { RunningShimmer } from '../RunningShimmer'
 import { metrics, type, useTheme } from '../theme'
 import { TurnChangesCard } from './Changes'
@@ -93,15 +93,23 @@ export function toolText(verb: ToolVerb, subject: string | null, t: I18n['t']): 
   return t(TOOL_TEXT[verb], { subject: subject ?? '' })
 }
 
-const GROUP_TEXT: Record<ToolGroupLabel['kind'], MessageId> = {
-  explored: 'toolGroup.explored',
-  ran: 'toolGroup.ran',
-  created: 'toolGroup.created',
-  modified: 'toolGroup.modified',
-  createdAndModified: 'toolGroup.createdAndModified',
-  webSearched: 'toolGroup.webSearched',
-  webFetched: 'toolGroup.webFetched',
-  webUsed: 'toolGroup.webUsed',
+const PART_TEXT: Record<ToolGroupPart, readonly [MessageId, MessageId]> = {
+  calledTool: ['toolGroup.calledTool.one', 'toolGroup.calledTool.other'],
+  created: ['toolGroup.created.one', 'toolGroup.created.other'],
+  edited: ['toolGroup.edited.one', 'toolGroup.edited.other'],
+  explored: ['toolGroup.explored.one', 'toolGroup.explored.other'],
+  ran: ['toolGroup.ran.one', 'toolGroup.ran.other'],
+  searchedWeb: ['toolGroup.searchedWeb', 'toolGroup.searchedWeb'],
+  fetched: ['toolGroup.fetched.one', 'toolGroup.fetched.other'],
+}
+
+function groupText(label: ToolGroupLabel, i18n: I18n): string {
+  return i18n.phrases(label.map(({ part, many }) => i18n.t(PART_TEXT[part][many ? 1 : 0])))
+}
+
+function liveText(entry: ToolEntry, t: I18n['t']): string {
+  const pending = entry.subject === null ? TOOL_PENDING_TEXT[entry.verb] : undefined
+  return pending ? t(pending) : t(TOOL_LIVE_TEXT[entry.verb], { subject: entry.subject ?? '' })
 }
 
 const NOTICE_TEXT = {
@@ -160,12 +168,32 @@ function Disclosure({ open }: { open: boolean }) {
   )
 }
 
-function Reasoning({ text }: { text: string }) {
+/** The running turn's one Thinking status: it keeps its height and fades, so the transcript never jumps. */
+function ThinkingSlot({ entry }: { entry: Extract<TranscriptEntry, { kind: 'thinking' }> }) {
   const { t } = useI18n()
+  const reduced = useReducedMotion()
+  const [opacity] = useState(() => new Animated.Value(entry.visible ? 1 : 0))
+  useEffect(() => {
+    const target = entry.visible ? 1 : 0
+    if (reduced) {
+      opacity.setValue(target)
+      return
+    }
+    const animation = Animated.timing(opacity, { toValue: target, duration: 180, useNativeDriver: nativeDriver })
+    animation.start()
+    return () => animation.stop()
+  }, [entry.visible, opacity, reduced])
   return (
-    <View accessibilityLiveRegion="polite">
-      <RunningShimmer textStyle={type.text}>{thinkingStatus(text) ?? t('chat.thinking')}</RunningShimmer>
-    </View>
+    <Animated.View
+      accessibilityLiveRegion={entry.visible ? 'polite' : 'none'}
+      importantForAccessibility={entry.visible ? 'auto' : 'no-hide-descendants'}
+      accessibilityElementsHidden={!entry.visible}
+      style={[styles.thinking, { opacity }]}
+    >
+      <RunningShimmer active={entry.visible} textStyle={[type.text, styles.line]}>
+        {entry.heading ?? t('chat.thinking')}
+      </RunningShimmer>
+    </Animated.View>
   )
 }
 
@@ -224,21 +252,19 @@ function Activity({ entry, workspacePath }: { entry: Extract<TranscriptEntry, { 
 }
 
 function ToolGroup({ entry }: { entry: Extract<TranscriptEntry, { kind: 'toolGroup' }> }) {
-  const { t } = useI18n()
+  const i18n = useI18n()
   const { colors } = useTheme()
   const [open, setOpen] = useState(false)
-  const label =
-    entry.label.kind === 'createdAndModified'
-      ? t(GROUP_TEXT.createdAndModified, { created: entry.label.created, modified: entry.label.modified })
-      : t(GROUP_TEXT[entry.label.kind], { count: entry.label.count })
-  const tone = entry.failed ? colors.errorText : colors.textSecondary
+  const live = entry.active ? entry.children.findLast((child) => child.live) : undefined
+  const label = live ? liveText(live, i18n.t) : groupText(entry.label, i18n)
+  const tone = entry.failed && !live ? colors.errorText : colors.textSecondary
   return (
     <View style={styles.toolBlock}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((value) => !value)} style={styles.tool}>
-        <Icon name={TOOL_ICON[entry.children[0].icon]} size={16} color={tone} strokeWidth={1.6} />
-        <Text numberOfLines={1} style={[type.text, styles.line, styles.shrink, { color: tone }]}>
+        <Icon name={TOOL_ICON[live?.icon ?? entry.icon]} size={16} color={tone} strokeWidth={1.6} />
+        <RunningShimmer active={live !== undefined} style={styles.shrink} textStyle={[type.text, styles.line, { color: tone }]}>
           {label}
-        </Text>
+        </RunningShimmer>
         <Disclosure open={open} />
       </Pressable>
       {open ? (
@@ -467,8 +493,8 @@ export function TranscriptLine({
           {entry.copy ? <CopyButton text={copyableAssistantText(entry.text)} label={t('chat.copy')} style={styles.copy} /> : null}
         </View>
       )
-    case 'reasoning':
-      return <Reasoning text={entry.text} />
+    case 'thinking':
+      return <ThinkingSlot entry={entry} />
     case 'tool':
       return (
         <View style={tight ? styles.tight : undefined}>
@@ -552,6 +578,7 @@ const styles = StyleSheet.create({
   changes: { marginTop: 10 },
   copy: { alignSelf: 'flex-start', marginTop: 4, marginLeft: -6 },
   tight: { marginTop: -6 },
+  thinking: { minHeight: 22 },
   process: { flexDirection: 'row', gap: 6, minWidth: 0 },
   failure: { flexDirection: 'row', gap: 12, padding: 14, borderWidth: 1, borderRadius: metrics.noticeRadius },
   failureText: { flex: 1, minWidth: 0, gap: 2 },

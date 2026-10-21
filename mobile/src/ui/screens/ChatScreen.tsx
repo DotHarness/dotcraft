@@ -35,8 +35,12 @@ import { Screen, useRefreshControl } from '../layout'
 import { MascotNote, MascotTransition } from '../mascot/Mascot'
 import { Notice, PhoneButton, ReadOnlyNotice } from '../parts'
 import { chatTitle, projectIcon, projectTitle } from '../rows'
-import { metrics } from '../theme'
+import { RunningShimmer } from '../RunningShimmer'
+import { metrics, type, useTheme } from '../theme'
 import { chatHref } from './HomeScreen'
+
+/** How close to the top, in points, the transcript reads its next older page. */
+const OLDER_THRESHOLD = 800
 
 export function ChatScreen({ projectId, threadId }: { projectId: string; threadId: string }) {
   const key = chatKey(projectId, threadId)
@@ -44,6 +48,8 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const session = useComputerLink()
   const router = useRouter()
   const { t } = useI18n()
+  const { colors } = useTheme()
+  const viewport = useRef(0)
   const [dismissedPlan, setDismissedPlan] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [statusOpen, setStatusOpen] = useState(false)
@@ -116,9 +122,15 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const usageProviderId = controls.providerId ?? models?.defaultProviderId ?? null
 
   const title = chat ? chatTitle(chat, t('chat.untitled')) : t('chat.untitled')
+  const olderCursor = detail?.history.olderCursor ?? null
+  const loadingOlder = detail?.loadingOlder === true
+  const loadOlder = () => {
+    if (olderCursor && !loadingOlder && live) void session.loadOlder(key).catch(() => undefined)
+  }
 
   const track = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentSize, contentOffset, layoutMeasurement } = nativeEvent
+    if (contentOffset.y < OLDER_THRESHOLD) loadOlder()
     const atEnd = contentSize.height - contentOffset.y - layoutMeasurement.height < 48
     if (jumping.current && !atEnd) return
     jumping.current = false
@@ -169,19 +181,27 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               showsVerticalScrollIndicator={false}
               scrollEventThrottle={64}
               refreshControl={refreshControl}
+              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
               onScroll={track}
               onScrollBeginDrag={() => {
                 jumping.current = false
               }}
               onScrollEndDrag={track}
               onMomentumScrollEnd={track}
-              onContentSizeChange={() => {
+              onContentSizeChange={(_width, height) => {
+                if (height < viewport.current + OLDER_THRESHOLD) loadOlder()
                 if (pinned.current) scroller.current?.scrollToEnd({ animated: false })
               }}
-              onLayout={() => {
+              onLayout={({ nativeEvent }) => {
+                viewport.current = nativeEvent.layout.height
                 if (pinned.current) scroller.current?.scrollToEnd({ animated: false })
               }}
             >
+              {loadingOlder ? (
+                <RunningShimmer style={styles.older} textStyle={[type.meta, { color: colors.textDimmed }]}>
+                  {t('chat.loadingOlder')}
+                </RunningShimmer>
+              ) : null}
               {!online ? <ReadOnlyNotice status={status} computer={computer.name} /> : null}
               {online && project && !running ? (
                 <Notice
@@ -212,7 +232,12 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
                 <ImageReaderContext.Provider value={imageReader}>
                   <ChangesOpenerContext.Provider value={openChanges}>
                     {transcript.map((entry, index) => (
-                      <TranscriptLine key={entry.id} entry={entry} previous={transcript[index - 1]} workspacePath={workspacePath} />
+                      <TranscriptLine
+                        key={entry.id}
+                        entry={entry.kind === 'thinking' && decision ? { ...entry, visible: false } : entry}
+                        previous={transcript[index - 1]}
+                        workspacePath={workspacePath}
+                      />
                     ))}
                   </ChangesOpenerContext.Provider>
                 </ImageReaderContext.Provider>
@@ -247,10 +272,10 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               floating
               above={
                 runningChanges || tasks.running.length > 0 ? (
-                  <View style={styles.pills}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillScroll} contentContainerStyle={[styles.pills, styles.pillRow]}>
                     {runningChanges ? <ChangesPill changes={runningChanges} onPress={() => openChanges(runningChanges.turnId)} /> : null}
                     {tasks.running.length > 0 ? <TasksPill count={tasks.running.length} onPress={() => setTasksOpen(true)} /> : null}
-                  </View>
+                  </ScrollView>
                 ) : null
               }
               onLayout={({ nativeEvent }) => setDockHeight(nativeEvent.layout.height)}
@@ -333,6 +358,9 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   transcript: { flexGrow: 1, gap: 14, paddingTop: BAR_HEIGHT + 20, paddingHorizontal: metrics.gutter, paddingBottom: 16 },
   decision: { marginTop: 'auto' },
+  older: { alignSelf: 'center' },
   pills: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
   decisionPills: { marginBottom: 12 },
+  pillScroll: { flexGrow: 0, marginVertical: -6, marginHorizontal: -metrics.gutter },
+  pillRow: { flexGrow: 1, paddingVertical: 6, paddingHorizontal: metrics.gutter },
 })

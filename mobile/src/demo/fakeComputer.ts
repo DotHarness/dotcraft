@@ -134,6 +134,15 @@ export function sequenceId(prefix: string, sequence: number): string {
 
 type FakeInputPart = { type: string; text?: string; name?: string; rawText?: string; path?: string }
 
+/** A list page the way the AppServer pages history: descending by default, with an opaque offset cursor. */
+function page<T>(scope: string, rows: T[], params: Record<string, unknown>): { data: T[]; nextCursor: string | null } {
+  const ordered = params.sortDirection === 'ascending' ? rows : [...rows].reverse()
+  const start = typeof params.cursor === 'string' ? Number(params.cursor.slice(scope.length + 1)) : 0
+  const limit = typeof params.limit === 'number' ? params.limit : ordered.length
+  const end = start + limit
+  return { data: ordered.slice(start, end), nextCursor: end < ordered.length ? `${scope}:${end}` : null }
+}
+
 function inputText(input: unknown): string {
   return (input as FakeInputPart[])
     .map((part) => {
@@ -455,9 +464,12 @@ export class FakeComputer {
       case 'thread/read':
         return { result: { thread: this.threadBody(thread) } }
       case 'thread/turns/list':
-        return { result: { data: [...thread.turns].reverse() } }
-      case 'thread/items/list':
-        return { result: { data: [...thread.items].reverse().map((item) => ({ turnId: item.turnId, item })) } }
+        return { result: page('turns', thread.turns, params) }
+      case 'thread/items/list': {
+        const items = params.turnId ? thread.items.filter((item) => item.turnId === params.turnId) : thread.items
+        const listed = page('items', items, params)
+        return { result: { ...listed, data: listed.data.map((item) => ({ turnId: item.turnId, item })) } }
+      }
       case 'thread/subscribe':
         connection.subscribed.add(thread.id)
         return { result: {}, after: () => this.afterSubscribe(connection, project, thread) }
