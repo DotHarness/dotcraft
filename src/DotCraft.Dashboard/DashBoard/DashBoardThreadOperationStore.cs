@@ -27,8 +27,16 @@ internal sealed class DashBoardThreadOperationStore(string craftPath)
             if (!File.Exists(path))
                 continue;
 
+            using var stream = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete,
+                64 * 1024,
+                FileOptions.SequentialScan);
+            using var reader = new StreamReader(stream);
             var lineNumber = 0;
-            foreach (var line in File.ReadLines(path))
+            while (reader.ReadLine() is { } line)
             {
                 lineNumber++;
                 if (!line.Contains(RolloutKinds.ThreadRolledBack, StringComparison.Ordinal))

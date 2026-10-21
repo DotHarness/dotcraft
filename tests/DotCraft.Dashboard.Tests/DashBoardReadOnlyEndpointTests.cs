@@ -233,6 +233,27 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task ReadOnlyDashboard_ReadsRollbackOperationsWhileTheRolloutIsOpenForWriting()
+    {
+        var timestamp = new DateTimeOffset(2026, 6, 1, 8, 30, 0, TimeSpan.Zero);
+        WriteRollbackRollout("thread_live", timestamp, 1);
+        await using var writer = new FileStream(
+            Path.Combine(_craft, "threads", "active", "thread_live.jsonl"),
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.ReadWrite | FileShare.Delete);
+
+        await using var app = await CreateDashboardApp();
+        using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+
+        using var response = await http.GetAsync("/dashboard/api/sessions/thread_live/operations");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Single(doc.RootElement.EnumerateArray());
+    }
+
+    [Fact]
     public async Task ReadOnlyDashboard_RollbackOperationsSkipCorruptAndHiddenRolloutRecords()
     {
         var timestamp = new DateTimeOffset(2026, 6, 1, 9, 0, 0, TimeSpan.Zero);
