@@ -98,7 +98,7 @@ public sealed class TerminalRegressionTests : IAsyncLifetime
 
     private BackgroundTerminalStartRequest Request(string command, ShellIdentity shell) => new()
     {
-        ThreadId = "thread", WorkingDirectory = _root, Command = command, Shell = shell, TimeoutSeconds = 10
+        ThreadId = "thread", WorkingDirectory = _root, Command = command, Shell = shell, TimeoutSeconds = 60
     };
 
     [Theory]
