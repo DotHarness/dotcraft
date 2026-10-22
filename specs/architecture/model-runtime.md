@@ -320,6 +320,8 @@ history, tool schema, retry timing, or wire request.
   a stable classification and, when the provider supplies them, the upstream HTTP status, request
   ID, and a server-advised retry delay. Classification belongs to the provider integration; the
   provider-neutral layer does not re-derive it from message text.
+- An invalid-request failure that a gateway wraps in a server error, such as a Bedrock
+  `ValidationException` inside a 502, is classified as invalid-request and is not retried.
 - A classified failure is the sole authority on whether it may be retried and after how long. A
   server-advised delay takes precedence over local backoff and becomes a process-local monotonic
   deadline when response headers are first observed, or when a provider exposes rate-limit text

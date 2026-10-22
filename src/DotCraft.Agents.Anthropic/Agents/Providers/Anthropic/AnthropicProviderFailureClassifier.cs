@@ -59,8 +59,11 @@ internal sealed class AnthropicProviderFailureClassifier : IProviderFailureClass
         if (ProviderFailureParsing.Mentions(detail, "rate_limit_error") || status == 429)
             return ProviderFailureKind.RateLimitExceeded;
 
-        if (ProviderFailureParsing.Mentions(detail, "invalid_request_error"))
+        if (ProviderFailureParsing.Mentions(detail, "invalid_request_error")
+            || ProviderFailureParsing.Mentions(detail, "ValidationException"))
+        {
             return ProviderFailureKind.BadRequest;
+        }
 
         return null;
     }
