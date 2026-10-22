@@ -31,6 +31,8 @@ public sealed partial class SessionService
                 owner.WorktreeBranchPrefix,
                 owner.Logger,
                 ct);
+            if (source.Worktree is { } sourceWorktree)
+                worktree = worktree with { SourceWorkspacePath = sourceWorktree.SourceWorkspacePath };
 
             var config = options.Config != null
                 ? ThreadConfigurationCloner.Clone(options.Config)

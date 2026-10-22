@@ -449,6 +449,73 @@ public sealed class SessionServiceWorktreeTests : IDisposable
     }
 
     [Fact]
+    public async Task HandoffThreadWorktreeAsync_KeepsStagedAndUnstagedVersionsApart()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        File.WriteAllText(Path.Combine(_tempDir, "README.md"), "staged" + Environment.NewLine);
+        RunGit("add", "README.md");
+        File.WriteAllText(Path.Combine(_tempDir, "README.md"), "working" + Environment.NewLine);
+
+        var worktreePath = (await service.HandoffThreadWorktreeAsync(new WorktreeHandoffOptions { ThreadId = thread.Id })).Worktree!.Path;
+
+        Assert.Equal("staged", RunGitCapture(worktreePath, "show", ":README.md").Trim());
+        Assert.Equal("working" + Environment.NewLine, File.ReadAllText(Path.Combine(worktreePath, "README.md")));
+    }
+
+    [Fact]
+    public async Task HandoffThreadWorktreeAsync_RestoresTheSourceWhenChangesCannotMove()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        RunGit("switch", "-c", "other");
+        File.WriteAllText(Path.Combine(_tempDir, "README.md"), "other" + Environment.NewLine);
+        RunGit("commit", "-am", "other");
+        RunGit("switch", "-");
+        File.WriteAllText(Path.Combine(_tempDir, "README.md"), "staged" + Environment.NewLine);
+        RunGit("add", "README.md");
+        File.WriteAllText(Path.Combine(_tempDir, "README.md"), "working" + Environment.NewLine);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => service.HandoffThreadWorktreeAsync(new WorktreeHandoffOptions
+        {
+            ThreadId = thread.Id,
+            BaseRef = "other"
+        }));
+
+        Assert.Equal("staged", RunGitCapture(_tempDir, "show", ":README.md").Trim());
+        Assert.Equal("working" + Environment.NewLine, File.ReadAllText(Path.Combine(_tempDir, "README.md")));
+        Assert.Empty(await service.ListWorktreesAsync());
+    }
+
+    [Fact]
+    public async Task UnarchiveThreadAsync_RestoresAForkWhoseSourceWorktreeWasRemoved()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var source = await service.CreateThreadAsync(MakeIdentity());
+        await service.HandoffThreadWorktreeAsync(new WorktreeHandoffOptions
+        {
+            ThreadId = source.Id,
+            BranchName = "dotcraft/fork-source",
+            CopyDirtyChanges = false
+        });
+        var fork = await service.CreateWorktreeAndForkAsync(new WorktreeCreateAndForkOptions
+        {
+            SourceThreadId = source.Id,
+            BranchName = "dotcraft/fork-copy",
+            CopyDirtyChanges = false
+        });
+
+        await service.ArchiveThreadAsync(source.Id);
+        await service.ArchiveThreadAsync(fork.Thread.Id);
+        await service.UnarchiveThreadAsync(fork.Thread.Id);
+
+        Assert.Equal("dotcraft/fork-copy", RunGitCapture(fork.Worktree.Path, "branch", "--show-current").Trim());
+    }
+
+    [Fact]
     public async Task CreateWorktreeAndForkAsync_CopiesIgnoredFilesListedInWorktreeInclude()
     {
         await using var agentFactory = CreateAgentFactory();

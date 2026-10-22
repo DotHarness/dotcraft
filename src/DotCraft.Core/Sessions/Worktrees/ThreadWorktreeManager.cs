@@ -343,7 +343,7 @@ internal static class ThreadWorktreeManager
             {
                 await RunGitRequiredAsync(
                     targetRoot,
-                    ["stash", "apply", stashRef],
+                    ["stash", "apply", "--index", stashRef],
                     GitTimeout,
                     "Failed to apply worktree changes locally",
                     ct,
@@ -376,10 +376,10 @@ internal static class ThreadWorktreeManager
             if (detached && !stashAppliedLocally)
             {
                 await TryRunGitAsync(worktreePath, ["switch", branchName], ct, logger).ConfigureAwait(false);
-                if (stashRef != null)
+                if (stashRef != null
+                    && await GitSucceedsAsync(worktreePath, ["stash", "apply", "--index", stashRef], CancellationToken.None, logger).ConfigureAwait(false))
                 {
-                    await TryRunGitAsync(worktreePath, ["stash", "apply", stashRef], ct, logger).ConfigureAwait(false);
-                    await TryRunGitAsync(worktreePath, ["stash", "drop", stashRef], ct, logger).ConfigureAwait(false);
+                    await TryRunGitAsync(worktreePath, ["stash", "drop", stashRef], CancellationToken.None, logger).ConfigureAwait(false);
                 }
             }
             throw;
@@ -401,13 +401,7 @@ internal static class ThreadWorktreeManager
         string repositoryRoot;
         try
         {
-            var sourceWorkspace = string.IsNullOrWhiteSpace(worktree.SourceWorkspacePath)
-                ? worktree.WorkspacePath
-                : worktree.SourceWorkspacePath;
-            repositoryRoot = await ResolveRepositoryRootAsync(
-                NormalizeAbsolutePath(sourceWorkspace, nameof(worktree.SourceWorkspacePath)),
-                ct,
-                logger).ConfigureAwait(false);
+            repositoryRoot = await ResolveRepositoryRootAsync(SourceWorkspace(worktree), ct, logger).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -763,7 +757,7 @@ internal static class ThreadWorktreeManager
         {
             await RunGitRequiredAsync(
                 targetRoot,
-                ["stash", "apply", stashRef],
+                ["stash", "apply", "--index", stashRef],
                 GitTimeout,
                 "Failed to apply uncommitted changes in the worktree",
                 ct,
@@ -771,7 +765,13 @@ internal static class ThreadWorktreeManager
         }
         catch
         {
-            await TryRunGitAsync(sourceRoot, ["stash", "apply", stashRef], CancellationToken.None, logger).ConfigureAwait(false);
+            await RunGitRequiredAsync(
+                sourceRoot,
+                ["stash", "apply", "--index", stashRef],
+                GitTimeout,
+                "Failed to restore uncommitted changes in the source checkout; they are kept in the stash",
+                CancellationToken.None,
+                logger).ConfigureAwait(false);
             await TryRunGitAsync(sourceRoot, ["stash", "drop", stashRef], CancellationToken.None, logger).ConfigureAwait(false);
             throw;
         }
@@ -962,8 +962,8 @@ internal static class ThreadWorktreeManager
 
     private static string SourceWorkspace(ThreadWorktreeInfo worktree) =>
         NormalizeAbsolutePath(
-            string.IsNullOrWhiteSpace(worktree.SourceWorkspacePath) ? worktree.WorkspacePath : worktree.SourceWorkspacePath,
-            nameof(worktree.SourceWorkspacePath));
+            Directory.Exists(worktree.SourceWorkspacePath) ? worktree.SourceWorkspacePath : worktree.WorkspacePath,
+            nameof(worktree.WorkspacePath));
 
     private static string EnsureManagedWorktreePath(ThreadWorktreeInfo worktree, string dataPath)
     {
