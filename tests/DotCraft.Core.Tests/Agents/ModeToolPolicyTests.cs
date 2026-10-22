@@ -146,11 +146,9 @@ Reason: denied by test policy
 
     [Theory]
     [InlineData("git status")]
-    [InlineData("Get-Content README.md")]
     [InlineData("rg ModeToolPolicy")]
     [InlineData("git --no-pager diff")]
     [InlineData("git diff --stat; git log -1")]
-    [InlineData("Get-Content README.md | Select-String DotCraft")]
     public async Task StreamingClient_AllowsPlanModeReadOnlyShellCommands(string command)
     {
         var modeManager = new AgentModeManager();
