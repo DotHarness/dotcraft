@@ -1,5 +1,6 @@
 import { isComplete, type ChatHistory, type HistoryItem, type HistoryTurn } from './history'
 import { parsePlanMarkdown } from './planMarkdown'
+import { capacityRetry, dividerOf, failureEntry, originOf, supersededTurns, threadActionOf } from './timelineMarkers'
 import { groupTools, type ToolGroupLabel } from './toolGroups'
 import { turnChanges, type TurnChanges } from './turnChanges'
 import { userImages, userSegments, type ImageSource, type UserSegment } from './userSegments'
@@ -43,7 +44,38 @@ export type NoticeKind =
   | 'allowedAlways'
   | 'rejected'
   | 'answered'
-  | 'turnFailed'
+
+export type MessageOrigin = 'workflow' | 'automation' | 'app' | 'goal' | 'thread' | 'subagent'
+
+export interface OriginMark {
+  kind: MessageOrigin
+  label: string
+  threadId: string | null
+}
+
+export type DividerKind =
+  | 'forked'
+  | 'remoteConnected'
+  | 'remoteLocal'
+  | 'remoteDisconnected'
+  | 'channelBound'
+  | 'channelUnbound'
+  | 'compactedAuto'
+  | 'compactedManual'
+  | 'compactedReactive'
+  | 'usageLimit'
+
+export interface ThreadAction {
+  kind: 'created' | 'messaged'
+  threadId: string
+  name: string | null
+  queued: boolean
+}
+
+export interface TranscriptOptions {
+  stopped?: readonly string[]
+  spawnedFrom?: string | null
+}
 
 export type TranscriptEntry =
   | {
@@ -53,7 +85,8 @@ export type TranscriptEntry =
       segments: UserSegment[]
       images: ImageSource[]
       added: boolean
-      origin: 'workflow' | null
+      origin: OriginMark | null
+      goal: boolean
     }
   | {
       kind: 'assistant'
@@ -88,16 +121,19 @@ export type TranscriptEntry =
   | {
       kind: 'activity'
       id: string
-      status: 'working' | 'worked' | 'stopped'
+      status: 'working' | 'worked' | 'stopped' | 'youStopped'
       startedAt: string | null
       endedAt: string | null
       origin: TaskWake | null
       children: TranscriptEntry[]
     }
-  | { kind: 'notice'; id: string; tone: 'neutral' | 'error'; notice: NoticeKind; detail?: string }
+  | { kind: 'notice'; id: string; notice: NoticeKind; detail?: string }
+  | { kind: 'failure'; id: string; message: string; overloaded: boolean; retry: { delay: number | null } | null }
   | { kind: 'image'; id: string; status: 'inProgress' | 'completed' | 'failed'; uri: string | null; dropped: boolean; error?: string }
   | { kind: 'plan'; id: string; title: string; overview: string; todos: PlanTodo[]; content: string }
   | { kind: 'changes'; id: string; changes: TurnChanges }
+  | { kind: 'divider'; id: string; divider: DividerKind; host?: string; channel?: string; target?: string }
+  | { kind: 'threadAction'; id: string; action: ThreadAction }
 
 export type ToolEntry = Extract<TranscriptEntry, { kind: 'tool' }>
 
@@ -514,6 +550,7 @@ function layoutTurn(
   changes: TurnChanges | null,
   origin: TaskWake | null = null,
   heading: string | null = null,
+  stoppedByYou = false,
 ): TranscriptEntry[] {
   let start = 0
   while (start < entries.length && entries[start].kind === 'user' && !(entries[start] as { added: boolean }).added) start += 1
@@ -532,7 +569,7 @@ function layoutTurn(
   }
   if (!turn) return [...opening, ...body, ...tail]
   const status: Extract<TranscriptEntry, { kind: 'activity' }>['status'] | null =
-    turn.status === 'cancelled' ? 'stopped' : final >= 0 || turn.status === 'completed' ? 'worked' : running ? 'working' : null
+    turn.status === 'cancelled' ? (stoppedByYou ? 'youStopped' : 'stopped') : final >= 0 || turn.status === 'completed' ? 'worked' : running ? 'working' : null
   if (!status) return [...opening, ...body, ...tail]
   const finalAt = final >= 0 ? (body[final] as { at: string }).at || null : null
   const activity = {
@@ -547,7 +584,8 @@ function layoutTurn(
   const before = body.slice(0, final)
   const plan = lastIndex(before, (entry) => entry.kind === 'plan')
   const image = lastIndex(before, (entry) => entry.kind === 'image' && entry.status === 'completed' && entry.uri !== null)
-  const pinned = (entry: TranscriptEntry, index: number) => (entry.kind === 'user' && entry.added) || index === plan || index === image
+  const pinned = (entry: TranscriptEntry, index: number) =>
+    (entry.kind === 'user' && entry.added) || entry.kind === 'divider' || entry.kind === 'threadAction' || index === plan || index === image
   return [
     ...opening,
     { ...activity, children: before.filter((entry, index) => !pinned(entry, index)) },
@@ -601,33 +639,44 @@ export function thinkingStatus(reasoning: string): string | null {
   return text || null
 }
 
-export function buildTranscript(history: ChatHistory, workspacePath: string | null = null): TranscriptEntry[] {
+export function buildTranscript(history: ChatHistory, workspacePath: string | null = null, options: TranscriptOptions = {}): TranscriptEntry[] {
+  const stopped = new Set(options.stopped ?? [])
+  const firstTurn = history.olderCursor ? null : (history.turns[0]?.id ?? null)
+  let threadOrigin = options.spawnedFrom ?? null
   const approvals = new Map<string, HistoryItem>()
   const results = new Map<string, HistoryItem>()
-  const turnErrors = new Map<string, string>()
+  const errorTexts = new Map<string, Set<string>>()
   const executions = new Map<string, HistoryItem>()
   for (const item of history.items) {
     if (item.type === 'commandExecution' && str(item.payload.callId)) executions.set(inTurn(item.turnId, str(item.payload.callId)), item)
     if (item.type === 'approvalRequest') approvals.set(inTurn(item.turnId, str(item.payload.requestId)), item)
     if (item.type === 'toolResult') results.set(inTurn(item.turnId, str(item.payload.callId)), item)
-    if (item.type === 'error' && str(item.payload.message)) turnErrors.set(item.turnId, str(item.payload.message))
+    if (item.type === 'error') errorTexts.set(item.turnId, (errorTexts.get(item.turnId) ?? new Set()).add(str(item.payload.message).trim()))
   }
+  const superseded = supersededTurns(history)
+  const capacity = capacityRetry(history)
   const turns = new Map(history.turns.map((turn) => [turn.id, turn]))
   const result: TranscriptEntry[] = []
   let out: TranscriptEntry[] = []
   let live = false
   let wake: TaskWake | null = null
   let heading: string | null = null
+  let threadActions: TranscriptEntry[] = []
 
   const closeTurn = (turnId: string) => {
     const turn = turns.get(turnId)
-    if (turn?.status === 'failed') {
-      const detail = turn.error ?? turnErrors.get(turnId)
-      out.push({ kind: 'notice', id: `turn-${turnId}`, tone: 'error', notice: 'turnFailed', ...(detail ? { detail } : {}) })
+    if (turn?.status === 'failed' && turn.error && !errorTexts.get(turnId)?.has(turn.error.trim())) {
+      out.push(failureEntry(`turn-${turnId}`, turn.error, turn.providerError))
     }
+    if (capacity?.turnId === turnId) {
+      const last = out.findLastIndex((entry) => entry.kind === 'failure')
+      if (last >= 0) out[last] = { ...(out[last] as Extract<TranscriptEntry, { kind: 'failure' }>), retry: { delay: capacity.delay } }
+    }
+    out.push(...threadActions)
     const changes = turn?.status === 'completed' ? turnChanges(history, turnId, workspacePath) : null
-    result.push(...layoutTurn(turnId, turn, out, turn ? !DONE.has(turn.status) : live, changes, wake, heading))
+    result.push(...layoutTurn(turnId, turn, out, turn ? !DONE.has(turn.status) : live, changes, wake, heading, stopped.has(turnId)))
     out = []
+    threadActions = []
     live = false
     wake = null
     heading = null
@@ -635,6 +684,7 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
 
   let currentTurn: string | null = null
   for (const item of history.items) {
+    if (superseded.has(item.turnId)) continue
     if (currentTurn !== null && item.turnId !== currentTurn) closeTurn(currentTurn)
     currentTurn = item.turnId
     if (!isComplete(item)) live = true
@@ -652,6 +702,11 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
         const value = str(payload.text)
         const images = userImages(payload.nativeInputParts)
         if (value || images.length > 0) {
+          let origin = originOf(payload)
+          if (!origin && threadOrigin && item.turnId === firstTurn && !str(payload.triggerKind)) {
+            origin = { kind: 'thread', label: '', threadId: threadOrigin }
+          }
+          threadOrigin = null
           out.push({
             kind: 'user',
             id: entryId(item),
@@ -659,7 +714,8 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
             segments: userSegments(value, payload.nativeInputParts),
             images,
             added: mode === 'guidance',
-            origin: str(payload.triggerKind) === 'workflow' ? 'workflow' : null,
+            origin,
+            goal: payload.sentAsGoal === true,
           })
         }
         break
@@ -693,6 +749,12 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
           out.push(plan)
           break
         }
+        const action = threadActionOf(item, item.type === 'toolCall' ? results.get(inTurn(item.turnId, str(item.payload.callId))) : item)
+        if (action) {
+          const seen = threadActions.some((entry) => entry.kind === 'threadAction' && entry.action.kind === action.kind && entry.action.threadId === action.threadId)
+          if (!seen) threadActions.push({ kind: 'threadAction', id: entryId(item), action })
+          break
+        }
         const turn = turns.get(item.turnId)
         const entry = toolEntry(item, results, executions, turn ? !DONE.has(turn.status) : !isComplete(item))
         if (entry) out.push(entry)
@@ -714,12 +776,22 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
       case 'approvalResponse': {
         const notice = DECISION_NOTICE[str(payload.decision)] ?? 'rejected'
         const detail = approvalSubject(approvals.get(inTurn(item.turnId, str(payload.requestId))))
-        out.push({ kind: 'notice', id: entryId(item), tone: 'neutral', notice, ...(detail ? { detail } : {}) })
+        out.push({ kind: 'notice', id: entryId(item), notice, ...(detail ? { detail } : {}) })
+        break
+      }
+      case 'error': {
+        const message = str(payload.message)
+        if (message) out.push(failureEntry(entryId(item), message, turns.get(item.turnId)?.providerError))
+        break
+      }
+      case 'systemNotice': {
+        const divider = dividerOf(item)
+        if (divider) out.push(divider)
         break
       }
       case 'userInputResponse': {
         const detail = answersOf(payload)
-        out.push({ kind: 'notice', id: entryId(item), tone: 'neutral', notice: 'answered', ...(detail ? { detail } : {}) })
+        out.push({ kind: 'notice', id: entryId(item), notice: 'answered', ...(detail ? { detail } : {}) })
         break
       }
       default:
@@ -732,7 +804,7 @@ export function buildTranscript(history: ChatHistory, workspacePath: string | nu
     const segments = userSegments(echo.text, echo.parts ?? null)
     const images = userImages(echo.parts)
     if (segments.length > 0 || images.length > 0) {
-      out.push({ kind: 'user', id: `echo-${echo.clientId}`, text: echo.text, segments, images, added: echo.added, origin: null })
+      out.push({ kind: 'user', id: `echo-${echo.clientId}`, text: echo.text, segments, images, added: echo.added, origin: null, goal: false })
     }
   }
   return out

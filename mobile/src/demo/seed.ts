@@ -7,6 +7,7 @@ import {
   type FakeProject,
   type FakeProvider,
   type FakeThread,
+  type FakeTurn,
 } from './fakeComputer'
 import type { FakeAgent, FakeBackgroundSeed } from './fakeBackground'
 import { sampleDiff, textBase64 } from './fakeDiffs'
@@ -34,6 +35,7 @@ type Line =
   | { kind: 'spawned'; nickname: string; taskName: string; message: string }
   | { kind: 'taskStopped'; taskId: string; task: 'shell' | 'agent' | 'workflow'; label: string; lastMessage?: string }
   | { kind: 'woken'; task: 'terminal' | 'subagent' | 'workflow'; label: string; refId: string; status: string; text: string }
+  | { kind: 'failed'; error: string; providerError?: string }
 
 interface ChatSeed {
   id: string
@@ -45,6 +47,7 @@ interface ChatSeed {
   pending?: FakePending[]
   stream?: string
   error?: string
+  providerError?: string
   planned?: boolean
   running?: boolean
   context?: number
@@ -539,9 +542,9 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
     push('toolCall', { toolName, providerFlatName: toolName, callId, arguments: args, ...shown })
     push('toolResult', { toolName, providerFlatName: toolName, callId, result: 'ok', success: true, ...shown, ...result })
   }
-  const nextTurn = () => {
+  const nextTurn = (ending: Pick<FakeTurn, 'status' | 'error' | 'providerError'> = { status: 'completed' }) => {
     const at = iso(now, chat.minutesAgo + 1, clock)
-    finished.push({ id: turnId, threadId: id, status: 'completed', startedAt: turnStarted, completedAt: at })
+    finished.push({ id: turnId, threadId: id, startedAt: turnStarted, completedAt: at, ...ending })
     turnId = sequenceId('turn', finished.length + 1)
     turnStarted = at
   }
@@ -622,6 +625,10 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
         tool('TaskStop', { taskId: line.taskId }, { result: JSON.stringify(result) })
         break
       }
+      case 'failed':
+        push('error', { message: line.error })
+        nextTurn({ status: 'failed', error: line.error, ...(line.providerError ? { providerError: line.providerError } : {}) })
+        break
       case 'woken':
         nextTurn()
         push('userMessage', {
@@ -646,6 +653,7 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
     }
   }
   for (const line of chat.lines) emit(line)
+  if (chat.error) push('error', { message: chat.error })
   for (const { kind, ...payload } of chat.pending ?? []) push(kind === 'approval' ? 'approvalRequest' : 'userInputRequest', payload)
   const status = chat.error ? 'failed' : chat.stream || chat.pending || chat.running ? 'running' : 'completed'
   return {
@@ -663,6 +671,7 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
         startedAt: turnStarted,
         ...(status === 'running' ? {} : { completedAt: iso(now, chat.minutesAgo) }),
         ...(chat.error ? { error: chat.error } : {}),
+        ...(chat.providerError ? { providerError: chat.providerError } : {}),
       },
     ],
     items,
@@ -879,10 +888,23 @@ export interface StudioOptions {
   addresses?: string[]
   chats?: boolean
   cantStart?: string[]
+  failure?: ChangelogFailure
+}
+
+export type ChangelogFailure = 'overloaded' | 'usageLimit' | 'retries'
+
+const OVERLOADED = { error: 'Provider returned 529: overloaded_error', providerError: 'serverOverloaded' }
+
+const CHANGELOG_FAILURES: Record<ChangelogFailure, (chat: ChatSeed) => ChatSeed> = {
+  overloaded: (chat) => ({ ...chat, ...OVERLOADED }),
+  usageLimit: (chat) => ({ ...chat, error: 'You have reached your usage limit.', providerError: 'usageLimitExceeded' }),
+  retries: (chat) => ({ ...chat, ...OVERLOADED, lines: [...chat.lines, { kind: 'failed', ...OVERLOADED }, { kind: 'failed', ...OVERLOADED }] }),
 }
 
 function studioSeed(now: Date, options: StudioOptions = {}): FakeComputerSeed {
-  const chats = options.chats === false ? [] : CHATS.map((chat) => ({ chat, thread: buildThread(chat, now) }))
+  const failure = options.failure
+  const seeded = failure ? CHATS.map((chat) => (chat.id === 'changelog' ? CHANGELOG_FAILURES[failure](chat) : chat)) : CHATS
+  const chats = options.chats === false ? [] : seeded.map((chat) => ({ chat, thread: buildThread(chat, now) }))
   const project = (id: 'dotcraft' | 'design-lab' | 'chats', name: string, running: boolean, minutesAgo: number): FakeProject => ({
     id: `${id}-0000000000000000`.slice(0, 24).replace(/-/g, '0'),
     name,

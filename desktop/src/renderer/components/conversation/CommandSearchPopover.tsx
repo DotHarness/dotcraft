@@ -7,6 +7,7 @@ import {
   type ActiveDesktopPluginCommand
 } from '../../plugins/desktopPluginRegistry'
 import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
+import { fuzzyFilter, fuzzyHighlightRanges } from '../../utils/fuzzyMatch'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import {
   MentionRowIcon,
@@ -72,39 +73,22 @@ export function CommandSearchPopover({
   const [highlight, setHighlight] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const keyboardNavRef = useRef(false)
-  const filteredSystemActions = useMemo(() => {
-    const prefix = query.toLowerCase()
-    if (!prefix) return systemActionList
-    return systemActionList.filter((action) => {
-      if (action.label.toLowerCase().startsWith(prefix)) return true
-      if (action.id.toLowerCase().startsWith(prefix)) return true
-      return (action.keywords ?? []).some((keyword) => keyword.toLowerCase().startsWith(prefix))
-    })
-  }, [query, systemActionList])
-  const filteredCommands = useMemo(() => {
-    const prefix = query.toLowerCase()
-    if (!prefix) return commands
-    return commands.filter((cmd) => {
-      if (cmd.name.slice(1).toLowerCase().startsWith(prefix)) return true
-      return cmd.aliases.some((alias) => {
-        const bare = alias.startsWith('/') ? alias.slice(1) : alias
-        return bare.toLowerCase().startsWith(prefix)
-      })
-    })
-  }, [commands, query])
-  const filteredDesktopCommands = useMemo(() => {
-    const prefix = query.toLowerCase()
-    if (!prefix) return desktopCommandList
-    return desktopCommandList.filter((command) =>
-      command.id.toLowerCase().startsWith(prefix)
-      || resolveDesktopPluginLabel(command.label, locale).toLowerCase().startsWith(prefix)
-    )
-  }, [desktopCommandList, locale, query])
-  const filteredSkills = useMemo(() => {
-    const prefix = query.toLowerCase()
-    if (!prefix) return skillList
-    return skillList.filter((skill) => skill.name.toLowerCase().startsWith(prefix))
-  }, [query, skillList])
+  const filteredSystemActions = useMemo(
+    () => fuzzyFilter(systemActionList, query, (action) => [action.label, action.id, ...(action.keywords ?? [])]),
+    [query, systemActionList]
+  )
+  const filteredCommands = useMemo(
+    () => fuzzyFilter(commands, query, (cmd) => [cmd.name.replace(/^\/+/, ''), ...cmd.aliases.map((alias) => alias.replace(/^\/+/, ''))]),
+    [commands, query]
+  )
+  const filteredDesktopCommands = useMemo(
+    () => fuzzyFilter(desktopCommandList, query, (command) => [resolveDesktopPluginLabel(command.label, locale), command.id]),
+    [desktopCommandList, locale, query]
+  )
+  const filteredSkills = useMemo(
+    () => fuzzyFilter(skillList, query, (skill) => [skill.name]),
+    [query, skillList]
+  )
   const entries = useMemo(
     () => [
       ...filteredSystemActions.map((action) => ({ type: 'system' as const, action })),
@@ -326,15 +310,15 @@ export function CommandSearchPopover({
 
 function highlightMatch(name: string, query: string): JSX.Element {
   const target = name.replace(/^\/+/, '')
-  const lower = target.toLowerCase()
-  const lowerQuery = query.toLowerCase()
-  const idx = lower.indexOf(lowerQuery)
-  if (!query || idx < 0) return <>{target}</>
-  return (
-    <>
-      {target.slice(0, idx)}
-      <span style={{ color: 'var(--accent)' }}>{target.slice(idx, idx + query.length)}</span>
-      {target.slice(idx + query.length)}
-    </>
-  )
+  const ranges = fuzzyHighlightRanges(target, query)
+  if (ranges.length === 0) return <>{target}</>
+  const parts: ReactNode[] = []
+  let cursor = 0
+  for (const range of ranges) {
+    if (range.start > cursor) parts.push(target.slice(cursor, range.start))
+    parts.push(<span key={range.start} style={{ color: 'var(--accent)' }}>{target.slice(range.start, range.end)}</span>)
+    cursor = range.end
+  }
+  if (cursor < target.length) parts.push(target.slice(cursor))
+  return <>{parts}</>
 }

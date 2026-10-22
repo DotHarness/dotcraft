@@ -19,6 +19,7 @@ export interface FakeTurn {
   startedAt: string
   completedAt?: string
   error?: string
+  providerError?: string
 }
 
 export type FakePending =
@@ -397,6 +398,7 @@ export class FakeComputer {
               fileSystem: true,
               commandManagement: this.commands.length > 0,
               skillsManagement: this.skills.length > 0,
+              manualCompaction: true,
               workspaceConfigManagement: true,
               backgroundTerminals: true,
               subAgentSessions: true,
@@ -503,6 +505,8 @@ export class FakeComputer {
         thread.config = config
         return { result: {}, after: () => this.broadcast(project, 'thread/updated', { thread: this.threadBody(thread) }) }
       }
+      case 'thread/compact/start':
+        return { result: { outcome: 'partial' } }
       case 'thread/mode/set':
         thread.config = { ...thread.config, mode: params.mode }
         return { result: {}, after: () => this.broadcast(project, 'thread/updated', { thread: this.threadBody(thread) }) }

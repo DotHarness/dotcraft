@@ -1,6 +1,8 @@
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
 import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { sendDraft, type SendFailure } from '../../core/attachments'
+import { fuzzyFilter } from '../../core/fuzzyMatch'
+import type { CompactionResult } from '../../core/projectConnection'
 import {
   chooseEntry,
   draftPieces,
@@ -21,7 +23,7 @@ import { Spinner, Txt } from '../parts'
 import { type, useTheme } from '../theme'
 import { AddMenu } from './AddMenu'
 import { ComposerAttachments } from './ComposerAttachments'
-import { ReferencePicker } from './ReferencePicker'
+import { ReferencePicker, type ComposerAction } from './ReferencePicker'
 
 export interface PendingSend {
   draft: MessageDraft
@@ -60,6 +62,7 @@ export function Composer({
   references,
   planMode,
   onPlanMode,
+  onCompact,
   onSend,
   onStop,
 }: {
@@ -77,6 +80,7 @@ export function Composer({
   references: ReferenceEntry[]
   planMode: boolean
   onPlanMode: (on: boolean) => Promise<void>
+  onCompact?: () => Promise<CompactionResult>
   onSend: (draft: MessageDraft) => Promise<void>
   onStop: () => void
 }) {
@@ -182,6 +186,48 @@ export function Composer({
     }
   }
 
+  const compact = async (start: () => Promise<CompactionResult>) => {
+    setSending(true)
+    try {
+      const { outcome, message } = await start()
+      if (outcome === 'skipped') setNotice({ text: t('composer.compactSkipped'), retry: false })
+      else if (outcome !== 'partial') setNotice({ text: t('composer.compactFailed', { error: message ?? outcome }), retry: false })
+    } catch (error) {
+      setNotice({ text: t('composer.compactFailed', { error: error instanceof Error ? error.message : String(error) }), retry: false })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const actions: ComposerAction[] = [
+    ...(canPlan
+      ? [{
+          id: 'plan',
+          label: t('composer.planMode'),
+          description: t(planMode ? 'composer.planOff' : 'composer.planOn'),
+          icon: 'listChecks' as const,
+          run: () => void switchPlan(!planMode),
+        }]
+      : []),
+    ...(onCompact
+      ? [{
+          id: 'compact',
+          label: t('composer.compact'),
+          description: t('composer.compactDescription'),
+          icon: 'chevronsDown' as const,
+          run: () => void compact(onCompact),
+        }]
+      : []),
+  ]
+  const matchedActions =
+    match?.trigger === '/' ? fuzzyFilter(actions, match.query, (action) => [action.label, action.id]) : []
+
+  const runAction = (action: ComposerAction) => {
+    if (!match) return
+    place(editText(draft, draft.text.slice(0, match.start) + draft.text.slice(match.end)))
+    action.run()
+  }
+
   const choose = (entry: ReferenceEntry) => {
     if (!match) return
     place(chooseEntry(draft, match, entry))
@@ -190,7 +236,13 @@ export function Composer({
 
   return (
     <View style={styles.wrap}>
-      {matches.length > 0 ? <ReferencePicker entries={matches} onChoose={choose} /> : null}
+      {matches.length + matchedActions.length > 0 ? (
+        <ReferencePicker
+          actions={matchedActions.map((action) => ({ ...action, run: () => runAction(action) }))}
+          entries={matches}
+          onChoose={choose}
+        />
+      ) : null}
       {notice ? (
         <View accessibilityRole="alert" style={[styles.notice, { borderColor: colors.failureBorder, backgroundColor: colors.failureFill }]}>
           <Icon name="circleAlert" size={16} color={colors.error} />

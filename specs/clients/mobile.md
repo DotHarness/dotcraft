@@ -4,7 +4,7 @@
 |---|---|
 | Version | 0.9.1 |
 | Status | Draft |
-| Date | 2026-10-19 |
+| Date | 2026-10-22 |
 | Parent spec | [Hub Architecture](../architecture/hub-architecture.md) |
 | Related Specs | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
 
@@ -335,7 +335,7 @@ of `terminal/outputDelta`, reading terminal output from snapshots instead.
 | New chat | The expanded composer, which is the chat's composer, so model, reasoning, approval policy, and Plan mode are set before the first message; a project switcher lists the computer's projects, most recently used first. Expanding it starts a stopped project. Send keeps the message while the chat is created, then opens the chat in place; a failed send returns the message with the error. |
 | Chat | Top bar with Back, title, project and computer, the context ring (opens Status), and the chat menu. The transcript follows Desktop's turn layout: a finished turn folds work before its final reply into one **Worked for** row (keeping steering messages, the last plan card, and generated images visible); consecutive tool calls group as on Desktop, into one row naming each kind of work done without counts, with reasoning between them never splitting a group and the trailing group of a running turn naming the call in progress; `CodeMode`, `CodeModeWait`, `clock__Sleep`, and `SendUserMessageAsync` calls are hidden as on Desktop, while the calls a script makes still show; a running turn ends with one Thinking status that keeps its height, stays visible through reasoning and tool calls and fades out while a reply streams, and is titled with the turn's latest readable reasoning line, falling back to Thinking (it hides while a decision waits); Copy follows a completed turn's final reply; a completed turn that changed files ends with an **Edited** card carrying Desktop's changes icon. While a decision waits, the decision card ends the transcript and the composer is hidden. The composer carries Add, the approval policy, and model controls; during a turn it steers and offers Stop. Pills above the composer open Changes (while a running turn has changed files), reading **Changes** with the line counts, and Background tasks (while any of the chat's background tasks runs); centered when they fit, the row scrolls sideways when they do not, so neither pill shrinks. A jump-to-latest control appears when scrolled away. History loads as on Desktop: opening a chat reads its newest page of whole Turns, and scrolling near the top (or a page too short to scroll) reads the next older page, keeping the reading position. |
 | Add menu | **Photo**, **File**, and **Plan mode** (checked while on). |
-| Picker | Commands and skills matching what follows `/` or `$` in the composer. |
+| Picker | System actions, commands, and skills matching what follows `/` or `$` in the composer. |
 | Changes | Every file the turn changed with additions and deletions, each expandable to its diff. Paths are relative to the chat's `effectiveWorkspacePath`, which is also the base for relative file links in the transcript. |
 | File | One read-only file from the computer with **Download** to the phone's `Download/DotCraft/` folder. Images open full screen. |
 | Background tasks | **Running** (expanded) and **Completed** (collapsed, counted). Each task shows its title with the elapsed or total duration trailing in tabular figures, over its kind (and an agent's model and tokens), marked Stopped or Failed when it did not finish normally. Running tasks offer Stop; finished tasks expand to their detail: a shell task's last output lines, an agent's role, or a workflow's agent count. |
@@ -401,10 +401,17 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   plan mode. **Dismiss** returns the composer in plan mode. If the switch to `agent` fails, nothing
   is sent and the failure is reported. A chat running an Agent Profile has no Plan mode, because its
   agent keeps a fixed capability scope.
-- Typing `/` at the start of a word opens the Picker with custom commands from `command/list` and
-  enabled skills from `skills/list`; `$` opens skills only. A choice is inserted inline as `/name` or
-  `$name`, deleted as a whole, and sent as a `commandRef` or `skillRef`. Built-in commands are not
-  offered.
+- Typing `/` at the start of a word opens the Picker with system actions, then custom commands from
+  `command/list`, then enabled skills from `skills/list`; `$` opens skills only. Matching follows
+  Desktop: query characters match in order, each skip lands on a word start, a mid-word start needs
+  three characters, and within each group prefixes rank above word starts above mid-word matches. A
+  command or skill is inserted inline as `/name` or `$name`, deleted as a whole, and sent as a
+  `commandRef` or `skillRef`. Built-in commands are not offered.
+- The system actions are **Plan mode**, shown when the chat offers it and toggling it as the Add menu
+  does, and **Compact**, shown when `capabilities.manualCompaction` is set, the chat has a turn, and
+  nothing is running or compacting. Choosing one removes the typed `/query`. Compact calls
+  `thread/compact/start` with a long wait while the send button shows progress; a skipped or failed
+  result is reported above the composer.
 - The changes pill shows the file count and added and deleted lines from `turn/diff/updated`, or
   from the turn's `fileChange` results until a diff arrives, and goes when the turn ends. A
   completed turn that changed files ends with an **Edited** card with the same counts, rebuilt from
@@ -432,8 +439,29 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   target and output. A running tool reads in the present tense using Desktop's wording, with
   elapsed time. In-progress text (running tools, streaming reasoning, generating images) uses
   Desktop's shimmer treatment, still under reduced motion.
-- A message the computer sends to start a turn when a Workflow finishes (`triggerKind` `workflow`)
-  shows as a user message marked as sent from the workflow.
+- A user message the computer sent shows Desktop's origin line above it: sent from a workflow,
+  automation, app, goal auto-continue, or DotCraft from another thread (`subagentFollowupTask`,
+  `subagentInput`). The first message of a chat started from another chat
+  (`source.spawnedFromThreadId`) says so too, and opens that chat when tapped. A message with
+  `sentAsGoal` is marked as sent as a goal.
+- The timeline shows Desktop's dividers for `SystemNotice` items: forked from a conversation,
+  connected to or disconnected from a remote host, execution switched back to the computer,
+  continuing or stopped continuing in a channel, and context compacted (automatic, manual, or
+  recovered from overflow; `micro` shows nothing). Successful Desktop `CreateThread` and
+  `SendMessageToThread` calls show as **Chat created** or **Message sent** cards that open the
+  chat.
+- Live states follow Desktop: `system/event` `compacting` shows a compacting divider after the last
+  turn (manual without a `turnId`, automatic with one) until a terminal compaction event or turn
+  change; a repeated `streamError` shows the reconnect attempt until the turn ends; a turn the phone
+  stopped reads **You stopped** until the chat reloads.
+- Failures render as on Desktop: each `error` item shows in place as an error line with its message
+  and **Copy**, and a failed turn whose `error` matches no error item adds one at its end. A
+  `usageLimitExceeded` failure shows Desktop's usage-limit divider instead; `serverOverloaded` and
+  `rateLimitExceeded` show Desktop's overload wording while Copy keeps the original message. When
+  the chat's last turn failed with `serverOverloaded` and nothing is running, its last error line
+  offers **Retry**, which starts a turn with no input; consecutive capacity retries count down 10,
+  30, 120, then 300 seconds before retrying automatically, after which Retry waits for a tap. Of a
+  run of turns that hold only identical errors, only the latest shows.
 - A background task notification (`triggerKind` `terminal` or `subagent`, or `workflow` with a
   `triggerStatus`) is never a user message. When it starts a turn, the turn has no user message and
   its **Worked for** row starts with the task kind's icon; its accessible name says how the task

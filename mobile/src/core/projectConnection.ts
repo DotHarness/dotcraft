@@ -20,6 +20,7 @@ import { BackgroundTaskSync } from './backgroundTaskSync'
 import { imageKey, imageScope, rememberImage } from './imageCache'
 import { followUpMethod } from './chatState'
 import { contextUsageOf, systemEventUpdate, usageDeltaUpdate, type ContextUpdate } from './contextUsage'
+import { systemEventSignals, turnSignals } from './signals'
 import { inputParts, visibleText, type MessageDraft, type ReferenceEntry } from './draft'
 import { GatewayError, type GatewayClient } from './gateway'
 import {
@@ -35,7 +36,7 @@ import { HTTP_REJECTED } from './pinned'
 import { PinnedSocketTransport, SocketOpenError } from './pinnedSocketTransport'
 import type { PinnedSockets, SocketEnd } from './sockets'
 import { applyChange, changesWorkspaceApproval, workspaceApprovalOf, type ConfigChange } from './threadConfig'
-import { chatKey, type ChatSummary, type ComputerAction, type ComputerState, type PendingRequest, type ProjectModels } from './state'
+import { chatKey, NO_SIGNALS, type ChatSignals, type ChatSummary, type ComputerAction, type ComputerState, type PendingRequest, type ProjectModels } from './state'
 import type { Store } from './store'
 
 const PHONE_IDENTITY = { channelName: 'dotcraft-desktop', userId: 'local' }
@@ -47,7 +48,14 @@ const TURN_ITEM_PAGE = 500
 
 const OPTED_OUT_NOTIFICATIONS = ['item/toolCall/argumentsDelta', 'subagent/progress', 'plan/updated', 'terminal/outputDelta']
 
+const COMPACTION_TIMEOUT_MS = 5 * 60 * 1000
+
 export type ApprovalDecision = 'once' | 'session' | 'reject'
+
+export interface CompactionResult {
+  outcome: string
+  message: string | null
+}
 
 const APPROVAL_DECISIONS: Record<ApprovalDecision, 'accept' | 'acceptForSession' | 'decline'> = {
   once: 'accept',
@@ -183,6 +191,7 @@ export class ProjectConnection {
         canListCommands: capabilities?.commandManagement === true,
         canListSkills: capabilities?.skillsManagement === true,
         canReadUsage: capabilities?.providerManagement === true,
+        canCompact: capabilities?.manualCompaction === true,
       },
     })
     const tasks = new BackgroundTaskSync(client, this.projectId, this.store)
@@ -250,6 +259,7 @@ export class ProjectConnection {
     client.on('thread/archived', ({ threadId }) => this.store.dispatch({ type: 'chatRemoved', key: this.key(threadId) }))
     const turn = (failed: boolean | null) => (params: TurnNotification) => {
       this.route(params.turn.threadId, { kind: 'turn', turn: params.turn })
+      this.signal(params.turn.threadId, (signals) => turnSignals(signals, params.turn))
       this.patch(params.turn.threadId, { updatedAt: now(), ...(failed === null ? {} : { lastTurnFailed: failed }) })
     }
     client.on('turn/started', turn(null))
@@ -275,13 +285,23 @@ export class ProjectConnection {
     client.on('item/tool/requestUserInput/resolved', resolved)
     client.on('turn/diff/updated', ({ threadId, turnId, diff }) => this.route(threadId, { kind: 'diff', turnId, diff }))
     client.on('item/usage/delta', (params) => this.contextChanged(params.threadId, usageDeltaUpdate(params)))
-    client.on('system/event', (params) => this.contextChanged(params.threadId, systemEventUpdate(params)))
+    client.on('system/event', (params) => {
+      this.contextChanged(params.threadId, systemEventUpdate(params))
+      if (params.threadId) this.signal(params.threadId, (signals) => systemEventSignals(signals, params))
+    })
     client.on('provider/auth/usage/updated', (params) =>
       this.store.dispatch({ type: 'usage', projectId: this.projectId, providerId: params.providerId, windows: usageWindows(params) }),
     )
     client.on('config/changed', ({ regions }) => {
       if (changesWorkspaceApproval(regions)) void this.loadApprovalDefault(client).catch(() => undefined)
     })
+  }
+
+  private signal(threadId: string, change: (signals: ChatSignals) => ChatSignals): void {
+    const key = this.key(threadId)
+    const current = this.store.getState().signals[key] ?? NO_SIGNALS
+    const signals = change(current)
+    if (signals !== current) this.store.dispatch({ type: 'signals', key, signals })
   }
 
   private contextChanged(threadId: string | null | undefined, update: ContextUpdate | null): void {
@@ -323,6 +343,7 @@ export class ProjectConnection {
         runtime: thread.runtime,
         lastTurnFailed: previous?.lastTurnFailed ?? false,
         profileId: thread.configuration?.agentProfileId ?? null,
+        spawnedFrom: thread.source.spawnedFromThreadId ?? null,
       },
     })
   }
@@ -352,6 +373,7 @@ export class ProjectConnection {
       runtime: summary.runtime ?? null,
       lastTurnFailed: false,
       profileId: null,
+      spawnedFrom: summary.source?.spawnedFromThreadId ?? null,
     }))
     this.store.dispatch({ type: 'threads', projectId: this.projectId, chats })
   }
@@ -658,6 +680,17 @@ export class ProjectConnection {
     this.store.dispatch({ type: 'chatConfig', key, config: { ...this.store.getState().details[key]?.config, mode } })
   }
 
+  async retry(threadId: string): Promise<void> {
+    await this.requireClient().request('turn/start', { threadId, input: [] })
+  }
+
+  async compact(threadId: string): Promise<CompactionResult> {
+    const result = await this.requireClient().request('thread/compact/start', { threadId }, COMPACTION_TIMEOUT_MS)
+    const snapshot = contextUsageOf(result.contextUsage)
+    if (snapshot) this.store.dispatch({ type: 'context', key: this.key(threadId), update: { kind: 'snapshot', snapshot } })
+    return { outcome: result.outcome ?? 'failed', message: result.message ?? null }
+  }
+
   async updateConfig(threadId: string, change: ConfigChange): Promise<void> {
     const client = this.requireClient()
     const { thread } = await client.request('thread/read', { threadId })
@@ -692,7 +725,9 @@ export class ProjectConnection {
     const client = this.requireClient()
     let turnId = this.store.getState().chats[this.key(threadId)]?.runtime?.activeTurnId
     if (!turnId) turnId = (await client.request('thread/read', { threadId })).thread.runtime.activeTurnId
-    if (turnId) await client.request('turn/interrupt', { threadId, turnId })
+    if (!turnId) return
+    await client.request('turn/interrupt', { threadId, turnId })
+    this.signal(threadId, (signals) => ({ ...signals, stopped: [...signals.stopped, turnId] }))
   }
 
   decide(threadId: string, requestId: string, decision: ApprovalDecision): void {

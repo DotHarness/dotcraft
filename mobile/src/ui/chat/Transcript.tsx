@@ -26,6 +26,7 @@ import { CopyButton } from './CopyButton'
 import { ImageThumb, SentImage } from './Images'
 import { Markdown } from './Markdown'
 import { PlanCard } from './PlanCard'
+import { FailureLine, OriginLine, SentAsGoal, SystemDivider, ThreadActionCard } from './TimelineMarkers'
 
 const TOOL_ICON: Record<ToolIcon, IconName> = {
   terminal: 'squareTerminal',
@@ -118,7 +119,6 @@ const NOTICE_TEXT = {
   allowedAlways: 'notice.allowedAlways',
   rejected: 'notice.rejected',
   answered: 'notice.answered',
-  turnFailed: 'notice.turnFailed',
 } as const satisfies Record<string, MessageId>
 
 const WAKE_COPY: Record<TaskWakeKind, { icon: IconName; started: MessageId; generic: MessageId; statuses: Record<string, MessageId> }> = {
@@ -211,6 +211,7 @@ const ACTIVITY_TEXT = {
   working: ['activity.working', 'activity.workingFor'],
   worked: ['activity.worked', 'activity.workedFor'],
   stopped: ['activity.interrupted', 'activity.interruptedAfter'],
+  youStopped: ['activity.youStopped', 'activity.youStoppedAfter'],
 } as const satisfies Record<string, readonly [MessageId, MessageId]>
 
 function Activity({ entry, workspacePath }: { entry: Extract<TranscriptEntry, { kind: 'activity' }>; workspacePath: string | null }) {
@@ -449,11 +450,13 @@ export function TranscriptLine({
     case 'user':
       return (
         <View style={styles.user}>
-          {entry.added || entry.origin ? (
+          {entry.origin ? (
+            <OriginLine origin={entry.origin} />
+          ) : entry.added ? (
             <View style={styles.origin}>
-              <Icon name={entry.origin === 'workflow' ? 'workflow' : 'cornerDownRight'} size={13} color={colors.textDimmed} />
+              <Icon name="cornerDownRight" size={13} color={colors.textDimmed} />
               <Txt variant="caption" tone="dimmed">
-                {t(entry.origin === 'workflow' ? 'chat.sentFromWorkflow' : 'chat.addedToTurn')}
+                {t('chat.addedToTurn')}
               </Txt>
             </View>
           ) : null}
@@ -471,6 +474,7 @@ export function TranscriptLine({
               </Txt>
             </View>
           ) : null}
+          {entry.goal ? <SentAsGoal /> : null}
         </View>
       )
     case 'assistant':
@@ -515,25 +519,13 @@ export function TranscriptLine({
       return <PlanCard entry={entry} workspacePath={workspacePath} />
     case 'changes':
       return <TurnChangesCard changes={entry.changes} />
+    case 'divider':
+      return <SystemDivider entry={entry} />
+    case 'threadAction':
+      return <ThreadActionCard action={entry.action} />
+    case 'failure':
+      return <FailureLine entry={entry} />
     case 'notice':
-      if (entry.tone === 'error') {
-        return (
-          <View accessibilityRole="alert" style={[styles.failure, { borderColor: colors.failureBorder, backgroundColor: colors.failureFill }]}>
-            <Icon name="triangleAlert" size={20} color={colors.error} />
-            <View style={styles.failureText}>
-              <Txt style={styles.strong}>{t(NOTICE_TEXT[entry.notice])}</Txt>
-              {entry.detail ? (
-                <Txt variant="meta" tone="secondary">
-                  {entry.detail}
-                </Txt>
-              ) : null}
-              <Txt variant="meta" tone="secondary">
-                {t('notice.retryHint')}
-              </Txt>
-            </View>
-          </View>
-        )
-      }
       return (
         <View style={styles.process}>
           <Txt tone="secondary" style={styles.fixed}>

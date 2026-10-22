@@ -50,6 +50,7 @@ export interface ChatSummary {
   runtime: ThreadRuntimeState | null
   lastTurnFailed: boolean
   profileId: string | null
+  spawnedFrom?: string | null
 }
 
 export interface ChatDetail {
@@ -63,6 +64,21 @@ export interface ChatDetail {
   context: ContextUsage | null
 }
 
+export interface StreamRetry {
+  turnId: string
+  attempt: number
+  max: number
+  busy: boolean
+}
+
+export interface ChatSignals {
+  compacting: 'manual' | 'auto' | null
+  retry: StreamRetry | null
+  stopped: string[]
+}
+
+export const NO_SIGNALS: ChatSignals = { compacting: null, retry: null, stopped: [] }
+
 export interface ProjectModels {
   canConfigure: boolean
   canListModels: boolean
@@ -71,6 +87,7 @@ export interface ProjectModels {
   canListCommands: boolean
   canListSkills: boolean
   canReadUsage: boolean
+  canCompact: boolean
   approvalDefault: ApprovalPolicy
   defaultProviderId: string | null
   providers: { id: string; name: string }[]
@@ -115,6 +132,7 @@ export interface ComputerState {
   models: Record<string, ProjectModels>
   references: Record<string, ReferenceEntry[]>
   tasks: Record<string, TaskSources>
+  signals: Record<string, ChatSignals>
 }
 
 export interface MobileState {
@@ -179,7 +197,7 @@ export type ComputerAction =
   | {
       type: 'capabilities'
       projectId: string
-      capabilities: Pick<ProjectModels, 'canConfigure' | 'canListModels' | 'canFork' | 'fileSystem' | 'canListCommands' | 'canListSkills' | 'canReadUsage'>
+      capabilities: Pick<ProjectModels, 'canConfigure' | 'canListModels' | 'canFork' | 'fileSystem' | 'canListCommands' | 'canListSkills' | 'canReadUsage' | 'canCompact'>
     }
   | { type: 'usage'; projectId: string; providerId: string; windows: UsageWindow[] }
   | { type: 'approvalDefault'; projectId: string; policy: ApprovalPolicy }
@@ -195,6 +213,7 @@ export type ComputerAction =
   | { type: 'pendingRemoved'; key: string; requestId: string }
   | { type: 'pendingCleared'; projectId: string }
   | { type: 'tasks'; key: string; source: TaskSource; tasks: BackgroundTask[] }
+  | { type: 'signals'; key: string; signals: ChatSignals }
 
 export function initialState(): MobileState {
   return { hydrated: false, computers: {}, order: [], selected: null, revokedBy: null, pairing: { step: 'idle' } }
@@ -216,6 +235,7 @@ function freshComputer(computer: ComputerRecord): ComputerState {
     models: {},
     references: {},
     tasks: {},
+    signals: {},
   }
 }
 
@@ -239,6 +259,7 @@ function patchModels(state: ComputerState, projectId: string, patch: Partial<Pro
     canListCommands: false,
     canListSkills: false,
     canReadUsage: false,
+    canCompact: false,
     approvalDefault: 'prompt',
     defaultProviderId: null,
     providers: [],
@@ -351,6 +372,7 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
         details: withoutKey(state.details, action.key),
         pending: withoutKey(state.pending, action.key),
         tasks: withoutKey(state.tasks, action.key),
+        signals: withoutKey(state.signals, action.key),
       }
     case 'detailLoading': {
       const detail = state.details[action.key]
@@ -444,6 +466,8 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
     }
     case 'tasks':
       return { ...state, tasks: { ...state.tasks, [action.key]: { ...state.tasks[action.key], [action.source]: action.tasks } } }
+    case 'signals':
+      return { ...state, signals: { ...state.signals, [action.key]: action.signals } }
   }
 }
 

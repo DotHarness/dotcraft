@@ -8,7 +8,7 @@ import { usedShare } from '../../core/contextUsage'
 import { waitingDecisions } from '../../core/decisions'
 import { plainMessage } from '../../core/draft'
 import { chatTasks } from '../../core/backgroundTasks'
-import { chatKey, computerStatus, isReachable, projectById, stateOf, type PendingRequest } from '../../core/state'
+import { chatKey, computerStatus, isReachable, NO_SIGNALS, projectById, stateOf, type PendingRequest } from '../../core/state'
 import { workspaceFile } from '../../core/links'
 import { controlsOf, offersPlanMode, type ChatControls } from '../../core/threadConfig'
 import { buildTranscript } from '../../core/transcript'
@@ -30,6 +30,7 @@ import { imageScope } from '../../core/imageCache'
 import { ImageReaderContext } from '../chat/Images'
 import { ScrollToBottom } from '../chat/ScrollToBottom'
 import { StatusPopover } from '../chat/StatusPopover'
+import { LiveSignals, RetryContext, ThreadLinksContext, type ThreadLinks } from '../chat/TimelineMarkers'
 import { TranscriptLine } from '../chat/Transcript'
 import { Screen, useRefreshControl } from '../layout'
 import { MascotNote, MascotTransition } from '../mascot/Mascot'
@@ -86,7 +87,13 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
   const ready = state.phases[projectId] === 'ready'
   const chatState: ChatState = chat ? stateOf(chat) : 'done'
   const pending: PendingRequest[] = state.pending[key] ?? []
-  const transcript = useMemo(() => (detail ? buildTranscript(detail.history, detail.effectiveWorkspacePath) : []), [detail])
+  const signals = state.signals[key] ?? NO_SIGNALS
+  const stopped = signals.stopped
+  const spawnedFrom = chat?.spawnedFrom ?? null
+  const transcript = useMemo(
+    () => (detail ? buildTranscript(detail.history, detail.effectiveWorkspacePath, { stopped, spawnedFrom }) : []),
+    [detail, stopped, spawnedFrom],
+  )
   const chatTaskSources = state.tasks[key]
   const activeTurnId = chat?.runtime?.activeTurnId ?? null
   const tasks = useMemo(() => chatTasks(chatTaskSources, activeTurnId), [chatTaskSources, activeTurnId])
@@ -116,6 +123,15 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
     [computerId, projectId, readFile, reading],
   )
   const openFile = models?.fileSystem === true ? setOpenPath : null
+  const liveSignals = !signals.compacting && chat?.runtime?.maintenanceKind === 'compacting' ? { ...signals, compacting: 'manual' as const } : signals
+  const chats = state.chats
+  const retry = live && ready && !isLive(chatState) && !chat?.runtime?.maintenanceKind ? () => session.retry(key) : null
+  const threadLinks: ThreadLinks = {
+    open: (threadId) => router.push(chatHref(computer.id, chatKey(projectId, threadId))),
+    title: (threadId) => chats[chatKey(projectId, threadId)]?.title ?? null,
+  }
+  const canCompact =
+    ready && models?.canCompact === true && (detail?.history.turns.length ?? 0) > 0 && !isLive(chatState) && !chat?.runtime?.maintenanceKind
   const workspacePath = detail?.effectiveWorkspacePath ?? null
   const docked = !catchingUp && live && !decision
   const inset = docked ? dockHeight : insets.bottom
@@ -231,17 +247,22 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               <FileViewerContext.Provider value={openFile}>
                 <ImageReaderContext.Provider value={imageReader}>
                   <ChangesOpenerContext.Provider value={openChanges}>
-                    {transcript.map((entry, index) => (
-                      <TranscriptLine
-                        key={entry.id}
-                        entry={entry.kind === 'thinking' && decision ? { ...entry, visible: false } : entry}
-                        previous={transcript[index - 1]}
-                        workspacePath={workspacePath}
-                      />
-                    ))}
+                    <ThreadLinksContext.Provider value={threadLinks}>
+                      <RetryContext.Provider value={retry}>
+                        {transcript.map((entry, index) => (
+                          <TranscriptLine
+                            key={entry.id}
+                            entry={entry.kind === 'thinking' && decision ? { ...entry, visible: false } : entry}
+                            previous={transcript[index - 1]}
+                            workspacePath={workspacePath}
+                          />
+                        ))}
+                      </RetryContext.Provider>
+                    </ThreadLinksContext.Provider>
                   </ChangesOpenerContext.Provider>
                 </ImageReaderContext.Provider>
               </FileViewerContext.Provider>
+              <LiveSignals signals={liveSignals} />
               {decision ? (
                 <View style={styles.decision}>
                   {tasks.running.length > 0 ? (
@@ -292,6 +313,7 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
                 references={references}
                 planMode={planMode}
                 onPlanMode={(on) => session.setMode(key, on ? 'plan' : 'agent')}
+                onCompact={canCompact ? () => session.compact(key) : undefined}
                 controls={<ComposerControls projectId={projectId} controls={controls} models={models} onChange={change} />}
                 onSend={(draft) => session.send(key, draft)}
                 onStop={() => void session.stop(key).catch(() => undefined)}

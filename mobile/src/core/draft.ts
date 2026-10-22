@@ -1,4 +1,5 @@
 import type { InputPart } from '@dotcraft/sdk/contracts'
+import { fuzzyFilter } from './fuzzyMatch'
 
 export type ReferenceKind = 'command' | 'skill'
 
@@ -63,11 +64,13 @@ export function pickerMatch(text: string, cursor: number = text.length): PickerM
 }
 
 export function matchingEntries(entries: ReferenceEntry[], match: PickerMatch): ReferenceEntry[] {
-  const query = match.query.toLowerCase()
-  const rank = (entry: ReferenceEntry) => (entry.kind === 'command' ? 0 : 2) + (entry.name.toLowerCase().startsWith(query) ? 0 : 1)
-  return entries
-    .filter((entry) => (match.trigger === '/' || entry.kind === 'skill') && entry.name.toLowerCase().includes(query))
-    .sort((left, right) => rank(left) - rank(right))
+  const ranked = (kind: ReferenceKind) =>
+    fuzzyFilter(
+      entries.filter((entry) => entry.kind === kind),
+      match.query,
+      (entry) => [entry.name],
+    )
+  return match.trigger === '/' ? [...ranked('command'), ...ranked('skill')] : ranked('skill')
 }
 
 export function referenceToken(reference: Pick<InlineReference, 'kind' | 'name'>): string {

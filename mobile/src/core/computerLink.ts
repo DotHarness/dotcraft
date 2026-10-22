@@ -3,7 +3,7 @@ import { Reconnector, type Timers } from './backoff'
 import type { BackgroundTask } from './backgroundTasks'
 import { plainMessage, type MessageDraft } from './draft'
 import { GatewayClient, GatewayUnreachableError, isUnauthorized } from './gateway'
-import { NotConnectedError, ProjectConnection, ProjectNotRunningError, type ApprovalDecision } from './projectConnection'
+import { NotConnectedError, ProjectConnection, ProjectNotRunningError, type ApprovalDecision, type CompactionResult } from './projectConnection'
 import type { PinnedSockets, SocketEnd, SocketHandle } from './sockets'
 import { projectById, type Action, type ComputerAction, type ComputerState, type MobileState, type PendingRequest } from './state'
 import type { Store } from './store'
@@ -363,6 +363,16 @@ export class ComputerLink {
   async setMode(key: string, mode: 'plan' | 'agent'): Promise<void> {
     const { projectId, threadId } = this.split(key)
     await this.connection(projectId).setMode(threadId, mode)
+  }
+
+  async retry(key: string): Promise<void> {
+    const { projectId, threadId } = this.split(key)
+    await this.connection(projectId).retry(threadId)
+  }
+
+  async compact(key: string): Promise<CompactionResult> {
+    const { projectId, threadId } = this.split(key)
+    return await this.connection(projectId).compact(threadId)
   }
 
   async implementPlan(key: string): Promise<void> {

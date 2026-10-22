@@ -39,10 +39,11 @@ describe('picker', () => {
     expect(pickerMatch('run /release later', 7)).toEqual({ trigger: '/', query: 're', start: 4, end: 12 })
   })
 
-  it('offers commands and skills for a slash and only skills for a dollar, prefix matches first', () => {
+  it('offers commands and skills for a slash and only skills for a dollar, best matches first', () => {
     const names = (text: string) => matchingEntries(ENTRIES, pickerMatch(text)!).map((entry) => `${entry.kind}:${entry.name}`)
     expect(names('/')).toEqual(['command:code-review', 'command:release-check', 'skill:release-notes', 'skill:browser'])
     expect(names('/re')).toEqual(['command:release-check', 'command:code-review', 'skill:release-notes'])
+    expect(names('/cr')).toEqual(['command:code-review'])
     expect(names('$')).toEqual(['skill:release-notes', 'skill:browser'])
     expect(names('$code')).toEqual([])
   })

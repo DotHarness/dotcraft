@@ -1,13 +1,32 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { ReferenceEntry } from '../../core/draft'
 import { useI18n } from '../../i18n'
-import { Icon } from '../icons'
+import { Icon, type IconName } from '../icons'
 import { Txt } from '../parts'
 import { metrics, type, useTheme } from '../theme'
 
-function EntryRow({ entry, onPress }: { entry: ReferenceEntry; onPress: () => void }) {
+export interface ComposerAction {
+  id: string
+  label: string
+  description: string
+  icon: IconName
+  run: () => void
+}
+
+function Row({
+  icon,
+  name,
+  label = name,
+  description,
+  onPress,
+}: {
+  icon: IconName
+  name: string
+  label?: string
+  description: string
+  onPress: () => void
+}) {
   const { colors } = useTheme()
-  const label = entry.kind === 'command' ? `/${entry.name}` : `$${entry.name}`
   return (
     <Pressable
       accessibilityRole="button"
@@ -15,14 +34,14 @@ function EntryRow({ entry, onPress }: { entry: ReferenceEntry; onPress: () => vo
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.roundFill }]}
     >
-      <Icon name={entry.kind === 'command' ? 'squareTerminal' : 'box'} size={18} color={colors.textSecondary} />
+      <Icon name={icon} size={18} color={colors.textSecondary} />
       <View style={styles.text}>
         <Text numberOfLines={1} style={[type.text, styles.name, { color: colors.textPrimary }]}>
-          {entry.name}
+          {name}
         </Text>
-        {entry.description ? (
+        {description ? (
           <Txt variant="meta" tone="secondary" numberOfLines={1}>
-            {entry.description}
+            {description}
           </Txt>
         ) : null}
       </View>
@@ -30,7 +49,28 @@ function EntryRow({ entry, onPress }: { entry: ReferenceEntry; onPress: () => vo
   )
 }
 
-export function ReferencePicker({ entries, onChoose }: { entries: ReferenceEntry[]; onChoose: (entry: ReferenceEntry) => void }) {
+function EntryRow({ entry, onPress }: { entry: ReferenceEntry; onPress: () => void }) {
+  const command = entry.kind === 'command'
+  return (
+    <Row
+      icon={command ? 'squareTerminal' : 'box'}
+      name={entry.name}
+      label={`${command ? '/' : '$'}${entry.name}`}
+      description={entry.description}
+      onPress={onPress}
+    />
+  )
+}
+
+export function ReferencePicker({
+  actions,
+  entries,
+  onChoose,
+}: {
+  actions: ComposerAction[]
+  entries: ReferenceEntry[]
+  onChoose: (entry: ReferenceEntry) => void
+}) {
   const { t } = useI18n()
   const { colors } = useTheme()
   const commands = entries.filter((entry) => entry.kind === 'command')
@@ -52,6 +92,9 @@ export function ReferencePicker({ entries, onChoose }: { entries: ReferenceEntry
       style={[styles.card, { borderColor: colors.borderSubtle, backgroundColor: colors.bgElevated, boxShadow: colors.shadow3 }]}
     >
       <ScrollView keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
+        {actions.map((action) => (
+          <Row key={action.id} icon={action.icon} name={action.label} description={action.description} onPress={action.run} />
+        ))}
         {section(t('references.commands'), commands)}
         {section(t('references.skills'), skills)}
       </ScrollView>

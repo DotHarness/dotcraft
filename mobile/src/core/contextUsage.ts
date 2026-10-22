@@ -8,7 +8,7 @@ export interface ContextUsage {
 
 export type ContextUpdate = { kind: 'snapshot'; snapshot: ContextUsage } | { kind: 'tokens'; tokens: number; percentLeft: number | null }
 
-const TERMINAL_COMPACTION = new Set(['compacted', 'compactSkipped', 'compactFailed', 'compactCancelled'])
+export const TERMINAL_COMPACTION = new Set(['compacted', 'compactSkipped', 'compactFailed', 'compactCancelled'])
 
 function clampShare(value: number): number {
   if (!Number.isFinite(value)) return 0

@@ -10,6 +10,48 @@ const ICONS = {
   chevronLeft: [['path', { d: 'm15 18-6-6 6-6' }]],
   chevronRight: [['path', { d: 'm9 18 6-6-6-6' }]],
   chevronDown: [['path', { d: 'm6 9 6 6 6-6' }]],
+  plugZap: [
+    ['path', { d: 'M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z' }],
+    ['path', { d: 'm2 22 3-3' }],
+    ['path', { d: 'M7.5 13.5 10 11' }],
+    ['path', { d: 'M10.5 16.5 13 14' }],
+    ['path', { d: 'm18 3-4 4h6l-4 4' }],
+  ],
+  messageSquareShare: [
+    ['path', { d: 'M21 12v3a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h7' }],
+    ['path', { d: 'M16 3h5v5' }],
+    ['path', { d: 'm16 8 5-5' }],
+  ],
+  messageSquareOff: [
+    ['path', { d: 'M21 15V5a2 2 0 0 0-2-2H9' }],
+    ['path', { d: 'm2 2 20 20' }],
+    ['path', { d: 'M3.6 3.6c-.4.3-.6.8-.6 1.4v16l4-4h10' }],
+  ],
+  messageSquarePlus: [
+    ['path', { d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' }],
+    ['path', { d: 'M12 7v6' }],
+    ['path', { d: 'M9 10h6' }],
+  ],
+  messageSquareText: [
+    ['path', { d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' }],
+    ['path', { d: 'M13 8H7' }],
+    ['path', { d: 'M17 12H7' }],
+  ],
+  target: [
+    ['circle', { cx: 12, cy: 12, r: 10 }],
+    ['circle', { cx: 12, cy: 12, r: 6 }],
+    ['circle', { cx: 12, cy: 12, r: 2 }],
+  ],
+  refreshCw: [
+    ['path', { d: 'M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8' }],
+    ['path', { d: 'M21 3v5h-5' }],
+    ['path', { d: 'M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16' }],
+    ['path', { d: 'M8 16H3v5' }],
+  ],
+  chevronsDown: [
+    ['path', { d: 'm7 6 5 5 5-5' }],
+    ['path', { d: 'm7 13 5 5 5-5' }],
+  ],
   cloudOff: [
     ['path', { d: 'M10.94 5.274A7 7 0 0 1 15.71 10h1.79a4.5 4.5 0 0 1 4.222 6.057' }],
     ['path', { d: 'M18.796 18.81A4.5 4.5 0 0 1 17.5 19H9A7 7 0 0 1 5.79 5.78' }],
