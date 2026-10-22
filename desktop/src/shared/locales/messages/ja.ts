@@ -3511,8 +3511,6 @@ export const MESSAGES_JA = {
   'subagentsPanel.noRunning': '実行中のサブエージェントはありません',
   'subagentsPanel.finished': '完了',
   'subagentsPanel.tokens': 'トークン',
-  'subagentsPanel.toolUsesOne': '回のツール使用',
-  'subagentsPanel.toolUsesOther': '回のツール使用',
   'subagentsPanel.stop': '{{name}} を停止',
   'subagentsPanel.stopFailed': 'サブエージェントを停止できませんでした',
   'subagentsPanel.empty': 'サブエージェントはまだありません',

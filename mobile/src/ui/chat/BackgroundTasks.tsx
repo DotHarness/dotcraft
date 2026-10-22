@@ -80,13 +80,13 @@ function TaskCard({ task, now, onStop }: { task: BackgroundTask; now: number; on
   const [failed, setFailed] = useState(false)
   const running = task.status === 'running'
   const span = elapsed(task, now)
+  const time = span !== null ? duration(span) : null
   const meta = [
     t(KIND[task.kind].label),
-    ...(span !== null ? [duration(span)] : []),
     ...(task.status === 'stopped' ? [t('tasks.stopped')] : task.status === 'failed' ? [t('state.failed')] : []),
     ...(task.kind === 'agent' && task.model ? [task.model] : []),
     ...(task.kind === 'agent' && task.tokens ? [t('tasks.tokens', { count: compactCount(task.tokens) })] : []),
-  ].join(' · ')
+  ]
   const stop = () => {
     setStopping(true)
     setFailed(false)
@@ -104,10 +104,21 @@ function TaskCard({ task, now, onStop }: { task: BackgroundTask; now: number; on
         <Icon name={KIND[task.kind].icon} size={18} color={colors.textSecondary} strokeWidth={1.6} />
       </View>
       <View style={styles.cardText}>
-        <Txt style={styles.title}>{task.title}</Txt>
-        <Txt variant="meta" tone={task.status === 'failed' ? 'error' : 'secondary'}>
-          {meta}
-        </Txt>
+        <View style={styles.titleRow}>
+          <Txt style={styles.title}>{task.title}</Txt>
+          {time ? (
+            <Txt variant="meta" tone="dimmed" style={styles.time}>
+              {time}
+            </Txt>
+          ) : null}
+        </View>
+        <View style={styles.meta}>
+          {meta.map((part) => (
+            <Txt key={part} variant="meta" tone={task.status === 'failed' ? 'error' : 'secondary'} numberOfLines={1} style={styles.shrink}>
+              {part}
+            </Txt>
+          ))}
+        </View>
       </View>
     </>
   )
@@ -133,7 +144,7 @@ function TaskCard({ task, now, onStop }: { task: BackgroundTask; now: number; on
       ) : (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${task.title}, ${meta}`}
+          accessibilityLabel={[task.title, time, ...meta].filter(Boolean).join(', ')}
           accessibilityState={{ expanded: open }}
           onPress={() => setOpen((value) => !value)}
           style={styles.cardHead}
@@ -242,7 +253,10 @@ const styles = StyleSheet.create({
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   kind: { paddingTop: 1 },
   cardText: { flex: 1, minWidth: 0, gap: 2 },
-  title: { fontWeight: '600' },
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  title: { flex: 1, fontWeight: '600' },
+  time: { flexShrink: 0, fontVariant: ['tabular-nums'] },
+  meta: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8 },
   stop: { width: 36, height: 36, marginTop: -6, marginRight: -6, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   chevron: { paddingTop: 2 },
   inset: { marginLeft: 28 },

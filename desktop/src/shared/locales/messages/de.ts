@@ -3512,8 +3512,6 @@ export const MESSAGES_DE = {
   'subagentsPanel.noRunning': 'Keine laufenden Subagenten',
   'subagentsPanel.finished': 'Abgeschlossen',
   'subagentsPanel.tokens': 'Tokens',
-  'subagentsPanel.toolUsesOne': 'Tool-Aufruf',
-  'subagentsPanel.toolUsesOther': 'Tool-Aufrufe',
   'subagentsPanel.stop': '{{name}} stoppen',
   'subagentsPanel.stopFailed': 'Der Subagent konnte nicht gestoppt werden',
   'subagentsPanel.empty': 'Noch keine Subagenten',

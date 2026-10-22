@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Square } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import {
@@ -149,7 +149,7 @@ function SectionHeader({
   if (!onToggle) {
     return (
       <div className={styles.sectionHeader}>
-        <span className={styles.sectionHeaderLabel}>{label} · {count}</span>
+        <span className={styles.sectionHeaderLabel}>{label}{' '}<span className={styles.sectionCount}>{count}</span></span>
       </div>
     )
   }
@@ -160,7 +160,7 @@ function SectionHeader({
       aria-expanded={open === true}
       onClick={() => onToggle(!open)}
     >
-      <span className={styles.sectionHeaderLabel}>{label} · {count}</span>
+      <span className={styles.sectionHeaderLabel}>{label}{' '}<span className={styles.sectionCount}>{count}</span></span>
       <span className={styles.sectionChevron} aria-hidden><DisclosureChevron expanded={open === true} /></span>
     </button>
   )
@@ -190,30 +190,6 @@ function SubagentRow({
     : ended ?? (child.threadSummary?.lastActiveAt
       ? formatRelativeTime(child.threadSummary.lastActiveAt, new Date(elapsedNowMs), locale)
       : '')
-  const usageParts: Array<{ key: string; content: ReactNode }> = []
-  if (child.model) usageParts.push({ key: 'model', content: child.model })
-  if (child.toolCallCount != null) {
-    usageParts.push({
-      key: 'tools',
-      content: (
-        <>
-          <span className={styles.usageCount}>{child.toolCallCount}</span>
-          {' '}{t(child.toolCallCount === 1 ? 'subagentsPanel.toolUsesOne' : 'subagentsPanel.toolUsesOther')}
-        </>
-      )
-    })
-  }
-  if (child.contextTokens != null) {
-    usageParts.push({
-      key: 'tokens',
-      content: (
-        <>
-          <span className={styles.usageCount}>{formatCompactCount(child.contextTokens)}</span>
-          {' '}{t('subagentsPanel.tokens')}
-        </>
-      )
-    })
-  }
   const canOpen = child.isPlaceholder !== true
   const canStop = running && child.isPlaceholder !== true
   const stop = (): void => {
@@ -247,14 +223,15 @@ function SubagentRow({
             </span>
             {timeLabel && <span className={styles.time} data-ended={ended ? true : undefined}>{timeLabel}</span>}
           </span>
-          {usageParts.length > 0 && (
+          {(child.model || child.contextTokens != null) && (
             <span className={styles.usage}>
-              {usageParts.map((part, index) => (
-                <span key={part.key}>
-                  {index > 0 && ' · '}
-                  {part.content}
+              {child.model && <span className={styles.model}>{child.model}</span>}
+              {child.contextTokens != null && (
+                <span>
+                  <span className={styles.usageCount}>{formatCompactCount(child.contextTokens)}</span>
+                  {' '}{t('subagentsPanel.tokens')}
                 </span>
-              ))}
+              )}
             </span>
           )}
         </span>

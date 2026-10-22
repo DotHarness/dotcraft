@@ -21,7 +21,6 @@ function makeRunningChild(overrides: Partial<SubAgentChild> = {}): SubAgentChild
     currentTool: null,
     model: null,
     contextTokens: null,
-    toolCallCount: null,
     isCompleted: false,
     runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false },
     ...overrides
@@ -322,7 +321,6 @@ describe('subAgentStore', () => {
         currentTool: 'ReadFile',
         model: null,
         contextTokens: null,
-        toolCallCount: null,
         isCompleted: false,
         runtime: {
           running: true,
@@ -442,7 +440,6 @@ describe('subAgentStore', () => {
         currentTool: 'ReadFile',
         model: null,
         contextTokens: null,
-        toolCallCount: null,
         supportsClose: false,
         isPlaceholder: true,
         isCompleted: false,
@@ -502,7 +499,6 @@ describe('subAgentStore', () => {
         currentTool: 'ReadFile',
         model: null,
         contextTokens: null,
-        toolCallCount: null,
         isCompleted: false,
         runtime: {
           running: true,
@@ -585,7 +581,6 @@ describe('subAgentStore', () => {
         currentTool: 'ReadFile',
         model: null,
         contextTokens: null,
-        toolCallCount: null,
         supportsClose: true,
         isPlaceholder: false,
         runtime: expect.objectContaining({ running: true })
@@ -619,7 +614,6 @@ describe('subAgentStore', () => {
         currentTool: 'ReadFile',
         model: null,
         contextTokens: null,
-        toolCallCount: null,
         isCompleted: false,
         runtime: {
           running: true,
@@ -719,7 +713,6 @@ describe('subAgentStore', () => {
         currentTool: null,
         model: null,
         contextTokens: null,
-        toolCallCount: null,
         isCompleted: false,
         isPlaceholder: false
       }
@@ -752,7 +745,6 @@ describe('subAgentStore', () => {
         currentTool: null,
         model: null,
         contextTokens: null,
-        toolCallCount: null,
         isCompleted: false,
         runtime: {
           running: true,
@@ -779,46 +771,25 @@ describe('subAgentStore', () => {
         currentTool: 'ReadFile',
         model: null,
         contextTokens: null,
-        toolCallCount: null,
         isCompleted: false,
         runtime: expect.objectContaining({ running: true })
       })
     )
   })
 
-  it('reads context size and tool count from the children listing', async () => {
+  it('reads context size from the children listing and follows live updates, which can shrink', async () => {
     appServerSendRequest.mockResolvedValueOnce({
       data: [{
         edge: { parentThreadId: 'parent-1', childThreadId: 'child-1', agentNickname: 'Lovelace', status: 'open' },
-        thread: { id: 'child-1', contextUsage: { tokens: 45_000 } },
-        toolCallCount: 7
+        thread: { id: 'child-1', contextUsage: { tokens: 45_000 } }
       }]
     })
 
     await useSubAgentStore.getState().fetchChildren('parent-1')
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0].contextTokens).toBe(45_000)
 
-    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]).toEqual(
-      expect.objectContaining({ contextTokens: 45_000, toolCallCount: 7 })
-    )
-  })
-
-  it('follows live context size, which can shrink, and refreshes tool counts at most once per window', async () => {
-    vi.useFakeTimers()
-    try {
-      useSubAgentStore.getState().setChildren('parent-1', [makeRunningChild({ contextTokens: 9_000 })])
-      appServerSendRequest.mockResolvedValue({ data: [] })
-
-      useSubAgentStore.getState().updateChildUsage('child-1', 12_000)
-      useSubAgentStore.getState().updateChildUsage('child-1', 4_000)
-      expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0].contextTokens).toBe(4_000)
-      expect(appServerSendRequest).not.toHaveBeenCalled()
-
-      await vi.advanceTimersByTimeAsync(2_000)
-      expect(appServerSendRequest).toHaveBeenCalledTimes(1)
-      expect(appServerSendRequest).toHaveBeenCalledWith('subagent/children/list', expect.objectContaining({ parentThreadId: 'parent-1' }))
-    } finally {
-      vi.useRealTimers()
-    }
+    useSubAgentStore.getState().updateChildUsage('child-1', 4_000)
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0].contextTokens).toBe(4_000)
   })
 
   it('marks a child completed and clears current tool when runtime stops', () => {
@@ -838,7 +809,6 @@ describe('subAgentStore', () => {
         currentTool: 'ReadFile',
         model: null,
         contextTokens: null,
-        toolCallCount: null,
         isCompleted: false,
         runtime: {
           running: true,

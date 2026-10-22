@@ -2792,8 +2792,6 @@ export const MESSAGES_EN = {
   'subagentsPanel.noRunning': 'No running subagents',
   'subagentsPanel.finished': 'Finished',
   'subagentsPanel.tokens': 'tokens',
-  'subagentsPanel.toolUsesOne': 'tool use',
-  'subagentsPanel.toolUsesOther': 'tool uses',
   'subagentsPanel.stop': 'Stop {{name}}',
   'subagentsPanel.stopFailed': 'Unable to stop the subagent',
   'subagentsPanel.empty': 'No subagents yet',

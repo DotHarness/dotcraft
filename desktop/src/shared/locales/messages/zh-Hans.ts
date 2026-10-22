@@ -2743,8 +2743,6 @@ export const MESSAGES_ZH_HANS = {
   'subagentsPanel.noRunning': '没有运行中的子智能体',
   'subagentsPanel.finished': '已完成',
   'subagentsPanel.tokens': 'tokens',
-  'subagentsPanel.toolUsesOne': '次工具调用',
-  'subagentsPanel.toolUsesOther': '次工具调用',
   'subagentsPanel.stop': '停止 {{name}}',
   'subagentsPanel.stopFailed': '无法停止子智能体',
   'subagentsPanel.empty': '暂无子智能体',

@@ -32,10 +32,16 @@
 }
 
 .sectionHeaderLabel {
+  display: inline-flex;
+  gap: 6px;
   color: var(--text-dimmed);
   font-size: var(--type-hint-size);
   font-weight: 500;
   line-height: var(--type-hint-line-height);
+}
+
+.sectionCount {
+  font-variant-numeric: tabular-nums;
 }
 
 .sectionEmpty {
@@ -173,7 +179,8 @@
 }
 
 .usage {
-  display: block;
+  display: flex;
+  gap: 8px;
   min-width: 0;
   overflow: hidden;
   color: var(--text-dimmed);
@@ -184,6 +191,13 @@
   white-space: nowrap;
 }
 
+.usage > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model,
 .usageCount {
   color: var(--text-secondary);
 }

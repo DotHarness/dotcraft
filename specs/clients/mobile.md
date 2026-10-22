@@ -338,7 +338,7 @@ of `terminal/outputDelta`, reading terminal output from snapshots instead.
 | Picker | Commands and skills matching what follows `/` or `$` in the composer. |
 | Changes | Every file the turn changed with additions and deletions, each expandable to its diff. Paths are relative to the chat's `effectiveWorkspacePath`, which is also the base for relative file links in the transcript. |
 | File | One read-only file from the computer with **Download** to the phone's `Download/DotCraft/` folder. Images open full screen. |
-| Background tasks | **Running** (expanded) and **Completed** (collapsed, counted). Each task shows its kind, title, and elapsed or total duration, marked Stopped or Failed when it did not finish normally. Running tasks offer Stop; finished tasks expand to their detail: a shell task's last output lines, an agent's role, or a workflow's agent count. |
+| Background tasks | **Running** (expanded) and **Completed** (collapsed, counted). Each task shows its title with the elapsed or total duration trailing in tabular figures, over its kind (and an agent's model and tokens), marked Stopped or Failed when it did not finish normally. Running tasks offer Stop; finished tasks expand to their detail: a shell task's last output lines, an agent's role, or a workflow's agent count. |
 | Status | Context left, account usage when the provider reports it, the project folder, and the chat ID to copy. |
 | Decision card | One card for every decision a chat waits on: an approval, a question, or a plan confirmation. It is the last transcript entry and scrolls with it; the composer stays hidden until the decision is made. |
 | Settings | Every paired computer with its status and Remove, **Add computer**, and app information. |

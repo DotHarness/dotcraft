@@ -27,7 +27,6 @@ function makeChild(overrides: Partial<SubAgentChild> & Pick<SubAgentChild, 'chil
     currentTool: null,
     model: null,
     contextTokens: 0,
-    toolCallCount: null,
     isCompleted: false,
     runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false },
     ...overrides
@@ -119,7 +118,7 @@ describe('SubagentsTab', () => {
     ])
 
     renderTab()
-    fireEvent.click(screen.getByRole('button', { name: /^Closed · 1/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Closed 1/ }))
 
     expect(screen.getByRole('button', { name: 'Open subagent Retired' })).toBeEnabled()
   })

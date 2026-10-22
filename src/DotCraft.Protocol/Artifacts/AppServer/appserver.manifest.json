@@ -18721,13 +18721,6 @@
           "required": false,
           "nullable": true,
           "const": null
-        },
-        {
-          "name": "toolCallCount",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
         }
       ],
       "variants": []

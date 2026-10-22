@@ -236,7 +236,7 @@ function Activity({ entry, workspacePath }: { entry: Extract<TranscriptEntry, { 
         style={styles.activityRow}
       >
         {entry.origin ? <Icon name={WAKE_COPY[entry.origin.task].icon} size={14} color={colors.textSecondary} strokeWidth={1.8} /> : null}
-        <Text numberOfLines={1} style={[type.text, styles.fixed, { color: colors.textSecondary }]}>
+        <Text numberOfLines={1} style={[type.text, styles.fixed, styles.tabular, { color: colors.textSecondary }]}>
           {label}
         </Text>
         {expandable ? <Disclosure open={open} /> : null}
@@ -309,7 +309,7 @@ function Elapsed({ since }: { since: string }) {
   }, [])
   const start = Date.parse(since)
   const seconds = Number.isFinite(start) ? Math.max(0, now - start) / 1000 : 0
-  return <Text style={[type.text, styles.fixed, { color: colors.textDimmed, fontVariant: ['tabular-nums'] }]}>{`${seconds.toFixed(1)}s`}</Text>
+  return <Text style={[type.text, styles.fixed, styles.tabular, { color: colors.textDimmed }]}>{`${seconds.toFixed(1)}s`}</Text>
 }
 
 function ToolLine({ entry }: { entry: ToolEntry }) {
@@ -552,6 +552,7 @@ export function TranscriptLine({
 const styles = StyleSheet.create({
   shrink: { flexShrink: 1 },
   fixed: { flexShrink: 0 },
+  tabular: { fontVariant: ['tabular-nums'] },
   line: { lineHeight: 22 },
   user: { alignItems: 'flex-end', gap: 4 },
   assistant: { gap: 12 },

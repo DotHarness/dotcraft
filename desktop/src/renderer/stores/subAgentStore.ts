@@ -63,11 +63,8 @@ interface ChildRequest {
   authoritative: boolean
 }
 
-const STATS_REFRESH_MS = 2_000
-
 const requests = new Map<string, ChildRequest>()
 const lifetimes = new Map<string, object>()
-const statsRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>()
 function lifetime(parentThreadId: string): object {
   let token = lifetimes.get(parentThreadId)
   if (!token) {
@@ -212,24 +209,17 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
   },
 
   updateChildUsage(childThreadId, contextTokens) {
-    const parents: string[] = []
     set((state) => {
       const childrenByParent = new Map(state.childrenByParent)
+      let changed = false
       for (const [parentThreadId, children] of childrenByParent) {
         if (!children.some((child) => child.childThreadId === childThreadId)) continue
-        parents.push(parentThreadId)
+        changed = true
         childrenByParent.set(parentThreadId, children.map((child) =>
           child.childThreadId === childThreadId ? { ...child, contextTokens } : child))
       }
-      return parents.length > 0 ? { childrenByParent } : state
+      return changed ? { childrenByParent } : state
     })
-    for (const parentThreadId of parents) {
-      if (statsRefreshTimers.has(parentThreadId)) continue
-      statsRefreshTimers.set(parentThreadId, setTimeout(() => {
-        statsRefreshTimers.delete(parentThreadId)
-        void get().fetchChildren(parentThreadId).catch(() => {})
-      }, STATS_REFRESH_MS))
-    }
   },
 
   async interruptChild(child) {
@@ -311,7 +301,6 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
 
   clearParent(parentThreadId) {
     lifetimes.delete(parentThreadId)
-    clearStatsRefresh(parentThreadId)
     requests.delete(parentThreadId)
     set((state) => {
       const childrenByParent = new Map(state.childrenByParent)
@@ -329,7 +318,6 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
   reset() {
     lifetimes.clear()
     requests.clear()
-    for (const parentThreadId of [...statsRefreshTimers.keys()]) clearStatsRefresh(parentThreadId)
     set({
       childrenByParent: new Map(),
       discoveryByParent: new Map(),
@@ -338,9 +326,3 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     })
   }
 }))
-
-function clearStatsRefresh(parentThreadId: string): void {
-  const timer = statsRefreshTimers.get(parentThreadId)
-  if (timer !== undefined) clearTimeout(timer)
-  statsRefreshTimers.delete(parentThreadId)
-}

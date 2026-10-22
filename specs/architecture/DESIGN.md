@@ -1820,11 +1820,13 @@ running shows activity before every other marker.
 ### Subagents
 
 The Subagents tab lists a thread's subagents under counted Running, Finished, and
-Closed headings; Finished and Closed start folded. A row puts a 32px avatar beside
-two lines: the name in `--text-primary` at the UI emphasis weight with its role in
-`--text-dimmed`, then the model and token usage in `--text-dimmed` with the count in
-`--text-secondary`. The name line's trailing edge holds the running or relative
-time, or Failed or Cancelled in `--text-secondary`; a running row ends with a ghost
+Closed headings, each count set apart by a 6px gap; Finished and Closed start
+folded. A row puts a 32px avatar beside two lines: the name in `--text-primary` at
+the UI emphasis weight with its role in `--text-dimmed`, then the model and the
+token count in `--text-secondary` with the word tokens in `--text-dimmed`,
+separated by an 8px gap rather than a divider character. The name line's trailing
+edge holds the running or relative time in tabular figures, or Failed or Cancelled
+in `--text-secondary`; a running row ends with a ghost
 Stop icon button that shows a spinner while stopping. Subagent names carry no hue;
 the avatar is the identity.
 

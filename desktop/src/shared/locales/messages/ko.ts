@@ -3511,8 +3511,6 @@ export const MESSAGES_KO = {
   'subagentsPanel.noRunning': '실행 중인 서브 에이전트 없음',
   'subagentsPanel.finished': '완료',
   'subagentsPanel.tokens': '토큰',
-  'subagentsPanel.toolUsesOne': '회 도구 사용',
-  'subagentsPanel.toolUsesOther': '회 도구 사용',
   'subagentsPanel.stop': '{{name}} 중지',
   'subagentsPanel.stopFailed': '서브 에이전트를 중지할 수 없습니다',
   'subagentsPanel.empty': '아직 서브 에이전트가 없습니다',

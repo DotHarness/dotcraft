@@ -30,7 +30,6 @@ export interface SubAgentChildWire {
     configuration?: ThreadConfigurationWire | null
     contextUsage?: ContextUsageSnapshotWire | null
   }) | null
-  toolCallCount?: number
 }
 
 export interface SubAgentChild {
@@ -52,7 +51,6 @@ export interface SubAgentChild {
   currentTool: string | null
   model: string | null
   contextTokens: number | null
-  toolCallCount: number | null
   isCompleted: boolean
   isPlaceholder?: boolean
   runtime?: ThreadRuntimeSnapshot
@@ -144,7 +142,6 @@ export function childFromWire(parentThreadId: string, wire: SubAgentChildWire): 
     currentTool: null,
     model: normalizeText(wire.thread?.configuration?.model) ?? normalizeText(wire.thread?.configuration?.Model),
     contextTokens: wire.thread?.contextUsage?.tokens ?? null,
-    toolCallCount: wire.toolCallCount ?? null,
     isCompleted,
     isPlaceholder: false,
     runtime,
@@ -178,7 +175,6 @@ export function mergeExistingProgress(next: SubAgentChild, existing: SubAgentChi
     currentTool: isCompleted ? null : existing.currentTool,
     model: next.model ?? existing.model,
     contextTokens: next.contextTokens ?? existing.contextTokens,
-    toolCallCount: next.toolCallCount ?? existing.toolCallCount,
     isCompleted,
     isPlaceholder: false,
     runtime
@@ -213,7 +209,6 @@ export function createPlaceholderChild(
     currentTool: isCompleted ? null : progress.currentTool,
     model: null,
     contextTokens: null,
-    toolCallCount: null,
     isCompleted,
     isPlaceholder: true,
     runtime: {

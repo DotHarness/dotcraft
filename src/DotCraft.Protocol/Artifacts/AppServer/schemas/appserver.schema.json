@@ -14826,9 +14826,6 @@
               "type": "null"
             }
           ]
-        },
-        "toolCallCount": {
-          "type": "integer"
         }
       },
       "additionalProperties": true
