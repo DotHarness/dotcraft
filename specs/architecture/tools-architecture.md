@@ -297,6 +297,16 @@ The model reads a terminal through a per-terminal cursor. `Exec` returns the bou
 
 A stall watchdog checks running terminals every 5 seconds. A terminal stalls when its output has not grown for `Tools.Shell.Background.StallWatchdogSeconds` (45 seconds; 0 disables) and its last nonempty line looks like an interactive prompt: a `(y/n)`, `[y/n]`, or `(yes/no)` choice, `Press Enter`, `Press any key`, `Continue?`, `Overwrite?`, or a question starting with "Do you", "Would you", "Shall I", "Are you sure", or "Ready to". A stall is reported once until more output arrives: it publishes `terminal/stalled` with the bounded snapshot, ends a waiting `WriteStdin` with a result saying the process appears to wait for input, and, when no model call is waiting and the terminal is armed for completion notification, delivers a stall task notification. The terminal stays armed for its completion notification.
 
+### 7.5 Worktree tools
+
+`EnterWorktree` and `ExitWorktree` let the agent move its own thread into and out of a managed worktree ([Session Core §4.1.1.2](session-core.md#41112-worktrees)). They are exposed to top-level threads whose state workspace is a local Git repository, so their presence does not change with mode or worktree state; Plan mode rejects them at execution time.
+
+- `EnterWorktree` takes an optional `name` or an optional `path`. Without `path` it creates a worktree on a new branch from the current `HEAD`, named from `name` when given; uncommitted changes are not copied. `path` re-enters a managed worktree of this workspace that no other thread is bound to. It fails when the thread is already in a worktree.
+- `ExitWorktree` takes `action` (`keep` or `remove`) and optional `discardChanges`. `keep` leaves the worktree and its branch on disk; `remove` deletes both and is refused, listing what would be lost, when the worktree has uncommitted changes or commits beyond its base unless `discardChanges` is true. Neither moves changes into the local checkout. `remove` is refused while a background terminal started in the worktree is running.
+- Either tool runs alone: other tool calls of the same model response run before it, against the previous location.
+- After success, later tool calls in the Turn resolve relative paths, default search roots, and the default shell working directory against the new location. File and shell boundaries keep the Turn's admitted roots plus the worktree. LSP, Code Mode cells already running, background terminals, and SubAgents keep the location they started with. The next Turn rebuilds the agent at the new location.
+- The result states the new working directory and branch. The location change also reaches the model through the `environment` world-state section ([Prompt Composition §4b](prompt-composition.md#4b-thread-context-items)).
+
 ## 8. Snapshot and invalidation semantics
 
 Each Turn executes against one immutable `EffectiveToolSnapshot`. Registration, schema, exposure, and presentation changes take effect on the next Turn, preserving prompt-cache and invocation consistency.
