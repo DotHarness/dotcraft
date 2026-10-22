@@ -420,7 +420,7 @@ internal sealed class ThreadRolloutStore
             ProviderHistoryItemsAppended = payload
         };
         var receipt = await AppendRecordsAsync(payload.ThreadId, existingPath, [record], ct);
-        return new RolloutAppendResult(existingPath, receipt);
+        return new RolloutAppendResult(existingPath, receipt, record);
     }
 
     public async Task<RolloutAppendResult> AppendProviderHistoryReplacementAsync(
@@ -437,7 +437,7 @@ internal sealed class ThreadRolloutStore
             ProviderHistoryReplaced = payload
         };
         var receipt = await AppendRecordsAsync(payload.ThreadId, existingPath, [record], ct);
-        return new RolloutAppendResult(existingPath, receipt);
+        return new RolloutAppendResult(existingPath, receipt, record);
     }
 
     public async Task<RolloutAppendResult> AppendProviderHistoryAttemptAbortedAsync(
@@ -454,7 +454,7 @@ internal sealed class ThreadRolloutStore
             ProviderHistoryAttemptAborted = payload
         };
         var receipt = await AppendRecordsAsync(payload.ThreadId, existingPath, [record], ct);
-        return new RolloutAppendResult(existingPath, receipt);
+        return new RolloutAppendResult(existingPath, receipt, record);
     }
 
     public async Task<IReadOnlyList<ThreadRolloutRecord>> LoadProviderHistoryRecordsAsync(
@@ -1149,7 +1149,7 @@ internal sealed class ThreadRolloutStore
     }
 }
 
-internal sealed record RolloutAppendResult(string Path, RolloutWriteReceipt Receipt);
+internal sealed record RolloutAppendResult(string Path, RolloutWriteReceipt Receipt, ThreadRolloutRecord? Record = null);
 
 internal sealed record TurnCompactionCommit(
     string Trigger,

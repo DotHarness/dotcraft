@@ -965,7 +965,7 @@ public sealed partial class SessionService(
         ClearContextUsageAnchor(threadId);
         agentFactory.RemoveTokenTracker(threadId);
         ForgetContextPages(threadId);
-        var survivingSession = await TryLoadSurvivingModelHistoryAsync(threadId, ct);
+        var survivingSession = await TryLoadSurvivingModelHistoryAsync(thread, ct);
         await SaveContextUsageFromSessionAsync(thread, survivingSession, ct);
         ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.HistoryRolledBack, null);
         return thread;
@@ -1345,7 +1345,14 @@ public sealed partial class SessionService(
 
             var interruptedTurn = thread.Turns.SingleOrDefault(static turn =>
                 turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
-            var persistedModelHistory = await persistence.LoadModelHistoryAsync(thread, excludedTurnId: null, ct);
+            var persistedLoad = await persistence.LoadResidentModelHistoryAsync(thread, excludedTurnId: null, ct);
+            var persistedModelHistory = persistedLoad.Messages;
+            var residentHistory = persistedLoad.Residable && interruptedTurn == null && !thread.Ephemeral
+                ? new ResidentModelHistory(
+                    persistedLoad.Revision.Value,
+                    CoveredTurnIds(thread, excludedTurnId: null),
+                    ThreadStore.EncodeModelHistory(persistedModelHistory))
+                : null;
             await ReconcilePersistedInputHistoryAsync(thread, persistedModelHistory, ct);
             if (interruptedTurn != null)
             {
@@ -1364,6 +1371,9 @@ public sealed partial class SessionService(
 
             var runtime = _runtimeRegistry.SetThread(thread);
             runtime.Materialized = true;
+            if (residentHistory != null
+                && residentHistory.Revision == persistence.GetModelHistoryRevision(threadId).Value)
+                runtime.ResidentModelHistory = residentHistory;
             if (interruptedTurn != null)
             {
                 runtime.Broker.PublishTurnCancelled(interruptedTurn, "interrupted");
@@ -1824,7 +1834,7 @@ public sealed partial class SessionService(
         MarkTurnItemsPersisted(captured);
     }
 
-    private async Task PersistTurnCommitWithMaterializationAsync(
+    private async Task<ModelHistoryRevision?> PersistTurnCommitWithMaterializationAsync(
         SessionThread thread,
         SessionTurn turn,
         IReadOnlyList<ChatMessage> modelHistory,
@@ -1832,17 +1842,18 @@ public sealed partial class SessionService(
         CancellationToken ct)
     {
         if (IsPendingPermanentDeletion(thread.Id))
-            return;
+            return null;
         if (thread.Ephemeral)
         {
             SetMaterializedIfCurrent(thread, materialized: false);
-            return;
+            return null;
         }
 
-        await persistence.CommitTurnAsync(
+        var revision = await persistence.CommitTurnAsync(
             new TurnPersistenceCommit(thread, turn, modelHistory, compaction),
             ct);
         SetMaterializedIfCurrent(thread, materialized: true);
+        return revision;
     }
 
     private async Task PersistThreadIfMaterializedAsync(SessionThread thread, CancellationToken ct)

@@ -19,6 +19,8 @@ public sealed partial class SessionService
 
         public PendingCompactionCheckpoint? PendingCompactionCheckpoint { get; set; }
 
+        public ResidentHistoryBaseline? ResidentBaseline { get; set; }
+
         public async Task CommitAsync()
         {
             if (thread.Ephemeral && Session != null
@@ -50,12 +52,13 @@ public sealed partial class SessionService
                     checkpoint.TokensBefore,
                     checkpoint.TokensAfter,
                     checkpoint.ReplacementHistory ?? []);
-            await owner.PersistTurnCommitWithMaterializationAsync(
+            var committed = await owner.PersistTurnCommitWithMaterializationAsync(
                 thread,
                 turn,
                 modelHistory,
                 compaction,
                 CancellationToken.None);
+            owner.UpdateResidentModelHistoryAfterCommit(thread, ResidentBaseline, Session, committed);
             PendingCompactionCheckpoint = null;
             PersistedModelHistoryCount += modelHistory.Count;
             // Recorded only now: the fragments it describes are in persisted model history.

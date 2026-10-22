@@ -122,7 +122,9 @@ public sealed partial class ThreadStore : IAsyncDisposable
         CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
-        var result = await _rolloutStore.AppendRollbackAsync(thread, numTurns, ct);
+        var result = await WriteModelHistoryAsync(
+            thread.Id,
+            () => _rolloutStore.AppendRollbackAsync(thread, numTurns, ct));
         await TryUpdateThreadProjectionAsync(thread, result, ct);
     }
 
@@ -143,7 +145,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
         await TryUpdateThreadProjectionAsync(thread, result, ct);
     }
 
-    internal async Task CommitTurnAsync(TurnPersistenceCommit commit, CancellationToken ct = default)
+    internal async Task<ModelHistoryRevision> CommitTurnAsync(TurnPersistenceCommit commit, CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, commit.Thread.Id, ct);
         var codec = new ModelHistoryCodec();
@@ -160,13 +162,20 @@ public sealed partial class ThreadStore : IAsyncDisposable
                 DateTimeOffset.UtcNow,
                 commit.Compaction.ReplacementHistory.Select(message => codec.Encode(message)).ToList());
 
-        var result = await _rolloutStore.AppendTurnCommitAsync(
+        Task<RolloutAppendResult> Append() => _rolloutStore.AppendTurnCommitAsync(
             commit.Thread,
             commit.Turn,
             modelHistory,
             compaction,
             ct);
+        var result = modelHistory.Count > 0 || compaction != null
+            ? await WriteModelHistoryAsync(commit.Thread.Id, Append, checkpoint: compaction != null)
+            : await Append();
+        if (compaction != null)
+            RecordResidentCheckpoint(commit.Thread.Id, compaction.CreatedAt);
+        var revision = GetModelHistoryRevision(commit.Thread.Id);
         await TryUpdateThreadProjectionAsync(commit.Thread, result, ct);
+        return revision;
     }
 
     internal async Task AppendCompactionCheckpointAsync(
@@ -183,17 +192,22 @@ public sealed partial class ThreadStore : IAsyncDisposable
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
         var codec = new ModelHistoryCodec();
         var replacementMessages = replacementHistory.Select(message => codec.Encode(message)).ToList();
+        var createdAt = DateTimeOffset.UtcNow;
 
-        var result = await _rolloutStore.AppendCompactionCheckpointAsync(
+        var result = await WriteModelHistoryAsync(
             threadId,
-            coveredThroughTurnId,
-            trigger,
-            mode,
-            tokensBefore,
-            tokensAfter,
-            replacementMessages,
-            DateTimeOffset.UtcNow,
-            ct);
+            () => _rolloutStore.AppendCompactionCheckpointAsync(
+                threadId,
+                coveredThroughTurnId,
+                trigger,
+                mode,
+                tokensBefore,
+                tokensAfter,
+                replacementMessages,
+                createdAt,
+                ct),
+            checkpoint: true);
+        RecordResidentCheckpoint(threadId, createdAt);
         await TryUpdateRolloutOffsetProjectionAsync(threadId, result, ct);
     }
 
@@ -272,6 +286,8 @@ public sealed partial class ThreadStore : IAsyncDisposable
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var cleanupCandidates = _attachmentStore.LoadCandidatePaths(threadId, candidatePaths);
         _rolloutStore.DeleteThreadAsync(threadId).GetAwaiter().GetResult();
+        _residentProviderHistory.TryRemove(threadId, out _);
+        _modelHistoryRevisions.TryRemove(threadId, out _);
         _metadataStore.DeleteThread(threadId);
         _attachmentStore.CleanupCandidates(cleanupCandidates);
     }
@@ -294,7 +310,11 @@ public sealed partial class ThreadStore : IAsyncDisposable
             .Skip(persistedPrefixLength)
             .Select(message => codec.Encode(message, turnId))
             .ToList();
-        var result = await _rolloutStore.AppendModelHistoryAsync(threadId, turnId, appended, ct);
+        var result = appended.Count == 0
+            ? await _rolloutStore.AppendModelHistoryAsync(threadId, turnId, appended, ct)
+            : await WriteModelHistoryAsync(
+                threadId,
+                () => _rolloutStore.AppendModelHistoryAsync(threadId, turnId, appended, ct));
         await TryUpdateRolloutOffsetProjectionAsync(threadId, result, ct);
     }
 
@@ -323,18 +343,32 @@ public sealed partial class ThreadStore : IAsyncDisposable
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
         var codec = new ModelHistoryCodec();
-        var result = await _rolloutStore.AppendModelHistoryAsync(
-            threadId,
-            turnId,
-            history.Select(message => codec.Encode(message, turnId)).ToList(),
-            ct);
+        var encoded = history.Select(message => codec.Encode(message, turnId)).ToList();
+        var result = encoded.Count == 0
+            ? await _rolloutStore.AppendModelHistoryAsync(threadId, turnId, encoded, ct)
+            : await WriteModelHistoryAsync(
+                threadId,
+                () => _rolloutStore.AppendModelHistoryAsync(threadId, turnId, encoded, ct));
         await TryUpdateRolloutOffsetProjectionAsync(threadId, result, ct);
     }
 
-    internal async Task<ProviderHistorySnapshot> LoadProviderHistoryAsync(
+    internal Task<ProviderHistorySnapshot> LoadProviderHistoryAsync(
         SessionThread thread,
         string currentContextWindowId,
-        CancellationToken ct = default)
+        CancellationToken ct = default) =>
+        LoadProviderHistoryAsync(thread, currentContextWindowId, retain: false, ct);
+
+    internal Task<ProviderHistorySnapshot> LoadResidentProviderHistoryAsync(
+        SessionThread thread,
+        string currentContextWindowId,
+        CancellationToken ct = default) =>
+        LoadProviderHistoryAsync(thread, currentContextWindowId, retain: true, ct);
+
+    private async Task<ProviderHistorySnapshot> LoadProviderHistoryAsync(
+        SessionThread thread,
+        string currentContextWindowId,
+        bool retain,
+        CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(thread);
         if (thread.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion)
@@ -343,16 +377,14 @@ public sealed partial class ThreadStore : IAsyncDisposable
                 $"responses_provider_history_corrupt: Thread '{thread.Id}' uses unsupported provider history schema version {thread.ProviderHistorySchemaVersion}.");
         }
 
-        var records = await _rolloutStore.LoadProviderHistoryRecordsAsync(thread.Id, ct);
-        var checkpoints = await _rolloutStore.LoadCompactionCheckpointsAsync(thread.Id, ct);
-        var latestCheckpoint = checkpoints.LastOrDefault();
+        var (records, latestCheckpointAt) = await ReadProviderHistoryInputsAsync(thread.Id, retain, ct);
         var latestReplacementTimestamp = records
             .Where(static record => record.ProviderHistoryReplaced is not null)
             .Select(static record => (DateTimeOffset?)record.Timestamp)
             .LastOrDefault();
-        if (latestCheckpoint is not null
+        if (latestCheckpointAt is not null
             && (!latestReplacementTimestamp.HasValue
-                || latestCheckpoint.CreatedAt > latestReplacementTimestamp.Value))
+                || latestCheckpointAt.Value > latestReplacementTimestamp.Value))
         {
             // The rollout checkpoint is authoritative. A process may have stopped after committing
             // it but before publishing the derived provider-history replacement. Returning an empty
@@ -376,7 +408,9 @@ public sealed partial class ThreadStore : IAsyncDisposable
         CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, payload.ThreadId, ct);
-        var result = await _rolloutStore.AppendProviderHistoryItemsAsync(payload, ct);
+        var result = await WriteProviderHistoryAsync(
+            payload.ThreadId,
+            () => _rolloutStore.AppendProviderHistoryItemsAsync(payload, ct));
         await TryUpdateRolloutOffsetProjectionAsync(payload.ThreadId, result, ct);
     }
 
@@ -385,7 +419,9 @@ public sealed partial class ThreadStore : IAsyncDisposable
         CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, payload.ThreadId, ct);
-        var result = await _rolloutStore.AppendProviderHistoryReplacementAsync(payload, ct);
+        var result = await WriteProviderHistoryAsync(
+            payload.ThreadId,
+            () => _rolloutStore.AppendProviderHistoryReplacementAsync(payload, ct));
         await TryUpdateRolloutOffsetProjectionAsync(payload.ThreadId, result, ct);
     }
 
@@ -394,27 +430,20 @@ public sealed partial class ThreadStore : IAsyncDisposable
         CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, payload.ThreadId, ct);
-        var result = await _rolloutStore.AppendProviderHistoryAttemptAbortedAsync(payload, ct);
+        var result = await WriteProviderHistoryAsync(
+            payload.ThreadId,
+            () => _rolloutStore.AppendProviderHistoryAttemptAbortedAsync(payload, ct));
         await TryUpdateRolloutOffsetProjectionAsync(payload.ThreadId, result, ct);
     }
 
     /// <summary>
     /// Rebuilds MEAI model history from canonical rollout records.
     /// </summary>
-    public async Task<List<ChatMessage>> LoadModelHistoryAsync(
-        string threadId,
-        CancellationToken ct = default)
-    {
-        return await RebuildModelHistoryFromRolloutAsync(threadId, ct);
-    }
-
     internal async Task<List<ChatMessage>> LoadModelHistoryAsync(
         SessionThread thread,
         string? excludedTurnId = null,
-        CancellationToken ct = default)
-    {
-        return await RebuildModelHistoryFromRolloutAsync(thread, excludedTurnId, ct);
-    }
+        CancellationToken ct = default) =>
+        (await RebuildModelHistoryFromRolloutAsync(thread, excludedTurnId, ct)).History;
 
     /// <summary>
     /// Loads the persisted context-window usage token count for a thread.
@@ -816,6 +845,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
         if (rolloutPath == null)
             return null;
 
+        Interlocked.Increment(ref _rolloutReplayCount);
         var replayed = await _rolloutReplayer.ReplayModelHistoryAsync(
             rolloutPath,
             thread.Turns,
@@ -825,22 +855,12 @@ public sealed partial class ThreadStore : IAsyncDisposable
         return replayed.WorldState;
     }
 
-    private async Task<List<ChatMessage>> RebuildModelHistoryFromRolloutAsync(
-        string threadId,
-        CancellationToken ct)
-    {
-        var thread = await _rolloutStore.LoadThreadAsync(threadId, ct);
-        if (thread == null)
-            return [];
-
-        return await RebuildModelHistoryFromRolloutAsync(thread, excludedTurnId: null, ct);
-    }
-
-    private async Task<List<ChatMessage>> RebuildModelHistoryFromRolloutAsync(
+    private async Task<(List<ChatMessage> History, bool Projected)> RebuildModelHistoryFromRolloutAsync(
         SessionThread thread,
         string? excludedTurnId,
         CancellationToken ct)
     {
+        Interlocked.Increment(ref _rolloutReplayCount);
         var rolloutPath = _rolloutStore.ResolveExistingPath(thread.Id);
         var replayed = rolloutPath == null
             ? new ModelHistoryReplayResult([], HasModelHistoryRecords: false)
@@ -858,13 +878,17 @@ public sealed partial class ThreadStore : IAsyncDisposable
                     : $"Rollout model-history replay warning for turn '{warning.TurnId}' ({warning.Code}): {warning.Message}");
         }
         var fallbackTurns = thread.Turns
-            .Where(turn => !string.Equals(turn.Id, excludedTurnId, StringComparison.Ordinal));
+            .Where(turn => !string.Equals(turn.Id, excludedTurnId, StringComparison.Ordinal))
+            .ToList();
         var history = replayed.HasModelHistoryRecords
             ? replayed.Messages.ToList()
             : BuildModelVisibleHistoryFromTurns(fallbackTurns);
         history = MessageGrouper.NormalizeFunctionCallArguments(history).ToList();
+        var projected = replayed.HasModelHistoryRecords
+            ? replayed.FallbackTurnIds is { Count: > 0 }
+            : fallbackTurns.Count > 0;
 
-        return history;
+        return (history, projected);
     }
 
     private static bool TryDeserializeCheckpointHistory(

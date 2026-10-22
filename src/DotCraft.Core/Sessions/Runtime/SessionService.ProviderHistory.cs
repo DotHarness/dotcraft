@@ -98,7 +98,7 @@ public sealed partial class SessionService
             : ToOpaqueHistory(
                 runtime,
                 activeIdentity,
-                await persistence.LoadProviderHistoryAsync(
+                await persistence.LoadResidentProviderHistoryAsync(
                         thread,
                         activeIdentity.ContextWindowId,
                         ct)

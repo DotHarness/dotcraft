@@ -34,6 +34,7 @@ public sealed partial class SessionService
 
             if (!removed)
                 continue;
+            persistence.ReleaseResidentHistory(runtime.Thread.Id);
             await runtime.DisposeAsync().ConfigureAwait(false);
             unloaded++;
         }

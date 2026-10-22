@@ -30,12 +30,12 @@ public sealed partial class SessionService
     }
 
     private async Task<List<ChatMessage>?> TryLoadSurvivingModelHistoryAsync(
-        string threadId,
+        SessionThread thread,
         CancellationToken ct)
     {
         try
         {
-            return await persistence.LoadModelHistoryAsync(threadId, ct);
+            return (await LoadServerModelHistoryAsync(thread, excludedTurnId: null, ct)).History;
         }
         catch (OperationCanceledException)
         {
@@ -43,7 +43,7 @@ public sealed partial class SessionService
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Failed to reload model history after rollback for thread {ThreadId}", threadId);
+            logger?.LogWarning(ex, "Failed to reload model history after rollback for thread {ThreadId}", thread.Id);
         }
 
         return null;

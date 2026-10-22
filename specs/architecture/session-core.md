@@ -90,7 +90,7 @@ Fields:
 - `CreatedAt`, `LastActiveAt` — `LastActiveAt` updates when a Turn starts or completes.
 - `Metadata` — string map for channel-specific data. Preserved, never interpreted.
 - `Configuration` (nullable) — per-thread agent configuration (Section 12). Null means workspace defaults.
-- `Turns` — canonical visible Turn history. Rollback removes a visible tail; the rollout keeps the removed records.
+- `Turns` — the Thread's visible Turn history. Rollback removes a visible tail; the rollout keeps the removed records. A loaded runtime holds only its recent Turns (Section 9.8); complete history is read from the history projection.
 - `QueuedInputs` — persisted FIFO of inputs submitted while a Turn or blocking maintenance is active (Section 4.1.1.3).
 
 Naming: an explicit name wins. Otherwise the first eligible top-level user message supplies a provisional name (whitespace collapsed, truncated to 36 characters), after which Session Core makes one best-effort, non-blocking title request using the effective SubAgent model at low reasoning effort. The request asks for a `{ "title": ... }` JSON object; because some providers and gateways ignore the structured response format, a reply that is a single line of plain text is accepted as the title too, while multi-line or fenced replies are discarded. A generated title replaces the provisional name only if `DisplayName` still exactly equals it; failures and intervening renames leave the name unchanged, and generation is not retried. A fork uses an explicit fork name, else the source's name, else its first retained user message.
@@ -734,7 +734,7 @@ Each thread is an append-only JSONL rollout. Every line is a record `{ kind, tim
 
 Session Core reconstructs a Thread by replaying the rollout in order.
 
-A change is persisted as the records it produces. Queue changes append their `queued_input_*` record, and new or changed Items of a running Turn append `item_appended` against what that Turn has already persisted. Only lifecycle writes such as creation, configuration, and archive compare the Thread with its replayed rollout; Item and queue writes never read the rollout.
+A change is persisted as the records it produces. Queue changes append their `queued_input_*` record, and new or changed Items of a running Turn append `item_appended` against what that Turn has already persisted. No write reads the rollout: a loaded runtime remembers the baseline it last persisted and appends a new `thread_opened`, `thread_name_updated`, or `thread_status_changed` only for the fields that changed.
 
 `thread_opened.source` is a DotCraft-owned versioned union (`schemaVersion = 1`), not a serialized runtime type. The user variant stores `kind` and optional `spawnedFromThreadId`; the subagent variant also stores parent thread, root thread, parent turn, parent call, depth, path, task, nickname, role, profile, runtime, and all send, resume, message, follow-up, and close capabilities. A source or `GitInfo` change appends a new `thread_opened`; replay uses the latest. Every rollout begins with a canonical `thread_opened`. An unknown source schema version or structurally invalid source is an identity safety error that stops replay; it is never downgraded to an ordinary user thread.
 
@@ -745,7 +745,7 @@ The rollout is the sole authority for both the domain model and optimized model-
 The domain history and the model history are distinct durable representations: `turn_state_replaced` preserves client-visible Turn and Item state; `model_history_messages_appended` preserves the exact provider-facing message sequence. Neither must be losslessly derivable from the other, and model metadata is not copied into Items merely to remove duplicate text.
 
 - **Append**: every successful mutation of server-managed model history appends its records to the same rollout before it is considered durable.
-- **Load**: resume supplies the replayed history directly to the agent.
+- **Load**: the first execution after a load reconstructs model history and world state with the bounded replayer, and the runtime keeps them in memory: each committed suffix is appended and each compaction replacement installed. Provider-history records are kept in memory by the thread store as they are written. Later Turns never read the rollout to build a request. The in-memory model history is valid only while no other model-history write has occurred and it covers exactly the surviving Turns; otherwise, and after unload, the next execution replays again. Turns rebuilt from their Items on replay (imported or synthetic Turns) are never kept.
 - **Fork**: a persistent fork writes its materialized model history into its own rollout.
 
 A successful context replacement has one recoverable commit boundary: the compaction checkpoint and replacement history are committed before derived context-usage, provider-history, context-window, or cache projections are published. Recovery replays the checkpoint and repairs the derived projections; it never pairs a new provider window with pre-compaction history or compacted history with an unrelated provider prefix. In-memory history and UI notifications become observable only after the commit.
@@ -811,14 +811,14 @@ Records leave the pending suffix only after their complete lines are written. On
 
 ### 9.3.2 Bounded Model-History Replay
 
-One shared, read-only replayer selects model history for runtime hydration and current-context export. It takes a rollout path, the ordered surviving Turns, an optional excluded current Turn, and the expected Thread id. The path must resolve under `.craft/threads/{active,archived}`, and the canonical `thread_opened` identity and every model-history and checkpoint payload must match the expected Thread id. For uncompressed JSONL it scans backward in bounded blocks and stops at the newest decodable `context_compacted` whose covered Turn survives. The result is the checkpoint replacement followed by later model-history messages in physical order, including later messages of the covered Turn.
+One shared, read-only replayer selects model history for runtime hydration and current-context export. It takes a rollout path, the ordered surviving Turn ids (from the history projection), an optional excluded current Turn, and the expected Thread id. The path must resolve under `.craft/threads/{active,archived}`, and the canonical `thread_opened` identity and every model-history and checkpoint payload must match the expected Thread id. For uncompressed JSONL it scans backward in bounded blocks and stops at the newest decodable `context_compacted` whose covered Turn survives. The result is the checkpoint replacement followed by later model-history messages in physical order, including later messages of the covered Turn.
 
 - Malformed lines, records, batches, and contents are rejected individually: skipped, counted, and reported as a structured warning without protected or extension payloads. If a rejected record belongs to a Turn, that Turn's entire model-visible contribution is rebuilt from its Items, never mixed with its valid exact batches. Other Turns keep exact history.
 - An invalid checkpoint is discarded whole and scanning continues to an earlier one. Without a usable checkpoint the scan reaches the start and recovers every decodable surviving record, without first materializing a second complete domain thread. A surviving tail Turn with no exact records also uses the Item projection.
 - Canonical `thread_opened` source-schema errors stay fail-fast.
 - The result reports messages, warnings, rejected-record count, fallback Turn ids, bytes read, and decoded-record count.
 
-Full forward domain replay remains for operations that need complete canonical state. UI history reads use the paged projection (Section 9.4.2).
+Full forward domain replay is limited to recovery export, current-context export, and projection rebuilds. UI history reads and runtime operations use the paged projection (Section 9.4.2).
 
 ### 9.3.3 Rollout Observability and Search Safety
 
@@ -839,9 +839,9 @@ Full forward domain replay remains for operations that need complete canonical s
 
 Discovery runs a filesystem-first read-repair pass, then reads the SQLite thread metadata projection. Rollouts remain canonical; summary rows are derived.
 
-Each metadata row records the confirmed rollout byte offset from the flush that produced it. Discovery enumerates active and archived rollouts and compares paths and lengths with SQLite. Matching rows need no rollout read; a missing row, changed path, shortened file, or mismatched offset replays only that rollout. Concurrent initial discovery shares one reconciliation.
+Each metadata row records the confirmed rollout byte offset from the flush that produced it. Discovery enumerates active and archived rollouts and compares paths and lengths with SQLite. Matching rows need no rollout read; a mismatched offset projects only the unprojected suffix, and a missing row, changed path, or shortened file rebuilds that thread's projection. Concurrent initial discovery shares one reconciliation.
 
-If SQLite listing or repair is unavailable, discovery returns summaries built from the readable rollouts and records a diagnostic warning; it never infers or migrates non-canonical paths. Rows whose rollout is absent are omitted but not deleted by read-repair. SQLite projections never participate in model-history reconstruction.
+If SQLite listing or repair is unavailable, discovery returns summaries built from each readable rollout's latest `thread_opened` and name and status records and records a diagnostic warning; it never infers or migrates non-canonical paths. Rows whose rollout is absent are omitted but not deleted by read-repair. SQLite projections never participate in model-history reconstruction.
 
 Each discovered thread summary returns `Id`, `Status`, `OriginChannel`, `ChannelContext`, `UserId`, `WorkspacePath`, `DisplayName`, `CreatedAt`, `LastActiveAt`, and `TurnCount`.
 
@@ -859,11 +859,11 @@ Each discovered thread summary returns `Id`, `Status`, `OriginChannel`, `Channel
 
 Thread rows store their rollout path relative to the data directory and record no workspace path. Read-repair updates only thread metadata and attachment references; it never touches business authority, continuity state, diagnostics, or unrelated tables. Losing `state.db` is partial data loss: conversations recover from rollouts, while goals, plans, graph edges, and mailbox state do not.
 
-Projection repair and terminal Turn commits update thread metadata, attachment references, and their offsets only after the rollout flush succeeds; each projection advances its own offset in the transaction that publishes its state. Attachment projection uncertainty disables attachment garbage collection until a later successful repair. Each thread row records the attachment index version that produced its references, and repair reprojects older versions even when the offset matches, so references exist before the orphan sweep may delete anything.
+Thread metadata (Turn count, first user message, token totals) and attachment references are derived by the history projection from the records it applies, never from an in-memory Thread. Projection repair and every write update them and their offsets only after the rollout flush succeeds; each projection advances its own offset in the transaction that publishes its state. Attachment projection uncertainty disables attachment garbage collection until a later successful repair. Each thread row records the attachment index version that produced its references, and repair reprojects older versions even when the offset matches, so references exist before the orphan sweep may delete anything.
 
 ### 9.4.2 Paged Thread History Projection
 
-Persisted display history is read from a rebuildable SQLite projection. Display reads never materialize a complete Thread or replay a complete rollout to return a Thread header, a Turn page, or an Item page. Execution, resume, rollback, compaction, and fork still use canonical replay when they need complete state.
+Persisted display history is read from a rebuildable SQLite projection. Display reads never materialize a complete Thread or replay a complete rollout to return a Thread header, a Turn page, or an Item page. Execution, resume, rollback, compaction, and fork read older Turns from this projection or model history through the bounded replayer; none replays the complete rollout.
 
 The projection has one state row per Thread (rollout path, projected offset, next rollout ordinal, Thread snapshot without Turns, persisted runtime summary), one row per Turn (without Items), and one row per Item (keyed within its Turn, with its original and most recent rollout ordinal). All rows cascade from the owning thread row. Turns page by `(thread_id, rollout_ordinal)`; Items page by thread or by `(thread, turn)`. Process-local maintenance state is overlaid on the runtime summary at read time. These encodings are internal projections, not new authorities.
 
@@ -898,6 +898,7 @@ Read-only query operations:
 - `ReadThreadSnapshot(threadId)` — Thread header and persisted runtime.
 - `ListThreadTurns(threadId, cursor, limit, direction)` — one ordered Turn page without Items.
 - `ListThreadItems(threadId, turnId?, cursor, limit, direction)` — one ordered Item page with owning Turn ids.
+- `ReadThreadItem(threadId, turnId, itemId)` — one Item, for actions on an older Item such as opening a View.
 
 Projection telemetry contains no content, provider payload, or raw identifier: hits, incremental repairs, full rebuilds, failures by reason, query duration, row counts, repair bytes and records, and `ThreadHistoryUnavailable` counts. Healthy first and last pages over a large history must equal canonical replay, must not open the rollout, and use memory proportional to page size plus the largest single record.
 
@@ -944,6 +945,16 @@ The resume steps are in Section 5.5.
 - Rollback resets the Thread's runtime state. It is not a Turn completion and produces no Turn-completion notification.
 - Removed Turn sequence numbers are not reused: replay scans every valid `turn_started`, including rolled-back ones, before allocating a new id.
 - Successful rollback also records a maintenance trace event; Dashboard de-duplicates it with the rollout-derived operation.
+
+### 9.8 Loaded Thread Runtime
+
+A loaded Thread keeps a bounded working set, independent of how long its history is:
+
+- the Thread header, queued inputs, the persisted baseline, and counters for Turn count and the Turn sequence high watermark;
+- the active Turn, if any, and the most recent terminal Turn, which answer queue pause, plan confirmation, and newest-terminal-Turn questions;
+- after the first execution, the model history and world-state baseline, with provider-history records held by the thread store (Section 9.3).
+
+Loading reads the projected header, counters, and the most recent Turns; it never replays the complete rollout. An operation that needs older Turns or Items reads them from the projection when it runs: fork copies the forked prefix, import compares against projected Turns, and actions on an older Item (such as opening a View or recording a late background result) address that Item through the projection and append their records without loading its Turn. History-wide aggregates (token totals, tool-call counts) are maintained by the projection and read from it.
 
 ## 10. Approval Flow Integration
 

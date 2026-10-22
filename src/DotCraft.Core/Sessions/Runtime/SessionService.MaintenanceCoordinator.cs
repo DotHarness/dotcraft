@@ -66,7 +66,7 @@ public sealed partial class SessionService
             {
                 await owner.EnsurePerThreadAgentIfMissingAsync(threadId, thread, maintenanceCt);
                 var agent = owner.GetThreadAgentOrDefault(threadId);
-                var session = await owner.Persistence.LoadModelHistoryAsync(threadId, maintenanceCt);
+                var (session, _) = await owner.LoadServerModelHistoryAsync(thread, excludedTurnId: null, maintenanceCt);
                 var coordinator = GetCompactionCoordinatorForThread(thread);
                 var historyForEstimate = PrepareProviderVisibleHistory(
                     SnapshotSessionHistory(session, thread)).ToList();
@@ -282,6 +282,7 @@ public sealed partial class SessionService
                                     status.ThresholdBefore.Tokens,
                                     status.ThresholdAfter.Tokens),
                                 maintenanceCt);
+                            owner.InstallResidentModelHistoryReplacement(thread, coveredTurn.Id, pendingNeutralReplacement);
                             session.Clear();
                             session.AddRange(pendingNeutralReplacement);
                         }

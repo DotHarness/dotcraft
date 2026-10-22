@@ -156,7 +156,14 @@ public sealed partial class ThreadStore
                     $"Thread '{expectedThreadId}' already exists.");
             }
 
-            return await InstallValidatedRecoveryAsync(validated, ct);
+            try
+            {
+                return await InstallValidatedRecoveryAsync(validated, ct);
+            }
+            finally
+            {
+                InvalidateResidentHistory(expectedThreadId);
+            }
         }
         finally
         {

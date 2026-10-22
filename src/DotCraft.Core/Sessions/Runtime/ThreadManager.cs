@@ -107,6 +107,8 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
 
     public IReadOnlyList<ChatMessage>? EphemeralHistory { get; set; }
 
+    public ResidentModelHistory? ResidentModelHistory { get; set; }
+
     public McpClientManager? McpManager { get; set; }
 
     public IReadOnlyList<McpServerConfig> GetBindingMcpServers()
