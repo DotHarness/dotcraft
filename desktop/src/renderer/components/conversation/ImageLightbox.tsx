@@ -49,7 +49,7 @@ export function ImageLightbox({ images: gallery, initialIndex, onClose }: ImageL
   const image = gallery[Math.min(index, gallery.length - 1)]
   const [resolved, setResolved] = useState<{ key: string; src: string } | null>(null)
   const [failedKey, setFailedKey] = useState<string | null>(null)
-  const [natural, setNatural] = useState<{ width: number; height: number } | null>(null)
+  const [loaded, setLoaded] = useState<{ key: string; width: number; height: number } | null>(null)
   const [zoom, setZoom] = useState<number | null>(null)
   const [fitPercent, setFitPercent] = useState(100)
   const [overflowing, setOverflowing] = useState(false)
@@ -64,6 +64,7 @@ export function ImageLightbox({ images: gallery, initialIndex, onClose }: ImageL
   const backdropPressRef = useRef<{ x: number; y: number } | null>(null)
 
   const currentSrc = image.src ?? (resolved?.key === image.key ? resolved.src : undefined)
+  const natural = loaded?.key === image.key ? loaded : null
   const failed = failedKey === image.key
   const effectiveZoom = zoom ?? fitPercent
   const displayedZoom = Math.round(effectiveZoom)
@@ -73,7 +74,6 @@ export function ImageLightbox({ images: gallery, initialIndex, onClose }: ImageL
   const menuOpen = imageMenu != null
 
   useEffect(() => {
-    setNatural(null)
     if (image.src) return
     let cancelled = false
     resolveGalleryImageSrc(image)
@@ -376,7 +376,7 @@ export function ImageLightbox({ images: gallery, initialIndex, onClose }: ImageL
                 draggable={false}
                 onLoad={(event) => {
                   const img = event.currentTarget
-                  setNatural({ width: img.naturalWidth, height: img.naturalHeight })
+                  setLoaded({ key: image.key, width: img.naturalWidth, height: img.naturalHeight })
                 }}
                 onError={() => setFailedKey(image.key)}
                 onContextMenu={(event) => {
