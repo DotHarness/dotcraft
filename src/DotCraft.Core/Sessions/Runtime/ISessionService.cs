@@ -121,7 +121,7 @@ public interface ISessionService
     Task<ThreadGoal?> GetThreadGoalAsync(string threadId, CancellationToken ct = default) =>
         throw new NotSupportedException("Thread goals are not supported by this session service.");
 
-    /// <summary>Returns a Thread's stored goal without loading the Thread, for summary listings.</summary>
+    /// <summary>Returns a Thread's stored goal without loading the Thread, for read projections.</summary>
     Task<ThreadGoal?> GetStoredThreadGoalAsync(string threadId, CancellationToken ct = default) =>
         GetThreadGoalAsync(threadId, ct);
 
@@ -399,6 +399,9 @@ public interface ISessionService
 
     /// <summary>Returns whether a loaded Thread is hidden; unloaded Threads report false.</summary>
     bool IsHiddenThread(string threadId) => false;
+
+    /// <summary>Returns the Thread when it is loaded in this process, without loading it.</summary>
+    SessionThread? TryGetLoadedThread(string threadId) => null;
 
     /// <summary>Notifies hosts after a Thread is created and persisted.</summary>
     Action<SessionThread>? ThreadCreatedForBroadcast { get; set; }

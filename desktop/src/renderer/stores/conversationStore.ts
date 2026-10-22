@@ -1219,9 +1219,9 @@ function buildToolLikeItem(
       ?? (payload.functionName as string | undefined),
     contentItems,
     structuredResult,
-    mcpAppAvailable:
-      type === 'mcpToolCall'
-      && (item.mcpApp as { available?: unknown } | undefined)?.available === true,
+    mcpAppResourceUri: type === 'mcpToolCall'
+      ? (payload.mcpAppResourceUri as string | undefined)
+      : undefined,
     meta,
     toolUi,
     errorCode: (item.errorCode as string | undefined)
@@ -2612,7 +2612,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
                       functionName: completedItem.functionName ?? i.functionName,
                       contentItems: completedItem.contentItems ?? i.contentItems,
                       structuredResult: completedItem.structuredResult ?? i.structuredResult,
-                      mcpAppAvailable: completedItem.mcpAppAvailable ?? i.mcpAppAvailable,
+                      mcpAppResourceUri: completedItem.mcpAppResourceUri ?? i.mcpAppResourceUri,
                       meta: completedItem.meta ?? i.meta,
                       toolUi: completedItem.toolUi ?? i.toolUi,
                       errorCode: completedItem.errorCode ?? i.errorCode,

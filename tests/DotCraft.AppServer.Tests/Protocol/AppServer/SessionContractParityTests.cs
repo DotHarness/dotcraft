@@ -10,7 +10,6 @@ using DotCraft.Sessions.Wire;
 using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
 using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
-using McpAppViewHintSnapshot = DotCraft.Sessions.Wire.McpAppViewHintSnapshot;
 using SenderContext = DotCraft.Sessions.SenderContext;
 using ChannelBoundBy = DotCraft.AppBinding.ChannelBoundBy;
 using ChannelTarget = DotCraft.AppBinding.ChannelTarget;
@@ -71,8 +70,7 @@ public sealed class SessionContractParityTests
             CreatedAt = DateTimeOffset.Parse("2026-08-03T01:02:03Z"),
             CompletedAt = DateTimeOffset.Parse("2026-08-03T01:02:04Z"),
             PayloadKind = "agentMessage",
-            Payload = new AgentMessagePayload { Text = "done" },
-            McpApp = new McpAppViewHintSnapshot { Available = true }
+            Payload = new AgentMessagePayload { Text = "done" }
         };
         var turn = new SessionWireTurn
         {

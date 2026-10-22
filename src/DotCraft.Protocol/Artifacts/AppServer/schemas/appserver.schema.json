@@ -8557,19 +8557,6 @@
       },
       "additionalProperties": true
     },
-    "McpAppViewHint": {
-      "title": "McpAppViewHint",
-      "type": "object",
-      "properties": {
-        "available": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "available"
-      ]
-    },
     "McpAppViewMessageParams": {
       "title": "McpAppViewMessageParams",
       "type": "object",
@@ -13479,16 +13466,6 @@
         },
         "id": {
           "type": "string"
-        },
-        "mcpApp": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/McpAppViewHint"
-            },
-            {
-              "type": "null"
-            }
-          ]
         },
         "payload": {},
         "payloadKind": {

@@ -342,19 +342,9 @@ internal sealed partial class ThreadRequestHandler(
     {
         RejectRemovedFields(request.Params.ExtensionData, "includeTurns", "turnLimit", "cursor");
         var snapshot = await sessionService.ReadThreadSnapshotAsync(request.Params.ThreadId, ct);
-        var thread = snapshot.Thread;
-        var baseWire = thread.ToWire(includeTurns: false) with
-        {
-            Runtime = snapshot.PersistedRuntime.ToWireRuntimeState()
-        };
-        var wire = await threadProjector.WithPlanAsync(
-            threadProjector.WithContextUsage(baseWire, thread.Id),
-            thread.Id,
-            ct);
         var result = new Contract.ThreadReadResult
         {
-            Thread = AppServerContractMapper.ToContract(
-                await threadProjector.EnrichAsync(wire, thread, ct))
+            Thread = AppServerContractMapper.ToContract(await threadProjector.ProjectHeaderAsync(snapshot, ct))
         };
         return AppServerTypedResult<Contract.ThreadReadResult>.FromResult(result);
     }
@@ -421,7 +411,7 @@ internal sealed partial class ThreadRequestHandler(
             throw AppServerErrors.Unsupported(ex.Message);
         }
         var snapshot = await sessionService.ReadThreadSnapshotAsync(p.ThreadId, ct);
-        var projected = await threadProjector.ProjectHistoryItemsAsync(snapshot.Thread, page.Data, ct);
+        var projected = threadProjector.ProjectHistoryItems(snapshot.Thread, page.Data);
         return AppServerTypedResult<Contract.ThreadItemsListResult>.FromResult(new()
         {
             Data = projected.Select(entry => new Contract.ThreadItemListEntry
@@ -659,12 +649,8 @@ internal sealed partial class ThreadRequestHandler(
     {
         try
         {
-            var thread = await sessionService.GetThreadAsync(threadId, CancellationToken.None);
-            await ReplayPendingInteractiveRequestsAsync(thread);
-        }
-        catch (KeyNotFoundException)
-        {
-            // The thread may have been deleted between subscribe/resume and replay.
+            if (sessionService.TryGetLoadedThread(threadId) is { } thread)
+                await ReplayPendingInteractiveRequestsAsync(thread);
         }
         catch (Exception ex)
         {

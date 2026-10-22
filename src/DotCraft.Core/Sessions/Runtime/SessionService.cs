@@ -482,6 +482,10 @@ public sealed partial class SessionService(
         _runtimeRegistry.TryGetThread(threadId, out var thread) && ThreadVisibility.IsHidden(thread);
 
     /// <inheritdoc/>
+    public SessionThread? TryGetLoadedThread(string threadId) =>
+        _runtimeRegistry.TryGetThread(threadId, out var thread) ? thread : null;
+
+    /// <inheritdoc/>
     public async Task<SessionThread> ForkThreadAsync(
         string threadId,
         ThreadForkOptions? options = null,
@@ -1338,7 +1342,7 @@ public sealed partial class SessionService(
 
             var interruptedTurn = thread.Turns.SingleOrDefault(static turn =>
                 turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
-            var persistedModelHistory = await persistence.LoadModelHistoryAsync(threadId, ct);
+            var persistedModelHistory = await persistence.LoadModelHistoryAsync(thread, excludedTurnId: null, ct);
             await ReconcilePersistedInputHistoryAsync(thread, persistedModelHistory, ct);
             if (interruptedTurn != null)
             {
@@ -1551,10 +1555,7 @@ public sealed partial class SessionService(
         await PersistThreadIfMaterializedAsync(thread, ct);
     }
 
-    private ThreadEventBroker GetOrCreateBroker(string threadId) =>
-        _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
-            ? runtime.Broker
-            : new ThreadEventBroker(threadId);
+    private ThreadEventBroker GetOrCreateBroker(string threadId) => _runtimeRegistry.GetBroker(threadId);
 
     /// <summary>
     /// Returns or creates an <see cref="AgentModeManager"/> for the given thread,

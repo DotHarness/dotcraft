@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.9.2 |
 | **Status** | Living |
-| **Date** | 2026-10-20 |
+| **Date** | 2026-10-22 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -413,8 +413,8 @@ Desktop consumes the exact `PresentationId` projected by the server. An active D
 
 Desktop hosts stable MCP Apps `2026-01-26` Views through the standard AppBridge lifecycle (initialize/initialized, ping, notifications, teardown). Interactive UI is optional: ineligible items, unsupported clients, offline resources, initialization failures, and revoked Views render the tool result's text fallback.
 
-- Desktop opens a View only for a terminal `mcpToolCall` whose current projection advertises availability, via `mcpApp/view/open`, then connects the bridge, loads the isolated sandbox proxy, delivers the validated resource, waits for View initialization, and supplies tool input and result. Each stage has a bounded wait and one teardown path. History and reconnect create a new View on demand; no previous handle or bridge state is restored.
-- Availability is independent of tool success: with `mcpApp.available = true`, Desktop opens the View even for a failed result and delivers the original content and `isError` unchanged.
+- Desktop opens a View for a terminal `mcpToolCall` whose `mcpAppResourceUri` is a `ui://` URI, via `mcpApp/view/open`, then connects the bridge, loads the isolated sandbox proxy, delivers the validated resource, waits for View initialization, and supplies tool input and result. Each stage has a bounded wait and one teardown path. History and reconnect create a new View on demand; no previous handle or bridge state is restored.
+- Opening is independent of tool success: Desktop opens the View even for a failed result and delivers the original content and `isError` unchanged. When `view/open` rejects the item, Desktop renders the tool result fallback.
 - Inline and fullscreen modes share one handle; picture-in-picture and persisted widget state are not supported. Host context (theme, locale, time zone, dimensions, display mode, CSS variables) and size changes are rate-limited. Reported inline width describes the iframe viewport, so applying it is idempotent; fullscreen ignores resize requests.
 - The View runs in an opaque-origin sandbox with CSP, navigation, permission, and capability restrictions. It has no Electron, Node, filesystem, shell, parent DOM, generic IPC, undeclared network, or cross-server authority; camera, microphone, geolocation, and clipboard-write remain denied. It may use same-server app-visible tools and resources, logging, `ui/message`, and `ui/update-model-context` only through the handle-bound bridge, and tool calls still pass server authority, policy, approval, hooks, and limits. Bridge messages and View logs are size- and rate-limited.
 - `ui/open-link` URLs are validated and normalized by AppServer before the trusted shell opens them. Offline, revoked, and closed notifications tear down the View and restore fallback.

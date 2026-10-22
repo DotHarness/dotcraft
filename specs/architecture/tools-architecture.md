@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.1 |
+| Version | 0.9.2 |
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-10-22 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 
 ## 1. Purpose
@@ -461,7 +461,7 @@ Visibility is read only from nested `_meta.ui`. An empty array means neither aud
 
 UI linkage uses `_meta.ui.resourceUri`; `_meta["ui/resourceUri"]` is accepted only when the nested field is absent, and an invalid nested declaration fails closed rather than falling back to the alias. The URI MUST be absolute `ui://`. The response MUST match that URI, use `text/html;profile=mcp-app`, and contain exactly one text document or base64 blob.
 
-MCP App presentation has three lifetimes. The normalized `ui://` association and bounded result are persisted with the terminal `McpToolCall`. Availability is derived from the current definition, runtime, and authority whenever a client projects the item; AppServer may project non-persistent `mcpApp.available = true` as advisory evidence, never as reusable authority. The View document, bridge connection, resource body, and opaque `viewHandle` exist only for one active View and are never persisted.
+MCP App presentation has three lifetimes. The normalized `ui://` association and bounded result are persisted with the terminal `McpToolCall`. Availability is decided only when a client opens the View, against the current definition, runtime, and authority; projections expose the persisted association and never inspect the live runtime. The View document, bridge connection, resource body, and opaque `viewHandle` exist only for one active View and are never persisted.
 
 Core issues a new opaque `viewHandle` for every View, resolving to immutable server/session, authority revision, `SourceToolId`, and resource URI. The View sends only stable MCP Apps messages, allowed tool names/arguments, and the handle; it cannot select server, session, binding, source tool, or resource URI.
 

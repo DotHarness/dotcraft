@@ -101,7 +101,7 @@ function item(available = true, id = 'item-1'): ConversationItem {
     createdAt: new Date(0).toISOString(),
     toolName: 'chart',
     result: 'fallback',
-    mcpAppAvailable: available
+    mcpAppResourceUri: available ? 'ui://chart/view' : undefined
   }
 }
 
@@ -366,12 +366,24 @@ describe('McpAppView', () => {
     }))
   })
 
-  it('does not request a View when current authority is unavailable and shows the generic fallback state', () => {
+  it('does not request a View for an item without a persisted UI resource and shows the generic fallback state', () => {
     const { container } = render(<LocaleProvider><McpAppView item={item(false)} threadId="thread-1" turnId="turn-1" /></LocaleProvider>)
     expect(sendRequest).not.toHaveBeenCalledWith('mcpApp/view/open', expect.anything(), expect.anything())
     expect(container.querySelector('iframe')).toBeNull()
     expect(container.textContent).toContain('Interactive view is currently unavailable.')
     expect(container.textContent).toContain('fallback')
+  })
+
+  it('shows the generic fallback when the server reports the item stale', async () => {
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'mcpApp/view/open') {
+        throw Object.assign(new Error('not eligible'), { data: { code: 'stale' } })
+      }
+      return {}
+    })
+    const { container } = render(<LocaleProvider><McpAppView item={item()} threadId="thread-1" turnId="turn-1" /></LocaleProvider>)
+    await vi.waitFor(() => expect(container.textContent).toContain('Interactive view is currently unavailable.'))
+    expect(container.querySelector('iframe')).toBeNull()
   })
 
   it('fails closed and tears down when the iframe sends an oversized bridge envelope', async () => {

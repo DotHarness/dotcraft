@@ -701,6 +701,9 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
     public async Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default) =>
         await GetOrLoadAsync(threadId, ct);
 
+    public SessionThread? TryGetLoadedThread(string threadId) =>
+        _cache.TryGetValue(threadId, out var thread) ? thread : null;
+
     public Task<IReadOnlyList<string>> GetInstructionSourcesAsync(
         string threadId,
         CancellationToken ct = default) =>

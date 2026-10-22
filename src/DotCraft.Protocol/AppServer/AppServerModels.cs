@@ -977,17 +977,6 @@ public sealed class SessionItem : ExtensibleJsonObject
     [JsonPropertyName("payload")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<JsonElement?> Payload { get; init; }
-
-    [JsonPropertyName("mcpApp")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public McpAppViewHint? McpApp { get; init; }
-}
-
-/// <summary>Indicates that a terminal MCP item can currently open a new MCP App view.</summary>
-public sealed class McpAppViewHint : ExtensibleJsonObject
-{
-    [JsonPropertyName("available")]
-    public required bool Available { get; init; }
 }
 
 /// <summary>Wire snapshot of a turn.</summary>

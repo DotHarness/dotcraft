@@ -190,7 +190,7 @@ export interface ConversationItem {
   contentItems?: PluginFunctionContentItem[]
   structuredResult?: unknown
   /** True only on the connection that received this terminal MCP item live. */
-  mcpAppAvailable?: boolean
+  mcpAppResourceUri?: string
   /** Read-only App Binding host metadata; never interpreted as MCP Apps authority. */
   meta?: Record<string, unknown>
   /** Read-only private iframe descriptor. Provenance is required before use. */
@@ -735,9 +735,9 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
       ?? (payload.functionName as string | undefined),
     contentItems: invocationContentItems ?? toolResultContentItems,
     structuredResult: invocationStructuredResult,
-    mcpAppAvailable:
-      type === 'mcpToolCall'
-      && (raw.mcpApp as { available?: unknown } | undefined)?.available === true,
+    mcpAppResourceUri: type === 'mcpToolCall'
+      ? (payload.mcpAppResourceUri as string | undefined)
+      : undefined,
     meta: invocationMeta,
     toolUi: invocationToolUi,
     errorCode: (raw.errorCode as string | undefined)

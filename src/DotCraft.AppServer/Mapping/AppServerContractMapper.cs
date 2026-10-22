@@ -117,11 +117,7 @@ public static class AppServerContractMapper
             : Optional<JsonElement?>.FromValue(JsonSerializer.SerializeToElement(
                 value.Payload,
                 value.Payload.GetType(),
-                SessionWireJsonOptions.Default)),
-        McpApp = value.McpApp is null ? null : new Contract.McpAppViewHint
-        {
-            Available = value.McpApp.Available
-        }
+                SessionWireJsonOptions.Default))
     };
 
     public static Contract.ThreadGoal ToContract(ThreadGoalSnapshot value) =>

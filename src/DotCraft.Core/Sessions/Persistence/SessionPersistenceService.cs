@@ -39,6 +39,8 @@ public sealed class SessionPersistenceService(
     public Task SaveThreadAsync(SessionThread thread, CancellationToken ct = default)
         => threadStore.SaveThreadAsync(thread, ct);
 
+    internal bool ThreadExists(string threadId) => threadStore.ThreadExists(threadId);
+
     internal Task SaveThreadBaselineAsync(SessionThread thread, CancellationToken ct = default)
         => threadStore.SaveThreadBaselineAsync(thread, ct);
 

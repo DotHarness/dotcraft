@@ -793,6 +793,8 @@ public sealed partial class ThreadStore : IAsyncDisposable
         }
     }
 
+    internal bool ThreadExists(string threadId) => _rolloutStore.ResolveExistingPath(threadId) != null;
+
     private string ResolvePersistedHistoryPath(string threadId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);

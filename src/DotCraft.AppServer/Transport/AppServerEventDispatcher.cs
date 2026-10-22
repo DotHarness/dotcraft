@@ -24,8 +24,6 @@ public sealed class AppServerEventDispatcher
     private readonly IAppServerTransport _transport;
     private readonly SessionStreamDebugLogger? _streamDebugLogger;
     private readonly AppServerInteractiveRequestSender _interactiveRequests;
-    private readonly IThreadToolSnapshotService? _toolSnapshots;
-    private readonly IThreadMcpRuntimeService? _mcpRuntime;
     private bool _transportUnavailable;
 
     /// <summary>
@@ -67,8 +65,6 @@ public sealed class AppServerEventDispatcher
         _onTurnStarted = onTurnStarted;
         _streamDebugLogger = streamDebugLogger;
         _enrichThreadWire = enrichThreadWire;
-        _toolSnapshots = sessionService as IThreadToolSnapshotService;
-        _mcpRuntime = sessionService as IThreadMcpRuntimeService;
         _interactiveRequests = new AppServerInteractiveRequestSender(
             connection,
             transport,
@@ -148,13 +144,13 @@ public sealed class AppServerEventDispatcher
             case SessionEventType.TurnCompleted:
                 LogTurnCompletedSnapshot(evt);
                 if (CanSendToClient(method))
-                    await SendNotificationAsync(method, await BuildTerminalTurnParamsAsync(evt, ct), ct);
+                    await SendNotificationAsync(method, BuildTerminalTurnParams(evt), ct);
                 break;
 
             case SessionEventType.TurnFailed:
             case SessionEventType.TurnCancelled:
                 if (CanSendToClient(method))
-                    await SendNotificationAsync(method, await BuildTerminalTurnParamsAsync(evt, ct), ct);
+                    await SendNotificationAsync(method, BuildTerminalTurnParams(evt), ct);
                 break;
 
             case SessionEventType.ThreadStatusChanged:
@@ -170,7 +166,7 @@ public sealed class AppServerEventDispatcher
                 if (CanSendToClient(method))
                 {
                     var parameters = evt.EventType == SessionEventType.ItemCompleted
-                        ? await BuildItemCompletedParamsAsync(evt, ct).ConfigureAwait(false)
+                        ? BuildItemCompletedParams(evt)
                         : BuildParams(evt);
                     await SendNotificationAsync(method, parameters, ct);
                 }
@@ -188,65 +184,18 @@ public sealed class AppServerEventDispatcher
     private SessionWireThread? EnrichThreadWire(SessionWireThread? wire) =>
         wire is null || _enrichThreadWire is null ? wire : _enrichThreadWire(wire);
 
-    private async ValueTask<SessionWireItem?> ToLiveItemWireAsync(SessionEvent evt, CancellationToken cancellationToken)
-        => await ProjectCompletedItemAsync(
-            evt,
-            _connection.SupportsMcpApps,
-            _toolSnapshots,
-            _mcpRuntime,
-            cancellationToken).ConfigureAwait(false);
-
-    internal static async ValueTask<SessionWireItem?> ProjectCompletedItemAsync(
-        SessionEvent evt,
-        bool supportsMcpApps,
-        IThreadToolSnapshotService? toolSnapshots,
-        IThreadMcpRuntimeService? mcpRuntime,
-        CancellationToken cancellationToken)
-    {
-        var item = evt.ItemPayload;
-        var wire = item?.ToWire();
-        if (evt.EventType != SessionEventType.ItemCompleted
-            || evt.TurnId is not { Length: > 0 } turnId
-            || item is null
-            || wire is null
-            || !supportsMcpApps)
-            return wire;
-
-        var eligibility = await McpAppEligibilityResolver.ResolveAsync(
-            evt.ThreadId,
-            turnId,
-            item,
-            toolSnapshots,
-            mcpRuntime,
-            cancellationToken).ConfigureAwait(false);
-        if (eligibility is null)
-            return wire;
-
-        return wire with { McpApp = new McpAppViewHintSnapshot { Available = true } };
-    }
-
-    private async ValueTask<object> BuildItemCompletedParamsAsync(
-        SessionEvent evt,
-        CancellationToken cancellationToken) => new Contract.ItemNotification
+    private static object BuildItemCompletedParams(SessionEvent evt) => new Contract.ItemNotification
     {
         ThreadId = evt.ThreadId,
         TurnId = evt.TurnId,
         Item = AppServerContractMapper.ToContract(
-            await ToLiveItemWireAsync(evt, cancellationToken).ConfigureAwait(false)
+            evt.ItemPayload?.ToWire()
             ?? throw new InvalidOperationException("item/completed requires an item payload."))
     };
 
-    private async ValueTask<object> BuildTerminalTurnParamsAsync(
-        SessionEvent evt,
-        CancellationToken cancellationToken)
+    private object BuildTerminalTurnParams(SessionEvent evt)
     {
-        var turn = await ProjectTerminalTurnAsync(
-            evt.TurnPayload,
-            _connection.SupportsToolExecutionLifecycle,
-            _connection.SupportsMcpApps,
-            _toolSnapshots,
-            _mcpRuntime,
-            cancellationToken).ConfigureAwait(false);
+        var turn = ProjectTerminalTurn(evt.TurnPayload, _connection.SupportsToolExecutionLifecycle);
         return evt.EventType switch
         {
             SessionEventType.TurnFailed => new Contract.TurnNotification
@@ -269,13 +218,7 @@ public sealed class AppServerEventDispatcher
         };
     }
 
-    internal static async ValueTask<SessionWireTurn?> ProjectTerminalTurnAsync(
-        SessionTurn? turn,
-        bool supportsToolExecutionLifecycle,
-        bool supportsMcpApps,
-        IThreadToolSnapshotService? toolSnapshots,
-        IThreadMcpRuntimeService? mcpRuntime,
-        CancellationToken cancellationToken)
+    internal static SessionWireTurn? ProjectTerminalTurn(SessionTurn? turn, bool supportsToolExecutionLifecycle)
     {
         if (turn is null)
             return null;
@@ -283,26 +226,6 @@ public sealed class AppServerEventDispatcher
         var wire = turn.ToWire(includeItems: true);
         if (!supportsToolExecutionLifecycle)
             wire.Items?.RemoveAll(item => item.Type == ItemType.ToolExecution);
-        if (!supportsMcpApps || wire.Items is null)
-            return wire;
-
-        var context = await McpAppEligibilityResolver.CreateContextAsync(
-            turn.ThreadId,
-            toolSnapshots,
-            mcpRuntime,
-            cancellationToken).ConfigureAwait(false);
-        if (context is null)
-            return wire;
-
-        var sourceItems = turn.Items.ToDictionary(item => item.Id, StringComparer.Ordinal);
-        for (var index = 0; index < wire.Items.Count; index++)
-        {
-            var itemWire = wire.Items[index];
-            if (!sourceItems.TryGetValue(itemWire.Id, out var item)
-                || McpAppEligibilityResolver.Resolve(turn.Id, item, context) is null)
-                continue;
-            wire.Items[index] = itemWire with { McpApp = new McpAppViewHintSnapshot { Available = true } };
-        }
         return wire;
     }
 

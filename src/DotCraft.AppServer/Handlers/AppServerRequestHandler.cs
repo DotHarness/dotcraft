@@ -136,8 +136,6 @@ public sealed class AppServerRequestHandler(
             services.AppBindingService,
             services.ThreadOriginPresentationProviders,
             services.BuiltInPluginSourceRoots,
-            sessionService as IThreadToolSnapshotService,
-            sessionService as IThreadMcpRuntimeService,
             services.WorkspaceCraftPath);
 
     private AppServerMethodTable? _domainMethods;
@@ -222,7 +220,7 @@ public sealed class AppServerRequestHandler(
         new ThreadRequestHandler(sessionService, connection, transport, ResponseWriter, ThreadBinder, ThreadProjector, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProfileResolver, services.StreamDebugLogger, services.LoggerFactory?.CreateLogger<ThreadRequestHandler>()),
         new TurnRequestHandler(sessionService, connection, transport, ResponseWriter, _commandRegistry, services.SkillsLoader, SkillVariants, services.TraceStore, services.StreamDebugLogger, _defaultApprovalDecision, ThreadProjector, services.LoggerFactory?.CreateLogger<TurnRequestHandler>()),
         new WorktreeRequestHandler(sessionService, ResponseWriter, ThreadBinder, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProfileResolver, ThreadProjector.ProjectAsync),
-        new SubAgentRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, RuntimeConfig, (thread, wire, token) => ThreadProjector.EnrichAsync(wire, thread, token), services.SubAgentCoordinatorFactory, services.Contributions),
+        new SubAgentRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, RuntimeConfig, ThreadProjector.ProjectHeaderAsync, services.SubAgentCoordinatorFactory, services.Contributions),
         new UsageRequestHandler(services.UsageAnalytics, services.TraceStore, sessionService),
         new AutomationRequestHandler(services.AutomationsHandler),
     ];

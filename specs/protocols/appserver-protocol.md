@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.2 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-22 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -410,7 +410,7 @@ The candidate set is what `thread/list` with `scope = "workspace"` finds, never 
 
 Read the current Thread header without resuming it. Params: `threadId`. Result: `{ thread }`.
 
-`thread/read` is read-only: it does not resume execution, start background services, apply execution-time configuration, or replay the rollout. The header omits historical `turns`; current state such as `queuedInputs`, `runtime`, `plan`, and `contextUsage` is included when available. History is read only through `thread/turns/list` and `thread/items/list`.
+`thread/read` is read-only: it does not load the thread, resume execution, start background services, apply execution-time configuration, or replay the rollout. The header omits historical `turns`; current state such as `queuedInputs`, `runtime`, `goal`, `plan`, and `contextUsage` is included when available. History is read only through `thread/turns/list` and `thread/items/list`.
 
 - `plan`: the current persisted plan for the thread, in the `plan/updated` shape; clients use it to restore plan UI after switching threads.
 - `contextUsage`: context-window occupancy, not cumulative billing. `tokens` (approximate occupancy), `contextWindow` (effective denominator after budget and reserve rules, not the raw catalog window), `autoCompactThreshold`, `warningThreshold`, `errorThreshold`, `percentLeft` (0.0-1.0), and optional `source` and `isEstimate`. It also appears on `thread/start` and `thread/resume` results and matching notifications. New threads report `tokens = 0`; a thread without persisted occupancy omits it. Accounting follows [Session Core](../architecture/session-core.md#52-turn-lifecycle); replacement estimates follow [Context Compaction](../architecture/context-compaction.md#context-usage).
@@ -434,6 +434,7 @@ Read one page of provider-neutral Items. Params: `threadId`, optional `turnId` (
 - Pages apply the same connection-scoped presentation enrichment and filtering as live Item projection.
 - Provider-native recovery records (such as OpenAI Responses raw history) are never returned.
 - Fork, rollback, archive, unarchive, and worktree-fork results carry only Thread headers; clients invalidate affected cursors and reload pages.
+- For a thread not loaded in the process, a persisted Turn still `running`, `waitingApproval`, or `waitingInput` has no execution owner: `thread/read` and history pages report it as `cancelled` and `runtime` as idle. Storage changes only when the thread is next loaded (cold-load recovery, Section 4.2).
 - Ephemeral threads return `Unsupported`. If a consistent projection cannot be produced, the methods return `ThreadHistoryUnavailable`; there is no full-history fallback.
 
 ### 4.5 `thread/rollback`
@@ -444,9 +445,11 @@ Drop `numTurns` (≥ 1) turns from the end of a thread's history. The thread mus
 
 Subscribe the connection to future events for a thread; multiple passive subscribers may observe one thread. Params: `threadId`, `replayRecent` (default `false`; when `true` the server may replay a small recent buffer of turn, item, and supplemental events). Result: `{}`.
 
+Subscribing only registers the connection for the thread's live events. It does not load the thread, replay its rollout, build an agent, or run cold-load recovery; operations that execute or change the thread (`thread/resume`, `turn/start`, and similar) load it. A missing thread ends the subscription.
+
 After subscribing, the connection may receive `thread/*`, `turn/*`, and `item/*` notifications for turns it did not originate. Lifecycle status changes, including `thread/archived` and `thread/unarchived`, are never replayed; reconnecting clients read current status from `thread/read` or `thread/list`.
 
-If the thread is paused in `waitingApproval` or `waitingInput`, unresolved interactive requests are re-delivered with the same rules as `thread/resume`. Unsubscribing or switching threads never resolves, rejects, or answers an outstanding request.
+If a thread loaded in the process is paused in `waitingApproval` or `waitingInput`, unresolved interactive requests are re-delivered with the same rules as `thread/resume`. Unsubscribing or switching threads never resolves, rejects, or answers an outstanding request.
 
 ### 4.7 `thread/unsubscribe`
 
@@ -749,7 +752,7 @@ Emitted when the snapshot changes because a turn starts or ends, an approval or 
 | `turn/failed` | `{ turn, error }` | Unrecoverable error, including reaching the provider output-token limit before the answer completed. `turn.status = "failed"` and `turn.error` is set. |
 | `turn/cancelled` | `{ turn, reason }` | Cancelled by `turn/interrupt`, client disconnect, or cold-load recovery (reason `"interrupted"`, published only after the terminal Turn is durable). |
 
-Terminal Turn notifications project included items with the same non-persistent presentation hints as `item/completed` and `thread/items/list`; for example an eligible terminal `mcpToolCall` keeps `mcpApp.available = true`.
+Terminal Turn notifications project included items with the same connection-scoped filtering as `item/completed` and `thread/items/list`.
 
 #### `turn/diff/updated`
 
@@ -790,7 +793,7 @@ Canonical payload schemas are in [Session Core, Section 4.2](../architecture/ses
 
 Clients must treat `imageGeneration`, `webSearch`, `mcpToolCall`, and `dynamicToolCall` as self-contained lifecycle items and render `inProgress` as non-terminal. Ordinary `toolCall`/`toolResult` pairs may be merged into one row. `structuredContent` and `_meta` are never shown as model-history text by default.
 
-**MCP App availability**: on a terminal `mcpToolCall`, the server may add the non-persistent `mcpApp: { available: true }` when the connection advertised `capabilities.mcpApps` and the persisted UI association still matches the current tool definition, runtime, authority, and UI resource. It is availability evidence, not authority, may appear in live and history projections, and carries no URI or handle; clients obtain a handle only through `mcpApp/view/open`.
+**MCP App candidates**: a terminal `mcpToolCall` whose `mcpAppResourceUri` is an absolute `ui://` URI is an MCP App candidate. Projections never inspect the live runtime to decide availability; clients that advertised `capabilities.mcpApps` open candidates through `mcpApp/view/open`, which is authoritative, and show the tool result when it rejects the item.
 
 #### Text deltas
 
@@ -1826,7 +1829,7 @@ Validates and probes a temporary configuration without persisting it. Result `{ 
 
 These methods implement the MCP Apps `io.modelcontextprotocol/ui` `2026-01-26` host boundary. Both server and client must advertise `mcpApps`. They are separate from App Binding methods and from the runtime methods in Section 22.8.
 
-- Only a terminal `mcpToolCall` whose persisted UI association still matches the current MCP registration and authority is eligible; `mcpApp.available` is advisory.
+- Only a terminal `mcpToolCall` whose persisted UI association still matches the current MCP registration and authority is eligible; `view/open` loads the thread when needed and rejects other items.
 - Every `viewHandle` is random and connection-owned, and internally binds thread, Turn, Item, server and origin, MCP generation, binding identity, authority revision, raw source tool identity, and resource URI. None of these appear as request parameters.
 - Disconnect, thread archive/delete, successful `thread/rollback`, MCP generation replacement, binding revoke, plugin disable, configuration replacement, and close invalidate affected handles immediately; a reconnected same-named server cannot revive them.
 

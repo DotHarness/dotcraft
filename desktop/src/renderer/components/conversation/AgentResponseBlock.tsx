@@ -6,7 +6,7 @@ import { ThinkingIndicator } from './ThinkingIndicator'
 import { ThinkingStatusSlot } from './ThinkingStatusSlot'
 import { useTurnThinkingStatus } from './turnThinkingStatus'
 import { ToolCallCard, type ShellRuntimeScope } from './ToolCallCard'
-import { hasAvailableMcpApp } from './McpAppView'
+import { isMcpAppCandidate } from '../../utils/mcpAppCandidate'
 import { AgentMessage } from './AgentMessage'
 import { TurnActivitySummary } from './TurnActivitySummary'
 import { getTaskWake, getTurnActivityState } from './turnActivityModel'
@@ -677,7 +677,7 @@ function findLastPinnedCoreRendererIndexBefore(items: ConversationItem[], before
 function isInteractiveCardItem(item: ConversationItem): boolean {
   return isToolLikeItemType(item.type)
     && item.status === 'completed'
-    && hasAvailableMcpApp(item)
+    && isMcpAppCandidate(item)
 }
 
 function findLastInteractiveCardIndexBefore(items: ConversationItem[], beforeIndex: number): number {

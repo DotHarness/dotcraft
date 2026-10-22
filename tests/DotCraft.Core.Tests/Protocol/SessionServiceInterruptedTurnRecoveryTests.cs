@@ -184,6 +184,63 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
     }
 
     [Fact]
+    public async Task UnloadedThread_ReadsInterruptedTurnAsCancelledWithoutPersisting()
+    {
+        var (threadId, _, _, _) = await SeedThreadAsync(TurnStatus.WaitingApproval);
+        var chatClient = new StaticChatClient("unused");
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var service = CreateService(agentFactory, chatClient);
+
+        var snapshot = await service.ReadThreadSnapshotAsync(threadId);
+        var turns = await service.ListThreadTurnsAsync(threadId, cursor: null, limit: 10, ThreadHistorySortDirection.Ascending);
+
+        Assert.False(snapshot.PersistedRuntime.Running);
+        Assert.True(snapshot.PersistedRuntime.QueuePaused);
+        Assert.Equal(TurnStatus.Cancelled, Assert.Single(turns.Data).Status);
+        Assert.Null(service.TryGetLoadedThread(threadId));
+        await using var freshStore = new ThreadStore(CraftPath);
+        Assert.Equal(
+            TurnStatus.WaitingApproval,
+            Assert.Single((await freshStore.LoadThreadAsync(threadId))!.Turns).Status);
+    }
+
+    [Fact]
+    public async Task SubscribeThreadAsync_ObservesLaterEventsWithoutLoadingThread()
+    {
+        var (threadId, _, _, _) = await SeedThreadAsync(TurnStatus.Running);
+        var chatClient = new StaticChatClient("unused");
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var service = CreateService(agentFactory, chatClient);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var events = service.SubscribeThreadAsync(threadId, ct: timeout.Token)
+            .GetAsyncEnumerator(timeout.Token);
+
+        var first = events.MoveNextAsync();
+        Assert.Null(service.TryGetLoadedThread(threadId));
+        await service.ResumeThreadAsync(threadId);
+
+        Assert.True(await first);
+        Assert.Equal(SessionEventType.TurnCancelled, events.Current.EventType);
+        Assert.True(await events.MoveNextAsync());
+        Assert.Equal(SessionEventType.ThreadResumed, events.Current.EventType);
+    }
+
+    [Fact]
+    public async Task SubscribeThreadAsync_EndsForMissingThread()
+    {
+        var chatClient = new StaticChatClient("unused");
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var service = CreateService(agentFactory, chatClient);
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(async () =>
+        {
+            await foreach (var _ in service.SubscribeThreadAsync("thread_missing"))
+            {
+            }
+        });
+    }
+
+    [Fact]
     public async Task ResumeThreadAsync_PublishesInterruptedCancellationBeforeResumed()
     {
         var (threadId, _, _, _) = await SeedThreadAsync(TurnStatus.Running);

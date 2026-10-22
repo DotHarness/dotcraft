@@ -35,7 +35,10 @@ public sealed partial class SessionService
             bool replayRecent,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
         {
-            await owner.GetOrLoadThreadAsync(threadId, ct);
+            if (owner._runtimeRegistry.IsPendingPermanentDeletion(threadId))
+                throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
+            if (!owner._runtimeRegistry.TryGetRuntime(threadId, out _) && !owner.Persistence.ThreadExists(threadId))
+                throw new KeyNotFoundException($"Thread '{threadId}' not found.");
             var broker = owner.GetOrCreateBroker(threadId);
             await foreach (var evt in broker.SubscribeAsync(replayRecent, ct).WithCancellation(ct))
                 yield return evt;
@@ -57,7 +60,7 @@ public sealed partial class SessionService
             }
             var snapshot = await owner.Persistence.ReadThreadSnapshotAsync(normalized, ct);
             if (!owner._runtimeRegistry.TryGetThread(normalized, out var loaded))
-                return snapshot;
+                return snapshot with { PersistedRuntime = snapshot.PersistedRuntime.WithoutExecutionOwner() };
             return snapshot with { PersistedRuntime = GetRuntimeSnapshot(loaded) };
         }
 
@@ -78,7 +81,7 @@ public sealed partial class SessionService
             CancellationToken ct) =>
             ListItemsCoreAsync(NormalizeRequiredThreadId(threadId), turnId, cursor, limit, direction, ct);
 
-        private Task<ThreadHistoryPage<SessionTurn>> ListTurnsCoreAsync(
+        private async Task<ThreadHistoryPage<SessionTurn>> ListTurnsCoreAsync(
             string threadId,
             ThreadHistoryCursor? cursor,
             int limit,
@@ -86,7 +89,15 @@ public sealed partial class SessionService
             CancellationToken ct)
         {
             ThrowIfEphemeral(threadId);
-            return owner.Persistence.ListThreadTurnsAsync(threadId, cursor, limit, direction, ct);
+            var page = await owner.Persistence.ListThreadTurnsAsync(threadId, cursor, limit, direction, ct);
+            if (owner._runtimeRegistry.TryGetRuntime(threadId, out _))
+                return page;
+            foreach (var turn in page.Data)
+            {
+                if (turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
+                    turn.Status = TurnStatus.Cancelled;
+            }
+            return page;
         }
 
         private Task<ThreadHistoryPage<ThreadHistoryItem>> ListItemsCoreAsync(
