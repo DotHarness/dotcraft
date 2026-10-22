@@ -511,7 +511,7 @@ If the request fails before being accepted, Desktop clears the stopping state an
 - On a local thread, handoff to a worktree confirms first and calls `thread/worktree/handoff` with `mode = "worktree"`, sending the current branch as `baseRef`. The branch name field is optional; left empty, the server allocates one. The dialog says uncommitted changes move with the thread.
 - On a worktree thread, handoff to local confirms and calls it with `mode = "local"`. The dialog names the branch the local checkout will switch to. A `WorktreeHandoffConflict` lists `conflictPaths` in the dialog and changes no UI state.
 - Handoff shows one indeterminate busy state until the request settles; it does not show step progress the server does not report.
-- When the agent moves its thread with a worktree tool, the `thread/updated` header updates the worktree badge and effective roots like a client handoff.
+- When the agent moves its thread with a worktree tool, the `thread/updated` header updates the sidebar worktree icon and effective roots like a client handoff.
 
 **Worktree settings**
 

@@ -929,7 +929,7 @@ palettes share one overlay language:
 
 The thread sidebar and thread-header overflow menus are the reference treatment.
 Active channel bindings show as a quiet pill beside the thread title (channel icon
-and chat name), matching the worktree badge.
+and chat name).
 
 Ordinary text-only field selects may widen toward the left when opened so the
 longest option is readable without a tooltip. The trigger finishes its width
