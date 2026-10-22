@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { LayerBoundary } from '../../contexts/LayerContext'
+import { useDismissOnViewportChange } from './anchoredPopup'
 import { ChevronDownIcon } from './AppIcons'
 import { ActionTooltip } from './ActionTooltip'
 import { Button, type ButtonVariant } from './Button'
@@ -54,8 +57,30 @@ export function SplitButton({
 }: SplitButtonProps): JSX.Element {
   const wrapRef = useRef<HTMLDivElement>(null)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
+  const [position, setPosition] = useState<CSSProperties | null>(null)
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPosition(null)
+      return
+    }
+    const anchor = wrapRef.current?.getBoundingClientRect()
+    const menu = menuRef.current
+    if (!anchor || !menu) return
+    const height = menu.offsetHeight
+    const opensUp = anchor.bottom + MENU_GAP + height > window.innerHeight - VIEWPORT_INSET
+      && anchor.top - MENU_GAP - height >= VIEWPORT_INSET
+    setPosition({
+      top: opensUp ? anchor.top - MENU_GAP - height : anchor.bottom + MENU_GAP,
+      right: Math.max(VIEWPORT_INSET, window.innerWidth - anchor.right)
+    })
+  }, [items.length, open])
+
+  const close = useCallback(() => setOpen(false), [])
+  useDismissOnViewportChange(menuRef, open ? close : null)
 
   // A menu that marks a current choice opens on it rather than at the top.
   useEffect(() => {
@@ -76,7 +101,8 @@ export function SplitButton({
 
     const handlePointerDown = (event: MouseEvent): void => {
       if (event.button !== 0) return
-      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false)
+      const target = event.target as Node
+      if (!wrapRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false)
     }
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
@@ -175,34 +201,37 @@ export function SplitButton({
           : menu}
       </div>
 
-      {open && items.length > 0 && (
-        <div role="menu" aria-label={menuLabel} style={menuStyle}>
-          {items.map((item, index) => (
-            <button
-              key={item.key}
-              type="button"
-              role="menuitem"
-              aria-label={item.label}
-              disabled={item.disabled}
-              onMouseEnter={() => setHighlight(index)}
-              onContextMenu={(event) => event.preventDefault()}
-              onClick={() => runItem(item)}
-              style={menuItemStyle(highlight === index, item.disabled === true)}
-            >
-              <span style={menuItemBodyStyle}>
-                {item.icon != null && <span style={menuIconStyle}>{item.icon}</span>}
-                <span style={menuLabelStyle}>{item.label}</span>
-              </span>
-              {item.selected === true && <span aria-hidden style={selectedDotStyle} />}
-            </button>
-          ))}
-        </div>
+      {open && items.length > 0 && createPortal(
+        <LayerBoundary>
+          <div ref={menuRef} role="menu" aria-label={menuLabel} style={{ ...menuStyle, ...(position ?? { visibility: 'hidden' }) }}>
+            {items.map((item, index) => (
+              <button
+                key={item.key}
+                type="button"
+                role="menuitem"
+                aria-label={item.label}
+                disabled={item.disabled}
+                onMouseEnter={() => setHighlight(index)}
+                onContextMenu={(event) => event.preventDefault()}
+                onClick={() => runItem(item)}
+                style={menuItemStyle(highlight === index, item.disabled === true)}
+              >
+                <span style={menuItemBodyStyle}>
+                  {item.icon != null && <span style={menuIconStyle}>{item.icon}</span>}
+                  <span style={menuLabelStyle}>{item.label}</span>
+                </span>
+                {item.selected === true && <span aria-hidden style={selectedDotStyle} />}
+              </button>
+            ))}
+          </div>
+        </LayerBoundary>,
+        document.body
       )}
     </div>
   )
 }
 
-const wrapStyle: CSSProperties = { position: 'relative', display: 'inline-flex', flexShrink: 0 }
+const wrapStyle: CSSProperties = { display: 'inline-flex', flexShrink: 0 }
 
 // `overflow: hidden` is what rounds the group: each segment keeps square inner corners
 // and the wrapper clips the outer ones, so the two fills meet without a seam.
@@ -237,10 +266,11 @@ const menuSegmentStyle: CSSProperties = {
 // The chevron reads as a secondary affordance next to the label, not a second action.
 const chevronStyle: CSSProperties = { display: 'inline-flex', opacity: 0.5 }
 
+const MENU_GAP = 6
+const VIEWPORT_INSET = 8
+
 const menuStyle: CSSProperties = {
-  position: 'absolute',
-  top: 'calc(100% + 6px)',
-  right: 0,
+  position: 'fixed',
   minWidth: '200px',
   maxWidth: '280px',
   border: 'none',
@@ -250,7 +280,7 @@ const menuStyle: CSSProperties = {
   backdropFilter: 'var(--glass-blur)',
   WebkitBackdropFilter: 'var(--glass-blur)',
   padding: '6px',
-  zIndex: 80
+  zIndex: 10001
 }
 
 function menuItemStyle(highlighted: boolean, disabled: boolean): CSSProperties {
