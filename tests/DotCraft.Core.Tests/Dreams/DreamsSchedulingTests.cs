@@ -23,7 +23,7 @@ public sealed class DreamsSchedulingTests : IDisposable
         await using var service = _workspace.CreateService(_runner);
 
         Assert.Empty(await service.RunScheduledCheckAsync());
-        Assert.Empty(_workspace.States.List(includeArchived: true));
+        Assert.Empty(_workspace.Runs(includeArchived: true));
         Assert.Equal(lastConsolidated.UtcDateTime, ConsolidationLock.LastConsolidatedAt(_workspace.WorkspaceStore)!.Value.UtcDateTime, TimeSpan.FromSeconds(1));
 
         await _workspace.SaveThreadAsync("thread_three");
@@ -156,7 +156,7 @@ public sealed class DreamsSchedulingTests : IDisposable
         Assert.NotNull(first);
         Assert.Equal(DreamsRunStatuses.Running, first.Status);
         await _workspace.WaitForRunAsync(state => state.Scope == scoutScope && !state.IsRunning);
-        var runs = _workspace.States.List();
+        var runs = _workspace.Runs();
 
         Assert.Equal(2, runs.Count);
         Assert.All(runs, run => Assert.Equal(DreamsRunStatuses.Succeeded, run.Status));
@@ -194,7 +194,7 @@ public sealed class DreamsSchedulingTests : IDisposable
         _workspace.Config.Memory.Enabled = true;
         _workspace.Config.Dreams.Enabled = false;
         Assert.Null(await service.CreateRunAsync(new DreamsRunRequest()));
-        Assert.Single(_workspace.States.List());
+        Assert.Single(_workspace.Runs());
     }
 
     [Fact]

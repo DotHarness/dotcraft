@@ -42,8 +42,13 @@ public sealed class DreamsTestWorkspace : IDisposable
     public string StoreOf(string scope) =>
         MemoryScopes.StoreDirectory(new ThreadConfiguration { MemoryScope = scope }, CraftPath);
 
+    private DreamsService? _service;
+
     public DreamsService CreateService(IDreamsRunner runner, IAppConfigMonitor? monitor = null) =>
-        new(Config, Paths, Threads, runner, monitor);
+        _service = new(Config, Paths, Threads, runner, monitor);
+
+    public IReadOnlyList<DreamsRunState> Runs(bool includeArchived = false) =>
+        _service?.ListRuns(includeArchived) ?? States.List(includeArchived);
 
     public static string WriteFile(string directory, string name, string content)
     {
@@ -130,7 +135,7 @@ public sealed class DreamsTestWorkspace : IDisposable
     {
         for (var attempt = 0; attempt < 200; attempt++)
         {
-            if (States.List(includeArchived: true).FirstOrDefault(predicate) is { } run)
+            if (Runs(includeArchived: true).FirstOrDefault(predicate) is { } run)
                 return run;
             await Task.Delay(25);
         }
