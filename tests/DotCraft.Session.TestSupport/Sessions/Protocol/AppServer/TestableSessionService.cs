@@ -719,6 +719,21 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
         return EmptyEvents();
     }
 
+    public async Task<string> StartQueuedTurnAsync(
+        string threadId,
+        string? queuedInputId = null,
+        CancellationToken ct = default,
+        Func<IAsyncEnumerable<SessionEvent>, IAsyncEnumerable<SessionEvent>>? observe = null)
+    {
+        var events = SubmitInputAsync(threadId, [], ct: ct);
+        if (observe != null)
+            events = observe(events);
+        string? turnId = null;
+        await foreach (var evt in events.WithCancellation(ct))
+            turnId ??= evt.TurnId;
+        return turnId ?? throw new InvalidOperationException($"Thread '{threadId}' has no queued input to start.");
+    }
+
     public async Task<SessionTurn> StartSubAgentSyntheticTurnAsync(
         string threadId,
         IList<AIContent> content,

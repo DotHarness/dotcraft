@@ -354,7 +354,7 @@ internal sealed class TurnRequestHandler(
         var queuedInputId = p.QueuedInputId.IsSet && !string.IsNullOrWhiteSpace(p.QueuedInputId.Value)
             ? p.QueuedInputId.Value
             : null;
-        var turnId = await sessionService.StartQueuedTurnAsync(threadId, queuedInputId, ct);
+        var turnId = await sessionService.StartQueuedTurnAsync(threadId, queuedInputId, ct, WithNonInteractiveFallback);
         return AppServerTypedResult<Contract.TurnQueueStartResponse>.FromResult(new() { TurnId = turnId });
     }
 

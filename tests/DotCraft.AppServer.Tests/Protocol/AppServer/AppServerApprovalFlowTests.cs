@@ -158,6 +158,25 @@ public sealed class AppServerApprovalFlowTests : IDisposable
     }
 
     [Fact]
+    public async Task ApprovalFlow_QueuedTurnStartedByAClientWithoutApprovalSupport_UsesDefaultPolicy()
+    {
+        using var harness = new AppServerTestHarness(
+            defaultApprovalDecision: SessionApprovalDecision.AcceptOnce);
+        await harness.InitializeAsync(approvalSupport: false);
+
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        harness.Service.EnqueueSubmitEvents(
+            thread.Id, AppServerTestHarness.BuildApprovalEventSequence(thread.Id));
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.TurnQueueStart,
+            new { threadId = thread.Id }));
+
+        var resolved = Assert.Single(harness.Service.ResolvedApprovals);
+        Assert.Equal(SessionApprovalDecision.AcceptOnce, resolved.decision);
+    }
+
+    [Fact]
     public async Task ApprovalFlow_DenyPolicyWithoutApprovalSupport_ResolvesAsDecline()
     {
         using var harness = new AppServerTestHarness(

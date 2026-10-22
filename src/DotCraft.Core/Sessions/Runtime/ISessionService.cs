@@ -239,8 +239,15 @@ public interface ISessionService
     Task TryStartNextQueuedTurnAsync(string threadId, CancellationToken ct = default) =>
         Task.CompletedTask;
 
-    /// <summary>Starts a chosen or the first queued input as a new Turn on an idle Thread, resuming a paused queue.</summary>
-    Task<string> StartQueuedTurnAsync(string threadId, string? queuedInputId = null, CancellationToken ct = default) =>
+    /// <summary>
+    /// Starts a chosen or the first queued input as a new Turn on an idle Thread, resuming a paused queue.
+    /// <paramref name="observe"/> wraps only this Turn's events, not the queued Turns that start after it.
+    /// </summary>
+    Task<string> StartQueuedTurnAsync(
+        string threadId,
+        string? queuedInputId = null,
+        CancellationToken ct = default,
+        Func<IAsyncEnumerable<SessionEvent>, IAsyncEnumerable<SessionEvent>>? observe = null) =>
         throw new NotSupportedException("Starting queued input is not supported by this session service.");
 
     /// <summary>Removes queued input from a Thread.</summary>

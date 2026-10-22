@@ -1466,10 +1466,14 @@ public sealed partial class SessionService(
     }
 
     /// <inheritdoc/>
-    public Task<string> StartQueuedTurnAsync(string threadId, string? queuedInputId = null, CancellationToken ct = default)
+    public Task<string> StartQueuedTurnAsync(
+        string threadId,
+        string? queuedInputId = null,
+        CancellationToken ct = default,
+        Func<IAsyncEnumerable<SessionEvent>, IAsyncEnumerable<SessionEvent>>? observe = null)
         => InvokeThreadCommandAsync(
             threadId,
-            commandCt => ThreadQueue.StartQueuedAsync(threadId, queuedInputId, commandCt),
+            commandCt => ThreadQueue.StartQueuedAsync(threadId, queuedInputId, observe, commandCt),
             ct);
 
     /// <inheritdoc/>

@@ -320,10 +320,14 @@ public sealed partial class SessionService
         }
 
         public Task TryStartNextAsync(string threadId, CancellationToken ct) =>
-            StartAsync(threadId, queuedInputId: null, explicitStart: false, ct);
+            StartAsync(threadId, queuedInputId: null, explicitStart: false, observe: null, ct);
 
         /// <summary>Starts a chosen or the first queued input on an idle thread, even while the queue is paused.</summary>
-        public async Task<string> StartQueuedAsync(string threadId, string? queuedInputId, CancellationToken ct)
+        public async Task<string> StartQueuedAsync(
+            string threadId,
+            string? queuedInputId,
+            Func<IAsyncEnumerable<SessionEvent>, IAsyncEnumerable<SessionEvent>>? observe,
+            CancellationToken ct)
         {
             var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
             if (thread.Status != ThreadStatus.Active)
@@ -339,11 +343,16 @@ public sealed partial class SessionService
                 throw new KeyNotFoundException($"Queued input '{queuedInputId}' not found.");
             }
 
-            return await StartAsync(threadId, queuedInputId, explicitStart: true, ct)
+            return await StartAsync(threadId, queuedInputId, explicitStart: true, observe, ct)
                 ?? throw new InvalidOperationException($"Thread '{threadId}' has no queued input to start.");
         }
 
-        private async Task<string?> StartAsync(string threadId, string? queuedInputId, bool explicitStart, CancellationToken ct)
+        private async Task<string?> StartAsync(
+            string threadId,
+            string? queuedInputId,
+            bool explicitStart,
+            Func<IAsyncEnumerable<SessionEvent>, IAsyncEnumerable<SessionEvent>>? observe,
+            CancellationToken ct)
         {
             QueuedTurnInput? queued = null;
             SessionThread? thread = null;
@@ -409,6 +418,8 @@ public sealed partial class SessionService
                     },
                     ct);
                 var events = eventChannel.ReadAllAsync(ct);
+                if (observe != null)
+                    events = observe(events);
                 if (!SubAgentSessionControl.TryObserveQueuedChildTurn(owner, thread, events))
                 {
                     _ = Task.Run(async () =>
