@@ -125,6 +125,39 @@ describe('InputComposer follow-up routing', () => {
     expect(sendRequest.mock.calls.some(([method]) => method === 'turn/start')).toBe(false)
   })
 
+  it('shows the suggestion again after typed text is deleted', async () => {
+    installDesktopApiMock({
+      settings: { get: async () => ({ locale: 'en' }), set: settingsSet },
+      appServer: { sendRequest, onNotification: () => () => {} },
+      git: { listBranches: async () => ({ current: 'main', detachedHead: null, branches: [] }) },
+      voice: undefined
+    })
+    vi.mocked(generatePromptSuggestion).mockResolvedValue('Continue with the plan')
+    useConnectionStore.setState({ status: 'connected', capabilities: { workspaceConfigManagement: true } })
+    useConfigStore.setState({ config: { PromptSuggestions: { Enabled: true } } })
+    useThreadStore.setState({ activeThreadId: 'thread-1' })
+    renderComposer()
+    const textbox = screen.getByRole('textbox')
+    await act(async () => { await Promise.resolve() })
+    act(() => useConversationStore.setState({
+      turnStatus: 'idle', activeTurnId: null,
+      turns: [{ id: 'turn-123', threadId: 'thread-1', status: 'completed', startedAt: '2026-01-01T00:00:00Z', items: [] }]
+    }))
+    await waitFor(() => expect(textbox).toHaveAccessibleDescription(expect.stringContaining('Continue with the plan')))
+
+    act(() => {
+      textbox.textContent = 'x'
+      fireEvent.input(textbox)
+    })
+    await waitFor(() => expect(textbox).not.toHaveAccessibleDescription(expect.stringContaining('Continue with the plan')))
+    act(() => {
+      textbox.textContent = ''
+      fireEvent.input(textbox)
+    })
+    await waitFor(() => expect(textbox).toHaveAccessibleDescription(expect.stringContaining('Continue with the plan')))
+    expect(generatePromptSuggestion).toHaveBeenCalledOnce()
+  })
+
   it.each([
     ['queue', 'Enter'], ['queue', 'button'], ['steer', 'Enter'], ['steer', 'button']
   ] as const)('sends %s with %s and announces the same action', async (mode, trigger) => {

@@ -27,7 +27,7 @@ beforeEach(() => {
 describe('conversation prompt suggestion lifecycle', () => {
   it('generates once after a successful turn and offers editable text', async () => {
     const { result } = renderHook(() => usePromptSuggestion({
-      threadId: 'thread-1', canSuggest: true
+      threadId: 'thread-1', canSuggest: true, visible: true
     }))
     await act(async () => { await Promise.resolve() })
 
@@ -43,14 +43,14 @@ describe('conversation prompt suggestion lifecycle', () => {
     expect(result.current.suggestion).toBeNull()
   })
 
-  it('cancels a pending suggestion when the composer gains content', async () => {
+  it('cancels a pending suggestion when suggestions become unavailable', async () => {
     let requestSignal: AbortSignal | null = null
     generate.mockImplementation(async (_threadId, _turnId, signal) => {
       requestSignal = signal
       return await new Promise<string | null>(() => {})
     })
     const { rerender } = renderHook(({ canSuggest }) => usePromptSuggestion({
-      threadId: 'thread-1', canSuggest
+      threadId: 'thread-1', canSuggest, visible: true
     }), { initialProps: { canSuggest: true } })
     await act(async () => { await Promise.resolve() })
 
