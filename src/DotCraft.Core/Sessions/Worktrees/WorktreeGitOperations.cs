@@ -9,50 +9,26 @@ internal static class WorktreeGitOperations
     internal static readonly TimeSpan GitTimeout = TimeSpan.FromSeconds(30);
     internal static readonly TimeSpan GitWorktreeTimeout = TimeSpan.FromSeconds(120);
 
-    internal static async Task<int> TryReadAheadCountAsync(
-        string worktreePath,
-        string? baseRef,
-        CancellationToken ct,
-        ILogger? logger)
-    {
-        if (string.IsNullOrWhiteSpace(baseRef))
-            return 0;
-
-        var result = await GitProcessRunner.RunAsync(
-            worktreePath,
-            ["rev-list", "--count", $"{baseRef.Trim()}..HEAD"],
-            GitTimeout,
-            ct,
-            logger: logger).ConfigureAwait(false);
-        if (result.ExitCode != 0)
-        {
-            logger?.LogDebug("Failed to compute worktree ahead count: {Error}", TrimGitError(result));
-            return 0;
-        }
-
-        return int.TryParse(result.StdOut.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var count)
-            ? Math.Max(0, count)
-            : 0;
-    }
-
-    /// <summary>Counts the commits on HEAD that no other local branch or remote-tracking branch contains.</summary>
-    internal static async Task<int> TryReadUniqueCommitCountAsync(
-        string worktreePath,
+    /// <summary>
+    /// Counts the commits on <paramref name="tip"/> beyond <paramref name="baseHead"/>, or, without a base, the ones no
+    /// other branch or remote contains. Returns <c>null</c> when Git cannot tell.
+    /// </summary>
+    internal static async Task<int?> TryCountCommitsAsync(
+        string workingDirectory,
+        string tip,
+        string? baseHead,
         string branchName,
         CancellationToken ct,
         ILogger? logger)
     {
-        string[] exclude = string.IsNullOrWhiteSpace(branchName) ? [] : [$"--exclude=refs/heads/{branchName}"];
-        var result = await GitProcessRunner.RunAsync(
-            worktreePath,
-            ["rev-list", "--count", "HEAD", "--not", .. exclude, "--branches", "--remotes"],
-            GitTimeout,
-            ct,
-            logger: logger).ConfigureAwait(false);
+        string[] args = string.IsNullOrWhiteSpace(baseHead)
+            ? ["rev-list", "--count", tip, "--not", $"--exclude=refs/heads/{branchName}", "--branches", "--remotes"]
+            : ["rev-list", "--count", $"{baseHead.Trim()}..{tip}"];
+        var result = await GitProcessRunner.RunAsync(workingDirectory, args, GitTimeout, ct, logger: logger).ConfigureAwait(false);
         return result.ExitCode == 0
                && int.TryParse(result.StdOut.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var count)
             ? Math.Max(0, count)
-            : 0;
+            : null;
     }
 
     internal static async Task<string> ResolveRepositoryRootAsync(

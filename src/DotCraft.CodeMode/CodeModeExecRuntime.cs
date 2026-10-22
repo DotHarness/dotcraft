@@ -11,7 +11,8 @@ internal sealed record CodeModeExecDependencies(
     CodeModeSurface Surface,
     string WorkspacePath,
     string DataPath,
-    int SpillPreviewLines);
+    int SpillPreviewLines,
+    ToolLocation? Location);
 
 internal sealed class CodeModeExecRuntime(CodeModeExecDependencies dependencies) : IToolRuntime
 {

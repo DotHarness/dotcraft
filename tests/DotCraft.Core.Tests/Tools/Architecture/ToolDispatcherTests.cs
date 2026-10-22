@@ -454,6 +454,48 @@ public sealed class ToolDispatcherTests
     }
 
     [Fact]
+    public async Task DispatchAsync_NativeOutsideWorkspaceApprovalResolvesAgainstTheInvocationDirectory()
+    {
+        var workspace = Path.Combine(Path.GetTempPath(), "dotcraft-dispatch-moved");
+        var worktree = Path.Combine(workspace, ".craft", "worktrees", "w");
+        var invoked = false;
+        var approval = new RecordingApprovalService(approved: false);
+        var evaluator = new CommonToolApprovalEvaluator();
+        evaluator.Bind(approval);
+        var annotation = JsonSerializer.SerializeToElement(new
+        {
+            kind = "file",
+            targetArgument = "path",
+            operation = "write",
+            workspacePath = worktree,
+            workspaceRoots = new[] { worktree },
+            outsideWorkspaceOnly = true
+        });
+        var registration = Registration(
+            new ToolName(null, "WriteFile"),
+            new DelegateRuntime((_, _) =>
+            {
+                invoked = true;
+                return ToolExecutionResult.Succeeded("unexpected");
+            }),
+            inputSchema: Json("""{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}"""),
+            annotations: new Dictionary<string, JsonElement> { ["dotcraft/nativeApproval"] = annotation },
+            policyHints: new ToolPolicyHints(RequiresApproval: true));
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], 1);
+        var dispatcher = new ToolDispatcher(approvalEvaluator: evaluator);
+
+        var result = await dispatcher.DispatchAsync(
+            snapshot,
+            registration.Definition.Name,
+            new JsonObject { ["path"] = "../w/file.txt" },
+            new ToolInvocationRequest("thread", "turn", "call", ToolInvocationAudience.Model, WorkspacePath: workspace));
+
+        Assert.False(result.Success);
+        Assert.Equal(1, approval.FileApprovalCalls);
+        Assert.False(invoked);
+    }
+
+    [Fact]
     public async Task CommonApproval_SkillMutationOnlyPromptsForCreateAndDelete()
     {
         var approval = new RecordingApprovalService(approved: true);

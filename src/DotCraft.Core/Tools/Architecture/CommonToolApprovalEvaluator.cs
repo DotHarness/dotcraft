@@ -94,7 +94,7 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
         if (descriptor.ValueKind == JsonValueKind.Object
             && descriptor.TryGetProperty("outsideWorkspaceOnly", out var outsideOnly)
             && outsideOnly.ValueKind == JsonValueKind.True
-            && !RequiresOutsideWorkspaceApproval(target, operation, descriptor))
+            && !RequiresOutsideWorkspaceApproval(target, operation, descriptor, context.WorkspacePath))
         {
             return ToolDispatchDecision.Allow;
         }
@@ -285,12 +285,14 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
     private static bool RequiresOutsideWorkspaceApproval(
         string target,
         string operation,
-        JsonElement descriptor)
+        JsonElement descriptor,
+        string? currentDirectory)
     {
-        var workspacePath = ReadString(descriptor, "workspacePath");
-        if (string.IsNullOrWhiteSpace(workspacePath))
+        var admittedPath = ReadString(descriptor, "workspacePath");
+        if (string.IsNullOrWhiteSpace(admittedPath))
             return true;
-        var workspaceRoots = ReadWorkspaceRoots(descriptor, workspacePath);
+        var workspacePath = string.IsNullOrWhiteSpace(currentDirectory) ? admittedPath : currentDirectory;
+        IReadOnlyList<string> workspaceRoots = [.. ReadWorkspaceRoots(descriptor, admittedPath), workspacePath];
         var guard = new FileAccessGuard(
             workspacePath,
             trustedReadPaths: ReadPaths(descriptor, "trustedReadPaths"),

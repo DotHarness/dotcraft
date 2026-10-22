@@ -11,6 +11,8 @@ public sealed partial class SessionService
 
     private sealed class WorktreeCoordinator(SessionService owner)
     {
+        private readonly SemaphoreSlim _moveLock = new(1, 1);
+
         public async Task<WorktreeCreateAndForkResult> CreateAndForkAsync(
             WorktreeCreateAndForkOptions options,
             CancellationToken ct)
@@ -428,7 +430,36 @@ public sealed partial class SessionService
             return await ThreadWorktreeManager.GetStatusAsync(thread.Id, thread.Worktree, ct, owner.Logger);
         }
 
-        public async Task<ThreadWorktreeInfo> EnterAsync(
+        public Task<ThreadWorktreeInfo> EnterAsync(
+            string threadId,
+            string? name,
+            string? path,
+            ToolLocation location,
+            CancellationToken ct) =>
+            RunMoveAsync(() => EnterCoreAsync(threadId, name, path, location, ct), ct);
+
+        public Task<WorktreeExitResult> ExitAsync(
+            string threadId,
+            bool remove,
+            bool discardChanges,
+            ToolLocation location,
+            CancellationToken ct) =>
+            RunMoveAsync(() => ExitCoreAsync(threadId, remove, discardChanges, location, ct), ct);
+
+        private async Task<T> RunMoveAsync<T>(Func<Task<T>> move, CancellationToken ct)
+        {
+            await _moveLock.WaitAsync(ct);
+            try
+            {
+                return await move();
+            }
+            finally
+            {
+                _moveLock.Release();
+            }
+        }
+
+        private async Task<ThreadWorktreeInfo> EnterCoreAsync(
             string threadId,
             string? name,
             string? path,
@@ -468,7 +499,7 @@ public sealed partial class SessionService
             return worktree;
         }
 
-        public async Task<WorktreeExitResult> ExitAsync(
+        private async Task<WorktreeExitResult> ExitCoreAsync(
             string threadId,
             bool remove,
             bool discardChanges,

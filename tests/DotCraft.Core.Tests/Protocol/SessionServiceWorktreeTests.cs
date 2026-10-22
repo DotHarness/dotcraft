@@ -475,6 +475,9 @@ public sealed class SessionServiceWorktreeTests : IDisposable
         await using var agentFactory = CreateAgentFactory();
         var service = CreateService(agentFactory);
         var thread = await service.CreateThreadAsync(MakeIdentity());
+        File.AppendAllText(Path.Combine(_tempDir, ".git", "info", "exclude"), ".env\n.worktreeinclude\n");
+        File.WriteAllText(Path.Combine(_tempDir, ".worktreeinclude"), ".env\n");
+        File.WriteAllText(Path.Combine(_tempDir, ".env"), "TOKEN=local");
         var worktree = (await service.HandoffThreadWorktreeAsync(new WorktreeHandoffOptions
         {
             ThreadId = thread.Id,
@@ -490,7 +493,40 @@ public sealed class SessionServiceWorktreeTests : IDisposable
         await service.UnarchiveThreadAsync(thread.Id);
 
         Assert.True(File.Exists(Path.Combine(worktree.Path, "README.md")));
+        Assert.Equal("TOKEN=local", File.ReadAllText(Path.Combine(worktree.Path, ".env")));
         Assert.Equal("dotcraft/archive-me", RunGitCapture(worktree.Path, "branch", "--show-current").Trim());
+    }
+
+    [Fact]
+    public async Task ArchivedWorktreeBranchWithNewCommits_SurvivesDeletionAndUnconfirmedRemoval()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var removed = await service.CreateThreadAsync(MakeIdentity());
+        var deleted = await service.CreateThreadAsync(MakeIdentity());
+        var removedWorktree = await HandoffWithCommitAsync(service, removed.Id, "dotcraft/kept-on-remove");
+        await HandoffWithCommitAsync(service, deleted.Id, "dotcraft/kept-on-delete");
+        await service.ArchiveThreadAsync(removed.Id);
+        await service.ArchiveThreadAsync(deleted.Id);
+
+        await service.DeleteThreadPermanentlyAsync(deleted.Id);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RemoveWorktreeAsync(removedWorktree.Path, discardChanges: false));
+
+        Assert.Equal(0, RunGitExitCode(_tempDir, "rev-parse", "--verify", "refs/heads/dotcraft/kept-on-delete"));
+        Assert.Equal(0, RunGitExitCode(_tempDir, "rev-parse", "--verify", "refs/heads/dotcraft/kept-on-remove"));
+    }
+
+    private async Task<ThreadWorktreeInfo> HandoffWithCommitAsync(SessionService service, string threadId, string branchName)
+    {
+        var worktree = (await service.HandoffThreadWorktreeAsync(new WorktreeHandoffOptions
+        {
+            ThreadId = threadId,
+            BranchName = branchName,
+            CopyDirtyChanges = false
+        })).Worktree!;
+        File.WriteAllText(Path.Combine(worktree.Path, "README.md"), branchName + Environment.NewLine);
+        RunGitCapture(worktree.Path, "commit", "-am", "work");
+        return worktree;
     }
 
     [Fact]

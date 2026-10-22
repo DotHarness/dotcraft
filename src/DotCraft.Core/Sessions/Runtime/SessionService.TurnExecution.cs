@@ -1438,7 +1438,7 @@ public sealed partial class SessionService
                             boundary,
                             worldStateCt => DrainWorldStateMessagesAsync(
                                 thread,
-                                turnContext.Workspace.Cwd,
+                                toolLocation.Directory,
                                 toolLocation,
                                 turn.Id,
                                 session,

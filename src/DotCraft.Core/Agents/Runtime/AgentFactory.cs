@@ -807,7 +807,7 @@ public sealed class AgentFactory : IAsyncDisposable
                 invocationTurnId,
                 invocation.CallContent.CallId,
                 ToolInvocationAudience.Model,
-                WorkspacePath: planningContext.WorkspacePath),
+                WorkspacePath: planningContext.Location?.Directory ?? planningContext.WorkspacePath),
             cancellationToken).ConfigureAwait(false);
         if (result.Success && result.Directive == ToolExecutionDirective.TerminateTurn)
             invocation.Terminate = true;

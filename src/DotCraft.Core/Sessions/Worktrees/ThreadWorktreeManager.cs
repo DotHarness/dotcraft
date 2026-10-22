@@ -480,6 +480,7 @@ internal static class ThreadWorktreeManager
             $"Failed to check out branch '{worktree.BranchName}' again",
             ct,
             logger).ConfigureAwait(false);
+        await CopyIncludedFilesAsync(repositoryRoot, worktreePath, ct, logger).ConfigureAwait(false);
     }
 
     public static async Task RemoveCheckoutAsync(
@@ -535,30 +536,15 @@ internal static class ThreadWorktreeManager
     {
         var path = worktree.Path;
         var exists = !string.IsNullOrWhiteSpace(path) && Directory.Exists(path);
-        if (!exists)
-        {
-            return new ThreadWorktreeStatus
-            {
-                ThreadId = threadId,
-                Worktree = worktree,
-                Path = path,
-                BranchName = worktree.BranchName,
-                Head = worktree.Head,
-                Exists = false,
-                IsGitWorktree = false,
-                HasUncommittedChanges = false,
-                HasCommitsAheadOfBase = false,
-                AheadCount = 0
-            };
-        }
-
-        var isGitWorktree = await GitSucceedsAsync(
+        var baseHead = string.IsNullOrWhiteSpace(worktree.BaseHead) ? worktree.BaseRef : worktree.BaseHead;
+        var isGitWorktree = exists && await GitSucceedsAsync(
             path,
             ["rev-parse", "--is-inside-work-tree"],
             ct,
             logger).ConfigureAwait(false);
         if (!isGitWorktree)
         {
+            var commits = await TryCountBranchCommitsInRepositoryAsync(worktree, baseHead, ct, logger).ConfigureAwait(false);
             return new ThreadWorktreeStatus
             {
                 ThreadId = threadId,
@@ -566,21 +552,18 @@ internal static class ThreadWorktreeManager
                 Path = path,
                 BranchName = worktree.BranchName,
                 Head = worktree.Head,
-                Exists = true,
+                Exists = exists,
                 IsGitWorktree = false,
                 HasUncommittedChanges = false,
-                HasCommitsAheadOfBase = false,
-                AheadCount = 0
+                HasCommitsAheadOfBase = commits is not 0,
+                AheadCount = commits ?? 0
             };
         }
 
         var branch = await GitReadAsync(path, ["branch", "--show-current"], ct, logger).ConfigureAwait(false);
         var head = await GitReadAsync(path, ["rev-parse", "HEAD"], ct, logger).ConfigureAwait(false);
         var status = await GitReadAsync(path, ["status", "--porcelain=v1"], ct, logger).ConfigureAwait(false);
-        var baseHead = string.IsNullOrWhiteSpace(worktree.BaseHead) ? worktree.BaseRef : worktree.BaseHead;
-        var aheadCount = string.IsNullOrWhiteSpace(baseHead)
-            ? await TryReadUniqueCommitCountAsync(path, branch, ct, logger).ConfigureAwait(false)
-            : await TryReadAheadCountAsync(path, baseHead, ct, logger).ConfigureAwait(false);
+        var aheadCount = await TryCountCommitsAsync(path, "HEAD", baseHead, branch, ct, logger).ConfigureAwait(false);
 
         return new ThreadWorktreeStatus
         {
@@ -592,9 +575,36 @@ internal static class ThreadWorktreeManager
             Exists = true,
             IsGitWorktree = true,
             HasUncommittedChanges = !string.IsNullOrWhiteSpace(status),
-            HasCommitsAheadOfBase = aheadCount > 0,
-            AheadCount = aheadCount
+            HasCommitsAheadOfBase = aheadCount is not 0,
+            AheadCount = aheadCount ?? 0
         };
+    }
+
+    private static async Task<int?> TryCountBranchCommitsInRepositoryAsync(
+        ThreadWorktreeInfo worktree,
+        string? baseHead,
+        CancellationToken ct,
+        ILogger? logger)
+    {
+        string repositoryRoot;
+        try
+        {
+            repositoryRoot = await ResolveRepositoryRootAsync(SourceWorkspace(worktree), ct, logger).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+        {
+            return null;
+        }
+
+        if (!await BranchExistsAsync(repositoryRoot, worktree.BranchName, ct, logger).ConfigureAwait(false))
+            return 0;
+        return await TryCountCommitsAsync(
+            repositoryRoot,
+            $"refs/heads/{worktree.BranchName}",
+            baseHead,
+            worktree.BranchName,
+            ct,
+            logger).ConfigureAwait(false);
     }
 
     private static async Task<string> ResolveBranchNameAsync(
