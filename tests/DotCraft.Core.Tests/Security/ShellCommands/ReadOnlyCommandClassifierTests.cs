@@ -6,7 +6,7 @@ namespace DotCraft.Tests.Security.ShellCommands;
 public sealed class ReadOnlyCommandClassifierTests
 {
     [Theory]
-    [InlineData("Get-Content README.md | Select-String x", true, "")]
+    [InlineData("Get-Content README.md | Select-String x", false, "'Get-Content'")]
     [InlineData("sed -n '1,5p' README.md", true, "")]
     [InlineData("sed -n 1,5p README.md", false, "PowerShell")]
     [InlineData("find . -name *.cs", false, "'*'")]
@@ -30,12 +30,23 @@ public sealed class ReadOnlyCommandClassifierTests
     [InlineData("gci -Recurse | Sort-Object Length | Format-Table Name", true, "")]
     [InlineData("Get-ChildItem | Where-Object { $_.Length -gt 1 }", false, "PowerShell")]
     [InlineData("Get-ChildItem | Tee-Object out.txt", false, "Tee-Object")]
+    [InlineData("compare a.png b.png out.png", true, "")]
     public void IsReadOnly_UnderPowerShell_UsesOnlyThePowerShellGrammar(string command, bool expected, string reasonFragment)
     {
         var readOnly = ReadOnlyCommandClassifier.IsReadOnly(command, shell: null, ShellFamily.PowerShell, out var reason);
 
         Assert.Equal(expected, readOnly);
         Assert.Contains(reasonFragment, reason);
+    }
+
+    [Theory]
+    [InlineData("compare a.png b.png out.png")]
+    [InlineData("gp -f commands.gp")]
+    [InlineData("Get-Content README.md")]
+    public void IsReadOnly_UnderPosix_DoesNotTreatPowerShellCommandsAsReadOnly(string command)
+    {
+        Assert.False(ReadOnlyCommandClassifier.IsReadOnly(command, shell: null, ShellFamily.Posix, out var reason));
+        Assert.Contains("read-only allow list", reason);
     }
 
     [Fact]

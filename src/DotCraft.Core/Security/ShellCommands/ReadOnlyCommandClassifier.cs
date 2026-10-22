@@ -177,7 +177,7 @@ public static class ReadOnlyCommandClassifier
             return false;
         }
 
-        var commands = new List<IReadOnlyList<string>>();
+        var commands = new List<(ShellFamily Family, IReadOnlyList<string> Words)>();
         if (targetFamily != ShellFamily.PowerShell)
         {
             var posix = Posix.Lower(command);
@@ -186,7 +186,7 @@ public static class ReadOnlyCommandClassifier
                 reason = Prefix + posix.PlainRejectReason;
                 return false;
             }
-            commands.AddRange(posix.PlainCommands!);
+            commands.AddRange(posix.PlainCommands!.Select(static words => (ShellFamily.Posix, words)));
         }
 
         if (targetFamily != ShellFamily.Posix)
@@ -198,12 +198,12 @@ public static class ReadOnlyCommandClassifier
                     + powerShell.PlainRejectReason;
                 return false;
             }
-            commands.AddRange(powerShell.PlainCommands!);
+            commands.AddRange(powerShell.PlainCommands!.Select(static words => (ShellFamily.PowerShell, words)));
         }
 
-        foreach (var words in commands)
+        foreach (var (family, words) in commands)
         {
-            if (!IsReadOnlySegment(words, out reason))
+            if (!IsReadOnlySegment(family, words, out reason))
                 return false;
         }
 
@@ -211,7 +211,7 @@ public static class ReadOnlyCommandClassifier
         return true;
     }
 
-    private static bool IsReadOnlySegment(IReadOnlyList<string> tokens, out string reason)
+    private static bool IsReadOnlySegment(ShellFamily family, IReadOnlyList<string> tokens, out string reason)
     {
         if (tokens.Count == 0)
         {
@@ -223,7 +223,8 @@ public static class ReadOnlyCommandClassifier
         if (string.Equals(executable, "git", StringComparison.OrdinalIgnoreCase))
             return IsReadOnlyGit(tokens, out reason);
 
-        if (PowerShellReadOnlyCmdlets.Contains(PowerShellAliases.GetValueOrDefault(executable, executable)))
+        if (family == ShellFamily.PowerShell
+            && PowerShellReadOnlyCmdlets.Contains(PowerShellAliases.GetValueOrDefault(executable, executable)))
         {
             reason = "";
             return true;
