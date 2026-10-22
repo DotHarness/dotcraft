@@ -81,7 +81,7 @@ public sealed class AgentProfileStoreTests : IDisposable
     [InlineData("Researcher", "ReadFile,FindFiles,GrepFiles,WebSearch,web__run,WebFetch,RequestUserInput,LSP", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
     [InlineData("Writer", "ReadFile,FindFiles,GrepFiles,WebSearch,web__run,WebFetch,RequestUserInput,Exec,WriteStdin,WriteFile,EditFile", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
     [InlineData("Data Analyst", "ReadFile,FindFiles,GrepFiles,WebSearch,web__run,WebFetch,RequestUserInput,Exec,WriteStdin,WriteFile,EditFile", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
-    [InlineData("Prototyper", "ReadFile,FindFiles,GrepFiles,WebSearch,web__run,WebFetch,RequestUserInput,Exec,WriteStdin,WriteFile,EditFile,LSP,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    [InlineData("Prototyper", "ReadFile,FindFiles,GrepFiles,WebSearch,web__run,WebFetch,RequestUserInput,Exec,WriteStdin,WriteFile,EditFile,LSP,TodoWrite", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
     [InlineData("QA Tester", null, null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
     public void BuiltInProfiles_CompileRoleCapabilityPolicies(
         string profileId,

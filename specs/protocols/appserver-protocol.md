@@ -897,7 +897,7 @@ Rules:
 
 #### `plan/updated`
 
-Complete plan snapshot `{ threadId, title, overview, content, todos }` emitted each time `CreatePlan`, `UpdateTodos`, or `TodoWrite` succeeds; clients replace local plan state. `title` is empty when the thread has only a to-do list. `todos` entries have `id`, `content`, `priority` (`high`, `medium`, `low`), and `status` (`pending`, `in_progress`, `completed`, `cancelled`). Missing `content` means empty.
+Complete plan snapshot `{ threadId, title, overview, content, todos }` emitted each time `CreatePlan` or `TodoWrite` succeeds; clients replace local plan state. `title` is empty when the thread has only a to-do list. `todos` entries have `id`, `content`, `priority` (`high`, `medium`, `low`), and `status` (`pending`, `in_progress`, `completed`, `cancelled`). Missing `content` means empty.
 
 The notification is sent outside the `SessionEvent` stream to all connections. Clients ignore snapshots for a thread other than the selected one and restore plans from `thread/read.thread.plan` when switching.
 

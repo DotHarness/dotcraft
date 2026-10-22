@@ -100,7 +100,7 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
                 new SkillsLoader(_craftDir),
                 _craftDir,
                 _tempDir,
-                toolNamesProvider: () => ["ReadFile", "CreatePlan", "UpdateTodos", "TodoWrite"])
+                toolNamesProvider: () => ["ReadFile", "CreatePlan", "TodoWrite"])
             .BuildSystemPrompt();
 
         var planPrompt = new PromptBuilder(
@@ -108,7 +108,7 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
                 new SkillsLoader(_craftDir),
                 _craftDir,
                 _tempDir,
-                toolNamesProvider: () => ["ReadFile", "CreatePlan", "UpdateTodos", "TodoWrite"])
+                toolNamesProvider: () => ["ReadFile", "CreatePlan", "TodoWrite"])
             .BuildSystemPrompt();
 
         Assert.Equal(agentPrompt, planPrompt);

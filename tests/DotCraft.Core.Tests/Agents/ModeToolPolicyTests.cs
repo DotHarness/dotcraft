@@ -31,7 +31,7 @@ public sealed class ModeToolPolicyTests
         Assert.Contains("MODE_POLICY_DENIED", result.Result?.ToString(), StringComparison.Ordinal);
         Assert.Contains("Tool: CreatePlan", result.Result?.ToString(), StringComparison.Ordinal);
         Assert.Contains("CurrentMode: Agent", result.Result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("TodoWrite/UpdateTodos", result.Result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("use TodoWrite to track", result.Result?.ToString(), StringComparison.Ordinal);
     }
 
     [Theory]

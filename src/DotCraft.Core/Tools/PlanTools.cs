@@ -18,7 +18,7 @@ public sealed class PlanTools(
     [ToolPresentation("core.create-plan")]
     public async Task<string> CreatePlan(
         [Description("Complete Markdown plan. Start with one H1 title, then concise sections such as Summary, Implementation Changes, Test Plan, and Assumptions. Do not split the body into separate overview/content fields.")] string plan,
-        [Description("3-7 high-level actionable implementation tasks. Each item has 'id' (short kebab-case) and 'content' (task description). Do not include search, reading, or explanation-only steps.")] List<PlanTodoInput> todos)
+        [Description("3-7 high-level actionable implementation tasks, each with its task description. Do not include search, reading, or explanation-only steps.")] List<PlanTodoInput> todos)
     {
         try
         {
@@ -36,16 +36,9 @@ public sealed class PlanTools(
             }
 
             var parsedPlan = PlanMarkdownParser.Parse(plan);
-            var todoList = todos
-                .Where(t => !string.IsNullOrWhiteSpace(t.Id) && !string.IsNullOrWhiteSpace(t.Content))
-                .Select(t => new PlanTodo
-                {
-                    Id = t.Id.Trim(),
-                    Content = t.Content.Trim(),
-                    Priority = PlanTodoPriority.Medium,
-                    Status = PlanTodoStatus.Pending
-                })
-                .ToList();
+            var todoList = CreateTodos(todos
+                .Where(static todo => !string.IsNullOrWhiteSpace(todo.Content))
+                .Select(static todo => (todo.Content, PlanTodoStatus.Pending)));
 
             var now = DateTimeOffset.UtcNow;
             var existing = await planStore.LoadStructuredPlanAsync(sessionId);
@@ -75,81 +68,14 @@ public sealed class PlanTools(
         }
     }
 
-    [Description("Update the status of one or more tasks in the current plan. Call this to mark tasks as in_progress when you start working on them and completed when done.")]
-    [Tool]
-    [ToolPresentation("core.todo", Operation = "updateTodos")]
-    public async Task<string> UpdateTodos(
-        [Description("Status updates. Each item has a task id and its new status.")]
-        List<TodoStatusUpdateInput> updates)
-    {
-        try
-        {
-            var sessionId = sessionIdProvider();
-            if (string.IsNullOrEmpty(sessionId))
-            {
-                DebugModeService.LogIfEnabled("[PlanTools] UpdateTodos: sessionId is null or empty");
-                return "Error: No active session. Please ensure you are in agent mode with an active session.";
-            }
-
-            var plan = await planStore.LoadStructuredPlanAsync(sessionId);
-            if (plan == null)
-            {
-                DebugModeService.LogIfEnabled($"[PlanTools] UpdateTodos: No plan exists for session {sessionId}");
-                return "Error: No plan exists for the current session. Create a plan first using CreatePlan in plan mode.";
-            }
-
-            if (updates.Count == 0)
-            {
-                DebugModeService.LogIfEnabled("[PlanTools] UpdateTodos: No updates provided");
-                return "Error: No updates provided.";
-            }
-
-            var results = new List<string>();
-            foreach (var upd in updates)
-            {
-                if (string.IsNullOrWhiteSpace(upd.Id))
-                    continue;
-
-                var todo = plan.Todos.FirstOrDefault(t => t.Id == upd.Id.Trim());
-                if (todo == null)
-                {
-                    results.Add($"{upd.Id} -> not found");
-                    continue;
-                }
-
-                var status = ToStatus(upd.Status);
-                todo.Status = status;
-                results.Add($"{upd.Id} -> {status}");
-            }
-
-            if (results.Count == 0)
-            {
-                DebugModeService.LogIfEnabled("[PlanTools] UpdateTodos: No tasks were updated");
-                return "No tasks were updated.";
-            }
-
-            plan.UpdatedAt = DateTimeOffset.UtcNow;
-            await planStore.SaveStructuredPlanAsync(sessionId, plan);
-            onPlanUpdated?.Invoke(sessionId, plan);
-            DebugModeService.LogIfEnabled($"[PlanTools] UpdateTodos: Updated {results.Count} task(s) for session {sessionId}");
-            return "Plan updated";
-        }
-        catch (Exception ex)
-        {
-            DebugModeService.LogIfEnabled($"[PlanTools] UpdateTodos exception: {ex.Message}\n{ex.StackTrace}");
-            return $"Error: Failed to update todos - {ex.Message}";
-        }
-    }
-
     [Description("""
-        Create or update a structured task list for the current session. This is a conditional organizational tool for complex multi-step work, not a default progress tracker. If the task does not genuinely benefit from a list, just do the work directly.
+        Write the task list for the current session. This is a conditional organizational tool for complex multi-step work, not a default progress tracker. If the task does not genuinely benefit from a list, just do the work directly.
 
         When to use this tool:
         - Complex multi-step tasks (3+ genuinely distinct steps)
         - Non-trivial tasks requiring planning or multiple operations
         - User provides multiple tasks (numbered or comma-separated)
         - After initial exploration reveals the scope is larger than first expected
-        - When starting a task, mark it as in_progress; when done, mark it as completed
 
         When NOT to use this tool:
         - Single, straightforward tasks
@@ -160,25 +86,21 @@ public sealed class PlanTools(
 
         Timing:
         - For non-trivial tasks, gather a minimum of context first (a quick read or search) so items are concrete and file-specific, then create the list before the main implementation work.
-        - Do not create a list for trivial single-step tasks.
         - A list written from guesses is worse than no list. Prefer one good TodoWrite after brief exploration over an immediate speculative one.
 
-        Parameter 'merge':
-        - false (default): Replace the entire todo list with the provided items
-        - true: Merge updates into the existing list by id. Matched items are updated; new items are added; unmentioned items are left unchanged
+        Each call replaces the whole list, so send every item with its current status. Remove items that no longer apply.
 
         Rules:
+        - Mark a task in_progress before starting it, and keep only ONE task in_progress at a time
         - Mark tasks completed IMMEDIATELY after finishing (do not batch completions)
-        - Only ONE task should be in_progress at a time
+        - Never mark a task completed while its work is partial or failing
         - Keep items high-level and actionable
         """)]
     [Tool]
     [ToolPresentation("core.todo", Operation = "todoWrite")]
     public async Task<string> TodoWrite(
-        [Description("Todo items with a short kebab-case id, task description, and status.")]
-        List<TodoWriteInput> todos,
-        [Description("When false (default), replace the entire todo list. When true, merge updates into the existing list by id.")]
-        bool merge = false)
+        [Description("The complete task list in order, each with its description and status.")]
+        List<TodoWriteInput> todos)
     {
         try
         {
@@ -189,77 +111,24 @@ public sealed class PlanTools(
                 return "Error: No active session.";
             }
 
-            var validItems = todos
-                .Where(t => !string.IsNullOrWhiteSpace(t.Id) && !string.IsNullOrWhiteSpace(t.Content))
-                .ToList();
-
-            if (validItems.Count == 0)
-            {
-                DebugModeService.LogIfEnabled("[PlanTools] TodoWrite: No valid items provided");
-                return "Error: No valid todo items provided.";
-            }
+            var emptyIndex = todos.FindIndex(static todo => string.IsNullOrWhiteSpace(todo.Content));
+            if (emptyIndex >= 0)
+                return $"Error: todos[{emptyIndex}].content is required.";
 
             var now = DateTimeOffset.UtcNow;
             var existing = await planStore.LoadStructuredPlanAsync(sessionId);
-
-            StructuredPlan plan;
-
-            if (merge && existing != null)
+            var plan = new StructuredPlan
             {
-                // Merge: update matched items by id, append new ones
-                plan = existing;
-                foreach (var item in validItems)
-                {
-                    var status = ToStatus(item.Status);
-                    var existingTodo = plan.Todos.FirstOrDefault(t => t.Id == item.Id.Trim());
-                    if (existingTodo != null)
-                    {
-                        if (!string.IsNullOrWhiteSpace(item.Content))
-                            existingTodo.Content = item.Content.Trim();
-                        existingTodo.Status = status;
-                    }
-                    else
-                    {
-                        plan.Todos.Add(new PlanTodo
-                        {
-                            Id = item.Id.Trim(),
-                            Content = item.Content.Trim(),
-                            Priority = PlanTodoPriority.Medium,
-                            Status = status
-                        });
-                    }
-                }
-                plan.UpdatedAt = now;
-            }
-            else
-            {
-                // Replace: build a fresh todo list; create the plan if it doesn't exist yet
-                var todoList = validItems
-                    .Select(t => new PlanTodo
-                    {
-                        Id = t.Id.Trim(),
-                        Content = t.Content.Trim(),
-                        Priority = PlanTodoPriority.Medium,
-                        Status = ToStatus(t.Status)
-                    })
-                    .ToList();
-
-                plan = new StructuredPlan
-                {
-                    Title = existing?.Title ?? "",
-                    Overview = existing?.Overview ?? "",
-                    Content = existing?.Content ?? "",
-                    Todos = todoList,
-                    CreatedAt = existing?.CreatedAt ?? now,
-                    UpdatedAt = now
-                };
-            }
+                Title = existing?.Title ?? "",
+                Overview = existing?.Overview ?? "",
+                Content = existing?.Content ?? "",
+                Todos = CreateTodos(todos.Select(static todo => (todo.Content, ToStatus(todo.Status)))),
+                CreatedAt = existing?.CreatedAt ?? now,
+                UpdatedAt = now
+            };
 
             await planStore.SaveStructuredPlanAsync(sessionId, plan);
             onPlanUpdated?.Invoke(sessionId, plan);
-
-            var action = merge && existing != null ? "Updated" : "Created";
-            DebugModeService.LogIfEnabled($"[PlanTools] TodoWrite: {action} {plan.Todos.Count} task(s) for session {sessionId}");
             return "Plan updated";
         }
         catch (Exception ex)
@@ -269,12 +138,20 @@ public sealed class PlanTools(
         }
     }
 
+    private static List<PlanTodo> CreateTodos(IEnumerable<(string Content, string Status)> todos) =>
+        [.. todos.Select(static (todo, index) => new PlanTodo
+        {
+            Id = $"todo-{index + 1}",
+            Content = todo.Content.Trim(),
+            Priority = PlanTodoPriority.Medium,
+            Status = todo.Status
+        })];
+
     private static string ToStatus(PlanTodoInputStatus status) => status switch
     {
         PlanTodoInputStatus.Pending => PlanTodoStatus.Pending,
         PlanTodoInputStatus.InProgress => PlanTodoStatus.InProgress,
         PlanTodoInputStatus.Completed => PlanTodoStatus.Completed,
-        PlanTodoInputStatus.Cancelled => PlanTodoStatus.Cancelled,
         _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
     };
 }
@@ -285,8 +162,7 @@ public enum PlanTodoInputStatus
     Pending,
     [JsonStringEnumMemberName("in_progress")]
     InProgress,
-    Completed,
-    Cancelled
+    Completed
 }
 
 public sealed record ParsedPlanMarkdown(string Title, string Overview, string Content);
@@ -427,17 +303,7 @@ public static class PlanMarkdownParser
 /// </summary>
 public sealed class PlanTodoInput
 {
-    public string Id { get; set; } = "";
-    public string Content { get; set; } = "";
-}
-
-/// <summary>
-/// Input DTO for a single todo status update in UpdateTodos.
-/// </summary>
-public sealed class TodoStatusUpdateInput
-{
-    public string Id { get; set; } = "";
-    public required PlanTodoInputStatus Status { get; set; }
+    public required string Content { get; set; }
 }
 
 /// <summary>
@@ -445,7 +311,6 @@ public sealed class TodoStatusUpdateInput
 /// </summary>
 public sealed class TodoWriteInput
 {
-    public string Id { get; set; } = "";
-    public string Content { get; set; } = "";
-    public PlanTodoInputStatus Status { get; set; } = PlanTodoInputStatus.Pending;
+    public required string Content { get; set; }
+    public required PlanTodoInputStatus Status { get; set; }
 }

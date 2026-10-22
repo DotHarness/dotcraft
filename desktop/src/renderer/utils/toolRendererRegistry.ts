@@ -213,7 +213,7 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   registration(CORE_TOOL_PRESENTATION_IDS.commitSuggest, 'commitSuggest', {
     mode: 'collapsible'
   }),
-  registration(CORE_TOOL_PRESENTATION_IDS.todo, 'todo', { mode: 'collapsible' }, hasOptionalOperation('todoWrite', 'updateTodos')),
+  registration(CORE_TOOL_PRESENTATION_IDS.todo, 'todo', { mode: 'collapsible' }, hasOptionalOperation('todoWrite')),
   registration(CORE_TOOL_PRESENTATION_IDS.deferredSearch, 'deferredSearch', {
     mode: 'collapsible'
   }),

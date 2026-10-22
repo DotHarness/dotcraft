@@ -20,7 +20,6 @@ public sealed class ModeToolPolicy(AgentModeManager modeManager)
         "WriteFile",
         "EditFile",
         "Transfer",
-        "UpdateTodos",
         "TodoWrite",
         GoalToolNames.GetGoal,
         GoalToolNames.CreateGoal,
@@ -85,7 +84,7 @@ Tool: {toolName}
 CurrentMode: Agent
 AllowedActionProfile: FullWorkspace
 Reason: {reason}
-NextAllowedActions: Continue execution, or use TodoWrite/UpdateTodos to track task progress.
+NextAllowedActions: Continue execution, or use TodoWrite to track task progress.
 """);
 
     private static string? TryGetStringArgument(AIFunctionArguments arguments, string name)

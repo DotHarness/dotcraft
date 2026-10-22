@@ -2,7 +2,7 @@
 name: Prototyper
 description: Builds runnable prototypes and verifies the core idea
 tools:
-  allow: [ReadFile, FindFiles, GrepFiles, WebSearch, web__run, WebFetch, RequestUserInput, Exec, WriteStdin, WriteFile, EditFile, LSP, TodoWrite, UpdateTodos]
+  allow: [ReadFile, FindFiles, GrepFiles, WebSearch, web__run, WebFetch, RequestUserInput, Exec, WriteStdin, WriteFile, EditFile, LSP, TodoWrite]
   agentControl: disabled
 permissions:
   approvalPolicy: prompt

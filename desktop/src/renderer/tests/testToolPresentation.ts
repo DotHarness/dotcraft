@@ -39,7 +39,6 @@ const CORE_TOOL_PRESENTATIONS: Readonly<Record<string, readonly [string, string?
   SendChannelMessage: ['core.channel'],
   CreatePlan: ['core.create-plan'],
   TodoWrite: ['core.todo', 'todoWrite'],
-  UpdateTodos: ['core.todo', 'updateTodos'],
   SkillView: ['core.skill-view'],
   SkillManage: ['core.skill-manage'],
   LSP: ['core.lsp'],

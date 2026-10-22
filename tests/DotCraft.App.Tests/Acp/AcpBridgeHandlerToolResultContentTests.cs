@@ -9,7 +9,6 @@ public sealed class AcpBridgeHandlerToolResultContentTests
     public void BuildToolResultContent_TodoSuccess_ReturnsNull()
     {
         Assert.Null(AcpBridgeHandler.BuildToolResultContent("TodoWrite", "Plan updated", success: true));
-        Assert.Null(AcpBridgeHandler.BuildToolResultContent("UpdateTodos", "Plan updated", success: true));
     }
 
     [Fact]

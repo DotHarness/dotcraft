@@ -170,7 +170,7 @@ Do not spawn additional agents.
             Name = SubAgentRoleNames.Worker,
             Description = "Execution role with read/write, shell, and web tools. Recursive agent control remains depth-limited.",
             AgentControlToolAccess = AgentControlToolAccess.Full,
-            ToolDenyList = ["UpdateTodos", "TodoWrite", "CreatePlan"],
+            ToolDenyList = ["TodoWrite", "CreatePlan"],
             Instructions = """
 You are a worker SubAgent. Complete the assigned implementation or verification task within the ownership boundaries given by the parent agent.
 If you change files, summarize the paths changed and the validation you ran.

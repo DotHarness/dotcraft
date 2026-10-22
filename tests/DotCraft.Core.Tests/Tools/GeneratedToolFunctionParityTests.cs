@@ -85,8 +85,8 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             ["goToDefinition", "findReferences", "hover", "documentSymbol", "workspaceSymbol",
              "goToImplementation", "prepareCallHierarchy", "incomingCalls", "outgoingCalls"]);
         AssertEnum(
-            GeneratedToolFunctions.PlanTools_UpdateTodos(planTools),
-            "updates", ["pending", "in_progress", "completed", "cancelled"], nestedProperty: "status");
+            GeneratedToolFunctions.PlanTools_TodoWrite(planTools),
+            "todos", ["pending", "in_progress", "completed"], nestedProperty: "status");
         AssertEnum(
             GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentToolPolicy(builder),
             "mode", ["all", "allowList", "denyList"]);
@@ -240,7 +240,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             Pair(GeneratedToolFunctions.WebTools_WebFetch(webTools), AIFunctionFactory.Create(webTools.WebFetch)),
             Pair(GeneratedToolFunctions.LspTool_LSP(lspTool), AIFunctionFactory.Create(lspTool.LSP)),
             Pair(GeneratedToolFunctions.PlanTools_CreatePlan(planTools), AIFunctionFactory.Create(planTools.CreatePlan)),
-            Pair(GeneratedToolFunctions.PlanTools_UpdateTodos(planTools), AIFunctionFactory.Create(planTools.UpdateTodos)),
             Pair(GeneratedToolFunctions.PlanTools_TodoWrite(planTools), AIFunctionFactory.Create(planTools.TodoWrite)),
             Pair(GeneratedToolFunctions.RequestUserInputTools_RequestUserInput(requestInputTools), AIFunctionFactory.Create(requestInputTools.RequestUserInput)),
             Pair(GeneratedToolFunctions.GoalToolMethods_GetGoal(goalMethods), AIFunctionFactory.Create(goalMethods.GetGoal)),

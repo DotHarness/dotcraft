@@ -231,7 +231,6 @@ export function getStreamingToolDisplay(
       }
     }
     case 'todoWrite':
-    case 'updateTodos':
     case 'todo':
       return { label: translate(locale, 'toolCall.streaming.updatingTodos') }
     case 'skillManage':

@@ -17,7 +17,7 @@ public static class AcpToolKindMapper
         ["WebFetch"] = AcpToolKind.Fetch,
         ["SpawnAgent"] = AcpToolKind.Think,
         ["CreatePlan"] = AcpToolKind.Other,
-        ["UpdateTodos"] = AcpToolKind.Other
+        ["TodoWrite"] = AcpToolKind.Other
     };
 
     /// <summary>

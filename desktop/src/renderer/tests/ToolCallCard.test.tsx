@@ -1162,62 +1162,7 @@ describe('ToolCallCard todo rendering safety', () => {
       presentation: { presentationId: 'core.todo' },
       toolCallId: 'todo-write-call-1',
       arguments: {
-        merge: false,
-        todos: [{ id: 't1', content: 'Next step is ABCDEFGHIJKLMNOPQRSTUVWXYZ', status: 'pending' }]
-      },
-      result: 'Plan updated',
-      success: true,
-      createdAt: new Date().toISOString()
-    }
-
-    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
-
-    expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
-    fireEvent.click(screen.getByTestId('tool-row'))
-    expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
-  })
-
-  it('renders UpdateTodos fallback label when plan is unavailable', () => {
-    const item: ConversationItem = {
-      id: 'todo-update-1',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'UpdateTodos', ...coreToolFields('UpdateTodos'),
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'UpdateTodos' },
-      presentation: { presentationId: 'core.todo' },
-      toolCallId: 'todo-update-call-1',
-      arguments: {
-        updates: [{ id: 't1', status: 'completed' }]
-      },
-      result: 'Plan updated',
-      success: true,
-      createdAt: new Date().toISOString()
-    }
-
-    renderWithLocale(<ToolCallCard threadId="thread-1" item={item} turnId="turn-1" />)
-
-    expect(document.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
-    fireEvent.click(screen.getByTestId('tool-row'))
-    expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
-  })
-
-  it('does not throw when plan todo ids are non-string values', () => {
-    useConversationStore.getState().onPlanUpdated({
-      title: 'Plan',
-      overview: '',
-      todos: [{ id: 123 as unknown as string, content: 'Bad data shape', status: 'pending' as const }]
-    })
-
-    const item: ConversationItem = {
-      id: 'todo-update-2',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'UpdateTodos', ...coreToolFields('UpdateTodos'),
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'UpdateTodos' },
-      presentation: { presentationId: 'core.todo' },
-      toolCallId: 'todo-update-call-2',
-      arguments: {
-        updates: [{ id: '123', status: 'in_progress' }]
+        todos: [{ content: 'Next step is ABCDEFGHIJKLMNOPQRSTUVWXYZ', status: 'pending' }]
       },
       result: 'Plan updated',
       success: true,

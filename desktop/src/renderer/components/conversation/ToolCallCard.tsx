@@ -298,7 +298,6 @@ export const ToolCallCard = memo(function ToolCallCard({
   const streamingFileDiff = useConversationStore((s) =>
     isStreamingFileTool ? s.streamingItemDiffs.get(item.id) : undefined
   )
-  const planTodos = useConversationStore((s) => s.plan?.todos)
   const { lookup: subAgentLookup } = useSubAgentLookup(threadId, rendererFamily === 'subagent')
   const skillManageDiff = isSkillManageTool ? buildSkillManageDiff(args, item.result) : null
   const renderableFileDiff = hasRenderableDiff(fileDiff) ? fileDiff : undefined
@@ -511,7 +510,6 @@ export const ToolCallCard = memo(function ToolCallCard({
                 fileDiff={undefined}
                 locale={locale}
                 shellCommand={shellCommand}
-                planTodos={planTodos}
               />
             ) : isStreamingFileTool ? (
               renderableStreamingFileDiff ? (
@@ -543,7 +541,7 @@ export const ToolCallCard = memo(function ToolCallCard({
           ? formatShellBackgroundLabel(shellBackgroundState, locale, shellCommand)
         : isShellTool && !shellCommand
           ? translate(locale, 'toolCall.ranCommand')
-        : formatCollapsedToolLabel(item, shellDisplayArgs, locale, { planTodos }))
+        : formatCollapsedToolLabel(item, shellDisplayArgs, locale))
   const label = isStreamingFileTool
     ? formatFileToolLabel(rendererOperation, fileDiff, fallbackLabel, locale)
     : fallbackLabel
@@ -654,7 +652,6 @@ export const ToolCallCard = memo(function ToolCallCard({
           workspacePath={workspacePath}
           shellCommand={shellCommand}
           shellInputs={item.terminalInputs}
-          planTodos={planTodos}
         />
         )}
       </div>
@@ -686,7 +683,6 @@ interface ExpandedContentProps {
   workspacePath?: string
   shellCommand?: string
   shellInputs?: string[]
-  planTodos?: Array<{ id: string; content: string }>
 }
 
 function ExpandedContent({
@@ -701,8 +697,7 @@ function ExpandedContent({
   locale,
   workspacePath,
   shellCommand,
-  shellInputs,
-  planTodos
+  shellInputs
 }: ExpandedContentProps): JSX.Element {
   if (rendererFamily === 'createPlan') {
     const parsedPlan = parseCompletedCreatePlanArgs(args)
@@ -817,7 +812,7 @@ function ExpandedContent({
 
   const resultText = formatDefaultToolResultForDisplay(result)
   const invocation = rendererFamily
-    ? formatExpandedInvocation(tool, args, locale, { planTodos })
+    ? formatExpandedInvocation(tool, args, locale)
     : null
 
   return (

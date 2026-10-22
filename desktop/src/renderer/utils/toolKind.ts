@@ -14,7 +14,7 @@ export type ToolKind =
   | 'taskStop'
   | 'channelMessage'
   | 'lsp' | 'requestUserInput' | 'commitSuggest' | 'createPlan'
-  | 'todoWrite' | 'updateTodos' | 'todo'
+  | 'todoWrite' | 'todo'
   | 'skillManage' | 'skillView'
   | 'board' | 'automation' | 'agentBuilder' | 'remoteToolHost'
   | 'workflow'
@@ -49,7 +49,7 @@ export function resolveToolKind(item: ToolKindSource): ToolKind | null {
     case 'deferredSearch':
       return 'toolSearch'
     case 'todo':
-      return operation === 'todoWrite' || operation === 'updateTodos' ? operation : 'todo'
+      return operation === 'todoWrite' ? operation : 'todo'
     case 'subagent':
       return typeof operation === 'string' ? SUBAGENT_KINDS[operation] ?? null : null
     case 'task':

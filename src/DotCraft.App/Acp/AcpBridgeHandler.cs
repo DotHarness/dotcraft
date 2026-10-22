@@ -631,8 +631,7 @@ public sealed class AcpBridgeHandler(
     }
 
     internal static bool IsTodoProgressTool(string? toolName) =>
-        string.Equals(toolName, "TodoWrite", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(toolName, "UpdateTodos", StringComparison.OrdinalIgnoreCase);
+        string.Equals(toolName, "TodoWrite", StringComparison.OrdinalIgnoreCase);
 
     internal static List<AcpContentBlock>? BuildToolResultContent(
         string? toolName,

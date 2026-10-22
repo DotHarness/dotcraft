@@ -153,12 +153,12 @@ describe('discovery-dependent activity', () => {
       : { thread: { id: 'child-B', turns: [] }, data: [] })
     render(<LocaleProvider><div data-testid="transcript"><SubAgentChips items={[makeSpawn()]} parentThreadId="parent-B" turnRunning={false} /></div><SubagentsTab /></LocaleProvider>)
     await screen.findByText('finished')
-    expect(screen.getByText('Done · 1')).toBeInTheDocument()
+    expect(sectionLabel('Finished 1')).toBeInTheDocument()
     act(() => store().setChildren('parent-B', [makeSubAgent({ nickname: 'Core', status: 'closed', isCompleted: true })]))
     act(() => store().updateChildRuntime('child-B', { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }))
     expect(within(screen.getByTestId('transcript')).getByText('finished')).toBeInTheDocument()
-    expect(screen.getByText('Active · 0')).toBeInTheDocument()
-    expect(screen.getByText('Closed · 1')).toBeInTheDocument()
+    expect(sectionLabel('Running 0')).toBeInTheDocument()
+    expect(sectionLabel('Closed 1')).toBeInTheDocument()
   })
 
   it('keeps a spawn without a returned result working even after discovery', () => {
@@ -192,3 +192,7 @@ describe('discovery-dependent activity', () => {
     expect(screen.queryByText('started working')).toBeNull()
   })
 })
+
+function sectionLabel(text: string): HTMLElement {
+  return screen.getByText((_, element) => element?.tagName === 'SPAN' && element.textContent === text && element.childElementCount === 1)
+}

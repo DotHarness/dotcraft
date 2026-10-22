@@ -53,7 +53,6 @@ public sealed class PlanToolsTests
                 {
                     new
                     {
-                        id = "align-content",
                         content = "Update CreatePlan argument name"
                     }
                 })
@@ -69,7 +68,7 @@ public sealed class PlanToolsTests
             Assert.NotNull(callbackPlan);
             Assert.Equal("Fix plan", callbackPlan.Title);
             var todo = Assert.Single(plan.Todos);
-            Assert.Equal("align-content", todo.Id);
+            Assert.Equal("todo-1", todo.Id);
             Assert.Equal("Update CreatePlan argument name", todo.Content);
         }
         finally
@@ -157,7 +156,7 @@ public sealed class PlanToolsTests
     }
 
     [Fact]
-    public async Task TodoWrite_SavesTodoState()
+    public async Task TodoWrite_ReplacesTheListAndKeepsThePlan()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"plan_tools_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
@@ -177,23 +176,22 @@ public sealed class PlanToolsTests
             });
             var store = new PlanStore(tempDir);
             var tools = new PlanTools(store, () => sessionId);
+            await tools.CreatePlan("# Cache plan", [new PlanTodoInput { Content = "Add metrics" }, new PlanTodoInput { Content = "Document it" }]);
 
             _ = await tools.TodoWrite([
-                new TodoWriteInput
-                {
-                    Id = "cache-metrics",
-                    Content = "Expose cache hit rate",
-                    Status = PlanTodoInputStatus.InProgress
-                }
+                new TodoWriteInput { Content = "Add metrics", Status = PlanTodoInputStatus.Completed },
+                new TodoWriteInput { Content = "Expose cache hit rate", Status = PlanTodoInputStatus.InProgress }
             ]);
 
             var plan = await store.LoadStructuredPlanAsync(sessionId);
             Assert.NotNull(plan);
-            Assert.Equal("", plan.Title);
-            var todo = Assert.Single(plan.Todos);
-            Assert.Equal("cache-metrics", todo.Id);
-            Assert.Equal("Expose cache hit rate", todo.Content);
-            Assert.Equal(PlanTodoStatus.InProgress, todo.Status);
+            Assert.Equal("Cache plan", plan.Title);
+            Assert.Equal(
+                [("todo-1", "Add metrics", PlanTodoStatus.Completed), ("todo-2", "Expose cache hit rate", PlanTodoStatus.InProgress)],
+                plan.Todos.Select(static todo => (todo.Id, todo.Content, todo.Status)));
+            Assert.Equal(
+                "Error: todos[0].content is required.",
+                await tools.TodoWrite([new TodoWriteInput { Content = " ", Status = PlanTodoInputStatus.Pending }]));
         }
         finally
         {

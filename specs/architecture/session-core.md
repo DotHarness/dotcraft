@@ -1075,12 +1075,14 @@ Workspace resolution:
 
 ### 12.3.1 Mode-Stable Plan Tools
 
-Plan tools keep the same schema across Agent/Plan switches to preserve prompt-cache stability. When plan persistence is available, `CreatePlan`, `UpdateTodos`, and `TodoWrite` are always exposed and the mode decides which calls are valid:
+Plan tools keep the same schema across Agent/Plan switches to preserve prompt-cache stability. When plan persistence is available, `CreatePlan` and `TodoWrite` are always exposed and the mode decides which calls are valid:
 
 | Mode | Allowed | Denied |
 |------|---------|--------|
-| `plan` | `CreatePlan` | `UpdateTodos`, `TodoWrite` |
-| `agent` | `UpdateTodos`, `TodoWrite` | `CreatePlan` |
+| `plan` | `CreatePlan` | `TodoWrite` |
+| `agent` | `TodoWrite` | `CreatePlan` |
+
+`CreatePlan` saves the proposed plan with its tasks as `pending`. `TodoWrite` takes the complete task list, each item a description and a status of `pending`, `in_progress`, or `completed`, and replaces the stored list while keeping the plan's title and body. Task ids are assigned by position (`todo-1`, `todo-2`, …); the model never supplies them.
 
 Every host that exposes mode switching must provide per-thread plan persistence, and hook execution where lifecycle hooks are expected, so mode switching behaves identically across hosts; without plan persistence the plan tools are omitted, which is a host configuration error. A host may observe plan changes (each carrying `threadId` and the complete plan) to drive its own UX.
 

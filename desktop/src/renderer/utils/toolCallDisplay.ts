@@ -32,7 +32,6 @@ import { formatInvocationDisplay, invocationNeedsCallingPrefix } from './webTool
 import { formatNodeReplLabel, getNodeReplSurface } from './nodeReplToolDisplay'
 
 type ToolArgs = Record<string, unknown> | undefined
-type PlanTodoLike = { id?: string; content?: string }
 
 const EXPLORE_ICONS: Partial<Record<ToolKind, LucideIcon>> = {
   read: BookOpen,
@@ -164,10 +163,6 @@ function normalizeStatus(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : ''
 }
 
-function normalizeText(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
-}
-
 function normalizeSummary(content: string): string {
   return content.replace(/\s+/g, ' ').trim()
 }
@@ -196,87 +191,33 @@ function formatRequestUserInputLabel(
   return translate(locale, `${prefix}.generic`)
 }
 
-function getTodoWriteSummary(args: ToolArgs, preferStarted: boolean): string | null {
+function todoSummary(todo: Record<string, unknown> | undefined): string | null {
+  const content = typeof todo?.content === 'string' ? todo.content : ''
+  return content.trim() ? normalizeSummary(content) : null
+}
+
+function formatTodoLabel(args: ToolArgs, locale: AppLocale): string {
   const todos = asObjectArray(args?.todos)
-  if (todos.length === 0) return null
-
-  const candidate = preferStarted
-    ? todos.find((todo) => normalizeStatus(todo.status) === 'in_progress') ?? todos[0]
-    : todos[0]
-
-  const content = typeof candidate.content === 'string' ? candidate.content : ''
-  if (!content.trim()) return null
-  return normalizeSummary(content)
-}
-
-function getUpdateTodosSummary(
-  args: ToolArgs,
-  planTodos: readonly PlanTodoLike[] | undefined,
-  preferStarted: boolean
-): string | null {
-  const updates = asObjectArray(args?.updates)
-  if (updates.length === 0 || !planTodos || planTodos.length === 0) return null
-
-  const candidate = preferStarted
-    ? updates.find((update) => normalizeStatus(update.status) === 'in_progress') ?? updates[0]
-    : updates[0]
-
-  const id = normalizeText(candidate.id)
-  if (!id) return null
-
-  const matched = planTodos.find((todo) => normalizeText(todo?.id) === id)
-  const content = normalizeText(matched?.content)
-  if (!content) return null
-  return normalizeSummary(content)
-}
-
-function formatTodoLabel(
-  kind: 'todoWrite' | 'updateTodos',
-  args: ToolArgs,
-  locale: AppLocale,
-  planTodos: readonly PlanTodoLike[] | undefined
-): string | null {
-  if (kind === 'todoWrite') {
-    const merge = args?.merge === true
-    const todos = asObjectArray(args?.todos)
-    const hasInProgress = todos.some((todo) => normalizeStatus(todo.status) === 'in_progress')
-    const started = merge && hasInProgress
-    const summary = getTodoWriteSummary(args, started)
-
-    if (!merge) {
-      return summary
-        ? translate(locale, 'toolCall.todo.createWithSummary', { summary })
-        : translate(locale, 'toolCall.todo.create')
-    }
-
-    if (started) {
-      return summary
-        ? translate(locale, 'toolCall.todo.startedWithSummary', { summary })
-        : translate(locale, 'toolCall.todo.started')
-    }
-
-    return summary
-      ? translate(locale, 'toolCall.todo.updatedWithSummary', { summary })
-      : translate(locale, 'toolCall.todo.updated')
-  }
-
-  const updates = asObjectArray(args?.updates)
-  const hasInProgress = updates.some((update) => normalizeStatus(update.status) === 'in_progress')
-  const summary = getUpdateTodosSummary(args, planTodos, hasInProgress)
-
-  if (hasInProgress) {
+  const started = todos.find((todo) => normalizeStatus(todo.status) === 'in_progress')
+  if (started) {
+    const summary = todoSummary(started)
     return summary
       ? translate(locale, 'toolCall.todo.startedWithSummary', { summary })
       : translate(locale, 'toolCall.todo.started')
   }
 
-  return summary
-    ? translate(locale, 'toolCall.todo.updatedWithSummary', { summary })
-    : translate(locale, 'toolCall.todo.updated')
-}
+  const completed = todos.filter((todo) => normalizeStatus(todo.status) === 'completed').at(-1)
+  if (completed) {
+    const summary = todoSummary(completed)
+    return summary
+      ? translate(locale, 'toolCall.todo.updatedWithSummary', { summary })
+      : translate(locale, 'toolCall.todo.updated')
+  }
 
-export interface ToolCallDisplayOptions {
-  planTodos?: readonly PlanTodoLike[]
+  const summary = todoSummary(todos[0])
+  return summary
+    ? translate(locale, 'toolCall.todo.createWithSummary', { summary })
+    : translate(locale, 'toolCall.todo.create')
 }
 
 function formatExploredLabel(args: ToolArgs, locale: AppLocale): string {
@@ -290,8 +231,7 @@ function formatExploredLabel(args: ToolArgs, locale: AppLocale): string {
 export function formatCollapsedToolLabel(
   item: ToolKindSource,
   args: ToolArgs,
-  locale: AppLocale,
-  options?: ToolCallDisplayOptions
+  locale: AppLocale
 ): string {
   const toolName = item.toolName ?? 'tool'
   const kind = resolveToolKind(item)
@@ -311,11 +251,7 @@ export function formatCollapsedToolLabel(
       break
     }
     case 'todoWrite':
-    case 'updateTodos': {
-      const todoLabel = formatTodoLabel(kind, args, locale, options?.planTodos)
-      if (todoLabel) return todoLabel
-      break
-    }
+      return formatTodoLabel(args, locale)
     case 'requestUserInput':
       return formatRequestUserInputLabel(args, locale, false)
     case 'createPlan': {
@@ -416,16 +352,14 @@ function formatGenericInvocation(item: ToolKindSource, args: ToolArgs): string |
 export function formatExpandedInvocation(
   item: ToolKindSource,
   args: ToolArgs,
-  locale: AppLocale,
-  options?: ToolCallDisplayOptions
+  locale: AppLocale
 ): string | null {
   const kind = resolveToolKind(item)
   switch (kind) {
     case 'read':
       return formatReadFileLabel(args, locale) ?? formatGenericInvocation(item, args)
     case 'todoWrite':
-    case 'updateTodos':
-      return formatTodoLabel(kind, args, locale, options?.planTodos) ?? formatGenericInvocation(item, args)
+      return formatTodoLabel(args, locale)
     case 'requestUserInput':
       return formatRequestUserInputLabel(args, locale, false)
     case 'webSearch':
