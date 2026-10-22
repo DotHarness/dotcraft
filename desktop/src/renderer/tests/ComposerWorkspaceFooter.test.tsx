@@ -881,7 +881,7 @@ describe('ComposerWorkspaceFooter', () => {
     })
   })
 
-  it('hands off into an existing worktree without naming a branch', async () => {
+  it('hands off into an existing worktree chosen with the keyboard', async () => {
     const existingPath = 'fixtures\\sample-app\\.craft\\worktrees\\existing'
     appServerSendRequest.mockImplementation(async (method: string) => method === 'worktree/list'
       ? { data: [{ threadId: null, path: existingPath, branchName: 'dotcraft/existing', exists: true }] }
@@ -891,8 +891,12 @@ describe('ComposerWorkspaceFooter', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Local' }))
     fireEvent.click(screen.getByRole('button', { name: 'Handoff to worktree' }))
-    fireEvent.click(await screen.findByRole('combobox', { name: 'Worktree' }))
-    fireEvent.click(await screen.findByRole('option', { name: /dotcraft\/existing/ }))
+    const target = await screen.findByRole('combobox', { name: 'Worktree' })
+    fireEvent.keyDown(target, { key: 'Enter' })
+    await screen.findByRole('option', { name: /dotcraft\/existing/ })
+    fireEvent.keyDown(target, { key: 'ArrowDown' })
+    fireEvent.keyDown(target, { key: 'Enter' })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/worktree/handoff', expect.anything(), expect.anything())
     fireEvent.click(screen.getByRole('button', { name: 'Hand off' }))
 
     await waitFor(() => {

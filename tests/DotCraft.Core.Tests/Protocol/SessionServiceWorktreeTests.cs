@@ -340,6 +340,47 @@ public sealed class SessionServiceWorktreeTests : IDisposable
     }
 
     [Fact]
+    public async Task HandoffThreadWorktreeAsync_LetsOnlyOneConversationClaimAnUnboundWorktree()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var first = await service.CreateThreadAsync(MakeIdentity());
+        var second = await service.CreateThreadAsync(MakeIdentity());
+        var existingPath = Path.Combine(_tempDir, ".craft", "worktrees", "shared");
+        RunGit("worktree", "add", "-b", "dotcraft/shared", existingPath);
+        var firstReused = new TaskCompletionSource();
+        using var releaseFirst = new ManualResetEventSlim();
+
+        var firstHandoff = Task.Run(() => service.HandoffThreadWorktreeAsync(new WorktreeHandoffOptions
+        {
+            ThreadId = first.Id,
+            Path = existingPath,
+            CopyDirtyChanges = false,
+            Progress = (step, status) =>
+            {
+                if (step != WorktreeHandoffSteps.ReuseWorktree || status != WorktreeHandoffStepStatuses.Completed)
+                    return;
+                firstReused.SetResult();
+                releaseFirst.Wait();
+            }
+        }));
+        await firstReused.Task;
+        var secondHandoff = Task.Run(() => service.HandoffThreadWorktreeAsync(new WorktreeHandoffOptions
+        {
+            ThreadId = second.Id,
+            Path = existingPath,
+            CopyDirtyChanges = false
+        }));
+        await Task.WhenAny(secondHandoff, Task.Delay(TimeSpan.FromSeconds(1)));
+        releaseFirst.Set();
+
+        await firstHandoff;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => secondHandoff);
+        Assert.Equal(Path.GetFullPath(existingPath), Path.GetFullPath((await _store.LoadThreadAsync(first.Id))!.Worktree!.Path));
+        Assert.Null((await _store.LoadThreadAsync(second.Id))?.Worktree);
+    }
+
+    [Fact]
     public async Task HandoffThreadWorktreeAsync_RefusesWhileInputIsQueued()
     {
         await using var agentFactory = CreateAgentFactory();

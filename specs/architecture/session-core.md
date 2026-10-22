@@ -1086,6 +1086,7 @@ Workspace resolution:
 - `RuntimeWorkspaceRoots` is an ordered full replacement when present; null defaults to the ordinary cwd, and an empty array supplies no roots. A cwd-only update retargets the old cwd entry and keeps additional roots; duplicates are removed keeping first occurrence.
 - `ExecutionWorkspaceOverride` wins for tool execution and first-party file and Git surfaces while state stays in `WorkspacePath`; it replaces the ordinary cwd root in the effective roots. Worktree handoff uses it, never `WorkspaceOverride`.
 - A client worktree handoff on an existing thread is a configuration change on the same Thread: rejected while a Turn is active, and the effective agent and tool context is rebuilt before the next Turn. A move by the worktree tools updates the running Turn's tool location immediately and rebuilds the agent before the next Turn.
+- Worktree handoffs, moves by the worktree tools, and worktree removal run one at a time across threads, so a worktree is bound to at most one thread.
 
 ### 12.3 Mode Switching
 

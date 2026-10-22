@@ -137,9 +137,6 @@ export function WorktreeHandoffDialog({
       if (event.key === 'Escape') {
         event.preventDefault()
         handleClose()
-      } else if (event.key === 'Enter' && phase === 'confirm' && !handoffDisabled) {
-        event.preventDefault()
-        void startHandoff()
       }
     }
 
@@ -313,7 +310,12 @@ export function WorktreeHandoffDialog({
             {steps.length === 0 && <Spinner size={20} />}
           </div>
         ) : (
-          <>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void startHandoff()
+            }}
+          >
             {mode === 'worktree' ? (
               <>
                 {unboundWorktrees.length > 0 && (
@@ -373,15 +375,16 @@ export function WorktreeHandoffDialog({
             )}
 
             <Button
+              type="submit"
               variant="primary"
               size="prominent"
               disabled={handoffDisabled}
+              autoFocus={mode === 'local'}
               style={{ width: '100%' }}
-              onClick={() => { void startHandoff() }}
             >
               {t('workspaceFooter.handOff')}
             </Button>
-          </>
+          </form>
         )}
 
         {phase === 'error' && (

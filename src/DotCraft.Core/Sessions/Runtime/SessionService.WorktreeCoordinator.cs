@@ -157,6 +157,7 @@ public sealed partial class SessionService
             var mode = NormalizeWorktreeHandoffMode(options.Mode);
 
             using (await owner.Gate.AcquireAsync(threadId, ct))
+            using (await LockMovesAsync(ct))
             {
                 var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
                 ThrowIfThreadCannotHandoffWorktree(thread);
@@ -349,6 +350,7 @@ public sealed partial class SessionService
             if (!string.IsNullOrWhiteSpace(threadId))
             {
                 using (await owner.Gate.AcquireAsync(threadId, ct))
+                using (await LockMovesAsync(ct))
                 {
                     var thread = await TryGetThreadAsync(threadId, ct);
                     var worktree = ResolveRemovalWorktree(options, thread);
@@ -450,33 +452,32 @@ public sealed partial class SessionService
             return await ThreadWorktreeManager.GetStatusAsync(thread.Id, thread.Worktree, ct, owner.Logger);
         }
 
-        public Task<ThreadWorktreeInfo> EnterAsync(
+        public async Task<ThreadWorktreeInfo> EnterAsync(
             string threadId,
             string? name,
             string? path,
             ToolLocation location,
-            CancellationToken ct) =>
-            RunMoveAsync(() => EnterCoreAsync(threadId, name, path, location, ct), ct);
+            CancellationToken ct)
+        {
+            using (await LockMovesAsync(ct))
+                return await EnterCoreAsync(threadId, name, path, location, ct);
+        }
 
-        public Task<WorktreeExitResult> ExitAsync(
+        public async Task<WorktreeExitResult> ExitAsync(
             string threadId,
             bool remove,
             bool discardChanges,
             ToolLocation location,
-            CancellationToken ct) =>
-            RunMoveAsync(() => ExitCoreAsync(threadId, remove, discardChanges, location, ct), ct);
+            CancellationToken ct)
+        {
+            using (await LockMovesAsync(ct))
+                return await ExitCoreAsync(threadId, remove, discardChanges, location, ct);
+        }
 
-        private async Task<T> RunMoveAsync<T>(Func<Task<T>> move, CancellationToken ct)
+        private async Task<IDisposable> LockMovesAsync(CancellationToken ct)
         {
             await _moveLock.WaitAsync(ct);
-            try
-            {
-                return await move();
-            }
-            finally
-            {
-                _moveLock.Release();
-            }
+            return new SemaphoreSlimReleaser(_moveLock);
         }
 
         private async Task<ThreadWorktreeInfo> EnterCoreAsync(
@@ -550,6 +551,7 @@ public sealed partial class SessionService
 
         public async Task RemoveByPathAsync(string path, bool discardChanges, CancellationToken ct)
         {
+            using var moves = await LockMovesAsync(ct);
             var fullPath = Path.GetFullPath(path);
             var status = (await ListAsync(ct)).FirstOrDefault(entry =>
                     string.Equals(Path.GetFullPath(entry.Path), fullPath, StringComparison.OrdinalIgnoreCase))
@@ -626,10 +628,12 @@ public sealed partial class SessionService
             if (string.IsNullOrWhiteSpace(path))
                 return null;
             var fullPath = Path.GetFullPath(path);
-            return (await ListAsync(ct)).FirstOrDefault(entry =>
-                entry.ThreadId == null
-                && entry is { Exists: true, IsGitWorktree: true }
+            var status = (await ListAsync(ct)).FirstOrDefault(entry =>
+                entry is { Exists: true, IsGitWorktree: true }
                 && string.Equals(Path.GetFullPath(entry.Path), fullPath, StringComparison.OrdinalIgnoreCase));
+            if (status?.ThreadId != null)
+                throw new InvalidOperationException("Another conversation is working in that worktree.");
+            return status;
         }
 
         private async Task<bool> HasRunningTerminalInAsync(string threadId, string worktreePath, CancellationToken ct)
