@@ -22,7 +22,8 @@ public sealed class ToolPlanningContext
         IReadOnlyList<string>? workspaceRoots = null,
         SubAgentModelCatalogSnapshot? subAgentModelCatalogSnapshot = null,
         bool? requireApprovalOutsideWorkspace = null,
-        Memory.ThreadMemoryStores? memoryStores = null)
+        Memory.ThreadMemoryStores? memoryStores = null,
+        ToolLocation? location = null)
     {
         if (string.IsNullOrWhiteSpace(threadId))
             throw new ArgumentException("A thread identifier is required.", nameof(threadId));
@@ -48,6 +49,7 @@ public sealed class ToolPlanningContext
         SubAgentModelCatalogSnapshot = subAgentModelCatalogSnapshot;
         RequireApprovalOutsideWorkspace = requireApprovalOutsideWorkspace;
         MemoryStores = memoryStores;
+        Location = location;
     }
 
     /// <summary>Gets the thread identifier.</summary>
@@ -85,4 +87,6 @@ public sealed class ToolPlanningContext
     public bool? RequireApprovalOutsideWorkspace { get; }
     /// <summary>Gets the Thread's memory stores, or null when the Thread has memory disabled.</summary>
     public Memory.ThreadMemoryStores? MemoryStores { get; }
+    /// <summary>Gets where the thread's tools work, when a worktree tool may move them during a Turn.</summary>
+    public ToolLocation? Location { get; }
 }

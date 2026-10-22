@@ -1,3 +1,5 @@
+using DotCraft.Tools;
+
 namespace DotCraft.Security;
 
 /// <summary>
@@ -14,6 +16,7 @@ public sealed class FileAccessGuard
     private readonly PathBlacklist? _blacklist;
     private readonly IReadOnlyList<string> _trustedReadPaths;
     private readonly IReadOnlyList<string> _trustedPaths;
+    private readonly ToolLocation? _location;
 
     /// <summary>
     /// Creates a new guard for file access decisions in a workspace.
@@ -26,7 +29,8 @@ public sealed class FileAccessGuard
         PathBlacklist? blacklist = null,
         IReadOnlyList<string>? trustedReadPaths = null,
         IReadOnlyList<string>? workspaceRoots = null,
-        IReadOnlyList<string>? trustedPaths = null)
+        IReadOnlyList<string>? trustedPaths = null,
+        ToolLocation? location = null)
     {
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
         _workspaceRoots = (workspaceRoots ?? [_workspaceRoot])
@@ -41,12 +45,13 @@ public sealed class FileAccessGuard
         _trustedPaths = (trustedPaths ?? [])
             .Select(Path.GetFullPath)
             .ToArray();
+        _location = location;
     }
 
     /// <summary>
     /// Resolves a workspace-relative or absolute path to a normalized full path.
     /// </summary>
-    public string ResolvePath(string path) => ResolvePath(_workspaceRoot, path);
+    public string ResolvePath(string path) => ResolvePath(_location?.Directory ?? _workspaceRoot, path);
 
     /// <summary>Expands the home directory and environment variables, then resolves against <paramref name="workspaceRoot"/>.</summary>
     public static string ResolvePath(string workspaceRoot, string path)
@@ -106,7 +111,9 @@ public sealed class FileAccessGuard
     /// </summary>
     public bool RequiresOutsideWorkspaceApproval(string fullPath, string operation)
     {
-        if (IsWithinAny(fullPath, _workspaceRoots) || IsWithinAny(fullPath, _trustedPaths))
+        if (IsWithinAny(fullPath, _workspaceRoots)
+            || IsWithinAny(fullPath, _trustedPaths)
+            || (_location != null && IsWithinAny(fullPath, _location.Roots)))
             return false;
         return operation is not ("read" or "list") || !IsWithinAny(fullPath, _trustedReadPaths);
     }

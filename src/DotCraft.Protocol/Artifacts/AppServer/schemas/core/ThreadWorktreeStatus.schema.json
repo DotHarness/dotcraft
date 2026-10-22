@@ -36,7 +36,14 @@
       "type": "string"
     },
     "threadId": {
-      "type": "string"
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "worktree": {
       "$ref": "./ThreadWorktreeInfo.schema.json"

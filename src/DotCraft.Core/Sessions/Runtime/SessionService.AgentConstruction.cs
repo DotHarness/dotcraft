@@ -447,7 +447,8 @@ public sealed partial class SessionService
             toolContext.WorkspaceRoots,
             config.SubAgentModelCatalogSnapshot,
             config.RequireApprovalOutsideWorkspace,
-            toolContext.MemoryStores);
+            toolContext.MemoryStores,
+            toolContext.ToolLocation);
         var toolSnapshot = await agentFactory.BuildToolSnapshotAsync(
             snapshotSources,
             planningContext,
@@ -469,6 +470,7 @@ public sealed partial class SessionService
         }
         capabilityPolicy.SetRuntimeManagedTools(toolSnapshot);
         threadRuntimeState.SetLatestToolSnapshot(toolSnapshot);
+        threadRuntimeState.ToolLocation = toolContext.ToolLocation;
         EffectiveToolSnapshotChanged?.Invoke(
             this,
             new EffectiveToolSnapshotChangedEventArgs(thread.Id, toolSnapshot.Revision));
@@ -589,6 +591,7 @@ public sealed partial class SessionService
             EffectiveReasoning = ThreadConfigurationCloner.CloneReasoningConfig(source.EffectiveReasoning),
             WorkspacePath = workspace.Cwd,
             WorkspaceRoots = workspace.RuntimeWorkspaceRoots,
+            ToolLocation = new ToolLocation(workspace),
             AgentFileSystem = new HostAgentFileSystem(workspace.Cwd)
         };
 

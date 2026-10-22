@@ -11,6 +11,7 @@ internal static class ThreadWorktreeManager
         string sourceExecutionWorkspace,
         string dataPath,
         WorktreeCreateAndForkOptions options,
+        string branchPrefix,
         ILogger? logger,
         CancellationToken ct)
     {
@@ -23,7 +24,8 @@ internal static class ThreadWorktreeManager
                 options.BranchName,
                 options.BaseRef,
                 options.Path,
-                options.CopyDirtyChanges),
+                options.CopyDirtyChanges ? DirtyChangeHandling.Copy : DirtyChangeHandling.None,
+                branchPrefix),
             logger,
             ct).ConfigureAwait(false);
     }
@@ -33,6 +35,7 @@ internal static class ThreadWorktreeManager
         string sourceExecutionWorkspace,
         string dataPath,
         WorktreeCreateAndStartOptions options,
+        string branchPrefix,
         ILogger? logger,
         CancellationToken ct)
     {
@@ -45,7 +48,8 @@ internal static class ThreadWorktreeManager
                 options.BranchName,
                 options.BaseRef,
                 options.Path,
-                options.CopyDirtyChanges),
+                options.CopyDirtyChanges ? DirtyChangeHandling.Copy : DirtyChangeHandling.None,
+                branchPrefix),
             logger,
             ct).ConfigureAwait(false);
     }
@@ -55,6 +59,7 @@ internal static class ThreadWorktreeManager
         string sourceExecutionWorkspace,
         string dataPath,
         WorktreeHandoffOptions options,
+        string branchPrefix,
         ILogger? logger,
         CancellationToken ct)
     {
@@ -67,7 +72,8 @@ internal static class ThreadWorktreeManager
                 options.BranchName,
                 options.BaseRef,
                 options.Path,
-                options.CopyDirtyChanges),
+                options.CopyDirtyChanges ? DirtyChangeHandling.Move : DirtyChangeHandling.None,
+                branchPrefix),
             logger,
             ct).ConfigureAwait(false);
     }
@@ -200,7 +206,7 @@ internal static class ThreadWorktreeManager
             existing);
     }
 
-    private static async Task<ThreadWorktreeInfo> CreateAsync(
+    public static async Task<ThreadWorktreeInfo> CreateAsync(
         SessionThread sourceThread,
         string sourceExecutionWorkspace,
         string dataPath,
@@ -227,13 +233,23 @@ internal static class ThreadWorktreeManager
             ct,
             logger).ConfigureAwait(false);
 
-        var handoff = request.CopyDirtyChanges
-            ? await CopyDirtyChangesAsync(repositoryRoot, worktreePath, Path.GetFileName(dataPath), ct, logger).ConfigureAwait(false)
-            : new ThreadWorktreeDirtyHandoffInfo
+        ThreadWorktreeDirtyHandoffInfo handoff;
+        try
+        {
+            var dataDirectoryName = Path.GetFileName(dataPath);
+            await CopyIncludedFilesAsync(repositoryRoot, worktreePath, ct, logger).ConfigureAwait(false);
+            handoff = request.DirtyChanges switch
             {
-                Requested = false,
-                Status = WorktreeDirtyHandoffStatuses.Skipped
+                DirtyChangeHandling.Copy => await CopyDirtyChangesAsync(repositoryRoot, worktreePath, dataDirectoryName, ct, logger).ConfigureAwait(false),
+                DirtyChangeHandling.Move => await MoveDirtyChangesAsync(repositoryRoot, worktreePath, dataDirectoryName, ct, logger).ConfigureAwait(false),
+                _ => new ThreadWorktreeDirtyHandoffInfo { Requested = false, Status = WorktreeDirtyHandoffStatuses.Skipped }
             };
+        }
+        catch
+        {
+            await DiscardNewWorktreeAsync(repositoryRoot, worktreePath, branchName, logger).ConfigureAwait(false);
+            throw;
+        }
 
         return new ThreadWorktreeInfo
         {
@@ -444,8 +460,75 @@ internal static class ThreadWorktreeManager
         }
     }
 
+    public static async Task CheckOutAgainAsync(
+        ThreadWorktreeInfo worktree,
+        string dataPath,
+        CancellationToken ct,
+        ILogger? logger = null)
+    {
+        var worktreePath = EnsureManagedWorktreePath(worktree, NormalizeAbsolutePath(dataPath, nameof(dataPath)));
+        if (Directory.Exists(worktreePath))
+            return;
+
+        var repositoryRoot = await ResolveRepositoryRootAsync(SourceWorkspace(worktree), ct, logger).ConfigureAwait(false);
+        await TryRunGitAsync(repositoryRoot, ["worktree", "prune"], ct, logger).ConfigureAwait(false);
+        Directory.CreateDirectory(Path.GetDirectoryName(worktreePath)!);
+        await RunGitRequiredAsync(
+            repositoryRoot,
+            ["worktree", "add", worktreePath, worktree.BranchName],
+            GitWorktreeTimeout,
+            $"Failed to check out branch '{worktree.BranchName}' again",
+            ct,
+            logger).ConfigureAwait(false);
+    }
+
+    public static async Task RemoveCheckoutAsync(
+        ThreadWorktreeInfo worktree,
+        string dataPath,
+        CancellationToken ct,
+        ILogger? logger = null) =>
+        await RemoveManagedWorktreeAndBranchAsync(worktree, dataPath, deleteBranch: false, ct, logger).ConfigureAwait(false);
+
+    public static async Task<IReadOnlyList<(string Path, string BranchName)>> ListCheckoutsAsync(
+        string stateWorkspace,
+        string dataPath,
+        CancellationToken ct,
+        ILogger? logger = null)
+    {
+        var worktreesRoot = NormalizeAbsolutePath(Path.Combine(dataPath, "worktrees"), "worktreesRoot");
+        string repositoryRoot;
+        try
+        {
+            repositoryRoot = await ResolveRepositoryRootAsync(stateWorkspace, ct, logger).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+            return [];
+        }
+
+        var output = await GitReadAsync(repositoryRoot, ["worktree", "list", "--porcelain"], ct, logger).ConfigureAwait(false);
+        var checkouts = new List<(string, string)>();
+        string? path = null;
+        foreach (var line in output.Split('\n'))
+        {
+            if (line.StartsWith("worktree ", StringComparison.Ordinal))
+            {
+                path = NormalizeAbsolutePath(line["worktree ".Length..].Trim(), "path");
+            }
+            else if (line.StartsWith("branch refs/heads/", StringComparison.Ordinal)
+                     && path != null
+                     && IsInsideDirectory(path, worktreesRoot)
+                     && !string.Equals(path, worktreesRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                checkouts.Add((path, line["branch refs/heads/".Length..].Trim()));
+            }
+        }
+
+        return checkouts;
+    }
+
     public static async Task<ThreadWorktreeStatus> GetStatusAsync(
-        string threadId,
+        string? threadId,
         ThreadWorktreeInfo worktree,
         CancellationToken ct,
         ILogger? logger = null)
@@ -495,7 +578,9 @@ internal static class ThreadWorktreeManager
         var head = await GitReadAsync(path, ["rev-parse", "HEAD"], ct, logger).ConfigureAwait(false);
         var status = await GitReadAsync(path, ["status", "--porcelain=v1"], ct, logger).ConfigureAwait(false);
         var baseHead = string.IsNullOrWhiteSpace(worktree.BaseHead) ? worktree.BaseRef : worktree.BaseHead;
-        var aheadCount = await TryReadAheadCountAsync(path, baseHead, ct, logger).ConfigureAwait(false);
+        var aheadCount = string.IsNullOrWhiteSpace(baseHead)
+            ? await TryReadUniqueCommitCountAsync(path, branch, ct, logger).ConfigureAwait(false)
+            : await TryReadAheadCountAsync(path, baseHead, ct, logger).ConfigureAwait(false);
 
         return new ThreadWorktreeStatus
         {
@@ -523,15 +608,18 @@ internal static class ThreadWorktreeManager
         {
             var requested = request.BranchName.Trim();
             await ValidateBranchNameAsync(repositoryRoot, requested, ct, logger).ConfigureAwait(false);
+            if (await BranchExistsAsync(repositoryRoot, requested, ct, logger).ConfigureAwait(false))
+                throw new ArgumentException($"Branch '{requested}' already exists.");
             return requested;
         }
 
         var seed = request.DisplayName ?? sourceThread.DisplayName ?? sourceThread.Id;
         var slug = Slug(seed);
+        var prefix = string.IsNullOrWhiteSpace(request.BranchPrefix) ? "dotcraft" : request.BranchPrefix.Trim().TrimEnd('/');
         for (var attempt = 0; attempt < 20; attempt++)
         {
             var suffix = Guid.NewGuid().ToString("N")[..8];
-            var candidate = $"dotcraft/{slug}-{suffix}";
+            var candidate = $"{prefix}/{slug}-{suffix}";
             await ValidateBranchNameAsync(repositoryRoot, candidate, ct, logger).ConfigureAwait(false);
             if (!await BranchExistsAsync(repositoryRoot, candidate, ct, logger).ConfigureAwait(false))
                 return candidate;
@@ -641,6 +729,96 @@ internal static class ThreadWorktreeManager
             CopiedFileCount = copied,
             DeletedFileCount = deleted
         };
+    }
+
+    private static async Task<ThreadWorktreeDirtyHandoffInfo> MoveDirtyChangesAsync(
+        string sourceRoot,
+        string targetRoot,
+        string dataDirectoryName,
+        CancellationToken ct,
+        ILogger? logger)
+    {
+        var entries = await ReadDirtyEntriesAsync(sourceRoot, dataDirectoryName, ct, logger).ConfigureAwait(false);
+        if (entries.Count == 0)
+            return BuildDirtyHandoffInfo(entries);
+
+        var dataDirectoryIgnored = await GitSucceedsAsync(sourceRoot, ["check-ignore", "-q", dataDirectoryName], ct, logger).ConfigureAwait(false);
+        var stashRef = await StashDirtyChangesAsync(
+            sourceRoot,
+            Guid.NewGuid().ToString("N")[..8],
+            ct,
+            logger,
+            excludedDirectory: dataDirectoryIgnored ? null : dataDirectoryName).ConfigureAwait(false);
+        try
+        {
+            await RunGitRequiredAsync(
+                targetRoot,
+                ["stash", "apply", stashRef],
+                GitTimeout,
+                "Failed to apply uncommitted changes in the worktree",
+                ct,
+                logger).ConfigureAwait(false);
+        }
+        catch
+        {
+            await TryRunGitAsync(sourceRoot, ["stash", "apply", stashRef], CancellationToken.None, logger).ConfigureAwait(false);
+            await TryRunGitAsync(sourceRoot, ["stash", "drop", stashRef], CancellationToken.None, logger).ConfigureAwait(false);
+            throw;
+        }
+
+        await TryRunGitAsync(sourceRoot, ["stash", "drop", stashRef], ct, logger).ConfigureAwait(false);
+        return BuildDirtyHandoffInfo(entries);
+    }
+
+    private static async Task CopyIncludedFilesAsync(
+        string repositoryRoot,
+        string worktreePath,
+        CancellationToken ct,
+        ILogger? logger)
+    {
+        var includeFile = Path.Combine(repositoryRoot, ".worktreeinclude");
+        if (!File.Exists(includeFile))
+            return;
+
+        var candidates = (await GitReadAsync(
+                repositoryRoot,
+                ["ls-files", "--others", "--ignored", $"--exclude-from={includeFile}", "-z"],
+                ct,
+                logger).ConfigureAwait(false))
+            .Split('\0', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var batch in candidates.Chunk(100))
+        {
+            var ignored = await GitReadAsync(
+                    repositoryRoot,
+                    ["-c", "core.quotePath=false", "check-ignore", "--", .. batch],
+                    ct,
+                    logger).ConfigureAwait(false);
+            foreach (var path in ignored.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                CopyPath(repositoryRoot, worktreePath, path);
+        }
+    }
+
+    private static async Task DiscardNewWorktreeAsync(
+        string repositoryRoot,
+        string worktreePath,
+        string branchName,
+        ILogger? logger)
+    {
+        await TryRunGitAsync(repositoryRoot, ["worktree", "remove", "--force", worktreePath], CancellationToken.None, logger).ConfigureAwait(false);
+        if (Directory.Exists(worktreePath))
+        {
+            try
+            {
+                Directory.Delete(worktreePath, recursive: true);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to delete worktree directory {Path} after a failed creation.", worktreePath);
+            }
+        }
+
+        await TryRunGitAsync(repositoryRoot, ["worktree", "prune"], CancellationToken.None, logger).ConfigureAwait(false);
+        await TryRunGitAsync(repositoryRoot, ["branch", "-D", branchName], CancellationToken.None, logger).ConfigureAwait(false);
     }
 
     private static ThreadWorktreeDirtyHandoffInfo BuildDirtyHandoffInfo(
@@ -772,6 +950,11 @@ internal static class ThreadWorktreeManager
                || fullPath.StartsWith(fullRoot + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static string SourceWorkspace(ThreadWorktreeInfo worktree) =>
+        NormalizeAbsolutePath(
+            string.IsNullOrWhiteSpace(worktree.SourceWorkspacePath) ? worktree.WorkspacePath : worktree.SourceWorkspacePath,
+            nameof(worktree.SourceWorkspacePath));
+
     private static string EnsureManagedWorktreePath(ThreadWorktreeInfo worktree, string dataPath)
     {
         var worktreesRoot = NormalizeAbsolutePath(Path.Combine(dataPath, "worktrees"), "worktreesRoot");
@@ -810,12 +993,19 @@ internal static class ThreadWorktreeManager
 
     private static string NewWorktreeId() =>
         "worktree_" + DateTimeOffset.UtcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture) + "_" + Guid.NewGuid().ToString("N")[..8];
-
-    private sealed record WorktreeCreateRequest(
-        string? DisplayName,
-        string? BranchName,
-        string? BaseRef,
-        string? Path,
-        bool CopyDirtyChanges);
-
 }
+
+internal enum DirtyChangeHandling
+{
+    None,
+    Copy,
+    Move
+}
+
+internal sealed record WorktreeCreateRequest(
+    string? DisplayName,
+    string? BranchName,
+    string? BaseRef,
+    string? Path,
+    DirtyChangeHandling DirtyChanges,
+    string BranchPrefix);

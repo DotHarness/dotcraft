@@ -6001,7 +6001,7 @@ public sealed class ThreadWorktreeStatus : ExtensibleJsonObject
 
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ThreadId { get; init; }
+    public Optional<string?> ThreadId { get; init; }
 
     [JsonPropertyName("worktree")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -6957,6 +6957,24 @@ public sealed class WorktreeListResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<ThreadWorktreeStatus>> Data { get; init; }
 
+}
+
+/// <summary>Executable wire contract for WorktreeRemoveParams.</summary>
+public sealed class WorktreeRemoveParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("discardChanges")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> DiscardChanges { get; init; }
+
+    [JsonPropertyName("path")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Path { get; init; }
+
+}
+
+/// <summary>Executable wire contract for WorktreeRemoveResult.</summary>
+public sealed class WorktreeRemoveResult : ExtensibleJsonObject
+{
 }
 
 /// <summary>Executable wire contract for WorktreeStatusParams.</summary>

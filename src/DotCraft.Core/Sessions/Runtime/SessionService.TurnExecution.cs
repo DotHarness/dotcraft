@@ -910,12 +910,27 @@ public sealed partial class SessionService
                     return;
                 }
 
+                try
+                {
+                    await Worktrees.RestoreCheckoutAsync(thread, executionCt);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    await FailAndPersistTurnAsync(
+                        $"The worktree for branch '{thread.Worktree?.BranchName}' is missing and could not be checked out again: {ex.Message}",
+                        "worktree_unavailable");
+                    return;
+                }
+
                 // Step 5b: Rebuild the MEAI model history from Session Core rollout.
                 // Resource capture was ordered at admission. It may wait for an in-flight
                 // publication, but later configuration changes cannot overtake it.
                 var executionResources = await turnContext.Resources.WaitAsync(executionCt).ConfigureAwait(false);
                 var agent = executionResources.Agent;
                 turnRuntime.ToolSnapshot = executionResources.ToolSnapshot;
+                var toolLocation = executionResources.ToolLocation ?? new ToolLocation(turnContext.Workspace);
+                toolLocation.MoveTo(turnContext.Workspace);
+                turnRuntime.ToolLocation = toolLocation;
                 await PrepareRemoteTurnAsync(threadId, executionResources.ToolSnapshot, turnContext.Configuration.Mode, executionCt)
                     .ConfigureAwait(false);
 
@@ -1233,6 +1248,12 @@ public sealed partial class SessionService
                     && thread.Source.SubAgent == null
                         ? GoalToolRuntimeScope.Set(new GoalToolRuntimeContext(this, threadId, turn.Id))
                         : null;
+                using var worktreeToolScope = thread.Source.SubAgent == null
+                    ? WorktreeToolRuntimeScope.Set(new WorktreeToolRuntimeContext(
+                        (name, path, toolCt) => Worktrees.EnterAsync(threadId, name, path, toolLocation, toolCt),
+                        (remove, discard, toolCt) => Worktrees.ExitAsync(threadId, remove, discard, toolLocation, toolCt),
+                        () => toolLocation.Directory))
+                    : null;
                 using var requestUserInputScope = thread.Source.SubAgent == null
                         ? RequestUserInputRuntimeScope.Set(new RequestUserInputRuntimeContext(async questions =>
                         {
@@ -1348,6 +1369,7 @@ public sealed partial class SessionService
                     thread,
                     turn.Id,
                     turnContext.Workspace.Cwd,
+                    toolLocation.Current,
                     session,
                     threadContextCarrier,
                     runtimeModeManager,
@@ -1417,6 +1439,7 @@ public sealed partial class SessionService
                             worldStateCt => DrainWorldStateMessagesAsync(
                                 thread,
                                 turnContext.Workspace.Cwd,
+                                toolLocation,
                                 turn.Id,
                                 session,
                                 threadContextCarrier,

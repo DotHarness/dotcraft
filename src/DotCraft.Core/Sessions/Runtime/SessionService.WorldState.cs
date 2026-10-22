@@ -3,6 +3,7 @@ using DotCraft.Channels;
 using DotCraft.Context;
 using DotCraft.Context.WorldState;
 using DotCraft.Memory;
+using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -20,6 +21,7 @@ public sealed partial class SessionService
         SessionThread thread,
         string turnId,
         string workspacePath,
+        ThreadWorkspaceContext location,
         IReadOnlyList<ChatMessage> history,
         ThreadContextCarrier carrier,
         AgentModeManager? modeManager,
@@ -42,7 +44,8 @@ public sealed partial class SessionService
         {
             Thread = thread,
             ModeManager = modeManager,
-            WorkspacePath = workspacePath,
+            WorkspacePath = location.Cwd,
+            WorkspaceRoots = location.RuntimeWorkspaceRoots,
             AgentInstructions = instructions.Content,
             HasActivePlan = hasActivePlan,
             ThreadGoal = threadGoal,
@@ -130,6 +133,7 @@ public sealed partial class SessionService
     private async Task<IReadOnlyList<ChatMessage>> DrainWorldStateMessagesAsync(
         SessionThread thread,
         string workspacePath,
+        ToolLocation location,
         string turnId,
         IReadOnlyList<ChatMessage> history,
         ThreadContextCarrier carrier,
@@ -146,6 +150,7 @@ public sealed partial class SessionService
             thread,
             turnId,
             workspacePath,
+            location.Current,
             history,
             carrier,
             modeManager,

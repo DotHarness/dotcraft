@@ -391,6 +391,7 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
             ResolveEffectiveWorkspacePath(source),
             _store.DataPath,
             options,
+            "dotcraft",
             logger: null,
             ct);
         var config = options.Config != null
@@ -435,6 +436,7 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
             ResolveEffectiveWorkspacePath(thread),
             _store.DataPath,
             options,
+            "dotcraft",
             logger: null,
             ct);
         thread.Configuration ??= new ThreadConfiguration();
@@ -462,6 +464,7 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
                 ResolveEffectiveWorkspacePath(thread),
                 _store.DataPath,
                 options,
+                "dotcraft",
                 logger: null,
                 ct);
             thread.Configuration ??= new ThreadConfiguration();

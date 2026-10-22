@@ -23,9 +23,6 @@ internal sealed class PromptSectionSources
     /// <summary>Gets the normalized workspace path.</summary>
     internal required string WorkspacePath { get; init; }
 
-    /// <summary>Gets the additional workspace roots exposed to the model.</summary>
-    internal IReadOnlyList<string> WorkspaceRoots { get; init; } = [];
-
     internal CustomCommandLoader? CustomCommandLoader { get; init; }
 
 

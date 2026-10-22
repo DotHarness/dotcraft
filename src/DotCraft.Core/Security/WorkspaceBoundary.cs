@@ -1,11 +1,15 @@
+using DotCraft.Tools;
+
 namespace DotCraft.Security;
 
 public sealed class WorkspaceBoundary
 {
     private readonly string[] _roots;
+    private readonly ToolLocation? _location;
 
-    public WorkspaceBoundary(IEnumerable<string> roots)
+    public WorkspaceBoundary(IEnumerable<string> roots, ToolLocation? location = null)
     {
+        _location = location;
         _roots = roots
             .Where(root => !string.IsNullOrWhiteSpace(root))
             .Select(Path.GetFullPath)
@@ -20,7 +24,8 @@ public sealed class WorkspaceBoundary
         try
         {
             var fullPath = Path.GetFullPath(path);
-            return _roots.Any(root => IsWithin(fullPath, root));
+            return _roots.Any(root => IsWithin(fullPath, root))
+                || (_location != null && _location.Roots.Any(root => IsWithin(fullPath, root)));
         }
         catch
         {

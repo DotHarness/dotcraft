@@ -12,7 +12,11 @@ namespace DotCraft.Tools;
 
 public sealed class ShellTools
 {
-    private readonly string _workingDirectory;
+    private readonly string _admittedDirectory;
+
+    private readonly ToolLocation? _location;
+
+    private string WorkingDirectory => _location?.Directory ?? _admittedDirectory;
 
     private readonly int _timeoutSeconds;
 
@@ -30,18 +34,20 @@ public sealed class ShellTools
         int maxOutputLength = 10000,
         IApprovalService? approvalService = null,
         IReadOnlyList<string>? workspaceRoots = null,
-        ShellPolicySource? policy = null)
+        ShellPolicySource? policy = null,
+        ToolLocation? location = null)
     {
-        _workingDirectory = Path.GetFullPath(workingDirectory);
+        _admittedDirectory = Path.GetFullPath(workingDirectory);
+        _location = location;
         _timeoutSeconds = timeoutSeconds;
         _maxOutputLength = maxOutputLength;
         _backgroundTerminals = backgroundTerminals;
-        var roots = (workspaceRoots ?? [_workingDirectory])
+        var roots = (workspaceRoots ?? [_admittedDirectory])
             .Select(Path.GetFullPath)
             .ToArray();
         _gate = new ShellExecutionGate(
             new ShellCommandSafetyKernel(),
-            new WorkspaceBoundary(roots),
+            new WorkspaceBoundary(roots, location),
             policy ?? ShellPolicySource.Empty,
             requireApprovalOutsideWorkspace,
             approvalService);
@@ -64,8 +70,8 @@ public sealed class ShellTools
     {
         cancellationToken.ThrowIfCancellationRequested();
         var cwd = !string.IsNullOrWhiteSpace(workingDir)
-            ? Path.GetFullPath(workingDir)
-            : _workingDirectory;
+            ? Path.GetFullPath(workingDir, WorkingDirectory)
+            : WorkingDirectory;
 
         if (!TryCompileWaitFor(waitFor, out var waitPattern, out var patternError))
             return patternError!;

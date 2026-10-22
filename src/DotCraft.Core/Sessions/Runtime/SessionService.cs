@@ -529,6 +529,10 @@ public sealed partial class SessionService(
         await Worktrees.ListAsync(ct);
 
     /// <inheritdoc/>
+    public async Task RemoveWorktreeAsync(string path, bool discardChanges, CancellationToken ct = default) =>
+        await Worktrees.RemoveByPathAsync(path, discardChanges, ct);
+
+    /// <inheritdoc/>
     public async Task<ThreadWorktreeStatus> GetWorktreeStatusAsync(
         string threadId,
         CancellationToken ct = default) =>

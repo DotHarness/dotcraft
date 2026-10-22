@@ -187,6 +187,7 @@ public sealed partial class SessionService
             owner.ForgetContextPages(thread.Id);
             if (owner.BackgroundTerminalService != null)
                 await owner.BackgroundTerminalService.CleanThreadAsync(thread.Id, ct);
+            await owner.Worktrees.ReleaseOnArchiveAsync(thread, ct);
 
             await owner.PersistThreadStatusAsync(thread, ct);
             PublishThreadStatusChanged(thread.Id, previousStatus, thread.Status);
@@ -200,6 +201,14 @@ public sealed partial class SessionService
             var previousStatus = thread.Status;
             thread.Status = ThreadStatus.Active;
             thread.LastActiveAt = DateTimeOffset.UtcNow;
+            try
+            {
+                await owner.Worktrees.RestoreCheckoutAsync(thread, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                owner.Logger?.LogWarning(ex, "Could not check out the worktree of thread {ThreadId} again.", thread.Id);
+            }
             await owner.PersistThreadStatusAsync(thread, ct);
             PublishThreadStatusChanged(thread.Id, previousStatus, thread.Status);
         }
@@ -242,6 +251,8 @@ public sealed partial class SessionService
 
             if (owner.BackgroundTerminalService != null)
                 await owner.BackgroundTerminalService.DeleteThreadArtifactsAsync(threadId, ct);
+            if (deletingThread != null)
+                await owner.Worktrees.ReleaseOnDeleteAsync(deletingThread, ct);
 
             if (!string.IsNullOrWhiteSpace(workspacePath))
             {

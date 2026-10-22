@@ -23774,7 +23774,7 @@
           "name": "threadId",
           "type": "string",
           "required": false,
-          "nullable": false,
+          "nullable": true,
           "const": null
         },
         {
@@ -27793,6 +27793,41 @@
           "const": null
         }
       ],
+      "variants": []
+    },
+    {
+      "id": "core.WorktreeRemoveParams",
+      "name": "WorktreeRemoveParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorktreeRemoveParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "discardChanges",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorktreeRemoveResult",
+      "name": "WorktreeRemoveResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorktreeRemoveResult.schema.json",
+      "additionalProperties": true,
+      "fields": [],
       "variants": []
     },
     {
@@ -33666,6 +33701,26 @@
       "direction": "clientToServer",
       "paramsType": "core.WorktreeListParams",
       "resultType": "core.WorktreeListResult",
+      "module": "core",
+      "capability": null,
+      "scope": "workspace",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "worktree/remove",
+      "descriptorMember": "WorktreeRemove",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.WorktreeRemoveParams",
+      "resultType": "core.WorktreeRemoveResult",
       "module": "core",
       "capability": null,
       "scope": "workspace",

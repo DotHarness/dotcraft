@@ -403,6 +403,8 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.WorktreeCreateAndStartResult))]
 [JsonSerializable(typeof(AppServer.WorktreeListParams))]
 [JsonSerializable(typeof(AppServer.WorktreeListResult))]
+[JsonSerializable(typeof(AppServer.WorktreeRemoveParams))]
+[JsonSerializable(typeof(AppServer.WorktreeRemoveResult))]
 [JsonSerializable(typeof(AppServer.WorktreeStatusParams))]
 [JsonSerializable(typeof(AppServer.WorktreeStatusResult))]
 public sealed partial class CoreAppServerContractJsonContext : JsonSerializerContext;

@@ -78,10 +78,6 @@ function currentBranchLabel(branches: GitBranchListSnapshot | null): string | nu
   return branches?.current || branches?.detachedHead || null
 }
 
-function defaultWorktreeBranchName(path: string): string {
-  return `dotcraft/${workspaceSlug(path)}`
-}
-
 export function ComposerWorkspaceFooter({
   workspacePath,
   mode,
@@ -445,7 +441,6 @@ export function ComposerWorkspaceFooter({
       mode={handoffMode}
       thread={thread}
       baseRef={currentBranchLabel(branches)}
-      defaultBranchName={defaultWorktreeBranchName(localWorkspacePath)}
       localWorkspacePath={localWorkspacePath}
       disabledReason={handoffDisabledReason}
       onBusyChange={setBusy}

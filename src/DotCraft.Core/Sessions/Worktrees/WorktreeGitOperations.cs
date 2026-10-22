@@ -35,6 +35,26 @@ internal static class WorktreeGitOperations
             : 0;
     }
 
+    /// <summary>Counts the commits on HEAD that no other local branch or remote-tracking branch contains.</summary>
+    internal static async Task<int> TryReadUniqueCommitCountAsync(
+        string worktreePath,
+        string branchName,
+        CancellationToken ct,
+        ILogger? logger)
+    {
+        string[] exclude = string.IsNullOrWhiteSpace(branchName) ? [] : [$"--exclude=refs/heads/{branchName}"];
+        var result = await GitProcessRunner.RunAsync(
+            worktreePath,
+            ["rev-list", "--count", "HEAD", "--not", .. exclude, "--branches", "--remotes"],
+            GitTimeout,
+            ct,
+            logger: logger).ConfigureAwait(false);
+        return result.ExitCode == 0
+               && int.TryParse(result.StdOut.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var count)
+            ? Math.Max(0, count)
+            : 0;
+    }
+
     internal static async Task<string> ResolveRepositoryRootAsync(
         string sourceWorkspace,
         CancellationToken ct,
@@ -101,12 +121,14 @@ internal static class WorktreeGitOperations
         string worktreePath,
         string worktreeId,
         CancellationToken ct,
-        ILogger? logger)
+        ILogger? logger,
+        string? excludedDirectory = null)
     {
         var message = $"dotcraft-worktree-handoff:{worktreeId}:{Guid.NewGuid():N}";
+        string[] pathspec = excludedDirectory == null ? [] : ["--", ".", $":(exclude){excludedDirectory}"];
         await RunGitRequiredAsync(
             worktreePath,
-            ["stash", "push", "--include-untracked", "--message", message],
+            ["stash", "push", "--include-untracked", "--message", message, .. pathspec],
             GitTimeout,
             "Failed to stash worktree changes",
             ct,

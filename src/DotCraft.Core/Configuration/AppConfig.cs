@@ -158,6 +158,9 @@ public sealed partial class AppConfig
     public GoalsConfig Goals { get; set; } = new();
 
     [ConfigField(Ignore = true)]
+    public WorktreesConfig Worktrees { get; set; } = new();
+
+    [ConfigField(Ignore = true)]
     public SkillsConfig Skills { get; set; } = new();
 
     [ConfigField(Ignore = true)]
@@ -896,6 +899,13 @@ public sealed partial class AppConfig
         [ConfigField(Hint = "Workspace default approval policy for threads using the default policy. One of: default, autoApprove.", Options = ["default", "autoApprove"], Reload = ReloadBehavior.Hot, HasReload = true)]
         [JsonConverter(typeof(ApprovalPolicyJsonConverter))]
         public ApprovalPolicy DefaultApprovalPolicy { get; set; } = ApprovalPolicy.Default;
+    }
+
+    [ConfigSection("Worktrees", DisplayName = "Worktrees", Order = 63)]
+    public sealed class WorktreesConfig
+    {
+        [ConfigField(Hint = "Prefix of the branch DotCraft names a new worktree after.", Reload = ReloadBehavior.Hot, HasReload = true)]
+        public string BranchPrefix { get; set; } = "dotcraft";
     }
 
     [ConfigSection("Goals", DisplayName = "Goals", Order = 62)]

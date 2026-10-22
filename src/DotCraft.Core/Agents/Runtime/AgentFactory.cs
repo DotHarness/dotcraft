@@ -591,6 +591,7 @@ public sealed class AgentFactory : IAsyncDisposable
                     var fic = new StreamingFunctionInvokingChatClient(innerClient)
                     {
                         AllowConcurrentInvocation = true,
+                        RunsAlone = WorktreeToolNames.All.Contains,
                         EnableToolCallArgumentPreviews = true,
                         ModeToolPolicy = usesSnapshotDispatcher
                             ? null
@@ -725,7 +726,6 @@ public sealed class AgentFactory : IAsyncDisposable
                 contextPageManager: ctx.ContextPageManager,
                 threadId: ctx.CurrentThreadId,
                 originChannel: ctx.CurrentOriginChannel,
-                workspaceRoots: ctx.WorkspaceRoots,
                 loggerFactory: _loggerFactory,
                 contributions: ctx.Contributions,
                 skillsPolicy: promptInputs.SkillsPolicy,

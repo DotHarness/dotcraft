@@ -497,7 +497,7 @@ Agent 只能通过 `SendChannelMessage` 工具触达聊天，server 用 `ext/cha
 | External channels | `externalChannel/list`, `externalChannel/upsert` | 外部 channel 配置。 |
 | Subagents | `subagent/profiles/list`, `subagent/profiles/upsert` | subagent profile 管理。 |
 | Automations | `automation/list`, `automation/create`, `automation/runs/list` | 本地任务生命周期、绑定和受管 worktree 清理。 |
-| Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff` | 受管 Git worktree 状态和交接。 |
+| Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff`, `worktree/remove` | 受管 Git worktree 状态、交接和删除。 |
 | 配置 | `config/schema`、`config/read`、`config/value/write`、`config/batchWrite` | 按 key path 读取和修改用户级与工作区配置。 |
 | App Binding | `app/connection/authenticate`、`app/binding/activate`、`app/threadInput/enqueue` | 面向外部应用的扩展模块，由 `capabilities.appBindingVersion` 门控。 |
 

@@ -515,7 +515,7 @@ If the request fails before being accepted, Desktop clears the stopping state an
 
 **Worktree settings**
 
-- Settings › Worktrees edits `Worktrees.BranchPrefix` and lists `worktree/list` entries with branch, bound thread (or none), and whether each has uncommitted changes or commits beyond its base.
+- Settings › Source control › Worktrees, shown for Git workspaces, edits `Worktrees.BranchPrefix` and lists `worktree/list` entries with branch, bound thread (or none), and whether each has uncommitted changes or commits beyond its base.
 - Remove calls `worktree/remove`. An entry with uncommitted changes or commits beyond its base asks for confirmation first and then sends `discardChanges = true`. An entry bound to an Active thread offers no removal.
 - Branch checkout and create controls operate on the effective Git directory.
 - While a thread is running, waiting, or in blocking maintenance, the handoff confirmation disables the final action and explains why.

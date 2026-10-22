@@ -19429,7 +19429,14 @@
           "type": "string"
         },
         "threadId": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "worktree": {
           "$ref": "#/$defs/ThreadWorktreeInfo"
@@ -22610,6 +22617,25 @@
           }
         }
       },
+      "additionalProperties": true
+    },
+    "WorktreeRemoveParams": {
+      "title": "WorktreeRemoveParams",
+      "type": "object",
+      "properties": {
+        "discardChanges": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "WorktreeRemoveResult": {
+      "title": "WorktreeRemoveResult",
+      "type": "object",
+      "properties": {},
       "additionalProperties": true
     },
     "WorktreeStatusParams": {

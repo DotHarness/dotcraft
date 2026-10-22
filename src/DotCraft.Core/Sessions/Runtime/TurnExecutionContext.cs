@@ -20,4 +20,5 @@ internal sealed record TurnExecutionContext(
 
 internal sealed record TurnExecutionResources(
     ChatClientAgent Agent,
-    EffectiveToolSnapshot? ToolSnapshot);
+    EffectiveToolSnapshot? ToolSnapshot,
+    ToolLocation? ToolLocation);

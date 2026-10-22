@@ -23,6 +23,7 @@ internal sealed class WorktreeRequestHandler(
         table.Map(Protocol.AppServer.AppServerRpc.ThreadWorktreeHandoff, HandleThreadWorktreeHandoffAsync);
         table.Map(Protocol.AppServer.AppServerRpc.WorktreeList, HandleWorktreeListAsync);
         table.Map(Protocol.AppServer.AppServerRpc.WorktreeStatus, HandleWorktreeStatusAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.WorktreeRemove, HandleWorktreeRemoveAsync);
     }
 
     private async Task<object?> HandleWorktreeCreateAndForkAsync(
@@ -191,6 +192,19 @@ internal sealed class WorktreeRequestHandler(
         {
             Status = WorktreeContractMapper.ToContract(await sessionService.GetWorktreeStatusAsync(threadId, ct))
         };
+    }
+
+    private async Task<object?> HandleWorktreeRemoveAsync(
+        AppServerTypedRequest<Contract.WorktreeRemoveParams> request,
+        CancellationToken ct)
+    {
+        var p = request.Params;
+        var path = ValueOrDefault(p.Path);
+        if (string.IsNullOrWhiteSpace(path))
+            throw AppServerErrors.InvalidParams("'path' is required.");
+
+        await sessionService.RemoveWorktreeAsync(path, ValueOrDefault(p.DiscardChanges), ct);
+        return new Contract.WorktreeRemoveResult();
     }
 
     private void ValidateRuntimeConfiguration(ThreadConfiguration? config)

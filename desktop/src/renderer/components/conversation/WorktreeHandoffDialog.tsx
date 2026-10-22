@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type JSX } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowRightLeft, Check, CheckCircle2, Circle } from 'lucide-react'
+import { ArrowRightLeft, Check } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
 import { useT } from '../../contexts/LocaleContext'
+import { readAppServerErrorFields } from '../../../shared/appServerError'
 import { useThreadStore } from '../../stores/threadStore'
 import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
@@ -13,8 +14,6 @@ import { Input } from '../ui/Input'
 type HandoffMode = 'local' | 'worktree'
 type DialogPhase = 'confirm' | 'running' | 'success' | 'error'
 
-const HANDOFF_STEP_ADVANCE_MS = 520
-
 interface HandoffSuccessView {
   title: string
   description: string
@@ -24,7 +23,6 @@ interface WorktreeHandoffDialogProps {
   mode: HandoffMode
   thread: Thread
   baseRef: string | null
-  defaultBranchName: string
   localWorkspacePath: string
   disabledReason?: string | null
   onClose: () => void
@@ -37,10 +35,12 @@ function normalizeBranchName(value: string): string {
 }
 
 function branchNameError(value: string, t: ReturnType<typeof useT>): string | null {
-  const branch = normalizeBranchName(value)
-  if (!branch) return t('workspaceFooter.branchRequired')
-  if (branch.endsWith('/')) return t('workspaceFooter.branchCannotEndSlash')
-  return null
+  return normalizeBranchName(value).endsWith('/') ? t('workspaceFooter.branchCannotEndSlash') : null
+}
+
+function conflictPathsOf(error: unknown): string[] {
+  const paths = readAppServerErrorFields(error).data?.params?.conflictPaths
+  return Array.isArray(paths) ? paths.filter((path): path is string => typeof path === 'string') : []
 }
 
 function workspaceName(path: string): string {
@@ -54,7 +54,6 @@ export function WorktreeHandoffDialog({
   mode,
   thread,
   baseRef,
-  defaultBranchName,
   localWorkspacePath,
   disabledReason = null,
   onClose,
@@ -63,16 +62,12 @@ export function WorktreeHandoffDialog({
 }: WorktreeHandoffDialogProps): JSX.Element | null {
   const t = useT()
   const [phase, setPhase] = useState<DialogPhase>('confirm')
-  const [branchDraft, setBranchDraft] = useState(defaultBranchName)
+  const [branchDraft, setBranchDraft] = useState('')
   const [errorText, setErrorText] = useState<string | null>(null)
+  const [conflictPaths, setConflictPaths] = useState<string[]>([])
   const [successView, setSuccessView] = useState<HandoffSuccessView | null>(null)
-  const [completedStepCount, setCompletedStepCount] = useState(0)
   const [dismissed, setDismissed] = useState(false)
-  const mountedRef = useRef(true)
   const dismissedRef = useRef(false)
-  const completedStepCountRef = useRef(0)
-  const progressTimerRef = useRef<number | null>(null)
-  const closeTimerRef = useRef<number | null>(null)
   const worktreeBranch = thread.worktree?.branchName?.trim() || baseRef || t('workspaceFooter.branchUnknown')
   const targetWorkspace = workspaceName(localWorkspacePath)
   const branchError = mode === 'worktree' ? branchNameError(branchDraft, t) : null
@@ -92,38 +87,6 @@ export function WorktreeHandoffDialog({
           ? t('workspaceFooter.handoffLocalRunningDescription')
           : t('workspaceFooter.handoffLocalDescription'))
 
-  const progressSteps = useMemo(() => {
-    if (mode === 'worktree') {
-      const branch = normalizeBranchName(branchDraft) || defaultBranchName
-      return [
-        t('workspaceFooter.handoffStepCreateWorktree'),
-        t('workspaceFooter.handoffStepCopyToWorktree'),
-        t('workspaceFooter.handoffStepCheckoutWorktree', { branch }),
-        t('workspaceFooter.handoffStepMoveToWorktree')
-      ]
-    }
-
-    return [
-      t('workspaceFooter.handoffStepStashWorktree'),
-      t('workspaceFooter.handoffStepDetachWorktreeBranch'),
-      t('workspaceFooter.handoffStepCheckoutLocal', { branch: worktreeBranch }),
-      t('workspaceFooter.handoffStepApplyLocal'),
-      t('workspaceFooter.handoffStepMoveToLocal')
-    ]
-  }, [branchDraft, defaultBranchName, mode, t, worktreeBranch])
-
-  useEffect(() => {
-    setBranchDraft(defaultBranchName)
-  }, [defaultBranchName])
-
-  useEffect(() => {
-    return () => {
-      mountedRef.current = false
-      clearProgressTimer()
-      if (closeTimerRef.current != null) window.clearTimeout(closeTimerRef.current)
-    }
-  }, [])
-
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (event.key === 'Escape') {
@@ -138,43 +101,6 @@ export function WorktreeHandoffDialog({
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   })
-
-  function clearProgressTimer(): void {
-    if (progressTimerRef.current != null) {
-      window.clearInterval(progressTimerRef.current)
-      progressTimerRef.current = null
-    }
-  }
-
-  function updateCompletedStepCount(value: number): void {
-    completedStepCountRef.current = value
-    if (mountedRef.current) setCompletedStepCount(value)
-  }
-
-  function advanceCompletedStepCount(maximum: number): void {
-    setCompletedStepCount((count) => {
-      const next = Math.min(count + 1, maximum)
-      completedStepCountRef.current = next
-      return next
-    })
-  }
-
-  async function waitForProgressFrame(ms: number): Promise<void> {
-    await new Promise<void>((resolve) => {
-      closeTimerRef.current = window.setTimeout(() => {
-        closeTimerRef.current = null
-        resolve()
-      }, ms)
-    })
-  }
-
-  async function finishProgressSteps(stepCount: number): Promise<void> {
-    for (let next = Math.min(completedStepCountRef.current + 1, stepCount); next <= stepCount; next++) {
-      if (dismissedRef.current || !mountedRef.current) return
-      updateCompletedStepCount(next)
-      if (next < stepCount) await waitForProgressFrame(HANDOFF_STEP_ADVANCE_MS)
-    }
-  }
 
   function handleClose(): void {
     if (phase === 'running') {
@@ -227,22 +153,17 @@ export function WorktreeHandoffDialog({
     }
 
     setErrorText(null)
+    setConflictPaths([])
     setSuccessView(null)
     setPhase('running')
-    updateCompletedStepCount(0)
     onBusyChange?.(true)
-    clearProgressTimer()
-    const stepCount = progressSteps.length
-    progressTimerRef.current = window.setInterval(() => {
-      advanceCompletedStepCount(Math.max(stepCount - 1, 0))
-    }, HANDOFF_STEP_ADVANCE_MS)
 
     try {
       const params = mode === 'worktree'
         ? {
             threadId: thread.id,
             mode,
-            branchName: branch,
+            branchName: branch || undefined,
             baseRef: baseRef || undefined,
             copyDirtyChanges: true
           }
@@ -261,12 +182,8 @@ export function WorktreeHandoffDialog({
       const normalizedRefreshedThread = refreshedThread ? applyThreadUpdate(refreshedThread) : null
       const completedThread = normalizedRefreshedThread ?? normalizedResultThread
 
-      clearProgressTimer()
       if (completedThread) {
         await onComplete(completedThread)
-      }
-      if (!dismissedRef.current) {
-        await finishProgressSteps(stepCount)
       }
 
       if (dismissedRef.current) {
@@ -281,7 +198,7 @@ export function WorktreeHandoffDialog({
       }
 
       const nextBranch = mode === 'worktree'
-        ? (completedThread?.worktree?.branchName?.trim() || branch || defaultBranchName)
+        ? (completedThread?.worktree?.branchName?.trim() || branch)
         : worktreeBranch
       const nextBaseRef = completedThread?.worktree?.baseRef?.trim() || baseRef || t('workspaceFooter.branchUnknown')
       setSuccessView({
@@ -294,8 +211,8 @@ export function WorktreeHandoffDialog({
       })
       setPhase('success')
     } catch (err) {
-      clearProgressTimer()
       const message = err instanceof Error ? err.message : String(err)
+      setConflictPaths(conflictPathsOf(err))
       setErrorText(t('workspaceFooter.handoffFailed', { error: message }))
       addToast(t('workspaceFooter.handoffFailed', { error: message }), 'error')
       if (dismissedRef.current) onClose()
@@ -330,18 +247,8 @@ export function WorktreeHandoffDialog({
         <p style={descriptionStyle}>{description}</p>
 
         {phase === 'success' ? null : phase === 'running' ? (
-          <div style={stepsStyle}>
-            {progressSteps.map((step, index) => (
-              <ProgressStep
-                key={`${index}:${step}`}
-                label={step}
-                status={index < completedStepCount
-                  ? 'complete'
-                  : index === completedStepCount
-                    ? 'active'
-                    : 'pending'}
-              />
-            ))}
+          <div role="status" style={busyStyle}>
+            <Spinner size={20} />
           </div>
         ) : (
           <>
@@ -351,6 +258,7 @@ export function WorktreeHandoffDialog({
                 <Input
                   value={branchDraft}
                   autoFocus
+                  placeholder={t('workspaceFooter.branchNameAutomatic')}
                   onChange={(event) => setBranchDraft(event.target.value)}
                 />
               </label>
@@ -365,6 +273,15 @@ export function WorktreeHandoffDialog({
 
             {(branchError || errorText) && (
               <div style={errorStyle}>{errorText || branchError}</div>
+            )}
+
+            {conflictPaths.length > 0 && (
+              <div style={conflictStyle}>
+                <span>{t('workspaceFooter.handoffConflictPaths')}</span>
+                <ul style={conflictListStyle}>
+                  {conflictPaths.map((path) => <li key={path}>{path}</li>)}
+                </ul>
+              </div>
             )}
 
             {disabledReason && (
@@ -396,28 +313,6 @@ export function WorktreeHandoffDialog({
       </div>
     </div>,
     document.body
-  )
-}
-
-function ProgressStep({
-  label,
-  status
-}: {
-  label: string
-  status: 'active' | 'complete' | 'pending'
-}): JSX.Element {
-  const color = status === 'pending' ? 'var(--text-dimmed)' : 'var(--text-primary)'
-  return (
-    <div style={{ ...stepStyle, color, opacity: status === 'pending' ? 0.62 : 1 }}>
-      {status === 'complete' ? (
-        <CheckCircle2 size={20} strokeWidth={1.8} aria-hidden />
-      ) : status === 'active' ? (
-        <Spinner size={20} />
-      ) : (
-        <Circle size={20} strokeWidth={1.7} aria-hidden />
-      )}
-      <span>{label}</span>
-    </div>
   )
 }
 
@@ -489,20 +384,10 @@ const fieldStyle: CSSProperties = {
   fontWeight: 600
 }
 
-const stepsStyle: CSSProperties = {
-  display: 'grid',
-  gap: '18px',
-  marginTop: '24px'
-}
-
-const stepStyle: CSSProperties = {
+const busyStyle: CSSProperties = {
   display: 'flex',
-  alignItems: 'center',
-  gap: '14px',
-  minHeight: '28px',
-  fontSize: '15px',
-  lineHeight: 1.35,
-  fontWeight: 600
+  justifyContent: 'center',
+  marginTop: '8px'
 }
 
 const localSummaryStyle: CSSProperties = {
@@ -538,6 +423,22 @@ const errorStyle: CSSProperties = {
   color: 'var(--error)',
   fontSize: '13px',
   lineHeight: 1.45
+}
+
+const conflictStyle: CSSProperties = {
+  marginTop: '10px',
+  color: 'var(--text-secondary)',
+  fontSize: '13px',
+  lineHeight: 1.45
+}
+
+const conflictListStyle: CSSProperties = {
+  margin: '6px 0 0',
+  paddingLeft: '18px',
+  maxHeight: '140px',
+  overflowY: 'auto',
+  fontFamily: 'var(--font-mono)',
+  color: 'var(--text-primary)'
 }
 
 const noticeStyle: CSSProperties = {

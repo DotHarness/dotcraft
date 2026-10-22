@@ -43,6 +43,33 @@ public sealed class WorldStateSectionTests
     }
 
     [Fact]
+    public void EnvironmentSection_RestatesOnlyWhatChangedWhenTheThreadEntersAWorktree()
+    {
+        var workspace = Path.GetFullPath(Directory.GetCurrentDirectory());
+        var worktreePath = Path.Combine(workspace, ".craft", "worktrees", "fix");
+        var section = new EnvironmentSection();
+        var before = section.Snapshot(Context(workspacePath: workspace))!;
+        var context = Context(workspacePath: worktreePath) with
+        {
+            Thread = new SessionThread
+            {
+                Id = "thread_test",
+                WorkspacePath = workspace,
+                Worktree = new ThreadWorktreeInfo { Path = worktreePath, BranchName = "dotcraft/fix" }
+            }
+        };
+
+        var entered = section.RenderDiff(context, PreviousSectionState.Known(before));
+        var exited = section.RenderDiff(Context(workspacePath: workspace), PreviousSectionState.Known(section.Snapshot(context)!));
+
+        Assert.Contains($"WorkingDirectory: {worktreePath}", entered, StringComparison.Ordinal);
+        Assert.Contains("Worktree: dotcraft/fix", entered, StringComparison.Ordinal);
+        Assert.DoesNotContain("CurrentDate", entered, StringComparison.Ordinal);
+        Assert.Contains($"WorkingDirectory: {workspace}", exited, StringComparison.Ordinal);
+        Assert.Contains("Worktree: none", exited, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ModeSection_RendersAgentModeAndItsAction()
     {
         var text = RenderFull(new ModeSection(), Context(mode: AgentMode.Agent));

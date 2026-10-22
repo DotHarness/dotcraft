@@ -207,6 +207,18 @@ public sealed record WorktreeRemoveOptions
     public bool DeleteBranch { get; init; } = true;
 }
 
+/// <summary>Outcome of leaving a worktree: either the thread left it, or removal was refused to keep work.</summary>
+public sealed record WorktreeExitResult
+{
+    public ThreadWorktreeInfo? Worktree { get; init; }
+
+    public ThreadWorktreeStatus? RefusedStatus { get; init; }
+
+    public static WorktreeExitResult Exited(ThreadWorktreeInfo worktree) => new() { Worktree = worktree };
+
+    public static WorktreeExitResult Refused(ThreadWorktreeStatus status) => new() { RefusedStatus = status };
+}
+
 public sealed class WorktreeHandoffConflictException(
     string message,
     IReadOnlyList<string> conflictPaths) : InvalidOperationException(message)
@@ -216,7 +228,8 @@ public sealed class WorktreeHandoffConflictException(
 
 public sealed record ThreadWorktreeStatus
 {
-    public string ThreadId { get; init; } = string.Empty;
+    /// <summary>The bound thread, or <c>null</c> for a worktree no thread is bound to.</summary>
+    public string? ThreadId { get; init; }
 
     public ThreadWorktreeInfo Worktree { get; init; } = new();
 

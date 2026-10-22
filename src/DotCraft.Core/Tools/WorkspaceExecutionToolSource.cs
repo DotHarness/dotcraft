@@ -49,7 +49,8 @@ public sealed class WorkspaceExecutionToolSource(
             ripgrepPath: config.Tools.File.RipgrepPath,
             searchTimeout: fileSearchTimeout,
             workspaceRoots: context.WorkspaceRoots,
-            managedSearchOnly: managedFileSearch);
+            managedSearchOnly: managedFileSearch,
+            location: context.Location);
         tools.AddRange(GeneratedToolFunctions.All(fileTools));
 
         if (config.Tools.Lsp.Enabled && lspServerManager != null)
@@ -73,7 +74,8 @@ public sealed class WorkspaceExecutionToolSource(
             config.Tools.Shell.MaxOutputLength,
             approvalService,
             context.WorkspaceRoots,
-            ShellPolicySource.ForWorkspace(config.Tools.Shell.Policy.ToRules(), context.DataPath));
+            ShellPolicySource.ForWorkspace(config.Tools.Shell.Policy.ToRules(), context.DataPath),
+            context.Location);
         tools.AddRange(GeneratedToolFunctions.All(shellTools));
         tools.AddRange(GeneratedToolFunctions.All(new BackgroundTaskTools(backgroundTerminalService)));
 

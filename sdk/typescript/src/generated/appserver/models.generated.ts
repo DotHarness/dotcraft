@@ -4794,7 +4794,7 @@ export interface ThreadWorktreeStatus {
   head?: string | null;
   isGitWorktree?: boolean;
   path?: string;
-  threadId?: string;
+  threadId?: string | null;
   worktree?: ThreadWorktreeInfo;
   [key: string]: unknown;
 }
@@ -5575,6 +5575,16 @@ export interface WorktreeListParams {
 
 export interface WorktreeListResult {
   data?: ThreadWorktreeStatus[];
+  [key: string]: unknown;
+}
+
+export interface WorktreeRemoveParams {
+  discardChanges?: boolean;
+  path?: string;
+  [key: string]: unknown;
+}
+
+export interface WorktreeRemoveResult {
   [key: string]: unknown;
 }
 
