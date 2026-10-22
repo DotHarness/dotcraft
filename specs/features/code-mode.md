@@ -138,8 +138,8 @@ The `CodeMode` description states, in this order:
 1. what `CodeMode` is for: batching independent calls, chaining dependent calls, and reducing large
    results before they reach the model;
 2. the runtime: raw JavaScript source rather than JSON, a quoted string, or a Markdown code fence, run
-   as an async program body with top-level `await` and `return`, and no Node.js, file system, network,
-   timers, modules, or `console`;
+   as an async program body with top-level `await` and `return`, and no Node.js, network, timers,
+   modules, or `console`, with files reached only through tools such as `ReadFile`;
 3. the calling convention: `await tools.<name>(args)` resolves to the result shape in that tool's
    declaration and rejects with an `Error` on failure, and calls still pending when the program ends
    are cancelled;
@@ -283,7 +283,8 @@ The value a nested Promise resolves to is:
 A nested tool's images reach the model only through `image()`; nothing is forwarded on the program's
 behalf. A tool whose results are content items, such as `ReadFile`, which returns an image file as an
 image, carries the `dotcraft/returnsContent` annotation, and its declaration says
-`string | CallToolResult`. A generated tool gains the annotation from its declared return type.
+`string | CallToolResult`. A generated tool gains the annotation from its declared return type. The `CodeMode` description shows
+viewing an image file as `image()` over the image block of a `ReadFile` result.
 
 A failed dispatch rejects the Promise with an `Error` whose message is the stable error code and
 message. A nested result entering the engine is at most 1 MiB, counting everything but image data;
