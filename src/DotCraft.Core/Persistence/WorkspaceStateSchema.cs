@@ -381,6 +381,9 @@ internal static class WorkspaceStateSchema
                     ON dashboard_usage_records(root_thread_id, timestamp DESC, id DESC);
                 CREATE INDEX IF NOT EXISTS idx_trace_events_type_ts
                     ON trace_events(type, timestamp, id);
+                CREATE INDEX IF NOT EXISTS idx_thread_items_user_text
+                    ON thread_items(thread_id, turn_id, rollout_ordinal, user_text)
+                    WHERE user_text IS NOT NULL;
                 """;
         usageIndexes.ExecuteNonQuery();
     }

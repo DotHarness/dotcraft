@@ -60,11 +60,17 @@ internal sealed partial class ThreadMetadataStore
                 $archived_at,
                 $history_mode,
                 (SELECT COUNT(*) FROM thread_turns WHERE thread_id = $thread_id),
-                (SELECT i.user_text
-                 FROM thread_items i
-                 JOIN thread_turns t ON t.thread_id = i.thread_id AND t.turn_id = i.turn_id
-                 WHERE i.thread_id = $thread_id AND i.user_text IS NOT NULL
-                 ORDER BY t.rollout_ordinal, i.rollout_ordinal
+                (SELECT (SELECT i.user_text
+                         FROM thread_items i
+                         WHERE i.thread_id = t.thread_id AND i.turn_id = t.turn_id AND i.user_text IS NOT NULL
+                         ORDER BY i.rollout_ordinal
+                         LIMIT 1)
+                 FROM thread_turns t
+                 WHERE t.thread_id = $thread_id
+                   AND EXISTS (
+                       SELECT 1 FROM thread_items i
+                       WHERE i.thread_id = t.thread_id AND i.turn_id = t.turn_id AND i.user_text IS NOT NULL)
+                 ORDER BY t.rollout_ordinal
                  LIMIT 1),
                 $metadata_json,
                 $projected_rollout_offset,
