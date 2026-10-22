@@ -436,7 +436,7 @@ export function ThreadList({
       const activity = getProjectActivity(detailThreads)
       const showProjectThreadSkeleton =
         openingProject &&
-        (foregroundOpening || project.state === 'connecting' || projectThreads.length === 0)
+        (foregroundOpening || project.state === 'connecting' || (projectThreads.length === 0 && !project.loaded))
       // Only a project that shows its loading skeleton is forced open; a quick reload keeps its collapse.
       const collapsed = cold || (!showProjectThreadSkeleton && collapsedProjectKeys.has(orderKey))
       return (

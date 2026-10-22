@@ -723,6 +723,37 @@ describe('ThreadList project-first layout', () => {
     expect(screen.queryAllByTestId('project-thread-skeleton-row')).toHaveLength(0)
   })
 
+  it('keeps a loaded empty project on its empty state while its foreground list quickly reloads', () => {
+    useThreadStore.getState().setThreadList([
+      makeThread('thread-a', 'Thread from A')
+    ], '/workspace/a')
+    useThreadStore.setState({ loading: true })
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/b',
+      foregroundProjectId: '/workspace/b',
+      secondaryLimit: 8,
+      projects: [
+        {
+          kind: 'local',
+          path: '/workspace/b',
+          identityWorkspacePath: '/workspace/b',
+          name: 'b',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList()
+
+    expect(screen.queryAllByTestId('project-thread-skeleton-row')).toHaveLength(0)
+    expect(screen.getByText('No chats')).toBeInTheDocument()
+  })
+
   it('renders cached foreground project rows while the global thread-store rows belong elsewhere', () => {
     useThreadStore.getState().setThreadList([
       makeThread('thread-a', 'Thread from A')
