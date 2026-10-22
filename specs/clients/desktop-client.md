@@ -251,7 +251,7 @@ The starting point names the foreground project and lets the user switch project
 
 - A workspace setting (on by default, independent of memory) enables one suggested next user message after a successful Turn in a conversation with an editable composer. Generation runs only while that conversation is active, the composer is empty, and nothing is queued.
 - Desktop generates it in one hidden ephemeral fork of the completed Turn that keeps the parent's model, instructions, tools, provider history, and prompt-cache routing identity. The fork asks for a short next message in the user's own voice, or nothing when no next step is obvious or the topic is unsafe or sensitive. Empty output means no suggestion.
-- The suggestion appears as subdued text in the empty composer, never as a draft or submission. Tab accepts it as editable text; Escape dismisses it. Typing, switching conversations, starting another Turn, disabling the setting, or a deadline cancels the request and cleans up the fork.
+- The suggestion appears as subdued text whenever the composer is empty, never as a draft or submission. Typing or dictation only hides it, so clearing the composer shows it again. Tab accepts it as editable text; Escape dismisses it. Sending, switching conversations, starting another Turn, disabling the setting, or a deadline cancels the request and cleans up the fork.
 - The ephemeral thread and its notifications never enter visible conversation or navigation state. An older result never replaces a newer one, and failure leaves the composer unchanged. Traces link the parent Turn to the temporary one and record outcome without message content.
 
 ### 5.1.3 Workspace Setup

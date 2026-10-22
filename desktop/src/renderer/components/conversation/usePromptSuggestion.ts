@@ -7,9 +7,10 @@ import { generatePromptSuggestion, logPromptSuggestion, type PromptSuggestionDia
 interface PromptSuggestionOptions {
   threadId: string
   canSuggest: boolean
+  visible: boolean
 }
 
-export function usePromptSuggestion({ threadId, canSuggest }: PromptSuggestionOptions): {
+export function usePromptSuggestion({ threadId, canSuggest, visible }: PromptSuggestionOptions): {
   suggestion: string | null
   dismiss: () => void
   accept: () => string | null
@@ -24,6 +25,8 @@ export function usePromptSuggestion({ threadId, canSuggest }: PromptSuggestionOp
   const lastStatus = useRef(turnStatus)
   const lastThreadId = useRef(threadId)
   const requestedTurns = useRef(new Set<string>())
+  const visibleRef = useRef(visible)
+  visibleRef.current = visible
 
   const dismiss = useCallback((): void => {
     activeRequest.current?.abort()
@@ -57,7 +60,7 @@ export function usePromptSuggestion({ threadId, canSuggest }: PromptSuggestionOp
     const lastTurn = turns.at(-1)
     if (lastTurn?.status !== 'completed' || requestedTurns.current.has(lastTurn.id)) return
     requestedTurns.current.add(lastTurn.id)
-    if (!enabled || !canSuggest || activeThreadId !== threadId || queuedCount > 0) return
+    if (!enabled || !canSuggest || !visibleRef.current || activeThreadId !== threadId || queuedCount > 0) return
 
     dismiss()
     const controller = new AbortController()
@@ -78,5 +81,5 @@ export function usePromptSuggestion({ threadId, canSuggest }: PromptSuggestionOp
 
   useEffect(() => dismiss, [dismiss, threadId])
 
-  return { suggestion, dismiss, accept }
+  return { suggestion: visible ? suggestion : null, dismiss, accept }
 }

@@ -1644,8 +1644,8 @@ function InputComposerCore({
     && images.length === 0 && files.length === 0 && contexts.length === 0 && pastedText.pending === 0
   const promptSuggestion = usePromptSuggestion({
     threadId,
-    canSuggest: composerEmpty && !hasSubmitOverride && !isWaitingApproval && !isWaitingInput
-      && !modelLoading && !voiceRecording && !voiceProcessing
+    canSuggest: !hasSubmitOverride && !isWaitingApproval && !isWaitingInput,
+    visible: composerEmpty && !modelLoading && !voiceRecording && !voiceProcessing
   })
   const { canResume: canResumeTurn, resume: resumeFailedTurn } = useFailedTurnResume({
     threadId,
@@ -1922,10 +1922,7 @@ function InputComposerCore({
                 onSlashQuery={handleSlashQuery}
                 onCommandQuery={handleCommandQuery}
                 onSkillQuery={handleSkillQuery}
-                onContentChange={() => {
-                  handleComposerContentChange()
-                  promptSuggestion.dismiss()
-                }}
+                onContentChange={handleComposerContentChange}
                 onFocusChange={setEditorFocused}
                 onPasteImage={onPasteImage}
                 onPasteText={pastedText.onPasteText}
