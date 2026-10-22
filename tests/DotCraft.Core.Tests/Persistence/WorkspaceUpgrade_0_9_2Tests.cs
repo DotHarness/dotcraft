@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Persistence.Upgrades;
 using DotCraft.Sessions;
 using Microsoft.Data.Sqlite;
 using Xunit;
@@ -111,6 +112,23 @@ public sealed class WorkspaceUpgrade_0_9_2Tests : IDisposable
             }
         }, SessionJsonOptions.Default));
         File.WriteAllLines(rolloutPath, lines);
+    }
+
+    [Fact]
+    public void Compaction_keeps_a_damaged_line_and_still_upgrades_the_rest()
+    {
+        Directory.CreateDirectory(_workspace);
+        var rolloutPath = Path.Combine(_workspace, "thread_damaged.jsonl");
+        File.WriteAllLines(rolloutPath, [
+            "{\"kind\":\"thread_opened\",\"threadOpened\":{\"threadId\":\"thread_damaged\",\"workspacePath\":\"/old/workspace\"}}",
+            "{\"kind\":\"thread_rolled_back\","
+        ]);
+
+        Assert.True(WorkspaceUpgrade_0_9_2.CompactRollout(rolloutPath));
+
+        var lines = File.ReadAllLines(rolloutPath);
+        Assert.DoesNotContain("workspacePath", lines[0]);
+        Assert.Equal("{\"kind\":\"thread_rolled_back\",", lines[1]);
     }
 
     private static void MakeOldDatabase(string craft, string threadId)

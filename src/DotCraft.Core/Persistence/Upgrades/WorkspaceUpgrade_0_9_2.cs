@@ -106,7 +106,17 @@ internal sealed class WorkspaceUpgrade_0_9_2 : IWorkspaceUpgrade
         if (string.IsNullOrWhiteSpace(line))
             return (null, null, null);
 
-        using var document = JsonDocument.Parse(line);
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(line);
+        }
+        catch (JsonException)
+        {
+            return (null, null, null);
+        }
+
+        using var _ = document;
         var root = document.RootElement;
         var kind = root.TryGetProperty("kind", out var kindElement) ? kindElement.GetString() : null;
         return kind switch
