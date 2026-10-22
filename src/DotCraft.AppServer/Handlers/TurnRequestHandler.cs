@@ -417,7 +417,8 @@ internal sealed class TurnRequestHandler(
         var p = request.Params;
         var thread = await sessionService.GetThreadAsync(p.ThreadId, ct);
 
-        var turn = thread.Turns.FirstOrDefault(t => t.Id == p.TurnId);
+        var turn = thread.Turns.FirstOrDefault(t => t.Id == p.TurnId)
+                   ?? await sessionService.ReadThreadTurnAsync(thread.Id, p.TurnId, ct);
         if (turn == null)
             throw AppServerErrors.TurnNotFound(p.TurnId);
 

@@ -225,7 +225,7 @@ public sealed class ThreadSummary
             Status = thread.Status,
             CreatedAt = thread.CreatedAt,
             LastActiveAt = thread.LastActiveAt,
-            TurnCount = thread.Turns.Count,
+            TurnCount = thread.TurnCount,
             Runtime = ThreadSummaryRuntime.FromThread(thread),
             Metadata = BuildSummaryMetadata(thread)
         };

@@ -36,6 +36,11 @@ public sealed record ThreadHistorySnapshot(
     ThreadSummaryRuntime PersistedRuntime);
 
 /// <summary>
+/// History-wide totals over a Thread's visible Turns.
+/// </summary>
+public sealed record ThreadHistoryAggregates(int TurnCount, TokenUsageInfo TokenUsage, int ToolCallCount);
+
+/// <summary>
 /// Raised when a consistent paged-history projection cannot be queried or repaired.
 /// </summary>
 public sealed class ThreadHistoryUnavailableException : Exception

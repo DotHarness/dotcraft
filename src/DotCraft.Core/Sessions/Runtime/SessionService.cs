@@ -191,7 +191,7 @@ public sealed partial class SessionService(
         IReadOnlyList<ChatMessage> parentModelHistory,
         CancellationToken ct)
     {
-        if (childThread.Turns.Count == 0)
+        if (childThread.TurnCount == 0)
             return false;
 
         var forkHistory = BuildNativeSubAgentForkHistory(
@@ -952,14 +952,18 @@ public sealed partial class SessionService(
             throw new InvalidOperationException($"Thread '{threadId}' is archived and cannot be rolled back.");
         if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
             throw new InvalidOperationException($"Thread '{threadId}' has a running Turn. Cancel it before rollback.");
-        if (thread.Turns.Count < numTurns)
-            throw new InvalidOperationException($"Thread '{threadId}' has only {thread.Turns.Count} turns; cannot roll back {numTurns}.");
+        if (thread.TurnCount < numTurns)
+            throw new InvalidOperationException($"Thread '{threadId}' has only {thread.TurnCount} turns; cannot roll back {numTurns}.");
 
-        thread.Turns.RemoveRange(thread.Turns.Count - numTurns, numTurns);
+        var residentRemoved = Math.Min(numTurns, thread.Turns.Count);
+        thread.Turns.RemoveRange(thread.Turns.Count - residentRemoved, residentRemoved);
+        thread.OmittedTurnCount -= numTurns - residentRemoved;
         thread.LastActiveAt = DateTimeOffset.UtcNow;
 
         await persistence.RollbackThreadAsync(thread, numTurns, ct);
-        traceCollector?.RecordThreadRollback(threadId, thread.Id, numTurns, thread.Turns.Count, thread.LastActiveAt);
+        if (thread.OmittedTurnCount > 0 && !thread.Turns.Any(ThreadWorkingSet.IsTerminal))
+            await persistence.ReloadWorkingSetAsync(thread, ct);
+        traceCollector?.RecordThreadRollback(threadId, thread.Id, numTurns, thread.TurnCount, thread.LastActiveAt);
         InvalidatePromptRequestSnapshot(threadId, "rollback");
         ResetWorldStateBaseline(threadId, "rollback");
         ClearContextUsageAnchor(threadId);
@@ -1337,7 +1341,7 @@ public sealed partial class SessionService(
             if (_runtimeRegistry.TryGetThread(threadId, out var cached))
                 return cached;
 
-            var thread = await persistence.LoadThreadAsync(threadId, ct)
+            var thread = await persistence.LoadThreadWorkingSetAsync(threadId, ct)
                          ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
 
             if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
@@ -1348,9 +1352,10 @@ public sealed partial class SessionService(
             var persistedLoad = await persistence.LoadResidentModelHistoryAsync(thread, excludedTurnId: null, ct);
             var persistedModelHistory = persistedLoad.Messages;
             var residentHistory = persistedLoad.Residable && interruptedTurn == null && !thread.Ephemeral
+                && CoveredTurns(thread, excludedTurnId: null) is { } coveredTurns
                 ? new ResidentModelHistory(
                     persistedLoad.Revision.Value,
-                    CoveredTurnIds(thread, excludedTurnId: null),
+                    coveredTurns,
                     ThreadStore.EncodeModelHistory(persistedModelHistory))
                 : null;
             await ReconcilePersistedInputHistoryAsync(thread, persistedModelHistory, ct);
@@ -1365,9 +1370,7 @@ public sealed partial class SessionService(
                 }.CommitAsync();
             }
 
-            var settledCommands = await SettleOrphanedCommandsAsync(thread, ct);
-            if (settledCommands)
-                await persistence.SaveThreadAsync(thread, ct);
+            await SettleOrphanedCommandsAsync(thread, ct);
 
             var runtime = _runtimeRegistry.SetThread(thread);
             runtime.Materialized = true;
@@ -1728,91 +1731,7 @@ public sealed partial class SessionService(
         await persistence.SaveThreadAsync(thread, ct);
         SetMaterializedIfCurrent(thread, materialized: true);
         MarkTurnItemsPersisted(captured);
-    }
-
-    private async Task<bool> SettleOrphanedCommandsAsync(SessionThread thread, CancellationToken ct)
-    {
-        var settled = false;
-        foreach (var turn in thread.Turns.Where(static t =>
-                     t.Status is not (TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)))
-        {
-            foreach (var item in turn.Items)
-            {
-                if (item.Type != ItemType.CommandExecution
-                    || item.Status == ItemStatus.Completed
-                    || item.AsCommandExecution is not { } payload)
-                    continue;
-
-                BackgroundTerminalSnapshot? terminal = null;
-                if (!string.IsNullOrEmpty(payload.SessionId) && BackgroundTerminalService is { } terminals)
-                {
-                    try
-                    {
-                        terminal = await terminals.ReadAsync(payload.SessionId, ct: ct);
-                    }
-                    catch (KeyNotFoundException)
-                    {
-                    }
-                    if (terminal?.Status == BackgroundTerminalStatus.Running)
-                        continue;
-                }
-
-                item.Status = ItemStatus.Completed;
-                item.CompletedAt = terminal?.CompletedAt ?? DateTimeOffset.UtcNow;
-                item.Payload = terminal is null
-                    ? payload with { Status = "lost" }
-                    : payload with
-                    {
-                        Status = CommandExecutionTracker.StatusOf(terminal),
-                        AggregatedOutput = ShellTools.FormatForegroundSnapshot(terminal),
-                        ExitCode = terminal.ExitCode,
-                        OriginalOutputChars = terminal.OriginalOutputChars,
-                        Truncated = terminal.Truncated
-                    };
-                settled = true;
-            }
-        }
-
-        return settled;
-    }
-
-    private async Task PersistItemAfterTurnAsync(string threadId, string turnId, SessionItem item)
-    {
-        var thread = await GetOrLoadThreadAsync(threadId, CancellationToken.None);
-        var turn = thread.Turns.FirstOrDefault(t => string.Equals(t.Id, turnId, StringComparison.Ordinal));
-        if (turn is null || turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
-            return;
-
-        var index = turn.Items.FindIndex(i => string.Equals(i.Id, item.Id, StringComparison.Ordinal));
-        if (index < 0)
-            return;
-
-        turn.Items[index] = item;
-        await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
-    }
-
-    private async Task EmitTerminalInteractionAsync(
-        string threadId,
-        string turnId,
-        string callId,
-        CommandExecutionTerminalInteraction interaction)
-    {
-        SessionThread thread;
-        try
-        {
-            thread = await GetOrLoadThreadAsync(threadId, CancellationToken.None);
-        }
-        catch (KeyNotFoundException)
-        {
-            return;
-        }
-
-        var item = thread.Turns
-            .FirstOrDefault(t => string.Equals(t.Id, turnId, StringComparison.Ordinal))?
-            .Items.FirstOrDefault(i => i.Type == ItemType.CommandExecution
-                && string.Equals(i.AsCommandExecution?.CallId, callId, StringComparison.Ordinal));
-        if (item is not null)
-            GetOrCreateBroker(threadId).PublishItemDelta(turnId, item.Id, interaction);
+        ThreadWorkingSet.Trim(thread);
     }
 
     private async Task PersistTurnStateWithMaterializationAsync(
@@ -1832,6 +1751,7 @@ public sealed partial class SessionService(
         await persistence.SaveTurnAsync(thread, turn, ct);
         SetMaterializedIfCurrent(thread, materialized: true);
         MarkTurnItemsPersisted(captured);
+        ThreadWorkingSet.Trim(thread);
     }
 
     private async Task<ModelHistoryRevision?> PersistTurnCommitWithMaterializationAsync(
@@ -1853,6 +1773,7 @@ public sealed partial class SessionService(
             new TurnPersistenceCommit(thread, turn, modelHistory, compaction),
             ct);
         SetMaterializedIfCurrent(thread, materialized: true);
+        ThreadWorkingSet.Trim(thread);
         return revision;
     }
 

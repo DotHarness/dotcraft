@@ -94,7 +94,7 @@ public sealed partial class SessionService
             string parentThreadId, string childThreadId, CancellationToken ct)
         {
             var child = owner._runtimeRegistry.TryGetThread(childThreadId, out var loaded)
-                ? loaded : await owner.Persistence.LoadThreadAsync(childThreadId, ct);
+                ? loaded : await owner.Persistence.LoadThreadWorkingSetAsync(childThreadId, ct);
             if (child == null) return [];
             if (!IsSubAgentThread(child)
                 || !string.Equals(GetSubAgentParentThreadId(child), parentThreadId, StringComparison.Ordinal))
@@ -235,7 +235,7 @@ public sealed partial class SessionService
 
             if (workspacePath is null)
             {
-                var persisted = await owner.Persistence.LoadThreadAsync(threadId, ct);
+                var persisted = await owner.Persistence.LoadThreadWorkingSetAsync(threadId, ct);
                 if (persisted is not null)
                 {
                     ephemeral = persisted.Ephemeral;
@@ -245,7 +245,7 @@ public sealed partial class SessionService
 
             var deletingThread = owner._runtimeRegistry.TryGetRuntime(threadId, out var deletingRuntime)
                 ? deletingRuntime.Thread
-                : await owner.Persistence.LoadThreadAsync(threadId, ct);
+                : await owner.Persistence.LoadThreadWorkingSetAsync(threadId, ct);
             if (deletingThread != null)
                 await owner.ContributionLifecycle.ThreadDeletingAsync(deletingThread, ct);
 

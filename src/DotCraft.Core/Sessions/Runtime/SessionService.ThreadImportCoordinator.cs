@@ -47,7 +47,7 @@ public sealed partial class SessionService
         public async Task<ThreadImportResult> AppendAsync(ThreadImportAppendRequest request, CancellationToken ct)
         {
             var thread = await owner.GetOrLoadThreadAsync(request.ThreadId, ct);
-            if (FindRefusal(thread, request.ExistingTurns) is { } refusal)
+            if (await FindRefusalAsync(thread, request.ExistingTurns, ct) is { } refusal)
                 throw new ThreadImportRefusedException(refusal);
 
             var extendedTurn = thread.Turns[^1];
@@ -105,7 +105,7 @@ public sealed partial class SessionService
 
                 var existing = owner._runtimeRegistry.TryGetThread(threadId, out var loaded)
                     ? loaded
-                    : await owner.Persistence.LoadThreadAsync(threadId, ct);
+                    : await owner.Persistence.LoadThreadWorkingSetAsync(threadId, ct);
                 if (existing != null)
                     return (existing, false);
 
@@ -254,7 +254,10 @@ public sealed partial class SessionService
             broker.PublishItemEvent(SessionEventType.ItemCompleted, turnId, item);
         }
 
-        private string? FindRefusal(SessionThread thread, IReadOnlyList<ImportedTurnInput> existingTurns)
+        private async Task<string?> FindRefusalAsync(
+            SessionThread thread,
+            IReadOnlyList<ImportedTurnInput> existingTurns,
+            CancellationToken ct)
         {
             if (thread.Status != ThreadStatus.Active)
                 return $"Thread '{thread.Id}' is {thread.Status}.";
@@ -266,22 +269,23 @@ public sealed partial class SessionService
                 return $"Thread '{thread.Id}' has a running Turn or maintenance task.";
             }
 
+            var turns = await owner.ReadAllTurnsAsync(thread, ct);
             if (!IsImportChannel(thread.OriginChannel)
-                || !thread.Turns.All(static turn => IsImportChannel(turn.OriginChannel)))
+                || !turns.All(static turn => IsImportChannel(turn.OriginChannel)))
             {
                 return $"Thread '{thread.Id}' is not an imported thread or contains turns that were not imported.";
             }
 
-            if (thread.Turns.Count == 0)
+            if (turns.Count == 0)
                 return $"Thread '{thread.Id}' has no turns.";
 
-            if (thread.Turns.Count != existingTurns.Count)
-                return $"Thread '{thread.Id}' has {thread.Turns.Count} turns, but {existingTurns.Count} were expected.";
+            if (turns.Count != existingTurns.Count)
+                return $"Thread '{thread.Id}' has {turns.Count} turns, but {existingTurns.Count} were expected.";
 
             for (var i = 0; i < existingTurns.Count; i++)
             {
-                if (!MatchesSource(thread.Turns[i], existingTurns[i], allowGrowth: i == existingTurns.Count - 1))
-                    return $"Turn '{thread.Turns[i].Id}' of thread '{thread.Id}' no longer matches its source.";
+                if (!MatchesSource(turns[i], existingTurns[i], allowGrowth: i == existingTurns.Count - 1))
+                    return $"Turn '{turns[i].Id}' of thread '{thread.Id}' no longer matches its source.";
             }
 
             return null;

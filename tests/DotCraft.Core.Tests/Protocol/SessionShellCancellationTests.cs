@@ -115,9 +115,13 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
         await using var terminals = new BackgroundTerminalService(
             _tempDir,
             new AppConfig.ShellBackgroundConfig());
-        var command = OperatingSystem.IsWindows()
-            ? "Start-Sleep -Milliseconds 1500; Write-Output 'after-turn'"
-            : "sleep 1.5; echo 'after-turn'";
+        var command = (OperatingSystem.IsWindows(), runInBackground) switch
+        {
+            (true, true) => "Start-Sleep -Milliseconds 3000; Write-Output 'after-turn'",
+            (true, false) => "Start-Sleep -Milliseconds 1500; Write-Output 'after-turn'",
+            (false, true) => "sleep 3; echo 'after-turn'",
+            (false, false) => "sleep 1.5; echo 'after-turn'"
+        };
         var chatClient = new ShellCallingChatClient(command, yieldTimeMs: 100, runInBackground);
         var recorder = new ToolInvocationRecorderRouter();
         var dispatcher = new ToolDispatcher(recorder: recorder);
@@ -159,13 +163,23 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
         var turn = Assert.Single(afterTurn!.Turns);
         Assert.Equal(TurnStatus.Completed, turn.Status);
         Assert.Equal("inProgress", CommandPayload(turn).Status);
+        if (runInBackground)
+        {
+            foreach (var followUp in new[] { "second", "third" })
+            {
+                await foreach (var _ in service.SubmitInputAsync(thread.Id, [new TextContent(followUp)]))
+                {
+                }
+            }
+            Assert.DoesNotContain((await service.GetThreadAsync(thread.Id)).Turns, candidate => candidate.Id == turn.Id);
+        }
 
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
         CommandExecutionPayload payload;
         do
         {
             await Task.Delay(100);
-            payload = CommandPayload(Assert.Single((await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id))!.Turns));
+            payload = CommandPayload((await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id))!.Turns[0]);
         }
         while (payload.Status == "inProgress" && DateTimeOffset.UtcNow < deadline);
 

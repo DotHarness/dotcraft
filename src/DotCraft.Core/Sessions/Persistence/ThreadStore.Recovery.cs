@@ -20,7 +20,7 @@ public sealed partial class ThreadStore
 
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
         await _rolloutStore.CloseThreadAsync(threadId, ct);
-        Interlocked.Increment(ref _rolloutReplayCount);
+        CountForwardReplay();
         var thread = await _rolloutStore.LoadThreadAsync(threadId, ct)
             ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
         var terminalTurn = ValidateExportThread(thread, normalizedWorkspace);

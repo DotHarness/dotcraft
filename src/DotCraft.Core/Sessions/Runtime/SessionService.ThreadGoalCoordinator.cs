@@ -356,7 +356,7 @@ public sealed partial class SessionService
             thread.Status == ThreadStatus.Active
             && !IsPlanMode(thread)
             && thread.HistoryMode == HistoryMode.Server
-            && thread.Turns.Count > 0
+            && thread.TurnCount > 0
             && !thread.Turns.Any(turn => turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
             && (!owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime) || runtime.Maintenance == null)
             && !thread.QueuedInputs.Any(input => string.Equals(input.Status, "queued", StringComparison.OrdinalIgnoreCase)

@@ -403,8 +403,8 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
         await DrainAsync(service.SubmitInputAsync(threadId, [new TextContent("continue")]));
         var recovery = await service.ExportThreadRecoveryAsync(threadId);
 
-        var thread = await service.GetThreadAsync(threadId);
-        Assert.Equal([TurnStatus.Cancelled, TurnStatus.Completed], thread.Turns.Select(static turn => turn.Status));
+        var turns = await service.ReadThreadTurnsAsync(threadId, ThreadHistorySortDirection.Ascending).ToListAsync();
+        Assert.Equal([TurnStatus.Cancelled, TurnStatus.Completed], turns.Select(static turn => turn.Status));
         Assert.True(File.Exists(recovery.PackagePath));
         Assert.Equal("turn_002", recovery.TerminalTurnId);
     }
@@ -446,7 +446,8 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("again")]));
         Assert.Equal(
             [TurnStatus.Completed, TurnStatus.Completed],
-            (await service.GetThreadAsync(thread.Id)).Turns.Select(static turn => turn.Status));
+            (await service.ReadThreadTurnsAsync(thread.Id, ThreadHistorySortDirection.Ascending).ToListAsync())
+            .Select(static turn => turn.Status));
     }
 
     [Fact]

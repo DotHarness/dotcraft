@@ -525,15 +525,16 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         Assert.DoesNotContain(events, IsManualCompactionNotice);
 
         await WaitUntilAsync(() =>
-            thread.Turns.Count >= 2
-            && thread.Turns[1].Status == TurnStatus.Completed
+            thread.TurnCount >= 2
+            && thread.Turns[^1].Status == TurnStatus.Completed
             && thread.QueuedInputs.Count == 0);
 
         var reloaded = await service.GetThreadAsync(thread.Id);
         var runtimeAfterMaintenance = service.GetThreadRuntimeSnapshot(reloaded);
         Assert.Null(runtimeAfterMaintenance.MaintenanceKind);
         Assert.DoesNotContain(
-            reloaded.Turns.SelectMany(turn => turn.Items),
+            (await service.ReadThreadTurnsAsync(thread.Id, ThreadHistorySortDirection.Ascending).ToListAsync())
+            .SelectMany(turn => turn.Items),
             item => item.Payload is SystemNoticePayload { Kind: "compacted", Trigger: "manual" });
     }
 
@@ -558,13 +559,14 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         await compactTask;
 
         await WaitUntilAsync(() =>
-            thread.Turns.Count >= 3
-            && thread.Turns.Take(3).All(turn => turn.Status == TurnStatus.Completed)
+            thread.TurnCount >= 3
+            && thread.Turns.All(turn => turn.Status == TurnStatus.Completed)
             && thread.QueuedInputs.Count == 0);
 
+        var turns = await service.ReadThreadTurnsAsync(thread.Id, ThreadHistorySortDirection.Ascending).ToListAsync();
         Assert.Equal(
             ["third", "second"],
-            thread.Turns.Skip(1).Take(2).Select(turn => turn.Input?.AsUserMessage?.Text ?? string.Empty).ToArray());
+            turns.Skip(1).Take(2).Select(turn => turn.Input?.AsUserMessage?.Text ?? string.Empty).ToArray());
     }
 
     [Fact]

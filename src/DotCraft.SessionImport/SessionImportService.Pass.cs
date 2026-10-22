@@ -183,8 +183,8 @@ public sealed partial class SessionImportService
                 SourcePath = session.SourcePath,
                 ThreadId = thread.Id,
                 ImportedAt = importedAt,
-                TurnCount = thread.Turns.Count > 0
-                    ? thread.Turns.Count
+                TurnCount = thread.TurnCount > 0
+                    ? thread.TurnCount
                     : context.Workspace.Threads.TryGetValue(thread.Id, out var summary) ? summary.TurnCount : 0,
                 Title = thread.DisplayName ?? session.Title
             }

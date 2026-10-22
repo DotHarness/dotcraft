@@ -27,8 +27,12 @@ public sealed partial class ThreadStore
         }
 
         var length = new FileInfo(path).Length;
-        if (_persistedBaselines.TryGetValue(current.Id, out var baseline) && baseline.Offset == length)
+        if (_persistedBaselines.TryGetValue(current.Id, out var baseline)
+            && baseline.Offset == length
+            && baseline.Replay.Holds(current.Turns))
+        {
             return baseline.Replay.Build();
+        }
 
         ThreadReplay replay;
         try
@@ -47,7 +51,7 @@ public sealed partial class ThreadStore
         {
             System.Diagnostics.Trace.TraceWarning(
                 $"Thread projection unavailable for '{current.Id}'; reading its rollout to diff the save: {ex.Message}");
-            Interlocked.Increment(ref _rolloutReplayCount);
+            CountForwardReplay();
             replay = new ThreadReplay();
             await Utf8JsonlReader.ReadAsync(path, replay.Apply, ct);
         }
@@ -110,20 +114,10 @@ public sealed partial class ThreadStore
         return result;
     }
 
-    private async Task<SessionThread?> ReadThreadRecordingBaselineAsync(string path, CancellationToken ct)
+    private async Task<SessionThread?> ReplayThreadAsync(string path, CancellationToken ct)
     {
-        var length = new FileInfo(path).Length;
-        var baseline = new ThreadReplay();
-        Interlocked.Increment(ref _rolloutReplayCount);
-        var thread = await ThreadRolloutStore.ReadThreadFileAsync(path, ct, baseline);
-        if (thread != null
-            && _rolloutStore.ResolveExistingPath(thread.Id) is { } canonicalPath
-            && string.Equals(Path.GetFullPath(canonicalPath), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase))
-        {
-            _persistedBaselines[thread.Id] = new PersistedBaseline(baseline, length);
-        }
-
-        return thread;
+        CountForwardReplay();
+        return await ThreadRolloutStore.ReadThreadFileAsync(path, ct);
     }
 
     private sealed class PersistedBaseline(ThreadReplay replay, long offset)

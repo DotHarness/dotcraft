@@ -440,8 +440,27 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
             nameof(ISessionService.SubmitInputAsync) => CompleteInput(),
             nameof(ISessionService.AddSubAgentMailboxEntryAsync) => Task.CompletedTask,
             nameof(IBackgroundTaskNotifications.NotifyBackgroundTaskEndedAsync) => Notify(args),
+            nameof(ISessionService.ReadThreadTurnsAsync) => ReadTurns(args),
+            nameof(ISessionService.ReadThreadAggregatesAsync) => ReadAggregates(args),
             _ => throw new NotSupportedException($"Unexpected Session method '{targetMethod?.Name}'.")
         };
+
+        private IAsyncEnumerable<SessionTurn> ReadTurns(object?[]? args)
+        {
+            var turns = GetThread(args).Result.Turns.ToArray();
+            if ((ThreadHistorySortDirection)args![1]! == ThreadHistorySortDirection.Descending)
+                Array.Reverse(turns);
+            return turns.ToAsyncEnumerable();
+        }
+
+        private Task<ThreadHistoryAggregates> ReadAggregates(object?[]? args)
+        {
+            var turns = GetThread(args).Result.Turns;
+            return Task.FromResult(new ThreadHistoryAggregates(
+                turns.Count,
+                turns.Select(static turn => turn.TokenUsage ?? new TokenUsageInfo()).Aggregate(new TokenUsageInfo(), static (a, b) => a + b),
+                turns.SelectMany(static turn => turn.Items).Count(static item => item.IsToolInvocation)));
+        }
 
         private Task<SessionThread> GetThread(object?[]? args)
         {

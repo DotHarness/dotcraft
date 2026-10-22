@@ -117,7 +117,8 @@ public sealed partial class DynamicWorkflowService(
         if (!_accepting) throw new InvalidOperationException("Dynamic Workflow runtime is not accepting work.");
         var session = _sessionService ?? throw new InvalidOperationException("Session service has not been bound.");
         var parent = await session.GetThreadAsync(request.ParentThreadId, cancellationToken).ConfigureAwait(false);
-        if (!parent.Turns.Any(turn => string.Equals(turn.Id, request.ParentTurnId, StringComparison.Ordinal)))
+        if (!parent.Turns.Any(turn => string.Equals(turn.Id, request.ParentTurnId, StringComparison.Ordinal))
+            && await session.ReadThreadTurnAsync(parent.Id, request.ParentTurnId, cancellationToken).ConfigureAwait(false) is null)
             throw new ArgumentException("Parent Turn does not exist in the requested thread.", nameof(request));
         var limits = request.LimitsOverride ?? new DynamicWorkflowLimits();
         limits.Validate();

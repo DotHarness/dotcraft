@@ -14,7 +14,8 @@ public sealed partial class SessionService
             .ToDictionary(input => input.Identity.InputId);
         if (inputs.Count == 0) return;
 
-        await ReconcileBoardInputHistoryAsync(thread, history, ct);
+        var recovered = new RecoveredInputItems(this, thread);
+        await ReconcileBoardInputHistoryAsync(thread, history, recovered, ct);
 
         using (await AcquireThreadQueueLockAsync(thread.Id, ct))
         {
@@ -22,12 +23,12 @@ public sealed partial class SessionService
             foreach (var input in consumed)
             {
                 var incorporated = inputs[input.Id];
-                var turn = thread.Turns.Single(turn => turn.Id == incorporated.Identity.TurnId);
+                var turn = await recovered.TurnAsync(incorporated.Identity.TurnId, ct);
                 var itemId = incorporated.Identity.ItemId;
                 if (!turn.Items.Any(item => item.Id == itemId))
                 {
                     var images = ExtractUserMessageImages(incorporated.Message.Contents);
-                    turn.Items.Add(new SessionItem
+                    recovered.Add(turn, new SessionItem
                     {
                         Id = itemId, TurnId = turn.Id, Type = ItemType.UserMessage, Status = ItemStatus.Completed,
                         CreatedAt = input.CreatedAt, CompletedAt = DateTimeOffset.UtcNow,
@@ -49,7 +50,7 @@ public sealed partial class SessionService
                 thread.QueuedInputs = thread.QueuedInputs.Where(queued => queued.Id != input.Id).ToList();
             }
             if (consumed.Length > 0)
-                await persistence.SaveThreadAsync(thread, ct);
+                await recovered.PersistAsync(ct);
         }
 
         var root = thread.Source.SubAgent?.RootThreadId ?? thread.Id;
@@ -63,11 +64,11 @@ public sealed partial class SessionService
                 foreach (var batch in delivered.GroupBy(entry => inputs[$"mailbox:{entry.Id}"].Identity.ItemId))
                 {
                     var turnId = inputs[$"mailbox:{batch.First().Id}"].Identity.TurnId;
-                    var turn = thread.Turns.Single(turn => turn.Id == turnId);
+                    var turn = await recovered.TurnAsync(turnId, ct);
                     if (turn.Items.Any(item => item.Id == batch.Key)) continue;
                     var entries = batch.ToArray();
                     var text = BuildSubAgentMailboxDisplayText(entries);
-                    turn.Items.Add(new SessionItem
+                    recovered.Add(turn, new SessionItem
                     {
                         Id = batch.Key, TurnId = turn.Id, Type = ItemType.UserMessage, Status = ItemStatus.Completed,
                         CreatedAt = DateTimeOffset.UtcNow, CompletedAt = DateTimeOffset.UtcNow,
@@ -83,10 +84,53 @@ public sealed partial class SessionService
                         }
                     });
                 }
-                await persistence.SaveThreadAsync(thread, ct);
+                await recovered.PersistAsync(ct);
                 await MarkSubAgentMailboxDeliveredAsync(root, delivered.Select(entry => entry.Id).ToArray(),
                     DateTimeOffset.UtcNow, ct);
             }
+        }
+    }
+
+    private sealed class RecoveredInputItems(SessionService owner, SessionThread thread)
+    {
+        private readonly Dictionary<string, SessionTurn> _omitted = new(StringComparer.Ordinal);
+        private readonly List<ThreadRolloutRecord> _records = [];
+
+        public async Task<SessionTurn> TurnAsync(string turnId, CancellationToken ct) =>
+            await FindTurnAsync(turnId, ct)
+            ?? throw new InvalidOperationException($"Turn '{turnId}' not found in thread '{thread.Id}'.");
+
+        public async Task<SessionTurn?> FindTurnAsync(string turnId, CancellationToken ct)
+        {
+            if (ThreadWorkingSet.FindResident(thread, turnId) is { } resident)
+                return resident;
+            if (_omitted.TryGetValue(turnId, out var omitted))
+                return omitted;
+            if (await owner.ReadTurnAsync(thread, turnId, ct) is not { } loaded)
+                return null;
+            _omitted[turnId] = loaded;
+            return loaded;
+        }
+
+        public void Add(SessionTurn turn, SessionItem item)
+        {
+            turn.Items.Add(item);
+            if (_omitted.ContainsKey(turn.Id))
+                _records.Add(RolloutChangeRecords.ItemAppended(turn.Id, item));
+        }
+
+        public async Task PersistAsync(CancellationToken ct)
+        {
+            if (_records.Count > 0)
+            {
+                await owner.Persistence.AppendThreadChangesAsync(
+                    thread,
+                    [.. _records],
+                    deleteUnreferencedAttachments: false,
+                    ct);
+                _records.Clear();
+            }
+            await owner.Persistence.SaveThreadAsync(thread, ct);
         }
     }
 }

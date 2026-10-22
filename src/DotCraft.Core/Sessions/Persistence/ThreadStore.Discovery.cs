@@ -95,7 +95,7 @@ public sealed partial class ThreadStore
         CancellationToken ct = default)
     {
         using var readLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
-        return await _historyProjectionStore.ReadAggregatesAsync(threadId, ResolvePersistedHistoryPath(threadId), ct);
+        return await _historyProjectionStore.ReadAggregatesAsync(threadId, ResolvePersistedHistoryPath(threadId), [], ct);
     }
 
     private string? ResolveDiscoveredThreadId(string path, IReadOnlyDictionary<string, string> threadIdsByPath)

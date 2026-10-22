@@ -16,8 +16,17 @@ public sealed partial class ThreadStore
         new(StringComparer.Ordinal);
     private long _modelHistoryClock;
     private long _rolloutReplayCount;
+    private long _forwardReplayCount;
 
     internal long RolloutReplayCount => Interlocked.Read(ref _rolloutReplayCount);
+
+    internal long ForwardReplayCount => Interlocked.Read(ref _forwardReplayCount);
+
+    private void CountForwardReplay()
+    {
+        Interlocked.Increment(ref _rolloutReplayCount);
+        Interlocked.Increment(ref _forwardReplayCount);
+    }
 
     internal ModelHistoryRevision GetModelHistoryRevision(string threadId) =>
         _modelHistoryRevisions.TryGetValue(threadId, out var revision) ? revision : default;

@@ -8,23 +8,42 @@ internal sealed class RolloutReplayer : IRolloutReplayer
 {
     private static readonly JsonSerializerOptions JsonOptions = SessionJsonOptions.Default;
 
-    public async Task<ModelHistoryReplayResult> ReplayModelHistoryAsync(
+    public Task<ModelHistoryReplayResult> ReplayModelHistoryAsync(
         string rolloutPath,
         IReadOnlyList<SessionTurn> survivingTurns,
         string? excludedTurnId = null,
         CancellationToken ct = default,
         string? expectedThreadId = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(rolloutPath);
         ArgumentNullException.ThrowIfNull(survivingTurns);
+        return ReplayModelHistoryAsync(
+            rolloutPath,
+            survivingTurns.Select(static turn => turn.Id).ToList(),
+            (ids, _) => Task.FromResult<IReadOnlyList<SessionTurn>>(
+                survivingTurns.Where(turn => ids.Contains(turn.Id, StringComparer.Ordinal)).ToList()),
+            excludedTurnId,
+            ct,
+            expectedThreadId);
+    }
+
+    public async Task<ModelHistoryReplayResult> ReplayModelHistoryAsync(
+        string rolloutPath,
+        IReadOnlyList<string> survivingTurnIds,
+        Func<IReadOnlyCollection<string>, CancellationToken, Task<IReadOnlyList<SessionTurn>>> readTurns,
+        string? excludedTurnId = null,
+        CancellationToken ct = default,
+        string? expectedThreadId = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rolloutPath);
+        ArgumentNullException.ThrowIfNull(survivingTurnIds);
 
         if (!File.Exists(rolloutPath))
             return new ModelHistoryReplayResult([], HasModelHistoryRecords: false);
 
-        var orderedTurns = survivingTurns
-            .Where(turn => !string.Equals(turn.Id, excludedTurnId, StringComparison.Ordinal))
+        var orderedTurnIds = survivingTurnIds
+            .Where(id => !string.Equals(id, excludedTurnId, StringComparison.Ordinal))
             .ToList();
-        var survivingTurnIds = orderedTurns.Select(static turn => turn.Id).ToHashSet(StringComparer.Ordinal);
+        var survivingIdSet = orderedTurnIds.ToHashSet(StringComparer.Ordinal);
         var reverseBatches = new List<DecodedModelBatch>();
         var reverseWorldStates = new List<WorldStatePayload>();
         var nativeWorldStateBoundary = false;
@@ -104,7 +123,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                     Reject("cross_thread_record", "Skipped a model-history batch belonging to another thread.", validBatch.TurnId);
                     continue;
                 }
-                if (!survivingTurnIds.Contains(validBatch.TurnId))
+                if (!survivingIdSet.Contains(validBatch.TurnId))
                     continue;
 
                 try
@@ -143,7 +162,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                         markFallback: false);
                     continue;
                 }
-                if (!survivingTurnIds.Contains(validCheckpoint.CoveredThroughTurnId)
+                if (!survivingIdSet.Contains(validCheckpoint.CoveredThroughTurnId)
                     || fallbackTurnIds.Contains(validCheckpoint.CoveredThroughTurnId))
                 {
                     continue;
@@ -169,7 +188,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                      && record.ProviderHistoryReplaced is { } providerReplacement
                      && ProviderHistoryReasons.IsNativeCompacted(providerReplacement.Reason)
                      && ProviderHistoryReplayer.IsValidReplacement(
-                         providerReplacement, expectedThreadId ?? providerReplacement.ThreadId, survivingTurnIds))
+                         providerReplacement, expectedThreadId ?? providerReplacement.ThreadId, survivingIdSet))
             {
                 nativeWorldStateBoundary = true;
             }
@@ -197,36 +216,41 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         var firstTailTurnIndex = 0;
         if (selectedCheckpoint != null)
         {
-            firstTailTurnIndex = orderedTurns.FindIndex(turn =>
-                string.Equals(turn.Id, selectedCheckpoint.CoveredThroughTurnId, StringComparison.Ordinal));
+            firstTailTurnIndex = orderedTurnIds.FindIndex(id =>
+                string.Equals(id, selectedCheckpoint.CoveredThroughTurnId, StringComparison.Ordinal));
         }
 
-        for (var turnIndex = Math.Max(0, firstTailTurnIndex); turnIndex < orderedTurns.Count; turnIndex++)
+        var batchedTurnIds = reverseBatches.Select(static batch => batch.TurnId).ToHashSet(StringComparer.Ordinal);
+        for (var turnIndex = Math.Max(0, firstTailTurnIndex); turnIndex < orderedTurnIds.Count; turnIndex++)
         {
-            var turn = orderedTurns[turnIndex];
-            var turnBatches = reverseBatches
-                .Where(batch => string.Equals(batch.TurnId, turn.Id, StringComparison.Ordinal))
-                .ToList();
-            if (fallbackTurnIds.Contains(turn.Id))
+            var turnId = orderedTurnIds[turnIndex];
+            if (!batchedTurnIds.Contains(turnId) && !(selectedCheckpoint != null && turnIndex == firstTailTurnIndex))
+                fallbackTurnIds.Add(turnId);
+        }
+
+        var tailFallbackIds = orderedTurnIds
+            .Skip(Math.Max(0, firstTailTurnIndex))
+            .Where(fallbackTurnIds.Contains)
+            .ToList();
+        var fallbackTurns = tailFallbackIds.Count == 0
+            ? new Dictionary<string, SessionTurn>(StringComparer.Ordinal)
+            : (await readTurns(tailFallbackIds, ct)).ToDictionary(static turn => turn.Id, StringComparer.Ordinal);
+        for (var turnIndex = Math.Max(0, firstTailTurnIndex); turnIndex < orderedTurnIds.Count; turnIndex++)
+        {
+            var turnId = orderedTurnIds[turnIndex];
+            if (fallbackTurnIds.Contains(turnId))
             {
-                messages.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(turn));
-                continue;
-            }
-            if (turnBatches.Count == 0)
-            {
-                if (selectedCheckpoint != null && turnIndex == firstTailTurnIndex)
-                    continue;
-                fallbackTurnIds.Add(turn.Id);
-                messages.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(turn));
+                if (fallbackTurns.TryGetValue(turnId, out var turn))
+                    messages.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(turn));
                 continue;
             }
 
-            foreach (var batch in turnBatches)
+            foreach (var batch in reverseBatches.Where(batch => string.Equals(batch.TurnId, turnId, StringComparison.Ordinal)))
                 messages.AddRange(batch.Messages);
         }
 
         // Folded last: a turn rebuilt from its projection carries no context items.
-        var worldState = FoldWorldState(reverseWorldStates, survivingTurnIds, fallbackTurnIds);
+        var worldState = FoldWorldState(reverseWorldStates, survivingIdSet, fallbackTurnIds);
 
         RolloutTelemetry.RecordResume(reader.BytesRead, recordsDecoded, rejectedRecords);
         return new ModelHistoryReplayResult(
@@ -246,7 +270,7 @@ internal sealed class RolloutReplayer : IRolloutReplayer
             bool markFallback = true)
         {
             rejectedRecords++;
-            if (markFallback && !string.IsNullOrWhiteSpace(turnId) && survivingTurnIds.Contains(turnId))
+            if (markFallback && !string.IsNullOrWhiteSpace(turnId) && survivingIdSet.Contains(turnId))
                 fallbackTurnIds.Add(turnId);
             warnings.Add(new ModelHistoryReplayWarning(code, message, turnId));
         }

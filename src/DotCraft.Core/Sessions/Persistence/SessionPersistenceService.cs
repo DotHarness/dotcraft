@@ -64,6 +64,36 @@ public sealed class SessionPersistenceService(
     public Task<SessionThread?> LoadThreadAsync(string threadId, CancellationToken ct = default)
         => threadStore.LoadThreadAsync(threadId, ct);
 
+    internal Task<SessionThread?> LoadThreadWorkingSetAsync(string threadId, CancellationToken ct = default)
+        => threadStore.LoadThreadWorkingSetAsync(threadId, ct);
+
+    internal Task ReloadWorkingSetAsync(SessionThread thread, CancellationToken ct = default)
+        => threadStore.ReloadWorkingSetAsync(thread, ct);
+
+    internal Task<IReadOnlyList<SessionTurn>> ReadProjectedTurnsAsync(
+        string threadId,
+        IReadOnlyCollection<string> turnIds,
+        CancellationToken ct = default)
+        => threadStore.ReadProjectedTurnsAsync(threadId, turnIds, ct);
+
+    internal Task<SessionItem?> ReadProjectedItemAsync(
+        string threadId,
+        string turnId,
+        string itemId,
+        CancellationToken ct = default)
+        => threadStore.ReadProjectedItemAsync(threadId, turnId, itemId, ct);
+
+    internal Task<IReadOnlyList<ThreadHistoryItem>> ReadUnfinishedCommandItemsAsync(
+        string threadId,
+        CancellationToken ct = default)
+        => threadStore.ReadUnfinishedCommandItemsAsync(threadId, ct);
+
+    internal Task<ThreadHistoryAggregates> ReadHistoryAggregatesAsync(
+        string threadId,
+        IReadOnlyCollection<string> excludedTurnIds,
+        CancellationToken ct = default)
+        => threadStore.ReadHistoryAggregatesAsync(threadId, excludedTurnIds, ct);
+
     internal Task<ThreadRecoveryPackage> ExportRecoveryAsync(
         string threadId,
         string workspacePath,

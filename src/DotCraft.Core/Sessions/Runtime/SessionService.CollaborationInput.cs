@@ -4,17 +4,21 @@ namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
-    private async Task ReconcileBoardInputHistoryAsync(SessionThread thread, IReadOnlyList<ChatMessage> history, CancellationToken ct)
+    private async Task ReconcileBoardInputHistoryAsync(
+        SessionThread thread,
+        IReadOnlyList<ChatMessage> history,
+        RecoveredInputItems recoveredItems,
+        CancellationToken ct)
     {
         var recovered = false;
         foreach (var message in history)
         {
             var identity = TurnModelHistory.Inputs(message).FirstOrDefault(input => input.InputId.StartsWith("mailbox:board:", StringComparison.Ordinal));
             if (identity == null) continue;
-            var turn = thread.Turns.SingleOrDefault(turn => turn.Id == identity.TurnId);
+            var turn = await recoveredItems.FindTurnAsync(identity.TurnId, ct);
             if (turn == null || turn.Items.Any(item => item.Id == identity.ItemId)) continue;
             const string displayText = "Agent message board notification";
-            turn.Items.Add(new SessionItem
+            recoveredItems.Add(turn, new SessionItem
             {
                 Id = identity.ItemId, TurnId = turn.Id, Type = ItemType.UserMessage, Status = ItemStatus.Completed,
                 CreatedAt = DateTimeOffset.UtcNow, CompletedAt = DateTimeOffset.UtcNow,
@@ -30,7 +34,7 @@ public sealed partial class SessionService
             });
             recovered = true;
         }
-        if (recovered) await persistence.SaveThreadAsync(thread, ct);
+        if (recovered) await recoveredItems.PersistAsync(ct);
     }
 
     private async Task<ChatMessage?> DrainCollaborationMailboxAsync(

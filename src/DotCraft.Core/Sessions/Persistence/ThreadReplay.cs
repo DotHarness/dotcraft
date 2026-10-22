@@ -183,6 +183,8 @@ internal sealed class ThreadReplay
             _turns.Remove(id);
     }
 
+    public bool Holds(IEnumerable<SessionTurn> turns) => turns.All(turn => _turns.ContainsKey(turn.Id));
+
     public SessionThread? Build()
     {
         if (_thread == null)

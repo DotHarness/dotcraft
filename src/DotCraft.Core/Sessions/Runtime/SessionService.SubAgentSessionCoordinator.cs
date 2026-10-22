@@ -142,7 +142,7 @@ public sealed partial class SessionService
             CancellationToken ct)
         {
             var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
-            var turn = thread.Turns.FirstOrDefault(t => string.Equals(t.Id, turnId, StringComparison.Ordinal))
+            var turn = await owner.ReadTurnAsync(thread, turnId, ct)
                 ?? throw new KeyNotFoundException($"Turn '{turnId}' not found in thread '{threadId}'.");
             if (turn.Status is not (TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
                 return turn;
@@ -205,7 +205,7 @@ public sealed partial class SessionService
             CancellationToken ct)
         {
             var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
-            var turn = thread.Turns.FirstOrDefault(t => string.Equals(t.Id, turnId, StringComparison.Ordinal))
+            var turn = await owner.ReadTurnAsync(thread, turnId, ct)
                 ?? throw new KeyNotFoundException($"Turn '{turnId}' not found in thread '{threadId}'.");
             if (turn.Status is not (TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
                 return turn;

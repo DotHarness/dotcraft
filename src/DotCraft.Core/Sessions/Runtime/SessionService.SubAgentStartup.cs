@@ -29,7 +29,7 @@ public sealed partial class SessionService : ISubAgentStartupLifecycleService, I
         string parentThreadId, string childThreadId, CancellationToken ct)
     {
         if (!_runtimeRegistry.TryGetThread(childThreadId, out _)
-            && await Persistence.LoadThreadAsync(childThreadId, ct) == null) return;
+            && !Persistence.ThreadExists(childThreadId)) return;
         var deleteOrder = await InvokeThreadCommandAsync(childThreadId,
             token => ThreadLifecycle.PrepareFailedSubAgentDeletionAsync(parentThreadId, childThreadId, token), ct);
         await ThreadLifecycle.ExecutePermanentDeletionAsync(deleteOrder, ct);

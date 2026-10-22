@@ -352,6 +352,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     loggerFactory?.CreateLogger<WelcomeSuggestionService>());
                 var memoryExtraction = new MemoryExtractionScheduler(
                     sessionService.GetThreadAsync,
+                    (thread, ct) => sessionService.ReadThreadTurnsAsync(
+                        thread.Id, ThreadHistorySortDirection.Descending, ct: ct),
                     new MemoryExtractionRunner(
                         sessionService,
                         contributionRegistry,

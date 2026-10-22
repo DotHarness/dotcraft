@@ -198,7 +198,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
         var events = await eventsTask;
 
         Assert.DoesNotContain(events, evt => IsSystemEvent(evt, "compacting"));
-        await WaitForIdleThreadAsync(service, thread.Id, expectedTurnCount: thread.Turns.Count + 2);
+        await WaitForIdleThreadAsync(service, thread.Id, expectedTurnCount: thread.TurnCount + 2);
         var records = await ReadRolloutRecordsAsync(thread.Id);
         Assert.DoesNotContain(records, record =>
             record.Kind == RolloutKinds.ContextCompacted
@@ -268,7 +268,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
         while (DateTimeOffset.UtcNow < deadline)
         {
             var thread = await service.GetThreadAsync(threadId);
-            if (thread.Turns.Count >= expectedTurnCount && thread.Turns.All(turn => turn.Status != TurnStatus.Running))
+            if (thread.TurnCount >= expectedTurnCount && thread.Turns.All(turn => turn.Status != TurnStatus.Running))
                 return;
             await Task.Delay(50);
         }

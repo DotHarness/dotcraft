@@ -168,7 +168,8 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("committed-prefix")]));
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("mistyped-tail")]));
 
-        var committedTurnId = (await service.GetThreadAsync(thread.Id)).Turns[0].Id;
+        var committedTurnId = (await service.ReadThreadTurnsAsync(thread.Id, ThreadHistorySortDirection.Ascending)
+            .FirstAsync()).Id;
         var records = await ReadRecordsAsync(thread.Id);
         var checkpoint = records.First(record => record.Kind == RolloutKinds.ContextCompacted);
         Assert.Equal(committedTurnId, checkpoint.ContextCompacted!.CoveredThroughTurnId);

@@ -68,7 +68,7 @@ internal sealed class VisualizationRequestHandler : IAppServerDomainHandler, IDi
         SessionThread thread;
         try { thread = await sessions.GetThreadAsync(threadId, cancellationToken); }
         catch (KeyNotFoundException) { throw VisualizationViewErrors.Create("not_found", "The visualization thread is unavailable."); }
-        var turn = thread.Turns.FirstOrDefault(candidate => candidate.Id == turnId)
+        var turn = await sessions.ReadThreadTurnAsync(thread.Id, turnId, cancellationToken)
             ?? throw VisualizationViewErrors.Create("not_found", "The visualization turn is unavailable.");
         var item = turn.Items.FirstOrDefault(candidate => candidate.Id == itemId)
             ?? throw VisualizationViewErrors.Create("not_found", "The visualization item is unavailable.");

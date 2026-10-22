@@ -4,8 +4,10 @@ namespace DotCraft.Sessions;
 
 internal sealed record ResidentModelHistory(
     long Revision,
-    IReadOnlyList<string> TurnIds,
+    CoveredTurnSet Turns,
     IReadOnlyList<ModelHistoryMessage> Messages);
+
+internal readonly record struct CoveredTurnSet(int Count, string? LastTurnId);
 
 public sealed partial class SessionService
 {
@@ -22,11 +24,11 @@ public sealed partial class SessionService
         if (thread.Ephemeral)
             return (await persistence.LoadModelHistoryAsync(thread, excludedTurnId, ct), null);
 
-        var turnIds = CoveredTurnIds(thread, excludedTurnId);
+        var coveredTurns = CoveredTurns(thread, excludedTurnId);
         var runtime = TryGetCurrentRuntime(thread);
         if (runtime?.ResidentModelHistory is { } resident
             && resident.Revision == persistence.GetModelHistoryRevision(thread.Id).Value
-            && resident.TurnIds.SequenceEqual(turnIds, StringComparer.Ordinal))
+            && resident.Turns == coveredTurns)
         {
             var history = ThreadStore.DecodeModelHistory(resident.Messages);
             return (history, new ResidentHistoryBaseline(resident.Revision, resident.Messages, [.. history]));
@@ -38,7 +40,11 @@ public sealed partial class SessionService
 
         var encoded = ThreadStore.EncodeModelHistory(load.Messages);
         if (runtime != null)
-            runtime.ResidentModelHistory = new ResidentModelHistory(load.Revision.Value, turnIds, encoded);
+        {
+            runtime.ResidentModelHistory = coveredTurns is { } covered
+                ? new ResidentModelHistory(load.Revision.Value, covered, encoded)
+                : null;
+        }
         return (load.Messages, new ResidentHistoryBaseline(load.Revision.Value, encoded, [.. load.Messages]));
     }
 
@@ -79,10 +85,9 @@ public sealed partial class SessionService
             messages = [.. baseline.Messages, .. ThreadStore.EncodeModelHistory(session.Skip(prefix.Length))];
         }
 
-        runtime.ResidentModelHistory = new ResidentModelHistory(
-            revision.Value,
-            CoveredTurnIds(thread, excludedTurnId: null),
-            messages);
+        runtime.ResidentModelHistory = CoveredTurns(thread, excludedTurnId: null) is { } covered
+            ? new ResidentModelHistory(revision.Value, covered, messages)
+            : null;
     }
 
     private void InstallResidentModelHistoryReplacement(
@@ -93,12 +98,11 @@ public sealed partial class SessionService
         if (thread.Ephemeral || TryGetCurrentRuntime(thread) is not { } runtime)
             return;
 
-        var turnIds = CoveredTurnIds(thread, excludedTurnId: null);
         var revision = persistence.GetModelHistoryRevision(thread.Id);
-        runtime.ResidentModelHistory = turnIds.Length > 0
-            && string.Equals(turnIds[^1], coveredTurnId, StringComparison.Ordinal)
+        runtime.ResidentModelHistory = CoveredTurns(thread, excludedTurnId: null) is { } covered
+            && string.Equals(covered.LastTurnId, coveredTurnId, StringComparison.Ordinal)
             && revision.LastCheckpoint == revision.Value
-                ? new ResidentModelHistory(revision.Value, turnIds, ThreadStore.EncodeModelHistory(replacement))
+                ? new ResidentModelHistory(revision.Value, covered, ThreadStore.EncodeModelHistory(replacement))
                 : null;
     }
 
@@ -107,9 +111,19 @@ public sealed partial class SessionService
             ? runtime
             : null;
 
-    private static string[] CoveredTurnIds(SessionThread thread, string? excludedTurnId) =>
-        thread.Turns
-            .Where(turn => !string.Equals(turn.Id, excludedTurnId, StringComparison.Ordinal))
-            .Select(static turn => turn.Id)
-            .ToArray();
+    private static CoveredTurnSet? CoveredTurns(SessionThread thread, string? excludedTurnId)
+    {
+        var turns = thread.Turns;
+        var count = thread.TurnCount;
+        var last = turns.Count - 1;
+        if (last >= 0 && string.Equals(turns[last].Id, excludedTurnId, StringComparison.Ordinal))
+        {
+            count--;
+            last--;
+        }
+
+        if (last >= 0)
+            return new CoveredTurnSet(count, turns[last].Id);
+        return count == 0 ? new CoveredTurnSet(0, null) : null;
+    }
 }

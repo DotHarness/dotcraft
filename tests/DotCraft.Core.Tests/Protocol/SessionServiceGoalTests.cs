@@ -590,11 +590,11 @@ public sealed class SessionServiceGoalTests : IDisposable
             thread.Id,
             [new TextContent("looks good")]));
 
-        var loaded = await service.GetThreadAsync(thread.Id);
-        Assert.Equal(2, loaded.Turns.Count);
-        var goalPayload = Assert.IsType<UserMessagePayload>(loaded.Turns[0].Input!.Payload);
+        var turns = await service.ReadThreadTurnsAsync(thread.Id, ThreadHistorySortDirection.Ascending).ToListAsync();
+        Assert.Equal(2, turns.Count);
+        var goalPayload = Assert.IsType<UserMessagePayload>(turns[0].Input!.Payload);
         Assert.True(goalPayload.SentAsGoal);
-        var plainPayload = Assert.IsType<UserMessagePayload>(loaded.Turns[1].Input!.Payload);
+        var plainPayload = Assert.IsType<UserMessagePayload>(turns[1].Input!.Payload);
         Assert.NotEqual(true, plainPayload.SentAsGoal);
     }
 

@@ -59,7 +59,7 @@ internal sealed class GenerativeUiRequestHandler(
             throw Error("state_too_large", "The Generative UI state exceeds 16 KiB.");
 
         var thread = await GetThreadAsync(threadId, cancellationToken);
-        var item = thread.Turns.FirstOrDefault(turn => turn.Id == turnId)?.Items.FirstOrDefault(candidate => candidate.Id == itemId);
+        var item = await sessions.ReadThreadItemAsync(thread.Id, turnId, itemId, cancellationToken);
         if (item is not { Type: ItemType.AgentMessage, Status: ItemStatus.Completed })
             throw Error("not_found", "The Generative UI message is unavailable.");
 

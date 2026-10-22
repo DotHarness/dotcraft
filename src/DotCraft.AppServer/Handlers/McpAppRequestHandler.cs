@@ -82,10 +82,7 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
             || string.IsNullOrWhiteSpace(turnId)
             || string.IsNullOrWhiteSpace(itemId))
             throw AppServerErrors.InvalidParams("'threadId', 'turnId', and 'itemId' are required.");
-        var thread = await _sessions.GetThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
-        var item = thread.Turns
-            .FirstOrDefault(turn => string.Equals(turn.Id, turnId, StringComparison.Ordinal))?
-            .Items.FirstOrDefault(candidate => string.Equals(candidate.Id, itemId, StringComparison.Ordinal));
+        var item = await _sessions.ReadThreadItemAsync(threadId, turnId, itemId, cancellationToken).ConfigureAwait(false);
         var eligibility = await McpAppEligibilityResolver.ResolveAsync(
             threadId,
             turnId,

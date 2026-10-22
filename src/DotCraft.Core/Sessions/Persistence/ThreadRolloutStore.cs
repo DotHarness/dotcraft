@@ -84,20 +84,13 @@ internal sealed partial class ThreadRolloutStore
         return await ReadThreadFileAsync(normalizedPath, ct);
     }
 
-    internal static async Task<SessionThread?> ReadThreadFileAsync(
-        string path,
-        CancellationToken ct = default,
-        ThreadReplay? shadow = null)
+    internal static async Task<SessionThread?> ReadThreadFileAsync(string path, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         if (!File.Exists(path))
             return null;
         var replay = new ThreadReplay();
-        await Utf8JsonlReader.ReadAsync(path, line =>
-        {
-            replay.Apply(line);
-            shadow?.Apply(line);
-        }, ct);
+        await Utf8JsonlReader.ReadAsync(path, replay.Apply, ct);
         return WithWorkspace(replay.Build(), path);
     }
 
