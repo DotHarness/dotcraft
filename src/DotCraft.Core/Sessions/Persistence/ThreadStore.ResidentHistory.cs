@@ -153,10 +153,10 @@ public sealed partial class ThreadStore
         bool retain,
         CancellationToken ct)
     {
-        if (_residentProviderHistory.TryGetValue(threadId, out var resident))
-            return resident.Snapshot();
         if (!retain)
             return await ReadProviderHistoryInputsFromRolloutAsync(threadId, ct);
+        if (_residentProviderHistory.TryGetValue(threadId, out var resident))
+            return resident.Snapshot();
 
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
         if (_residentProviderHistory.TryGetValue(threadId, out resident))

@@ -142,6 +142,33 @@ public sealed partial class SessionServiceNativeCompactionTests
         Assert.Equal(warmRequest, _provider.Requests[^1]);
     }
 
+    [Fact]
+    public async Task ForkBeforeTheLatestReplacement_KeepsTheEarlierNativeCompaction()
+    {
+        await using var factory = CreateFactory();
+        var store = new ThreadStore(Path.Combine(_workspace, ".craft"));
+        var service = CreateResidentService(factory, store);
+        await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
+        }, threadId: ResidentThreadId);
+        await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent("alpha")]));
+        var forkTurnId = (await service.GetThreadAsync(ResidentThreadId)).Turns[^1].Id;
+        await CompactAsync(service, ResidentThreadId);
+        await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent("beta")]));
+        await CompactAsync(service, ResidentThreadId);
+        await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent("gamma")]));
+
+        var child = await service.ForkThreadAsync(ResidentThreadId, new ThreadForkOptions
+        {
+            ForkPoint = new ThreadForkPoint { TurnId = forkTurnId }
+        });
+        await DrainAsync(service.SubmitInputAsync(child.Id, [new TextContent("fork continuation")]));
+
+        Assert.Contains("encrypted-test", _provider.Requests[^1]);
+        Assert.DoesNotContain("beta", _provider.Requests[^1]);
+    }
+
     private async Task RunScenarioAsync(SessionService service, string scenario)
     {
         switch (scenario)
