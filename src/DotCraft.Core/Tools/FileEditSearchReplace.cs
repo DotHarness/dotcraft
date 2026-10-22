@@ -27,7 +27,7 @@ internal static class FileEditSearchReplace
             if (!replaceAll)
             {
                 return (false, content,
-                    $"Error: Found {count} matches of oldText. To replace all, set replaceAll to true. To replace one, provide more context to make it unique.",
+                    $"Error: Found {count} matches of oldText. To replace all, set replaceAll to true. To replace one, provide more context to make it unique.\noldText: {oldText}",
                     null, 0, 0, 0);
             }
 
@@ -64,7 +64,7 @@ internal static class FileEditSearchReplace
                 if (match.Status == MatchStatus.Ambiguous)
                 {
                     return (false, content,
-                        $"Error: Found multiple matches of oldText using {kind}. Provide more context to make it unique.",
+                        $"Error: Found multiple matches of oldText using {kind}. Provide more context to make it unique.\noldText: {oldText}",
                         null, 0, 0, 0);
                 }
                 if (match.Status == MatchStatus.Unique)
@@ -77,9 +77,8 @@ internal static class FileEditSearchReplace
 
         if (match.Status == MatchStatus.NotFound)
         {
-            var preview = content.Length > 50 ? content[..50] : content;
             return (false, content,
-                $"Error: oldText not found in file. Make sure it matches the content. File has {content.Length} chars. First 50 chars: \"{preview}\"",
+                $"Error: oldText not found in file. Make sure it matches the content exactly.\noldText: {oldText}",
                 null, 0, 0, 0);
         }
 

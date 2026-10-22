@@ -624,18 +624,17 @@ public sealed class FileTools(
     private static (string Result, string? WrittenContent) PrepareSearchReplaceEdit(
         string displayPath, string content, string oldText, string newText, bool replaceAll)
     {
-        // Normalize all inputs to LF for consistent matching, restore on write
-        var useCrLf = UsesCrLf(content);
-        content = NormalizeToLf(content);
-        oldText = NormalizeToLf(oldText);
-        newText = NormalizeToLf(newText);
+        var original = content;
+        content = NormalizeLineBreaks(content);
+        oldText = NormalizeLineBreaks(oldText);
+        newText = NormalizeLineBreaks(newText);
 
         var (ok, newLfContent, error, matchKind, lineNum, oldLineCount, replaceCount) =
             FileEditSearchReplace.Apply(content, oldText, newText, replaceAll);
         if (!ok)
             return (error!, null);
 
-        var newContent = RestoreLineEndings(newLfContent, useCrLf);
+        var newContent = RestoreEditedLineEndings(original, content, newLfContent);
 
         if (replaceCount > 1)
             return ($"Successfully replaced {replaceCount} occurrences in {displayPath}", newContent);
@@ -691,6 +690,46 @@ public sealed class FileTools(
 
     private static string RestoreLineEndings(string content, bool useCrLf)
         => useCrLf ? content.Replace("\n", "\r\n") : content;
+
+    private static string NormalizeLineBreaks(string content)
+        => content.Replace("\r\n", "\n").Replace('\r', '\n');
+
+    /// <summary>
+    /// Keeps the original text around the edited region, so untouched lines keep their own endings;
+    /// the edited text takes the file's first line ending.
+    /// </summary>
+    private static string RestoreEditedLineEndings(string original, string lfContent, string newLfContent)
+    {
+        var limit = Math.Min(lfContent.Length, newLfContent.Length);
+        var prefix = 0;
+        while (prefix < limit && lfContent[prefix] == newLfContent[prefix])
+            prefix++;
+        var suffix = 0;
+        while (suffix < limit - prefix
+               && lfContent[lfContent.Length - 1 - suffix] == newLfContent[newLfContent.Length - 1 - suffix])
+            suffix++;
+
+        var originalOffsets = new int[lfContent.Length + 1];
+        for (int lf = 0, index = 0; lf < lfContent.Length; lf++)
+        {
+            index += original[index] == '\r' && index + 1 < original.Length && original[index + 1] == '\n' ? 2 : 1;
+            originalOffsets[lf + 1] = index;
+        }
+
+        var ending = FirstLineEnding(original);
+        var edited = newLfContent[prefix..(newLfContent.Length - suffix)];
+        return original[..originalOffsets[prefix]]
+               + (ending == "\n" ? edited : edited.Replace("\n", ending))
+               + original[originalOffsets[lfContent.Length - suffix]..];
+    }
+
+    private static string FirstLineEnding(string content)
+    {
+        var index = content.IndexOfAny(['\r', '\n']);
+        if (index < 0 || content[index] == '\n')
+            return "\n";
+        return index + 1 < content.Length && content[index + 1] == '\n' ? "\r\n" : "\r";
+    }
 
     #endregion
 }
