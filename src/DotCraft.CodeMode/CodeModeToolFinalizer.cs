@@ -36,6 +36,11 @@ internal sealed class CodeModeToolFinalizer(
     private const string SourceId = "code-mode";
     public const string PresentationId = "core.code-mode";
 
+    private static readonly Dictionary<string, JsonElement> OwnResultLimit = new()
+    {
+        ["dotcraft/maxResultChars"] = JsonSerializer.SerializeToElement(0)
+    };
+
     private static readonly ToolFreeformInput ExecInput = new(
         "code",
         "lark",
@@ -82,10 +87,7 @@ internal sealed class CodeModeToolFinalizer(
             CodeModeSurface.CodeModeToolName,
             CodeModeDescription.Build(surface, host.Limits, mode),
             declaration.InputSchema,
-            annotations: new Dictionary<string, JsonElement>
-            {
-                ["dotcraft/maxResultChars"] = JsonSerializer.SerializeToElement(0)
-            },
+            annotations: OwnResultLimit,
             provenance: new ToolProvenance(ToolSourceKind.CoreNative, SourceId),
             presentation: new ToolPresentationDescriptor(new DotCraft.Tools.PresentationId(PresentationId), null),
             policyScope: ToolPolicyScope.RuntimeManaged,
@@ -110,6 +112,7 @@ internal sealed class CodeModeToolFinalizer(
                 new ToolName(null, waitDeclaration.Name),
                 waitDeclaration.Description,
                 waitDeclaration.InputSchema,
+                annotations: OwnResultLimit,
                 provenance: new ToolProvenance(ToolSourceKind.CoreNative, SourceId),
                 presentation: new ToolPresentationDescriptor(new DotCraft.Tools.PresentationId(PresentationId), null),
                 policyScope: ToolPolicyScope.RuntimeManaged),
