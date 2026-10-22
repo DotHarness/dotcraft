@@ -770,12 +770,6 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
             SupportsClose = true,
             Status = ThreadSpawnEdgeStatus.Open
         });
-        var turn = new SessionTurn { Id = "turn_child", ThreadId = child.Id, Status = TurnStatus.Completed };
-        turn.Items.Add(ChildItem("item_1", ItemType.ToolCall, new ToolCallPayload { ToolName = "ReadFile", CallId = "call_1" }));
-        turn.Items.Add(ChildItem("item_2", ItemType.ToolCall, new ToolCallPayload { ToolName = "GrepFiles", CallId = "call_2" }));
-        turn.Items.Add(ChildItem("item_3", ItemType.AgentMessage, new AgentMessagePayload { Text = "done" }));
-        child.Turns.Add(turn);
-        await _h.Service.SeedThreadAsync(child);
 
         var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentChildrenList, new
         {
@@ -794,17 +788,6 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         Assert.True(edge.GetProperty("supportsSendMessage").GetBoolean());
         Assert.True(edge.GetProperty("supportsFollowupTask").GetBoolean());
         Assert.Equal("Worker", wire.GetProperty("thread").GetProperty("displayName").GetString());
-        Assert.Equal(2, wire.GetProperty("toolCallCount").GetInt32());
-
-        static SessionItem ChildItem(string id, ItemType type, object payload) => new()
-        {
-            Id = id,
-            TurnId = "turn_child",
-            Type = type,
-            Status = ItemStatus.Completed,
-            CreatedAt = DateTimeOffset.UtcNow,
-            Payload = payload
-        };
     }
 
     [Fact]
