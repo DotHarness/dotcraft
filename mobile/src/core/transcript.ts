@@ -287,11 +287,19 @@ function toolIcon(kind: ToolKind | null, result: HistoryItem | undefined): ToolI
   }
 }
 
+const CODE_MODE_TOOL_NAMES = new Set(['CodeMode', 'CodeModeWait'])
+const HIDDEN_COORDINATION_PRESENTATIONS = new Set(['core.sleep', 'core.send-user-message-async'])
+
 function isCodeModeWrapper(item: HistoryItem): boolean {
-  if (str(item.payload.toolName) !== 'CodeMode' || item.payload.namespace) return false
+  if (!CODE_MODE_TOOL_NAMES.has(str(item.payload.toolName)) || item.payload.namespace) return false
   const source = item.payload.source as { kind?: string; sourceId?: string } | null | undefined
   if (source) return source.kind === 'CoreNative' && source.sourceId === 'code-mode'
   return !isComplete(item)
+}
+
+function isHiddenCoordinationTool(item: HistoryItem, result: HistoryItem | undefined): boolean {
+  const source = (item.payload.source ?? result?.payload.source) as { kind?: unknown } | null | undefined
+  return source?.kind === 'CoreNative' && HIDDEN_COORDINATION_PRESENTATIONS.has(presentationOf(item, result).id)
 }
 
 type ContentItem = { type?: string; text?: string; dataBase64?: string; mediaType?: string }
@@ -412,7 +420,7 @@ function toolEntry(
   const callId = inTurn(item.turnId, str(item.payload.callId))
   const result = item.type === 'toolCall' ? results.get(callId) : item
   const kind = toolKind(item, result)
-  if (!toolName || kind === 'requestUserInput' || isCodeModeWrapper(item)) return null
+  if (!toolName || kind === 'requestUserInput' || isCodeModeWrapper(item) || isHiddenCoordinationTool(item, result)) return null
   const id = entryId(item)
   const input = item.type === 'toolCall' ? args(item.payload) : {}
   const background = kind === 'shell' && item.type === 'toolCall' ? shellBackground(executions.get(callId), result) : null

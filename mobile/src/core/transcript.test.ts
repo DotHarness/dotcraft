@@ -10,6 +10,8 @@ const CORE_PRESENTATIONS: Record<string, { presentationId: string; options?: { o
   Exec: { presentationId: 'core.shell', options: { operation: 'exec' } },
   SpawnAgent: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
   TaskStop: { presentationId: 'core.task', options: { operation: 'stop' } },
+  Sleep: { presentationId: 'core.sleep' },
+  SendUserMessageAsync: { presentationId: 'core.send-user-message-async' },
 }
 
 function core(toolName: string) {
@@ -55,6 +57,21 @@ function tools(entries: TranscriptEntry[]): ToolEntry[] {
 }
 
 describe('turn layout', () => {
+  it('shows neither coordination calls nor Code mode waits, only the calls a script makes', () => {
+    const items = [
+      item('userMessage', { text: 'Check it' }),
+      item('toolCall', { ...core('SendUserMessageAsync'), callId: 'm1', arguments: { message: 'Question?' } }),
+      item('toolResult', { ...core('SendUserMessageAsync'), callId: 'm1', result: '{"accepted":true}' }),
+      item('toolCall', { ...core('Sleep'), namespace: 'clock', callId: 's1', arguments: { durationMs: 1000 } }),
+      item('toolResult', { ...core('Sleep'), namespace: 'clock', callId: 's1', result: '{"status":"completed"}' }),
+      item('toolCall', { toolName: 'CodeModeWait', source: { kind: 'CoreNative', sourceId: 'code-mode' }, callId: 'w1', arguments: { cell_id: 'c1' } }),
+      ...read('a.ts', 'r1'),
+      item('toolResult', { toolName: 'CodeModeWait', source: { kind: 'CoreNative', sourceId: 'code-mode' }, callId: 'w1', result: 'Script completed' }),
+    ]
+
+    expect(tools(buildTranscript(history(items, 'completed'))).map((entry) => entry.path)).toEqual(['a.ts'])
+  })
+
   it('folds a finished turn behind one Worked row, keeps the last plan in view, and offers Copy only on the final reply', () => {
     const items = [
       item('userMessage', { text: 'Plan the release' }),

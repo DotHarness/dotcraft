@@ -386,7 +386,7 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 - `SendChannelMessage` (`core.channel`) renders as one row naming the destination chat; expanding shows the sent text and attachments; a failure keeps the row and shows the error.
 - A file tool call whose presentation options carry `memory` renders as memory recall or update rather than a file operation, following [Memory](../features/memory.md#8-presentation). `MEMORY.md` is not counted as a memory file.
 - Completed `RequestUserInput` results render as a question-to-answer list, not raw JSON.
-- A scripted `CodeMode` call and its result are not rendered; the calls the script makes render as ordinary items in time order ([Code Mode](../features/code-mode.md#10-session-projection-and-presentation)).
+- `CodeMode` and `CodeModeWait` calls and their results are not rendered; the calls a script makes render as ordinary items in time order ([Code Mode](../features/code-mode.md#10-session-projection-and-presentation)). `clock__Sleep` and `SendUserMessageAsync` calls are not rendered either; the asynchronous message itself shows as a message. The mobile client follows the same rules.
 
 **Shell and background terminals**
 
