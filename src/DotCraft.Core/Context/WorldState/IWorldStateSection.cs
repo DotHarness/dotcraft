@@ -34,6 +34,8 @@ public sealed record WorldStateContext
 
     public string? WorkspacePath { get; init; }
 
+    public IReadOnlyList<string> WorkspaceRoots { get; init; } = [];
+
     public string? AgentInstructions { get; init; }
 
     public bool HasActivePlan { get; init; }

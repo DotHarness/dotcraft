@@ -101,7 +101,6 @@ export function ThreadHeader({
   const sideChatAvailable = useCanOpenSideChat()
   const chatThread = isDefaultChatWorkspacePathCandidate(activeThread?.workspacePath)
   const canForkIntoWorktree = canForkWorktree(capabilities) && !remoteWorkspace && !chatThread
-  const worktreeBranch = activeThread?.worktree?.branchName?.trim()
   const channelBindings = useThreadChannelBindings(threadId)
 
   const openTargets = useOpenTargets(workspacePath, !remoteWorkspace)
@@ -477,36 +476,6 @@ export function ThreadHeader({
                   <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {threadName}
                   </span>
-                  {worktreeBranch && (
-                    <ActionTooltip
-                      label={t('threadHeader.worktreeBadge', { branch: worktreeBranch })}
-                      wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
-                    >
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          maxWidth: '180px',
-                          minWidth: 0,
-                          height: '18px',
-                          padding: '0 6px',
-                          borderRadius: '999px',
-                          border: '1px solid var(--border-default)',
-                          color: 'var(--text-secondary)',
-                          backgroundColor: 'var(--bg-secondary)',
-                          fontSize: 'var(--conversation-meta-size)',
-                          fontWeight: 500,
-                          lineHeight: 1,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          flexShrink: 1
-                        }}
-                      >
-                        {worktreeBranch}
-                      </span>
-                    </ActionTooltip>
-                  )}
                   <ThreadChannelBindingChips bindings={channelBindings} />
                 </span>
               </h1>

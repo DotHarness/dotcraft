@@ -23,7 +23,9 @@ public sealed class ModeToolPolicy(AgentModeManager modeManager)
         "TodoWrite",
         GoalToolNames.GetGoal,
         GoalToolNames.CreateGoal,
-        GoalToolNames.UpdateGoal
+        GoalToolNames.UpdateGoal,
+        WorktreeToolNames.EnterWorktree,
+        WorktreeToolNames.ExitWorktree
     };
 
     /// <summary>

@@ -15,6 +15,9 @@
     },
     "status": {
       "type": "string"
+    },
+    "targetStashed": {
+      "type": "boolean"
     }
   },
   "additionalProperties": true

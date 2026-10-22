@@ -497,7 +497,7 @@ The table below covers common method families used by AppServer clients.
 | External channels | `externalChannel/list`, `externalChannel/upsert` | External channel configuration. |
 | Subagents | `subagent/profiles/list`, `subagent/profiles/upsert` | Subagent profile management. |
 | Automations | `automation/list`, `automation/create`, `automation/runs/list` | Local task lifecycle, binding, and managed worktree cleanup. |
-| Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff` | Managed Git worktree status and handoff. |
+| Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff`, `worktree/remove` | Managed Git worktree status, handoff, and removal. |
 | Configuration | `config/schema`, `config/read`, `config/value/write`, `config/batchWrite` | Read and change user and workspace configuration by key path. |
 | App Binding | `app/connection/authenticate`, `app/binding/activate`, `app/threadInput/enqueue` | Extension module for external apps, gated by `capabilities.appBindingVersion`. |
 

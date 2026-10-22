@@ -119,16 +119,34 @@ Side chat forks:
 - A side chat cannot own persistent child threads, so spawning a child agent fails.
 - Archiving or deleting the source deletes its side chats.
 
-#### 4.1.1.2 Worktree Handoff
+#### 4.1.1.2 Worktrees
 
-A worktree handoff composes Git worktree creation with a thread fork.
+A managed worktree is a Git worktree DotCraft creates under `<dataPath>/worktrees/` and binds to at most one thread as that thread's execution workspace.
 
 - `WorkspacePath` remains the state workspace: it owns `.craft/threads`, `.craft/state.db`, memory, goals, plans, app bindings, skills, plugins, and thread metadata.
-- The worktree is the execution workspace for the forked thread: file, shell, Git, LSP, and first-party file surfaces use it.
+- The worktree is the execution workspace: file, shell, Git, LSP, and first-party file surfaces use it.
 - `ordinaryCwd = Cwd ?? WorkspaceOverride ?? WorkspacePath`; `effectiveWorkspacePath = ExecutionWorkspaceOverride ?? ordinaryCwd`.
 - `ExecutionWorkspaceOverride` changes execution location only; it never relocates rollout, memory, goals, plans, app bindings, or workspace configuration.
-- Registered worktree roots under `.craft/worktrees` are allowed execution roots for their bound threads even though ordinary workspace browsing hides `.craft/worktrees/**`.
-- Handoff never mutates the source thread or source working tree. Uncommitted source changes are copied into the worktree when requested.
+- Registered worktree roots are allowed execution roots for their bound threads even though ordinary workspace browsing hides `.craft/worktrees/**`.
+
+Creation:
+
+- A worktree is created on a new branch from `baseRef` (default: the source execution workspace `HEAD`). An omitted branch name is allocated as `<Worktrees.BranchPrefix>/<slug>-<8 hex>`, where the slug comes from the thread name or id; a requested name that already exists is rejected.
+- Gitignored files at the repository root that match the patterns in a root `.worktreeinclude` file (`.gitignore` syntax) are copied into the new worktree. Tracked files never are.
+- Creation is atomic: a failure after `git worktree add` removes the new worktree and the branch it created, and no thread is bound.
+
+Moving a thread:
+
+- Fork and start ([AppServer §4.17](../protocols/appserver-protocol.md#417-worktree-methods)) leave the source thread and its working tree untouched; uncommitted source changes are copied into the worktree when requested.
+- Handoff moves the same thread and is refused while it has queued input. Local → worktree moves uncommitted changes when requested: they are applied in the worktree and removed from the source checkout. It targets a new worktree or one no thread is bound to; an existing target keeps its branch, and its own uncommitted changes are stashed and kept. Worktree → local requires a clean local checkout: it checks out the worktree's branch there, applies the worktree's uncommitted changes, and removes the worktree. Staged and unstaged versions stay apart, a failed step restores both checkouts, and each step is reported as it runs.
+- The agent may move its own thread with the worktree tools ([Tool Architecture §7.5](tools-architecture.md#75-worktree-tools)). Such a move takes effect for the agent's later tool calls in the same Turn and never moves uncommitted changes.
+
+Lifecycle:
+
+- Archiving a thread removes its worktree when it has no uncommitted changes and keeps the branch; a worktree with uncommitted changes stays on disk. Unarchiving checks the branch out again at the recorded path.
+- Deleting a thread removes its worktree under the same rule and deletes the branch only when it has no commits beyond its base.
+- A Turn that starts in a bound worktree whose directory is missing first checks its branch out again; if that fails, the Turn fails with the reason.
+- A worktree no thread is bound to stays until it is removed explicitly. Removing a worktree with uncommitted changes or commits beyond its base requires an explicit discard.
 
 #### 4.1.1.3 QueuedTurnInput
 
@@ -1048,7 +1066,7 @@ Approval fields:
 - `default` uses the normal interactive approval path; `prompt` always uses it, even when the workspace default is `autoApprove`; `autoApprove` accepts approval-gated operations on the server; `deny` rejects them without prompting, the tool receives the rejection, and the Turn may continue. A persisted `interrupt` is read as `deny`.
 - `RequireApprovalOutsideWorkspace`: `true` sends outside-workspace file and shell operations through approval; `false` rejects them without prompting; null uses the workspace file-tool default, which governs both file and shell operations.
 
-When a thread is created or its configuration changes, Session Core rebuilds the effective agent and tool set; a Turn already running is never switched mid-flight. Configuration changes never create Turns, and channels may expose only the subset their UX supports.
+When a thread is created or its configuration changes, Session Core rebuilds the effective agent and tool set; a Turn already running is never switched mid-flight, except for the tool location a worktree tool moves (§4.1.1.2). Configuration changes never create Turns, and channels may expose only the subset their UX supports.
 
 Model preference:
 
@@ -1067,7 +1085,8 @@ Workspace resolution:
 - `Cwd` is the sticky working directory for tool execution and relative paths, without moving state.
 - `RuntimeWorkspaceRoots` is an ordered full replacement when present; null defaults to the ordinary cwd, and an empty array supplies no roots. A cwd-only update retargets the old cwd entry and keeps additional roots; duplicates are removed keeping first occurrence.
 - `ExecutionWorkspaceOverride` wins for tool execution and first-party file and Git surfaces while state stays in `WorkspacePath`; it replaces the ordinary cwd root in the effective roots. Worktree handoff uses it, never `WorkspaceOverride`.
-- Worktree handoff on an existing thread is a configuration change on the same Thread: rejected while a Turn is active, and the effective agent and tool context is rebuilt before the next Turn.
+- A client worktree handoff on an existing thread is a configuration change on the same Thread: rejected while a Turn is active, and the effective agent and tool context is rebuilt before the next Turn. A move by the worktree tools updates the running Turn's tool location immediately and rebuilds the agent before the next Turn.
+- Worktree handoffs, moves by the worktree tools, and worktree removal run one at a time across threads, so a worktree is bound to at most one thread.
 
 ### 12.3 Mode Switching
 

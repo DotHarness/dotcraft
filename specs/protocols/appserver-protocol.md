@@ -186,7 +186,7 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `threadMaintenanceInterrupt` | `thread/maintenance/interrupt`. |
 | `dynamicToolRebind` | `thread/resume.dynamicTools`. |
 | `runtimeAdditionalContext` | `additionalContext` on `thread/start` and `thread/resume`. |
-| `gitWorktrees` | `worktree/createAndFork`, `worktree/createAndStart`, `thread/worktree/handoff`, `worktree/list`, `worktree/status`. |
+| `gitWorktrees` | `worktree/createAndFork`, `worktree/createAndStart`, `thread/worktree/handoff`, `worktree/list`, `worktree/status`, `worktree/remove`. |
 | `appBindingVersion` | App Binding control-plane version (`1`). |
 | `appThreadInputEnqueue` | `app/threadInput/enqueue`. |
 | `approvalFlow` | Server may send approval requests. |
@@ -525,9 +525,9 @@ Interrupt active thread maintenance such as manual compaction. Gated by `capabil
 
 ### 4.17 Worktree Methods
 
-Gated by `capabilities.gitWorktrees`. These methods create, inspect, and switch DotCraft-managed Git worktrees bound to threads. Thread state (rollout, memory, goals, plans, app bindings, metadata) stays in the original workspace; the worktree is only the execution workspace. Managed worktree paths must resolve under `<workspace>/.craft/worktrees/`.
+Gated by `capabilities.gitWorktrees`. These methods create, inspect, switch, and remove DotCraft-managed Git worktrees ([Session Core §4.1.1.2](../architecture/session-core.md#41112-worktrees)). Thread state (rollout, memory, goals, plans, app bindings, metadata) stays in the original workspace; the worktree is only the execution workspace. Managed worktree paths must resolve under `<workspace>/.craft/worktrees/`.
 
-Creation methods share `branchName` (server-allocated when omitted), `baseRef` (defaults to the source execution workspace `HEAD`), `path`, and `copyDirtyChanges` (default `true`: copy tracked and non-ignored untracked changes). The thread is created only after worktree creation and dirty handoff succeed; dirty handoff failure is recoverable and must not switch the client's active thread.
+Creation methods share `branchName` (allocated from `Worktrees.BranchPrefix` when omitted; an existing branch is rejected), `baseRef` (defaults to the source execution workspace `HEAD`), `path`, and `copyDirtyChanges` (default `true`: tracked and non-ignored untracked changes). Creation is atomic: the thread is created or moved only after the worktree and its changes are in place, and a failure leaves no worktree or branch behind.
 
 #### 4.17.1 `worktree/createAndFork`
 
@@ -539,22 +539,27 @@ Create a worktree, then start a new empty thread in it. Accepts `identity` (requ
 
 #### 4.17.3 `thread/worktree/handoff`
 
-Move an existing thread between its local workspace and a managed worktree without changing its id. Params: `threadId`, `mode` (`"worktree"`: local → worktree; `"local"`: worktree → local), and the creation fields. Result: `{ thread, mode, worktree?, dirtyHandoff? }`.
+Move an existing thread between its local workspace and a managed worktree without changing its id. Params: `threadId`, `mode` (`"worktree"`: local → worktree; `"local"`: worktree → local), the creation fields, and an optional client-chosen `operationId`. Result: `{ thread, mode, worktree?, dirtyHandoff? }`.
 
-- The thread must be Active with no running turn, pending approval/input, or blocking maintenance.
-- Local → worktree creates a managed worktree, copies dirty changes by default, and sets `thread.worktree` and `executionWorkspaceOverride`.
-- Worktree → local fails with `WorktreeHandoffConflict` and `params.conflictPaths` when local dirty paths would be overwritten. Otherwise it carries the worktree's branch and uncommitted changes into the local workspace, clears `thread.worktree` and `executionWorkspaceOverride`, and removes the managed worktree.
-- On success the server emits `thread/updated`.
+- The thread must be Active with no running turn, pending approval/input, queued input, or blocking maintenance.
+- Local → worktree moves uncommitted changes by default (the local checkout is left without them) and sets `thread.worktree` and `executionWorkspaceOverride`. A `path` naming a managed worktree no thread is bound to reuses it on its own branch: its own uncommitted changes are stashed and kept, and `dirtyHandoff.targetStashed` is `true`. A `path` naming a managed worktree bound to another thread fails. Any other `path`, or none, creates a managed worktree.
+- Worktree → local fails with `WorktreeHandoffConflict` and `params.conflictPaths` listing the local uncommitted paths when the local checkout has any uncommitted change or its state cannot be read. Otherwise it checks the worktree's branch out in the local checkout, applies the worktree's uncommitted changes there, clears `thread.worktree` and `executionWorkspaceOverride`, and removes the managed worktree. The local checkout stays on that branch.
+- A failed step undoes the earlier ones, restoring both checkouts and their changes.
+- While the handoff runs, the server emits `thread/worktree/handoffProgress` for each step. On success it emits `thread/updated`.
 
 #### 4.17.4 `worktree/list`
 
-List registered managed worktrees for the workspace. Params: none. Result: `{ data: ThreadWorktreeStatus[] }`. External Git worktrees are not managed unless the server registers them.
+List the managed worktrees of the workspace, including ones no thread is bound to. Params: none. Result: `{ data: ThreadWorktreeStatus[] }`; `threadId` is the bound thread, or `null`. Git worktrees outside the managed directory are not listed.
 
 #### 4.17.5 `worktree/status`
 
 Return `ThreadWorktreeStatus` for the worktree bound to `threadId`: a lightweight refresh path for worktree indicators (existence, whether it is a readable Git worktree, uncommitted changes, commits ahead of the recorded base and their count). Full file, diff, and commit UX uses the thread's `effectiveWorkspacePath`.
 
-`ThreadWorktreeInfo` records branch, path, `baseRef`, resolved `baseHead`, current `head`, optional `ownerKind`/`ownerId`, and `createdAt`. Automation task worktrees set `ownerKind = "automationTask"` and `ownerId = taskId`.
+#### 4.17.6 `worktree/remove`
+
+Remove a managed worktree and its branch. Params: `path`, `discardChanges` (default `false`). Refused when an Active thread is bound to it and, unless `discardChanges` is `true`, when it has uncommitted changes or commits beyond its base. A bound archived thread loses its worktree. Result: `{}`.
+
+`ThreadWorktreeInfo` records branch, path, `baseRef`, resolved `baseHead`, current `head`, optional `ownerKind`/`ownerId`, and `createdAt`. Automation run worktrees set `ownerKind = "automationRun"` and `ownerId = runId`.
 
 ### 4.18 Thread Recovery Methods
 
@@ -711,6 +716,7 @@ A thread is **hidden** when it is ephemeral or internal (DotCraft-owned helper t
 | Notification | Params | Semantics |
 |--------------|--------|-----------|
 | `thread/started` | `{ thread }` | A thread was created. Sent to the initiating client after `thread/start` and broadcast to connections when any channel in the process creates one, including the connection whose other request (such as an extension request) created it as a side effect. SubAgent child creation is broadcast so lists can show the child while the parent turn runs. |
+| `thread/worktree/handoffProgress` | `{ threadId, operationId?, step, status }` | A `thread/worktree/handoff` step changed state. `step` is `createWorktree`, `reuseWorktree`, `stashSourceChanges`, `stashTargetChanges`, `detachWorktreeBranch`, `checkoutLocalBranch`, `applyChanges`, `moveThread`, or `rollback`; `status` is `started`, `completed`, `skipped`, or `failed`. Steps that do not apply report `skipped`. |
 | `thread/updated` | `{ thread }` | Compact metadata changed without create, delete, rename, or status change (for example after `thread/worktree/handoff`, `thread/config/update`, or a Turn start that changed `gitInfo`). The payload may omit history; clients merge it rather than treating omitted history as deleted. |
 | `thread/renamed` | `{ threadId, displayName }` | Display name changed by `thread/rename` or automatic naming. Broadcast to all connections; duplicate deliveries are allowed. |
 | `thread/deleted` | `{ threadId }` | Thread permanently deleted. Broadcast to all connections, including the initiator, regardless of which entry point removed it; no subscription required; may precede or follow the RPC response. Duplicates are ignored. |

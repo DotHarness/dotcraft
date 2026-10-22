@@ -4747,6 +4747,7 @@ export interface ThreadWorktreeDirtyHandoffInfo {
   deletedFileCount?: number;
   requested?: boolean;
   status?: string;
+  targetStashed?: boolean;
   [key: string]: unknown;
 }
 
@@ -4755,7 +4756,16 @@ export interface ThreadWorktreeHandoffParams {
   branchName?: string | null;
   copyDirtyChanges?: boolean | null;
   mode?: string;
+  operationId?: string | null;
   path?: string | null;
+  threadId?: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadWorktreeHandoffProgressNotification {
+  operationId?: string | null;
+  status?: string;
+  step?: string;
   threadId?: string;
   [key: string]: unknown;
 }
@@ -4794,7 +4804,7 @@ export interface ThreadWorktreeStatus {
   head?: string | null;
   isGitWorktree?: boolean;
   path?: string;
-  threadId?: string;
+  threadId?: string | null;
   worktree?: ThreadWorktreeInfo;
   [key: string]: unknown;
 }
@@ -5575,6 +5585,16 @@ export interface WorktreeListParams {
 
 export interface WorktreeListResult {
   data?: ThreadWorktreeStatus[];
+  [key: string]: unknown;
+}
+
+export interface WorktreeRemoveParams {
+  discardChanges?: boolean;
+  path?: string;
+  [key: string]: unknown;
+}
+
+export interface WorktreeRemoveResult {
   [key: string]: unknown;
 }
 

@@ -47,6 +47,30 @@ public sealed record ThreadWorktreeDirtyHandoffInfo
     public int CopiedFileCount { get; init; }
 
     public int DeletedFileCount { get; init; }
+
+    /// <summary>Whether an existing target worktree's own uncommitted changes were stashed and kept.</summary>
+    public bool TargetStashed { get; init; }
+}
+
+public static class WorktreeHandoffSteps
+{
+    public const string CreateWorktree = "createWorktree";
+    public const string ReuseWorktree = "reuseWorktree";
+    public const string StashSourceChanges = "stashSourceChanges";
+    public const string StashTargetChanges = "stashTargetChanges";
+    public const string DetachWorktreeBranch = "detachWorktreeBranch";
+    public const string CheckoutLocalBranch = "checkoutLocalBranch";
+    public const string ApplyChanges = "applyChanges";
+    public const string MoveThread = "moveThread";
+    public const string Rollback = "rollback";
+}
+
+public static class WorktreeHandoffStepStatuses
+{
+    public const string Started = "started";
+    public const string Completed = "completed";
+    public const string Skipped = "skipped";
+    public const string Failed = "failed";
 }
 
 public static class WorktreeDirtyHandoffStatuses
@@ -139,6 +163,9 @@ public sealed record WorktreeHandoffOptions
     public string? Path { get; init; }
 
     public bool CopyDirtyChanges { get; init; } = true;
+
+    /// <summary>Receives each handoff step as it changes state.</summary>
+    public Action<string, string>? Progress { get; init; }
 }
 
 public sealed record WorktreeHandoffResult
@@ -207,6 +234,18 @@ public sealed record WorktreeRemoveOptions
     public bool DeleteBranch { get; init; } = true;
 }
 
+/// <summary>Outcome of leaving a worktree: either the thread left it, or removal was refused to keep work.</summary>
+public sealed record WorktreeExitResult
+{
+    public ThreadWorktreeInfo? Worktree { get; init; }
+
+    public ThreadWorktreeStatus? RefusedStatus { get; init; }
+
+    public static WorktreeExitResult Exited(ThreadWorktreeInfo worktree) => new() { Worktree = worktree };
+
+    public static WorktreeExitResult Refused(ThreadWorktreeStatus status) => new() { RefusedStatus = status };
+}
+
 public sealed class WorktreeHandoffConflictException(
     string message,
     IReadOnlyList<string> conflictPaths) : InvalidOperationException(message)
@@ -216,7 +255,8 @@ public sealed class WorktreeHandoffConflictException(
 
 public sealed record ThreadWorktreeStatus
 {
-    public string ThreadId { get; init; } = string.Empty;
+    /// <summary>The bound thread, or <c>null</c> for a worktree no thread is bound to.</summary>
+    public string? ThreadId { get; init; }
 
     public ThreadWorktreeInfo Worktree { get; init; } = new();
 

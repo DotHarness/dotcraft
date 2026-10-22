@@ -94,7 +94,7 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
         if (descriptor.ValueKind == JsonValueKind.Object
             && descriptor.TryGetProperty("outsideWorkspaceOnly", out var outsideOnly)
             && outsideOnly.ValueKind == JsonValueKind.True
-            && !RequiresOutsideWorkspaceApproval(target, operation, descriptor))
+            && !RequiresOutsideWorkspaceApproval(target, operation, descriptor, context.WorkspacePath))
         {
             return ToolDispatchDecision.Allow;
         }
@@ -285,12 +285,17 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
     private static bool RequiresOutsideWorkspaceApproval(
         string target,
         string operation,
-        JsonElement descriptor)
+        JsonElement descriptor,
+        string? currentDirectory)
     {
-        var workspacePath = ReadString(descriptor, "workspacePath");
-        if (string.IsNullOrWhiteSpace(workspacePath))
+        var admittedPath = ReadString(descriptor, "workspacePath");
+        if (string.IsNullOrWhiteSpace(admittedPath))
             return true;
-        var workspaceRoots = ReadWorkspaceRoots(descriptor, workspacePath);
+        var workspacePath = string.IsNullOrWhiteSpace(currentDirectory) ? admittedPath : currentDirectory;
+        var admittedRoots = ReadWorkspaceRoots(descriptor, admittedPath);
+        IReadOnlyList<string> workspaceRoots = admittedRoots.Any(root => SamePath(root, admittedPath))
+            ? [.. admittedRoots, workspacePath]
+            : admittedRoots;
         var guard = new FileAccessGuard(
             workspacePath,
             trustedReadPaths: ReadPaths(descriptor, "trustedReadPaths"),
@@ -299,6 +304,12 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
         var fullPath = guard.ResolvePath(string.IsNullOrWhiteSpace(target) ? "." : target);
         return guard.RequiresOutsideWorkspaceApproval(fullPath, operation);
     }
+
+    private static bool SamePath(string left, string right) =>
+        string.Equals(
+            Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
     private static string[] ReadPaths(JsonElement descriptor, string propertyName) =>
         descriptor.TryGetProperty(propertyName, out var paths) && paths.ValueKind == JsonValueKind.Array

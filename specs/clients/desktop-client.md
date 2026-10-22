@@ -508,8 +508,16 @@ If the request fails before being accepted, Desktop clears the stopping state an
 **Handoff**
 
 - On Welcome, `Work locally` starts a normal local thread; `New worktree` calls `worktree/createAndStart`, with the branch selector choosing `baseRef` without switching the local checkout.
-- On a local thread, handoff to a worktree confirms first and calls `thread/worktree/handoff` with `mode = "worktree"`, sending the current branch as `baseRef`. On a worktree thread, handoff to local confirms and calls it with `mode = "local"`, which checks out the worktree branch locally, applies its uncommitted changes, and removes the managed worktree. Conflicting local changes surface the server error without switching UI state.
-- Any pending-handoff progress display is presentation only, not protocol progress.
+- On a local thread, handoff to a worktree confirms first and calls `thread/worktree/handoff` with `mode = "worktree"`, sending the current branch as `baseRef`. The dialog offers a new worktree or any `worktree/list` entry no thread is bound to; choosing one sends its `path` and keeps its branch. For a new worktree the branch name field is optional; left empty, the server allocates one. The dialog says uncommitted changes move with the thread.
+- On a worktree thread, handoff to local confirms and calls it with `mode = "local"`. The dialog names the branch the local checkout will switch to. A `WorktreeHandoffConflict` lists `conflictPaths` as local changes to commit or stash first and changes no UI state.
+- Handoff is unavailable while the thread has queued input and says why.
+- The request carries an `operationId`; the dialog lists the `thread/worktree/handoffProgress` steps for it as they arrive and omits skipped ones.
+- When the agent moves its thread with a worktree tool, the `thread/updated` header updates the sidebar worktree icon and effective roots like a client handoff.
+
+**Worktree settings**
+
+- Settings › Source control › Worktrees, shown for Git workspaces, edits `Worktrees.BranchPrefix` and lists `worktree/list` entries with branch, bound thread (or none), and whether each has uncommitted changes or commits beyond its base.
+- Remove calls `worktree/remove`. An entry with uncommitted changes or commits beyond its base asks for confirmation first and then sends `discardChanges = true`. An entry bound to an Active thread offers no removal.
 - Branch checkout and create controls operate on the effective Git directory.
 - While a thread is running, waiting, or in blocking maintenance, the handoff confirmation disables the final action and explains why.
 

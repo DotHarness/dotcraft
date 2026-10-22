@@ -100,7 +100,8 @@ internal sealed class CodeModeToolFinalizer(
             surface,
             context.WorkspacePath,
             context.DataPath,
-            current.Tools.ResultLimits.SpillPreviewLines);
+            current.Tools.ResultLimits.SpillPreviewLines,
+            context.Location);
         var exec = Register(definition, new CodeModeExecRuntime(dependencies), context.Revision);
 
         var waitDeclaration = DotCraft.GeneratedTools.CodeMode.GeneratedToolDeclarations

@@ -171,7 +171,8 @@ public sealed class CoreToolSource(
             searchTimeout: fileSearchTimeout,
             workspaceRoots: context.WorkspaceRoots,
             memoryStores: context.MemoryStores,
-            memoryWriteGates: contributions is null ? null : () => contributions.Resolve<IMemoryWriteGate>(context.ThreadId));
+            memoryWriteGates: contributions is null ? null : () => contributions.Resolve<IMemoryWriteGate>(context.ThreadId),
+            location: context.Location);
         tools.AddRange(GeneratedToolFunctions.All(fileTools));
 
         // LSP tool
@@ -197,7 +198,8 @@ public sealed class CoreToolSource(
             config.Tools.Shell.MaxOutputLength,
             approvalService,
             workspaceRoots: context.WorkspaceRoots,
-            policy: shellPolicy);
+            policy: shellPolicy,
+            location: context.Location);
         tools.AddRange(GeneratedToolFunctions.All(shellTools));
 
         var webTools = new WebTools(config, mainRuntime, providerHttpTransport, chatClientRegistry);

@@ -73,9 +73,13 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("Git worktree removal is not supported by this session service.");
 
-    /// <summary>Lists managed worktrees registered through Thread metadata.</summary>
+    /// <summary>Lists the managed worktrees of the workspace, including ones no thread is bound to.</summary>
     Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<ThreadWorktreeStatus>>([]);
+
+    /// <summary>Removes a managed worktree and its branch, refusing to lose work unless <paramref name="discardChanges"/> is set.</summary>
+    Task RemoveWorktreeAsync(string path, bool discardChanges, CancellationToken ct = default) =>
+        throw new NotSupportedException("Git worktree removal is not supported by this session service.");
 
     /// <summary>Returns Git status for a Thread's managed worktree.</summary>
     Task<ThreadWorktreeStatus> GetWorktreeStatusAsync(

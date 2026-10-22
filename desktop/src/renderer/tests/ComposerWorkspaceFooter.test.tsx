@@ -848,7 +848,7 @@ describe('ComposerWorkspaceFooter', () => {
     expect(screen.queryByRole('button', { name: 'New worktree' })).not.toBeInTheDocument()
   })
 
-  it('opens the local to worktree handoff dialog and sends the default branch request', async () => {
+  it('opens the local to worktree handoff dialog and lets the server name the branch', async () => {
     const localThread = makeThread()
     const worktreeThread = makeWorktreeThread()
     appServerSendRequest.mockResolvedValue({ thread: worktreeThread })
@@ -859,8 +859,44 @@ describe('ComposerWorkspaceFooter', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Handoff to worktree' }))
 
     expect(screen.getByRole('dialog', { name: 'Hand off chat to worktree' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Branch name')).toHaveValue('dotcraft/sample-app')
+    expect(screen.getByLabelText('Branch name')).toHaveValue('')
 
+    fireEvent.click(screen.getByRole('button', { name: 'Hand off' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'thread/worktree/handoff',
+        expect.objectContaining({
+          threadId: 'thread-1',
+          mode: 'worktree',
+          baseRef: 'main',
+          copyDirtyChanges: true,
+          operationId: expect.any(String)
+        }),
+        180_000
+      )
+    })
+    await waitFor(() => {
+      expect(useThreadStore.getState().activeThread?.worktree?.branchName).toBe('dotcraft/handoff')
+    })
+  })
+
+  it('hands off into an existing worktree chosen with the keyboard', async () => {
+    const existingPath = 'fixtures\\sample-app\\.craft\\worktrees\\existing'
+    appServerSendRequest.mockImplementation(async (method: string) => method === 'worktree/list'
+      ? { data: [{ threadId: null, path: existingPath, branchName: 'dotcraft/existing', exists: true }] }
+      : { thread: makeWorktreeThread() })
+
+    renderFooter(makeThread(), 'local')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Local' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Handoff to worktree' }))
+    const target = await screen.findByRole('combobox', { name: 'Worktree' })
+    fireEvent.keyDown(target, { key: 'Enter' })
+    await screen.findByRole('option', { name: /dotcraft\/existing/ })
+    fireEvent.keyDown(target, { key: 'ArrowDown' })
+    fireEvent.keyDown(target, { key: 'Enter' })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/worktree/handoff', expect.anything(), expect.anything())
     fireEvent.click(screen.getByRole('button', { name: 'Hand off' }))
 
     await waitFor(() => {
@@ -869,15 +905,12 @@ describe('ComposerWorkspaceFooter', () => {
         {
           threadId: 'thread-1',
           mode: 'worktree',
-          branchName: 'dotcraft/sample-app',
-          baseRef: 'main',
+          operationId: expect.any(String),
+          path: existingPath,
           copyDirtyChanges: true
         },
         180_000
       )
-    })
-    await waitFor(() => {
-      expect(useThreadStore.getState().activeThread?.worktree?.branchName).toBe('dotcraft/handoff')
     })
   })
 
@@ -904,7 +937,7 @@ describe('ComposerWorkspaceFooter', () => {
     expect(handoffButton).toBeDisabled()
     fireEvent.click(handoffButton)
     fireEvent.keyDown(document, { key: 'Enter' })
-    expect(appServerSendRequest).not.toHaveBeenCalled()
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/worktree/handoff', expect.anything(), expect.anything())
 
     useThreadStore.getState().setActiveThread(idleThread)
     view.rerender(
@@ -925,13 +958,13 @@ describe('ComposerWorkspaceFooter', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith(
         'thread/worktree/handoff',
-        {
+        expect.objectContaining({
           threadId: 'thread-1',
           mode: 'worktree',
-          branchName: 'dotcraft/sample-app',
           baseRef: 'main',
-          copyDirtyChanges: true
-        },
+          copyDirtyChanges: true,
+          operationId: expect.any(String)
+        }),
         180_000
       )
     })
@@ -957,10 +990,10 @@ describe('ComposerWorkspaceFooter', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Hand off' }))
     fireEvent.keyDown(document, { key: 'Enter' })
-    expect(appServerSendRequest).not.toHaveBeenCalled()
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/worktree/handoff', expect.anything(), expect.anything())
   })
 
-  it('shows worktree to local progress and sends a local handoff request', async () => {
+  it('sends a local handoff request and stays busy until it settles', async () => {
     const worktreeThread = makeWorktreeThread()
     const localThread = makeThread()
     let resolveRequest: (value: { thread: Thread }) => void = () => {}
@@ -981,12 +1014,12 @@ describe('ComposerWorkspaceFooter', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hand off' }))
 
     expect(await screen.findByText('Handing off to local')).toBeInTheDocument()
-    expect(screen.getByText('Checking out dotcraft/handoff locally')).toBeInTheDocument()
     expect(appServerSendRequest).toHaveBeenCalledWith(
       'thread/worktree/handoff',
       {
         threadId: 'thread-1',
-        mode: 'local'
+        mode: 'local',
+        operationId: expect.any(String)
       },
       180_000
     )
@@ -1001,7 +1034,7 @@ describe('ComposerWorkspaceFooter', () => {
     })
   })
 
-  it('keeps the dialog open as a success view after fast handoff stages', async () => {
+  it('keeps the dialog open as a success view after the handoff settles', async () => {
     const localThread = makeThread()
     const worktreeThread = makeWorktreeThread()
     appServerSendRequest.mockResolvedValue({ thread: worktreeThread })
@@ -1012,20 +1045,10 @@ describe('ComposerWorkspaceFooter', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Handoff to worktree' }))
     expect(screen.getByRole('dialog', { name: 'Hand off chat to worktree' })).toBeInTheDocument()
 
-    vi.useFakeTimers()
     fireEvent.click(screen.getByRole('button', { name: 'Hand off' }))
 
-    await act(async () => {
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-
-    expect(screen.getByText('Handing off to worktree')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Branch name')).not.toBeInTheDocument()
-    expect(screen.getByText('Creating a new worktree')).toBeInTheDocument()
-    expect(screen.getByText('Moving chat to worktree')).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Handed-off to worktree' })).toBeInTheDocument()
     expect(useThreadStore.getState().activeThread?.worktree?.branchName).toBe('dotcraft/handoff')
-    expect(screen.getByRole('dialog', { name: 'Handing off to worktree' })).toBeInTheDocument()
 
     view.rerender(
       <LocaleProvider>
@@ -1037,12 +1060,6 @@ describe('ComposerWorkspaceFooter', () => {
         />
       </LocaleProvider>
     )
-    expect(screen.getByRole('dialog', { name: 'Handing off to worktree' })).toBeInTheDocument()
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(520 * 3)
-    })
-    expect(screen.queryByRole('dialog', { name: 'Handing off to worktree' })).not.toBeInTheDocument()
     expect(screen.getByRole('dialog', { name: 'Handed-off to worktree' })).toBeInTheDocument()
     expect(screen.getByText('You are now working on dotcraft/handoff in a new worktree. Branch main was checked out locally.')).toBeInTheDocument()
     expect(useToastStore.getState().toasts).toEqual([])

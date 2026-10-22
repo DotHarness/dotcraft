@@ -4,4 +4,4 @@ export const SDK_VERSION = "0.9.1";
 export const CONTRACT_FORMAT_VERSION = 1;
 export const CONTRACT_VERSION = "0.1.0";
 export const APPSERVER_PROTOCOL_VERSION = "1";
-export const CONTRACT_SHA256 = "41a95d7117374d3b93ddca57c8dac6edb8f63a72f768c49a68448136d2b961b9";
+export const CONTRACT_SHA256 = "244404bd55d5fa0ed90cea368c072841550730aa42f8f63d1334faceb36cdfde";

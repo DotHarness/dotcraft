@@ -13,6 +13,7 @@ import { SettingsSelect } from '../ui/SettingsSelect'
 import { PillSwitch } from '../../ui/PillSwitch'
 import { Input } from '../../ui/Input'
 import { Button } from '../../ui/Button'
+import { WorktreeSettingsGroup } from './worktrees/WorktreeSettingsGroup'
 
 // Wire types mirroring src/DotCraft.Protocol/AppServer/CoreAppServerModels.cs.
 
@@ -414,6 +415,8 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
               </SettingsRow>
             )}
           </SettingsGroup>
+
+          {snapshot?.effectiveProvider === 'git' && <WorktreeSettingsGroup workspacePath={workspacePath} />}
 
           {isPerforce && (
             <SettingsGroup title={t('settings.sourceControl.perforce.connectionTitle')}>

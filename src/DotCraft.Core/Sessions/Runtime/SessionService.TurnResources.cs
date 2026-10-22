@@ -13,7 +13,7 @@ public sealed partial class SessionService
         {
             if (!_runtimeRegistry.IsCurrent(runtime.Thread.Id, runtime))
                 throw new InvalidOperationException($"Thread '{runtime.Thread.Id}' runtime was replaced during Turn admission.");
-            resources = new(runtime.Agent ?? DefaultAgent, runtime.LatestToolSnapshot);
+            resources = new(runtime.Agent ?? DefaultAgent, runtime.LatestToolSnapshot, runtime.ToolLocation);
         }
         return resources;
     }

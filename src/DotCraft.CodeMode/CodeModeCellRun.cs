@@ -193,7 +193,7 @@ internal sealed class CodeModeCellRun(
                         call.CallId,
                         ToolInvocationAudience.Model,
                         new ToolInvocationOrigin(ToolInvocationOrigin.CodeModeKind, context.CallId),
-                        context.WorkspacePath),
+                        dependencies.Location?.Directory ?? context.WorkspacePath),
                     _nested.Token).ConfigureAwait(false);
             }
 

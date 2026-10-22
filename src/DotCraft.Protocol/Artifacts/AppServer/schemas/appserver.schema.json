@@ -19235,6 +19235,9 @@
         },
         "status": {
           "type": "string"
+        },
+        "targetStashed": {
+          "type": "boolean"
         }
       },
       "additionalProperties": true
@@ -19276,6 +19279,16 @@
         "mode": {
           "type": "string"
         },
+        "operationId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "path": {
           "anyOf": [
             {
@@ -19285,6 +19298,32 @@
               "type": "null"
             }
           ]
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ThreadWorktreeHandoffProgressNotification": {
+      "title": "ThreadWorktreeHandoffProgressNotification",
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "step": {
+          "type": "string"
         },
         "threadId": {
           "type": "string"
@@ -19429,7 +19468,14 @@
           "type": "string"
         },
         "threadId": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "worktree": {
           "$ref": "#/$defs/ThreadWorktreeInfo"
@@ -22610,6 +22656,25 @@
           }
         }
       },
+      "additionalProperties": true
+    },
+    "WorktreeRemoveParams": {
+      "title": "WorktreeRemoveParams",
+      "type": "object",
+      "properties": {
+        "discardChanges": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "WorktreeRemoveResult": {
+      "title": "WorktreeRemoveResult",
+      "type": "object",
+      "properties": {},
       "additionalProperties": true
     },
     "WorktreeStatusParams": {

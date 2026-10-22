@@ -122,6 +122,8 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable
     /// <summary>The latest immutable tool snapshot available outside an active Turn.</summary>
     public EffectiveToolSnapshot? LatestToolSnapshot { get; private set; }
 
+    public ToolLocation? ToolLocation { get; set; }
+
     public long NextToolSnapshotRevision() => Interlocked.Increment(ref _toolSnapshotRevision);
 
     public bool ToolSnapshotDirty => Volatile.Read(ref _toolSnapshotDirty) != 0;
@@ -226,6 +228,8 @@ internal sealed class TurnExecutionState : IDisposable
 
     /// <summary>The immutable tool registry frozen for this Turn.</summary>
     public EffectiveToolSnapshot? ToolSnapshot { get; set; }
+
+    public ToolLocation? ToolLocation { get; set; }
 
     /// <summary>The canonical event channel returned by <c>SubmitInputAsync</c> for this Turn.</summary>
     public SessionEventChannel? EventChannel { get; set; }

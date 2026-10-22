@@ -41,6 +41,13 @@ The following are not sections and stay in the turn's own reminder:
   without anything happening, so a snapshot of them would report a change every turn. They are
   rendered fresh each turn instead.
 
+The built-in `environment` section owns where the agent works: the current date and time zone, the
+working directory, and the additional workspace roots when there are any. When the thread is in a
+managed worktree it also states the branch and that commands run in the worktree, not in the local
+checkout. The first render states every fact; a later render states only the facts that changed. Its
+snapshot follows the running Turn's tool location, so a worktree move a tool makes reaches the model
+before the next sampling request.
+
 ### 1.2 Snapshot contents
 
 A snapshot carries identity and status, never moving values. Long text normally uses fingerprints.

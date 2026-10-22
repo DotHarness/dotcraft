@@ -137,6 +137,7 @@ public static class ServiceRegistration
         });
 
         services.AddSingleton<IToolSource>(sp => new GoalToolSource(sp.GetRequiredService<AppConfig>()));
+        services.AddSingleton<IToolSource, WorktreeToolSource>();
         services.AddSingleton<VisualizationAssetStore>();
 
         // Hooks

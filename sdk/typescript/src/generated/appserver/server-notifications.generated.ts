@@ -54,6 +54,7 @@ export interface ServerNotificationMethods {
   "thread/tokenUsage/updated": { params: Models.ThreadTokenUsageUpdatedNotification; result: Models.RpcEmpty };
   "thread/unarchived": { params: Models.ThreadUnarchivedNotification; result: Models.RpcEmpty };
   "thread/updated": { params: Models.ThreadNotification; result: Models.RpcEmpty };
+  "thread/worktree/handoffProgress": { params: Models.ThreadWorktreeHandoffProgressNotification; result: Models.RpcEmpty };
   "turn/cancelled": { params: Models.TurnNotification; result: Models.RpcEmpty };
   "turn/completed": { params: Models.TurnNotification; result: Models.RpcEmpty };
   "turn/diff/updated": { params: Models.TurnDiffUpdatedNotification; result: Models.RpcEmpty };

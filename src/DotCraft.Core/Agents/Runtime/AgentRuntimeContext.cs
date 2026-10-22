@@ -46,6 +46,7 @@ public sealed class AgentRuntimeContext
         WorkspacePath = source.WorkspacePath;
         // Copied raw so an unset roots list keeps tracking whichever workspace path the clone ends up with.
         _workspaceRoots = source._workspaceRoots;
+        ToolLocation = source.ToolLocation;
         AutomationTaskDirectory = source.AutomationTaskDirectory;
         RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace;
         BotPath = source.BotPath;
@@ -185,6 +186,9 @@ public sealed class AgentRuntimeContext
         get => _workspaceRoots ?? [WorkspacePath];
         init => _workspaceRoots = value;
     }
+
+    /// <summary>Where a thread's tools work, when a worktree tool may move them during a Turn.</summary>
+    public ToolLocation? ToolLocation { get; init; }
 
     /// <summary>
     /// When set (e.g. local automation), absolute path to the task directory containing <c>task.md</c>.

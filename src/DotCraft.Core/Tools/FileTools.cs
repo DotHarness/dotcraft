@@ -29,7 +29,8 @@ public sealed class FileTools(
     IReadOnlyList<string>? workspaceRoots = null,
     bool managedSearchOnly = false,
     ThreadMemoryStores? memoryStores = null,
-    Func<IReadOnlyList<IMemoryWriteGate>>? memoryWriteGates = null)
+    Func<IReadOnlyList<IMemoryWriteGate>>? memoryWriteGates = null,
+    ToolLocation? location = null)
 {
     private readonly MemoryFileWrites _memory = new(memoryStores, memoryWriteGates);
 
@@ -61,7 +62,9 @@ public sealed class FileTools(
         [".bmp"] = "image/bmp",
     };
 
-    private readonly string _workspaceRoot = Path.GetFullPath(workspaceRoot);
+    private readonly string _admittedRoot = Path.GetFullPath(workspaceRoot);
+
+    private string WorkspaceRoot => location?.Directory ?? _admittedRoot;
     private readonly FileAccessGuard _fileAccessGuard = new(
         workspaceRoot,
         requireApprovalOutsideWorkspace,
@@ -69,7 +72,8 @@ public sealed class FileTools(
         blacklist,
         [.. trustedReadPaths ?? [], .. memoryStores?.ReadOnlyDirectories ?? []],
         workspaceRoots,
-        memoryStores is null ? null : [.. memoryStores.WritableDirectories]);
+        memoryStores is null ? null : [.. memoryStores.WritableDirectories],
+        location);
     private readonly RipgrepFileSearcher _ripgrep = new(ripgrepPath);
     private readonly TimeSpan _searchTimeout = NormalizeSearchTimeout(searchTimeout);
 
@@ -314,7 +318,7 @@ public sealed class FileTools(
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var searchPath = string.IsNullOrEmpty(path) ? _workspaceRoot : ResolvePath(path);
+            var searchPath = string.IsNullOrEmpty(path) ? WorkspaceRoot : ResolvePath(path);
             var validateResult = await ValidatePathAsync(searchPath, "read", string.IsNullOrEmpty(path) ? "." : path);
             if (validateResult != null)
                 return validateResult;
@@ -445,7 +449,7 @@ public sealed class FileTools(
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var searchPath = string.IsNullOrEmpty(path) ? _workspaceRoot : ResolvePath(path);
+            var searchPath = string.IsNullOrEmpty(path) ? WorkspaceRoot : ResolvePath(path);
             var validateResult = await ValidatePathAsync(searchPath, "read", string.IsNullOrEmpty(path) ? "." : path);
             if (validateResult != null)
                 return validateResult;
@@ -613,7 +617,7 @@ public sealed class FileTools(
 
     private FileChangeRecord CreateFileChange(string fullPath, FileChangeKind kind, string? before, string after)
     {
-        var relative = Path.GetRelativePath(_workspaceRoot, fullPath).Replace('\\', '/');
+        var relative = Path.GetRelativePath(WorkspaceRoot, fullPath).Replace('\\', '/');
         var insideWorkspace = !Path.IsPathRooted(relative)
             && relative != ".."
             && !relative.StartsWith("../", StringComparison.Ordinal);

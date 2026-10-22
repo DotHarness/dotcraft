@@ -23,6 +23,7 @@ internal sealed class WorktreeRequestHandler(
         table.Map(Protocol.AppServer.AppServerRpc.ThreadWorktreeHandoff, HandleThreadWorktreeHandoffAsync);
         table.Map(Protocol.AppServer.AppServerRpc.WorktreeList, HandleWorktreeListAsync);
         table.Map(Protocol.AppServer.AppServerRpc.WorktreeStatus, HandleWorktreeStatusAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.WorktreeRemove, HandleWorktreeRemoveAsync);
     }
 
     private async Task<object?> HandleWorktreeCreateAndForkAsync(
@@ -134,17 +135,41 @@ internal sealed class WorktreeRequestHandler(
         if (string.IsNullOrWhiteSpace(threadId))
             throw AppServerErrors.InvalidParams("'threadId' is required.");
 
-        var result = await sessionService.HandoffThreadWorktreeAsync(
-            new WorktreeHandoffOptions
-            {
-                ThreadId = threadId,
-                Mode = ValueOrDefault(p.Mode) ?? WorktreeHandoffModes.Worktree,
-                BranchName = ValueOrDefault(p.BranchName),
-                BaseRef = ValueOrDefault(p.BaseRef),
-                Path = ValueOrDefault(p.Path),
-                CopyDirtyChanges = ValueOrDefault(p.CopyDirtyChanges) ?? true
-            },
-            ct);
+        var transport = AppServerRequestContext.CurrentTransport;
+        var operationId = ValueOrDefault(p.OperationId);
+        var notifications = Task.CompletedTask;
+        WorktreeHandoffResult result;
+        try
+        {
+            result = await sessionService.HandoffThreadWorktreeAsync(
+                new WorktreeHandoffOptions
+                {
+                    ThreadId = threadId,
+                    Mode = ValueOrDefault(p.Mode) ?? WorktreeHandoffModes.Worktree,
+                    BranchName = ValueOrDefault(p.BranchName),
+                    BaseRef = ValueOrDefault(p.BaseRef),
+                    Path = ValueOrDefault(p.Path),
+                    CopyDirtyChanges = ValueOrDefault(p.CopyDirtyChanges) ?? true,
+                    Progress = transport == null
+                        ? null
+                        : (step, status) => notifications = notifications.ContinueWith(
+                            _ => transport.NotifyContractAsync(
+                                Contract.AppServerRpc.ThreadWorktreeHandoffProgress,
+                                new Contract.ThreadWorktreeHandoffProgressNotification
+                                {
+                                    ThreadId = threadId,
+                                    OperationId = operationId,
+                                    Step = step,
+                                    Status = status
+                                }),
+                            TaskScheduler.Default).Unwrap()
+                },
+                ct);
+        }
+        finally
+        {
+            await notifications.ConfigureAwait(false);
+        }
 
         var thread = result.Thread;
         var wire = await projectThreadAsync(thread, false, false, ct);
@@ -191,6 +216,19 @@ internal sealed class WorktreeRequestHandler(
         {
             Status = WorktreeContractMapper.ToContract(await sessionService.GetWorktreeStatusAsync(threadId, ct))
         };
+    }
+
+    private async Task<object?> HandleWorktreeRemoveAsync(
+        AppServerTypedRequest<Contract.WorktreeRemoveParams> request,
+        CancellationToken ct)
+    {
+        var p = request.Params;
+        var path = ValueOrDefault(p.Path);
+        if (string.IsNullOrWhiteSpace(path))
+            throw AppServerErrors.InvalidParams("'path' is required.");
+
+        await sessionService.RemoveWorktreeAsync(path, ValueOrDefault(p.DiscardChanges), ct);
+        return new Contract.WorktreeRemoveResult();
     }
 
     private void ValidateRuntimeConfiguration(ThreadConfiguration? config)

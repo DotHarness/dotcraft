@@ -53,6 +53,11 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
     public bool AllowConcurrentInvocation { get; set; }
 
     /// <summary>
+    /// Tools that must run alone: a response containing one runs its calls serially, these last.
+    /// </summary>
+    public Func<string, bool>? RunsAlone { get; set; }
+
+    /// <summary>
     /// Includes additional exception details in generated function result content.
     /// </summary>
     public bool IncludeDetailedErrors { get; set; }
@@ -694,7 +699,10 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
         CancellationToken cancellationToken)
     {
         var captureExceptions = consecutiveErrorCount < MaximumConsecutiveErrorsPerRequest;
-        var results = AllowConcurrentInvocation && functionCalls.Count > 1
+        var runsAlone = RunsAlone is { } isAlone && functionCalls.Count > 1 && functionCalls.Any(call => isAlone(call.Name));
+        if (runsAlone)
+            functionCalls = [.. functionCalls.OrderBy(call => RunsAlone!(call.Name) ? 1 : 0)];
+        var results = AllowConcurrentInvocation && functionCalls.Count > 1 && !runsAlone
             ? await Task.WhenAll(functionCalls.Select((call, index) => InvokeFunctionAsync(
                 messages,
                 options,

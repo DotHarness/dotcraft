@@ -44,7 +44,7 @@ Ordinary generated agents build base instructions from stable sections in this o
 
 | Order | Section | Notes |
 |-------|---------|-------|
-| 1 | Core identity and workspace | Product identity, workspace, environment, tool-use policy, and the commit attribution rule, included when `CommitAttribution` is non-empty. |
+| 1 | Core identity and workspace | Product identity, DotCraft data directory, host OS and shell, tool-use policy, and the commit attribution rule, included when `CommitAttribution` is non-empty. The working directory is not here; it is in the `environment` world-state section. |
 | 2 | Available SubAgent profiles | Parent-facing summary for choosing visible SubAgent launch profiles. |
 | 3 | Background tasks and SubAgent delegation | Waiting for commands, SubAgents, and Workflow runs through their task notification, included when `Exec`, `SpawnAgent`, or `Workflow` is available. Delegation guidance follows when `SpawnAgent` is available. |
 | 4 | Working style | Progress updates and collaboration behavior. |
@@ -141,8 +141,9 @@ Rules:
 5. **Lifecycle.** The rendered content and ordered source paths form one context-page snapshot.
    Ordinary turns reuse it. Successful compaction, cold resume, effective cwd/worktree changes, or
    relevant instruction configuration changes load a new snapshot. A running Turn resolves and
-   reloads project instructions from the effective cwd captured when that Turn was admitted; a
-   later thread workspace update applies only to subsequent Turns. Standalone lifecycle operations
+   reloads project instructions from the effective cwd captured when that Turn was admitted, or
+   from the tool location a worktree tool moved it to; a later thread workspace update applies only
+   to subsequent Turns. Standalone lifecycle operations
    use the thread workspace current at their own boundary.
 6. **Updates.** Initial context carries the complete current instructions. Changed instructions append
    a complete replacement with an explicit supersession notice; removal appends one retraction.

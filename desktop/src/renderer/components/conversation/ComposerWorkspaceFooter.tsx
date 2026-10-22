@@ -78,10 +78,6 @@ function currentBranchLabel(branches: GitBranchListSnapshot | null): string | nu
   return branches?.current || branches?.detachedHead || null
 }
 
-function defaultWorktreeBranchName(path: string): string {
-  return `dotcraft/${workspaceSlug(path)}`
-}
-
 export function ComposerWorkspaceFooter({
   workspacePath,
   mode,
@@ -131,7 +127,9 @@ export function ComposerWorkspaceFooter({
     || Boolean(thread?.runtime?.maintenanceKind)
   const handoffDisabledReason = isThread && threadBusy
     ? t('workspaceFooter.handoffUnavailableDuringConversation')
-    : null
+    : (thread?.queuedInputs?.length ?? 0) > 0
+      ? t('workspaceFooter.handoffUnavailableWithQueuedMessages')
+      : null
   const { foregroundIsChat, selectedProject } = projectChoices
   const branchActionPath = workspacePath.trim()
   const sourceControlEnabled = capabilities?.sourceControlManagement === true
@@ -445,7 +443,6 @@ export function ComposerWorkspaceFooter({
       mode={handoffMode}
       thread={thread}
       baseRef={currentBranchLabel(branches)}
-      defaultBranchName={defaultWorktreeBranchName(localWorkspacePath)}
       localWorkspacePath={localWorkspacePath}
       disabledReason={handoffDisabledReason}
       onBusyChange={setBusy}

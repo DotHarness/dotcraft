@@ -16,7 +16,7 @@ public sealed partial class AutomationService
             ? TimeSpan.FromDays(14) : config.WorktreeRetentionIdlePeriod);
         foreach (var worktree in await retention.ListManagedWorktreesAsync(ct))
         {
-            if (worktree.Worktree.OwnerKind != "automationRun" || worktree.Worktree.OwnerId == null
+            if (worktree.Worktree.OwnerKind != "automationRun" || worktree.Worktree.OwnerId == null || worktree.ThreadId == null
                 || worktree.Worktree.CreatedAt > threshold || worktree.HasUncommittedChanges || worktree.HasCommitsAheadOfBase
                 || !worktree.Exists || !worktree.IsGitWorktree) continue;
             var thread = await _client.TryGetThreadAsync(worktree.ThreadId, ct);
