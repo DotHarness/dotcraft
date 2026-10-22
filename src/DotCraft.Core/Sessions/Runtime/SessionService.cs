@@ -965,7 +965,7 @@ public sealed partial class SessionService(
             await persistence.ReloadWorkingSetAsync(thread, ct);
         traceCollector?.RecordThreadRollback(threadId, thread.Id, numTurns, thread.TurnCount, thread.LastActiveAt);
         InvalidatePromptRequestSnapshot(threadId, "rollback");
-        ResetWorldStateBaseline(threadId, "rollback");
+        ReloadWorldStateBaselineOnNextTurn(threadId);
         ClearContextUsageAnchor(threadId);
         agentFactory.RemoveTokenTracker(threadId);
         ForgetContextPages(threadId);

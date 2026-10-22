@@ -709,6 +709,10 @@ public sealed partial class SessionService
                             }
                             session.Clear();
                             session.AddRange(compactedHistory);
+                            result = result with
+                            {
+                                Replacement = new CompactionReplacement.Neutral(compactedHistory)
+                            };
                             TryAdvanceResponsesContextWindowAfterReplacement(threadId);
                             // Sampling boundaries project the replacement from inside the request
                             // pipeline; the phases outside it project here.

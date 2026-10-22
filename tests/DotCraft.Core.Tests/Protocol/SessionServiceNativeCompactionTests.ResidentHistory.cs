@@ -14,6 +14,7 @@ public sealed partial class SessionServiceNativeCompactionTests
     [InlineData("pre-turn", true)]
     [InlineData("pre-turn", false)]
     [InlineData("post-turn", true)]
+    [InlineData("post-turn", false)]
     [InlineData("mid-turn", true)]
     [InlineData("mid-turn", false)]
     [InlineData("reactive", true)]
@@ -34,24 +35,25 @@ public sealed partial class SessionServiceNativeCompactionTests
         }, threadId: ResidentThreadId);
         await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent("committed-prefix")]));
         await RunScenarioAsync(service, scenario);
-        var rolloutPath = Directory.GetFiles(_workspace, ResidentThreadId + ".jsonl", SearchOption.AllDirectories).Single();
-        var coldStartLength = new FileInfo(rolloutPath).Length;
         if (scenario == "rollback")
             await service.RollbackThreadAsync(ResidentThreadId, 1);
+        var rolloutPath = Directory.GetFiles(_workspace, ResidentThreadId + ".jsonl", SearchOption.AllDirectories).Single();
+        var coldStartLength = new FileInfo(rolloutPath).Length;
+        var coldStartUsage = ContextUsageCheckpoint.Capture(store, ResidentThreadId);
 
         var reads = store.RolloutReplayCount;
         await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent("next-request")]));
-        Assert.Equal(reads, store.RolloutReplayCount);
+        Assert.Equal(reads + (scenario == "rollback" ? 1 : 0), store.RolloutReplayCount);
         var warmRequest = _provider.Requests[^1];
 
         await store.FlushAndCloseAsync();
         await using (var rollout = new FileStream(rolloutPath, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
             rollout.SetLength(coldStartLength);
+        var coldStore = new ThreadStore(Path.Combine(_workspace, ".craft"));
+        await coldStartUsage.RestoreAsync(coldStore);
         await using var coldFactory = CreateFactory(oauth, postTurnThreshold, smallTail: !oauth);
-        var cold = CreateResidentService(coldFactory, new ThreadStore(Path.Combine(_workspace, ".craft")));
+        var cold = CreateResidentService(coldFactory, coldStore);
         await cold.ResumeThreadAsync(ResidentThreadId);
-        if (scenario == "rollback")
-            await cold.RollbackThreadAsync(ResidentThreadId, 1);
         await DrainAsync(cold.SubmitInputAsync(ResidentThreadId, [new TextContent("next-request")]));
         Assert.Equal(warmRequest, _provider.Requests[^1]);
     }

@@ -44,26 +44,27 @@ public sealed class SessionServiceResidentModelHistoryTests : IDisposable
         for (var i = 0; i < 3; i++)
             await DrainAsync(service.SubmitInputAsync(ThreadId, [new TextContent($"seed {i} " + new string('u', 1200))]));
         await RunScenarioAsync(service, scenario);
-        var rolloutPath = Directory.GetFiles(CraftPath, ThreadId + ".jsonl", SearchOption.AllDirectories).Single();
-        var coldStartLength = new FileInfo(rolloutPath).Length;
-        if (scenario is "pre-turn" or "post-turn" or "mid-turn" or "manual")
-            Assert.Contains("\"kind\":\"context_compacted\"", await File.ReadAllTextAsync(rolloutPath));
         if (scenario == "rollback")
             await service.RollbackThreadAsync(ThreadId, 1);
+        var rolloutPath = Directory.GetFiles(CraftPath, ThreadId + ".jsonl", SearchOption.AllDirectories).Single();
+        var coldStartLength = new FileInfo(rolloutPath).Length;
+        var coldStartUsage = ContextUsageCheckpoint.Capture(store, ThreadId);
+        if (scenario is "pre-turn" or "post-turn" or "mid-turn" or "manual")
+            Assert.Contains("\"kind\":\"context_compacted\"", await File.ReadAllTextAsync(rolloutPath));
 
         var reads = store.RolloutReplayCount;
         await DrainAsync(service.SubmitInputAsync(ThreadId, [new TextContent("next-request")]));
-        Assert.Equal(reads, store.RolloutReplayCount);
+        Assert.Equal(reads + (scenario == "rollback" ? 1 : 0), store.RolloutReplayCount);
         var warmRequest = Conversation(_chat.Requests[^1]);
 
         await store.FlushAndCloseAsync();
         await using (var rollout = new FileStream(rolloutPath, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
             rollout.SetLength(coldStartLength);
+        var coldStore = new ThreadStore(CraftPath);
+        await coldStartUsage.RestoreAsync(coldStore);
         await using var coldFactory = CreateFactory(scenario);
-        var cold = CreateService(coldFactory, new ThreadStore(CraftPath));
+        var cold = CreateService(coldFactory, coldStore);
         await cold.ResumeThreadAsync(ThreadId);
-        if (scenario == "rollback")
-            await cold.RollbackThreadAsync(ThreadId, 1);
         await DrainAsync(cold.SubmitInputAsync(ThreadId, [new TextContent("next-request")]));
         Assert.Equal(warmRequest, Conversation(_chat.Requests[^1]));
     }
