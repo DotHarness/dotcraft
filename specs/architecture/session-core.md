@@ -947,7 +947,7 @@ Each `UserInputRequest` carries `isBlocking`, set by Session Core from the activ
 
 On invocation Session Core finalizes and persists preceding assistant and reasoning content, emits the `UserInputRequest` Item, pauses until resolution, cancellation, or unavailable-client fallback, records the `UserInputResponse`, and returns the answers to the tool.
 
-Interactive adapters present the request natively. A client may auto-resolve a non-blocking request with an empty answer according to its own foreground and inactivity policy; blocking requests need an explicit answer or cancellation. Non-interactive or unsupported adapters resolve with an empty answer so the Turn continues.
+Interactive adapters present the request natively. A client may auto-resolve a non-blocking request with an empty answer according to its own foreground and inactivity policy; blocking requests need an explicit answer or cancellation. Non-interactive or unsupported adapters resolve with an empty answer so the Turn continues. The model is instructed to treat an empty answer as no reply and continue with its best judgment, without asking again or waiting.
 
 ### 10.4 Asynchronous User Coordination
 

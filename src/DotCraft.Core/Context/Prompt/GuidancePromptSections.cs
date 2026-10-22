@@ -91,7 +91,10 @@ In Agent mode, proceed with reasonable assumptions. Ask when the user requested 
             string.Empty
         };
         if (hasBlockingQuestion)
+        {
             rules.Add("- Use `RequestUserInput` when the answer is a prerequisite for further work and a short structured decision is appropriate.");
+            rules.Add("- If `RequestUserInput` returns no answers, continue with your best judgment instead of asking again or waiting for a reply.");
+        }
         if (hasAsyncMessage)
             rules.Add("- Use `SendUserMessageAsync` for questions, critical blockers or findings, and replies during ongoing work on the app surface. Use commentary for routine progress.");
         if (hasSleep)
