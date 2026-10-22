@@ -69,20 +69,20 @@ public class ToolResultProcessorTests
     }
 
     [Fact]
-    public void Process_OverLimit_FewLines_TruncatesPreviewToMaxResultChars()
+    public void Process_OverLimit_FewLines_CapsPreviewBelowTheSpillLimit()
     {
-        const int limit = 1000;
+        const int limit = 30_000;
         var workspace = Path.Combine(Path.GetTempPath(), "dotcraft-trp-short-" + Guid.NewGuid().ToString("N"));
         try
         {
             Directory.CreateDirectory(workspace);
-            // Two lines total: stays in BuildPreview short-line branch; body would exceed limit without truncation.
-            var text = new string('a', 5000) + "\n" + new string('b', 10);
+            // Two lines total: stays in BuildPreview short-line branch; body would exceed the preview cap without truncation.
+            var text = new string('a', 50_000) + "\n" + new string('b', 10);
             var dataPath = Path.Combine(workspace, ".craft");
             var r = ToolResultProcessor.Process("Exec", text, limit, workspace, dataPath, "s1", 40) as string;
             Assert.NotNull(r);
             Assert.Contains("full output at:", r, StringComparison.OrdinalIgnoreCase);
-            Assert.True(r.Length <= limit + 200, $"Preview length {r.Length} should not far exceed limit + footer.");
+            Assert.True(r.Length <= ToolResultProcessor.SpillPreviewMaxChars + 200, $"Preview length {r.Length} should not far exceed the preview cap + footer.");
 
             var spillDir = Path.Combine(workspace, ".craft", "tool-results", "s1");
             var files = Directory.GetFiles(spillDir, "Exec_call-*.txt");

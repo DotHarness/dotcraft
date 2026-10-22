@@ -596,7 +596,13 @@ public sealed class AgentFactory : IAsyncDisposable
                             ? null
                             : BuildInvocationPolicy(modeManager, ctx.ToolInvocationPolicy),
                         ToolCallPolicy = usesSnapshotDispatcher ? null : ctx.ToolCallPolicy,
-                        IsStreamableTool = name => !streamOptOutTools.Contains(name)
+                        IsStreamableTool = name => !streamOptOutTools.Contains(name),
+                        ToolResultRoundProcessor = contents => ToolResultBudget.Apply(
+                            contents,
+                            ctx.WorkspacePath,
+                            ctx.BotPath,
+                            ctx.CurrentThreadId,
+                            ctx.Config.Tools.ResultLimits.SpillPreviewLines)
                     };
                     fic.FunctionInvoker = functionInvoker;
                     if (deferredInvocationTools != null)

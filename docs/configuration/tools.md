@@ -84,7 +84,9 @@ To search through the same subscription while chatting with another provider, se
 | Field | Description | Default |
 |---|---|---|
 | `Tools.ResultLimits.MaxToolResultChars` | Default tool result length in characters before the result spills to disk; `0` removes the limit for tools that use the global default | `50000` |
-| `Tools.ResultLimits.SpillPreviewLines` | Head and tail lines kept in the preview when a result spills to disk | `40` |
+| `Tools.ResultLimits.SpillPreviewLines` | Head and tail lines kept in the preview when a result spills to disk; the preview is capped at 2,000 characters | `40` |
+
+The results of one round of tool calls together hold at most 200,000 characters. When a round goes over, its largest results spill to disk the same way until it fits.
 
 ## Image generation
 

@@ -15,6 +15,8 @@ public static class ToolResultProcessor
     /// </summary>
     public const string SpillPreviewMarker = "lines omitted, full output at:";
 
+    public const int SpillPreviewMaxChars = 2_000;
+
     /// <summary>
     /// Returns the standardized empty-result message for a tool.
     /// </summary>
@@ -67,7 +69,7 @@ public static class ToolResultProcessor
             return rawResult;
 
         var relativePath = SpillToDisk(text, workspacePath, dataPath, sessionId, toolName, callId);
-        return BuildPreview(text, previewLines, relativePath, maxResultChars);
+        return BuildPreview(text, previewLines, relativePath, SpillPreviewMaxChars);
     }
 
     /// <summary>

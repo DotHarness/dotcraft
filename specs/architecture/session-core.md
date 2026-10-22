@@ -416,7 +416,8 @@ Invariants:
 Thread-owned runtime artifacts are not a second source of conversation authority, but their ownership and cleanup follow the thread lifecycle:
 
 - Background terminal metadata and output logs are owned by the originating Thread and stay addressable after the process ends until the owner is permanently deleted or retention removes them.
-- Oversized tool-result spill files are owned by the originating Thread. The model-visible message holds a bounded preview and a workspace-relative reference; the spill file is not reconstructable from the rollout.
+- Oversized tool-result spill files are owned by the originating Thread. The model-visible message holds a preview of at most 2,000 characters and a workspace-relative reference; the spill file is not reconstructable from the rollout.
+- One tool round's text results together hold at most 200,000 characters. When a round exceeds that, its largest results spill the same way until it fits. The decision is made once, when the round's results are built, so a result the model has seen never changes and the prompt-cache prefix stays stable.
 - Archive is not deletion. Archiving stops or invalidates active terminal processes but preserves terminal metadata, logs, and spill files for inspection, export, and tool-result reads.
 - Permanent deletion removes the complete owned subtree: it stops active terminals, removes terminal and spill artifacts for the thread and all descendant SubAgent threads, then removes durable state. Cleanup is idempotent and retryable per filesystem operation. A child artifact never survives deletion of its parent because the child is hidden from default lists.
 - Compaction may replace or clear model-visible tool-result content but never deletes a spill file a current rollout or retained view may reference. Spill cleanup is retention maintenance, not a compaction side effect.

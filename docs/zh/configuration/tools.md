@@ -84,7 +84,9 @@
 | 配置项 | 说明 | 默认值 |
 |---|---|---|
 | `Tools.ResultLimits.MaxToolResultChars` | 工具结果落盘前的默认长度上限（字符）。`0` 表示对使用全局默认值的工具不做限制 | `50000` |
-| `Tools.ResultLimits.SpillPreviewLines` | 结果落盘时，预览中保留的首尾行数 | `40` |
+| `Tools.ResultLimits.SpillPreviewLines` | 结果落盘时，预览中保留的首尾行数；预览最多 2,000 个字符 | `40` |
+
+同一轮工具调用的结果合计最多 200,000 个字符。超出时，从最大的结果开始按同样方式落盘，直到不再超出。
 
 ## 图片生成
 

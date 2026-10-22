@@ -129,6 +129,11 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
     /// </summary>
     public Func<FunctionCallContent, ModeToolPolicyDecision>? ToolCallPolicy { get; set; }
 
+    /// <summary>
+    /// Optional hook that may replace one round's tool results before the model sees them.
+    /// </summary>
+    public Action<IList<AIContent>>? ToolResultRoundProcessor { get; set; }
+
     public override async Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
@@ -726,6 +731,8 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                 exceptions.Add(content.Exception);
             }
         }
+
+        ToolResultRoundProcessor?.Invoke(contents);
 
         if (anyException)
         {
