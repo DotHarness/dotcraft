@@ -83,6 +83,65 @@ public sealed partial class SessionServiceNativeCompactionTests
         AssertContainsOnce(_provider.Requests[^1], "after-reload");
     }
 
+    [Fact]
+    public async Task LoadedThread_KeepsOnlyTheEffectiveProviderHistoryAcrossReplacements()
+    {
+        await using var factory = CreateFactory();
+        var store = new ThreadStore(Path.Combine(_workspace, ".craft"));
+        var service = CreateResidentService(factory, store);
+        await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
+        }, threadId: ResidentThreadId);
+
+        var retained = new List<int>();
+        for (var i = 0; i < 3; i++)
+        {
+            await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent($"before-{i}")]));
+            await CompactAsync(service, ResidentThreadId);
+            await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent($"after-{i}")]));
+            retained.Add(store.ResidentProviderHistoryCount(ResidentThreadId));
+        }
+
+        Assert.True(retained[0] > 0);
+        Assert.Equal(retained[0], retained[^1]);
+    }
+
+    [Fact]
+    public async Task RollbackPastAReplacement_NextRequestMatchesColdReplay()
+    {
+        await using var factory = CreateFactory();
+        var store = new ThreadStore(Path.Combine(_workspace, ".craft"));
+        var service = CreateResidentService(factory, store);
+        await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
+        }, threadId: ResidentThreadId);
+        await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent("first")]));
+        await CompactAsync(service, ResidentThreadId);
+        await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent("second")]));
+        await CompactAsync(service, ResidentThreadId);
+        await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent("third")]));
+        await service.RollbackThreadAsync(ResidentThreadId, 2);
+        var rolloutPath = Directory.GetFiles(_workspace, ResidentThreadId + ".jsonl", SearchOption.AllDirectories).Single();
+        var coldStartLength = new FileInfo(rolloutPath).Length;
+        var coldStartUsage = ContextUsageCheckpoint.Capture(store, ResidentThreadId);
+
+        await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent("next-request")]));
+        var warmRequest = _provider.Requests[^1];
+
+        await store.FlushAndCloseAsync();
+        await using (var rollout = new FileStream(rolloutPath, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
+            rollout.SetLength(coldStartLength);
+        var coldStore = new ThreadStore(Path.Combine(_workspace, ".craft"));
+        await coldStartUsage.RestoreAsync(coldStore);
+        await using var coldFactory = CreateFactory();
+        var cold = CreateResidentService(coldFactory, coldStore);
+        await cold.ResumeThreadAsync(ResidentThreadId);
+        await DrainAsync(cold.SubmitInputAsync(ResidentThreadId, [new TextContent("next-request")]));
+        Assert.Equal(warmRequest, _provider.Requests[^1]);
+    }
+
     private async Task RunScenarioAsync(SessionService service, string scenario)
     {
         switch (scenario)

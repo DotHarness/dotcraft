@@ -140,6 +140,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
         var result = await WriteModelHistoryAsync(
             thread.Id,
             () => TrackPersistedAsync(thread.Id, () => _rolloutStore.AppendRollbackAsync(thread, numTurns, ct)));
+        ReleaseTrimmedProviderHistory(thread.Id);
         await TryProjectHistoryAsync(thread.Id, result, ct);
     }
 

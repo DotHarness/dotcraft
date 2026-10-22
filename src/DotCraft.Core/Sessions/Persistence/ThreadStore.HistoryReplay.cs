@@ -59,6 +59,8 @@ public sealed partial class ThreadStore
                 .OfType<string>()
                 .ToList(),
             ct);
+        if (retain)
+            TrimResidentProviderHistory(thread.Id, records, survivingTurnIds);
         return ProviderHistoryReplayer.Replay(
             thread.Id,
             currentContextWindowId,

@@ -28,6 +28,9 @@ public sealed partial class ThreadStore
         Interlocked.Increment(ref _forwardReplayCount);
     }
 
+    internal int ResidentProviderHistoryCount(string threadId) =>
+        _residentProviderHistory.TryGetValue(threadId, out var resident) ? resident.Count : 0;
+
     internal ModelHistoryRevision GetModelHistoryRevision(string threadId) =>
         _modelHistoryRevisions.TryGetValue(threadId, out var revision) ? revision : default;
 
@@ -120,6 +123,25 @@ public sealed partial class ThreadStore
         return result;
     }
 
+    private void TrimResidentProviderHistory(
+        string threadId,
+        IReadOnlyList<ThreadRolloutRecord> records,
+        IReadOnlySet<string> survivingTurnIds)
+    {
+        if (!_residentProviderHistory.TryGetValue(threadId, out var resident))
+            return;
+        var effective = records.LastOrDefault(record =>
+            ProviderHistoryReplayer.IsValidReplacement(record.ProviderHistoryReplaced, threadId, survivingTurnIds));
+        if (effective != null)
+            resident.DiscardBefore(effective);
+    }
+
+    private void ReleaseTrimmedProviderHistory(string threadId)
+    {
+        if (_residentProviderHistory.TryGetValue(threadId, out var resident) && resident.Trimmed)
+            _residentProviderHistory.TryRemove(threadId, out _);
+    }
+
     private void RecordResidentCheckpoint(string threadId, DateTimeOffset createdAt)
     {
         if (_residentProviderHistory.TryGetValue(threadId, out var resident))
@@ -164,10 +186,33 @@ public sealed partial class ThreadStore
         private readonly List<ThreadRolloutRecord> _records = [.. inputs.Records];
         private DateTimeOffset? _latestCheckpointAt = inputs.LatestCheckpointAt;
 
+        public bool Trimmed { get; private set; }
+
+        public int Count
+        {
+            get
+            {
+                lock (_lock)
+                    return _records.Count;
+            }
+        }
+
         public void Append(ThreadRolloutRecord record)
         {
             lock (_lock)
                 _records.Add(record);
+        }
+
+        public void DiscardBefore(ThreadRolloutRecord record)
+        {
+            lock (_lock)
+            {
+                var index = _records.IndexOf(record);
+                if (index <= 0)
+                    return;
+                _records.RemoveRange(0, index);
+                Trimmed = true;
+            }
         }
 
         public void RecordCheckpoint(DateTimeOffset createdAt)

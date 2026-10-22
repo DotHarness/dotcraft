@@ -61,6 +61,29 @@ public sealed partial class SessionServiceRuntimeSignalTests
     }
 
     [Fact]
+    public async Task SubmitInputAsync_AfterRollingBackEveryTurn_TotalCountsOnlyTheNewTurn()
+    {
+        IChatClient chatClient = new FakeChatClient(
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")]),
+            UsageUpdate(requestIndex: 1, input: 100, output: 10, cachedInput: 40),
+            UsageUpdate(requestIndex: 2, input: 200, output: 20, cachedInput: 150)
+        ]);
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient);
+        var updates = new ConcurrentQueue<ThreadTokenUsageUpdate>();
+        svc.ThreadTokenUsageUpdatedForBroadcast = updates.Enqueue;
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("first")]));
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("second")]));
+
+        await svc.RollbackThreadAsync(thread.Id, 2);
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("again")]));
+
+        Assert.Equal(330, updates.Last().Total.TotalTokens);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_KeepsReportedUsageOnATurnThatEndsEarly()
     {
         IChatClient chatClient = new ThrowingAfterUpdatesChatClient(

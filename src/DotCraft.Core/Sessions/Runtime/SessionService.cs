@@ -963,6 +963,8 @@ public sealed partial class SessionService(
         await persistence.RollbackThreadAsync(thread, numTurns, ct);
         if (thread.OmittedTurnCount > 0 && !thread.Turns.Any(ThreadWorkingSet.IsTerminal))
             await persistence.ReloadWorkingSetAsync(thread, ct);
+        else if (thread.OmittedTurnCount == 0)
+            thread.OmittedTokenUsage = new();
         traceCollector?.RecordThreadRollback(threadId, thread.Id, numTurns, thread.TurnCount, thread.LastActiveAt);
         InvalidatePromptRequestSnapshot(threadId, "rollback");
         ReloadWorldStateBaselineOnNextTurn(threadId);
