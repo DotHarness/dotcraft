@@ -51,20 +51,25 @@ public sealed class BoardStreamEndpointTests
         var socket = app.Server.CreateWebSocketClient();
         using var stream = await socket.ConnectAsync(new Uri("ws://localhost/api/v1/stream"), CancellationToken.None);
         await SendControlFrameAsync(stream, new { type = "focus", runId = "run-1" });
-        await Task.Delay(50);
 
         var hub = app.Services.GetRequiredService<BoardEventHub>();
-        hub.PublishDrawer(
-            "run-1",
-            new DrawerEvent(
-                DrawerEvent.PlanUpdatedType,
+        var received = ReceiveEventAsync<DrawerEvent>(stream);
+        // The focus frame is applied asynchronously, so publish until the focused stream forwards one.
+        while (!received.IsCompleted)
+        {
+            hub.PublishDrawer(
                 "run-1",
-                null,
-                null,
-                JsonSerializer.SerializeToElement(new { title = "Focused plan" }, JsonOptions),
-                DateTimeOffset.Parse("2026-05-09T00:00:00Z")));
+                new DrawerEvent(
+                    DrawerEvent.PlanUpdatedType,
+                    "run-1",
+                    null,
+                    null,
+                    JsonSerializer.SerializeToElement(new { title = "Focused plan" }, JsonOptions),
+                    DateTimeOffset.Parse("2026-05-09T00:00:00Z")));
+            await Task.WhenAny(received, Task.Delay(50));
+        }
 
-        var drawerEvent = await ReceiveEventAsync<DrawerEvent>(stream);
+        var drawerEvent = await received;
         Assert.Equal(DrawerEvent.PlanUpdatedType, drawerEvent.Type);
         Assert.Equal("run-1", drawerEvent.RunId);
     }
