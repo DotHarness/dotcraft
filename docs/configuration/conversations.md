@@ -1,6 +1,6 @@
 # Conversations
 
-Queueing and interrupts while a turn runs, composer suggestions, context compaction, and custom commands.
+Queueing and interrupts while a turn runs, composer suggestions, commit attribution, context compaction, and custom commands.
 
 ## Queue and interrupts
 
@@ -18,6 +18,12 @@ Queueing and interrupts while a turn runs, composer suggestions, context compact
 | `PromptSuggestions.Enabled` | Suggests one next message in an empty conversation composer after a completed turn. Independent of workspace memory | `true` |
 
 Both settings can be changed in **Settings → Personalization**. A prompt suggestion remains editable and is sent only when the user submits it.
+
+## Commit attribution
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `CommitAttribution` | Text the agent ends its git commit messages with, including any trailers. An empty string removes the attribution instruction | `Co-authored-by: DotCraft <273930855+dotcraft-ai@users.noreply.github.com>` |
 
 ## Compaction
 

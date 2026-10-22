@@ -16,6 +16,7 @@ internal static class IdentityPromptSection
         var envSection = GetHostEnvironmentSection();
         var workspaceRootsSection = GetWorkspaceRootsSection(sources);
         var identity = GetIdentityLine();
+        var attributionSection = GetCommitAttributionSection(sources.CommitAttribution);
 
         return
 $$"""
@@ -35,10 +36,21 @@ This contains:
 - Configuration: {{craftPath}}/config.json
 
 {{envSection}}
+{{attributionSection}}
+""";
+    }
+
+    private static string GetCommitAttributionSection(string? attribution)
+    {
+        if (string.IsNullOrWhiteSpace(attribution))
+            return string.Empty;
+
+        return
+$"""
 
 ## Git Commit Attribution
 When creating git commits for the user, do not change git config. End commit messages with:
-Co-authored-by: DotCraft <273930855+dotcraft-ai@users.noreply.github.com>
+{attribution.Trim()}
 """;
     }
 

@@ -29,7 +29,8 @@ public sealed class PromptBuilder(
     ILogger<PromptBuilder>? logger = null,
     IContributionView? contributions = null,
     ThreadSkillsPolicy? skillsPolicy = null,
-    IReadOnlyList<AttachedMemoryStore>? attachedMemoryStores = null)
+    IReadOnlyList<AttachedMemoryStore>? attachedMemoryStores = null,
+    string? commitAttribution = null)
 {
     private readonly ILogger<PromptBuilder> _logger = logger ?? NullLogger<PromptBuilder>.Instance;
 
@@ -52,6 +53,7 @@ public sealed class PromptBuilder(
         RoleInstructions = roleInstructions,
         DeveloperInstructions = developerInstructions,
         ContextPageManager = contextPageManager,
+        CommitAttribution = commitAttribution,
         // Must be the same view the section list is resolved from, or sections evaluate against foreign sources.
         Contributions = ResolveView(contributions),
         Logger = logger ?? NullLogger<PromptBuilder>.Instance

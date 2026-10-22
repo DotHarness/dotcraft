@@ -51,6 +51,8 @@ internal sealed class PromptSectionSources
     /// <summary>Gets the manager that pins prompt-cache-stable pages, when one is active.</summary>
     internal IContextPageManager? ContextPageManager { get; init; }
 
+    internal string? CommitAttribution { get; init; }
+
     internal required IContributionView Contributions { get; init; }
 
     internal required ILogger Logger { get; init; }

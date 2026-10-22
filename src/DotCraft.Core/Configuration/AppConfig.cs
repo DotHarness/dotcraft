@@ -88,6 +88,9 @@ public sealed partial class AppConfig
     [ConfigField(Min = 0, Hint = "bytes; 0 = disable project AGENTS.md files", Reload = ReloadBehavior.Hot, HasReload = true)]
     public int ProjectDocMaxBytes { get; set; } = 32768;
 
+    [ConfigField(Hint = "Text the agent ends its git commit messages with. Empty = no attribution.", Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.ThreadAgents)]
+    public string CommitAttribution { get; set; } = "Co-authored-by: DotCraft <273930855+dotcraft-ai@users.noreply.github.com>";
+
     /// <summary>
     /// Context compaction pipeline settings: cold-cache microcompact,
     /// partial-summary, and reactive-retry configuration consumed by

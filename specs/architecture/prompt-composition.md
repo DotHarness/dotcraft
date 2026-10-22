@@ -44,7 +44,7 @@ Ordinary generated agents build base instructions from stable sections in this o
 
 | Order | Section | Notes |
 |-------|---------|-------|
-| 1 | Core identity and workspace | Product identity, workspace, environment, tool-use policy, and attribution rules. |
+| 1 | Core identity and workspace | Product identity, workspace, environment, tool-use policy, and the commit attribution rule, included when `CommitAttribution` is non-empty. |
 | 2 | Available SubAgent profiles | Parent-facing summary for choosing visible SubAgent launch profiles. |
 | 3 | Background tasks and SubAgent delegation | Waiting for commands, SubAgents, and Workflow runs through their task notification, included when `Exec`, `SpawnAgent`, or `Workflow` is available. Delegation guidance follows when `SpawnAgent` is available. |
 | 4 | Working style | Progress updates and collaboration behavior. |

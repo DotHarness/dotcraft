@@ -729,7 +729,8 @@ public sealed class AgentFactory : IAsyncDisposable
                 loggerFactory: _loggerFactory,
                 contributions: ctx.Contributions,
                 skillsPolicy: promptInputs.SkillsPolicy,
-                attachedMemoryStores: ctx.MemoryStores?.Attached);
+                attachedMemoryStores: ctx.MemoryStores?.Attached,
+                commitAttribution: ctx.Config.CommitAttribution);
         }
 
         // Caller-supplied instructions run with no context pipeline at all, contributions included.
