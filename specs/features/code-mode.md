@@ -254,7 +254,7 @@ receives it, so `Promise.all` and `Promise.allSettled` run calls concurrently. A
 snapshot marks as sequential is still serialized by the dispatcher.
 
 A cell ends when its top-level program settles, when `exit()` runs, on timeout, on `CodeModeWait`
-termination, when its Turn ends, or on a limit violation. Nested calls still pending at that point are cancelled and recorded as cancelled.
+termination, when its Turn ends, or on a limit violation. Nested calls still pending at that point are cancelled and recorded as cancelled; an approval they still wait for counts as denied, so approving it later runs nothing.
 
 ## 6. Nested Invocation
 

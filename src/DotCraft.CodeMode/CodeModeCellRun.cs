@@ -181,7 +181,7 @@ internal sealed class CodeModeCellRun(
         try
         {
             ToolExecutionResult result;
-            using (CodeModeApprovalScope.Enter(cell.Approvals))
+            using (CodeModeApprovalScope.Enter(cell.Approvals, _nested.Token))
             {
                 result = await dependencies.Dispatcher.DispatchAsync(
                     dependencies.Snapshot,
@@ -199,7 +199,7 @@ internal sealed class CodeModeCellRun(
 
             call.Status = result.Success
                 ? "completed"
-                : result.Error?.Code == ToolErrorCodes.Cancelled ? "cancelled" : "failed";
+                : result.Error?.Code == ToolErrorCodes.Cancelled || _nested.IsCancellationRequested ? "cancelled" : "failed";
             if (_nested.IsCancellationRequested)
                 return;
             var (value, error) = CodeModeResults.ToScriptValue(tool.Registration, result, _limits.MaxNestedResultBytes);

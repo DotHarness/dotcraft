@@ -8,11 +8,11 @@ namespace DotCraft.CodeMode;
 
 internal static class CodeModeApprovalScope
 {
-    public static IDisposable? Enter(CodeModeApprovals approvals)
+    public static IDisposable? Enter(CodeModeApprovals approvals, CancellationToken cancellation)
     {
         if (ToolHostExecutionScope.Current is not { } host)
             return null;
-        var approval = new DeadlinePausingApprovalService(host.ApprovalService, approvals);
+        var approval = new DeadlinePausingApprovalService(host.ApprovalService, approvals, cancellation);
         var sessionScope = SessionScopedApprovalService.SetOverride(approval);
         var hostScope = ToolHostExecutionScope.Set(host with { ApprovalService = approval });
         return new Scope(hostScope, sessionScope);
@@ -27,7 +27,7 @@ internal static class CodeModeApprovalScope
         }
     }
 
-    private sealed class DeadlinePausingApprovalService(IApprovalService inner, CodeModeApprovals approvals)
+    private sealed class DeadlinePausingApprovalService(IApprovalService inner, CodeModeApprovals approvals, CancellationToken cancellation)
         : IApprovalService, IApprovalServiceDecorator
     {
         public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null) =>
@@ -49,7 +49,11 @@ internal static class CodeModeApprovalScope
             approvals.Begin();
             try
             {
-                return await request().ConfigureAwait(false);
+                return await request().WaitAsync(cancellation).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+            {
+                return false;
             }
             finally
             {
