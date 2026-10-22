@@ -55,6 +55,7 @@ const HAS_DESKTOP_THREAD_TOOLS_DEFAULT: ApiOverrides<Api>['appServer'] = {
 
 export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
   const api = strictApi({
+    titleBarOverlayHeight: 0,
     ...overrides,
     appServer: { ...HAS_DESKTOP_THREAD_TOOLS_DEFAULT, ...overrides.appServer },
     satellites: { ...SATELLITES_DEFAULT, ...overrides.satellites },

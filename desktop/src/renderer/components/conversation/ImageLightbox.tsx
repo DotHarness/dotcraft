@@ -9,16 +9,16 @@ import {
   type PointerEvent as ReactPointerEvent
 } from 'react'
 import { createPortal, flushSync } from 'react-dom'
-import { ChevronDown, ChevronLeft, ChevronRight, Download, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, Minus, Plus, X } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { LayerBoundary } from '../../contexts/LayerContext'
 import { IconButton } from '../ui/IconButton'
-import { Button } from '../ui/Button'
-import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
+import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { resolveGalleryImageSrc, type GalleryImage } from './imagePreview/galleryImages'
 import { downloadImage, imageContextMenuEntries } from './imagePreview/imageActions'
 import {
-  IMAGE_ZOOM_PRESETS,
+  MAX_IMAGE_ZOOM,
+  MIN_IMAGE_ZOOM,
   movedBeyondClickSlop,
   pinchImageZoom,
   stepGalleryIndex,
@@ -55,7 +55,6 @@ export function ImageLightbox({ images: gallery, initialIndex, onClose }: ImageL
   const [overflowing, setOverflowing] = useState(false)
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [panning, setPanning] = useState(false)
-  const [zoomMenu, setZoomMenu] = useState<ContextMenuPosition | null>(null)
   const [imageMenu, setImageMenu] = useState<ContextMenuPosition | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -71,7 +70,7 @@ export function ImageLightbox({ images: gallery, initialIndex, onClose }: ImageL
   const title = image.title?.trim() || t('imagePreview.imageAlt', { index: index + 1 })
   const hasPrevious = stepGalleryIndex(index, -1, gallery.length) != null
   const hasNext = stepGalleryIndex(index, 1, gallery.length) != null
-  const menuOpen = zoomMenu != null || imageMenu != null
+  const menuOpen = imageMenu != null
 
   useEffect(() => {
     setNatural(null)
@@ -287,32 +286,8 @@ export function ImageLightbox({ images: gallery, initialIndex, onClose }: ImageL
     scroller.scrollTop = pan.top - (event.clientY - pan.y)
   }
 
-  const openZoomMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
-    if (zoomMenu) {
-      setZoomMenu(null)
-      return
-    }
-    const rect = event.currentTarget.getBoundingClientRect()
-    setZoomMenu({ x: rect.right - 200, y: rect.bottom + 4 })
-  }
-
-  const zoomMenuItems: ContextMenuEntry[] = [
-    ...IMAGE_ZOOM_PRESETS.map((percent): ContextMenuEntry => ({
-      label: t('imagePreview.zoomPercent', { percent }),
-      selection: 'radio',
-      checked: zoom === percent,
-      onClick: () => applyZoom(percent)
-    })),
-    { type: 'separator' },
-    {
-      label: t('imagePreview.zoomToFit'),
-      selection: 'radio',
-      checked: zoom == null,
-      onClick: () => applyZoom(null)
-    }
-  ]
-
   const canPan = overflowing || spaceHeld
+  const controlsTop = (window.api.platform === 'darwin' ? 0 : window.api.titleBarOverlayHeight) + 12
   const lightbox = (
     <div
       ref={rootRef}
@@ -339,43 +314,30 @@ export function ImageLightbox({ images: gallery, initialIndex, onClose }: ImageL
         if (pressed && !event.defaultPrevented && isBackdropTarget(event)) onClose()
       }}
     >
-      <div role="toolbar" aria-label={t('imagePreview.label')} style={toolbarRowStyle}>
-        <div style={toolbarPillStyle}>
-          <Button
-            variant="ghost"
-            size="toolbar"
-            aria-label={t('imagePreview.currentZoom', { percent: displayedZoom })}
-            aria-haspopup="menu"
-            aria-expanded={zoomMenu != null}
-            onMouseDown={(event) => event.stopPropagation()}
-            onClick={openZoomMenu}
-            style={zoomTriggerStyle}
-          >
-            <span>{t('imagePreview.zoomPercent', { percent: displayedZoom })}</span>
-            <ChevronDown size={14} strokeWidth={2} aria-hidden />
-          </Button>
-          <IconButton
-            size={34}
-            radius={17}
-            label={t('imagePreview.download')}
-            tooltipLabel={t('imagePreview.download')}
-            tooltipPlacement="bottom"
-            onClick={() => { void downloadImage(image, t, locale) }}
-            icon={<Download size={18} strokeWidth={2} aria-hidden />}
-          />
-          <IconButton
-            size={34}
-            radius={17}
-            label={t('imagePreview.close')}
-            tooltipLabel={t('imagePreview.close')}
-            tooltipPlacement="bottom"
-            onClick={onClose}
-            icon={<X size={18} strokeWidth={2} aria-hidden />}
-          />
-        </div>
+      <div role="toolbar" aria-label={t('imagePreview.label')} style={{ ...actionsStyle, top: controlsTop }}>
+        <IconButton
+          size={40}
+          radius={20}
+          label={t('imagePreview.download')}
+          tooltipLabel={t('imagePreview.download')}
+          tooltipPlacement="bottom"
+          onClick={() => { void downloadImage(image, t, locale) }}
+          style={floatingButtonStyle}
+          icon={<Download size={18} strokeWidth={2} aria-hidden />}
+        />
+        <IconButton
+          size={40}
+          radius={20}
+          label={t('imagePreview.close')}
+          tooltipLabel={t('imagePreview.close')}
+          tooltipPlacement="bottom"
+          onClick={onClose}
+          style={floatingButtonStyle}
+          icon={<X size={18} strokeWidth={2} aria-hidden />}
+        />
       </div>
 
-      <div style={bodyStyle}>
+      <div style={{ ...bodyStyle, paddingTop: controlsTop + 48 }}>
         <div style={gutterStyle}>
           {hasPrevious && (
             <IconButton
@@ -454,21 +416,29 @@ export function ImageLightbox({ images: gallery, initialIndex, onClose }: ImageL
       </div>
 
       <div style={footerStyle}>
-        {gallery.length > 1 && (
-          <span role="status" style={counterStyle}>
-            {t('imagePreview.position', { current: index + 1, total: gallery.length })}
-          </span>
-        )}
+        <div role="toolbar" aria-label={t('imagePreview.zoom')} style={zoomPillStyle}>
+          <IconButton
+            size={34}
+            radius={17}
+            label={t('imagePreview.zoomOut')}
+            tooltipLabel={t('imagePreview.zoomOut')}
+            disabled={displayedZoom <= MIN_IMAGE_ZOOM}
+            onClick={() => applyZoom(stepImageZoom(effectiveZoom, -1))}
+            icon={<Minus size={16} strokeWidth={2} aria-hidden />}
+          />
+          <span style={zoomLabelStyle}>{t('imagePreview.zoomPercent', { percent: displayedZoom })}</span>
+          <IconButton
+            size={34}
+            radius={17}
+            label={t('imagePreview.zoomIn')}
+            tooltipLabel={t('imagePreview.zoomIn')}
+            disabled={displayedZoom >= MAX_IMAGE_ZOOM}
+            onClick={() => applyZoom(stepImageZoom(effectiveZoom, 1))}
+            icon={<Plus size={16} strokeWidth={2} aria-hidden />}
+          />
+        </div>
       </div>
 
-      {zoomMenu && (
-        <ContextMenu
-          items={zoomMenuItems}
-          position={zoomMenu}
-          zIndex={LIGHTBOX_MENU_Z_INDEX}
-          onClose={() => setZoomMenu(null)}
-        />
-      )}
       {imageMenu && (
         <ContextMenu
           items={imageContextMenuEntries(image, { t, locale })}
@@ -506,18 +476,26 @@ const overlayStyle: CSSProperties = {
   outline: 'none'
 }
 
-const toolbarRowStyle: CSSProperties = {
+const actionsStyle: CSSProperties = {
+  position: 'absolute',
+  right: 12,
+  zIndex: 1,
   display: 'flex',
-  justifyContent: 'flex-end',
   alignItems: 'center',
-  flexShrink: 0,
-  padding: '14px 14px 8px'
+  gap: 8
 }
 
-const toolbarPillStyle: CSSProperties = {
+const floatingButtonStyle: CSSProperties = {
+  color: 'var(--text-primary)',
+  background: 'var(--bg-elevated)',
+  border: '1px solid var(--glass-border)',
+  boxShadow: 'var(--shadow-level-3)'
+}
+
+const zoomPillStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
-  gap: 4,
+  gap: 2,
   padding: 4,
   borderRadius: 999,
   border: '1px solid var(--glass-border)',
@@ -526,12 +504,13 @@ const toolbarPillStyle: CSSProperties = {
   boxShadow: 'var(--shadow-level-3)'
 }
 
-const zoomTriggerStyle: CSSProperties = {
-  height: 34,
-  borderRadius: 17,
-  gap: 4,
-  padding: '0 10px 0 12px',
-  fontVariantNumeric: 'tabular-nums'
+const zoomLabelStyle: CSSProperties = {
+  minWidth: 64,
+  padding: '0 8px',
+  textAlign: 'center',
+  fontSize: 'var(--type-secondary-size)',
+  fontVariantNumeric: 'tabular-nums',
+  userSelect: 'none'
 }
 
 const bodyStyle: CSSProperties = {
@@ -605,17 +584,5 @@ const footerStyle: CSSProperties = {
   alignItems: 'center',
   flexShrink: 0,
   minHeight: 64,
-  padding: '8px 16px 16px'
-}
-
-const counterStyle: CSSProperties = {
-  padding: '6px 12px',
-  borderRadius: 999,
-  border: '1px solid var(--glass-border)',
-  background: 'var(--bg-elevated)',
-  color: 'var(--text-primary)',
-  boxShadow: 'var(--shadow-level-3)',
-  fontSize: 'var(--type-secondary-size)',
-  fontVariantNumeric: 'tabular-nums',
-  userSelect: 'none'
+  padding: '8px 16px 20px'
 }

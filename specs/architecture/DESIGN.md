@@ -1514,8 +1514,9 @@ The answer sits 8px from the surrounding Markdown and spans the column width.
 
 Generated, attached, and tool output images open in one fullscreen preview over a
 dark scrim. It pages through every image in the conversation with previous/next
-buttons in side gutters, arrow keys, and an "n of total" counter below. It opens at
-Zoom to fit; the top-right toolbar holds a zoom menu, Download, and Close.
+buttons in side gutters and arrow keys. It opens at Zoom to fit. Download and Close
+are separate round buttons at the top right, below the Windows caption buttons; a
+bottom pill holds zoom out, the current percent as plain text, and zoom in.
 Ctrl/⌘ + wheel and pinch zoom between 10% and 400% around the pointer, dragging
 pans a large image, and `+`, `-`, `0` zoom in, out, and to fit. `Esc` or a scrim
 click closes it; a press that moves more than 5px is a drag, not a close.

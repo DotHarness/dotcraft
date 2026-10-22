@@ -1,6 +1,5 @@
-export const IMAGE_ZOOM_PRESETS = [25, 50, 100, 150, 200] as const
-const MIN_IMAGE_ZOOM = 10
-const MAX_IMAGE_ZOOM = 400
+export const MIN_IMAGE_ZOOM = 10
+export const MAX_IMAGE_ZOOM = 400
 const BACKDROP_CLICK_SLOP_PX = 5
 const WHEEL_ZOOM_SENSITIVITY = 0.01
 const KEYBOARD_ZOOM_FACTOR = 1.25
