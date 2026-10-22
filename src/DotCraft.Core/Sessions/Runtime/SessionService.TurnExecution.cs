@@ -247,7 +247,6 @@ public sealed partial class SessionService
                 };
 
                 turn.Items.Add(item);
-                thread.LastActiveAt = now;
                 await PersistTurnItemsAsync(thread, turn, materialize: true, CancellationToken.None);
                 eventChannel.EmitItemStarted(item);
                 eventChannel.EmitItemCompleted(item);
@@ -277,7 +276,6 @@ public sealed partial class SessionService
                 };
 
                 turn.Items.Add(item);
-                thread.LastActiveAt = startedAt;
                 await PersistTurnItemsAsync(thread, turn, materialize: true, CancellationToken.None);
                 eventChannel.EmitItemStarted(item);
 
@@ -377,7 +375,6 @@ public sealed partial class SessionService
                     ActualDurationMs = actualDurationMs,
                     Status = status
                 };
-                thread.LastActiveAt = item.CompletedAt.Value;
                 await PersistTurnItemsAsync(thread, turn, materialize: true, CancellationToken.None);
                 eventChannel.EmitItemCompleted(item);
                 return new UserCoordinationSleepResult(actualDurationMs, status);

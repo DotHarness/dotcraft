@@ -70,7 +70,6 @@ public sealed partial class SessionService
                 var queue = thread.QueuedInputs.ToList();
                 queue.Add(queued);
                 thread.QueuedInputs = queue;
-                thread.LastActiveAt = DateTimeOffset.UtcNow;
                 await owner.PersistThreadChangesAsync(thread, [RolloutChangeRecords.QueuedInputAdded(threadId, queued)], ct);
                 queueSnapshot = queue.ToList();
             }
@@ -145,7 +144,6 @@ public sealed partial class SessionService
                 };
                 queue.Add(steered);
                 thread.QueuedInputs = queue;
-                thread.LastActiveAt = DateTimeOffset.UtcNow;
                 await owner.PersistThreadChangesAsync(thread, [RolloutChangeRecords.QueuedInputAdded(threadId, steered)], ct);
                 queueSnapshot = queue.ToList();
             }

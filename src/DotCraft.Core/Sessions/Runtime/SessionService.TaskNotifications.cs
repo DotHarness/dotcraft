@@ -75,7 +75,6 @@ public sealed partial class SessionService : IBackgroundTaskNotifications
             var queue = thread.QueuedInputs.ToList();
             queue.Add(queued);
             thread.QueuedInputs = queue;
-            thread.LastActiveAt = DateTimeOffset.UtcNow;
             await PersistThreadChangesAsync(thread, [RolloutChangeRecords.QueuedInputAdded(thread.Id, queued)], ct).ConfigureAwait(false);
             queueSnapshot = queue.ToList();
         }
