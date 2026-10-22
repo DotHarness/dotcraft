@@ -555,7 +555,10 @@ public sealed partial class ThreadStore : IAsyncDisposable
                 foreach (var path in paths)
                 {
                     ct.ThrowIfCancellationRequested();
-                    var length = new FileInfo(path).Length;
+                    var file = new FileInfo(path);
+                    if (!file.Exists)
+                        continue;
+                    var length = file.Length;
                     var threadId = Path.GetFileNameWithoutExtension(path);
                     if (projectionStates.TryGetValue(threadId, out var state)
                         && string.Equals(Path.GetFullPath(state.RolloutPath), path, StringComparison.OrdinalIgnoreCase)
@@ -569,6 +572,10 @@ public sealed partial class ThreadStore : IAsyncDisposable
                     try
                     {
                         thread = await _rolloutStore.LoadThreadFromPathAsync(path, ct);
+                    }
+                    catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+                    {
+                        continue;
                     }
                     catch (Exception ex) when (ex is JsonException or IOException or NotSupportedException)
                     {
