@@ -483,6 +483,8 @@ WaitingApproval/WaitingInput ──────────► Cancelled
 
 On the first load of a persisted Thread into a new process, a Turn still `Running`, `WaitingApproval`, or `WaitingInput` has no execution owner and is treated as interrupted. Before the load returns, Session Core sets it to `Cancelled`, sets `CompletedAt`, and commits the terminal Turn with its completed model-visible history. Existing Items, usage, and error data are preserved; no error, response, approval, or user-input Item is synthesized. The commit must succeed before the Thread is registered or `turn/cancelled` is published; a commit failure fails the load and nothing is cached. Session Core then publishes exactly one `turn/cancelled` with reason `"interrupted"`, and the Turn's unresolved requests are no longer replayed. This reconciliation happens only at the cold-load boundary; a Thread already registered in the process is never reconciled by load, resume, or read. Until then, reads of an unloaded Thread report such a Turn as `Cancelled` and its runtime as idle without persisting the change; observing a Thread's events never loads it.
 
+A loaded Thread is unloaded after 30 minutes without events or subscription changes when no connection subscribes to it, no Turn or maintenance is active, no goal continuation is starting, and no App Binding MCP session is attached. Ephemeral and not-yet-persisted Threads are never unloaded. Unloading drops the process-local runtime (agent, Thread MCP connections, tool snapshot); the next operation that needs the Thread loads it again exactly as after a restart. Event subscriptions survive unloading, and an operation that races an unload runs on the reloaded Thread.
+
 ### 5.3 Item Lifecycle
 
 ```

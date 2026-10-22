@@ -56,6 +56,9 @@ internal sealed class ThreadManager
     public bool TryRemove(string threadId, out ThreadRuntime runtime) =>
         _runtimes.TryRemove(threadId, out runtime!);
 
+    public bool TryRemove(ThreadRuntime runtime) =>
+        _runtimes.TryRemove(new KeyValuePair<string, ThreadRuntime>(runtime.Thread.Id, runtime));
+
     public void ForgetBroker(string threadId) => _brokers.TryRemove(threadId, out _);
 
     public void MarkPendingPermanentDeletion(string threadId) =>
@@ -81,6 +84,7 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
     private readonly ConcurrentDictionary<string, byte> _goalBudgetLimitReported = new(StringComparer.Ordinal);
     private long _toolSnapshotRevision;
     private int _toolSnapshotDirty = 1;
+    private long _lastAccessTicks = DateTimeOffset.UtcNow.UtcTicks;
 
     public SessionThread Thread { get; set; } = thread;
 
@@ -149,6 +153,12 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
 
     public bool TryClearMaintenance(ThreadMaintenanceState state) =>
         Interlocked.CompareExchange(ref _maintenance, null, state) == state;
+
+    public DateTimeOffset LastAccessAt => new(Interlocked.Read(ref _lastAccessTicks), TimeSpan.Zero);
+
+    public void Touch() => Interlocked.Exchange(ref _lastAccessTicks, DateTimeOffset.UtcNow.UtcTicks);
+
+    public bool GoalContinuationStarting => Volatile.Read(ref _goalContinuationStarting) != 0;
 
     public bool TryStartGoalContinuation() =>
         Interlocked.CompareExchange(ref _goalContinuationStarting, 1, 0) == 0;

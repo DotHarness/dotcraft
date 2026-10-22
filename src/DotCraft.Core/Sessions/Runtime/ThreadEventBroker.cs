@@ -14,6 +14,13 @@ internal sealed class ThreadEventBroker(string threadId)
     private readonly Queue<SessionEvent> _recentEvents = [];
     private long _subscriberSequence;
     private int _eventSequence;
+    private long _lastActivityTicks = DateTimeOffset.UtcNow.UtcTicks;
+
+    public bool HasSubscribers => !_subscribers.IsEmpty;
+
+    public DateTimeOffset LastActivityAt => new(Interlocked.Read(ref _lastActivityTicks), TimeSpan.Zero);
+
+    private void MarkActivity() => Interlocked.Exchange(ref _lastActivityTicks, DateTimeOffset.UtcNow.UtcTicks);
 
     private const int ReplayBufferSize = 32;
 
@@ -255,6 +262,7 @@ internal sealed class ThreadEventBroker(string threadId)
             SingleWriter = false
         });
 
+        MarkActivity();
         if (replayRecent)
         {
             lock (_recentEventsLock)
@@ -293,6 +301,7 @@ internal sealed class ThreadEventBroker(string threadId)
 
     private void Publish(SessionEvent evt, bool retainForReplay)
     {
+        MarkActivity();
         lock (_recentEventsLock)
         {
             if (retainForReplay)
@@ -342,6 +351,7 @@ internal sealed class ThreadEventBroker(string threadId)
         {
             _subscribers.TryRemove(subscriberId, out _);
             channel.Writer.TryComplete();
+            MarkActivity();
         }
     }
 }

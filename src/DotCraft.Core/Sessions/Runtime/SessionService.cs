@@ -1318,8 +1318,11 @@ public sealed partial class SessionService(
         if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
             throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
 
-        if (_runtimeRegistry.TryGetThread(threadId, out var cached))
-            return cached;
+        if (_runtimeRegistry.TryGetRuntime(threadId, out var current))
+        {
+            current.Touch();
+            return current.Thread;
+        }
 
         var loadGate = AddThreadLoadGateReference(threadId);
         var gateAcquired = false;
@@ -1331,7 +1334,7 @@ public sealed partial class SessionService(
             if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
                 throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
 
-            if (_runtimeRegistry.TryGetThread(threadId, out cached))
+            if (_runtimeRegistry.TryGetThread(threadId, out var cached))
                 return cached;
 
             var thread = await persistence.LoadThreadAsync(threadId, ct)
@@ -1380,26 +1383,42 @@ public sealed partial class SessionService(
         }
     }
 
-    private async Task InvokeThreadCommandAsync(
+    private Task InvokeThreadCommandAsync(
         string threadId,
         Func<CancellationToken, Task> action,
-        CancellationToken ct)
-    {
-        await GetOrLoadThreadAsync(threadId, ct).ConfigureAwait(false);
-        if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
-            throw new InvalidOperationException($"Thread '{threadId}' has no active runtime.");
-        await runtime.Commands.InvokeAsync(action, ct).ConfigureAwait(false);
-    }
+        CancellationToken ct) =>
+        InvokeThreadCommandAsync<object?>(
+            threadId,
+            async commandCt =>
+            {
+                await action(commandCt).ConfigureAwait(false);
+                return null;
+            },
+            ct);
 
     private async Task<TResult> InvokeThreadCommandAsync<TResult>(
         string threadId,
         Func<CancellationToken, Task<TResult>> action,
         CancellationToken ct)
     {
-        await GetOrLoadThreadAsync(threadId, ct).ConfigureAwait(false);
-        if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
-            throw new InvalidOperationException($"Thread '{threadId}' has no active runtime.");
-        return await runtime.Commands.InvokeAsync(action, ct).ConfigureAwait(false);
+        for (var attempt = 0; ; attempt++)
+        {
+            await GetOrLoadThreadAsync(threadId, ct).ConfigureAwait(false);
+            if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            {
+                if (attempt == 0)
+                    continue;
+                throw new InvalidOperationException($"Thread '{threadId}' has no active runtime.");
+            }
+
+            try
+            {
+                return await runtime.Commands.InvokeAsync(action, ct).ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException) when (attempt == 0 && runtime.Commands.IsClosed)
+            {
+            }
+        }
     }
 
     private async Task<IDisposable> AcquireThreadQueueLockAsync(string threadId, CancellationToken ct)
