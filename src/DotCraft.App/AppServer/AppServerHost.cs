@@ -860,7 +860,10 @@ public sealed class AppServerHost(
             }
             catch (AppServerException ex)
             {
-                logger.LogWarning(ex, "AppServer request failed with a protocol error");
+                if (ex.Code == AppServerErrors.InternalErrorCode)
+                    logger.LogWarning(ex, "AppServer request failed with a protocol error");
+                else
+                    logger.LogDebug("AppServer request returned protocol error {ErrorCode}: {ErrorMessage}", ex.Code, ex.Message);
                 await transport.WriteMessageAsync(AppServerRequestHandler.BuildErrorResponse(msg.Id, ex.ToError()), ct);
                 return;
             }
