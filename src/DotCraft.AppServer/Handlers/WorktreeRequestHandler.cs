@@ -135,17 +135,41 @@ internal sealed class WorktreeRequestHandler(
         if (string.IsNullOrWhiteSpace(threadId))
             throw AppServerErrors.InvalidParams("'threadId' is required.");
 
-        var result = await sessionService.HandoffThreadWorktreeAsync(
-            new WorktreeHandoffOptions
-            {
-                ThreadId = threadId,
-                Mode = ValueOrDefault(p.Mode) ?? WorktreeHandoffModes.Worktree,
-                BranchName = ValueOrDefault(p.BranchName),
-                BaseRef = ValueOrDefault(p.BaseRef),
-                Path = ValueOrDefault(p.Path),
-                CopyDirtyChanges = ValueOrDefault(p.CopyDirtyChanges) ?? true
-            },
-            ct);
+        var transport = AppServerRequestContext.CurrentTransport;
+        var operationId = ValueOrDefault(p.OperationId);
+        var notifications = Task.CompletedTask;
+        WorktreeHandoffResult result;
+        try
+        {
+            result = await sessionService.HandoffThreadWorktreeAsync(
+                new WorktreeHandoffOptions
+                {
+                    ThreadId = threadId,
+                    Mode = ValueOrDefault(p.Mode) ?? WorktreeHandoffModes.Worktree,
+                    BranchName = ValueOrDefault(p.BranchName),
+                    BaseRef = ValueOrDefault(p.BaseRef),
+                    Path = ValueOrDefault(p.Path),
+                    CopyDirtyChanges = ValueOrDefault(p.CopyDirtyChanges) ?? true,
+                    Progress = transport == null
+                        ? null
+                        : (step, status) => notifications = notifications.ContinueWith(
+                            _ => transport.NotifyContractAsync(
+                                Contract.AppServerRpc.ThreadWorktreeHandoffProgress,
+                                new Contract.ThreadWorktreeHandoffProgressNotification
+                                {
+                                    ThreadId = threadId,
+                                    OperationId = operationId,
+                                    Step = step,
+                                    Status = status
+                                }),
+                            TaskScheduler.Default).Unwrap()
+                },
+                ct);
+        }
+        finally
+        {
+            await notifications.ConfigureAwait(false);
+        }
 
         var thread = result.Thread;
         var wire = await projectThreadAsync(thread, false, false, ct);

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type JSX } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowRightLeft, Check } from 'lucide-react'
+import { ArrowRightLeft, Check, CheckCircle2, XCircle } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
+import { Select } from '../ui/Select'
 import { useT } from '../../contexts/LocaleContext'
 import { readAppServerErrorFields } from '../../../shared/appServerError'
 import { useThreadStore } from '../../stores/threadStore'
@@ -13,6 +14,19 @@ import { Input } from '../ui/Input'
 
 type HandoffMode = 'local' | 'worktree'
 type DialogPhase = 'confirm' | 'running' | 'success' | 'error'
+type StepStatus = 'started' | 'completed' | 'skipped' | 'failed'
+
+const NEW_WORKTREE = ''
+
+interface HandoffStep {
+  step: string
+  status: StepStatus
+}
+
+interface UnboundWorktree {
+  path: string
+  branchName: string
+}
 
 interface HandoffSuccessView {
   title: string
@@ -67,7 +81,11 @@ export function WorktreeHandoffDialog({
   const [conflictPaths, setConflictPaths] = useState<string[]>([])
   const [successView, setSuccessView] = useState<HandoffSuccessView | null>(null)
   const [dismissed, setDismissed] = useState(false)
+  const [steps, setSteps] = useState<HandoffStep[]>([])
+  const [unboundWorktrees, setUnboundWorktrees] = useState<UnboundWorktree[]>([])
+  const [targetPath, setTargetPath] = useState(NEW_WORKTREE)
   const dismissedRef = useRef(false)
+  const operationIdRef = useRef<string | null>(null)
   const worktreeBranch = thread.worktree?.branchName?.trim() || baseRef || t('workspaceFooter.branchUnknown')
   const targetWorkspace = workspaceName(localWorkspacePath)
   const branchError = mode === 'worktree' ? branchNameError(branchDraft, t) : null
@@ -86,6 +104,33 @@ export function WorktreeHandoffDialog({
       : (phase === 'running'
           ? t('workspaceFooter.handoffLocalRunningDescription')
           : t('workspaceFooter.handoffLocalDescription'))
+
+  useEffect(() => {
+    if (mode !== 'worktree') return
+    let cancelled = false
+    void window.api.appServer.sendRequest('worktree/list', {})
+      .then((result) => {
+        if (cancelled) return
+        const data = (result as { data?: Array<{ threadId?: string | null; path: string; branchName: string; exists?: boolean }> }).data ?? []
+        setUnboundWorktrees(data
+          .filter((entry) => !entry.threadId && entry.exists !== false)
+          .map((entry) => ({ path: entry.path, branchName: entry.branchName })))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [mode])
+
+  useEffect(() => {
+    return window.api.appServer.onNotification((payload) => {
+      const { method, params } = payload as { method: string; params?: { operationId?: string | null; step?: string; status?: StepStatus } }
+      if (method !== 'thread/worktree/handoffProgress' || !params?.step || !params.status) return
+      if (!operationIdRef.current || params.operationId !== operationIdRef.current) return
+      const update = { step: params.step, status: params.status }
+      setSteps((current) => current.some((entry) => entry.step === update.step)
+        ? current.map((entry) => entry.step === update.step ? update : entry)
+        : [...current, update])
+    })
+  }, [])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -155,6 +200,8 @@ export function WorktreeHandoffDialog({
     setErrorText(null)
     setConflictPaths([])
     setSuccessView(null)
+    setSteps([])
+    operationIdRef.current = `handoff-${thread.id}-${Date.now()}`
     setPhase('running')
     onBusyChange?.(true)
 
@@ -163,13 +210,16 @@ export function WorktreeHandoffDialog({
         ? {
             threadId: thread.id,
             mode,
-            branchName: branch || undefined,
-            baseRef: baseRef || undefined,
+            operationId: operationIdRef.current,
+            ...(targetPath
+              ? { path: targetPath }
+              : { branchName: branch || undefined, baseRef: baseRef || undefined }),
             copyDirtyChanges: true
           }
         : {
             threadId: thread.id,
-            mode
+            mode,
+            operationId: operationIdRef.current
           }
       const result = await window.api.appServer.sendRequest(
         'thread/worktree/handoff',
@@ -247,21 +297,55 @@ export function WorktreeHandoffDialog({
         <p style={descriptionStyle}>{description}</p>
 
         {phase === 'success' ? null : phase === 'running' ? (
-          <div role="status" style={busyStyle}>
-            <Spinner size={20} />
+          <div role="status" style={stepsStyle}>
+            {steps.filter((entry) => entry.status !== 'skipped').map((entry) => (
+              <div key={entry.step} style={stepStyle}>
+                {entry.status === 'completed' ? (
+                  <CheckCircle2 size={18} strokeWidth={1.8} aria-hidden />
+                ) : entry.status === 'failed' ? (
+                  <XCircle size={18} strokeWidth={1.8} aria-hidden style={{ color: 'var(--error)' }} />
+                ) : (
+                  <Spinner size={18} />
+                )}
+                <span>{t(`workspaceFooter.handoffStep.${entry.step}`, { branch: mode === 'local' ? worktreeBranch : '' })}</span>
+              </div>
+            ))}
+            {steps.length === 0 && <Spinner size={20} />}
           </div>
         ) : (
           <>
             {mode === 'worktree' ? (
-              <label style={fieldStyle}>
-                <span>{t('workspaceFooter.branchName')}</span>
-                <Input
-                  value={branchDraft}
-                  autoFocus
-                  placeholder={t('workspaceFooter.branchNameAutomatic')}
-                  onChange={(event) => setBranchDraft(event.target.value)}
-                />
-              </label>
+              <>
+                {unboundWorktrees.length > 0 && (
+                  <label style={fieldStyle}>
+                    <span>{t('workspaceFooter.handoffTarget')}</span>
+                    <Select
+                      value={targetPath}
+                      ariaLabel={t('workspaceFooter.handoffTarget')}
+                      onValueChange={setTargetPath}
+                      options={[
+                        { value: NEW_WORKTREE, label: t('workspaceFooter.handoffTargetNew') },
+                        ...unboundWorktrees.map((entry) => ({
+                          value: entry.path,
+                          label: entry.branchName,
+                          description: t('workspaceFooter.handoffTargetExisting')
+                        }))
+                      ]}
+                    />
+                  </label>
+                )}
+                {!targetPath && (
+                  <label style={fieldStyle}>
+                    <span>{t('workspaceFooter.branchName')}</span>
+                    <Input
+                      value={branchDraft}
+                      autoFocus
+                      placeholder={t('workspaceFooter.branchNameAutomatic')}
+                      onChange={(event) => setBranchDraft(event.target.value)}
+                    />
+                  </label>
+                )}
+              </>
             ) : (
               <div style={localSummaryStyle}>
                 <span style={summaryLabelStyle}>{t('workspaceFooter.handoffLocalBranch')}</span>
@@ -381,13 +465,23 @@ const fieldStyle: CSSProperties = {
   gap: '9px',
   color: 'var(--text-primary)',
   fontSize: '13px',
-  fontWeight: 600
+  fontWeight: 600,
+  marginBottom: '12px'
 }
 
-const busyStyle: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'center',
+const stepsStyle: CSSProperties = {
+  display: 'grid',
+  gap: '14px',
   marginTop: '8px'
+}
+
+const stepStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '12px',
+  fontSize: '14px',
+  lineHeight: 1.4,
+  color: 'var(--text-primary)'
 }
 
 const localSummaryStyle: CSSProperties = {

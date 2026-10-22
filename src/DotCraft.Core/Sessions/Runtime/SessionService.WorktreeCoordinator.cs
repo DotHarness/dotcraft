@@ -175,22 +175,40 @@ public sealed partial class SessionService
                     }
 
                     var sourceExecutionWorkspace = ResolveEffectiveWorkspacePath(thread);
-                    var worktree = await ThreadWorktreeManager.CreateAsync(
-                        thread,
-                        sourceExecutionWorkspace,
-                        owner.DataPath,
-                        options,
-                        owner.WorktreeBranchPrefix,
-                        owner.Logger,
-                        ct);
+                    var target = await FindUnboundAsync(options.Path, ct);
+                    ThreadWorktreeInfo worktree;
+                    if (target != null)
+                    {
+                        worktree = await ThreadWorktreeManager.MoveIntoExistingAsync(
+                            thread,
+                            sourceExecutionWorkspace,
+                            owner.DataPath,
+                            target,
+                            options.CopyDirtyChanges,
+                            options.Progress,
+                            owner.Logger,
+                            ct);
+                    }
+                    else
+                    {
+                        options.Progress?.Invoke(WorktreeHandoffSteps.ReuseWorktree, WorktreeHandoffStepStatuses.Skipped);
+                        options.Progress?.Invoke(WorktreeHandoffSteps.StashTargetChanges, WorktreeHandoffStepStatuses.Skipped);
+                        worktree = await ThreadWorktreeManager.CreateAsync(
+                            thread,
+                            sourceExecutionWorkspace,
+                            owner.DataPath,
+                            options,
+                            owner.WorktreeBranchPrefix,
+                            owner.Logger,
+                            ct);
+                    }
 
                     thread.Configuration ??= owner.CaptureThreadConfigurationForNewThread(null);
                     thread.Configuration.ExecutionWorkspaceOverride = worktree.Path;
                     thread.Worktree = worktree;
                     thread.LastActiveAt = DateTimeOffset.UtcNow;
 
-                    await owner.RebuildAgentAndPersistThreadAsync(thread, ct);
-                    owner.ThreadUpdatedForBroadcast?.Invoke(thread);
+                    await MoveThreadAsync(thread, options.Progress, ct);
                     return new WorktreeHandoffResult
                     {
                         Thread = thread,
@@ -219,6 +237,7 @@ public sealed partial class SessionService
                     currentWorktree,
                     localWorkspace,
                     owner.DataPath,
+                    options.Progress,
                     ct,
                     owner.Logger);
 
@@ -227,8 +246,7 @@ public sealed partial class SessionService
                 thread.Worktree = null;
                 thread.LastActiveAt = DateTimeOffset.UtcNow;
 
-                await owner.RebuildAgentAndPersistThreadAsync(thread, ct);
-                owner.ThreadUpdatedForBroadcast?.Invoke(thread);
+                await MoveThreadAsync(thread, options.Progress, ct);
                 return new WorktreeHandoffResult
                 {
                     Thread = thread,
@@ -595,6 +613,25 @@ public sealed partial class SessionService
                 await ThreadWorktreeManager.CheckOutAgainAsync(worktree, owner.DataPath, ct, owner.Logger);
         }
 
+        private async Task MoveThreadAsync(SessionThread thread, Action<string, string>? progress, CancellationToken ct)
+        {
+            progress?.Invoke(WorktreeHandoffSteps.MoveThread, WorktreeHandoffStepStatuses.Started);
+            await owner.RebuildAgentAndPersistThreadAsync(thread, ct);
+            owner.ThreadUpdatedForBroadcast?.Invoke(thread);
+            progress?.Invoke(WorktreeHandoffSteps.MoveThread, WorktreeHandoffStepStatuses.Completed);
+        }
+
+        private async Task<ThreadWorktreeStatus?> FindUnboundAsync(string? path, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return null;
+            var fullPath = Path.GetFullPath(path);
+            return (await ListAsync(ct)).FirstOrDefault(entry =>
+                entry.ThreadId == null
+                && entry is { Exists: true, IsGitWorktree: true }
+                && string.Equals(Path.GetFullPath(entry.Path), fullPath, StringComparison.OrdinalIgnoreCase));
+        }
+
         private async Task<bool> HasRunningTerminalInAsync(string threadId, string worktreePath, CancellationToken ct)
         {
             if (owner.BackgroundTerminalService is not { } terminals)
@@ -741,6 +778,8 @@ public sealed partial class SessionService
                 throw new InvalidOperationException($"Thread '{thread.Id}' is not Active (current status: {thread.Status}). Cannot handoff worktree.");
             if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
                 throw new InvalidOperationException($"Thread '{thread.Id}' has a running Turn. Wait for it to complete or cancel it first.");
+            if (thread.QueuedInputs.Count > 0)
+                throw new InvalidOperationException("Send or remove the queued messages before handing off this thread.");
         }
     }
 }

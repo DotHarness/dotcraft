@@ -492,6 +492,7 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
                 thread.Worktree,
                 thread.Configuration?.WorkspaceOverride ?? thread.WorkspacePath,
                 _store.DataPath,
+                options.Progress,
                 ct);
         }
 

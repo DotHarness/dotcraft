@@ -14,8 +14,10 @@ To branch off an existing conversation instead, use **Fork into new worktree** f
 
 Open the location control under the composer of an idle conversation:
 
-- **Handoff to worktree** moves the conversation into a new worktree. Its uncommitted changes go with it, so your checkout is clean afterwards. Leave the branch name empty to let DotCraft name it.
-- **Handoff to branch** brings the conversation back. Your checkout switches to the worktree's branch, the worktree's uncommitted changes are applied there, and the worktree is removed. If your checkout has its own changes to the same files, the dialog lists them and nothing moves until you commit or stash them.
+- **Handoff to worktree** moves the conversation into a new worktree, or into an existing one no other conversation uses, which keeps its branch. Its uncommitted changes go with it, so your checkout is clean afterwards. Leave the branch name empty to let DotCraft name it.
+- **Handoff to branch** brings the conversation back. Your checkout switches to the worktree's branch, the worktree's uncommitted changes are applied there, and the worktree is removed. Your checkout needs to be clean first: if it has uncommitted changes, the dialog lists them and nothing moves until you commit or stash them.
+
+The dialog shows each step as it runs. Handoff waits until the conversation is idle and has no queued messages.
 
 You can also ask the agent to work in a worktree, for example "do this in a worktree". It moves itself in, carries on in the same turn, and moves back when you ask; it never carries changes into your checkout on its own.
 

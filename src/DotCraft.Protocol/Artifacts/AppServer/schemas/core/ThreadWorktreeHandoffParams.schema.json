@@ -37,6 +37,16 @@
     "mode": {
       "type": "string"
     },
+    "operationId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "path": {
       "anyOf": [
         {

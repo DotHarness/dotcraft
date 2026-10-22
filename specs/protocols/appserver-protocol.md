@@ -539,12 +539,13 @@ Create a worktree, then start a new empty thread in it. Accepts `identity` (requ
 
 #### 4.17.3 `thread/worktree/handoff`
 
-Move an existing thread between its local workspace and a managed worktree without changing its id. Params: `threadId`, `mode` (`"worktree"`: local → worktree; `"local"`: worktree → local), and the creation fields. Result: `{ thread, mode, worktree?, dirtyHandoff? }`.
+Move an existing thread between its local workspace and a managed worktree without changing its id. Params: `threadId`, `mode` (`"worktree"`: local → worktree; `"local"`: worktree → local), the creation fields, and an optional client-chosen `operationId`. Result: `{ thread, mode, worktree?, dirtyHandoff? }`.
 
-- The thread must be Active with no running turn, pending approval/input, or blocking maintenance.
-- Local → worktree creates a managed worktree, moves uncommitted changes into it by default (the local checkout is left without them), and sets `thread.worktree` and `executionWorkspaceOverride`.
-- Worktree → local fails with `WorktreeHandoffConflict` and `params.conflictPaths` when local dirty paths would be overwritten. Otherwise it checks the worktree's branch out in the local checkout, applies the worktree's uncommitted changes there, clears `thread.worktree` and `executionWorkspaceOverride`, and removes the managed worktree. The local checkout stays on that branch.
-- On success the server emits `thread/updated`.
+- The thread must be Active with no running turn, pending approval/input, queued input, or blocking maintenance.
+- Local → worktree moves uncommitted changes by default (the local checkout is left without them) and sets `thread.worktree` and `executionWorkspaceOverride`. A `path` naming a managed worktree no thread is bound to reuses it on its own branch: its own uncommitted changes are stashed and kept, and `dirtyHandoff.targetStashed` is `true`. Any other `path`, or none, creates a managed worktree.
+- Worktree → local fails with `WorktreeHandoffConflict` and `params.conflictPaths` listing the local uncommitted paths when the local checkout has any uncommitted change or its state cannot be read. Otherwise it checks the worktree's branch out in the local checkout, applies the worktree's uncommitted changes there, clears `thread.worktree` and `executionWorkspaceOverride`, and removes the managed worktree. The local checkout stays on that branch.
+- A failed step undoes the earlier ones, restoring both checkouts and their changes.
+- While the handoff runs, the server emits `thread/worktree/handoffProgress` for each step. On success it emits `thread/updated`.
 
 #### 4.17.4 `worktree/list`
 
@@ -715,6 +716,7 @@ A thread is **hidden** when it is ephemeral or internal (DotCraft-owned helper t
 | Notification | Params | Semantics |
 |--------------|--------|-----------|
 | `thread/started` | `{ thread }` | A thread was created. Sent to the initiating client after `thread/start` and broadcast to connections when any channel in the process creates one, including the connection whose other request (such as an extension request) created it as a side effect. SubAgent child creation is broadcast so lists can show the child while the parent turn runs. |
+| `thread/worktree/handoffProgress` | `{ threadId, operationId?, step, status }` | A `thread/worktree/handoff` step changed state. `step` is `createWorktree`, `reuseWorktree`, `stashSourceChanges`, `stashTargetChanges`, `detachWorktreeBranch`, `checkoutLocalBranch`, `applyChanges`, `moveThread`, or `rollback`; `status` is `started`, `completed`, `skipped`, or `failed`. Steps that do not apply report `skipped`. |
 | `thread/updated` | `{ thread }` | Compact metadata changed without create, delete, rename, or status change (for example after `thread/worktree/handoff`, `thread/config/update`, or a Turn start that changed `gitInfo`). The payload may omit history; clients merge it rather than treating omitted history as deleted. |
 | `thread/renamed` | `{ threadId, displayName }` | Display name changed by `thread/rename` or automatic naming. Broadcast to all connections; duplicate deliveries are allowed. |
 | `thread/deleted` | `{ threadId }` | Thread permanently deleted. Broadcast to all connections, including the initiator, regardless of which entry point removed it; no subscription required; may precede or follow the RPC response. Duplicates are ignored. |

@@ -104,7 +104,8 @@ internal static class WorktreeContractMapper
         Requested = value.Requested,
         Status = value.Status,
         CopiedFileCount = value.CopiedFileCount,
-        DeletedFileCount = value.DeletedFileCount
+        DeletedFileCount = value.DeletedFileCount,
+        TargetStashed = value.TargetStashed
     };
 
     public static Contract.ThreadWorktreeStatus ToContract(Domain.ThreadWorktreeStatus value) => new()

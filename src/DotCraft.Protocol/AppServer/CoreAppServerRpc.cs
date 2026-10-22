@@ -314,6 +314,8 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<WorktreeStatusParams, WorktreeStatusResult> WorktreeStatus = new("worktree/status", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: CommonErrors);
 
+    public static readonly RpcNotification<ThreadWorktreeHandoffProgressNotification> ThreadWorktreeHandoffProgress = new("thread/worktree/handoffProgress", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "gitWorktrees");
+
     public static readonly RpcRequest<WorktreeRemoveParams, WorktreeRemoveResult> WorktreeRemove = new("worktree/remove", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "workspace", errors: CommonErrors);
 
 }

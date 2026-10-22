@@ -47,6 +47,30 @@ public sealed record ThreadWorktreeDirtyHandoffInfo
     public int CopiedFileCount { get; init; }
 
     public int DeletedFileCount { get; init; }
+
+    /// <summary>Whether an existing target worktree's own uncommitted changes were stashed and kept.</summary>
+    public bool TargetStashed { get; init; }
+}
+
+public static class WorktreeHandoffSteps
+{
+    public const string CreateWorktree = "createWorktree";
+    public const string ReuseWorktree = "reuseWorktree";
+    public const string StashSourceChanges = "stashSourceChanges";
+    public const string StashTargetChanges = "stashTargetChanges";
+    public const string DetachWorktreeBranch = "detachWorktreeBranch";
+    public const string CheckoutLocalBranch = "checkoutLocalBranch";
+    public const string ApplyChanges = "applyChanges";
+    public const string MoveThread = "moveThread";
+    public const string Rollback = "rollback";
+}
+
+public static class WorktreeHandoffStepStatuses
+{
+    public const string Started = "started";
+    public const string Completed = "completed";
+    public const string Skipped = "skipped";
+    public const string Failed = "failed";
 }
 
 public static class WorktreeDirtyHandoffStatuses
@@ -139,6 +163,9 @@ public sealed record WorktreeHandoffOptions
     public string? Path { get; init; }
 
     public bool CopyDirtyChanges { get; init; } = true;
+
+    /// <summary>Receives each handoff step as it changes state.</summary>
+    public Action<string, string>? Progress { get; init; }
 }
 
 public sealed record WorktreeHandoffResult

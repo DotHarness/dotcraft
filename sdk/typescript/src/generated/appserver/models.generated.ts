@@ -4747,6 +4747,7 @@ export interface ThreadWorktreeDirtyHandoffInfo {
   deletedFileCount?: number;
   requested?: boolean;
   status?: string;
+  targetStashed?: boolean;
   [key: string]: unknown;
 }
 
@@ -4755,7 +4756,16 @@ export interface ThreadWorktreeHandoffParams {
   branchName?: string | null;
   copyDirtyChanges?: boolean | null;
   mode?: string;
+  operationId?: string | null;
   path?: string | null;
+  threadId?: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadWorktreeHandoffProgressNotification {
+  operationId?: string | null;
+  status?: string;
+  step?: string;
   threadId?: string;
   [key: string]: unknown;
 }

@@ -866,17 +866,47 @@ describe('ComposerWorkspaceFooter', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith(
         'thread/worktree/handoff',
-        {
+        expect.objectContaining({
           threadId: 'thread-1',
           mode: 'worktree',
           baseRef: 'main',
-          copyDirtyChanges: true
-        },
+          copyDirtyChanges: true,
+          operationId: expect.any(String)
+        }),
         180_000
       )
     })
     await waitFor(() => {
       expect(useThreadStore.getState().activeThread?.worktree?.branchName).toBe('dotcraft/handoff')
+    })
+  })
+
+  it('hands off into an existing worktree without naming a branch', async () => {
+    const existingPath = 'fixtures\\sample-app\\.craft\\worktrees\\existing'
+    appServerSendRequest.mockImplementation(async (method: string) => method === 'worktree/list'
+      ? { data: [{ threadId: null, path: existingPath, branchName: 'dotcraft/existing', exists: true }] }
+      : { thread: makeWorktreeThread() })
+
+    renderFooter(makeThread(), 'local')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Local' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Handoff to worktree' }))
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Worktree' }))
+    fireEvent.click(await screen.findByRole('option', { name: /dotcraft\/existing/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hand off' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'thread/worktree/handoff',
+        {
+          threadId: 'thread-1',
+          mode: 'worktree',
+          operationId: expect.any(String),
+          path: existingPath,
+          copyDirtyChanges: true
+        },
+        180_000
+      )
     })
   })
 
@@ -903,7 +933,7 @@ describe('ComposerWorkspaceFooter', () => {
     expect(handoffButton).toBeDisabled()
     fireEvent.click(handoffButton)
     fireEvent.keyDown(document, { key: 'Enter' })
-    expect(appServerSendRequest).not.toHaveBeenCalled()
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/worktree/handoff', expect.anything(), expect.anything())
 
     useThreadStore.getState().setActiveThread(idleThread)
     view.rerender(
@@ -924,12 +954,13 @@ describe('ComposerWorkspaceFooter', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith(
         'thread/worktree/handoff',
-        {
+        expect.objectContaining({
           threadId: 'thread-1',
           mode: 'worktree',
           baseRef: 'main',
-          copyDirtyChanges: true
-        },
+          copyDirtyChanges: true,
+          operationId: expect.any(String)
+        }),
         180_000
       )
     })
@@ -955,7 +986,7 @@ describe('ComposerWorkspaceFooter', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Hand off' }))
     fireEvent.keyDown(document, { key: 'Enter' })
-    expect(appServerSendRequest).not.toHaveBeenCalled()
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/worktree/handoff', expect.anything(), expect.anything())
   })
 
   it('sends a local handoff request and stays busy until it settles', async () => {
@@ -983,7 +1014,8 @@ describe('ComposerWorkspaceFooter', () => {
       'thread/worktree/handoff',
       {
         threadId: 'thread-1',
-        mode: 'local'
+        mode: 'local',
+        operationId: expect.any(String)
       },
       180_000
     )

@@ -127,7 +127,9 @@ export function ComposerWorkspaceFooter({
     || Boolean(thread?.runtime?.maintenanceKind)
   const handoffDisabledReason = isThread && threadBusy
     ? t('workspaceFooter.handoffUnavailableDuringConversation')
-    : null
+    : (thread?.queuedInputs?.length ?? 0) > 0
+      ? t('workspaceFooter.handoffUnavailableWithQueuedMessages')
+      : null
   const { foregroundIsChat, selectedProject } = projectChoices
   const branchActionPath = workspacePath.trim()
   const sourceControlEnabled = capabilities?.sourceControlManagement === true

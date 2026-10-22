@@ -138,7 +138,7 @@ Creation:
 Moving a thread:
 
 - Fork and start ([AppServer §4.17](../protocols/appserver-protocol.md#417-worktree-methods)) leave the source thread and its working tree untouched; uncommitted source changes are copied into the worktree when requested.
-- Handoff moves the same thread. Local → worktree moves uncommitted changes when requested: they are applied in the worktree and removed from the source checkout, and a failure restores the source. Worktree → local checks out the worktree's branch in the local checkout, applies the worktree's uncommitted changes there, and removes the worktree; it is refused with the conflicting paths when local uncommitted changes touch the same paths.
+- Handoff moves the same thread and is refused while it has queued input. Local → worktree moves uncommitted changes when requested: they are applied in the worktree and removed from the source checkout. It targets a new worktree or one no thread is bound to; an existing target keeps its branch, and its own uncommitted changes are stashed and kept. Worktree → local requires a clean local checkout: it checks out the worktree's branch there, applies the worktree's uncommitted changes, and removes the worktree. Staged and unstaged versions stay apart, a failed step restores both checkouts, and each step is reported as it runs.
 - The agent may move its own thread with the worktree tools ([Tool Architecture §7.5](tools-architecture.md#75-worktree-tools)). Such a move takes effect for the agent's later tool calls in the same Turn and never moves uncommitted changes.
 
 Lifecycle:

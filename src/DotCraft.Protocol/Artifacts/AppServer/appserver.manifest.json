@@ -23508,6 +23508,13 @@
           "required": false,
           "nullable": false,
           "const": null
+        },
+        {
+          "name": "targetStashed",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
         }
       ],
       "variants": []
@@ -23549,10 +23556,56 @@
           "const": null
         },
         {
+          "name": "operationId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "path",
           "type": "string",
           "required": false,
           "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadWorktreeHandoffProgressNotification",
+      "name": "ThreadWorktreeHandoffProgressNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadWorktreeHandoffProgressNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "operationId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "step",
+          "type": "string",
+          "required": false,
+          "nullable": false,
           "const": null
         },
         {
@@ -33043,6 +33096,22 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "thread/worktree/handoffProgress",
+      "descriptorMember": "ThreadWorktreeHandoffProgress",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.ThreadWorktreeHandoffProgressNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "gitWorktrees",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
