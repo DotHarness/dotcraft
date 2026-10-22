@@ -207,11 +207,11 @@ An approval raised for standard input carries the input as its command and the l
 
 ## 11. Read-only classification
 
-Read-only classification decides whether a command is a non-mutating observation. It is used by Plan mode and by SubAgent roles with `readOnly` shell access. Read-only is a property of the command text under every supported shell, so it does not depend on the host shell:
+Read-only classification decides whether a command is a non-mutating observation. It is used by Plan mode and by SubAgent roles with `readOnly` shell access. It classifies under the grammar of the shell that will run the command:
 
 1. Any shell selector is denied; the selector changes which executable runs.
-2. The script must lower plainly under both the Posix and the PowerShell lowerer. The Posix reject reason is reported first because it names the offending character.
-3. Every command in both lowerings must pass the read-only tables: the PowerShell observation cmdlets and aliases, `ls`, `find` without action or output options, `grep`, `rg` without preprocessor or decompression options, `sed -n <N|M,N>p [file]`, and `git status`, `diff`, `log`, `show`, `branch --show-current` without repository-retargeting or external-program options.
+2. When the dispatcher has placed the call on the local host, the script must lower plainly under the host default shell's lowerer only. When the target is remote or not yet known, it must lower plainly under both the Posix and the PowerShell lowerer, and the Posix reject reason is reported first because it names the offending character.
+3. Every lowered command must pass the read-only tables: the PowerShell observation cmdlets (file and item reads, path helpers, `Select-String`, the selecting, sorting, grouping, measuring, comparing, formatting, and conversion cmdlets, `Out-String`, `Write-Output`, and the process, service, module, culture, and drive queries) and their aliases, `ls`, `find` without action or output options, `grep`, `rg` without preprocessor or decompression options, `sed -n <N|M,N>p [file]`, and `git status`, `diff`, `log`, `show`, `branch --show-current` without repository-retargeting or external-program options. An alias resolves to its cmdlet before the check; aliases that PowerShell 7 resolves to a native executable instead (`sort`, `sc`, `curl`, `wget`) are not mapped. Plain lowering admits only literal arguments, so script blocks, variables, and calculated properties never reach the tables.
 
 Denial reasons name the rejected command or option so the model can rewrite the command; single-quoting is the documented way to pass an argument the classifier would otherwise refuse.
 

@@ -8,22 +8,84 @@ public static class ReadOnlyCommandClassifier
 
     private static readonly PowerShellScriptLowerer PowerShell = new();
 
-    private static readonly HashSet<string> PowerShellReadOnlyCommands = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> PowerShellReadOnlyCmdlets = new(StringComparer.OrdinalIgnoreCase)
     {
         "Get-ChildItem",
-        "gci",
-        "dir",
-        "ls",
         "Get-Content",
-        "gc",
-        "cat",
-        "type",
-        "Select-String",
-        "sls",
-        "Measure-Object",
-        "measure",
+        "Get-Item",
+        "Get-ItemProperty",
+        "Get-ItemPropertyValue",
+        "Get-FileHash",
+        "Get-Acl",
+        "Get-Location",
+        "Test-Path",
         "Resolve-Path",
-        "Test-Path"
+        "Convert-Path",
+        "Join-Path",
+        "Split-Path",
+        "Select-String",
+        "Select-Object",
+        "Sort-Object",
+        "Group-Object",
+        "Measure-Object",
+        "Compare-Object",
+        "Get-Unique",
+        "Format-Table",
+        "Format-List",
+        "Format-Wide",
+        "Format-Hex",
+        "Out-String",
+        "ConvertTo-Json",
+        "ConvertFrom-Json",
+        "ConvertTo-Csv",
+        "ConvertFrom-Csv",
+        "Write-Output",
+        "Get-Date",
+        "Get-Process",
+        "Get-Service",
+        "Get-Module",
+        "Get-Alias",
+        "Get-Culture",
+        "Get-TimeZone",
+        "Get-Host",
+        "Get-PSDrive"
+    };
+
+    // Aliases that collide with native executables on PowerShell 7 (sort, sc, curl, wget) are left out,
+    // because the native program would run instead of the cmdlet.
+    private static readonly Dictionary<string, string> PowerShellAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["gci"] = "Get-ChildItem",
+        ["dir"] = "Get-ChildItem",
+        ["ls"] = "Get-ChildItem",
+        ["gc"] = "Get-Content",
+        ["cat"] = "Get-Content",
+        ["type"] = "Get-Content",
+        ["gi"] = "Get-Item",
+        ["gp"] = "Get-ItemProperty",
+        ["gpv"] = "Get-ItemPropertyValue",
+        ["gl"] = "Get-Location",
+        ["pwd"] = "Get-Location",
+        ["rvpa"] = "Resolve-Path",
+        ["cvpa"] = "Convert-Path",
+        ["sls"] = "Select-String",
+        ["select"] = "Select-Object",
+        ["group"] = "Group-Object",
+        ["measure"] = "Measure-Object",
+        ["compare"] = "Compare-Object",
+        ["gu"] = "Get-Unique",
+        ["ft"] = "Format-Table",
+        ["fl"] = "Format-List",
+        ["fw"] = "Format-Wide",
+        ["fhx"] = "Format-Hex",
+        ["echo"] = "Write-Output",
+        ["write"] = "Write-Output",
+        ["gps"] = "Get-Process",
+        ["ps"] = "Get-Process",
+        ["gsv"] = "Get-Service",
+        ["gmo"] = "Get-Module",
+        ["gal"] = "Get-Alias",
+        ["gdr"] = "Get-PSDrive"
     };
 
     private static readonly HashSet<string> UnixReadOnlyCommands = new(StringComparer.OrdinalIgnoreCase)
@@ -87,7 +149,20 @@ public static class ReadOnlyCommandClassifier
         "--exec"
     };
 
-    public static bool IsReadOnly(string? command, string? shell, out string reason)
+    /// <summary>The family of the host's default shell, or null when it is neither PowerShell nor POSIX.</summary>
+    public static ShellFamily? HostShellFamily { get; } =
+        ShellIdentityResolver.Host.TryResolve(null, out var identity, out _)
+        && identity.Kind.ToFamily() is ShellFamily.PowerShell or ShellFamily.Posix
+            ? identity.Kind.ToFamily()
+            : null;
+
+    public static bool IsReadOnly(string? command, string? shell, out string reason) =>
+        IsReadOnly(command, shell, targetFamily: null, out reason);
+
+    /// <summary>
+    /// Classifies under the target shell's grammar only; without a known target the command must be plain under both.
+    /// </summary>
+    public static bool IsReadOnly(string? command, string? shell, ShellFamily? targetFamily, out string reason)
     {
         if (string.IsNullOrWhiteSpace(command))
         {
@@ -102,22 +177,31 @@ public static class ReadOnlyCommandClassifier
             return false;
         }
 
-        var posix = Posix.Lower(command);
-        if (!posix.IsPlain)
+        var commands = new List<IReadOnlyList<string>>();
+        if (targetFamily != ShellFamily.PowerShell)
         {
-            reason = Prefix + posix.PlainRejectReason;
-            return false;
+            var posix = Posix.Lower(command);
+            if (!posix.IsPlain)
+            {
+                reason = Prefix + posix.PlainRejectReason;
+                return false;
+            }
+            commands.AddRange(posix.PlainCommands!);
         }
 
-        var powerShell = PowerShell.Lower(command);
-        if (!powerShell.IsPlain)
+        if (targetFamily != ShellFamily.Posix)
         {
-            reason = Prefix + "denies the command because it is not a plain command under PowerShell: "
-                + powerShell.PlainRejectReason;
-            return false;
+            var powerShell = PowerShell.Lower(command);
+            if (!powerShell.IsPlain)
+            {
+                reason = Prefix + "denies the command because it is not a plain command under PowerShell: "
+                    + powerShell.PlainRejectReason;
+                return false;
+            }
+            commands.AddRange(powerShell.PlainCommands!);
         }
 
-        foreach (var words in posix.PlainCommands!.Concat(powerShell.PlainCommands!))
+        foreach (var words in commands)
         {
             if (!IsReadOnlySegment(words, out reason))
                 return false;
@@ -139,7 +223,7 @@ public static class ReadOnlyCommandClassifier
         if (string.Equals(executable, "git", StringComparison.OrdinalIgnoreCase))
             return IsReadOnlyGit(tokens, out reason);
 
-        if (PowerShellReadOnlyCommands.Contains(executable))
+        if (PowerShellReadOnlyCmdlets.Contains(PowerShellAliases.GetValueOrDefault(executable, executable)))
         {
             reason = "";
             return true;

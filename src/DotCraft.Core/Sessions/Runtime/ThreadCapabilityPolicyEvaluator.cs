@@ -139,9 +139,11 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     public ToolDispatchDecision EvaluateRegistration(
         ToolRegistration registration,
         JsonObject arguments,
-        string? workspacePath = null)
+        string? workspacePath = null,
+        ToolExecutionLocation? location = null)
     {
         var name = registration.Definition.Name.Name;
+        var shellFamily = location?.Target == "local" ? ReadOnlyCommandClassifier.HostShellFamily : null;
         if (string.Equals(config.Mode, "plan", StringComparison.OrdinalIgnoreCase))
         {
             if (ModeToolPolicy.PlanDeniedToolNames.Contains(name) && !WritesMemoryStore(registration, arguments, workspacePath))
@@ -150,6 +152,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
                 && !ReadOnlyCommandClassifier.IsReadOnly(
                     arguments["command"]?.GetValue<string>(),
                     arguments["shell"]?.GetValue<string>(),
+                    shellFamily,
                     out var shellReason))
             {
                 return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, shellReason);
@@ -200,13 +203,13 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             StringComparer.Ordinal));
         if (!AllowsSkillInvocation(name, invocationArguments, out reason))
             return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
-        if (!AllowsSubAgentRole(policyName, invocationArguments, out reason))
+        if (!AllowsSubAgentRole(policyName, invocationArguments, out reason, shellFamily))
             return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
 
         return ToolDispatchDecision.Allow;
     }
 
-    private bool AllowsSubAgentRole(string toolName, AIFunctionArguments arguments, out string reason)
+    private bool AllowsSubAgentRole(string toolName, AIFunctionArguments arguments, out string reason, ShellFamily? shellFamily = null)
     {
         var source = context.CurrentThreadSource?.SubAgent;
         if (source == null
@@ -234,7 +237,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             return false;
         }
 
-        if (!AllowsSubAgentShell(role, toolName, arguments, out reason))
+        if (!AllowsSubAgentShell(role, toolName, arguments, shellFamily, out reason))
             return false;
 
         if (string.Equals(toolName, "RequestUserInput", StringComparison.Ordinal))
@@ -279,6 +282,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         SubAgentRoleConfig role,
         string toolName,
         AIFunctionArguments arguments,
+        ShellFamily? shellFamily,
         out string reason)
     {
         var isExec = string.Equals(toolName, "Exec", StringComparison.Ordinal);
@@ -315,6 +319,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
                 return ReadOnlyCommandClassifier.IsReadOnly(
                     TryGetStringArgument(arguments, "command"),
                     TryGetStringArgument(arguments, "shell"),
+                    shellFamily,
                     out reason);
 
             default:
