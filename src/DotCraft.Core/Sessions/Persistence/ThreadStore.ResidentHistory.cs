@@ -47,8 +47,11 @@ public sealed partial class ThreadStore
         return MessageGrouper.NormalizeFunctionCallArguments(messages.Select(codec.Decode).ToList());
     }
 
-    internal void ReleaseResidentHistory(string threadId) =>
+    internal void ReleaseResidentHistory(string threadId)
+    {
         _residentProviderHistory.TryRemove(threadId, out _);
+        _persistedBaselines.TryRemove(threadId, out _);
+    }
 
     private void InvalidateResidentHistory(string threadId)
     {
@@ -100,8 +103,11 @@ public sealed partial class ThreadStore
             throw;
         }
 
-        if (result.Record != null && _residentProviderHistory.TryGetValue(threadId, out var resident))
-            resident.Append(result.Record);
+        if (result.Records.Count > 0 && _residentProviderHistory.TryGetValue(threadId, out var resident))
+        {
+            foreach (var record in result.Records)
+                resident.Append(record);
+        }
         return result;
     }
 

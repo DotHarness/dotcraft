@@ -20,6 +20,7 @@ public sealed partial class ThreadStore
 
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
         await _rolloutStore.CloseThreadAsync(threadId, ct);
+        Interlocked.Increment(ref _rolloutReplayCount);
         var thread = await _rolloutStore.LoadThreadAsync(threadId, ct)
             ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
         var terminalTurn = ValidateExportThread(thread, normalizedWorkspace);
@@ -279,8 +280,10 @@ public sealed partial class ThreadStore
                 new RolloutWriteReceipt(
                     rolloutLength,
                     0,
-                    new Dictionary<string, long>(StringComparer.Ordinal)));
-            await TryUpdateThreadProjectionAsync(package.Thread, result, ct);
+                    new Dictionary<string, long>(StringComparer.Ordinal)),
+                []);
+            _persistedBaselines.TryRemove(package.Thread.Id, out _);
+            await TryProjectHistoryAsync(package.Thread.Id, result, ct);
             new ResponsesContextWindowStore(StateDatabase).Reconcile(
                 package.Thread.Id,
                 package.Snapshot.ProviderHistory.ContextWindowId);

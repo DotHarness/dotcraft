@@ -7,80 +7,145 @@ namespace DotCraft.Sessions;
 
 internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime, string botPath)
 {
-    public const int IndexVersion = 1;
+    public const int IndexVersion = 2;
 
     private readonly string _attachmentsDir = Path.Combine(botPath, "attachments");
     private readonly string _workspaceRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(botPath)))!;
 
-    public IReadOnlySet<string> ReplaceThreadAttachments(
+    public void ReplaceItemReferences(
         SqliteConnection connection,
         SqliteTransaction transaction,
-        SessionThread thread)
-    {
-        var refs = ExtractReferences(thread).ToList();
-        using (var delete = connection.CreateCommand())
-        {
-            delete.Transaction = transaction;
-            delete.CommandText = "DELETE FROM thread_attachments WHERE thread_id = $thread_id";
-            delete.Parameters.AddWithValue("$thread_id", thread.Id);
-            delete.ExecuteNonQuery();
-        }
-
-        foreach (var reference in refs)
-        {
-            using var insert = connection.CreateCommand();
-            insert.Transaction = transaction;
-            insert.CommandText = """
-                INSERT INTO thread_attachments(
-                    ref_id,
-                    path,
-                    thread_id,
-                    turn_id,
-                    item_id,
-                    kind,
-                    bytes,
-                    created_at,
-                    last_seen_at
-                ) VALUES (
-                    $ref_id,
-                    $path,
-                    $thread_id,
-                    $turn_id,
-                    $item_id,
-                    $kind,
-                    $bytes,
-                    $created_at,
-                    $last_seen_at
-                )
-                ON CONFLICT(ref_id) DO UPDATE SET
-                    bytes = excluded.bytes,
-                    last_seen_at = excluded.last_seen_at
-                """;
-            insert.Parameters.AddWithValue("$ref_id", reference.RefId);
-            insert.Parameters.AddWithValue("$path", reference.Path);
-            insert.Parameters.AddWithValue("$thread_id", reference.ThreadId);
-            insert.Parameters.AddWithValue("$turn_id", (object?)reference.TurnId ?? DBNull.Value);
-            insert.Parameters.AddWithValue("$item_id", (object?)reference.ItemId ?? DBNull.Value);
-            insert.Parameters.AddWithValue("$kind", reference.Kind);
-            insert.Parameters.AddWithValue("$bytes", (object?)reference.Bytes ?? DBNull.Value);
-            insert.Parameters.AddWithValue("$created_at", reference.CreatedAt.UtcDateTime.ToString("O"));
-            insert.Parameters.AddWithValue("$last_seen_at", reference.LastSeenAt.UtcDateTime.ToString("O"));
-            insert.ExecuteNonQuery();
-        }
-
-        return refs.Select(static reference => reference.Path)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    public IReadOnlySet<string> LoadCandidatePaths(
         string threadId,
-        IEnumerable<string>? additionalCandidatePaths = null)
+        string turnId,
+        SessionItem item,
+        ISet<string> removedPaths)
     {
-        var candidatePaths = LoadPathsForThread(threadId);
-        if (additionalCandidatePaths != null)
-            candidatePaths.UnionWith(additionalCandidatePaths.Where(IsManagedPath));
-        return candidatePaths;
+        DeleteReferences(
+            connection,
+            transaction,
+            "thread_id = $thread_id AND turn_id = $turn_id AND item_id = $item_id",
+            [("$thread_id", threadId), ("$turn_id", turnId), ("$item_id", item.Id)],
+            removedPaths);
+        if (item.Type != ItemType.UserMessage || item.AsUserMessage is not { } user)
+            return;
+
+        foreach (var path in ExtractManagedPaths(user.NativeInputParts).Concat(ExtractManagedPaths(user.MaterializedInputParts)))
+            InsertReference(connection, transaction, CreateReference(threadId, turnId, item.Id, path, item.CreatedAt));
     }
+
+    public void DeleteTurnReferences(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string threadId,
+        string turnId,
+        IReadOnlyCollection<string> retainedItemIds,
+        ISet<string> removedPaths)
+    {
+        var parameters = new List<(string, object)> { ("$thread_id", threadId), ("$turn_id", turnId) };
+        var retained = retainedItemIds.Select((id, index) =>
+        {
+            parameters.Add(($"$item_{index}", id));
+            return $"$item_{index}";
+        }).ToList();
+        DeleteReferences(
+            connection,
+            transaction,
+            "thread_id = $thread_id AND turn_id = $turn_id AND item_id IS NOT NULL"
+            + (retained.Count == 0 ? string.Empty : $" AND item_id NOT IN ({string.Join(",", retained)})"),
+            parameters,
+            removedPaths);
+    }
+
+    public void ReplaceQueuedReferences(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string threadId,
+        IEnumerable<QueuedTurnInput> queuedInputs,
+        ISet<string> removedPaths)
+    {
+        DeleteReferences(
+            connection,
+            transaction,
+            "thread_id = $thread_id AND item_id IS NULL",
+            [("$thread_id", threadId)],
+            removedPaths);
+        foreach (var queued in queuedInputs)
+        {
+            foreach (var path in ExtractManagedPaths(queued.NativeInputParts).Concat(ExtractManagedPaths(queued.MaterializedInputParts)))
+                InsertReference(connection, transaction, CreateReference(threadId, queued.Id, null, path, queued.CreatedAt));
+        }
+    }
+
+    public static void DeleteThreadReferences(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string threadId,
+        ISet<string> removedPaths) =>
+        DeleteReferences(connection, transaction, "thread_id = $thread_id", [("$thread_id", threadId)], removedPaths);
+
+    private static void DeleteReferences(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string predicate,
+        IReadOnlyList<(string Name, object Value)> parameters,
+        ISet<string> removedPaths)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = $"DELETE FROM thread_attachments WHERE {predicate} RETURNING path";
+        foreach (var (name, value) in parameters)
+            command.Parameters.AddWithValue(name, value);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+            removedPaths.Add(reader.GetString(0));
+    }
+
+    private static void InsertReference(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        ThreadAttachmentReference reference)
+    {
+        using var insert = connection.CreateCommand();
+        insert.Transaction = transaction;
+        insert.CommandText = """
+            INSERT INTO thread_attachments(
+                ref_id,
+                path,
+                thread_id,
+                turn_id,
+                item_id,
+                kind,
+                bytes,
+                created_at,
+                last_seen_at
+            ) VALUES (
+                $ref_id,
+                $path,
+                $thread_id,
+                $turn_id,
+                $item_id,
+                $kind,
+                $bytes,
+                $created_at,
+                $last_seen_at
+            )
+            ON CONFLICT(ref_id) DO UPDATE SET
+                bytes = excluded.bytes,
+                last_seen_at = excluded.last_seen_at
+            """;
+        insert.Parameters.AddWithValue("$ref_id", reference.RefId);
+        insert.Parameters.AddWithValue("$path", reference.Path);
+        insert.Parameters.AddWithValue("$thread_id", reference.ThreadId);
+        insert.Parameters.AddWithValue("$turn_id", (object?)reference.TurnId ?? DBNull.Value);
+        insert.Parameters.AddWithValue("$item_id", (object?)reference.ItemId ?? DBNull.Value);
+        insert.Parameters.AddWithValue("$kind", reference.Kind);
+        insert.Parameters.AddWithValue("$bytes", (object?)reference.Bytes ?? DBNull.Value);
+        insert.Parameters.AddWithValue("$created_at", reference.CreatedAt.UtcDateTime.ToString("O"));
+        insert.Parameters.AddWithValue("$last_seen_at", reference.LastSeenAt.UtcDateTime.ToString("O"));
+        insert.ExecuteNonQuery();
+    }
+
+    public IReadOnlySet<string> LoadCandidatePaths(string threadId) => LoadPathsForThread(threadId);
 
     public void CleanupCandidates(IEnumerable<string> candidatePaths) =>
         CleanupUnreferencedPaths(candidatePaths);
@@ -110,11 +175,6 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
             });
         CleanupUnreferencedPaths(candidates);
     }
-
-    public IReadOnlySet<string> ExtractManagedPaths(SessionThread thread) =>
-        ExtractReferences(thread)
-            .Select(r => r.Path)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     private HashSet<string> LoadPathsForThread(string threadId)
     {
@@ -163,31 +223,6 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
         command.CommandText = "SELECT 1 FROM thread_attachments WHERE path = $path LIMIT 1";
         command.Parameters.AddWithValue("$path", path);
         return command.ExecuteScalar() != null;
-    }
-
-    private IEnumerable<ThreadAttachmentReference> ExtractReferences(SessionThread thread)
-    {
-        foreach (var turn in thread.Turns)
-        {
-            foreach (var item in turn.Items)
-            {
-                if (item.Type != ItemType.UserMessage || item.AsUserMessage is not { } user)
-                    continue;
-
-                foreach (var path in ExtractManagedPaths(user.NativeInputParts))
-                    yield return CreateReference(thread.Id, turn.Id, item.Id, path, item.CreatedAt);
-                foreach (var path in ExtractManagedPaths(user.MaterializedInputParts))
-                    yield return CreateReference(thread.Id, turn.Id, item.Id, path, item.CreatedAt);
-            }
-        }
-
-        foreach (var queued in thread.QueuedInputs)
-        {
-            foreach (var path in ExtractManagedPaths(queued.NativeInputParts))
-                yield return CreateReference(thread.Id, queued.Id, null, path, queued.CreatedAt);
-            foreach (var path in ExtractManagedPaths(queued.MaterializedInputParts))
-                yield return CreateReference(thread.Id, queued.Id, null, path, queued.CreatedAt);
-        }
     }
 
     private IEnumerable<string> ExtractManagedPaths(IEnumerable<SessionInputPart>? parts)

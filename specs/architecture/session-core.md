@@ -732,9 +732,9 @@ Each thread is an append-only JSONL rollout. Every line is a record `{ kind, tim
 - `provider_history_items_appended`, `provider_history_replaced`, `provider_history_attempt_aborted` — protocol-native provider history.
 - `thread_rolled_back` — rollback (Section 9.7).
 
-Session Core reconstructs a Thread by replaying the rollout in order.
+Session Core reconstructs a Thread by replaying the rollout in order; Turns are ordered by the position where they first appear in the rollout.
 
-A change is persisted as the records it produces. Queue changes append their `queued_input_*` record, and new or changed Items of a running Turn append `item_appended` against what that Turn has already persisted. No write reads the rollout: a loaded runtime remembers the baseline it last persisted and appends a new `thread_opened`, `thread_name_updated`, or `thread_status_changed` only for the fields that changed.
+A change is persisted as the records it produces. Queue changes append their `queued_input_*` record, and new or changed Items of a running Turn append `item_appended` against what that Turn has already persisted. No write reads the rollout: the thread store remembers, per Thread, the baseline it last persisted (seeded from the history projection) and appends a new `thread_opened`, `thread_name_updated`, or `thread_status_changed` only for the fields that changed.
 
 `thread_opened.source` is a DotCraft-owned versioned union (`schemaVersion = 1`), not a serialized runtime type. The user variant stores `kind` and optional `spawnedFromThreadId`; the subagent variant also stores parent thread, root thread, parent turn, parent call, depth, path, task, nickname, role, profile, runtime, and all send, resume, message, follow-up, and close capabilities. A source or `GitInfo` change appends a new `thread_opened`; replay uses the latest. Every rollout begins with a canonical `thread_opened`. An unknown source schema version or structurally invalid source is an identity safety error that stops replay; it is never downgraded to an ordinary user thread.
 
@@ -754,7 +754,7 @@ A successful context replacement has one recoverable commit boundary: the compac
 
 Current rollouts require `thread_opened.providerHistorySchemaVersion = 1` and may persist protocol-native provider history (for OpenAI Responses, the source of the future wire `input` array). Session Core stores these records opaquely and never exposes them through display history; the generic model history remains the cross-provider representation.
 
-Workspace-managed attachments under `.craft/attachments/`, referenced by persisted `localImage`, `fileRef`, or `contextRef` input parts, are indexed in SQLite. Attachment bytes are independent assets: the rollout stores references only. A file stays available while any active or archived thread references it. Permanent deletion removes the thread's references and best-effort deletes now-unreferenced files. Attachments that never enter history (unsent drafts, inputs dropped before a Turn, failed sends) are removed by an orphan sweep once a day old. The sweep runs at most hourly, only after an index repair that read every rollout, and is skipped while any rollout is unreadable.
+Workspace-managed attachments under `.craft/attachments/`, referenced by persisted `localImage`, `fileRef`, or `contextRef` input parts, are indexed in SQLite. Attachment bytes are independent assets: the rollout stores references only. A file stays available while any active or archived thread references it. Permanent deletion removes the thread's references and best-effort deletes now-unreferenced files. Attachments that never enter history (unsent drafts, inputs dropped before a Turn, failed sends) are removed by an orphan sweep once a day old. The sweep runs at most hourly, only after a discovery pass in which every rollout's projection is current, and is skipped while any rollout is unreadable.
 
 Per-thread plans are stored in SQLite; archive and unarchive keep them, and permanent deletion cascades. Native agent trees own durable shared discussion state independently of transcript projections.
 
@@ -841,7 +841,7 @@ Discovery runs a filesystem-first read-repair pass, then reads the SQLite thread
 
 Each metadata row records the confirmed rollout byte offset from the flush that produced it. Discovery enumerates active and archived rollouts and compares paths and lengths with SQLite. Matching rows need no rollout read; a mismatched offset projects only the unprojected suffix, and a missing row, changed path, or shortened file rebuilds that thread's projection. Concurrent initial discovery shares one reconciliation.
 
-If SQLite listing or repair is unavailable, discovery returns summaries built from each readable rollout's latest `thread_opened` and name and status records and records a diagnostic warning; it never infers or migrates non-canonical paths. Rows whose rollout is absent are omitted but not deleted by read-repair. SQLite projections never participate in model-history reconstruction.
+If SQLite listing or repair is unavailable, discovery returns summaries built from each readable rollout's latest `thread_opened`, name, and status records and its Turn-membership and rollback record envelopes and records a diagnostic warning; it never infers or migrates non-canonical paths. Rows whose rollout is absent are omitted but not deleted by read-repair. SQLite projections never participate in model-history reconstruction.
 
 Each discovered thread summary returns `Id`, `Status`, `OriginChannel`, `ChannelContext`, `UserId`, `WorkspacePath`, `DisplayName`, `CreatedAt`, `LastActiveAt`, and `TurnCount`.
 
@@ -859,7 +859,7 @@ Each discovered thread summary returns `Id`, `Status`, `OriginChannel`, `Channel
 
 Thread rows store their rollout path relative to the data directory and record no workspace path. Read-repair updates only thread metadata and attachment references; it never touches business authority, continuity state, diagnostics, or unrelated tables. Losing `state.db` is partial data loss: conversations recover from rollouts, while goals, plans, graph edges, and mailbox state do not.
 
-Thread metadata (Turn count, first user message, token totals) and attachment references are derived by the history projection from the records it applies, never from an in-memory Thread. Projection repair and every write update them and their offsets only after the rollout flush succeeds; each projection advances its own offset in the transaction that publishes its state. Attachment projection uncertainty disables attachment garbage collection until a later successful repair. Each thread row records the attachment index version that produced its references, and repair reprojects older versions even when the offset matches, so references exist before the orphan sweep may delete anything.
+Thread metadata (Turn count, first user message, token totals) and attachment references are derived by the history projection from the records it applies, never from an in-memory Thread. Projection repair and every write update them and their offsets only after the rollout flush succeeds; one projection pass publishes history, the metadata row, attachment references, and their offsets in one transaction. Attachment projection uncertainty disables attachment garbage collection until a later successful repair. Each thread row records the attachment index version that produced its references, and repair reprojects older versions even when the offset matches, so references exist before the orphan sweep may delete anything.
 
 ### 9.4.2 Paged Thread History Projection
 
@@ -891,7 +891,7 @@ Persistent forks project their own rollout and share no rows with the source. Ar
 
 Projection state is created and repaired on demand, not by a startup scan. A missing state row triggers a streaming rebuild; a valid checkpoint behind the file length scans only the complete suffix; a changed path, shortened file, invalid record boundary, or invalid projected JSON clears and rebuilds that thread. Repair runs under the per-thread gate, publishes one transaction, and retries the query.
 
-There is no full-rollout fallback. Canonical identity errors, unrecoverable projection errors, and failed query or repair return the stable error `ThreadHistoryUnavailable`. Deleting `state.db` or the history tables is supported because the next successful read rebuilds the projection.
+There is no full-rollout fallback. A malformed record after the canonical header is skipped with a warning, as in replay. Canonical identity errors, unrecoverable projection errors, and failed query or repair return the stable error `ThreadHistoryUnavailable`. Deleting `state.db` or the history tables is supported because the next successful read rebuilds the projection.
 
 Read-only query operations:
 
