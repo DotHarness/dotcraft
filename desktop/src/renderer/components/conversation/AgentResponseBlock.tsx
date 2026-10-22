@@ -32,7 +32,7 @@ import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../.
 import { ToolDisclosure } from './ToolDisclosure'
 import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
 import { useTranscriptItemDiffs } from './transcriptDiffs'
-import { isBackgroundTaskNotice } from '../../utils/visibleUserMessage'
+import { isMidTurnTaskNotice } from '../../utils/visibleUserMessage'
 import { getSubAgentChipDisplay } from './SubAgentChips'
 import { SubAgentGroupChips } from './SubAgentGroupChips'
 import { useLocale } from '../../contexts/LocaleContext'
@@ -47,17 +47,13 @@ import { parseWorkflowLaunch } from '../workflow/WorkflowToolCard'
 
 interface AgentResponseBlockProps {
   turn: ConversationTurn
-  /** Live streaming text (only set for the active turn while running) */
   streamingMessage?: string
   streamingMessageLastDeltaAt?: number | null
-  /** Live reasoning text (only set for the active turn while reasoning) */
   streamingReasoning?: string
   isRunning?: boolean
-  /** Whether this is the active turn that may be in waitingApproval */
   isLastTurn?: boolean
   /** Show a UI-only Thinking row when an active running turn has no live visible work. */
   showIdleThinkingFallback?: boolean
-  /** Streaming item highlight source for surfaces that do not use the conversation store. */
   activeItemIdOverride?: string | null
   shellRuntimeScope?: ShellRuntimeScope
   /** Keeps assistant/user text and plans visible while avoiding historical tool-detail mounts. */
@@ -82,11 +78,7 @@ interface ConversationRenderNode {
 
 const LABEL_HOLD_MS = 1000
 
-/**
- * Renders agent-side content for a single turn in chronological `turn.items` order.
- * Streaming agentMessage / reasoningContent items arrive as placeholder rows (status
- * `streaming`) so live text keeps its position among committed items. Spec §10.3.3.
- */
+/** Streaming messages and reasoning arrive as placeholder items, so live text keeps its place among committed items. */
 export const AgentResponseBlock = memo(function AgentResponseBlock({
   turn,
   streamingMessage = '',
@@ -136,6 +128,12 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     return <ThinkingIndicator key={item.id} elapsedSeconds={item.elapsedSeconds} reasoning={reasoningText(item)} streaming={streaming} />
   }
 
+  const isBlankMessage = (item: ConversationItem): boolean => {
+    if (item.type !== 'agentMessage') return false
+    const live = isRunning && item.status === 'streaming' && item.id === activeItemId
+    return (live ? streamingMessage : (item.text ?? '')).trim().length === 0
+  }
+
   const renderToolRunEntry = (entry: AggregatedToolCall): ReactNode => {
     if (entry.kind === 'reasoning') return renderReasoning(entry.item)
     if (entry.kind !== 'group' && entry.kind !== 'active') {
@@ -166,11 +164,11 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
       if (isToolRunItem(item)) {
         const toolRun: ConversationItem[] = [item]
-        while (i + 1 < itemsToRender.length && isToolRunItem(itemsToRender[i + 1])) {
+        while (i + 1 < itemsToRender.length && (isToolRunItem(itemsToRender[i + 1]) || isBlankMessage(itemsToRender[i + 1]))) {
           i++
-          toolRun.push(itemsToRender[i])
+          if (!isBlankMessage(itemsToRender[i])) toolRun.push(itemsToRender[i])
         }
-        const isTrailingRun = toolRun[toolRun.length - 1] === renderableItems[renderableItems.length - 1]
+        const isTrailingRun = itemsToRender[i] === renderableItems[renderableItems.length - 1]
         const entries = planToolRunRender(toolRun, { isRunning, isTrailingRun })
         const runNodes = entries.map(renderToolRunEntry)
 
@@ -193,7 +191,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
           kind: 'tool',
           node: <ImageGenerationEntry item={item} />
         })
-      } else if (item.type === 'userMessage' && item.deliveryMode === 'guidance' && !isBackgroundTaskNotice(item)) {
+      } else if (item.type === 'userMessage' && item.deliveryMode === 'guidance') {
         nodes.push({
           key: item.id,
           kind: 'user',
@@ -327,7 +325,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       collapseSourceItems.slice(lastFinalAgentMessageIndex).filter(isTrimmedHistoryRenderableItem)
     ))
   } else if (activity.status) {
-    // Pinned results stay outside the collapsed summary (desktop-client.md §5.8).
     const splitIndex = collapsesIntermediate ? lastFinalAgentMessageIndex
       : activity.status === 'worked' ? 0 : renderableItems.length
     const pinnedIndices = collapsesIntermediate ? collectPinnedIntermediateIndices(renderableItems, splitIndex) : []
@@ -364,7 +361,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         />
       )}
 
-      {/* Fallback for completed turns that have file changes but no visible final message footer. */}
       {turnCompletionContent && !footerAgentMessageId && turnCompletionContent}
     </div>
   )
@@ -678,10 +674,6 @@ function findLastPinnedCoreRendererIndexBefore(items: ConversationItem[], before
   return -1
 }
 
-/**
- * App availability is independent of tool success, because a failed result may still
- * provide user-actionable UI (desktop-client.md §5.8.2).
- */
 function isInteractiveCardItem(item: ConversationItem): boolean {
   return isToolLikeItemType(item.type)
     && item.status === 'completed'
@@ -709,7 +701,6 @@ function findLastImageGenerationIndexBefore(items: ConversationItem[], beforeInd
   return -1
 }
 
-/** Returned ascending so the renderer can split the intermediate run at each pinned boundary. */
 function collectPinnedIntermediateIndices(items: ConversationItem[], beforeIndex: number): number[] {
   const indices = new Set<number>()
   items.slice(0, beforeIndex).forEach((item, index) => { if (isGuidanceUserMessage(item)) indices.add(index) })
@@ -741,9 +732,8 @@ function isGuidanceUserMessage(item: ConversationItem): boolean {
 }
 
 function isDefaultRenderableItem(item: ConversationItem): boolean {
+  if (isMidTurnTaskNotice(item)) return false
   if (isCodeModeExecItem(item)) return false
-  // Successful CreateThread / SendMessageToThread calls render as a dedicated card
-  // before the agent footer (TurnThreadActions), so suppress their inline tool row.
   if (isThreadActionToolItem(item) && parseThreadToolAction(item) != null) return false
   const plan = resolveCoreFallbackPlan(item)
   if (plan?.family === 'todo') return false

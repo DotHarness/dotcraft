@@ -6,7 +6,10 @@ export function isBackgroundTaskNotice(input: Pick<ConversationItem, 'triggerKin
     || (input.triggerKind === 'workflow' && !!input.triggerStatus)
 }
 
-/** Whether the transcript renders this item as a user bubble. */
+export function isMidTurnTaskNotice(item: ConversationItem): boolean {
+  return item.type === 'userMessage' && item.deliveryMode === 'guidance' && isBackgroundTaskNotice(item)
+}
+
 export function isVisibleUserMessage(item: ConversationItem): boolean {
   return (
     item.type === 'userMessage' &&
@@ -17,7 +20,6 @@ export function isVisibleUserMessage(item: ConversationItem): boolean {
   )
 }
 
-/** Whether the queued-input dock lists this input. */
 export function isVisibleQueuedInput(item: QueuedTurnInput): boolean {
   return !isBackgroundTaskNotice(item)
 }

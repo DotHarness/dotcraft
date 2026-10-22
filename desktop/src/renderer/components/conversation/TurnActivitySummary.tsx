@@ -5,7 +5,8 @@ import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import type { AppLocale } from '../../../shared/locales/types'
 import { turnStopKey, useTurnStopStore } from '../../stores/turnStopStore'
-import { requestToolCallReveal, useToolCallRevealTarget, type ToolCallRevealMatch } from '../../stores/toolCallRevealStore'
+import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
+import { openBackgroundTask } from '../../utils/backgroundTaskNavigation'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import styles from './TurnActivitySummary.module.css'
@@ -65,7 +66,7 @@ export function TurnActivitySummary({ threadId, turnId, startedAt, completedAt, 
         className={styles.originButton}
         aria-label={translate(locale, TASK_WAKE_COPY[taskWake.kind].show)}
         disabled={!taskId}
-        onClick={() => { if (taskId) requestToolCallReveal(threadId, taskRevealMatch(taskWake.kind, taskId)) }}
+        onClick={() => { if (taskId) openBackgroundTask(threadId, taskWake.kind, taskId, translate(locale, 'workflow.tab')) }}
       >
         <OriginIcon size={13} strokeWidth={1.8} aria-hidden />
       </button>
@@ -151,12 +152,6 @@ function taskWakeLabel(locale: AppLocale, { kind, label, status }: TaskWake): st
   const copy = TASK_WAKE_COPY[kind]
   if (!label) return translate(locale, copy.generic)
   return translate(locale, (status && copy.statuses[status]) || copy.started, { [copy.param]: label })
-}
-
-function taskRevealMatch(kind: TaskWakeKind, taskId: string): ToolCallRevealMatch {
-  if (kind === 'subagent') return { agentPath: taskId }
-  if (kind === 'workflow') return { workflowRunId: taskId }
-  return { terminalSessionId: taskId }
 }
 
 function anchorScroll(element: HTMLElement): void {

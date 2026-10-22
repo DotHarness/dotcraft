@@ -6,6 +6,8 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import type { ConversationTurn } from '../types/conversation'
 import { installDesktopApiMock } from './desktopApiMock'
 import { findToolCallRevealTarget, useToolCallRevealStore } from '../stores/toolCallRevealStore'
+import { useViewerTabStore } from '../stores/viewerTabStore'
+import { withTestCorePresentation } from './testToolPresentation'
 
 describe('turn activity disclosure lifecycle', () => {
   beforeEach(() => { installDesktopApiMock({ settings: { get: async () => ({ locale: 'en' }) } }) })
@@ -81,10 +83,8 @@ describe('turn activity disclosure lifecycle', () => {
     expect(screen.getByRole('button', { name: /Worked for 30s/, expanded: true })).toBeInTheDocument()
   })
 
-  it.each([
-    ['subagent', '/root/reviewer', 'completed', 'Show the subagent', { agentPath: '/root/reviewer' }, 'call-spawn-reviewer'],
-    ['workflow', 'run_review', 'succeeded', 'Show the workflow', { workflowRunId: 'run_review' }, 'call-workflow']
-  ] as const)('reveals the call that started a %s from the turn its notification woke', (kind, taskId, status, buttonName, match, callId) => {
+  it('reveals the call that started a subagent the panel does not list from the turn its notification woke', () => {
+    const [kind, taskId, status, buttonName, match, callId] = ['subagent', '/root/reviewer', 'completed', 'Show the subagent', { agentPath: '/root/reviewer' }, 'call-spawn-reviewer'] as const
     useToolCallRevealStore.setState({ request: null, target: null })
     const spawn = (id: string, agentPath: string): ConversationTurn['items'][number] => ({
       id, type: 'toolCall', status: 'completed', toolName: 'SpawnAgent', toolCallId: `call-${id}`, success: true,
@@ -115,5 +115,44 @@ describe('turn activity disclosure lifecycle', () => {
     const request = useToolCallRevealStore.getState().request
     expect(request).toMatchObject({ threadId: 'thread', match })
     expect(findToolCallRevealTarget([origin, woken], request!)).toMatchObject({ turnId: 'origin', callId })
+  })
+
+  it('opens the run of a workflow whose notification woke the turn', () => {
+    const woken: ConversationTurn = {
+      id: 'woken', threadId: 'thread', status: 'completed', startedAt: '2026-01-01T12:00:00Z', completedAt: '2026-01-01T12:00:18Z',
+      items: [
+        { id: 'notice', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'workflow', triggerLabel: 'review', triggerRefId: 'run_review', triggerStatus: 'succeeded', text: 'Task ended', createdAt: '2026-01-01T12:00:00Z' },
+        { id: 'final', type: 'agentMessage', status: 'completed', phase: 'final', text: 'Done.', createdAt: '2026-01-01T12:00:18Z' }
+      ]
+    }
+    render(<LocaleProvider loadSettings={false}><AgentResponseBlock turn={woken} isRunning={false} /></LocaleProvider>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show the workflow' }))
+    expect(useViewerTabStore.getState().getThreadState('thread').tabs).toContainEqual(expect.objectContaining({ kind: 'workflow', runId: 'run_review' }))
+  })
+
+  it('keeps one tool row across background task notifications and empty messages, and shows no notification', () => {
+    const read = (id: string): ConversationTurn['items'][number] => withTestCorePresentation({
+      id, type: 'toolCall', status: 'completed', toolName: 'ReadFile', toolCallId: `call-${id}`, success: true, arguments: { path: `${id}.ts` }, result: 'ok', createdAt: '2026-01-01T12:00:01Z'
+    }, 'core.read-file', { operation: 'read' })
+    const notice = (id: string, command: string, status: string): ConversationTurn['items'][number] => ({
+      id, type: 'userMessage', status: 'completed', deliveryMode: 'guidance', triggerKind: 'terminal', triggerLabel: command, triggerRefId: `term_${id}`, triggerStatus: status, text: 'Task ended', createdAt: '2026-01-01T12:00:02Z'
+    })
+    const turn: ConversationTurn = {
+      id: 'turn', threadId: 'thread', status: 'completed', startedAt: '2026-01-01T12:00:00Z', completedAt: '2026-01-01T12:00:30Z',
+      items: [
+        read('a'),
+        notice('lint', 'npm run lint', 'completed'),
+        { id: 'blank', type: 'agentMessage', status: 'completed', phase: 'commentary', text: '', createdAt: '2026-01-01T12:00:03Z' },
+        read('b'),
+        { id: 'commentary', type: 'agentMessage', status: 'completed', phase: 'commentary', text: 'Both files look fine.', createdAt: '2026-01-01T12:00:04Z' },
+        notice('test', 'npm test', 'failed')
+      ]
+    }
+    render(<LocaleProvider loadSettings={false}><AgentResponseBlock turn={turn} isRunning={false} /></LocaleProvider>)
+
+    const rows = screen.getAllByTestId('tool-row').map((row) => row.textContent)
+    expect(rows).toEqual(['Explored files'])
+    expect(screen.queryByText(/npm test/)).toBeNull()
   })
 })
