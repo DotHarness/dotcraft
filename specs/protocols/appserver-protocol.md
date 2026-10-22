@@ -548,7 +548,7 @@ Move an existing thread between its local workspace and a managed worktree witho
 
 #### 4.17.4 `worktree/list`
 
-List registered managed worktrees for the workspace. Params: optional `identity` filter, `includeOrphans` (include recoverable worktree directories not bound to an active thread). Result: `{ data: ThreadWorktreeStatus[] }`. External Git worktrees are not managed unless the server registers them.
+List registered managed worktrees for the workspace. Params: none. Result: `{ data: ThreadWorktreeStatus[] }`. External Git worktrees are not managed unless the server registers them.
 
 #### 4.17.5 `worktree/status`
 

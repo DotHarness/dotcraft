@@ -29,7 +29,6 @@ internal sealed class DreamsThreadCatalog(ThreadStore threadStore, DotCraftPaths
             if (summary.Ephemeral
                 || ThreadVisibility.IsInternal(summary)
                 || IsSubAgent(summary.Source, summary.OriginChannel)
-                || !SamePath(summary.WorkspacePath, paths.WorkspacePath)
                 || threadIds is { Count: > 0 } && !threadIds.Contains(summary.Id))
             {
                 continue;

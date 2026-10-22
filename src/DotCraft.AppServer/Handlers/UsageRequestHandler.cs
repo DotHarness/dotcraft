@@ -8,8 +8,7 @@ namespace DotCraft.AppServer;
 internal sealed class UsageRequestHandler(
     UsageAnalyticsService? usageAnalytics,
     TraceStore? traceStore,
-    ISessionService sessionService,
-    string? hostWorkspacePath) : IAppServerDomainHandler
+    ISessionService sessionService) : IAppServerDomainHandler
 {
     private const int DefaultThreadLimit = 5;
     private const int MaxThreadLimit = 50;
@@ -185,11 +184,7 @@ internal sealed class UsageRequestHandler(
 
         // Workspace-scoped count (not identity-scoped): the Profile page reflects all threads in
         // this workspace, regardless of which channel/user (e.g. channelContext) created them.
-        var identity = new SessionIdentity();
-        var workspacePath = string.IsNullOrWhiteSpace(identity.WorkspacePath) && !string.IsNullOrEmpty(hostWorkspacePath)
-            ? hostWorkspacePath
-            : identity.WorkspacePath;
-        var totalThreads = await sessionService.CountWorkspaceThreadsAsync(workspacePath, ct);
+        var totalThreads = await sessionService.CountWorkspaceThreadsAsync(ct);
 
         return AppServerTypedResult<Contract.ProfileInsightsResult>.FromResult(new Contract.ProfileInsightsResult
         {

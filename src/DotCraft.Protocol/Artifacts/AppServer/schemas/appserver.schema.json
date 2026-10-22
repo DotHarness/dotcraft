@@ -22596,18 +22596,7 @@
     "WorktreeListParams": {
       "title": "WorktreeListParams",
       "type": "object",
-      "properties": {
-        "identity": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SessionIdentity"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
+      "properties": {},
       "additionalProperties": true
     },
     "WorktreeListResult": {

@@ -34,8 +34,6 @@ public sealed partial class SessionService
                 {
                     if (!(includeArchived || s.Status != ThreadStatus.Archived))
                         return false;
-                    if (!string.Equals(s.WorkspacePath, identity.WorkspacePath, StringComparison.OrdinalIgnoreCase))
-                        return false;
                     if (!includeSubAgents && IsSubAgentSummary(s))
                         return false;
                     if (includeSubAgents
@@ -76,11 +74,8 @@ public sealed partial class SessionService
                 .ToList();
         }
 
-        public async Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct)
+        public async Task<int> CountWorkspaceThreadsAsync(CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(workspacePath))
-                return 0;
-
             var all = await owner.Persistence.LoadIndexAsync(ct);
             var mergedById = new Dictionary<string, ThreadSummary>(StringComparer.OrdinalIgnoreCase);
             foreach (var summary in all)
@@ -93,8 +88,7 @@ public sealed partial class SessionService
             }
 
             return mergedById.Values.Count(s =>
-                string.Equals(s.WorkspacePath, workspacePath, StringComparison.OrdinalIgnoreCase)
-                && !ThreadVisibility.IsInternal(s)
+                !ThreadVisibility.IsInternal(s)
                 && !IsSubAgentSummary(s));
         }
 

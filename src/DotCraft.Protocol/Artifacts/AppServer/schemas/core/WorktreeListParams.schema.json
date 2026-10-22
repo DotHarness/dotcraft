@@ -3,17 +3,6 @@
   "$id": "https://schemas.dotcraft.dev/appserver/v1/core/WorktreeListParams.schema.json",
   "title": "WorktreeListParams",
   "type": "object",
-  "properties": {
-    "identity": {
-      "anyOf": [
-        {
-          "$ref": "./SessionIdentity.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    }
-  },
+  "properties": {},
   "additionalProperties": true
 }

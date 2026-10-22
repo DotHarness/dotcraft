@@ -85,12 +85,7 @@ public sealed class AutomationSessionClient(ISessionService sessionService, DotC
             ct);
 
     public Task<IReadOnlyList<ThreadWorktreeStatus>> ListManagedWorktreesAsync(CancellationToken ct) =>
-        sessionService.ListWorktreesAsync(
-            new SessionIdentity
-            {
-                WorkspacePath = paths.WorkspacePath
-            },
-            ct);
+        sessionService.ListWorktreesAsync(ct);
 
     /// <summary>
     /// Submits a turn and yields session events until the turn reaches a terminal state.

@@ -13,10 +13,14 @@ internal static class WorkspaceStateSchema
                 PRAGMA foreign_keys=ON;
                 PRAGMA secure_delete=ON;
 
+                CREATE TABLE IF NOT EXISTS workspace_meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS threads (
                     thread_id TEXT PRIMARY KEY,
                     rollout_path TEXT NOT NULL,
-                    workspace_path TEXT NOT NULL,
                     user_id TEXT,
                     origin_channel TEXT NOT NULL,
                     channel_context TEXT,
@@ -37,8 +41,8 @@ internal static class WorkspaceStateSchema
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_threads_updated_at ON threads(updated_at DESC, thread_id DESC);
-                CREATE INDEX IF NOT EXISTS idx_threads_workspace_identity
-                    ON threads(workspace_path, user_id, channel_context, origin_channel);
+                CREATE INDEX IF NOT EXISTS idx_threads_identity
+                    ON threads(user_id, channel_context, origin_channel);
                 CREATE INDEX IF NOT EXISTS idx_threads_status ON threads(status);
 
                 CREATE TABLE IF NOT EXISTS thread_history_projection_state (

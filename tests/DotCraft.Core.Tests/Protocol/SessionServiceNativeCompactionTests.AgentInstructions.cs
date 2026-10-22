@@ -18,7 +18,7 @@ public sealed partial class SessionServiceNativeCompactionTests
             [AIFunctionFactory.Create(() => "old tool result marker", name: "GetStatus")],
             null, factory.RuntimeContext, "Use the status tool.");
         var service = new SessionService(factory, agent,
-            new SessionPersistenceService(new ThreadStore(_workspace)), new SessionGate());
+            new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft"))), new SessionGate());
         var thread = await service.CreateThreadAsync(new SessionIdentity
         {
             WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
@@ -26,7 +26,7 @@ public sealed partial class SessionServiceNativeCompactionTests
         _provider.ToolNextResponse = true;
         _provider.ReasoningNextResponse = true;
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("check status")]));
-        var history = await new SessionPersistenceService(new ThreadStore(_workspace))
+        var history = await new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft")))
             .LoadModelHistoryAsync(thread.Id, CancellationToken.None);
         Assert.Contains(history, message => message.Contents.OfType<FunctionResultContent>().Any());
 
@@ -142,7 +142,7 @@ public sealed partial class SessionServiceNativeCompactionTests
         await coldService.GetInstructionSourcesAsync(threadId);
         await DrainAsync(coldService.SubmitInputAsync(threadId, [new TextContent("continued")]));
         AssertContainsOnce(_provider.Requests[^1], "cold neutral convention");
-        var history = await new SessionPersistenceService(new ThreadStore(_workspace))
+        var history = await new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft")))
             .LoadModelHistoryAsync(threadId, CancellationToken.None);
         Assert.Single(history, AgentInstructionsHistory.IsInstructions);
     }

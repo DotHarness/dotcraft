@@ -220,15 +220,6 @@ public sealed class SessionServiceLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task FindThreads_NoMatch_ReturnsEmpty()
-    {
-        await _svc.CreateThreadAsync(MakeIdentity("user1", "/ws1"));
-
-        var found = await _svc.FindThreadsAsync(MakeIdentity("user1", "/ws2"));
-        Assert.Empty(found);
-    }
-
-    [Fact]
     public async Task FindThreads_ArchivedExcludedByDefault_ButIncludedWhenRequested()
     {
         var identity = MakeIdentity("user1", "/ws/alpha");
@@ -497,7 +488,7 @@ public sealed class SessionServiceLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task FindThreads_WorkspaceScope_IncludesEveryOriginButNotOtherWorkspaces()
+    public async Task FindThreads_WorkspaceScope_IncludesEveryOrigin()
     {
         var workspace = "/ws/workspace_scope";
         var desktop = new SessionIdentity
@@ -518,12 +509,6 @@ public sealed class SessionServiceLifecycleTests : IDisposable
 
         foreach (var identity in identities)
             await _svc.CreateThreadAsync(identity);
-        await _svc.CreateThreadAsync(new SessionIdentity
-        {
-            ChannelName = "oratorio",
-            UserId = "operator",
-            WorkspacePath = "/ws/other"
-        });
 
         var identityScoped = await _svc.FindThreadsAsync(desktop);
         var workspaceScoped = await _svc.FindThreadsAsync(
@@ -832,7 +817,7 @@ internal sealed class FakeSessionService : ISessionService, ISubAgentThreadLifec
             ThreadRenamedForBroadcast?.Invoke(thread);
     }
 
-    public Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default) =>
+    public Task<int> CountWorkspaceThreadsAsync(CancellationToken ct = default) =>
         throw new NotImplementedException();
 
     public async Task<IReadOnlyList<ThreadSummary>> FindThreadsAsync(
@@ -849,8 +834,6 @@ internal sealed class FakeSessionService : ISessionService, ISubAgentThreadLifec
         return index
             .Where(s =>
             {
-                if (!string.Equals(s.WorkspacePath, identity.WorkspacePath, StringComparison.OrdinalIgnoreCase))
-                    return false;
                 if (!(includeArchived || s.Status != ThreadStatus.Archived))
                     return false;
                 if (!includeSubAgents && (string.Equals(s.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)

@@ -353,9 +353,7 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
         CancellationToken ct = default)
         => throw new NotSupportedException("Worktree operations are not supported by this test service.");
 
-    public Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(
-        SessionIdentity? identity = null,
-        CancellationToken ct = default)
+    public Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(CancellationToken ct = default)
         => throw new NotSupportedException("Worktree operations are not supported by this test service.");
 
     public Task<ThreadWorktreeStatus> GetWorktreeStatusAsync(
@@ -428,8 +426,6 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
         return index
             .Where(s =>
             {
-                if (!string.Equals(s.WorkspacePath, identity.WorkspacePath, StringComparison.OrdinalIgnoreCase))
-                    return false;
                 if (!(includeArchived || s.Status != ThreadStatus.Archived))
                     return false;
                 if (!includeSubAgents && (string.Equals(s.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
@@ -476,15 +472,11 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
             .ToList();
     }
 
-    public async Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default)
+    public async Task<int> CountWorkspaceThreadsAsync(CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(workspacePath))
-            return 0;
-
         var index = await _store.LoadIndexAsync(ct);
         return index.Count(s =>
-            string.Equals(s.WorkspacePath, workspacePath, StringComparison.OrdinalIgnoreCase)
-            && !ThreadVisibility.IsInternal(s)
+            !ThreadVisibility.IsInternal(s)
             && !(string.Equals(s.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(s.OriginChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase)));
     }

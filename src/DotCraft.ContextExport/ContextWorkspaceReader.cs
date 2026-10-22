@@ -150,7 +150,6 @@ internal sealed class ContextWorkspaceReader
             command.CommandText = """
                 SELECT thread_id,
                        rollout_path,
-                       workspace_path,
                        origin_channel,
                        channel_context,
                        display_name,
@@ -168,7 +167,7 @@ internal sealed class ContextWorkspaceReader
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
-                var storedStatus = reader.GetString(6);
+                var storedStatus = reader.GetString(5);
                 if (!MatchesStatusFilter(storedStatus, status))
                     continue;
 
@@ -182,16 +181,16 @@ internal sealed class ContextWorkspaceReader
                 rows.Add(new ContextThreadIndexRow(
                     ThreadId: reader.GetString(0),
                     RolloutPath: storedRolloutPath,
-                    WorkspacePath: reader.GetString(2),
-                    OriginChannel: reader.GetString(3),
-                    ChannelContext: reader.IsDBNull(4) ? null : reader.GetString(4),
-                    DisplayName: reader.IsDBNull(5) ? null : reader.GetString(5),
+                    WorkspacePath: paths.WorkspacePath,
+                    OriginChannel: reader.GetString(2),
+                    ChannelContext: reader.IsDBNull(3) ? null : reader.GetString(3),
+                    DisplayName: reader.IsDBNull(4) ? null : reader.GetString(4),
                     Status: storedStatus,
-                    CreatedAt: ParseDateTimeOffset(reader.GetString(7)),
-                    LastActiveAt: ParseDateTimeOffset(reader.GetString(8)),
-                    TurnCount: reader.GetInt32(9),
-                    FirstUserMessage: reader.IsDBNull(10) ? null : reader.GetString(10),
-                    MetadataJson: reader.IsDBNull(11) ? null : reader.GetString(11)));
+                    CreatedAt: ParseDateTimeOffset(reader.GetString(6)),
+                    LastActiveAt: ParseDateTimeOffset(reader.GetString(7)),
+                    TurnCount: reader.GetInt32(8),
+                    FirstUserMessage: reader.IsDBNull(9) ? null : reader.GetString(9),
+                    MetadataJson: reader.IsDBNull(10) ? null : reader.GetString(10)));
             }
 
             return rows;

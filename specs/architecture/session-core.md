@@ -77,7 +77,7 @@ A Thread is a persistent conversation between one user and one agent, tied to a 
 Fields:
 
 - `Id` — globally unique, assigned at creation, immutable (Section 4.3).
-- `WorkspacePath` — absolute path of the state workspace.
+- `WorkspacePath` — absolute path of the state workspace. It is not persisted: a Thread belongs to the workspace whose data directory stores it, so loading sets it from that location and a moved or renamed workspace keeps its Threads.
 - `UserId` (nullable) — opaque user identifier from the originating channel, used for discovery. Null for system-initiated threads; independent automation runs use a distinct identity per run.
 - `OriginChannel` — channel that created the Thread. Informational; does not restrict which channels may resume it.
 - `DisplayName` (nullable) — see naming rules below.
@@ -693,6 +693,12 @@ For each submitted Turn, Session Core validates thread state and mutual exclusio
 
 `{threadDir}` uses the same rule as rollout names: a safe Thread id stays readable, otherwise `thread-{sha256(threadId)}`. Paths always resolve under the corresponding `.craft` root; no other directory shape is part of the contract.
 
+### 9.1.1 Workspace Data Upgrades
+
+`state.db` records the release that last upgraded the workspace's data in `workspace_meta` (`data_version`). When a release changes the shape of existing data, it ships one upgrade that runs once when the state database is first opened for writing, before any Thread loads: it rewrites the affected rollouts (to a temporary file, then an atomic replace) and tables, then records its release. Code reads only the current shape, so there are no compatibility readers. The upgrade is removed in the next release, so a workspace that skips a release keeps that release's old data shape.
+
+The 0.9.2 upgrade removes the workspace path from `thread_opened` and the `threads` table, stores rollout paths relative to the data directory, and drops the `turn_started`, `item_appended`, and `turn_completed` records that a later `turn_state_replaced` for the same Turn supersedes, then clears those Threads' history projections so they rebuild.
+
 ### 9.2 Thread File Format
 
 Each thread is an append-only JSONL rollout. Every line is a record `{ kind, timestamp, <payload> }` describing one state transition. Record kinds:
@@ -830,7 +836,7 @@ Each discovered thread summary returns `Id`, `Status`, `OriginChannel`, `Channel
 | Diagnostics and accounting | Traces, token usage, dashboard usage | Independent diagnostic retention |
 | Independent file assets | Attachment file bytes | Rollout preserves references only |
 
-Read-repair updates only thread metadata and attachment references; it never touches business authority, continuity state, diagnostics, or unrelated tables. Losing `state.db` is partial data loss: conversations recover from rollouts, while goals, plans, graph edges, and mailbox state do not.
+Thread rows store their rollout path relative to the data directory and record no workspace path. Read-repair updates only thread metadata and attachment references; it never touches business authority, continuity state, diagnostics, or unrelated tables. Losing `state.db` is partial data loss: conversations recover from rollouts, while goals, plans, graph edges, and mailbox state do not.
 
 Projection repair and terminal Turn commits update thread metadata, attachment references, and their offsets only after the rollout flush succeeds; each projection advances its own offset in the transaction that publishes its state. Attachment projection uncertainty disables attachment garbage collection until a later successful repair. Each thread row records the attachment index version that produced its references, and repair reprojects older versions even when the offset matches, so references exist before the orphan sweep may delete anything.
 
@@ -878,11 +884,10 @@ Projection telemetry contains no content, provider payload, or raw identifier: h
 
 #### Default discovery (no `crossChannelOrigins`)
 
-`FindThreads(identity, includeArchived, crossChannelOrigins: null)` matches on three identity fields; `ChannelName` is **not** a filter:
+`FindThreads(identity, includeArchived, crossChannelOrigins: null)` searches the workspace's own store and matches on two identity fields; `ChannelName` is **not** a filter:
 
 | Field | Behavior |
 |---|---|
-| `WorkspacePath` | Required exact match (case-insensitive) |
 | `UserId` | Matched if non-null in identity; null skips this filter |
 | `ChannelContext` | Null matches only threads with null `ChannelContext`; non-null matches exactly |
 
@@ -893,11 +898,11 @@ Cross-channel discovery is therefore natural for channels sharing an identity sh
 
 #### Opt-in cross-context discovery (`crossChannelOrigins`)
 
-When `crossChannelOrigins` is null or empty, discovery is the default. When non-empty, the result is the union of threads matching the default predicate and threads whose `WorkspacePath` matches and whose `OriginChannel` is in the list (case-insensitive), ignoring `ChannelContext` and `UserId` — so origins with per-run synthetic user ids (for example `automation:{runId}`) appear when opted in. The union is de-duplicated by id and ordered by `LastActiveAt` descending. This lets a client with a non-null context (such as `workspace:{path}`) list threads from origins with a different context when the user allows them.
+When `crossChannelOrigins` is null or empty, discovery is the default. When non-empty, the result is the union of threads matching the default predicate and threads whose `OriginChannel` is in the list (case-insensitive), ignoring `ChannelContext` and `UserId` — so origins with per-run synthetic user ids (for example `automation:{runId}`) appear when opted in. The union is de-duplicated by id and ordered by `LastActiveAt` descending. This lets a client with a non-null context (such as `workspace:{path}`) list threads from origins with a different context when the user allows them.
 
 #### Workspace-scoped discovery
 
-Trusted workspace-owner clients may request workspace scope: exact `WorkspacePath` match only, with no `UserId`, `ChannelContext`, or `OriginChannel` filter; `crossChannelOrigins` is ignored. Callers that omit the scope keep identity rules. Archived, sub-agent, internal-thread, query, channel-name, and pagination filters remain independent. Workspace scope makes every non-internal thread in the workspace discoverable, including automation, App Binding, and unknown external origins.
+Trusted workspace-owner clients may request workspace scope: every Thread in the store, with no `UserId`, `ChannelContext`, or `OriginChannel` filter; `crossChannelOrigins` is ignored. Callers that omit the scope keep identity rules. Archived, sub-agent, internal-thread, query, channel-name, and pagination filters remain independent. Workspace scope makes every non-internal thread in the workspace discoverable, including automation, App Binding, and unknown external origins.
 
 #### Resume flow
 

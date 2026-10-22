@@ -93,7 +93,7 @@ internal sealed class ThreadRolloutStore
             return null;
         var replay = new ThreadReplay();
         await Utf8JsonlReader.ReadAsync(path, replay.Apply, ct);
-        return replay.Build();
+        return WithWorkspace(replay.Build(), path);
     }
 
     public IEnumerable<SessionThread> LoadAllThreads()
@@ -110,7 +110,7 @@ internal sealed class ThreadRolloutStore
                 {
                     var replay = new ThreadReplay();
                     Utf8JsonlReader.Read(path, replay.Apply);
-                    thread = replay.Build();
+                    thread = WithWorkspace(replay.Build(), path);
                 }
                 catch
                 {
@@ -121,6 +121,13 @@ internal sealed class ThreadRolloutStore
                     yield return thread;
             }
         }
+    }
+
+    private static SessionThread? WithWorkspace(SessionThread? thread, string rolloutPath)
+    {
+        if (thread != null)
+            thread.WorkspacePath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(rolloutPath)!, "..", "..", ".."));
+        return thread;
     }
 
     public IEnumerable<string> EnumerateRolloutPaths()
@@ -828,8 +835,6 @@ internal sealed class ThreadRolloutStore
 
     private static bool ThreadBaselineChanged(SessionThread previous, SessionThread current)
     {
-        if (!string.Equals(previous.WorkspacePath, current.WorkspacePath, StringComparison.Ordinal))
-            return true;
         if (!string.Equals(previous.UserId, current.UserId, StringComparison.Ordinal))
             return true;
         if (!string.Equals(previous.OriginChannel, current.OriginChannel, StringComparison.Ordinal))
@@ -876,7 +881,6 @@ internal sealed class ThreadRolloutStore
             ThreadOpened = new ThreadOpenedPayload
             {
                 ThreadId = thread.Id,
-                WorkspacePath = thread.WorkspacePath,
                 UserId = thread.UserId,
                 OriginChannel = thread.OriginChannel,
                 ChannelContext = thread.ChannelContext,
@@ -989,7 +993,6 @@ internal sealed class ThreadRolloutStore
                 case RolloutKinds.ThreadOpened when record.ThreadOpened != null:
                     _thread ??= new SessionThread();
                     _thread.Id = record.ThreadOpened.ThreadId;
-                    _thread.WorkspacePath = record.ThreadOpened.WorkspacePath;
                     _thread.UserId = record.ThreadOpened.UserId;
                     _thread.OriginChannel = record.ThreadOpened.OriginChannel;
                     _thread.ChannelContext = record.ThreadOpened.ChannelContext;
@@ -1202,8 +1205,6 @@ internal sealed class ThreadRolloutRecord
 internal sealed class ThreadOpenedPayload
 {
     public string ThreadId { get; init; } = string.Empty;
-
-    public string WorkspacePath { get; init; } = string.Empty;
 
     public string? UserId { get; init; }
 

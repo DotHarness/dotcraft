@@ -143,12 +143,8 @@ internal sealed class WorkspaceRequestHandler(
         return new Contract.MemoryResetResult();
     }
 
-    private SessionIdentity NormalizeIdentityWorkspace(SessionIdentity identity)
-    {
-        if (string.IsNullOrWhiteSpace(identity.WorkspacePath) && !string.IsNullOrEmpty(hostWorkspacePath))
-            return identity with { WorkspacePath = hostWorkspacePath };
-        return identity;
-    }
+    private SessionIdentity NormalizeIdentityWorkspace(SessionIdentity identity) =>
+        string.IsNullOrEmpty(hostWorkspacePath) ? identity : identity with { WorkspacePath = hostWorkspacePath };
 
     private static SessionIdentity ToDomain(Contract.SessionIdentity? identity)
     {

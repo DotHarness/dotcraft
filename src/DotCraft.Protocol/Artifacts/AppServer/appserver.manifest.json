@@ -27774,15 +27774,7 @@
       "kind": "object",
       "schema": "schemas/core/WorktreeListParams.schema.json",
       "additionalProperties": true,
-      "fields": [
-        {
-          "name": "identity",
-          "type": "core.SessionIdentity",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
+      "fields": [],
       "variants": []
     },
     {

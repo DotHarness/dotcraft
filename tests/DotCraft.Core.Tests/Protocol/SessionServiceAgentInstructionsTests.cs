@@ -25,7 +25,7 @@ public sealed partial class SessionServiceAgentInstructionsTests : IDisposable
         _workspace = Directory.CreateDirectory(Path.Combine(_root, "repo")).FullName;
         Directory.CreateDirectory(Path.Combine(_workspace, ".git"));
         Directory.CreateDirectory(Path.Combine(_root, "user", ".craft"));
-        _persistence = new SessionPersistenceService(new ThreadStore(Path.Combine(_root, "data")));
+        _persistence = new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft")));
     }
 
     [Fact]

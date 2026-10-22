@@ -506,9 +506,7 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
         };
     }
 
-    public async Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(
-        SessionIdentity? identity = null,
-        CancellationToken ct = default)
+    public async Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(CancellationToken ct = default)
     {
         var summaries = await _store.LoadIndexAsync(ct);
         var statuses = new List<ThreadWorktreeStatus>();
@@ -516,11 +514,6 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
         {
             if (summary.Worktree == null)
                 continue;
-            if (identity != null
-                && !string.Equals(summary.WorkspacePath, identity.WorkspacePath, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
 
             statuses.Add(await ThreadWorktreeManager.GetStatusAsync(summary.Id, summary.Worktree, ct));
         }
@@ -603,8 +596,6 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
         return index
             .Where(s =>
             {
-                if (!string.Equals(s.WorkspacePath, identity.WorkspacePath, StringComparison.OrdinalIgnoreCase))
-                    return false;
                 if (!(includeArchived || s.Status != ThreadStatus.Archived))
                     return false;
                 if (!includeSubAgents && (string.Equals(s.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
@@ -651,15 +642,11 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
             .ToList();
     }
 
-    public async Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default)
+    public async Task<int> CountWorkspaceThreadsAsync(CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(workspacePath))
-            return 0;
-
         var index = await _store.LoadIndexAsync(ct);
         return index.Count(s =>
-            string.Equals(s.WorkspacePath, workspacePath, StringComparison.OrdinalIgnoreCase)
-            && !ThreadVisibility.IsInternal(s)
+            !ThreadVisibility.IsInternal(s)
             && !(string.Equals(s.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(s.OriginChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase)));
     }

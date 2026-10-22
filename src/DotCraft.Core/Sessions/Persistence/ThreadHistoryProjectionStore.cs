@@ -160,6 +160,7 @@ internal sealed class ThreadHistoryProjectionStore(
                     {
                         snapshot = JsonSerializer.Deserialize<SessionThread>(state.SnapshotJson, JsonOptions)
                             ?? throw new JsonException("Projected Thread snapshot is empty.");
+                        snapshot.WorkspacePath = stateDatabase.WorkspacePath;
                         startOffset = state.ProjectedOffset;
                         nextOrdinal = state.NextOrdinal;
                     }
@@ -304,6 +305,7 @@ internal sealed class ThreadHistoryProjectionStore(
             throw new InvalidOperationException("Thread history projection state is missing.");
         var thread = JsonSerializer.Deserialize<SessionThread>(reader.GetString(0), JsonOptions)
             ?? throw new JsonException("Projected Thread snapshot is empty.");
+        thread.WorkspacePath = stateDatabase.WorkspacePath;
         var runtime = JsonSerializer.Deserialize<ThreadSummaryRuntime>(reader.GetString(1), JsonOptions)
             ?? throw new JsonException("Projected Thread runtime is empty.");
         thread.Turns = [];
@@ -412,7 +414,7 @@ internal sealed class ThreadHistoryProjectionStore(
         command.Parameters.AddWithValue("$thread_id", threadId);
         using var reader = command.ExecuteReader();
         return reader.Read()
-            ? new ProjectionState(reader.GetString(0), reader.GetInt64(1), reader.GetInt64(2), reader.GetString(3))
+            ? new ProjectionState(StoredRolloutPath.Resolve(connection, reader.GetString(0)), reader.GetInt64(1), reader.GetInt64(2), reader.GetString(3))
             : null;
     }
 
@@ -440,7 +442,7 @@ internal sealed class ThreadHistoryProjectionStore(
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = "UPDATE thread_history_projection_state SET rollout_path = $path WHERE thread_id = $thread_id";
-        command.Parameters.AddWithValue("$path", path);
+        command.Parameters.AddWithValue("$path", StoredRolloutPath.ToStored(connection, path));
         command.Parameters.AddWithValue("$thread_id", threadId);
         command.ExecuteNonQuery();
     }

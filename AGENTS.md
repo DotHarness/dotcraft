@@ -101,7 +101,7 @@ Use the [development guide's validation entry points](.agents/skills/dotcraft-de
 
 ## Review Guidelines
 
-Breaking changes are allowed: older saved threads, configuration, clients, and hosts may stop working after a change. Do not flag missing backward compatibility; flag added aliases, legacy parsers, or migration code instead.
+Breaking changes are allowed: older saved threads, configuration, clients, and hosts may stop working after a change. Do not flag missing backward compatibility; flag added aliases, legacy parsers, or migration code instead. The one exception is the current release's workspace data upgrade under `src/DotCraft.Core/Persistence/Upgrades/` (session-core.md §9.1.1), which the next release deletes.
 
 ## Go Deeper
 

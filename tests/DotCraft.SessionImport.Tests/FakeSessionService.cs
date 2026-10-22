@@ -124,7 +124,7 @@ internal sealed class FakeSessionService : ISessionService
 
     public Task UnarchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotSupportedException();
 
-    public Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<int> CountWorkspaceThreadsAsync(CancellationToken ct = default) => throw new NotSupportedException();
 
     public Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default) => throw new NotSupportedException();
 

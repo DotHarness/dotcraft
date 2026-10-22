@@ -65,7 +65,6 @@ public sealed class ThreadStoreTests : IDisposable
 
         Assert.NotNull(loaded);
         Assert.Equal(thread.Id, loaded.Id);
-        Assert.Equal(thread.WorkspacePath, loaded.WorkspacePath);
         Assert.Equal(thread.UserId, loaded.UserId);
         Assert.Equal(thread.OriginChannel, loaded.OriginChannel);
         Assert.Equal(thread.Status, loaded.Status);

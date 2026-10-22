@@ -305,12 +305,11 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
         using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO threads (
-                thread_id, rollout_path, workspace_path, origin_channel, display_name, first_user_message,
+                thread_id, rollout_path, origin_channel, display_name, first_user_message,
                 status, created_at, updated_at, history_mode)
-            VALUES ($id, $id, $workspace, $origin, $display, $first, 'active', $now, $now, 'default')
+            VALUES ($id, $id, $origin, $display, $first, 'active', $now, $now, 'default')
             """;
         command.Parameters.AddWithValue("$id", threadId);
-        command.Parameters.AddWithValue("$workspace", _root);
         command.Parameters.AddWithValue("$origin", originChannel);
         command.Parameters.AddWithValue("$display", (object?)displayName ?? DBNull.Value);
         command.Parameters.AddWithValue("$first", (object?)firstUserMessage ?? DBNull.Value);

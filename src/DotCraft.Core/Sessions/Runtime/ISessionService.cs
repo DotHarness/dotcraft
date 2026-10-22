@@ -74,9 +74,7 @@ public interface ISessionService
         throw new NotSupportedException("Git worktree removal is not supported by this session service.");
 
     /// <summary>Lists managed worktrees registered through Thread metadata.</summary>
-    Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(
-        SessionIdentity? identity = null,
-        CancellationToken ct = default) =>
+    Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<ThreadWorktreeStatus>>([]);
 
     /// <summary>Returns Git status for a Thread's managed worktree.</summary>
@@ -167,7 +165,7 @@ public interface ISessionService
         ThreadDiscoveryScope scope = ThreadDiscoveryScope.Identity);
 
     /// <summary>Counts top-level Threads in a workspace, including archived Threads.</summary>
-    Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default);
+    Task<int> CountWorkspaceThreadsAsync(CancellationToken ct = default);
 
     /// <summary>
     /// Returns an excerpt of the first user or agent message in a Thread's rollout that contains the term, ignoring case,

@@ -1625,12 +1625,6 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         };
         foreach (var identity in visibleIdentities)
             await _h.Service.CreateThreadAsync(identity);
-        await _h.Service.CreateThreadAsync(new SessionIdentity
-        {
-            ChannelName = "oratorio",
-            UserId = "operator",
-            WorkspacePath = workspacePath + "/child"
-        });
         var internalThread = await _h.Service.CreateThreadAsync(new SessionIdentity
         {
             ChannelName = WelcomeSuggestionConstants.ChannelName,

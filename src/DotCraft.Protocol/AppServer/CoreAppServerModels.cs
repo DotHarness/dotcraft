@@ -6948,10 +6948,6 @@ public sealed class WorktreeCreateAndStartResult : ExtensibleJsonObject
 /// <summary>Executable wire contract for WorktreeListParams.</summary>
 public sealed class WorktreeListParams : ExtensibleJsonObject
 {
-    [JsonPropertyName("identity")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SessionIdentity?> Identity { get; init; }
-
 }
 
 /// <summary>Executable wire contract for WorktreeListResult.</summary>

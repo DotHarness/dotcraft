@@ -336,9 +336,7 @@ public sealed partial class SessionService
             }
         }
 
-        public async Task<IReadOnlyList<ThreadWorktreeStatus>> ListAsync(
-            SessionIdentity? identity,
-            CancellationToken ct)
+        public async Task<IReadOnlyList<ThreadWorktreeStatus>> ListAsync(CancellationToken ct)
         {
             var summaries = await owner.Persistence.LoadIndexAsync(ct);
             var byThreadId = new Dictionary<string, ThreadWorktreeInfo>(StringComparer.Ordinal);
@@ -346,12 +344,6 @@ public sealed partial class SessionService
             {
                 if (summary.Worktree == null)
                     continue;
-                if (identity != null
-                    && !string.Equals(summary.WorkspacePath, identity.WorkspacePath, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
                 byThreadId[summary.Id] = summary.Worktree;
             }
 
@@ -359,12 +351,6 @@ public sealed partial class SessionService
             {
                 if (thread.Ephemeral || thread.Worktree == null)
                     continue;
-                if (identity != null
-                    && !string.Equals(thread.WorkspacePath, identity.WorkspacePath, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
                 byThreadId[thread.Id] = thread.Worktree;
             }
 

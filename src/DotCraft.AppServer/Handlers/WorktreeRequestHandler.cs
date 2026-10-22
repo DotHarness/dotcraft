@@ -174,10 +174,7 @@ internal sealed class WorktreeRequestHandler(
         AppServerTypedRequest<Contract.WorktreeListParams> request,
         CancellationToken ct)
     {
-        var p = request.Params;
-        var identity = WorktreeContractMapper.ToDomain(ValueOrDefault(p.Identity));
-        identity = identity == null ? null : NormalizeIdentityWorkspace(identity);
-        var data = await sessionService.ListWorktreesAsync(identity, ct);
+        var data = await sessionService.ListWorktreesAsync(ct);
         return new Contract.WorktreeListResult { Data = data.Select(WorktreeContractMapper.ToContract).ToArray() };
     }
 
@@ -212,12 +209,8 @@ internal sealed class WorktreeRequestHandler(
         }
     }
 
-    private SessionIdentity NormalizeIdentityWorkspace(SessionIdentity identity)
-    {
-        if (string.IsNullOrWhiteSpace(identity.WorkspacePath) && !string.IsNullOrEmpty(hostWorkspacePath))
-            return identity with { WorkspacePath = hostWorkspacePath };
-        return identity;
-    }
+    private SessionIdentity NormalizeIdentityWorkspace(SessionIdentity identity) =>
+        string.IsNullOrEmpty(hostWorkspacePath) ? identity : identity with { WorkspacePath = hostWorkspacePath };
 
     private static HistoryMode ParseHistoryMode(string? value) =>
         value?.ToLowerInvariant() == "client"

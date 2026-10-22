@@ -525,10 +525,8 @@ public sealed partial class SessionService(
         await Worktrees.RemoveAsync(options, ct);
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(
-        SessionIdentity? identity = null,
-        CancellationToken ct = default) =>
-        await Worktrees.ListAsync(identity, ct);
+    public async Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(CancellationToken ct = default) =>
+        await Worktrees.ListAsync(ct);
 
     /// <inheritdoc/>
     public async Task<ThreadWorktreeStatus> GetWorktreeStatusAsync(
@@ -632,8 +630,8 @@ public sealed partial class SessionService(
         ThreadDiscoveryScope scope = ThreadDiscoveryScope.Identity)
         => await ThreadIndex.FindAsync(identity, includeArchived, crossChannelOrigins, ct, includeSubAgents, scope);
 
-    public async Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default)
-        => await ThreadIndex.CountWorkspaceThreadsAsync(workspacePath, ct);
+    public async Task<int> CountWorkspaceThreadsAsync(CancellationToken ct = default)
+        => await ThreadIndex.CountWorkspaceThreadsAsync(ct);
 
     public Task<string?> FindThreadContentMatchAsync(string threadId, string searchTerm, CancellationToken ct = default)
         => Persistence.FindThreadContentMatchAsync(threadId, searchTerm, ct);

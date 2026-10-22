@@ -65,12 +65,8 @@ internal sealed partial class ThreadRequestHandler(
         table.Map(Contract.AppServerRpc.ThreadConfigUpdate, HandleThreadConfigUpdateAsync);
     }
 
-    private SessionIdentity NormalizeIdentityWorkspace(SessionIdentity identity)
-    {
-        if (string.IsNullOrWhiteSpace(identity.WorkspacePath) && !string.IsNullOrEmpty(hostWorkspacePath))
-            return identity with { WorkspacePath = hostWorkspacePath };
-        return identity;
-    }
+    private SessionIdentity NormalizeIdentityWorkspace(SessionIdentity identity) =>
+        string.IsNullOrEmpty(hostWorkspacePath) ? identity : identity with { WorkspacePath = hostWorkspacePath };
 
     private async Task<AppServerTypedResult<Contract.ThreadStartResult>> HandleThreadStartAsync(
         AppServerTypedRequest<Contract.ThreadStartParams> request,

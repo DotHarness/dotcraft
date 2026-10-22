@@ -1,3 +1,4 @@
+using DotCraft.Persistence.Upgrades;
 using Microsoft.Data.Sqlite;
 
 namespace DotCraft.Persistence;
@@ -34,7 +35,7 @@ public sealed class WorkspaceStateDatabase : IDisposable
         if (!readOnly)
             Directory.CreateDirectory(botPath);
 
-        DbPath = Path.Combine(botPath, "state.db");
+        DbPath = Path.GetFullPath(Path.Combine(botPath, "state.db"));
         _connectionString = new SqliteConnectionStringBuilder
         {
             DataSource = DbPath,
@@ -47,6 +48,8 @@ public sealed class WorkspaceStateDatabase : IDisposable
     }
 
     public string DbPath { get; }
+
+    public string WorkspacePath => Path.GetDirectoryName(Path.GetDirectoryName(DbPath)!)!;
 
     public SqliteConnection OpenConnection()
     {
@@ -142,6 +145,7 @@ public sealed class WorkspaceStateDatabase : IDisposable
             using var connection = new SqliteConnection(_connectionString);
             connection.Open();
             WorkspaceStateSchema.EnsureInitialized(connection);
+            WorkspaceUpgrades.Apply(connection);
             _initialized = true;
         }
     }

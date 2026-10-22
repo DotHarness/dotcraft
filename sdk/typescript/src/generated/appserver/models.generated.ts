@@ -5570,7 +5570,6 @@ export interface WorktreeCreateAndStartResult {
 }
 
 export interface WorktreeListParams {
-  identity?: SessionIdentity | null;
   [key: string]: unknown;
 }
 

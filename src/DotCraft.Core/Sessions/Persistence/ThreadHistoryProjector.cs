@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Persistence;
 using Microsoft.Data.Sqlite;
 
 namespace DotCraft.Sessions;
@@ -77,6 +78,7 @@ internal sealed class ThreadHistoryProjector(
     {
         var thread = EnsureSnapshot();
         thread.Turns = [];
+        thread.WorkspacePath = string.Empty;
 
         var runtime = BuildPersistedRuntime(thread);
         using var command = connection.CreateCommand();
@@ -97,7 +99,7 @@ internal sealed class ThreadHistoryProjector(
                 persisted_runtime_json = excluded.persisted_runtime_json
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
-        command.Parameters.AddWithValue("$rollout_path", rolloutPath);
+        command.Parameters.AddWithValue("$rollout_path", StoredRolloutPath.ToStored(connection, rolloutPath));
         command.Parameters.AddWithValue("$projected_offset", projectedOffset);
         command.Parameters.AddWithValue("$next_ordinal", NextOrdinal);
         command.Parameters.AddWithValue("$snapshot_json", JsonSerializer.Serialize(thread, JsonOptions));
@@ -122,7 +124,6 @@ internal sealed class ThreadHistoryProjector(
 
         var thread = Snapshot ?? new SessionThread();
         thread.Id = opened.ThreadId;
-        thread.WorkspacePath = opened.WorkspacePath;
         thread.UserId = opened.UserId;
         thread.OriginChannel = opened.OriginChannel;
         thread.ChannelContext = opened.ChannelContext;

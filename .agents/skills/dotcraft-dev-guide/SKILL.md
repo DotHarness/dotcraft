@@ -25,7 +25,7 @@ If a proposed change conflicts with an existing spec, resolve the spec-level con
 
 ### Compatibility and Generated Contracts
 
-When changing an external surface, update the affected AppServer clients, CLI arguments, configuration, and public SDK APIs in this repository in the same change. Breaking changes are allowed: older saved threads, configuration, clients, and hosts may stop working, so do not add aliases, legacy parsers, or migration code.
+When changing an external surface, update the affected AppServer clients, CLI arguments, configuration, and public SDK APIs in this repository in the same change. Breaking changes are allowed: older saved threads, configuration, clients, and hosts may stop working, so do not add aliases, legacy parsers, or migration code. When existing workspace data must change shape, put the one-time rewrite in the current release's upgrade under `src/DotCraft.Core/Persistence/Upgrades/`, replacing the previous release's upgrade (session-core.md §9.1.1).
 
 For AppServer wire-contract changes, update the owning spec and C# contracts or RPC catalog, then run these commands from the repository root:
 

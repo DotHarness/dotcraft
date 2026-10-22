@@ -39,7 +39,7 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
             }, threadId: threadId);
             await DrainAsync(service.SubmitInputAsync(threadId, [new TextContent("initial question")]));
 
-            var persistence = new SessionPersistenceService(new ThreadStore(_workspace));
+            var persistence = new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft")));
             var before = await persistence.LoadModelHistoryAsync(threadId, CancellationToken.None);
             Assert.Single(before, AgentInstructionsHistory.IsInstructions);
             await CompactAsync(service, threadId);
@@ -221,7 +221,7 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
                 return "tool-result-tail";
             }, name: "GetStatus")], null, factory.RuntimeContext, "Use the status tool.");
         service = new SessionService(factory, agent,
-            new SessionPersistenceService(new ThreadStore(_workspace)), new SessionGate());
+            new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft"))), new SessionGate());
         var thread = await service.CreateThreadAsync(new SessionIdentity
         {
             WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
@@ -252,7 +252,7 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
                 return "tool-result";
             }, name: "GetStatus")], null, factory.RuntimeContext, "Use the status tool.");
         service = new SessionService(factory, agent,
-            new SessionPersistenceService(new ThreadStore(_workspace)), new SessionGate());
+            new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft"))), new SessionGate());
         var thread = await service.CreateThreadAsync(new SessionIdentity
         {
             WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
@@ -279,7 +279,7 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         Assert.True(_provider.Requests.Count > requestCount);
         Assert.All(_provider.Requests.Skip(requestCount), request => Assert.DoesNotContain("blue project", request));
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("continue after summary")]));
-        var history = await new SessionPersistenceService(new ThreadStore(_workspace))
+        var history = await new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft")))
             .LoadModelHistoryAsync(thread.Id, CancellationToken.None);
         Assert.Single(history, AgentInstructionsHistory.IsInstructions);
     }
@@ -318,7 +318,7 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
     }
 
     private SessionService CreateService(AgentFactory factory) => new(factory,
-        factory.CreateDefaultAgent(), new SessionPersistenceService(new ThreadStore(_workspace)), new SessionGate());
+        factory.CreateDefaultAgent(), new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft"))), new SessionGate());
 
     private static async Task DrainAsync(IAsyncEnumerable<SessionEvent> events)
     {
