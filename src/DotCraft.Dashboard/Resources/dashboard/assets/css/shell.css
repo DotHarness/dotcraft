@@ -1,0 +1,291 @@
+.dash-root {
+  container: dash / inline-size;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dash-shell {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+  height: 100%;
+}
+
+.dash-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 10px 4px;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+}
+
+.dash-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 16px;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.dash-brand__logo { transform: translateY(-2px); }
+
+.dash-brand__name { font-weight: 600; }
+
+.dash-brand__sub {
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
+}
+
+.dash-nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-nav--bottom { margin-top: auto; }
+
+.dash-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 8px);
+  min-height: 30px;
+  margin: 2px 4px;
+  padding: 0 12px;
+  border-radius: var(--sidebar-row-radius);
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dash-nav-row__icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+.dash-nav-row:hover:not([aria-disabled="true"]),
+.dash-nav-row:focus-visible {
+  background: var(--sidebar-control-hover);
+}
+
+.dash-nav-row[aria-current="page"] { background: var(--sidebar-control-active); }
+
+.dash-nav-row[aria-disabled="true"] {
+  color: var(--text-tertiary);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.dash-nav-row__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-nav-row__marker { display: inline-flex; }
+
+.dash-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.dash-topbar {
+  display: flex;
+  flex: 0 0 48px;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  padding: 0 12px 0 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.dash-workspace {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-secondary);
+}
+
+.dash-topbar__actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.dash-topbar__mode {
+  margin: 0 6px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.dash-content {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dash-notice-slot {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 16px 24px 0;
+}
+
+.dash-panel {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dash-panel-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 20px 24px 12px;
+}
+
+.dash-panel-header__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-panel-title {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: var(--type-page-title-size);
+  line-height: var(--type-page-title-line-height);
+  font-weight: var(--type-page-title-weight);
+}
+
+.dash-panel-description {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.dash-panel-header__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: var(--type-page-title-line-height);
+  gap: 8px;
+}
+
+.dash-panel-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 8px 24px 32px;
+}
+
+.dash-panel .dash-panel-body > * {
+  width: 100%;
+  max-width: 1072px;
+  /* Centres on the panel, not the scrollbar-gutter-narrowed box, so content shares the header's left edge. */
+  margin-left: max(0px, min((100% + var(--scrollbar-size) - 1072px) / 2, 100% - 1072px));
+  margin-right: auto;
+}
+
+.dash-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.dash-notice--error { background: var(--error-bg); color: var(--error-text); }
+
+.dash-notice__text { flex: 1; min-width: 0; }
+
+.dash-notice__title {
+  font-size: var(--type-ui-size);
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.dash-notice__detail {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+}
+
+.dash-notice__action { flex: 0 0 auto; }
+
+.dash-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 56px 16px;
+  text-align: center;
+}
+
+.dash-empty__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 6px;
+  border-radius: 9px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.dash-empty__title {
+  font-size: var(--type-heading-size);
+  line-height: var(--type-heading-line-height);
+  font-weight: var(--type-heading-weight);
+}
+
+.dash-empty__detail {
+  max-width: 420px;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+}
+
+@container dash (max-width: 720px) {
+  .dash-shell { grid-template-columns: 52px minmax(0, 1fr); }
+  .dash-brand__name,
+  .dash-brand__sub,
+  .dash-nav-row__label { display: none; }
+  .dash-brand { justify-content: center; padding: 0; }
+  .dash-nav-row { position: relative; justify-content: center; padding: 0; }
+  .dash-nav-row__marker { position: absolute; top: 2px; right: 2px; }
+  .dash-topbar { padding-left: 16px; }
+  .dash-topbar__link-label { display: none; }
+  .dash-panel-header { flex-wrap: wrap; padding: 16px 16px 10px; }
+  .dash-panel-body { padding: 8px 16px 24px; }
+  .dash-notice-slot { padding: 12px 16px 0; }
+}

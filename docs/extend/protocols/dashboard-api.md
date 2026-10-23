@@ -48,7 +48,7 @@ Dashboard records `Thinking` and `Response` trace events by contiguous streaming
 
 `ResponseTerminal`, `ProviderError`, and `ProviderResponseDiagnostic` are diagnostic-only events. They are not written into thread rollout history as assistant text. `ResponseTerminal` records finish reason and stream-shape metadata even for usage-only or empty terminal updates. Provider diagnostics record sanitized status, error, and incomplete reason fields only; they must not persist raw prompts, full request bodies, or large tool arguments.
 
-The **Responses** filter includes `Response` and `ResponseTerminal`. The **Provider** filter includes `ProviderError` and `ProviderResponseDiagnostic`.
+The **Responses** filter includes `Response` and `ResponseTerminal`. The **Provider** filter includes `ProviderError` and `ProviderResponseDiagnostic`. The **Errors** filter includes `Error` and `ProviderError`. The **Tokens** filter includes `TokenUsage`, `PromptCacheDiagnostic`, and `SessionMetadata`. The **Prompt cache** filter (`cache`) includes `PromptCacheDiagnostic`, `SessionMetadata`, `ToolInjection`, and `SubAgentPrefixDiagnostic`.
 
 The **Instructions** filter includes `AgentInstructions`. Its `content` field contains the exact rendered instruction text, including an empty string when no instructions are loaded. Its `metadataJson` has this shape:
 

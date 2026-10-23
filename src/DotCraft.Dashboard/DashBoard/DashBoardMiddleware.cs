@@ -96,6 +96,11 @@ public static class DashBoardMiddleware
             return ctx.Response.WriteAsync(DashBoardFrontend.GetHtml());
         });
 
+        endpoints.MapGet("/dashboard/assets/{**path}", (string path) =>
+            DashBoardFrontend.TryGetAsset(path, out var content, out var contentType)
+                ? Results.Bytes(content, contentType)
+                : Results.NotFound());
+
         endpoints.MapGet("/dashboard/api/runtime", () => Results.Json(new
         {
             mode = runtime.Mode,

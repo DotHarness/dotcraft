@@ -1596,7 +1596,8 @@ language:
 
 - rest state is borderless unless the control belongs to a framed toolbar family;
 - hover/open/highlighted/selected states use neutral background elevation and text
-  emphasis, never visible borders, inset rings, or outlines;
+  colour, never visible borders, inset rings, or outlines, and never a change of
+  font weight, which reflows the label and shifts the layout;
 - stronger outlines are reserved for inputs, drag/drop targets, validation,
   destructive confirmation, and focus-visible accessibility.
 
@@ -1926,3 +1927,6 @@ Don't:
   dialogs.
 - Wrap an inline reference in a pill, border, or fill, at rest or on hover; hover
   lifts the text instead.
+- Chain interface metadata with glyph separators such as `·`, `•`, or `|`; give
+  each fact its own element separated by spacing. Reference labels inside
+  conversation content keep their own format.

@@ -25,13 +25,13 @@ Dashboard listens on localhost by default. Point it at an external address and a
 
 ### Confirm the model is responding
 
-Trigger a session and open **Trace Timeline**. Events are laid out in order: model output, every tool call and its result, and any error along the way. One pass tells you where things stopped.
+Trigger a session, then open it under **Sessions**. Its timeline lays the events out in order, turn by turn: each numbered model request, every tool call with its result, and any error along the way. One pass tells you where things stopped. Drag across the timeline strip at the top to focus on one stretch of time.
 
 If there is no model output at all, provider credentials or the endpoint usually don't match — check the merged provider configuration on the **Settings** page. The **Provider** filter also shows retry behavior: how many attempts were made, how each one ended, and why retrying stopped.
 
 ### Diagnose a failed or blocked tool call
 
-Open the session detail under **Sessions**, switch to the **Tools** or **Errors** filter, and click a single call to see its arguments, result, latency, and stderr.
+Open the session under **Sessions**, switch to the **Tools** or **Errors** filter, and select a call. Its arguments, result, latency, and stderr open beside the timeline.
 
 If approval was the blocker, **Approvals** records every call that needed one: which entry point asked, whether it was approved or denied, and whether the decision came from you, a workspace policy, or a Hook. For the policies themselves, see [Security](./security).
 

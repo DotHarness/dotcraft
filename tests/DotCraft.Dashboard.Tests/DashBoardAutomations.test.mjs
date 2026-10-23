@@ -1,26 +1,35 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { createContext, runInContext } from 'node:vm';
 
-const source = readFileSync(new URL('../../src/DotCraft.Dashboard/Resources/DashBoardAutomations.js', import.meta.url), 'utf8');
+const elements = {};
+const listeners = {};
+globalThis.document = {
+  getElementById: id => (elements[id] ??= { innerHTML: '', textContent: '', querySelector: () => null, querySelectorAll: () => [] }),
+  querySelector: () => null,
+  querySelectorAll: () => [],
+  addEventListener: (type, listener) => { (listeners[type] ??= []).push(listener); },
+};
+globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => null });
 
-function page() {
-  const elements = Object.fromEntries(['automationsStats', 'automationsGeneratedAt', 'automationsTable']
-    .map(id => [id, { innerHTML: '', textContent: '', onclick: null }]));
-  const opened = [];
-  const context = createContext({
-    document: { getElementById: id => elements[id] },
-    openSession: id => opened.push(id),
-    _automationsLastData: null,
-  });
-  runInContext(source, context);
-  return { context, elements, opened };
+const assets = '../../src/DotCraft.Dashboard/Resources/dashboard/assets/js/';
+const { installActions } = await import(assets + 'core/actions.js');
+const { state } = await import(assets + 'core/state.js');
+const { renderAutomations } = await import(assets + 'panels/automations.js');
+await import(assets + 'panels/sessions.js');
+installActions();
+
+const panelHtml = () => elements['panel-automations'].innerHTML;
+
+function clickThreadLink(html) {
+  const thread = /data-action="open-thread" data-thread="([^"]*)"/.exec(html)[1];
+  const link = { dataset: { action: 'open-thread', thread } };
+  listeners.click.forEach(listener => listener({
+    target: { closest: selector => (selector === '[data-action]' ? link : null) },
+  }));
 }
 
 test('unified definitions render names, lifecycle states, schedules and execution targets', () => {
-  const { context, elements } = page();
-  context.renderAutomations({
+  renderAutomations({
     generatedAt: '2026-09-08T12:00:00Z', countsByStatus: { active: 1, paused: 1, completed: 1 },
     automations: [
       { id: 'a1', name: 'Daily report', status: 'active', executionMode: 'independent', nextRunAt: '2026-09-09T09:00:00Z' },
@@ -28,44 +37,31 @@ test('unified definitions render names, lifecycle states, schedules and executio
       { id: 'a3', name: 'One reminder', status: 'completed', executionMode: 'independent' },
     ],
   });
-  const html = elements.automationsTable.innerHTML;
-  for (const text of ['Daily report', 'Follow PR', 'One reminder', 'Active', 'Paused', 'Completed', 'Independent run', 'Continue conversation', 'Next run'])
-    assert.ok(html.includes(text), text);
-  assert.ok(html.includes('data-automation-thread="thread-42"'));
-  assert.ok(elements.automationsStats.innerHTML.includes('Active'));
-  assert.ok(elements.automationsGeneratedAt.textContent.startsWith('Data as of '));
+  for (const text of ['Daily report', 'Follow PR', 'One reminder', 'Active', 'Paused', 'Completed', 'A new run each time', 'Its conversation', 'Next run'])
+    assert.ok(panelHtml().includes(text), text);
 });
 
-test('conversation link opens its target while independent definitions have no thread link', () => {
-  const { context, elements, opened } = page();
-  context.renderAutomations({ automations: [{ id: 'a1', name: 'Follow', status: 'active', executionMode: 'thread', targetThreadId: 'thread-42' }] });
-  let prevented = false;
-  elements.automationsTable.onclick({
-    target: { closest: () => ({ dataset: { automationThread: 'thread-42' } }) },
-    preventDefault: () => { prevented = true; },
-  });
-  assert.deepEqual(opened, ['thread-42']);
-  assert.equal(prevented, true);
-  context.renderAutomations({ automations: [{ id: 'a2', name: 'Standalone', status: 'active', executionMode: 'independent', targetThreadId: 'unused' }] });
-  assert.ok(!elements.automationsTable.innerHTML.includes('data-automation-thread'));
+test('conversation link opens its thread in Sessions while independent definitions have no thread link', () => {
+  state.panel = 'automations';
+  renderAutomations({ automations: [{ id: 'a1', name: 'Follow', status: 'active', executionMode: 'thread', targetThreadId: 'thread-42' }] });
+  clickThreadLink(panelHtml());
+  assert.equal(state.panel, 'sessions');
+  renderAutomations({ automations: [{ id: 'a2', name: 'Standalone', status: 'active', executionMode: 'independent', targetThreadId: 'unused' }] });
+  assert.ok(!panelHtml().includes('data-action="open-thread"'));
 });
 
 test('user fields are escaped and a missing conversation is not a broken link', () => {
-  const { context, elements } = page();
-  context.renderAutomations({ automations: [{ id: 'a1', name: '<img src=x onerror="alert(1)">', status: 'paused', executionMode: 'thread' }] });
-  const html = elements.automationsTable.innerHTML;
+  renderAutomations({ automations: [{ id: 'a1', name: '<img src=x onerror="alert(1)">', status: 'paused', executionMode: 'thread' }] });
+  const html = panelHtml();
   assert.ok(!html.includes('<img'));
   assert.ok(html.includes('&lt;img'));
   assert.ok(html.includes('Conversation unavailable'));
-  assert.ok(!html.includes('data-automation-thread'));
+  assert.ok(!html.includes('data-action="open-thread"'));
 });
 
-test('empty unified snapshot clears rows and displays zero', () => {
-  const { context, elements } = page();
-  context.renderAutomations({ automations: [{ id: 'a1', name: 'Old row', status: 'active' }] });
-  context.renderAutomations({ automations: [], countsByStatus: {} });
-  assert.ok(elements.automationsTable.innerHTML.includes('No automations.'));
-  assert.ok(!elements.automationsTable.innerHTML.includes('Old row'));
-  assert.ok(elements.automationsStats.innerHTML.includes('>0<'));
-  assert.equal(elements.automationsGeneratedAt.textContent, '');
+test('empty unified snapshot clears rows and shows the empty state', () => {
+  renderAutomations({ automations: [{ id: 'a1', name: 'Old row', status: 'active' }] });
+  renderAutomations({ automations: [], countsByStatus: {} });
+  assert.ok(panelHtml().includes('No automations yet'));
+  assert.ok(!panelHtml().includes('Old row'));
 });
