@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/dashboard/assets/dotcraft.svg">
+<title>DotCraft Dashboard</title>
+<link rel="stylesheet" href="/dashboard/assets/css/tokens.css">
+<link rel="stylesheet" href="/dashboard/assets/css/themes.css">
+<link rel="stylesheet" href="/dashboard/assets/css/base.css">
+<link rel="stylesheet" href="/dashboard/assets/css/controls.css">
+<link rel="stylesheet" href="/dashboard/assets/css/overlays.css">
+<link rel="stylesheet" href="/dashboard/assets/css/shell.css">
+<link rel="stylesheet" href="/dashboard/assets/css/panels.css">
+<link rel="stylesheet" href="/dashboard/assets/css/trace.css">
+<link rel="stylesheet" href="/dashboard/assets/css/dreams.css">
+<link rel="stylesheet" href="/dashboard/assets/css/settings.css">
+<script type="module" src="/dashboard/assets/js/main.js" blocking="render"></script>
+</head>
+<body>
+<div class="dash-root">
+  <div class="dash-shell">
+    <nav class="dash-sidebar" aria-label="Dashboard">
+      <div class="dash-brand">
+        <img class="dash-brand__logo" src="/dashboard/assets/dotcraft.svg" width="20" height="20" alt="">
+        <span class="dash-brand__name">DotCraft</span>
+        <span class="dash-brand__sub">Dashboard</span>
+      </div>
+      <ul class="dash-nav">
+        <li><button type="button" class="dash-nav-row" data-action="switch-panel" data-panel="overview" aria-label="Overview" data-tooltip-placement="right"><span class="dash-nav-row__icon" data-icon="layoutGrid" data-icon-stroke="1.75"></span><span class="dash-nav-row__label">Overview</span></button></li>
+        <li><button type="button" class="dash-nav-row" data-action="switch-panel" data-panel="usage" aria-label="Token usage" data-tooltip-placement="right"><span class="dash-nav-row__icon" data-icon="chartColumn" data-icon-stroke="1.75"></span><span class="dash-nav-row__label">Token usage</span></button></li>
+        <li><button type="button" class="dash-nav-row" data-action="switch-panel" data-panel="sessions" aria-label="Sessions" data-tooltip-placement="right"><span class="dash-nav-row__icon" data-icon="messagesSquare" data-icon-stroke="1.75"></span><span class="dash-nav-row__label">Sessions</span></button></li>
+        <li><button type="button" class="dash-nav-row" data-action="switch-panel" data-panel="dreams" aria-label="Dreams" data-tooltip-placement="right"><span class="dash-nav-row__icon" data-icon="sparkles" data-icon-stroke="1.75"></span><span class="dash-nav-row__label">Dreams</span></button></li>
+        <li><button type="button" class="dash-nav-row" data-action="switch-panel" data-panel="automations" aria-label="Automations" data-tooltip-placement="right"><span class="dash-nav-row__icon" data-icon="timer" data-icon-stroke="1.75"></span><span class="dash-nav-row__label">Automations</span></button></li>
+      </ul>
+      <ul class="dash-nav dash-nav--bottom">
+        <li><button type="button" class="dash-nav-row" data-action="switch-panel" data-panel="settings" aria-label="Settings" data-tooltip-placement="right"><span class="dash-nav-row__icon" data-icon="settings" data-icon-stroke="1.75"></span><span class="dash-nav-row__label">Settings</span><span class="dash-nav-row__marker" hidden></span></button></li>
+      </ul>
+    </nav>
+    <div class="dash-main">
+      <header class="dash-topbar">
+        <span class="dash-workspace"><span data-icon="folderOpen" data-icon-size="15"></span><span class="dash-truncate" id="workspacePath"></span></span>
+        <span class="dash-topbar__actions">
+          <a class="dc-button" data-variant="ghost" data-size="toolbar" href="https://www.dotcraft.net/" target="_blank" rel="noopener noreferrer"><span class="dc-button__icon" data-icon="bookOpen" data-icon-size="15"></span><span class="dash-topbar__link-label">Docs</span></a>
+          <a class="dc-button" data-variant="ghost" data-size="toolbar" href="https://github.com/DotHarness/dotcraft/issues" target="_blank" rel="noopener noreferrer"><span class="dc-button__icon" data-icon="lifeBuoy" data-icon-size="15"></span><span class="dash-topbar__link-label">Support</span></a>
+          <span class="dash-topbar__mode" id="readOnlyMode" hidden>Read-only</span>
+          <button type="button" class="dc-icon-button" data-size="28" id="themeToggle" data-action="toggle-theme"></button>
+          <button type="button" class="dc-icon-button" data-size="28" id="logoutButton" aria-label="Sign out" data-action="logout" hidden><span data-icon="logOut" data-icon-size="15"></span></button>
+        </span>
+      </header>
+      <main class="dash-content">
+        <div class="dash-notice-slot" id="connectionNotice" hidden></div>
+        <div class="dash-panel" id="panel-overview"></div>
+        <div class="dash-panel" id="panel-usage" hidden></div>
+        <div class="dash-panel" id="panel-sessions" hidden></div>
+        <div class="dash-panel" id="panel-dreams" hidden></div>
+        <div class="dash-panel" id="panel-automations" hidden></div>
+        <div class="dash-panel dc-settings-surface" id="panel-settings" hidden></div>
+      </main>
+    </div>
+  </div>
+</div>
+</body>
+</html>

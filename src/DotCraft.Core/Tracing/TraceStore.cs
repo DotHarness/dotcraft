@@ -1692,8 +1692,21 @@ public sealed class TraceStore
                 TraceEventType.ProviderResponseDiagnostic,
                 TraceEventType.ProviderError
             ],
-            "tokenusage" or "tokens" => [TraceEventType.TokenUsage],
-            "error" => [TraceEventType.Error],
+            "tokenusage" or "tokens" => [
+                TraceEventType.TokenUsage,
+                TraceEventType.PromptCacheDiagnostic,
+                TraceEventType.SessionMetadata
+            ],
+            "cache" => [
+                TraceEventType.PromptCacheDiagnostic,
+                TraceEventType.SessionMetadata,
+                TraceEventType.ToolInjection,
+                TraceEventType.SubAgentPrefixDiagnostic
+            ],
+            "error" => [
+                TraceEventType.Error,
+                TraceEventType.ProviderError
+            ],
             _ => Enum.TryParse<TraceEventType>(filter, ignoreCase: true, out var type)
                 ? [type]
                 : null

@@ -15,10 +15,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Resources\DashBoard.html" />
-    <EmbeddedResource Include="Resources\DashBoardAutomations.js" />
-    <EmbeddedResource Include="Resources\DashBoardDreams.js" />
     <EmbeddedResource Include="Resources\DashBoardLogin.html" />
+    <EmbeddedResource Include="Resources\dashboard\**\*" LogicalName="dashboard/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\desktop\src\renderer\styles\foundations\tokens.css" LogicalName="dashboard/assets/css/tokens.css" Link="Resources\dashboard\assets\css\tokens.css" />
+    <EmbeddedResource Include="..\..\desktop\src\renderer\styles\foundations\themes.css" LogicalName="dashboard/assets/css/themes.css" Link="Resources\dashboard\assets\css\themes.css" />
+    <EmbeddedResource Include="..\..\desktop\resources\dotcraft.svg" LogicalName="dashboard/assets/dotcraft.svg" Link="Resources\dashboard\assets\dotcraft.svg" />
   </ItemGroup>
 
   <ItemGroup>
