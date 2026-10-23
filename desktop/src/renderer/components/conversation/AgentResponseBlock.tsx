@@ -13,6 +13,7 @@ import { getTaskWake, getTurnActivityState } from './turnActivityModel'
 import { TurnCompletionSummary } from './TurnCompletionSummary'
 import { TurnArtifacts } from './TurnArtifacts'
 import { TurnThreadActions } from './TurnThreadActions'
+import { TurnAutomations } from './TurnAutomations'
 import { isThreadActionToolItem, parseThreadToolAction } from '../../utils/threadToolDisplay'
 import { ApprovalCard } from './ApprovalCard'
 import { SystemNoticeBlock } from './SystemNoticeBlock'
@@ -433,6 +434,7 @@ function TurnCompletionContent({ turnId }: { turnId: string }): JSX.Element {
   return (
     <>
       <TurnThreadActions turnId={turnId} />
+      <TurnAutomations turnId={turnId} />
       <TurnArtifacts turnId={turnId} />
       <TurnCompletionSummary turnId={turnId} />
     </>

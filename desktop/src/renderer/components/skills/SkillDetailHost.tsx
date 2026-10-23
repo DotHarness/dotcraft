@@ -15,7 +15,6 @@ export function SkillDetailHost(): JSX.Element | null {
   const activeMainView = useUIStore((state) => state.activeMainView)
   const activeThreadId = useThreadStore((state) => state.activeThreadId)
 
-  // The details belong to the surface they were opened from; leaving it dismisses them.
   useEffect(() => close, [activeMainView, activeThreadId, close])
 
   return name ? <SkillDetail key={name} name={name} onClose={close} /> : null
