@@ -1527,6 +1527,16 @@ export interface ErrorPayload {
   [key: string]: unknown;
 }
 
+export interface ExtChannelConfigOptionAvailabilityParams {
+  key?: string;
+  [key: string]: unknown;
+}
+
+export interface ExtChannelConfigOptionAvailabilityResult {
+  available: string[] | null;
+  [key: string]: unknown;
+}
+
 export interface ExtChannelSendParams {
   deliveryId?: string;
   message?: ChannelOutboundMessage;
@@ -1589,6 +1599,19 @@ export interface ExternalChannelConfig {
   name?: string;
   transport?: string;
   workingDirectory?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ExternalChannelConfigOptionAvailabilityParams {
+  key?: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
+export interface ExternalChannelConfigOptionAvailabilityResult {
+  available: string[] | null;
+  key: string;
+  name: string;
   [key: string]: unknown;
 }
 

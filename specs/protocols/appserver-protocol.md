@@ -1996,7 +1996,11 @@ Params `name`. Success emits `config/changed` with `source: "externalChannel/rem
 
 Params `name`, optional `tail` (default: the log provider's retention window). Result `{ name, lines }`. Hosts without an external channel log provider return `-32601`.
 
-### 23.8 Error Codes
+### 23.8 `externalChannel/configOptionAvailability`
+
+Params `name`, `key`. Result `{ name, key, available }`, where `available` lists the option values the connected adapter reports for that configuration field ([External Channel Adapter](external-channel-adapter.md#44-extchannelconfigoptionavailability)), or is `null` when the adapter is not connected, does not answer, or cannot tell. A `null` result never blocks saving the configuration.
+
+### 23.9 Error Codes
 
 | Code | Constant | When |
 |------|----------|------|

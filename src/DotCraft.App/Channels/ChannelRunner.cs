@@ -28,7 +28,7 @@ namespace DotCraft.Channels;
 /// Also implements <see cref="IChannelStatusProvider"/> for the <c>channel/status</c> wire method
 /// (spec Section 20).
 /// </summary>
-public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IExternalChannelLogProvider
+public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IExternalChannelRuntimeProvider
 {
     private readonly IServiceProvider _sp;
     private readonly AppConfig _config;
@@ -616,6 +616,18 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                 .FirstOrDefault(ch => string.Equals(ch.Name, channelName, StringComparison.OrdinalIgnoreCase));
             return host?.GetRecentLogs(tail) ?? [];
         }
+    }
+
+    public Task<IReadOnlyList<string>?> GetConfigOptionAvailabilityAsync(string channelName, string key, CancellationToken ct)
+    {
+        ExternalChannelHost? host;
+        lock (_channelsLock)
+        {
+            host = _allChannels
+                .OfType<ExternalChannelHost>()
+                .FirstOrDefault(ch => string.Equals(ch.Name, channelName, StringComparison.OrdinalIgnoreCase));
+        }
+        return host?.GetConfigOptionAvailabilityAsync(key, ct) ?? Task.FromResult<IReadOnlyList<string>?>(null);
     }
 
     private static int GetCategoryOrder(string category) => category switch

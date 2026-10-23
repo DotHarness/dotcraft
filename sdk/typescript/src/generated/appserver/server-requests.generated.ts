@@ -10,6 +10,7 @@ export interface ServerRequestMethods {
   "ext/acp/terminal/kill": { params: Models.AcpTerminalKillParams; result: Models.RpcEmpty };
   "ext/acp/terminal/release": { params: Models.AcpTerminalReleaseParams; result: Models.RpcEmpty };
   "ext/acp/terminal/waitForExit": { params: Models.AcpTerminalWaitForExitParams; result: Models.AcpTerminalOutputResult };
+  "ext/channel/configOptionAvailability": { params: Models.ExtChannelConfigOptionAvailabilityParams; result: Models.ExtChannelConfigOptionAvailabilityResult };
   "ext/channel/heartbeat": { params: Models.RpcEmpty; result: Models.RpcEmpty };
   "ext/channel/send": { params: Models.ExtChannelSendParams; result: Models.ExtChannelSendResult };
   "ext/channel/toolCall": { params: Models.ExtChannelToolCallParams; result: Models.ExtChannelToolCallResult };

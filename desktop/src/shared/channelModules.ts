@@ -14,6 +14,7 @@ export interface ConfigDescriptorWire {
   advanced?: boolean
   defaultValue?: unknown
   options?: ConfigFieldOptionWire[]
+  optionGroups?: ConfigFieldOptionGroupWire[]
   allowCustomValue?: boolean
   enumValues?: string[]
   docsPath?: LocalizedTextMap
@@ -26,6 +27,15 @@ export interface ConfigFieldOptionWire {
   description?: string
   localizedDescription?: LocalizedTextMap
   preview?: string
+}
+
+export interface ConfigFieldOptionGroupWire {
+  id: string
+  displayLabel: string
+  localizedDisplayLabel?: LocalizedTextMap
+  description?: string
+  localizedDescription?: LocalizedTextMap
+  values: string[]
 }
 
 export interface ConfigGroupDescriptorWire {

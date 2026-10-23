@@ -359,6 +359,7 @@ test("dispatchers register approval, user-input, delivery, tool, and heartbeat h
   new ChannelToolDispatcher({
     client: asWire(fake),
     onToolCall: async (request) => ({ success: true, tool: request.tool }),
+    onConfigOptionAvailability: async (key) => (key === "scopes" ? ["read"] : null),
     onError: (message) => errors.push(message),
   }).register();
 
@@ -378,6 +379,9 @@ test("dispatchers register approval, user-input, delivery, tool, and heartbeat h
     tool: "Upload",
   }), { success: true, tool: "Upload" });
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/heartbeat")?.("h1", {}), {});
+  assert.deepEqual(await fake.requestHandlers.get("ext/channel/configOptionAvailability")?.("a1", {
+    key: "scopes",
+  }), { available: ["read"] });
 
   assert.deepEqual(errors, []);
 });
@@ -452,6 +456,9 @@ test("dispatchers preserve exception fallback shapes", async () => {
     onToolCall: async () => {
       throw new Error("tool failed");
     },
+    onConfigOptionAvailability: async () => {
+      throw new Error("availability failed");
+    },
     onError: () => {},
   }).register();
 
@@ -471,6 +478,9 @@ test("dispatchers preserve exception fallback shapes", async () => {
     errorCode: "AdapterToolCallFailed",
     errorMessage: "Error: tool failed",
   });
+  assert.deepEqual(await fake.requestHandlers.get("ext/channel/configOptionAvailability")?.("a1", {
+    key: "scopes",
+  }), { available: null });
 });
 
 test("ModuleConfigLoader and ModuleLifecycleState cover missing, invalid, loaded, and status transitions", async () => {

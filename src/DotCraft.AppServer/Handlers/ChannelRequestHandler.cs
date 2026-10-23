@@ -16,7 +16,7 @@ internal sealed class ChannelRequestHandler(
     IAppConfigMonitor? appConfigMonitor,
     Func<ExternalChannelEntry, CancellationToken, Task>? onExternalChannelUpserted,
     Func<string, CancellationToken, Task>? onExternalChannelRemoved,
-    IExternalChannelLogProvider? externalChannelLogProvider) : IAppServerDomainHandler
+    IExternalChannelRuntimeProvider? externalChannelRuntimeProvider) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -27,6 +27,7 @@ internal sealed class ChannelRequestHandler(
         table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelUpsert, HandleExternalChannelUpsertAsync);
         table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelRemove, HandleExternalChannelRemoveAsync);
         table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelLogs, HandleExternalChannelLogsAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelConfigOptionAvailability, HandleExternalChannelConfigOptionAvailabilityAsync);
     }
 
     private Task<AppServerTypedResult<Contract.ChannelListResult>> HandleChannelListAsync(
@@ -210,17 +211,35 @@ internal sealed class ChannelRequestHandler(
         _ = ct;
         var p = request.Params;
         externalChannelConfig.EnsureManagementAvailable();
-        if (externalChannelLogProvider == null)
+        if (externalChannelRuntimeProvider == null)
             throw AppServerErrors.InvalidRequest("External channel log retrieval is not available.");
         var name = RequiredName(p.Name);
 
         var tail = p.Tail.IsSet ? p.Tail.Value : null;
-        var lines = externalChannelLogProvider.GetRecentExternalChannelLogs(name, tail);
+        var lines = externalChannelRuntimeProvider.GetRecentExternalChannelLogs(name, tail);
         return Task.FromResult(AppServerTypedResult<Contract.ExternalChannelLogsResult>.FromResult(new Contract.ExternalChannelLogsResult
         {
             Name = name,
             Lines = lines.ToList()
         }));
+    }
+
+    private async Task<AppServerTypedResult<Contract.ExternalChannelConfigOptionAvailabilityResult>> HandleExternalChannelConfigOptionAvailabilityAsync(
+        AppServerTypedRequest<Contract.ExternalChannelConfigOptionAvailabilityParams> request,
+        CancellationToken ct)
+    {
+        var p = request.Params;
+        externalChannelConfig.EnsureManagementAvailable();
+        if (externalChannelRuntimeProvider == null)
+            throw AppServerErrors.InvalidRequest("External channel option availability is not available.");
+        var name = RequiredName(p.Name);
+        var key = p.Key.IsSet ? p.Key.Value?.Trim() : null;
+        if (string.IsNullOrWhiteSpace(key))
+            throw AppServerErrors.InvalidParams("'key' is required.");
+
+        var available = await externalChannelRuntimeProvider.GetConfigOptionAvailabilityAsync(name, key, ct);
+        return AppServerTypedResult<Contract.ExternalChannelConfigOptionAvailabilityResult>.FromResult(
+            new Contract.ExternalChannelConfigOptionAvailabilityResult { Name = name, Key = key, Available = available });
     }
 
     private static string RequiredName(Protocol.Optional<string> value)

@@ -540,6 +540,32 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         }
     }
 
+    public async Task<IReadOnlyList<string>?> GetConfigOptionAvailabilityAsync(string key, CancellationToken cancellationToken)
+    {
+        var binding = Volatile.Read(ref _toolBinding);
+        if (_stopped || _permanentlyFailed || binding == null)
+            return null;
+
+        try
+        {
+            var response = await binding.Transport.RequestAsync(
+                Contract.AppServerRpc.ExtChannelConfigOptionAvailability,
+                new Contract.ExtChannelConfigOptionAvailabilityParams { Key = key },
+                cancellationToken,
+                TimeSpan.FromSeconds(15));
+            return response.Result?.Available;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "External channel option availability failed");
+            return null;
+        }
+    }
+
     private static ChannelToolInvocationResult AdapterDisconnected() => new()
     {
         Success = false,

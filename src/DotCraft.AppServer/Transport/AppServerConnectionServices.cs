@@ -87,7 +87,7 @@ public sealed record AppServerConnectionServices
     public IEnumerable<IAppServerProtocolExtension>? ProtocolExtensions { get; init; }
     public Func<ExternalChannelEntry, CancellationToken, Task>? OnExternalChannelUpserted { get; init; }
     public Func<string, CancellationToken, Task>? OnExternalChannelRemoved { get; init; }
-    public IExternalChannelLogProvider? ExternalChannelLogProvider { get; init; }
+    public IExternalChannelRuntimeProvider? ExternalChannelRuntimeProvider { get; init; }
     public SessionStreamDebugLogger? StreamDebugLogger { get; init; }
     public ILoggerFactory? LoggerFactory { get; init; }
     public IReadOnlyList<ConfigSchemaSection>? ConfigSchema { get; init; }

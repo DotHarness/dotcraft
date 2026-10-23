@@ -400,17 +400,20 @@ export class UserInputDispatcher {
 export interface ChannelToolDispatcherOptions {
   client: ClientProvider;
   onToolCall: (request: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  onConfigOptionAvailability: (key: string) => Promise<string[] | null>;
   onError?: (message: string, error: unknown) => void;
 }
 
 export class ChannelToolDispatcher {
   private readonly client: ClientProvider;
   private readonly onToolCall: (request: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  private readonly onConfigOptionAvailability: (key: string) => Promise<string[] | null>;
   private readonly onError: (message: string, error: unknown) => void;
 
   constructor(options: ChannelToolDispatcherOptions) {
     this.client = options.client;
     this.onToolCall = options.onToolCall;
+    this.onConfigOptionAvailability = options.onConfigOptionAvailability;
     this.onError = options.onError ?? ((message, error) => console.error(message, error));
   }
 
@@ -429,6 +432,15 @@ export class ChannelToolDispatcher {
       }
     });
     client.registerServerRequestHandler("ext/channel/heartbeat", async () => ({}));
+    client.registerServerRequestHandler("ext/channel/configOptionAvailability", async (_id, params) => {
+      const key = String((params as Record<string, unknown> | undefined)?.key ?? "");
+      try {
+        return { available: await this.onConfigOptionAvailability(key) };
+      } catch (error) {
+        this.onError("onConfigOptionAvailability raised:", error);
+        return { available: null };
+      }
+    });
   }
 }
 

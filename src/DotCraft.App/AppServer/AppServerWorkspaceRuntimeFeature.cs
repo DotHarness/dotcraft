@@ -35,7 +35,7 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
 
     public IChannelStatusProvider? ChannelStatusProvider => _channelRunner;
 
-    public IExternalChannelLogProvider? ExternalChannelLogProvider => _channelRunner;
+    public IExternalChannelRuntimeProvider? ExternalChannelRuntimeProvider => _channelRunner;
 
     public string? DashboardUrl => _channelRunner?.DashboardUrl;
 

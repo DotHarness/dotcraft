@@ -361,6 +361,9 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             return [];
         }
 
+        public Task<IReadOnlyList<string>?> GetConfigOptionAvailabilityAsync(string channelName, string key, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<string>?>(null);
+
         public ValueTask DisposeAsync()
         {
             DisposeCalls++;

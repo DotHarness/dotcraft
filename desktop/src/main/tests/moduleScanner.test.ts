@@ -105,4 +105,41 @@ describe('scanModules config descriptors', () => {
     expect(moduleIds).not.toContain('fixture-duplicate-groups')
     expect(moduleIds).not.toContain('fixture-unknown-group')
   })
+
+  it('keeps option groups for list fields and rejects groups naming unknown options', async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), 'channel-modules-'))
+    const scopesField = (values: string[]) => ({
+      key: 'example.scopes',
+      displayLabel: 'Scopes',
+      description: '',
+      required: false,
+      dataKind: 'list',
+      masked: false,
+      interactiveSetupOnly: false,
+      options: [
+        { value: 'calendar:read', displayLabel: 'calendar:read' },
+        { value: 'docs:read', displayLabel: 'docs:read' }
+      ],
+      optionGroups: [
+        { id: 'calendar', displayLabel: 'Calendar', values: ['calendar:read', 'docs:read'] },
+        { id: 'docs', displayLabel: 'Docs', values }
+      ]
+    })
+    await writeManifest('fixture-option-groups', {
+      ...baseManifest('fixture-option-groups'),
+      configDescriptors: [scopesField(['docs:read'])]
+    })
+    await writeManifest('fixture-unknown-option', {
+      ...baseManifest('fixture-unknown-option'),
+      configDescriptors: [scopesField(['mail:read'])]
+    })
+
+    const modules = await scanModules({ modulesDirectory: tempRoot }, true)
+
+    expect(modules.find((entry) => entry.moduleId === 'fixture-option-groups')?.configDescriptors[0].optionGroups).toEqual([
+      expect.objectContaining({ id: 'calendar', values: ['calendar:read', 'docs:read'] }),
+      expect.objectContaining({ id: 'docs', values: ['docs:read'] })
+    ])
+    expect(modules.map((entry) => entry.moduleId)).not.toContain('fixture-unknown-option')
+  })
 })

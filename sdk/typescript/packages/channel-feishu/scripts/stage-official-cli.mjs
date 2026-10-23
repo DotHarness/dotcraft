@@ -40,6 +40,7 @@ try {
 
   const catalog = JSON.parse(await readFile(catalogPath, 'utf8'))
   validateShortcutCatalog(catalog)
+  await validateUserScopeCatalog()
   await copyFile(catalogPath, path.join(outputDir, 'lark-cli-shortcuts.json'))
   await writeFile(
     path.join(outputDir, 'lark-cli-artifact.json'),
@@ -82,6 +83,13 @@ function validateShortcutCatalog(catalog) {
   const risks = Object.values(catalog.commands ?? {})
   if (risks.length === 0 || risks.some((risk) => !['read', 'write', 'high-risk-write'].includes(risk))) {
     throw new Error('The shortcut catalog is invalid.')
+  }
+}
+
+async function validateUserScopeCatalog() {
+  const source = await readFile(path.join(packageRoot, 'src', 'user-scope-catalog.ts'), 'utf8')
+  if (source.match(/USER_SCOPE_CATALOG_VERSION = "([^"]+)"/)?.[1] !== lock.version) {
+    throw new Error('The user scope catalog version does not match the lock; run generate:user-scopes.')
   }
 }
 

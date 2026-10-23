@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ModuleConfigForm } from '../components/channels/ModuleConfigForm'
 import type { DiscoveredModule } from '../../preload/api'
@@ -157,5 +157,46 @@ describe('ModuleConfigForm descriptors', () => {
 
     expect(await screen.findByRole('heading', { name: 'Advanced' })).toBeInTheDocument()
     expect(screen.getByText('Legacy value')).toBeInTheDocument()
+  })
+
+  it('chooses list options by group, asks the channel what is available, and drops unknown saved values', async () => {
+    const sendRequest = vi.fn().mockResolvedValue({ name: 'example', key: 'example.scopes', available: ['calendar:read'] })
+    installDesktopApiMock({
+      settings: { get: settingsGet },
+      modules: { pickDirectory: vi.fn().mockResolvedValue(null) },
+      appServer: { sendRequest }
+    })
+    const module = createModule()
+    module.configDescriptors = [{
+      key: 'example.scopes',
+      displayLabel: 'Scopes',
+      description: 'Scopes requested on authorization.',
+      required: false,
+      dataKind: 'list',
+      masked: false,
+      interactiveSetupOnly: false,
+      group: 'configuration',
+      options: [
+        { value: 'calendar:read', displayLabel: 'calendar:read' },
+        { value: 'docs:read', displayLabel: 'docs:read' }
+      ],
+      optionGroups: [
+        { id: 'calendar', displayLabel: 'Calendar', values: ['calendar:read'] },
+        { id: 'docs', displayLabel: 'Docs', values: ['docs:read'] }
+      ]
+    }]
+
+    const onChange = renderForm(module, { example: { scopes: ['calendar:read', 'retired:scope'] } })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    expect(sendRequest).toHaveBeenCalledWith('externalChannel/configOptionAvailability', { name: 'example', key: 'example.scopes' })
+    const dialog = await screen.findByRole('dialog', { name: 'Scopes' })
+    expect(within(dialog).getByRole('checkbox', { name: 'Calendar' })).toBeChecked()
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Docs' }))
+    expect(await within(dialog).findByRole('status')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }))
+
+    expect(onChange).toHaveBeenLastCalledWith({ example: { scopes: ['calendar:read', 'docs:read'] } })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

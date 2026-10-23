@@ -670,6 +670,26 @@ export class FeishuClient {
     );
   }
 
+  async listAppUserScopes(): Promise<string[]> {
+    const token = await this.getTenantAccessToken();
+    const response = await this.callJsonApi(
+      () =>
+        fetch(`${this.apiBaseUrl}/open-apis/application/v6/applications/${encodeURIComponent(this.appId)}?lang=en_us`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+      "Failed to query Feishu app scopes",
+    );
+    const app = ((response.data as Record<string, unknown> | undefined)?.app ?? {}) as Record<string, unknown>;
+    const scopes = Array.isArray(app.scopes) ? app.scopes as Array<Record<string, unknown>> : [];
+    return scopes
+      .filter((scope) => Array.isArray(scope.token_types) && scope.token_types.includes("user"))
+      .map((scope) => String(scope.scope ?? ""))
+      .filter(Boolean);
+  }
+
   async getTenantAccessToken(): Promise<string> {
     const now = Date.now();
     if (this.tenantAccessToken && now < this.tenantAccessTokenExpiresAt) {

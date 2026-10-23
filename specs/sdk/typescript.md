@@ -369,6 +369,10 @@ The manifest includes `moduleId`, `channelName`, `displayName`, localized displa
 
 Enum fields may declare structured `options`. Each `ConfigFieldOption` has a stable `value`, a default display label, optional localized display text and description, and an optional compact preview. `allowCustomValue: true` adds a host-provided custom-value path. Hosts prefer `options` over the `enumValues` array.
 
+List fields may also declare `options`; the stored value is then the array of chosen option values, and the host offers a choice among them instead of free text. The descriptor's `optionGroups` arrange them for display: each group has a unique `id`, a default label, an optional description, localized text, and the `values` of the options it holds. A value may belong to several groups, and choosing it in one chooses it in all; groups display in array order. A host drops saved values that no option names when the field is saved.
+
+An adapter may report which option values the platform currently allows for a field by answering `ext/channel/configOptionAvailability` ([External Channel Adapter](../protocols/external-channel-adapter.md#44-extchannelconfigoptionavailability)). `ChannelAdapter.onConfigOptionAvailability(key)` returns the allowed values, or `null` when unknown; the default returns `null`.
+
 Hosts display `defaultValue` when the stored configuration omits a field. Rendering an effective default must not mutate configuration; the host writes a value only after an explicit edit.
 
 ### 15.4 Workspace Context

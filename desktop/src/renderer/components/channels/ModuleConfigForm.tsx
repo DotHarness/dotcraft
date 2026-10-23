@@ -21,6 +21,7 @@ import { SETTINGS_DOCS_BASE_URL } from '../settings/settingsDocs'
 import { SETTINGS_SURFACE_CLASS } from '../settings/settingsTypography'
 import { IdentityMark } from '../ui/IdentityMark'
 import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
+import { ListOptionsField } from './ListOptionsField'
 import styles from './ModuleConfigForm.module.css'
 
 interface ModuleConfigFormProps {
@@ -326,6 +327,22 @@ export function ModuleConfigForm({
               )}
             </div>
           )}
+        />
+      )
+    }
+
+    if (descriptor.dataKind === 'list' && descriptor.options) {
+      return (
+        <ListOptionsField
+          key={descriptor.key}
+          descriptor={descriptor}
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          dialogDescription={descriptionText}
+          channelName={module.channelName}
+          platform={moduleDisplayName}
+          value={Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []}
+          onChange={(values) => onChange(applyValueChange(config, descriptor.key, values))}
         />
       )
     }

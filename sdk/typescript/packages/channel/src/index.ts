@@ -15,6 +15,7 @@ export type {
   ConfigDescriptor,
   ConfigFieldKind,
   ConfigFieldOption,
+  ConfigFieldOptionGroup,
   ConfigGroupDescriptor,
   ConfigLocale,
   ConfigLocalizedText,

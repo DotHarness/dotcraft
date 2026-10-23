@@ -25,6 +25,15 @@ export interface ConfigFieldOption {
   preview?: string;
 }
 
+export interface ConfigFieldOptionGroup {
+  id: string;
+  displayLabel: string;
+  localizedDisplayLabel?: ConfigLocalizedText;
+  description?: string;
+  localizedDescription?: ConfigLocalizedText;
+  values: string[];
+}
+
 export interface ConfigGroupDescriptor {
   id: string;
   displayLabel: string;
@@ -48,6 +57,7 @@ export interface ConfigDescriptor {
   advanced?: boolean;
   defaultValue?: unknown;
   options?: ConfigFieldOption[];
+  optionGroups?: ConfigFieldOptionGroup[];
   allowCustomValue?: boolean;
   /** Documentation route for a Learn more link, without the locale prefix. */
   docsPath?: ConfigLocalizedText;

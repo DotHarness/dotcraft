@@ -142,6 +142,7 @@ import type {
 } from '../shared/channelModules'
 export type {
   ConfigDescriptorWire,
+  ConfigFieldOptionGroupWire,
   ConfigFieldOptionWire,
   ConfigGroupDescriptorWire,
   DiscoveredModule,

@@ -152,6 +152,15 @@ export function runModuleConformanceSuite(
           values.add(option.value);
           assert.ok(option.displayLabel.length > 0, `field '${descriptor.key}' option labels must be non-empty`);
         }
+        const optionGroupIds = new Set<string>();
+        for (const optionGroup of descriptor.optionGroups ?? []) {
+          assert.equal(optionGroupIds.has(optionGroup.id), false, `field '${descriptor.key}' has duplicate option group '${optionGroup.id}'`);
+          optionGroupIds.add(optionGroup.id);
+          assert.ok(optionGroup.displayLabel.length > 0, `field '${descriptor.key}' option group labels must be non-empty`);
+          for (const value of optionGroup.values) {
+            assert.ok(values.has(value), `field '${descriptor.key}' option group '${optionGroup.id}' names unknown option '${value}'`);
+          }
+        }
       }
       if (descriptor.allowCustomValue !== undefined) {
         assert.equal(descriptor.dataKind, "enum", `field '${descriptor.key}' custom values require dataKind=enum`);

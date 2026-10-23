@@ -176,7 +176,7 @@ public sealed class AppServerHostResolutionTests
     {
         public IChannelStatusProvider? ChannelStatusProvider => null;
 
-        public IExternalChannelLogProvider? ExternalChannelLogProvider => null;
+        public IExternalChannelRuntimeProvider? ExternalChannelRuntimeProvider => null;
 
         public string? DashboardUrl => null;
 

@@ -382,6 +382,16 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     return await this.approvals.request(channelTarget, request, this.approvalSender(request));
   }
 
+  protected override async onConfigOptionAvailability(key: string): Promise<string[] | null> {
+    if (key !== "feishu.cli.userScopes" || !this.feishu) return null;
+    try {
+      return await this.feishu.listAppUserScopes();
+    } catch (error) {
+      logWarn("config.option_availability.failed", { error: errorMessage(error) });
+      return null;
+    }
+  }
+
   protected override async onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse> {
     const requestId = String(request.requestId ?? "");
     const threadId = String(request.threadId ?? "");

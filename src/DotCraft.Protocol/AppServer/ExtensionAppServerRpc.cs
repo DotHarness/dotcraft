@@ -73,6 +73,8 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<AcpTerminalWaitForExitParams, AcpTerminalOutputResult> ExtAcpTerminalWaitForExit = new("ext/acp/terminal/waitForExit", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
 
+    public static readonly RpcRequest<ExtChannelConfigOptionAvailabilityParams, ExtChannelConfigOptionAvailabilityResult> ExtChannelConfigOptionAvailability = new("ext/channel/configOptionAvailability", RpcDirection.ServerToClient, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "channelAdapter", errors: CommonErrors);
+
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, global::DotCraft.Protocol.RpcEmpty> ExtChannelHeartbeat = new("ext/channel/heartbeat", RpcDirection.ServerToClient, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "channelAdapter", errors: CommonErrors);
 
     public static readonly RpcRequest<ExtChannelSendParams, ExtChannelSendResult> ExtChannelSend = new("ext/channel/send", RpcDirection.ServerToClient, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "channelAdapter", errors: CommonErrors);
@@ -84,6 +86,8 @@ public static partial class AppServerRpc
     public static readonly RpcRequest<NodeReplEvaluateParams, NodeReplEvaluateResult> ExtNodeReplEvaluate = new("ext/nodeRepl/evaluate", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "node-repl", scope: "connection", capability: "nodeRepl", errors: CommonErrors);
 
     public static readonly RpcRequest<NodeReplRequestApprovalParams, NodeReplRequestApprovalResult> ExtNodeReplRequestApproval = new("ext/nodeRepl/requestApproval", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "node-repl", scope: "connection", capability: "nodeRepl", errors: CommonErrors);
+
+    public static readonly RpcRequest<ExternalChannelConfigOptionAvailabilityParams, ExternalChannelConfigOptionAvailabilityResult> ExternalChannelConfigOptionAvailability = new("externalChannel/configOptionAvailability", RpcDirection.ClientToServer, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "externalChannelManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<ExternalChannelGetParams, ExternalChannelGetResult> ExternalChannelGet = new("externalChannel/get", RpcDirection.ClientToServer, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "externalChannelManagement", errors: CommonErrors);
 

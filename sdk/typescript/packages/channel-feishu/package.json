@@ -25,6 +25,7 @@
   "scripts": {
     "start": "node dist/cli.js --workspace .",
     "generate:manifest": "node ../../scripts/generate-manifest.mjs .",
+    "generate:user-scopes": "node scripts/generate-user-scopes.mjs",
     "build": "node ../../scripts/clean-dist.mjs . && tsc -p tsconfig.json && npm run generate:manifest",
     "bundle": "node ../../scripts/bundle-channel.mjs .",
     "stage:official-cli": "node scripts/stage-official-cli.mjs",

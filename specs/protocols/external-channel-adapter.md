@@ -80,6 +80,10 @@ Adapters execute declared tools using the [AppServer channel tool-call contract]
 
 A server → client request with empty params and result that verifies the adapter's full message-processing pipeline is responsive, distinct from transport-layer WebSocket ping/pong. If the adapter does not respond within the configured timeout, the host marks the connection unhealthy and initiates a reconnect cycle (subprocess mode: restart the process; WebSocket mode: close the connection and wait for the adapter to reconnect).
 
+### 4.4 `ext/channel/configOptionAvailability`
+
+A server → client request with params `{ key }`, the dotted key of a configuration field that declares `options` ([TypeScript SDK](../sdk/typescript.md) §15.3). The result is `{ available }`: the option values the platform currently allows for this channel, or `null` when the adapter cannot tell. The adapter answers from live platform state and must not modify configuration. The server relays it for `externalChannel/configOptionAvailability` ([AppServer Protocol](appserver-protocol.md) §23.8).
+
 ## 5. Adapter Host Lifecycle
 
 The workspace AppServer creates one adapter host for each enabled `ExternalChannels` entry. Every transport shares the same workspace Session, provider, command, binding, and extension services, and native and external channels participate in the same workspace lifecycle. Reconnecting an observing client does not restart or replace adapters.
@@ -180,6 +184,7 @@ The adapter **must** handle the following server-initiated requests:
 | `ext/channel/send` | Deliver the structured `message` to `target`; validate `message.kind` and source forms against the adapter's advertised capabilities; answer an unreachable or malformed `target` with `UnsupportedTarget`; answer a repeated `deliveryId` with the first result. |
 | `ext/channel/toolCall` | Execute a previously declared `channelTools` entry after any server-side gating implied by descriptor metadata; return structured success/failure data without mutating the declared tool set. |
 | `ext/channel/heartbeat` | Respond immediately with `{}`. |
+| `ext/channel/configOptionAvailability` | Return `{ available }` for the field `key`, with `null` when the platform state is unknown or the field has no availability (§4.4). |
 
 An unanswered approval stays pending until a client answers it or its turn ends ([AppServer Protocol](appserver-protocol.md) §7.6); an unanswered heartbeat marks the connection unhealthy.
 

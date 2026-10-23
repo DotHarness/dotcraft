@@ -500,6 +500,27 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     }
 
     [Fact]
+    public async Task ExternalChannelHost_ConfigOptionAvailability_WhenDisconnected_IsUnknown()
+    {
+        var host = new ExternalChannelHost(
+            new ExternalChannelEntry
+            {
+                Name = "feishu",
+                Enabled = true,
+                Transport = ExternalChannelTransport.Subprocess,
+                Command = "node"
+            },
+            new FakeSessionService(),
+            "0.0.1-test",
+            new ModuleRegistry(),
+            WorkspacePaths,
+            EmptyChatClients,
+            EmptyModelProviders);
+
+        Assert.Null(await host.GetConfigOptionAvailabilityAsync("feishu.cli.userScopes", CancellationToken.None));
+    }
+
+    [Fact]
     public async Task ExternalChannelHost_DeliverAsync_WhenDisconnected_ReturnsFailure()
     {
         var host = new ExternalChannelHost(

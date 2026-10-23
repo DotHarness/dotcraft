@@ -6,6 +6,7 @@ import type { AppSettings } from './settings'
 import { SUPPORTED_LOCALE_VALUES, type LocalizedTextMap } from '../shared/locales'
 import type {
   ConfigDescriptorWire,
+  ConfigFieldOptionGroupWire,
   ConfigFieldOptionWire,
   ConfigGroupDescriptorWire,
   DiscoveredModule,
@@ -13,6 +14,7 @@ import type {
 } from '../shared/channelModules'
 export type {
   ConfigDescriptorWire,
+  ConfigFieldOptionGroupWire,
   ConfigFieldOptionWire,
   ConfigGroupDescriptorWire,
   DiscoveredModule,
@@ -135,6 +137,23 @@ function parseConfigDescriptor(value: unknown): ConfigDescriptorWire | null {
       options.push(option)
     }
   }
+  const optionGroupsRaw = item.optionGroups
+  const optionGroups: ConfigFieldOptionGroupWire[] = []
+  if (optionGroupsRaw !== undefined) {
+    if (!Array.isArray(optionGroupsRaw) || optionsRaw === undefined) return null
+    const optionValues = new Set(options.map((option) => option.value))
+    const ids = new Set<string>()
+    for (const optionGroupRaw of optionGroupsRaw) {
+      const optionGroup = parseConfigFieldOptionGroup(optionGroupRaw)
+      if (
+        optionGroup === null ||
+        ids.has(optionGroup.id) ||
+        optionGroup.values.some((optionValue) => !optionValues.has(optionValue))
+      ) return null
+      ids.add(optionGroup.id)
+      optionGroups.push(optionGroup)
+    }
+  }
   if (
     key === null ||
     displayLabel === null ||
@@ -166,6 +185,7 @@ function parseConfigDescriptor(value: unknown): ConfigDescriptorWire | null {
     advanced: item.advanced === true,
     defaultValue: item.defaultValue,
     options: optionsRaw === undefined ? undefined : options,
+    optionGroups: optionGroupsRaw === undefined ? undefined : optionGroups,
     allowCustomValue: item.allowCustomValue === true ? true : undefined,
     enumValues: enumValues ?? undefined,
     docsPath
@@ -195,6 +215,13 @@ function parseConfigFieldOption(value: unknown): ConfigFieldOptionWire | null {
     localizedDescription,
     preview
   }
+}
+
+function parseConfigFieldOptionGroup(value: unknown): ConfigFieldOptionGroupWire | null {
+  const group = parseConfigGroup(value)
+  const values = group === null ? null : asStringArray((value as Record<string, unknown>).values)
+  if (group === null || values === null) return null
+  return { ...group, values }
 }
 
 function parseConfigGroup(value: unknown): ConfigGroupDescriptorWire | null {

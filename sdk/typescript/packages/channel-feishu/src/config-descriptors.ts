@@ -1,4 +1,6 @@
 import { type ConfigDescriptor, type ConfigGroupDescriptor } from "@dotcraft/channel";
+import { USER_SCOPE_CATALOG } from "./user-scope-catalog.js";
+import { USER_SCOPE_DOMAIN_TEXT } from "./user-scope-domains.js";
 
 export const configGroups: ConfigGroupDescriptor[] = [
   {
@@ -248,20 +250,20 @@ export const configDescriptors: ConfigDescriptor[] = [
   {
     key: "feishu.cli.userScopes",
     displayLabel: "Personal Access Scopes",
-    description: "One Feishu scope per line. Leave empty to keep everything on the bot identity.",
+    description: "Scopes requested from Feishu when an account authorizes this channel.",
     localizedDisplayLabel: {
-      en: "Personal Access Scopes", "zh-Hans": "个人资源授权范围", ja: "個人リソースのスコープ",
-      ko: "개인 리소스 범위", es: "Ámbitos de acceso personal", fr: "Portées d'accès personnel",
+      en: "Personal Access Scopes", "zh-Hans": "个人访问权限", ja: "個人アクセスのスコープ",
+      ko: "개인 액세스 범위", es: "Ámbitos de acceso personal", fr: "Portées d'accès personnel",
       de: "Bereiche für persönlichen Zugriff",
     },
     localizedDescription: {
-      en: "One Feishu scope per line. Leave empty to keep everything on the bot identity.",
-      "zh-Hans": "一行一个飞书 scope。留空则一切都以机器人身份运行。",
-      ja: "1 行に 1 つの Feishu スコープ。空にするとすべてボット ID で実行されます。",
-      ko: "한 줄에 하나의 Feishu 범위. 비워 두면 모두 봇 ID로 실행됩니다.",
-      es: "Un ámbito de Feishu por línea. Déjalo vacío para que todo use la identidad del bot.",
-      fr: "Une portée Feishu par ligne. Laissez vide pour tout exécuter avec l'identité du bot.",
-      de: "Ein Feishu-Bereich pro Zeile. Leer lassen, damit alles die Bot-Identität nutzt.",
+      en: "Scopes requested from Feishu when an account authorizes this channel.",
+      "zh-Hans": "有账号授权此渠道时向飞书申请的权限。",
+      ja: "アカウントがこのチャネルを承認するときに Feishu に要求するスコープ。",
+      ko: "계정이 이 채널을 승인할 때 Feishu에 요청하는 범위입니다.",
+      es: "Ámbitos que se piden a Feishu cuando una cuenta autoriza este canal.",
+      fr: "Portées demandées à Feishu lorsqu'un compte autorise ce canal.",
+      de: "Bereiche, die bei Feishu angefragt werden, wenn ein Konto diesen Kanal autorisiert.",
     },
     docsPath: {
       en: "/guide/channels/feishu#personal-access",
@@ -273,5 +275,16 @@ export const configDescriptors: ConfigDescriptor[] = [
     interactiveSetupOnly: false,
     group: "configuration",
     defaultValue: [],
+    optionGroups: USER_SCOPE_CATALOG.map(({ domain, scopes }) => ({
+      id: domain,
+      displayLabel: USER_SCOPE_DOMAIN_TEXT[domain].label.en ?? domain,
+      localizedDisplayLabel: USER_SCOPE_DOMAIN_TEXT[domain].label,
+      description: USER_SCOPE_DOMAIN_TEXT[domain].description.en,
+      localizedDescription: USER_SCOPE_DOMAIN_TEXT[domain].description,
+      values: [...scopes],
+    })),
+    options: [...new Set(USER_SCOPE_CATALOG.flatMap(({ scopes }) => scopes))]
+      .sort()
+      .map((scope) => ({ value: scope, displayLabel: scope })),
   },
 ];

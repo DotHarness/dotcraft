@@ -607,3 +607,35 @@ test("Feishu client classifies history lookup failures with FeishuApiError", asy
     globalThis.fetch = originalFetch;
   }
 });
+
+test("Feishu client lists the user-token scopes enabled for the app", async () => {
+  const client = createClient();
+  const originalFetch = globalThis.fetch;
+  const urls: string[] = [];
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = String(input);
+    urls.push(url);
+    if (url.includes("/tenant_access_token/internal")) {
+      return new Response(JSON.stringify({ code: 0, tenant_access_token: "tenant_token", expire: 7200 }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      code: 0,
+      data: {
+        app: {
+          scopes: [
+            { scope: "calendar:calendar.event:read", token_types: ["user"] },
+            { scope: "im:message", token_types: ["tenant"] },
+            { scope: "docx:document:readonly", token_types: ["tenant", "user"] },
+          ],
+        },
+      },
+    }), { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    assert.deepEqual(await client.listAppUserScopes(), ["calendar:calendar.event:read", "docx:document:readonly"]);
+    assert.match(urls[1]!, /\/application\/v6\/applications\/cli_test\?lang=en_us$/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

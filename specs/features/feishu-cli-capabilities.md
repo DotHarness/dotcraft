@@ -73,7 +73,9 @@ Cancellation terminates and drains the child process. The runner also enforces a
 
 ## 6. User identity
 
-User identity stays off until an operator lists the Feishu user scopes to request in `feishu.cli.userScopes`. There is no default set, because a scope the Feishu app has not enabled fails the authorization; with the list empty the CLI behaves exactly as a Bot-only capability.
+User identity stays off until an operator chooses the Feishu user scopes to request in `feishu.cli.userScopes`. There is no default set, because a scope the Feishu app has not enabled fails the authorization; with the list empty the CLI behaves exactly as a Bot-only capability.
+
+The choice is limited to a scope catalog shipped with the pinned CLI: for each CLI domain the runner accepts, the user scopes its read shortcuts declare. The field declares the catalog as grouped options, so hosts offer the scopes by domain instead of free text, and a saved scope outside the catalog is dropped on the next save. While the Channel is connected, the adapter answers option availability for this field with the user scopes the Feishu app has enabled, read from the application information API with the tenant token; it answers `null` when that read fails, so a host can mark the scopes the app still lacks without blocking the choice.
 
 DotCraft owns the OAuth 2.0 Device Authorization flow rather than delegating to the CLI's own `auth` command family, which the pinned binary disables whenever credentials arrive through the environment. The adapter requests a device code with the configured scopes plus `offline_access`, delivers the verification link as a card, polls for completion, and stores the resulting record.
 
@@ -87,10 +89,10 @@ The record is stored as plain JSON in the module state directory, at the same pr
 
 ## 7. Packaging
 
-The Feishu Channel package owns the pinned CLI version, its release checksums, the reviewed shortcut catalog and the license. Build tooling downloads the selected official release artifact, verifies SHA-256 before extraction, and stages the executable, generated catalog, and MIT license inside the Feishu module directory. The bundled adapter resolves these artifacts relative to its own module location. Desktop packaging may stage and copy the module directory, but it must not contain Feishu-specific runtime configuration or artifact resolution.
+The Feishu Channel package owns the pinned CLI version, its release checksums, the reviewed shortcut catalog, the user scope catalog and the license. Maintainer tooling regenerates the user scope catalog from the tagged CLI source of the pinned version whenever the pin changes; builds and the runtime only read the committed catalog. Build tooling downloads the selected official release artifact, verifies SHA-256 before extraction, and stages the executable, generated catalog, and MIT license inside the Feishu module directory. The bundled adapter resolves these artifacts relative to its own module location. Desktop packaging may stage and copy the module directory, but it must not contain Feishu-specific runtime configuration or artifact resolution.
 
-Runtime downloads, automatic updates, npm launchers, Go source integration, and fallback to another executable are forbidden. Missing or mismatched artifacts cause a stable tool failure.
+Runtime downloads, automatic updates, npm launchers, Go source integration in builds or the runtime, and fallback to another executable are forbidden. Missing or mismatched artifacts cause a stable tool failure.
 
 ## 8. Protocol boundary
 
-`FeishuCli` uses the existing Channel tool declaration, Runtime Additional Context, approval, and `ext/channel/toolCall` contracts. AppServer requires no Feishu-specific service or wire extension.
+`FeishuCli` uses the existing Channel tool declaration, Runtime Additional Context, approval, `ext/channel/toolCall`, and `ext/channel/configOptionAvailability` contracts. AppServer requires no Feishu-specific service or wire extension.

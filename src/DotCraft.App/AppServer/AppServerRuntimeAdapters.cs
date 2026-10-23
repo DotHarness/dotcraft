@@ -10,7 +10,7 @@ using DotCraft.Sessions;
 
 namespace DotCraft.AppServer;
 
-public interface IAppServerChannelRunner : IChannelStatusProvider, IExternalChannelLogProvider, IAsyncDisposable
+public interface IAppServerChannelRunner : IChannelStatusProvider, IExternalChannelRuntimeProvider, IAsyncDisposable
 {
     string? DashboardUrl { get; }
 
@@ -72,6 +72,9 @@ internal sealed class ChannelRunnerAdapter(ChannelRunner inner) : IAppServerChan
 
     public IReadOnlyList<string> GetRecentExternalChannelLogs(string channelName, int? tail = null) =>
         inner.GetRecentExternalChannelLogs(channelName, tail);
+
+    public Task<IReadOnlyList<string>?> GetConfigOptionAvailabilityAsync(string channelName, string key, CancellationToken ct) =>
+        inner.GetConfigOptionAvailabilityAsync(channelName, key, ct);
 
     public ValueTask DisposeAsync() => inner.DisposeAsync();
 }

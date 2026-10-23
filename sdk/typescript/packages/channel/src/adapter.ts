@@ -128,6 +128,7 @@ export abstract class ChannelAdapter {
     this.channelToolDispatcher = new ChannelToolDispatcher({
       client: () => this.client,
       onToolCall: (params) => this.onToolCall(params),
+      onConfigOptionAvailability: (key) => this.onConfigOptionAvailability(key),
     });
   }
 
@@ -180,6 +181,10 @@ export abstract class ChannelAdapter {
       errorCode: "UnsupportedTool",
       errorMessage: "Adapter does not implement channel tool calls.",
     };
+  }
+
+  protected async onConfigOptionAvailability(_key: string): Promise<string[] | null> {
+    return null;
   }
 
   protected async onTurnStarted(_turn: ChannelTurn): Promise<void> {}

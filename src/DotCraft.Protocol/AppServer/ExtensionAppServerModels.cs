@@ -1480,6 +1480,56 @@ public sealed class ExternalChannelListResult : ExtensibleJsonObject
 
 }
 
+/// <summary>Executable wire contract for ExtChannelConfigOptionAvailabilityParams.</summary>
+[ContractModule("external-channel")]
+public sealed class ExtChannelConfigOptionAvailabilityParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("key")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Key { get; init; }
+
+}
+
+/// <summary>Executable wire contract for ExtChannelConfigOptionAvailabilityResult.</summary>
+[ContractModule("external-channel")]
+public sealed class ExtChannelConfigOptionAvailabilityResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("available")]
+    [JsonRequired]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public IReadOnlyList<string>? Available { get; init; }
+
+}
+
+/// <summary>Executable wire contract for ExternalChannelConfigOptionAvailabilityParams.</summary>
+[ContractModule("external-channel")]
+public sealed class ExternalChannelConfigOptionAvailabilityParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("key")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Key { get; init; }
+
+    [JsonPropertyName("name")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Name { get; init; }
+
+}
+
+/// <summary>Executable wire contract for ExternalChannelConfigOptionAvailabilityResult.</summary>
+[ContractModule("external-channel")]
+public sealed class ExternalChannelConfigOptionAvailabilityResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("available")]
+    [JsonRequired]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public IReadOnlyList<string>? Available { get; init; }
+
+    [JsonPropertyName("key")] public required string Key { get; init; }
+
+    [JsonPropertyName("name")] public required string Name { get; init; }
+
+}
+
 /// <summary>Executable wire contract for ExternalChannelLogsParams.</summary>
 [ContractModule("external-channel")]
 public sealed class ExternalChannelLogsParams : ExtensibleJsonObject

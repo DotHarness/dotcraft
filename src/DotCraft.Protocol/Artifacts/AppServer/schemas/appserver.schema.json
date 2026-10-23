@@ -6146,6 +6146,39 @@
         "message"
       ]
     },
+    "ExtChannelConfigOptionAvailabilityParams": {
+      "title": "ExtChannelConfigOptionAvailabilityParams",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ExtChannelConfigOptionAvailabilityResult": {
+      "title": "ExtChannelConfigOptionAvailabilityResult",
+      "type": "object",
+      "properties": {
+        "available": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "available"
+      ]
+    },
     "ExtChannelSendParams": {
       "title": "ExtChannelSendParams",
       "type": "object",
@@ -6441,6 +6474,50 @@
         }
       },
       "additionalProperties": true
+    },
+    "ExternalChannelConfigOptionAvailabilityParams": {
+      "title": "ExternalChannelConfigOptionAvailabilityParams",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ExternalChannelConfigOptionAvailabilityResult": {
+      "title": "ExternalChannelConfigOptionAvailabilityResult",
+      "type": "object",
+      "properties": {
+        "available": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "available",
+        "key",
+        "name"
+      ]
     },
     "ExternalChannelGetParams": {
       "title": "ExternalChannelGetParams",

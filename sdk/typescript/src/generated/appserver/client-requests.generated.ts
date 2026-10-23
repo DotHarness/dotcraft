@@ -65,6 +65,7 @@ export interface ClientRequestMethods {
   "dreams/run": { params: Models.DreamsRunParams; result: Models.DreamsStatusResult };
   "dreams/status": { params: Models.DreamsStatusParams; result: Models.DreamsStatusResult };
   "ext/nodeRepl/requestApproval": { params: Models.NodeReplRequestApprovalParams; result: Models.NodeReplRequestApprovalResult };
+  "externalChannel/configOptionAvailability": { params: Models.ExternalChannelConfigOptionAvailabilityParams; result: Models.ExternalChannelConfigOptionAvailabilityResult };
   "externalChannel/get": { params: Models.ExternalChannelGetParams; result: Models.ExternalChannelGetResult };
   "externalChannel/list": { params: Models.RpcEmpty; result: Models.ExternalChannelListResult };
   "externalChannel/logs": { params: Models.ExternalChannelLogsParams; result: Models.ExternalChannelLogsResult };

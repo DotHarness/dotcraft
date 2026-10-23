@@ -369,7 +369,7 @@ public sealed class AppServerHost(
                 OnExternalChannelRemoved = _appServerFeature is null
                     ? null
                     : (name, ct) => _appServerFeature.ApplyExternalChannelRemoveAsync(name, ct),
-                ExternalChannelLogProvider = _appServerFeature?.ExternalChannelLogProvider,
+                ExternalChannelRuntimeProvider = _appServerFeature?.ExternalChannelRuntimeProvider,
                 StreamDebugLogger = _services.GetService<SessionStreamDebugLogger>(),
                 LoggerFactory = _services.GetService<Microsoft.Extensions.Logging.ILoggerFactory>(),
                 ConfigSchema = runtime.ConfigSchema,

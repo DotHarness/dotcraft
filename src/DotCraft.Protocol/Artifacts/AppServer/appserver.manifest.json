@@ -7550,6 +7550,42 @@
       "variants": []
     },
     {
+      "id": "external-channel.ExtChannelConfigOptionAvailabilityParams",
+      "name": "ExtChannelConfigOptionAvailabilityParams",
+      "module": "external-channel",
+      "kind": "object",
+      "schema": "schemas/external-channel/ExtChannelConfigOptionAvailabilityParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "external-channel.ExtChannelConfigOptionAvailabilityResult",
+      "name": "ExtChannelConfigOptionAvailabilityResult",
+      "module": "external-channel",
+      "kind": "object",
+      "schema": "schemas/external-channel/ExtChannelConfigOptionAvailabilityResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "available",
+          "type": "array<string>",
+          "required": true,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "external-channel.ExtChannelSendParams",
       "name": "ExtChannelSendParams",
       "module": "external-channel",
@@ -7880,6 +7916,63 @@
           "type": "string",
           "required": false,
           "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "external-channel.ExternalChannelConfigOptionAvailabilityParams",
+      "name": "ExternalChannelConfigOptionAvailabilityParams",
+      "module": "external-channel",
+      "kind": "object",
+      "schema": "schemas/external-channel/ExternalChannelConfigOptionAvailabilityParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "external-channel.ExternalChannelConfigOptionAvailabilityResult",
+      "name": "ExternalChannelConfigOptionAvailabilityResult",
+      "module": "external-channel",
+      "kind": "object",
+      "schema": "schemas/external-channel/ExternalChannelConfigOptionAvailabilityResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "available",
+          "type": "array<string>",
+          "required": true,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
           "const": null
         }
       ],
@@ -29432,6 +29525,26 @@
       "stability": "stable"
     },
     {
+      "name": "ext/channel/configOptionAvailability",
+      "descriptorMember": "ExtChannelConfigOptionAvailability",
+      "kind": "request",
+      "direction": "serverToClient",
+      "paramsType": "external-channel.ExtChannelConfigOptionAvailabilityParams",
+      "resultType": "external-channel.ExtChannelConfigOptionAvailabilityResult",
+      "module": "external-channel",
+      "capability": "channelAdapter",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/external-channel-adapter.md",
+      "stability": "stable"
+    },
+    {
       "name": "ext/channel/heartbeat",
       "descriptorMember": "ExtChannelHeartbeat",
       "kind": "request",
@@ -29549,6 +29662,26 @@
       ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "externalChannel/configOptionAvailability",
+      "descriptorMember": "ExternalChannelConfigOptionAvailability",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "external-channel.ExternalChannelConfigOptionAvailabilityParams",
+      "resultType": "external-channel.ExternalChannelConfigOptionAvailabilityResult",
+      "module": "external-channel",
+      "capability": "externalChannelManagement",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/external-channel-adapter.md",
       "stability": "stable"
     },
     {

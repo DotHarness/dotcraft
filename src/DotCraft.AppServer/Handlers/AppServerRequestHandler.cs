@@ -191,7 +191,7 @@ public sealed class AppServerRequestHandler(
             services.VisualizationRuntimeRegistry,
             services.ThreadSubscribers),
         new GenerativeUiRequestHandler(sessionService, connection, services.GenerativeUiRuntimeRegistry, services.ThreadSubscribers),
-        new ChannelRequestHandler(channelListContributor, services.ChannelStatusProvider, WorkspaceConfig, ExternalChannelConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OnExternalChannelUpserted, services.OnExternalChannelRemoved, services.ExternalChannelLogProvider),
+        new ChannelRequestHandler(channelListContributor, services.ChannelStatusProvider, WorkspaceConfig, ExternalChannelConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OnExternalChannelUpserted, services.OnExternalChannelRemoved, services.ExternalChannelRuntimeProvider),
         new ProviderRequestHandler(
             WorkspaceConfig,
             services.WorkspaceCraftPath,

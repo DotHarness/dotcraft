@@ -29,3 +29,15 @@
   gap: 8px;
   margin-top: 16px;
 }
+
+.optionsSummary {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.optionsCount {
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  white-space: nowrap;
+}
