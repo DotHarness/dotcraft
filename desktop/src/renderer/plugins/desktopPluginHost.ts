@@ -14,19 +14,15 @@ import type {
 import { requestColorPickerDialog } from '../components/ui/ColorPickerDialog'
 import { loadLocalImageDataUrl } from '../components/conversation/imagePreview/galleryImages'
 import { requestConfirmDialog } from '../components/ui/ConfirmDialog'
-import { useAutomationsStore } from '../stores/automationsStore'
 import { useConversationStore } from '../stores/conversationStore'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
-import { requestToolCallReveal } from '../stores/toolCallRevealStore'
 import { removeToast, showToast } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
-import { openWorkspaceFileViewer } from '../utils/conversationDeepLink'
+import { openActiveThreadFile, openAutomation, openExternalUrl, openThread, revealToolCall } from '../utils/desktopNavigation'
 import { openSkill } from '../utils/openSkill'
-import { openWorkspaceThread } from '../utils/openWorkspaceThread'
 import { openSubAgent } from '../utils/subAgentNavigation'
-import { toAbsoluteWorkspacePath } from '../utils/workspacePaths'
 import { registerDesktopPluginAppearanceSlot } from './desktopPluginAppearance'
 import {
   onDesktopPluginEnvironmentChange,
@@ -185,38 +181,14 @@ export function createDesktopPluginHost(
         ui.setActiveSettingsTab(buildDesktopPluginSettingsKey(pluginId, id))
         ui.setActiveMainView('settings')
       },
-      async openThread(threadId, workspacePath) {
-        const foregroundWorkspacePath = useWorkspaceProjectsStore.getState().foregroundWorkspacePath
-        await openWorkspaceThread({
-          threadId,
-          workspacePath,
-          foregroundWorkspacePath,
-          switchWorkspace: (nextPath) => window.api.workspace.switch(nextPath),
-          setPending: (payload) => useUIStore.getState().setPendingProjectThreadOpen(payload),
-          clearPending: (projectKey, pendingThreadId) =>
-            useUIStore.getState().clearPendingProjectThreadOpen(projectKey, pendingThreadId),
-          activateThread: (targetThreadId) => {
-            useThreadStore.getState().setActiveThreadId(targetThreadId)
-            useUIStore.getState().setActiveMainView('conversation')
-          }
-        })
+      openThread(threadId, workspacePath) {
+        return openThread(threadId, workspacePath)
       },
-      async openExternal(url) {
-        const { protocol } = new URL(url)
-        if (protocol === 'http:' || protocol === 'https:') return window.api.shell.openExternal(url)
-        if (protocol === 'dotcraft:') return window.api.shell.openDesktopLink(url)
-        throw new TypeError(`openExternal does not open ${protocol} URLs`)
+      openExternal(url) {
+        return openExternalUrl(url)
       },
-      async openFile(path) {
-        const thread = useThreadStore.getState().activeThread
-        if (!thread) return
-        const workspacePath = thread.effectiveWorkspacePath?.trim() || thread.workspacePath
-        await openWorkspaceFileViewer({
-          threadId: thread.id,
-          workspacePath,
-          absolutePath: toAbsoluteWorkspacePath(workspacePath, path),
-          forceNew: false
-        })
+      openFile(path) {
+        return openActiveThreadFile(path)
       },
       openPath(path, options) {
         return openDesktopPluginPath(path, options)
@@ -228,16 +200,13 @@ export function createDesktopPluginHost(
         useUIStore.getState().setActiveDetailTab(tab)
       },
       openAutomation(automationId) {
-        useAutomationsStore.getState().selectAutomation(automationId)
-        useUIStore.getState().setActiveMainView('automations')
+        openAutomation(automationId)
       },
       openSkill(name) {
         openSkill(name)
       },
       revealToolCall(threadId, callId) {
-        requestToolCallReveal(threadId, { callId })
-        if (useThreadStore.getState().activeThreadId === threadId) useUIStore.getState().setActiveMainView('conversation')
-        else void host.navigation.openThread(threadId)
+        revealToolCall(threadId, callId)
       },
       onOpenUrl(listener) {
         return own(

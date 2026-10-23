@@ -1,22 +1,28 @@
-import '../../../renderer/tests/setupPluginRuntime'
-import type { DesktopPluginHost, DesktopPluginSubAgent } from '@dotcraft/plugin'
+import type { DesktopPluginSubAgent } from '@dotcraft/plugin'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { SummaryPanel } from './SummaryPanel'
+import type { ReactElement } from 'react'
+import { SummaryPanel } from '../components/conversation/summary/SummaryPanel'
+import type { SummaryServices } from '../components/conversation/summary/summaryServices'
+import { LocaleProvider } from '../contexts/LocaleContext'
+
+const renderWithLocale = (ui: ReactElement) => render(ui, {
+  wrapper: ({ children }) => <LocaleProvider loadSettings={false}>{children}</LocaleProvider>
+})
 
 const agent = (name: string, state: DesktopPluginSubAgent['state']): DesktopPluginSubAgent => ({
   parentThreadId: 't1', childThreadId: 'child-' + name, agentPath: null, nickname: name, state
 })
 
 function renderPanel(subagents: DesktopPluginSubAgent[]): void {
-  const host = {
+  const services = {
     environment: { locale: 'en' },
     appServer: { request: vi.fn(async () => ({ thread: { plan: null, runtime: {} }, data: [], terminals: [], runs: [], automations: [] })), onNotification: vi.fn(() => () => {}) },
     subagents: { list: () => subagents, onChange: () => () => {} },
     navigation: { openDetailPanel: vi.fn() },
-    ui: { showToast: vi.fn() }
-  } as unknown as DesktopPluginHost
-  render(<SummaryPanel host={host} threadId="t1" workspacePath={null} variant="pinned" />)
+    ui: { showError: vi.fn() }
+  } as unknown as SummaryServices
+  renderWithLocale(<SummaryPanel services={services} threadId="t1" workspacePath={null} variant="pinned" />)
 }
 
 describe('Summary subagents row', () => {

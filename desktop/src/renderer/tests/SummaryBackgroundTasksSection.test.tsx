@@ -1,10 +1,14 @@
-import '../../../renderer/tests/setupPluginRuntime'
-import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { BackgroundTasksSection } from './BackgroundTasksSection'
-import { startSummaryFeed, type SummaryState } from './feed'
-import { stringsFor } from './i18n'
+import type { ReactElement } from 'react'
+import { BackgroundTasksSection } from '../components/conversation/summary/BackgroundTasksSection'
+import { startSummaryFeed, type SummaryState } from '../components/conversation/summary/feed'
+import type { SummaryServices } from '../components/conversation/summary/summaryServices'
+import { LocaleProvider } from '../contexts/LocaleContext'
+
+const renderWithLocale = (ui: ReactElement) => render(ui, {
+  wrapper: ({ children }) => <LocaleProvider loadSettings={false}>{children}</LocaleProvider>
+})
 
 describe('Summary background tasks section', () => {
   it('stops only the listed terminals, leaving a command of the active turn running', async () => {
@@ -21,16 +25,16 @@ describe('Summary background tasks section', () => {
       if (method === 'terminal/stop') return { terminal: {} }
       return {}
     })
-    const host = {
+    const services = {
       appServer: { request, onNotification: vi.fn(() => () => {}) },
       subagents: { list: () => [], onChange: () => () => {} },
-      ui: { showToast: vi.fn() }
-    } as unknown as DesktopPluginHost
+      ui: { showError: vi.fn() }
+    } as unknown as SummaryServices
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(host, 't1', (next) => { state = next })
+    const stop = startSummaryFeed(services, 't1', (next) => { state = next })
     await waitFor(() => expect(state!.terminals).toHaveLength(1))
 
-    render(<BackgroundTasksSection host={host} threadId="t1" terminals={state!.terminals} workflows={[]} workflowCalls={new Map()} strings={stringsFor('en')} />)
+    renderWithLocale(<BackgroundTasksSection services={services} threadId="t1" terminals={state!.terminals} workflows={[]} workflowCalls={new Map()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Stop all background terminals' }))
 
     await waitFor(() => expect(request).toHaveBeenCalledWith('terminal/stop', { sessionId: 'dev-server' }))
@@ -41,18 +45,18 @@ describe('Summary background tasks section', () => {
 
   it('reveals the command that started a terminal when its row is clicked', async () => {
     const revealToolCall = vi.fn()
-    const host = {
+    const services = {
       appServer: { request: vi.fn(), onNotification: vi.fn(() => () => {}) },
       navigation: { revealToolCall },
-      ui: { showToast: vi.fn() }
-    } as unknown as DesktopPluginHost
-    render(<BackgroundTasksSection
-      host={host}
+      ui: { showError: vi.fn() }
+    } as unknown as SummaryServices
+    renderWithLocale(<BackgroundTasksSection
+      services={services}
       threadId="t1"
       terminals={[{ sessionId: 'dev-server', command: 'npm run dev', callId: 'call-dev' }]}
       workflows={[]}
       workflowCalls={new Map()}
-      strings={stringsFor('en')}
+
     />)
     fireEvent.click(screen.getByRole('button', { name: /npm run dev/ }))
     expect(revealToolCall).toHaveBeenCalledWith('t1', 'call-dev')
@@ -61,18 +65,18 @@ describe('Summary background tasks section', () => {
   it('lists a running workflow that reveals its call and stops only that run', async () => {
     const revealToolCall = vi.fn()
     const request = vi.fn(async () => ({ run: {} }))
-    const host = {
+    const services = {
       appServer: { request, onNotification: vi.fn(() => () => {}) },
       navigation: { revealToolCall },
-      ui: { showToast: vi.fn() }
-    } as unknown as DesktopPluginHost
-    render(<BackgroundTasksSection
-      host={host}
+      ui: { showError: vi.fn() }
+    } as unknown as SummaryServices
+    renderWithLocale(<BackgroundTasksSection
+      services={services}
       threadId="t1"
       terminals={[]}
       workflows={[{ runId: 'run_1', name: 'review-pr', paused: true }]}
       workflowCalls={new Map([['run_1', 'call-wf']])}
-      strings={stringsFor('en')}
+
     />)
     fireEvent.click(screen.getByRole('button', { name: /review-pr/ }))
     expect(revealToolCall).toHaveBeenCalledWith('t1', 'call-wf')

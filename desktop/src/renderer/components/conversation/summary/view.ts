@@ -1,18 +1,18 @@
 import type { DesktopPluginConversationAsideLayout } from '@dotcraft/plugin'
 import { useSyncExternalStore } from 'react'
-import { getSettings, setPinned } from './settings'
 
 export interface SummaryView {
   readonly layout: DesktopPluginConversationAsideLayout | null
   readonly popoverOpen: boolean
+  readonly pinned: boolean
 }
 
-let current: SummaryView = { layout: null, popoverOpen: false }
+let current: SummaryView = { layout: null, popoverOpen: false, pinned: true }
 const listeners = new Set<() => void>()
 
 function update(patch: Partial<SummaryView>): void {
   const next = { ...current, ...patch }
-  if (next.layout === current.layout && next.popoverOpen === current.popoverOpen) return
+  if (next.layout === current.layout && next.popoverOpen === current.popoverOpen && next.pinned === current.pinned) return
   current = next
   for (const listener of listeners) listener()
 }
@@ -42,10 +42,20 @@ export function setPopoverOpen(popoverOpen: boolean): void {
   update({ popoverOpen })
 }
 
+export function hydrateSummaryPinned(pinned: boolean): void {
+  update({ pinned })
+}
+
+export function setSummaryPinned(pinned: boolean): void {
+  update({ pinned })
+  void window.api.settings
+    .set({ summaryHidden: !pinned })
+    .catch((err: unknown) => console.error('settings:set summaryHidden failed:', err))
+}
+
 export function toggleSummary(): void {
   if (isPanelLayout(current.layout)) {
-    const settings = getSettings()
-    if (settings) setPinned(!settings.pinned)
+    setSummaryPinned(!current.pinned)
     return
   }
   update({ popoverOpen: !current.popoverOpen })

@@ -28,6 +28,7 @@ import { openSideChat, useCanOpenSideChat } from '../../utils/sideChat'
 import { archiveThreadWithUndo } from '../../utils/threadArchive'
 import { buildOpenInSubmenu, useOpenTargets } from '../../utils/openTargets'
 import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
+import { SummaryHeaderAction } from './summary/SummaryHeaderAction'
 
 interface ThreadHeaderProps {
   threadName: string
@@ -499,6 +500,7 @@ export function ThreadHeader({
         {pluginSurfaceContext && (
           <DesktopPluginSurface name="thread.header.actions" context={pluginSurfaceContext} />
         )}
+        {pluginSurfaceContext && <SummaryHeaderAction context={pluginSurfaceContext} />}
 
         <DetailPanelToggleButton />
       </div>

@@ -1,6 +1,6 @@
-import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { describe, expect, it, vi } from 'vitest'
-import { startSummaryFeed, type SummaryState } from './feed'
+import { startSummaryFeed, type SummaryState } from '../components/conversation/summary/feed'
+import type { SummaryServices } from '../components/conversation/summary/summaryServices'
 
 function wireItem(id: string, turnId: string, createdAt: string) {
   return { id, turnId, type: 'toolCall', status: 'completed', createdAt, payload: { callId: id, toolName: 'ReadFile' } }
@@ -8,7 +8,7 @@ function wireItem(id: string, turnId: string, createdAt: string) {
 
 function createHost(responses: Record<string, (params: any) => unknown>) {
   const notifications = new Map<string, (params: any) => void>()
-  const host = {
+  const services = {
     subagents: { list: () => [], onChange: () => () => undefined },
     appServer: {
       request: vi.fn(async (method: string, params: unknown) => responses[method]?.(params) ?? {}),
@@ -17,8 +17,8 @@ function createHost(responses: Record<string, (params: any) => unknown>) {
         return () => notifications.delete(method)
       }
     }
-  } as unknown as DesktopPluginHost
-  return { host, notify: (method: string, params: unknown) => notifications.get(method)?.(params) }
+  } as unknown as SummaryServices
+  return { services, notify: (method: string, params: unknown) => notifications.get(method)?.(params) }
 }
 
 async function settle(): Promise<void> {
@@ -28,13 +28,13 @@ async function settle(): Promise<void> {
 describe('Summary feed', () => {
   it('merges live items that arrive during history loading without duplicates', async () => {
     let releaseHistory: (value: unknown) => void = () => undefined
-    const { host, notify } = createHost({
+    const { services, notify } = createHost({
       'thread/items/list': () => new Promise((resolve) => { releaseHistory = resolve }),
       'thread/read': () => ({ thread: { plan: null } }),
       'automation/list': () => ({ automations: [] })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
 
     notify('item/completed', { threadId: 'thread-1', turnId: 't2', item: wireItem('b', 't2', '2026-10-01T10:05:00Z') })
     notify('item/completed', { threadId: 'thread-2', turnId: 'x', item: wireItem('z', 'x', '2026-10-01T10:05:00Z') })
@@ -52,7 +52,7 @@ describe('Summary feed', () => {
   })
 
   it('keeps items of different turns that share an item id', async () => {
-    const { host, notify } = createHost({
+    const { services, notify } = createHost({
       'thread/items/list': () => ({
         data: [{ turnId: 't1', item: wireItem('item_001', 't1', '2026-10-01T10:00:00Z') }],
         nextCursor: null
@@ -61,7 +61,7 @@ describe('Summary feed', () => {
       'automation/list': () => ({ automations: [] })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
 
     notify('item/completed', { threadId: 'thread-1', turnId: 't2', item: wireItem('item_001', 't2', '2026-10-01T10:05:00Z') })
@@ -71,9 +71,9 @@ describe('Summary feed', () => {
   })
 
   it('counts a to-do list without a plan as progress, leaving out cancelled steps', async () => {
-    const { host, notify } = createHost({ 'thread/read': () => ({ thread: { plan: null } }) })
+    const { services, notify } = createHost({ 'thread/read': () => ({ thread: { plan: null } }) })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
 
     notify('plan/updated', {
@@ -91,7 +91,7 @@ describe('Summary feed', () => {
   })
 
   it('drops items of turns removed by a rollback when the next turn starts', async () => {
-    const { host, notify } = createHost({
+    const { services, notify } = createHost({
       'thread/items/list': () => ({
         data: [
           { turnId: 't1', item: wireItem('a', 't1', '2026-10-01T10:00:00Z') },
@@ -108,7 +108,7 @@ describe('Summary feed', () => {
       })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
 
     notify('turn/started', { turn: { id: 't3', threadId: 'thread-1' } })
@@ -121,14 +121,14 @@ describe('Summary feed', () => {
   it('lists running terminals that outlived their turn, adding those of the active turn when it ends', async () => {
     const terminal = (sessionId: string, turnId: string, status = 'running', threadId = 'thread-1') =>
       ({ sessionId, threadId, turnId, command: `run ${sessionId}`, status })
-    const { host, notify } = createHost({
+    const { services, notify } = createHost({
       'thread/read': () => ({ thread: { plan: null, runtime: { activeTurnId: 't2' } } }),
       'terminal/list': () => ({
         terminals: [terminal('a', 't1'), terminal('b', 't2'), terminal('c', 't1', 'completed'), terminal('d', 't1', 'running', 'thread-2')]
       })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
 
     expect(state!.terminals.map((entry) => entry.sessionId)).toEqual(['a'])
@@ -139,7 +139,7 @@ describe('Summary feed', () => {
   })
 
   it('lists a command of the active turn once its Exec call has returned', async () => {
-    const { host, notify } = createHost({
+    const { services, notify } = createHost({
       'thread/read': () => ({ thread: { plan: null, runtime: { activeTurnId: 't2' } } }),
       'terminal/list': () => ({
         terminals: [
@@ -149,7 +149,7 @@ describe('Summary feed', () => {
       })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
 
     expect(state!.terminals).toEqual([])
@@ -166,7 +166,7 @@ describe('Summary feed', () => {
 
   it('lists running and paused workflow runs and follows their updates', async () => {
     const runs: Record<string, { status: string }> = { run_b: { status: 'running' } }
-    const { host, notify } = createHost({
+    const { services, notify } = createHost({
       'workflow/run/list': () => ({
         runs: [
           { runId: 'run_c', threadId: 'thread-1', name: 'done', status: 'succeeded' },
@@ -177,7 +177,7 @@ describe('Summary feed', () => {
       'workflow/run/read': ({ runId }: { runId: string }) => ({ run: { runId, threadId: 'thread-1', name: 'review', ...runs[runId] } })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
 
     expect(state!.workflows).toEqual([
@@ -194,12 +194,12 @@ describe('Summary feed', () => {
 
   it('reports ready only after every initial read settles, even when one fails', async () => {
     let releaseItems: (value: unknown) => void = () => undefined
-    const { host } = createHost({
+    const { services } = createHost({
       'thread/items/list': () => new Promise((resolve) => { releaseItems = resolve }),
       'workflow/run/list': () => Promise.reject(new Error('unsupported'))
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
     expect(state!.ready).toBe(false)
 
@@ -211,11 +211,11 @@ describe('Summary feed', () => {
 
   it('follows terminal notifications without reviving a terminal that ended while the list loaded', async () => {
     let releaseList: (value: unknown) => void = () => undefined
-    const { host, notify } = createHost({
+    const { services, notify } = createHost({
       'terminal/list': () => new Promise((resolve) => { releaseList = resolve })
     })
     let state: SummaryState | null = null
-    const stop = startSummaryFeed(host, 'thread-1', (next) => { state = next })
+    const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     const running = { sessionId: 'x', threadId: 'thread-1', turnId: 't1', callId: 'call-dev', command: 'npm run dev', status: 'running' }
 
     notify('terminal/completed', { terminal: { ...running, status: 'killed' } })

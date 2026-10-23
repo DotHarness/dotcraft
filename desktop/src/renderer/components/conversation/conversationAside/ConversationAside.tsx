@@ -20,6 +20,7 @@ import {
 import { useConversationTargetWidth } from '../../../contexts/ConversationLayoutContext'
 import { DesktopPluginSurface } from '../../desktopPlugins/DesktopPluginSurface'
 import { useDesktopPluginRegistry } from '../../../plugins/desktopPluginRegistry'
+import { SummaryAside } from '../summary/SummaryAside'
 import { conversationAsideLayout, type ConversationAsideLayout } from './conversationAsideLayout'
 
 interface StreamMetrics {
@@ -111,15 +112,14 @@ export function ConversationAsideProvider({ thread, style, children }: Conversat
     [stableThread, targetWidth, metrics, pinCount, railShown]
   )
   const leadingUsed = useDesktopPluginRegistry((registry) => registry.surfaces.some((surface) => surface.surface === 'conversation.aside.leading'))
-  const trailingUsed = useDesktopPluginRegistry((registry) => registry.surfaces.some((surface) => surface.surface === 'conversation.aside.trailing'))
   const insets = useMemo<ConversationAsideInsets>(
     () => layout
       ? {
           leading: leadingUsed ? layout.side - layout.shift : layout.leadingStart,
-          trailing: trailingUsed ? layout.side + layout.shift : 0
+          trailing: layout.side + layout.shift
         }
       : NO_INSETS,
-    [layout, leadingUsed, trailingUsed]
+    [layout, leadingUsed]
   )
   const state = useMemo(() => ({ thread: stableThread, layout, insets }), [stableThread, layout, insets])
   const shift = layout?.shift ?? 0
@@ -201,7 +201,9 @@ function ConversationAsideSeats({
             <DesktopPluginSurface name="conversation.aside.leading" context={leading} />
           </div>
           <div className="dc-conversation-aside" style={{ right: 0, width: trailingWidth }}>
-            <DesktopPluginSurface name="conversation.aside.trailing" context={trailing} />
+            <DesktopPluginSurface name="conversation.aside.trailing" context={trailing}>
+              <SummaryAside context={trailing} />
+            </DesktopPluginSurface>
           </div>
         </>
       )}

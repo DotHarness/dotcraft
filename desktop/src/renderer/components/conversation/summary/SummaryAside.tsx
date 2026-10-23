@@ -1,13 +1,20 @@
-import type { DesktopPluginSurfaceProps } from '@dotcraft/plugin'
-import { useEffect, useState, useSyncExternalStore, type JSX } from 'react'
-import { stringsFor } from './i18n'
-import { getSettings, subscribeSettings } from './settings'
+import type { DesktopPluginConversationAsideContext } from '@dotcraft/plugin'
+import { useEffect, useState, type JSX } from 'react'
+import { useT } from '../../../contexts/LocaleContext'
 import { SummaryPanel } from './SummaryPanel'
-import { isPanelLayout, reportLayout } from './view'
+import { desktopSummaryServices, type SummaryServices } from './summaryServices'
+import { isPanelLayout, reportLayout, useSummaryView } from './view'
 
-export function SummaryAside({ host, context }: DesktopPluginSurfaceProps<'conversation.aside.trailing'>): JSX.Element | null {
-  const settings = useSyncExternalStore(subscribeSettings, getSettings, getSettings)
-  const shown = settings?.pinned === true && isPanelLayout(context.layout)
+export function SummaryAside({
+  context,
+  services = desktopSummaryServices
+}: {
+  context: DesktopPluginConversationAsideContext
+  services?: SummaryServices
+}): JSX.Element | null {
+  const t = useT()
+  const { pinned } = useSummaryView()
+  const shown = pinned && isPanelLayout(context.layout)
   const [renderedThreadId, setRenderedThreadId] = useState(shown ? context.threadId : null)
   if (shown && renderedThreadId !== context.threadId) setRenderedThreadId(context.threadId)
   const { pin } = context
@@ -34,7 +41,7 @@ export function SummaryAside({ host, context }: DesktopPluginSurfaceProps<'conve
   return (
     <aside
       className="conversation-summary-pinned"
-      aria-label={stringsFor(host.environment.locale).panelLabel}
+      aria-label={t('summary.panelLabel')}
       aria-hidden={!shown || undefined}
       inert={!shown}
       data-leaving={!shown || undefined}
@@ -44,7 +51,7 @@ export function SummaryAside({ host, context }: DesktopPluginSurfaceProps<'conve
         }
       }}
     >
-      <SummaryPanel key={context.threadId} host={host} threadId={context.threadId} workspacePath={context.workspacePath} variant="pinned" />
+      <SummaryPanel key={context.threadId} services={services} threadId={context.threadId} workspacePath={context.workspacePath} variant="pinned" />
     </aside>
   )
 }

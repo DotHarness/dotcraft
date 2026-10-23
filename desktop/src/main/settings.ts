@@ -151,6 +151,8 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   pinnedSectionCollapsed?: boolean
   /** Omitted defaults to expanded. */
   chatsSectionCollapsed?: boolean
+  /** Omitted keeps the conversation Summary pinned. */
+  summaryHidden?: boolean
   /** Omitted uses `Documents/DotCraft/Chats`. */
   chatsFolder?: string
   /** Every custom Chats folder that has been in effect, so chats started there stay reachable. */
@@ -369,6 +371,10 @@ function normalizeProjectsSectionCollapsed(settings: AppSettings): boolean | und
 
 function normalizeChatsSectionCollapsed(settings: AppSettings): boolean | undefined {
   return settings.chatsSectionCollapsed === true ? true : undefined
+}
+
+function normalizeSummaryHidden(settings: AppSettings): boolean | undefined {
+  return settings.summaryHidden === true ? true : undefined
 }
 
 function normalizeSidebarThreadOrderSettings(settings: AppSettings): void {
@@ -617,6 +623,7 @@ export function loadSettings(): AppSettings {
       raw.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(raw)
       raw.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(raw)
       raw.chatsSectionCollapsed = normalizeChatsSectionCollapsed(raw)
+      raw.summaryHidden = normalizeSummaryHidden(raw)
       raw.chatsFolder = normalizeChatsFolderSetting(raw.chatsFolder)
       raw.chatsFolderHistory = rememberChatsFolder(raw.chatsFolderHistory, raw.chatsFolder)
       normalizeSidebarThreadOrderSettings(raw)
@@ -680,6 +687,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(settings)
     settings.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(settings)
     settings.chatsSectionCollapsed = normalizeChatsSectionCollapsed(settings)
+    settings.summaryHidden = normalizeSummaryHidden(settings)
     settings.chatsFolder = normalizeChatsFolderSetting(settings.chatsFolder)
     settings.chatsFolderHistory = rememberChatsFolder(settings.chatsFolderHistory, settings.chatsFolder)
     normalizeSidebarThreadOrderSettings(settings)

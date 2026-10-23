@@ -1,10 +1,11 @@
-import { IconButton, type DesktopPluginSurfaceProps } from '@dotcraft/plugin'
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type JSX } from 'react'
+import type { DesktopPluginThreadSurfaceContext } from '@dotcraft/plugin'
+import { useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
-import { stringsFor } from './i18n'
-import { getSettings, subscribeSettings } from './settings'
+import { useT } from '../../../contexts/LocaleContext'
+import { IconButton } from '../../ui/IconButton'
 import { SummaryIcon } from './SummaryIcon'
 import { SummaryPanel } from './SummaryPanel'
+import { desktopSummaryServices } from './summaryServices'
 import { isPanelLayout, setPopoverOpen, toggleSummary, useSummaryView } from './view'
 
 const POPOVER_WIDTH = 300
@@ -29,16 +30,15 @@ function positionFor(anchor: HTMLElement): PopoverPosition {
   }
 }
 
-export function SummaryHeaderAction({ host, context }: DesktopPluginSurfaceProps<'thread.header.actions'>): JSX.Element {
-  const settings = useSyncExternalStore(subscribeSettings, getSettings, getSettings)
+export function SummaryHeaderAction({ context }: { context: DesktopPluginThreadSurfaceContext }): JSX.Element {
+  const t = useT()
   const view = useSummaryView()
-  const strings = stringsFor(host.environment.locale)
   const anchorRef = useRef<HTMLSpanElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState<PopoverPosition | null>(null)
   const panelMode = isPanelLayout(view.layout)
   const popoverShown = view.popoverOpen && !panelMode
-  const label = panelMode ? strings.togglePinned : strings.toggle
+  const label = panelMode ? t('summary.togglePinned') : t('summary.toggle')
 
   useEffect(() => {
     setPopoverOpen(false)
@@ -84,8 +84,8 @@ export function SummaryHeaderAction({ host, context }: DesktopPluginSurfaceProps
           size={28}
           tooltipPlacement="bottom"
           activeTone="neutral"
-          active={panelMode ? settings?.pinned === true : popoverShown}
-          aria-pressed={panelMode ? settings?.pinned === true : undefined}
+          active={panelMode ? view.pinned : popoverShown}
+          aria-pressed={panelMode ? view.pinned : undefined}
           aria-expanded={panelMode ? undefined : popoverShown}
           aria-haspopup={panelMode ? undefined : 'dialog'}
           onClick={toggleSummary}
@@ -97,12 +97,12 @@ export function SummaryHeaderAction({ host, context }: DesktopPluginSurfaceProps
               ref={popoverRef}
               className="conversation-summary-popover"
               role="dialog"
-              aria-label={strings.panelLabel}
+              aria-label={t('summary.panelLabel')}
               style={position}
             >
               <SummaryPanel
                 key={context.threadId}
-                host={host}
+                services={desktopSummaryServices}
                 threadId={context.threadId}
                 workspacePath={context.workspacePath}
                 variant="popover"

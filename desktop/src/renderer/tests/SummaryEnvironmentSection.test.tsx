@@ -1,14 +1,18 @@
-import '../../../renderer/tests/setupPluginRuntime'
 import type {
-  DesktopPluginHost,
   DesktopPluginProjectActionsSnapshot,
   DesktopPluginProjectEnvironment
 } from '@dotcraft/plugin'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { EnvironmentSection } from './EnvironmentSection'
-import { stringsFor } from './i18n'
-import type { ChangeTotals } from './sources'
+import type { ReactElement } from 'react'
+import { EnvironmentSection } from '../components/conversation/summary/EnvironmentSection'
+import type { ChangeTotals } from '../components/conversation/summary/sources'
+import type { SummaryServices } from '../components/conversation/summary/summaryServices'
+import { LocaleProvider } from '../contexts/LocaleContext'
+
+const renderWithLocale = (ui: ReactElement) => render(ui, {
+  wrapper: ({ children }) => <LocaleProvider loadSettings={false}>{children}</LocaleProvider>
+})
 
 const WORKSPACE = '/repo'
 const DEFAULT_ID = '.craft/environments/environment.json'
@@ -42,9 +46,9 @@ function setup(list: Promise<DesktopPluginProjectActionsSnapshot>, changes: Chan
     }))
   }
   const navigation = { openFile: vi.fn(async () => {}), openDetailPanel: vi.fn() }
-  const host = { projectActions, navigation } as unknown as DesktopPluginHost
-  const view = render(
-    <EnvironmentSection host={host} threadId="t1" workspacePath={WORKSPACE} changes={changes} strings={stringsFor('en')} />
+  const services = { projectActions, navigation } as unknown as SummaryServices
+  const view = renderWithLocale(
+    <EnvironmentSection services={services} threadId="t1" workspacePath={WORKSPACE} changes={changes} />
   )
   return { projectActions, navigation, view }
 }

@@ -1,5 +1,6 @@
-import type { DesktopPluginHost, DesktopPluginSubAgent } from '@dotcraft/plugin'
+import type { DesktopPluginSubAgent } from '@dotcraft/plugin'
 import { diffTotals, rolledBackTurns, toSummaryItem, type ChangeTotals, type SummaryItem } from './sources'
+import type { SummaryServices } from './summaryServices'
 
 export interface SummaryAutomation {
   readonly id: string
@@ -58,7 +59,7 @@ const TURN_PAGE_LIMIT = 100
 const WORKFLOW_PAGE_LIMIT = 50
 
 export function startSummaryFeed(
-  host: DesktopPluginHost,
+  services: SummaryServices,
   threadId: string,
   onChange: (state: SummaryState) => void
 ): () => void {
@@ -76,7 +77,7 @@ export function startSummaryFeed(
   let state: SummaryState = {
     ready: false,
     workflows: [],
-    subagents: host.subagents.list(threadId),
+    subagents: services.subagents.list(threadId),
     automations: [],
     plan: null,
     items: [],
@@ -159,7 +160,7 @@ export function startSummaryFeed(
 
   const loadWorkflows = async (): Promise<void> => {
     try {
-      const result = await host.appServer.request('workflow/run/list', { threadId, limit: WORKFLOW_PAGE_LIMIT })
+      const result = await services.appServer.request('workflow/run/list', { threadId, limit: WORKFLOW_PAGE_LIMIT })
       if (disposed) return
       for (const run of [...(result.runs ?? [])].reverse()) upsertWorkflow(run)
     } catch {
@@ -169,14 +170,14 @@ export function startSummaryFeed(
 
   const refreshWorkflow = async (runId: string): Promise<void> => {
     try {
-      const result = await host.appServer.request('workflow/run/read', { threadId, runId })
+      const result = await services.appServer.request('workflow/run/read', { threadId, runId })
       if (!disposed && result.run) upsertWorkflow(result.run)
     } catch {
       return
     }
   }
 
-  const readItemsPage = (cursor: string | null) => host.appServer.request('thread/items/list', {
+  const readItemsPage = (cursor: string | null) => services.appServer.request('thread/items/list', {
     threadId,
     sortDirection: 'ascending',
     limit: ITEM_PAGE_LIMIT,
@@ -208,7 +209,7 @@ export function startSummaryFeed(
 
   const loadAutomations = async (): Promise<void> => {
     try {
-      const result = await host.appServer.request('automation/list', {})
+      const result = await services.appServer.request('automation/list', {})
       if (disposed) return
       publish({
         automations: (result.automations ?? [])
@@ -222,7 +223,7 @@ export function startSummaryFeed(
 
   const loadThread = async (): Promise<void> => {
     try {
-      const result = await host.appServer.request('thread/read', { threadId })
+      const result = await services.appServer.request('thread/read', { threadId })
       if (disposed) return
       if (!runtimeReceived) activeTurnId = result.thread?.runtime?.activeTurnId ?? null
       publish({ plan: toPlan(result.thread?.plan) })
@@ -234,7 +235,7 @@ export function startSummaryFeed(
 
   const loadTerminals = async (): Promise<void> => {
     try {
-      const result = await host.appServer.request('terminal/list', { threadId })
+      const result = await services.appServer.request('terminal/list', { threadId })
       if (disposed) return
       for (const terminal of result.terminals ?? []) trackTerminal(terminal)
       publishTerminals()
@@ -252,7 +253,7 @@ export function startSummaryFeed(
     reconcileInFlight = true
     const snapshot = state.items
     try {
-      const page = await host.appServer.request('thread/turns/list', {
+      const page = await services.appServer.request('thread/turns/list', {
         threadId,
         sortDirection: 'descending',
         limit: TURN_PAGE_LIMIT
@@ -272,9 +273,9 @@ export function startSummaryFeed(
     }
   }
 
-  const stopSubAgents = host.subagents.onChange(threadId, (subagents) => publish({ subagents }))
+  const stopSubAgents = services.subagents.onChange(threadId, (subagents) => publish({ subagents }))
 
-  const stopItems = host.appServer.onNotification('item/completed', (params) => {
+  const stopItems = services.appServer.onNotification('item/completed', (params) => {
     if (params.threadId !== threadId) return
     const item = toSummaryItem(params.item, params.turnId)
     if (!item) return
@@ -282,7 +283,7 @@ export function startSummaryFeed(
     else pendingItems.push(item)
   })
 
-  const stopTurnDiff = host.appServer.onNotification('turn/diff/updated', (params) => {
+  const stopTurnDiff = services.appServer.onNotification('turn/diff/updated', (params) => {
     if (params.threadId !== threadId) return
     const totals = diffTotals(params.diff ?? '')
     const next = new Map(state.turnDiffs)
@@ -291,12 +292,12 @@ export function startSummaryFeed(
     publish({ turnDiffs: next })
   })
 
-  const stopPlan = host.appServer.onNotification('plan/updated', (params) => {
+  const stopPlan = services.appServer.onNotification('plan/updated', (params) => {
     if (params.threadId !== threadId) return
     publish({ plan: toPlan(params) })
   })
 
-  const stopAutomations = host.appServer.onNotification('automation/updated', (params) => {
+  const stopAutomations = services.appServer.onNotification('automation/updated', (params) => {
     const others = state.automations.filter((automation) => automation.id !== params.automationId)
     const automation = params.automation
     if (params.removed || !automation || automation.targetThreadId !== threadId) {
@@ -309,15 +310,15 @@ export function startSummaryFeed(
     publish({ automations: next })
   })
 
-  const stopWorkflows = host.appServer.onNotification('workflow/run/updated', (params) => {
+  const stopWorkflows = services.appServer.onNotification('workflow/run/updated', (params) => {
     if (params.threadId === threadId) void refreshWorkflow(params.runId)
   })
 
-  const stopTurnStarted = host.appServer.onNotification('turn/started', (params) => {
+  const stopTurnStarted = services.appServer.onNotification('turn/started', (params) => {
     if (params.turn.threadId === threadId) void reconcileRollback()
   })
 
-  const stopRuntime = host.appServer.onNotification('thread/status/changed', (params) => {
+  const stopRuntime = services.appServer.onNotification('thread/status/changed', (params) => {
     if (params.threadId !== threadId) return
     runtimeReceived = true
     const nextTurnId = params.runtime?.activeTurnId ?? null
@@ -332,9 +333,9 @@ export function startSummaryFeed(
     if (trackTerminal(params.terminal, ended)) publishTerminals()
   }
   const stopTerminals = [
-    host.appServer.onNotification('terminal/started', onTerminal(false)),
-    host.appServer.onNotification('terminal/completed', onTerminal(true)),
-    host.appServer.onNotification('terminal/cleaned', onTerminal(true))
+    services.appServer.onNotification('terminal/started', onTerminal(false)),
+    services.appServer.onNotification('terminal/completed', onTerminal(true)),
+    services.appServer.onNotification('terminal/cleaned', onTerminal(true))
   ]
 
   onChange(state)

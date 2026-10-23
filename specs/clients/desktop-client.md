@@ -377,6 +377,12 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 - Plan updates stay associated with the active thread and reflect the latest complete snapshot. While `CreatePlan` arguments stream, the plan surface renders a live draft that is replaced by the snapshot on `plan/updated`. Plan overviews render Markdown. A to-do list without a plan is labeled as progress. Plan updates and `CreatePlan` drafts refresh the plan surface without opening or switching the detail panel.
 - When the latest completed Plan-mode Turn contains a successful `CreatePlan`, Desktop replaces the composer with a plan-confirmation composer, regardless of later output in that Turn. The confirmation survives thread switches and restarts and clears when the next Turn starts.
 
+**Summary**
+
+- The thread header carries a Summary toggle beside the Detail Panel toggle. When the conversation leaves room beside its reading column, the Summary is a card pinned there; the toggle pins and unpins it, and the choice persists across restarts (pinned by default). Without room, the toggle opens the Summary as a popover under the button that closes on Escape or an outside click.
+- The Summary lists, for the active thread: its plan or progress (opens Plan); its subagents with working and finished counts (opens Subagents); running workflows and background terminals, each with Stop, revealing the call that started them; automations that target the thread (opens the automation); the files, skills, MCP tools, and websites it used, plus web search, three at a time with View all (files, websites, and skills open); and its environment: the changed-line totals (opens Changes) and the workspace's project actions. With nothing to show it says so.
+- The Summary is Core content of the `conversation.aside.trailing` seat ([Desktop Plugins](../architecture/desktop-plugins.md)), so a Desktop Plugin can add to, wrap, or replace it there.
+
 **Tool rows**
 
 - Tool output stays readable in-thread and distinguishable from conversational text.

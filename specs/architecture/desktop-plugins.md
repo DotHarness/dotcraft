@@ -189,7 +189,7 @@ The Core surfaces are:
 | `composer.status.trailing` | The trailing end of the status row, reserved for compact persistent readouts. Empty by default. |
 | `thread.header.actions` | The action group in the active thread header, between the overflow menu and the Detail Panel toggle. Empty by default. |
 | `conversation.aside.leading` | A seat beside the leading edge of the conversation reading column. Empty by default. |
-| `conversation.aside.trailing` | A seat beside the trailing edge of the conversation reading column, for panels that accompany the conversation. Empty by default. |
+| `conversation.aside.trailing` | A seat beside the trailing edge of the conversation reading column, for panels that accompany the conversation. Core supplies the pinned Summary card. |
 
 `app.background`, `app.overlay`, and `app.status` share the application context. The overlay paints over the shell without consuming the single `app` wrapper. Overlay, status, and aside seats are click-through (`pointer-events: none`, inherited); a contribution opts back in on its own interactive elements.
 

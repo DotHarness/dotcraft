@@ -14,6 +14,7 @@ import {
 import { useUIStore } from './stores/uiStore'
 import { useComposerPreferencesStore } from './stores/composerPreferencesStore'
 import { useSidebarThreadOrderStore } from './stores/sidebarThreadOrderStore'
+import { hydrateSummaryPinned } from './components/conversation/summary/view'
 import { PET_CLOCK_MS, usePetStore } from './pet/petStore'
 import { showFindToast } from './pet/findToast'
 import { useViewerTabStore } from './stores/viewerTabStore'
@@ -1315,6 +1316,7 @@ export function App(): JSX.Element {
         useComposerPreferencesStore.getState().hydrate(s)
         usePetStore.getState().hydrate(s)
         useSidebarThreadOrderStore.getState().hydrate(s)
+        hydrateSummaryPinned(s.summaryHidden !== true)
         useUIStore.setState({
           projectsSectionCollapsed: s.projectsSectionCollapsed === true,
           pinnedSectionCollapsed: s.pinnedSectionCollapsed === true,

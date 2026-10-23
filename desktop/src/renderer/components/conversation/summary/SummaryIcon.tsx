@@ -1,7 +1,6 @@
-import type { DesktopPluginIconProps } from '@dotcraft/plugin'
-import type { JSX } from 'react'
+import type { JSX, SVGProps } from 'react'
 
-export function SummaryIcon({ size = 16, style, ...rest }: DesktopPluginIconProps): JSX.Element {
+export function SummaryIcon({ size = 16, style, ...rest }: SVGProps<SVGSVGElement> & { size?: number }): JSX.Element {
   return (
     <svg
       width={size}

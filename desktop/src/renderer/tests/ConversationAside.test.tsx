@@ -9,13 +9,18 @@ import {
   useConversationColumnShift
 } from '../components/conversation/conversationAside/ConversationAside'
 import { ThreePanel } from '../components/layout/ThreePanel'
+import { LocaleProvider } from '../contexts/LocaleContext'
 import { useUIStore } from '../stores/uiStore'
 import {
   clearDesktopPluginRegistry,
   registerDesktopPluginSurface
 } from '../plugins/desktopPluginRegistry'
 
-const host = { plugin: { id: 'summary', version: '1.0.0', displayName: 'Summary' } } as DesktopPluginHost
+const renderWithLocale = (ui: JSX.Element) => render(ui, {
+  wrapper: ({ children }) => <LocaleProvider loadSettings={false}>{children}</LocaleProvider>
+})
+
+const host = { plugin: { id: 'aside-test', version: '1.0.0', displayName: 'Aside test' } } as DesktopPluginHost
 const thread = { workspacePath: null, threadId: 'thread-1', busy: false }
 
 let setPinned: (pinned: boolean) => void = () => {}
@@ -72,8 +77,8 @@ describe('conversation asides', () => {
       detailPanelWidthRatio: 0.36,
       responsiveLayout: 'full'
     })
-    registerDesktopPluginSurface('summary', host, 'conversation.aside.trailing', 'add', PinningPanel)
-    render(
+    registerDesktopPluginSurface('aside-test', host, 'conversation.aside.trailing', 'replace', PinningPanel)
+    renderWithLocale(
       <ThreePanel
         sidebar={null}
         detail={null}
@@ -100,8 +105,8 @@ describe('conversation asides', () => {
   })
 
   it('moves the conversation column while a trailing pin is live in the shift tier', () => {
-    registerDesktopPluginSurface('summary', host, 'conversation.aside.trailing', 'add', PinningPanel)
-    render(
+    registerDesktopPluginSurface('aside-test', host, 'conversation.aside.trailing', 'replace', PinningPanel)
+    renderWithLocale(
       <ConversationAsideProvider thread={thread} style={{}}>
         <Stream />
         <ColumnShift />
@@ -119,8 +124,8 @@ describe('conversation asides', () => {
   })
 
   it('keeps the column in place without a thread to seat contributions beside', () => {
-    registerDesktopPluginSurface('summary', host, 'conversation.aside.trailing', 'add', PinningPanel)
-    render(
+    registerDesktopPluginSurface('aside-test', host, 'conversation.aside.trailing', 'replace', PinningPanel)
+    renderWithLocale(
       <ConversationAsideProvider thread={null} style={{}}>
         <Stream />
         <ColumnShift />

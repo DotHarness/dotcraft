@@ -15,6 +15,7 @@
 @import "../components/conversation/styles/link-previews.css";
 @import "../components/conversation/styles/message-stream.css";
 @import "../components/conversation/styles/conversation-aside.css";
+@import "../components/conversation/summary/summary.css";
 @import "../components/conversation/styles/tool-disclosure.css";
 @import "../components/conversation/styles/web-search-row.css";
 @import "../components/conversation/styles/agent-builder-edit.css";

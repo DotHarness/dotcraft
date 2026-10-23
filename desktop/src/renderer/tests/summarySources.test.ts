@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changeTotals, diffTotals, extractSources, hasWebSearch, rolledBackTurns, toSummaryItem, workflowCallIds, type SummaryItem } from './sources'
+import { changeTotals, diffTotals, extractSources, hasWebSearch, rolledBackTurns, toSummaryItem, workflowCallIds, type SummaryItem } from '../components/conversation/summary/sources'
 
 let counter = 0
 

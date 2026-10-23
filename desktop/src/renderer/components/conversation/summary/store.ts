@@ -1,6 +1,6 @@
-import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { useEffect, useState } from 'react'
 import { startSummaryFeed, type SummaryState } from './feed'
+import type { SummaryServices } from './summaryServices'
 
 // Hidden threads keep their feeds live so reopening the Summary shows current state without reloading.
 const IDLE_FEED_LIMIT = 4
@@ -12,11 +12,11 @@ interface FeedEntry {
 }
 
 const feeds = new Map<string, FeedEntry>()
-let feedHost: DesktopPluginHost | null = null
+let feedServices: SummaryServices | null = null
 
-function entryFor(host: DesktopPluginHost, threadId: string): FeedEntry {
-  if (feedHost !== host) disposeSummaryFeeds()
-  feedHost = host
+function entryFor(services: SummaryServices, threadId: string): FeedEntry {
+  if (feedServices !== services) disposeSummaryFeeds()
+  feedServices = services
   const existing = feeds.get(threadId)
   if (existing) {
     feeds.delete(threadId)
@@ -25,7 +25,7 @@ function entryFor(host: DesktopPluginHost, threadId: string): FeedEntry {
   }
   const entry: FeedEntry = { state: null, listeners: new Set(), stop: () => undefined }
   feeds.set(threadId, entry)
-  entry.stop = startSummaryFeed(host, threadId, (state) => {
+  entry.stop = startSummaryFeed(services, threadId, (state) => {
     entry.state = state
     for (const listener of entry.listeners) listener(state)
   })
@@ -45,19 +45,19 @@ function evictIdleFeeds(): void {
 export function disposeSummaryFeeds(): void {
   for (const entry of feeds.values()) entry.stop()
   feeds.clear()
-  feedHost = null
+  feedServices = null
 }
 
-export function useSummaryState(host: DesktopPluginHost, threadId: string): SummaryState | null {
-  const [state, setState] = useState<SummaryState | null>(() => entryFor(host, threadId).state)
+export function useSummaryState(services: SummaryServices, threadId: string): SummaryState | null {
+  const [state, setState] = useState<SummaryState | null>(() => entryFor(services, threadId).state)
   useEffect(() => {
-    const entry = entryFor(host, threadId)
+    const entry = entryFor(services, threadId)
     setState(entry.state)
     entry.listeners.add(setState)
     return () => {
       entry.listeners.delete(setState)
       evictIdleFeeds()
     }
-  }, [host, threadId])
+  }, [services, threadId])
   return state
 }

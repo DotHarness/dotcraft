@@ -1562,6 +1562,7 @@ const api = {
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
+      summaryHidden?: boolean
       chatsFolder?: string
       recentsThreadSort?: SidebarThreadSortMode
       projectsThreadSort?: SidebarThreadSortMode
@@ -1647,6 +1648,7 @@ const api = {
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
+      summaryHidden?: boolean
       chatsFolder?: string
       recentsThreadSort?: SidebarThreadSortMode
       projectsThreadSort?: SidebarThreadSortMode

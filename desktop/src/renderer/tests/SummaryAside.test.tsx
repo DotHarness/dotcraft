@@ -1,23 +1,23 @@
-import type { DesktopPluginConversationAsideContext, DesktopPluginHost, DesktopPluginSettings } from '@dotcraft/plugin'
+import type { DesktopPluginConversationAsideContext } from '@dotcraft/plugin'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { SummaryAside } from './SummaryAside'
-import { getSettings, initializeSettings } from './settings'
-import { resetView } from './view'
+import type { ReactElement } from 'react'
+import { SummaryAside } from '../components/conversation/summary/SummaryAside'
+import { hydrateSummaryPinned, resetView } from '../components/conversation/summary/view'
+import { LocaleProvider } from '../contexts/LocaleContext'
 
-vi.mock('./SummaryPanel', () => ({
+const renderWithLocale = (ui: ReactElement) => render(ui, {
+  wrapper: ({ children }) => <LocaleProvider loadSettings={false}>{children}</LocaleProvider>
+})
+
+vi.mock('../components/conversation/summary/SummaryPanel', () => ({
   SummaryPanel: ({ threadId }: { threadId: string }) => <button data-testid="summary-content" data-thread-id={threadId} />
 }))
 
-const host = { environment: { locale: 'en' } } as DesktopPluginHost
-
-beforeEach(async () => {
+beforeEach(() => {
   vi.useFakeTimers()
   resetView()
-  await initializeSettings({
-    get: async () => ({ value: { pinned: true } }),
-    onChange: () => () => {}
-  } as unknown as DesktopPluginSettings)
+  hydrateSummaryPinned(true)
 })
 
 function setup(layout: DesktopPluginConversationAsideContext['layout'] = 'shift') {
@@ -26,10 +26,10 @@ function setup(layout: DesktopPluginConversationAsideContext['layout'] = 'shift'
   const context: DesktopPluginConversationAsideContext = {
     threadId: 'thread-1', workspacePath: null, busy: false, layout, width: 353, pin
   }
-  const view = render(<SummaryAside host={host} context={context} />)
+  const view = renderWithLocale(<SummaryAside context={context} />)
   const change = (patch: Partial<DesktopPluginConversationAsideContext>) => {
     Object.assign(context, patch)
-    view.rerender(<SummaryAside host={host} context={{ ...context }} />)
+    view.rerender(<SummaryAside context={{ ...context }} />)
   }
   return { ...view, pin, release, change }
 }
@@ -48,7 +48,6 @@ describe('Summary aside presence', () => {
     expect(screen.queryByRole('complementary')).toBeNull()
     expect(aside).toHaveAttribute('inert')
     expect(aside).toBeInTheDocument()
-    expect(getSettings()?.pinned).toBe(true)
 
     finishExit(aside)
     expect(aside).not.toBeInTheDocument()

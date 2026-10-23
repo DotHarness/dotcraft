@@ -1,15 +1,15 @@
-import {
-  IconButton,
-  Menu,
-  type DesktopPluginHost,
-  type DesktopPluginProjectActionIcon,
-  type DesktopPluginProjectActionsSnapshot,
-  type MenuEntry
+import type {
+  DesktopPluginProjectActionIcon,
+  DesktopPluginProjectActionsSnapshot,
+  MenuEntry
 } from '@dotcraft/plugin'
 import { Bug, Ellipsis, FileDiff, FlaskConical, Play, Plus, SquareTerminal, TriangleAlert, Wrench } from 'lucide-react'
 import { useEffect, useState, type JSX } from 'react'
-import { fill, type SummaryStrings } from './i18n'
+import { useT } from '../../../contexts/LocaleContext'
+import { DesktopPluginMenu as Menu } from '../../desktopPlugins/DesktopPluginMenu'
+import { IconButton } from '../../ui/IconButton'
 import type { ChangeTotals } from './sources'
+import type { SummaryServices } from './summaryServices'
 import { GLYPH, Row, Section } from './SummaryRows'
 
 const ACTION_GLYPHS: Record<DesktopPluginProjectActionIcon, typeof Play> = {
@@ -21,7 +21,7 @@ const ACTION_GLYPHS: Record<DesktopPluginProjectActionIcon, typeof Play> = {
 
 const HEADER_GLYPH = { size: 14, strokeWidth: 1.75 } as const
 
-function useProjectActions(host: DesktopPluginHost, workspacePath: string | null): DesktopPluginProjectActionsSnapshot | null {
+function useProjectActions(services: SummaryServices, workspacePath: string | null): DesktopPluginProjectActionsSnapshot | null {
   const [snapshot, setSnapshot] = useState<DesktopPluginProjectActionsSnapshot | null>(null)
   useEffect(() => {
     setSnapshot(null)
@@ -30,13 +30,13 @@ function useProjectActions(host: DesktopPluginHost, workspacePath: string | null
     const apply = (next: DesktopPluginProjectActionsSnapshot): void => {
       if (active) setSnapshot(next)
     }
-    host.projectActions.list(workspacePath).then(apply, () => {})
-    const dispose = host.projectActions.onChange(workspacePath, apply)
+    services.projectActions.list(workspacePath).then(apply, () => {})
+    const dispose = services.projectActions.onChange(workspacePath, apply)
     return () => {
       active = false
       dispose()
     }
-  }, [host, workspacePath])
+  }, [services, workspacePath])
   return snapshot
 }
 
@@ -44,11 +44,11 @@ function settle(promise: Promise<unknown>): void {
   promise.catch(() => {})
 }
 
-function ChangesRow({ host, changes, strings }: {
-  host: DesktopPluginHost
+function ChangesRow({ services, changes }: {
+  services: SummaryServices
   changes: ChangeTotals
-  strings: SummaryStrings
 }): JSX.Element {
+  const t = useT()
   const meta = changes.additions > 0 || changes.deletions > 0 ? (
     <>
       {changes.additions > 0 ? <span className="conversation-summary-row__added">+{changes.additions}</span> : null}
@@ -58,45 +58,45 @@ function ChangesRow({ host, changes, strings }: {
   return (
     <Row
       leading={<FileDiff {...GLYPH} />}
-      label={strings.changes}
+      label={t('summary.changes')}
       meta={meta}
-      onClick={() => host.navigation.openDetailPanel('changes')}
+      onClick={() => services.navigation.openDetailPanel('changes')}
     />
   )
 }
 
-export function EnvironmentSection({ host, threadId, workspacePath, changes, strings }: {
-  host: DesktopPluginHost
+export function EnvironmentSection({ services, threadId, workspacePath, changes }: {
+  services: SummaryServices
   threadId: string
   workspacePath: string | null
   changes: ChangeTotals | null
-  strings: SummaryStrings
 }): JSX.Element | null {
-  const snapshot = useProjectActions(host, workspacePath)
-  const changesRow = changes ? <ChangesRow host={host} changes={changes} strings={strings} /> : null
+  const t = useT()
+  const snapshot = useProjectActions(services, workspacePath)
+  const changesRow = changes ? <ChangesRow services={services} changes={changes} /> : null
   if (!snapshot || !workspacePath) {
-    return changesRow ? <Section title={strings.environment}>{changesRow}</Section> : null
+    return changesRow ? <Section title={t('summary.environment')}>{changesRow}</Section> : null
   }
 
   const { environments } = snapshot
   const selected = environments.find((environment) => environment.id === snapshot.selectedEnvironmentId) ?? null
   const primary = selected?.actions[0]
   const run = (environmentId: string, actionId: string): void =>
-    settle(host.projectActions.run({ threadId, environmentId, actionId }))
+    settle(services.projectActions.run({ threadId, environmentId, actionId }))
   const addAction = (): void => settle(
-    host.projectActions.promptAddAction({ workspacePath, environmentId: selected?.id }).then((saved) => {
+    services.projectActions.promptAddAction({ workspacePath, environmentId: selected?.id }).then((saved) => {
       if (saved) run(saved.environmentId, saved.action.id)
     })
   )
 
   const groups: MenuEntry[][] = []
   if (!selected) {
-    groups.push([{ label: strings.setUpEnvironment, icon: <Plus {...HEADER_GLYPH} />, onSelect: addAction }])
+    groups.push([{ label: t('summary.setUpEnvironment'), icon: <Plus {...HEADER_GLYPH} />, onSelect: addAction }])
   } else if (selected.error) {
     groups.push([{
-      label: strings.fixEnvironment,
+      label: t('summary.fixEnvironment'),
       icon: <TriangleAlert {...HEADER_GLYPH} />,
-      onSelect: () => settle(host.navigation.openFile(selected.path))
+      onSelect: () => settle(services.navigation.openFile(selected.path))
     }])
   } else {
     groups.push([
@@ -104,27 +104,27 @@ export function EnvironmentSection({ host, threadId, workspacePath, changes, str
         const Glyph = ACTION_GLYPHS[action.icon]
         return { label: action.name, icon: <Glyph {...HEADER_GLYPH} />, onSelect: () => run(selected.id, action.id) }
       }),
-      { label: strings.addAction, icon: <Plus {...HEADER_GLYPH} />, onSelect: addAction }
+      { label: t('summary.addAction'), icon: <Plus {...HEADER_GLYPH} />, onSelect: addAction }
     ])
   }
   if (environments.length > 1) {
     groups.push([
-      { type: 'label', label: strings.changeEnvironment },
+      { type: 'label', label: t('summary.changeEnvironment') },
       ...environments.map((environment) => ({
         label: environment.name,
         checked: environment.id === selected?.id,
-        onSelect: () => settle(host.projectActions.select(workspacePath, environment.id))
+        onSelect: () => settle(services.projectActions.select(workspacePath, environment.id))
       }))
     ])
   }
   groups.push([{
-    label: strings.openTerminal,
+    label: t('summary.openTerminal'),
     icon: <SquareTerminal {...HEADER_GLYPH} />,
-    onSelect: () => settle(host.projectActions.openTerminal({ threadId }))
+    onSelect: () => settle(services.projectActions.openTerminal({ threadId }))
   }])
   const menuItems = groups.flatMap((group, index) => (index === 0 ? group : [{ type: 'separator' as const }, ...group]))
   const PrimaryGlyph = primary ? ACTION_GLYPHS[primary.icon] : null
-  const runLabel = primary ? fill(strings.runAction, { action: primary.name }) : ''
+  const runLabel = primary ? t('summary.runAction', { action: primary.name }) : ''
 
   const actions = (
     <>
@@ -138,10 +138,10 @@ export function EnvironmentSection({ host, threadId, workspacePath, changes, str
         />
       ) : null}
       <Menu items={menuItems}>
-        <IconButton size={24} icon={<Ellipsis {...HEADER_GLYPH} />} label={strings.actions} tooltipLabel={strings.actions} />
+        <IconButton size={24} icon={<Ellipsis {...HEADER_GLYPH} />} label={t('summary.actions')} tooltipLabel={t('summary.actions')} />
       </Menu>
     </>
   )
 
-  return <Section title={strings.environment} actions={actions}>{changesRow}</Section>
+  return <Section title={t('summary.environment')} actions={actions}>{changesRow}</Section>
 }

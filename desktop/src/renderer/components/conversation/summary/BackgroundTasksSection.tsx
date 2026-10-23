@@ -1,8 +1,10 @@
-import { IconButton, Spinner, type DesktopPluginHost } from '@dotcraft/plugin'
 import { Square, SquareTerminal, Workflow } from 'lucide-react'
 import { useState, type JSX } from 'react'
+import { useT } from '../../../contexts/LocaleContext'
+import { IconButton } from '../../ui/IconButton'
+import { Spinner } from '../../ui/Spinner'
 import type { SummaryTerminal, SummaryWorkflow } from './feed'
-import type { SummaryStrings } from './i18n'
+import type { SummaryServices } from './summaryServices'
 import { GLYPH, Row, Section } from './SummaryRows'
 
 const STOP_GLYPH = { size: 14, strokeWidth: 1.75 } as const
@@ -26,14 +28,14 @@ function StopButton({ label, busy, disabled, onClick }: {
   )
 }
 
-export function BackgroundTasksSection({ host, threadId, terminals, workflows, workflowCalls, strings }: {
-  host: DesktopPluginHost
+export function BackgroundTasksSection({ services, threadId, terminals, workflows, workflowCalls }: {
+  services: SummaryServices
   threadId: string
   terminals: readonly SummaryTerminal[]
   workflows: readonly SummaryWorkflow[]
   workflowCalls: ReadonlyMap<string, string>
-  strings: SummaryStrings
 }): JSX.Element | null {
+  const t = useT()
   const [stopping, setStopping] = useState<string | null>(null)
   if (terminals.length === 0 && workflows.length === 0) return null
 
@@ -43,36 +45,36 @@ export function BackgroundTasksSection({ host, threadId, terminals, workflows, w
       () => setStopping(null),
       () => {
         setStopping(null)
-        host.ui.showToast({ message: failure, tone: 'error' })
+        services.ui.showError(failure)
       }
     )
   }
   const stopTerminals = (sessionId: string): void => settle(
     sessionId,
-    Promise.all(terminals.map((terminal) => host.appServer.request('terminal/stop', { sessionId: terminal.sessionId }))),
-    strings.stopBackgroundTerminalsFailed
+    Promise.all(terminals.map((terminal) => services.appServer.request('terminal/stop', { sessionId: terminal.sessionId }))),
+    t('summary.stopBackgroundTerminalsFailed')
   )
   const stopWorkflow = (runId: string): void => settle(
     runId,
-    host.appServer.request('workflow/run/stop', { threadId, runId }),
-    strings.stopWorkflowFailed
+    services.appServer.request('workflow/run/stop', { threadId, runId }),
+    t('summary.stopWorkflowFailed')
   )
   const reveal = (callId: string | null | undefined): (() => void) | undefined =>
-    callId ? () => host.navigation.revealToolCall(threadId, callId) : undefined
+    callId ? () => services.navigation.revealToolCall(threadId, callId) : undefined
 
   return (
-    <Section title={strings.backgroundTasks}>
+    <Section title={t('summary.backgroundTasks')}>
       {workflows.map((workflow) => (
         <Row
           key={workflow.runId}
           leading={<Workflow {...GLYPH} />}
           label={workflow.name}
-          inline={workflow.paused ? strings.paused : undefined}
+          inline={workflow.paused ? t('summary.paused') : undefined}
           title={workflow.name}
           onClick={reveal(workflowCalls.get(workflow.runId))}
           trailing={(
             <StopButton
-              label={strings.stopWorkflow}
+              label={t('summary.stopWorkflow')}
               busy={stopping === workflow.runId}
               disabled={stopping !== null}
               onClick={() => stopWorkflow(workflow.runId)}
@@ -86,12 +88,12 @@ export function BackgroundTasksSection({ host, threadId, terminals, workflows, w
           <Row
             key={terminal.sessionId}
             leading={<SquareTerminal {...GLYPH} />}
-            label={firstLine || strings.backgroundTerminal}
+            label={firstLine || t('summary.backgroundTerminal')}
             title={terminal.command || undefined}
             onClick={reveal(terminal.callId)}
             trailing={(
               <StopButton
-                label={strings.stopBackgroundTerminals}
+                label={t('summary.stopBackgroundTerminals')}
                 busy={stopping === terminal.sessionId}
                 disabled={stopping !== null}
                 onClick={() => stopTerminals(terminal.sessionId)}
