@@ -11,6 +11,7 @@ import { ViewerHeader } from './ViewerHeader'
 import { WorkspaceExplorer } from './WorkspaceExplorer'
 import { ExplorerDock } from './ExplorerDock'
 import { SideChatTab } from '../sideChat/SideChatTab'
+import { AutomationViewerTab } from '../automations/AutomationViewerTab'
 import { IconButton } from '../ui/IconButton'
 import { useFileEditorStore } from '../../stores/fileEditorStore'
 
@@ -113,6 +114,7 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
   )
 
   if (tab.kind === 'sideChat') return <SideChatTab tabId={tab.id} />
+  if (tab.kind === 'automation') return <AutomationViewerTab tabId={tab.id} />
 
   // Browser / terminal tabs keep their own chrome and fill the panel.
   if (tab.kind === 'browser' || tab.kind === 'terminal' || tab.kind === 'workflow') {

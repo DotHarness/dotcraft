@@ -2552,6 +2552,7 @@ export const MESSAGES_FR = {
   'auto.dnd.archivedCannotBind': 'Les discussions archivées ne peuvent pas être liées',
   'common.backToApp': 'Retour à l\'application',
   'common.close': 'Fermer',
+  'common.open': 'Ouvrir',
   'common.undo': 'Annuler',
   'common.copied': 'Copié',
 

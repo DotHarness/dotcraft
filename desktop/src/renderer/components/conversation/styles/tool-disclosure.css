@@ -218,6 +218,90 @@
   color: var(--text-secondary);
 }
 
+.dc-automation-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(100%, 420px);
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 6px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  background: var(--bg-secondary);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) ease;
+}
+
+.dc-automation-card:hover {
+  background: color-mix(in srgb, var(--bg-hover) 60%, var(--bg-secondary));
+}
+
+.dc-automation-card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.dc-automation-card__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.dc-automation-card__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dc-automation-card__title,
+.dc-automation-card__schedule {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-automation-card__title {
+  color: var(--text-primary);
+  font-size: var(--conversation-font-size);
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.dc-automation-card__schedule {
+  color: var(--text-secondary);
+  font-size: var(--conversation-secondary-size);
+  line-height: 18px;
+}
+
+.dc-automation-card__open {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.dc-automation-card:hover .dc-automation-card__open {
+  background: var(--bg-hover);
+}
+
 .dc-subagent-chips {
   padding: 3px 0;
   color: var(--text-dimmed);

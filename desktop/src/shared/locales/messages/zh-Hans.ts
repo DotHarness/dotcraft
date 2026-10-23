@@ -3775,6 +3775,7 @@ export const MESSAGES_ZH_HANS = {
   'common.cancel': '取消',
   'common.backToApp': '返回应用',
   'common.close': '关闭',
+  'common.open': '打开',
   'common.undo': '撤销',
   'common.copied': '已复制',
   'common.refresh': '刷新',

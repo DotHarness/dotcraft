@@ -528,3 +528,34 @@
   .dc-automations-header,
   .dc-automations-groups { padding-inline: 16px; }
 }
+
+.dc-automation-viewer-tab {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+}
+
+.dc-automation-viewer-tab .dc-automation-editor { flex: 1; min-height: 0; }
+
+.dc-automation-viewer-tab--placeholder {
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.dc-automation-viewer-tab--placeholder p { margin: 0; }
+
+.dc-automation-viewer-tab__mark {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  color: var(--text-secondary);
+}

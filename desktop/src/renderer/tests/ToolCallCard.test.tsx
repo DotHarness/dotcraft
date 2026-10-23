@@ -6,6 +6,7 @@ import { ToolCallCard } from '../components/conversation/ToolCallCard'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadRouteStore } from '../stores/threadRouteStore'
 import { usePluginStore } from '../stores/pluginStore'
+import { useSkillDetailStore } from '../stores/skillDetailStore'
 import { useSkillsStore } from '../stores/skillsStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
@@ -916,15 +917,14 @@ describe('ToolCallCard shell rendering', () => {
     fireEvent.click(screen.getByTestId('tool-row'))
     expect(screen.getByTestId('inline-diff-view')).toBeInTheDocument()
 
+    const viewBeforeOpen = useUIStore.getState().activeMainView
     await act(async () => {
       fireEvent.click(container.querySelector('.dc-ref-skill') as HTMLElement)
     })
 
-    expect(useUIStore.getState().activeMainView).toBeTruthy()
-    expect(useUIStore.getState().pluginCatalogSurface).toBeTruthy()
-    expect(usePluginStore.getState().selectedPlugin).toBeNull()
-    expect(useSkillsStore.getState().selectedSkillName).toBeTruthy()
-    expect(sendRequest.mock.calls.length).toBeGreaterThan(0)
+    expect(useUIStore.getState().activeMainView).toBe(viewBeforeOpen)
+    expect(useSkillDetailStore.getState().name).toBeTruthy()
+    useSkillDetailStore.getState().close()
   })
 
   it('renders successful SkillManage patch as a skill row whose panel is the diff', async () => {
@@ -1080,14 +1080,14 @@ describe('ToolCallCard shell rendering', () => {
     expect(screen.getByTestId('tool-row')).toHaveAttribute('data-expandable', 'false')
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
 
+    const viewBeforeOpen = useUIStore.getState().activeMainView
     await act(async () => {
       fireEvent.click(container.querySelector('.dc-ref-skill') as HTMLElement)
     })
 
-    expect(useUIStore.getState().activeMainView).toBeTruthy()
-    expect(useUIStore.getState().pluginCatalogSurface).toBeTruthy()
-    expect(useSkillsStore.getState().selectedSkillName).toBeTruthy()
-    expect(sendRequest.mock.calls.length).toBeGreaterThan(0)
+    expect(useUIStore.getState().activeMainView).toBe(viewBeforeOpen)
+    expect(useSkillDetailStore.getState().name).toBeTruthy()
+    useSkillDetailStore.getState().close()
   })
 
   it('renders SkillView not found as a non-expandable failed row', () => {

@@ -3,7 +3,7 @@
  * Used by main process (IPC handlers) and renderer (store, components).
  */
 
-export type ViewerKind = 'files' | 'file' | 'browser' | 'terminal' | 'workflow' | 'sideChat'
+export type ViewerKind = 'files' | 'file' | 'browser' | 'terminal' | 'workflow' | 'automation' | 'sideChat'
 export type * from './browserFeedback'
 
 export type ViewerContentClass = 'text' | 'image' | 'pdf' | 'unsupported'
@@ -101,6 +101,12 @@ export interface WorkflowViewerTab extends ViewerTabBase {
   runId: string
 }
 
+export interface AutomationViewerTab extends ViewerTabBase {
+  kind: 'automation'
+  threadId: string
+  automationId: string
+}
+
 export interface SideChatViewerTab extends ViewerTabBase {
   kind: 'sideChat'
   /** The parent thread the side chat was forked from. */
@@ -114,6 +120,7 @@ export type ViewerTab =
   | BrowserViewerTab
   | TerminalViewerTab
   | WorkflowViewerTab
+  | AutomationViewerTab
   | SideChatViewerTab
 
 export interface PerThreadViewerState {

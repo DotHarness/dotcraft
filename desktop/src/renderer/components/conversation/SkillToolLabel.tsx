@@ -37,7 +37,7 @@ export function SkillRef({ name }: { name: string }): JSX.Element {
       onClick={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        void openSkill(name)
+        openSkill(name)
       }}
     >
       <Box size={12} strokeWidth={2.25} aria-hidden />

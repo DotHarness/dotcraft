@@ -3887,6 +3887,7 @@ export const MESSAGES_EN = {
   'common.cancel': 'Cancel',
   'common.backToApp': 'Back to app',
   'common.close': 'Close',
+  'common.open': 'Open',
   'common.undo': 'Undo',
   'common.copied': 'Copied',
   'common.refresh': 'Refresh',

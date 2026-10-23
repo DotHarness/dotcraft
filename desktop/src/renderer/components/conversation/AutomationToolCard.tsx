@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { CalendarClock } from 'lucide-react'
+import { CalendarClock, Clock } from 'lucide-react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
 import type { AutomationDefinition, AutomationRun } from '../../types/automation'
-import { useAutomationsStore } from '../../stores/automationsStore'
+import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { automationScheduleSummary } from '../../utils/automationScheduleSummary'
 import { ToolDisclosure } from './ToolDisclosure'
 const operations = new Set(['create','update','pause','resume','delete','run','read','list','report'])
@@ -29,6 +30,7 @@ export function AutomationToolCard({ item, locale }: { item: ConversationItem; l
   const parsed = parseAutomationResult(item.result)
   if (!parsed) return null
   const { automation, run, operation, automations } = parsed
+  if (automation && (operation === 'create' || operation === 'update')) return <AutomationCard automation={automation} locale={locale} />
   const id = automation?.id ?? run?.automationId
   const label = translate(locale, `automation.operation.${operation}`)
   const summary = automation ? automationScheduleSummary(automation.schedule, locale) : null
@@ -40,6 +42,23 @@ export function AutomationToolCard({ item, locale }: { item: ConversationItem; l
     </div>
   </ToolDisclosure>
 }
+function AutomationCard({ automation, locale }: { automation: AutomationDefinition; locale: AppLocale }): JSX.Element {
+  const schedule = automationScheduleSummary(automation.schedule, locale)
+  return <button type="button" className="dc-automation-card" aria-label={`${translate(locale, 'common.open')} ${automation.name} · ${schedule}`} onClick={() => openAutomation(automation.id, automation.name)}>
+    <span className="dc-automation-card__icon" aria-hidden><Clock size={20} strokeWidth={1.8} /></span>
+    <span className="dc-automation-card__text">
+      <span className="dc-automation-card__title">{automation.name}</span>
+      <span className="dc-automation-card__schedule">{schedule}</span>
+    </span>
+    <span className="dc-automation-card__open" aria-hidden>{translate(locale, 'common.open')}</span>
+  </button>
+}
+function openAutomation(id: string, name: string): void {
+  const threadId = useThreadStore.getState().activeThreadId
+  if (!threadId) return
+  const tabId = useViewerTabStore.getState().openAutomation({ threadId, automationId: id, label: name })
+  useUIStore.getState().setActiveViewerTab(tabId)
+}
 function AutomationReference({ id, name, disabled = false }: { id: string; name: string; disabled?: boolean }): JSX.Element {
-  return <button type="button" className="dc-ref dc-ref-automation" disabled={disabled} aria-label={name} onClick={e => { e.preventDefault(); e.stopPropagation(); useAutomationsStore.getState().selectAutomation(id); useUIStore.getState().setActiveMainView('automations') }}><CalendarClock size={12} strokeWidth={2.25} aria-hidden /><span>{name}</span></button>
+  return <button type="button" className="dc-ref dc-ref-automation" disabled={disabled} aria-label={name} onClick={e => { e.preventDefault(); e.stopPropagation(); openAutomation(id, name) }}><CalendarClock size={12} strokeWidth={2.25} aria-hidden /><span>{name}</span></button>
 }

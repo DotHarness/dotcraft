@@ -20,7 +20,7 @@ export function AutomationEditor({ automation, initial, chats = false, onClose, 
   onDelete?(): void
   automation?: AutomationDefinition
   initial: AutomationInput
-  onClose(): void
+  onClose?(): void
   onSaved(value: AutomationDefinition): void
   onDirtyChange(value: boolean): void
 }): JSX.Element {
@@ -89,7 +89,7 @@ export function AutomationEditor({ automation, initial, chats = false, onClose, 
       setDraft(editableAutomation(automation))
       setError(null)
     } else {
-      onClose()
+      onClose?.()
     }
   }
 
@@ -112,7 +112,7 @@ export function AutomationEditor({ automation, initial, chats = false, onClose, 
             onClick={() => onAction(automation.status === 'paused' ? 'resume' : 'pause')}
           />
         ) : null}
-        <IconButton size={28} label={t('common.close')} tooltipLabel={t('common.close')} tooltipPlacement="bottom" icon={<X size={16} />} onClick={onClose} />
+        {onClose ? <IconButton size={28} label={t('common.close')} tooltipLabel={t('common.close')} tooltipPlacement="bottom" icon={<X size={16} />} onClick={onClose} /> : null}
       </header>
       {menu && automation ? <ContextMenu position={menu} onClose={() => setMenu(null)} items={[
         { label: t('automation.runNow'), icon: <Play size={15} />, onClick: () => { setMenu(null); onAction?.('run') } },

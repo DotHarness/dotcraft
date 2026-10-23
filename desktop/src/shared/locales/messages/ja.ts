@@ -2552,6 +2552,7 @@ export const MESSAGES_JA = {
   'auto.dnd.archivedCannotBind': 'アーカイブされたスレッドはバインドできません',
   'common.backToApp': 'アプリに戻る',
   'common.close': '閉じる',
+  'common.open': '開く',
   'common.undo': '元に戻す',
   'common.copied': 'コピーしました',
 

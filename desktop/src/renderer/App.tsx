@@ -73,6 +73,7 @@ import {
 import { ConfirmDialogHost } from './components/ui/ConfirmDialog'
 import { Button } from './components/ui/Button'
 import { ToastContainer } from './components/ui/ToastContainer'
+import { SkillDetailHost } from './components/skills/SkillDetailHost'
 import { DesktopPluginMainViewOutlet } from './components/desktopPlugins/DesktopPluginOutlets'
 import { CoreMainViewBoundary, coreMainViews, prefetchCoreMainView, retainsMainView } from './core/coreMainViewRoutes'
 import { MainViewOutlet } from './components/layout/MainViewOutlet'
@@ -3518,6 +3519,7 @@ export function App(): JSX.Element {
       <>
         <ConfirmDialogHost />
         <ToastContainer />
+        <SkillDetailHost />
         {quickOpenVisible && (
           <QuickOpenDialog
             onClose={() => setQuickOpenVisible(false)}

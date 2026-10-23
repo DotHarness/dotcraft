@@ -2552,6 +2552,7 @@ export const MESSAGES_DE = {
   'auto.dnd.archivedCannotBind': 'Archivierte Threads können nicht gebunden werden',
   'common.backToApp': 'Zurück zur App',
   'common.close': 'Schließen',
+  'common.open': 'Öffnen',
   'common.undo': 'Rückgängig',
   'common.copied': 'Kopiert',
 

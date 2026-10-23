@@ -232,7 +232,7 @@ export function createDesktopPluginHost(
         useUIStore.getState().setActiveMainView('automations')
       },
       openSkill(name) {
-        void openSkill(name)
+        openSkill(name)
       },
       revealToolCall(threadId, callId) {
         requestToolCallReveal(threadId, { callId })

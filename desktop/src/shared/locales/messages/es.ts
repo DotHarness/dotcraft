@@ -2552,6 +2552,7 @@ export const MESSAGES_ES = {
   'auto.dnd.archivedCannotBind': 'Los hilos archivados no se pueden vincular',
   'common.backToApp': 'Volver a la aplicación',
   'common.close': 'Cerrar',
+  'common.open': 'Abrir',
   'common.undo': 'Deshacer',
   'common.copied': 'Copiado',
 

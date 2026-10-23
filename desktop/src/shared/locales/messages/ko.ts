@@ -2554,6 +2554,7 @@ export const MESSAGES_KO = {
   'auto.dnd.archivedCannotBind': '보관된 스레드는 바인딩할 수 없습니다.',
   'common.backToApp': '앱으로 돌아가기',
   'common.close': '닫기',
+  'common.open': '열기',
   'common.undo': '실행 취소',
   'common.copied': '복사됨',
 

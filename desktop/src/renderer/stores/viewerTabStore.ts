@@ -11,6 +11,7 @@ import type {
   BrowserViewerTab,
   TerminalViewerTab,
   WorkflowViewerTab,
+  AutomationViewerTab,
   SideChatViewerTab,
   ViewerContentClass,
   ViewerKind,
@@ -50,7 +51,7 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
     if (tab.kind === 'files') return tab.label
     if (tab.kind === 'browser') return browserDefaultLabel(tab)
     if (tab.kind === 'terminal') return tab.label
-    if (tab.kind === 'workflow' || tab.kind === 'sideChat') return tab.label
+    if (tab.kind === 'workflow' || tab.kind === 'automation' || tab.kind === 'sideChat') return tab.label
     const parts = tab.relativePath.replace(/\\/g, '/').split('/')
     return parts[parts.length - 1] ?? tab.relativePath
   })
@@ -99,7 +100,7 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
     if (tab.kind === 'terminal') {
       return { ...tab, label: terminalDefaultLabel(tabs, i) }
     }
-    if (tab.kind === 'workflow' || tab.kind === 'sideChat' || tab.kind === 'files') return tab
+    if (tab.kind === 'workflow' || tab.kind === 'automation' || tab.kind === 'sideChat' || tab.kind === 'files') return tab
     return { ...tab, label: labels[i] ?? tab.label }
   })
 }
@@ -185,6 +186,8 @@ interface ViewerTabStoreActions {
   }): string
 
   openWorkflow(params: { threadId: string; runId: string; initialLabel: string }): string
+
+  openAutomation(params: { threadId: string; automationId: string; label: string }): string
 
   openSideChat(params: { threadId: string; sideChatKey: string; label: string }): string
 
@@ -442,6 +445,19 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
       return { byThread: next }
     })
     return newTab.id
+  },
+
+  openAutomation({ threadId, automationId, label }) {
+    const threadState = get().getThreadState(threadId)
+    const existing = threadState.tabs.find((tab): tab is AutomationViewerTab =>
+      tab.kind === 'automation' && tab.automationId === automationId)
+    const tab: AutomationViewerTab = existing ?? { id: nextTabId(), kind: 'automation', label, threadId, automationId }
+    set((state) => {
+      const next = new Map(state.byThread)
+      next.set(threadId, { tabs: existing ? threadState.tabs : [...threadState.tabs, tab], activeTabId: tab.id })
+      return { byThread: next }
+    })
+    return tab.id
   },
 
   openSideChat({ threadId, sideChatKey, label }) {
