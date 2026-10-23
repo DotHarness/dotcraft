@@ -517,6 +517,40 @@ describe('InputComposer layout', () => {
     }
   })
 
+  it('tells Composer plugin surfaces which provider and backend the Composer samples with', () => {
+    useModelCatalogStore.setState({ providerId: 'workspace-model' })
+    useProvidersStore.setState({
+      providers: [{ id: 'workspace-model', displayName: 'Workspace model', protocol: 'acme', authMethod: 'apiKey', backendId: 'acme.backend' }]
+    })
+    const pluginId = 'composer-provider-context'
+    const host = {
+      plugin: { id: pluginId, version: '1.0.0', displayName: pluginId }
+    } as DesktopPluginHost
+    const dispose = registerDesktopPluginSurface(
+      pluginId,
+      host,
+      'composer.status.subscription',
+      'wrap',
+      ({ context }) => (
+        <span
+          data-testid="composer-provider-context"
+          data-provider-id={context.provider?.id ?? 'none'}
+          data-backend-id={context.provider?.backendId ?? 'none'}
+        />
+      )
+    )
+
+    try {
+      renderComposer()
+
+      const probe = screen.getByTestId('composer-provider-context')
+      expect(probe).toHaveAttribute('data-provider-id', 'workspace-model')
+      expect(probe).toHaveAttribute('data-backend-id', 'acme.backend')
+    } finally {
+      act(() => dispose())
+    }
+  })
+
   it('replaces one built-in Composer control without removing adjacent controls', async () => {
     const pluginId = 'replace-composer-permissions'
     const dispose = registerDesktopPluginSurface(

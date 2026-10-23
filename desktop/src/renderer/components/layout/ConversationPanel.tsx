@@ -28,6 +28,7 @@ import {
 import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { ConversationAsideProvider } from '../conversation/conversationAside/ConversationAside'
+import { useComposerProvider } from '../conversation/useComposerProvider'
 import { Spinner } from '../ui/Spinner'
 import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
 
@@ -62,6 +63,7 @@ export function ConversationPanel({
   onBeforeSend
 }: ConversationPanelProps): JSX.Element {
   const t = useT()
+  const composerProvider = useComposerProvider()
   const isAgentBuilder = variant === 'agentBuilder'
   const [composerPrefillRequest, setComposerPrefillRequest] = useState<{ id: number; text: string } | null>(null)
   const activeThread = useThreadStore((s) => s.activeThread)
@@ -190,7 +192,8 @@ export function ConversationPanel({
     busy: turnStatus === 'running' || turnStatus === 'waitingInput',
     awaitingApproval: composerApproval != null || showPlanApproval,
     variant,
-    minimalChrome: minimalComposer || isAgentBuilder
+    minimalChrome: minimalComposer || isAgentBuilder,
+    provider: composerProvider
   }
   const threadSurfaceContext: DesktopPluginThreadSurfaceContext | null =
     isAgentBuilder || creating || selectedConversationView

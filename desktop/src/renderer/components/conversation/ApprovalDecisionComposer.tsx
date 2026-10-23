@@ -8,6 +8,7 @@ import { approvalQuestionKey, approvalRequestKey } from '../../utils/approvalReq
 import { submitApprovalDecision } from '../../utils/submitApprovalDecision'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
+import { useComposerProvider } from './useComposerProvider'
 import { ComposerChoiceRow } from './ComposerChoiceRow'
 import {
   ComposerStatusContent,
@@ -209,6 +210,7 @@ export function ApprovalDecisionComposer({
   const questionText = request.question
     ?? t(approvalQuestionKey(request.approvalType), { app: request.targetLabel ?? request.target })
   const detailRows = request.detailRows ?? buildToolDetailRows(request, t)
+  const provider = useComposerProvider()
   const mascotSurfaceContext = desktopPluginSurfaceContext ?? {
     workspacePath: null,
     threadId: request.threadId,
@@ -216,7 +218,8 @@ export function ApprovalDecisionComposer({
     busy: false,
     awaitingApproval: true,
     variant: 'default',
-    minimalChrome: false
+    minimalChrome: false,
+    provider
   } as const
 
   return (

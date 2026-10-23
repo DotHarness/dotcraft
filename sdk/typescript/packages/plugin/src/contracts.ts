@@ -71,6 +71,12 @@ export interface DesktopPluginAppSurfaceContext {
   readonly rootElement: HTMLElement;
 }
 
+export interface DesktopPluginComposerProvider {
+  readonly id: string;
+  /** Plugin model backend id; null for built-in providers. */
+  readonly backendId: string | null;
+}
+
 export interface DesktopPluginComposerSurfaceContext {
   readonly workspacePath: string | null;
   readonly threadId: string | null;
@@ -79,6 +85,7 @@ export interface DesktopPluginComposerSurfaceContext {
   readonly awaitingApproval: boolean;
   readonly variant: "default" | "agentBuilder";
   readonly minimalChrome: boolean;
+  readonly provider: DesktopPluginComposerProvider | null;
 }
 
 export type DesktopPluginMascotActivity =

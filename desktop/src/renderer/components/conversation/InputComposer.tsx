@@ -90,6 +90,7 @@ import { useChoiceDialog, useConfirmDialog } from '../ui/ConfirmDialog'
 import { ConversationColumn } from './ConversationColumn'
 import { resolveComposerMascotEffectState } from './composerMascotEffectState'
 import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
+import { useComposerProvider } from './useComposerProvider'
 import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
 import { isVoiceProcessingForThread, shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
 import {
@@ -190,6 +191,7 @@ export function InputComposer(props: InputComposerProps): JSX.Element {
   const maintenanceKind = useConversationStore((state) => state.maintenanceKind)
   const hasSubmitOverride = props.submitOverride !== undefined
   const waitingForInput = !hasSubmitOverride && turnStatus === 'waitingInput'
+  const provider = useComposerProvider()
   const context = {
     workspacePath: props.workspacePath || null,
     threadId: hasSubmitOverride ? null : props.threadId,
@@ -199,7 +201,8 @@ export function InputComposer(props: InputComposerProps): JSX.Element {
       : turnStatus === 'running' || waitingForInput || maintenanceKind === 'compacting',
     awaitingApproval: !hasSubmitOverride && turnStatus === 'waitingApproval',
     variant: props.variant === 'agentBuilder' ? 'agentBuilder' : 'default',
-    minimalChrome: props.minimalChrome ?? false
+    minimalChrome: props.minimalChrome ?? false,
+    provider
   } as const
 
   return (

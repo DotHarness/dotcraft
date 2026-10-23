@@ -18,6 +18,7 @@ import { useUserInputAutoResolutionStore } from '../../stores/userInputAutoResol
 import { interruptTurn } from '../../utils/interruptTurn'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
+import { useComposerProvider } from './useComposerProvider'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { inSameSideChat } from '../sideChat/sideChatScope'
 import {
@@ -281,6 +282,7 @@ export function RequestUserInputComposer({
   const visibleCountdownSeconds = countdownSeconds != null && countdownSeconds <= 60
     ? countdownSeconds
     : null
+  const provider = useComposerProvider()
   const mascotSurfaceContext = desktopPluginSurfaceContext ?? {
     workspacePath: null,
     threadId: null,
@@ -288,7 +290,8 @@ export function RequestUserInputComposer({
     busy: false,
     awaitingApproval: true,
     variant: 'default',
-    minimalChrome: false
+    minimalChrome: false,
+    provider
   } as const
 
   return (

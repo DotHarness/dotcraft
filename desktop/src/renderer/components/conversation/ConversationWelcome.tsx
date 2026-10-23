@@ -106,6 +106,7 @@ import {
   normalizePreferenceForModel
 } from './PreferenceModelPicker'
 import { toComposerMascotReasoningEffort } from './composerMascotEffectState'
+import { useComposerProvider } from './useComposerProvider'
 
 interface ConversationWelcomeProps {
   workspacePath: string
@@ -180,6 +181,7 @@ export function ConversationWelcome({
   )
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
   const connectionStatus = useConnectionStore((state) => state.status)
+  const provider = useComposerProvider()
   const desktopPluginSurfaceContext = {
     workspacePath: props.workspacePath || null,
     threadId: null,
@@ -187,7 +189,8 @@ export function ConversationWelcome({
     busy: connectionStatus !== 'connected',
     awaitingApproval: false,
     variant: 'default',
-    minimalChrome: false
+    minimalChrome: false,
+    provider
   } as const
 
   return (

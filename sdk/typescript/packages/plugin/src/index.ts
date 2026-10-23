@@ -68,6 +68,7 @@ export type {
   DesktopPluginServices,
   DesktopPluginAppSurfaceContext,
   DesktopPluginComposerMascotSurfaceContext,
+  DesktopPluginComposerProvider,
   DesktopPluginComposerSurfaceContext,
   DesktopPluginMascotActivity,
   DesktopPluginSubAgent,

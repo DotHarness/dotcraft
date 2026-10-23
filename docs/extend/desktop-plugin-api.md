@@ -176,6 +176,7 @@ Composer surface contexts have `threadId: null` whenever the Composer has not cr
 | `awaitingApproval` | A host approval decision is active. |
 | `variant` | `default` or an embedded Composer variant such as `agentBuilder`. |
 | `minimalChrome` | Core has hidden nonessential controls for an embedded Composer. |
+| `provider` | `{ id, backendId }` of the provider the Composer samples with, or `null` while unknown. `backendId` is `null` for built-in providers. |
 
 On the new-chat Welcome screen, `composer` covers the complete pre-thread composition experience: app selection, hero, input, workspace footer, and quick starts. Those elements share one draft and voice lifecycle, so replacing `composer` swaps them as a single unit.
 

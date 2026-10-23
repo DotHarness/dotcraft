@@ -197,6 +197,8 @@ The Core surfaces are:
 
 Composer surface contexts use `threadId: null` until the Composer attaches to a real Session thread, including welcome and detached embedded Composers.
 
+`provider` names the model provider the Composer samples with as `{ id, backendId }`, or is `null` while it is unknown. `backendId` identifies a plugin model backend and is `null` for built-in providers, so a backend plugin can recognize its own provider, for example to replace `composer.status.subscription`.
+
 Every internal Composer surface stays mounted while its Composer region exists, even when its Core default does not apply to the current state; a plugin uses the shared Composer context to decide whether its content applies. `add` renders after the current default or replacement; content that must precede a Core control uses `wrap`. Replacing an internal control removes that Core behavior, and the plugin receives no private control callbacks.
 
 `composer.mascot` adds the resolved mascot activity, expression, semantic light, base size, submit revision, reasoning effort, speed, and reduced-motion preference to the Composer context. Replacing it swaps only the visual character, which continues to ride Core's positioning and outer motion; additions act as overlays or accessories. `submitRevision` increments for each submit, even when state does not otherwise change. Plugin-specific occurrences use `events`. Replacing the complete `composer` surface is the way to own placement, bubbles, menus, or interaction. The error-screen mascot and Agent Profile avatars are unaffected.

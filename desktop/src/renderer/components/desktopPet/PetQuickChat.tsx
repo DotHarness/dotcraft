@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ComposerShell } from '../conversation/ComposerShell'
+import { useComposerProvider } from '../conversation/useComposerProvider'
 import { RichInputArea, type RichInputAreaHandle } from '../conversation/RichInputArea'
 import { useT } from '../../contexts/LocaleContext'
 import type { PetFollowUpMode, PetStatusInfo, PetVoice, PetVoiceAction } from '../../../shared/desktopPet'
@@ -19,13 +20,14 @@ export function PetQuickChat({ text, busy = false, status, followUpMode, voice, 
   const editor = useRef<RichInputAreaHandle>(null)
   const [focused, setFocused] = useState(false)
   const t = useT()
+  const provider = useComposerProvider()
   useLayoutEffect(() => {
     if (editor.current?.getText() !== text) editor.current?.setPlainText(text)
   }, [text])
   const submit = (): void => { if (!busy && voice !== 'recording' && voice !== 'processing' && editor.current?.getText().trim()) onSubmit() }
   return <div className="desktop-pet-quick-chat">
     <ComposerShell dragOver={false} dropLabel="" focused={focused}
-      desktopPluginSurfaceContext={{ workspacePath: '', threadId: null, mode: 'agent', busy, awaitingApproval: false, variant: 'default', minimalChrome: true }}
+      desktopPluginSurfaceContext={{ workspacePath: '', threadId: null, mode: 'agent', busy, awaitingApproval: false, variant: 'default', minimalChrome: true, provider }}
       onDragOver={event => event.preventDefault()} onDragLeave={() => {}} onDrop={event => event.preventDefault()}
       editor={<div className="desktop-pet-composer-row">
         <RichInputArea ref={editor} chrome="inline" placeholder={t('composer.placeholder.ask')} disabled={busy}

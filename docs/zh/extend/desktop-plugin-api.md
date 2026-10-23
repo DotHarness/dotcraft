@@ -172,6 +172,7 @@ host.ui.add("composer.status.subscription", SubscriptionStatus);
 | `awaitingApproval` | Host 正在等待审批决定。 |
 | `variant` | `default` 或 `agentBuilder` 等嵌入式 Composer 变体。 |
 | `minimalChrome` | Core 为嵌入式 Composer 隐藏了非必要控件。 |
+| `provider` | Composer 当前使用的 provider，形如 `{ id, backendId }`；尚未确定时为 `null`。内置 provider 的 `backendId` 为 `null`。 |
 
 在新聊天 Welcome 页，`composer` 覆盖创建 thread 之前的完整撰写体验：app 选择、hero、输入框、workspace footer 与 quick starts。这些元素共享同一份 draft 与 voice lifecycle，替换 `composer` 会把它们作为一个整体换掉。
 

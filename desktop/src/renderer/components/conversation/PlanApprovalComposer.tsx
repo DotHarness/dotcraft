@@ -16,6 +16,7 @@ import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../utils/composerSubmission'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
+import { useComposerProvider } from './useComposerProvider'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import {
   ComposerStatusContent,
@@ -178,6 +179,7 @@ export function PlanApprovalComposer({
 
   const acceptSelected = selectedIndex === 0
   const adjustmentSelected = selectedIndex === 1
+  const provider = useComposerProvider()
   const mascotSurfaceContext = desktopPluginSurfaceContext ?? {
     workspacePath,
     threadId,
@@ -185,7 +187,8 @@ export function PlanApprovalComposer({
     busy: false,
     awaitingApproval: true,
     variant: 'default',
-    minimalChrome: false
+    minimalChrome: false,
+    provider
   } as const
 
   return (

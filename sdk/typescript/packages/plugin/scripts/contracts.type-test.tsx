@@ -150,6 +150,7 @@ const composerContext: DesktopPluginSurfaceContext<"composer"> = {
   awaitingApproval: false,
   variant: "default",
   minimalChrome: false,
+  provider: { id: "workspace-model", backendId: "acme.backend" },
 };
 
 const welcomeComposerContext: DesktopPluginSurfaceContext<"composer"> = {
