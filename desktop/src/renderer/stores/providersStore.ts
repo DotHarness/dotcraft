@@ -61,7 +61,6 @@ const initialState: ProvidersState = {
 
 let inFlight: Promise<void> | null = null
 const inFlightUsage = new Map<string, Promise<void>>()
-const pushedUsage = new Set<string>()
 let usageNotificationUnsubscribe: (() => void) | null = null
 
 function usageKey(providerId: string): string {
@@ -132,7 +131,6 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
   reset() {
     inFlight = null
     inFlightUsage.clear()
-    pushedUsage.clear()
     usageNotificationUnsubscribe?.()
     usageNotificationUnsubscribe = null
     set(initialState)
@@ -223,21 +221,20 @@ function ensureUsageSubscription(): void {
   if (typeof window === 'undefined' || !window.api?.appServer?.onNotification) return
   usageNotificationUnsubscribe = window.api.appServer.onNotification((payload) => {
     if (payload?.method === 'turn/completed') {
-      refreshPolledUsage()
+      refreshBalanceUsage()
       return
     }
     if (payload?.method !== 'provider/auth/usage/updated') return
     const params = payload.params as { providerId?: unknown } | undefined
     if (typeof params?.providerId !== 'string') return
-    pushedUsage.add(usageKey(params.providerId))
     useProvidersStore.getState().applyUsage(params.providerId, parseUsage(params))
   })
 }
 
-function refreshPolledUsage(): void {
+function refreshBalanceUsage(): void {
   const store = useProvidersStore.getState()
   for (const [key, snapshot] of Object.entries(store.usage)) {
-    if (snapshot.available && !pushedUsage.has(key)) void store.refreshUsage(key)
+    if (snapshot.balances) void store.refreshUsage(key)
   }
 }
 
