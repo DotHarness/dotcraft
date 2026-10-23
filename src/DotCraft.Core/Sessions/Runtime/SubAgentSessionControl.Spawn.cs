@@ -48,7 +48,7 @@ public static partial class SubAgentSessionControl
         if (prepared != null
             && !string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase))
         {
-            var forkContext = BuildExternalForkContext(context.ParentThread, forkTurns);
+            var forkContext = await BuildExternalForkContextAsync(context.SessionService, context.ParentThread, forkTurns, ct);
             prepared = prepared with
             {
                 Request = prepared.Request with
@@ -158,7 +158,7 @@ public static partial class SubAgentSessionControl
             startup.Child = childThread;
             if (options.ChildCreated != null)
                 await options.ChildCreated(childThread, ct);
-            ApplyForkTurns(childThread, context.ParentThread, forkTurns, now);
+            await ApplyForkTurnsAsync(context.SessionService, childThread, context.ParentThread, forkTurns, now, ct);
             var materializedFork = isNativeRuntime
                                    && string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
                                    && context.SessionService is INativeSubAgentForkMaterializationService materializationService
@@ -171,7 +171,7 @@ public static partial class SubAgentSessionControl
                                         && string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
                                         && context.SessionService is IThreadForkToolBindingService forkBindingService
                                         && forkBindingService.TryForkThreadToolBindings(context.ParentThread.Id, childThread.Id);
-            if ((childThread.Turns.Count > 0 || materializedFork || inheritedToolBindings || options.ChildCreated != null)
+            if ((childThread.TurnCount > 0 || materializedFork || inheritedToolBindings || options.ChildCreated != null)
                 && context.SessionService is IThreadAgentRefreshService refreshService)
             {
                 await refreshService.RefreshThreadAgentAsync(childThread.Id, ct);

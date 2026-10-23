@@ -12,6 +12,7 @@ internal sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, ITh
     internal const int Cadence = 7;
 
     private readonly Func<string, CancellationToken, Task<SessionThread>> _loadThread;
+    private readonly Func<SessionThread, CancellationToken, IAsyncEnumerable<SessionTurn>> _readTurnsNewestFirst;
     private readonly IMemoryExtractionRunner _runner;
     private readonly ILogger? _logger;
     private readonly Channel<Signal> _signals = Channel.CreateUnbounded<Signal>(new UnboundedChannelOptions { SingleReader = true });
@@ -23,10 +24,12 @@ internal sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, ITh
 
     public MemoryExtractionScheduler(
         Func<string, CancellationToken, Task<SessionThread>> loadThread,
+        Func<SessionThread, CancellationToken, IAsyncEnumerable<SessionTurn>> readTurnsNewestFirst,
         IMemoryExtractionRunner runner,
         ILogger? logger = null)
     {
         _loadThread = loadThread;
+        _readTurnsNewestFirst = readTurnsNewestFirst;
         _runner = runner;
         _logger = logger;
         _idle.SetResult();
@@ -103,23 +106,24 @@ internal sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, ITh
         if (!IsEligible(thread))
             return;
 
-        var turns = thread.Turns.ToArray();
-        var index = Array.FindIndex(turns, turn => turn.Id == turnId);
-        if (index < 0)
+        var hasState = _threads.TryGetValue(threadId, out var state);
+        var window = await ReadWindowAsync(thread, turnId, hasState, state?.Cursor).ConfigureAwait(false);
+        if (window is null || window.CursorIsNewer)
             return;
 
-        if (!_threads.TryGetValue(threadId, out var state))
-            _threads[threadId] = state = new ThreadState { Cursor = index > 0 ? turns[index - 1].Id : null };
-        var cursorIndex = state.Cursor is null ? -1 : Array.FindIndex(turns, turn => turn.Id == state.Cursor);
-        if (state.Cursor is not null && cursorIndex < 0)
+        IEnumerable<SessionTurn> range = window.Turns;
+        if (state is null)
         {
-            cursorIndex = index - 1;
-            state.Cursor = index > 0 ? turns[index - 1].Id : null;
+            _threads[threadId] = state = new ThreadState { Cursor = window.Previous };
+            range = window.Turns.Take(1);
+        }
+        else if (state.Cursor is not null && !window.CursorFound)
+        {
+            state.Cursor = window.Previous;
+            range = window.Turns.Take(1);
         }
 
-        if (cursorIndex >= index)
-            return;
-        if (turns[(cursorIndex + 1)..(index + 1)].Any(turn => MemoryUpdates.SucceededPaths(turn).Count > 0))
+        if (range.Any(turn => MemoryUpdates.SucceededPaths(turn).Count > 0))
         {
             state.Cursor = turnId;
             return;
@@ -132,6 +136,34 @@ internal sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, ITh
             state.Waiting = true;
         else
             Start(threadId, state);
+    }
+
+    private async Task<TurnWindow?> ReadWindowAsync(SessionThread thread, string turnId, bool hasState, string? cursor)
+    {
+        var turns = new List<SessionTurn>();
+        string? previous = null;
+        await foreach (var turn in _readTurnsNewestFirst(thread, _lifetime.Token).ConfigureAwait(false))
+        {
+            if (turns.Count == 0)
+            {
+                if (cursor is not null && turn.Id == cursor)
+                    return new TurnWindow(turns, null, CursorFound: true, CursorIsNewer: true);
+                if (turn.Id == turnId)
+                    turns.Add(turn);
+                continue;
+            }
+
+            previous ??= turn.Id;
+            if (!hasState)
+                break;
+            if (cursor is not null && turn.Id == cursor)
+                return new TurnWindow(turns, previous, CursorFound: true, CursorIsNewer: false);
+            turns.Add(turn);
+        }
+
+        return turns.Count == 0
+            ? null
+            : new TurnWindow(turns, previous, CursorFound: cursor is null, CursorIsNewer: false);
     }
 
     private void Finish(RunFinished finished)
@@ -200,6 +232,8 @@ internal sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, ITh
                 _idle.TrySetResult();
         }
     }
+
+    private sealed record TurnWindow(List<SessionTurn> Turns, string? Previous, bool CursorFound, bool CursorIsNewer);
 
     private sealed class ThreadState
     {

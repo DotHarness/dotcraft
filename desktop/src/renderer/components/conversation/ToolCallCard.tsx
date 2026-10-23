@@ -29,7 +29,8 @@ import { AutomationToolCard, parseAutomationResult } from './AutomationToolCard'
 import { AgentBuilderEditCard } from './AgentBuilderEditCard'
 import { BUILDER_FIELD_LABEL_KEYS, isBuilderField, type BuilderField } from '../agents/agentBuilderDraftSync'
 import { renderSkillToolLabel } from './SkillToolLabel'
-import { McpAppView, hasAvailableMcpApp } from './McpAppView'
+import { McpAppView } from './McpAppView'
+import { isMcpAppCandidate } from '../../utils/mcpAppCandidate'
 import { ToolDisclosure } from './ToolDisclosure'
 import { useTranscriptItemDiff, useTranscriptWorkspacePath } from './transcriptDiffs'
 import { useRemoteToolHostRow } from './RemoteToolHostRow'
@@ -373,7 +374,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     if (revealNonce != null && canExpand) setExpanded(true)
   }, [revealNonce, canExpand])
 
-  if (!isRunning && hasAvailableMcpApp(item)) {
+  if (!isRunning && isMcpAppCandidate(item)) {
     return <McpAppView item={item} threadId={threadId} turnId={turnId} />
   }
 

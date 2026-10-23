@@ -17,6 +17,7 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
     {
         _scheduler = new MemoryExtractionScheduler(
             (threadId, _) => Task.FromResult(_threads[threadId]),
+            (thread, _) => Enumerable.Reverse(thread.Turns).ToArray().ToAsyncEnumerable(),
             _runner);
     }
 

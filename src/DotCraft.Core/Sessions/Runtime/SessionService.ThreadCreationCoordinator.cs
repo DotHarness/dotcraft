@@ -101,6 +101,8 @@ public sealed partial class SessionService
             {
                 throw new ArgumentException("An internal fork must be ephemeral and taken after the latest completed Turn.", nameof(options));
             }
+            if (source.OmittedTurnCount > 0)
+                source = source.WithTurns(await owner.ReadAllTurnsAsync(source, ct));
             var identity = ResolveForkIdentity(source, options.Identity);
             var now = DateTimeOffset.UtcNow;
             var config = options.Config != null
@@ -191,14 +193,15 @@ public sealed partial class SessionService
                     };
                 }
             }
+            var forkTurns = forked.Turns.ToList();
             if (forked.Ephemeral)
                 owner._runtimeRegistry.SetThread(forked).EphemeralHistory = materialization.History;
             else
             {
                 await owner.PersistThreadWithMaterializationAsync(forked, ct);
-                await PersistForkModelHistoryAsync(forked, materialization, ct);
+                await PersistForkModelHistoryAsync(forked, forkTurns, materialization, ct);
             }
-            await PersistForkProviderHistoryAsync(source, forked, options, ct);
+            await PersistForkProviderHistoryAsync(source, forked, forkTurns, options, ct);
             var activeSourceTurn = activeSourceTurns.LastOrDefault();
             if (activeSourceTurn != null && interruptions.TryGetValue(activeSourceTurn.Id, out var newMarker))
                 await owner.AppendProviderInterruptionAsync(forked, forked.Turns[^1], newMarker, null, ct);
@@ -212,6 +215,7 @@ public sealed partial class SessionService
 
         private async Task PersistForkModelHistoryAsync(
             SessionThread forked,
+            IReadOnlyList<SessionTurn> forkTurns,
             ForkModelHistoryMaterialization materialization,
             CancellationToken ct)
         {
@@ -233,10 +237,10 @@ public sealed partial class SessionService
 
             if (forked.HistoryMode == HistoryMode.Server
                 && materialization.History.Count > 0
-                && forked.Turns.Count > 0)
+                && forkTurns.Count > 0)
             {
                 var afterCheckpoint = !materialization.HasCompatibleCheckpoint;
-                foreach (var forkTurn in forked.Turns)
+                foreach (var forkTurn in forkTurns)
                 {
                     if (afterCheckpoint)
                     {
@@ -262,6 +266,7 @@ public sealed partial class SessionService
         private async Task PersistForkProviderHistoryAsync(
             SessionThread source,
             SessionThread forked,
+            IReadOnlyList<SessionTurn> forkTurns,
             ThreadForkOptions options,
             CancellationToken ct)
         {
@@ -276,7 +281,7 @@ public sealed partial class SessionService
             {
                 Id = source.Id,
                 ProviderHistorySchemaVersion = source.ProviderHistorySchemaVersion,
-                Turns = forked.Turns
+                Turns = [.. forkTurns]
             };
             var sourceWindow = owner.GetOrCreateResponsesContextWindow(source.Id);
             var sourceSnapshot = await owner.Persistence.LoadProviderHistoryAsync(

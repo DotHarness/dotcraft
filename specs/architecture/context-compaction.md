@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.2 |
 | **Status** | Draft |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-23 |
 | **Parent Specs** | [Session Core](session-core.md), [Model Runtime](model-runtime.md), [Canonical OpenAI Responses Provider History](responses-provider-history.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: Define the backend-neutral context compaction pipeline. This spec owns backend selection,
@@ -259,6 +259,9 @@ A neutral replacement:
 3. advances the context window from the committed checkpoint;
 4. rebuilds provider-native history from the neutral replacement when the active provider requires
    it.
+
+When the replacement is installed between sampling steps of a Turn, the next request and the rebuilt
+provider-native history are built from the installed replacement, including its instruction item.
 
 ### Provider-native replacement
 

@@ -65,7 +65,7 @@ public sealed class CommitMessageSuggestService(
             throw new InvalidOperationException(message);
         }
 
-        var history = BuildHistoryMessages(sourceThread, MaxContextChars);
+        var history = await BuildHistoryMessagesAsync(sourceThread.Id, MaxContextChars, linked.Token).ConfigureAwait(false);
         if (history.Count == 0)
             history.Add(new ChatMessage(ChatRole.User, "[No prior user or agent messages in this thread.]"));
         var userPrompt = BuildUserPrompt(provider, parameters.Paths, changeContext);
@@ -223,20 +223,29 @@ public sealed class CommitMessageSuggestService(
         return (summary, body);
     }
 
-    private static List<ChatMessage> BuildHistoryMessages(SessionThread thread, int maxChars)
+    private async Task<List<ChatMessage>> BuildHistoryMessagesAsync(string threadId, int maxChars, CancellationToken ct)
     {
         var pairs = new List<(ChatRole Role, string Text)>();
-        foreach (var turn in thread.Turns)
+        var collected = 0;
+        await foreach (var turn in sessionService
+                           .ReadThreadTurnsAsync(threadId, ThreadHistorySortDirection.Descending, ct: ct)
+                           .ConfigureAwait(false))
         {
+            var turnPairs = new List<(ChatRole Role, string Text)>();
             foreach (var item in turn.Items)
             {
                 if (item.Type == ItemType.UserMessage && item.Payload is UserMessagePayload u &&
                     !string.IsNullOrWhiteSpace(u.Text))
-                    pairs.Add((ChatRole.User, u.Text.Trim()));
+                    turnPairs.Add((ChatRole.User, u.Text.Trim()));
                 else if (item.Type == ItemType.AgentMessage && item.Payload is AgentMessagePayload a &&
                          !string.IsNullOrWhiteSpace(a.Text))
-                    pairs.Add((ChatRole.Assistant, a.Text.Trim()));
+                    turnPairs.Add((ChatRole.Assistant, a.Text.Trim()));
             }
+
+            pairs.InsertRange(0, turnPairs);
+            collected += turnPairs.Sum(static pair => pair.Text.Length);
+            if (collected >= maxChars)
+                break;
         }
 
         while (pairs.Count > 0)

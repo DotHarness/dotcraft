@@ -10583,24 +10583,6 @@
       "variants": []
     },
     {
-      "id": "core.McpAppViewHint",
-      "name": "McpAppViewHint",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/McpAppViewHint.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "available",
-          "type": "boolean",
-          "required": true,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.McpAppViewMessageParams",
       "name": "McpAppViewMessageParams",
       "module": "core",
@@ -17013,13 +16995,6 @@
           "type": "string",
           "required": true,
           "nullable": false,
-          "const": null
-        },
-        {
-          "name": "mcpApp",
-          "type": "core.McpAppViewHint",
-          "required": false,
-          "nullable": true,
           "const": null
         },
         {

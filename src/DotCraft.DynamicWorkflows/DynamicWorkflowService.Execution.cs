@@ -461,6 +461,26 @@ public sealed partial class DynamicWorkflowService
         if (notify) await NotifyParentAsync(active).ConfigureAwait(false);
     }
 
+    private static async Task<bool> WasDeliveredToParentAsync(ISessionService session, DynamicWorkflowRun state)
+    {
+        await foreach (var turn in session
+                           .ReadThreadTurnsAsync(state.ParentThreadId, ThreadHistorySortDirection.Descending)
+                           .ConfigureAwait(false))
+        {
+            if (turn.Items.Any(item =>
+                    item.AsUserMessage is { } message
+                    && string.Equals(message.TriggerKind, WorkflowTriggerKind, StringComparison.Ordinal)
+                    && string.Equals(message.TriggerRefId, state.RunId, StringComparison.Ordinal)))
+            {
+                return true;
+            }
+            if (string.Equals(turn.Id, state.ParentTurnId, StringComparison.Ordinal))
+                return false;
+        }
+
+        return false;
+    }
+
     private async Task NotifyParentAsync(ActiveRun active)
     {
         if (active.State.NotificationStatus == "queued") return;
@@ -469,10 +489,7 @@ public sealed partial class DynamicWorkflowService
         var alreadyDelivered = parent.QueuedInputs.Any(input =>
                 string.Equals(input.TriggerKind, WorkflowTriggerKind, StringComparison.Ordinal)
                 && string.Equals(input.TriggerRefId, active.State.RunId, StringComparison.Ordinal))
-            || parent.Turns.SelectMany(static turn => turn.Items).Any(item =>
-                item.AsUserMessage is { } message
-                && string.Equals(message.TriggerKind, WorkflowTriggerKind, StringComparison.Ordinal)
-                && string.Equals(message.TriggerRefId, active.State.RunId, StringComparison.Ordinal));
+            || await WasDeliveredToParentAsync(session, active.State).ConfigureAwait(false);
         if (alreadyDelivered)
         {
             await UpdateStateAsync(active, state => state with { NotificationStatus = "queued" }, CancellationToken.None).ConfigureAwait(false);

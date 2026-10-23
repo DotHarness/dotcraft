@@ -147,6 +147,18 @@ internal static class RolloutJsonEnvelopeReader
 {
     public static string? ReadKind(ReadOnlySpan<byte> json)
     {
+        try
+        {
+            return ReadKindOrThrow(json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string? ReadKindOrThrow(ReadOnlySpan<byte> json)
+    {
         var reader = new Utf8JsonReader(json, isFinalBlock: true, state: default);
         if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
             return null;

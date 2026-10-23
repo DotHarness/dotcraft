@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.2 |
 | **Status** | Draft |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-23 |
 | **Parent Specs** | [Prompt Composition](prompt-composition.md) |
 
 Purpose: define the model-visible state DotCraft re-sends only when it changes — what counts as a
@@ -117,9 +117,12 @@ record claims.
 ### 3.3 Reset
 
 The baseline is dropped whenever history is replaced, because the items it claims the model is
-carrying are gone: compaction of any kind, rollback, a reconciliation that reloads history from
-disk, and a replacement that establishes a new checkpoint. The next step then restates every
-section.
+carrying are gone: compaction of any kind, a reconciliation that reloads history from disk, and a
+replacement that establishes a new checkpoint. The next step then restates every section.
+
+Rollback is not a reset. The surviving history still carries what its Turns delivered, so rollback
+restores the baseline those Turns recorded, as replay does, and the next step restates only what
+changed since.
 
 Each client-managed turn replaces history with the supplied transcript and resets both the live and
 persisted comparison baselines. This reset supersedes any baseline restored from an earlier turn.

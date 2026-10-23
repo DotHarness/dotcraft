@@ -6,9 +6,9 @@ using Microsoft.Data.Sqlite;
 
 namespace DotCraft.Sessions;
 
-internal sealed class ThreadHistoryProjectionStore(
+internal sealed partial class ThreadHistoryProjectionStore(
     WorkspaceStateDatabase stateDatabase,
-    ThreadMetadataStore metadataStore)
+    ThreadAttachmentStore attachmentStore)
 {
     private const int ReadBufferSize = 64 * 1024;
     private static readonly JsonSerializerOptions JsonOptions = SessionJsonOptions.Default;
@@ -19,15 +19,16 @@ internal sealed class ThreadHistoryProjectionStore(
     private static readonly Histogram<double> QueryDuration = Meter.CreateHistogram<double>("dotcraft.thread_history.query.duration", "ms");
     private static readonly Histogram<long> QueryRows = Meter.CreateHistogram<long>("dotcraft.thread_history.query.rows");
 
-    public async Task ProjectCommittedAsync(
+    private long _projectedBytes;
+
+    internal long ProjectedBytes => Interlocked.Read(ref _projectedBytes);
+
+    public Task<IReadOnlySet<string>> ProjectCommittedAsync(
         string threadId,
         string rolloutPath,
         long confirmedOffset,
-        CancellationToken ct)
-    {
-        await EnsureProjectionAsync(threadId, rolloutPath, confirmedOffset, forceRebuild: false, ct)
-            .ConfigureAwait(false);
-    }
+        CancellationToken ct) =>
+        EnsureProjectionAsync(threadId, rolloutPath, confirmedOffset, forceRebuild: false, ct);
 
     public async Task<ThreadHistorySnapshot> ReadSnapshotAsync(
         string threadId,
@@ -123,7 +124,7 @@ internal sealed class ThreadHistoryProjectionStore(
         await EnsureProjectionAsync(threadId, rolloutPath, length, forceRebuild: true, ct).ConfigureAwait(false);
     }
 
-    private async Task EnsureProjectionAsync(
+    private async Task<IReadOnlySet<string>> EnsureProjectionAsync(
         string threadId,
         string rolloutPath,
         long targetOffset,
@@ -140,7 +141,7 @@ internal sealed class ThreadHistoryProjectionStore(
             using var connection = stateDatabase.OpenConnection();
             using var transaction = connection.BeginTransaction();
             var state = LoadState(connection, transaction, threadId);
-            var rebuild = forceRebuild || state is null;
+            var rebuild = forceRebuild || state is null || state.IndexVersion != ThreadAttachmentStore.IndexVersion;
             SessionThread? snapshot = null;
             var startOffset = 0L;
             var nextOrdinal = 1L;
@@ -161,6 +162,8 @@ internal sealed class ThreadHistoryProjectionStore(
                         snapshot = JsonSerializer.Deserialize<SessionThread>(state.SnapshotJson, JsonOptions)
                             ?? throw new JsonException("Projected Thread snapshot is empty.");
                         snapshot.WorkspacePath = stateDatabase.WorkspacePath;
+                        snapshot.TurnSequenceHighWatermark = state.TurnSequenceHighWatermark;
+                        snapshot.ProviderHistorySchemaVersion = state.ProviderHistorySchemaVersion;
                         startOffset = state.ProjectedOffset;
                         nextOrdinal = state.NextOrdinal;
                     }
@@ -174,32 +177,41 @@ internal sealed class ThreadHistoryProjectionStore(
                 }
             }
 
+            var projector = new ThreadHistoryProjector(
+                connection,
+                transaction,
+                attachmentStore,
+                threadId,
+                normalizedPath,
+                snapshot,
+                nextOrdinal);
             if (rebuild)
             {
-                ClearProjection(connection, transaction, threadId);
+                ClearProjection(connection, transaction, threadId, projector.RemovedAttachmentPaths);
                 ProjectionEvents.Add(1, new KeyValuePair<string, object?>("outcome", "full_rebuild"));
             }
             else if (startOffset == targetOffset)
             {
-                if (!string.Equals(state!.RolloutPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
-                    UpdateProjectionPath(connection, transaction, threadId, normalizedPath);
+                if (state!.ThreadRowOffset == targetOffset
+                    && string.Equals(state.ThreadRowPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.Equals(state.RolloutPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                        UpdateProjectionPath(connection, transaction, threadId, normalizedPath);
+                    transaction.Commit();
+                    ProjectionEvents.Add(1, new KeyValuePair<string, object?>("outcome", "hit"));
+                    return projector.RemovedAttachmentPaths;
+                }
+
+                projector.Publish(targetOffset);
                 transaction.Commit();
-                ProjectionEvents.Add(1, new KeyValuePair<string, object?>("outcome", "hit"));
-                return;
+                ProjectionEvents.Add(1, new KeyValuePair<string, object?>("outcome", "metadata_repair"));
+                return projector.RemovedAttachmentPaths;
             }
             else
             {
                 ProjectionEvents.Add(1, new KeyValuePair<string, object?>("outcome", "incremental_repair"));
             }
 
-            var projector = new ThreadHistoryProjector(
-                connection,
-                transaction,
-                metadataStore,
-                threadId,
-                normalizedPath,
-                snapshot,
-                nextOrdinal);
             var recordCount = await ProjectLinesAsync(
                 projector,
                 normalizedPath,
@@ -208,14 +220,16 @@ internal sealed class ThreadHistoryProjectionStore(
                 ct).ConfigureAwait(false);
             projector.Publish(targetOffset);
             transaction.Commit();
+            Interlocked.Add(ref _projectedBytes, targetOffset - startOffset);
             RepairBytes.Add(targetOffset - startOffset);
             RepairRecords.Add(recordCount);
+            return projector.RemovedAttachmentPaths;
         }
         catch (ThreadHistoryUnavailableException)
         {
             throw;
         }
-        catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or SqliteException or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or SqliteException or InvalidOperationException or NotSupportedException)
         {
             ProjectionEvents.Add(1,
                 new KeyValuePair<string, object?>("outcome", "failure"),
@@ -275,30 +289,44 @@ internal sealed class ThreadHistoryProjectionStore(
 
     private static void ApplyLine(ThreadHistoryProjector projector, MemoryStream lineBuffer)
     {
-        if (lineBuffer.Length == 0)
-            return;
         var line = lineBuffer.GetBuffer().AsSpan(0, checked((int)lineBuffer.Length));
+        if (Utf8JsonlReader.IsWhiteSpace(line))
+            return;
         var kind = RolloutJsonEnvelopeReader.ReadKind(line);
-        if (string.IsNullOrWhiteSpace(kind))
+        if (kind is not null && RolloutKinds.IsIgnoredByProjection(kind))
+            return;
+        if (kind is not null && !RolloutKinds.Domain.Contains(kind))
+            throw new InvalidDataException($"Unsupported domain rollout record kind '{kind}'.");
+
+        ThreadRolloutRecord? record;
+        try
         {
-            throw new InvalidDataException("A rollout record has no kind envelope.");
+            record = kind is null ? null : JsonSerializer.Deserialize<ThreadRolloutRecord>(line, JsonOptions);
+        }
+        catch (JsonException) when (projector.Snapshot is not null)
+        {
+            record = null;
         }
 
-        if (RolloutKinds.Domain.Contains(kind))
+        if (record is null)
         {
-            var record = JsonSerializer.Deserialize<ThreadRolloutRecord>(line, JsonOptions)
-                ?? throw new InvalidDataException("The rollout record is empty.");
-            projector.Apply(record);
+            if (projector.Snapshot is null)
+                throw new InvalidDataException("The rollout does not begin with a readable canonical Thread header.");
+            System.Diagnostics.Trace.TraceWarning("Skipped a malformed rollout record after the canonical thread header.");
+            return;
         }
-        else if (!RolloutKinds.IsIgnoredByProjection(kind))
-            throw new InvalidDataException($"Unsupported domain rollout record kind '{kind}'.");
+
+        projector.Apply(record);
     }
 
     private ThreadHistorySnapshot ReadSnapshot(string threadId)
     {
         using var connection = stateDatabase.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT thread_snapshot_json, persisted_runtime_json FROM thread_history_projection_state WHERE thread_id = $thread_id";
+        command.CommandText = """
+            SELECT thread_snapshot_json, persisted_runtime_json, turn_sequence_high_watermark, provider_history_schema_version
+            FROM thread_history_projection_state WHERE thread_id = $thread_id
+            """;
         command.Parameters.AddWithValue("$thread_id", threadId);
         using var reader = command.ExecuteReader();
         if (!reader.Read())
@@ -306,6 +334,8 @@ internal sealed class ThreadHistoryProjectionStore(
         var thread = JsonSerializer.Deserialize<SessionThread>(reader.GetString(0), JsonOptions)
             ?? throw new JsonException("Projected Thread snapshot is empty.");
         thread.WorkspacePath = stateDatabase.WorkspacePath;
+        thread.TurnSequenceHighWatermark = reader.GetInt32(2);
+        thread.ProviderHistorySchemaVersion = reader.GetInt32(3);
         var runtime = JsonSerializer.Deserialize<ThreadSummaryRuntime>(reader.GetString(1), JsonOptions)
             ?? throw new JsonException("Projected Thread runtime is empty.");
         thread.Turns = [];
@@ -410,19 +440,37 @@ internal sealed class ThreadHistoryProjectionStore(
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "SELECT rollout_path, projected_rollout_offset, next_rollout_ordinal, thread_snapshot_json FROM thread_history_projection_state WHERE thread_id = $thread_id";
+        command.CommandText = """
+            SELECT s.rollout_path, s.projected_rollout_offset, s.next_rollout_ordinal, s.thread_snapshot_json,
+                   s.turn_sequence_high_watermark, s.provider_history_schema_version,
+                   t.rollout_path, t.projected_rollout_offset, t.attachment_index_version
+            FROM thread_history_projection_state s
+            JOIN threads t ON t.thread_id = s.thread_id
+            WHERE s.thread_id = $thread_id
+            """;
         command.Parameters.AddWithValue("$thread_id", threadId);
         using var reader = command.ExecuteReader();
         return reader.Read()
-            ? new ProjectionState(StoredRolloutPath.Resolve(connection, reader.GetString(0)), reader.GetInt64(1), reader.GetInt64(2), reader.GetString(3))
+            ? new ProjectionState(
+                StoredRolloutPath.Resolve(connection, reader.GetString(0)),
+                reader.GetInt64(1),
+                reader.GetInt64(2),
+                reader.GetString(3),
+                reader.GetInt32(4),
+                reader.GetInt32(5),
+                StoredRolloutPath.Resolve(connection, reader.GetString(6)),
+                reader.GetInt64(7),
+                reader.GetInt32(8))
             : null;
     }
 
     private static void ClearProjection(
         SqliteConnection connection,
         SqliteTransaction transaction,
-        string threadId)
+        string threadId,
+        ISet<string> removedAttachmentPaths)
     {
+        ThreadAttachmentStore.DeleteThreadReferences(connection, transaction, threadId, removedAttachmentPaths);
         foreach (var table in new[] { "thread_history_projection_state", "thread_turns" })
         {
             using var command = connection.CreateCommand();
@@ -474,5 +522,10 @@ internal sealed class ThreadHistoryProjectionStore(
         string RolloutPath,
         long ProjectedOffset,
         long NextOrdinal,
-        string SnapshotJson);
+        string SnapshotJson,
+        int TurnSequenceHighWatermark,
+        int ProviderHistorySchemaVersion,
+        string ThreadRowPath,
+        long ThreadRowOffset,
+        int IndexVersion);
 }

@@ -29,6 +29,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
 
         await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("first")]));
         await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("second")]));
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("third")]));
 
         var seen = updates.ToArray();
         Assert.All(seen, update =>
@@ -37,18 +38,19 @@ public sealed partial class SessionServiceRuntimeSignalTests
             Assert.Null(update.ParentThreadId);
             Assert.True(update.ModelContextWindow > 0);
         });
-        Assert.Equal([100L, 200, 100, 200], seen.Select(update => update.Last.InputTokens));
-        Assert.Equal([10L, 20, 10, 20], seen.Select(update => update.Last.OutputTokens));
-        Assert.Equal([40L, 150, 40, 150], seen.Select(update => update.Last.CachedInputTokens));
-        Assert.Equal([100L, 300, 400, 600], seen.Select(update => update.Total.InputTokens));
-        Assert.Equal([110L, 330, 440, 660], seen.Select(update => update.Total.TotalTokens));
+        Assert.Equal([100L, 200, 100, 200, 100, 200], seen.Select(update => update.Last.InputTokens));
+        Assert.Equal([10L, 20, 10, 20, 10, 20], seen.Select(update => update.Last.OutputTokens));
+        Assert.Equal([40L, 150, 40, 150, 40, 150], seen.Select(update => update.Last.CachedInputTokens));
+        Assert.Equal([100L, 300, 400, 600, 700, 900], seen.Select(update => update.Total.InputTokens));
+        Assert.Equal([110L, 330, 440, 660, 770, 990], seen.Select(update => update.Total.TotalTokens));
 
-        var persisted = await svc.GetThreadAsync(thread.Id);
-        Assert.Equal(2, persisted.Turns.Count);
+        var persisted = (await svc.ListThreadTurnsAsync(
+            thread.Id, cursor: null, limit: 10, ThreadHistorySortDirection.Ascending)).Data;
+        Assert.Equal(3, persisted.Count);
         Assert.Equal(
-            persisted.Turns.Select(turn => turn.Id),
+            persisted.Select(turn => turn.Id),
             seen.Select(update => update.TurnId).Distinct());
-        var persistedTotal = persisted.Turns
+        var persistedTotal = persisted
             .Select(turn => turn.TokenUsage!)
             .Aggregate((left, right) => left + right);
         var final = seen[^1].Total;
@@ -56,6 +58,29 @@ public sealed partial class SessionServiceRuntimeSignalTests
         Assert.Equal(persistedTotal.OutputTokens, final.OutputTokens);
         Assert.Equal(persistedTotal.CachedInputTokens, final.CachedInputTokens);
         Assert.Equal(persistedTotal.TotalTokens, final.TotalTokens);
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_AfterRollingBackEveryTurn_TotalCountsOnlyTheNewTurn()
+    {
+        IChatClient chatClient = new FakeChatClient(
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")]),
+            UsageUpdate(requestIndex: 1, input: 100, output: 10, cachedInput: 40),
+            UsageUpdate(requestIndex: 2, input: 200, output: 20, cachedInput: 150)
+        ]);
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient);
+        var updates = new ConcurrentQueue<ThreadTokenUsageUpdate>();
+        svc.ThreadTokenUsageUpdatedForBroadcast = updates.Enqueue;
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("first")]));
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("second")]));
+
+        await svc.RollbackThreadAsync(thread.Id, 2);
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("again")]));
+
+        Assert.Equal(330, updates.Last().Total.TotalTokens);
     }
 
     [Fact]

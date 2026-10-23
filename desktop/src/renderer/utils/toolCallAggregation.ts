@@ -2,6 +2,7 @@ import type { ConversationItem } from '../types/conversation'
 import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
 import { resolveDesktopPluginToolRenderer } from '../plugins/desktopPluginRegistry'
 import { resolveToolKind } from './toolKind'
+import { isMcpAppCandidate } from './mcpAppCandidate'
 
 export type ToolGroupCategory = 'explore' | 'write' | 'shell' | 'web' | 'subagent' | 'board'
 
@@ -22,7 +23,7 @@ type ToolRunRole = 'grouped' | 'own' | 'subagent' | 'images'
 const OWN_ROW_FAMILIES = new Set(['createPlan', 'automation', 'agentBuilder', 'requestUserInput', 'task', 'channel'])
 
 function getToolRunRole(item: ConversationItem): ToolRunRole {
-  if (item.type === 'mcpToolCall' && item.status === 'completed' && item.mcpAppAvailable === true) return 'own'
+  if (isMcpAppCandidate(item)) return 'own'
   if (resolveToolKind(item) === 'workflow') return 'own'
   const presentationId = item.presentation?.presentationId
   if (presentationId && resolveDesktopPluginToolRenderer(presentationId)) return 'own'

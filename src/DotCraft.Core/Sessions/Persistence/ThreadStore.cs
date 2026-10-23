@@ -69,7 +69,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
         _rolloutStore = new ThreadRolloutStore(botPath, beforeRolloutDeleteAsync, rolloutWriter);
         _rolloutReplayer = new RolloutReplayer();
         _attachmentStore = new ThreadAttachmentStore(StateDatabase, botPath);
-        _historyProjectionStore = new ThreadHistoryProjectionStore(StateDatabase, _metadataStore);
+        _historyProjectionStore = new ThreadHistoryProjectionStore(StateDatabase, _attachmentStore);
         VisualizationWidgetStates = new VisualizationWidgetStateStore(StateDatabase);
         GenerativeUiStates = new GenerativeUiStateStore(StateDatabase);
     }
@@ -88,10 +88,8 @@ public sealed partial class ThreadStore : IAsyncDisposable
     public async Task SaveThreadAsync(SessionThread thread, CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
-        var previous = await _rolloutStore.LoadThreadAsync(thread.Id, ct);
-
-        var result = await _rolloutStore.SaveThreadAsync(thread, previous, ct);
-        await TryUpdateThreadProjectionAsync(thread, result, ct);
+        var result = await SaveThreadUnderGateAsync(thread, ct);
+        await TryProjectHistoryAsync(thread.Id, result, ct);
     }
 
     /// <summary>
@@ -108,9 +106,26 @@ public sealed partial class ThreadStore : IAsyncDisposable
             return;
 
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
-        var result = await _rolloutStore.AppendChangeRecordsAsync(thread, records, ct)
-            ?? await _rolloutStore.SaveThreadAsync(thread, await _rolloutStore.LoadThreadAsync(thread.Id, ct), ct);
-        await TryUpdateThreadProjectionAsync(thread, result, ct, deleteUnreferencedAttachments);
+        var result = await TrackPersistedOrSkipAsync(
+            thread.Id,
+            () => _rolloutStore.AppendChangeRecordsAsync(thread, records, ct),
+            thread.Turns);
+        if (result == null)
+        {
+            result = await SaveThreadUnderGateAsync(thread, ct);
+            var omitted = records
+                .Where(record => record.ItemAppended is { } item
+                                 && thread.Turns.All(turn => !string.Equals(turn.Id, item.TurnId, StringComparison.Ordinal)))
+                .ToList();
+            if (omitted.Count > 0)
+            {
+                result = await TrackPersistedOrSkipAsync(
+                    thread.Id,
+                    () => _rolloutStore.AppendChangeRecordsAsync(thread, omitted, ct),
+                    thread.Turns) ?? result;
+            }
+        }
+        await TryProjectHistoryAsync(thread.Id, result, ct, deleteUnreferencedAttachments);
     }
 
     /// <summary>
@@ -122,15 +137,18 @@ public sealed partial class ThreadStore : IAsyncDisposable
         CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
-        var result = await _rolloutStore.AppendRollbackAsync(thread, numTurns, ct);
-        await TryUpdateThreadProjectionAsync(thread, result, ct);
+        var result = await WriteModelHistoryAsync(
+            thread.Id,
+            () => TrackPersistedAsync(thread.Id, () => _rolloutStore.AppendRollbackAsync(thread, numTurns, ct)));
+        ReleaseTrimmedProviderHistory(thread.Id);
+        await TryProjectHistoryAsync(thread.Id, result, ct);
     }
 
     internal async Task SaveThreadBaselineAsync(SessionThread thread, CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
-        var result = await _rolloutStore.AppendThreadBaselineAsync(thread, ct);
-        await TryUpdateThreadProjectionAsync(thread, result, ct);
+        var result = await TrackPersistedAsync(thread.Id, () => _rolloutStore.AppendThreadBaselineAsync(thread, ct), thread.Turns);
+        await TryProjectHistoryAsync(thread.Id, result, ct);
     }
 
     internal async Task SaveTurnAsync(
@@ -139,11 +157,11 @@ public sealed partial class ThreadStore : IAsyncDisposable
         CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
-        var result = await _rolloutStore.AppendTurnStateAsync(thread, turn, ct);
-        await TryUpdateThreadProjectionAsync(thread, result, ct);
+        var result = await TrackPersistedAsync(thread.Id, () => _rolloutStore.AppendTurnStateAsync(thread, turn, ct), thread.Turns);
+        await TryProjectHistoryAsync(thread.Id, result, ct);
     }
 
-    internal async Task CommitTurnAsync(TurnPersistenceCommit commit, CancellationToken ct = default)
+    internal async Task<ModelHistoryRevision> CommitTurnAsync(TurnPersistenceCommit commit, CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, commit.Thread.Id, ct);
         var codec = new ModelHistoryCodec();
@@ -160,13 +178,20 @@ public sealed partial class ThreadStore : IAsyncDisposable
                 DateTimeOffset.UtcNow,
                 commit.Compaction.ReplacementHistory.Select(message => codec.Encode(message)).ToList());
 
-        var result = await _rolloutStore.AppendTurnCommitAsync(
+        Task<RolloutAppendResult> Append() => TrackPersistedAsync(commit.Thread.Id, () => _rolloutStore.AppendTurnCommitAsync(
             commit.Thread,
             commit.Turn,
             modelHistory,
             compaction,
-            ct);
-        await TryUpdateThreadProjectionAsync(commit.Thread, result, ct);
+            ct), commit.Thread.Turns);
+        var result = modelHistory.Count > 0 || compaction != null
+            ? await WriteModelHistoryAsync(commit.Thread.Id, Append, checkpoint: compaction != null)
+            : await Append();
+        if (compaction != null)
+            RecordResidentCheckpoint(commit.Thread.Id, compaction.CreatedAt);
+        var revision = GetModelHistoryRevision(commit.Thread.Id);
+        await TryProjectHistoryAsync(commit.Thread.Id, result, ct);
+        return revision;
     }
 
     internal async Task AppendCompactionCheckpointAsync(
@@ -183,18 +208,23 @@ public sealed partial class ThreadStore : IAsyncDisposable
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
         var codec = new ModelHistoryCodec();
         var replacementMessages = replacementHistory.Select(message => codec.Encode(message)).ToList();
+        var createdAt = DateTimeOffset.UtcNow;
 
-        var result = await _rolloutStore.AppendCompactionCheckpointAsync(
+        var result = await WriteModelHistoryAsync(
             threadId,
-            coveredThroughTurnId,
-            trigger,
-            mode,
-            tokensBefore,
-            tokensAfter,
-            replacementMessages,
-            DateTimeOffset.UtcNow,
-            ct);
-        await TryUpdateRolloutOffsetProjectionAsync(threadId, result, ct);
+            () => TrackPersistedAsync(threadId, () => _rolloutStore.AppendCompactionCheckpointAsync(
+                threadId,
+                coveredThroughTurnId,
+                trigger,
+                mode,
+                tokensBefore,
+                tokensAfter,
+                replacementMessages,
+                createdAt,
+                ct)),
+            checkpoint: true);
+        RecordResidentCheckpoint(threadId, createdAt);
+        await TryProjectHistoryAsync(threadId, result, ct);
     }
 
     internal Task<IReadOnlyList<ThreadCompactionCheckpoint>> LoadCompactionCheckpointsAsync(
@@ -208,7 +238,18 @@ public sealed partial class ThreadStore : IAsyncDisposable
     public async Task<SessionThread?> LoadThreadAsync(string threadId, CancellationToken ct = default)
     {
         using var readLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
-        return await _rolloutStore.LoadThreadAsync(threadId, ct);
+        foreach (var archived in new[] { false, true })
+        {
+            var path = _rolloutStore.GetExpectedPath(threadId, archived);
+            if (File.Exists(path)
+                && await ReplayThreadAsync(path, ct) is { } thread
+                && string.Equals(thread.Id, threadId, StringComparison.Ordinal))
+            {
+                return thread;
+            }
+        }
+
+        return null;
     }
 
     public async Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(
@@ -255,8 +296,10 @@ public sealed partial class ThreadStore : IAsyncDisposable
     /// </summary>
     public async Task<SessionThread?> LoadThreadFromPathAsync(string path, CancellationToken ct = default)
     {
-        var thread = await _rolloutStore.LoadThreadFromPathAsync(path, ct);
-        return thread;
+        ct.ThrowIfCancellationRequested();
+        if (!_rolloutStore.TryNormalizeAllowedPath(path, out var normalizedPath))
+            throw new ArgumentException("Thread path must resolve directly under the configured data directory's threads/active or threads/archived directory.", nameof(path));
+        return File.Exists(normalizedPath) ? await ReplayThreadAsync(normalizedPath, ct) : null;
     }
 
     /// <summary>
@@ -267,11 +310,27 @@ public sealed partial class ThreadStore : IAsyncDisposable
         using var writeLock = ThreadRolloutWriteGate.Acquire(_botPath, threadId);
         new AgentMessageBoardStore(StateDatabase).Delete(threadId);
         _rolloutStore.CloseThreadAsync(threadId).GetAwaiter().GetResult();
-        var candidatePaths = _rolloutStore.LoadThreadAsync(threadId).GetAwaiter().GetResult() is { } loaded
-            ? _attachmentStore.ExtractManagedPaths(loaded)
-            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var cleanupCandidates = _attachmentStore.LoadCandidatePaths(threadId, candidatePaths);
+        var cleanupCandidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (_rolloutStore.ResolveExistingPath(threadId) is { } rolloutPath)
+        {
+            try
+            {
+                cleanupCandidates.UnionWith(_historyProjectionStore
+                    .ProjectCommittedAsync(threadId, rolloutPath, new FileInfo(rolloutPath).Length, CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult());
+            }
+            catch (ThreadHistoryUnavailableException ex)
+            {
+                System.Diagnostics.Trace.TraceWarning(
+                    $"Thread projection was unavailable before deleting '{threadId}': {ex.Message}");
+            }
+        }
+        cleanupCandidates.UnionWith(_attachmentStore.LoadCandidatePaths(threadId));
         _rolloutStore.DeleteThreadAsync(threadId).GetAwaiter().GetResult();
+        _residentProviderHistory.TryRemove(threadId, out _);
+        _persistedBaselines.TryRemove(threadId, out _);
+        _modelHistoryRevisions.TryRemove(threadId, out _);
         _metadataStore.DeleteThread(threadId);
         _attachmentStore.CleanupCandidates(cleanupCandidates);
     }
@@ -294,8 +353,12 @@ public sealed partial class ThreadStore : IAsyncDisposable
             .Skip(persistedPrefixLength)
             .Select(message => codec.Encode(message, turnId))
             .ToList();
-        var result = await _rolloutStore.AppendModelHistoryAsync(threadId, turnId, appended, ct);
-        await TryUpdateRolloutOffsetProjectionAsync(threadId, result, ct);
+        var result = appended.Count == 0
+            ? await _rolloutStore.AppendModelHistoryAsync(threadId, turnId, appended, ct)
+            : await WriteModelHistoryAsync(
+                threadId,
+                () => TrackPersistedAsync(threadId, () => _rolloutStore.AppendModelHistoryAsync(threadId, turnId, appended, ct)));
+        await TryProjectHistoryAsync(threadId, result, ct);
     }
 
     internal async Task AppendWorldStateAsync(
@@ -306,13 +369,13 @@ public sealed partial class ThreadStore : IAsyncDisposable
         CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
-        var result = await _rolloutStore.AppendWorldStateAsync(
+        var result = await TrackPersistedAsync(threadId, () => _rolloutStore.AppendWorldStateAsync(
             threadId,
             turnId,
             full,
             state,
-            ct);
-        await TryUpdateRolloutOffsetProjectionAsync(threadId, result, ct);
+            ct));
+        await TryProjectHistoryAsync(threadId, result, ct);
     }
 
     internal async Task AppendModelHistoryAsync(
@@ -323,52 +386,13 @@ public sealed partial class ThreadStore : IAsyncDisposable
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
         var codec = new ModelHistoryCodec();
-        var result = await _rolloutStore.AppendModelHistoryAsync(
-            threadId,
-            turnId,
-            history.Select(message => codec.Encode(message, turnId)).ToList(),
-            ct);
-        await TryUpdateRolloutOffsetProjectionAsync(threadId, result, ct);
-    }
-
-    internal async Task<ProviderHistorySnapshot> LoadProviderHistoryAsync(
-        SessionThread thread,
-        string currentContextWindowId,
-        CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(thread);
-        if (thread.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion)
-        {
-            throw new InvalidDataException(
-                $"responses_provider_history_corrupt: Thread '{thread.Id}' uses unsupported provider history schema version {thread.ProviderHistorySchemaVersion}.");
-        }
-
-        var records = await _rolloutStore.LoadProviderHistoryRecordsAsync(thread.Id, ct);
-        var checkpoints = await _rolloutStore.LoadCompactionCheckpointsAsync(thread.Id, ct);
-        var latestCheckpoint = checkpoints.LastOrDefault();
-        var latestReplacementTimestamp = records
-            .Where(static record => record.ProviderHistoryReplaced is not null)
-            .Select(static record => (DateTimeOffset?)record.Timestamp)
-            .LastOrDefault();
-        if (latestCheckpoint is not null
-            && (!latestReplacementTimestamp.HasValue
-                || latestCheckpoint.CreatedAt > latestReplacementTimestamp.Value))
-        {
-            // The rollout checkpoint is authoritative. A process may have stopped after committing
-            // it but before publishing the derived provider-history replacement. Returning an empty
-            // snapshot makes Session Core advance the window and rebuild the provider prefix from
-            // the replayed compacted history.
-            return ProviderHistorySnapshot.Empty(currentContextWindowId);
-        }
-
-        var survivingTurnIds = thread.Turns
-            .Select(turn => turn.Id)
-            .ToHashSet(StringComparer.Ordinal);
-        return ProviderHistoryReplayer.Replay(
-            thread.Id,
-            currentContextWindowId,
-            survivingTurnIds,
-            records);
+        var encoded = history.Select(message => codec.Encode(message, turnId)).ToList();
+        var result = encoded.Count == 0
+            ? await _rolloutStore.AppendModelHistoryAsync(threadId, turnId, encoded, ct)
+            : await WriteModelHistoryAsync(
+                threadId,
+                () => TrackPersistedAsync(threadId, () => _rolloutStore.AppendModelHistoryAsync(threadId, turnId, encoded, ct)));
+        await TryProjectHistoryAsync(threadId, result, ct);
     }
 
     internal async Task AppendProviderHistoryItemsAsync(
@@ -376,8 +400,10 @@ public sealed partial class ThreadStore : IAsyncDisposable
         CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, payload.ThreadId, ct);
-        var result = await _rolloutStore.AppendProviderHistoryItemsAsync(payload, ct);
-        await TryUpdateRolloutOffsetProjectionAsync(payload.ThreadId, result, ct);
+        var result = await WriteProviderHistoryAsync(
+            payload.ThreadId,
+            () => TrackPersistedAsync(payload.ThreadId, () => _rolloutStore.AppendProviderHistoryItemsAsync(payload, ct)));
+        await TryProjectHistoryAsync(payload.ThreadId, result, ct);
     }
 
     internal async Task ReplaceProviderHistoryAsync(
@@ -385,8 +411,10 @@ public sealed partial class ThreadStore : IAsyncDisposable
         CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, payload.ThreadId, ct);
-        var result = await _rolloutStore.AppendProviderHistoryReplacementAsync(payload, ct);
-        await TryUpdateRolloutOffsetProjectionAsync(payload.ThreadId, result, ct);
+        var result = await WriteProviderHistoryAsync(
+            payload.ThreadId,
+            () => TrackPersistedAsync(payload.ThreadId, () => _rolloutStore.AppendProviderHistoryReplacementAsync(payload, ct)));
+        await TryProjectHistoryAsync(payload.ThreadId, result, ct);
     }
 
     internal async Task AbortProviderHistoryAttemptAsync(
@@ -394,26 +422,10 @@ public sealed partial class ThreadStore : IAsyncDisposable
         CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, payload.ThreadId, ct);
-        var result = await _rolloutStore.AppendProviderHistoryAttemptAbortedAsync(payload, ct);
-        await TryUpdateRolloutOffsetProjectionAsync(payload.ThreadId, result, ct);
-    }
-
-    /// <summary>
-    /// Rebuilds MEAI model history from canonical rollout records.
-    /// </summary>
-    public async Task<List<ChatMessage>> LoadModelHistoryAsync(
-        string threadId,
-        CancellationToken ct = default)
-    {
-        return await RebuildModelHistoryFromRolloutAsync(threadId, ct);
-    }
-
-    internal async Task<List<ChatMessage>> LoadModelHistoryAsync(
-        SessionThread thread,
-        string? excludedTurnId = null,
-        CancellationToken ct = default)
-    {
-        return await RebuildModelHistoryFromRolloutAsync(thread, excludedTurnId, ct);
+        var result = await WriteProviderHistoryAsync(
+            payload.ThreadId,
+            () => TrackPersistedAsync(payload.ThreadId, () => _rolloutStore.AppendProviderHistoryAttemptAbortedAsync(payload, ct)));
+        await TryProjectHistoryAsync(payload.ThreadId, result, ct);
     }
 
     /// <summary>
@@ -537,110 +549,6 @@ public sealed partial class ThreadStore : IAsyncDisposable
         return Task.FromResult(_metadataStore.DeleteThreadGoal(threadId));
     }
 
-    /// <summary>
-    /// Returns all persisted thread summaries from SQLite metadata, ordered by activity.
-    /// Rows whose canonical rollout file is missing are omitted because callers cannot read them.
-    /// </summary>
-    public async Task<List<ThreadSummary>> LoadIndexAsync(CancellationToken ct = default)
-    {
-        await _reconcileGate.WaitAsync(ct);
-        try
-        {
-            var paths = _rolloutStore.EnumerateRolloutPaths().ToList();
-            try
-            {
-                var projectionStates = _metadataStore.LoadProjectionStates();
-                var unreadableThreadIds = new HashSet<string>(StringComparer.Ordinal);
-
-                foreach (var path in paths)
-                {
-                    ct.ThrowIfCancellationRequested();
-                    var file = new FileInfo(path);
-                    if (!file.Exists)
-                        continue;
-                    var length = file.Length;
-                    var threadId = Path.GetFileNameWithoutExtension(path);
-                    if (projectionStates.TryGetValue(threadId, out var state)
-                        && string.Equals(Path.GetFullPath(state.RolloutPath), path, StringComparison.OrdinalIgnoreCase)
-                        && state.ProjectedRolloutOffset == length
-                        && state.AttachmentIndexVersion == ThreadAttachmentStore.IndexVersion)
-                    {
-                        continue;
-                    }
-
-                    SessionThread? thread;
-                    try
-                    {
-                        thread = await _rolloutStore.LoadThreadFromPathAsync(path, ct);
-                    }
-                    catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
-                    {
-                        continue;
-                    }
-                    catch (Exception ex) when (ex is JsonException or IOException or NotSupportedException)
-                    {
-                        unreadableThreadIds.Add(threadId);
-                        System.Diagnostics.Trace.TraceWarning(
-                            $"Unable to repair rollout '{Path.GetFileName(path)}': {ex.Message}");
-                        continue;
-                    }
-                    if (thread == null)
-                        continue;
-                    UpdateThreadProjection(thread, path, length, deleteUnreferencedAttachments: true);
-                }
-
-                if (unreadableThreadIds.Count == 0 && DateTimeOffset.UtcNow - _lastOrphanSweep >= OrphanSweepInterval)
-                {
-                    _lastOrphanSweep = DateTimeOffset.UtcNow;
-                    _attachmentStore.CleanupUnreferencedAttachments(OrphanAttachmentAge);
-                }
-
-                return _metadataStore.LoadIndex()
-                    .Where(summary => !unreadableThreadIds.Contains(summary.Id)
-                                      && _rolloutStore.ResolveExistingPath(summary.Id) != null)
-                    .ToList();
-            }
-            catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException
-                                               or InvalidOperationException
-                                               or JsonException
-                                               or NotSupportedException)
-            {
-                System.Diagnostics.Trace.TraceWarning($"Thread metadata read-repair failed; using rollout files: {ex.Message}");
-                return await LoadFilesystemIndexAsync(paths, ct);
-            }
-        }
-        finally
-        {
-            _reconcileGate.Release();
-        }
-    }
-
-    private async Task<List<ThreadSummary>> LoadFilesystemIndexAsync(
-        IReadOnlyList<string> paths,
-        CancellationToken ct)
-    {
-        var summaries = new List<ThreadSummary>();
-        foreach (var path in paths)
-        {
-            ct.ThrowIfCancellationRequested();
-            try
-            {
-                var thread = await _rolloutStore.LoadThreadFromPathAsync(path, ct);
-                if (thread != null)
-                    summaries.Add(ThreadSummary.FromThread(thread));
-            }
-            catch (Exception ex) when (ex is JsonException or IOException or InvalidOperationException or NotSupportedException)
-            {
-                System.Diagnostics.Trace.TraceWarning($"Unable to read rollout '{Path.GetFileName(path)}': {ex.Message}");
-            }
-        }
-
-        return summaries
-            .OrderByDescending(static summary => summary.LastActiveAt)
-            .ThenByDescending(static summary => summary.Id, StringComparer.Ordinal)
-            .ToList();
-    }
-
     public Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
@@ -704,85 +612,21 @@ public sealed partial class ThreadStore : IAsyncDisposable
 
     public Task FlushAndCloseAsync(CancellationToken ct = default) => _rolloutStore.ShutdownAsync(ct);
 
-    private async Task TryUpdateThreadProjectionAsync(
-        SessionThread thread,
+    private async Task TryProjectHistoryAsync(
+        string threadId,
         RolloutAppendResult result,
         CancellationToken ct,
         bool deleteUnreferencedAttachments = true)
     {
         try
         {
-            UpdateThreadProjection(thread, result.Path, result.Receipt.ConfirmedOffset, deleteUnreferencedAttachments);
-        }
-        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
-        {
-            System.Diagnostics.Trace.TraceWarning(
-                $"Thread projection update failed after rollout commit for '{thread.Id}': {ex.Message}");
-        }
-
-        await TryProjectHistoryAsync(thread.Id, result, ct);
-    }
-
-    private void UpdateThreadProjection(
-        SessionThread thread,
-        string rolloutPath,
-        long projectedRolloutOffset,
-        bool deleteUnreferencedAttachments)
-    {
-        var previousPaths = _attachmentStore.LoadCandidatePaths(thread.Id);
-        using var connection = StateDatabase.OpenConnection();
-        using var transaction = connection.BeginTransaction();
-
-        // Establish the parent row before attachment inserts. The confirmed offset is
-        // deliberately advanced only after every attachment reference has succeeded.
-        _metadataStore.UpsertThread(connection, transaction, thread, rolloutPath, projectedRolloutOffset: 0);
-        var currentPaths = _attachmentStore.ReplaceThreadAttachments(connection, transaction, thread);
-        ThreadMetadataStore.MarkAttachmentsIndexed(connection, transaction, thread.Id, ThreadAttachmentStore.IndexVersion);
-        ThreadMetadataStore.UpdateProjectedRolloutOffset(
-            connection,
-            transaction,
-            thread.Id,
-            rolloutPath,
-            projectedRolloutOffset);
-        transaction.Commit();
-
-        if (deleteUnreferencedAttachments)
-        {
-            _attachmentStore.CleanupCandidates(
-                previousPaths.Except(currentPaths, StringComparer.OrdinalIgnoreCase));
-        }
-    }
-
-    private async Task TryUpdateRolloutOffsetProjectionAsync(
-        string threadId,
-        RolloutAppendResult result,
-        CancellationToken ct)
-    {
-        try
-        {
-            _metadataStore.UpdateProjectedRolloutOffset(threadId, result.Path, result.Receipt.ConfirmedOffset);
-        }
-        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
-        {
-            System.Diagnostics.Trace.TraceWarning(
-                $"Thread rollout offset projection failed after commit for '{threadId}': {ex.Message}");
-        }
-
-        await TryProjectHistoryAsync(threadId, result, ct);
-    }
-
-    private async Task TryProjectHistoryAsync(
-        string threadId,
-        RolloutAppendResult result,
-        CancellationToken ct)
-    {
-        try
-        {
-            await _historyProjectionStore.ProjectCommittedAsync(
+            var removed = await _historyProjectionStore.ProjectCommittedAsync(
                 threadId,
                 result.Path,
                 result.Receipt.ConfirmedOffset,
                 ct);
+            if (deleteUnreferencedAttachments)
+                _attachmentStore.CleanupCandidates(removed);
         }
         catch (Exception ex) when (ex is ThreadHistoryUnavailableException or OperationCanceledException)
         {
@@ -792,6 +636,8 @@ public sealed partial class ThreadStore : IAsyncDisposable
                 $"Thread history projection update failed after rollout commit for '{threadId}': {ex.Message}");
         }
     }
+
+    internal bool ThreadExists(string threadId) => _rolloutStore.ResolveExistingPath(threadId) != null;
 
     private string ResolvePersistedHistoryPath(string threadId)
     {
@@ -804,608 +650,5 @@ public sealed partial class ThreadStore : IAsyncDisposable
     {
         if (limit <= 0)
             throw new ArgumentOutOfRangeException(nameof(limit), "History page limit must be positive.");
-    }
-
-    internal async Task<WorldStateSnapshot?> LoadWorldStateBaselineAsync(
-        SessionThread thread,
-        CancellationToken ct)
-    {
-        var rolloutPath = _rolloutStore.ResolveExistingPath(thread.Id);
-        if (rolloutPath == null)
-            return null;
-
-        var replayed = await _rolloutReplayer.ReplayModelHistoryAsync(
-            rolloutPath,
-            thread.Turns,
-            excludedTurnId: null,
-            ct,
-            thread.Id);
-        return replayed.WorldState;
-    }
-
-    private async Task<List<ChatMessage>> RebuildModelHistoryFromRolloutAsync(
-        string threadId,
-        CancellationToken ct)
-    {
-        var thread = await _rolloutStore.LoadThreadAsync(threadId, ct);
-        if (thread == null)
-            return [];
-
-        return await RebuildModelHistoryFromRolloutAsync(thread, excludedTurnId: null, ct);
-    }
-
-    private async Task<List<ChatMessage>> RebuildModelHistoryFromRolloutAsync(
-        SessionThread thread,
-        string? excludedTurnId,
-        CancellationToken ct)
-    {
-        var rolloutPath = _rolloutStore.ResolveExistingPath(thread.Id);
-        var replayed = rolloutPath == null
-            ? new ModelHistoryReplayResult([], HasModelHistoryRecords: false)
-            : await _rolloutReplayer.ReplayModelHistoryAsync(
-                rolloutPath,
-                thread.Turns,
-                excludedTurnId,
-                ct,
-                thread.Id);
-        foreach (var warning in replayed.Warnings ?? [])
-        {
-            System.Diagnostics.Trace.TraceWarning(
-                string.IsNullOrWhiteSpace(warning.TurnId)
-                    ? $"Rollout model-history replay warning ({warning.Code}): {warning.Message}"
-                    : $"Rollout model-history replay warning for turn '{warning.TurnId}' ({warning.Code}): {warning.Message}");
-        }
-        var fallbackTurns = thread.Turns
-            .Where(turn => !string.Equals(turn.Id, excludedTurnId, StringComparison.Ordinal));
-        var history = replayed.HasModelHistoryRecords
-            ? replayed.Messages.ToList()
-            : BuildModelVisibleHistoryFromTurns(fallbackTurns);
-        history = MessageGrouper.NormalizeFunctionCallArguments(history).ToList();
-
-        return history;
-    }
-
-    private static bool TryDeserializeCheckpointHistory(
-        ThreadCompactionCheckpoint checkpoint,
-        out List<ChatMessage> history)
-    {
-        history = [];
-        try
-        {
-            var codec = new ModelHistoryCodec();
-            var restored = checkpoint.ReplacementHistory.Select(codec.Decode).ToList();
-            history = MessageGrouper.NormalizeFunctionCallArguments(restored).ToList();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static List<ChatMessage> BuildModelVisibleHistoryFromTurns(IEnumerable<SessionTurn> turns)
-    {
-        var history = new List<ChatMessage>();
-        foreach (var turn in OrderTurns(turns))
-            history.AddRange(BuildModelVisibleHistoryFromTurn(turn));
-
-        return history;
-    }
-
-    private static List<SessionTurn> OrderTurns(IEnumerable<SessionTurn> turns) =>
-        turns.OrderBy(t => t.StartedAt).ThenBy(t => t.Id, StringComparer.Ordinal).ToList();
-
-    private static bool IsCheckpointCompatibleForFork(
-        SessionThread source,
-        List<SessionTurn> orderedForkTurns,
-        ThreadCompactionCheckpoint checkpoint)
-    {
-        var sourceTurn = source.Turns.FirstOrDefault(turn =>
-            string.Equals(turn.Id, checkpoint.CoveredThroughTurnId, StringComparison.Ordinal));
-        if (sourceTurn == null)
-            return false;
-
-        var forkTurnIndex = orderedForkTurns.FindIndex(turn =>
-            string.Equals(turn.Id, checkpoint.CoveredThroughTurnId, StringComparison.Ordinal));
-        if (forkTurnIndex < 0)
-            return false;
-
-        var forkTurn = orderedForkTurns[forkTurnIndex];
-        var forkItems = forkTurnIndex == orderedForkTurns.Count - 1
-            ? RemoveTrailingForkNotice(forkTurn.Items)
-            : forkTurn.Items;
-        return SameItemPrefix(sourceTurn.Items, forkItems, requireCompleteSourcePrefix: true);
-    }
-
-    private static IReadOnlyList<SessionItem> RemoveTrailingForkNotice(IReadOnlyList<SessionItem> items)
-    {
-        if (items.Count == 0 || !IsForkNotice(items[^1]))
-            return items;
-
-        return items.Take(items.Count - 1).ToList();
-    }
-
-    private static bool IsForkNotice(SessionItem item) =>
-        item.Type == ItemType.SystemNotice &&
-        item.Payload is SystemNoticePayload { Kind: "forked" };
-
-    private static bool SameItemPrefix(
-        IReadOnlyList<SessionItem> sourceItems,
-        IReadOnlyList<SessionItem> forkItems,
-        bool requireCompleteSourcePrefix)
-    {
-        if (requireCompleteSourcePrefix && sourceItems.Count != forkItems.Count)
-            return false;
-
-        if (forkItems.Count > sourceItems.Count)
-            return false;
-
-        for (var i = 0; i < forkItems.Count; i++)
-        {
-            if (!string.Equals(sourceItems[i].Id, forkItems[i].Id, StringComparison.Ordinal))
-                return false;
-        }
-
-        return true;
-    }
-
-    internal static IReadOnlyList<ChatMessage> BuildModelVisibleHistoryFromTurn(SessionTurn turn)
-    {
-        var history = new List<ChatMessage>();
-        var completedItems = turn.Items
-            .Where(static item => item.Status == ItemStatus.Completed
-                                  && item.InvocationOrigin != ToolInvocationOrigin.CodeModeKind)
-            .ToList();
-        var pairedToolCalls = CollectPairedToolCalls(completedItems);
-        var assistantBuilder = new AssistantSamplingSegmentBuilder();
-
-        foreach (var item in completedItems)
-        {
-            if (item.Type == ItemType.UserMessage && TryBuildUserMessage(item, out var userMessage))
-            {
-                FlushAssistantSegment(history, assistantBuilder);
-                history.Add(userMessage);
-            }
-            else if (item.Type == ItemType.ReasoningContent &&
-                     item.AsReasoningContent is { Text: { } reasoningText } &&
-                     !string.IsNullOrWhiteSpace(reasoningText))
-            {
-                assistantBuilder.AddReasoning(reasoningText);
-            }
-            else if (item.Type == ItemType.AgentMessage &&
-                     item.AsAgentMessage is { Text: { } agentText } agentMessage &&
-                     !string.Equals(agentMessage.DeliveryMode, "async", StringComparison.Ordinal) &&
-                     !string.IsNullOrWhiteSpace(agentText))
-            {
-                assistantBuilder.AddText(agentText.Trim());
-            }
-            else if (item.Type == ItemType.ToolCall &&
-                     TryBuildToolCallContent(item, pairedToolCalls, out var toolCallContent))
-            {
-                assistantBuilder.AddToolCall(toolCallContent);
-            }
-            else if (item.Type == ItemType.ToolResult &&
-                     TryBuildToolResultMessage(item, pairedToolCalls, out var toolResultMessage))
-            {
-                FlushAssistantSegment(history, assistantBuilder);
-                history.Add(toolResultMessage);
-            }
-            else if (TryBuildSpecializedToolHistory(
-                         item,
-                         out var specializedCall,
-                         out var specializedResult))
-            {
-                assistantBuilder.AddToolCall(specializedCall);
-                FlushAssistantSegment(history, assistantBuilder);
-                history.Add(specializedResult);
-            }
-            else if (item.Type == ItemType.ImageGeneration &&
-                     TryBuildImageGenerationToolHistory(item, out var imageGenerationCall, out var imageGenerationResult))
-            {
-                assistantBuilder.AddToolCall(imageGenerationCall);
-                FlushAssistantSegment(history, assistantBuilder);
-                history.Add(imageGenerationResult);
-            }
-            else if (item.Type == ItemType.WebSearch &&
-                     TryBuildWebSearchToolHistory(item, out var webSearchCall, out var webSearchResult))
-            {
-                assistantBuilder.AddToolCall(webSearchCall);
-                FlushAssistantSegment(history, assistantBuilder);
-                history.Add(webSearchResult);
-            }
-        }
-
-        FlushAssistantSegment(history, assistantBuilder);
-        return history;
-    }
-
-    private static bool TryBuildUserMessage(SessionItem item, out ChatMessage message)
-    {
-        message = new ChatMessage(ChatRole.User, string.Empty);
-        if (item.AsUserMessage is not { } user)
-            return false;
-
-        if (string.Equals(user.DeliveryMode, SubAgentMailboxDelivery.DeliveryMode, StringComparison.Ordinal))
-            return TryBuildSubAgentMailboxMessage(user, out message);
-
-        var parts =
-            user.MaterializedInputParts is { Count: > 0 } materialized ? materialized :
-            user.NativeInputParts is { Count: > 0 } native ? native :
-            null;
-
-        if (parts is { Count: > 0 })
-        {
-            var contents = SessionInputPartResolver.ResolvePersisted(parts)
-                .Where(c => c is not TextContent tc || !string.IsNullOrWhiteSpace(tc.Text))
-                .ToList();
-            if (contents.Count > 0)
-            {
-                message = new ChatMessage(ChatRole.User, (IList<AIContent>)contents);
-                return true;
-            }
-        }
-
-        if (string.IsNullOrWhiteSpace(user.Text))
-            return false;
-
-        message = new ChatMessage(ChatRole.User, user.Text.Trim());
-        return true;
-    }
-
-    private static bool TryBuildSubAgentMailboxMessage(UserMessagePayload user, out ChatMessage message)
-    {
-        message = new ChatMessage(ChatRole.User, string.Empty);
-        var parts = user.MaterializedInputParts is { Count: > 0 } materialized ? materialized : null;
-        if (parts is { Count: > 0 })
-        {
-            var contents = SessionInputPartResolver.ResolvePersisted(parts)
-                .Where(c => c is not TextContent tc || !string.IsNullOrWhiteSpace(tc.Text))
-                .ToList();
-            if (contents.Count > 0)
-            {
-                message = new ChatMessage(ChatRole.User, (IList<AIContent>)contents);
-                return true;
-            }
-        }
-
-        if (string.IsNullOrWhiteSpace(user.Text))
-            return false;
-
-        message = new ChatMessage(ChatRole.User, user.Text.Trim());
-        return true;
-    }
-
-    private static HashSet<string> CollectPairedToolCalls(IReadOnlyList<SessionItem> items)
-    {
-        var resultIds = items
-            .Select(static item => item.Payload as ToolResultPayload)
-            .Where(static payload => !string.IsNullOrWhiteSpace(payload?.CallId))
-            .Select(static payload => payload!.CallId)
-            .ToHashSet(StringComparer.Ordinal);
-
-        if (resultIds.Count == 0)
-            return [];
-
-        var paired = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var payload in items.Select(static item => item.Payload as ToolCallPayload))
-        {
-            if (string.IsNullOrWhiteSpace(payload?.CallId) ||
-                string.IsNullOrWhiteSpace(payload.ToolName) ||
-                !resultIds.Contains(payload.CallId))
-            {
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(payload.ProviderFlatName))
-                continue;
-
-            paired.Add(payload.CallId);
-        }
-
-        return paired;
-    }
-
-    private static void FlushAssistantSegment(
-        List<ChatMessage> history,
-        AssistantSamplingSegmentBuilder builder)
-    {
-        if (builder.TryBuild(out var message))
-            history.Add(message);
-        builder.Clear();
-    }
-
-    private static bool TryBuildToolCallContent(
-        SessionItem item,
-        IReadOnlySet<string> pairedToolCalls,
-        out FunctionCallContent content)
-    {
-        content = new FunctionCallContent(string.Empty, string.Empty);
-        if (item.Payload is not ToolCallPayload payload ||
-            string.IsNullOrWhiteSpace(payload.CallId) ||
-            string.IsNullOrWhiteSpace(payload.ToolName) ||
-            string.IsNullOrWhiteSpace(payload.ProviderFlatName) ||
-            !pairedToolCalls.Contains(payload.CallId))
-        {
-            return false;
-        }
-
-        content = CreatePersistedFunctionCall(
-            payload.CallId,
-            payload.Namespace,
-            payload.ToolName,
-            payload.ProviderFlatName,
-            payload.Arguments);
-        if (item.FreeformCall)
-            ProviderFunctionCallMetadata.MarkCustomToolCall(content);
-        return true;
-    }
-
-    private static bool TryBuildToolResultMessage(
-        SessionItem item,
-        IReadOnlySet<string> pairedToolCalls,
-        out ChatMessage message)
-    {
-        message = new ChatMessage(ChatRole.Tool, string.Empty);
-        if (item.Payload is not ToolResultPayload payload ||
-            string.IsNullOrWhiteSpace(payload.CallId) ||
-            !pairedToolCalls.Contains(payload.CallId))
-        {
-            return false;
-        }
-
-        var result = BuildModelToolResult(
-            payload.ContentItems,
-            payload.Result,
-            payload.ErrorCode,
-            payload.ErrorMessage);
-        message = new ChatMessage(
-            ChatRole.Tool,
-            (IList<AIContent>)[new FunctionResultContent(payload.CallId, result)]);
-        return true;
-    }
-
-    private static bool TryBuildSpecializedToolHistory(
-        SessionItem item,
-        out FunctionCallContent call,
-        out ChatMessage resultMessage)
-    {
-        call = new FunctionCallContent(string.Empty, string.Empty);
-        resultMessage = new ChatMessage(ChatRole.Tool, string.Empty);
-
-        string callId;
-        string? functionNamespace;
-        string toolName;
-        string providerFlatName;
-        JsonObject? arguments;
-        IReadOnlyList<PluginFunctionContentItem>? contentItems;
-        string? errorCode;
-        string? errorMessage;
-
-        switch (item.Payload)
-        {
-            case McpToolCallPayload mcp
-                when !string.IsNullOrWhiteSpace(mcp.CallId)
-                     && !string.IsNullOrWhiteSpace(mcp.ToolName)
-                     && !string.Equals(mcp.Status, "inProgress", StringComparison.OrdinalIgnoreCase):
-                callId = mcp.CallId;
-                if (string.IsNullOrWhiteSpace(mcp.ProviderFlatName))
-                    return false;
-                toolName = mcp.ToolName;
-                functionNamespace = mcp.Namespace;
-                providerFlatName = mcp.ProviderFlatName;
-                arguments = mcp.Arguments;
-                contentItems = mcp.ModelContentItems;
-                errorCode = mcp.ErrorCode;
-                errorMessage = mcp.ErrorMessage;
-                break;
-
-            case DynamicToolCallPayload dynamic
-                when !string.IsNullOrWhiteSpace(dynamic.CallId)
-                     && !string.IsNullOrWhiteSpace(dynamic.ToolName)
-                     && !string.Equals(dynamic.Status, "inProgress", StringComparison.OrdinalIgnoreCase):
-                callId = dynamic.CallId;
-                if (string.IsNullOrWhiteSpace(dynamic.ProviderFlatName))
-                    return false;
-                toolName = dynamic.ToolName;
-                functionNamespace = dynamic.Namespace;
-                providerFlatName = dynamic.ProviderFlatName;
-                arguments = dynamic.Arguments;
-                contentItems = dynamic.ContentItems;
-                errorCode = dynamic.ErrorCode;
-                errorMessage = dynamic.ErrorMessage;
-                break;
-
-            default:
-                return false;
-        }
-
-        call = CreatePersistedFunctionCall(
-            callId,
-            functionNamespace,
-            toolName,
-            providerFlatName,
-            arguments);
-        var result = BuildModelToolResult(contentItems, null, errorCode, errorMessage);
-        resultMessage = new ChatMessage(
-            ChatRole.Tool,
-            (IList<AIContent>)[new FunctionResultContent(callId, result)]);
-        return true;
-    }
-
-    private static object BuildModelToolResult(
-        IReadOnlyList<PluginFunctionContentItem>? contentItems,
-        string? fallback,
-        string? errorCode,
-        string? errorMessage)
-    {
-        var contents = new List<AIContent>();
-        if (contentItems != null)
-        {
-            foreach (var item in contentItems)
-            {
-                if (string.Equals(item.Type, "text", StringComparison.OrdinalIgnoreCase)
-                    && !string.IsNullOrWhiteSpace(item.Text))
-                {
-                    contents.Add(new TextContent(item.Text));
-                }
-                else if (string.Equals(item.Type, "image", StringComparison.OrdinalIgnoreCase)
-                         && !string.IsNullOrWhiteSpace(item.DataBase64)
-                         && !string.IsNullOrWhiteSpace(item.MediaType))
-                {
-                    try
-                    {
-                        contents.Add(new DataContent(Convert.FromBase64String(item.DataBase64), item.MediaType));
-                    }
-                    catch (FormatException)
-                    {
-                        // Invalid persisted image data is omitted; textual fallback remains usable.
-                    }
-                }
-            }
-        }
-
-        if (contents.Count == 1 && contents[0] is TextContent text)
-            return text.Text;
-        if (contents.Count > 0)
-            return contents;
-        if (!string.IsNullOrWhiteSpace(fallback))
-            return fallback;
-        if (!string.IsNullOrWhiteSpace(errorMessage))
-            return string.IsNullOrWhiteSpace(errorCode) ? errorMessage : $"{errorCode}: {errorMessage}";
-
-        return "Tool completed without model-visible content.";
-    }
-
-    private static FunctionCallContent CreatePersistedFunctionCall(
-        string callId,
-        string? functionNamespace,
-        string localName,
-        string providerFlatName,
-        JsonObject? arguments)
-    {
-        var call = new FunctionCallContent(callId, localName, BuildToolArguments(arguments))
-        {
-            AdditionalProperties = new AdditionalPropertiesDictionary
-            {
-                ["dotcraft.tool.provider_flat_name"] = providerFlatName
-            }
-        };
-        if (!string.IsNullOrWhiteSpace(functionNamespace))
-        {
-            call.AdditionalProperties["openai.responses.function_call.namespace"] = functionNamespace;
-            call.AdditionalProperties["namespace"] = functionNamespace;
-        }
-
-        return call;
-    }
-
-    private static bool TryBuildImageGenerationToolHistory(
-        SessionItem item,
-        out FunctionCallContent call,
-        out ChatMessage resultMessage)
-    {
-        call = new FunctionCallContent(string.Empty, string.Empty);
-        resultMessage = new ChatMessage(ChatRole.Tool, string.Empty);
-        if (item.AsImageGeneration is not { } payload ||
-            string.IsNullOrWhiteSpace(payload.CallId) ||
-            string.Equals(payload.Status, "inProgress", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        byte[]? imageBytes = null;
-        if (string.Equals(payload.Status, "completed", StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrWhiteSpace(payload.Result))
-        {
-            try
-            {
-                imageBytes = Convert.FromBase64String(payload.Result);
-            }
-            catch (FormatException)
-            {
-                imageBytes = null;
-            }
-        }
-
-        call = CreatePersistedFunctionCall(
-            payload.CallId,
-            ImageGenerationToolSource.ToolNamespace,
-            ImageGenerationToolSource.ToolName,
-            ImageGenerationToolSource.ToolNamespace + "__" + ImageGenerationToolSource.ToolName,
-            string.IsNullOrWhiteSpace(payload.RevisedPrompt)
-                ? null
-                : new JsonObject { ["prompt"] = payload.RevisedPrompt });
-
-        object result;
-        if (imageBytes is { Length: > 0 })
-        {
-            var contents = new List<AIContent>
-            {
-                new DataContent(imageBytes, string.IsNullOrWhiteSpace(payload.MediaType) ? "image/png" : payload.MediaType)
-            };
-            if (string.Equals(payload.SaveStatus, "saved", StringComparison.Ordinal)
-                && !string.IsNullOrWhiteSpace(payload.SavedPath)
-                && ImageGenerationToolRuntime.CreateOutputHint(payload.SavedPath) is { } hint)
-            {
-                contents.Add(new TextContent(hint));
-            }
-
-            result = contents;
-        }
-        else
-        {
-            result = $"image generation failed: {payload.ErrorMessage ?? "Image generation returned no image data."}";
-        }
-
-        resultMessage = new ChatMessage(
-            ChatRole.Tool,
-            (IList<AIContent>)[new FunctionResultContent(payload.CallId, result)]);
-        return true;
-    }
-
-    private static IDictionary<string, object?>? BuildToolArguments(JsonObject? arguments)
-    {
-        if (arguments is null || arguments.Count == 0)
-            return new Dictionary<string, object?>();
-
-        return JsonSerializer.Deserialize<Dictionary<string, object?>>(
-            arguments.ToJsonString(),
-            SessionPersistenceJsonOptions.Default);
-    }
-
-    private sealed class AssistantSamplingSegmentBuilder
-    {
-        private readonly List<AIContent> _reasoning = [];
-        private readonly List<AIContent> _visible = [];
-        private readonly List<AIContent> _toolCalls = [];
-
-        public void AddReasoning(string text) => _reasoning.Add(new TextReasoningContent(text));
-
-        public void AddText(string text) => _visible.Add(new TextContent(text));
-
-        public void AddToolCall(FunctionCallContent content) => _toolCalls.Add(content);
-
-        public bool TryBuild(out ChatMessage message)
-        {
-            message = new ChatMessage(ChatRole.Assistant, string.Empty);
-            if (_visible.Count == 0 && _toolCalls.Count == 0)
-                return false;
-
-            var contents = new List<AIContent>();
-            if (_toolCalls.Count > 0)
-                contents.AddRange(_reasoning);
-            contents.AddRange(_visible);
-            contents.AddRange(_toolCalls);
-
-            message = new ChatMessage(ChatRole.Assistant, contents);
-            return true;
-        }
-
-        public void Clear()
-        {
-            _reasoning.Clear();
-            _visible.Clear();
-            _toolCalls.Clear();
-        }
     }
 }

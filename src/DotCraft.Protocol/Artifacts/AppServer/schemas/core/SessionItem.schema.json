@@ -22,16 +22,6 @@
     "id": {
       "type": "string"
     },
-    "mcpApp": {
-      "anyOf": [
-        {
-          "$ref": "./McpAppViewHint.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "payload": {},
     "payloadKind": {
       "anyOf": [

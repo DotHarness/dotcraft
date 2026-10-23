@@ -244,6 +244,17 @@ public sealed partial class SessionService
         logger?.LogDebug("Reset world state baseline for thread {ThreadId}: {Reason}", threadId, reason);
     }
 
+    private void ReloadWorldStateBaselineOnNextTurn(string threadId)
+    {
+        if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            return;
+
+        runtime.WorldStateBaseline = null;
+        runtime.PersistedWorldStateBaseline = null;
+        runtime.WorldStateBaselineRestored = false;
+        runtime.WorldStateBaselineOrigin = "none";
+    }
+
     private ThreadMemoryStores? ResolveMemoryIndexStores(ThreadConfiguration? config)
     {
         // A Thread running on caller-supplied instructions has no memory instructions, so it gets no index either.

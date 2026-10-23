@@ -28,12 +28,19 @@ internal sealed class MemoryExtractionRunner(
     public async Task<string?> RunAsync(string threadId, string? cursorTurnId, CancellationToken cancellationToken)
     {
         var parent = await sessions.GetThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
-        var turns = parent.Turns.ToArray();
-        var cursorIndex = Array.FindIndex(turns, turn => turn.Id == cursorTurnId);
-        if (turns.Length == 0 || turns[^1].Status != TurnStatus.Completed || cursorIndex == turns.Length - 1)
+        if (parent.Turns.LastOrDefault() is not { Status: TurnStatus.Completed } forkPoint || forkPoint.Id == cursorTurnId)
             return null;
 
-        var forkPoint = turns[^1];
+        var turnsSinceCursor = 0;
+        await foreach (var turn in sessions
+                           .ReadThreadTurnsAsync(threadId, ThreadHistorySortDirection.Descending, includeItems: false, cancellationToken)
+                           .ConfigureAwait(false))
+        {
+            if (turn.Id == cursorTurnId)
+                break;
+            turnsSinceCursor++;
+        }
+
         var store = MemoryScopes.ForThread(parent.Configuration, workspaceStore, dataPath);
         SessionThread fork;
         try
@@ -58,7 +65,7 @@ internal sealed class MemoryExtractionRunner(
         {
             var (outcome, turn) = await RunForkAsync(
                 fork.Id,
-                MemoryExtractionPrompt.Build(turns.Length - 1 - cursorIndex, store.MemoryDirectoryPath, MemoryFiles.List(store.MemoryDirectoryPath)),
+                MemoryExtractionPrompt.Build(turnsSinceCursor, store.MemoryDirectoryPath, MemoryFiles.List(store.MemoryDirectoryPath)),
                 store.MemoryDirectoryPath,
                 cancellationToken).ConfigureAwait(false);
             RecordOutcome(parent.Id, forkPoint.Id, fork.Id, outcome, turn);

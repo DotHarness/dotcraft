@@ -130,12 +130,15 @@ public sealed partial class SessionServiceImportTests
         await using var agentFactory = CreateAgentFactory();
         var service = CreateService(agentFactory);
         var first = Turn("first question", minute: 0, "first answer");
+        var second = Turn("second question", minute: 2, "second answer");
+        var third = Turn("third question", minute: 3, "third answer");
         var last = Turn("last question", minute: 5, "answer one", "answer two");
-        await service.ImportThreadAsync(MakeRequest(first, last));
+        await service.ImportThreadAsync(MakeRequest(first, second, third, last));
         IReadOnlyList<ImportedTurnInput>[] mismatchedTurns =
         [
-            [first with { AgentTexts = ["first answer", "late answer"] }, last],
-            [first, last with { AgentTexts = ["answer one", "rewritten two", "answer three"] }]
+            [first with { AgentTexts = ["first answer", "late answer"] }, second, third, last],
+            [first, second with { UserText = "edited question" }, third, last],
+            [first, second, third, last with { AgentTexts = ["answer one", "rewritten two", "answer three"] }]
         ];
 
         foreach (var existingTurns in mismatchedTurns)
@@ -150,11 +153,11 @@ public sealed partial class SessionServiceImportTests
         }
 
         var loaded = await _store.LoadThreadAsync(ThreadId);
-        Assert.Equal(2, loaded!.Turns.Count);
+        Assert.Equal(4, loaded!.Turns.Count);
         Assert.Equal(["user:first question", "agent:first answer"], DescribeItems(loaded.Turns[0]));
         Assert.Equal(
             ["user:last question", "agent:answer one", "agent:answer two", $"agent:{Marker}"],
-            DescribeItems(loaded.Turns[1]));
+            DescribeItems(loaded.Turns[3]));
     }
 
     private static async Task<List<SessionEvent>> ReadEventsUntilAsync(

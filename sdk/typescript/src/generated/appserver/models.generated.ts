@@ -2159,11 +2159,6 @@ export interface McpAppViewCloseResult {
   [key: string]: unknown;
 }
 
-export interface McpAppViewHint {
-  available: boolean;
-  [key: string]: unknown;
-}
-
 export interface McpAppViewMessageParams {
   content?: McpAppMessageContent;
   role?: string;
@@ -3442,7 +3437,6 @@ export interface SessionItem {
   completedAt?: string | null;
   createdAt: string;
   id: string;
-  mcpApp?: McpAppViewHint | null;
   payload?: JsonValue;
   payloadKind?: string | null;
   status: string;

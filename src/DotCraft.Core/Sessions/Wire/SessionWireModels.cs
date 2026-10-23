@@ -372,17 +372,6 @@ public sealed record SessionWireItem
     public string? PayloadKind { get; init; }
 
     public object? Payload { get; init; }
-
-    /// <summary>Current MCP Apps availability hint derived from the active runtime and authority.</summary>
-    [JsonIgnore(
-        Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public McpAppViewHintSnapshot? McpApp { get; init; }
-}
-
-/// <summary>Indicates that a terminal MCP item can currently open a new MCP App View.</summary>
-public sealed record McpAppViewHintSnapshot
-{
-    public bool Available { get; init; }
 }
 
 /// <summary>

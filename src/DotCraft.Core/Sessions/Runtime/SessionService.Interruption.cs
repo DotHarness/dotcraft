@@ -22,11 +22,14 @@ public sealed partial class SessionService
         var appendMarker = execution.IntentionallyInterrupted && InterruptMessageEnabled;
         if (committer.Session == null && (thread.Ephemeral || appendMarker))
         {
-            var previous = thread.Ephemeral
+            List<ChatMessage> previous;
+            if (thread.Ephemeral
                 && _runtimeRegistry.TryGetRuntime(thread.Id, out var existingRuntime)
-                && existingRuntime.EphemeralHistory is { } inMemory
-                    ? inMemory.Select(message => message.Clone()).ToList()
-                    : await persistence.LoadModelHistoryAsync(thread, turn.Id, CancellationToken.None);
+                && existingRuntime.EphemeralHistory is { } inMemory)
+                previous = inMemory.Select(message => message.Clone()).ToList();
+            else
+                (previous, committer.ResidentBaseline) =
+                    await LoadServerModelHistoryAsync(thread, turn.Id, CancellationToken.None);
             committer.PersistedModelHistoryCount = previous.Count;
             previous.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(turn));
             committer.Session = previous;
@@ -75,7 +78,7 @@ public sealed partial class SessionService
             && existing.ResponsesProviderHistorySnapshot is { } inMemory
                 ? inMemory
                 : ToOpaqueHistory(model, identity,
-                    await persistence.LoadProviderHistoryAsync(thread, identity.ContextWindowId, ct));
+                    await persistence.LoadResidentProviderHistoryAsync(thread, identity.ContextWindowId, ct));
         // An empty native baseline will be populated from neutral history on the next request.
         if (snapshot.Items.Count == 0)
             return null;

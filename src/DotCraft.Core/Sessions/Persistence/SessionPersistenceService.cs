@@ -39,13 +39,15 @@ public sealed class SessionPersistenceService(
     public Task SaveThreadAsync(SessionThread thread, CancellationToken ct = default)
         => threadStore.SaveThreadAsync(thread, ct);
 
+    internal bool ThreadExists(string threadId) => threadStore.ThreadExists(threadId);
+
     internal Task SaveThreadBaselineAsync(SessionThread thread, CancellationToken ct = default)
         => threadStore.SaveThreadBaselineAsync(thread, ct);
 
     internal Task SaveTurnAsync(SessionThread thread, SessionTurn turn, CancellationToken ct = default)
         => threadStore.SaveTurnAsync(thread, turn, ct);
 
-    internal Task CommitTurnAsync(TurnPersistenceCommit commit, CancellationToken ct = default)
+    internal Task<ModelHistoryRevision> CommitTurnAsync(TurnPersistenceCommit commit, CancellationToken ct = default)
         => threadStore.CommitTurnAsync(commit, ct);
 
     internal Task AppendThreadChangesAsync(
@@ -61,6 +63,36 @@ public sealed class SessionPersistenceService(
 
     public Task<SessionThread?> LoadThreadAsync(string threadId, CancellationToken ct = default)
         => threadStore.LoadThreadAsync(threadId, ct);
+
+    internal Task<SessionThread?> LoadThreadWorkingSetAsync(string threadId, CancellationToken ct = default)
+        => threadStore.LoadThreadWorkingSetAsync(threadId, ct);
+
+    internal Task ReloadWorkingSetAsync(SessionThread thread, CancellationToken ct = default)
+        => threadStore.ReloadWorkingSetAsync(thread, ct);
+
+    internal Task<IReadOnlyList<SessionTurn>> ReadProjectedTurnsAsync(
+        string threadId,
+        IReadOnlyCollection<string> turnIds,
+        CancellationToken ct = default)
+        => threadStore.ReadProjectedTurnsAsync(threadId, turnIds, ct);
+
+    internal Task<SessionItem?> ReadProjectedItemAsync(
+        string threadId,
+        string turnId,
+        string itemId,
+        CancellationToken ct = default)
+        => threadStore.ReadProjectedItemAsync(threadId, turnId, itemId, ct);
+
+    internal Task<IReadOnlyList<ThreadHistoryItem>> ReadUnfinishedCommandItemsAsync(
+        string threadId,
+        CancellationToken ct = default)
+        => threadStore.ReadUnfinishedCommandItemsAsync(threadId, ct);
+
+    internal Task<ThreadHistoryAggregates> ReadHistoryAggregatesAsync(
+        string threadId,
+        IReadOnlyCollection<string> excludedTurnIds,
+        CancellationToken ct = default)
+        => threadStore.ReadHistoryAggregatesAsync(threadId, excludedTurnIds, ct);
 
     internal Task<ThreadRecoveryPackage> ExportRecoveryAsync(
         string threadId,
@@ -141,16 +173,23 @@ public sealed class SessionPersistenceService(
         IReadOnlyDictionary<string, ChatMessage>? interruptions = null)
         => threadStore.BuildForkModelHistoryMaterializationAsync(source, forked, ct, interruptions);
 
-    public Task<List<ChatMessage>> LoadModelHistoryAsync(
-        string threadId,
-        CancellationToken ct = default)
-        => threadStore.LoadModelHistoryAsync(threadId, ct);
-
     internal Task<List<ChatMessage>> LoadModelHistoryAsync(
         SessionThread thread,
         string? excludedTurnId,
         CancellationToken ct = default)
         => threadStore.LoadModelHistoryAsync(thread, excludedTurnId, ct);
+
+    internal Task<ResidentModelHistoryLoad> LoadResidentModelHistoryAsync(
+        SessionThread thread,
+        string? excludedTurnId,
+        CancellationToken ct = default)
+        => threadStore.LoadResidentModelHistoryAsync(thread, excludedTurnId, ct);
+
+    internal ModelHistoryRevision GetModelHistoryRevision(string threadId)
+        => threadStore.GetModelHistoryRevision(threadId);
+
+    internal void ReleaseResidentHistory(string threadId)
+        => threadStore.ReleaseResidentHistory(threadId);
 
     public Task RollbackThreadAsync(SessionThread thread, int numTurns, CancellationToken ct = default)
         => threadStore.RollbackThreadAsync(thread, numTurns, ct);
@@ -239,6 +278,12 @@ public sealed class SessionPersistenceService(
         string currentContextWindowId,
         CancellationToken ct = default)
         => threadStore.LoadProviderHistoryAsync(thread, currentContextWindowId, ct);
+
+    internal Task<ProviderHistorySnapshot> LoadResidentProviderHistoryAsync(
+        SessionThread thread,
+        string currentContextWindowId,
+        CancellationToken ct = default)
+        => threadStore.LoadResidentProviderHistoryAsync(thread, currentContextWindowId, ct);
 
     internal Task AppendProviderHistoryItemsAsync(
         ProviderHistoryItemsAppendedPayload payload,

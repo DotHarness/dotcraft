@@ -52,6 +52,8 @@ internal static class WorkspaceStateSchema
                     next_rollout_ordinal INTEGER NOT NULL,
                     thread_snapshot_json TEXT NOT NULL,
                     persisted_runtime_json TEXT NOT NULL,
+                    turn_sequence_high_watermark INTEGER NOT NULL DEFAULT 0,
+                    provider_history_schema_version INTEGER NOT NULL DEFAULT 0,
                     FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
                 );
 
@@ -60,6 +62,13 @@ internal static class WorkspaceStateSchema
                     turn_id TEXT NOT NULL,
                     rollout_ordinal INTEGER NOT NULL,
                     turn_json TEXT NOT NULL,
+                    input_tokens INTEGER NOT NULL DEFAULT 0,
+                    output_tokens INTEGER NOT NULL DEFAULT 0,
+                    cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+                    cache_write_input_tokens INTEGER NOT NULL DEFAULT 0,
+                    reasoning_output_tokens INTEGER NOT NULL DEFAULT 0,
+                    llm_call_count INTEGER NOT NULL DEFAULT 0,
+                    total_tokens INTEGER NOT NULL DEFAULT 0,
                     PRIMARY KEY(thread_id, turn_id),
                     FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
                 );
@@ -71,6 +80,8 @@ internal static class WorkspaceStateSchema
                     rollout_ordinal INTEGER NOT NULL,
                     updated_rollout_ordinal INTEGER NOT NULL,
                     item_json TEXT NOT NULL,
+                    tool_call INTEGER NOT NULL DEFAULT 0,
+                    user_text TEXT,
                     PRIMARY KEY(thread_id, turn_id, item_id),
                     FOREIGN KEY(thread_id, turn_id)
                         REFERENCES thread_turns(thread_id, turn_id) ON DELETE CASCADE
@@ -344,6 +355,18 @@ internal static class WorkspaceStateSchema
         EnsureColumn(connection, "subagent_mailbox_entries", "parent_turn_id", "TEXT");
         EnsureColumn(connection, "threads", "attachment_index_version", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(connection, "threads", "git_info_json", "TEXT");
+        EnsureColumn(connection, "thread_history_projection_state", "turn_sequence_high_watermark", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(connection, "thread_history_projection_state", "provider_history_schema_version", "INTEGER NOT NULL DEFAULT 0");
+        foreach (var column in new[]
+                 {
+                     "input_tokens", "output_tokens", "cached_input_tokens", "cache_write_input_tokens",
+                     "reasoning_output_tokens", "llm_call_count", "total_tokens"
+                 })
+        {
+            EnsureColumn(connection, "thread_turns", column, "INTEGER NOT NULL DEFAULT 0");
+        }
+        EnsureColumn(connection, "thread_items", "tool_call", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(connection, "thread_items", "user_text", "TEXT");
         EnsureColumn(connection, "dashboard_usage_records", "model", "TEXT");
         EnsureColumn(connection, "dashboard_usage_records", "reasoning_effort", "TEXT");
         EnsureColumn(connection, "dashboard_usage_records", "root_thread_id", "TEXT");
@@ -358,6 +381,9 @@ internal static class WorkspaceStateSchema
                     ON dashboard_usage_records(root_thread_id, timestamp DESC, id DESC);
                 CREATE INDEX IF NOT EXISTS idx_trace_events_type_ts
                     ON trace_events(type, timestamp, id);
+                CREATE INDEX IF NOT EXISTS idx_thread_items_user_text
+                    ON thread_items(thread_id, turn_id, rollout_ordinal, user_text)
+                    WHERE user_text IS NOT NULL;
                 """;
         usageIndexes.ExecuteNonQuery();
     }

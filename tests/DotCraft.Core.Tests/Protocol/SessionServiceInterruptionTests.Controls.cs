@@ -75,7 +75,8 @@ public sealed partial class SessionServiceInterruptionTests
             await run.WaitAsync(TimeSpan.FromSeconds(10));
         }
         var history = await store.LoadModelHistoryAsync(thread.Id);
-        Assert.Equal(thread.Turns.Select(turn => turn.Id), history.Where(IsMarker).Select(TurnInterruption.GetTurnId));
+        var turns = await service.ReadThreadTurnsAsync(thread.Id, ThreadHistorySortDirection.Ascending).ToListAsync();
+        Assert.Equal(turns.Select(turn => turn.Id), history.Where(IsMarker).Select(TurnInterruption.GetTurnId));
         await service.RollbackThreadAsync(thread.Id, 1);
         client.Block = false;
         await Drain(service.SubmitInputAsync(thread.Id, [new TextContent("replacement")]));

@@ -43,7 +43,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         DotNetPluginRuntimeManager pluginRuntime,
         IReadOnlyList<ConfigSchemaSection> configSchema,
         IContextPageManager contextPageManager,
-        ConfigurationService configuration)
+        ConfigurationService configuration,
+        IAsyncDisposable? idleThreadUnloading)
     {
         public AgentFactory AgentFactory { get; } = agentFactory;
 
@@ -61,6 +62,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
 
         public DreamsService DreamsService { get; } = dreamsService;
+
+        public IAsyncDisposable? IdleThreadUnloading { get; } = idleThreadUnloading;
 
         public DotNetPluginRuntimeManager PluginRuntime { get; } = pluginRuntime;
 
@@ -349,6 +352,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     loggerFactory?.CreateLogger<WelcomeSuggestionService>());
                 var memoryExtraction = new MemoryExtractionScheduler(
                     sessionService.GetThreadAsync,
+                    (thread, ct) => sessionService.ReadThreadTurnsAsync(
+                        thread.Id, ThreadHistorySortDirection.Descending, ct: ct),
                     new MemoryExtractionRunner(
                         sessionService,
                         contributionRegistry,
@@ -420,7 +425,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     pluginRuntime,
                     configSchema,
                     contextPageManager,
-                    configuration);
+                    configuration,
+                    (sessionService as SessionService)?.StartIdleThreadUnloading());
 
                 _appConfigMonitor.Changed += OnAppConfigChanged;
                 McpClientManager.StatusChanged += OnMcpStatusChanged;
@@ -522,6 +528,16 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             {
                 _contributionScope?.Dispose();
                 _contributionScope = null;
+            }
+            catch (Exception ex)
+            {
+                (errors ??= []).Add(ex);
+            }
+
+            try
+            {
+                if (started.IdleThreadUnloading != null)
+                    await started.IdleThreadUnloading.DisposeAsync();
             }
             catch (Exception ex)
             {

@@ -42,9 +42,9 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
         await using var harness = await CreateHarnessAsync(chatClient);
 
         await harness.RunTurnAsync();
-        var thread = await WaitForThreadAsync(harness, t => t.Turns.Count == 2 && t.Turns[1].Status == TurnStatus.Completed);
+        var thread = await WaitForThreadAsync(harness, t => t.TurnCount == 2 && t.Turns[^1].Status == TurnStatus.Completed);
 
-        var woken = thread.Turns[1].Input?.AsUserMessage;
+        var woken = thread.Turns[^1].Input?.AsUserMessage;
         Assert.NotNull(woken);
         Assert.Equal(SessionService.TerminalTriggerKind, woken.TriggerKind);
         Assert.StartsWith("term_", woken.TriggerRefId);
@@ -64,9 +64,9 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
         await harness.RunTurnAsync();
         var running = Assert.Single(await harness.Terminals.ListAsync(harness.ThreadId));
         await harness.Terminals.StopAsync(running.SessionId);
-        var thread = await WaitForThreadAsync(harness, t => t.Turns.Count == 2 && t.Turns[1].Status == TurnStatus.Completed);
+        var thread = await WaitForThreadAsync(harness, t => t.TurnCount == 2 && t.Turns[^1].Status == TurnStatus.Completed);
 
-        Assert.Equal(BackgroundTerminalStatus.Killed, thread.Turns[1].Input?.AsUserMessage?.TriggerStatus);
+        Assert.Equal(BackgroundTerminalStatus.Killed, thread.Turns[^1].Input?.AsUserMessage?.TriggerStatus);
         var notice = Assert.Single(chatClient.ReceivedNotices);
         Assert.Contains("was stopped by the user", notice);
     }

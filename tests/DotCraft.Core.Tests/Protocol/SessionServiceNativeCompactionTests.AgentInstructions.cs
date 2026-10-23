@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Sessions;
 using Microsoft.Extensions.AI;
@@ -145,6 +146,29 @@ public sealed partial class SessionServiceNativeCompactionTests
         var history = await new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft")))
             .LoadModelHistoryAsync(threadId, CancellationToken.None);
         Assert.Single(history, AgentInstructionsHistory.IsInstructions);
+    }
+
+    [Fact]
+    public async Task MidTurnLocalCompaction_KeepsInstructionsInTheRequestAndProviderHistory()
+    {
+        await using var factory = CreateFactory(oauth: false, smallTail: true);
+        var service = CreateResidentService(factory, new ThreadStore(Path.Combine(_workspace, ".craft")));
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
+        });
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("committed-prefix")]));
+        _provider.ToolNextResponse = true;
+        _provider.ReportHighUsageNextResponse = true;
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("check status")]));
+
+        var records = await ReadRecordsAsync(thread.Id);
+        Assert.Contains(records, record => record.Kind == RolloutKinds.ContextCompacted);
+        AssertContainsOnce(_provider.Requests[^1], "Preserve the blue project convention.");
+        var replacement = records.Last(record => record.ProviderHistoryReplaced?.Reason == "compaction");
+        AssertContainsOnce(
+            JsonSerializer.Serialize(replacement.ProviderHistoryReplaced!.Entries, SessionJsonOptions.Default),
+            "Preserve the blue project convention.");
     }
 
     [Fact]

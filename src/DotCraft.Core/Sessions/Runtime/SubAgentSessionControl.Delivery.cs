@@ -152,7 +152,7 @@ public static partial class SubAgentSessionControl
                 ct);
             var turnPrompt = BuildFollowupPrompt(pending, followupCommunication);
             if (!IsNativeRuntime(resolved.Thread))
-                turnPrompt = BuildExternalThreadContextPrompt(resolved.Thread, turnPrompt);
+                turnPrompt = await BuildExternalThreadContextPromptAsync(context.SessionService, resolved.Thread, turnPrompt, ct);
 
             var activeTurn = GetActiveTurn(resolved.Thread);
             if (activeTurn != null)
@@ -383,11 +383,27 @@ public static partial class SubAgentSessionControl
         RefId = NormalizeOptional(refId)
     };
 
-    private static string? ExtractLastTaskMessage(SessionThread thread) =>
-        thread.Turns
+    private static async Task<string?> ExtractLastTaskMessageAsync(
+        ISessionService sessionService,
+        SessionThread thread,
+        CancellationToken ct)
+    {
+        var resident = thread.Turns
             .OrderByDescending(turn => turn.StartedAt)
             .Select(turn => turn.Input?.AsUserMessage?.Text)
             .FirstOrDefault(text => !string.IsNullOrWhiteSpace(text));
+        if (resident != null || thread.OmittedTurnCount == 0)
+            return resident;
+
+        await foreach (var turn in sessionService.ReadThreadTurnsAsync(
+                           thread.Id, ThreadHistorySortDirection.Descending, includeItems: false, ct))
+        {
+            if (turn.Input?.AsUserMessage?.Text is { } text && !string.IsNullOrWhiteSpace(text))
+                return text;
+        }
+
+        return null;
+    }
 
     private static string BuildFollowupPrompt(
         IReadOnlyList<SubAgentMailboxEntry> pending,

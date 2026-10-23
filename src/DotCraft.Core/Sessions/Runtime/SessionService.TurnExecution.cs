@@ -482,11 +482,15 @@ public sealed partial class SessionService
                 turnModelHistory?.AbortPending();
                 if (turnModelHistory is { RequiresReconciliation: true } && !thread.Ephemeral)
                 {
-                    var durableHistory = await persistence.LoadModelHistoryAsync(thread.Id, CancellationToken.None);
+                    var durableHistory = await persistence.LoadModelHistoryAsync(
+                        thread,
+                        excludedTurnId: null,
+                        CancellationToken.None);
                     await ReconcilePersistedInputHistoryAsync(thread, durableHistory, CancellationToken.None);
                     session!.Clear();
                     session.AddRange(durableHistory);
                     turnCommitter.PersistedModelHistoryCount = session.Count;
+                    turnCommitter.ResidentBaseline = null;
                     ResetWorldStateBaseline(threadId, "history_reconciled");
                 }
                 if (!_runtimeRegistry.IsCurrent(threadId, admittedRuntime))
@@ -705,6 +709,10 @@ public sealed partial class SessionService
                             }
                             session.Clear();
                             session.AddRange(compactedHistory);
+                            result = result with
+                            {
+                                Replacement = new CompactionReplacement.Neutral(compactedHistory)
+                            };
                             TryAdvanceResponsesContextWindowAfterReplacement(threadId);
                             // Sampling boundaries project the replacement from inside the request
                             // pipeline; the phases outside it project here.
@@ -971,11 +979,14 @@ public sealed partial class SessionService
                     session = [.. messages];
                     ResetWorldStateBaseline(threadId, "client_history_supplied");
                 }
+                else if (thread.Ephemeral && admittedRuntime.EphemeralHistory is { } ephemeralHistory)
+                {
+                    session = ephemeralHistory.Select(message => message.Clone()).ToList();
+                }
                 else
                 {
-                    session = thread.Ephemeral && admittedRuntime.EphemeralHistory is { } ephemeralHistory
-                        ? ephemeralHistory.Select(message => message.Clone()).ToList()
-                        : await persistence.LoadModelHistoryAsync(thread, turn.Id, executionCt);
+                    (session, turnCommitter.ResidentBaseline) =
+                        await LoadServerModelHistoryAsync(thread, turn.Id, executionCt);
                 }
                 if (TrySnapshotInMemoryHistory(session, out var persistedHistory))
                     turnCommitter.PersistedModelHistoryCount = persistedHistory.Count;

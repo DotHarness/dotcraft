@@ -6,26 +6,39 @@ namespace DotCraft.Sessions;
 
 public static partial class SubAgentSessionControl
 {
-    private static void ApplyForkTurns(
+    private static async Task ApplyForkTurnsAsync(
+        ISessionService sessionService,
         SessionThread childThread,
         SessionThread parentThread,
         string forkTurns,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        CancellationToken ct)
     {
-        var selected = SelectForkTurns(parentThread, forkTurns, childThread.Id, now);
+        var source = await ReadForkSourceAsync(sessionService, parentThread, forkTurns, ct);
+        var selected = SelectForkTurns(source, forkTurns, childThread.Id, now);
         if (selected.Count > 0)
             childThread.Turns.AddRange(selected);
     }
 
-    private static string BuildExternalForkContext(SessionThread parentThread, string forkTurns)
+    private static async Task<string> BuildExternalForkContextAsync(
+        ISessionService sessionService,
+        SessionThread parentThread,
+        string forkTurns,
+        CancellationToken ct)
     {
-        var selected = SelectForkTurns(parentThread, forkTurns, parentThread.Id, DateTimeOffset.UtcNow);
+        var source = await ReadForkSourceAsync(sessionService, parentThread, forkTurns, ct);
+        var selected = SelectForkTurns(source, forkTurns, parentThread.Id, DateTimeOffset.UtcNow);
         return RenderTurnsAsPromptContext(selected);
     }
 
-    private static string BuildExternalThreadContextPrompt(SessionThread childThread, string message)
+    private static async Task<string> BuildExternalThreadContextPromptAsync(
+        ISessionService sessionService,
+        SessionThread childThread,
+        string message,
+        CancellationToken ct)
     {
-        var context = RenderTurnsAsPromptContext(childThread.Turns.Where(turn => !IsActiveTurn(turn)).ToArray());
+        var history = await ReadForkSourceAsync(sessionService, childThread, "all", ct);
+        var context = RenderTurnsAsPromptContext(history.Turns.Where(turn => !IsActiveTurn(turn)).ToArray());
         if (string.IsNullOrWhiteSpace(context))
             return message;
 
@@ -39,6 +52,43 @@ $$"""
 
 {{message}}
 """;
+    }
+
+    private static async Task<SessionThread> ReadForkSourceAsync(
+        ISessionService sessionService,
+        SessionThread source,
+        string forkTurns,
+        CancellationToken ct)
+    {
+        if (source.OmittedTurnCount == 0 || string.Equals(forkTurns, "none", StringComparison.OrdinalIgnoreCase))
+            return source;
+
+        var turns = new List<SessionTurn>();
+        if (int.TryParse(forkTurns, out var count))
+        {
+            var stable = 0;
+            await foreach (var turn in sessionService.ReadThreadTurnsAsync(
+                               source.Id, ThreadHistorySortDirection.Descending, ct: ct))
+            {
+                if (stable == count && !IsActiveTurn(turn))
+                    break;
+                turns.Add(turn);
+                if (!IsActiveTurn(turn))
+                    stable++;
+            }
+
+            turns.Reverse();
+        }
+        else
+        {
+            await foreach (var turn in sessionService.ReadThreadTurnsAsync(
+                               source.Id, ThreadHistorySortDirection.Ascending, ct: ct))
+            {
+                turns.Add(turn);
+            }
+        }
+
+        return source.WithTurns(turns);
     }
 
     private static List<SessionTurn> SelectForkTurns(

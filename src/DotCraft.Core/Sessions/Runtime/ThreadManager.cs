@@ -14,6 +14,7 @@ namespace DotCraft.Sessions;
 internal sealed class ThreadManager
 {
     private readonly ConcurrentDictionary<string, ThreadRuntime> _runtimes = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, ThreadEventBroker> _brokers = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _pendingPermanentDeletion = new(StringComparer.Ordinal);
 
     public int Count => _runtimes.Count;
@@ -38,19 +39,27 @@ internal sealed class ThreadManager
         return false;
     }
 
+    public ThreadEventBroker GetBroker(string threadId) =>
+        _brokers.GetOrAdd(threadId, static id => new ThreadEventBroker(id));
+
     public ThreadRuntime SetThread(SessionThread thread) =>
         _runtimes.AddOrUpdate(
             thread.Id,
-            static (_, value) => new ThreadRuntime(value),
+            static (_, value) => new ThreadRuntime(value.Thread, value.Broker),
             static (_, runtime, value) =>
             {
-                runtime.Thread = value;
+                runtime.Thread = value.Thread;
                 return runtime;
             },
-            thread);
+            (Thread: thread, Broker: GetBroker(thread.Id)));
 
     public bool TryRemove(string threadId, out ThreadRuntime runtime) =>
         _runtimes.TryRemove(threadId, out runtime!);
+
+    public bool TryRemove(ThreadRuntime runtime) =>
+        _runtimes.TryRemove(new KeyValuePair<string, ThreadRuntime>(runtime.Thread.Id, runtime));
+
+    public void ForgetBroker(string threadId) => _brokers.TryRemove(threadId, out _);
 
     public void MarkPendingPermanentDeletion(string threadId) =>
         _pendingPermanentDeletion[threadId] = 0;
@@ -64,7 +73,7 @@ internal sealed class ThreadManager
         _pendingPermanentDeletion.ContainsKey(threadId);
 }
 
-internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable
+internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker broker) : IAsyncDisposable
 {
     private static long _nextGeneration;
     private readonly object _bindingMcpLock = new();
@@ -75,6 +84,7 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable
     private readonly ConcurrentDictionary<string, byte> _goalBudgetLimitReported = new(StringComparer.Ordinal);
     private long _toolSnapshotRevision;
     private int _toolSnapshotDirty = 1;
+    private long _lastAccessTicks = DateTimeOffset.UtcNow.UtcTicks;
 
     public SessionThread Thread { get; set; } = thread;
 
@@ -87,7 +97,7 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable
     /// <summary>The single owner of externally initiated Thread state transitions.</summary>
     public ThreadCommandDispatcher Commands { get; } = new(thread.Id);
 
-    public ThreadEventBroker Broker { get; } = new(thread.Id);
+    public ThreadEventBroker Broker { get; } = broker;
 
     public SemaphoreSlim QueueLock { get; set; } = new(1, 1);
 
@@ -96,6 +106,8 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable
     public ChatClientAgent? Agent { get; set; }
 
     public IReadOnlyList<ChatMessage>? EphemeralHistory { get; set; }
+
+    public ResidentModelHistory? ResidentModelHistory { get; set; }
 
     public McpClientManager? McpManager { get; set; }
 
@@ -143,6 +155,12 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable
 
     public bool TryClearMaintenance(ThreadMaintenanceState state) =>
         Interlocked.CompareExchange(ref _maintenance, null, state) == state;
+
+    public DateTimeOffset LastAccessAt => new(Interlocked.Read(ref _lastAccessTicks), TimeSpan.Zero);
+
+    public void Touch() => Interlocked.Exchange(ref _lastAccessTicks, DateTimeOffset.UtcNow.UtcTicks);
+
+    public bool GoalContinuationStarting => Volatile.Read(ref _goalContinuationStarting) != 0;
 
     public bool TryStartGoalContinuation() =>
         Interlocked.CompareExchange(ref _goalContinuationStarting, 1, 0) == 0;

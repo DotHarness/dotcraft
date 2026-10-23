@@ -224,6 +224,7 @@ public sealed class MemoryExtractionEndToEndTests : IDisposable
             router.Bind(service);
             var scheduler = new MemoryExtractionScheduler(
                 service.GetThreadAsync,
+                (thread, ct) => service.ReadThreadTurnsAsync(thread.Id, ThreadHistorySortDirection.Descending, ct: ct),
                 new MemoryExtractionRunner(service, registry, test._memoryStore, test._craft, traceCollector));
             registry.Add<ITurnLifecycleContributor>(scheduler);
             var thread = await service.CreateThreadAsync(

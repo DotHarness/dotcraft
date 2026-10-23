@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DotCraft.Sessions;
 
 /// <summary>
@@ -93,9 +95,28 @@ public sealed class SessionThread
     public ThreadConfiguration? Configuration { get; set; }
 
     /// <summary>
-    /// Ordered list of Turns. Append-only.
+    /// Ordered visible Turns. A loaded persistent Thread keeps only its active and most recent terminal Turns here.
     /// </summary>
     public List<SessionTurn> Turns { get; set; } = [];
+
+    /// <summary>
+    /// Number of visible Turns, including earlier Turns that are not held in <see cref="Turns"/>.
+    /// </summary>
+    [JsonIgnore]
+    public int TurnCount => OmittedTurnCount + Turns.Count;
+
+    internal int OmittedTurnCount { get; set; }
+
+    internal TokenUsageInfo OmittedTokenUsage { get; set; } = new();
+
+    internal SessionThread WithTurns(List<SessionTurn> turns)
+    {
+        var copy = (SessionThread)MemberwiseClone();
+        copy.Turns = turns;
+        copy.OmittedTurnCount = 0;
+        copy.OmittedTokenUsage = new TokenUsageInfo();
+        return copy;
+    }
 
     /// <summary>
     /// Highest Turn sequence ever allocated in this Thread, including Turns later removed by rollback.

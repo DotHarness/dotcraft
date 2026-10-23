@@ -40,7 +40,7 @@ public sealed partial class SessionService
         if (handler is null)
             return;
 
-        var total = turnUsage;
+        var total = turnUsage + thread.OmittedTokenUsage;
         foreach (var other in thread.Turns)
         {
             if (!string.Equals(other.Id, turn.Id, StringComparison.Ordinal) && other.TokenUsage is { } usage)

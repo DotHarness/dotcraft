@@ -5,6 +5,8 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useLocale } from '../../contexts/LocaleContext'
 import type { ConversationItem } from '../../types/conversation'
 import { translate } from '../../../shared/locales'
+import { readAppServerErrorFields } from '../../../shared/appServerError'
+import { isMcpAppCandidate } from '../../utils/mcpAppCandidate'
 import { Skeleton } from '../ui/Skeleton'
 import { IconButton } from '../ui/IconButton'
 import { THEME_CHANGED_EVENT } from '../../../shared/theme'
@@ -187,7 +189,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     setHeight(DEFAULT_HEIGHT)
     setFrameWidth(null)
     setFullscreen(false)
-    if (!threadId || !item.mcpAppAvailable) {
+    if (!threadId || !isMcpAppCandidate(item)) {
       setStatus('stale')
       return
     }
@@ -207,15 +209,18 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
       handleRef.current = opened.viewHandle
       setOpenResult(opened)
     }).catch((reason: unknown) => {
-      if (!cancelled) {
-        setError(reason instanceof Error ? reason.message : String(reason))
-        setStatus('failed')
+      if (cancelled) return
+      if (readAppServerErrorFields(reason).data?.code === 'stale') {
+        setStatus('stale')
+        return
       }
+      setError(reason instanceof Error ? reason.message : String(reason))
+      setStatus('failed')
     })
     return () => {
       cancelled = true
     }
-  }, [item.id, item.mcpAppAvailable, threadId, turnId])
+  }, [item.id, item.mcpAppResourceUri, item.status, threadId, turnId])
 
   const closeView = useCallback(() => {
     const handle = handleRef.current
@@ -673,10 +678,6 @@ function Fallback({ icon, title, detail }: { icon: JSX.Element; title: string; d
       </div>
     </div>
   )
-}
-
-export function hasAvailableMcpApp(item: ConversationItem): boolean {
-  return item.type === 'mcpToolCall' && item.status === 'completed' && item.mcpAppAvailable === true
 }
 
 export const McpAppView = memo(McpAppViewImpl)

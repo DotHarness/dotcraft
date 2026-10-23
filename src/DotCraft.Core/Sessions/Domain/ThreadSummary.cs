@@ -93,6 +93,9 @@ public sealed class ThreadSummaryRuntime
         };
     }
 
+    internal ThreadSummaryRuntime WithoutExecutionOwner() =>
+        Running ? new ThreadSummaryRuntime { QueuePaused = true } : this;
+
     internal static bool IsQueuePaused(SessionThread thread) =>
         thread.Turns.LastOrDefault()?.Status == TurnStatus.Cancelled;
 
@@ -222,7 +225,7 @@ public sealed class ThreadSummary
             Status = thread.Status,
             CreatedAt = thread.CreatedAt,
             LastActiveAt = thread.LastActiveAt,
-            TurnCount = thread.Turns.Count,
+            TurnCount = thread.TurnCount,
             Runtime = ThreadSummaryRuntime.FromThread(thread),
             Metadata = BuildSummaryMetadata(thread)
         };

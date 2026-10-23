@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 
 namespace DotCraft.Sessions;
 
-internal sealed class ThreadRolloutStore
+internal sealed partial class ThreadRolloutStore
 {
     private readonly string _activeDir;
     private readonly string _archivedDir;
@@ -84,9 +84,7 @@ internal sealed class ThreadRolloutStore
         return await ReadThreadFileAsync(normalizedPath, ct);
     }
 
-    internal static async Task<SessionThread?> ReadThreadFileAsync(
-        string path,
-        CancellationToken ct = default)
+    internal static async Task<SessionThread?> ReadThreadFileAsync(string path, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         if (!File.Exists(path))
@@ -94,33 +92,6 @@ internal sealed class ThreadRolloutStore
         var replay = new ThreadReplay();
         await Utf8JsonlReader.ReadAsync(path, replay.Apply, ct);
         return WithWorkspace(replay.Build(), path);
-    }
-
-    public IEnumerable<SessionThread> LoadAllThreads()
-    {
-        foreach (var dir in new[] { _activeDir, _archivedDir })
-        {
-            if (!Directory.Exists(dir))
-                continue;
-
-            foreach (var path in Directory.EnumerateFiles(dir, "*.jsonl", SearchOption.TopDirectoryOnly))
-            {
-                SessionThread? thread = null;
-                try
-                {
-                    var replay = new ThreadReplay();
-                    Utf8JsonlReader.Read(path, replay.Apply);
-                    thread = WithWorkspace(replay.Build(), path);
-                }
-                catch
-                {
-                    // Corrupt rollout files are already ignored during discovery.
-                }
-
-                if (thread != null)
-                    yield return thread;
-            }
-        }
     }
 
     private static SessionThread? WithWorkspace(SessionThread? thread, string rolloutPath)
@@ -158,13 +129,12 @@ internal sealed class ThreadRolloutStore
         if (records.Count > 0)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-            var receipt = await AppendRecordsAsync(thread.Id, targetPath, records, ct);
-            return new RolloutAppendResult(targetPath, receipt);
+            return await AppendRecordsAsync(thread.Id, targetPath, records, ct);
         }
 
         return new RolloutAppendResult(
             targetPath,
-            new RolloutWriteReceipt(File.Exists(targetPath) ? new FileInfo(targetPath).Length : 0, 0, new Dictionary<string, long>()));
+            new RolloutWriteReceipt(File.Exists(targetPath) ? new FileInfo(targetPath).Length : 0, 0, new Dictionary<string, long>()), []);
     }
 
     public async Task<RolloutAppendResult> AppendRollbackAsync(
@@ -196,8 +166,7 @@ internal sealed class ThreadRolloutStore
         };
 
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-        var receipt = await AppendRecordsAsync(thread.Id, targetPath, [record], ct);
-        return new RolloutAppendResult(targetPath, receipt);
+        return await AppendRecordsAsync(thread.Id, targetPath, [record], ct);
     }
 
     /// <summary>Appends change records to the thread's current rollout, or returns null when it must be saved whole.</summary>
@@ -213,8 +182,7 @@ internal sealed class ThreadRolloutStore
             return null;
         }
 
-        var receipt = await AppendRecordsAsync(thread.Id, path, records, ct);
-        return new RolloutAppendResult(path, receipt);
+        return await AppendRecordsAsync(thread.Id, path, records, ct);
     }
 
     public async Task<RolloutAppendResult> AppendThreadBaselineAsync(SessionThread thread, CancellationToken ct = default)
@@ -223,8 +191,7 @@ internal sealed class ThreadRolloutStore
         if (path == null)
             return await SaveThreadAsync(thread, previous: null, ct);
 
-        var receipt = await AppendRecordsAsync(thread.Id, path, [CreateThreadOpenedRecord(thread)], ct);
-        return new RolloutAppendResult(path, receipt);
+        return await AppendRecordsAsync(thread.Id, path, [CreateThreadOpenedRecord(thread)], ct);
     }
 
     public async Task<RolloutAppendResult> AppendTurnStateAsync(
@@ -255,8 +222,7 @@ internal sealed class ThreadRolloutStore
             }
         };
 
-        var receipt = await AppendRecordsAsync(thread.Id, existingPath, [record], ct);
-        return new RolloutAppendResult(existingPath, receipt);
+        return await AppendRecordsAsync(thread.Id, existingPath, [record], ct);
     }
 
     public async Task<RolloutAppendResult> AppendCompactionCheckpointAsync(
@@ -293,8 +259,7 @@ internal sealed class ThreadRolloutStore
         };
 
         Directory.CreateDirectory(Path.GetDirectoryName(existingPath)!);
-        var receipt = await AppendRecordsAsync(threadId, existingPath, [record], ct);
-        return new RolloutAppendResult(existingPath, receipt);
+        return await AppendRecordsAsync(threadId, existingPath, [record], ct);
     }
 
     public async Task<RolloutAppendResult> AppendWorldStateAsync(
@@ -321,8 +286,7 @@ internal sealed class ThreadRolloutStore
             }
         };
 
-        var receipt = await AppendRecordsAsync(threadId, existingPath, [record], ct);
-        return new RolloutAppendResult(existingPath, receipt);
+        return await AppendRecordsAsync(threadId, existingPath, [record], ct);
     }
 
     public async Task<IReadOnlyList<ThreadCompactionCheckpoint>> LoadCompactionCheckpointsAsync(
@@ -381,7 +345,7 @@ internal sealed class ThreadRolloutStore
         if (messages.Count == 0)
             return new RolloutAppendResult(
                 existingPath,
-                new RolloutWriteReceipt(new FileInfo(existingPath).Length, 0, new Dictionary<string, long>()));
+                new RolloutWriteReceipt(new FileInfo(existingPath).Length, 0, new Dictionary<string, long>()), []);
 
         var record = new ThreadRolloutRecord
         {
@@ -395,8 +359,7 @@ internal sealed class ThreadRolloutStore
             }
         };
 
-        var receipt = await AppendRecordsAsync(threadId, existingPath, [record], ct);
-        return new RolloutAppendResult(existingPath, receipt);
+        return await AppendRecordsAsync(threadId, existingPath, [record], ct);
     }
 
     public async Task<RolloutAppendResult> AppendProviderHistoryItemsAsync(
@@ -410,7 +373,7 @@ internal sealed class ThreadRolloutStore
         {
             return new RolloutAppendResult(
                 existingPath,
-                new RolloutWriteReceipt(new FileInfo(existingPath).Length, 0, new Dictionary<string, long>()));
+                new RolloutWriteReceipt(new FileInfo(existingPath).Length, 0, new Dictionary<string, long>()), []);
         }
 
         var record = new ThreadRolloutRecord
@@ -419,8 +382,7 @@ internal sealed class ThreadRolloutStore
             Timestamp = DateTimeOffset.UtcNow,
             ProviderHistoryItemsAppended = payload
         };
-        var receipt = await AppendRecordsAsync(payload.ThreadId, existingPath, [record], ct);
-        return new RolloutAppendResult(existingPath, receipt);
+        return await AppendRecordsAsync(payload.ThreadId, existingPath, [record], ct);
     }
 
     public async Task<RolloutAppendResult> AppendProviderHistoryReplacementAsync(
@@ -436,8 +398,7 @@ internal sealed class ThreadRolloutStore
             Timestamp = DateTimeOffset.UtcNow,
             ProviderHistoryReplaced = payload
         };
-        var receipt = await AppendRecordsAsync(payload.ThreadId, existingPath, [record], ct);
-        return new RolloutAppendResult(existingPath, receipt);
+        return await AppendRecordsAsync(payload.ThreadId, existingPath, [record], ct);
     }
 
     public async Task<RolloutAppendResult> AppendProviderHistoryAttemptAbortedAsync(
@@ -453,8 +414,7 @@ internal sealed class ThreadRolloutStore
             Timestamp = DateTimeOffset.UtcNow,
             ProviderHistoryAttemptAborted = payload
         };
-        var receipt = await AppendRecordsAsync(payload.ThreadId, existingPath, [record], ct);
-        return new RolloutAppendResult(existingPath, receipt);
+        return await AppendRecordsAsync(payload.ThreadId, existingPath, [record], ct);
     }
 
     public async Task<IReadOnlyList<ThreadRolloutRecord>> LoadProviderHistoryRecordsAsync(
@@ -503,10 +463,12 @@ internal sealed class ThreadRolloutStore
     {
         var targetPath = GetExpectedPath(thread.Id, thread.Status == ThreadStatus.Archived);
         var existingPath = ResolveExistingPath(thread.Id);
+        IReadOnlyList<ThreadRolloutRecord> openedRecords = [];
         if (existingPath == null)
         {
             var opened = await SaveThreadAsync(thread, previous: null, ct);
             existingPath = opened.Path;
+            openedRecords = opened.Records;
         }
         if (!string.Equals(existingPath, targetPath, StringComparison.OrdinalIgnoreCase))
         {
@@ -566,8 +528,8 @@ internal sealed class ThreadRolloutStore
             });
         }
 
-        var receipt = await AppendRecordsAsync(thread.Id, existingPath, records, ct);
-        return new RolloutAppendResult(existingPath, receipt);
+        var result = await AppendRecordsAsync(thread.Id, existingPath, records, ct);
+        return openedRecords.Count == 0 ? result : result with { Records = [.. openedRecords, .. records] };
     }
 
     public async Task<ModelHistoryReplayResult> ReplayModelHistoryAsync(
@@ -668,724 +630,15 @@ internal sealed class ThreadRolloutStore
         return $"thread-{hash}.jsonl";
     }
 
-    private static List<ThreadRolloutRecord> BuildRecords(SessionThread? previous, SessionThread current)
-    {
-        var records = new List<ThreadRolloutRecord>();
-
-        if (previous == null || ThreadBaselineChanged(previous, current))
-            records.Add(CreateThreadOpenedRecord(current));
-
-        var previousTurns = previous?.Turns.ToDictionary(t => t.Id, StringComparer.Ordinal) ?? [];
-        foreach (var turn in current.Turns)
-        {
-            if (!previousTurns.TryGetValue(turn.Id, out var previousTurn))
-            {
-                records.Add(CreateTurnStartedRecord(turn));
-                foreach (var item in turn.Items)
-                    records.Add(RolloutChangeRecords.ItemAppended(turn.Id, item));
-
-                if (turn.Status != TurnStatus.Running)
-                    records.Add(CreateTurnCompletedRecord(turn));
-                continue;
-            }
-
-            if (TurnsEquivalent(previousTurn, turn))
-                continue;
-
-            if (TryBuildIncrementalTurnRecords(previousTurn, turn, records))
-                continue;
-
-            records.Add(CreateTurnStartedRecord(turn));
-            foreach (var item in turn.Items)
-                records.Add(RolloutChangeRecords.ItemAppended(turn.Id, item));
-
-            if (turn.Status != TurnStatus.Running)
-                records.Add(CreateTurnCompletedRecord(turn));
-        }
-
-        static bool TryBuildIncrementalTurnRecords(
-            SessionTurn previousTurn,
-            SessionTurn currentTurn,
-            List<ThreadRolloutRecord> records)
-        {
-            if (!TurnIdentityEquivalent(previousTurn, currentTurn))
-                return false;
-            if (currentTurn.Items.Count < previousTurn.Items.Count)
-                return false;
-
-            var statusChanged = previousTurn.Status != currentTurn.Status;
-            if (statusChanged && previousTurn.Status != TurnStatus.Running)
-                return false;
-
-            for (var i = 0; i < previousTurn.Items.Count; i++)
-            {
-                if (!string.Equals(
-                        previousTurn.Items[i].Id,
-                        currentTurn.Items[i].Id,
-                        StringComparison.Ordinal))
-                    return false;
-            }
-
-            if (!statusChanged
-                && IsTerminal(currentTurn.Status)
-                && !TurnCompletionMetadataEquivalent(previousTurn, currentTurn))
-                return false;
-
-            for (var i = 0; i < currentTurn.Items.Count; i++)
-            {
-                if (i >= previousTurn.Items.Count
-                    || !JsonEquals(previousTurn.Items[i], currentTurn.Items[i]))
-                {
-                    records.Add(RolloutChangeRecords.ItemAppended(currentTurn.Id, currentTurn.Items[i]));
-                }
-            }
-
-            if (statusChanged)
-                records.Add(CreateTurnCompletedRecord(currentTurn));
-
-            return true;
-        }
-
-        static bool TurnIdentityEquivalent(SessionTurn previousTurn, SessionTurn currentTurn)
-        {
-            return string.Equals(previousTurn.Id, currentTurn.Id, StringComparison.Ordinal)
-                && string.Equals(previousTurn.ThreadId, currentTurn.ThreadId, StringComparison.Ordinal)
-                && previousTurn.StartedAt == currentTurn.StartedAt
-                && string.Equals(previousTurn.OriginChannel, currentTurn.OriginChannel, StringComparison.Ordinal)
-                && JsonEquals(previousTurn.Initiator, currentTurn.Initiator)
-                && JsonEquals(previousTurn.Input, currentTurn.Input);
-        }
-
-        static bool IsTerminal(TurnStatus status) =>
-            status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Cancelled;
-
-        static bool TurnCompletionMetadataEquivalent(SessionTurn previousTurn, SessionTurn currentTurn) =>
-            previousTurn.Status == currentTurn.Status
-            && previousTurn.CompletedAt == currentTurn.CompletedAt
-            && JsonEquals(previousTurn.TokenUsage, currentTurn.TokenUsage)
-            && JsonEquals(previousTurn.Error, currentTurn.Error);
-
-        if (!string.Equals(previous?.DisplayName, current.DisplayName, StringComparison.Ordinal))
-        {
-            records.Add(new ThreadRolloutRecord
-            {
-                Kind = RolloutKinds.ThreadNameUpdated,
-                Timestamp = current.LastActiveAt,
-                ThreadNameUpdated = new ThreadNameUpdatedPayload
-                {
-                    ThreadId = current.Id,
-                    DisplayName = current.DisplayName
-                }
-            });
-        }
-
-        var previousQueue = previous?.QueuedInputs ?? [];
-        var currentQueue = current.QueuedInputs;
-        foreach (var queued in currentQueue.Where(q => previousQueue.All(p => !string.Equals(p.Id, q.Id, StringComparison.Ordinal))))
-            records.Add(RolloutChangeRecords.QueuedInputAdded(current.Id, queued));
-
-        foreach (var removed in previousQueue.Where(p => currentQueue.All(q => !string.Equals(q.Id, p.Id, StringComparison.Ordinal))))
-            records.Add(RolloutChangeRecords.QueuedInputRemoved(current.Id, removed.Id, current.LastActiveAt));
-
-        foreach (var currentQueued in currentQueue)
-        {
-            var previousQueued = previousQueue.FirstOrDefault(q => string.Equals(q.Id, currentQueued.Id, StringComparison.Ordinal));
-            if (previousQueued != null && !string.Equals(previousQueued.Status, currentQueued.Status, StringComparison.Ordinal))
-                records.Add(RolloutChangeRecords.QueuedInputUpdated(current.Id, currentQueued, current.LastActiveAt));
-        }
-
-        var previousQueueIds = previousQueue.Select(q => q.Id).ToList();
-        var currentQueueIds = currentQueue.Select(q => q.Id).ToList();
-        if (previousQueueIds.Count == currentQueueIds.Count
-            && !previousQueueIds.SequenceEqual(currentQueueIds, StringComparer.Ordinal)
-            && previousQueueIds.ToHashSet(StringComparer.Ordinal).SetEquals(currentQueueIds))
-        {
-            records.Add(RolloutChangeRecords.QueuedInputReordered(current.Id, currentQueueIds, current.LastActiveAt));
-        }
-
-        if (previous == null || previous.Status != current.Status || previous.LastActiveAt != current.LastActiveAt)
-        {
-            records.Add(new ThreadRolloutRecord
-            {
-                Kind = RolloutKinds.ThreadStatusChanged,
-                Timestamp = current.LastActiveAt,
-                ThreadStatusChanged = new RolloutThreadStatusChangedPayload
-                {
-                    ThreadId = current.Id,
-                    Status = current.Status,
-                    LastActiveAt = current.LastActiveAt
-                }
-            });
-        }
-
-        return records;
-    }
-
     public Task ShutdownAsync(CancellationToken ct = default) => _writer.ShutdownAllAsync(ct);
 
-    private async Task<RolloutWriteReceipt> AppendRecordsAsync(
+    private async Task<RolloutAppendResult> AppendRecordsAsync(
         string threadId,
         string path,
         IReadOnlyList<ThreadRolloutRecord> records,
         CancellationToken ct)
     {
         await _writer.AddBatchAsync(threadId, path, records, ct);
-        return await _writer.FlushAsync(threadId, ct);
+        return new RolloutAppendResult(path, await _writer.FlushAsync(threadId, ct), records);
     }
-
-    private static bool ThreadBaselineChanged(SessionThread previous, SessionThread current)
-    {
-        if (!string.Equals(previous.UserId, current.UserId, StringComparison.Ordinal))
-            return true;
-        if (!string.Equals(previous.OriginChannel, current.OriginChannel, StringComparison.Ordinal))
-            return true;
-        if (!string.Equals(previous.ChannelContext, current.ChannelContext, StringComparison.Ordinal))
-            return true;
-        if (previous.CreatedAt != current.CreatedAt)
-            return true;
-        if (previous.HistoryMode != current.HistoryMode)
-            return true;
-        if (!string.Equals(previous.ForkedFromId, current.ForkedFromId, StringComparison.Ordinal))
-            return true;
-        if (previous.Ephemeral != current.Ephemeral)
-            return true;
-        if (!JsonEquals(previous.Worktree, current.Worktree))
-            return true;
-        if (!JsonEquals(previous.GitInfo, current.GitInfo))
-            return true;
-        if (!JsonEquals(previous.Source, current.Source))
-            return true;
-        if (!JsonEquals(previous.Configuration, current.Configuration))
-            return true;
-        if (previous.ProviderHistorySchemaVersion != current.ProviderHistorySchemaVersion)
-            return true;
-        return !JsonEquals(previous.Metadata, current.Metadata);
-    }
-
-    private static bool TurnsEquivalent(SessionTurn previous, SessionTurn current)
-    {
-        return JsonEquals(previous, current);
-    }
-
-    private static bool JsonEquals<T>(T? left, T? right)
-    {
-        return JsonSerializer.Serialize(left, JsonOptions) == JsonSerializer.Serialize(right, JsonOptions);
-    }
-
-    private static ThreadRolloutRecord CreateThreadOpenedRecord(SessionThread thread)
-    {
-        return new ThreadRolloutRecord
-        {
-            Kind = RolloutKinds.ThreadOpened,
-            Timestamp = thread.LastActiveAt,
-            ThreadOpened = new ThreadOpenedPayload
-            {
-                ThreadId = thread.Id,
-                UserId = thread.UserId,
-                OriginChannel = thread.OriginChannel,
-                ChannelContext = thread.ChannelContext,
-                Source = PersistedThreadSourceCodec.Encode(thread.Source),
-                ForkedFromId = thread.ForkedFromId,
-                Ephemeral = thread.Ephemeral,
-                Worktree = thread.Worktree,
-                GitInfo = thread.GitInfo,
-                CreatedAt = thread.CreatedAt,
-                LastActiveAt = thread.LastActiveAt,
-                Metadata = new Dictionary<string, string>(thread.Metadata),
-                HistoryMode = thread.HistoryMode,
-                Configuration = thread.Configuration,
-                ProviderHistorySchemaVersion = thread.ProviderHistorySchemaVersion,
-                TurnSequenceHighWatermark = thread.TurnSequenceHighWatermark
-            }
-        };
-    }
-
-    private static ThreadRolloutRecord CreateTurnStartedRecord(SessionTurn turn)
-    {
-        return new ThreadRolloutRecord
-        {
-            Kind = RolloutKinds.TurnStarted,
-            Timestamp = turn.StartedAt,
-            TurnStarted = new TurnStartedPayload
-            {
-                Turn = new SessionTurn
-                {
-                    Id = turn.Id,
-                    ThreadId = turn.ThreadId,
-                    Status = turn.Status == TurnStatus.Completed || turn.Status == TurnStatus.Failed || turn.Status == TurnStatus.Cancelled
-                        ? TurnStatus.Running
-                        : turn.Status,
-                    StartedAt = turn.StartedAt,
-                    CompletedAt = null,
-                    TokenUsage = null,
-                    Error = null,
-                    OriginChannel = turn.OriginChannel,
-                    Initiator = turn.Initiator,
-                    Items = []
-                }
-            }
-        };
-    }
-
-    private static ThreadRolloutRecord CreateTurnCompletedRecord(SessionTurn turn)
-    {
-        return new ThreadRolloutRecord
-        {
-            Kind = RolloutKinds.TurnCompleted,
-            Timestamp = turn.CompletedAt ?? turn.StartedAt,
-            TurnCompleted = new TurnCompletedPayload
-            {
-                TurnId = turn.Id,
-                Status = turn.Status,
-                CompletedAt = turn.CompletedAt,
-                TokenUsage = turn.TokenUsage,
-                Error = turn.Error,
-                OriginChannel = turn.OriginChannel,
-                Initiator = turn.Initiator
-            }
-        };
-    }
-
-    private sealed class ThreadReplay
-    {
-        private readonly Dictionary<string, SessionTurn> _turns = new(StringComparer.Ordinal);
-        private SessionThread? _thread;
-        private int _turnSequenceHighWatermark;
-        private bool _hasCanonicalHeader;
-
-        public void Apply(ReadOnlySpan<byte> line)
-        {
-            if (Utf8JsonlReader.IsWhiteSpace(line))
-                return;
-
-            ThreadRolloutRecord? record;
-            try
-            {
-                record = JsonSerializer.Deserialize<ThreadRolloutRecord>(line, JsonOptions);
-            }
-            catch (JsonException ex)
-            {
-                if (!_hasCanonicalHeader)
-                    throw new InvalidDataException("The canonical thread header is unreadable.", ex);
-                System.Diagnostics.Trace.TraceWarning("Skipped a malformed rollout record after the canonical thread header.");
-                return;
-            }
-
-            if (record == null)
-            {
-                if (!_hasCanonicalHeader)
-                    throw new InvalidDataException("The canonical thread header is empty.");
-                System.Diagnostics.Trace.TraceWarning("Skipped an empty rollout record after the canonical thread header.");
-                return;
-            }
-
-            if (record.Kind == RolloutKinds.ThreadOpened && record.ThreadOpened == null)
-                throw new InvalidDataException("A canonical thread baseline record is incomplete.");
-
-            if (!_hasCanonicalHeader
-                && (record.Kind != RolloutKinds.ThreadOpened || record.ThreadOpened == null))
-            {
-                throw new InvalidDataException("The rollout does not begin with a canonical thread header.");
-            }
-
-            switch (record.Kind)
-            {
-                case RolloutKinds.ThreadOpened when record.ThreadOpened != null:
-                    _thread ??= new SessionThread();
-                    _thread.Id = record.ThreadOpened.ThreadId;
-                    _thread.UserId = record.ThreadOpened.UserId;
-                    _thread.OriginChannel = record.ThreadOpened.OriginChannel;
-                    _thread.ChannelContext = record.ThreadOpened.ChannelContext;
-                    _thread.Source = PersistedThreadSourceCodec.Decode(
-                        record.ThreadOpened.Source
-                        ?? throw new InvalidDataException("The canonical thread header has no source."));
-                    _thread.ForkedFromId = record.ThreadOpened.ForkedFromId;
-                    _thread.Ephemeral = record.ThreadOpened.Ephemeral;
-                    _thread.Worktree = record.ThreadOpened.Worktree;
-                    _thread.GitInfo = record.ThreadOpened.GitInfo;
-                    _thread.CreatedAt = record.ThreadOpened.CreatedAt;
-                    _thread.LastActiveAt = record.ThreadOpened.LastActiveAt;
-                    _thread.Metadata = new Dictionary<string, string>(record.ThreadOpened.Metadata);
-                    _thread.HistoryMode = record.ThreadOpened.HistoryMode;
-                    _thread.Configuration = record.ThreadOpened.Configuration;
-                    _thread.ProviderHistorySchemaVersion = record.ThreadOpened.ProviderHistorySchemaVersion;
-                    _turnSequenceHighWatermark = Math.Max(
-                        _turnSequenceHighWatermark,
-                        record.ThreadOpened.TurnSequenceHighWatermark);
-                    _hasCanonicalHeader = true;
-                    break;
-
-                case RolloutKinds.ThreadNameUpdated when _thread != null && record.ThreadNameUpdated != null:
-                    _thread.DisplayName = record.ThreadNameUpdated.DisplayName;
-                    break;
-
-                case RolloutKinds.ThreadStatusChanged when _thread != null && record.ThreadStatusChanged != null:
-                    _thread.Status = record.ThreadStatusChanged.Status;
-                    _thread.LastActiveAt = record.ThreadStatusChanged.LastActiveAt;
-                    break;
-
-                case RolloutKinds.TurnStateReplaced when _thread != null && record.TurnStateReplaced != null:
-                    var replacement = record.TurnStateReplaced;
-                    var replacementTurn = replacement.Turn;
-                    _turnSequenceHighWatermark = Math.Max(
-                        _turnSequenceHighWatermark,
-                        SessionIdGenerator.LastTurnSequence([replacementTurn.Id]));
-                    replacementTurn.Input ??= replacementTurn.Items.FirstOrDefault(static item =>
-                        item.Type == ItemType.UserMessage);
-                    _turns[replacementTurn.Id] = replacementTurn;
-                    _thread.Status = replacement.ThreadStatus;
-                    _thread.LastActiveAt = replacement.LastActiveAt;
-                    _thread.DisplayName = replacement.DisplayName;
-                    break;
-
-                case RolloutKinds.TurnStarted when _thread != null && record.TurnStarted != null:
-                    var started = record.TurnStarted.Turn;
-                    _turnSequenceHighWatermark = Math.Max(
-                        _turnSequenceHighWatermark,
-                        SessionIdGenerator.LastTurnSequence([started.Id]));
-                    started.Items = [];
-                    started.Input = null;
-                    _turns[started.Id] = started;
-                    break;
-
-                case RolloutKinds.ItemAppended when record.ItemAppended != null:
-                    if (!_turns.TryGetValue(record.ItemAppended.TurnId, out var turn))
-                    {
-                        turn = new SessionTurn
-                        {
-                            Id = record.ItemAppended.TurnId,
-                            ThreadId = _thread?.Id ?? string.Empty,
-                            Status = TurnStatus.Running,
-                            StartedAt = record.Timestamp
-                        };
-                        _turns[turn.Id] = turn;
-                    }
-
-                    var existingIdx = turn.Items.FindIndex(i => string.Equals(i.Id, record.ItemAppended.Item.Id, StringComparison.Ordinal));
-                    if (existingIdx >= 0)
-                        turn.Items[existingIdx] = record.ItemAppended.Item;
-                    else
-                        turn.Items.Add(record.ItemAppended.Item);
-
-                    if (record.ItemAppended.Item.Type == ItemType.UserMessage && turn.Input == null)
-                        turn.Input = record.ItemAppended.Item;
-                    break;
-
-                case RolloutKinds.TurnCompleted when record.TurnCompleted != null && _turns.TryGetValue(record.TurnCompleted.TurnId, out var completedTurn):
-                    completedTurn.Status = record.TurnCompleted.Status;
-                    completedTurn.CompletedAt = record.TurnCompleted.CompletedAt;
-                    completedTurn.TokenUsage = record.TurnCompleted.TokenUsage;
-                    completedTurn.Error = record.TurnCompleted.Error;
-                    completedTurn.OriginChannel = record.TurnCompleted.OriginChannel;
-                    completedTurn.Initiator = record.TurnCompleted.Initiator;
-                    break;
-
-                case RolloutKinds.ThreadRolledBack when _thread != null && record.ThreadRolledBack != null:
-                    ApplyRollback(_turns, record.ThreadRolledBack.NumTurns);
-                    _thread.LastActiveAt = record.ThreadRolledBack.LastActiveAt;
-                    break;
-
-                case RolloutKinds.QueuedInputAdded when _thread != null && record.QueuedInputAdded != null:
-                    if (_thread.QueuedInputs.All(q => !string.Equals(q.Id, record.QueuedInputAdded.QueuedInput.Id, StringComparison.Ordinal)))
-                        _thread.QueuedInputs.Add(record.QueuedInputAdded.QueuedInput);
-                    break;
-
-                case RolloutKinds.QueuedInputRemoved when _thread != null && record.QueuedInputRemoved != null:
-                    _thread.QueuedInputs.RemoveAll(q => string.Equals(q.Id, record.QueuedInputRemoved.QueuedInputId, StringComparison.Ordinal));
-                    _thread.LastActiveAt = record.QueuedInputRemoved.LastActiveAt;
-                    break;
-
-                case RolloutKinds.QueuedInputUpdated when _thread != null && record.QueuedInputUpdated != null:
-                    var updateIndex = _thread.QueuedInputs.FindIndex(q => string.Equals(q.Id, record.QueuedInputUpdated.QueuedInput.Id, StringComparison.Ordinal));
-                    if (updateIndex >= 0)
-                        _thread.QueuedInputs[updateIndex] = record.QueuedInputUpdated.QueuedInput;
-                    _thread.LastActiveAt = record.QueuedInputUpdated.LastActiveAt;
-                    break;
-
-                case RolloutKinds.QueuedInputReordered when _thread != null && record.QueuedInputReordered != null:
-                    var queuedById = _thread.QueuedInputs.ToDictionary(q => q.Id, StringComparer.Ordinal);
-                    var seenQueuedIds = new HashSet<string>(StringComparer.Ordinal);
-                    var reorderedQueue = new List<QueuedTurnInput>(_thread.QueuedInputs.Count);
-                    foreach (var queuedInputId in record.QueuedInputReordered.OrderedQueuedInputIds)
-                    {
-                        if (seenQueuedIds.Add(queuedInputId) && queuedById.TryGetValue(queuedInputId, out var queuedInput))
-                            reorderedQueue.Add(queuedInput);
-                    }
-
-                    reorderedQueue.AddRange(_thread.QueuedInputs.Where(q => !seenQueuedIds.Contains(q.Id)));
-                    _thread.QueuedInputs = reorderedQueue;
-                    _thread.LastActiveAt = record.QueuedInputReordered.LastActiveAt;
-                    break;
-            }
-        }
-
-        public SessionThread? Build()
-        {
-            if (_thread == null)
-                return null;
-
-            _thread.Turns = _turns.Values.OrderBy(t => t.StartedAt).ThenBy(t => t.Id, StringComparer.Ordinal).ToList();
-            _thread.TurnSequenceHighWatermark = Math.Max(
-                _turnSequenceHighWatermark,
-                SessionIdGenerator.LastTurnSequence(_thread.Turns));
-            return _thread;
-        }
-    }
-
-    private static void ApplyRollback(Dictionary<string, SessionTurn> turns, int numTurns)
-    {
-        if (numTurns <= 0 || turns.Count == 0)
-            return;
-
-        var idsToRemove = turns.Values
-            .OrderBy(t => t.StartedAt)
-            .ThenBy(t => t.Id, StringComparer.Ordinal)
-            .TakeLast(numTurns)
-            .Select(t => t.Id)
-            .ToList();
-
-        foreach (var id in idsToRemove)
-            turns.Remove(id);
-    }
-}
-
-internal sealed record RolloutAppendResult(string Path, RolloutWriteReceipt Receipt);
-
-internal sealed record TurnCompactionCommit(
-    string Trigger,
-    string Mode,
-    long TokensBefore,
-    long TokensAfter,
-    DateTimeOffset CreatedAt,
-    IReadOnlyList<ModelHistoryMessage> ReplacementHistory);
-
-internal sealed class ThreadRolloutRecord
-{
-    public string Kind { get; init; } = string.Empty;
-
-    public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.UtcNow;
-
-    public ThreadOpenedPayload? ThreadOpened { get; init; }
-
-    public TurnStartedPayload? TurnStarted { get; init; }
-
-    public ItemAppendedPayload? ItemAppended { get; init; }
-
-    public TurnCompletedPayload? TurnCompleted { get; init; }
-
-    public RolloutThreadStatusChangedPayload? ThreadStatusChanged { get; init; }
-
-    public ThreadNameUpdatedPayload? ThreadNameUpdated { get; init; }
-
-    public ThreadRolledBackPayload? ThreadRolledBack { get; init; }
-
-    public ContextCompactedPayload? ContextCompacted { get; init; }
-
-    public ModelHistoryMessagesAppendedPayload? ModelHistoryMessagesAppended { get; init; }
-
-    public WorldStatePayload? WorldState { get; init; }
-
-    public ProviderHistoryItemsAppendedPayload? ProviderHistoryItemsAppended { get; init; }
-
-    public ProviderHistoryReplacedPayload? ProviderHistoryReplaced { get; init; }
-
-    public ProviderHistoryAttemptAbortedPayload? ProviderHistoryAttemptAborted { get; init; }
-
-    public TurnStateReplacedPayload? TurnStateReplaced { get; init; }
-
-    public QueuedInputAddedPayload? QueuedInputAdded { get; init; }
-
-    public QueuedInputRemovedPayload? QueuedInputRemoved { get; init; }
-
-    public QueuedInputUpdatedPayload? QueuedInputUpdated { get; init; }
-
-    public QueuedInputReorderedPayload? QueuedInputReordered { get; init; }
-}
-
-internal sealed class ThreadOpenedPayload
-{
-    public string ThreadId { get; init; } = string.Empty;
-
-    public string? UserId { get; init; }
-
-    public string OriginChannel { get; init; } = string.Empty;
-
-    public string? ChannelContext { get; init; }
-
-    public PersistedThreadSource? Source { get; init; }
-
-    public string? ForkedFromId { get; init; }
-
-    public bool Ephemeral { get; init; }
-
-    public ThreadWorktreeInfo? Worktree { get; init; }
-
-    public ThreadGitInfo? GitInfo { get; init; }
-
-    public DateTimeOffset CreatedAt { get; init; }
-
-    public DateTimeOffset LastActiveAt { get; init; }
-
-    public Dictionary<string, string> Metadata { get; init; } = [];
-
-    public HistoryMode HistoryMode { get; init; }
-
-    public ThreadConfiguration? Configuration { get; init; }
-
-    public int ProviderHistorySchemaVersion { get; init; }
-
-    public int TurnSequenceHighWatermark { get; init; }
-}
-
-internal sealed class TurnStartedPayload
-{
-    public SessionTurn Turn { get; init; } = new();
-}
-
-internal sealed class ItemAppendedPayload
-{
-    public string TurnId { get; init; } = string.Empty;
-
-    public SessionItem Item { get; init; } = new();
-}
-
-internal sealed class TurnCompletedPayload
-{
-    public string TurnId { get; init; } = string.Empty;
-
-    public TurnStatus Status { get; init; }
-
-    public DateTimeOffset? CompletedAt { get; init; }
-
-    public TokenUsageInfo? TokenUsage { get; init; }
-
-    public string? Error { get; init; }
-
-    public string? OriginChannel { get; init; }
-
-    public TurnInitiatorContext? Initiator { get; init; }
-}
-
-internal sealed class RolloutThreadStatusChangedPayload
-{
-    public string ThreadId { get; init; } = string.Empty;
-
-    public ThreadStatus Status { get; init; }
-
-    public DateTimeOffset LastActiveAt { get; init; }
-}
-
-internal sealed class ThreadNameUpdatedPayload
-{
-    public string ThreadId { get; init; } = string.Empty;
-
-    public string? DisplayName { get; init; }
-}
-
-internal sealed class ThreadRolledBackPayload
-{
-    public string ThreadId { get; init; } = string.Empty;
-
-    public int NumTurns { get; init; }
-
-    public DateTimeOffset LastActiveAt { get; init; }
-}
-
-internal sealed class ContextCompactedPayload
-{
-    public string ThreadId { get; init; } = string.Empty;
-
-    public string CoveredThroughTurnId { get; init; } = string.Empty;
-
-    public string CheckpointId { get; init; } = string.Empty;
-
-    public string Trigger { get; init; } = string.Empty;
-
-    public string Mode { get; init; } = string.Empty;
-
-    public long TokensBefore { get; init; }
-
-    public long TokensAfter { get; init; }
-
-    public DateTimeOffset CreatedAt { get; init; }
-
-    public List<ModelHistoryMessage> ReplacementHistory { get; init; } = [];
-}
-
-internal sealed record ThreadCompactionCheckpoint(
-    string ThreadId,
-    string CoveredThroughTurnId,
-    string CheckpointId,
-    string Trigger,
-    string Mode,
-    long TokensBefore,
-    long TokensAfter,
-    DateTimeOffset CreatedAt,
-    IReadOnlyList<ModelHistoryMessage> ReplacementHistory);
-
-internal sealed class ModelHistoryMessagesAppendedPayload
-{
-    public string ThreadId { get; init; } = string.Empty;
-
-    public string TurnId { get; init; } = string.Empty;
-
-    public List<ModelHistoryMessage> Messages { get; init; } = [];
-}
-
-internal sealed class WorldStatePayload
-{
-    public string ThreadId { get; init; } = string.Empty;
-
-    public string TurnId { get; init; } = string.Empty;
-
-    public bool Full { get; init; }
-
-    public JsonObject State { get; init; } = [];
-}
-
-internal sealed class TurnStateReplacedPayload
-{
-    public string ThreadId { get; init; } = string.Empty;
-
-    public SessionTurn Turn { get; init; } = new();
-
-    public ThreadStatus ThreadStatus { get; init; }
-
-    public DateTimeOffset LastActiveAt { get; init; }
-
-    public string? DisplayName { get; init; }
-}
-
-internal sealed class QueuedInputAddedPayload
-{
-    public string ThreadId { get; init; } = string.Empty;
-
-    public QueuedTurnInput QueuedInput { get; init; } = new();
-}
-
-internal sealed class QueuedInputRemovedPayload
-{
-    public string ThreadId { get; init; } = string.Empty;
-
-    public string QueuedInputId { get; init; } = string.Empty;
-
-    public DateTimeOffset LastActiveAt { get; init; }
-}
-
-internal sealed class QueuedInputUpdatedPayload
-{
-    public string ThreadId { get; init; } = string.Empty;
-
-    public QueuedTurnInput QueuedInput { get; init; } = new();
-
-    public DateTimeOffset LastActiveAt { get; init; }
-}
-
-internal sealed class QueuedInputReorderedPayload
-{
-    public string ThreadId { get; init; } = string.Empty;
-
-    public List<string> OrderedQueuedInputIds { get; init; } = [];
-
-    public DateTimeOffset LastActiveAt { get; init; }
 }

@@ -9,7 +9,8 @@ internal interface IRolloutReplayer
 {
     Task<ModelHistoryReplayResult> ReplayModelHistoryAsync(
         string rolloutPath,
-        IReadOnlyList<SessionTurn> survivingTurns,
+        IReadOnlyList<string> survivingTurnIds,
+        Func<IReadOnlyCollection<string>, CancellationToken, Task<IReadOnlyList<SessionTurn>>> readTurns,
         string? excludedTurnId = null,
         CancellationToken ct = default,
         string? expectedThreadId = null);

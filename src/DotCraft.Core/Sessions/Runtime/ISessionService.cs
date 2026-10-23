@@ -121,7 +121,7 @@ public interface ISessionService
     Task<ThreadGoal?> GetThreadGoalAsync(string threadId, CancellationToken ct = default) =>
         throw new NotSupportedException("Thread goals are not supported by this session service.");
 
-    /// <summary>Returns a Thread's stored goal without loading the Thread, for summary listings.</summary>
+    /// <summary>Returns a Thread's stored goal without loading the Thread, for read projections.</summary>
     Task<ThreadGoal?> GetStoredThreadGoalAsync(string threadId, CancellationToken ct = default) =>
         GetThreadGoalAsync(threadId, ct);
 
@@ -345,7 +345,7 @@ public interface ISessionService
         throw new NotSupportedException("Thread source-control target updates are not supported by this session service.");
 
     /// <summary>
-    /// Returns full Thread state. Cold loading first cancels a non-terminal Turn left by the previous process.
+    /// Returns loaded Thread state with its recent Turns. Cold loading first cancels a non-terminal Turn left by the previous process.
     /// </summary>
     Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default);
 
@@ -379,6 +379,38 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("Paged Thread history is not supported by this session service.");
 
+    /// <summary>Returns one visible Turn with its Items, or null when the Thread has no such Turn.</summary>
+    async Task<SessionTurn?> ReadThreadTurnAsync(string threadId, string turnId, CancellationToken ct = default) =>
+        (await GetThreadAsync(threadId, ct).ConfigureAwait(false)).Turns
+        .LastOrDefault(turn => string.Equals(turn.Id, turnId, StringComparison.Ordinal));
+
+    /// <summary>Returns one Item of a visible Turn, or null when it does not exist.</summary>
+    async Task<SessionItem?> ReadThreadItemAsync(
+        string threadId,
+        string turnId,
+        string itemId,
+        CancellationToken ct = default) =>
+        (await ReadThreadTurnAsync(threadId, turnId, ct).ConfigureAwait(false))?.Items
+        .FirstOrDefault(item => string.Equals(item.Id, itemId, StringComparison.Ordinal));
+
+    /// <summary>Enumerates every visible Turn in order; without Items, older Turns carry only their input.</summary>
+    async IAsyncEnumerable<SessionTurn> ReadThreadTurnsAsync(
+        string threadId,
+        ThreadHistorySortDirection direction,
+        bool includeItems = true,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var turns = (await GetThreadAsync(threadId, ct).ConfigureAwait(false)).Turns.ToArray();
+        if (direction == ThreadHistorySortDirection.Descending)
+            Array.Reverse(turns);
+        foreach (var turn in turns)
+            yield return turn;
+    }
+
+    /// <summary>Returns Turn count, token totals, and tool-call count over every visible Turn.</summary>
+    async Task<ThreadHistoryAggregates> ReadThreadAggregatesAsync(string threadId, CancellationToken ct = default) =>
+        ThreadHistoryTotals.Of((await GetThreadAsync(threadId, ct).ConfigureAwait(false)).Turns);
+
     /// <summary>
     /// Loads a Thread and prepares its configured agent without resuming it. Cold loading first cancels a non-terminal Turn left by the previous process.
     /// </summary>
@@ -399,6 +431,9 @@ public interface ISessionService
 
     /// <summary>Returns whether a loaded Thread is hidden; unloaded Threads report false.</summary>
     bool IsHiddenThread(string threadId) => false;
+
+    /// <summary>Returns the Thread when it is loaded in this process, without loading it.</summary>
+    SessionThread? TryGetLoadedThread(string threadId) => null;
 
     /// <summary>Notifies hosts after a Thread is created and persisted.</summary>
     Action<SessionThread>? ThreadCreatedForBroadcast { get; set; }

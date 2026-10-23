@@ -19,6 +19,7 @@ internal sealed class ThreadCommandDispatcher : IAsyncDisposable
     private readonly CancellationTokenSource _stopping = new();
     private readonly Task _pump;
     private int _disposed;
+    private int _closed;
 
     public ThreadCommandDispatcher(string threadId)
     {
@@ -44,7 +45,7 @@ internal sealed class ThreadCommandDispatcher : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(action);
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0 || Volatile.Read(ref _closed) != 0, this);
 
         var command = new ThreadCommand<TResult>(action, cancellationToken, ExecutionContext.Capture());
         if (!_commands.Writer.TryWrite(command))
@@ -58,7 +59,12 @@ internal sealed class ThreadCommandDispatcher : IAsyncDisposable
         try
         {
             await foreach (var command in _commands.Reader.ReadAllAsync(_stopping.Token).ConfigureAwait(false))
-                await command.ExecuteAsync(_stopping.Token).ConfigureAwait(false);
+            {
+                if (Volatile.Read(ref _closed) != 0)
+                    command.Fail(new ObjectDisposedException(nameof(ThreadCommandDispatcher)));
+                else
+                    await command.ExecuteAsync(_stopping.Token).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException) when (_stopping.IsCancellationRequested)
         {
@@ -79,6 +85,11 @@ internal sealed class ThreadCommandDispatcher : IAsyncDisposable
         if (terminalFailure != null)
             throw new InvalidOperationException($"Thread command dispatcher '{ThreadId}' stopped unexpectedly.", terminalFailure);
     }
+
+    /// <summary>Rejects every command not yet started; callable from a running command.</summary>
+    public void Close() => Volatile.Write(ref _closed, 1);
+
+    public bool IsClosed => Volatile.Read(ref _closed) != 0;
 
     public async ValueTask DisposeAsync()
     {

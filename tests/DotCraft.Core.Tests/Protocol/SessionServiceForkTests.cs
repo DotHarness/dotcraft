@@ -57,15 +57,15 @@ public sealed partial class SessionServiceForkTests : IDisposable
         Assert.Equal(source.Id, fork.ForkedFromId);
         Assert.Equal("Branch", fork.DisplayName);
         Assert.Empty(fork.QueuedInputs);
-        Assert.Equal(2, fork.Turns.Count);
-        Assert.All(fork.Turns, turn => Assert.Equal(fork.Id, turn.ThreadId));
-        Assert.Equal("second", Assert.IsType<UserMessagePayload>(fork.Turns[1].Input!.Payload).Text);
+        Assert.Equal(2, fork.TurnCount);
         AssertForkBoundaryNotice(fork.Turns[^1].Items[^1], source.Id);
 
         var loaded = await _store.LoadThreadAsync(fork.Id);
         Assert.NotNull(loaded);
         Assert.Equal(source.Id, loaded!.ForkedFromId);
         Assert.Equal(2, loaded.Turns.Count);
+        Assert.All(loaded.Turns, turn => Assert.Equal(fork.Id, turn.ThreadId));
+        Assert.Equal("second", Assert.IsType<UserMessagePayload>(loaded.Turns[1].Input!.Payload).Text);
         AssertForkBoundaryNotice(loaded.Turns[^1].Items[^1], source.Id);
 
         var indexed = Assert.Single(await _store.LoadIndexAsync(), summary => summary.Id == fork.Id);

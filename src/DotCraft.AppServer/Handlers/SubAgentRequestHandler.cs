@@ -15,7 +15,7 @@ internal sealed class SubAgentRequestHandler(
     string? workspaceCraftPath,
     string? hostWorkspacePath,
     AppServerRuntimeConfigRefresher runtimeConfig,
-    Func<SessionThread, SessionWireThread, CancellationToken, Task<SessionWireThread>> enrichThreadAsync,
+    Func<ThreadHistorySnapshot, CancellationToken, Task<SessionWireThread>> projectThreadHeaderAsync,
     Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory,
     IContributionView? contributions = null) : IAppServerDomainHandler
 {
@@ -251,9 +251,8 @@ internal sealed class SubAgentRequestHandler(
             Contract.SessionThread? thread = null;
             if (SubAgentContractMapper.Read(p.IncludeThreads) == true)
             {
-                var child = await sessionService.GetThreadAsync(edge.ChildThreadId, ct);
-                var enriched = await enrichThreadAsync(child, child.ToWire(includeTurns: false), ct);
-                thread = AppServerContractMapper.ToContract(enriched);
+                var snapshot = await sessionService.ReadThreadSnapshotAsync(edge.ChildThreadId, ct);
+                thread = AppServerContractMapper.ToContract(await projectThreadHeaderAsync(snapshot, ct));
             }
 
             data.Add(new Contract.SubAgentChild

@@ -140,20 +140,20 @@ public sealed class SessionTaskNotificationTests : IAsyncLifetime
 
         await harness.Service.NotifyBackgroundTaskEndedAsync(
             Ending(harness, BackgroundTaskKinds.Shell, "term_000000000001", "first") with { StartTurnId = "turn_001" });
-        var woken = await WaitForThreadAsync(harness, t => t.Turns.Count == 2 && t.Turns[1].Status == TurnStatus.Completed);
+        var woken = await WaitForThreadAsync(harness, t => t.TurnCount == 2 && t.Turns[^1].Status == TurnStatus.Completed);
         await harness.Service.NotifyBackgroundTaskEndedAsync(
-            Ending(harness, BackgroundTaskKinds.Shell, "term_000000000002", "second") with { StartTurnId = woken.Turns[1].Id });
+            Ending(harness, BackgroundTaskKinds.Shell, "term_000000000002", "second") with { StartTurnId = woken.Turns[^1].Id });
         await Task.Delay(300);
 
         var held = await harness.Service.GetThreadAsync(harness.ThreadId);
-        Assert.Equal(2, held.Turns.Count);
+        Assert.Equal(2, held.TurnCount);
         Assert.Equal("term_000000000002", Assert.Single(held.QueuedInputs).TriggerRefId);
 
         await harness.RunUserTurnAsync("status?");
 
         var thread = await harness.Service.GetThreadAsync(harness.ThreadId);
-        Assert.Equal(3, thread.Turns.Count);
-        Assert.Contains(thread.Turns[2].Items, item => item.AsUserMessage?.TriggerRefId == "term_000000000002");
+        Assert.Equal(3, thread.TurnCount);
+        Assert.Contains(thread.Turns[^1].Items, item => item.AsUserMessage?.TriggerRefId == "term_000000000002");
         Assert.Empty(thread.QueuedInputs);
     }
 
@@ -165,11 +165,11 @@ public sealed class SessionTaskNotificationTests : IAsyncLifetime
 
         await harness.Service.NotifyBackgroundTaskEndedAsync(
             Ending(harness, BackgroundTaskKinds.Shell, "term_000000000001", "first") with { StartTurnId = "turn_001" });
-        await WaitForThreadAsync(harness, t => t.Turns.Count == 2 && t.Turns[1].Status == TurnStatus.Completed);
+        await WaitForThreadAsync(harness, t => t.TurnCount == 2 && t.Turns[^1].Status == TurnStatus.Completed);
         await harness.Service.NotifyBackgroundTaskEndedAsync(
             Ending(harness, BackgroundTaskKinds.Shell, "term_000000000002", "second") with { StartTurnId = "turn_001" });
 
-        await WaitForThreadAsync(harness, t => t.Turns.Count == 3 && t.Turns[2].Status == TurnStatus.Completed);
+        await WaitForThreadAsync(harness, t => t.TurnCount == 3 && t.Turns[^1].Status == TurnStatus.Completed);
     }
 
     [Fact]

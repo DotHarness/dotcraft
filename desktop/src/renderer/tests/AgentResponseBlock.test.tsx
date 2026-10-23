@@ -15,8 +15,6 @@ import { withTestCorePresentation, coreToolFields } from './testToolPresentation
 import { installDesktopApiMock } from './desktopApiMock'
 
 vi.mock('../components/conversation/McpAppView', () => ({
-  hasAvailableMcpApp: (item: ConversationItem) =>
-    item.type === 'mcpToolCall' && item.status === 'completed' && item.mcpAppAvailable === true,
   McpAppView: ({ item }: { item: ConversationItem }) => (
     <div data-testid="mcp-app-view">MCP App: {item.toolName}</div>
   )
@@ -2175,7 +2173,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
       result: 'The interactive form awaits user submission.',
       structuredResult: { status: 'awaiting_user_submission' },
       success,
-      mcpAppAvailable: available,
+      mcpAppResourceUri: available ? 'ui://issues/form' : undefined,
       createdAt: '2026-07-18T11:30:03.000Z'
     }
   }

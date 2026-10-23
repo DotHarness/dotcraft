@@ -91,7 +91,7 @@ public sealed partial class SessionService : IBackgroundTaskNotifications
 
         if (!ending.MayWake || thread.Status != ThreadStatus.Active)
             return (queued.Id, false);
-        var wake = MayWakeForTaskNotifications(thread);
+        var wake = await MayWakeForTaskNotificationsAsync(thread, ct).ConfigureAwait(false);
         if (!wake)
             logger?.LogInformation("Holding notification for background task {TaskId} on thread {ThreadId}", ending.TaskId, thread.Id);
         return (queued.Id, wake);
@@ -113,24 +113,27 @@ public sealed partial class SessionService : IBackgroundTaskNotifications
         turn.Input?.AsUserMessage is { TriggerKind: TerminalTriggerKind or SubAgentTaskTriggerKind or WorkflowTriggerKind } message
         && !string.IsNullOrEmpty(message.TriggerStatus);
 
-    private bool MayWakeForTaskNotifications(SessionThread thread)
+    private async Task<bool> MayWakeForTaskNotificationsAsync(SessionThread thread, CancellationToken ct)
     {
         var settings = (_appConfigMonitor?.Current ?? AgentFactory.RuntimeContext.Config).Tools.BackgroundTasks;
         if (!string.Equals(settings.CompletionDelivery, "wake", StringComparison.OrdinalIgnoreCase))
             return false;
 
         var limit = Math.Max(0, settings.MaxConsecutiveWakes);
+        if (limit == 0)
+            return false;
         _taskStartingTurns.TryGetValue(thread.Id, out var startingTurns);
         var loopTurns = 0;
-        for (var i = thread.Turns.Count - 1; i >= 0 && loopTurns < limit; i--)
+        await foreach (var turn in ReadTurnsAsync(thread, ThreadHistorySortDirection.Descending, includeItems: false, ct)
+                           .ConfigureAwait(false))
         {
-            var turn = thread.Turns[i];
             if (!IsTaskNotificationTurn(turn) || startingTurns?.ContainsKey(turn.Id) != true)
                 break;
-            loopTurns++;
+            if (++loopTurns >= limit)
+                return false;
         }
 
-        return loopTurns < limit;
+        return true;
     }
 
     private static string BuildTaskNotificationDisplayText(BackgroundTaskEnding ending)

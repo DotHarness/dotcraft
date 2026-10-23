@@ -45,7 +45,7 @@ public sealed class CommandBusyAndStopTests
         await Task.Delay(300);
         after = await harness.Service.GetThreadAsync(thread.Id);
         Assert.Empty(after.QueuedInputs);
-        Assert.Equal(2, after.Turns.Count);
+        Assert.Equal(2, after.TurnCount);
         Assert.Equal(BackgroundTerminalStatus.Killed, (await harness.Terminals.ReadAsync(shell.SessionId)).Status);
         var task = Assert.Single(await harness.Service.ListBackgroundTasksAsync(thread.Id));
         Assert.Equal(BackgroundTaskStatus.Stopped, task.Status);

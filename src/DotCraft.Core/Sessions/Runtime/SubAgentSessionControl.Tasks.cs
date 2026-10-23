@@ -51,10 +51,7 @@ public static partial class SubAgentSessionControl
             Label = NormalizeOptional(resolved.Edge?.AgentNickname) ?? NormalizeOptional(child.DisplayName) ?? resolved.Path.Value,
             Status = status,
             KindStatus = kindStatus,
-            LastAgentMessage = child.Turns
-                .SelectMany(static turn => turn.Items)
-                .LastOrDefault(static item => !string.IsNullOrWhiteSpace(item.AsAgentMessage?.Text))
-                ?.AsAgentMessage!.Text,
+            LastAgentMessage = await FindLastAgentMessageAsync(sessionService, child, ct).ConfigureAwait(false),
             StartedAt = child.CreatedAt,
             EndedAt = status == BackgroundTaskStatus.Running ? null : latest?.CompletedAt,
             Latch = running?.Latch
@@ -122,6 +119,33 @@ public static partial class SubAgentSessionControl
         {
             return false;
         }
+    }
+
+    private static async Task<string?> FindLastAgentMessageAsync(
+        ISessionService sessionService,
+        SessionThread thread,
+        CancellationToken ct)
+    {
+        foreach (var turn in Enumerable.Reverse(thread.Turns))
+        {
+            if (LastAgentText(turn) is { } resident)
+                return resident;
+        }
+
+        if (thread.OmittedTurnCount == 0)
+            return null;
+        await foreach (var turn in sessionService.ReadThreadTurnsAsync(
+                           thread.Id, ThreadHistorySortDirection.Descending, ct: ct).ConfigureAwait(false))
+        {
+            if (LastAgentText(turn) is { } text)
+                return text;
+        }
+
+        return null;
+
+        static string? LastAgentText(SessionTurn turn) =>
+            turn.Items.LastOrDefault(static item => !string.IsNullOrWhiteSpace(item.AsAgentMessage?.Text))
+                ?.AsAgentMessage!.Text;
     }
 
     private static (string Status, string KindStatus) ResolveTaskStatus(SessionThread child, ThreadSpawnEdge? edge, bool running)

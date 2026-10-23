@@ -368,7 +368,7 @@ public sealed partial class SessionService
                     var queue = thread.QueuedInputs.ToList();
                     if (!explicitStart && ThreadSummaryRuntime.IsQueuePaused(thread))
                         return null;
-                    var notificationsMayWake = explicitStart || owner.MayWakeForTaskNotifications(thread);
+                    var notificationsMayWake = explicitStart || await owner.MayWakeForTaskNotificationsAsync(thread, ct);
                     var queueIndex = queuedInputId is not null
                         ? queue.FindIndex(q => string.Equals(q.Id, queuedInputId, StringComparison.Ordinal))
                         : queue.FindIndex(q => string.Equals(q.Status, "queued", StringComparison.Ordinal)

@@ -2,32 +2,25 @@ import { describe, it, expect } from 'vitest'
 import { wireItemToConversationItem, wireTurnToConversationTurn } from '../types/conversation'
 
 describe('wireItemToConversationItem — flat (top-level) format', () => {
-  it('maps current MCP App availability only from the server projection', () => {
-    const available = wireItemToConversationItem({
+  it('maps the persisted MCP App resource from the item payload', () => {
+    const app = wireItemToConversationItem({
       id: 'mcp-1',
       type: 'mcpToolCall',
-      mcpApp: { available: true },
       payload: {
         toolName: 'chart',
         callId: 'call-1',
         status: 'completed',
+        mcpAppResourceUri: 'ui://chart/view',
         content: [{ type: 'text', text: 'fallback' }],
         structuredContent: { points: 3 }
       },
       createdAt: '2025-01-01T00:00:00Z'
     })
-    const unavailable = wireItemToConversationItem({
-      id: 'mcp-1',
-      type: 'mcpToolCall',
-      payload: { toolName: 'chart', status: 'completed' },
-      createdAt: '2025-01-01T00:00:00Z'
-    })
 
-    expect(available.type).toBe('mcpToolCall')
-    expect(available.mcpAppAvailable).toBe(true)
-    expect(available.result).toBe('fallback')
-    expect(available.structuredResult).toEqual({ points: 3 })
-    expect(unavailable.mcpAppAvailable).toBe(false)
+    expect(app.type).toBe('mcpToolCall')
+    expect(app.mcpAppResourceUri).toBe('ui://chart/view')
+    expect(app.result).toBe('fallback')
+    expect(app.structuredResult).toEqual({ points: 3 })
   })
 
   it('does not infer presentation when the server descriptor is missing', () => {

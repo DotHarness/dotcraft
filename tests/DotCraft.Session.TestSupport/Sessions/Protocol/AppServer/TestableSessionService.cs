@@ -86,6 +86,9 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
     public bool IsHiddenThread(string threadId) =>
         _cache.TryGetValue(threadId, out var thread) && ThreadVisibility.IsHidden(thread);
 
+    public SessionThread? TryGetLoadedThread(string threadId) =>
+        _cache.TryGetValue(threadId, out var thread) ? thread : null;
+
     /// <inheritdoc />
     public ThreadSummaryRuntime GetThreadRuntimeSnapshot(SessionThread thread) =>
         RuntimeSnapshotHandler?.Invoke(thread) ?? ThreadSummaryRuntime.FromThread(thread);

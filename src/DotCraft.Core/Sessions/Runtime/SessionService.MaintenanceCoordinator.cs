@@ -20,7 +20,7 @@ public sealed partial class SessionService
                 throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot compact context.");
             if (thread.HistoryMode != HistoryMode.Server)
                 throw new InvalidOperationException($"Thread '{threadId}' uses client-managed history and cannot be compacted by Session Core.");
-            if (thread.Turns.Count == 0)
+            if (thread.TurnCount == 0)
                 throw new InvalidOperationException($"Thread '{threadId}' has no history to compact.");
             if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
                 throw new InvalidOperationException($"Thread '{threadId}' has a running Turn. Wait for it to complete or cancel it first.");
@@ -66,10 +66,10 @@ public sealed partial class SessionService
             {
                 await owner.EnsurePerThreadAgentIfMissingAsync(threadId, thread, maintenanceCt);
                 var agent = owner.GetThreadAgentOrDefault(threadId);
-                var session = await owner.Persistence.LoadModelHistoryAsync(threadId, maintenanceCt);
+                var (session, _) = await owner.LoadServerModelHistoryAsync(thread, excludedTurnId: null, maintenanceCt);
                 var coordinator = GetCompactionCoordinatorForThread(thread);
                 var historyForEstimate = PrepareProviderVisibleHistory(
-                    SnapshotSessionHistory(session, thread)).ToList();
+                    await SnapshotSessionHistoryAsync(session, thread, maintenanceCt)).ToList();
                 var tokenTracker = owner.AgentFactory.GetOrCreateTokenTracker(threadId);
                 var manualPromptSnapshot = owner.TryPrepareManualPromptRequestSnapshot(
                     threadId,
@@ -96,7 +96,7 @@ public sealed partial class SessionService
                     usageEstimate.Source,
                     usageEstimate.IsEstimate);
                 var broker = owner.GetOrCreateBroker(threadId);
-                var coveredTurnId = thread.Turns.LastOrDefault(t => t.Status == TurnStatus.Completed)?.Id;
+                var coveredTurnId = (await FindLastCompletedTurnAsync(thread, maintenanceCt))?.Id;
                 var preCompactHook = await owner.RunCompactionHookAsync(
                     HookEvent.PreCompact,
                     thread,
@@ -282,6 +282,7 @@ public sealed partial class SessionService
                                     status.ThresholdBefore.Tokens,
                                     status.ThresholdAfter.Tokens),
                                 maintenanceCt);
+                            owner.InstallResidentModelHistoryReplacement(thread, coveredTurn.Id, pendingNeutralReplacement);
                             session.Clear();
                             session.AddRange(pendingNeutralReplacement);
                         }
@@ -314,7 +315,7 @@ public sealed partial class SessionService
                             contextUsage: contextUsage);
 
                         if (status.Outcome == CompactionOutcome.Partial)
-                            AppendManualCompactionNotice(thread, status, broker);
+                            await AppendManualCompactionNoticeAsync(thread, status, broker, maintenanceCt);
                         thread.LastActiveAt = DateTimeOffset.UtcNow;
                         await owner.PersistThreadWithMaterializationAsync(thread, maintenanceCt);
 
@@ -585,15 +586,16 @@ public sealed partial class SessionService
             return thread;
         }
 
-        private static IReadOnlyList<ChatMessage> SnapshotSessionHistory(
+        private async Task<IReadOnlyList<ChatMessage>> SnapshotSessionHistoryAsync(
             List<ChatMessage> session,
-            SessionThread thread)
+            SessionThread thread,
+            CancellationToken ct)
         {
             if (session.Count > 0)
                 return session.Select(message => message.Clone()).ToList();
 
             var fallback = new List<ChatMessage>();
-            foreach (var turn in thread.Turns)
+            foreach (var turn in await owner.ReadAllTurnsAsync(thread, ct))
             {
                 foreach (var item in turn.Items)
                 {
@@ -615,12 +617,13 @@ public sealed partial class SessionService
             return fallback;
         }
 
-        private static void AppendManualCompactionNotice(
+        private async Task AppendManualCompactionNoticeAsync(
             SessionThread thread,
             CompactionStatus status,
-            ThreadEventBroker broker)
+            ThreadEventBroker broker,
+            CancellationToken ct)
         {
-            var turn = thread.Turns.LastOrDefault(t => t.Status == TurnStatus.Completed);
+            var turn = await FindLastCompletedTurnAsync(thread, ct);
             if (turn is null)
                 return;
 
@@ -630,8 +633,27 @@ public sealed partial class SessionService
                 trigger: "manual",
                 status);
             turn.Items.Add(noticeItem);
+            if (ThreadWorkingSet.FindResident(thread, turn.Id) is null)
+                await owner.Persistence.AppendThreadChangesAsync(
+                    thread,
+                    [RolloutChangeRecords.ItemAppended(turn.Id, noticeItem)],
+                    deleteUnreferencedAttachments: false,
+                    ct);
             broker.PublishItemEvent(SessionEventType.ItemStarted, turn.Id, noticeItem);
             broker.PublishItemEvent(SessionEventType.ItemCompleted, turn.Id, noticeItem);
+        }
+
+        private async Task<SessionTurn?> FindLastCompletedTurnAsync(SessionThread thread, CancellationToken ct)
+        {
+            if (thread.Turns.LastOrDefault(static turn => turn.Status == TurnStatus.Completed) is { } resident)
+                return resident;
+            await foreach (var turn in owner.ReadTurnsAsync(thread, ThreadHistorySortDirection.Descending, includeItems: false, ct))
+            {
+                if (turn.Status == TurnStatus.Completed)
+                    return ThreadWorkingSet.FindResident(thread, turn.Id) ?? await owner.ReadTurnAsync(thread, turn.Id, ct);
+            }
+
+            return null;
         }
 
     }

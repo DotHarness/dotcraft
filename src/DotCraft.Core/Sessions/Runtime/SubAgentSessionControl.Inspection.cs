@@ -21,7 +21,7 @@ public static partial class SubAgentSessionControl
                 AgentPath = AgentPath.Root,
                 Status = ResolveThreadStatus(root, null),
                 DisplayName = root.DisplayName,
-                LastTaskMessage = ExtractLastTaskMessage(root)
+                LastTaskMessage = await ExtractLastTaskMessageAsync(context.SessionService, root, ct)
             }
         };
 
@@ -108,7 +108,7 @@ public static partial class SubAgentSessionControl
                 AgentPath = edge.AgentPath!,
                 Status = ResolveThreadStatus(child, edge),
                 DisplayName = child.DisplayName ?? edge.AgentNickname ?? edge.TaskName,
-                LastTaskMessage = ExtractLastTaskMessage(child)
+                LastTaskMessage = await ExtractLastTaskMessageAsync(sessionService, child, ct)
             });
             await AddAgentListChildrenAsync(sessionService, edge.ChildThreadId, items, includeClosed, ct);
         }
