@@ -1,6 +1,6 @@
 <div align="center">
 
-<img alt="DotCraft: an agent runtime you embed and extend. You hand the desktop app a task, it plans the work and ticks it off." src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/hero.webp" width="830">
+<img alt="DotCraft: an agent runtime you embed and extend. Open-source agent desktop app, and the runtime behind it. The desktop app on the orbit project, where two subagents have finished and the agent is running the contrast audit." src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/hero.webp" width="830">
 
 [![Release](https://img.shields.io/github/v/release/DotHarness/dotcraft)](https://github.com/DotHarness/dotcraft/releases)
 [![NuGet](https://img.shields.io/nuget/v/DotCraft.Harness?logo=nuget&label=NuGet)](https://www.nuget.org/profiles/DotHarness)
@@ -45,7 +45,7 @@ See [Getting started](https://www.dotcraft.net/start/) for the full walkthrough.
 
 ## Desktop
 
-<p align="center"><a href="https://www.dotcraft.net/start/desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-desktop.png" width="830" alt="DotCraft Desktop: the 'Ship dark mode' plan with two steps done, and the Subagents tab with two subagents working on the next steps."></a></p>
+<p align="center"><a href="https://www.dotcraft.net/start/desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/desktop.webp" width="830" alt="DotCraft Desktop on Plan: ship dark mode. Two subagents, Theme toggle and Snapshot key screens, have finished, and the agent is running npm run test:contrast before it calls the work done."></a></p>
 
 A workbench where the agent plans in your project, hands parts to subagents, and checks the result before it says done.
 
@@ -63,7 +63,7 @@ A workbench where the agent plans in your project, hands parts to subagents, and
 
 ## Mobile
 
-<p align="center"><a href="https://www.dotcraft.net/start/mobile"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-mobile.png" width="830" alt="DotCraft on an Android phone asking to run npm run test:contrast, with Allow once."></a></p>
+<p align="center"><a href="https://www.dotcraft.net/start/mobile"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/mobile.webp" width="830" alt="The DotCraft phone app asking Run this command? npm run test:contrast in the orbit project, with Allow once, Allow for session and Reject."></a></p>
 
 Keep up with your agent from your phone while it works on your computer. See what's running, answer approvals and questions, add a message or stop a chat, and start new chats in any project.
 
@@ -73,7 +73,7 @@ Keep up with your agent from your phone while it works on your computer. See wha
 
 ## CLI
 
-<p align="center"><a href="https://www.dotcraft.net/start/entry-points"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-cli.png" width="830" alt="A terminal running dotcraft exec: the agent answers with the hard-coded colors in Card.css and Chart.css."></a></p>
+<p align="center"><a href="https://www.dotcraft.net/start/entry-points"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/cli.webp" width="830" alt="A terminal running dotcraft exec &quot;Which colors in src/components are still hard-coded?&quot;: the answer lists the hard-coded colors left in Card.css and Chart.css and notes that Button.css already uses theme tokens."></a></p>
 
 Run a task with one command and get the answer in your terminal, on your laptop, a server or in CI.
 
@@ -85,7 +85,7 @@ dotcraft exec "Which colors in src/components are still hard-coded?"
 
 ## Build it into your product
 
-<p align="center"><a href="https://www.dotcraft.net/extend/harness/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-harness.png" width="830" alt="Program.cs creating a thread with ISessionService and streaming the agent's reply as it is written."></a></p>
+<p align="center"><a href="https://www.dotcraft.net/extend/harness/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/harness.webp" width="830" alt="Program.cs opening a thread with ISessionService and streaming the agent's reply to Check contrast in dark mode."></a></p>
 
 **Harness** puts the whole agent runtime behind DotCraft Desktop inside your own .NET app: sessions, tools, approvals and model providers, on your host's lifecycle.
 
@@ -120,6 +120,8 @@ console.log(result.text);
 [Harness guide](https://www.dotcraft.net/extend/harness/) · [.NET plugins](https://www.dotcraft.net/extend/dotnet-plugins) · [SDK quickstart](https://www.dotcraft.net/extend/sdks/quickstart) · [App Binding](https://www.dotcraft.net/extend/app-binding) · [Desktop plugins](https://www.dotcraft.net/extend/desktop-plugins)
 
 ## More from DotCraft
+
+<p align="center"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/more.webp" width="830" alt="Satellite asking for access to run npm run test:contrast, the Oratorio board with Chart labels fail contrast in progress, connected chat bots, and three avatars."></p>
 
 - [**Satellite**](https://www.dotcraft.net/guide/satellite): let your agent work on another Windows PC. The person sharing it chooses full access or one folder, sees every request at the top of the screen, and can pause sharing at any time. In Desktop, open **Settings → Connections → Satellites → Invite** and send the link; the other PC downloads DotCraft Satellite from that page.
 - [**Oratorio**](https://www.dotcraft.net/guide/oratorio/): your project board, built into Desktop. Local tasks, GitHub issues and pull requests, and GitLab issues and merge requests land on one board; hand a card to the agent, follow the run, review the result. Select **Oratorio** in the Desktop sidebar. [Workflow](https://www.dotcraft.net/guide/oratorio/workflow)

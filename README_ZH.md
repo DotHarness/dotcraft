@@ -1,6 +1,6 @@
 <div align="center">
 
-<img alt="DotCraft：可嵌入、可扩展的 Agent Runtime。把任务交给桌面应用，它会拆好计划并逐项完成。" src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/hero.webp" width="830">
+<img alt="DotCraft：可嵌入、可扩展的 Agent Runtime，开源的 Agent 桌面应用及其背后的运行时。桌面应用打开 orbit 项目，两个子智能体已完成，Agent 正在运行对比度检查。" src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/hero.webp" width="830">
 
 [![Release](https://img.shields.io/github/v/release/DotHarness/dotcraft)](https://github.com/DotHarness/dotcraft/releases)
 [![NuGet](https://img.shields.io/nuget/v/DotCraft.Harness?logo=nuget&label=NuGet)](https://www.nuget.org/profiles/DotHarness)
@@ -45,7 +45,7 @@ irm https://www.dotcraft.net/install.ps1 | iex
 
 ## Desktop
 
-<p align="center"><a href="https://www.dotcraft.net/zh/start/desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-desktop.png" width="830" alt="DotCraft Desktop：「Ship dark mode」计划已完成两步，子智能体面板里有两个子智能体正在处理后续步骤。"></a></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/start/desktop"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/desktop.webp" width="830" alt="DotCraft Desktop 上的「Plan: ship dark mode」：Theme toggle 和 Snapshot key screens 两个子智能体已完成，Agent 正在运行 npm run test:contrast，跑完才算完成。"></a></p>
 
 一个工作台：Agent 在你的项目里做计划，把任务拆给子智能体，确认结果没问题后才告诉你完成了。
 
@@ -63,7 +63,7 @@ irm https://www.dotcraft.net/install.ps1 | iex
 
 ## 手机 App
 
-<p align="center"><a href="https://www.dotcraft.net/zh/start/mobile"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-mobile.png" width="830" alt="Android 手机上的 DotCraft 请求运行 npm run test:contrast，带 Allow once 按钮。"></a></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/start/mobile"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/mobile.webp" width="830" alt="DotCraft 手机 App 询问是否在 orbit 项目中运行 npm run test:contrast，可选 Allow once、Allow for session 或 Reject。"></a></p>
 
 Agent 在你的电脑上干活时，你可以在手机上跟进：看哪些聊天在运行，处理审批和提问，追加消息或停止聊天，还能在任意项目里开新聊天。
 
@@ -73,7 +73,7 @@ Agent 在你的电脑上干活时，你可以在手机上跟进：看哪些聊�
 
 ## CLI
 
-<p align="center"><a href="https://www.dotcraft.net/zh/start/entry-points"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-cli.png" width="830" alt="终端里运行 dotcraft exec：Agent 列出 Card.css 和 Chart.css 里仍然写死的颜色。"></a></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/start/entry-points"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/cli.webp" width="830" alt="终端里运行 dotcraft exec &quot;Which colors in src/components are still hard-coded?&quot;：回答列出 Card.css 和 Chart.css 里仍然写死的颜色，并说明 Button.css 已经使用主题 token。"></a></p>
 
 一条命令运行任务，答案直接回到终端，在笔记本、服务器或 CI 里都能用。
 
@@ -85,7 +85,7 @@ dotcraft exec "src/components 里还有哪些颜色是写死的？"
 
 ## 装进你的产品
 
-<p align="center"><a href="https://www.dotcraft.net/zh/extend/harness/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/header-harness.png" width="830" alt="Program.cs 用 ISessionService 创建线程，并流式输出 Agent 的回复。"></a></p>
+<p align="center"><a href="https://www.dotcraft.net/zh/extend/harness/"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/harness.webp" width="830" alt="Program.cs 用 ISessionService 创建线程，并流式输出 Agent 对 Check contrast in dark mode 的回复。"></a></p>
 
 **Harness** 把 DotCraft Desktop 背后的完整 Agent 运行时装进你自己的 .NET 应用：会话、工具、审批和模型提供商，都跟随宿主的生命周期。
 
@@ -120,6 +120,8 @@ console.log(result.text);
 [Harness 指南](https://www.dotcraft.net/zh/extend/harness/) · [.NET 插件](https://www.dotcraft.net/zh/extend/dotnet-plugins) · [SDK 快速开始](https://www.dotcraft.net/zh/extend/sdks/quickstart) · [App Binding](https://www.dotcraft.net/zh/extend/app-binding) · [Desktop 插件](https://www.dotcraft.net/zh/extend/desktop-plugins)
 
 ## 更多
+
+<p align="center"><img src="https://github.com/DotHarness/resources/raw/master/dotcraft/readme/more.webp" width="830" alt="Satellite 请求运行 npm run test:contrast 的权限、Oratorio 看板上进行中的 Chart labels fail contrast、已连接的聊天机器人，以及三个 Avatar 形象。"></p>
 
 - [**卫星**](https://www.dotcraft.net/zh/guide/satellite)：让你的 Agent 在另一台 Windows 电脑上工作。共享电脑的人可以选择完全访问或只开放一个文件夹，在屏幕顶部看到每个请求，并随时暂停共享。在 Desktop 打开 **设置 → 连接 → 卫星 → 邀请**，把链接发给对方，对方在那个页面下载 DotCraft Satellite。
 - [**Oratorio**](https://www.dotcraft.net/zh/guide/oratorio/)：内置在 Desktop 里的项目看板。本地任务、GitHub 的 issue 和 pull request、GitLab 的 issue 和 merge request 都汇集在同一块看板上；把卡片交给 Agent，跟进执行过程，评审结果。在 Desktop 侧边栏选择 **Oratorio**。[工作流](https://www.dotcraft.net/zh/guide/oratorio/workflow)
