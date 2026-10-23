@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { RunningShimmer } from '../ui/RunningShimmer'
+import { ThinkingGlyph } from './ThinkingGlyph'
 import { ToolCollapseChevron } from './ToolDisclosure'
 
 interface ThinkingIndicatorProps {
@@ -55,6 +56,7 @@ export function ThinkingIndicator({
               maxWidth: '100%'
             }}
           >
+            <ThinkingGlyph thinking={streaming} />
             <RunningShimmer
               active={streaming}
               style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}

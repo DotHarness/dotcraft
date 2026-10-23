@@ -1,0 +1,62 @@
+.glyph {
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.glyph * {
+  transform-box: view-box;
+}
+
+.drop,
+.core {
+  fill: currentColor;
+}
+
+.spin,
+.core {
+  transform-origin: 12px 12px;
+}
+
+.core {
+  transform: scale(1.6);
+}
+
+.glyph[data-thinking] .spin {
+  animation: spin-third 3s linear infinite;
+}
+
+.glyph[data-thinking] .drop {
+  animation: drop 3s cubic-bezier(0.5, 0, 0.3, 1) infinite;
+}
+
+.glyph[data-thinking] .core {
+  animation: core-swell 3s ease-in-out infinite;
+}
+
+@keyframes spin-third {
+  to { transform: rotate(120deg); }
+}
+
+@keyframes drop {
+  0%, 18% { transform: translateY(-7.3px); }
+  45%, 58% { transform: translateY(0); }
+  76% { transform: translateY(-8.2px); }
+  86%, 100% { transform: translateY(-7.3px); }
+}
+
+@keyframes core-swell {
+  0%, 18%, 76%, 100% { transform: scale(0); }
+  40%, 62% { transform: scale(1); }
+  50% { transform: scale(1.5); }
+}
+
+:global(html[data-reduce-motion='on']) .glyph * {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html:not([data-reduce-motion='off'])) .glyph * {
+    animation: none !important;
+  }
+}
