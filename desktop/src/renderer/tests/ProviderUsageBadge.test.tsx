@@ -92,6 +92,31 @@ describe('ProviderUsageBadge', () => {
     expect(sendRequest).toHaveBeenLastCalledWith('provider/auth/usage', { providerId: 'deepseek' }, 30_000)
   })
 
+  it('reads rate-limit windows that are not pushed again after a turn completes', async () => {
+    let notify: ((payload: { method: string; params: unknown }) => void) | null = null
+    let usedPercent = 20
+    const sendRequest = vi.fn(async () => usage({
+      primary: { usedPercent, windowSeconds: 18_000, resetAt: '2099-01-01T05:00:00.000Z' }
+    }))
+    installDesktopApiMock({
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
+      appServer: {
+        sendRequest,
+        onNotification: (callback: (payload: { method: string; params: unknown }) => void) => {
+          notify = callback
+          return () => { notify = null }
+        }
+      }
+    })
+    useConnectionStore.setState({ capabilities: { providerManagement: true } })
+
+    renderBadge({ id: 'plugin-backend', displayName: 'Plugin Backend', protocol: 'plugin-protocol', authMethod: 'apiKey' })
+
+    expect(await screen.findByRole('button', { name: /80% left/i })).toBeInTheDocument()
+    usedPercent = 55
+    act(() => notify?.({ method: 'turn/completed', params: { threadId: 't', turn: { id: 'turn' } } }))
+    expect(await screen.findByRole('button', { name: /45% left/i })).toBeInTheDocument()
+  })
 })
 
 function renderBadge(target: ProviderSummary = provider): void {
