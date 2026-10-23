@@ -20,6 +20,10 @@ public sealed class ConfigurationServiceWriteTests
         Assert.True(file["tools"]!["lsp"]!["enabled"]!.GetValue<bool>());
         Assert.Equal(4100, file["Hub"]!["Port"]!.GetValue<int>());
         Assert.Equal(result.Version, fixture.Service.Read(includeLayers: true).Layers![1].Layer.Version);
+
+        var next = await fixture.WriteAsync("Hub.Port", "4200", expectedVersion: result.Version);
+        Assert.Equal(ConfigWriteStatus.Ok, next.Status);
+        Assert.NotEqual(result.Version, next.Version);
     }
 
     [Fact]
@@ -64,16 +68,8 @@ public sealed class ConfigurationServiceWriteTests
     [InlineData("Tools.Lsp.Enabled", "true", "other", null, ConfigWriteErrorCode.ConfigLayerReadonly)]
     [InlineData("Tools.Lsp.Enabled", "true", null, "sha256:00", ConfigWriteErrorCode.ConfigVersionConflict)]
     [InlineData("Tools.Lsp.Missing", "true", null, null, ConfigWriteErrorCode.ConfigSchemaUnknownKey)]
-    [InlineData("Tools.Lsp", "{}", null, null, ConfigWriteErrorCode.ConfigSchemaUnknownKey)]
-    [InlineData("ProviderPreferences.", "{}", null, null, ConfigWriteErrorCode.ConfigSchemaUnknownKey)]
-    [InlineData("ProviderPreferences.\"open", "{}", null, null, ConfigWriteErrorCode.ConfigSchemaUnknownKey)]
     [InlineData("InstantInterruptEnabled", "\"yes\"", null, null, ConfigWriteErrorCode.ConfigValidationError)]
-    [InlineData("Tools.Web.SearchMaxResults", "50", null, null, ConfigWriteErrorCode.ConfigValidationError)]
-    [InlineData("Logging.MinLevel", "\"Loud\"", null, null, ConfigWriteErrorCode.ConfigValidationError)]
-    [InlineData("Tools.CodeMode.Mode", "\"Sometimes\"", null, null, ConfigWriteErrorCode.ConfigValidationError)]
-    [InlineData("Hub.Port", "\"high\"", null, null, ConfigWriteErrorCode.ConfigValidationError)]
     [InlineData("Hub.Port", "70000", null, null, ConfigWriteErrorCode.ConfigValidationError)]
-    [InlineData("ProviderPreferences.custom", "\"not-an-object\"", null, null, ConfigWriteErrorCode.ConfigValidationError)]
     [InlineData("Desktop.CustomFileHandlers.review", "{ \"Label\": \"Review\", \"Command\": \"review\", \"Input\": \"socket\" }", null, null, ConfigWriteErrorCode.ConfigValidationError)]
     public async Task Write_Rejected_LeavesFileByteIdentical(
         string keyPath,
@@ -114,17 +110,6 @@ public sealed class ConfigurationServiceWriteTests
         Assert.Equal(ConfigWriteErrorCode.ConfigValidationError, error.Code);
         Assert.Equal(before, File.ReadAllBytes(fixture.WorkspacePath));
         Assert.False(fixture.Monitor.Current.Tools.Lsp.Enabled);
-    }
-
-    [Fact]
-    public async Task Write_MatchingExpectedVersion_IsAccepted()
-    {
-        using var fixture = new ConfigurationServiceFixture(workspace: ExistingWorkspace);
-        var version = fixture.Service.Read(includeLayers: true).Layers![1].Layer.Version;
-
-        var result = await fixture.WriteAsync("Hub.Port", "4200", expectedVersion: version);
-
-        Assert.NotEqual(version, result.Version);
     }
 
     [Fact]

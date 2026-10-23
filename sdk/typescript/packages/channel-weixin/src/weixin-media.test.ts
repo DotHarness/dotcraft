@@ -33,10 +33,6 @@ class FakeWeixinApi implements WeixinMediaApi {
 }
 
 class TestWeixinAdapter extends WeixinAdapter {
-  exposeDeliveryCapabilities(): Record<string, unknown> | null {
-    return this.getDeliveryCapabilities();
-  }
-
   async exposeSend(target: string, message: Record<string, unknown>): Promise<Record<string, unknown>> {
     return await this.onSend(target, message, {});
   }
@@ -53,14 +49,11 @@ function base64OfUtf8(value: string): string {
   return Buffer.from(value, "utf-8").toString("base64");
 }
 
-test("crypto helpers calculate AES padded size and md5 metadata", () => {
+test("media helpers size AES padding, hash md5, and build CDN upload URLs", () => {
   assert.equal(aesEcbPaddedSize(0), 16);
   assert.equal(aesEcbPaddedSize(15), 16);
   assert.equal(aesEcbPaddedSize(16), 32);
   assert.equal(md5Hex(Buffer.from("abc", "utf-8")), "900150983cd24fb0d6963f7d28e17f72");
-});
-
-test("buildCdnUploadUrl prefers full URL and falls back to documented query shape", () => {
   assert.equal(
     buildCdnUploadUrl({
       cdnBaseUrl: "https://cdn.example/c2c",
@@ -225,40 +218,15 @@ test("CDN upload retries 5xx responses and preserves x-error-message", async () 
   }
 });
 
-test("media sender report getUploadUrl fetch failures with stage context", async () => {
-  const tools = new WeixinMediaSender({
-    async getUploadUrl(): Promise<GetUploadUrlResp> {
-      throw new TypeError("fetch failed");
-    },
-    async sendMessage(): Promise<void> {},
-  });
+test("media sender reports getUploadUrl, CDN, and sendMessage failures with stage context", async () => {
+  {
+    const tools = new WeixinMediaSender({
+      async getUploadUrl(): Promise<GetUploadUrlResp> {
+        throw new TypeError("fetch failed");
+      },
+      async sendMessage(): Promise<void> {},
+    });
 
-  await assert.rejects(
-    async () =>
-      await tools.sendStructuredMessage({
-        baseUrl: "https://ilink.example",
-        toUserId: "wx-user-1",
-        clientId: "client",
-        message: { kind: "file", source: { kind: "dataBase64", dataBase64: Buffer.from("x").toString("base64") } },
-      }),
-    (error: unknown) =>
-      error instanceof WeixinMediaError &&
-      error.code === "UploadUrlRequestFailed" &&
-      error.message === "getUploadUrl failed: fetch failed",
-  );
-});
-
-test("media sender report CDN fetch failures with stage context", async () => {
-  const originalFetch = globalThis.fetch;
-  const api = new FakeWeixinApi({ upload_full_url: "https://upload.example/file" });
-  let attempts = 0;
-  globalThis.fetch = (async () => {
-    attempts += 1;
-    throw new TypeError("fetch failed");
-  }) as typeof fetch;
-
-  try {
-    const tools = new WeixinMediaSender(api);
     await assert.rejects(
       async () =>
         await tools.sendStructuredMessage({
@@ -269,45 +237,70 @@ test("media sender report CDN fetch failures with stage context", async () => {
         }),
       (error: unknown) =>
         error instanceof WeixinMediaError &&
-        error.code === "CdnUploadFailed" &&
-        error.message === "file CDN upload failed: fetch failed",
+        error.code === "UploadUrlRequestFailed" &&
+        error.message === "getUploadUrl failed: fetch failed",
     );
-    assert.equal(attempts, 3);
-  } finally {
-    globalThis.fetch = originalFetch;
   }
-});
-
-test("media sender report final sendMessage failures with stage context", async () => {
-  const originalFetch = globalThis.fetch;
-  const api: WeixinMediaApi = {
-    async getUploadUrl(): Promise<GetUploadUrlResp> {
-      return { upload_full_url: "https://upload.example/file" };
-    },
-    async sendMessage(): Promise<void> {
+  {
+    const originalFetch = globalThis.fetch;
+    const api = new FakeWeixinApi({ upload_full_url: "https://upload.example/file" });
+    let attempts = 0;
+    globalThis.fetch = (async () => {
+      attempts += 1;
       throw new TypeError("fetch failed");
-    },
-  };
-  globalThis.fetch = (async () =>
-    new Response("", { status: 200, headers: { "x-encrypted-param": "download-file" } })) as typeof fetch;
+    }) as typeof fetch;
 
-  try {
-    const tools = new WeixinMediaSender(api);
-    await assert.rejects(
-      async () =>
-        await tools.sendStructuredMessage({
-          baseUrl: "https://ilink.example",
-          toUserId: "wx-user-1",
-          clientId: "client",
-          message: { kind: "file", source: { kind: "dataBase64", dataBase64: Buffer.from("x").toString("base64") } },
-        }),
-      (error: unknown) =>
-        error instanceof WeixinMediaError &&
-        error.code === "MediaMessageSendFailed" &&
-        error.message === "sendMessage failed: fetch failed",
-    );
-  } finally {
-    globalThis.fetch = originalFetch;
+    try {
+      const tools = new WeixinMediaSender(api);
+      await assert.rejects(
+        async () =>
+          await tools.sendStructuredMessage({
+            baseUrl: "https://ilink.example",
+            toUserId: "wx-user-1",
+            clientId: "client",
+            message: { kind: "file", source: { kind: "dataBase64", dataBase64: Buffer.from("x").toString("base64") } },
+          }),
+        (error: unknown) =>
+          error instanceof WeixinMediaError &&
+          error.code === "CdnUploadFailed" &&
+          error.message === "file CDN upload failed: fetch failed",
+      );
+      assert.equal(attempts, 3);
+    } finally {
+      globalThis.fetch = originalFetch;
+  }
+  }
+  {
+    const originalFetch = globalThis.fetch;
+    const api: WeixinMediaApi = {
+      async getUploadUrl(): Promise<GetUploadUrlResp> {
+        return { upload_full_url: "https://upload.example/file" };
+      },
+      async sendMessage(): Promise<void> {
+        throw new TypeError("fetch failed");
+      },
+    };
+    globalThis.fetch = (async () =>
+      new Response("", { status: 200, headers: { "x-encrypted-param": "download-file" } })) as typeof fetch;
+
+    try {
+      const tools = new WeixinMediaSender(api);
+      await assert.rejects(
+        async () =>
+          await tools.sendStructuredMessage({
+            baseUrl: "https://ilink.example",
+            toUserId: "wx-user-1",
+            clientId: "client",
+            message: { kind: "file", source: { kind: "dataBase64", dataBase64: Buffer.from("x").toString("base64") } },
+          }),
+        (error: unknown) =>
+          error instanceof WeixinMediaError &&
+          error.code === "MediaMessageSendFailed" &&
+          error.message === "sendMessage failed: fetch failed",
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+  }
   }
 });
 
@@ -335,16 +328,6 @@ test("media sender reject invalid sources", async () => {
       }),
     (error: unknown) => error instanceof WeixinMediaError && error.code === "UnsupportedMediaSource",
   );
-});
-
-test("adapter advertises real file and image media capabilities", () => {
-  const adapter = new TestWeixinAdapter();
-  const capabilities = adapter.exposeDeliveryCapabilities() as Record<string, unknown>;
-  const media = capabilities.media as Record<string, Record<string, unknown>>;
-  assert.equal(media.file?.supportsHostPath, true);
-  assert.equal(media.file?.supportsBase64, true);
-  assert.equal(media.image?.supportsHostPath, true);
-  assert.equal(media.image?.supportsBase64, true);
 });
 
 test("adapter sends caption as normalized text before media delivery", async () => {

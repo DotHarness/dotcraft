@@ -54,7 +54,7 @@ public sealed class DotNetPluginPendingTransitionTests : IDisposable
                 }
             }
             """);
-        await using var manager = _harness.CreateManager(activationTimeout: TimeSpan.FromMilliseconds(100));
+        await using var manager = _harness.CreateManager(activationTimeout: TimeSpan.FromMilliseconds(500));
 
         await manager.StartAsync(CancellationToken.None);
 

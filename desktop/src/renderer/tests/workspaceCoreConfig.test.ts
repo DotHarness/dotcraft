@@ -20,7 +20,7 @@ describe('workspace core model resolution', () => {
     expect(resolveWorkspaceModelFromConfig(config, 'provider-a', 'thread-model')).toBe('thread-model')
   })
 
-  it('uses the effective provider model', () => {
+  it('uses the effective provider model case-insensitively, falling back to Default', () => {
     const config = {
       providerid: 'PROVIDER-A',
       providerpreferences: { 'provider-a': preference('remembered-model') }
@@ -29,9 +29,6 @@ describe('workspace core model resolution', () => {
     const providerId = resolveWorkspaceProviderFromConfig(config)
     expect(providerId).toBe('PROVIDER-A')
     expect(resolveWorkspaceModelFromConfig(config, providerId)).toBe('remembered-model')
-  })
-
-  it('falls back to Default when the provider has no preference', () => {
     expect(resolveWorkspaceModelFromConfig({}, 'provider-b')).toBe('Default')
   })
 })

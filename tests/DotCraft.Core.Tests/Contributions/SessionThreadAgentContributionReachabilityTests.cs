@@ -19,8 +19,6 @@ using SessionIdentity = DotCraft.Sessions.SessionIdentity;
 
 namespace DotCraft.Tests.Contributions;
 
-/// <summary>Covers the contribution points a real thread's agent is built with. The factory-level agent is not the one a
-/// session runs on, so every assertion here goes through <see cref="SessionService"/>'s thread build path.</summary>
 public sealed class SessionThreadAgentContributionReachabilityTests : IDisposable
 {
     private const string PromptMarker = "CONTRIBUTION-PROMPT-MARKER";
@@ -46,69 +44,41 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ContributedPromptSection_ReachesThePromptTheThreadAgentSends(bool workspaceOverride)
+    public async Task Contributions_ReachTheAgentTheThreadRunsOn(bool workspaceOverride)
     {
         _registry.Add<ISystemPromptSection>(
             new MarkerSection("marker", PromptMarker),
             new ContributionOptions(Order: 50));
-        var chatClient = new CapturingChatClient();
-        var service = CreateService(chatClient);
-
-        await RunThreadTurnAsync(service, workspaceOverride);
-
-        Assert.Contains(PromptMarker, chatClient.LastInstructions ?? string.Empty, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task WithoutContributions_TheThreadAgentKeepsOnlyTheBuiltInProvider(bool workspaceOverride)
-    {
-        var service = CreateService(new CapturingChatClient());
-
-        var run = await RunThreadTurnAsync(service, workspaceOverride);
-
-        Assert.Single(run.Agent.AIContextProviders);
-        Assert.IsType<MemoryContextProvider>(run.Agent.AIContextProviders[0]);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ContributedChatMiddleware_IsInTheThreadAgentClientChain(bool workspaceOverride)
-    {
         var middleware = new MarkerMiddleware();
         _registry.Add<IChatMiddleware>(middleware, new ContributionOptions(Order: 50));
-        var service = CreateService(new CapturingChatClient());
-
-        var run = await RunThreadTurnAsync(service, workspaceOverride);
-
-        Assert.Contains(nameof(MarkerChatClient), ChainTypes(run.Agent.ChatClient));
-        Assert.True(middleware.Invocations > 0, "The contributed middleware never saw the thread's request.");
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ContributedAgentContext_IsInTheThreadAgentProviderList(bool workspaceOverride)
-    {
         _registry.Add<IAgentContextSource>(new MarkerContextContribution());
+        _registry.Add<IToolSource>(new MarkerToolSource("marker", ["kept", "masked", "SpawnAgent"]));
+        _registry.Add<IToolRestriction>(new MarkerRestriction("masked"));
+        _registry.Add<ISubAgentRuntimeSource>(new MarkerSubAgentRuntimeContribution());
+        _registry.Add<ICodeCommand>(new MarkerCommand());
         var chatClient = new CapturingChatClient();
         var service = CreateService(chatClient);
 
         var run = await RunThreadTurnAsync(service, workspaceOverride);
 
+        var instructions = chatClient.LastInstructions ?? string.Empty;
+        Assert.Contains(PromptMarker, instructions, StringComparison.Ordinal);
+        Assert.Contains(ContextMarker, instructions, StringComparison.Ordinal);
+        Assert.Contains($"`{MarkerSubAgentRuntimeContribution.ProfileName}`", instructions, StringComparison.Ordinal);
+        Assert.Contains($"`/{MarkerCommand.CommandName}`: {MarkerCommand.CommandDescription}", instructions, StringComparison.Ordinal);
+        Assert.Contains(nameof(MarkerChatClient), ChainTypes(run.Agent.ChatClient));
+        Assert.True(middleware.Invocations > 0, "The contributed middleware never saw the thread's request.");
         var provider = Assert.Single(run.Agent.AIContextProviders.OfType<MarkerContextProvider>());
-        Assert.Contains(ContextMarker, chatClient.LastInstructions ?? string.Empty, StringComparison.Ordinal);
-        // The provider is parameterized from the thread's own context, not the factory-level one.
         var expectedWorkspace = workspaceOverride ? _overrideDir : _tempDir;
         Assert.Equal(Path.GetFullPath(expectedWorkspace), Path.GetFullPath(provider.Request.WorkspacePath));
+        var snapshot = service.DebugGetRuntime(run.ThreadId)?.LatestToolSnapshot;
+        Assert.NotNull(snapshot);
+        Assert.Contains(new ToolName(null, "kept"), snapshot.Registrations.Keys);
+        Assert.DoesNotContain(new ToolName(null, "masked"), snapshot.Registrations.Keys);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task MemoryTargetReplacement_OwnsThePromptTheThreadAgentSends(bool workspaceOverride)
+    [Fact]
+    public async Task MemoryTargetReplacement_OwnsThePromptTheThreadAgentSends()
     {
         _registry.Add<IAgentContextSource>(
             new MarkerContextContribution(),
@@ -116,67 +86,12 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
         var chatClient = new CapturingChatClient();
         var service = CreateService(chatClient);
 
-        var run = await RunThreadTurnAsync(service, workspaceOverride);
+        var run = await RunThreadTurnAsync(service, workspaceOverride: true);
 
         Assert.Empty(run.Agent.AIContextProviders.OfType<MemoryContextProvider>());
         Assert.Equal(ContextMarker, chatClient.LastInstructions);
         Assert.NotNull(Assert.Single(run.Agent.AIContextProviders.OfType<MarkerContextProvider>())
             .Request.PromptInputs);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ContributedToolRestriction_MasksTheToolInTheThreadsOwnSnapshot(bool workspaceOverride)
-    {
-        _registry.Add<IToolSource>(new MarkerToolSource("marker", ["kept", "masked"]));
-        _registry.Add<IToolRestriction>(new MarkerRestriction("masked"));
-        var service = CreateService(new CapturingChatClient());
-
-        var run = await RunThreadTurnAsync(service, workspaceOverride);
-
-        var snapshot = service.DebugGetRuntime(run.ThreadId)?.LatestToolSnapshot;
-        Assert.NotNull(snapshot);
-        Assert.Contains(new ToolName(null, "kept"), snapshot.Registrations.Keys);
-        Assert.DoesNotContain(new ToolName(null, "masked"), snapshot.Registrations.Keys);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ContributedSubAgentRuntime_IsListedInThePromptTheThreadAgentSends(bool workspaceOverride)
-    {
-        // The profiles section is only assembled when the thread actually holds the spawn tool.
-        _registry.Add<IToolSource>(new MarkerToolSource("marker", ["SpawnAgent"]));
-        _registry.Add<ISubAgentRuntimeSource>(new MarkerSubAgentRuntimeContribution());
-        var chatClient = new CapturingChatClient();
-        var service = CreateService(chatClient);
-
-        await RunThreadTurnAsync(service, workspaceOverride);
-
-        Assert.Contains(
-            $"`{MarkerSubAgentRuntimeContribution.ProfileName}`",
-            chatClient.LastInstructions ?? string.Empty,
-            StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ContributedCommand_IsDescribedInThePromptTheThreadAgentSends(bool workspaceOverride)
-    {
-        // No CustomCommandLoader reaches the agent factory, so this is the only path that puts a
-        // custom command in a real thread's prompt.
-        _registry.Add<ICodeCommand>(new MarkerCommand());
-        var chatClient = new CapturingChatClient();
-        var service = CreateService(chatClient);
-
-        await RunThreadTurnAsync(service, workspaceOverride);
-
-        Assert.Contains(
-            $"`/{MarkerCommand.CommandName}`: {MarkerCommand.CommandDescription}",
-            chatClient.LastInstructions ?? string.Empty,
-            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -204,7 +119,6 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
         var service = CreateService(new CapturingChatClient());
         using var dispatcher = AttachRuntimeSignals(service);
 
-        // A stalled observer turns a turn-path stall into a hang, so the turn is bounded by a timeout.
         await RunThreadTurnAsync(service, workspaceOverride: false).WaitAsync(SignalTimeout);
 
         Assert.True(stalled.Entered.Wait(SignalTimeout));
@@ -219,11 +133,10 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
         var service = CreateService(new CapturingChatClient());
         using var bridge = new ContributionPropagationBridge(_registry, service);
         var run = await RunThreadTurnAsync(service, workspaceOverride: false);
-        Assert.Empty(run.Agent.AIContextProviders.OfType<MarkerContextProvider>());
+        Assert.IsType<MemoryContextProvider>(Assert.Single(run.Agent.AIContextProviders));
 
         _registry.Add<IAgentContextSource>(new MarkerContextContribution());
 
-        // The mutation reaches the live thread through the bridge's invalidation, not through a fresh session.
         Assert.Null(service.DebugGetRuntime(run.ThreadId)?.Agent);
         await service.RefreshThreadAgentAsync(run.ThreadId);
         var rebuilt = service.DebugGetRuntime(run.ThreadId)?.Agent;
@@ -231,7 +144,6 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
         Assert.Single(rebuilt.AIContextProviders.OfType<MarkerContextProvider>());
     }
 
-    /// <summary>Runs one real turn on a thread and returns the agent the turn ran on.</summary>
     private async Task<(string ThreadId, ChatClientAgent Agent)> RunThreadTurnAsync(
         SessionService service,
         bool workspaceOverride)
@@ -256,7 +168,6 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
         return (thread.Id, agent);
     }
 
-    /// <summary>Wires the runtime signal funnel exactly as <c>WorkspaceRuntime</c> does.</summary>
     private ThreadRuntimeSignalDispatcher AttachRuntimeSignals(SessionService service)
     {
         var dispatcher = new ThreadRuntimeSignalDispatcher(_registry);
@@ -311,7 +222,6 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
         return factory;
     }
 
-    // Outermost client inwards.
     private static IReadOnlyList<string> ChainTypes(IChatClient client)
     {
         var names = new List<string>();

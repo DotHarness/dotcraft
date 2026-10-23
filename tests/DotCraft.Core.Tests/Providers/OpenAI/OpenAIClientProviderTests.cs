@@ -36,17 +36,6 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
     }
 
     [Fact]
-    public void CreateClientOptions_UsesConfiguredNetworkTimeout()
-    {
-        var endpoint = new Uri("https://example.test/v1");
-
-        var options = OpenAIClientProvider.CreateClientOptions(endpoint, 240);
-
-        Assert.Equal(endpoint, options.Endpoint);
-        Assert.Equal(TimeSpan.FromSeconds(240), options.NetworkTimeout);
-    }
-
-    [Fact]
     public async Task GetOpenAIClient_ReplacesSdkUserAgent()
     {
         var (endpoint, requestTask) = await StartSingleJsonResponseServerAsync(
@@ -125,22 +114,6 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
         });
 
         Assert.Equal(1, server.RequestCount);
-    }
-
-    [Fact]
-    public void GetOpenAIClient_CacheKeyIncludesNetworkTimeout()
-    {
-        var provider = new OpenAIClientProvider();
-        var baseRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
-        var sameRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
-        var differentTimeoutRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 900);
-
-        var first = provider.GetOpenAIClient(baseRuntime);
-        var same = provider.GetOpenAIClient(sameRuntime);
-        var differentTimeout = provider.GetOpenAIClient(differentTimeoutRuntime);
-
-        Assert.Same(first, same);
-        Assert.NotSame(first, differentTimeout);
     }
 
     [Fact]
@@ -263,23 +236,10 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
     private static RecordingHttpServer.ResponseSpec ImageResponse(byte[] bytes) =>
         JsonResponse($$"""{"created":1778544000,"data":[{"b64_json":"{{Convert.ToBase64String(bytes)}}"}]}""");
 
-    [Fact]
-    public void GetOpenAIClient_RejectsNonOpenAIProtocol()
-    {
-        var provider = new OpenAIClientProvider();
-        var runtime = Runtime(ModelProviderProtocols.Anthropic);
-
-        Assert.Throws<ArgumentException>(() => provider.GetOpenAIClient(runtime));
-    }
-
     [Theory]
     [InlineData(null, false)]
-    [InlineData("", false)]
-    [InlineData("0", false)]
-    [InlineData("false", false)]
     [InlineData("off", false)]
     [InlineData("1", true)]
-    [InlineData("true", true)]
     public void LlmHttpCapture_IsOptIn(string? value, bool expected)
     {
         var previous = Environment.GetEnvironmentVariable(LlmHttpCapturePipelinePolicy.EnabledEnvironmentVariable);

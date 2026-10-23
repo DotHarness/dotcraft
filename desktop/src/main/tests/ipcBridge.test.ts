@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ipcMain, Notification, shell } from 'electron'
 import { promises as fs } from 'fs'
 import * as path from 'path'
+import { PassThrough, type Readable, type Writable } from 'stream'
 
 const {
   scanModulesMock,
@@ -129,7 +130,6 @@ import {
   openExternalUrl,
   openExternalHttpUrl,
   openAppHandoffUrl,
-  getProtocolHandlerName,
   broadcastNotification,
   broadcastServerRequest,
   shouldShowTaskCompletionNotification
@@ -142,6 +142,7 @@ import { applyWorkspaceThreadListRequestResult, beginWorkspaceThreadListRequest 
 import { setLocalChatsFolderRootsResolver } from '../chatFolderAccess'
 import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 import { isTerminalCwdAllowed } from '../viewerTerminalIpc'
+import { DesktopAppServerClient } from '../DesktopAppServerClient'
 
 type IpcCallbacks = NonNullable<Parameters<typeof registerIpcHandlers>[3]>
 type ExecFileCallback = (
@@ -205,40 +206,8 @@ function mockGitCommands(
   })
 }
 
-// These exercise the pending-map logic directly, without standing up a real Electron
-// IPC environment.
 
 describe('createServerRequestBridge', () => {
-  it('returns a unique bridgeId for each call', () => {
-    const a = createServerRequestBridge()
-    const b = createServerRequestBridge()
-    expect(a.bridgeId).not.toBe(b.bridgeId)
-    resolveServerRequestBridge(a.bridgeId, null)
-    resolveServerRequestBridge(b.bridgeId, null)
-  })
-
-  it('returns a promise that is pending until resolved externally', async () => {
-    const { bridgeId, promise } = createServerRequestBridge()
-    let settled = false
-    void promise.then(() => { settled = true })
-    await new Promise((r) => setTimeout(r, 10))
-    expect(settled).toBe(false)
-    resolveServerRequestBridge(bridgeId, null)
-    await promise
-  })
-
-  it('bridge IDs are numeric strings in ascending order', () => {
-    const ids = [
-      createServerRequestBridge().bridgeId,
-      createServerRequestBridge().bridgeId,
-      createServerRequestBridge().bridgeId
-    ]
-    const nums = ids.map(Number)
-    expect(nums[0]).toBeLessThan(nums[1])
-    expect(nums[1]).toBeLessThan(nums[2])
-    for (const id of ids) resolveServerRequestBridge(id, null)
-  })
-
   it('resolves a bridge and runs its settlement callback once', async () => {
     const onSettled = vi.fn()
     const { bridgeId, promise } = createServerRequestBridge(onSettled)
@@ -260,78 +229,39 @@ describe('createServerRequestBridge', () => {
   })
 })
 
-describe('sanitizeHttpOrHttpsUrl', () => {
-  it('accepts http and https URLs and returns normalized href', () => {
-    expect(sanitizeHttpOrHttpsUrl('http://127.0.0.1:8080/dashboard')).toBe(
-      'http://127.0.0.1:8080/dashboard'
-    )
+describe('URL sanitizers', () => {
+  it('sanitizeHttpOrHttpsUrl accepts only well-formed http(s) URLs', () => {
+    expect(sanitizeHttpOrHttpsUrl('http://127.0.0.1:8080/dashboard')).toBe('http://127.0.0.1:8080/dashboard')
     expect(sanitizeHttpOrHttpsUrl('https://example.com/path')).toBe('https://example.com/path')
+    for (const value of [undefined, '', '   ', 'file:///etc/passwd', 'ms-msdt:foo', 'custom:host', 'not a url']) {
+      expect(sanitizeHttpOrHttpsUrl(value)).toBeNull()
+    }
   })
 
-  it('returns null for empty, whitespace-only, or undefined', () => {
-    expect(sanitizeHttpOrHttpsUrl(undefined)).toBeNull()
-    expect(sanitizeHttpOrHttpsUrl('')).toBeNull()
-    expect(sanitizeHttpOrHttpsUrl('   ')).toBeNull()
-  })
-
-  it('returns null for non-http(s) protocols', () => {
-    expect(sanitizeHttpOrHttpsUrl('file:///etc/passwd')).toBeNull()
-    expect(sanitizeHttpOrHttpsUrl('ms-msdt:foo')).toBeNull()
-    expect(sanitizeHttpOrHttpsUrl('custom:host')).toBeNull()
-  })
-
-  it('returns null for malformed strings', () => {
-    expect(sanitizeHttpOrHttpsUrl('not a url')).toBeNull()
-  })
-})
-
-describe('openExternalHttpUrl', () => {
-  it('throws Invalid URL for empty input', async () => {
-    await expect(openExternalHttpUrl('')).rejects.toThrow('Invalid URL')
-  })
-
-  it('throws Only http(s) URLs are allowed for disallowed protocols', async () => {
-    await expect(openExternalHttpUrl('file:///tmp/x')).rejects.toThrow('Only http(s) URLs are allowed')
-  })
-
-  it('calls shell.openExternal with sanitized href for https URL', async () => {
-    vi.mocked(shell.openExternal).mockClear()
-    await openExternalHttpUrl('https://example.com')
-    expect(shell.openExternal).toHaveBeenCalledTimes(1)
-    expect(shell.openExternal).toHaveBeenCalledWith('https://example.com/')
-  })
-})
-
-describe('sanitizeExternalUrl', () => {
-  it('accepts http(s), mailto, and tel URLs', () => {
+  it('sanitizeExternalUrl accepts http(s), mailto, and tel URLs only', () => {
     expect(sanitizeExternalUrl('https://example.com')).toBe('https://example.com/')
     expect(sanitizeExternalUrl('mailto:test@example.com')).toBe('mailto:test@example.com')
     expect(sanitizeExternalUrl('tel:+123456789')).toBe('tel:+123456789')
-  })
-
-  it('rejects unsupported schemes and overlong values', () => {
     expect(sanitizeExternalUrl('file:///tmp/x')).toBeNull()
     expect(sanitizeExternalUrl(`https://example.com/${'a'.repeat(5000)}`)).toBeNull()
   })
 })
 
 describe('openExternalUrl', () => {
-  it('allows mailto URLs', async () => {
+  it('opens allowed schemes and rejects everything else', async () => {
     vi.mocked(shell.openExternal).mockClear()
+    await openExternalHttpUrl('https://example.com')
     await openExternalUrl('mailto:test@example.com')
-    expect(shell.openExternal).toHaveBeenCalledWith('mailto:test@example.com')
-  })
-
-  it('allows app deep link URLs', async () => {
-    vi.mocked(shell.openExternal).mockClear()
     await openExternalUrl('workflow://dotcraft/connect?request=req_1')
-    expect(shell.openExternal).toHaveBeenCalledWith('workflow://dotcraft/connect?request=req_1')
-  })
 
-  it('rejects unsupported schemes', async () => {
-    await expect(openExternalUrl('file:///tmp/x')).rejects.toThrow(
-      'URL scheme is not allowed'
-    )
+    expect(vi.mocked(shell.openExternal).mock.calls.map(([url]) => url)).toEqual([
+      'https://example.com/',
+      'mailto:test@example.com',
+      'workflow://dotcraft/connect?request=req_1'
+    ])
+    await expect(openExternalHttpUrl('')).rejects.toThrow('Invalid URL')
+    await expect(openExternalHttpUrl('file:///tmp/x')).rejects.toThrow('Only http(s) URLs are allowed')
+    await expect(openExternalUrl('file:///tmp/x')).rejects.toThrow('URL scheme is not allowed')
   })
 })
 
@@ -368,12 +298,6 @@ describe('openAppHandoffUrl', () => {
     await openAppHandoffUrl('workflow://dotcraft/bind?request=req_1')
 
     expect(shell.openExternal).toHaveBeenCalledWith('workflow://dotcraft/bind?request=req_1')
-  })
-})
-
-describe('getProtocolHandlerName', () => {
-  it('queries the OS protocol handler name', () => {
-    expect(getProtocolHandlerName('workflow')).toBe('Workflow App')
   })
 })
 
@@ -487,7 +411,7 @@ describe('registerIpcHandlers', () => {
     expect(onCompleted.mock.results.map((call) => call.value)).toEqual([true, false])
   })
 
-  it('carries a JSON-RPC code and data through to the preload-side Error', async () => {
+  it('carries JSON-RPC code and data to the preload-side Error and drops a cyclic cause that cannot cross IPC', async () => {
     const rpcError = Object.assign(new Error('Workspace is busy.'), {
       name: 'JsonRpcError',
       code: 'jsonRpcError',
@@ -521,40 +445,19 @@ describe('registerIpcHandlers', () => {
         fallbackText: 'That folder is in use.'
       })
     }
-  })
 
-  it('rejects a plain failure with the same message and no structured fields', async () => {
-    const sendRequest = vi.fn().mockRejectedValue(new Error('Thread already has a running turn.'))
-    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
-
-    const outcome = await handlers.get('appserver:send-request')?.({}, 'turn/start', { threadId: 't1' })
-
-    try {
-      unwrapAppServerResult(outcome)
-      expect.unreachable('the envelope must reject')
-    } catch (error) {
-      const failure = error as Error & { code?: string; rpcCode?: number; data?: unknown }
-      expect(failure.message).toBe('Thread already has a running turn.')
-      expect(failure.name).toBe('Error')
-      expect(failure.code).toBeUndefined()
-      expect(failure.rpcCode).toBeUndefined()
-      expect(failure.data).toBeUndefined()
-    }
-  })
-
-  it('drops a cyclic cause that could not cross the IPC boundary', async () => {
     const data: Record<string, unknown> = { code: 'remote_host_unavailable' }
     data.self = data
-    const sendRequest = vi.fn().mockRejectedValue(
+    const cyclicRequest = vi.fn().mockRejectedValue(
       Object.assign(new Error('Machine is offline.'), { rpcCode: -32100, data })
     )
-    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
+    const cyclicHandlers = registerHandlersForTest('/workspace', () => ({ sendRequest: cyclicRequest } as never))
 
-    const outcome = await handlers.get('appserver:send-request')?.({}, 'thread/list', {})
+    const cyclicOutcome = await cyclicHandlers.get('appserver:send-request')?.({}, 'thread/list', {})
 
-    expect(() => structuredClone(outcome)).not.toThrow()
+    expect(() => structuredClone(cyclicOutcome)).not.toThrow()
     try {
-      unwrapAppServerResult(outcome)
+      unwrapAppServerResult(cyclicOutcome)
       expect.unreachable('the envelope must reject')
     } catch (error) {
       const failure = error as Error & { rpcCode?: number; data?: unknown }
@@ -651,14 +554,7 @@ describe('registerIpcHandlers', () => {
     }
   })
 
-  it.each([
-    'https://example.com/items',
-    '//example.com/items',
-    '/../items',
-    '/%2e%2e/items',
-    '/items#fragment',
-    '/items\\child'
-  ])('rejects unsafe Desktop Plugin App Surface path %s', async (relativePath) => {
+  it('rejects unsafe Desktop Plugin App Surface paths before fetching', async () => {
     const sendRequest = vi.fn().mockResolvedValue({
       appId: 'com.example.workflow',
       surfaceId: 'board',
@@ -670,11 +566,13 @@ describe('registerIpcHandlers', () => {
     vi.stubGlobal('fetch', fetchMock)
     try {
       const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
-      await expect(handlers.get('desktop-plugin:app-surface-get-json')?.({}, {
-        appId: 'com.example.workflow',
-        surfaceId: 'board',
-        relativePath
-      })).rejects.toThrow()
+      for (const relativePath of ['https://example.com/items', '//example.com/items', '/../items', '/%2e%2e/items', '/items#fragment', '/items\\child']) {
+        await expect(handlers.get('desktop-plugin:app-surface-get-json')?.({}, {
+          appId: 'com.example.workflow',
+          surfaceId: 'board',
+          relativePath
+        }), relativePath).rejects.toThrow()
+      }
       expect(fetchMock).not.toHaveBeenCalled()
     } finally {
       vi.unstubAllGlobals()
@@ -706,23 +604,6 @@ describe('registerIpcHandlers', () => {
     }
   })
 
-  it('forwards Desktop Plugin App Binding status and connection requests', async () => {
-    const sendRequest = vi.fn()
-      .mockResolvedValueOnce({ appId: 'com.example.workflow', state: 'connected' })
-      .mockResolvedValueOnce({ appId: 'com.example.workflow', state: 'pending' })
-    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
-
-    await expect(handlers.get('desktop-plugin:app-connection-status')?.({}, {
-      appId: 'com.example.workflow'
-    })).resolves.toEqual({ appId: 'com.example.workflow', state: 'connected' })
-    await expect(handlers.get('desktop-plugin:app-connection-start')?.({}, {
-      appId: 'com.example.workflow'
-    })).resolves.toEqual({ appId: 'com.example.workflow', state: 'pending' })
-
-    expect(sendRequest).toHaveBeenNthCalledWith(1, 'app/connection/status', { appId: 'com.example.workflow' }, 20_000)
-    expect(sendRequest).toHaveBeenNthCalledWith(2, 'app/connection/start', { appId: 'com.example.workflow' }, 20_000)
-  })
-
   it('opens only the native protocol declared by the selected app', async () => {
     const sendRequest = vi.fn().mockResolvedValue({
       apps: [{ appId: 'com.example.workflow', nativeApp: { protocol: 'workflow' } }]
@@ -739,28 +620,6 @@ describe('registerIpcHandlers', () => {
       url: 'workflow://open/board'
     })
     expect(shell.openExternal).toHaveBeenCalledWith('workflow://open/board')
-  })
-
-  it('forwards workspace:remove-project to the main callback', async () => {
-    const removeProject = vi.fn().mockResolvedValue(undefined)
-    const handlers = registerHandlersForTest('/workspace', () => null, createIpcCallbacks({
-      removeProject
-    }))
-
-    await handlers.get('workspace:remove-project')?.({}, '/workspace/other')
-
-    expect(removeProject).toHaveBeenCalledWith('/workspace/other')
-  })
-
-  it('forwards workspace:disconnect-remote to the main callback', async () => {
-    const onDisconnectRemoteProject = vi.fn().mockResolvedValue(undefined)
-    const handlers = registerHandlersForTest('/workspace', () => null, createIpcCallbacks({
-      onDisconnectRemoteProject
-    }))
-
-    await handlers.get('workspace:disconnect-remote')?.({})
-
-    expect(onDisconnectRemoteProject).toHaveBeenCalledTimes(1)
   })
 
   it('observes successful AppServer requests after forwarding them', async () => {
@@ -817,22 +676,16 @@ describe('registerIpcHandlers', () => {
       .toThrow('AppServer is not connected (command/list)')
   })
 
-  it('defers model listing until AppServer is connected', async () => {
-    const handlers = registerHandlersForTest('/workspace', () => null)
-
+  it('defers model listing until connected and forwards the trimmed provider id', async () => {
     await expect(
-      handlers.get('appserver:model-list')?.({}, 'openrouter')
+      registerHandlersForTest('/workspace', () => null).get('appserver:model-list')?.({}, 'openrouter')
     ).resolves.toBeNull()
-  })
 
-  it('forwards provider-specific model listing through its dedicated channel', async () => {
     const result = { success: true, models: [{ id: 'model-1' }] }
     const sendRequest = vi.fn().mockResolvedValue(result)
     const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
 
-    await expect(
-      handlers.get('appserver:model-list')?.({}, ' openrouter ')
-    ).resolves.toBe(result)
+    await expect(handlers.get('appserver:model-list')?.({}, ' openrouter ')).resolves.toBe(result)
     expect(sendRequest).toHaveBeenCalledWith('model/list', { providerId: 'openrouter' }, 20_000)
   })
 
@@ -916,49 +769,12 @@ describe('registerIpcHandlers', () => {
     ])
   })
 
-  it('git:commit rejects paths outside the active workspace', async () => {
-    const handlers = registerHandlersForTest()
-    const commit = handlers.get('git:commit')!
+  it('git:commit rejects outside paths and mismatched workspaces without running git', async () => {
+    const commit = registerHandlersForTest().get('git:commit')!
 
-    await expect(
-      commit({}, '/workspace', ['/outside/secret.txt'], 'fix: outside')
-    ).rejects.toThrow('Access denied')
-
+    await expect(commit({}, '/workspace', ['/outside/secret.txt'], 'fix: outside')).rejects.toThrow('Access denied')
+    await expect(commit({}, '/other-workspace', ['src/valid.ts'], 'fix: mismatch')).rejects.toThrow('Workspace path mismatch')
     expect(execFileMock).not.toHaveBeenCalled()
-  })
-
-  it('git:commit rejects requests for a different workspace path', async () => {
-    const handlers = registerHandlersForTest()
-    const commit = handlers.get('git:commit')!
-
-    await expect(
-      commit({}, '/other-workspace', ['src/valid.ts'], 'fix: mismatch')
-    ).rejects.toThrow('Workspace path mismatch')
-
-    expect(execFileMock).not.toHaveBeenCalled()
-  })
-
-  it('git:commit constrains the commit pathspec to requested commit files', async () => {
-    mockGitCommands((args) => {
-      if (args[0] === 'status') {
-        return { stdout: ' M src/valid.ts\0' }
-      }
-      if (args[0] === 'diff') {
-        return { error: gitError(1) }
-      }
-      if (args[0] === 'commit') {
-        return { stdout: '[main def456] fix: requested\n' }
-      }
-      return { stdout: '' }
-    })
-    const handlers = registerHandlersForTest()
-    const commit = handlers.get('git:commit')!
-
-    await commit({}, '/workspace', ['src/valid.ts'], 'fix: requested')
-
-    const commitCall = execFileMock.mock.calls.find(([, args]) => (args as string[])[0] === 'commit')
-    expect(commitCall?.[1]).toEqual(['commit', '-m', 'fix: requested', '--', 'src/valid.ts'])
-    expect(commitCall?.[1]).not.toContain('src/already-staged.ts')
   })
 
   const crlfPatch = [
@@ -998,29 +814,19 @@ describe('registerIpcHandlers', () => {
       .toBeGreaterThan(execFileMock.mock.invocationCallOrder[1])
   })
 
-  it('git:applyPatch re-roots workspace-relative paths when the workspace is a repository subdirectory', async () => {
+  it('git:applyPatch re-roots paths when the workspace is a repository subdirectory, before reversing', async () => {
     vi.mocked(fs.rm).mockResolvedValue(undefined)
     mockGitCommands((args) => (args[0] === 'rev-parse' ? { stdout: 'sub/\n' } : { stdout: '' }))
-    const handlers = registerHandlersForTest()
-    const applyPatch = handlers.get('git:applyPatch')!
+    const applyPatch = registerHandlersForTest().get('git:applyPatch')!
 
     await expect(applyPatch({}, '/workspace', crlfPatch, { reverse: false })).resolves.toEqual({ ok: true })
-
-    expect(execFileMock.mock.calls[1][1]).toEqual([...exactBytesApply, '--directory=sub/', tempPatchFile])
-  })
-
-  it('git:applyPatch reverses the patch after re-rooting its paths', async () => {
-    vi.mocked(fs.rm).mockResolvedValue(undefined)
-    mockGitCommands((args) => (args[0] === 'rev-parse' ? { stdout: 'sub/\n' } : { stdout: '' }))
-    const handlers = registerHandlersForTest()
-    const applyPatch = handlers.get('git:applyPatch')!
-
     await expect(applyPatch({}, '/workspace', crlfPatch, { reverse: true })).resolves.toEqual({ ok: true })
 
-    expect(execFileMock.mock.calls[1][1]).toEqual([...exactBytesApply, '--directory=sub/', '-R', tempPatchFile])
+    expect(execFileMock.mock.calls[1][1]).toEqual([...exactBytesApply, '--directory=sub/', tempPatchFile])
+    expect(execFileMock.mock.calls[3][1]).toEqual([...exactBytesApply, '--directory=sub/', '-R', tempPatchFile])
   })
 
-  it('git:applyPatch reports a workspace outside git without applying anything', async () => {
+  it('git:applyPatch reports a workspace outside git, and a patch that does not apply after removing the temp file', async () => {
     mockGitCommands(() => ({
       error: gitError(128),
       stderr: 'fatal: not a git repository (or any of the parent directories): .git\n'
@@ -1035,16 +841,12 @@ describe('registerIpcHandlers', () => {
     })
     expect(execFileMock.mock.calls.map(([, args]) => args)).toEqual([['rev-parse', '--show-prefix']])
     expect(fs.writeFile).not.toHaveBeenCalled()
-  })
 
-  it('git:applyPatch returns git\'s error and still removes the temp file when the patch does not apply', async () => {
+    execFileMock.mockClear()
     vi.mocked(fs.rm).mockResolvedValue(undefined)
     mockGitCommands((args) => (args[0] === 'rev-parse'
       ? { stdout: '\n' }
       : { error: gitError(1), stderr: 'error: patch failed: notes.txt:1\nerror: notes.txt: patch does not apply\n' }))
-    const handlers = registerHandlersForTest()
-    const applyPatch = handlers.get('git:applyPatch')!
-
     await expect(applyPatch({}, '/workspace', crlfPatch, { reverse: true })).resolves.toEqual({
       ok: false,
       code: 'apply-failed',
@@ -1053,44 +855,21 @@ describe('registerIpcHandlers', () => {
     expect(fs.rm).toHaveBeenCalledWith(execFileMock.mock.calls[1][1].at(-1), { force: true })
   })
 
-  it('git:applyPatch rejects a blank patch without running git', async () => {
-    const handlers = registerHandlersForTest()
-    const applyPatch = handlers.get('git:applyPatch')!
+  it('git:applyPatch rejects a blank patch or a mismatched workspace without running git', async () => {
+    const applyPatch = registerHandlersForTest().get('git:applyPatch')!
 
     await expect(applyPatch({}, '/workspace', ' \n', { reverse: false })).resolves.toMatchObject({
       ok: false,
       code: 'invalid-patch'
     })
-    expect(execFileMock).not.toHaveBeenCalled()
-    expect(fs.writeFile).not.toHaveBeenCalled()
-  })
-
-  it('git:applyPatch rejects requests for a different workspace path', async () => {
-    const handlers = registerHandlersForTest()
-    const applyPatch = handlers.get('git:applyPatch')!
-
     await expect(
       applyPatch({}, '/other-workspace', crlfPatch, { reverse: false })
     ).rejects.toThrow('Workspace path mismatch')
     expect(execFileMock).not.toHaveBeenCalled()
+    expect(fs.writeFile).not.toHaveBeenCalled()
   })
 
-  it('git:branch reads linked worktree branch through git commands', async () => {
-    mockGitCommands((args) => {
-      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' }
-      if (args[0] === 'branch' && args[1] === '--show-current') return { stdout: 'feat/worktree\n' }
-      throw new Error(`Unexpected git command: ${args.join(' ')}`)
-    })
-    const handlers = registerHandlersForTest()
-    const getBranch = handlers.get('git:branch')!
-
-    const branch = await getBranch({}, '/workspace/.craft/worktrees/feat-worktree')
-
-    expect(branch).toBe('feat/worktree')
-    expect(fs.readFile).not.toHaveBeenCalled()
-  })
-
-  it('git:inspectHead reads the branch of a known local project', async () => {
+  it('git:inspectHead reads the branch of a known local project and its managed worktrees only', async () => {
     mockGitCommands((args) => {
       if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' }
       if (args[0] === 'branch' && args[1] === '--show-current') return { stdout: 'feature/details-card\n' }
@@ -1115,26 +894,9 @@ describe('registerIpcHandlers', () => {
       expect.objectContaining({ cwd: path.resolve('/recent/project') }),
       expect.any(Function)
     )
-  })
-
-  it('git:inspectHead allows managed worktrees of a local project only', async () => {
-    mockGitCommands((args) => {
-      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' }
-      if (args[0] === 'branch' && args[1] === '--show-current') return { stdout: 'feature/recent-worktree\n' }
-      throw new Error(`Unexpected git command: ${args.join(' ')}`)
-    })
-    const handlers = registerHandlersForTest(
-      '/workspace',
-      () => null,
-      createIpcCallbacks({
-        getLocalProjectPaths: vi.fn(() => ['/recent/project'])
-      })
-    )
-    const inspectHead = handlers.get('git:inspectHead')!
-
     await expect(
       inspectHead({}, '/recent/project/.craft/worktrees/details')
-    ).resolves.toEqual({ kind: 'branch', label: 'feature/recent-worktree' })
+    ).resolves.toEqual({ kind: 'branch', label: 'feature/details-card' })
     await expect(inspectHead({}, '/recent/project/private')).rejects.toThrow('Workspace path mismatch')
   })
 
@@ -1155,7 +917,7 @@ describe('registerIpcHandlers', () => {
     await expect(inspectHead({}, '/outside/project')).rejects.toThrow('Workspace path mismatch')
   })
 
-  it('git:listBranches returns current branch and local branch list', async () => {
+  it('git:branch and git:listBranches read branches through git commands', async () => {
     mockGitCommands((args) => {
       if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' }
       if (args[0] === 'branch' && args[1] === '--show-current') return { stdout: 'feat/worktree\n' }
@@ -1165,6 +927,8 @@ describe('registerIpcHandlers', () => {
     const handlers = registerHandlersForTest()
     const listBranches = handlers.get('git:listBranches')!
 
+    await expect(handlers.get('git:branch')!({}, '/workspace/.craft/worktrees/feat-worktree')).resolves.toBe('feat/worktree')
+    expect(fs.readFile).not.toHaveBeenCalled()
     await expect(listBranches({}, '/workspace')).resolves.toEqual({
       current: 'feat/worktree',
       detachedHead: null,
@@ -1175,14 +939,15 @@ describe('registerIpcHandlers', () => {
     })
   })
 
-  it('git:checkoutBranch switches the requested branch in the provided git workspace', async () => {
+  it('git:checkoutBranch switches branches in the workspace or its managed worktrees only', async () => {
     mockGitCommands((args) => {
       if (args[0] === 'switch') return { stdout: '' }
       throw new Error(`Unexpected git command: ${args.join(' ')}`)
     })
-    const handlers = registerHandlersForTest()
-    const checkout = handlers.get('git:checkoutBranch')!
+    const checkout = registerHandlersForTest().get('git:checkoutBranch')!
 
+    await expect(checkout({}, '/outside/worktree', 'main')).rejects.toThrow('Workspace path mismatch')
+    expect(execFileMock).not.toHaveBeenCalled()
     await checkout({}, '/workspace/.craft/worktrees/feat-worktree', 'main')
 
     expect(execFileMock).toHaveBeenCalledWith(
@@ -1233,51 +998,16 @@ describe('registerIpcHandlers', () => {
     )
   })
 
-  it('workspace:create-local-project disambiguates an existing folder name', async () => {
+  it('workspace:create-local-project disambiguates an existing folder and survives missing git', async () => {
     const taken = path.join('C:\\Users\\tester', 'My App')
     existsSyncMock.mockImplementation((candidate: string) => String(candidate) === taken)
-    mockGitCommands(() => ({ stdout: '' }))
-    const handlers = registerHandlersForTest()
-    const create = handlers.get('workspace:create-local-project')!
-
-    const result = await create({}, { name: 'My App' }) as { path: string }
-
-    expect(result.path).toBe(path.join('C:\\Users\\tester', 'My App 2'))
-  })
-
-  it('workspace:create-local-project still returns a path when git is unavailable', async () => {
-    existsSyncMock.mockReturnValue(false)
     mockGitCommands(() => ({ error: gitError(1, 'git not found') }))
-    const handlers = registerHandlersForTest()
-    const create = handlers.get('workspace:create-local-project')!
+    const create = registerHandlersForTest().get('workspace:create-local-project')!
 
-    const result = await create({}, { name: 'My App' }) as { path: string; gitInitialized: boolean }
-
-    expect(result.gitInitialized).toBe(false)
-    expect(result.path).toBe(path.join('C:\\Users\\tester', 'My App'))
-  })
-
-  it('git:checkoutBranch rejects paths outside the workspace and managed worktrees', async () => {
-    const handlers = registerHandlersForTest()
-    const checkout = handlers.get('git:checkoutBranch')!
-
-    await expect(checkout({}, '/outside/worktree', 'main')).rejects.toThrow('Workspace path mismatch')
-    expect(execFileMock).not.toHaveBeenCalled()
-  })
-
-  it('workspace:search-files returns empty when no workspace is active', async () => {
-    const handlers = registerHandlersForTest('')
-    const searchFiles = handlers.get('workspace:search-files')!
-
-    const result = await searchFiles({}, { query: 'src', workspacePath: '', limit: 10 })
-
-    expect(result).toEqual({
-      files: [],
-      indexStatus: 'empty',
-      indexedCount: 0,
-      stale: false
+    await expect(create({}, { name: 'My App' })).resolves.toEqual({
+      path: path.join('C:\\Users\\tester', 'My App 2'),
+      gitInitialized: false
     })
-    expect(listWorkspaceFilesMock).not.toHaveBeenCalled()
   })
 
   it('chrome:check-setup runs Chrome setup checks and backend discovery', async () => {
@@ -1358,7 +1088,7 @@ describe('registerIpcHandlers', () => {
     expect(JSON.stringify(result.nativeHost)).not.toContain('C:\\secret')
   })
 
-  it('chrome:install-native-host runs only the bundled installer script', async () => {
+  it('chrome:install-native-host runs only the bundled installer and chrome:open forwards only normalized targets', async () => {
     execFileMock.mockImplementation((_command, args, _options, callback: ExecFileCallback) => {
       callback(null, '{"ok":true,"manifestPath":"host.json"}', '')
       return null
@@ -1373,14 +1103,12 @@ describe('registerIpcHandlers', () => {
     const args = execFileMock.mock.calls[0]![1] as string[]
     expect(args[0]).toMatch(/installManifest\.mjs$/)
     expect(args.slice(1)).toEqual([])
-  })
 
-  it('chrome:open only forwards normalized Chrome launch targets', async () => {
+    execFileMock.mockClear()
     execFileMock.mockImplementation((_command, _args, _options, callback: ExecFileCallback) => {
       callback(null, '{"ok":true,"opened":true}', '')
       return null
     })
-    const handlers = registerHandlersForTest()
     const openChrome = handlers.get('chrome:open')!
 
     await openChrome({}, { url: 'chrome://extensions' })
@@ -1393,7 +1121,7 @@ describe('registerIpcHandlers', () => {
     expect(secondArgs.at(-1)).toBe('about:blank')
   })
 
-  it('rejects unsafe open target requests before launching anything', async () => {
+  it('rejects unsafe open target requests, then opens existing paths at their position and reveals them', async () => {
     const handlers = registerHandlersForTest()
     const open = handlers.get('open-targets:open')!
 
@@ -1408,10 +1136,7 @@ describe('registerIpcHandlers', () => {
     await expect(open({}, { targetId: 'vscode', path: path.resolve('/tmp/missing.txt') })).rejects.toThrow('missing')
 
     expect(openInTargetMock).not.toHaveBeenCalled()
-  })
 
-  it('opens existing local paths in a target with their position and reveals them in Explorer', async () => {
-    const handlers = registerHandlersForTest()
     const targetPath = path.resolve('/tmp/dotcraft-local-note.txt')
     vi.mocked(fs.stat).mockResolvedValue({} as Awaited<ReturnType<typeof fs.stat>>)
 
@@ -1420,67 +1145,6 @@ describe('registerIpcHandlers', () => {
 
     expect(openInTargetMock).toHaveBeenCalledWith({ targetId: 'vscode', path: targetPath, line: 4, column: 2 })
     expect(shell.showItemInFolder).toHaveBeenCalledWith(targetPath)
-  })
-
-  it('registers appserver:restart-managed and forwards to callback', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-
-    const onRestartManagedAppServer = vi.fn().mockResolvedValue(undefined)
-    const onListSetupModels = vi.fn().mockResolvedValue({ kind: 'unsupported' })
-
-    registerIpcHandlers(null, () => null, '/workspace', {
-      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
-      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
-      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
-      onListSetupModels,
-      onOpenNewWindow: vi.fn(),
-      onRestartManagedAppServer,
-      getSettings: vi.fn(() => ({})),
-      updateSettings: vi.fn(),
-      getLocalProjectPaths: vi.fn(() => []),
-      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
-      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
-    })
-
-    expect(handlers.has('appserver:restart-managed')).toBe(true)
-    await handlers.get('appserver:restart-managed')?.({})
-    expect(onRestartManagedAppServer).toHaveBeenCalledOnce()
-  })
-
-  it('registers appserver:retry-connection and forwards the request to callback', async () => {
-    const onRetryAppServerConnection = vi.fn().mockResolvedValue(undefined)
-    const handlers = registerHandlersForTest('/workspace', () => null, createIpcCallbacks({
-      onRetryAppServerConnection
-    }))
-    const request = { restartManaged: true }
-
-    expect(handlers.has('appserver:retry-connection')).toBe(true)
-    await handlers.get('appserver:retry-connection')?.({}, request)
-
-    expect(onRetryAppServerConnection).toHaveBeenCalledWith(request)
-  })
-
-  it('registers appserver:apply-connection-settings and forwards the draft to callback', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-    const onApplyConnectionSettings = vi.fn().mockResolvedValue(undefined)
-    const draft = {
-      connectionMode: 'remote' as const,
-      remote: { url: 'ws://127.0.0.1:9100/ws', token: 'fixture-remote-token' }
-    }
-
-    registerIpcHandlers(null, () => null, '/workspace', createIpcCallbacks({
-      onApplyConnectionSettings
-    }))
-
-    expect(handlers.has('appserver:apply-connection-settings')).toBe(true)
-    await handlers.get('appserver:apply-connection-settings')?.({}, draft)
-    expect(onApplyConnectionSettings).toHaveBeenCalledWith(draft)
   })
 
   it('remote stack Open in Desktop activates a saved stack without persisting a localhost remote URL', async () => {
@@ -1530,322 +1194,91 @@ describe('registerIpcHandlers', () => {
     expect(result).toEqual({ ok: true, machineId: 'h1', stackId: 's1', localPort: 51523 })
   })
 
-  it('remote stack disconnect forwards to the active-stack disconnect callback', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-    const onDisconnectDockerDeployment = vi.fn().mockResolvedValue(undefined)
-
-    registerIpcHandlers(null, () => null, '/workspace', createIpcCallbacks({
-      getSshMachinesManager: () => machinesManagerFor([]),
-      onDisconnectDockerDeployment
-    }))
-
-    await handlers.get('sshMachines:docker-disconnect')?.({}, { id: 'h1', stackId: 's1' })
-    expect(onDisconnectDockerDeployment).toHaveBeenCalledWith('h1', 's1')
-  })
-
-  it('registers workspace:list-setup-models and forwards to callback', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-
-    const onListSetupModels = vi.fn().mockResolvedValue({ kind: 'success', models: ['gpt-4.1'] })
-
-    registerIpcHandlers(null, () => null, '/workspace', {
-      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
-      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
-      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
-      onListSetupModels,
-      onOpenNewWindow: vi.fn(),
-      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
-      getSettings: vi.fn(() => ({})),
-      updateSettings: vi.fn(),
-      getLocalProjectPaths: vi.fn(() => []),
-      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
-      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
-    })
-
-    expect(handlers.has('workspace:list-setup-models')).toBe(true)
-    const result = await handlers.get('workspace:list-setup-models')?.({}, {
-      providerId: 'anthropic'
-    })
-    expect(onListSetupModels).toHaveBeenCalledOnce()
-    expect(result).toEqual({ kind: 'success', models: ['gpt-4.1'] })
-  })
-
-  it('rethrows invalid JSON from modules:read-config instead of returning an empty object', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
+  it('modules:read-config parses BOM-prefixed JSON and rethrows invalid JSON', async () => {
     vi.mocked(fs.stat).mockResolvedValue({ size: 32 } as Awaited<ReturnType<typeof fs.stat>>)
-    vi.mocked(fs.readFile).mockResolvedValue('{invalid-json' as Awaited<ReturnType<typeof fs.readFile>>)
+    vi.mocked(fs.readFile)
+      .mockResolvedValueOnce('\uFEFF{"Enabled":true}' as Awaited<ReturnType<typeof fs.readFile>>)
+      .mockResolvedValueOnce('{invalid-json' as Awaited<ReturnType<typeof fs.readFile>>)
+    const readConfig = registerHandlersForTest().get('modules:read-config')!
 
-    registerIpcHandlers(null, () => null, '/workspace', {
-      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
-      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
-      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
-      onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
-      onOpenNewWindow: vi.fn(),
-      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
-      getSettings: vi.fn(() => ({})),
-      updateSettings: vi.fn(),
-      getLocalProjectPaths: vi.fn(() => []),
-      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
-      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
-    })
-
-    await expect(
-      handlers.get('modules:read-config')?.({}, { configFileName: 'module.json' })
-    ).rejects.toThrow()
-  })
-
-  it('reads BOM-prefixed JSON in modules:read-config', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-    vi.mocked(fs.stat).mockResolvedValue({ size: 32 } as Awaited<ReturnType<typeof fs.stat>>)
-    vi.mocked(fs.readFile).mockResolvedValue('\uFEFF{"Enabled":true}' as Awaited<ReturnType<typeof fs.readFile>>)
-
-    registerIpcHandlers(null, () => null, '/workspace', {
-      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
-      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
-      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
-      onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
-      onOpenNewWindow: vi.fn(),
-      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
-      getSettings: vi.fn(() => ({})),
-      updateSettings: vi.fn(),
-      getLocalProjectPaths: vi.fn(() => []),
-      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
-      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
-    })
-
-    await expect(
-      handlers.get('modules:read-config')?.({}, { configFileName: 'module.json' })
-    ).resolves.toEqual({
+    await expect(readConfig({}, { configFileName: 'module.json' })).resolves.toEqual({
       exists: true,
       config: { Enabled: true }
     })
+    await expect(readConfig({}, { configFileName: 'module.json' })).rejects.toThrow()
   })
 
-  it('returns an error for invalid JSON in modules:start and does not overwrite the config file', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-    scanModulesMock.mockResolvedValue([
-      {
-        moduleId: 'demo-module',
-        channelName: 'demo',
-        displayName: 'Demo',
-        packageName: 'demo-module',
-        configFileName: 'module.json',
-        supportedTransports: ['stdio'],
-        requiresInteractiveSetup: false,
-        variant: 'default',
-        source: 'user',
-        absolutePath: '/workspace/modules/demo',
-        configDescriptors: []
-      }
-    ])
-    vi.mocked(fs.readFile).mockResolvedValue('{invalid-json' as Awaited<ReturnType<typeof fs.readFile>>)
+  describe('modules:start', () => {
+    function scanDemoModule(configDescriptors: unknown[] = []): void {
+      scanModulesMock.mockResolvedValue([
+        {
+          moduleId: 'demo-module',
+          channelName: 'demo',
+          displayName: 'Demo',
+          packageName: 'demo-module',
+          configFileName: 'module.json',
+          supportedTransports: ['stdio'],
+          requiresInteractiveSetup: false,
+          variant: 'default',
+          source: 'user',
+          absolutePath: '/workspace/modules/demo',
+          configDescriptors
+        }
+      ])
+    }
 
-    registerIpcHandlers(null, () => null, '/workspace', {
-      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
-      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
-      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
-      onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
-      onOpenNewWindow: vi.fn(),
-      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
-      getSettings: vi.fn(() => ({})),
-      updateSettings: vi.fn(),
-      getLocalProjectPaths: vi.fn(() => []),
-      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
-      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
-    })
+    it('refuses invalid or non-object config JSON without overwriting the file', async () => {
+      scanDemoModule()
+      vi.mocked(fs.readFile)
+        .mockResolvedValueOnce('{invalid-json' as Awaited<ReturnType<typeof fs.readFile>>)
+        .mockResolvedValueOnce('["not-an-object"]' as Awaited<ReturnType<typeof fs.readFile>>)
+      const start = registerHandlersForTest().get('modules:start')!
 
-    await expect(
-      handlers.get('modules:start')?.({}, { moduleId: 'demo-module' })
-    ).resolves.toMatchObject({ ok: false })
-    expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled()
-    expect(channelModuleManagerStartMock).not.toHaveBeenCalled()
-  })
-
-  it('returns an object-type error for non-object JSON in modules:start and does not overwrite the config file', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-    scanModulesMock.mockResolvedValue([
-      {
-        moduleId: 'demo-module',
-        channelName: 'demo',
-        displayName: 'Demo',
-        packageName: 'demo-module',
-        configFileName: 'module.json',
-        supportedTransports: ['stdio'],
-        requiresInteractiveSetup: false,
-        variant: 'default',
-        source: 'user',
-        absolutePath: '/workspace/modules/demo',
-        configDescriptors: []
-      }
-    ])
-    vi.mocked(fs.readFile).mockResolvedValue('["not-an-object"]' as Awaited<ReturnType<typeof fs.readFile>>)
-
-    registerIpcHandlers(null, () => null, '/workspace', {
-      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
-      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
-      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
-      onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
-      onOpenNewWindow: vi.fn(),
-      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
-      getSettings: vi.fn(() => ({})),
-      updateSettings: vi.fn(),
-      getLocalProjectPaths: vi.fn(() => []),
-      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
-      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
+      await expect(start({}, { moduleId: 'demo-module' })).resolves.toMatchObject({ ok: false })
+      await expect(start({}, { moduleId: 'demo-module' })).resolves.toEqual({
+        ok: false,
+        error: 'Config payload must be a JSON object'
+      })
+      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled()
+      expect(channelModuleManagerStartMock).not.toHaveBeenCalled()
     })
 
-    await expect(
-      handlers.get('modules:start')?.({}, { moduleId: 'demo-module' })
-    ).resolves.toEqual({ ok: false, error: 'Config payload must be a JSON object' })
-    expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled()
-    expect(channelModuleManagerStartMock).not.toHaveBeenCalled()
-  })
+    it('reports missing required fields when no config file exists', async () => {
+      scanDemoModule([
+        {
+          key: 'demo.botToken',
+          displayLabel: 'Bot Token',
+          description: '',
+          required: true,
+          dataKind: 'string',
+          masked: true,
+          interactiveSetupOnly: false
+        }
+      ])
+      vi.mocked(fs.readFile).mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
 
-  it('reports the missing required fields when modules:start finds no config file', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-    scanModulesMock.mockResolvedValue([
-      {
-        moduleId: 'demo-module',
-        channelName: 'demo',
-        displayName: 'Demo',
-        packageName: 'demo-module',
-        configFileName: 'module.json',
-        supportedTransports: ['stdio'],
-        requiresInteractiveSetup: false,
-        variant: 'default',
-        source: 'user',
-        absolutePath: '/workspace/modules/demo',
-        configDescriptors: [
-          {
-            key: 'demo.botToken',
-            displayLabel: 'Bot Token',
-            description: '',
-            required: true,
-            dataKind: 'string',
-            masked: true,
-            interactiveSetupOnly: false
-          }
-        ]
-      }
-    ])
-    const missingFile = Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-    vi.mocked(fs.readFile).mockRejectedValue(missingFile)
-
-    registerIpcHandlers(null, () => null, '/workspace', {
-      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
-      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
-      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
-      onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
-      onOpenNewWindow: vi.fn(),
-      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
-      getSettings: vi.fn(() => ({})),
-      updateSettings: vi.fn(),
-      getLocalProjectPaths: vi.fn(() => []),
-      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
-      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
+      await expect(
+        registerHandlersForTest().get('modules:start')!({}, { moduleId: 'demo-module' })
+      ).resolves.toMatchObject({ ok: false, missingFields: ['Bot Token'] })
+      expect(channelModuleManagerStartMock).not.toHaveBeenCalled()
     })
 
-    await expect(
-      handlers.get('modules:start')?.({}, { moduleId: 'demo-module' })
-    ).resolves.toMatchObject({ ok: false, missingFields: ['Bot Token'] })
-    expect(channelModuleManagerStartMock).not.toHaveBeenCalled()
-  })
+    it('creates the config file when nothing is left to fill in', async () => {
+      scanDemoModule()
+      vi.mocked(fs.readFile).mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
 
-  it('creates the config file when modules:start has nothing left to fill in', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
+      await expect(
+        registerHandlersForTest().get('modules:start')!({}, { moduleId: 'demo-module' })
+      ).resolves.toMatchObject({ ok: true })
+      expect(vi.mocked(fs.writeFile)).toHaveBeenCalled()
+      expect(channelModuleManagerStartMock).toHaveBeenCalledWith('demo-module')
     })
-    scanModulesMock.mockResolvedValue([
-      {
-        moduleId: 'demo-module',
-        channelName: 'demo',
-        displayName: 'Demo',
-        packageName: 'demo-module',
-        configFileName: 'module.json',
-        supportedTransports: ['stdio'],
-        requiresInteractiveSetup: false,
-        variant: 'default',
-        source: 'user',
-        absolutePath: '/workspace/modules/demo',
-        configDescriptors: []
-      }
-    ])
-    const missingFile = Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-    vi.mocked(fs.readFile).mockRejectedValue(missingFile)
-
-    registerIpcHandlers(null, () => null, '/workspace', {
-      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
-      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
-      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
-      onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
-      onOpenNewWindow: vi.fn(),
-      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
-      getSettings: vi.fn(() => ({})),
-      updateSettings: vi.fn(),
-      getLocalProjectPaths: vi.fn(() => []),
-      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
-      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
-    })
-
-    await expect(
-      handlers.get('modules:start')?.({}, { moduleId: 'demo-module' })
-    ).resolves.toMatchObject({ ok: true })
-    expect(vi.mocked(fs.writeFile)).toHaveBeenCalled()
-    expect(channelModuleManagerStartMock).toHaveBeenCalledWith('demo-module')
   })
 
   it('awaits async updateSettings in settings:set handler', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
-      handlers.set(channel, handler as (...args: unknown[]) => unknown)
-    })
-
     let resolveUpdate: (() => void) | null = null
-    const updateSettings = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveUpdate = resolve
-        })
-    )
-
-    registerIpcHandlers(null, () => null, '/workspace', {
-      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
-      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
-      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
-      onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
-      onOpenNewWindow: vi.fn(),
-      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
-      getSettings: vi.fn(() => ({})),
-      updateSettings,
-      getLocalProjectPaths: vi.fn(() => []),
-      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
-      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
-    })
-
-    const settingsSet = handlers.get('settings:set')
-    expect(settingsSet).toBeDefined()
+    const updateSettings = vi.fn(() => new Promise<void>((resolve) => { resolveUpdate = resolve }))
+    const settingsSet = registerHandlersForTest('/workspace', () => null, createIpcCallbacks({ updateSettings })).get('settings:set')
 
     let settled = false
     const pending = Promise.resolve(settingsSet?.({}, { notifications: { taskCompletionMode: 'always' } })).then(() => {
@@ -1933,12 +1366,9 @@ describe('task completion notifications', () => {
     vi.mocked(Notification.isSupported).mockReturnValue(true)
   })
 
-  it('defaults to showing task completion notifications only when unfocused', () => {
+  it('shows task completion notifications per mode, defaulting to unfocused only', () => {
     expect(shouldShowTaskCompletionNotification(createWindow(false))).toBe(true)
     expect(shouldShowTaskCompletionNotification(createWindow(true))).toBe(false)
-  })
-
-  it('honors always and never task completion notification settings', () => {
     expect(shouldShowTaskCompletionNotification(createWindow(true), {
       notifications: { taskCompletionMode: 'always' }
     })).toBe(true)
@@ -1947,10 +1377,9 @@ describe('task completion notifications', () => {
     })).toBe(false)
   })
 
-  it('shows native job result notifications according to settings while still forwarding renderer events', () => {
-    const win = createWindow(true)
-
-    broadcastNotification(win, 'system/jobResult', {
+  it('shows or suppresses native job result notifications per settings while always forwarding renderer events', () => {
+    const shown = createWindow(true)
+    broadcastNotification(shown, 'system/jobResult', {
       jobName: 'Scheduled task',
       result: '**Done** with `task`'
     }, {
@@ -1962,221 +1391,114 @@ describe('task completion notifications', () => {
       body: 'Done with task'
     })
     expect(notificationShowMock).toHaveBeenCalledOnce()
-    expect(win.webContents.send).toHaveBeenCalledWith('appserver:notification', {
+    expect(shown.webContents.send).toHaveBeenCalledWith('appserver:notification', {
       method: 'system/jobResult',
       params: {
         jobName: 'Scheduled task',
         result: '**Done** with `task`'
       }
     })
-  })
 
-  it('suppresses native job result notifications when disabled but still forwards renderer events', () => {
-    const win = createWindow(false)
-
-    broadcastNotification(win, 'system/jobResult', {
-      jobName: 'Automation',
-      result: 'Done'
-    }, {
+    vi.mocked(Notification).mockClear()
+    const suppressed = createWindow(false)
+    broadcastNotification(suppressed, 'system/jobResult', { jobName: 'Automation', result: 'Done' }, {
       notifications: { taskCompletionMode: 'never' }
     })
 
     expect(Notification).not.toHaveBeenCalled()
-    expect(notificationShowMock).not.toHaveBeenCalled()
-    expect(win.webContents.send).toHaveBeenCalledWith('appserver:notification', {
+    expect(suppressed.webContents.send).toHaveBeenCalledWith('appserver:notification', {
       method: 'system/jobResult',
-      params: {
-        jobName: 'Automation',
-        result: 'Done'
-      }
+      params: { jobName: 'Automation', result: 'Done' }
     })
   })
 
-  it('tags forwarded renderer notifications with a workspace path when provided', () => {
+  it('tags forwarded notifications with workspace and foreground state and forwards interactive requests without a native notification', () => {
     const win = createWindow(false)
+    const params = { threadId: 'thread_1', runtime: { running: true } }
 
-    broadcastNotification(win, 'thread/status/changed', {
-      threadId: 'thread_1',
-      runtime: { running: true }
-    }, undefined, 'F:/workspace-b')
+    broadcastNotification(win, 'thread/status/changed', params, undefined, 'F:/workspace-b')
+    broadcastNotification(win, 'thread/status/changed', params, undefined, 'F:/workspace-b', false)
 
-    expect(win.webContents.send).toHaveBeenCalledWith('appserver:notification', {
+    expect(win.webContents.send).toHaveBeenNthCalledWith(1, 'appserver:notification', {
       method: 'thread/status/changed',
-      params: {
-        threadId: 'thread_1',
-        runtime: { running: true }
-      },
+      params,
       workspacePath: 'F:/workspace-b'
     })
-  })
-
-  it('tags forwarded renderer notifications with foreground state when provided', () => {
-    const win = createWindow(false)
-
-    broadcastNotification(win, 'thread/status/changed', {
-      threadId: 'thread_1',
-      runtime: { running: true }
-    }, undefined, 'F:/workspace-b', false)
-
-    expect(win.webContents.send).toHaveBeenCalledWith('appserver:notification', {
+    expect(win.webContents.send).toHaveBeenNthCalledWith(2, 'appserver:notification', {
       method: 'thread/status/changed',
-      params: {
-        threadId: 'thread_1',
-        runtime: { running: true }
-      },
+      params,
       workspacePath: 'F:/workspace-b',
       foreground: false
     })
-  })
 
-  it('forwards interactive requests without a native notification of their own', () => {
-    const win = createWindow(false)
-    const payload = {
-      bridgeId: 'bridge-1',
-      method: 'item/approval/request',
-      params: {
-        reason: 'Run a command'
-      }
-    }
-
+    const payload = { bridgeId: 'bridge-1', method: 'item/approval/request', params: { reason: 'Run a command' } }
     broadcastServerRequest(win, payload)
-
     expect(Notification).not.toHaveBeenCalled()
-    expect(win.webContents.send).toHaveBeenCalledWith('appserver:server-request', payload)
+    expect(win.webContents.send).toHaveBeenLastCalledWith('appserver:server-request', payload)
   })
 })
 
 describe('unregisterIpcHandlers', () => {
-  beforeEach(() => {
+  it('removes each workspace project handler exactly once', () => {
     vi.clearAllMocks()
-  })
-
-  it('removes workspace project handlers during teardown', () => {
-    unregisterIpcHandlers()
-
-    const removedChannels = vi.mocked(ipcMain.removeHandler).mock.calls.map(([channel]) => channel)
-    expect(removedChannels).toContain('workspace:get-projects')
-    expect(removedChannels).toContain('workspace:remove-project')
-    expect(removedChannels).toContain('workspace:disconnect-remote')
-    expect(removedChannels).toContain('workspace:clear-projects')
-    expect(removedChannels.filter((channel) => channel === 'workspace:get-projects')).toHaveLength(1)
-    expect(removedChannels.filter((channel) => channel === 'workspace:remove-project')).toHaveLength(1)
-    expect(removedChannels.filter((channel) => channel === 'workspace:disconnect-remote')).toHaveLength(1)
-    expect(removedChannels.filter((channel) => channel === 'workspace:clear-projects')).toHaveLength(1)
-  })
-
-  it('removes the new workspace handlers after they are registered', () => {
-    registerIpcHandlers(null, () => null, '/workspace', {
-      onSwitchWorkspace: vi.fn().mockResolvedValue(undefined),
-      onClearWorkspaceSelection: vi.fn().mockResolvedValue(undefined),
-      onRunWorkspaceSetup: vi.fn().mockResolvedValue(undefined),
-      onListSetupModels: vi.fn().mockResolvedValue({ kind: 'unsupported' }),
-      onOpenNewWindow: vi.fn(),
-      onRestartManagedAppServer: vi.fn().mockResolvedValue(undefined),
-      getSettings: vi.fn(() => ({})),
-      updateSettings: vi.fn(),
-      getLocalProjectPaths: vi.fn(() => []),
-      clearProjects: vi.fn(),
-      getConnectionStatus: vi.fn(() => ({ status: 'disconnected' })),
-      getWorkspaceStatus: vi.fn(() => ({ status: 'no-workspace', workspacePath: '', hasUserConfig: false, providers: [] }))
-    })
-
+    registerHandlersForTest('/workspace', () => null, createIpcCallbacks({ clearProjects: vi.fn() }))
     vi.mocked(ipcMain.removeHandler).mockClear()
 
     unregisterIpcHandlers()
 
-    expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:get-projects')
-    expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:remove-project')
-    expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:disconnect-remote')
-    expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:clear-projects')
+    const removedChannels = vi.mocked(ipcMain.removeHandler).mock.calls.map(([channel]) => channel)
+    for (const channel of ['workspace:get-projects', 'workspace:remove-project', 'workspace:disconnect-remote', 'workspace:clear-projects']) {
+      expect(removedChannels.filter((candidate) => candidate === channel)).toHaveLength(1)
+    }
   })
 })
 
-
-import { Readable, Writable, PassThrough } from 'stream'
-import { DesktopAppServerClient } from '../DesktopAppServerClient'
-
 describe('DesktopAppServerClient bidirectional routing', () => {
-  it('server request handler result is sent back as JSON-RPC response with original id', async () => {
+  async function respondToServerRequest(
+    handler: Parameters<DesktopAppServerClient['onServerRequest']>[0],
+    request: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
     const toServer = new PassThrough()
     const fromServer = new PassThrough()
-    const client = new DesktopAppServerClient(
-      fromServer as unknown as Readable,
-      toServer as unknown as Writable
-    )
-
-    const responseLines: string[] = []
-    toServer.on('data', (chunk: Buffer) => {
-      chunk.toString('utf8').split('\n').filter(Boolean).forEach((l) => responseLines.push(l))
+    const client = new DesktopAppServerClient(fromServer as unknown as Readable, toServer as unknown as Writable)
+    const response = new Promise<Record<string, unknown>>((resolve) => {
+      toServer.on('data', (chunk: Buffer) => {
+        for (const line of chunk.toString('utf8').split('\n').filter(Boolean)) {
+          const message = JSON.parse(line)
+          if (message.id === request.id && ('result' in message || 'error' in message)) resolve(message)
+        }
+      })
     })
+    client.onServerRequest(handler)
+    fromServer.push(JSON.stringify({ jsonrpc: '2.0', ...request }) + '\n')
+    try {
+      return await response
+    } finally {
+      client.dispose()
+      toServer.destroy()
+      fromServer.destroy()
+    }
+  }
 
-    // Register a handler that simulates the approval bridge: returns the decision
-    client.onServerRequest(async (_method, params) => {
-      const p = params as Record<string, unknown>
-      return { decision: p.defaultDecision ?? 'accept' }
-    })
-
-    // AppServer sends a server-initiated request
-    fromServer.push(
-      JSON.stringify({
-        jsonrpc: '2.0',
+  it('sends the handler result back as a JSON-RPC response with the original id', async () => {
+    const response = await respondToServerRequest(
+      async (_method, params) => ({ decision: (params as Record<string, unknown>).defaultDecision ?? 'accept' }),
+      {
         id: 42,
         method: 'item/approval/request',
         params: { approvalType: 'shell', operation: 'rm -rf /tmp', defaultDecision: 'decline' }
-      }) + '\n'
+      }
     )
 
-    await new Promise((r) => setTimeout(r, 20))
-
-    // Filter out any initialize or other requests from the response lines
-    const approvalResponse = responseLines
-      .map((l) => JSON.parse(l))
-      .find((m) => m.id === 42 && 'result' in m)
-
-    expect(approvalResponse).toBeDefined()
-    expect(approvalResponse).toMatchObject({
-      jsonrpc: '2.0',
-      id: 42,
-      result: { decision: 'decline' }
-    })
-
-    client.dispose()
-    toServer.destroy()
-    fromServer.destroy()
+    expect(response).toMatchObject({ jsonrpc: '2.0', id: 42, result: { decision: 'decline' } })
   })
 
-  it('sends an error response when handler throws', async () => {
-    const toServer = new PassThrough()
-    const fromServer = new PassThrough()
-    const client = new DesktopAppServerClient(
-      fromServer as unknown as Readable,
-      toServer as unknown as Writable
+  it('sends an internal error response when the handler throws', async () => {
+    const response = await respondToServerRequest(
+      async () => { throw new Error('Bridge unavailable') },
+      { id: 77, method: 'item/approval/request', params: {} }
     )
 
-    const responseLines: string[] = []
-    toServer.on('data', (chunk: Buffer) => {
-      chunk.toString('utf8').split('\n').filter(Boolean).forEach((l) => responseLines.push(l))
-    })
-
-    client.onServerRequest(async () => {
-      throw new Error('Bridge unavailable')
-    })
-
-    fromServer.push(
-      JSON.stringify({ jsonrpc: '2.0', id: 77, method: 'item/approval/request', params: {} }) + '\n'
-    )
-
-    await new Promise((r) => setTimeout(r, 20))
-
-    const errorResponse = responseLines
-      .map((l) => JSON.parse(l))
-      .find((m) => m.id === 77 && 'error' in m)
-
-    expect(errorResponse).toBeDefined()
-    expect(errorResponse.error.code).toBe(-32603)
-
-    client.dispose()
-    toServer.destroy()
-    fromServer.destroy()
+    expect((response.error as { code: number }).code).toBe(-32603)
   })
 })

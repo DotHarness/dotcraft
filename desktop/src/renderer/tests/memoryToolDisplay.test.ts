@@ -40,9 +40,6 @@ describe('collectMemoryFileNames', () => {
     ]
 
     expect(collectMemoryFileNames(items)).toEqual(['user_role.md', 'feedback_tests.md'])
-  })
-
-  it('finds no memory file in an update that only rewrote the index', () => {
     expect(collectMemoryFileNames([update({ path: '.craft/memory/MEMORY.md' })])).toEqual([])
   })
 })

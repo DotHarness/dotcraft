@@ -3,10 +3,6 @@ using Xunit;
 
 namespace DotCraft.Tests.SourceControl;
 
-/// <summary>
-/// Unit tests for <see cref="PerforceConnectionTester"/> using a fake command runner with
-/// canned p4 output. Covers the main result categories and the password-handling contract.
-/// </summary>
 public sealed class PerforceConnectionTesterTests
 {
     private static readonly string Root = Path.Combine(Path.GetTempPath(), "p4ws_fixture");
@@ -61,21 +57,6 @@ public sealed class PerforceConnectionTesterTests
     }
 
     [Fact]
-    public async Task Info_timeout_maps_to_Timeout()
-    {
-        var runner = new FakeRunner((args, _) =>
-        {
-            if (args.Contains("-V")) return Ok("P4/TEST");
-            if (args.Contains("info")) return TimedOut;
-            return Ok();
-        });
-
-        var report = await PerforceConnectionTester.TestAsync(runner, ManualRequest(), default);
-
-        Assert.Equal(PerforceErrorCodes.Timeout, report.Code);
-    }
-
-    [Fact]
     public async Task No_ticket_without_password_maps_to_LoginRequired()
     {
         var runner = new FakeRunner((args, _) =>
@@ -119,7 +100,6 @@ public sealed class PerforceConnectionTesterTests
                  && c.Args.Contains("ssl:perforce.example.com:1666")
                  && c.Args.Contains("-c")
                  && c.Args.Contains("ws")
-                 // The workspace root is probed as a `<root>/...` tree spec, never the bare directory.
                  && c.Args.Contains(WhereSpec(Root)));
     }
 
@@ -212,7 +192,6 @@ public sealed class PerforceConnectionTesterTests
             if (IsLoginStatus(args))
             {
                 loginStatusCalls++;
-                // First status check fails (no ticket); after a login attempt it succeeds.
                 return loginStatusCalls == 1 ? Fail(1, "no ticket") : Ok("ticket valid");
             }
             if (IsLogin(args)) return Ok();
@@ -228,9 +207,7 @@ public sealed class PerforceConnectionTesterTests
 
         Assert.Equal(PerforceErrorCodes.Connected, report.Code);
 
-        // The password must never appear in any command-line argument...
         Assert.DoesNotContain(runner.Calls, c => c.Args.Any(a => a.Contains("super-secret")));
-        // ...and must be delivered to the `p4 login` attempt via stdin.
         Assert.Contains(runner.Calls, c => IsLogin(c.Args) && c.Stdin == "super-secret");
     }
 

@@ -33,11 +33,8 @@ const barUpdate = patch(
 )
 
 describe('parseUnifiedDiff', () => {
-  it('returns nothing for an empty diff', () => {
-    expect(parseUnifiedDiff('')).toEqual([])
-  })
-
   it('splits a multi-file diff into one entry per file with exact patch text', () => {
+    expect(parseUnifiedDiff('')).toEqual([])
     const parsed = parseUnifiedDiff(fooUpdate + barUpdate)
 
     expect(parsed.map((entry) => entry.diff.filePath)).toEqual(['src/Foo.cs', 'src/Bar.cs'])
@@ -145,34 +142,20 @@ describe('parseUnifiedDiff', () => {
     ])
   })
 
-  it('decodes git-quoted paths', () => {
-    const quotedA = '"a/\\344\\275\\240\\345\\245\\275.txt"'
-    const quotedB = '"b/\\344\\275\\240\\345\\245\\275.txt"'
-    const [entry] = parseUnifiedDiff(
-      patch(`diff --git ${quotedA} ${quotedB}`, 'index 1..2', `--- ${quotedA}`, `+++ ${quotedB}`, '@@ -1 +1 @@', '-a', '+b')
-    )
-
-    expect(entry.diff.filePath).toBe('你好.txt')
-  })
-
-  it('normalizes backslash separators', () => {
-    const [entry] = parseUnifiedDiff(
-      patch('diff --git a/src\\Win.cs b/src\\Win.cs', 'index 1..2', '--- a/src\\Win.cs', '+++ b/src\\Win.cs', '@@ -1 +1 @@', '-a', '+b')
-    )
-
-    expect(entry.diff.filePath).toBe('src/Win.cs')
-  })
-
-  it('makes absolute paths inside the workspace relative', () => {
+  it('decodes git-quoted names, normalizes separators, and relativizes paths inside the workspace', () => {
+    const one = (a: string, b: string): string =>
+      patch(`diff --git ${a} ${b}`, 'index 1..2', `--- ${a}`, `+++ ${b}`, '@@ -1 +1 @@', '-a', '+b')
     const inside = 'C:/Work/Repo/src/Abs.cs'
     const outside = 'D:/Other/x.cs'
     const parsed = parseUnifiedDiff(
-      patch(`diff --git a/${inside} b/${inside}`, 'index 1..2', `--- a/${inside}`, `+++ b/${inside}`, '@@ -1 +1 @@', '-a', '+b') +
-        patch(`diff --git a/${outside} b/${outside}`, 'index 1..2', `--- a/${outside}`, `+++ b/${outside}`, '@@ -1 +1 @@', '-a', '+b'),
+      one('"a/\\344\\275\\240\\345\\245\\275.txt"', '"b/\\344\\275\\240\\345\\245\\275.txt"') +
+        one('a/src\\Win.cs', 'b/src\\Win.cs') +
+        one(`a/${inside}`, `b/${inside}`) +
+        one(`a/${outside}`, `b/${outside}`),
       'c:\\work\\repo\\'
     )
 
-    expect(parsed.map((entry) => entry.diff.filePath)).toEqual(['src/Abs.cs', outside])
+    expect(parsed.map((entry) => entry.diff.filePath)).toEqual(['你好.txt', 'src/Win.cs', 'src/Abs.cs', outside])
   })
 })
 
@@ -185,11 +168,8 @@ describe('parseFileChangeStructuredContent', () => {
     ]
   }
 
-  it('accepts the canonical shape', () => {
+  it('accepts the canonical shape and write outcomes without inventing missing diff entries', () => {
     expect(parseFileChangeStructuredContent(canonical)).toEqual(canonical)
-  })
-
-  it('accepts write outcomes without inventing missing diff entries', () => {
     expect(parseFileChangeStructuredContent({ ...canonical, writeState: 'applied' })).toEqual(canonical)
     expect(parseFileChangeStructuredContent({
       kind: 'fileChange', changes: [], writeState: 'applied',
@@ -239,7 +219,7 @@ describe('fileChangeEntryToTurnFileChange', () => {
     expect(row.diff.diffHunks).toHaveLength(1)
   })
 
-  it('marks a change without a diff as truncated', () => {
+  it('marks a change without a diff or cut mid-hunk as truncated', () => {
     const row = fileChangeEntryToTurnFileChange(
       { path: 'C:/Work/Repo/big.txt', kind: 'add', additions: 5000, deletions: 0 },
       'turn-1',
@@ -250,6 +230,16 @@ describe('fileChangeEntryToTurnFileChange', () => {
     expect(row.truncated).toBe(true)
     expect(row.patchText).toBe('')
     expect(row.diff).toMatchObject({ filePath: 'big.txt', additions: 5000, isNewFile: true, diffHunks: [] })
+
+    const cut = fooUpdate.slice(0, fooUpdate.lastIndexOf(' namespace'))
+    expect(parseUnifiedDiff(cut)[0].error).toBe(true)
+    const cutRow = fileChangeEntryToTurnFileChange(
+      { path: 'src/Foo.cs', kind: 'update', diff: cut, additions: 1, deletions: 0 },
+      'turn-1',
+      'item-3'
+    )
+    expect(cutRow).toMatchObject({ truncated: true, patchText: cut })
+    expect(cutRow.diff).toMatchObject({ filePath: 'src/Foo.cs', additions: 1, deletions: 0, diffHunks: [] })
   })
 
   it('keeps a no-op write as an empty, untruncated change', () => {
@@ -261,21 +251,6 @@ describe('fileChangeEntryToTurnFileChange', () => {
 
     expect(row).toMatchObject({ truncated: false, patchText: '' })
     expect(row.diff).toMatchObject({ filePath: 'src/Same.cs', additions: 0, deletions: 0, diffHunks: [] })
-  })
-
-  it('marks a diff cut mid-hunk as truncated', () => {
-    const cut = fooUpdate.slice(0, fooUpdate.lastIndexOf(' namespace'))
-    expect(parseUnifiedDiff(cut)[0].error).toBe(true)
-
-    const row = fileChangeEntryToTurnFileChange(
-      { path: 'src/Foo.cs', kind: 'update', diff: cut, additions: 1, deletions: 0 },
-      'turn-1',
-      'item-3'
-    )
-
-    expect(row.truncated).toBe(true)
-    expect(row.patchText).toBe(cut)
-    expect(row.diff).toMatchObject({ filePath: 'src/Foo.cs', additions: 1, deletions: 0, diffHunks: [] })
   })
 })
 

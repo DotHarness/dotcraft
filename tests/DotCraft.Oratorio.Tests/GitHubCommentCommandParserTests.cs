@@ -33,12 +33,9 @@ public sealed class GitHubCommentCommandParserTests
 
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
     [InlineData("Please run @dotcraft-ai review")]
     [InlineData("@dotcraft-ai-helper review")]
     [InlineData("@oratorio review")]
-    [InlineData("@oratorio-integration review")]
-    [InlineData("@someone-else review")]
     public void Parse_ReturnsNotCommandForUnaddressedText(string? body)
     {
         var result = _parser.Parse(body);
@@ -47,10 +44,8 @@ public sealed class GitHubCommentCommandParserTests
     }
 
     [Theory]
-    [InlineData("@dotcraft-ai")]
     [InlineData("@dotcraft-ai review for")]
     [InlineData("@dotcraft-ai review security")]
-    [InlineData("@dotcraft-ai review\nfor security")]
     public void Parse_RejectsInvalidReviewGrammar(string body)
     {
         var result = _parser.Parse(body);

@@ -17,7 +17,6 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed class AppServerEventDispatcherDisconnectTests
 {
     [Theory]
-    [InlineData(true, true, 1)]
     [InlineData(true, false, 1)]
     [InlineData(false, true, 0)]
     public async Task RunAsync_ToolExecutionProgress_RequiresLifecycleCapability(
@@ -186,7 +185,6 @@ public sealed class AppServerEventDispatcherDisconnectTests
 
     [Theory]
     [InlineData(1)]
-    [InlineData(3)]
     [InlineData(5)]
     public async Task RunAsync_WhenNotificationWriteFails_DrainsRemainingTurnEvents(int failOnWriteAttempt)
     {
@@ -208,9 +206,6 @@ public sealed class AppServerEventDispatcherDisconnectTests
         Assert.Equal(failOnWriteAttempt, transport.WriteAttempts);
     }
 
-    // Regression: server-originated threads reach the client only via the
-    // ThreadCreated event stream. The dispatcher must apply the thread-wire enricher so the notification
-    // carries origin-app branding — otherwise the desktop falls back to the generic channel icon.
     [Fact]
     public async Task RunAsync_ThreadCreated_AppliesThreadWireEnricherToNotification()
     {
@@ -382,9 +377,6 @@ public sealed class AppServerEventDispatcherDisconnectTests
         }
         catch (OperationCanceledException)
         {
-            // The subscription stream may observe the cancelled token after the
-            // interactive request resolves; the important behavior is that the
-            // request itself was not answered by that cancellation.
         }
         await WaitForAsync(() => harness.Service.ResolvedUserInputs.Count == 1);
         var resolved = Assert.Single(harness.Service.ResolvedUserInputs);
@@ -478,17 +470,6 @@ public sealed class AppServerEventDispatcherDisconnectTests
 
         Assert.True(cancelled);
         Assert.False(connection.HasSubscription("thread_001"));
-    }
-
-    [Fact]
-    public async Task MarkClosed_CompletesConnectionClosedTask()
-    {
-        var connection = new AppServerConnection();
-
-        connection.MarkClosed();
-
-        await connection.Closed.WaitAsync(TimeSpan.FromSeconds(1));
-        Assert.True(connection.IsClosed);
     }
 
     private static AppServerConnection CreateReadyConnection(

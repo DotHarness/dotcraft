@@ -6,8 +6,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Runtime.Plugins;
 
-/// <summary>Pins the assembly-sharing invariant plugin type identity rests on: an unshared kernel
-/// reference splits types silently, so a new <c>PackageReference</c> fails here instead.</summary>
 public sealed class PluginHostAssembliesTests
 {
     [Fact]
@@ -38,30 +36,22 @@ public sealed class PluginHostAssembliesTests
     }
 
     [Fact]
-    public void KernelAssemblies_AreThemselvesShared()
+    public void SharedSet_HoldsKernelAndDeclaredPackages_ButNotFrameworkOrPluginPrivateAssemblies()
     {
         Assert.True(PluginHostAssemblies.IsShared("DotCraft.Core"));
         Assert.True(PluginHostAssemblies.IsShared("DotCraft.Agents"));
         Assert.True(PluginHostAssemblies.IsShared("DotCraft.Runtime"));
         Assert.True(PluginHostAssemblies.IsShared("Microsoft.Extensions.AI.Abstractions"));
-    }
+        Assert.True(PluginHostAssemblies.IsShared("microsoft.extensions.ai"));
+        Assert.False(PluginHostAssemblies.IsShared("Microsoft.Extensions.AI.Extra"));
+        Assert.False(PluginHostAssemblies.IsShared(null));
+        Assert.False(PluginHostAssemblies.IsShared(string.Empty));
 
-    [Fact]
-    public void FrameworkAndPluginPrivateAssemblies_AreNotShared()
-    {
-        // Framework assemblies already have one identity through the default context's fallback.
         Assert.False(PluginHostAssemblies.IsShared("System.Text.Json"));
         Assert.True(PluginHostAssemblies.IsFrameworkAssembly("System.Text.Json"));
-
         Assert.False(PluginHostAssemblies.IsShared("Contoso.Internal.Library"));
         Assert.False(PluginHostAssemblies.IsFrameworkAssembly("Contoso.Internal.Library"));
-    }
-
-    [Fact]
-    public void FrameworkSet_ExcludesTheApplicationsOwnAssemblies()
-    {
-        // The trusted platform list carries the application too, so the predicate is built from the
-        // shared framework directory instead.
+        // The trusted platform list carries the application too, so the framework predicate must not.
         Assert.False(PluginHostAssemblies.IsFrameworkAssembly("DotCraft.Core"));
         Assert.False(PluginHostAssemblies.IsFrameworkAssembly("xunit.core"));
     }
@@ -69,33 +59,8 @@ public sealed class PluginHostAssembliesTests
     [Fact]
     public void SharedAssemblies_ResolveToTheHostInstance()
     {
-        var resolved = PluginHostAssemblies.TryResolveShared("DotCraft.Core");
-
-        Assert.Same(typeof(IDotCraftPlugin).Assembly, resolved);
-    }
-
-    [Fact]
-    public void UnknownSharedName_ResolvesToNothingRatherThanThrowing()
-    {
+        Assert.Same(typeof(IDotCraftPlugin).Assembly, PluginHostAssemblies.TryResolveShared("DotCraft.Core"));
         Assert.Null(PluginHostAssemblies.TryResolveShared("DotCraft.NotAProductAssembly"));
-    }
-
-    [Fact]
-    public void PluginApi_IsOwnedByDotCraftCore()
-    {
-        Assert.Same(typeof(PluginManifest).Assembly, typeof(IDotCraftPlugin).Assembly);
-        Assert.Equal(
-            PluginHostVersion.PluginApiAssemblyName,
-            typeof(IDotCraftPlugin).Assembly.GetName().Name);
-    }
-
-    [Fact]
-    public void SharedPackageSet_IsCaseInsensitiveAndDoesNotMatchPartialNames()
-    {
-        Assert.True(PluginHostAssemblies.IsShared("microsoft.extensions.ai"));
-        Assert.False(PluginHostAssemblies.IsShared("Microsoft.Extensions.AI.Extra"));
-        Assert.False(PluginHostAssemblies.IsShared(null));
-        Assert.False(PluginHostAssemblies.IsShared(string.Empty));
     }
 
     [Fact]

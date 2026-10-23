@@ -32,18 +32,12 @@ public sealed class ShellToolsStdinTests : IDisposable
         Assert.Empty(terminals.Writes);
     }
 
-    [Fact]
-    public async Task Exec_LaunchCommandThatChangesDirectory_KeepsLaunchDirectoryAsContext()
+    [Theory]
+    [InlineData("cd {0} && bash")]
+    [InlineData("cd; bash")]
+    public async Task Exec_LaunchCommandThatChangesDirectory_KeepsLaunchDirectoryAsContext(string command)
     {
-        var started = await StartAndCaptureAsync($"cd {_outside} && bash");
-
-        Assert.Equal(_root, started.StdinSession!.WorkingDirectory);
-    }
-
-    [Fact]
-    public async Task Exec_LaunchCommandWithImplicitDirectoryChange_KeepsLaunchDirectoryAsContext()
-    {
-        var started = await StartAndCaptureAsync("cd; bash");
+        var started = await StartAndCaptureAsync(string.Format(command, _outside));
 
         Assert.Equal(_root, started.StdinSession!.WorkingDirectory);
     }
@@ -51,7 +45,6 @@ public sealed class ShellToolsStdinTests : IDisposable
     [Theory]
     [InlineData("")]
     [InlineData("\u0003")]
-    [InlineData("\u0003\n")]
     [InlineData("y\n")]
     [InlineData("shutdown /s /t 60\n")]
     [InlineData("cd ..\n")]

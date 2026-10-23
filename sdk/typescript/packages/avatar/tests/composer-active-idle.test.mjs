@@ -51,7 +51,6 @@ test('active idle launches after the quiet window and walks outbound, away, inbo
     assert.equal(h.state.idle.className, undefined)
     assert.deepEqual(h.state.idle.attributes, {})
 
-    // Activity restarts the clock; the same roll then yields the alternate motion.
     await h.fire('keydown')
     await h.advance(35_000)
     assert.equal(h.state.idle.activeIdle.motion, 'rocket')

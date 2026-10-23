@@ -107,8 +107,8 @@ public sealed class WelcomeSuggestionEvidenceTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_workspace))
-            Directory.Delete(_workspace, recursive: true);
+        try { Directory.Delete(_workspace, recursive: true); }
+        catch { }
     }
 
     private sealed class SuggestionClient : IChatClient

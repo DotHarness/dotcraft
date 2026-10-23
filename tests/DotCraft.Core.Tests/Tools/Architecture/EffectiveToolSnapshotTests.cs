@@ -26,34 +26,22 @@ public sealed class EffectiveToolSnapshotTests
     }
 
     [Fact]
-    public void Build_SameLocalNameInDifferentNamespaces_PreservesBothAndExactReverseMapping()
+    public void Build_SameLocalNameAtTopLevelAndInDifferentNamespaces_PreservesAllWithExactReverseMapping()
     {
         var alpha = Registration("alpha", "read", "source-a", ToolSourceKind.PluginNative);
         var beta = Registration("beta", "read", "source-b", ToolSourceKind.Mcp);
+        var topLevel = Registration(null, "read", "core", ToolSourceKind.CoreNative);
 
-        var snapshot = new EffectiveToolSnapshotBuilder().Build([beta, alpha], revision: 3);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([beta, alpha, topLevel], revision: 3);
 
-        Assert.Equal(2, snapshot.Registrations.Count);
+        Assert.Equal(3, snapshot.Registrations.Count);
         Assert.Empty(snapshot.Diagnostics);
+        Assert.Equal("read", snapshot.ProviderFlatNames[topLevel.Definition.Name]);
         Assert.Equal("alpha__read", snapshot.ProviderFlatNames[alpha.Definition.Name]);
         Assert.Equal("beta__read", snapshot.ProviderFlatNames[beta.Definition.Name]);
         Assert.True(snapshot.TryResolveProviderFlatName("alpha__read", out var resolved));
         Assert.Equal(alpha.Definition.Name, resolved);
         Assert.False(snapshot.TryResolveProviderFlatName("ALPHA__READ", out _));
-    }
-
-    [Fact]
-    public void Build_TopLevelAndNamespacedSameLocalName_PreservesBoth()
-    {
-        var native = Registration(null, "SendMessage", "core", ToolSourceKind.CoreNative);
-        var universe = Registration("universe", "SendMessage", "thread:universe", ToolSourceKind.RuntimeDynamic);
-
-        var snapshot = new EffectiveToolSnapshotBuilder().Build([native, universe], revision: 4);
-
-        Assert.Equal(2, snapshot.Registrations.Count);
-        Assert.Empty(snapshot.Diagnostics);
-        Assert.Equal("SendMessage", snapshot.ProviderFlatNames[native.Definition.Name]);
-        Assert.Equal("universe__SendMessage", snapshot.ProviderFlatNames[universe.Definition.Name]);
     }
 
     [Fact]
@@ -257,33 +245,7 @@ public sealed class EffectiveToolSnapshotTests
     }
 
     [Fact]
-    public async Task Build_AnthropicNativeDeferredSearch_KeywordReturnsQualifiedToolReference()
-    {
-        var deferred = Registration(
-            "fixture",
-            "LookupRecords",
-            "fixture",
-            ToolSourceKind.RuntimeDynamic,
-            ToolExposure.Deferred);
-        var snapshot = new EffectiveToolSnapshotBuilder().Build(
-            [deferred],
-            14,
-            Capabilities(DeferredToolLoadingMode.Native, ModelProviderProtocols.Anthropic));
-
-        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
-            snapshot,
-            NativeToolSearchTool.ToolName,
-            new JsonObject { ["query"] = "LookupRecords" },
-            new ToolInvocationRequest("thread", "turn", "call", ToolInvocationAudience.Model));
-
-        Assert.True(result.Success);
-        var contents = Assert.IsAssignableFrom<IEnumerable<AIContent>>(result.ProviderResult).ToArray();
-        var reference = Assert.IsType<DeferredToolReferenceContent>(Assert.Single(contents));
-        Assert.Equal("fixture__LookupRecords", reference.ToolName);
-    }
-
-    [Fact]
-    public async Task Build_AnthropicNativeDeferredSearch_LocalSelectReturnsNoMatchWithoutActivation()
+    public async Task Build_AnthropicNativeDeferredSearch_KeywordReturnsQualifiedReferenceButLocalSelectDoesNotActivate()
     {
         var deferred = Registration(
             "fixture",
@@ -316,6 +278,15 @@ public sealed class EffectiveToolSnapshotTests
             new ToolInvocationRequest("thread", "turn", "local-call", ToolInvocationAudience.Model));
         Assert.False(localCall.Success);
         Assert.Equal(ToolErrorCodes.NotFound, localCall.Error?.Code);
+
+        var keyword = await new ToolDispatcher().DispatchProviderFlatCallAsync(
+            snapshot,
+            NativeToolSearchTool.ToolName,
+            new JsonObject { ["query"] = "LookupRecords" },
+            new ToolInvocationRequest("thread", "turn", "keyword-call", ToolInvocationAudience.Model));
+        var keywordReference = Assert.IsType<DeferredToolReferenceContent>(
+            Assert.Single(Assert.IsAssignableFrom<IEnumerable<AIContent>>(keyword.ProviderResult)));
+        Assert.Equal("fixture__LookupRecords", keywordReference.ToolName);
     }
 
     [Fact]
@@ -403,16 +374,6 @@ public sealed class EffectiveToolSnapshotTests
             registration.ProjectionShape,
             ToolExposure.Deferred,
             deferred: new DeferredToolDescriptor("catalog-service:catalog-service", "Search records")));
-    }
-
-    [Fact]
-    public void Build_ProviderFlatAlias_PreservesSafeCompositeIdentity()
-    {
-        var ordinary = Registration("mcp__catalog", "get_record", "catalog", ToolSourceKind.Mcp);
-        var first = new EffectiveToolSnapshotBuilder().Build([ordinary], 1);
-
-        Assert.Equal("mcp__catalog__get_record", first.ProviderFlatNames[ordinary.Definition.Name]);
-        Assert.Equal(ordinary.Definition.Name, first.ProviderFlatNameIndex["mcp__catalog__get_record"]);
     }
 
     [Fact]

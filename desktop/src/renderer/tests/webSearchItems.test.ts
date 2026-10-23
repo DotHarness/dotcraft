@@ -28,7 +28,7 @@ beforeEach(() => {
 })
 
 describe('webSearch item mapping', () => {
-  it('maps the payload and keeps only object results', () => {
+  it('maps the payload, keeping only object results, including the PascalCase persisted type and unknown actions', () => {
     const item = wireItemToConversationItem(webSearchWire('ws-1', {
       status: 'completed',
       query: 'release notes ...',
@@ -47,19 +47,17 @@ describe('webSearch item mapping', () => {
       results: [RESULT]
     })
     expect(item.result).toBeUndefined()
-  })
 
-  it('maps the PascalCase persisted type and unknown actions', () => {
-    const item = wireItemToConversationItem({
+    const persisted = wireItemToConversationItem({
       id: 'ws-2',
       type: 'WebSearch',
       payload: { callId: 'c', status: 'failed', query: '', action: { type: 'weather' }, results: null, errorMessage: 'boom' }
     })
 
-    expect(item.type).toBe('webSearch')
-    expect(item.webSearch?.action).toEqual({ type: 'other' })
-    expect(item.webSearch?.results).toEqual([])
-    expect(item.errorMessage).toBe('boom')
+    expect(persisted.type).toBe('webSearch')
+    expect(persisted.webSearch?.action).toEqual({ type: 'other' })
+    expect(persisted.webSearch?.results).toEqual([])
+    expect(persisted.errorMessage).toBe('boom')
   })
 })
 

@@ -30,7 +30,6 @@ public sealed class AgentProfileManagementTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 
@@ -106,13 +105,6 @@ public sealed class AgentProfileManagementTests : IDisposable
             AppServerTestHarness.AssertIsSuccessResponse(removeResponse);
             Assert.True(removeResponse.RootElement.GetProperty("result").GetProperty("removed").GetBoolean());
         }
-    }
-
-    [Fact]
-    public async Task Upsert_RejectsBuiltInProfileSource()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
@@ -120,9 +112,8 @@ public sealed class AgentProfileManagementTests : IDisposable
             source = "builtIn",
             rawContent = ProfileMarkdown("reviewer", "Built-in override")
         }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.AgentProfileProtectedCode);
+        using var builtInResponse = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(builtInResponse, AppServerErrors.AgentProfileProtectedCode);
     }
 
     [Fact]
@@ -263,37 +254,7 @@ Body.
     }
 
     [Fact]
-    public async Task ThreadStart_WithPinnedProviderPreference_PersistsCompleteSnapshot()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
-        {
-            id = "pinned-reviewer",
-            source = "workspace",
-            rawContent = PinnedProfileMarkdown("pinned-reviewer", "gpt-pinned", "fast")
-        }));
-        await harness.Transport.ReadNextSentAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
-        {
-            identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
-            config = new { agentProfileId = "pinned-reviewer" }
-        }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var config = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("configuration");
-        Assert.True(config.TryGetProperty("providerId", out var providerId), config.GetRawText());
-        Assert.Equal("openai", providerId.GetString());
-        Assert.Equal("gpt-pinned", config.GetProperty("model").GetString());
-        Assert.False(config.GetProperty("reasoning").GetProperty("enabled").GetBoolean());
-        Assert.Equal("fast", config.GetProperty("speed").GetString());
-    }
-
-    [Fact]
-    public async Task RefreshThread_ToInheritedProfile_PreservesCompleteModelSnapshot()
+    public async Task PinnedProfile_PersistsCompleteSnapshotThatSurvivesRefreshToInheritedProfile()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
@@ -316,7 +277,14 @@ Body.
         using (var startResponse = await harness.Transport.ReadNextSentAsync())
         {
             AppServerTestHarness.AssertIsSuccessResponse(startResponse);
-            threadId = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+            var thread = startResponse.RootElement.GetProperty("result").GetProperty("thread");
+            threadId = thread.GetProperty("id").GetString()!;
+            var startConfig = thread.GetProperty("configuration");
+            Assert.True(startConfig.TryGetProperty("providerId", out var startProviderId), startConfig.GetRawText());
+            Assert.Equal("openai", startProviderId.GetString());
+            Assert.Equal("gpt-pinned", startConfig.GetProperty("model").GetString());
+            Assert.False(startConfig.GetProperty("reasoning").GetProperty("enabled").GetBoolean());
+            Assert.Equal("fast", startConfig.GetProperty("speed").GetString());
         }
         await harness.Transport.ReadNextSentAsync();
 
@@ -544,26 +512,17 @@ Body.
     }
 
     [Fact]
-    public async Task BuilderDraftMethods_RejectOrdinaryThread()
+    public async Task BuilderDraft_RoundTripsForBuilderThreadsFeedsThePromptAndRejectsOrdinaryThreads()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
-        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
-
+        var ordinary = await harness.Service.CreateThreadAsync(harness.Identity);
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileBuilderDraftRead, new
         {
-            threadId = thread.Id
+            threadId = ordinary.Id
         }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-    }
-
-    [Fact]
-    public async Task BuilderDraftUpdate_SeedsAndReadReturnsSameDraft()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await harness.InitializeAsync();
+        using (var rejected = await harness.Transport.ReadNextSentAsync())
+            AppServerTestHarness.AssertIsErrorResponse(rejected, AppServerErrors.InvalidParamsCode);
         var thread = await harness.Service.CreateThreadAsync(
             harness.Identity,
             new ThreadConfiguration
@@ -571,7 +530,7 @@ Body.
                 AgentBuilderTargetId = "draft-agent",
                 AgentBuilderTargetSource = "workspace"
             });
-        var raw = ProfileMarkdown("draft-agent", "Draft synced from editor", "Synced builder draft.");
+        var raw = ProfileMarkdown("draft-agent", "Draft synced from editor", "Prompt-visible instructions.");
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileBuilderDraftUpdate, new
         {
@@ -600,33 +559,8 @@ Body.
             raw,
             readResponse.RootElement.GetProperty("result").GetProperty("rawContent").GetString());
 
-        ProfileBuilderDraftStore.Remove(thread.Id);
-    }
-
-    [Fact]
-    public async Task BuilderPromptProvider_UsesDraftSyncedThroughAppServer()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await harness.InitializeAsync();
-        var thread = await harness.Service.CreateThreadAsync(
-            harness.Identity,
-            new ThreadConfiguration
-            {
-                AgentBuilderTargetId = "draft-agent",
-                AgentBuilderTargetSource = "workspace"
-            });
-        var raw = ProfileMarkdown("draft-agent", "Draft synced from editor", "Prompt-visible instructions.");
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileBuilderDraftUpdate, new
-        {
-            threadId = thread.Id,
-            rawContent = raw
-        }));
-        await harness.Transport.ReadNextSentAsync();
-
         var section = new ProfileBuilderSystemPromptProvider()
             .GetSystemPromptSection(new ThreadSystemPromptContext(thread.Id, harness.Identity.WorkspacePath));
-
         Assert.NotNull(section);
         Assert.Contains("Prompt-visible instructions.", section);
         Assert.Contains("draft-agent", section);

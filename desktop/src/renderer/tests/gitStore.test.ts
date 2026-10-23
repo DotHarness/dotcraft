@@ -95,22 +95,18 @@ describe('gitStore', () => {
     expect(useGitStore.getState().branchesByPath[normalizeGitPathKey('C:\\repo')]).toBeUndefined()
   })
 
-  it('marks a path unavailable when branch probing fails', async () => {
-    gitListBranches.mockRejectedValue(new Error('not a git repository'))
+  it('marks remote workspaces unavailable without calling git, and local paths whose probe fails', async () => {
+    await useGitStore.getState().ensureBranches('C:\\remote', { remote: true })
+    expect(gitListBranches).not.toHaveBeenCalled()
+    expect(useGitStore.getState().branchesByPath[normalizeGitPathKey('C:\\remote')].status)
+      .toBe('unavailable')
 
+    gitListBranches.mockRejectedValue(new Error('not a git repository'))
     await useGitStore.getState().ensureBranches('C:\\repo')
 
     const state = useGitStore.getState().branchesByPath[normalizeGitPathKey('C:\\repo')]
     expect(state.status).toBe('unavailable')
     expect(state.snapshot).toBeNull()
     expect(state.errorMessage).toBe('not a git repository')
-  })
-
-  it('marks remote workspaces unavailable without calling git', async () => {
-    await useGitStore.getState().ensureBranches('C:\\repo', { remote: true })
-
-    expect(gitListBranches).not.toHaveBeenCalled()
-    expect(useGitStore.getState().branchesByPath[normalizeGitPathKey('C:\\repo')].status)
-      .toBe('unavailable')
   })
 })

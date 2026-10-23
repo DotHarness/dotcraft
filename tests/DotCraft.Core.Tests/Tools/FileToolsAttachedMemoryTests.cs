@@ -20,7 +20,7 @@ public sealed class FileToolsAttachedMemoryTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]

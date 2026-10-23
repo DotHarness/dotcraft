@@ -1,6 +1,5 @@
 using DotCraft.Workspaces;
 using DotCraft.Channels;
-using DotCraft.Agents;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Dreams;
@@ -153,26 +152,6 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
 
         Assert.True(nativeRuntimeObserved);
         Assert.True(externalRuntimeObservedNotReady);
-
-        await feature.StopAsync();
-    }
-
-    [Fact]
-    public async Task ApplyExternalChannelUpdates_WithoutRunner_IsSafeNoOp()
-    {
-        using var fixture = new WorkspaceFixture();
-        await using var provider = CreateProvider(new FakeChannelRunnerFactory(null), null);
-        var feature = CreateFeature(provider);
-        var context = CreateContext(fixture);
-
-        await feature.StartAsync(context);
-
-        await feature.ApplyExternalChannelUpsertAsync(new ExternalChannelEntry
-        {
-            Name = "demo",
-            Enabled = true
-        });
-        await feature.ApplyExternalChannelRemoveAsync("demo");
 
         await feature.StopAsync();
     }

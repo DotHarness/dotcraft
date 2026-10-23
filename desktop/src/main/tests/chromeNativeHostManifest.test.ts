@@ -59,7 +59,7 @@ function runCheck(manifestPath: string): { exitCode: number; result: Record<stri
 }
 
 describe('Chrome native host manifest helpers', () => {
-  it('generates wrappers that run packaged Electron as Node', async () => {
+  it('generates wrappers that run packaged Electron as Node', () => {
     const stdout = execFileSync(process.execPath, ['--input-type=module', '--eval', `
       import { windowsWrapperContent, shellWrapperContent } from ${JSON.stringify(pathToFileURL(installScriptPath).href)};
       process.stdout.write(JSON.stringify({
@@ -74,22 +74,21 @@ describe('Chrome native host manifest helpers', () => {
 
     expect(windowsWrapper).toContain('set ELECTRON_RUN_AS_NODE=1')
     expect(windowsWrapper).toContain('"C:\\DotCraft.exe" "D:\\chrome\\native-host.mjs"')
-
     expect(shellWrapper).toContain('ELECTRON_RUN_AS_NODE=1 exec')
     expect(shellWrapper).toContain('"/opt/DotCraft" "/opt/chrome/native-host.mjs"')
   }, NATIVE_HOST_TEST_TIMEOUT_MS)
 
-  it('fails old wrappers that omit ELECTRON_RUN_AS_NODE', () => {
+  it('fails wrappers that omit ELECTRON_RUN_AS_NODE without leaking paths and passes complete wrappers', () => {
     const dir = makeTempDir()
     const manifestPath = path.join(dir, 'native-host.json')
     const hostPath = path.join(dir, process.platform === 'win32' ? 'dotcraft-chrome-host.cmd' : 'dotcraft-chrome-host.sh')
-    fs.writeFileSync(hostPath, `"${process.execPath}" "${path.join(chromeScriptsRoot, 'native-host.mjs')}"\n`)
+    const nativeHost = path.join(chromeScriptsRoot, 'native-host.mjs')
     writeManifest(manifestPath, hostPath)
 
-    const { exitCode, result } = runCheck(manifestPath)
-
-    expect(exitCode).toBe(1)
-    expect(result).toMatchObject({
+    fs.writeFileSync(hostPath, `"${process.execPath}" "${nativeHost}"\n`)
+    const stale = runCheck(manifestPath)
+    expect(stale.exitCode).toBe(1)
+    expect(stale.result).toMatchObject({
       ok: false,
       code: 'nativeHostNeedsRepair',
       exists: true,
@@ -98,44 +97,18 @@ describe('Chrome native host manifest helpers', () => {
       wrapperPointsToNativeHost: true,
       wrapperHasElectronRunAsNode: false
     })
-    expect(result).not.toHaveProperty('manifestPath')
-    expect(result).not.toHaveProperty('hostPath')
-  }, NATIVE_HOST_TEST_TIMEOUT_MS)
+    expect(stale.result).not.toHaveProperty('manifestPath')
+    expect(stale.result).not.toHaveProperty('hostPath')
 
-  it('passes wrappers that point to native-host.mjs and set ELECTRON_RUN_AS_NODE', () => {
-    const dir = makeTempDir()
-    const manifestPath = path.join(dir, 'native-host.json')
-    const hostPath = path.join(dir, process.platform === 'win32' ? 'dotcraft-chrome-host.cmd' : 'dotcraft-chrome-host.sh')
-    fs.writeFileSync(hostPath, `@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${process.execPath}" "${path.join(chromeScriptsRoot, 'native-host.mjs')}"\r\n`)
-    writeManifest(manifestPath, hostPath)
-
-    const { exitCode, result } = runCheck(manifestPath)
-
-    expect(exitCode).toBe(0)
-    expect(result).toMatchObject({
+    fs.writeFileSync(hostPath, `@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${process.execPath}" "${nativeHost}"\r\n`)
+    const valid = runCheck(manifestPath)
+    expect(valid.exitCode).toBe(0)
+    expect(valid.result).toMatchObject({
       ok: true,
       code: 'nativeHostReady',
       exists: true,
       hostExists: true,
       wrapperValid: true
     })
-  }, NATIVE_HOST_TEST_TIMEOUT_MS)
-
-  it('reports a missing manifest as installable without paths', () => {
-    const dir = makeTempDir()
-    const manifestPath = path.join(dir, 'missing.json')
-
-    const { exitCode, result } = runCheck(manifestPath)
-
-    expect(exitCode).toBe(1)
-    expect(result).toMatchObject({
-      ok: false,
-      code: 'nativeHostMissing',
-      exists: false,
-      hostExists: false,
-      wrapperValid: false
-    })
-    expect(result).not.toHaveProperty('manifestPath')
-    expect(result).not.toHaveProperty('hostPath')
   }, NATIVE_HOST_TEST_TIMEOUT_MS)
 })

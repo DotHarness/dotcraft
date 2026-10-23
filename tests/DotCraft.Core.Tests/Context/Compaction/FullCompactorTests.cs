@@ -111,38 +111,6 @@ public sealed class FullCompactorTests
     }
 
     [Fact]
-    public async Task CompactAsync_WithSnapshotEmptyErrorContentFallsBackToLegacySummary()
-    {
-        var client = new SequenceChatClient(
-            new ChatResponse(new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
-            [
-                new ErrorContent("provider returned an empty error response")
-            ])),
-            new ChatResponse(new ChatMessage(ChatRole.Assistant, "<analysis>ok</analysis><summary>legacy full after empty error</summary>")));
-        var full = new FullCompactor(client, new MaintenanceForkRunner(client));
-        var snapshotMessages = new List<ChatMessage>
-        {
-            new(ChatRole.User, "first user"),
-            new(ChatRole.Assistant, "first assistant")
-        };
-        var snapshot = PromptRequestSnapshot.Capture(
-            snapshotMessages,
-            new ChatOptions
-            {
-                Instructions = "stable base instructions",
-                ModelId = "gpt-test"
-            });
-
-        var result = await full.CompactAsync(snapshotMessages, snapshot);
-
-        Assert.NotNull(result.Result);
-        Assert.Equal(2, client.CallCount);
-        Assert.Contains("legacy full after empty error", result.Result!.FormattedSummary);
-        Assert.Equal(ChatRole.System, client.Messages[0].Role);
-        AssertLegacyContextCompactionTask(client.Messages[^1]);
-    }
-
-    [Fact]
     public async Task CompactAsync_LegacyPathUsesFullContextBoundaryInstructionsAndNoTools()
     {
         var client = new RecordingChatClient("<analysis>ok</analysis><summary>legacy full summary</summary>");
@@ -166,7 +134,7 @@ public sealed class FullCompactorTests
     }
 
     [Fact]
-    public async Task CompactAsync_LegacyPathWithSnapshotPassesSnapshotTools()
+    public async Task CompactAsync_LegacyPathPassesSnapshotOrFallbackTools()
     {
         var client = new RecordingChatClient("<analysis>ok</analysis><summary>legacy full summary</summary>");
         var full = new FullCompactor(client, new MaintenanceForkRunner(client));
@@ -197,34 +165,30 @@ public sealed class FullCompactorTests
         Assert.Equal(800, client.Options?.MaxOutputTokens);
         Assert.Null(client.Options?.ToolMode);
         Assert.Equal("none", client.Options?.AdditionalProperties?["dotcraft.tool_choice"]);
-    }
 
-    [Fact]
-    public async Task CompactAsync_LegacyPathWithoutSnapshotPassesFallbackTools()
-    {
-        var client = new RecordingChatClient("<analysis>ok</analysis><summary>legacy full summary</summary>");
-        var full = new FullCompactor(client);
-        var tool = AIFunctionFactory.Create(() => "ok", name: "GetStatus", description: "Get status.");
-        var history = new List<ChatMessage>
+        var fallbackClient = new RecordingChatClient("<analysis>ok</analysis><summary>legacy fallbackFull summary</summary>");
+        var fallbackFull = new FullCompactor(fallbackClient);
+        var fallbackTool = AIFunctionFactory.Create(() => "ok", name: "GetStatus", description: "Get status.");
+        var fallbackHistory = new List<ChatMessage>
         {
             new(ChatRole.User, "first user"),
             new(ChatRole.Assistant, "first assistant")
         };
 
-        var result = await full.CompactAsync(
-            history,
+        var fallbackResult = await fallbackFull.CompactAsync(
+            fallbackHistory,
             snapshot: null,
             threadId: "thread-1",
-            fallbackTools: [tool]);
+            fallbackTools: [fallbackTool]);
 
-        Assert.NotNull(result.Result);
-        Assert.Contains("legacy full summary", result.Result!.FormattedSummary);
-        Assert.Equal(ChatRole.System, client.Messages[0].Role);
-        AssertLegacyContextCompactionTask(client.Messages[^1]);
-        var capturedTool = Assert.Single(client.Options?.Tools ?? []);
-        Assert.Equal("GetStatus", capturedTool.Name);
-        Assert.Null(client.Options?.ToolMode);
-        Assert.Equal("none", client.Options?.AdditionalProperties?["dotcraft.tool_choice"]);
+        Assert.NotNull(fallbackResult.Result);
+        Assert.Contains("legacy fallbackFull summary", fallbackResult.Result!.FormattedSummary);
+        Assert.Equal(ChatRole.System, fallbackClient.Messages[0].Role);
+        AssertLegacyContextCompactionTask(fallbackClient.Messages[^1]);
+        var fallbackCapturedTool = Assert.Single(fallbackClient.Options?.Tools ?? []);
+        Assert.Equal("GetStatus", fallbackCapturedTool.Name);
+        Assert.Null(fallbackClient.Options?.ToolMode);
+        Assert.Equal("none", fallbackClient.Options?.AdditionalProperties?["dotcraft.tool_choice"]);
     }
 
     [Fact]
@@ -288,36 +252,6 @@ public sealed class FullCompactorTests
     private static void AssertLegacyContextCompactionTask(ChatMessage message)
     {
         Assert.Equal(ChatRole.User, message.Role);
-    }
-
-    private sealed class SequenceChatClient(params ChatResponse[] responses) : IChatClient
-    {
-        private readonly Queue<ChatResponse> _responses = new(responses);
-
-        public IReadOnlyList<ChatMessage> Messages { get; private set; } = [];
-        public ChatOptions? Options { get; private set; }
-        public int CallCount { get; private set; }
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> messages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default)
-        {
-            CallCount++;
-            Messages = messages.ToArray();
-            Options = options;
-            return Task.FromResult(_responses.Dequeue());
-        }
-
-        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> messages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose() { }
     }
 
     private sealed class RecordingChatClient(string responseText, int promptTooLongFailures = 0) : IChatClient

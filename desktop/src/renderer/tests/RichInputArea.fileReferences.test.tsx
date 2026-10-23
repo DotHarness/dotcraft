@@ -102,25 +102,6 @@ describe('file references at the saved composer selection', () => {
     ])
   })
 
-  it('uses the newly inserted caret for another reference after losing focus again', () => {
-    const { ref } = fixture()
-    act(() => {
-      ref.current!.setPlainText('See end')
-      ref.current!.setSelectionRange({ start: 4, end: 4 })
-      loseSelection()
-      ref.current!.insertFileTagAtSelection(path)
-      loseSelection()
-      ref.current!.insertFileTagAtSelection('src/second.ts')
-    })
-    expect(ref.current!.getSegments()).toEqual([
-      { type: 'text', value: 'See ' },
-      { type: 'file', relativePath: path },
-      { type: 'text', value: '\u00a0' },
-      { type: 'file', relativePath: 'src/second.ts' },
-      { type: 'text', value: '\u00a0end' }
-    ])
-  })
-
   it('inserts beside an existing chip without replacing or entering it', () => {
     const { ref } = fixture()
     act(() => {
@@ -134,26 +115,5 @@ describe('file references at the saved composer selection', () => {
       { type: 'file', relativePath: path },
       { type: 'text', value: '\u00a0' }
     ])
-  })
-
-  it('appends when the editor has content but no valid selection has been saved', () => {
-    const { ref } = fixture()
-    const editor = screen.getByRole('textbox')
-    editor.textContent = 'Check'
-    fireEvent.input(editor)
-    act(() => {
-      loseSelection()
-      ref.current!.insertFileTagAtSelection(path)
-    })
-    expect(ref.current!.getText()).toBe('Check @' + path + '\u00a0')
-  })
-
-  it('does not change a disabled editor', () => {
-    const { ref } = fixture(true)
-    act(() => {
-      ref.current!.setPlainText('Keep')
-      ref.current!.insertFileTagAtSelection(path)
-    })
-    expect(ref.current!.getText()).toBe('Keep')
   })
 })

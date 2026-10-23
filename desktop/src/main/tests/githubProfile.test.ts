@@ -11,9 +11,8 @@ vi.mock('electron', () => ({
   net: { fetch: vi.fn() }
 }))
 
-/** A fake main-process fetch: GitHub user JSON + a 1x1 PNG avatar. */
 function makeFetch(): ReturnType<typeof vi.fn> {
-  const png = Buffer.from('89504e470d0a1a0a', 'hex') // PNG signature; enough for the bytes check
+  const png = Buffer.from('89504e470d0a1a0a', 'hex')
   return vi.fn(async (url: string) => {
     if (url.includes('api.github.com')) {
       return new Response(
@@ -33,37 +32,27 @@ describe('getGitHubIdentity', () => {
     await rm(TEST_USERDATA, { recursive: true, force: true })
   })
 
-  it('fetches, caches, and returns name + avatar data URL', async () => {
+  it('fetches name and avatar data URL once, then serves the fresh cache without the network', async () => {
     const fetchImpl = makeFetch()
     const identity = await getGitHubIdentity('octocat', fetchImpl)
 
-    expect(identity).not.toBeNull()
-    expect(identity!.login).toBe('Octocat')
-    expect(identity!.name).toBe('The Octocat')
+    expect(identity).toMatchObject({ login: 'Octocat', name: 'The Octocat' })
     expect(identity!.avatarDataUrl).toMatch(/^data:image\/png;base64,/)
-    // One call for the user lookup, one for the avatar download.
     expect(fetchImpl).toHaveBeenCalledTimes(2)
-  })
-
-  it('serves a fresh cache without hitting the network again', async () => {
-    await getGitHubIdentity('octocat', makeFetch())
 
     const secondFetch = makeFetch()
-    const identity = await getGitHubIdentity('octocat', secondFetch)
-
-    expect(identity!.name).toBe('The Octocat')
-    expect(identity!.avatarDataUrl).toMatch(/^data:image\/png;base64,/)
+    const cached = await getGitHubIdentity('octocat', secondFetch)
+    expect(cached!.name).toBe('The Octocat')
+    expect(cached!.avatarDataUrl).toMatch(/^data:image\/png;base64,/)
     expect(secondFetch).not.toHaveBeenCalled()
   })
 
-  it('returns null for an invalid username without any network call', async () => {
+  it('returns null for invalid usernames without a network call and for failed lookups without cache', async () => {
     const fetchImpl = makeFetch()
     expect(await getGitHubIdentity('has space', fetchImpl)).toBeNull()
     expect(await getGitHubIdentity('', fetchImpl)).toBeNull()
     expect(fetchImpl).not.toHaveBeenCalled()
-  })
 
-  it('returns null when the lookup fails and there is no cache', async () => {
     const failing = vi.fn(async () => {
       throw new Error('offline')
     })

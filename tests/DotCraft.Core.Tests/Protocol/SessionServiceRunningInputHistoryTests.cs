@@ -1,5 +1,3 @@
-using System.ClientModel.Primitives;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Hooks;
@@ -9,7 +7,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-public sealed partial class SessionServiceRuntimeSignalTests
+public sealed class SessionServiceRunningInputHistoryTests : SessionServiceRuntimeSignalTestBase
 {
     [Fact]
     public async Task RunningInput_IsDurableBeforeSampling_AndSurvivesNextTurnRestartAndRecovery()
@@ -53,7 +51,6 @@ public sealed partial class SessionServiceRuntimeSignalTests
         await cold.DeleteThreadPermanentlyAsync(thread.Id);
         await cold.RestoreThreadRecoveryAsync(package.PackagePath, thread.Id);
         await cold.ResumeThreadAsync(thread.Id);
-        // The exported snapshot deliberately predates the last ordinary Turn.
         await DrainAsync(cold.SubmitInputAsync(thread.Id, [new TextContent("after restore")]));
         Assert.Equal(5, model.Calls);
     }
@@ -188,7 +185,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
                 using (await SubAgentCommunicationRuntime.For(service).AcquireInboxAsync(thread.Id, AgentPath.Root, CancellationToken.None))
                 {
                     inboxHeld.SetResult();
-                    await Task.Delay(300);
+                    await Task.Delay(50);
                     await service.EnqueueTurnInputAsync(thread.Id, [new TextContent("queued while draining")]);
                 }
             });
@@ -211,7 +208,6 @@ public sealed partial class SessionServiceRuntimeSignalTests
     [Fact]
     public async Task RunningInput_BlockingUserPromptSubmitHookDropsTheSteer()
     {
-        var marker = Path.Combine(_tempDir, "prompt-hook-ran");
         SessionService service = null!;
         SessionThread thread = null!;
         using var model = new HistoryBoundaryClient(async (call, messages, ct) =>
@@ -225,7 +221,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
             return new TextContent("done");
         });
         await using var factory = CreateAgentFactory(model);
-        service = CreatePromptHookService(factory, model, BlockAfterFirstRunCommand(marker, "steer denied"));
+        service = CreatePromptHookService(factory, model, BlockAfterFirstRunCommand("prompt-hook-ran", "steer denied"));
         thread = await service.CreateThreadAsync(MakeIdentity());
         await service.RefreshThreadAgentAsync(thread.Id);
 
@@ -243,7 +239,6 @@ public sealed partial class SessionServiceRuntimeSignalTests
     [Fact]
     public async Task RunningInput_SubAgentFollowupSteerSkipsUserPromptSubmitHook()
     {
-        var marker = Path.Combine(_tempDir, "followup-hook-ran");
         SessionService service = null!;
         SessionThread thread = null!;
         using var model = new HistoryBoundaryClient(async (call, _, ct) =>
@@ -257,7 +252,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
             return new TextContent("done");
         });
         await using var factory = CreateAgentFactory(model);
-        service = CreatePromptHookService(factory, model, BlockAfterFirstRunCommand(marker, "steer denied"));
+        service = CreatePromptHookService(factory, model, BlockAfterFirstRunCommand("followup-hook-ran", "steer denied"));
         thread = await service.CreateThreadAsync(MakeIdentity());
         await service.RefreshThreadAgentAsync(thread.Id);
 
@@ -366,7 +361,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
             return new TextContent("not interrupted");
         });
         await using var factory = CreateAgentFactory(model);
-        var service = CreatePromptHookService(factory, model, BlockSecondRunCommand(_tempDir, "steer denied"));
+        var service = CreatePromptHookService(factory, model, BlockSecondRunCommand("steer denied"));
         var thread = await service.CreateThreadAsync(MakeIdentity());
         await service.RefreshThreadAgentAsync(thread.Id);
 
@@ -447,60 +442,32 @@ public sealed partial class SessionServiceRuntimeSignalTests
                     [
                         new HookMatcherGroup
                         {
-                            Hooks = [new HookEntry { Type = "command", Command = command, Timeout = 10 }]
+                            Hooks =
+                            [
+                                new HookEntry
+                                {
+                                    Type = "command", Shell = TestHookCommands.Shell, Command = command, Timeout = 30
+                                }
+                            ]
                         }
                     ]
                 }
             }, _tempDir));
 
-    private static string BlockAfterFirstRunCommand(string markerPath, string reason) =>
+    private static string BlockAfterFirstRunCommand(string marker, string reason) =>
         OperatingSystem.IsWindows()
-            ? $"if (Test-Path '{markerPath}') {{ [Console]::Error.WriteLine('{reason}'); exit 2 }} else {{ New-Item -ItemType File '{markerPath}' | Out-Null }}"
-            : $"if [ -f '{markerPath}' ]; then printf '%s\\n' '{reason}' >&2; exit 2; else touch '{markerPath}'; fi";
+            ? $"if exist {marker} (1>&2 echo {reason}& exit /b 2) else (type nul>{marker})"
+            : $"if [ -f '{marker}' ]; then printf '%s\\n' '{reason}' >&2; exit 2; else touch '{marker}'; fi";
 
-    private static string BlockSecondRunCommand(string directory, string reason)
-    {
-        var first = Path.Combine(directory, "prompt-hook-first");
-        var second = Path.Combine(directory, "prompt-hook-second");
-        return OperatingSystem.IsWindows()
-            ? $"if (Test-Path '{second}') {{ }} elseif (Test-Path '{first}') {{ New-Item -ItemType File '{second}' | Out-Null; [Console]::Error.WriteLine('{reason}'); exit 2 }} else {{ New-Item -ItemType File '{first}' | Out-Null }}"
-            : $"if [ -f '{second}' ]; then :; elif [ -f '{first}' ]; then touch '{second}'; printf '%s\\n' '{reason}' >&2; exit 2; else touch '{first}'; fi";
-    }
+    private static string BlockSecondRunCommand(string reason) =>
+        OperatingSystem.IsWindows()
+            ? $"if exist hook-second (exit /b 0) else if exist hook-first (type nul>hook-second& 1>&2 echo {reason}& exit /b 2) else (type nul>hook-first)"
+            : $"if [ -f hook-second ]; then :; elif [ -f hook-first ]; then touch hook-second; printf '%s\\n' '{reason}' >&2; exit 2; else touch hook-first; fi";
 
-    private static string AdditionalContextCommand(string context)
+    private string AdditionalContextCommand(string context)
     {
-        var json = "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"" + context + "\"}}";
-        return OperatingSystem.IsWindows()
-            ? $"Write-Output '{json}'"
-            : $"printf '%s\\n' '{json}'";
-    }
-
-    private static void AssertResponsesUserMessageIds(IReadOnlyList<ChatMessage> messages)
-    {
-        var options = ResponsesToolSearchMapper.CreateResponseOptions("gpt-test", messages, new ChatOptions());
-        using var body = JsonDocument.Parse(ModelReaderWriter.Write(options).ToString());
-        var users = body.RootElement.GetProperty("input").EnumerateArray()
-            .Where(item => item.GetProperty("type").GetString() == "message"
-                && item.GetProperty("role").GetString() == "user").ToArray();
-        Assert.NotEmpty(users);
-        Assert.All(users, item => Assert.StartsWith("msg_", item.GetProperty("id").GetString()));
-    }
-
-    private sealed class HistoryBoundaryClient(
-        Func<int, IReadOnlyList<ChatMessage>, CancellationToken, Task<AIContent>> respond) : IChatClient
-    {
-        public int Calls { get; private set; }
-        public static FunctionCallContent Tool() => new("sleep-call", "clock__Sleep",
-            new Dictionary<string, object?> { ["durationMs"] = 1 });
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages,
-            ChatOptions? options = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            yield return new ChatResponseUpdate(ChatRole.Assistant,
-                [await respond(++Calls, messages.ToArray(), cancellationToken)]);
-        }
-        public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-        public void Dispose() { }
+        File.WriteAllText(Path.Combine(_tempDir, "prompt-context.json"),
+            "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"" + context + "\"}}");
+        return TestHookCommands.PrintFile("prompt-context.json");
     }
 }

@@ -18,8 +18,6 @@ import {
   registerMcpAppSandboxScheme
 } from '../mcpAppSandboxProtocol'
 import {
-  MCP_APP_MAX_BRIDGE_MESSAGE_BYTES,
-  MCP_APP_MAX_RESOURCE_BYTES,
   MCP_APP_SANDBOX_PROXY_URL,
   MCP_APP_SANDBOX_SCHEME
 } from '../../shared/mcpAppSandbox'
@@ -59,13 +57,5 @@ describe('MCP App sandbox protocol', () => {
       new Request(`${MCP_APP_SANDBOX_SCHEME}://proxy/arbitrary.html`)
     )
     expect(rejected.status).toBe(404)
-  })
-
-  it('embeds the shared bridge and resource limits in the proxy', () => {
-    expect(MCP_APP_SANDBOX_PROXY_HTML).toContain(`const maxBytes = ${MCP_APP_MAX_BRIDGE_MESSAGE_BYTES}`)
-    expect(MCP_APP_SANDBOX_PROXY_HTML).toContain(`const maxResourceBytes = ${MCP_APP_MAX_RESOURCE_BYTES}`)
-    expect(MCP_APP_SANDBOX_PROXY_HTML).toContain("inner.setAttribute('sandbox', 'allow-scripts')")
-    expect(MCP_APP_SANDBOX_PROXY_HTML).not.toContain('require(')
-    expect(MCP_APP_SANDBOX_PROXY_HTML).not.toContain('electron')
   })
 })

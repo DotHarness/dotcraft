@@ -25,48 +25,25 @@ public class ToolProfileAndApprovalPolicyTests
         Assert.False(registry.TryGet("missing", out _));
     }
 
-    [Fact]
-    public void ThreadConfiguration_SerializesApprovalPolicyAsWireStrings()
+    [Theory]
+    [InlineData(ApprovalPolicy.AutoApprove, "autoApprove")]
+    [InlineData(ApprovalPolicy.Prompt, "prompt")]
+    public void ThreadConfiguration_SerializesApprovalPolicyAsWireStrings(ApprovalPolicy policy, string wire)
     {
-        var cfg = new ThreadConfiguration { ApprovalPolicy = ApprovalPolicy.AutoApprove };
+        var cfg = new ThreadConfiguration
+        {
+            ApprovalPolicy = policy,
+            ToolProfile = "local-task",
+            RequireApprovalOutsideWorkspace = false
+        };
         var json = JsonSerializer.Serialize(cfg, SessionJsonOptions.Default);
-        Assert.Contains("\"approvalPolicy\":\"autoApprove\"", json);
-
-        var roundTrip = JsonSerializer.Deserialize<ThreadConfiguration>(json, SessionJsonOptions.Default);
-        Assert.NotNull(roundTrip);
-        Assert.Equal(ApprovalPolicy.AutoApprove, roundTrip.ApprovalPolicy);
-    }
-
-    [Fact]
-    public void ThreadConfiguration_SerializesPromptApprovalPolicyAsWireString()
-    {
-        var cfg = new ThreadConfiguration { ApprovalPolicy = ApprovalPolicy.Prompt };
-        var json = JsonSerializer.Serialize(cfg, SessionJsonOptions.Default);
-        Assert.Contains("\"approvalPolicy\":\"prompt\"", json);
-
-        var roundTrip = JsonSerializer.Deserialize<ThreadConfiguration>(json, SessionJsonOptions.Default);
-        Assert.NotNull(roundTrip);
-        Assert.Equal(ApprovalPolicy.Prompt, roundTrip.ApprovalPolicy);
-    }
-
-    [Fact]
-    public void ThreadConfiguration_RoundTripsToolProfile()
-    {
-        var cfg = new ThreadConfiguration { ToolProfile = "local-task" };
-        var json = JsonSerializer.Serialize(cfg, SessionJsonOptions.Default);
-        var roundTrip = JsonSerializer.Deserialize<ThreadConfiguration>(json, SessionJsonOptions.Default);
-        Assert.Equal("local-task", roundTrip?.ToolProfile);
-    }
-
-    [Fact]
-    public void ThreadConfiguration_RoundTripsRequireApprovalOutsideWorkspace()
-    {
-        var cfg = new ThreadConfiguration { RequireApprovalOutsideWorkspace = false };
-        var json = JsonSerializer.Serialize(cfg, SessionJsonOptions.Default);
+        Assert.Contains($"\"approvalPolicy\":\"{wire}\"", json);
         Assert.Contains("\"requireApprovalOutsideWorkspace\":false", json);
 
         var roundTrip = JsonSerializer.Deserialize<ThreadConfiguration>(json, SessionJsonOptions.Default);
         Assert.NotNull(roundTrip);
+        Assert.Equal(policy, roundTrip.ApprovalPolicy);
+        Assert.Equal("local-task", roundTrip.ToolProfile);
         Assert.False(roundTrip.RequireApprovalOutsideWorkspace);
     }
 

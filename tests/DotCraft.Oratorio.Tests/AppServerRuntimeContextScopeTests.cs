@@ -15,47 +15,23 @@ public sealed class AppServerRuntimeContextScopeTests
     private static OratorioDynamicToolCatalog Catalog() =>
         new(NullLogger<OratorioDynamicToolCatalog>.Instance);
 
-    public static TheoryData<RunPurpose, ItemKind, string?> RunShapes()
+    [Fact]
+    public void RuntimeContext_ShipsSharedPagesAndOnlyTheDraftPagesWhoseToolIsExposed()
     {
-        var data = new TheoryData<RunPurpose, ItemKind, string?>();
+        var catalog = Catalog();
         foreach (var purpose in new[] { RunPurpose.ReviewAnalysis, RunPurpose.Implementation })
+        foreach (var kind in new[] { ItemKind.PullRequest, ItemKind.Issue, ItemKind.LocalTask })
+        foreach (var source in new string?[] { "github", "gitlab", "local", null })
         {
-            foreach (var kind in new[] { ItemKind.PullRequest, ItemKind.Issue, ItemKind.LocalTask })
-            {
-                foreach (var source in new string?[] { "github", "gitlab", "local", null })
-                    data.Add(purpose, kind, source);
-            }
+            var tools = catalog.CreateRunToolSet(purpose, kind, source).AllowedLocalNames;
+            var pages = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(purpose, kind, source);
+
+            Assert.Contains("oratorio.runContract", pages.Keys);
+            Assert.Contains("oratorio.discussionTurn", pages.Keys);
+            Assert.Contains("oratorio.followUpDraft", pages.Keys);
+            foreach (var (page, tool) in DraftPages)
+                Assert.Equal(tools.Contains(tool), pages.ContainsKey(page));
         }
-
-        return data;
-    }
-
-    [Theory]
-    [MemberData(nameof(RunShapes))]
-    public void RuntimeContext_ShipsADraftPageOnlyWhenItsToolIsExposed(
-        RunPurpose purpose,
-        ItemKind kind,
-        string? source)
-    {
-        var tools = Catalog().CreateRunToolSet(purpose, kind, source).AllowedLocalNames;
-        var pages = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(purpose, kind, source);
-
-        foreach (var (page, tool) in DraftPages)
-            Assert.Equal(tools.Contains(tool), pages.ContainsKey(page));
-    }
-
-    [Theory]
-    [MemberData(nameof(RunShapes))]
-    public void RuntimeContext_AlwaysShipsTheContractAndDiscussionPages(
-        RunPurpose purpose,
-        ItemKind kind,
-        string? source)
-    {
-        var pages = AppServerPromptBuilder.BuildThreadRuntimeAdditionalContext(purpose, kind, source);
-
-        Assert.Contains("oratorio.runContract", pages.Keys);
-        Assert.Contains("oratorio.discussionTurn", pages.Keys);
-        Assert.Contains("oratorio.followUpDraft", pages.Keys);
     }
 
     [Fact]

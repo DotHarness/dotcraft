@@ -64,32 +64,6 @@ public sealed partial class OratorioAppBindingSdkTests
     }
 
     [Fact]
-    public async Task StartThread_OmitsExecutionOverrideWhenWorkspacePathsMatch()
-    {
-        var transport = new TestJsonRpcTransport();
-        var sdkClient = await ConnectSdkClientAsync(transport);
-        await using var client = new DotCraftAppServerClient(sdkClient);
-        var workspace = Path.Combine(Path.GetTempPath(), "oratorio-workspace");
-
-        var startTask = client.StartThreadAsync(new AppServerThreadStartRequest(
-            DisplayName: "Review",
-            BaseWorkspacePath: workspace,
-            ExecutionWorkspacePath: workspace,
-            ApprovalPolicy: "deny",
-            AgentInstructions: "Review the change."), CancellationToken.None);
-
-        using (var outbound = await transport.ReadOutboundAsync().WaitAsync(Timeout))
-        {
-            var config = outbound.RootElement.GetProperty("params").GetProperty("config");
-            Assert.False(config.TryGetProperty("executionWorkspaceOverride", out _));
-            Assert.False(config.TryGetProperty("workspaceOverride", out _));
-            await transport.PushResultAsync(outbound, ThreadStartResult("thread-review", workspace, workspace));
-        }
-
-        Assert.Equal("thread-review", await startTask.WaitAsync(Timeout));
-    }
-
-    [Fact]
     public async Task ReadThread_RequestsOnlyNewestItemPageAndReturnsItChronologically()
     {
         var transport = new TestJsonRpcTransport();

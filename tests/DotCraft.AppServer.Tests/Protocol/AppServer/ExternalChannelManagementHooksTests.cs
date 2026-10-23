@@ -27,199 +27,102 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
         }
         catch
         {
-            // best effort cleanup
         }
     }
 
     [Fact]
-    public async Task ExternalChannelUpsert_InvokesHookAfterPersist()
+    public async Task UpsertAndRemove_InvokeTheirHooksAfterPersisting()
     {
-        var hookCalls = 0;
+        var upserts = 0;
         var persistedBeforeHook = false;
-        _h = new AppServerTestHarness(
-            workspaceCraftPath: _workspaceCraftPath,
-            onExternalChannelUpserted: (entry, _) =>
-            {
-                hookCalls++;
-                var configPath = Path.Combine(_workspaceCraftPath, "config.json");
-                var channels = AppConfig.Load(configPath).ExternalChannels;
-                persistedBeforeHook = channels.Any(c =>
-                    string.Equals(c.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
-                return Task.CompletedTask;
-            });
-
-        await _h.InitializeAsync();
-        var request = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
-        {
-            channel = new
-            {
-                name = "weixin",
-                enabled = true,
-                transport = "websocket"
-            }
-        });
-
-        await _h.ExecuteRequestAsync(request);
-        var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-
-        Assert.Equal(1, hookCalls);
-        Assert.True(persistedBeforeHook);
-    }
-
-    [Fact]
-    public async Task ExternalChannelRemove_InvokesHookAfterPersist()
-    {
         var removedName = string.Empty;
         var removedFromConfigBeforeHook = false;
         _h = new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
+            onExternalChannelUpserted: (entry, _) =>
+            {
+                upserts++;
+                persistedBeforeHook = LoadChannels().Any(c => string.Equals(c.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
+                return Task.CompletedTask;
+            },
             onExternalChannelRemoved: (name, _) =>
             {
                 removedName = name;
-                var configPath = Path.Combine(_workspaceCraftPath, "config.json");
-                var channels = AppConfig.Load(configPath).ExternalChannels;
-                removedFromConfigBeforeHook = channels.All(c =>
-                    !string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
+                removedFromConfigBeforeHook = LoadChannels().All(c => !string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
                 return Task.CompletedTask;
             });
-
         await _h.InitializeAsync();
 
-        var upsert = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
-        {
-            channel = new
-            {
-                name = "weixin",
-                enabled = true,
-                transport = "websocket"
-            }
-        });
-        await _h.ExecuteRequestAsync(upsert);
-        _ = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(await UpsertAsync(new { name = "weixin", enabled = true, transport = "websocket" }));
+        Assert.Equal(1, upserts);
+        Assert.True(persistedBeforeHook);
 
-        var remove = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelRemove, new
-        {
-            name = "weixin"
-        });
-        await _h.ExecuteRequestAsync(remove);
-        var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-
+        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelRemove, new { name = "weixin" }));
+        AppServerTestHarness.AssertIsSuccessResponse(await _h.Transport.ReadNextSentAsync());
         Assert.Equal("weixin", removedName);
         Assert.True(removedFromConfigBeforeHook);
     }
 
     [Fact]
-    public async Task ExternalChannelUpsert_AllowsExternalCatalogChannelName()
+    public async Task Upsert_AllowsExternalCatalogNamesButRejectsNativeChannelNames()
     {
         _h = new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
             channelListContributor: new FixedChannelListContributor(
-                new ChannelDescriptor { Name = "feishu", Category = "external" }));
-
+                new ChannelDescriptor { Name = "feishu", Category = "external" },
+                new ChannelDescriptor { Name = "cli", Category = "builtin" }));
         await _h.InitializeAsync();
-        var request = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
+
+        AppServerTestHarness.AssertIsSuccessResponse(await UpsertAsync(new
         {
-            channel = new
-            {
-                name = "feishu",
-                enabled = true,
-                transport = "subprocess",
-                builtinModule = "channel-feishu"
-            }
-        });
-
-        await _h.ExecuteRequestAsync(request);
-        var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-
-        var channels = AppConfig.Load(Path.Combine(_workspaceCraftPath, "config.json")).ExternalChannels;
-        var feishu = Assert.Single(channels);
+            name = "feishu",
+            enabled = true,
+            transport = "subprocess",
+            builtinModule = "channel-feishu"
+        }));
+        var feishu = Assert.Single(LoadChannels());
         Assert.Equal("feishu", feishu.Name);
         Assert.Equal("channel-feishu", feishu.BuiltinModule);
+
+        AppServerTestHarness.AssertIsErrorResponse(
+            await UpsertAsync(new { name = "cli", enabled = true, transport = "subprocess", builtinModule = "channel-cli" }),
+            AppServerErrors.ExternalChannelNameConflictCode);
     }
 
     [Fact]
-    public async Task ExternalChannelUpsert_AcceptsManagedWebsocketWithBuiltinModule()
+    public async Task Upsert_RequiresALauncherForManagedWebsocketChannels()
     {
         _h = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-
         await _h.InitializeAsync();
-        var request = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
+
+        AppServerTestHarness.AssertIsErrorResponse(
+            await UpsertAsync(new { name = "feishu", enabled = true, transport = "managedWebsocket" }),
+            AppServerErrors.ExternalChannelValidationFailedCode);
+
+        using var response = await UpsertAsync(new
         {
-            channel = new
-            {
-                name = "feishu",
-                enabled = true,
-                transport = "managedWebsocket",
-                builtinModule = "channel-feishu"
-            }
+            name = "feishu",
+            enabled = true,
+            transport = "managedWebsocket",
+            builtinModule = "channel-feishu"
         });
-
-        await _h.ExecuteRequestAsync(request);
-        var response = await _h.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
-
         var channel = response.RootElement.GetProperty("result").GetProperty("channel");
         Assert.Equal("managedWebsocket", channel.GetProperty("transport").GetString());
         Assert.Equal("channel-feishu", channel.GetProperty("builtinModule").GetString());
-
-        var channels = AppConfig.Load(Path.Combine(_workspaceCraftPath, "config.json")).ExternalChannels;
-        var feishu = Assert.Single(channels);
+        var feishu = Assert.Single(LoadChannels());
         Assert.Equal(ExternalChannelTransport.ManagedWebsocket, feishu.Transport);
         Assert.Equal("channel-feishu", feishu.BuiltinModule);
     }
 
-    [Fact]
-    public async Task ExternalChannelUpsert_RejectsManagedWebsocketWithoutLauncher()
+    private async Task<System.Text.Json.JsonDocument> UpsertAsync(object channel)
     {
-        _h = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-
-        await _h.InitializeAsync();
-        var request = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
-        {
-            channel = new
-            {
-                name = "feishu",
-                enabled = true,
-                transport = "managedWebsocket"
-            }
-        });
-
-        await _h.ExecuteRequestAsync(request);
-        var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(
-            response,
-            AppServerErrors.ExternalChannelValidationFailedCode);
+        await _h!.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new { channel }));
+        return await _h.Transport.ReadNextSentAsync();
     }
 
-    [Fact]
-    public async Task ExternalChannelUpsert_RejectsNativeChannelName()
-    {
-        _h = new AppServerTestHarness(
-            workspaceCraftPath: _workspaceCraftPath,
-            channelListContributor: new FixedChannelListContributor(
-                new ChannelDescriptor { Name = "cli", Category = "builtin" }));
-
-        await _h.InitializeAsync();
-        var request = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
-        {
-            channel = new
-            {
-                name = "cli",
-                enabled = true,
-                transport = "subprocess",
-                builtinModule = "channel-cli"
-            }
-        });
-
-        await _h.ExecuteRequestAsync(request);
-        var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(
-            response,
-            AppServerErrors.ExternalChannelNameConflictCode);
-    }
+    private List<ExternalChannelEntry> LoadChannels() =>
+        AppConfig.Load(Path.Combine(_workspaceCraftPath, "config.json")).ExternalChannels;
 
     private sealed class FixedChannelListContributor(params ChannelDescriptor[] channels)
         : IAppServerChannelListContributor

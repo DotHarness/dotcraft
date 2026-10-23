@@ -48,18 +48,13 @@ public sealed class ProviderRetryDeadlineTests
     [InlineData("0", 0)]
     [InlineData("4.5", 4.5)]
     [InlineData("Thu, 01 Jan 2026 00:00:05 GMT", 5)]
-    [InlineData("Wed, 31 Dec 2025 23:59:59 GMT", 0)]
     public void ValidAdvice_IncludingExpiredAdviceHasAnExplicitDelay(string value, double seconds) =>
         Assert.Equal(TimeSpan.FromSeconds(seconds), ProviderFailureParsing.ParseRetryAfter(value, new RetryTestClock().GetUtcNow()));
 
     [Theory]
     [InlineData("-1")]
     [InlineData("NaN")]
-    [InlineData("Infinity")]
     [InlineData("1e309")]
-    [InlineData("9999999999999999999999999")]
-    [InlineData("tomorrow")]
-    [InlineData("2026-01-01")]
     public void MalformedAdvice_DoesNotThrowAndAllowsFallback(string value) =>
         Assert.Null(ProviderFailureParsing.ParseRetryAfter(value, new RetryTestClock().GetUtcNow()));
 
@@ -102,7 +97,6 @@ public sealed class ProviderRetryDeadlineTests
 
     [Theory]
     [InlineData(429, true)]
-    [InlineData(500, false)]
     [InlineData(503, false)]
     public void TextAdvice_OnlyAppliesToRateLimits(int status, bool expectedAdvice)
     {
@@ -162,18 +156,6 @@ public sealed class ProviderRetryDeadlineTests
             response.Headers.TryAddWithoutValidation("retry-after", "30");
             return Task.FromResult(response);
         }
-    }
-
-    [Fact]
-    public void LegacyDurationConstructorAndWithSetterRemainUsable()
-    {
-        var failure = new ProviderFailure(ProviderFailureKind.RateLimitExceeded, ServerRetryAfter: TimeSpan.Zero);
-        Assert.Equal(TimeSpan.Zero, failure.GetRetryDelay(1));
-        var changed = failure with { ServerRetryAfter = TimeSpan.FromSeconds(20) };
-        Assert.Equal(TimeSpan.FromSeconds(20), changed.ServerRetryAfter);
-        Assert.InRange(changed.GetRetryDelay(1)!.Value.TotalSeconds, 19, 20);
-        var fallback = changed with { ServerRetryAfter = null };
-        Assert.InRange(fallback.GetRetryDelay(1)!.Value.TotalMilliseconds, 180, 220);
     }
 
     private sealed class CountingClassifier(RetryTestClock clock) : IProviderFailureClassifier

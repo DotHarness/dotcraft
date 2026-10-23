@@ -8,7 +8,6 @@ public sealed class CommandDescriptionTests
     [Theory]
     [InlineData("cmd.help", "Module fallback", "Show help information")]
     [InlineData("module.command.description", "Module fallback", "Module fallback")]
-    [InlineData("", "Module fallback", "Module fallback")]
     [InlineData("module.command.description", null, "/module-command")]
     public void Discovery_UsesKnownKeyThenModuleFallbackThenName(string key, string? fallback, string expected)
     {

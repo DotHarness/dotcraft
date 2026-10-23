@@ -6,7 +6,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Contributions;
 
-/// <summary>Composition of the <see cref="ISubAgentRuntimeSource"/> contribution point, asserted through every site that reads it.</summary>
 public sealed class SubAgentRuntimeContributionTests
 {
     private const string AcmeRuntime = "acme-remote";
@@ -21,30 +20,21 @@ public sealed class SubAgentRuntimeContributionTests
         Assert.Equal(
             SubAgentProfileRegistry.KnownRuntimeTypes,
             SubAgentProfileCatalog.BuiltIn.KnownRuntimeTypes);
+        Assert.Equal(
+            SubAgentProfilePromptSectionBuilder.Build(configuredProfiles: null, binaryAvailabilityProbe: _ => true),
+            SubAgentProfilePromptSectionBuilder.Build(
+                configuredProfiles: null,
+                catalog: SubAgentProfileCatalog.Resolve(new ContributionRegistry()),
+                binaryAvailabilityProbe: _ => true));
     }
 
     [Fact]
-    public void AnEmptyContributionPoint_LeavesThePromptSectionByteIdentical()
-    {
-        var withoutRegistry = SubAgentProfilePromptSectionBuilder.Build(
-            configuredProfiles: null,
-            binaryAvailabilityProbe: _ => true);
-        var withEmptyRegistry = SubAgentProfilePromptSectionBuilder.Build(
-            configuredProfiles: null,
-            catalog: SubAgentProfileCatalog.Resolve(new ContributionRegistry()),
-            binaryAvailabilityProbe: _ => true);
-
-        Assert.Equal(withoutRegistry, withEmptyRegistry);
-    }
-
-    [Fact]
-    public void AContributedRuntime_IsKnownEverywhereOneProfileSetIsRead()
+    public void AContributedRuntime_IsKnownEverywhereOneProfileSetIsReadUntilRevoked()
     {
         var registry = new ContributionRegistry();
-        registry.Add<ISubAgentRuntimeSource>(new StubContribution(AcmeRuntime, [CreateProfile(AcmeProfile)]));
+        var handle = registry.Add<ISubAgentRuntimeSource>(new StubContribution(AcmeRuntime, [CreateProfile(AcmeProfile)]));
         var catalog = SubAgentProfileCatalog.Resolve(registry);
 
-        // The validator, the profile registry and the prompt all read the same set.
         Assert.Empty(SubAgentProfileRegistry.ValidateProfiles(
             [CreateProfile(AcmeProfile)],
             catalog.KnownRuntimeTypes));
@@ -56,13 +46,18 @@ public sealed class SubAgentRuntimeContributionTests
             catalog: catalog,
             binaryAvailabilityProbe: _ => true);
         Assert.Contains($"`{AcmeProfile}`", section, StringComparison.Ordinal);
+
+        handle.Dispose();
+
+        Assert.Same(SubAgentProfileCatalog.BuiltIn, SubAgentProfileCatalog.Resolve(registry));
     }
 
     [Fact]
-    public void AContributedRuntime_DoesNotReportRuntimeNotRegistered()
+    public void AContributedRuntime_IsRegisteredAndExecutesTheTaskItsProfileNames()
     {
+        var runtime = new StubRuntime(AcmeRuntime);
         var registry = new ContributionRegistry();
-        registry.Add<ISubAgentRuntimeSource>(new StubContribution(AcmeRuntime, [CreateProfile(AcmeProfile)]));
+        registry.Add<ISubAgentRuntimeSource>(new StubContribution(runtime, [CreateProfile(AcmeProfile)]));
         var coordinator = new SubAgentCoordinator(
             Path.GetTempPath(),
             [new CliOneshotRuntime()],
@@ -74,34 +69,23 @@ public sealed class SubAgentRuntimeContributionTests
         Assert.True(diagnostic.RuntimeRegistered);
         Assert.False(diagnostic.HiddenFromPrompt);
         Assert.Empty(diagnostic.Warnings);
+        Assert.Same(runtime, coordinator.PrepareRun(new SubAgentTaskRequest { Task = "review" }, AcmeProfile).Runtime);
     }
 
     [Fact]
-    public void AContributedRuntime_ExecutesTheTaskItsProfileNames()
-    {
-        var runtime = new StubRuntime(AcmeRuntime);
-        var registry = new ContributionRegistry();
-        registry.Add<ISubAgentRuntimeSource>(new StubContribution(runtime, [CreateProfile(AcmeProfile)]));
-        var coordinator = new SubAgentCoordinator(
-            Path.GetTempPath(),
-            [new CliOneshotRuntime()],
-            catalog: SubAgentProfileCatalog.Resolve(registry));
-
-        var prepared = coordinator.PrepareRun(new SubAgentTaskRequest { Task = "review" }, AcmeProfile);
-
-        Assert.Same(runtime, prepared.Runtime);
-    }
-
-    [Fact]
-    public void AContributionCannotShadowARuntimeTypeTheHostAlreadyServes()
+    public void ThrowingAndShadowingContributions_AreSkippedWithoutStoppingTheOnesBehindThem()
     {
         var registry = new ContributionRegistry();
         var impostor = new StubRuntime(CliOneshotRuntime.RuntimeTypeName);
-        registry.Add<ISubAgentRuntimeSource>(new StubContribution(impostor, []));
+        registry.Add<ISubAgentRuntimeSource>(new ThrowingContribution(), new ContributionOptions(Order: 10));
+        registry.Add<ISubAgentRuntimeSource>(new StubContribution(impostor, []), new ContributionOptions(Order: 20));
+        registry.Add<ISubAgentRuntimeSource>(
+            new StubContribution(AcmeRuntime, [CreateProfile(AcmeProfile)]),
+            new ContributionOptions(Order: 30));
         var catalog = SubAgentProfileCatalog.Resolve(registry);
 
-        Assert.Empty(catalog.ContributedRuntimes);
-        Assert.Equal(SubAgentProfileRegistry.KnownRuntimeTypes.Count, catalog.KnownRuntimeTypes.Count);
+        Assert.Equal(AcmeRuntime, Assert.Single(catalog.ContributedRuntimes).RuntimeType);
+        Assert.Equal(SubAgentProfileRegistry.KnownRuntimeTypes.Count + 1, catalog.KnownRuntimeTypes.Count);
     }
 
     [Fact]
@@ -118,21 +102,6 @@ public sealed class SubAgentRuntimeContributionTests
     }
 
     [Fact]
-    public void AThrowingContribution_IsSkippedWithoutStoppingTheOnesBehindIt()
-    {
-        var registry = new ContributionRegistry();
-        registry.Add<ISubAgentRuntimeSource>(new ThrowingContribution(), new ContributionOptions(Order: 10));
-        registry.Add<ISubAgentRuntimeSource>(
-            new StubContribution(AcmeRuntime, [CreateProfile(AcmeProfile)]),
-            new ContributionOptions(Order: 20));
-
-        var catalog = SubAgentProfileCatalog.Resolve(registry);
-
-        Assert.Contains(AcmeRuntime, catalog.KnownRuntimeTypes);
-        Assert.Single(catalog.ContributedRuntimes);
-    }
-
-    [Fact]
     public void AWorkspaceProfile_OverridesAContributedProfileOfTheSameName()
     {
         var registry = new ContributionRegistry();
@@ -143,19 +112,6 @@ public sealed class SubAgentRuntimeContributionTests
         Assert.True(profiles.TryGet(AcmeProfile, out var effective));
         Assert.Equal("specified", effective.WorkingDirectoryMode);
         Assert.True(profiles.IsBuiltInProfile(AcmeProfile));
-    }
-
-    [Fact]
-    public void RevokingTheContribution_ReturnsEveryReaderToTheHostsSet()
-    {
-        var registry = new ContributionRegistry();
-        var handle = registry.Add<ISubAgentRuntimeSource>(
-            new StubContribution(AcmeRuntime, [CreateProfile(AcmeProfile)]));
-        Assert.Contains(AcmeRuntime, SubAgentProfileCatalog.Resolve(registry).KnownRuntimeTypes);
-
-        handle.Dispose();
-
-        Assert.Same(SubAgentProfileCatalog.BuiltIn, SubAgentProfileCatalog.Resolve(registry));
     }
 
     private static SubAgentProfile CreateProfile(string name) =>

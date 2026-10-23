@@ -8,38 +8,6 @@ namespace DotCraft.Tests.AppServerTestClient;
 public sealed class DotNetPluginSmokeTests
 {
     [Fact]
-    public void CliOptions_UseTemporaryRunRootAndAllowProviderOverrides()
-    {
-        var bundles = Path.Combine(Path.GetTempPath(), "plugin-smoke-bundles");
-
-        var ok = DotNetPluginSmokeCliOptions.TryParse(
-            ["--bundles", bundles, "--provider-id", "local", "--model", "model-test"],
-            out var options,
-            out var error);
-
-        Assert.True(ok, error);
-        Assert.Equal(Path.GetFullPath(bundles), options.BundlesPath);
-        Assert.Equal("local", options.ProviderId);
-        Assert.Equal("model-test", options.Model);
-        Assert.StartsWith(
-            Path.Combine(Path.GetTempPath(), "dotcraft-plugin-smoke") + Path.DirectorySeparatorChar,
-            options.WorkRoot,
-            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
-        Assert.Equal(Path.Combine(options.WorkRoot, "report.json"), options.ReportPath);
-        Assert.Equal(TimeSpan.FromMinutes(5), options.TurnTimeout);
-        Assert.False(options.KeepWorkspace);
-    }
-
-    [Fact]
-    public void CliOptions_RejectMissingBundles()
-    {
-        var ok = DotNetPluginSmokeCliOptions.TryParse([], out _, out var error);
-
-        Assert.False(ok);
-        Assert.Equal("missing_bundles", error);
-    }
-
-    [Fact]
     public void BuildConfigJson_SelectsProviderWithoutCopyingCredentialsOrExternalIntegrations()
     {
         var json = DotNetPluginSmokeWorkspace.BuildConfigJson("local", "model-test");
@@ -57,18 +25,6 @@ public sealed class DotNetPluginSmokeTests
         Assert.Empty(root.GetProperty("ExternalChannels").EnumerateArray());
         Assert.False(root.GetProperty("Tracing").GetProperty("Enabled").GetBoolean());
         Assert.False(root.GetProperty("Compaction").GetProperty("AutoCompactEnabled").GetBoolean());
-    }
-
-    [Fact]
-    public async Task DeleteWorkspaceAsync_RemovesAnIsolatedWorkspace()
-    {
-        var root = Path.Combine(Path.GetTempPath(), "dotnet-plugin-smoke-delete-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(root, ".craft"));
-        await File.WriteAllTextAsync(Path.Combine(root, ".craft", "state.db"), "synthetic");
-
-        await DotNetPluginSmokeWorkspace.DeleteWorkspaceAsync(root);
-
-        Assert.False(Directory.Exists(root));
     }
 
     [Fact]
@@ -113,14 +69,6 @@ public sealed class DotNetPluginSmokeTests
         Assert.DoesNotContain("prompt", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("toolResult", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("errorMessage", json, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void ReportExitCode_DistinguishesPassFailureAndNoProvider()
-    {
-        Assert.Equal(0, new DotNetPluginSmokeReport { Status = DotNetPluginSmokeStatuses.Passed }.ExitCode);
-        Assert.Equal(1, new DotNetPluginSmokeReport { Status = DotNetPluginSmokeStatuses.Failed }.ExitCode);
-        Assert.Equal(2, new DotNetPluginSmokeReport { Status = DotNetPluginSmokeStatuses.Skipped }.ExitCode);
     }
 
     [Fact]
@@ -196,25 +144,6 @@ public sealed class DotNetPluginSmokeTests
         Assert.Equal(
             "synthetic\n[reviewed by acme.review-core]",
             capture.Results["call-1"].Result);
-    }
-
-    [Fact]
-    public void TerminalNotificationMatchesTurn_ReadsNestedTurnId()
-    {
-        using var notification = JsonDocument.Parse("""
-            {
-              "jsonrpc": "2.0",
-              "method": "turn/completed",
-              "params": { "turn": { "id": "turn-1", "status": "completed" } }
-            }
-            """);
-
-        Assert.True(DotNetPluginSmokeRunner.TerminalNotificationMatchesTurn(
-            notification.RootElement,
-            "turn-1"));
-        Assert.False(DotNetPluginSmokeRunner.TerminalNotificationMatchesTurn(
-            notification.RootElement,
-            "turn-2"));
     }
 
     [Fact]

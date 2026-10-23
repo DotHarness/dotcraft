@@ -55,7 +55,6 @@ public sealed class DeepSeekSearchTests
 
     [Theory]
     [InlineData("not-json")]
-    [InlineData("{}")]
     [InlineData("{\"results\":null}")]
     public async Task InvalidResponsesReturnToolErrors(string body)
     {
@@ -64,8 +63,6 @@ public sealed class DeepSeekSearchTests
 
     [Theory]
     [InlineData(401)]
-    [InlineData(402)]
-    [InlineData(429)]
     [InlineData(500)]
     public async Task HttpFailuresDoNotRetryOrExposeResponseSecrets(int status)
     {

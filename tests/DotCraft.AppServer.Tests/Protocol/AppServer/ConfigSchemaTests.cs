@@ -19,29 +19,17 @@ public sealed class ConfigSchemaTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 
     [Fact]
-    public async Task Initialize_WithWorkspaceConfigManagement_AdvertisesCapability()
+    public async Task ConfigSchema_IsAdvertisedAndReturnsSchemaSections()
     {
         using var harness = new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
             configSchema: CreateTestSchema());
-
-        var initDoc = await harness.InitializeAsync();
-        var caps = initDoc.RootElement.GetProperty("result").GetProperty("capabilities");
-        Assert.True(caps.GetProperty("workspaceConfigManagement").GetBoolean());
-    }
-
-    [Fact]
-    public async Task ConfigSchema_ReturnsSchemaSections()
-    {
-        using var harness = new AppServerTestHarness(
-            workspaceCraftPath: _workspaceCraftPath,
-            configSchema: CreateTestSchema());
-        await harness.InitializeAsync();
+        using (var initDoc = await harness.InitializeAsync())
+            Assert.True(initDoc.RootElement.GetProperty("result").GetProperty("capabilities").GetProperty("workspaceConfigManagement").GetBoolean());
 
         var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigSchema, new { });
         await harness.ExecuteRequestAsync(msg);

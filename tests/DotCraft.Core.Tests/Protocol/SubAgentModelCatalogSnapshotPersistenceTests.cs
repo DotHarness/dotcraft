@@ -104,7 +104,6 @@ public sealed class SubAgentModelCatalogSnapshotPersistenceTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 

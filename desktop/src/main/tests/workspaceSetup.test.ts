@@ -15,8 +15,7 @@ const tempDirs: string[] = []
 const preference = (model: string) => ({
   model,
   reasoning: { enabled: false, effort: 'medium', output: 'full' },
-  speed: 'standard',
-  contextWindow: { mode: 'default' }
+  speed: 'standard'
 })
 
 function createTempWorkspace(): string {
@@ -37,22 +36,18 @@ afterEach(() => {
 })
 
 describe('getWorkspaceStatus', () => {
-  it('returns no-workspace for empty paths', () => {
-    expect(getWorkspaceStatus('', { userConfigPath: join(createTempWorkspace(), '.craft', 'config.json') })).toEqual({
+  it('returns no-workspace for empty paths and keeps empty workspace config in setup until a provider is configured', () => {
+    const userConfigPath = join(createTempWorkspace(), '.craft', 'config.json')
+    expect(getWorkspaceStatus('', { userConfigPath })).toEqual({
       status: 'no-workspace',
       workspacePath: '',
       hasUserConfig: false,
       providers: []
     })
-  })
 
-  it('keeps empty workspace config in setup until a provider is configured', () => {
     const workspace = createTempWorkspace()
-    const configPath = join(workspace, '.craft', 'config.json')
-    mkdirSync(join(workspace, '.craft'), { recursive: true })
-    writeFileSync(configPath, '{}', 'utf8')
-
-    expect(getWorkspaceStatus(workspace, { userConfigPath: join(createTempWorkspace(), '.craft', 'config.json') })).toEqual({
+    writeJson(join(workspace, '.craft', 'config.json'), {})
+    expect(getWorkspaceStatus(workspace, { userConfigPath })).toEqual({
       status: 'needs-setup',
       workspacePath: workspace,
       hasUserConfig: false,
@@ -100,14 +95,9 @@ describe('getWorkspaceStatus', () => {
     })
   })
 
-  it('returns ready when workspace selects a provider from user config', () => {
+  it('is ready only when the workspace selects a provider configured in user config', () => {
     const workspace = createTempWorkspace()
-    const userHome = createTempWorkspace()
-    const userConfigPath = join(userHome, '.craft', 'config.json')
-    mkdirSync(join(workspace, '.craft'), { recursive: true })
-    writeJson(join(workspace, '.craft', 'config.json'), {
-      ProviderId: 'anthropic'
-    })
+    const userConfigPath = join(createTempWorkspace(), '.craft', 'config.json')
     writeJson(userConfigPath, {
       ProviderPreferences: { anthropic: preference('claude-sonnet-4-5') },
       Providers: {
@@ -120,39 +110,16 @@ describe('getWorkspaceStatus', () => {
       }
     })
 
+    writeJson(join(workspace, '.craft', 'config.json'), { ProviderId: 'anthropic' })
     expect(getWorkspaceStatus(workspace, { userConfigPath })).toMatchObject({
       status: 'ready',
-      workspacePath: workspace,
       hasUserConfig: true,
-      providers: [
-        expect.objectContaining({
-          id: 'anthropic',
-          protocol: 'anthropic'
-        })
-      ]
-    })
-  })
-
-  it('returns needs-setup when selected provider is not configured', () => {
-    const workspace = createTempWorkspace()
-    const userHome = createTempWorkspace()
-    const userConfigPath = join(userHome, '.craft', 'config.json')
-    writeJson(join(workspace, '.craft', 'config.json'), {
-      ProviderId: 'missing'
-    })
-    writeJson(userConfigPath, {
-      Providers: {
-        openai: {
-          DisplayName: 'OpenAI',
-          Protocol: 'openai-responses',
-          ApiKey: 'sk-test'
-        }
-      }
+      providers: [expect.objectContaining({ id: 'anthropic', protocol: 'anthropic' })]
     })
 
+    writeJson(join(workspace, '.craft', 'config.json'), { ProviderId: 'missing' })
     expect(getWorkspaceStatus(workspace, { userConfigPath })).toMatchObject({
       status: 'needs-setup',
-      workspacePath: workspace,
       hasUserConfig: true
     })
   })
@@ -232,35 +199,17 @@ describe('getWorkspaceStatus', () => {
 })
 
 describe('shouldRouteWorkspaceThroughSetupBeforeAppServerStart', () => {
-  it('routes local setup-required workspaces through setup before AppServer start', () => {
+  it('routes only local setup-required workspaces through setup before AppServer start', () => {
     const workspace = createTempWorkspace()
-    mkdirSync(join(workspace, '.craft'), { recursive: true })
-    writeFileSync(join(workspace, '.craft', 'config.json'), '{}', 'utf8')
+    const userConfigPath = join(createTempWorkspace(), '.craft', 'config.json')
+    writeJson(join(workspace, '.craft', 'config.json'), {})
 
-    expect(
-      shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspace, {
-        userConfigPath: join(createTempWorkspace(), '.craft', 'config.json')
-      })
-    ).toBe(true)
-  })
+    expect(shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspace, { userConfigPath })).toBe(true)
+    expect(shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspace, {
+      usingRemoteConnection: true,
+      userConfigPath
+    })).toBe(false)
 
-  it('does not block remote AppServer connection modes', () => {
-    const workspace = createTempWorkspace()
-    mkdirSync(join(workspace, '.craft'), { recursive: true })
-    writeFileSync(join(workspace, '.craft', 'config.json'), '{}', 'utf8')
-
-    expect(
-      shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspace, {
-        usingRemoteConnection: true,
-        userConfigPath: join(createTempWorkspace(), '.craft', 'config.json')
-      })
-    ).toBe(false)
-  })
-
-  it('allows local ready workspaces to start AppServer', () => {
-    const workspace = createTempWorkspace()
-    const userHome = createTempWorkspace()
-    const userConfigPath = join(userHome, '.craft', 'config.json')
     writeJson(join(workspace, '.craft', 'config.json'), {
       ProviderId: 'openai',
       ProviderPreferences: { openai: preference('gpt-4.1') }
@@ -275,7 +224,6 @@ describe('shouldRouteWorkspaceThroughSetupBeforeAppServerStart', () => {
         }
       }
     })
-
     expect(shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspace, { userConfigPath })).toBe(false)
   })
 })
@@ -367,24 +315,15 @@ describe('workspace setup bootstrap import detection', () => {
     expect(detectWorkspaceSetupBootstrapImportSources(unversioned)).toEqual([])
   })
 
-  it('does not offer or overwrite a root AGENTS.md', () => {
+  it.each(['AGENTS.md', 'AGENTS.override.md'])('does not offer or copy beside an existing root %s', (existing) => {
     const workspace = createTempWorkspace()
     writeFileSync(join(workspace, 'CLAUDE.md'), '# Claude rules\n', 'utf8')
-    writeFileSync(join(workspace, 'AGENTS.md'), '# Existing rules\n', 'utf8')
+    writeFileSync(join(workspace, existing), '# Existing rules\n', 'utf8')
 
     expect(detectWorkspaceSetupBootstrapImportSources(workspace)).toEqual([])
     expect(applyWorkspaceSetupBootstrapImport(workspace, 'claude')).toMatchObject({ status: 'failed' })
-    expect(readFileSync(join(workspace, 'AGENTS.md'), 'utf8')).toBe('# Existing rules\n')
-  })
-
-  it('does not offer or copy beside a root AGENTS.override.md', () => {
-    const workspace = createTempWorkspace()
-    writeFileSync(join(workspace, 'CLAUDE.md'), '# Claude rules\n', 'utf8')
-    writeFileSync(join(workspace, 'AGENTS.override.md'), '# Override rules\n', 'utf8')
-
-    expect(detectWorkspaceSetupBootstrapImportSources(workspace)).toEqual([])
-    expect(applyWorkspaceSetupBootstrapImport(workspace, 'claude')).toMatchObject({ status: 'failed' })
-    expect(existsSync(join(workspace, 'AGENTS.md'))).toBe(false)
+    expect(readFileSync(join(workspace, existing), 'utf8')).toBe('# Existing rules\n')
+    if (existing !== 'AGENTS.md') expect(existsSync(join(workspace, 'AGENTS.md'))).toBe(false)
   })
 })
 
@@ -434,25 +373,13 @@ describe('listSetupModels', () => {
     })
   })
 
-  it('returns the backend auth-required state for ChatGPT setup', async () => {
-    const runBackend = vi.fn().mockResolvedValue({ kind: 'auth-required' })
+  it.each([
+    [{ kind: 'auth-required' }, { id: 'openai-chatgpt', displayName: 'OpenAI (ChatGPT)', protocol: 'openai-responses', endPoint: '', apiKey: '', authMethod: 'chatgptOAuth' }],
+    [{ kind: 'missing-key' }, { id: 'anthropic', displayName: 'Anthropic', protocol: 'anthropic', endPoint: 'https://api.anthropic.com', apiKey: '' }]
+  ] as const)('preserves the backend %o classification', async (backendResult, provider) => {
+    const runBackend = vi.fn().mockResolvedValue(backendResult)
 
-    const result = await listSetupModels(
-      {
-        provider: {
-          id: 'openai-chatgpt',
-          displayName: 'OpenAI (ChatGPT)',
-          protocol: 'openai-responses',
-          endPoint: '',
-          apiKey: '',
-          authMethod: 'chatgptOAuth'
-        }
-      },
-      { runBackend }
-    )
-
-    expect(result).toEqual({ kind: 'auth-required' })
-    expect(runBackend).toHaveBeenCalledWith(['model-catalog', '--stdin'], expect.any(String), 30_000)
+    expect(await listSetupModels({ provider }, { runBackend })).toEqual(backendResult)
   })
 
   it('references existing providers by id without copying credentials', async () => {
@@ -489,23 +416,5 @@ describe('listSetupModels', () => {
       undefined,
       30_000
     )
-  })
-
-  it('preserves backend model error classification', async () => {
-    const runBackend = vi.fn().mockResolvedValue({ kind: 'missing-key' })
-    const result = await listSetupModels(
-      {
-        provider: {
-          id: 'anthropic',
-          displayName: 'Anthropic',
-          protocol: 'anthropic',
-          endPoint: 'https://api.anthropic.com',
-          apiKey: ''
-        }
-      },
-      { runBackend }
-    )
-
-    expect(result).toEqual({ kind: 'missing-key' })
   })
 })

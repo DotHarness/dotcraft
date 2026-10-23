@@ -60,14 +60,19 @@ public sealed class ChatMiddlewareContributionTests
     }
 
     [Fact]
-    public void Contribution_LandsAtItsOrderPosition()
+    public void Contribution_LandsAtItsOrderPositionAndAThreadScopedOneOnlyInItsThread()
     {
         var registry = CreateRegistry();
-        // Straddle the built-in image sanitizer, which is registered at order 700.
         registry.Add<IChatMiddleware>(new MarkerMiddleware("outer"), new ContributionOptions(Order: 650));
         registry.Add<IChatMiddleware>(new MarkerMiddleware("inner"), new ContributionOptions(Order: 750));
+        registry.Add<IChatMiddleware>(
+            new MarkerMiddleware("thread-a"),
+            ContributionOptions.ForThread("thread-a", order: 50));
 
         var chain = ChainTypes(Compose(CreateHost(), registry));
+        Assert.DoesNotContain($"{nameof(MarkerChatClient)}:thread-a", chain);
+        Assert.DoesNotContain($"{nameof(MarkerChatClient)}:thread-a", ChainTypes(Compose(CreateHost(), registry, "thread-b")));
+        Assert.Contains($"{nameof(MarkerChatClient)}:thread-a", ChainTypes(Compose(CreateHost(), registry, "thread-a")));
 
         AssertOrder(
             chain,
@@ -91,25 +96,6 @@ public sealed class ChatMiddlewareContributionTests
 
         Assert.Equal("short-circuited", response.Text);
         Assert.Equal(0, baseClient.Calls);
-    }
-
-    [Fact]
-    public void ThreadScopedContribution_AppliesToThatThreadOnly()
-    {
-        var registry = CreateRegistry();
-        registry.Add<IChatMiddleware>(
-            new MarkerMiddleware("thread-a"),
-            ContributionOptions.ForThread("thread-a", order: 50));
-
-        Assert.Contains(
-            $"{nameof(MarkerChatClient)}:thread-a",
-            ChainTypes(Compose(CreateHost(), registry, "thread-a")));
-        Assert.DoesNotContain(
-            $"{nameof(MarkerChatClient)}:thread-a",
-            ChainTypes(Compose(CreateHost(), registry, "thread-b")));
-        Assert.DoesNotContain(
-            $"{nameof(MarkerChatClient)}:thread-a",
-            ChainTypes(Compose(CreateHost(), registry)));
     }
 
     [Fact]
@@ -179,7 +165,6 @@ public sealed class ChatMiddlewareContributionTests
         Assert.Equal(positions.OrderBy(position => position).ToList(), positions);
     }
 
-    // Outermost client inwards.
     private static IReadOnlyList<string> ChainTypes(IChatClient client)
     {
         var names = new List<string>();

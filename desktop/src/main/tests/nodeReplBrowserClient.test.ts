@@ -1,8 +1,7 @@
 import nodeProcess from 'node:process'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 import { createFakeBrowserManager } from './helpers/replBrowserFixture'
 import { createReplWorkerFixture } from './helpers/replWorkerFixture'
-import { afterAll } from 'vitest'
 import { NodeReplManager } from '../nodeReplManager'
 
 const { mockedAppPath } = vi.hoisted(() => ({
@@ -17,15 +16,46 @@ vi.mock('electron', () => ({
 const workerFixture = createReplWorkerFixture()
 afterAll(() => workerFixture.dispose())
 
+type FakeBrowser = ReturnType<typeof createFakeBrowserManager>
+
+const prelude = `
+  const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
+  const agent = await setupBrowserRuntime({ backend: "iab" })
+  const browser = await agent.browsers.get("iab")
+  const messageOf = async (action) => {
+    try {
+      await action()
+      return "resolved"
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error)
+    }
+  }
+`
+
+const settleClicks = {
+  onInput: ({ commandParams }: { commandParams: Record<string, unknown> }, emit: (method: string, params?: Record<string, unknown>) => void) => {
+    if (commandParams.type === 'mouseReleased') emit('Page.navigatedWithinDocument', { frameId: 'main-frame', url: 'http://localhost:3000/#a' })
+  }
+}
+
 describe('Node REPL browser clients', () => {
   const initialCwd = nodeProcess.cwd()
   const managers: NodeReplManager[] = []
-  const browserManagers: Array<ReturnType<typeof createFakeBrowserManager>> = []
-  const createManager = (browserManager: ReturnType<typeof createFakeBrowserManager>) => {
+  const browserManagers: FakeBrowser[] = []
+  let runCount = 0
+
+  async function evaluate(browserManager: FakeBrowser, code: string) {
     const manager = new NodeReplManager(browserManager as never, workerFixture.fork)
     managers.push(manager)
     browserManagers.push(browserManager)
-    return manager
+    return await manager.evaluate({} as Electron.BrowserWindow, { threadId: `client-${runCount += 1}`, code })
+  }
+
+  async function run(browserManager: FakeBrowser, body: string): Promise<any> {
+    const result = await evaluate(browserManager, `${prelude}
+${body}`)
+    expect(result.error).toBeUndefined()
+    return result.resultText ? JSON.parse(result.resultText) : undefined
   }
 
   afterEach(async () => {
@@ -36,134 +66,99 @@ describe('Node REPL browser clients', () => {
     browserManagers.length = 0
   })
 
-  it('loads browser-client.mjs and returns the IAB agent', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
-        const browser = await agent.browsers.get("iab")
-        JSON.stringify({
-          list: await agent.browsers.list(),
-          browserNameSession: typeof browser.nameSession,
-          tabsContent: typeof browser.tabs.content
-        })
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    const payload = JSON.parse(result.resultText ?? '{}')
-    expect(payload.list[0]).toMatchObject({ name: 'DotCraft Browser', type: 'iab' })
-    expect(payload.browserNameSession).toBe('function')
-    expect(payload.tabsContent).toBe('function')
-    manager.reset('thread-1')
-  })
-
-  it('supports browser bootstrap and nodeRepl.emitImage', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime()
-        await nodeRepl.emitImage({ mediaType: "image/png", dataBase64: "BAUG" })
-        typeof agent.browsers.get
-      `
-    })
+  it('loads the IAB and Chrome clients as separate agents without installing user globals', async () => {
+    const result = await evaluate(createFakeBrowserManager(), `
+      const { setupBrowserRuntime: setupIab } = await import(dotcraft.browserClientPath)
+      const { setupBrowserRuntime: setupChrome } = await import(dotcraft.chromeBrowserClientPath)
+      const iab = await setupIab({ backend: "iab" })
+      const chrome = await setupChrome()
+      const delegated = await setupChrome({ backend: "iab" })
+      const browser = await iab.browsers.get("iab")
+      await nodeRepl.emitImage({ mediaType: "image/png", dataBase64: "BAUG" })
+      JSON.stringify({
+        iab: await iab.browsers.list(),
+        chrome: (await chrome.browsers.list())[0].id,
+        delegated: typeof delegated.browsers.get,
+        nameSession: typeof browser.nameSession,
+        tabsContent: typeof browser.tabs.content,
+        globalAgent: typeof globalThis.agent
+      })
+    `)
 
     expect(result.error).toBeUndefined()
-    expect(result.resultText).toBe('function')
     expect(result.images).toEqual([{ mediaType: 'image/png', dataBase64: 'BAUG' }])
-    manager.reset('thread-1')
-  })
-
-  it('exposes browser agent.browsers and can select the IAB backend', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
-        const browser = await agent.browsers.get("iab")
-        JSON.stringify({
-          list: await agent.browsers.list(),
-          browserNameSession: typeof browser.nameSession
-        })
-      `
+    const payload = JSON.parse(result.resultText!)
+    expect(payload.iab[0]).toMatchObject({ id: 'iab', name: 'DotCraft Browser', type: 'iab' })
+    expect(payload).toMatchObject({
+      chrome: 'extension',
+      delegated: 'function',
+      nameSession: 'function',
+      tabsContent: 'function',
+      globalAgent: 'undefined'
     })
-
-    expect(result.error).toBeUndefined()
-    const payload = JSON.parse(result.resultText ?? '{}')
-    expect(payload.list[0]).toMatchObject({ name: 'DotCraft Browser', type: 'iab' })
-    expect(payload.browserNameSession).toBe('function')
-    manager.reset('thread-1')
   })
 
   it('only exposes WebMCP through the browser client when the current page provides page tools', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
+    const payload = await run(createFakeBrowserManager(), `
+      const tab = await browser.tabs.new("http://localhost:3000/")
+      const capabilities = await tab.capabilities.list()
+      JSON.stringify({
+        ids: capabilities.map((capability) => capability.id),
+        webmcpError: await messageOf(() => tab.capabilities.get("webmcp"))
+      })
+    `)
 
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-webmcp-availability',
-      code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
-        const browser = await agent.browsers.get("iab")
-        const tab = await browser.tabs.new("http://localhost:3000/")
-        const capabilities = await tab.capabilities.list()
-        let webmcpError = ""
-        try {
-          await tab.capabilities.get("webmcp")
-        } catch (error) {
-          webmcpError = error && typeof error === "object" && "message" in error ? error.message : String(error)
-        }
-        JSON.stringify({
-          ids: capabilities.map((capability) => capability.id),
-          webmcpError
-        })
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
+    expect(payload).toEqual({
       ids: ['pageAssets'],
       webmcpError: 'Capability is not available: webmcp'
     })
-    manager.reset('thread-webmcp-availability')
   })
 
-  it('creates a URL tab through the browser client without a second client-side navigation', async () => {
+  it('creates, lists, selects, and finalizes IAB tabs, opening URL tabs without a second navigation', async () => {
     const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
+    const payload = await run(browserManager, `
+      const selectedBefore = await browser.tabs.selected()
+      const listBefore = await browser.tabs.list()
+      const tab = await browser.tabs.new()
+      const selected = await browser.tabs.selected()
+      const list = await browser.tabs.list()
+      const openTabs = await browser.user.openTabs()
+      const missingClaim = await browser.user.claimTab("999")
+      const json = JSON.stringify({ list, openTabs, tab })
+      await browser.tabs.finalize({ keep: [{ tab, status: "handoff" }] })
+      await (await browser.tabs.new("http://localhost:3000/")).url()
+      JSON.stringify({
+        selectedBefore: typeof selectedBefore,
+        listBeforeLength: listBefore.length,
+        tabId: tab.id,
+        selectedId: selected?.id,
+        listIds: list.map((item) => item.id),
+        openTabIds: openTabs.map((item) => item.id),
+        json,
+        listItemGotoType: typeof list[0]?.goto,
+        openTabsItemGotoType: typeof openTabs[0]?.goto,
+        missingClaimIsNull: missingClaim === null,
+        listItemTitle: list[0]?.title,
+        listItemUrl: list[0]?.url,
+        tabsApi: browser.tabs.describeApi().join(',')
+      })
+    `)
 
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-new-url-single-navigation',
-      code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
-        const browser = await agent.browsers.get("iab")
-        const tab = await browser.tabs.new("http://localhost:3000/")
-        await tab.url()
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(browserManager.createTabRequests).toHaveLength(1)
-    expect(browserManager.createTabRequests[0]).toMatchObject({ url: 'http://localhost:3000/' })
+    expect(payload.selectedBefore).toBe('undefined')
+    expect(payload.listBeforeLength).toBe(0)
+    expect(payload.tabId).toMatch(/^[1-9]\d*$/)
+    expect(payload.selectedId).toBe(payload.tabId)
+    expect(payload.listIds).toEqual([payload.tabId])
+    expect(payload.openTabIds).toEqual([payload.tabId])
+    expect(payload.json).toContain('"id"')
+    expect(payload.listItemGotoType).toBe('undefined')
+    expect(payload.openTabsItemGotoType).toBe('undefined')
+    expect(payload.missingClaimIsNull).toBe(true)
+    expect(payload.listItemTitle).toBe('Test Page')
+    expect(payload.listItemUrl).toBe('about:blank')
+    expect(payload.tabsApi).toContain('finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })')
+    expect(browserManager.createTabRequests.at(-1)).toMatchObject({ url: 'http://localhost:3000/' })
     expect(browserManager.cdpCommands.filter((command) => command.method === 'Page.navigate')).toHaveLength(0)
-    manager.reset('thread-new-url-single-navigation')
   })
 
   it('preserves structured backend navigation errors in the browser client', async () => {
@@ -175,35 +170,23 @@ describe('Node REPL browser clients', () => {
         finalURL: 'about:blank'
       }
     })
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
+    const payload = await run(browserManager, `
+      const tab = await browser.tabs.new()
+      let failure
+      try {
+        await tab.goto("https://bad.example/")
+      } catch (error) {
+        failure = JSON.stringify({
+          name: error.name,
+          category: error.category,
+          code: error.code,
+          data: error.data,
+          message: error.message
+        })
+      }
+      failure
+    `)
 
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-navigation-error-data',
-      code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
-        const browser = await agent.browsers.get("iab")
-        const tab = await browser.tabs.new()
-        let failure
-        try {
-          await tab.goto("https://bad.example/")
-          "resolved"
-        } catch (error) {
-          failure = JSON.stringify({
-            name: error.name,
-            category: error.category,
-            code: error.code,
-            data: error.data,
-            message: error.message
-          })
-        }
-        failure
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    const payload = JSON.parse(result.resultText ?? '{}')
     expect(payload).toMatchObject({
       name: 'BrowserClientError',
       category: 'NavigationFailed',
@@ -217,104 +200,11 @@ describe('Node REPL browser clients', () => {
         isMainFrame: true
       }
     })
-    manager.reset('thread-navigation-error-data')
-  })
-
-  it('lets the DotCraft browser client create, list, select, and finalize IAB tabs', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-reference-tabs',
-      code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
-        const browser = await agent.browsers.get("iab")
-        const tab = await browser.tabs.new()
-        const selected = await browser.tabs.selected()
-        const list = await browser.tabs.list()
-        const openTabs = await browser.user.openTabs()
-        const missingClaim = await browser.user.claimTab("999")
-        const listJson = JSON.stringify({ list })
-        const openTabsJson = JSON.stringify({ openTabs })
-        const tabJson = JSON.stringify({ tab })
-        await browser.tabs.finalize({ keep: [{ tab, status: "handoff" }] })
-        JSON.stringify({
-          tabId: tab.id,
-          selectedId: selected?.id,
-          listIds: list.map((item) => item.id),
-          openTabIds: openTabs.map((item) => item.id),
-          listJson,
-          openTabsJson,
-          tabJson,
-          listItemGotoType: typeof list[0]?.goto,
-          openTabsItemGotoType: typeof openTabs[0]?.goto,
-          missingClaimIsNull: missingClaim === null,
-          listItemTitle: list[0]?.title,
-          listItemUrl: list[0]?.url,
-          tabsApi: browser.tabs.describeApi().join(',')
-        })
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    const payload = JSON.parse(result.resultText ?? '{}')
-    expect(payload.tabId).toMatch(/^[1-9]\d*$/)
-    expect(payload.selectedId).toBe(payload.tabId)
-    expect(payload.listIds).toEqual([payload.tabId])
-    expect(payload.openTabIds).toEqual([payload.tabId])
-    expect(payload.listJson).toContain('"id"')
-    expect(payload.openTabsJson).toContain('"id"')
-    expect(payload.tabJson).toContain('"id"')
-    expect(payload.listItemGotoType).toBe('undefined')
-    expect(payload.openTabsItemGotoType).toBe('undefined')
-    expect(payload.missingClaimIsNull).toBe(true)
-    expect(payload.listItemTitle).toBe('Test Page')
-    expect(payload.listItemUrl).toBe('about:blank')
-    expect(payload.tabsApi).toContain('finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })')
-    manager.reset('thread-reference-tabs')
-  })
-
-  it('returns undefined for selected IAB tab when no active tab exists', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-reference-no-selected',
-      code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
-        const browser = await agent.browsers.get("iab")
-        const selected = await browser.tabs.selected()
-        const list = await browser.tabs.list()
-        JSON.stringify({
-          selectedType: typeof selected,
-          listLength: list.length
-        })
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
-      selectedType: 'undefined',
-      listLength: 0
-    })
-    manager.reset('thread-reference-no-selected')
   })
 
   it('drives common Playwright, DOM-CUA, and pageAssets APIs through the DotCraft IAB client', async () => {
-    const browserManager = createFakeBrowserManager({ webMcpAvailable: true })
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-reference-api',
-      code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
-        const browser = await agent.browsers.get("iab")
+    const browserManager = createFakeBrowserManager({ webMcpAvailable: true, ...settleClicks })
+    const payload = await run(browserManager, `
         const visibility = await browser.capabilities.get("visibility")
         await visibility.set(true)
         const browserVisible = await visibility.get()
@@ -466,11 +356,8 @@ describe('Node REPL browser clients', () => {
           webMcpResultOk: toolResult.ok,
           webMcpResultTopic: toolResult.input?.topic
         })
-      `
-    })
+    `)
 
-    expect(result.error).toBeUndefined()
-    const payload = JSON.parse(result.resultText ?? '{}')
     expect(payload).toMatchObject({
       title: 'Test Page',
       evalWithArg: 42,
@@ -541,29 +428,11 @@ describe('Node REPL browser clients', () => {
       x: 12,
       y: 18
     }))
-    manager.reset('thread-reference-api')
   })
 
   it('rejects IAB history and ordinary transfer APIs through the DotCraft browser client', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-reference-unsupported',
-      code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
-        const browser = await agent.browsers.get("iab")
+    const payload = await run(createFakeBrowserManager(), `
         const tab = await browser.tabs.new()
-        const messageOf = async (action) => {
-          try {
-            await action()
-            return "resolved"
-          } catch (error) {
-            return error instanceof Error ? error.message : String(error)
-          }
-        }
         JSON.stringify({
           history: await messageOf(() => browser.user.history({ limit: 1 })),
           downloadEvent: await messageOf(() => tab.playwright.waitForEvent("download", { timeoutMs: 1000 })),
@@ -573,11 +442,8 @@ describe('Node REPL browser clients', () => {
           locatorMedia: await messageOf(() => tab.playwright.locator("img").downloadMedia({ timeoutMs: 1000 })),
           domMedia: await messageOf(() => tab.dom_cua.downloadMedia({ node_id: "42", timeoutMs: 1000 }))
         })
-      `
-    })
+    `)
 
-    expect(result.error).toBeUndefined()
-    const payload = JSON.parse(result.resultText ?? '{}')
     expect(payload.history).toContain('UnsupportedApi: browser.user.history is not supported by Desktop IAB')
     expect(payload.downloadEvent).toContain('Downloads are not supported by DotCraft Browser')
     expect(payload.fileChooserEvent).toContain('File uploads are not supported by DotCraft Browser')
@@ -586,71 +452,16 @@ describe('Node REPL browser clients', () => {
     expect(payload.locatorMedia).toContain('Downloads are not supported by DotCraft Browser')
     expect(payload.locatorMedia).toContain('locator.downloadMedia failed for selector img')
     expect(payload.domMedia).toContain('Downloads are not supported by DotCraft Browser')
-    manager.reset('thread-reference-unsupported')
   })
 
   it('surfaces stale DOM-CUA nodes as NodeStale through the DotCraft IAB client', async () => {
-    const browserManager = createFakeBrowserManager({ staleDomNodesAfterNavigation: true })
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
+    const message = await run(createFakeBrowserManager({ staleDomNodesAfterNavigation: true }), `
+      const tab = await browser.tabs.new()
+      await tab.dom_cua.get_visible_dom()
+      await tab.goto("http://localhost:3000/after")
+      JSON.stringify(await messageOf(() => tab.dom_cua.click({ node_id: "42" })))
+    `)
 
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-reference-node-stale',
-      code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
-        const browser = await agent.browsers.get("iab")
-        const tab = await browser.tabs.new()
-        await tab.dom_cua.get_visible_dom()
-        await tab.goto("http://localhost:3000/after")
-        let failure
-        try {
-          await tab.dom_cua.click({ node_id: "42" })
-          "resolved"
-        } catch (error) {
-          failure = error instanceof Error ? error.message : String(error)
-        }
-        failure
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toContain('NodeStale: Browser node is no longer available: 42')
-    manager.reset('thread-reference-node-stale')
+    expect(message).toContain('NodeStale: Browser node is no longer available: 42')
   })
-
-  it('loads chrome browser-client.mjs and can delegate non-extension backends to an IAB agent', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      code: `
-        const { setupBrowserRuntime } = await import(dotcraft.chromeBrowserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
-        typeof agent.browsers.get
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toBe('function')
-    manager.reset('thread-1')
-  })
-
-  it('returns separate IAB and Chrome agents without installing user globals', async () => {
-    const manager = createManager(createFakeBrowserManager())
-    const result = await manager.evaluate({} as Electron.BrowserWindow, {
-      threadId: 'thread-1', code: `
-        const { setupBrowserRuntime: setupIab } = await import(dotcraft.browserClientPath)
-        const { setupBrowserRuntime: setupChrome } = await import(dotcraft.chromeBrowserClientPath)
-        const iab = await setupIab()
-        const chrome = await setupChrome()
-        JSON.stringify({ iab: (await iab.browsers.list())[0].id, chrome: (await chrome.browsers.list())[0].id, globalAgent: typeof globalThis.agent })`
-    })
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText!)).toEqual({ iab: 'iab', chrome: 'extension', globalAgent: 'undefined' })
-  })
-
-
 })

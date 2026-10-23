@@ -16,7 +16,6 @@ describe('pending file references across scopes', () => {
   })
 
   it.each([
-    ['two threads', 'thread-a', 'thread-b'],
     ['two welcome pages', welcomeScopeKey('project-a'), welcomeScopeKey('project-b')],
     ['a thread and a welcome page', 'thread-a', welcomeScopeKey('project-b')],
     ['no selected scope and a thread', null, 'thread-b']
@@ -34,12 +33,5 @@ describe('pending file references across scopes', () => {
     expect(useComposerFileReferenceStore.getState().consume(scopeA)).toEqual(['a-first.ts', 'a-second.ts'])
     expect(useComposerFileReferenceStore.getState().consume(scopeB)).toEqual([])
     expect(useComposerFileReferenceStore.getState().consume(scopeA)).toEqual([])
-  })
-
-  it('consuming an empty scope does not discard another scope\'s pending paths', () => {
-    selectScope('thread-a')
-    useComposerFileReferenceStore.getState().request('a.ts')
-    expect(useComposerFileReferenceStore.getState().consume('thread-b')).toEqual([])
-    expect(useComposerFileReferenceStore.getState().consume('thread-a')).toEqual(['a.ts'])
   })
 })

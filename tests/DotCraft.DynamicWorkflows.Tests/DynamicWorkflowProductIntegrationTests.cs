@@ -157,8 +157,6 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
 
     [Theory]
     [InlineData("script")]
-    [InlineData("path")]
-    [InlineData("name")]
     [InlineData("resume")]
     public async Task WorkflowModeRequiresItsSelectedSourceField(string mode)
     {

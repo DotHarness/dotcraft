@@ -27,7 +27,6 @@ public sealed class WelcomeSuggestionServiceTestCollection
 [Collection(WelcomeSuggestionServiceTestCollection.Name)]
 public sealed class WelcomeSuggestionServiceTests : IDisposable
 {
-    private static readonly JsonSerializerOptions JsonOptions = JsonSerializerOptions.Web;
     private const int RefreshTimeoutMs = 15_000;
 
     private readonly string _workspacePath;
@@ -205,24 +204,6 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ScheduleRefresh_WithoutMemoryFiles_SkipsGenerationEvenWithIndex()
-    {
-        File.WriteAllText(_memoryStore.IndexFilePath, "Legacy free-form memory about welcome suggestions.");
-        var submitCount = 0;
-        _sessionService.SubmitInputHandler = (_, _, _) =>
-        {
-            Interlocked.Increment(ref submitCount);
-            return [];
-        };
-
-        await using var service = CreateService();
-        service.ScheduleRefresh(_workspacePath);
-        await Task.Delay(1500);
-
-        Assert.Equal(0, submitCount);
-    }
-
-    [Fact]
     public async Task SuggestAsync_WithNoPersistedCache_ReturnsNoneWithoutCallingModel()
     {
         await CreateThreadWithMessagesAsync(
@@ -260,12 +241,12 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ScheduleRefresh_WithThreadHistoryOnly_SkipsModelGeneration()
+    public async Task ScheduleRefresh_SkipsGenerationWithoutMemoryEvidenceWhenDisabledOrForInternalThreads()
     {
         await CreateThreadWithMessagesAsync(
             "Review how welcome suggestions are generated from workspace history and memory.",
             "Tighten the prompt so suggestions mention specific modules and tasks.");
-
+        File.WriteAllText(_memoryStore.IndexFilePath, "Legacy free-form memory about welcome suggestions.");
         var submitCount = 0;
         _sessionService.SubmitInputHandler = (_, _, _) =>
         {
@@ -273,10 +254,25 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
             return [];
         };
 
-        var service = CreateService();
-        service.ScheduleRefresh(_workspacePath);
+        await using var withoutMemory = CreateService();
+        withoutMemory.ScheduleRefresh(_workspacePath);
         await Task.Delay(1500);
+        Assert.Equal(0, submitCount);
 
+        WriteMemory("Welcome suggestion refreshes are triggered after completed turns.");
+        var internalThread = await _sessionService.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = WelcomeSuggestionConstants.ChannelName,
+            UserId = WelcomeSuggestionConstants.InternalUserId,
+            WorkspacePath = _workspacePath,
+            ChannelContext = "internal:welcome"
+        });
+        await _threadStore.SaveThreadAsync(internalThread);
+        await using var disabled = CreateService(welcomeSuggestionsEnabled: false);
+        await using var forInternalThread = CreateService();
+        disabled.ScheduleRefresh(_workspacePath);
+        forInternalThread.ScheduleRefresh(_workspacePath, internalThread.Id);
+        await Task.Delay(1500);
         Assert.Equal(0, submitCount);
     }
 
@@ -683,53 +679,6 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         Assert.Equal(1, submitCount);
     }
 
-    [Fact]
-    public async Task ScheduleRefresh_IgnoresInternalWelcomeThreads()
-    {
-        var submitCount = 0;
-        _sessionService.SubmitInputHandler = (_, _, _) =>
-        {
-            Interlocked.Increment(ref submitCount);
-            return [];
-        };
-
-        var internalThread = await _sessionService.CreateThreadAsync(new SessionIdentity
-        {
-            ChannelName = WelcomeSuggestionConstants.ChannelName,
-            UserId = WelcomeSuggestionConstants.InternalUserId,
-            WorkspacePath = _workspacePath,
-            ChannelContext = "internal:welcome"
-        });
-        await _threadStore.SaveThreadAsync(internalThread);
-
-        var service = CreateService();
-        service.ScheduleRefresh(_workspacePath, internalThread.Id);
-        await Task.Delay(1500);
-
-        Assert.Equal(0, submitCount);
-    }
-
-    [Fact]
-    public async Task ScheduleRefresh_WhenWorkspaceConfigDisablesSuggestions_SkipsRefresh()
-    {
-        await CreateThreadWithMessagesAsync(
-            "Review welcome suggestion refresh policy.",
-            "Ensure config disable state stops background generation.");
-
-        var submitCount = 0;
-        _sessionService.SubmitInputHandler = (_, _, _) =>
-        {
-            Interlocked.Increment(ref submitCount);
-            return [];
-        };
-
-        var service = CreateService(welcomeSuggestionsEnabled: false);
-        service.ScheduleRefresh(_workspacePath);
-        await Task.Delay(1500);
-
-        Assert.Equal(0, submitCount);
-    }
-
     private static JsonArray BuildConcreteItems() =>
     [
         new JsonObject
@@ -891,7 +840,6 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         }
         catch
         {
-            // best effort
         }
     }
 }

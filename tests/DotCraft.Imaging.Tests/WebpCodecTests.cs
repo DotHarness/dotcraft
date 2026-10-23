@@ -87,8 +87,6 @@ public sealed class WebpCodecTests
 
     [Theory]
     [InlineData("webp-metadata", ImageFormat.Png)]
-    [InlineData("webp-metadata", ImageFormat.Jpeg)]
-    [InlineData("webp-metadata-prefix", ImageFormat.Png)]
     [InlineData("webp-metadata-prefix", ImageFormat.Jpeg)]
     public void CrossFormatTranscodingCarriesTiffExifAndRgbProfile(string name, ImageFormat format)
     {

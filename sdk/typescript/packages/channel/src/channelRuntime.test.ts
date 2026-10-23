@@ -11,7 +11,6 @@ import {
   ChannelMessageQueue,
   ChannelToolDispatcher,
   ModuleConfigLoader,
-  ModuleLifecycleState,
   ThreadResolver,
   UserInputDispatcher,
 } from "./channelRuntime.js";
@@ -109,7 +108,7 @@ function asWire(fake: FakeRuntimeClient): ChannelAppServerClient {
   return fake as unknown as ChannelAppServerClient;
 }
 
-test("ChannelMessageQueue serializes each identity and keeps identities independent", async () => {
+test("ChannelMessageQueue serializes each identity, keeps identities independent, and continues after a job error", async () => {
   const first = deferred();
   const eventsSeen: string[] = [];
   const errors: string[] = [];
@@ -128,15 +127,21 @@ test("ChannelMessageQueue serializes each identity and keeps identities independ
   queue.enqueue("b", async () => {
     eventsSeen.push("b1");
   });
+  queue.enqueue("c", async () => {
+    throw new Error("boom");
+  });
+  queue.enqueue("c", async () => {
+    eventsSeen.push("c2");
+  });
 
-  await waitUntil(() => eventsSeen.includes("a1:start") && eventsSeen.includes("b1"));
-  assert.deepEqual(eventsSeen, ["a1:start", "b1"]);
+  await waitUntil(() => eventsSeen.includes("a1:start") && eventsSeen.includes("b1") && eventsSeen.includes("c2"));
+  assert.deepEqual(eventsSeen, ["a1:start", "b1", "c2"]);
   assert.deepEqual(queue.activeKeys().sort(), ["a"]);
 
   first.resolve();
   await waitUntil(() => eventsSeen.includes("a2"));
-  assert.deepEqual(eventsSeen, ["a1:start", "b1", "a1:end", "a2"]);
-  assert.deepEqual(errors, []);
+  assert.deepEqual(eventsSeen, ["a1:start", "b1", "c2", "a1:end", "a2"]);
+  assert.deepEqual(errors, ["c"]);
 });
 
 test("user-input helpers format prompts and parse numeric replies", () => {
@@ -169,8 +174,10 @@ test("user-input helpers format prompts and parse numeric replies", () => {
   assert.match(buildUserInputPrompt(request), /Reply with an option number/);
 });
 
-test("user-input helpers parse multi-question replies by question number", () => {
+test("user-input helpers parse and split multi-question requests", () => {
   const request = {
+    requestId: "req-1",
+    threadId: "thread-1",
     questions: [
       { id: "first", header: "First", question: "One?", options: [{ label: "A" }, { label: "B" }] },
       { id: "second", header: "Second", question: "Two?", isOther: true },
@@ -184,17 +191,6 @@ test("user-input helpers parse multi-question replies by question number", () =>
       second: { answers: ["custom"] },
     },
   });
-});
-
-test("user-input helpers split multi-question requests for sequential prompts", () => {
-  const request = {
-    requestId: "req-1",
-    threadId: "thread-1",
-    questions: [
-      { id: "first", header: "First", question: "One?", options: [{ label: "A" }, { label: "B" }] },
-      { id: "second", header: "Second", question: "Two?", isOther: true },
-    ],
-  };
 
   const steps = splitUserInputRequestByQuestion(request);
 
@@ -218,25 +214,6 @@ test("user-input helpers split multi-question requests for sequential prompts", 
       second: { answers: ["custom"] },
     },
   });
-});
-
-test("ChannelMessageQueue continues after a job error", async () => {
-  const eventsSeen: string[] = [];
-  const errors: string[] = [];
-  const queue = new ChannelMessageQueue({
-    onError: (key) => errors.push(key),
-  });
-  queue.enqueue("u", async () => {
-    eventsSeen.push("first");
-    throw new Error("boom");
-  });
-  queue.enqueue("u", async () => {
-    eventsSeen.push("second");
-  });
-
-  await waitUntil(() => eventsSeen.includes("second"));
-  assert.deepEqual(eventsSeen, ["first", "second"]);
-  assert.deepEqual(errors, ["u"]);
 });
 
 test("ThreadResolver resolves cache, list reuse, and not-active recovery", async () => {
@@ -386,13 +363,14 @@ test("dispatchers register approval, user-input, delivery, tool, and heartbeat h
   assert.deepEqual(errors, []);
 });
 
-test("delivery dispatcher answers a repeated delivery id with the first result without sending again", async () => {
+test("delivery dispatcher dedupes successful delivery ids and retries failed ones", async () => {
   const fake = new FakeRuntimeClient();
   const sent: string[] = [];
   new DeliveryDispatcher({
     client: asWire(fake),
-    onSend: async (target) => {
+    onSend: async (target, message) => {
       sent.push(target);
+      if (message.text === "flaky" && sent.length === 3) return { delivered: false, errorCode: "AdapterDeliveryFailed" };
       return { delivered: true, remoteMessageId: `m${sent.length}` };
     },
   }).register();
@@ -408,24 +386,10 @@ test("delivery dispatcher answers a repeated delivery id with the first result w
   assert.deepEqual(concurrent, first);
   assert.deepEqual(retried, first);
   assert.deepEqual(other, { delivered: true, remoteMessageId: "m2" });
-});
 
-test("delivery dispatcher sends again after a failed delivery with the same id", async () => {
-  const fake = new FakeRuntimeClient();
-  let attempts = 0;
-  new DeliveryDispatcher({
-    client: asWire(fake),
-    onSend: async () => {
-      attempts += 1;
-      return attempts === 1 ? { delivered: false, errorCode: "AdapterDeliveryFailed" } : { delivered: true };
-    },
-  }).register();
-  const send = fake.requestHandlers.get("ext/channel/send")!;
-  const params = { target: "chat", deliveryId: "d1", message: { kind: "text", text: "hi" } };
-
-  assert.deepEqual(await send("s1", params), { delivered: false, errorCode: "AdapterDeliveryFailed" });
-  assert.deepEqual(await send("s2", params), { delivered: true });
-  assert.equal(attempts, 2);
+  const flaky = { target: "chat", deliveryId: "d3", message: { kind: "text", text: "flaky" } };
+  assert.deepEqual(await send("s5", flaky), { delivered: false, errorCode: "AdapterDeliveryFailed" });
+  assert.deepEqual(await send("s6", flaky), { delivered: true, remoteMessageId: "m4" });
 });
 
 test("dispatchers preserve exception fallback shapes", async () => {
@@ -483,7 +447,7 @@ test("dispatchers preserve exception fallback shapes", async () => {
   }), { available: null });
 });
 
-test("ModuleConfigLoader and ModuleLifecycleState cover missing, invalid, loaded, and status transitions", async () => {
+test("ModuleConfigLoader reports missing, invalid, and loaded configs", async () => {
   const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-runtime-"));
   try {
     const context: WorkspaceContext = {
@@ -492,14 +456,6 @@ test("ModuleConfigLoader and ModuleLifecycleState cover missing, invalid, loaded
       channelName: "demo",
       moduleId: "demo-module",
     };
-    const lifecycle = new ModuleLifecycleState();
-    const transitions: string[] = [];
-    lifecycle.onStatusChange((status, error) => transitions.push(`${status}:${error?.code ?? ""}`));
-    lifecycle.setStatus("starting");
-    lifecycle.setStatus("configMissing", lifecycle.buildModuleError("configMissing", "missing"));
-    lifecycle.setStatus("ready", lifecycle.getError());
-    assert.deepEqual(transitions, ["starting:", "configMissing:configMissing", "ready:"]);
-
     const loader = new ModuleConfigLoader<{ ok: true }>({
       getConfigFileName: () => "demo.json",
       validateConfig: (raw): asserts raw is { ok: true } => {

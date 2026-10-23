@@ -20,23 +20,11 @@ test("validateQQConfig accepts a valid config", () => {
   assert.doesNotThrow(() => validateQQConfig(validConfig));
 });
 
-test("validateQQConfig rejects missing wsUrl", () => {
+test("validateQQConfig rejects missing wsUrl, invalid ports, and invalid QQ ids", () => {
   assert.throws(
     () => validateQQConfig({ dotcraft: {}, qq: {} }),
     (error) => error instanceof ConfigValidationError && error.fields?.includes("dotcraft.wsUrl") === true,
   );
-});
-
-test("validateQQConfig rejects invalid port", () => {
-  assert.throws(
-    () => validateQQConfig({ ...validConfig, qq: { port: 70000 } }),
-    /qq\.port/,
-  );
-});
-
-test("validateQQConfig rejects invalid QQ ids", () => {
-  assert.throws(
-    () => validateQQConfig({ ...validConfig, qq: { adminUsers: ["abc"] } }),
-    /Invalid QQ id/,
-  );
+  assert.throws(() => validateQQConfig({ ...validConfig, qq: { port: 70000 } }), /qq\.port/);
+  assert.throws(() => validateQQConfig({ ...validConfig, qq: { adminUsers: ["abc"] } }), /Invalid QQ id/);
 });

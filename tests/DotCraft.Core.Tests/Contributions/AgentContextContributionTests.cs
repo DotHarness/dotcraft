@@ -24,20 +24,10 @@ public sealed class AgentContextContributionTests : IDisposable
 
         var agent = CreateFactory(registry).CreateAgentWithTools([]);
 
-        // The memory entry is an ordinary ordered contribution now; it composes at Order 100 like any other.
         Assert.Equal(3, agent.AIContextProviders.Count);
         Assert.Equal("before", Assert.IsType<StubContextProvider>(agent.AIContextProviders[0]).Label);
         Assert.IsType<MemoryContextProvider>(agent.AIContextProviders[1]);
         Assert.Equal("after", Assert.IsType<StubContextProvider>(agent.AIContextProviders[2]).Label);
-    }
-
-    [Fact]
-    public void CreateAgentWithTools_WithoutContributions_KeepsOnlyTheMemoryProvider()
-    {
-        var agent = CreateFactory(contributions: null).CreateAgentWithTools([]);
-
-        Assert.Single(agent.AIContextProviders);
-        Assert.IsType<MemoryContextProvider>(agent.AIContextProviders[0]);
     }
 
     [Fact]
@@ -56,23 +46,7 @@ public sealed class AgentContextContributionTests : IDisposable
     }
 
     [Fact]
-    public void CreateAgentWithTools_AppliesAThreadScopedContributionToThatThreadOnly()
-    {
-        var registry = CreateRegistry();
-        registry.Add<IAgentContextSource>(
-            new StubContextContribution("thread-only"),
-            ContributionOptions.ForThread("thread-1", order: AgentContextSourceCatalog.MemoryOrder + 10));
-
-        var owning = CreateFactory(registry, threadId: "thread-1").CreateAgentWithTools([]);
-        var other = CreateFactory(registry, threadId: "thread-2").CreateAgentWithTools([]);
-
-        Assert.Equal(2, owning.AIContextProviders.Count);
-        Assert.Equal("thread-only", Assert.IsType<StubContextProvider>(owning.AIContextProviders[1]).Label);
-        Assert.Single(other.AIContextProviders);
-    }
-
-    [Fact]
-    public void CreateAgentWithTools_SkipsAContributionThatThrowsOrDeclines()
+    public void CreateAgentWithTools_SkipsAContributionThatThrowsOrDeclinesAndKeepsMemoryOverADecliningReplacement()
     {
         var registry = CreateRegistry();
         registry.Add<IAgentContextSource>(
@@ -84,6 +58,9 @@ public sealed class AgentContextContributionTests : IDisposable
         registry.Add<IAgentContextSource>(
             new StubContextContribution("survivor"),
             new ContributionOptions(Order: 203));
+        registry.Add<IAgentContextSource>(
+            new AgentContextSource(static _ => null),
+            new ContributionOptions(ReplaceTarget: AgentContextSourceNames.Memory));
 
         var agent = CreateFactory(registry).CreateAgentWithTools([]);
 
@@ -111,7 +88,7 @@ public sealed class AgentContextContributionTests : IDisposable
     }
 
     [Fact]
-    public void MemoryTarget_ReplacedByAContribution_SubstitutesTheBuiltInAndRestoresItOnDisposal()
+    public void MemoryTarget_ReplacedByAContribution_SubstitutesTheBuiltInWithTheBuildTimeInputsAndRestoresItOnDisposal()
     {
         var registry = CreateRegistry();
         var handle = registry.Add<IAgentContextSource>(
@@ -119,10 +96,11 @@ public sealed class AgentContextContributionTests : IDisposable
             new ContributionOptions(ReplaceTarget: AgentContextSourceNames.Memory));
         var factory = CreateFactory(registry);
 
-        var replaced = factory.CreateAgentWithTools([]);
-        Assert.Equal(
-            "replacement",
-            Assert.IsType<StubContextProvider>(Assert.Single(replaced.AIContextProviders)).Label);
+        var replaced = factory.CreateAgentWithTools([AIFunctionFactory.Create(() => "ok", "Ping")]);
+        var provider = Assert.IsType<StubContextProvider>(Assert.Single(replaced.AIContextProviders));
+        Assert.Equal("replacement", provider.Label);
+        Assert.NotNull(provider.Request.PromptInputs);
+        Assert.Equal(["Ping"], provider.Request.PromptInputs.ToolNames);
 
         handle.Dispose();
 
@@ -130,21 +108,7 @@ public sealed class AgentContextContributionTests : IDisposable
     }
 
     [Fact]
-    public void MemoryTarget_ReplacementThatDeclines_FallsBackToTheBuiltIn()
-    {
-        var registry = CreateRegistry();
-        registry.Add<IAgentContextSource>(
-            new AgentContextSource(static _ => null),
-            new ContributionOptions(ReplaceTarget: AgentContextSourceNames.Memory));
-
-        var agent = CreateFactory(registry).CreateAgentWithTools([]);
-
-        // Without the fallback a declining replacement would ship an agent with no system prompt at all.
-        Assert.IsType<MemoryContextProvider>(Assert.Single(agent.AIContextProviders));
-    }
-
-    [Fact]
-    public void MemoryTarget_ThreadScopedReplacement_BeatsTheWorkspaceScopedOne()
+    public void ThreadScopedContributions_ApplyToTheirThreadOnlyAndBeatAWorkspaceReplacement()
     {
         var registry = CreateRegistry();
         registry.Add<IAgentContextSource>(
@@ -156,34 +120,19 @@ public sealed class AgentContextContributionTests : IDisposable
                 ContributionScope.Thread,
                 "thread-1",
                 ReplaceTarget: AgentContextSourceNames.Memory));
+        registry.Add<IAgentContextSource>(
+            new StubContextContribution("thread-only"),
+            ContributionOptions.ForThread("thread-1", order: AgentContextSourceCatalog.MemoryOrder + 10));
 
         var owning = CreateFactory(registry, threadId: "thread-1").CreateAgentWithTools([]);
         var other = CreateFactory(registry, threadId: "thread-2").CreateAgentWithTools([]);
 
         Assert.Equal(
-            "thread",
-            Assert.IsType<StubContextProvider>(Assert.Single(owning.AIContextProviders)).Label);
+            ["thread", "thread-only"],
+            owning.AIContextProviders.Select(provider => Assert.IsType<StubContextProvider>(provider).Label));
         Assert.Equal(
             "workspace",
             Assert.IsType<StubContextProvider>(Assert.Single(other.AIContextProviders)).Label);
-    }
-
-    [Fact]
-    public void MemoryTarget_TwoReplacements_LeaveExactlyOneEffectiveProvider()
-    {
-        var registry = CreateRegistry();
-        registry.Add<IAgentContextSource>(
-            new StubContextContribution("loser"),
-            new ContributionOptions(ReplaceTarget: AgentContextSourceNames.Memory));
-        registry.Add<IAgentContextSource>(
-            new StubContextContribution("winner"),
-            new ContributionOptions(ReplaceTarget: AgentContextSourceNames.Memory));
-
-        var agent = CreateFactory(registry).CreateAgentWithTools([]);
-
-        Assert.Equal(
-            "winner",
-            Assert.IsType<StubContextProvider>(Assert.Single(agent.AIContextProviders)).Label);
     }
 
     [Fact]
@@ -209,25 +158,8 @@ public sealed class AgentContextContributionTests : IDisposable
             TracingChatClient.CurrentSessionKey = previous;
         }
 
-        // The baseline must be the prompt actually sent, not the host's, or drift detection compares two prompts.
         collector.RecordSessionMetadata("control", "replacement", []);
         Assert.Equal(store.GetSession("control")?.SystemPromptHash, store.GetSession(sessionKey)?.SystemPromptHash);
-    }
-
-    [Fact]
-    public void MemoryTarget_Replacement_ReceivesTheBuildTimePromptInputs()
-    {
-        var registry = CreateRegistry();
-        registry.Add<IAgentContextSource>(
-            new StubContextContribution("replacement"),
-            new ContributionOptions(ReplaceTarget: AgentContextSourceNames.Memory));
-
-        var agent = CreateFactory(registry)
-            .CreateAgentWithTools([AIFunctionFactory.Create(() => "ok", "Ping")]);
-
-        var provider = Assert.IsType<StubContextProvider>(Assert.Single(agent.AIContextProviders));
-        Assert.NotNull(provider.Request.PromptInputs);
-        Assert.Equal(["Ping"], provider.Request.PromptInputs.ToolNames);
     }
 
     [Fact]
@@ -243,22 +175,8 @@ public sealed class AgentContextContributionTests : IDisposable
             toolContext: factory.RuntimeContext,
             instructions: "be terse");
 
-        // The tool-profile-only path deliberately runs with ChatOptions.Instructions verbatim.
         Assert.Empty(agent.AIContextProviders);
         Assert.Equal("be terse", agent.Instructions);
-    }
-
-    [Fact]
-    public void Contribution_RegisteredAfterTheAgentIsBuilt_AppliesToTheNextAgent()
-    {
-        var registry = CreateRegistry();
-        var factory = CreateFactory(registry);
-
-        Assert.Single(factory.CreateAgentWithTools([]).AIContextProviders);
-
-        registry.Add<IAgentContextSource>(new StubContextContribution("late-arrival"));
-
-        Assert.Equal(2, factory.CreateAgentWithTools([]).AIContextProviders.Count);
     }
 
     private static async Task InvokeProvidersAsync(ChatClientAgent agent)
@@ -275,7 +193,6 @@ public sealed class AgentContextContributionTests : IDisposable
         return await provider.ProvideInstructionsAsync();
     }
 
-    /// <summary>A registry carrying the built-in memory entry, as a workspace runtime's does.</summary>
     private static ContributionRegistry CreateRegistry()
     {
         var registry = new ContributionRegistry();

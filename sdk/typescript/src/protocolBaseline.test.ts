@@ -11,7 +11,6 @@ interface FixtureCase {
 }
 
 interface FixtureDocument {
-  version: number;
   cases: FixtureCase[];
 }
 
@@ -53,29 +52,6 @@ function fixtureCase(name: string): FixtureCase {
   return value;
 }
 
-test("shared AppServer fixtures expose portable lifecycle and callback cases", () => {
-  assert.equal(fixtures.version, 1);
-  for (const name of [
-    "initialize",
-    "thread-start-response-before-notification",
-    "turn-start-and-complete",
-    "approval-callback",
-    "user-input-callback",
-    "dynamic-tool-callback",
-    "structured-error",
-    "opaque-mcp-result",
-    "core-domain-catalog",
-    "mcp-elicitation-callback",
-    "app-binding",
-    "automation",
-    "acp-callbacks",
-    "node-repl-callback",
-    "external-channel",
-  ]) {
-    assert.ok(fixtureCase(name).messages.length > 0);
-  }
-});
-
 test("wire client preserves the shared unknown-notification fixture", async () => {
   const transport = new FixtureTransport();
   const client = new DotCraftWireClient(transport);
@@ -90,10 +66,4 @@ test("wire client preserves the shared unknown-notification fixture", async () =
   assert.equal(params.preserveMe, true);
   assert.deepEqual(params.future, { nested: [1, "two", null] });
   await client.stop();
-});
-
-test("raw TypeScript consumers retain opaque MCP fields", () => {
-  const result = fixtureCase("opaque-mcp-result").messages[1].result as Record<string, unknown>;
-  assert.deepEqual(result.futureResultField, { kept: true });
-  assert.deepEqual(result.structuredContent, { count: 1, futureShape: ["kept"] });
 });

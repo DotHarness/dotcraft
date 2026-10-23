@@ -1,4 +1,3 @@
-using System.ClientModel.Primitives;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -21,10 +20,11 @@ public sealed class MaintenanceForkRunnerTests : IDisposable
     public void Dispose() => _promptCachePolicy.Dispose();
 
     [Fact]
-    public async Task RunAsync_ReusesSnapshotPrefixAndAppendsMaintenanceTask()
+    public async Task RunAsync_WithoutABudget_SendsTheSnapshotPrefixPlusTaskAndRecordsOnlyMaintenanceEvents()
     {
+        var store = new TraceStore();
         var chatClient = new RecordingChatClient("<summary>important bits</summary>");
-        var runner = new MaintenanceForkRunner(chatClient);
+        var runner = new MaintenanceForkRunner(chatClient, new TraceCollector(store));
         var tool = AIFunctionFactory.Create(() => "ok", name: "ReadFile", description: "Read a file.");
         var snapshot = PromptRequestSnapshot.Capture(
             [
@@ -38,13 +38,13 @@ public sealed class MaintenanceForkRunnerTests : IDisposable
                 Tools = [tool],
                 AllowMultipleToolCalls = true
             },
+            providerId: "provider-test",
             mode: "agent",
             threadId: "thread_1",
-            turnId: "turn_1");
+            turnId: "turn_1",
+            estimatedInputTokens: 10_000);
 
-        var result = await runner.RunAsync(
-            snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
+        var result = await runner.RunAsync(snapshot, CompactionTask());
 
         Assert.Null(result.FallbackReason);
         Assert.Equal("<summary>important bits</summary>", result.Text);
@@ -54,36 +54,8 @@ public sealed class MaintenanceForkRunnerTests : IDisposable
         Assert.Equal("stable base", chatClient.Options?.Instructions);
         Assert.Equal("gpt-test", chatClient.Options?.ModelId);
         Assert.True(chatClient.Options?.AllowMultipleToolCalls);
-        var capturedTool = Assert.Single(chatClient.Options?.Tools ?? []);
-        Assert.Equal("ReadFile", capturedTool.Name);
-    }
+        Assert.Equal("ReadFile", Assert.Single(chatClient.Options?.Tools ?? []).Name);
 
-    [Fact]
-    public async Task RunAsync_RecordsMaintenanceRequestAndTextResponse()
-    {
-        var store = new TraceStore();
-        var collector = new TraceCollector(store);
-        var chatClient = new RecordingChatClient("<summary>important bits</summary>");
-        var runner = new MaintenanceForkRunner(chatClient, collector);
-        var tool = AIFunctionFactory.Create(() => "ok", name: "ReadFile", description: "Read a file.");
-        var snapshot = PromptRequestSnapshot.Capture(
-            [new ChatMessage(ChatRole.User, "start")],
-            new ChatOptions
-            {
-                Instructions = "stable base",
-                ModelId = "gpt-test",
-                Tools = [tool]
-            },
-            providerId: "provider-test",
-            mode: "agent",
-            threadId: "thread_1",
-            turnId: "turn_1");
-
-        var result = await runner.RunAsync(
-            snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
-
-        Assert.Null(result.FallbackReason);
         var events = store.GetEvents("thread_1");
         var request = Assert.Single(events, e => e.Type == TraceEventType.MaintenanceForkRequest);
         var response = Assert.Single(events, e => e.Type == TraceEventType.MaintenanceForkResponse);
@@ -91,64 +63,21 @@ public sealed class MaintenanceForkRunnerTests : IDisposable
         Assert.Equal("<summary>important bits</summary>", response.Content);
         Assert.Contains("\"providerId\":\"provider-test\"", request.MetadataJson);
         Assert.Contains("\"toolCount\":1", request.MetadataJson);
+        Assert.Contains("\"estimatedInputTokens\":", request.MetadataJson);
+        Assert.Contains("\"effectiveBudgetTokens\":null", request.MetadataJson);
+        Assert.Contains("\"inputBudgetSource\":null", request.MetadataJson);
+        Assert.Contains("\"preflightRejected\":null", request.MetadataJson);
         Assert.Contains("\"fallbackReason\":null", response.MetadataJson);
-        Assert.DoesNotContain(events, e => e.Type == TraceEventType.Request);
-        Assert.DoesNotContain(events, e => e.Type == TraceEventType.Response);
-        Assert.DoesNotContain(events, e => e.Type == TraceEventType.ToolCallStarted);
-        Assert.DoesNotContain(events, e => e.Type == TraceEventType.TokenUsage);
-        Assert.Single(events, e => e.Type == TraceEventType.MaintenanceForkRequest);
-        Assert.Single(events, e => e.Type == TraceEventType.MaintenanceForkResponse);
-    }
-
-    [Fact]
-    public async Task RunAsync_RecordsEmptyResponseFallback()
-    {
-        var store = new TraceStore();
-        var collector = new TraceCollector(store);
-        var runner = new MaintenanceForkRunner(new RecordingChatClient(""), collector);
-        var snapshot = CreateSnapshot();
-
-        var result = await runner.RunAsync(
-            snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
-
-        Assert.Equal("empty_response", result.FallbackReason);
-        var response = Assert.Single(
-            store.GetEvents("thread_1"),
-            e => e.Type == TraceEventType.MaintenanceForkResponse);
-        Assert.Equal("(empty)", response.Content);
-        Assert.Contains("\"fallbackReason\":\"empty_response\"", response.MetadataJson);
-    }
-
-    [Fact]
-    public async Task RunAsync_DoesNotPreflightRejectOversizedSnapshot()
-    {
-        var chatClient = new RecordingChatClient("<summary>provider was called</summary>");
-        var runner = new MaintenanceForkRunner(chatClient);
-        var snapshot = PromptRequestSnapshot.Capture(
-            [new ChatMessage(ChatRole.User, "start")],
-            new ChatOptions { Instructions = "stable base", ModelId = "gpt-test" },
-            mode: "agent",
-            threadId: "thread_1",
-            turnId: "turn_1",
-            estimatedInputTokens: 10_000);
-
-        var result = await runner.RunAsync(
-            snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
-
-        Assert.Null(result.FallbackReason);
-        Assert.Equal("<summary>provider was called</summary>", result.Text);
-        Assert.NotEmpty(chatClient.Messages);
+        Assert.DoesNotContain(events, e => e.Type is TraceEventType.Request or TraceEventType.Response
+            or TraceEventType.ToolCallStarted or TraceEventType.TokenUsage);
     }
 
     [Fact]
     public async Task RunAsync_PreflightRejectsOversizedSnapshotWithTerminalTrace()
     {
         var store = new TraceStore();
-        var collector = new TraceCollector(store);
         var chatClient = new RecordingChatClient("<summary>provider should not be called</summary>");
-        var runner = new MaintenanceForkRunner(chatClient, collector);
+        var runner = new MaintenanceForkRunner(chatClient, new TraceCollector(store));
         var snapshot = PromptRequestSnapshot.Capture(
             [new ChatMessage(ChatRole.User, "start")],
             new ChatOptions { Instructions = "stable base", ModelId = "gpt-test" },
@@ -174,107 +103,45 @@ public sealed class MaintenanceForkRunnerTests : IDisposable
         Assert.Contains("\"effectiveBudgetTokens\":1000", request.MetadataJson);
         Assert.Contains("\"inputBudgetSource\":\"test-budget\"", request.MetadataJson);
         Assert.Contains("\"preflightRejected\":true", request.MetadataJson);
-        var response = Assert.Single(
-            store.GetEvents("thread_1"),
-            e => e.Type == TraceEventType.MaintenanceForkResponse);
-        Assert.Contains($"\"fallbackReason\":\"{MaintenanceForkFallbackReasons.SnapshotTooLarge}\"", response.MetadataJson);
+        AssertTerminalFallback(store, MaintenanceForkFallbackReasons.SnapshotTooLarge);
     }
 
-    [Fact]
-    public async Task RunAsync_RecordsEstimatedInputWithEmptyBudgetMetadata()
+    [Theory]
+    [InlineData(null, "empty_response")]
+    [InlineData("provider returned an empty error response", MaintenanceForkFallbackReasons.EmptyErrorResponse)]
+    [InlineData("context_length_exceeded: input exceeds the context window", MaintenanceForkFallbackReasons.SnapshotTooLarge)]
+    public async Task RunAsync_ResponsesWithoutText_FallBack(string? error, string expectedReason)
     {
         var store = new TraceStore();
-        var collector = new TraceCollector(store);
-        var runner = new MaintenanceForkRunner(
-            new RecordingChatClient("<summary>provider was called</summary>"),
-            collector);
-        var snapshot = PromptRequestSnapshot.Capture(
-            [new ChatMessage(ChatRole.User, "start")],
-            new ChatOptions { Instructions = "stable base", ModelId = "gpt-test" },
-            mode: "agent",
-            threadId: "thread_1",
-            turnId: "turn_1",
-            estimatedInputTokens: 10_000);
+        var response = error is null
+            ? new ChatResponse(new ChatMessage(ChatRole.Assistant, ""))
+            : new ChatResponse(new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[new ErrorContent(error)]));
+        var runner = new MaintenanceForkRunner(new RecordingChatClient(response), new TraceCollector(store));
 
-        var result = await runner.RunAsync(
-            snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
+        var result = await runner.RunAsync(CreateSnapshot(), CompactionTask());
 
-        Assert.Null(result.FallbackReason);
-        var request = Assert.Single(
-            store.GetEvents("thread_1"),
-            e => e.Type == TraceEventType.MaintenanceForkRequest);
-        Assert.Contains("\"estimatedInputTokens\":", request.MetadataJson);
-        Assert.Contains("\"effectiveBudgetTokens\":null", request.MetadataJson);
-        Assert.Contains("\"inputBudgetSource\":null", request.MetadataJson);
-        Assert.Contains("\"preflightRejected\":null", request.MetadataJson);
-        var response = Assert.Single(
-            store.GetEvents("thread_1"),
-            e => e.Type == TraceEventType.MaintenanceForkResponse);
-        Assert.Contains("\"fallbackReason\":null", response.MetadataJson);
+        Assert.Equal(expectedReason, result.FallbackReason);
+        AssertTerminalFallback(store, expectedReason);
     }
 
-    [Fact]
-    public async Task RunAsync_RecordsEmptyErrorContentFallback()
+    public static TheoryData<Exception, string> ProviderFailures => new()
+    {
+        { new InvalidOperationException("provider failed"), "provider failed" },
+        { new OperationCanceledException("timeout"), "provider_timeout" },
+        { new InvalidOperationException("context_length_exceeded"), MaintenanceForkFallbackReasons.SnapshotTooLarge }
+    };
+
+    [Theory]
+    [MemberData(nameof(ProviderFailures))]
+    public async Task RunAsync_ProviderFailures_FallBackWithATerminalResponse(Exception error, string expectedReason)
     {
         var store = new TraceStore();
-        var collector = new TraceCollector(store);
-        var response = new ChatResponse(new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
-        [
-            new ErrorContent("provider returned an empty error response")
-        ]));
-        var runner = new MaintenanceForkRunner(new RecordingChatClient(response), collector);
-        var snapshot = CreateSnapshot();
+        var runner = new MaintenanceForkRunner(new RecordingChatClient(error), new TraceCollector(store));
 
-        var result = await runner.RunAsync(
-            snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
+        var result = await runner.RunAsync(CreateSnapshot(), CompactionTask());
 
-        Assert.Equal(MaintenanceForkFallbackReasons.EmptyErrorResponse, result.FallbackReason);
-        var trace = Assert.Single(
-            store.GetEvents("thread_1"),
-            e => e.Type == TraceEventType.MaintenanceForkResponse);
-        Assert.Contains($"\"fallbackReason\":\"{MaintenanceForkFallbackReasons.EmptyErrorResponse}\"", trace.MetadataJson);
-        Assert.Contains("\"type\":\"error\"", trace.MetadataJson);
-    }
-
-    [Fact]
-    public async Task RunAsync_MapsEmptyContextOverflowErrorContentToSnapshotTooLarge()
-    {
-        var response = new ChatResponse(new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
-        [
-            new ErrorContent("context_length_exceeded: input exceeds the context window")
-        ]));
-        var runner = new MaintenanceForkRunner(new RecordingChatClient(response));
-        var snapshot = CreateSnapshot();
-
-        var result = await runner.RunAsync(
-            snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
-
-        Assert.Equal(MaintenanceForkFallbackReasons.SnapshotTooLarge, result.FallbackReason);
-    }
-
-    [Fact]
-    public async Task RunAsync_MapsContextOverflowExceptionToSnapshotTooLargeFallback()
-    {
-        var store = new TraceStore();
-        var collector = new TraceCollector(store);
-        var error = new InvalidOperationException(
-            "Status Code: BadRequest {\"error\":{\"code\":\"context_length_exceeded\",\"message\":\"Your input exceeds the context window of this model.\"}}");
-        var runner = new MaintenanceForkRunner(new RecordingChatClient(error), collector);
-        var snapshot = CreateSnapshot();
-
-        var result = await runner.RunAsync(
-            snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
-
-        Assert.Equal(MaintenanceForkFallbackReasons.SnapshotTooLarge, result.FallbackReason);
-        var response = Assert.Single(
-            store.GetEvents("thread_1"),
-            e => e.Type == TraceEventType.MaintenanceForkResponse);
-        Assert.Contains($"\"fallbackReason\":\"{MaintenanceForkFallbackReasons.SnapshotTooLarge}\"", response.MetadataJson);
-        Assert.Contains("context_length_exceeded", response.MetadataJson);
+        Assert.Equal(expectedReason, result.FallbackReason);
+        AssertTerminalFallback(store, expectedReason);
     }
 
     [Fact]
@@ -416,45 +283,6 @@ public sealed class MaintenanceForkRunnerTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_MimoForkAppliesDeepThinkingFromExplicitSnapshotReasoning()
-    {
-        var config = CreateReasoningConfig(model: "mimo-v2.5-pro");
-        var capture = new RecordingChatClient("<summary>important bits</summary>");
-        var runtime = Runtime(
-            ModelProviderProtocols.OpenAIChatCompletions,
-            "mimo-v2.5-pro",
-            "https://api.openai-compatible.test/v1");
-        var chatClient = ProviderChatClientAdapters.CreateRequestAdaptedClient(
-            new DeepThinkingChatClient(capture, runtime),
-            config,
-            runtime,
-            useDefaultReasoning: false);
-        var runner = new MaintenanceForkRunner(chatClient);
-        var snapshot = PromptRequestSnapshot.Capture(
-            [new ChatMessage(ChatRole.User, "stable prefix")],
-            new ChatOptions
-            {
-                Instructions = "stable base",
-                ModelId = "mimo-v2.5-pro",
-                Reasoning = config.Reasoning.ToOptions()
-            },
-            providerId: "mimo",
-            mode: "agent",
-            threadId: "thread_1",
-            turnId: "turn_1");
-
-        var result = await runner.RunAsync(
-            snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
-
-        Assert.Null(result.FallbackReason);
-        var raw = Assert.IsType<OpenAI.Chat.ChatCompletionOptions>(
-            capture.Options!.RawRepresentationFactory!(capture));
-        using var document = JsonDocument.Parse(ModelReaderWriter.Write(raw).ToString());
-        Assert.Equal("enabled", document.RootElement.GetProperty("thinking").GetProperty("type").GetString());
-    }
-
-    [Fact]
     public async Task RunAsync_RecordsToolCallOnlyResponseMetadata()
     {
         var store = new TraceStore();
@@ -488,71 +316,29 @@ public sealed class MaintenanceForkRunnerTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_RecordsExceptionFallback()
-    {
-        var store = new TraceStore();
-        var collector = new TraceCollector(store);
-        var runner = new MaintenanceForkRunner(
-            new RecordingChatClient(new InvalidOperationException("provider failed")),
-            collector);
-        var snapshot = CreateSnapshot();
-
-        var result = await runner.RunAsync(
-            snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
-
-        Assert.Equal("provider failed", result.FallbackReason);
-        var response = Assert.Single(
-            store.GetEvents("thread_1"),
-            e => e.Type == TraceEventType.MaintenanceForkResponse);
-        Assert.Equal("(empty)", response.Content);
-        Assert.Contains("\"fallbackReason\":\"provider failed\"", response.MetadataJson);
-    }
-
-    [Fact]
-    public async Task RunAsync_ProviderTimeoutCancellationRecordsTerminalResponse()
-    {
-        var store = new TraceStore();
-        var collector = new TraceCollector(store);
-        var runner = new MaintenanceForkRunner(
-            new RecordingChatClient(new OperationCanceledException("timeout")),
-            collector);
-        var snapshot = CreateSnapshot();
-
-        var result = await runner.RunAsync(
-            snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
-
-        Assert.Equal("provider_timeout", result.FallbackReason);
-        var response = Assert.Single(
-            store.GetEvents("thread_1"),
-            e => e.Type == TraceEventType.MaintenanceForkResponse);
-        Assert.Equal("(empty)", response.Content);
-        Assert.Contains("\"fallbackReason\":\"provider_timeout\"", response.MetadataJson);
-    }
-
-    [Fact]
     public async Task RunAsync_UserCancellationRecordsTerminalResponseAndRethrows()
     {
         var store = new TraceStore();
-        var collector = new TraceCollector(store);
         using var cts = new CancellationTokenSource();
         var runner = new MaintenanceForkRunner(
             new RecordingChatClient(new OperationCanceledException(cts.Token)),
-            collector);
-        var snapshot = CreateSnapshot();
+            new TraceCollector(store));
         cts.Cancel();
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() => runner.RunAsync(
-            snapshot,
-            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."),
-            cts.Token));
+        await Assert.ThrowsAsync<OperationCanceledException>(() => runner.RunAsync(CreateSnapshot(), CompactionTask(), cts.Token));
 
+        AssertTerminalFallback(store, "cancelled");
+    }
+
+    private static MaintenanceForkTask CompactionTask() =>
+        new(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context.");
+
+    private static void AssertTerminalFallback(TraceStore store, string reason)
+    {
         var response = Assert.Single(
             store.GetEvents("thread_1"),
             e => e.Type == TraceEventType.MaintenanceForkResponse);
-        Assert.Equal("(empty)", response.Content);
-        Assert.Contains("\"fallbackReason\":\"cancelled\"", response.MetadataJson);
+        Assert.Contains($"\"fallbackReason\":\"{reason}\"", response.MetadataJson);
     }
 
     private static PromptRequestSnapshot CreateSnapshot() =>

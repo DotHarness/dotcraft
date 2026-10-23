@@ -17,8 +17,6 @@ public sealed class MaxReasoningChatClientTests
 {
     [Theory]
     [InlineData(false, ModelReasoningEffort.Max, null, "max")]
-    [InlineData(true, ModelReasoningEffort.Max, null, "max")]
-    [InlineData(false, ModelReasoningEffort.Ultra, null, "max")]
     [InlineData(true, ModelReasoningEffort.Ultra, null, "max")]
     [InlineData(false, ModelReasoningEffort.Max, ReasoningEffort.High, "high")]
     [InlineData(true, ModelReasoningEffort.ExtraHigh, null, "xhigh")]

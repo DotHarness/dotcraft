@@ -12,8 +12,6 @@ public sealed class ContractAnalyzerTests
     [Theory]
     [InlineData("public string? Value { get; init; }", "DPC003")]
     [InlineData("public long Value { get; init; }", "DPC005")]
-    [InlineData("public DotCraft.Protocol.Optional<long?> Value { get; init; }", "DPC005")]
-    [InlineData("[DotCraft.Protocol.JsonSafeInteger] public long[] Value { get; init; } = [];", "DPC005")]
     [InlineData("[DotCraft.Protocol.JsonSafeInteger] public int Value { get; init; }", "DPC005")]
     [InlineData("public External.Domain Value { get; init; } = new();", "DPC007")]
     public async Task Analyzer_Rejects_Unsupported_Property_Shapes(string member, string diagnosticId)

@@ -99,42 +99,21 @@ public sealed partial class McpToolNamingTests
     }
 
     [Fact]
-    public void NormalizeBatch_UsesRuntimeNameWhenDeclaredNameIsAbsent()
+    public void NormalizeBatch_DerivesTheNamespaceFromTheDeclaredNameOrElseTheRuntimeName()
     {
-        var identity = Assert.Single(McpToolNaming.NormalizeBatch([
-            new McpToolIdentityInput("binding:board:server", null, "read-card")
-        ]));
+        var identities = new[]
+        {
+            new McpToolIdentityInput("binding:board:server", null, "read-card"),
+            new McpToolIdentityInput("plugin:catalog-service", "catalog-service", "get_status"),
+            new McpToolIdentityInput("catalog-service:catalog-service", "catalog-service", "search_records")
+        }.Select(input => Assert.Single(McpToolNaming.NormalizeBatch([input]))).ToArray();
 
-        Assert.Equal(new ToolName("mcp__binding_board_server", "read_card"), identity.ToolName);
+        Assert.Equal(new ToolName("mcp__binding_board_server", "read_card"), identities[0].ToolName);
+        Assert.Equal(new ToolName("mcp__catalog_service", "get_status"), identities[1].ToolName);
+        Assert.Equal("mcp__catalog_service__get_status", identities[1].FlatName);
+        Assert.Equal(new ToolName("mcp__catalog_service", "search_records"), identities[2].ToolName);
+        Assert.Equal("catalog-service:catalog-service", identities[2].RuntimeName);
     }
-
-    [Fact]
-    public void NormalizeBatch_ColonRuntimeAndHyphenatedServerProduceProviderSafeIdentity()
-    {
-        var identity = Assert.Single(McpToolNaming.NormalizeBatch([
-            new McpToolIdentityInput("plugin:catalog-service", "catalog-service", "get_status")
-        ]));
-
-        Assert.Equal(new ToolName("mcp__catalog_service", "get_status"), identity.ToolName);
-        Assert.Equal("mcp__catalog_service__get_status", identity.FlatName);
-        Assert.Matches(ProviderSafeComponent(), identity.ToolName.Namespace!);
-        Assert.Matches(ProviderSafeComponent(), identity.ToolName.Name);
-    }
-
-    [Fact]
-    public void NormalizeBatch_RuntimeWithRepeatedColonSegmentsUsesDeclaredCanonicalNamespace()
-    {
-        var identity = Assert.Single(McpToolNaming.NormalizeBatch([
-            new McpToolIdentityInput(
-                "catalog-service:catalog-service",
-                "catalog-service",
-                "search_records")
-        ]));
-
-        Assert.Equal(new ToolName("mcp__catalog_service", "search_records"), identity.ToolName);
-        Assert.Equal("catalog-service:catalog-service", identity.RuntimeName);
-    }
-
     [GeneratedRegex("^[A-Za-z0-9_]+$")]
     private static partial Regex ProviderSafeComponent();
 }

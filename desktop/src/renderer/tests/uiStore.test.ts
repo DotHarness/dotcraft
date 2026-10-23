@@ -1,28 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useThreadStore } from '../stores/threadStore'
 import {
-  DETAIL_DEFAULT_MAIN_SURFACE_WIDTH,
   DETAIL_DEFAULT_WIDTH,
   DETAIL_DEFAULT_WIDTH_RATIO,
   useUIStore
 } from '../stores/uiStore'
 
-describe('uiStore defaults', () => {
+const ui = () => useUIStore.getState()
+
+describe('uiStore detail panel width', () => {
   it('updates the detail panel width fallback and ratio together', () => {
-    useUIStore.getState().setDetailPanelWidth(580, 1676)
+    ui().setDetailPanelWidth(580, 1676)
 
-    expect(useUIStore.getState().detailPanelWidth).toBe(580)
-    expect(useUIStore.getState().detailPanelWidthRatio).toBeCloseTo(580 / 1676, 6)
+    expect(ui().detailPanelWidth).toBe(580)
+    expect(ui().detailPanelWidthRatio).toBeCloseTo(580 / 1676, 6)
   })
-
-  it("tracks renderer requests to open What's New", () => {
-    const before = useUIStore.getState().whatsNewOpenRequestSeq
-
-    useUIStore.getState().requestOpenWhatsNew()
-
-    expect(useUIStore.getState().whatsNewOpenRequestSeq).toBe(before + 1)
-  })
-
 })
 
 const settingsSet = vi.fn()
@@ -33,13 +25,7 @@ describe('uiStore sidebar section preferences', () => {
     settingsSet.mockResolvedValue(undefined)
     Object.defineProperty(globalThis, 'window', {
       configurable: true,
-      value: {
-        api: {
-          settings: {
-            set: settingsSet
-          }
-        }
-      }
+      value: { api: { settings: { set: settingsSet } } }
     })
     useUIStore.setState({
       projectsSectionCollapsed: false,
@@ -52,72 +38,42 @@ describe('uiStore sidebar section preferences', () => {
     Reflect.deleteProperty(globalThis, 'window')
   })
 
-  it('updates and persists the Projects section collapse preference', () => {
-    useUIStore.getState().setProjectsSectionCollapsed(true)
-
-    expect(useUIStore.getState().projectsSectionCollapsed).toBe(true)
-    expect(settingsSet).toHaveBeenLastCalledWith({ projectsSectionCollapsed: true })
-
-    useUIStore.getState().setProjectsSectionCollapsed(false)
-
-    expect(useUIStore.getState().projectsSectionCollapsed).toBe(false)
-    expect(settingsSet).toHaveBeenLastCalledWith({ projectsSectionCollapsed: false })
-  })
-
-  it('updates and persists the Pinned section collapse preference', () => {
-    useUIStore.getState().setPinnedSectionCollapsed(true)
-
-    expect(useUIStore.getState().pinnedSectionCollapsed).toBe(true)
-    expect(settingsSet).toHaveBeenLastCalledWith({ pinnedSectionCollapsed: true })
-
-    useUIStore.getState().setPinnedSectionCollapsed(false)
-
-    expect(useUIStore.getState().pinnedSectionCollapsed).toBe(false)
-    expect(settingsSet).toHaveBeenLastCalledWith({ pinnedSectionCollapsed: false })
-  })
-
-  it('updates and persists the Chats section collapse preference', () => {
-    useUIStore.getState().setChatsSectionCollapsed(true)
-
-    expect(useUIStore.getState().chatsSectionCollapsed).toBe(true)
-    expect(settingsSet).toHaveBeenLastCalledWith({ chatsSectionCollapsed: true })
-
-    useUIStore.getState().setChatsSectionCollapsed(false)
-
-    expect(useUIStore.getState().chatsSectionCollapsed).toBe(false)
-    expect(settingsSet).toHaveBeenLastCalledWith({ chatsSectionCollapsed: false })
+  it.each([
+    ['projectsSectionCollapsed', 'setProjectsSectionCollapsed'],
+    ['pinnedSectionCollapsed', 'setPinnedSectionCollapsed'],
+    ['chatsSectionCollapsed', 'setChatsSectionCollapsed']
+  ] as const)('updates and persists %s', (key, setter) => {
+    for (const value of [true, false]) {
+      ui()[setter](value)
+      expect(ui()[key]).toBe(value)
+      expect(settingsSet).toHaveBeenLastCalledWith({ [key]: value })
+    }
   })
 })
 
-describe('uiStore goToNewChat', () => {
+describe('uiStore welcome state', () => {
   beforeEach(() => {
     useThreadStore.getState().reset()
     useUIStore.setState({
       activeMainView: 'settings',
       welcomeDraft: null,
       welcomeDraftsByWorkspace: {},
-      welcomeDraftWorkspacePath: null,
-      sidebarPreferredCollapsed: false,
-      sidebarCollapsed: false,
-      detailPanelWidth: DETAIL_DEFAULT_WIDTH,
-      detailPanelWidthRatio: DETAIL_DEFAULT_WIDTH_RATIO,
-      detailPanelPreferredVisible: true,
-      detailPanelVisible: true,
-      responsiveLayout: 'full'
+      welcomeDraftWorkspacePath: null
     })
+    ui().setPendingWelcomeTurn(null)
   })
 
-  it('clears active thread and routes to conversation view', () => {
+  it('goToNewChat clears active thread and routes to conversation view', () => {
     useThreadStore.getState().setActiveThreadId('thread-123')
 
-    useUIStore.getState().goToNewChat()
+    ui().goToNewChat()
 
     expect(useThreadStore.getState().activeThreadId).toBeNull()
-    expect(useUIStore.getState().activeMainView).toBe('conversation')
+    expect(ui().activeMainView).toBe('conversation')
   })
 
   it('keeps welcome drafts scoped by workspace', () => {
-    useUIStore.getState().setWelcomeDraft({
+    ui().setWelcomeDraft({
       text: 'Draft A',
       images: [],
       files: [],
@@ -125,7 +81,7 @@ describe('uiStore goToNewChat', () => {
       providerId: 'provider-a',
       model: 'Default',
     }, '/workspace/a')
-    useUIStore.getState().setWelcomeDraft({
+    ui().setWelcomeDraft({
       text: 'Draft B',
       images: [],
       files: [],
@@ -133,45 +89,27 @@ describe('uiStore goToNewChat', () => {
       model: 'gpt-test'
     }, '/workspace/b')
 
-    useUIStore.getState().setWelcomeDraftWorkspace('/workspace/a')
-    expect(useUIStore.getState().welcomeDraft?.text).toBe('Draft A')
-    expect(useUIStore.getState().welcomeDraft?.providerId).toBe('provider-a')
+    ui().setWelcomeDraftWorkspace('/workspace/a')
+    expect(ui().welcomeDraft?.text).toBe('Draft A')
+    expect(ui().welcomeDraft?.providerId).toBe('provider-a')
 
-    useUIStore.getState().setWelcomeDraftWorkspace('/workspace/b')
-    expect(useUIStore.getState().welcomeDraft?.text).toBe('Draft B')
+    ui().setWelcomeDraftWorkspace('/workspace/b')
+    expect(ui().welcomeDraft?.text).toBe('Draft B')
 
-    useUIStore.getState().clearWelcomeDraft('/workspace/b')
-    expect(useUIStore.getState().getWelcomeDraftForWorkspace('/workspace/a')?.text).toBe('Draft A')
-    expect(useUIStore.getState().getWelcomeDraftForWorkspace('/workspace/b')).toBeNull()
-  })
-})
-
-describe('uiStore pending welcome turn', () => {
-  beforeEach(() => {
-    useUIStore.getState().setPendingWelcomeTurn(null)
+    ui().clearWelcomeDraft('/workspace/b')
+    expect(ui().getWelcomeDraftForWorkspace('/workspace/a')?.text).toBe('Draft A')
+    expect(ui().getWelcomeDraftForWorkspace('/workspace/b')).toBeNull()
   })
 
-  it('keeps pending welcome turns limited to first-turn transport data', () => {
-    useUIStore.getState().setPendingWelcomeTurn({
-      threadId: 'thread-message',
-      text: 'hello'
-    })
+  it('consumes pending welcome turns only for their thread as first-turn transport data', () => {
+    const inputParts = [{ type: 'text' as const, text: 'hello' }]
+    ui().setPendingWelcomeTurn({ threadId: 'thread-message', text: 'hello', inputParts })
+    expect(ui().consumePendingWelcomeTurnIfMatch('other-thread')).toBeNull()
+    expect(ui().consumePendingWelcomeTurnIfMatch('thread-message')).toEqual({ text: 'hello', inputParts })
+    expect(ui().consumePendingWelcomeTurnIfMatch('thread-message')).toBeNull()
 
-    const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch('thread-message')
-
-    expect(pending).toEqual({ text: 'hello' })
-  })
-
-  it('preserves sentAsGoal when consuming the pending welcome turn', () => {
-    useUIStore.getState().setPendingWelcomeTurn({
-      threadId: 'thread-goal',
-      text: 'review the branch',
-      sentAsGoal: true
-    })
-
-    const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch('thread-goal')
-
-    expect(pending?.sentAsGoal).toBe(true)
+    ui().setPendingWelcomeTurn({ threadId: 'thread-goal', text: 'review the branch', inputParts, sentAsGoal: true })
+    expect(ui().consumePendingWelcomeTurnIfMatch('thread-goal')?.sentAsGoal).toBe(true)
   })
 })
 
@@ -194,103 +132,74 @@ describe('uiStore responsive panel preferences', () => {
     })
   })
 
-  it('preserves a manually hidden detail panel when layout stays full', () => {
-    useUIStore.getState().setDetailPanelVisible(false)
+  it('preserves a manually hidden detail panel across breakpoint changes', () => {
+    ui().setDetailPanelVisible(false)
 
-    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(false)
-    expect(useUIStore.getState().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
-    expect(useUIStore.getState().detailPanelVisible).toBe(false)
+    expect(ui().detailPanelPreferredVisible).toBe(false)
+    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
+    expect(ui().detailPanelVisible).toBe(false)
 
-    useUIStore.getState().setResponsiveLayout('full')
+    ui().setResponsiveLayout('collapsed')
+    ui().setResponsiveLayout('full')
 
-    expect(useUIStore.getState().detailPanelVisible).toBe(false)
-  })
-
-  it('restores the preferred detail visibility after leaving a narrow breakpoint', () => {
-    useUIStore.getState().setDetailPanelVisible(false)
-    useUIStore.getState().setResponsiveLayout('collapsed')
-
-    expect(useUIStore.getState().detailPanelVisible).toBe(false)
-
-    useUIStore.getState().setResponsiveLayout('full')
-
-    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(false)
-    expect(useUIStore.getState().detailPanelVisible).toBe(false)
+    expect(ui().detailPanelPreferredVisible).toBe(false)
+    expect(ui().detailPanelVisible).toBe(false)
   })
 
   it('restores the preferred sidebar expansion after leaving the collapsed breakpoint', () => {
-    useUIStore.getState().setSidebarCollapsed(false)
-    useUIStore.getState().setResponsiveLayout('collapsed')
+    ui().setSidebarCollapsed(false)
+    ui().setResponsiveLayout('collapsed')
 
-    expect(useUIStore.getState().sidebarCollapsed).toBe(true)
+    expect(ui().sidebarCollapsed).toBe(true)
 
-    useUIStore.getState().setResponsiveLayout('full')
+    ui().setResponsiveLayout('full')
 
-    expect(useUIStore.getState().sidebarPreferredCollapsed).toBe(false)
-    expect(useUIStore.getState().sidebarCollapsed).toBe(false)
+    expect(ui().sidebarPreferredCollapsed).toBe(false)
+    expect(ui().sidebarCollapsed).toBe(false)
   })
 
   it('auto-opening the detail panel updates the stored preference', () => {
-    useUIStore.getState().setDetailPanelVisible(false)
-    useUIStore.getState().setResponsiveLayout('no-detail')
+    ui().setDetailPanelVisible(false)
+    ui().setResponsiveLayout('no-detail')
 
-    useUIStore.getState().showChangesForKey('src/foo.ts')
+    ui().showChangesForKey('src/foo.ts')
 
-    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(true)
-    expect(useUIStore.getState().detailPanelVisible).toBe(false)
+    expect(ui().detailPanelPreferredVisible).toBe(true)
+    expect(ui().detailPanelVisible).toBe(false)
 
-    useUIStore.getState().setResponsiveLayout('full')
+    ui().setResponsiveLayout('full')
 
-    expect(useUIStore.getState().detailPanelVisible).toBe(true)
-    expect(useUIStore.getState().selectedChangeKey).toBe('src/foo.ts')
+    expect(ui().detailPanelVisible).toBe(true)
+    expect(ui().selectedChangeKey).toBe('src/foo.ts')
   })
 
-  it('records one-shot auto-show reasons', () => {
-    useUIStore.getState().setDetailPanelVisible(false)
-    const first = useUIStore.getState().maybeAutoShowForReason('link:thread-1:item-2')
-    const second = useUIStore.getState().maybeAutoShowForReason('link:thread-1:item-2')
-    expect(first).toBe(true)
-    expect(second).toBe(false)
-    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(true)
+  it('records one-shot auto-show reasons until reset', () => {
+    ui().setDetailPanelVisible(false)
+    expect(ui().maybeAutoShowForReason('link:thread-1:item-2')).toBe(true)
+    expect(ui().maybeAutoShowForReason('link:thread-1:item-2')).toBe(false)
+    expect(ui().detailPanelPreferredVisible).toBe(true)
+
+    ui().resetAutoShowReasons()
+    expect(ui().autoShowReasons.size).toBe(0)
+    expect(ui().maybeAutoShowForReason('link:thread-1:item-2')).toBe(true)
   })
 
-  it('clears one-shot auto-show reasons', () => {
-    useUIStore.getState().maybeAutoShowForReason('plan:auto')
-    expect(useUIStore.getState().autoShowReasons.size).toBe(1)
-    useUIStore.getState().resetAutoShowReasons()
-    expect(useUIStore.getState().autoShowReasons.size).toBe(0)
-  })
+  it('switches detail tabs without revealing the panel only when asked', () => {
+    ui().setDetailPanelVisible(false)
 
-  it('can switch system detail tabs without revealing the panel', () => {
-    useUIStore.getState().setDetailPanelVisible(false)
+    ui().setActiveDetailTab('plan', { reveal: false })
+    expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
+    expect(ui().lastActiveSystemTab).toBe('plan')
 
-    useUIStore.getState().setActiveDetailTab('plan', { reveal: false })
+    ui().setActiveViewerTab('vtab-hidden', { reveal: false })
+    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'vtab-hidden' })
+    expect(ui().detailPanelPreferredVisible).toBe(false)
+    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
+    expect(ui().detailPanelVisible).toBe(false)
 
-    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
-    expect(useUIStore.getState().lastActiveSystemTab).toBe('plan')
-    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(false)
-    expect(useUIStore.getState().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
-    expect(useUIStore.getState().detailPanelVisible).toBe(false)
-  })
-
-  it('can switch viewer tabs without revealing the panel', () => {
-    useUIStore.getState().setDetailPanelVisible(false)
-
-    useUIStore.getState().setActiveViewerTab('vtab-hidden', { reveal: false })
-
-    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'viewer', id: 'vtab-hidden' })
-    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(false)
-    expect(useUIStore.getState().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
-    expect(useUIStore.getState().detailPanelVisible).toBe(false)
-  })
-
-  it('reveals the panel by default when switching detail tabs explicitly', () => {
-    useUIStore.getState().setDetailPanelVisible(false)
-
-    useUIStore.getState().setActiveDetailTab('plan')
-
-    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(true)
-    expect(useUIStore.getState().detailPanelPreferredVisibleByThread['thread-a']).toBe(true)
-    expect(useUIStore.getState().detailPanelVisible).toBe(true)
+    ui().setActiveDetailTab('plan')
+    expect(ui().detailPanelPreferredVisible).toBe(true)
+    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(true)
+    expect(ui().detailPanelVisible).toBe(true)
   })
 })

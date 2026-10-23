@@ -38,7 +38,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_tempDir, true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         var service = CreateService(
             agentFactory,
             mainChat,
-            hookRunner: CreateHookRunner((HookEvent.PreCompact, StderrAndExitCommand("compact denied", 2))));
+            hookRunner: CreateHookRunner((HookEvent.PreCompact, TestHookCommands.StderrAndExit("compact denied", 2))));
         var thread = await service.CreateThreadAsync(MakeIdentity());
         for (var i = 0; i < 4; i++)
         {
@@ -180,7 +180,6 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
     [Fact]
     public async Task CompactThreadAsync_RunsPreAndPostCompactHooks()
     {
-        var logPath = Path.Combine(_tempDir, "compact-hooks.log");
         var mainChat = new StreamingReplyChatClient("ok");
         var summaryChat = new SummaryChatClient("<summary>older context summary</summary>");
         await using var agentFactory = CreateAgentFactory(summaryChat);
@@ -188,8 +187,8 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             agentFactory,
             mainChat,
             hookRunner: CreateHookRunner(
-                (HookEvent.PreCompact, AppendFileCommand(logPath, "PreCompact")),
-                (HookEvent.PostCompact, AppendFileCommand(logPath, "PostCompact"))));
+                (HookEvent.PreCompact, TestHookCommands.AppendLine("compact-hooks.log", "PreCompact")),
+                (HookEvent.PostCompact, TestHookCommands.AppendLine("compact-hooks.log", "PostCompact"))));
         var thread = await service.CreateThreadAsync(MakeIdentity());
         for (var i = 0; i < 4; i++)
         {
@@ -201,7 +200,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         var result = await service.CompactThreadAsync(thread.Id);
 
         Assert.Equal("partial", result.Outcome);
-        var log = await File.ReadAllLinesAsync(logPath);
+        var log = await File.ReadAllLinesAsync(Path.Combine(_tempDir, "compact-hooks.log"));
         Assert.Equal(["PreCompact", "PostCompact"], log);
     }
 
@@ -637,6 +636,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
                         {
                             Type = "command",
                             Command = hook.Command,
+                            Shell = TestHookCommands.Shell,
                             Timeout = 10
                         })
                     ]
@@ -646,16 +646,6 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
 
         return new HookRunner(config, _tempDir);
     }
-
-    private static string AppendFileCommand(string path, string output) =>
-        OperatingSystem.IsWindows()
-            ? $"Add-Content -LiteralPath '{path}' -Value '{output}'"
-            : $"printf '%s\\n' '{output}' >> '{path}'";
-
-    private static string StderrAndExitCommand(string output, int exitCode) =>
-        OperatingSystem.IsWindows()
-            ? $"[Console]::Error.WriteLine('{output}'); exit {exitCode}"
-            : $"printf '%s\\n' '{output}' >&2; exit {exitCode}";
 
     private AgentFactory CreateAgentFactory(
         IChatClient compactionChatClient,

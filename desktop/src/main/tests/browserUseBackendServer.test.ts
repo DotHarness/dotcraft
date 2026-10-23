@@ -81,10 +81,9 @@ describe('BrowserUseBackendFrameDecoder', () => {
 })
 
 describe('BrowserUseBackendServer', () => {
-  it('responds to JSON-RPC ping and getInfo', async () => {
+  it('answers JSON-RPC requests, passes the request id, and reports unknown methods', async () => {
     const server = createTestServer()
-    const address = await server.ensureStarted()
-    const socket = await connect(address)
+    const socket = await connect(await server.ensureStarted())
 
     await expect(rpc(socket, 'ping')).resolves.toMatchObject({ result: 'pong' })
     await expect(rpc(socket, 'getInfo', { session_id: 'thread-1', turn_id: 'turn-1' })).resolves.toMatchObject({
@@ -93,30 +92,14 @@ describe('BrowserUseBackendServer', () => {
         metadata: { dotcraftSessionId: 'thread-1' }
       }
     })
-
-    socket.destroy()
-  })
-
-  it('returns a JSON-RPC error for unknown methods', async () => {
-    const server = createTestServer()
-    const socket = await connect(await server.ensureStarted())
-
+    await expect(rpc(socket, 'echoRequestId')).resolves.toMatchObject({
+      result: { requestId: 1 }
+    })
     await expect(rpc(socket, 'missingMethod')).resolves.toMatchObject({
       error: {
         code: -32601,
         message: expect.stringContaining('missingMethod')
       }
-    })
-
-    socket.destroy()
-  })
-
-  it('passes JSON-RPC request id to the backend handler', async () => {
-    const server = createTestServer()
-    const socket = await connect(await server.ensureStarted())
-
-    await expect(rpc(socket, 'echoRequestId')).resolves.toMatchObject({
-      result: { requestId: 1 }
     })
 
     socket.destroy()

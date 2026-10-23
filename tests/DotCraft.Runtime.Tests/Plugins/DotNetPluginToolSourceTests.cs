@@ -147,59 +147,41 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
     }
 
     [Fact]
-    public async Task Proxy_ReportsUnavailableOnceTheContributionIsRevoked()
+    public async Task Proxy_ReportsUnavailableOnceTheContributionIsRevoked_TheGateCloses_OrThePluginWithdrawsItsLease()
     {
-        PublishGate("acme.tools", "gen-1");
-        var registrar = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
-        var handle = registrar.Add<IToolSource>(new StubToolSource("review", "review", "Reviews a diff."));
+        PublishGate("acme.revoked", "gen-1");
+        var closedGate = PublishGate("acme.closed", "gen-1");
+        PublishGate("acme.lease", "gen-1");
+        var revoked = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.revoked", "gen-1"))
+            .Add<IToolSource>(new StubToolSource("revoked", "revoked", "Reviews a diff."));
+        _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.closed", "gen-1"))
+            .Add<IToolSource>(new StubToolSource("closed", "closed", "Reviews a diff."));
+        var withdrawing = new StubToolSource("lease", "lease", "Reviews a diff.");
+        _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.lease", "gen-1")).Add<IToolSource>(withdrawing);
         var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
-        var registration = Assert.Single(await source.GetRegistrationsAsync(PlanningContext()));
-        var context = InvocationContext(registration);
+        var registrations = await source.GetRegistrationsAsync(PlanningContext());
+        ToolRegistration Registration(string id) => registrations.Single(r => r.Definition.Id.SourceToolId.Value == id);
+        foreach (var registration in registrations)
+            Assert.True((await registration.Binding.Lease.CheckAsync(InvocationContext(registration))).IsAvailable);
 
-        Assert.True((await registration.Binding.Lease.CheckAsync(context)).IsAvailable);
-        handle.Dispose();
+        revoked.Dispose();
+        await closedGate.CloseAsync();
+        withdrawing.LeaseAvailable = false;
 
-        var lease = await registration.Binding.Lease.CheckAsync(context);
-        Assert.False(lease.IsAvailable);
-        Assert.Equal(ToolErrorCodes.Unavailable, lease.Error?.Code);
-        var result = await registration.Binding.Runtime.InvokeAsync(context, new JsonObject());
-        Assert.False(result.Success);
-        Assert.Equal(ToolErrorCodes.Unavailable, result.Error?.Code);
-    }
-
-    [Fact]
-    public async Task Proxy_ReportsUnavailableOnceTheGenerationStopsAdmittingCalls()
-    {
-        var gate = PublishGate("acme.tools", "gen-1");
-        var registrar = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
-        registrar.Add<IToolSource>(new StubToolSource("review", "review", "Reviews a diff."));
-        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
-        var registration = Assert.Single(await source.GetRegistrationsAsync(PlanningContext()));
-        var context = InvocationContext(registration);
-
-        await gate.CloseAsync();
-
-        Assert.False((await registration.Binding.Lease.CheckAsync(context)).IsAvailable);
-        var result = await registration.Binding.Runtime.InvokeAsync(context, new JsonObject());
-        Assert.Equal(ToolErrorCodes.Unavailable, result.Error?.Code);
-    }
-
-    [Fact]
-    public async Task Proxy_ReportsUnavailableWhenThePluginsOwnLeaseIsWithdrawn()
-    {
-        PublishGate("acme.tools", "gen-1");
-        var registrar = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
-        var plugin = new StubToolSource("review", "review", "Reviews a diff.");
-        registrar.Add<IToolSource>(plugin);
-        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
-        var registration = Assert.Single(await source.GetRegistrationsAsync(PlanningContext()));
-
-        plugin.LeaseAvailable = false;
-
-        var result = await registration.Binding.Runtime.InvokeAsync(
-            InvocationContext(registration),
-            new JsonObject());
-        Assert.Equal(ToolErrorCodes.Unavailable, result.Error?.Code);
+        foreach (var id in new[] { "revoked", "closed" })
+        {
+            var lease = await Registration(id).Binding.Lease.CheckAsync(InvocationContext(Registration(id)));
+            Assert.False(lease.IsAvailable);
+        }
+        Assert.Equal(
+            ToolErrorCodes.Unavailable,
+            (await Registration("revoked").Binding.Lease.CheckAsync(InvocationContext(Registration("revoked")))).Error?.Code);
+        foreach (var registration in registrations)
+        {
+            var result = await registration.Binding.Runtime.InvokeAsync(InvocationContext(registration), new JsonObject());
+            Assert.False(result.Success);
+            Assert.Equal(ToolErrorCodes.Unavailable, result.Error?.Code);
+        }
     }
 
     [Fact]
@@ -231,7 +213,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
     }
 
     [Fact]
-    public async Task Proxy_TurnsAMissingOrThrownPluginResultIntoAStableFailure()
+    public async Task Proxy_TurnsAMissingOrThrownPluginResultIntoAStableFailure_AndKeepsDeclaredErrors()
     {
         PublishGate("acme.tools", "gen-1");
         var registrar = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
@@ -240,25 +222,7 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
             Result = null
         });
         registrar.Add<IToolSource>(new StubToolSource("thrower", "thrower", "Throws.") { Throws = true });
-        var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
-        var registrations = await source.GetRegistrationsAsync(PlanningContext());
-
-        var invalid = registrations.Single(r => r.Definition.Id.SourceToolId.Value == "empty");
-        var invalidResult = await invalid.Binding.Runtime.InvokeAsync(InvocationContext(invalid), new JsonObject());
-        Assert.Equal(ToolErrorCodes.ResultInvalid, invalidResult.Error?.Code);
-
-        var thrower = registrations.Single(r => r.Definition.Id.SourceToolId.Value == "thrower");
-        var thrownResult = await thrower.Binding.Runtime.InvokeAsync(InvocationContext(thrower), new JsonObject());
-        Assert.Equal(ToolErrorCodes.ExecutionFailed, thrownResult.Error?.Code);
-        Assert.Equal("Plugin operation failed.", thrownResult.Error?.Message);
-    }
-
-    [Fact]
-    public async Task Proxy_ReportsAPluginDeclaredErrorVerbatim()
-    {
-        PublishGate("acme.tools", "gen-1");
-        var registrar = _registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
-        registrar.Add<IToolSource>(new StubToolSource("review", "review", "Reviews a diff.")
+        registrar.Add<IToolSource>(new StubToolSource("declared", "declared", "Reports its own error.")
         {
             Result = ToolExecutionResult.Failed(
                 new ToolError(
@@ -271,15 +235,21 @@ public sealed class DotNetPluginToolSourceTests : IDisposable
                 "could not review")
         });
         var source = new DotNetPluginToolSource(_registry, _callGates, UnexpectedExport);
-        var registration = Assert.Single(await source.GetRegistrationsAsync(PlanningContext()));
+        var registrations = await source.GetRegistrationsAsync(PlanningContext());
+        async Task<ToolExecutionResult> InvokeAsync(string id)
+        {
+            var registration = registrations.Single(r => r.Definition.Id.SourceToolId.Value == id);
+            return await registration.Binding.Runtime.InvokeAsync(InvocationContext(registration), new JsonObject());
+        }
 
-        var result = await registration.Binding.Runtime.InvokeAsync(
-            InvocationContext(registration),
-            new JsonObject());
-
-        Assert.False(result.Success);
-        Assert.Equal("review_unavailable", result.Error?.Code);
-        Assert.Equal(30, result.Error?.Parameters["retryAfterSeconds"].GetInt32());
+        Assert.Equal(ToolErrorCodes.ResultInvalid, (await InvokeAsync("empty")).Error?.Code);
+        var thrown = await InvokeAsync("thrower");
+        Assert.Equal(ToolErrorCodes.ExecutionFailed, thrown.Error?.Code);
+        Assert.Equal("Plugin operation failed.", thrown.Error?.Message);
+        var declared = await InvokeAsync("declared");
+        Assert.False(declared.Success);
+        Assert.Equal("review_unavailable", declared.Error?.Code);
+        Assert.Equal(30, declared.Error?.Parameters["retryAfterSeconds"].GetInt32());
     }
 
     [Fact]

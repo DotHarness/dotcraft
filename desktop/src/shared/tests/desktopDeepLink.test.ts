@@ -21,31 +21,27 @@ describe('desktop deep links', () => {
     expect(parseWorkspaceOpenDeepLink(value)).toEqual({ workspacePath, threadId })
   })
 
-  it('keeps workspace-only links compatible', () => {
-    const value = buildWorkspaceOpenDeepLink('/workspace/sample')
-
-    expect(parseWorkspaceOpenDeepLink(value)).toEqual({
+  it('parses workspace-only links and finds the link in argv', () => {
+    expect(parseWorkspaceOpenDeepLink(buildWorkspaceOpenDeepLink('/workspace/sample'))).toEqual({
       workspacePath: '/workspace/sample'
     })
+    expect(findWorkspaceOpenDeepLink([
+      'electron',
+      '--flag',
+      buildWorkspaceOpenDeepLink('/workspace/sample', 'thread-1')
+    ])).toEqual({ workspacePath: '/workspace/sample', threadId: 'thread-1' })
   })
 
-  it('finds the first valid workspace deep link in argv', () => {
-    const value = buildWorkspaceOpenDeepLink('/workspace/sample', 'thread-1')
-
-    expect(findWorkspaceOpenDeepLink(['electron', '--flag', value])).toEqual({
-      workspacePath: '/workspace/sample',
-      threadId: 'thread-1'
-    })
-  })
-
-  it.each([
-    'not a url',
-    'codex://workspace/open?path=%2Fworkspace',
-    'dotcraft://threads/open?path=%2Fworkspace',
-    'dotcraft://workspace/other?path=%2Fworkspace',
-    'dotcraft://workspace/open'
-  ])('rejects unsupported or incomplete links: %s', (value) => {
-    expect(parseWorkspaceOpenDeepLink(value)).toBeNull()
+  it('rejects unsupported or incomplete links', () => {
+    for (const value of [
+      'not a url',
+      'codex://workspace/open?path=%2Fworkspace',
+      'dotcraft://threads/open?path=%2Fworkspace',
+      'dotcraft://workspace/other?path=%2Fworkspace',
+      'dotcraft://workspace/open'
+    ]) {
+      expect(parseWorkspaceOpenDeepLink(value), value).toBeNull()
+    }
   })
 })
 
@@ -53,55 +49,42 @@ describe('satellite join deep links', () => {
   const inviteUrl = 'http://192.168.1.20:47600/i/inv_1?x=1'
   const link = `dotcraft://satellite/join?invite=${encodeURIComponent(inviteUrl)}`
 
-  it('keeps the original link alongside the decoded invitation url', () => {
+  it('keeps the original link alongside the decoded http or https invitation url', () => {
     expect(parseSatelliteJoinDeepLink(link)).toEqual({ link, inviteUrl })
-  })
-
-  it('accepts an https invitation endpoint', () => {
     const secure = 'https://studio.example/i/inv_2'
-    expect(parseSatelliteJoinDeepLink(
-      `dotcraft://satellite/join?invite=${encodeURIComponent(secure)}`
-    )).toEqual({
-      link: `dotcraft://satellite/join?invite=${encodeURIComponent(secure)}`,
-      inviteUrl: secure
-    })
+    const secureLink = `dotcraft://satellite/join?invite=${encodeURIComponent(secure)}`
+    expect(parseSatelliteJoinDeepLink(secureLink)).toEqual({ link: secureLink, inviteUrl: secure })
   })
 
-  it('finds the first satellite link in argv and ignores workspace links', () => {
+  it('finds the first satellite link in argv and does not cross-parse workspace links', () => {
     expect(findSatelliteJoinDeepLink(['electron', '--flag', link])).toEqual({ link, inviteUrl })
-    expect(findSatelliteJoinDeepLink([
-      buildWorkspaceOpenDeepLink('/workspace/sample')
-    ])).toBeNull()
-  })
-
-  it.each([
-    'not a url',
-    'codex://satellite/join?invite=http%3A%2F%2Fh%2Fi',
-    'dotcraft://satellites/join?invite=http%3A%2F%2Fh%2Fi',
-    'dotcraft://satellite/pair?invite=http%3A%2F%2Fh%2Fi',
-    'dotcraft://satellite/join',
-    'dotcraft://satellite/join?invite=',
-    'dotcraft://satellite/join?invite=not-a-url',
-    'dotcraft://satellite/join?invite=file%3A%2F%2F%2FC%3A%2Fsecret',
-    'dotcraft://satellite/join?invite=dotcraft%3A%2F%2Fsatellite%2Fjoin',
-    'dotcraft://workspace/open?path=%2Fworkspace'
-  ])('rejects unsupported or incomplete links: %s', (value) => {
-    expect(parseSatelliteJoinDeepLink(value)).toBeNull()
-  })
-
-  it('does not let a satellite link parse as a workspace link', () => {
+    expect(findSatelliteJoinDeepLink([buildWorkspaceOpenDeepLink('/workspace/sample')])).toBeNull()
     expect(parseWorkspaceOpenDeepLink(link)).toBeNull()
+  })
+
+  it('rejects unsupported, incomplete, or non-http invitation links', () => {
+    for (const value of [
+      'not a url',
+      'codex://satellite/join?invite=http%3A%2F%2Fh%2Fi',
+      'dotcraft://satellites/join?invite=http%3A%2F%2Fh%2Fi',
+      'dotcraft://satellite/pair?invite=http%3A%2F%2Fh%2Fi',
+      'dotcraft://satellite/join',
+      'dotcraft://satellite/join?invite=',
+      'dotcraft://satellite/join?invite=not-a-url',
+      'dotcraft://satellite/join?invite=file%3A%2F%2F%2FC%3A%2Fsecret',
+      'dotcraft://satellite/join?invite=dotcraft%3A%2F%2Fsatellite%2Fjoin',
+      'dotcraft://workspace/open?path=%2Fworkspace'
+    ]) {
+      expect(parseSatelliteJoinDeepLink(value), value).toBeNull()
+    }
   })
 })
 
 describe('new thread deep links', () => {
-  it('decodes the project path and prompt', () => {
+  it('decodes the project path and prompt, treating both as optional', () => {
     const link = `dotcraft://threads/new?path=${encodeURIComponent('/Users/me/工作区/a b')}&prompt=${encodeURIComponent('Fix #12 & ship')}`
 
     expect(parseNewThreadDeepLink(link)).toEqual({ workspacePath: '/Users/me/工作区/a b', prompt: 'Fix #12 & ship' })
-  })
-
-  it('treats both parameters as optional and drops a blank prompt', () => {
     expect(parseNewThreadDeepLink('dotcraft://threads/new')).toEqual({})
     expect(parseNewThreadDeepLink('dotcraft://threads/new/?path=%20&prompt=%20%20')).toEqual({})
     expect(parseNewThreadDeepLink('dotcraft://threads/new?prompt=hi')).toEqual({ prompt: 'hi' })
@@ -115,12 +98,14 @@ describe('new thread deep links', () => {
     expect(parseWorkspaceOpenDeepLink('dotcraft://threads/new?path=%2Fp')).toBeNull()
   })
 
-  it.each([
-    'not a url',
-    'https://threads/new?path=%2Fp',
-    'dotcraft://threads/open?path=%2Fp',
-    'dotcraft://thread/new?path=%2Fp'
-  ])('rejects unsupported links: %s', (value) => {
-    expect(parseNewThreadDeepLink(value)).toBeNull()
+  it('rejects unsupported links', () => {
+    for (const value of [
+      'not a url',
+      'https://threads/new?path=%2Fp',
+      'dotcraft://threads/open?path=%2Fp',
+      'dotcraft://thread/new?path=%2Fp'
+    ]) {
+      expect(parseNewThreadDeepLink(value), value).toBeNull()
+    }
   })
 })

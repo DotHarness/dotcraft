@@ -6,7 +6,7 @@ import {
 } from '../utils/configChanged'
 
 describe('configChanged utils', () => {
-  it('normalizes config/changed payloads', () => {
+  it('normalizes config/changed payloads and rejects unrelated or empty ones', () => {
     const getNow = vi.fn(() => '2026-04-19T10:15:03.000Z')
 
     expect(
@@ -26,9 +26,7 @@ describe('configChanged utils', () => {
       regions: ['skills', 'mcp'],
       changedAt: '2026-04-19T10:15:03.000Z'
     })
-  })
 
-  it('returns null for unrelated payloads or empty regions', () => {
     expect(
       normalizeConfigChangedPayload({
         method: 'turn/started',

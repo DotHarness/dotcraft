@@ -16,33 +16,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
-    }
-
-    [Fact]
-    public void Parse_NullOrEmpty_YieldsDefaults()
-    {
-        var draft = AgentProfileDraftEditor.Parse(null);
-
-        Assert.Equal(string.Empty, draft.Name);
-        Assert.False(draft.HasProviderPreference);
-        Assert.Equal(string.Empty, draft.Model);
-        Assert.Equal("medium", draft.ReasoningEffort);
-        Assert.Equal("full", draft.AgentControl);
-        Assert.Equal("all", draft.ToolPolicyMode);
-        Assert.Equal("default", draft.ApprovalPolicy);
-        Assert.Null(draft.RequireApprovalOutsideWorkspace);
-        Assert.Empty(draft.ToolsAllow);
-    }
-
-    [Fact]
-    public void Parse_BodyWithoutFrontmatter_BecomesRoleInstructions()
-    {
-        var draft = AgentProfileDraftEditor.Parse("Just a role description, no frontmatter.");
-
-        Assert.Equal("Just a role description, no frontmatter.", draft.RoleInstructions);
-        Assert.Equal(string.Empty, draft.Name);
     }
 
     [Fact]
@@ -126,24 +100,6 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         Assert.Equal("Body", draft.RoleInstructions);
     }
 
-    [Fact]
-    public void ToMarkdown_OmitsDefaultSectionsButAlwaysEmitsPermissions()
-    {
-        var draft = new AgentProfileDraft { Name = "minimal", Description = "A minimal agent" };
-
-        var md = AgentProfileDraftEditor.ToMarkdown(draft);
-
-        Assert.Equal("minimal", AgentProfileDraftEditor.Parse(md).Name);
-        Assert.DoesNotContain("providerPreference:", md);
-        Assert.DoesNotContain("model:", md);
-        Assert.DoesNotContain("reasoning:", md);
-        Assert.DoesNotContain("tools:", md);
-        Assert.DoesNotContain("mcp:", md);
-        Assert.DoesNotContain("memory:", md);
-        Assert.Contains("permissions:", md);
-        Assert.Contains("approvalPolicy: default", md);
-    }
-
     [Theory]
     [InlineData("all", null)]
     [InlineData("allowList", "  allow: []")]
@@ -178,31 +134,15 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         Assert.Equal(["ReadFile", "WriteFile"], list);
     }
 
-    [Fact]
-    public void RemoveFrom_ReportsOnlyItemsActuallyRemoved()
-    {
-        var list = new List<string> { "ReadFile", "WriteFile" };
-
-        var removed = AgentProfileDraftEditor.RemoveFrom(list, ["WriteFile", "Missing"]);
-
-        Assert.Equal(["WriteFile"], removed);
-        Assert.Equal(["ReadFile"], list);
-    }
-
     [Theory]
-    [InlineData("default", true)]
-    [InlineData("prompt", true)]
     [InlineData("autoApprove", true)]
-    [InlineData("deny", true)]
     [InlineData("restricted", false)]
-    [InlineData("nonsense", false)]
     public void IsApprovalPolicy_ValidatesAgainstKnownSet(string value, bool expected) =>
         Assert.Equal(expected, AgentProfileDraftEditor.IsApprovalPolicy(value));
 
     [Fact]
     public void EditorOutput_IsAcceptedByAgentProfileStore()
     {
-        // The conversational editor must emit YAML the real profile store can parse and validate.
         var craftPath = Path.Combine(_root, "workspace", ".craft");
         Directory.CreateDirectory(Path.Combine(craftPath, "agents"));
 

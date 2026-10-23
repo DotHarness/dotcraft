@@ -52,23 +52,7 @@ describe('openConversationLink', () => {
     useToastStore.setState({ toasts: [] })
   })
 
-  it('opens file links in viewer and shows detail panel', async () => {
-    const ok = await openConversationLink({
-      target: './README.md',
-      workspacePath: 'C:/repo',
-      threadId: 'thread-1',
-      t
-    })
-    expect(ok).toBe(true)
-    expect(authorizeFileMock).toHaveBeenCalledWith({ absolutePath: 'C:/repo/README.md' })
-    expect(classifyMock).toHaveBeenCalledWith({ absolutePath: 'C:/repo/README.md' })
-    const tabs = useViewerTabStore.getState().getThreadState('thread-1').tabs
-    expect(tabs).toHaveLength(1)
-    expect(tabs[0]?.kind).toBe('file')
-    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(true)
-  })
-
-  it('preserves line and column hints on newly opened file viewer tabs', async () => {
+  it('opens file links with line and column hints in the viewer and shows the detail panel', async () => {
     const ok = await openConversationLink({
       target: './README.md:7:2',
       workspacePath: 'C:/repo',
@@ -77,13 +61,14 @@ describe('openConversationLink', () => {
     })
     expect(ok).toBe(true)
     expect(authorizeFileMock).toHaveBeenCalledWith({ absolutePath: 'C:/repo/README.md' })
-    const tabs = useViewerTabStore.getState().getThreadState('thread-1').tabs
-    expect(tabs).toHaveLength(1)
-    expect(tabs[0]).toMatchObject({
+    expect(useViewerTabStore.getState().getThreadState('thread-1').tabs[0]).toMatchObject({
       kind: 'file',
       absolutePath: 'C:/repo/README.md',
       navigationHint: { line: 7, column: 2 }
     })
+    expect(classifyMock).toHaveBeenCalledWith({ absolutePath: 'C:/repo/README.md' })
+    expect(useViewerTabStore.getState().getThreadState('thread-1').tabs).toHaveLength(1)
+    expect(useUIStore.getState().detailPanelPreferredVisible).toBe(true)
   })
 
   it('focuses existing browser tab by normalized URL', async () => {
@@ -179,7 +164,7 @@ describe('openConversationLink', () => {
     }
   })
 
-  it('hands off external links without opening panel', async () => {
+  it('hands off external links without opening panel and toasts on unsupported links', async () => {
     useUIStore.getState().setDetailPanelVisible(false)
     const ok = await openConversationLink({
       target: 'mailto:test@example.com',
@@ -190,16 +175,14 @@ describe('openConversationLink', () => {
     expect(ok).toBe(true)
     expect(shellOpenExternalMock).toHaveBeenCalledWith('mailto:test@example.com')
     expect(useUIStore.getState().detailPanelPreferredVisible).toBe(false)
-  })
 
-  it('toasts on unsupported links', async () => {
-    const ok = await openConversationLink({
+    const rejected = await openConversationLink({
       target: 'javascript:alert(1)',
       workspacePath: 'C:/repo',
       threadId: 'thread-1',
       t
     })
-    expect(ok).toBe(false)
+    expect(rejected).toBe(false)
     const toasts = useToastStore.getState().toasts
     expect(toasts).toHaveLength(1)
     expect(toasts[0]?.message).toBe('conversation.deepLink.rejectUnsupported')

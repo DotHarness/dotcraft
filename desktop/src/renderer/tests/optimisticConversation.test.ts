@@ -7,62 +7,8 @@ const s = () => useConversationStore.getState()
 function makeTurn(overrides: Record<string, unknown> = {}): Record<string, unknown> { return { id: 'turn-1', threadId: 'thread-1', status: 'running', items: [], startedAt: new Date().toISOString(), ...overrides } }
 beforeEach(() => s().reset())
 describe('optimistic turns', () => {
-  it('addOptimisticTurn immediately adds the turn and sets running state', () => {
-    const optimisticTurn: import('../types/conversation').ConversationTurn = {
-      id: 'local-turn-1',
-      threadId: 'thread-1',
-      status: 'running',
-      items: [
-        {
-          id: 'local-item-1',
-          clientUserMessageId: 'initial',
-          type: 'userMessage',
-          status: 'completed',
-          text: 'Hello',
-          createdAt: new Date().toISOString()
-        }
-      ],
-      startedAt: new Date().toISOString()
-    }
-    s().addOptimisticTurn(optimisticTurn)
-
-    expect(s().turns).toHaveLength(1)
-    expect(s().turns[0].id).toBe('local-turn-1')
-    expect(s().turns[0].items[0].text).toBe('Hello')
-    expect(s().turnStatus).toBe('running')
-  })
-
-  it('onTurnStarted replaces optimistic turn, preserving user message items', () => {
-    const optimisticTurn: import('../types/conversation').ConversationTurn = {
-      id: 'local-turn-1',
-      threadId: 'thread-1',
-      status: 'running',
-      items: [
-        {
-          id: 'local-item-1',
-          clientUserMessageId: 'initial',
-          type: 'userMessage',
-          status: 'completed',
-          text: 'Hello',
-          createdAt: new Date().toISOString()
-        }
-      ],
-      startedAt: new Date().toISOString()
-    }
-    s().addOptimisticTurn(optimisticTurn)
-
-    s().onTurnStarted(makeTurn({ id: 'real-turn-1', items: [] }))
-    s().promoteOptimisticTurn('local-turn-1', 'real-turn-1')
-
-    const state = s()
-    expect(state.turns).toHaveLength(1)
-    expect(state.turns[0].id).toBe('real-turn-1')
-    expect(state.turns[0].items[0].text).toBe('Hello')
-    expect(state.turns[0].items[0].type).toBe('userMessage')
-  })
-
   it('removeOptimisticTurn removes the turn and resets running state', () => {
-    const optimisticTurn: import('../types/conversation').ConversationTurn = {
+    const optimisticTurn: ConversationTurn = {
       id: 'local-turn-fail',
       threadId: 'thread-1',
       status: 'running',
@@ -76,35 +22,6 @@ describe('optimistic turns', () => {
     expect(s().turns).toHaveLength(0)
     expect(s().turnStatus).toBe('idle')
     expect(s().activeTurnId).toBeNull()
-  })
-
-  it('promoteOptimisticTurn replaces local ID with server ID in turns and activeTurnId', () => {
-    const optimisticTurn: import('../types/conversation').ConversationTurn = {
-      id: 'local-turn-123',
-      threadId: 'thread-1',
-      status: 'running',
-      items: [
-        {
-          id: 'local-item-1',
-          clientUserMessageId: 'initial',
-          type: 'userMessage',
-          status: 'completed',
-          text: 'Hello',
-          createdAt: new Date().toISOString()
-        }
-      ],
-      startedAt: new Date().toISOString()
-    }
-    s().addOptimisticTurn(optimisticTurn)
-    expect(s().activeTurnId).toBe('local-turn-123')
-
-    s().promoteOptimisticTurn('local-turn-123', 'turn_server_abc')
-
-    const state = s()
-    expect(state.activeTurnId).toBe('turn_server_abc')
-    expect(state.turns).toHaveLength(1)
-    expect(state.turns[0].id).toBe('turn_server_abc')
-    expect(state.turns[0].items[0].text).toBe('Hello')
   })
 
   it('preserveExistingRealtime prefers the server userMessage over the promoted optimistic preview', () => {
@@ -433,8 +350,7 @@ describe('optimistic turns', () => {
   })
 
   it('promoteOptimisticTurn does not change activeTurnId if it was already replaced', () => {
-    // Simulate race: turn/started arrived before turn/start response and already updated activeTurnId
-    const optimisticTurn: import('../types/conversation').ConversationTurn = {
+    const optimisticTurn: ConversationTurn = {
       id: 'local-turn-999',
       threadId: 'thread-1',
       status: 'running',
@@ -448,9 +364,8 @@ describe('optimistic turns', () => {
     expect(s().activeTurnId).toBe('turn_server_xyz')
   })
 
-  it('Scenario B: onTurnStarted does not create duplicate when promoteOptimisticTurn ran first', () => {
-    // Scenario B: RPC response arrives BEFORE the turn/started notification
-    const optimisticTurn: import('../types/conversation').ConversationTurn = {
+  it('onTurnStarted does not create duplicate when promoteOptimisticTurn ran first', () => {
+    const optimisticTurn: ConversationTurn = {
       id: 'local-turn-456',
       threadId: 'thread-1',
       status: 'running',
@@ -485,9 +400,8 @@ describe('optimistic turns', () => {
     expect(state.activeTurnId).toBe('turn_001')
   })
 
-  it('Scenario A: onTurnStarted notification arrives before RPC response (existing happy path)', () => {
-    // Scenario A: notification arrives before RPC response — existing behaviour
-    const optimisticTurn: import('../types/conversation').ConversationTurn = {
+  it('promotion after turn/started keeps one turn with the optimistic user message', () => {
+    const optimisticTurn: ConversationTurn = {
       id: 'local-turn-789',
       threadId: 'thread-1',
       status: 'running',
@@ -515,7 +429,7 @@ describe('optimistic turns', () => {
     expect(s().activeTurnId).toBe('turn_002')
   })
 
-  it('Scenario A: onTurnStarted replaces matching optimistic user message with canonical server item', () => {
+  it('onTurnStarted before promotion replaces matching optimistic user message with canonical server item', () => {
     s().addOptimisticTurn({
       id: 'local-turn-canonical-first',
       threadId: 'thread-1',
@@ -561,7 +475,6 @@ describe('optimistic turns', () => {
     expect(userMessages[0].id).toBe('server-user-canonical-first')
   })
 })
-
 
 it('correlates page captures independently of image count and keeps identical subsequent submissions', () => {
   const { inputParts } = buildComposerInputParts({ text: '', contexts: [{ id: 'page', kind: 'pageReference', url: 'https://example.test', title: 'Page', selectionKind: 'region', text: '', comment: 'Update', image: { tempPath: '/page.png', fileName: 'page.png', mimeType: 'image/png' } }] })

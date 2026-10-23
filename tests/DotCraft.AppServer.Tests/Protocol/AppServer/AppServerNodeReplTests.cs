@@ -43,21 +43,13 @@ public sealed class AppServerNodeReplTests
     }
 
     [Fact]
-    public async Task Initialize_WithBrowserUseBackends_PreservesLegacyBackendAndBackendsList()
+    public async Task Initialize_WithBrowserUseCapabilities_PreservesBackendsAndChromeRuntimeMetadata()
     {
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync(nodeReplBrowserUse: true, browserUseBackends: ["desktop-iab", "chrome-extension"]);
 
         Assert.Equal("desktop-iab", harness.Connection.BrowserUse?.Backend);
         Assert.Equal(["desktop-iab", "chrome-extension"], harness.Connection.BrowserUseBackends);
-    }
-
-    [Fact]
-    public async Task Initialize_WithBrowserUseCapabilities_PreservesChromeRuntimeMetadata()
-    {
-        using var harness = new AppServerTestHarness();
-        await harness.InitializeAsync(nodeReplBrowserUse: true, browserUseBackends: ["desktop-iab", "chrome-extension"]);
-
         Assert.Equal(1, harness.Connection.BrowserUse?.BrowserSessionProtocolVersion);
         Assert.True(harness.Connection.BrowserUse?.SupportsCommandCancel);
         Assert.Equal(1048576, harness.Connection.BrowserUse?.MaxBrowserResultBytes);

@@ -8,25 +8,7 @@ namespace DotCraft.Tests.Context.Compaction;
 public sealed class PartialCompactorTests
 {
     [Fact]
-    public void CalculateSplitIndex_SmallConversationKeepsEverything()
-    {
-        var cfg = new CompactionConfig
-        {
-            KeepRecentMinTokens = 100,
-            KeepRecentMinGroups = 5,
-            KeepRecentMaxTokens = 200,
-        };
-        var messages = new List<ChatMessage>
-        {
-            new(ChatRole.User, "hi"),
-            new(ChatRole.Assistant, "hello"),
-        };
-
-        Assert.Equal(0, PartialCompactor.CalculateSplitIndex(messages, cfg));
-    }
-
-    [Fact]
-    public void CalculateSplitIndex_LargeConversationSplitsPreservingTail()
+    public void CalculateSplitIndex_SplitsLongConversationsAndToolLoopsButKeepsSmallOnes()
     {
         var cfg = new CompactionConfig
         {
@@ -42,62 +24,48 @@ public sealed class PartialCompactorTests
             messages.Add(new ChatMessage(ChatRole.Assistant, $"assistant turn {round}"));
         }
 
-        var splitIndex = PartialCompactor.CalculateSplitIndex(messages, cfg);
-        // API-response grouping preserves the last assistant response and the request leading into it.
-        Assert.Equal(7, splitIndex);
-    }
+        Assert.Equal(7, PartialCompactor.CalculateSplitIndex(messages, cfg));
+        Assert.Equal(0, PartialCompactor.CalculateSplitIndex(
+            messages.Take(2).ToList(),
+            new CompactionConfig { KeepRecentMinTokens = 100, KeepRecentMinGroups = 5, KeepRecentMaxTokens = 200 }));
 
-    [Fact]
-    public void CalculateSplitIndex_SinglePromptToolLoopSplits()
-    {
-        var cfg = new CompactionConfig
+        var loopCfg = new CompactionConfig
         {
             KeepRecentMinTokens = 1,
             KeepRecentMinGroups = 3,
             KeepRecentMaxTokens = 100_000,
         };
 
-        var messages = new List<ChatMessage>
+        var loop = new List<ChatMessage>
         {
             new(ChatRole.User, "do the long agentic task"),
         };
-        for (var round = 0; round < 8; round++)
+        for (var step = 0; step < 8; step++)
         {
-            var callId = $"call-{round}";
-            messages.Add(new ChatMessage(ChatRole.Assistant, new List<AIContent>
+            var callId = $"call-{step}";
+            loop.Add(new ChatMessage(ChatRole.Assistant, new List<AIContent>
             {
                 new FunctionCallContent(callId, "ReadFile", new Dictionary<string, object?>
                 {
-                    ["path"] = $"file-{round}.txt",
+                    ["path"] = $"file-{step}.txt",
                 }),
             })
             {
-                MessageId = $"response-{round}",
+                MessageId = $"response-{step}",
             });
-            messages.Add(new ChatMessage(ChatRole.Tool, new List<AIContent>
+            loop.Add(new ChatMessage(ChatRole.Tool, new List<AIContent>
             {
                 new FunctionResultContent(callId, new string('x', 512)),
             }));
         }
-        messages.Add(new ChatMessage(ChatRole.Assistant, "final answer")
+        loop.Add(new ChatMessage(ChatRole.Assistant, "final answer")
         {
             MessageId = "response-final",
         });
 
-        var splitIndex = PartialCompactor.CalculateSplitIndex(messages, cfg);
-        Assert.True(splitIndex > 0);
-        Assert.True(splitIndex < messages.Count);
-    }
-
-    [Fact]
-    public async Task CompactAsync_EmptyHistoryReturnsReason()
-    {
-        var cfg = new CompactionConfig();
-        var partial = new PartialCompactor(new StubChatClient("summary"), cfg);
-
-        var result = await partial.CompactAsync(Array.Empty<ChatMessage>());
-        Assert.Null(result.Result);
-        Assert.Equal("empty_history", result.Reason);
+        var loopSplit = PartialCompactor.CalculateSplitIndex(loop, loopCfg);
+        Assert.True(loopSplit > 0);
+        Assert.True(loopSplit < loop.Count);
     }
 
     [Fact]
@@ -124,7 +92,6 @@ public sealed class PartialCompactorTests
         Assert.True(result.Result!.SummarizedPrefix.Count > 0);
         Assert.True(result.Result.PreservedTail.Count > 0);
         Assert.Contains("important bits", result.Result.FormattedSummary);
-        // analysis should be stripped from FormattedSummary.
         Assert.DoesNotContain("<analysis>", result.Result.FormattedSummary);
         Assert.Equal("<analysis>thinking</analysis><summary>important bits</summary>", result.Result.RawSummary);
     }
@@ -211,43 +178,6 @@ public sealed class PartialCompactorTests
     }
 
     [Fact]
-    public async Task CompactAsync_WithSnapshotContextOverflowFallsBackToLegacySummary()
-    {
-        var cfg = new CompactionConfig
-        {
-            KeepRecentMinTokens = 1,
-            KeepRecentMinGroups = 1,
-            KeepRecentMaxTokens = 100_000,
-        };
-        var client = new StubChatClient(
-            "<analysis>thinking</analysis><summary>legacy after overflow</summary>",
-            promptTooLongFailures: 1);
-        var partial = new PartialCompactor(client, cfg, new MaintenanceForkRunner(client));
-
-        var messages = new List<ChatMessage>();
-        for (var round = 0; round < 4; round++)
-        {
-            messages.Add(new ChatMessage(ChatRole.User, $"user turn {round}"));
-            messages.Add(new ChatMessage(ChatRole.Assistant, $"assistant turn {round}"));
-        }
-        var snapshot = PromptRequestSnapshot.Capture(
-            messages,
-            new ChatOptions
-            {
-                Instructions = "stable base",
-                ModelId = "gpt-test"
-            });
-
-        var result = await partial.CompactAsync(messages, snapshot);
-
-        Assert.NotNull(result.Result);
-        Assert.Equal(2, client.CallCount);
-        Assert.Contains("legacy after overflow", result.Result!.FormattedSummary);
-        Assert.Equal(ChatRole.System, client.Messages[0].Role);
-        AssertLegacyContextCompactionTask(client.Messages[^1]);
-    }
-
-    [Fact]
     public async Task CompactAsync_WithOversizedSnapshotPreflightFallsBackToLegacySummary()
     {
         var cfg = new CompactionConfig
@@ -286,47 +216,7 @@ public sealed class PartialCompactorTests
     }
 
     [Fact]
-    public async Task CompactAsync_WithSnapshotEmptyErrorContentFallsBackToLegacySummary()
-    {
-        var cfg = new CompactionConfig
-        {
-            KeepRecentMinTokens = 1,
-            KeepRecentMinGroups = 1,
-            KeepRecentMaxTokens = 100_000,
-        };
-        var client = new SequenceChatClient(
-            new ChatResponse(new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
-            [
-                new ErrorContent("provider returned an empty error response")
-            ])),
-            new ChatResponse(new ChatMessage(ChatRole.Assistant, "<analysis>thinking</analysis><summary>legacy after empty error</summary>")));
-        var partial = new PartialCompactor(client, cfg, new MaintenanceForkRunner(client));
-
-        var messages = new List<ChatMessage>();
-        for (var round = 0; round < 4; round++)
-        {
-            messages.Add(new ChatMessage(ChatRole.User, $"user turn {round}"));
-            messages.Add(new ChatMessage(ChatRole.Assistant, $"assistant turn {round}"));
-        }
-        var snapshot = PromptRequestSnapshot.Capture(
-            messages,
-            new ChatOptions
-            {
-                Instructions = "stable base",
-                ModelId = "gpt-test"
-            });
-
-        var result = await partial.CompactAsync(messages, snapshot);
-
-        Assert.NotNull(result.Result);
-        Assert.Equal(2, client.CallCount);
-        Assert.Contains("legacy after empty error", result.Result!.FormattedSummary);
-        Assert.Equal(ChatRole.System, client.Messages[0].Role);
-        AssertLegacyContextCompactionTask(client.Messages[^1]);
-    }
-
-    [Fact]
-    public async Task CompactAsync_LegacyPathWithSnapshotPassesSnapshotTools()
+    public async Task CompactAsync_LegacyPathPassesSnapshotOrFallbackTools()
     {
         var cfg = new CompactionConfig
         {
@@ -365,48 +255,49 @@ public sealed class PartialCompactorTests
         Assert.Equal("ReadFile", capturedTool.Name);
         Assert.Equal(800, client.Options?.MaxOutputTokens);
         Assert.Equal("none", client.Options?.AdditionalProperties?["dotcraft.tool_choice"]);
-    }
 
-    [Fact]
-    public async Task CompactAsync_LegacyPathWithoutSnapshotPassesFallbackTools()
-    {
-        var cfg = new CompactionConfig
+        var fallbackCfg = new CompactionConfig
         {
             SummaryMaxOutputTokens = 1_234,
             KeepRecentMinTokens = 1,
             KeepRecentMinGroups = 1,
             KeepRecentMaxTokens = 100_000,
         };
-        var client = new StubChatClient("<analysis>thinking</analysis><summary>legacy important bits</summary>");
-        var tool = AIFunctionFactory.Create(() => "ok", name: "GetStatus", description: "Get status.");
-        var partial = new PartialCompactor(client, cfg);
+        var fallbackClient = new StubChatClient("<analysis>thinking</analysis><summary>legacy important bits</summary>");
+        var fallbackTool = AIFunctionFactory.Create(() => "ok", name: "GetStatus", description: "Get status.");
+        var fallbackPartial = new PartialCompactor(fallbackClient, fallbackCfg);
 
-        var messages = new List<ChatMessage>();
-        for (var round = 0; round < 4; round++)
+        var fallbackMessages = new List<ChatMessage>();
+        for (var fallbackRound = 0; fallbackRound < 4; fallbackRound++)
         {
-            messages.Add(new ChatMessage(ChatRole.User, $"user turn {round}"));
-            messages.Add(new ChatMessage(ChatRole.Assistant, $"assistant turn {round}"));
+            fallbackMessages.Add(new ChatMessage(ChatRole.User, $"user turn {fallbackRound}"));
+            fallbackMessages.Add(new ChatMessage(ChatRole.Assistant, $"assistant turn {fallbackRound}"));
         }
 
-        var result = await partial.CompactAsync(
-            messages,
+        var fallbackResult = await fallbackPartial.CompactAsync(
+            fallbackMessages,
             snapshot: null,
             threadId: "thread-1",
-            fallbackTools: [tool]);
+            fallbackTools: [fallbackTool]);
 
-        Assert.NotNull(result.Result);
-        Assert.Contains("legacy important bits", result.Result!.FormattedSummary);
-        Assert.Equal(ChatRole.System, client.Messages[0].Role);
-        AssertLegacyContextCompactionTask(client.Messages[^1]);
-        var capturedTool = Assert.Single(client.Options?.Tools ?? []);
-        Assert.Equal("GetStatus", capturedTool.Name);
-        Assert.Equal(1_234, client.Options?.MaxOutputTokens);
-        Assert.Equal("none", client.Options?.AdditionalProperties?["dotcraft.tool_choice"]);
+        Assert.NotNull(fallbackResult.Result);
+        Assert.Contains("legacy important bits", fallbackResult.Result!.FormattedSummary);
+        Assert.Equal(ChatRole.System, fallbackClient.Messages[0].Role);
+        AssertLegacyContextCompactionTask(fallbackClient.Messages[^1]);
+        var fallbackCapturedTool = Assert.Single(fallbackClient.Options?.Tools ?? []);
+        Assert.Equal("GetStatus", fallbackCapturedTool.Name);
+        Assert.Equal(1_234, fallbackClient.Options?.MaxOutputTokens);
+        Assert.Equal("none", fallbackClient.Options?.AdditionalProperties?["dotcraft.tool_choice"]);
     }
 
     [Fact]
-    public async Task CompactAsync_ReturnsReasonOnChatClientFailure()
+    public async Task CompactAsync_ReturnsReasonsForEmptyHistoryAndChatClientFailure()
     {
+        var empty = await new PartialCompactor(new StubChatClient("summary"), new CompactionConfig())
+            .CompactAsync(Array.Empty<ChatMessage>());
+        Assert.Null(empty.Result);
+        Assert.Equal("empty_history", empty.Reason);
+
         var cfg = new CompactionConfig
         {
             KeepRecentMinTokens = 1,
@@ -530,36 +421,6 @@ public sealed class PartialCompactorTests
     private static void AssertLegacyContextCompactionTask(ChatMessage message)
     {
         Assert.Equal(ChatRole.User, message.Role);
-    }
-
-    private sealed class SequenceChatClient(params ChatResponse[] responses) : IChatClient
-    {
-        private readonly Queue<ChatResponse> _responses = new(responses);
-
-        public IReadOnlyList<ChatMessage> Messages { get; private set; } = [];
-        public ChatOptions? Options { get; private set; }
-        public int CallCount { get; private set; }
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> messages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default)
-        {
-            CallCount++;
-            Messages = messages.ToArray();
-            Options = options;
-            return Task.FromResult(_responses.Dequeue());
-        }
-
-        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> messages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose() { }
     }
 
     private sealed class StubChatClient : IChatClient

@@ -29,21 +29,6 @@ describe('UserInputAutoResolutionCoordinator', () => {
     }
   }
 
-  it('does not schedule blocking requests', () => {
-    const { coordinator, resolved } = createCoordinator()
-    coordinator.track({
-      bridgeId: '1',
-      threadId: 'thread_1',
-      requestId: 'request_1',
-      isBlocking: true
-    })
-
-    vi.runAllTimers()
-
-    expect(coordinator.getSnapshot()).toEqual([])
-    expect(resolved).toEqual([])
-  })
-
   it('waits for foreground inactivity before starting auto-resolution', () => {
     const { coordinator, resolved } = createCoordinator()
     coordinator.setWindowFocused(true)
@@ -125,8 +110,15 @@ describe('UserInputAutoResolutionCoordinator', () => {
     expect(resolved).toEqual([])
   })
 
-  it('cancels timers when a request is manually resolved or the connection closes', () => {
+  it('never schedules blocking requests and cancels timers on manual resolution or disconnect', () => {
     const { coordinator, resolved } = createCoordinator()
+    coordinator.track({
+      bridgeId: '1',
+      threadId: 'thread_1',
+      requestId: 'request_1',
+      isBlocking: true
+    })
+    expect(coordinator.getSnapshot()).toEqual([])
     coordinator.track({
       bridgeId: '5',
       threadId: 'thread_1',

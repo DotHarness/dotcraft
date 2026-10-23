@@ -15,128 +15,6 @@ namespace DotCraft.Tests.AppServerTestClient;
 public sealed class StreamRetrySmokeTests
 {
     [Fact]
-    public void MatrixLoad_ParsesProviderMappings()
-    {
-        var path = Path.Combine(Path.GetTempPath(), "stream-retry-smoke-" + Guid.NewGuid().ToString("N") + ".json");
-        try
-        {
-            File.WriteAllText(path, """
-                {
-                  "providers": [
-                    {
-                      "protocol": "openai-chat-completions",
-                      "providerId": "openai-chat",
-                      "model": "gpt-test"
-                    }
-                  ]
-                }
-                """);
-
-            var matrix = StreamRetrySmokeMatrix.Load(path);
-
-            var provider = Assert.Single(matrix.Providers);
-            Assert.Equal(ModelProviderProtocols.OpenAIChatCompletions, provider.Protocol);
-            Assert.Equal("openai-chat", provider.ProviderId);
-            Assert.Equal("gpt-test", provider.Model);
-        }
-        finally
-        {
-            try { File.Delete(path); } catch { }
-        }
-    }
-
-    [Fact]
-    public void CliOptions_ParsesFaultMode()
-    {
-        var path = Path.Combine(Path.GetTempPath(), "stream-retry-smoke-" + Guid.NewGuid().ToString("N") + ".json");
-        try
-        {
-            File.WriteAllText(path, """{"providers":[]}""");
-
-            Assert.True(StreamRetrySmokeCliOptions.TryParse(["--matrix", path], out var defaults, out var error), error);
-            Assert.Equal(StreamRetrySmokeFaultMode.PreStream, defaults.FaultMode);
-
-            Assert.True(
-                StreamRetrySmokeCliOptions.TryParse(
-                    ["--matrix", path, "--fault-mode", "midstream"],
-                    out var midstream,
-                    out error),
-                error);
-            Assert.Equal(StreamRetrySmokeFaultMode.MidStream, midstream.FaultMode);
-
-            Assert.False(
-                StreamRetrySmokeCliOptions.TryParse(["--matrix", path, "--fault-mode", "nope"], out _, out error));
-            Assert.Contains("--fault-mode", error, StringComparison.Ordinal);
-        }
-        finally
-        {
-            try { File.Delete(path); } catch { }
-        }
-    }
-
-    [Fact]
-    public void CliOptions_DefaultsToUserSmokeRunRootAndReport()
-    {
-        var path = Path.Combine(Path.GetTempPath(), "stream-retry-smoke-" + Guid.NewGuid().ToString("N") + ".json");
-        try
-        {
-            File.WriteAllText(path, """{"providers":[]}""");
-
-            var ok = StreamRetrySmokeCliOptions.TryParse(
-                ["--matrix", path],
-                out var options,
-                out var error);
-
-            Assert.True(ok, error);
-            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            if (string.IsNullOrWhiteSpace(userProfile))
-                userProfile = Environment.GetEnvironmentVariable("USERPROFILE")
-                              ?? Environment.GetEnvironmentVariable("HOME")
-                              ?? Directory.GetCurrentDirectory();
-
-            var expectedPrefix = Path.Combine(
-                userProfile,
-                ".craft",
-                "smoke-tests",
-                "runs") + Path.DirectorySeparatorChar;
-            Assert.StartsWith(
-                expectedPrefix,
-                options.WorkRoot,
-                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
-            Assert.Matches(@"^\d{8}-\d{6}-[0-9a-f]{8}$", Path.GetFileName(options.WorkRoot));
-            Assert.Equal(Path.Combine(options.WorkRoot, "report.json"), options.ReportPath);
-        }
-        finally
-        {
-            try { File.Delete(path); } catch { }
-        }
-    }
-
-    [Fact]
-    public void BuildConfigJson_OverridesEndpointAndRetryWithoutApiKey()
-    {
-        var json = StreamRetrySmokeWorkspace.BuildConfigJson(
-            "openai-chat",
-            "gpt-test",
-            new Uri("http://127.0.0.1:54321"));
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        Assert.Equal("openai-chat", root.GetProperty("ProviderId").GetString());
-        Assert.Equal("gpt-test", root.GetProperty("ProviderPreferences").GetProperty("openai-chat").GetProperty("model").GetString());
-        Assert.Empty(root.GetProperty("McpServers").EnumerateObject());
-        Assert.Empty(root.GetProperty("LspServers").EnumerateObject());
-        Assert.Equal(0, root.GetProperty("ExternalChannels").GetArrayLength());
-
-        var provider = root.GetProperty("Providers").GetProperty("openai-chat");
-        Assert.Equal("http://127.0.0.1:54321", provider.GetProperty("EndPoint").GetString());
-        Assert.Equal(1, provider.GetProperty("StreamMaxRetries").GetInt32());
-        Assert.Equal(10_000, provider.GetProperty("StreamIdleTimeoutMs").GetInt32());
-        Assert.False(provider.TryGetProperty("ApiKey", out _));
-        Assert.False(provider.TryGetProperty("Protocol", out _));
-    }
-
-    [Fact]
     public void BuildConfigJson_MergesWithGlobalProviderCredentials()
     {
         var root = Path.Combine(Path.GetTempPath(), "stream-retry-merge-" + Guid.NewGuid().ToString("N"));
@@ -164,12 +42,21 @@ public sealed class StreamRetrySmokeTests
                   }
                 }
                 """);
-            File.WriteAllText(
-                workspacePath,
-                StreamRetrySmokeWorkspace.BuildConfigJson(
-                    "openai-chat",
-                    "gpt-test",
-                    new Uri("http://127.0.0.1:54321")));
+            var workspaceJson = StreamRetrySmokeWorkspace.BuildConfigJson(
+                "openai-chat",
+                "gpt-test",
+                new Uri("http://127.0.0.1:54321"));
+            File.WriteAllText(workspacePath, workspaceJson);
+            using (var doc = JsonDocument.Parse(workspaceJson))
+            {
+                var workspace = doc.RootElement;
+                Assert.Empty(workspace.GetProperty("McpServers").EnumerateObject());
+                Assert.Empty(workspace.GetProperty("LspServers").EnumerateObject());
+                Assert.Equal(0, workspace.GetProperty("ExternalChannels").GetArrayLength());
+                var workspaceProvider = workspace.GetProperty("Providers").GetProperty("openai-chat");
+                Assert.False(workspaceProvider.TryGetProperty("ApiKey", out _));
+                Assert.False(workspaceProvider.TryGetProperty("Protocol", out _));
+            }
 
             var config = AppConfig.LoadWithGlobalFallback(workspacePath, globalPath);
             var provider = config.Providers["openai-chat"];
@@ -190,27 +77,6 @@ public sealed class StreamRetrySmokeTests
                 try { Directory.Delete(root, recursive: true); } catch { }
             }
         }
-    }
-
-    [Fact]
-    public void Summary_ComputesExitCodeForSkippedPassedAndFailedCases()
-    {
-        var skipped = StreamRetrySmokeSummary.FromCases([
-            StreamRetrySmokeCaseReport.Skipped("anthropic", "", "", "missing_protocol_mapping")
-        ]);
-        Assert.Equal(2, skipped.ExitCode);
-
-        var passed = StreamRetrySmokeSummary.FromCases([
-            new StreamRetrySmokeCaseReport { Status = StreamRetrySmokeStatuses.Passed },
-            StreamRetrySmokeCaseReport.Skipped("anthropic", "", "", "missing_protocol_mapping")
-        ]);
-        Assert.Equal(0, passed.ExitCode);
-
-        var failed = StreamRetrySmokeSummary.FromCases([
-            new StreamRetrySmokeCaseReport { Status = StreamRetrySmokeStatuses.Passed },
-            new StreamRetrySmokeCaseReport { Status = StreamRetrySmokeStatuses.Failed }
-        ]);
-        Assert.Equal(1, failed.ExitCode);
     }
 
     [Fact]

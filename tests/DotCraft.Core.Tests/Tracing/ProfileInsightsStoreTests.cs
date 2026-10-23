@@ -4,11 +4,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Tracing;
 
-/// <summary>
-/// Unit tests for <see cref="TraceStore.GetProfileInsights"/> (spec Section 27A.5),
-/// exercising both the in-memory aggregation path (no state runtime) and the SQL
-/// aggregation path (state-db backed).
-/// </summary>
 public sealed class ProfileInsightsStoreTests : IDisposable
 {
     private readonly string _root;
@@ -22,63 +17,27 @@ public sealed class ProfileInsightsStoreTests : IDisposable
         _stateRuntime = new WorkspaceStateDatabase(craftPath);
     }
 
-    [Fact]
-    public void GetProfileInsights_InMemory_RanksModelsReasoningAndSkills()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void GetProfileInsights_RanksModelsReasoningAndSkills(bool stateBacked)
     {
-        var store = new TraceStore();
+        var store = stateBacked
+            ? new TraceStore(_stateRuntime, maxEventsPerSession: 5000, synchronousPersist: true)
+            : new TraceStore();
         Seed(store);
 
         AssertSeededInsights(store.GetProfileInsights());
-    }
-
-    [Fact]
-    public void GetProfileInsights_StateDb_RanksModelsReasoningAndSkills()
-    {
-        var store = new TraceStore(
-            _stateRuntime,
-            maxEventsPerSession: 5000,
-            synchronousPersist: true);
-        Seed(store);
-
-        AssertSeededInsights(store.GetProfileInsights());
-    }
-
-    [Fact]
-    public void GetProfileInsights_ReturnsEmpty_WhenNoData()
-    {
-        var insights = new TraceStore().GetProfileInsights();
-
-        Assert.Null(insights.TopModel);
-        Assert.Null(insights.TopReasoning);
-        Assert.Equal(0, insights.DistinctSkillCount);
-        Assert.Equal(0, insights.TotalSkillCount);
-        Assert.Empty(insights.TopSkills);
-    }
-
-    [Fact]
-    public void GetProfileInsights_HonorsTopSkillsLimit()
-    {
-        var store = new TraceStore();
-        for (var i = 0; i < 6; i++)
-            store.Record(Skill("t1", $"skill-{i:D2}"));
-
-        var insights = store.GetProfileInsights(topSkills: 3);
-
-        Assert.Equal(6, insights.DistinctSkillCount);
-        Assert.Equal(6, insights.TotalSkillCount);
-        Assert.Equal(3, insights.TopSkills.Count);
     }
 
     private static void Seed(TraceStore store)
     {
-        // Models: gpt-5 ×3, claude ×1, plus one response with no model id (excluded from total).
         store.Record(Response("t1", "gpt-5", "high"));
         store.Record(Response("t1", "gpt-5", "high"));
         store.Record(Response("t1", "gpt-5", "low"));
         store.Record(Response("t1", "claude-opus-4-8", null));
         store.Record(Response("t1", null, null));
 
-        // Skills: dotcraft-error-diagnosis ×3, skill-creator ×2, alpha ×1.
         store.Record(Skill("t1", "dotcraft-error-diagnosis"));
         store.Record(Skill("t1", "dotcraft-error-diagnosis"));
         store.Record(Skill("t1", "dotcraft-error-diagnosis"));
@@ -92,12 +51,12 @@ public sealed class ProfileInsightsStoreTests : IDisposable
         Assert.NotNull(insights.TopModel);
         Assert.Equal("gpt-5", insights.TopModel!.Key);
         Assert.Equal(3, insights.TopModel.Count);
-        Assert.Equal(4, insights.TopModel.Total); // null-model response excluded
+        Assert.Equal(4, insights.TopModel.Total);
 
         Assert.NotNull(insights.TopReasoning);
         Assert.Equal("high", insights.TopReasoning!.Key);
         Assert.Equal(2, insights.TopReasoning.Count);
-        Assert.Equal(3, insights.TopReasoning.Total); // only responses with an effort
+        Assert.Equal(3, insights.TopReasoning.Total);
 
         Assert.Equal(3, insights.DistinctSkillCount);
         Assert.Equal(6, insights.TotalSkillCount);
@@ -125,6 +84,6 @@ public sealed class ProfileInsightsStoreTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 }

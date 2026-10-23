@@ -12,7 +12,7 @@ import {
 } from './composerDraftBridge'
 
 describe('appendTranscriptToDraft', () => {
-  it('trims and inserts one separating space', () => {
+  it('trims and inserts exactly one separating space', () => {
     const result = appendTranscriptToDraft({
       text: 'Existing',
       segments: [{ type: 'text', value: 'Existing' }],
@@ -22,6 +22,12 @@ describe('appendTranscriptToDraft', () => {
 
     expect(result.text).toBe('Existing spoken words')
     expect(result.segments).toEqual([{ type: 'text', value: 'Existing spoken words' }])
+    expect(appendTranscriptToDraft({
+      text: 'Existing ',
+      segments: [{ type: 'text', value: 'Existing ' }],
+      images: [],
+      files: []
+    }, 'words').text).toBe('Existing words')
   })
 
   it('preserves structured segments and attachments', () => {
@@ -40,16 +46,6 @@ describe('appendTranscriptToDraft', () => {
     ])
     expect(result.images).toEqual([image])
     expect(result.files).toEqual([file])
-  })
-
-  it('does not add a second space after whitespace', () => {
-    const result = appendTranscriptToDraft({
-      text: 'Existing ',
-      segments: [{ type: 'text', value: 'Existing ' }],
-      images: [],
-      files: []
-    }, 'words')
-    expect(result.text).toBe('Existing words')
   })
 })
 

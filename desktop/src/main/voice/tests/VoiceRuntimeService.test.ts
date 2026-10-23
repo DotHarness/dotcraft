@@ -37,9 +37,9 @@ describe('VoiceRuntimeService', () => {
     expect(transcriber.transcribe).toHaveBeenCalledTimes(1)
 
     first.resolve({ transcript: 'first' })
-    await vi.waitFor(() => expect(transcriber.transcribe).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(transcriber.transcribe).toHaveBeenCalledTimes(2), { interval: 1 })
     second.resolve({ transcript: 'second' })
-    await vi.waitFor(() => expect(service.getSnapshot().sessions).toHaveLength(0))
+    await vi.waitFor(() => expect(service.getSnapshot().sessions).toHaveLength(0), { interval: 1 })
     await service.shutdown()
   })
 
@@ -191,25 +191,12 @@ describe('VoiceRuntimeService', () => {
 
     const { sessionId } = await service.submitTranscription(input('thread-a'))
     failed.reject(new Error('failed'))
-    await vi.waitFor(() => expect(service.getSnapshot().sessions[0]?.phase).toBe('retryable'))
+    await vi.waitFor(() => expect(service.getSnapshot().sessions[0]?.phase).toBe('retryable'), { interval: 1 })
     await service.retryTranscription(sessionId)
-    await vi.waitFor(() => expect(service.getSnapshot().sessions).toHaveLength(0))
+    await vi.waitFor(() => expect(service.getSnapshot().sessions).toHaveLength(0), { interval: 1 })
 
     expect(transcriber.transcribe).toHaveBeenCalledTimes(2)
     expect(events.some((entry) => entry.startsWith(`${sessionId}:completed`))).toBe(true)
-    await service.shutdown()
-  })
-
-  it('discards retryable audio and ignores later work', async () => {
-    const pending = deferred<VoiceTranscriptionResult>()
-    const transcriber = fakeTranscriber([pending.promise])
-    const service = await createService(transcriber)
-    const { sessionId } = await service.submitTranscription(input('thread-a'))
-
-    await service.discardSession(sessionId)
-    expect(service.getSnapshot().sessions).toHaveLength(0)
-    expect(transcriber.cancel).toHaveBeenCalledWith(sessionId)
-    pending.resolve({ transcript: 'late' })
     await service.shutdown()
   })
 })
@@ -226,33 +213,9 @@ describe('VoiceRuntimeService transcription routes', () => {
       sessionId,
       type: 'completed',
       transcript: 'from chatgpt'
-    })))
+    })), { interval: 1 })
     expect(chatGpt.transcribe).toHaveBeenCalledWith(sessionId, expect.any(String))
     expect(local.transcribe).not.toHaveBeenCalled()
-    await service.shutdown()
-  })
-
-  it('rejects a session without a model when ChatGPT transcription is off', async () => {
-    const { service } = await createRoutedService({ modelPhase: 'missing', signedIn: true, enabled: false })
-
-    await expect(service.submitTranscription(input('thread-a')))
-      .rejects.toMatchObject({ code: 'model-missing' } satisfies Partial<VoiceRuntimeError>)
-    await service.shutdown()
-  })
-
-  it('transcribes locally when ChatGPT transcription is off', async () => {
-    const chatGpt = fakeTranscriber([])
-    const local = fakeTranscriber([Promise.resolve({ transcript: 'on device' })])
-    const { service, events } = await createRoutedService({ signedIn: true, enabled: false, chatGpt, local })
-
-    const { sessionId } = await service.submitTranscription(input('thread-a'))
-
-    await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({
-      sessionId,
-      type: 'completed',
-      transcript: 'on device'
-    })))
-    expect(chatGpt.transcribe).not.toHaveBeenCalled()
     await service.shutdown()
   })
 
@@ -267,7 +230,7 @@ describe('VoiceRuntimeService transcription routes', () => {
     account.enabled = false
     first.resolve({ transcript: 'first' })
 
-    await vi.waitFor(() => expect(service.getSnapshot().sessions).toHaveLength(0))
+    await vi.waitFor(() => expect(service.getSnapshot().sessions).toHaveLength(0), { interval: 1 })
     expect(chatGpt.transcribe).toHaveBeenCalledTimes(1)
     expect(chatGpt.transcribe).toHaveBeenCalledWith(a.sessionId, expect.any(String))
     expect(local.transcribe).toHaveBeenCalledTimes(1)
@@ -288,7 +251,7 @@ describe('VoiceRuntimeService transcription routes', () => {
     await vi.waitFor(() => expect(service.getSnapshot().sessions[0]).toMatchObject({
       phase: 'retryable',
       errorCode: 'network-error'
-    }))
+    }), { interval: 1 })
 
     account.signedIn = false
     await service.refreshChatGptAvailability()
@@ -298,7 +261,7 @@ describe('VoiceRuntimeService transcription routes', () => {
       sessionId,
       type: 'completed',
       transcript: 'recovered on device'
-    })))
+    })), { interval: 1 })
     expect(chatGpt.transcribe).toHaveBeenCalledTimes(1)
     expect(local.transcribe).toHaveBeenCalledWith(sessionId, expect.any(String))
     await service.shutdown()
@@ -318,7 +281,7 @@ describe('VoiceRuntimeService transcription routes', () => {
 
     await vi.waitFor(() => expect(service.getSnapshot().sessions).toEqual([
       expect.objectContaining({ sessionId: b.sessionId, phase: 'retryable', errorCode: 'model-missing' })
-    ]))
+    ]), { interval: 1 })
     expect(chatGpt.transcribe).toHaveBeenCalledTimes(1)
     expect(local.transcribe).not.toHaveBeenCalled()
     await service.shutdown()

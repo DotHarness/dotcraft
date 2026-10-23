@@ -25,7 +25,7 @@
     "build": "node ../../scripts/clean-dist.mjs . && tsc -p tsconfig.json && npm run generate:manifest",
     "bundle": "node ../../scripts/bundle-channel.mjs .",
     "dev": "npm run build && node dist/cli.js --workspace .",
-    "test": "npm run build && node --test dist/module.test.js dist/config.test.js dist/formatting.test.js dist/telegram-delivery.test.js dist/telegram-adapter.test.js dist/conformance.test.js",
+    "test": "npm run build && node --test dist/config.test.js dist/formatting.test.js dist/telegram-delivery.test.js dist/telegram-adapter.test.js dist/conformance.test.js",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "engines": {

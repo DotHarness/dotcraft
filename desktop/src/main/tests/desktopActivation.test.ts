@@ -90,68 +90,47 @@ describe('desktop activation protocol', () => {
     }
   })
 
-  it('can activate a secondary workspace but reports it as unfocused until foreground', async () => {
+  it('activates secondary workspaces, reporting them unfocused, even without a foreground workspace', async () => {
     const onActivate = vi.fn()
     const foreground = workspacePath('dotcraft-activation-foreground')
     const secondary = workspacePath('dotcraft-activation-secondary')
-    const handle = await startWorkspaceActivationServer({
+    const withForeground = await startWorkspaceActivationServer({
       workspacePath: foreground,
-      getWindow: () => createWindowState({
-        focused: () => true,
-        visible: () => true,
-        minimized: () => false
-      }),
+      getWindow: () => createWindowState({ focused: () => true }),
       canActivateWorkspace: (workspace) => workspace === secondary,
       isForegroundWorkspace: (workspace) => workspace === foreground,
       onActivate
     })
-
-    try {
-      await expect(requestWorkspaceWindowState(handle.endpoint, secondary)).resolves.toEqual({
-        ok: true,
-        focused: false,
-        visible: true,
-        minimized: false
-      })
-      await expect(requestWorkspaceActivation(handle.endpoint, {
-        workspacePath: secondary,
-        threadId: 'thread_2'
-      })).resolves.toBe(true)
-      expect(onActivate).toHaveBeenCalledWith({
-        workspacePath: secondary,
-        threadId: 'thread_2'
-      })
-    } finally {
-      handle.close()
-    }
-  })
-
-  it('can activate a workspace even when the current window has no foreground workspace yet', async () => {
-    const onActivate = vi.fn()
-    const workspace = workspacePath('dotcraft-activation-no-workspace')
-    const handle = await startWorkspaceActivationServer({
+    const withoutForeground = await startWorkspaceActivationServer({
       workspacePath: '',
-      getWindow: () => createWindowState({
-        focused: () => true,
-        visible: () => true,
-        minimized: () => false
-      }),
+      getWindow: () => createWindowState({ focused: () => true }),
       canActivateWorkspace: () => true,
       isForegroundWorkspace: () => false,
       onActivate
     })
 
     try {
-      await expect(requestWorkspaceActivation(handle.endpoint, {
-        workspacePath: workspace,
+      await expect(requestWorkspaceWindowState(withForeground.endpoint, secondary)).resolves.toEqual({
+        ok: true,
+        focused: false,
+        visible: true,
+        minimized: false
+      })
+      await expect(requestWorkspaceActivation(withForeground.endpoint, {
+        workspacePath: secondary,
+        threadId: 'thread_2'
+      })).resolves.toBe(true)
+      await expect(requestWorkspaceActivation(withoutForeground.endpoint, {
+        workspacePath: secondary,
         threadId: 'thread_3'
       })).resolves.toBe(true)
-      expect(onActivate).toHaveBeenCalledWith({
-        workspacePath: workspace,
-        threadId: 'thread_3'
-      })
+      expect(onActivate.mock.calls).toEqual([
+        [{ workspacePath: secondary, threadId: 'thread_2' }],
+        [{ workspacePath: secondary, threadId: 'thread_3' }]
+      ])
     } finally {
-      handle.close()
+      withForeground.close()
+      withoutForeground.close()
     }
   })
 })

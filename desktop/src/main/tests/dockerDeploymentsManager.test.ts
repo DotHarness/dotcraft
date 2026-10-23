@@ -71,7 +71,6 @@ function makeRunner(
   return { runner, calls, opts }
 }
 
-/** Route a remote command to a canned result by recognizing its allow-listed shape. */
 function route(cmd: string): SshRunResult {
   if (cmd.includes('SSH_OK')) return ok('SSH_OK\ndocker=ok\ncompose=ok')
   if (cmd.includes('DISCOVER_BEGIN')) return ok(DISCOVER_OK)
@@ -126,7 +125,7 @@ describe('DockerDeploymentsManager', () => {
     expect(result.status).toBeUndefined()
     expect(result.message).toContain('[redacted]')
     expect(result.message).not.toContain('fixture-failure-token')
-    expect(calls).toHaveLength(1) // no status refresh on failure
+    expect(calls).toHaveLength(1)
   })
 
   it('update runs backup → pull → up → status in order and reports changed', async () => {
@@ -153,7 +152,7 @@ describe('DockerDeploymentsManager', () => {
     const result = await mgr.action(host, stack, 'update')
     expect(result.ok).toBe(false)
     expect(result.message).toContain('pull')
-    expect(calls).toHaveLength(2) // backup + pull only
+    expect(calls).toHaveLength(2)
   })
 
   it('discovers remote DotCraft compose stacks', async () => {
@@ -180,27 +179,18 @@ describe('DockerDeploymentsManager', () => {
     expect(opts[0]).toMatchObject({ timeoutMs: 30_000, connectTimeoutSec: 8 })
   })
 
-  it('fails token reads with a redacted command error', async () => {
-    const { runner } = makeRunner((cmd) =>
-      cmd.startsWith('cat ')
-        ? fail('cat failed: APPSERVER_TOKEN=fixture-secret-token')
-        : route(cmd)
-    )
-    const mgr = new DockerDeploymentsManager({ runner })
+  it('fails token reads with a redacted command error or when the token file is empty', async () => {
+    const failing = new DockerDeploymentsManager({
+      runner: makeRunner((cmd) => cmd.startsWith('cat ') ? fail('cat failed: APPSERVER_TOKEN=fixture-secret-token') : route(cmd)).runner
+    })
+    const empty = new DockerDeploymentsManager({
+      runner: makeRunner((cmd) => cmd.startsWith('cat ') ? ok('\n') : route(cmd)).runner
+    })
 
-    await expect(mgr.readToken(host, stack)).rejects.toThrow('[redacted]')
-    try {
-      await mgr.readToken(host, stack)
-    } catch (error) {
-      expect(error instanceof Error ? error.message : String(error)).not.toContain('fixture-secret-token')
-    }
-  })
-
-  it('fails token reads when the remote token file is missing or empty', async () => {
-    const { runner } = makeRunner((cmd) => cmd.startsWith('cat ') ? ok('\n') : route(cmd))
-    const mgr = new DockerDeploymentsManager({ runner })
-
-    await expect(mgr.readToken(host, stack)).rejects.toThrow('Remote AppServer token was not found')
+    const error = await failing.readToken(host, stack).catch((reason: Error) => reason)
+    expect((error as Error).message).toContain('[redacted]')
+    expect((error as Error).message).not.toContain('fixture-secret-token')
+    await expect(empty.readToken(host, stack)).rejects.toThrow('Remote AppServer token was not found')
   })
 
   it('does not open an AppServer tunnel when the token read fails', async () => {

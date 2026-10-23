@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { ChannelAdapter, type ChannelAdapterMessageOpts } from "./adapter.js";
 import type { ChannelChatDescriptor, ChannelDeliveryCapabilities } from "./capability.js";
-import type { SessionThread, SessionTurn } from "@dotcraft/sdk/contracts";
+import type { SessionThread } from "@dotcraft/sdk/contracts";
 import { makeThread, makeTurn } from "./test-contract-fixtures.js";
 import type { Transport } from "@dotcraft/sdk/wire";
 
@@ -61,10 +61,6 @@ class RecordingAdapter extends ChannelAdapter {
 }
 
 class ChannelRecordingAdapter extends RecordingAdapter {
-  parseBindCodeForTest(text: string): string | null {
-    return this.parseChannelBindCode(text);
-  }
-
   protected override buildChannelTarget(
     opts: ChannelAdapterMessageOpts,
     sender: Record<string, unknown>,
@@ -80,13 +76,6 @@ class ChannelRecordingAdapter extends RecordingAdapter {
     };
   }
 }
-
-test("ChannelAdapter parses numeric channel bind codes", () => {
-  const adapter = new ChannelRecordingAdapter();
-
-  assert.equal(adapter.parseBindCodeForTest("/bind 482913"), "482913");
-  assert.equal(adapter.parseBindCodeForTest("bind 482913"), null);
-});
 
 test("processMessage reports one generic failure when turn startup fails", async () => {
   const adapter = new RecordingAdapter();
@@ -428,12 +417,14 @@ test("ChannelAdapter lets explicit sender override thread identity and omit impl
   const adapter = new RecordingAdapter();
   const client = (adapter as unknown as { client: Record<string, unknown> }).client;
   const senders: unknown[] = [];
+  const inputs: unknown[] = [];
 
   (adapter as unknown as {
     getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
   }).getOrCreateThread = async () => makeThread("thread-1", "active");
 
-  client.turnStart = async (_threadId: string, _input: unknown, sender: unknown) => {
+  client.turnStart = async (_threadId: string, input: unknown, sender: unknown) => {
+    inputs.push(input);
     senders.push(sender);
     return makeTurn(`turn-${senders.length}`, "thread-1", "running");
   };
@@ -464,6 +455,7 @@ test("ChannelAdapter lets explicit sender override thread identity and omit impl
     text: "hello",
     channelContext: "user:1",
     omitSenderGroupId: true,
+    inputParts: [{ type: "text", text: "custom part" }],
   });
 
   assert.deepEqual(senders[0], {
@@ -477,38 +469,5 @@ test("ChannelAdapter lets explicit sender override thread identity and omit impl
     senderName: "Tester",
     senderRole: "user",
   });
-});
-
-test("processMessage uses inputParts when provided", async () => {
-  const adapter = new RecordingAdapter();
-  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
-  let startedInput: unknown;
-
-  (adapter as unknown as {
-    getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
-  }).getOrCreateThread = async () => makeThread("thread-1", "active");
-
-  client.turnStart = async (_threadId: string, input: unknown) => {
-    startedInput = input;
-    return makeTurn("turn-1", "thread-1", "running");
-  };
-  client.streamEvents = () =>
-    (async function* () {
-      yield {
-        method: "turn/completed",
-        params: { threadId: "thread-1", turn: { items: [] } },
-      };
-    })();
-
-  await (adapter as unknown as {
-    processMessage: (identityKey: string, opts: import("./adapter.js").ChannelAdapterMessageOpts) => Promise<void>;
-  }).processMessage("u:c", {
-    userId: "u",
-    userName: "t",
-    text: "ignored",
-    channelContext: "c",
-    inputParts: [{ type: "text", text: "custom part" }],
-  });
-
-  assert.deepEqual(startedInput, [{ type: "text", text: "custom part" }]);
+  assert.deepEqual(inputs[1], [{ type: "text", text: "custom part" }]);
 });

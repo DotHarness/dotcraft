@@ -87,7 +87,7 @@ public sealed class RemoteToolRegressionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RemoteTerminalStopsThroughTaskStop()
+    public async Task RemoteTerminalStopsThroughTaskStop_OnlyForTheOwningThread()
     {
         var started = await Invoke("Exec", new()
         {
@@ -95,36 +95,21 @@ public sealed class RemoteToolRegressionTests : IAsyncLifetime
             ["shell"] = "pwsh", ["runInBackground"] = true, ["yieldTimeMs"] = 1
         });
         var session = started.Content!.Split('\n').Single(line => line.StartsWith("Session ID:", StringComparison.Ordinal))["Session ID:".Length..].Trim();
+        Assert.True(_client.TryForkRoute("agent-thread", "sibling-thread"));
 
         var unbound = await Invoke("TaskStop", new() { ["taskId"] = "term_000000000000" });
+        var foreign = await InvokeAs("sibling-thread", "TaskStop", new() { ["taskId"] = session });
         var stopped = await Invoke("TaskStop", new() { ["taskId"] = session });
         var read = await Invoke("WriteStdin", new() { ["sessionId"] = session, ["input"] = "" });
 
         Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, unbound.Error?.Code);
+        Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, foreign.Error?.Code);
         Assert.True(stopped.Success, stopped.Error?.Message);
         var result = JsonNode.Parse(stopped.Content!)!;
         Assert.Equal(session, result["taskId"]!.GetValue<string>());
         Assert.Equal("shell", result["kind"]!.GetValue<string>());
         Assert.Equal("stopped", result["status"]!.GetValue<string>());
         Assert.Contains("Status: killed", read.Content);
-    }
-
-    [Fact]
-    public async Task TaskStopRejectsATerminalOfAnotherThreadOnTheSameLease()
-    {
-        var started = await Invoke("Exec", new()
-        {
-            ["command"] = "Start-Sleep -Seconds 60",
-            ["shell"] = "pwsh", ["runInBackground"] = true, ["yieldTimeMs"] = 1
-        });
-        var session = started.Content!.Split('\n').Single(line => line.StartsWith("Session ID:", StringComparison.Ordinal))["Session ID:".Length..].Trim();
-
-        Assert.True(_client.TryForkRoute("agent-thread", "sibling-thread"));
-        var foreign = await InvokeAs("sibling-thread", "TaskStop", new() { ["taskId"] = session });
-        var own = await Invoke("TaskStop", new() { ["taskId"] = session });
-
-        Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, foreign.Error?.Code);
-        Assert.True(own.Success, own.Error?.Message);
     }
 
     [Fact]

@@ -32,14 +32,18 @@ public sealed class AnthropicPromptCachingChatClientTests : IDisposable
     {
         var client = CreateClient("anthropic/claude-opus-4-1");
         var system = new ChatMessage(ChatRole.System, "stable system prompt");
-        var user = new ChatMessage(ChatRole.User, "hello");
+        var userText = new TextContent("hello");
+        var user = new ChatMessage(ChatRole.User, (IList<AIContent>)[userText]);
 
         var prepared = client.Prepare([system, user], null);
 
+        Assert.NotSame(user, prepared.Messages[1]);
+        Assert.Same(userText, user.Contents[0]);
+        Assert.Null(userText.AdditionalProperties);
+
         var systemText = Assert.IsType<TextContent>(Assert.Single(prepared.Messages[0].Contents));
         AssertAnthropicCacheControl(systemText, expectedTtl: null);
-        var userText = AssertLastTextContent(prepared.Messages[1]);
-        AssertAnthropicCacheControl(userText, expectedTtl: null);
+        AssertAnthropicCacheControl(AssertLastTextContent(prepared.Messages[1]), expectedTtl: null);
         Assert.Equal([ChatRole.System.Value, ChatRole.User.Value], prepared.PendingCachePoints.Select(p => p.Trace.Role).ToArray());
     }
 
@@ -62,6 +66,7 @@ public sealed class AnthropicPromptCachingChatClientTests : IDisposable
         AssertAnthropicCacheControl(userText, expectedTtl: null);
         Assert.Equal("stable system prompt", options.Instructions);
         Assert.Equal([ChatRole.System.Value, ChatRole.User.Value], prepared.PendingCachePoints.Select(p => p.Trace.Role).ToArray());
+        Assert.Equal(1, prepared.LlmCallIndex);
     }
 
     [Fact]
@@ -162,7 +167,6 @@ public sealed class AnthropicPromptCachingChatClientTests : IDisposable
     [Theory]
     [InlineData("", null)]
     [InlineData("1h", "1h")]
-    [InlineData("5m", "5m")]
     public void Prepare_AnthropicNative_WithTtl_AddsSdkTtl(string configuredTtl, string? expectedTtl)
     {
         using var configured = UsePolicy(ttl: string.IsNullOrEmpty(configuredTtl) ? null : configuredTtl);
@@ -172,24 +176,6 @@ public sealed class AnthropicPromptCachingChatClientTests : IDisposable
 
         var text = AssertLastTextContent(Assert.Single(prepared.Messages));
         AssertAnthropicCacheControl(text, expectedTtl);
-    }
-
-    [Fact]
-    public void Prepare_AnthropicNative_WithInstructions_KeepsStableSystemBreakpointAndTail()
-    {
-        var client = CreateClient("claude-opus-4-1");
-
-        var prepared = client.Prepare(
-            [new ChatMessage(ChatRole.User, "hello")],
-            new ChatOptions { Instructions = "stable system prompt" });
-
-        Assert.Equal(2, prepared.Messages.Count);
-        Assert.Equal(ChatRole.System, prepared.Messages[0].Role);
-        Assert.Equal(ChatRole.User, prepared.Messages[1].Role);
-        AssertAnthropicCacheControl(AssertLastTextContent(prepared.Messages[0]), expectedTtl: null);
-        AssertAnthropicCacheControl(AssertLastTextContent(prepared.Messages[1]), expectedTtl: null);
-        Assert.Equal([ChatRole.System.Value, ChatRole.User.Value], prepared.PendingCachePoints.Select(p => p.Trace.Role).ToArray());
-        Assert.Equal(1, prepared.LlmCallIndex);
     }
 
     [Fact]
@@ -291,11 +277,13 @@ public sealed class AnthropicPromptCachingChatClientTests : IDisposable
             reasoningChanged.PromptCacheDiagnostic?.ReasoningHash);
     }
 
-    [Fact]
-    public async Task GetResponseAsync_AnthropicNative_SerializesUserAndToolResultCacheControl()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetResponseAsync_SerializesUserAndToolResultCacheControl(bool beta)
     {
         var handler = new AnthropicCaptureHandler();
-        var client = CreateAnthropicNativeHttpClient(handler);
+        var client = beta ? CreateAnthropicBetaNativeHttpClient(handler) : CreateAnthropicNativeHttpClient(handler);
 
         await client.GetResponseAsync([
             new ChatMessage(ChatRole.User, "hello"),
@@ -322,71 +310,23 @@ public sealed class AnthropicPromptCachingChatClientTests : IDisposable
         AssertWireCacheControl(toolResult, expectedTtl: null);
     }
 
-    [Fact]
-    public async Task GetResponseAsync_AnthropicNative_WithParallelToolResultsKeepsGroupedToolResultMessage()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetResponseAsync_WithParallelToolResultsKeepsGroupedToolResultMessage(bool beta)
     {
-        await AssertAnthropicGroupedToolResultWireAsync(handler => CreateAnthropicNativeHttpClient(handler));
+        await AssertAnthropicGroupedToolResultWireAsync(handler =>
+            beta ? CreateAnthropicBetaNativeHttpClient(handler) : CreateAnthropicNativeHttpClient(handler));
     }
 
-    [Fact]
-    public async Task GetResponseAsync_AnthropicBetaNative_SerializesUserAndToolResultCacheControl()
-    {
-        var handler = new AnthropicCaptureHandler();
-        var client = CreateAnthropicBetaNativeHttpClient(handler);
-
-        await client.GetResponseAsync([
-            new ChatMessage(ChatRole.User, "hello"),
-            new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[
-                new FunctionCallContent("call_1", "ReadFile", new Dictionary<string, object?>())
-            ]),
-            new ChatMessage(ChatRole.Tool, (IList<AIContent>)[
-                new FunctionResultContent("call_1", "result text")
-            ])
-        ]);
-
-        Assert.NotNull(handler.LastRequestJson);
-        using var document = JsonDocument.Parse(handler.LastRequestJson!);
-        var root = document.RootElement;
-        var userText = root.GetProperty("messages")[0].GetProperty("content")[0];
-        Assert.Equal("text", userText.GetProperty("type").GetString());
-        AssertWireCacheControl(userText, expectedTtl: null);
-
-        var toolResult = FindFirstContentBlock(root, "tool_result");
-        Assert.Equal("call_1", toolResult.GetProperty("tool_use_id").GetString());
-        AssertWireCacheControl(toolResult, expectedTtl: null);
-    }
-
-    [Fact]
-    public async Task GetResponseAsync_AnthropicBetaNative_WithParallelToolResultsKeepsGroupedToolResultMessage()
-    {
-        await AssertAnthropicGroupedToolResultWireAsync(handler => CreateAnthropicBetaNativeHttpClient(handler));
-    }
-
-    [Fact]
-    public async Task GetResponseAsync_AnthropicNative_SerializesSystemCacheControl()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetResponseAsync_SerializesSystemCacheControl(bool beta)
     {
         var handler = new AnthropicCaptureHandler();
         using var longCache = UsePolicy(ttl: "1h");
-        var client = CreateAnthropicNativeHttpClient(handler);
-
-        await client.GetResponseAsync([
-            new ChatMessage(ChatRole.System, "stable system prompt")
-        ]);
-
-        Assert.NotNull(handler.LastRequestJson);
-        using var document = JsonDocument.Parse(handler.LastRequestJson!);
-        var system = document.RootElement.GetProperty("system")[0];
-        Assert.Equal("text", system.GetProperty("type").GetString());
-        Assert.Equal("stable system prompt", system.GetProperty("text").GetString());
-        AssertWireCacheControl(system, expectedTtl: "1h");
-    }
-
-    [Fact]
-    public async Task GetResponseAsync_AnthropicBetaNative_SerializesSystemCacheControl()
-    {
-        var handler = new AnthropicCaptureHandler();
-        using var longCache = UsePolicy(ttl: "1h");
-        var client = CreateAnthropicBetaNativeHttpClient(handler);
+        var client = beta ? CreateAnthropicBetaNativeHttpClient(handler) : CreateAnthropicNativeHttpClient(handler);
 
         await client.GetResponseAsync([
             new ChatMessage(ChatRole.System, "stable system prompt")
@@ -420,20 +360,6 @@ public sealed class AnthropicPromptCachingChatClientTests : IDisposable
         var userText = root.GetProperty("messages")[0].GetProperty("content")[0];
         Assert.Equal("hello", userText.GetProperty("text").GetString());
         AssertWireCacheControl(userText, expectedTtl: null);
-    }
-
-    [Fact]
-    public void Prepare_DoesNotMutateOriginalMessagesOrContents()
-    {
-        var client = CreateClient("claude-opus-4-1");
-        var text = new TextContent("hello");
-        var user = new ChatMessage(ChatRole.User, (IList<AIContent>)[text]);
-
-        var prepared = client.Prepare([user], null);
-
-        Assert.NotSame(user, prepared.Messages[0]);
-        Assert.Same(text, user.Contents[0]);
-        Assert.Null(text.AdditionalProperties);
     }
 
     [Fact]

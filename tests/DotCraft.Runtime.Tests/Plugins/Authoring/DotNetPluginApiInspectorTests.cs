@@ -6,66 +6,24 @@ namespace DotCraft.Tests.Runtime.Plugins.Authoring;
 public sealed class DotNetPluginApiInspectorTests(
     AuthoringReferencePackFixture fixture) : IClassFixture<AuthoringReferencePackFixture>
 {
-    private readonly DotNetPluginApiInspector _inspector = new(fixture.Load());
+    private readonly DotNetPluginApiInspector _inspector = fixture.Inspector;
 
     [Fact]
-    public void Inspect_ReturnsExactTypeWithAssemblySignatureAndDocumentation()
+    public void Inspect_ReturnsPublicTypesAndMembersWithSignaturesAndDocumentation()
     {
-        var results = _inspector.Inspect("dotcraft.plugins.idotcraftplugin");
+        var type = Assert.IsType<DotNetPluginApiSymbol>(_inspector.Inspect("dotcraft.plugins.idotcraftplugin")[0]);
+        Assert.Equal("DotCraft.Core", type.AssemblyName);
+        Assert.Equal("public interface DotCraft.Plugins.IDotCraftPlugin", type.Signature);
+        Assert.Contains("Entry point implemented by every in-process DotCraft plugin", type.Summary);
 
-        var result = Assert.IsType<DotNetPluginApiSymbol>(results[0]);
-        Assert.Equal("DotCraft.Core", result.AssemblyName);
-        Assert.Equal("public interface DotCraft.Plugins.IDotCraftPlugin", result.Signature);
-        Assert.Contains("Entry point implemented by every in-process DotCraft plugin", result.Summary);
-    }
-
-    [Fact]
-    public void Inspect_ReturnsPublicMemberSignatureAndDocumentation()
-    {
-        var results = _inspector.Inspect("ActivateAsync");
-
-        var result = Assert.Single(results, static result =>
+        var member = Assert.Single(_inspector.Inspect("ActivateAsync"), static result =>
             result.Signature.Contains("IDotCraftPlugin.ActivateAsync", StringComparison.Ordinal));
-        Assert.Equal("DotCraft.Core", result.AssemblyName);
-        Assert.Contains("ValueTask", result.Signature, StringComparison.Ordinal);
-        Assert.Contains("IPluginActivationContext", result.Signature, StringComparison.Ordinal);
-        Assert.Contains("Activates the plugin", result.Summary);
-    }
+        Assert.Equal("DotCraft.Core", member.AssemblyName);
+        Assert.Contains("ValueTask", member.Signature, StringComparison.Ordinal);
+        Assert.Contains("IPluginActivationContext", member.Signature, StringComparison.Ordinal);
+        Assert.Contains("Activates the plugin", member.Summary);
 
-    [Fact]
-    public void Inspect_PreservesGenericMemberConstraints()
-    {
-        var result = Assert.Single(
-            _inspector.Inspect("DotCraft.Contributions.IContributionRegistrar.Add"));
-
-        Assert.Contains(
-            "where TContract : class, DotCraft.Contributions.IContributionContract",
-            result.Signature,
-            StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Inspect_KeepsGenericConstraintsOutOfTheQualifiedLookupIdentity()
-    {
-        var results = _inspector.Inspect(
-            "DotCraft.Contributions.ContributionEntry<TContract>");
-
-        Assert.StartsWith(
-            "public struct DotCraft.Contributions.ContributionEntry<TContract>",
-            results[0].Signature,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "where TContract : class, DotCraft.Contributions.IContributionContract",
-            results[0].Signature,
-            StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Inspect_MatchesSimpleNamesCaseInsensitivelyAndSortsSignatures()
-    {
-        var results = _inspector.Inspect("pluginidentity");
-        var signatures = results.Select(static result => result.Signature).ToArray();
-
+        var signatures = _inspector.Inspect("pluginidentity").Select(static result => result.Signature).ToArray();
         Assert.Contains(
             signatures,
             static signature => signature.Contains("DotCraft.Plugins.PluginIdentity", StringComparison.Ordinal));
@@ -73,27 +31,28 @@ public sealed class DotNetPluginApiInspectorTests(
     }
 
     [Fact]
-    public void Inspect_LimitsBroadQueriesAndExcludesBclSymbols()
+    public void Inspect_PreservesGenericConstraintsOutsideTheLookupIdentity()
+    {
+        const string constraint = "where TContract : class, DotCraft.Contributions.IContributionContract";
+
+        var member = Assert.Single(_inspector.Inspect("DotCraft.Contributions.IContributionRegistrar.Add"));
+        var type = _inspector.Inspect("DotCraft.Contributions.ContributionEntry<TContract>")[0];
+
+        Assert.Contains(constraint, member.Signature, StringComparison.Ordinal);
+        Assert.StartsWith(
+            "public struct DotCraft.Contributions.ContributionEntry<TContract>",
+            type.Signature,
+            StringComparison.Ordinal);
+        Assert.Contains(constraint, type.Signature, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Inspect_LimitsBroadQueries_AndHidesBclInternalAndUnknownSymbols()
     {
         Assert.Equal(25, _inspector.Inspect("DotCraft").Count);
         Assert.Empty(_inspector.Inspect("System.String"));
-    }
-
-    [Fact]
-    public void Inspect_DoesNotExposeInternalSymbols()
-    {
         Assert.Empty(_inspector.Inspect("PluginDotnetMetadataInspector"));
-    }
-
-    [Fact]
-    public void Inspect_ReturnsEmptyForUnknownSymbol()
-    {
         Assert.Empty(_inspector.Inspect("ContosoDefinitelyMissingApi"));
-    }
-
-    [Fact]
-    public void Inspect_RejectsBlankQuery()
-    {
         Assert.Throws<ArgumentException>(() => _inspector.Inspect(" \t"));
     }
 }

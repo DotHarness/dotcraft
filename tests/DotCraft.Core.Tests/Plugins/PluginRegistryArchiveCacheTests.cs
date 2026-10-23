@@ -26,7 +26,10 @@ public sealed class PluginRegistryArchiveCacheTests
             CreateArchive("example-marketplace", "v2"));
 
         Assert.False(Directory.Exists(first));
-        Assert.True(File.Exists(Path.Combine(second, "version.txt")));
+        Assert.StartsWith(
+            Path.Combine(Path.GetFullPath(craftHome), "cache", PluginRegistryArchiveCache.CacheDirectory),
+            second,
+            StringComparison.OrdinalIgnoreCase);
         Assert.Equal("v2", File.ReadAllText(Path.Combine(second, "version.txt")));
         Assert.Single(Directory.GetDirectories(cache.CacheBaseRoot));
 
@@ -50,25 +53,6 @@ public sealed class PluginRegistryArchiveCacheTests
         Assert.Equal(first, second);
         Assert.Equal("v2", File.ReadAllText(Path.Combine(second, "version.txt")));
         Assert.Single(Directory.GetDirectories(cache.CacheBaseRoot));
-    }
-
-    [Fact]
-    public void Activate_KeepsSnapshotsForDifferentMarketplaces()
-    {
-        var cache = new PluginRegistryArchiveCache(NewTempDir());
-
-        var first = cache.Activate(
-            "https://example.test/first.zip",
-            MarketplacePath,
-            CreateArchive("first-marketplace", "first"));
-        var second = cache.Activate(
-            "https://example.test/second.zip",
-            MarketplacePath,
-            CreateArchive("second-marketplace", "second"));
-
-        Assert.True(Directory.Exists(first));
-        Assert.True(Directory.Exists(second));
-        Assert.Equal(2, Directory.GetDirectories(cache.CacheBaseRoot).Length);
     }
 
     [Fact]
@@ -127,45 +111,17 @@ public sealed class PluginRegistryArchiveCacheTests
     }
 
     [Fact]
-    public void Activate_UsesTheProvidedCraftHome()
-    {
-        var craftHome = NewTempDir();
-        var cache = new PluginRegistryArchiveCache(craftHome);
-
-        var snapshot = cache.Activate(
-            "https://example.test/marketplace.zip",
-            MarketplacePath,
-            CreateArchive("example-marketplace", "current"));
-
-        Assert.StartsWith(
-            Path.Combine(Path.GetFullPath(craftHome), "cache", PluginRegistryArchiveCache.CacheDirectory),
-            snapshot,
-            StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void ShouldAttempt_IsTrueUntilAnAttemptFails()
+    public void ShouldAttempt_BacksOffAfterAFailureUntilTheDelayElapses()
     {
         var cache = new PluginRegistryArchiveCache(NewTempDir());
         const string url = "https://example.test/marketplace.zip";
         var now = DateTimeOffset.UtcNow;
-
-        Assert.True(cache.ShouldAttempt(url, MarketplacePath, TimeSpan.FromHours(6), now));
-
-        cache.RecordFailedAttempt(url, MarketplacePath, now);
-
-        Assert.False(cache.ShouldAttempt(url, MarketplacePath, TimeSpan.FromHours(6), now));
-    }
-
-    [Fact]
-    public void ShouldAttempt_AllowsRetryOnceTheBackoffElapsed()
-    {
-        var cache = new PluginRegistryArchiveCache(NewTempDir());
-        const string url = "https://example.test/marketplace.zip";
-        var now = DateTimeOffset.UtcNow;
-        cache.RecordFailedAttempt(url, MarketplacePath, now);
-
         var refreshInterval = TimeSpan.FromHours(6);
+
+        Assert.True(cache.ShouldAttempt(url, MarketplacePath, refreshInterval, now));
+        cache.RecordFailedAttempt(url, MarketplacePath, now);
+
+        Assert.False(cache.ShouldAttempt(url, MarketplacePath, refreshInterval, now));
         Assert.False(cache.ShouldAttempt(url, MarketplacePath, refreshInterval, now + TimeSpan.FromSeconds(30)));
         Assert.True(cache.ShouldAttempt(url, MarketplacePath, refreshInterval, now + TimeSpan.FromMinutes(1)));
     }
@@ -192,30 +148,20 @@ public sealed class PluginRegistryArchiveCacheTests
     }
 
     [Fact]
-    public void Activate_ClearsTheFailedAttemptRecord()
-    {
-        var craftHome = NewTempDir();
-        var cache = new PluginRegistryArchiveCache(craftHome);
-        const string url = "https://example.test/marketplace.zip";
-        var now = DateTimeOffset.UtcNow;
-        cache.RecordFailedAttempt(url, MarketplacePath, now);
-
-        cache.Activate(url, MarketplacePath, CreateArchive("example-marketplace", "current"));
-
-        Assert.True(cache.ShouldAttempt(url, MarketplacePath, TimeSpan.FromHours(6), now));
-    }
-
-    [Fact]
-    public void Invalidate_ClearsTheFailedAttemptRecord()
+    public void ActivateAndInvalidate_ClearTheFailedAttemptRecord()
     {
         var cache = new PluginRegistryArchiveCache(NewTempDir());
-        const string url = "https://example.test/marketplace.zip";
+        const string activated = "https://example.test/activated.zip";
+        const string invalidated = "https://example.test/invalidated.zip";
         var now = DateTimeOffset.UtcNow;
-        cache.RecordFailedAttempt(url, MarketplacePath, now);
+        cache.RecordFailedAttempt(activated, MarketplacePath, now);
+        cache.RecordFailedAttempt(invalidated, MarketplacePath, now);
 
-        cache.Invalidate(url, MarketplacePath);
+        cache.Activate(activated, MarketplacePath, CreateArchive("example-marketplace", "current"));
+        cache.Invalidate(invalidated, MarketplacePath);
 
-        Assert.True(cache.ShouldAttempt(url, MarketplacePath, TimeSpan.FromHours(6), now));
+        Assert.True(cache.ShouldAttempt(activated, MarketplacePath, TimeSpan.FromHours(6), now));
+        Assert.True(cache.ShouldAttempt(invalidated, MarketplacePath, TimeSpan.FromHours(6), now));
     }
 
     private static byte[] CreateArchive(string marketplaceName, string version)

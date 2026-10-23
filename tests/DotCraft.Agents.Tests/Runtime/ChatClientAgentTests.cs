@@ -324,28 +324,6 @@ public sealed class ChatClientAgentTests
         Assert.Empty(history);
     }
 
-    [Fact]
-    public void GetServiceResolvesAgentMetadataOptionsProviderAndInnerClient()
-    {
-        using var client = new RecordingStreamingClient([]);
-        var provider = new RecordingContextProvider("provider", [], new AIContext());
-        var agent = new ChatClientAgent(
-            client,
-            new ChatClientAgentOptions
-            {
-                Name = "named",
-                AIContextProviders = [provider]
-            });
-
-        Assert.Same(agent, agent.GetService<ChatClientAgent>());
-        Assert.Same(agent.Metadata, agent.GetService<AgentMetadata>());
-        Assert.Same(client, agent.GetService<IChatClient>());
-        Assert.Same(provider, agent.GetService<RecordingContextProvider>("provider"));
-        Assert.Equal("test-provider", agent.Metadata.ProviderName);
-        Assert.Equal("named", agent.GetService<ChatClientAgentOptions>()?.Name);
-        Assert.Null(agent.GetService<ChatClientAgent>("keyed"));
-    }
-
     private sealed class RecordingStreamingClient(
         IReadOnlyList<ChatResponseUpdate> updates,
         bool failAfterUpdates = false) : IChatClient

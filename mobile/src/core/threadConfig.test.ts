@@ -11,23 +11,19 @@ afterEach(() => {
 })
 
 describe('approval policy shown for a chat', () => {
-  it('shows an explicit policy as set and anything else as the workspace default', () => {
+  it('shows an explicit policy as set, otherwise the case-insensitive workspace default, and detects changes to it', () => {
     expect(controlsOf({ approvalPolicy: 'prompt' }, 'autoApprove').approvalPolicy).toBe('prompt')
     expect(controlsOf({ approvalPolicy: 'autoApprove' }, 'prompt').approvalPolicy).toBe('autoApprove')
     expect(controlsOf({ approvalPolicy: 'default' }, 'autoApprove').approvalPolicy).toBe('autoApprove')
     expect(controlsOf({ approvalPolicy: 'deny' }, 'autoApprove').approvalPolicy).toBe('autoApprove')
     expect(controlsOf({}, 'autoApprove').approvalPolicy).toBe('autoApprove')
     expect(controlsOf(null, 'prompt').approvalPolicy).toBe('prompt')
-  })
 
-  it('reads the workspace default from the effective configuration, ignoring key case', () => {
     expect(workspaceApprovalOf({ Permissions: { DefaultApprovalPolicy: 'autoApprove' } })).toBe('autoApprove')
     expect(workspaceApprovalOf({ permissions: { defaultApprovalPolicy: 'autoApprove' } })).toBe('autoApprove')
     expect(workspaceApprovalOf({ Permissions: { DefaultApprovalPolicy: 'default' } })).toBe('prompt')
     expect(workspaceApprovalOf({})).toBe('prompt')
-  })
 
-  it('treats a change of the setting or of its parent as a change of the workspace default', () => {
     expect(changesWorkspaceApproval(['Permissions.DefaultApprovalPolicy'])).toBe(true)
     expect(changesWorkspaceApproval(['Permissions'])).toBe(true)
     expect(changesWorkspaceApproval(['Permissions.SomethingElse', 'providers'])).toBe(false)

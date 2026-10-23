@@ -39,7 +39,7 @@ function makeCall(id: string, presentationId: string, options: Record<string, un
 }
 
 describe('formatToolGroupLabel', () => {
-  it('names each kind of work once, in a fixed order, without counts', () => {
+  it('names each kind of work once, in a fixed order, counting repeated edits of one file once', () => {
     const items = [
       makeCall('1', CORE_TOOL_PRESENTATION_IDS.shell, {}),
       makeCall('2', CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read' }),
@@ -50,15 +50,10 @@ describe('formatToolGroupLabel', () => {
     ]
 
     expect(formatToolGroupLabel(items, 'en', new Map())).toBe('Edited files, explored a file, ran commands, searched the web')
-  })
-
-  it('counts repeated edits of one file as one file', () => {
-    const items = [
+    expect(formatToolGroupLabel([
       makeItem('EditFile', '1', 'edit', 'src/a.ts'),
       makeItem('EditFile', '2', 'edit', 'src/a.ts')
-    ]
-
-    expect(formatToolGroupLabel(items, 'en', new Map())).toBe('Edited a file')
+    ], 'en', new Map())).toBe('Edited a file')
   })
 
   it('says created only when every written file is new', () => {
@@ -80,13 +75,10 @@ describe('Node REPL labels', () => {
     arguments: { code: 'await tab.goto(url)', ...(title ? { title } : {}) }
   })
 
-  it('shows the run title, or what the run used when it has none', () => {
+  it('shows the run title, or what the run used, and names the surface in a group', () => {
     expect(formatCollapsedToolLabel(repl('1', 'browser', '  Open   the pricing page '), repl('1', 'browser', '  Open   the pricing page ').arguments, 'en'))
       .toBe('Open the pricing page')
     expect(formatCollapsedToolLabel(repl('2', 'computer'), repl('2', 'computer').arguments, 'en')).toBe('Used the computer')
-  })
-
-  it('names the surface in a group', () => {
     expect(formatToolGroupLabel([repl('1', 'chrome'), makeCall('2', CORE_TOOL_PRESENTATION_IDS.shell, {})], 'en', new Map()))
       .toBe('Used Chrome, ran a command')
   })

@@ -8,20 +8,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed partial class AppServerPluginManagementTests
 {
     [Fact]
-    public async Task Initialize_ReportsPluginConfigurationCapability()
-    {
-        using var harness = CreateHarness();
-        using var initialize = await harness.InitializeAsync();
-
-        Assert.True(initialize.RootElement
-            .GetProperty("result")
-            .GetProperty("capabilities")
-            .GetProperty("pluginConfiguration")
-            .GetBoolean());
-    }
-
-    [Fact]
-    public async Task PluginConfigGet_ReturnsSchemaLayersAndEffectiveValue()
+    public async Task PluginConfig_GetsDefaultsRejectsInvalidValuesAndWritesRequestedScope()
     {
         WriteConfigurablePluginFixture("config-sample");
         using var harness = CreateHarness();
@@ -30,36 +17,33 @@ public sealed partial class AppServerPluginManagementTests
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.PluginConfigGet,
             new { id = "config-sample" }));
+        using (var response = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(response);
+            var result = response.RootElement.GetProperty("result");
+            Assert.Equal("comfortable", result.GetProperty("value").GetProperty("density").GetString());
+            Assert.Empty(result.GetProperty("personal").EnumerateObject());
+            Assert.Empty(result.GetProperty("workspace").EnumerateObject());
+            Assert.Equal(2, result.GetProperty("writableScopes").GetArrayLength());
+            var field = Assert.Single(result.GetProperty("schema").GetProperty("fields").EnumerateArray());
+            Assert.Equal("select", field.GetProperty("type").GetString());
+        }
 
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
-        Assert.Equal("comfortable", result.GetProperty("value").GetProperty("density").GetString());
-        Assert.Empty(result.GetProperty("personal").EnumerateObject());
-        Assert.Empty(result.GetProperty("workspace").EnumerateObject());
-        Assert.Equal(2, result.GetProperty("writableScopes").GetArrayLength());
-        var field = Assert.Single(result.GetProperty("schema").GetProperty("fields").EnumerateArray());
-        Assert.Equal("select", field.GetProperty("type").GetString());
-    }
+        await harness.ExecuteRequestAsync(MutateDensity(harness, "unknown"));
+        using (var rejected = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsErrorResponse(rejected, AppServerErrors.PluginConfigurationErrorCode);
+            Assert.Equal(
+                DotCraft.Plugins.PluginConfigStore.MutationInvalid,
+                rejected.RootElement.GetProperty("error").GetProperty("data").GetProperty("code").GetString());
+        }
+        Assert.False(File.Exists(Path.Combine(_workspaceCraftPath, "plugin-config.json")));
 
-    [Fact]
-    public async Task PluginConfigMutate_WritesRequestedScopeAndEmitsConfigChange()
-    {
-        WriteConfigurablePluginFixture("config-sample");
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
         var changes = new List<AppConfigChangedEventArgs>();
         harness.Monitor.Changed += OnChanged;
         try
         {
-            await harness.ExecuteRequestAsync(harness.BuildRequest(
-                DotCraft.Protocol.AppServer.AppServerMethodNames.PluginConfigMutate,
-                new
-                {
-                    id = "config-sample",
-                    scope = "workspace",
-                    operations = new[] { new { op = "set", key = "density", value = "compact" } }
-                }));
+            await harness.ExecuteRequestAsync(MutateDensity(harness, "compact"));
 
             using var response = await harness.Transport.ReadNextSentAsync();
             AppServerTestHarness.AssertIsSuccessResponse(response);
@@ -83,29 +67,15 @@ public sealed partial class AppServerPluginManagementTests
         void OnChanged(object? sender, AppConfigChangedEventArgs args) => changes.Add(args);
     }
 
-    [Fact]
-    public async Task PluginConfigMutate_RejectsInvalidValueWithoutWriting()
-    {
-        WriteConfigurablePluginFixture("config-sample");
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(
+    private static DotCraft.AppServer.AppServerIncomingMessage MutateDensity(AppServerTestHarness harness, string value) =>
+        harness.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.PluginConfigMutate,
             new
             {
                 id = "config-sample",
                 scope = "workspace",
-                operations = new[] { new { op = "set", key = "density", value = "unknown" } }
-            }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.PluginConfigurationErrorCode);
-        Assert.Equal(
-            DotCraft.Plugins.PluginConfigStore.MutationInvalid,
-            response.RootElement.GetProperty("error").GetProperty("data").GetProperty("code").GetString());
-        Assert.False(File.Exists(Path.Combine(_workspaceCraftPath, "plugin-config.json")));
-    }
+                operations = new[] { new { op = "set", key = "density", value } }
+            });
 
     [Fact]
     public async Task InvalidNamespace_IsAStableErrorAndDoesNotDisablePluginList()

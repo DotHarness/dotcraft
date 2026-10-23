@@ -81,17 +81,19 @@ describe('ReadThread turn pagination', () => {
     expect(data.turns.map((turn: RecordValue) => turn.id)).toEqual(turns.map(turn => turn.id))
   })
 
-  it.each([['a', 'a'], ['a', 'b', 'a']])('fails repeated item cursors %j', async (...cursors) => {
-    let index = 0
-    const { client } = clientFor(async method => {
-      if (method === 'thread/read') return { thread: { id: 'thread-1' } }
-      if (method === 'thread/turns/list') return { data: [{ id: 'turn-1' }] }
-      return { data: [], nextCursor: cursors[index++] ?? null }
-    })
-    const { response } = await read(client)
-    expect(response.success).toBe(false)
-    expect(response.errorCode).toBe('AppServerRequestFailed')
-    expect(response.structuredContent).toBeUndefined()
+  it('fails repeated item cursors', async () => {
+    for (const cursors of [['a', 'a'], ['a', 'b', 'a']]) {
+      let index = 0
+      const { client } = clientFor(async method => {
+        if (method === 'thread/read') return { thread: { id: 'thread-1' } }
+        if (method === 'thread/turns/list') return { data: [{ id: 'turn-1' }] }
+        return { data: [], nextCursor: cursors[index++] ?? null }
+      })
+      const { response } = await read(client)
+      expect(response.success).toBe(false)
+      expect(response.errorCode).toBe('AppServerRequestFailed')
+      expect(response.structuredContent).toBeUndefined()
+    }
   })
 
   it('fails the call if a later item page fails instead of exposing a partial turn', async () => {
@@ -129,17 +131,20 @@ describe('ReadThread turn pagination', () => {
     }
   })
 
-  it.each([
-    null, [], 'thread-1', {}, { threadId: '' }, { threadId: ' ' },
-    ...['turnCursor', 'itemCursor', 'itemLimit', 'unexpected'].map(key => ({ threadId: 'thread-1', [key]: 1 })),
-    ...[0, -1, 11, 1.5, '1', null].map(turnLimit => ({ threadId: 'thread-1', turnLimit })),
-    ...[-1, 20_001, 0.5, '100', null].map(maxOutputCharsPerItem => ({ threadId: 'thread-1', maxOutputCharsPerItem })),
-    { threadId: 'thread-1', includeOutputs: 'true' },
-    { threadId: 'thread-1', cursor: '' }, { threadId: 'thread-1', cursor: null }
-  ])('rejects invalid and obsolete arguments without making requests: %j', async args => {
+  it('rejects invalid and obsolete arguments without making requests', async () => {
+    const invalid = [
+      null, [], 'thread-1', {}, { threadId: '' }, { threadId: ' ' },
+      ...['turnCursor', 'itemCursor', 'itemLimit', 'unexpected'].map(key => ({ threadId: 'thread-1', [key]: 1 })),
+      ...[0, -1, 11, 1.5, '1', null].map(turnLimit => ({ threadId: 'thread-1', turnLimit })),
+      ...[-1, 20_001, 0.5, '100', null].map(maxOutputCharsPerItem => ({ threadId: 'thread-1', maxOutputCharsPerItem })),
+      { threadId: 'thread-1', includeOutputs: 'true' },
+      { threadId: 'thread-1', cursor: '' }, { threadId: 'thread-1', cursor: null }
+    ]
     const { client, sendRequest } = historyClient([])
-    const { response } = await read(client, args)
-    expect(response).toMatchObject({ success: false, errorCode: 'InvalidArguments' })
+    for (const args of invalid) {
+      const { response } = await read(client, args)
+      expect(response, JSON.stringify(args)).toMatchObject({ success: false, errorCode: 'InvalidArguments' })
+    }
     expect(sendRequest).not.toHaveBeenCalled()
   })
 })

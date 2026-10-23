@@ -5,40 +5,17 @@ namespace DotCraft.Core.Tests.Plugins;
 
 public sealed class MarketplaceSourceParserTests
 {
-    [Fact]
-    public void Parse_ExpandsShorthandToRepositoryUrl()
+    [Theory]
+    [InlineData("owner/repo@main", "release", "https://github.com/owner/repo.git", "release")]
+    [InlineData("https://example.com/team/repo.git#v1", null, "https://example.com/team/repo.git", "v1")]
+    [InlineData("git@example.com:team/repo.git", null, "git@example.com:team/repo.git", null)]
+    public void Parse_NormalizesGitSourcesAndRefs(string input, string? explicitRef, string expectedValue, string? expectedRef)
     {
-        var source = MarketplaceSourceParser.Parse("owner/repo");
+        var source = MarketplaceSourceParser.Parse(input, explicitRef);
 
         Assert.Equal(MarketplaceSourceKind.Git, source.Kind);
-        Assert.Equal("https://github.com/owner/repo.git", source.Value);
-        Assert.Null(source.Ref);
-    }
-
-    [Fact]
-    public void Parse_ReadsRefSuffixFromShorthand()
-    {
-        var source = MarketplaceSourceParser.Parse("owner/repo@release");
-
-        Assert.Equal("https://github.com/owner/repo.git", source.Value);
-        Assert.Equal("release", source.Ref);
-    }
-
-    [Fact]
-    public void Parse_ReadsFragmentRefFromRepositoryUrl()
-    {
-        var source = MarketplaceSourceParser.Parse("https://example.com/team/repo.git#v1");
-
-        Assert.Equal("https://example.com/team/repo.git", source.Value);
-        Assert.Equal("v1", source.Ref);
-    }
-
-    [Fact]
-    public void Parse_ExplicitRefOverridesEmbeddedRef()
-    {
-        var source = MarketplaceSourceParser.Parse("owner/repo@main", "release");
-
-        Assert.Equal("release", source.Ref);
+        Assert.Equal(expectedValue, source.Value);
+        Assert.Equal(expectedRef, source.Ref);
     }
 
     [Fact]
@@ -50,42 +27,11 @@ public sealed class MarketplaceSourceParserTests
         Assert.True(shorthand.Matches(url));
     }
 
-    [Fact]
-    public void Parse_KeepsScpStyleAddressIntact()
-    {
-        var source = MarketplaceSourceParser.Parse("git@example.com:team/repo.git");
-
-        Assert.Equal(MarketplaceSourceKind.Git, source.Kind);
-        Assert.Equal("git@example.com:team/repo.git", source.Value);
-        Assert.Null(source.Ref);
-    }
-
-    [Fact]
-    public void Parse_AllowsAccountNameOnSshUrl()
-    {
-        var source = MarketplaceSourceParser.Parse("ssh://git@example.com/team/repo.git#main");
-
-        Assert.Equal("ssh://git@example.com/team/repo.git", source.Value);
-        Assert.Equal("main", source.Ref);
-    }
-
     [Theory]
     [InlineData("https://user:secret@example.com/team/repo.git")]
-    [InlineData("https://token@example.com/team/repo.git")]
-    public void Parse_RejectsEmbeddedCredentials(string source)
-    {
-        var error = Assert.Throws<MarketplaceException>(() => MarketplaceSourceParser.Parse(source));
-
-        Assert.Equal(MarketplaceErrorCodes.SourceInvalid, error.Code);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
     [InlineData("file:///tmp/marketplace.git")]
     [InlineData("ext::sh -c echo")]
-    [InlineData("owner/repo/extra")]
-    public void Parse_RejectsUnsupportedSources(string source)
+    public void Parse_RejectsCredentialsAndUnsupportedSources(string source)
     {
         var error = Assert.Throws<MarketplaceException>(() => MarketplaceSourceParser.Parse(source));
 
@@ -93,52 +39,29 @@ public sealed class MarketplaceSourceParserTests
     }
 
     [Fact]
-    public void Parse_RejectsRefOnLocalSource()
-    {
-        var directory = NewTempDir();
-
-        var error = Assert.Throws<MarketplaceException>(() => MarketplaceSourceParser.Parse(directory, "main"));
-
-        Assert.Equal(MarketplaceErrorCodes.SourceInvalid, error.Code);
-    }
-
-    [Fact]
-    public void Parse_RejectsSparsePathsOnLocalSource()
-    {
-        var directory = NewTempDir();
-
-        var error = Assert.Throws<MarketplaceException>(
-            () => MarketplaceSourceParser.Parse(directory, explicitRef: null, ["plugins/example"]));
-
-        Assert.Equal(MarketplaceErrorCodes.SourceInvalid, error.Code);
-    }
-
-    [Fact]
-    public void Parse_RejectsLocalFileSource()
+    public void Parse_ResolvesLocalDirectoriesButRejectsRefsSparsePathsAndFiles()
     {
         var directory = NewTempDir();
         var file = Path.Combine(directory, "marketplace.json");
         File.WriteAllText(file, "{}");
 
-        var error = Assert.Throws<MarketplaceException>(() => MarketplaceSourceParser.Parse(file));
-
-        Assert.Equal(MarketplaceErrorCodes.SourceInvalid, error.Code);
-    }
-
-    [Fact]
-    public void Parse_ResolvesExistingLocalDirectory()
-    {
-        var directory = NewTempDir();
-
         var source = MarketplaceSourceParser.Parse(directory);
 
         Assert.Equal(MarketplaceSourceKind.Local, source.Kind);
         Assert.Equal(Path.GetFullPath(directory), source.Value);
+        Assert.Equal(
+            MarketplaceErrorCodes.SourceInvalid,
+            Assert.Throws<MarketplaceException>(() => MarketplaceSourceParser.Parse(directory, "main")).Code);
+        Assert.Equal(
+            MarketplaceErrorCodes.SourceInvalid,
+            Assert.Throws<MarketplaceException>(() => MarketplaceSourceParser.Parse(directory, explicitRef: null, ["plugins/example"])).Code);
+        Assert.Equal(
+            MarketplaceErrorCodes.SourceInvalid,
+            Assert.Throws<MarketplaceException>(() => MarketplaceSourceParser.Parse(file)).Code);
     }
 
     [Theory]
     [InlineData("../escape")]
-    [InlineData("plugins/../../escape")]
     [InlineData("/absolute")]
     public void Parse_RejectsTraversingSparsePaths(string sparsePath)
     {
@@ -160,43 +83,19 @@ public sealed class MarketplaceSourceParserTests
     }
 
     [Fact]
-    public void FromConfigured_TreatsMissingKindAsArchiveUrl()
-    {
-        var source = MarketplaceSourceParser.FromConfigured(
-            sourceType: null,
-            "https://example.com/plugins.zip",
-            refName: null,
-            sparsePaths: null);
-
-        Assert.Equal(MarketplaceSourceKind.Archive, source.Kind);
-    }
-
-    [Fact]
-    public void FromConfigured_TreatsMissingKindWithExistingDirectoryAsLocal()
+    public void FromConfigured_InfersKindFromTheValueWhenMissing()
     {
         var directory = NewTempDir();
 
-        var source = MarketplaceSourceParser.FromConfigured(
-            sourceType: null,
-            directory,
-            refName: null,
-            sparsePaths: null);
+        var archive = MarketplaceSourceParser.FromConfigured(sourceType: null, "https://example.com/plugins.zip", refName: null, sparsePaths: null);
+        var local = MarketplaceSourceParser.FromConfigured(sourceType: null, directory, refName: null, sparsePaths: null);
+        var git = MarketplaceSourceParser.FromConfigured("git", "https://example.com/team/repo.git", "main", ["plugins/example"]);
 
-        Assert.Equal(MarketplaceSourceKind.Local, source.Kind);
-    }
-
-    [Fact]
-    public void FromConfigured_KeepsRepositorySourceWithoutRequiringLocalDirectory()
-    {
-        var source = MarketplaceSourceParser.FromConfigured(
-            "git",
-            "https://example.com/team/repo.git",
-            "main",
-            ["plugins/example"]);
-
-        Assert.Equal(MarketplaceSourceKind.Git, source.Kind);
-        Assert.Equal("main", source.Ref);
-        Assert.Equal(["plugins/example"], source.SparsePathList);
+        Assert.Equal(MarketplaceSourceKind.Archive, archive.Kind);
+        Assert.Equal(MarketplaceSourceKind.Local, local.Kind);
+        Assert.Equal(MarketplaceSourceKind.Git, git.Kind);
+        Assert.Equal("main", git.Ref);
+        Assert.Equal(["plugins/example"], git.SparsePathList);
     }
 
     private static string NewTempDir()

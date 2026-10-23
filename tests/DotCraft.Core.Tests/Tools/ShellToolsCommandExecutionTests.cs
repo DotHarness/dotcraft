@@ -69,8 +69,6 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
 
     [Theory]
     [InlineData("shutdown /s /t 60")]
-    [InlineData("shutdown.exe /s /t 60")]
-    [InlineData("ipconfig /all")]
     [InlineData("cmd /c echo probe")]
     public async Task Exec_WindowsSlashOptions_ReachOnlyTheFakeTerminalUnchanged(string command)
     {

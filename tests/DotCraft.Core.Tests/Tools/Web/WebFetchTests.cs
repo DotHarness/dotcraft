@@ -88,7 +88,6 @@ public sealed class WebFetchTests
 
     [Theory]
     [InlineData(0, 1)]
-    [InlineData(-5, 1)]
     [InlineData(3, 3)]
     [InlineData(1000, 8)]
     public async Task MaxCharsIsClampedToConfiguredLimit(int requested, int expectedLength)

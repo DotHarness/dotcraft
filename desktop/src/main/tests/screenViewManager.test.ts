@@ -83,7 +83,7 @@ function managerHarness(): { manager: ScreenViewManager; sessions: FakeSession[]
 }
 
 describe('ScreenViewManager', () => {
-  it('opens one view per window and starts it with the window visible', () => {
+  it('starts a view with the window visible and pauses capture while it is hidden', () => {
     const { manager, sessions } = managerHarness()
     const target = fakeTarget()
     manager.open(target, { viewId: 'view-1', peerId: 'peer-1', maxWidth: 640 })
@@ -91,13 +91,6 @@ describe('ScreenViewManager', () => {
     expect(sessions).toHaveLength(1)
     expect(sessions[0].started).toBe(true)
     expect(sessions[0].watchers).toBe(1)
-    manager.closeAll()
-  })
-
-  it('follows the window: hiding pauses capture and showing resumes it', () => {
-    const { manager, sessions } = managerHarness()
-    const target = fakeTarget()
-    manager.open(target, { viewId: 'view-1', peerId: 'peer-1', maxWidth: 640 })
 
     target.visible = false
     target.notifyVisibilityChange()
@@ -109,7 +102,7 @@ describe('ScreenViewManager', () => {
     manager.closeAll()
   })
 
-  it('replaces the window view when another one opens', () => {
+  it('replaces the window view when another opens and closes it when the window goes away', () => {
     const { manager, sessions } = managerHarness()
     const target = fakeTarget()
     manager.open(target, { viewId: 'view-1', peerId: 'peer-1', maxWidth: 640 })
@@ -117,16 +110,9 @@ describe('ScreenViewManager', () => {
 
     expect(sessions[0].closed).toBe(true)
     expect(sessions[1].maxWidth).toBe(1920)
-    manager.closeAll()
-  })
-
-  it('closes the view when the window goes away', () => {
-    const { manager, sessions } = managerHarness()
-    const target = fakeTarget()
-    manager.open(target, { viewId: 'view-1', peerId: 'peer-1', maxWidth: 640 })
 
     target.notifyGone()
-    expect(sessions[0].closed).toBe(true)
+    expect(sessions[1].closed).toBe(true)
   })
 
   it('ignores a tune or an ack naming another view', () => {

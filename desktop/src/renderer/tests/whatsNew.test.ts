@@ -31,24 +31,12 @@ const RELEASES = sortWhatsNewReleasesNewestFirst([
 const LATEST_VERSION = '0.1.10'
 
 describe('whatsNew release filtering', () => {
-  it('treats missing last-seen state as unseen for the current release', () => {
-    expect(
-      getUnseenWhatsNewReleases(RELEASES, LATEST_VERSION, undefined)
-        .map((item) => item.version)
-    ).toContain(LATEST_VERSION)
-  })
-
-  it('hides releases at or below the last seen version', () => {
-    expect(getUnseenWhatsNewReleases(RELEASES, LATEST_VERSION, LATEST_VERSION)).toEqual([])
-  })
-
-  it('does not show future releases', () => {
-    expect(getWhatsNewReleasesUpTo(RELEASES, '0.0.1')).toEqual([])
-  })
-
-  it('sorts and compares semver-like app versions numerically', () => {
+  it('compares versions numerically and shows only unseen releases up to the current version', () => {
     expect(compareAppVersions('0.1.10', '0.1.6')).toBeGreaterThan(0)
     expect(getLatestWhatsNewVersion(RELEASES)).toBe(LATEST_VERSION)
+    expect(getUnseenWhatsNewReleases(RELEASES, LATEST_VERSION, undefined).map((item) => item.version)).toContain(LATEST_VERSION)
+    expect(getUnseenWhatsNewReleases(RELEASES, LATEST_VERSION, LATEST_VERSION)).toEqual([])
+    expect(getWhatsNewReleasesUpTo(RELEASES, '0.0.1')).toEqual([])
   })
 
   it('accepts valid media metadata and normalizes the hash', () => {

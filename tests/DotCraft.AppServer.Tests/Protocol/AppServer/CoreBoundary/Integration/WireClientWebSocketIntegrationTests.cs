@@ -6,24 +6,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer.Integration;
 
-/// <summary>
-/// End-to-end integration tests for the AppServer wire protocol stack over WebSocket.
-/// Mirrors <see cref="WireClientIntegrationTests"/> but uses <see cref="WebSocketTransport"/>
-/// and <see cref="WebSocketClientConnection"/> in place of the pipe-based stdio transport.
-///
-/// A fake WebSocket pair is created in-process via <see cref="WebSocketTestHelper.CreateWebSocketPair"/>
-/// — no actual network sockets are opened.
-///
-/// Test coverage:
-/// <list type="bullet">
-/// <item>Handshake (initialize → initialized) over WebSocket</item>
-/// <item>Thread creation: thread/start returns a valid thread ID</item>
-/// <item>Thread discovery: thread/list returns the created thread</item>
-/// <item>Turn execution: turn/start streams agent notifications and completes</item>
-/// <item>Approval flow: server sends item/approval/request, client responds</item>
-/// <item>Multiple concurrent connections share the same session service</item>
-/// </list>
-/// </summary>
 public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
 {
     private readonly string _tempDir;
@@ -44,7 +26,6 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
 
         var (serverWs, clientWs) = WebSocketTestHelper.CreateWebSocketPair();
 
-        // The server loop task owns the server transport lifetime
         _serverLoop = Task.Run(async () =>
         {
             await using var wsTransport = new WebSocketTransport(serverWs);
@@ -63,59 +44,17 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
             await RunServerLoopAsync(wsTransport, connection, handler, _serverCts.Token);
         });
 
-        // Client side: wrap the client WebSocket in a full wire client connection
         _connection = WebSocketClientConnection.FromWebSocket(clientWs);
     }
 
-    // -------------------------------------------------------------------------
-    // Handshake
-    // -------------------------------------------------------------------------
-
     [Fact]
-    public async Task Initialize_OverWebSocket_ReturnsServerInfo()
+    public async Task WireClient_OverWebSocket_HandshakesStartsAThreadAndStreamsATurn()
     {
         var initDoc = await _connection.Wire.InitializeAsync(clientName: "test-cli", clientVersion: "0.0.1");
-
-        var result = initDoc.RootElement.GetProperty("result");
-        Assert.Equal("dotcraft", result.GetProperty("serverInfo").GetProperty("name").GetString());
-        Assert.Equal("1", result.GetProperty("serverInfo").GetProperty("protocolVersion").GetString());
-        Assert.True(result.GetProperty("capabilities").GetProperty("threadManagement").GetBoolean());
-    }
-
-    // -------------------------------------------------------------------------
-    // Thread creation
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task ThreadStart_OverWebSocket_ReturnsThreadId()
-    {
-        await _connection.Wire.InitializeAsync();
-
-        var result = await _connection.Wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
-        {
-            identity = new
-            {
-                channelName = "cli",
-                userId = "local",
-                workspacePath = _tempDir
-            },
-            historyMode = "server"
-        });
-
-        var thread = result.RootElement.GetProperty("result").GetProperty("thread");
-        var threadId = thread.GetProperty("id").GetString();
-        Assert.NotNull(threadId);
-        Assert.StartsWith("thread_", threadId);
-    }
-
-    // -------------------------------------------------------------------------
-    // Turn execution (streaming notifications)
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task TurnStart_WithCannedEvents_StreamsAgentResponse()
-    {
-        await _connection.Wire.InitializeAsync();
+        var init = initDoc.RootElement.GetProperty("result");
+        Assert.Equal("dotcraft", init.GetProperty("serverInfo").GetProperty("name").GetString());
+        Assert.Equal("1", init.GetProperty("serverInfo").GetProperty("protocolVersion").GetString());
+        Assert.True(init.GetProperty("capabilities").GetProperty("threadManagement").GetBoolean());
 
         var createResult = await _connection.Wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
@@ -124,6 +63,7 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
         });
         var threadId = createResult.RootElement.GetProperty("result")
             .GetProperty("thread").GetProperty("id").GetString()!;
+        Assert.StartsWith("thread_", threadId);
 
         _service.EnqueueSubmitEvents(threadId, AppServerTestHarness.BuildTurnEventSequence(threadId));
 
@@ -147,10 +87,6 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
         Assert.Contains(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentMessageDelta, notifications);
         Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted, notifications[^1]);
     }
-
-    // -------------------------------------------------------------------------
-    // Approval flow (bidirectional server request over WebSocket)
-    // -------------------------------------------------------------------------
 
     [Fact]
     public async Task TurnStart_WithApproval_ClientReceivesApprovalRequest()
@@ -193,14 +129,9 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
         Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted, methods[^1]);
     }
 
-    // -------------------------------------------------------------------------
-    // WebSocket-specific: multiple concurrent clients share the same session service
-    // -------------------------------------------------------------------------
-
     [Fact]
     public async Task MultipleConcurrentClients_EachGetIsolatedConnection_ShareSessionService()
     {
-        // Create a second independent WebSocket connection to the SAME session service
         var (serverWs2, clientWs2) = WebSocketTestHelper.CreateWebSocketPair();
         var serverLoop2Cts = new CancellationTokenSource();
 
@@ -226,11 +157,9 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
 
         try
         {
-            // Both clients initialize independently
             await _connection.Wire.InitializeAsync(clientName: "client-1");
             await connection2.Wire.InitializeAsync(clientName: "client-2");
 
-            // Client 1 creates a thread
             var result1 = await _connection.Wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
             {
                 identity = new { channelName = "cli", userId = "user1", workspacePath = _tempDir },
@@ -239,7 +168,6 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
             var threadId1 = result1.RootElement.GetProperty("result")
                 .GetProperty("thread").GetProperty("id").GetString()!;
 
-            // Client 2 lists threads — should see the thread created by client 1 (shared service)
             var listResult = await connection2.Wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
             {
                 identity = new { channelName = "cli", userId = "user1", workspacePath = _tempDir }
@@ -259,10 +187,6 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
             serverLoop2Cts.Dispose();
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Server loop (mirrors AppServerHost.RunLoopAsync)
-    // -------------------------------------------------------------------------
 
     private static async Task RunServerLoopAsync(
         IAppServerTransport transport,
@@ -318,16 +242,10 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
         connection.CancelAllSubscriptions();
     }
 
-    // -------------------------------------------------------------------------
-    // IAsyncDisposable
-    // -------------------------------------------------------------------------
-
     public async ValueTask DisposeAsync()
     {
-        // Dispose the wire connection first (sends WebSocket close frame to the server)
         await _connection.DisposeAsync();
 
-        // Cancel and await the server loop
         await _serverCts.CancelAsync();
         try { await _serverLoop; } catch { }
         _serverCts.Dispose();

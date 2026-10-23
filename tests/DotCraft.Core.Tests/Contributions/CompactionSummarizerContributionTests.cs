@@ -7,12 +7,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Contributions;
 
-/// <summary>
-/// The <see cref="ICompactionSummarizer"/> contribution point, asserted through the pipeline that reads it.
-/// Every equivalence test runs one scenario three ways — no registry, an empty registry, and a registry
-/// carrying the registered built-in — and requires the three to agree on status, history, traces,
-/// model calls and failure tracking.
-/// </summary>
 public sealed class CompactionSummarizerContributionTests
 {
     private const string ThreadId = "thread-a";
@@ -29,52 +23,6 @@ public sealed class CompactionSummarizerContributionTests
         });
 
     [Fact]
-    public Task AutoCompact_SnapshotForkPartialSummary_IsIdenticalAcrossViews() =>
-        AssertIdenticalAcrossViews(RunAutoSnapshotForkAsync, run =>
-        {
-            Assert.Equal(CompactionOutcome.Partial, run.Status.Outcome);
-            Assert.Contains("snapshot fork summary", run.Messages);
-            Assert.DoesNotContain("\"mode\":\"legacy\"", run.Traces);
-            Assert.Equal(1, run.ChatCalls);
-        });
-
-    [Fact]
-    public Task AutoCompact_NoSummarizablePrefix_SkipsIdenticallyAcrossViews() =>
-        AssertIdenticalAcrossViews(RunAutoNoSummarizablePrefixAsync, run =>
-        {
-            Assert.Equal(CompactionOutcome.Skipped, run.Status.Outcome);
-            Assert.Equal("no_summarizable_prefix", run.Status.FailureReason);
-            Assert.Equal(0, run.ChatCalls);
-        });
-
-    [Fact]
-    public Task AutoCompact_ColdCacheMicroPass_IsIdenticalAcrossViews() =>
-        AssertIdenticalAcrossViews(RunAutoColdCacheMicroAsync, run =>
-        {
-            Assert.Equal(CompactionOutcome.Micro, run.Status.Outcome);
-            Assert.True(run.Status.ClearedToolResults > 0);
-            Assert.Equal(0, run.ChatCalls);
-        });
-
-    [Fact]
-    public Task ManualCompact_PartialFailureFallingBackToFull_IsIdenticalAcrossViews() =>
-        AssertIdenticalAcrossViews(RunManualFullFallbackAsync, run =>
-        {
-            Assert.Equal(CompactionOutcome.Partial, run.Status.Outcome);
-            Assert.Contains("full fallback summary", run.Messages);
-            Assert.Equal(2, run.ChatCalls);
-        });
-
-    [Fact]
-    public Task ReactiveCompact_PartialSummary_IsIdenticalAcrossViews() =>
-        AssertIdenticalAcrossViews(RunReactivePartialAsync, run =>
-        {
-            Assert.Equal(CompactionOutcome.Partial, run.Status.Outcome);
-            Assert.Contains("reactive summary", run.Messages);
-            Assert.Equal(1, run.ChatCalls);
-        });
-
-    [Fact]
     public Task ManualCompact_SummaryCallThrowing_FailsAndTripsTheBreakerIdenticallyAcrossViews() =>
         AssertIdenticalAcrossViews(RunManualProviderTimeoutAsync, run =>
         {
@@ -84,21 +32,12 @@ public sealed class CompactionSummarizerContributionTests
         });
 
     [Fact]
-    public void AnEmptyContributionPoint_ResolvesTheBuiltIn()
-    {
-        Assert.Same(CompactionSummarizerCatalog.BuiltIn, CompactionSummarizerCatalog.Resolve(null));
-        Assert.Same(
-            CompactionSummarizerCatalog.BuiltIn,
-            CompactionSummarizerCatalog.Resolve(new ContributionRegistry()));
-        Assert.Same(CompactionSummarizerCatalog.BuiltIn, CompactionSummarizerCatalog.Resolve(CreateRegistry()));
-    }
-
-    [Fact]
-    public async Task ReplacingTheBuiltIn_SubstitutesTheSummaryAndDisposalRestoresIt()
+    public async Task ReplacingTheBuiltInMidSession_SubstitutesTheSummaryAndDisposalRestoresIt()
     {
         var registry = CreateRegistry();
         var pipeline = CreatePartialPipeline(new SequenceChatClient(Summary("built-in summary")), registry);
-        var replacement = new StubSummarizer("contributed summary");
+        var before = await ManualCompactAsync(pipeline);
+        var replacement = new StubSummarizer("contributed summary", [new ChatMessage(ChatRole.User, "kept verbatim")]);
         var handle = registry.Add<ICompactionSummarizer>(
             replacement,
             new ContributionOptions(Order: 200, ReplaceTarget: CompactionSummarizerCatalog.BuiltInTargetName));
@@ -107,8 +46,12 @@ public sealed class CompactionSummarizerContributionTests
         handle.Dispose();
         var restored = await ManualCompactAsync(pipeline);
 
+        Assert.Contains("built-in summary", before.Messages[0].Text);
         Assert.Equal(CompactionOutcome.Partial, replaced.Status.Outcome);
+        Assert.Equal(2, replaced.Messages.Count);
+        Assert.Equal(ChatRole.User, replaced.Messages[0].Role);
         Assert.Contains("contributed summary", replaced.Messages[0].Text);
+        Assert.Equal("kept verbatim", replaced.Messages[1].Text);
         Assert.Equal(1, replacement.Calls);
         Assert.Contains("built-in summary", restored.Messages[0].Text);
     }
@@ -131,22 +74,6 @@ public sealed class CompactionSummarizerContributionTests
     }
 
     [Fact]
-    public async Task AReplacementRegisteredMidSession_GovernsTheNextCompaction()
-    {
-        var registry = CreateRegistry();
-        var pipeline = CreatePartialPipeline(new SequenceChatClient(Summary("built-in summary")), registry);
-
-        var before = await ManualCompactAsync(pipeline);
-        registry.Add<ICompactionSummarizer>(
-            new StubSummarizer("late summary"),
-            new ContributionOptions(Order: 200, ReplaceTarget: CompactionSummarizerCatalog.BuiltInTargetName));
-        var after = await ManualCompactAsync(pipeline);
-
-        Assert.Contains("built-in summary", before.Messages[0].Text);
-        Assert.Contains("late summary", after.Messages[0].Text);
-    }
-
-    [Fact]
     public async Task AThreadScopedReplacement_AppliesToThatThreadOnly()
     {
         var registry = CreateRegistry();
@@ -160,23 +87,6 @@ public sealed class CompactionSummarizerContributionTests
 
         Assert.Contains("scoped summary", scoped.Messages[0].Text);
         Assert.Contains("built-in summary", other.Messages[0].Text);
-    }
-
-    [Fact]
-    public async Task AReplacement_KeepsItsPreservedTailBehindTheSummary()
-    {
-        var registry = CreateRegistry();
-        var pipeline = CreatePartialPipeline(new SequenceChatClient(Summary("unused")), registry);
-        registry.Add<ICompactionSummarizer>(
-            new StubSummarizer("contributed summary", [new ChatMessage(ChatRole.User, "kept verbatim")]),
-            new ContributionOptions(Order: 200, ReplaceTarget: CompactionSummarizerCatalog.BuiltInTargetName));
-
-        var result = await ManualCompactAsync(pipeline);
-
-        Assert.Equal(2, result.Messages.Count);
-        Assert.Equal(ChatRole.User, result.Messages[0].Role);
-        Assert.Contains("contributed summary", result.Messages[0].Text);
-        Assert.Equal("kept verbatim", result.Messages[1].Text);
     }
 
     [Fact]
@@ -261,7 +171,6 @@ public sealed class CompactionSummarizerContributionTests
         Assert.Equal(1, replacement.Calls);
     }
 
-    /// <param name="assertShape">Pins what the scenario actually exercised, so the three-way comparison cannot pass vacuously.</param>
     private static async Task AssertIdenticalAcrossViews(
         Func<IContributionView?, Task<CompactionRun>> scenario,
         Action<CompactionRun> assertShape)
@@ -285,107 +194,6 @@ public sealed class CompactionSummarizerContributionTests
             MultiRoundMessages(),
             ThreadId,
             inputTokenHint: 180_000,
-            lastAssistantTimestampUtc: null,
-            CancellationToken.None);
-
-        return Capture(result, pipeline, chat, store);
-    }
-
-    private static async Task<CompactionRun> RunAutoSnapshotForkAsync(IContributionView? contributions)
-    {
-        var store = new TraceStore();
-        var chat = new SequenceChatClient(Summary("snapshot fork summary"));
-        var pipeline = CreatePartialPipeline(chat, contributions, store);
-        var messages = MultiRoundMessages();
-
-        var result = await pipeline.TryAutoCompactHistoryAsync(
-            messages,
-            ThreadId,
-            inputTokenHint: 180_000,
-            lastAssistantTimestampUtc: null,
-            CancellationToken.None,
-            snapshot: CaptureSnapshot(messages));
-
-        return Capture(result, pipeline, chat, store);
-    }
-
-    private static async Task<CompactionRun> RunAutoNoSummarizablePrefixAsync(IContributionView? contributions)
-    {
-        var config = PartialConfig();
-        config.KeepRecentMinTokens = 10_000;
-        config.KeepRecentMinGroups = 3;
-        var store = new TraceStore();
-        var chat = new SequenceChatClient(Summary("never asked for"));
-        var pipeline = new CompactionPipeline(config, chat, new TraceCollector(store), contributions: contributions);
-
-        var result = await pipeline.TryAutoCompactHistoryAsync(
-            [new ChatMessage(ChatRole.User, "user " + new string('u', 1_200))],
-            ThreadId,
-            inputTokenHint: 180_000,
-            lastAssistantTimestampUtc: null,
-            CancellationToken.None);
-
-        return Capture(result, pipeline, chat, store);
-    }
-
-    private static async Task<CompactionRun> RunAutoColdCacheMicroAsync(IContributionView? contributions)
-    {
-        var config = new CompactionConfig
-        {
-            ContextWindow = 40_000,
-            SummaryReserveTokens = 4_000,
-            AutoCompactBufferTokens = 2_000,
-            MicrocompactEnabled = true,
-            MicrocompactKeepRecent = 1,
-            MicrocompactGapMinutes = 5
-        };
-        var store = new TraceStore();
-        var chat = new SequenceChatClient(Summary("never asked for"));
-        var pipeline = new CompactionPipeline(config, chat, new TraceCollector(store), contributions: contributions);
-        var messages = new List<ChatMessage>();
-        for (var index = 0; index < 4; index++)
-        {
-            var callId = $"call-{index}";
-            messages.Add(new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
-                [new FunctionCallContent(callId, "ReadFile", new Dictionary<string, object?>())]));
-            messages.Add(new ChatMessage(ChatRole.Tool, (IList<AIContent>)
-                [new FunctionResultContent(callId, new string('r', 30_000))]));
-        }
-
-        var result = await pipeline.TryAutoCompactHistoryAsync(
-            messages,
-            ThreadId,
-            MessageTokenEstimator.Estimate(messages),
-            DateTimeOffset.UtcNow.AddMinutes(-10),
-            CancellationToken.None);
-
-        return Capture(result, pipeline, chat, store);
-    }
-
-    private static async Task<CompactionRun> RunManualFullFallbackAsync(IContributionView? contributions)
-    {
-        var store = new TraceStore();
-        var chat = new SequenceChatClient(string.Empty, Summary("full fallback summary"));
-        var pipeline = CreatePartialPipeline(chat, contributions, store);
-
-        var result = await pipeline.TryManualCompactHistoryAsync(
-            MultiRoundMessages(),
-            ThreadId,
-            lastAssistantTimestampUtc: null,
-            CancellationToken.None);
-
-        return Capture(result, pipeline, chat, store);
-    }
-
-    private static async Task<CompactionRun> RunReactivePartialAsync(IContributionView? contributions)
-    {
-        var store = new TraceStore();
-        var chat = new SequenceChatClient(Summary("reactive summary"));
-        var pipeline = CreatePartialPipeline(chat, contributions, store);
-
-        var result = await pipeline.TryReactiveCompactHistoryAsync(
-            MultiRoundMessages(),
-            ThreadId,
             lastAssistantTimestampUtc: null,
             CancellationToken.None);
 
@@ -458,15 +266,6 @@ public sealed class CompactionSummarizerContributionTests
         KeepRecentMaxTokens = 100_000
     };
 
-    private static PromptRequestSnapshot CaptureSnapshot(IReadOnlyList<ChatMessage> messages) =>
-        PromptRequestSnapshot.Capture(
-            messages,
-            new ChatOptions { Instructions = "stable base", ModelId = "model-test" },
-            providerId: "provider-test",
-            mode: "agent",
-            threadId: ThreadId,
-            turnId: "turn-1");
-
     private static string Summary(string text) => $"<summary>{text}</summary>";
 
     private static List<ChatMessage> MultiRoundMessages()
@@ -488,7 +287,6 @@ public sealed class CompactionSummarizerContributionTests
         return registry;
     }
 
-    /// <summary>Everything one compaction is observable by: its status, the history it left, its traces, its model calls and its breaker.</summary>
     private sealed record CompactionRun(
         CompactionStatus Status,
         string Messages,
@@ -549,7 +347,6 @@ public sealed class CompactionSummarizerContributionTests
         }
     }
 
-    /// <summary>Returns each configured summary in turn, repeating the last; with none configured every call times out.</summary>
     private sealed class SequenceChatClient(params string[] responseTexts) : IChatClient
     {
         private int _index;

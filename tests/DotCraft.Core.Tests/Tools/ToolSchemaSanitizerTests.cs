@@ -11,54 +11,28 @@ namespace DotCraft.Tests.Tools;
 public sealed class ToolSchemaSanitizerTests
 {
     [Fact]
-    public void SanitizeTool_RewritesNullableStringAndRemovesNullDefault()
+    public void SanitizeTool_RewritesNullablePrimitivesAndRemovesNullDefaultsIdempotently()
     {
         var function = AIFunctionFactory.Create(NullableStringTool);
         var sanitized = Assert.IsType<ToolSchemaSanitizingFunction>(ToolSchemaSanitizer.SanitizeTool(function));
 
         var optional = GetPropertySchema(sanitized.JsonSchema, "optional");
-
-        Assert.Equal(JsonValueKind.String, optional.GetProperty("type").ValueKind);
         Assert.Equal("string", optional.GetProperty("type").GetString());
         Assert.False(optional.TryGetProperty("default", out _));
         Assert.Equal("Optional nullable string.", optional.GetProperty("description").GetString());
-    }
+        foreach (var (name, type) in new[] { ("count", "integer"), ("enabled", "boolean"), ("ratio", "number") })
+        {
+            var property = GetPropertySchema(sanitized.JsonSchema, name);
+            Assert.Equal(type, property.GetProperty("type").GetString());
+            Assert.False(property.TryGetProperty("default", out _));
+        }
 
-    [Fact]
-    public void SanitizeTool_LeavesRequiredAndNonNullableStringsUsable()
-    {
-        var function = AIFunctionFactory.Create(NullableStringTool);
-        var sanitized = Assert.IsType<ToolSchemaSanitizingFunction>(ToolSchemaSanitizer.SanitizeTool(function));
-
-        var required = GetPropertySchema(sanitized.JsonSchema, "required");
+        Assert.Equal("string", GetPropertySchema(sanitized.JsonSchema, "required").GetProperty("type").GetString());
         var nonNullableDefault = GetPropertySchema(sanitized.JsonSchema, "nonNullableDefault");
-
-        Assert.Equal("string", required.GetProperty("type").GetString());
         Assert.Equal("string", nonNullableDefault.GetProperty("type").GetString());
         Assert.Equal("", nonNullableDefault.GetProperty("default").GetString());
-    }
-
-    [Fact]
-    public void SanitizeTool_RewritesNullablePrimitiveTypesAndRemovesNullDefaults()
-    {
-        var function = AIFunctionFactory.Create(NullableStringTool);
-        var sanitized = Assert.IsType<ToolSchemaSanitizingFunction>(ToolSchemaSanitizer.SanitizeTool(function));
-
-        var count = GetPropertySchema(sanitized.JsonSchema, "count");
-        var enabled = GetPropertySchema(sanitized.JsonSchema, "enabled");
-        var ratio = GetPropertySchema(sanitized.JsonSchema, "ratio");
-
-        Assert.Equal(JsonValueKind.String, count.GetProperty("type").ValueKind);
-        Assert.Equal("integer", count.GetProperty("type").GetString());
-        Assert.False(count.TryGetProperty("default", out _));
-
-        Assert.Equal(JsonValueKind.String, enabled.GetProperty("type").ValueKind);
-        Assert.Equal("boolean", enabled.GetProperty("type").GetString());
-        Assert.False(enabled.TryGetProperty("default", out _));
-
-        Assert.Equal(JsonValueKind.String, ratio.GetProperty("type").ValueKind);
-        Assert.Equal("number", ratio.GetProperty("type").GetString());
-        Assert.False(ratio.TryGetProperty("default", out _));
+        Assert.IsNotAssignableFrom<IDeferredToolSearchMarker>(sanitized);
+        Assert.Same(sanitized, ToolSchemaSanitizer.SanitizeTool(sanitized));
     }
 
     [Fact]
@@ -100,15 +74,6 @@ public sealed class ToolSchemaSanitizerTests
     }
 
     [Fact]
-    public void SanitizeTool_IsIdempotent()
-    {
-        var function = AIFunctionFactory.Create(NullableStringTool);
-        var sanitized = ToolSchemaSanitizer.SanitizeTool(function);
-
-        Assert.Same(sanitized, ToolSchemaSanitizer.SanitizeTool(sanitized));
-    }
-
-    [Fact]
     public void SanitizeTool_PreservesDeferredToolSearchRegistryMarker()
     {
         var registry = new DeferredToolRegistry(
@@ -121,28 +86,6 @@ public sealed class ToolSchemaSanitizerTests
         Assert.Same(registry, marker.Registry);
         Assert.Equal(AnthropicToolSearchTool.ToolName, sanitized.Name);
         Assert.Same(sanitized, ToolSchemaSanitizer.SanitizeTool(sanitized));
-    }
-
-    [Fact]
-    public void SanitizeTool_DoesNotAddDeferredToolSearchMarkerToOrdinaryFunctions()
-    {
-        var sanitized = ToolSchemaSanitizer.SanitizeTool(AIFunctionFactory.Create(NullableStringTool));
-
-        Assert.IsNotAssignableFrom<IDeferredToolSearchMarker>(sanitized);
-    }
-
-    [Fact]
-    public void DeferredRegistry_CanStoreSanitizedDeferredTools()
-    {
-        var rawTool = AIFunctionFactory.Create(NullableStringTool, name: "NullableStringTool");
-        var sanitizedTools = ToolSchemaSanitizer.SanitizeTools([rawTool]);
-        var registry = new DeferredToolRegistry(sanitizedTools);
-
-        var results = registry.SearchAndActivate("NullableStringTool");
-
-        Assert.Single(results);
-        var activated = Assert.IsType<ToolSchemaSanitizingFunction>(Assert.Single(registry.ActivatedToolsList));
-        Assert.Equal("string", GetPropertySchema(activated.JsonSchema, "optional").GetProperty("type").GetString());
     }
 
     [Fact]

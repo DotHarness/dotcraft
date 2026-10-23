@@ -103,30 +103,7 @@ public sealed class RemoteToolHostCatalogTests
     }
 
     [Fact]
-    public async Task List_ReportsSelfBusyOwnerAndExpiry_ForOwnLease()
-    {
-        using var home = new TemporaryDirectory();
-        using var workspace = new TemporaryDirectory();
-        var storage = new RemoteToolHostStorage(home.Path, new MemoryCredentialStore());
-        RemoteToolHostTestHost.Setup(
-            storage,
-            new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
-
-        await using var server = new RemoteToolHostTestServer(storage);
-        await using var client = server.CreateClient();
-        await client.ConnectAsync("thread", server.PeerId, "repo");
-
-        var catalog = await client.ListAsync("thread");
-
-        var workspaceDescriptor = catalog.Hosts.Single().Workspaces.Single();
-        Assert.False(workspaceDescriptor.Available);
-        Assert.Equal("self", workspaceDescriptor.BusyOwner);
-        Assert.NotNull(workspaceDescriptor.LeaseExpiresAt);
-        Assert.True(workspaceDescriptor.LeaseExpiresAt > DateTimeOffset.UtcNow);
-    }
-
-    [Fact]
-    public async Task List_ReportsOtherBusyOwner_WithoutLeakingOwnerId()
+    public async Task List_ReportsSelfOrOtherBusyOwner_WithoutLeakingOwnerId()
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
@@ -140,11 +117,15 @@ public sealed class RemoteToolHostCatalogTests
         await owner.ConnectAsync("thread", server.PeerId, "repo");
         await using var observer = server.CreateClient();
 
-        var catalog = await observer.ListAsync("observer-thread");
+        var own = (await owner.ListAsync("thread")).Hosts.Single().Workspaces.Single();
+        Assert.False(own.Available);
+        Assert.Equal("self", own.BusyOwner);
+        Assert.True(own.LeaseExpiresAt > DateTimeOffset.UtcNow);
 
-        var workspaceDescriptor = catalog.Hosts.Single().Workspaces.Single();
-        Assert.Equal("other", workspaceDescriptor.BusyOwner);
-        Assert.False(workspaceDescriptor.Available);
+        var catalog = await observer.ListAsync("observer-thread");
+        var other = catalog.Hosts.Single().Workspaces.Single();
+        Assert.Equal("other", other.BusyOwner);
+        Assert.False(other.Available);
         Assert.DoesNotContain(
             "agent_",
             JsonSerializer.Serialize(catalog, JsonSerializerOptions.Web),

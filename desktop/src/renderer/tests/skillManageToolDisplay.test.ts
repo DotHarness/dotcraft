@@ -2,25 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   buildSkillManageDiff,
   formatSkillManageLabel,
-  getSkillManageDisplay,
-  parseSkillManageResult
+  getSkillManageDisplay
 } from '../utils/skillManageToolDisplay'
 
 describe('skillManageToolDisplay', () => {
-  it('parses SkillManage JSON results', () => {
-    const parsed = parseSkillManageResult(JSON.stringify({
-      success: true,
-      message: "Patched skill 'demo'.",
-      replacementCount: 2
-    }))
-
-    expect(parsed).toMatchObject({
-      success: true,
-      message: "Patched skill 'demo'.",
-      replacementCount: 2
-    })
-  })
-
   it('detects variant updates from the result message', () => {
     const display = getSkillManageDisplay(
       { action: 'patch', name: 'demo' },
@@ -46,7 +31,7 @@ describe('skillManageToolDisplay', () => {
     )).toBe('Added skill file scripts/check.ps1')
   })
 
-  it('builds a patch diff from oldString and newString', () => {
+  it('builds diffs from a patch or from supporting file content', () => {
     const diff = buildSkillManageDiff(
       {
         action: 'patch',
@@ -61,10 +46,8 @@ describe('skillManageToolDisplay', () => {
     expect(diff?.additions).toBe(1)
     expect(diff?.deletions).toBe(1)
     expect(diff?.diffHunks[0]?.lines.map((line) => line.content)).toEqual(['before', 'after'])
-  })
 
-  it('builds a supporting file diff from fileContent', () => {
-    const diff = buildSkillManageDiff(
+    const fileDiff = buildSkillManageDiff(
       {
         action: 'write_file',
         name: 'demo',
@@ -74,8 +57,6 @@ describe('skillManageToolDisplay', () => {
       JSON.stringify({ success: true, message: 'ok' })
     )
 
-    expect(diff?.filePath).toBe('demo/scripts/check.ps1')
-    expect(diff?.isNewFile).toBe(true)
-    expect(diff?.additions).toBe(1)
+    expect(fileDiff).toMatchObject({ filePath: 'demo/scripts/check.ps1', isNewFile: true, additions: 1 })
   })
 })

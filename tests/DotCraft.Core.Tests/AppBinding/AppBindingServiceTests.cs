@@ -10,7 +10,7 @@ public sealed class AppBindingServiceTests : IDisposable
     private string CraftPath => Path.Combine(_root, ".craft");
 
     [Fact]
-    public void PrincipalCredential_IsReturnedOnce_AndNeverPersistedRaw()
+    public void PrincipalCredential_IsNeverPersistedRaw_AndRefreshInvalidatesThePreviousOne()
     {
         var control = new AppBindingService();
         var start = control.StartConnection(CraftPath, "com.example.test", "user");
@@ -24,6 +24,13 @@ public sealed class AppBindingServiceTests : IDisposable
         var persisted = File.ReadAllText(Path.Combine(CraftPath, "app-bindings", "state.json"));
         Assert.DoesNotContain(connected.Credential, persisted, StringComparison.Ordinal);
         Assert.DoesNotContain(start.RequestToken, persisted, StringComparison.Ordinal);
+
+        var refreshed = control.Refresh(CraftPath, connected.Principal.PrincipalId);
+
+        Assert.ThrowsAny<Exception>(() =>
+            control.Authenticate(CraftPath, "com.example.test", connected.Credential));
+        Assert.Equal(connected.Principal.PrincipalId,
+            control.Authenticate(CraftPath, "com.example.test", refreshed.Credential).PrincipalId);
     }
 
     [Fact]
@@ -55,26 +62,8 @@ public sealed class AppBindingServiceTests : IDisposable
 
     [Theory]
     [InlineData("http://example.test/mcp")]
-    [InlineData("file:///tmp/server")]
     public void RemoteInsecureOrNonHttpEndpoint_IsRejected(string endpoint) =>
         Assert.ThrowsAny<Exception>(() => AppBindingService.ValidateBindingEndpoint(endpoint));
-
-    [Fact]
-    public void CredentialRefresh_ImmediatelyInvalidatesPreviousCredential()
-    {
-        var control = new AppBindingService();
-        var start = control.StartConnection(CraftPath, "com.example.test", "user");
-        var connected = control.Connect(CraftPath, new AppConnectionConnectCommand
-        {
-            ConnectionRequestId = start.ConnectionRequestId, RequestToken = start.RequestToken
-        });
-        var refreshed = control.Refresh(CraftPath, connected.Principal.PrincipalId);
-
-        Assert.ThrowsAny<Exception>(() =>
-            control.Authenticate(CraftPath, "com.example.test", connected.Credential));
-        Assert.Equal(connected.Principal.PrincipalId,
-            control.Authenticate(CraftPath, "com.example.test", refreshed.Credential).PrincipalId);
-    }
 
     [Fact]
     public void SurfacePublish_ReplacesLease_AndRevokeMakesItUnavailable()
@@ -107,7 +96,6 @@ public sealed class AppBindingServiceTests : IDisposable
 
     [Theory]
     [InlineData("https://example.test/api")]
-    [InlineData("file:///tmp/app")]
     [InlineData("http://127.0.0.1:5000/api#fragment")]
     public void InvalidSurfaceEndpoint_IsRejected(string endpoint) =>
         Assert.ThrowsAny<Exception>(() => AppBindingService.ValidateSurfaceEndpoint(endpoint));

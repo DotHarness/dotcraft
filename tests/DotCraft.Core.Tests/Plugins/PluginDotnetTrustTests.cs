@@ -6,7 +6,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Plugins;
 
-/// <summary>Covers fingerprint-bound trust resolution and its user-global persistence.</summary>
 public sealed class PluginDotnetTrustTests : IDisposable
 {
     private readonly string _root =
@@ -27,23 +26,14 @@ public sealed class PluginDotnetTrustTests : IDisposable
         Assert.Equal(PluginDotnetTrustStatus.Untrusted, trust.ResolveStatus("sample", "aaaa"));
 
         Assert.True(trust.Grant("sample", "aaaa"));
-        Assert.Equal(PluginDotnetTrustStatus.Trusted, trust.ResolveStatus("sample", "aaaa"));
+        Assert.Equal(PluginDotnetTrustStatus.Trusted, trust.ResolveStatus("SAMPLE", "aaaa"));
+        Assert.Equal("aaaa", trust.TrustedFingerprint("Sample"));
         Assert.Equal(PluginDotnetTrustStatus.Modified, trust.ResolveStatus("sample", "bbbb"));
 
         Assert.False(trust.Grant("sample", "aaaa"));
         Assert.True(trust.Revoke("sample", "aaaa"));
         Assert.False(trust.Revoke("sample", "aaaa"));
         Assert.Equal(PluginDotnetTrustStatus.Untrusted, trust.ResolveStatus("sample", "aaaa"));
-    }
-
-    [Fact]
-    public void ResolveStatus_TreatsPluginIdsCaseInsensitively()
-    {
-        var trust = new PluginDotnetTrust(new AppConfig(), new MemoryStore());
-        trust.Grant("Sample.Plugin", "aaaa");
-
-        Assert.Equal(PluginDotnetTrustStatus.Trusted, trust.ResolveStatus("sample.plugin", "aaaa"));
-        Assert.Equal("aaaa", trust.TrustedFingerprint("SAMPLE.PLUGIN"));
     }
 
     [Fact]
@@ -96,7 +86,7 @@ public sealed class PluginDotnetTrustTests : IDisposable
     }
 
     [Fact]
-    public void ConfigurationCannotPreAuthorizePluginCode()
+    public void ConfigurationCannotPreAuthorizePluginCodeAndGrantsNeedAUserStore()
     {
         var configPath = Path.Combine(_root, "user", "config.json");
         Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
@@ -111,17 +101,10 @@ public sealed class PluginDotnetTrustTests : IDisposable
 
         Assert.Equal(PluginDotnetTrustStatus.Untrusted, trust.ResolveStatus("sample", "aaaa"));
         Assert.False(File.Exists(PluginDotnetTrustConfigStore.PathForConfig(configPath)));
-    }
 
-    [Fact]
-    public void WorkspaceGrantAndGrantMutation_AreRejectedWithoutAUserStore()
-    {
-        var config = new AppConfig();
-
-        var trust = new PluginDotnetTrust(config);
-
-        Assert.Equal(PluginDotnetTrustStatus.Untrusted, trust.ResolveStatus("sample", "aaaa"));
-        Assert.Throws<PluginTrustPersistenceException>(() => trust.Grant("sample", "aaaa"));
+        var withoutUserStore = new PluginDotnetTrust(new AppConfig());
+        Assert.Equal(PluginDotnetTrustStatus.Untrusted, withoutUserStore.ResolveStatus("sample", "aaaa"));
+        Assert.Throws<PluginTrustPersistenceException>(() => withoutUserStore.Grant("sample", "aaaa"));
     }
 
     [Fact]

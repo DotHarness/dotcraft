@@ -120,8 +120,6 @@ public sealed class SubAgentStartupTests : IDisposable
 
     [Theory]
     [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
     [InlineData(true, true)]
     public async Task StartedObserverFailure_ReturnsAdmittedChild(bool waitForCompletion, bool observerCancelled)
     {

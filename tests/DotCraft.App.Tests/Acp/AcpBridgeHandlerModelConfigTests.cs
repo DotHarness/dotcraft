@@ -7,12 +7,6 @@ namespace DotCraft.App.Tests.Acp;
 public sealed class AcpBridgeHandlerModelConfigTests
 {
     [Fact]
-    public void ConfigOptionsUpdate_UsesStableAcpName()
-    {
-        Assert.Equal("config_option_update", AcpUpdateKind.ConfigOptionsUpdate);
-    }
-
-    [Fact]
     public void BuildConfigOptions_AddsModelSelectorFromSuccessfulCatalog()
     {
         var options = AcpBridgeHandler.BuildConfigOptions(

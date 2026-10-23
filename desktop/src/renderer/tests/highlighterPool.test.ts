@@ -6,7 +6,6 @@ import type { FileHighlightResult } from '../highlight/types'
 
 const RESULT: FileHighlightResult = { lines: [[{ text: 'x' }]], highlighted: true }
 
-/** A backend that holds every request open until the test releases it. */
 function controllableBackend(slots = 1): HighlightBackend & {
   requests: HighlightRequestMessage[]
   settle: () => Promise<void>
@@ -47,39 +46,25 @@ function fileRequest(cacheKey: string): { cacheKey: string; name: string; conten
 }
 
 describe('HighlighterPool', () => {
-  it('caches a result and returns it synchronously to the next caller', async () => {
-    const backend = controllableBackend()
-    const pool = new HighlighterPool({ backend })
-    const first = {}
-    const onResult = vi.fn()
-
-    expect(pool.requestFile(first, fileRequest('k'), onResult)).toBeUndefined()
-    await backend.settle()
-    expect(onResult).toHaveBeenCalledWith(RESULT)
-
-    const second = {}
-    expect(pool.requestFile(second, fileRequest('k'), vi.fn())).toBe(RESULT)
-    expect(backend.requests).toHaveLength(1)
-  })
-
-  it('shares one task between subscribers asking for the same content', async () => {
+  it('shares one task between subscribers and returns the cached result synchronously afterwards', async () => {
     const backend = controllableBackend()
     const pool = new HighlighterPool({ backend })
     const a = vi.fn()
     const b = vi.fn()
 
-    pool.requestFile({}, fileRequest('k'), a)
+    expect(pool.requestFile({}, fileRequest('k'), a)).toBeUndefined()
     pool.requestFile({}, fileRequest('k'), b)
 
     expect(backend.requests).toHaveLength(1)
     await backend.settle()
     expect(a).toHaveBeenCalledWith(RESULT)
     expect(b).toHaveBeenCalledWith(RESULT)
+
+    expect(pool.requestFile({}, fileRequest('k'), vi.fn())).toBe(RESULT)
+    expect(backend.requests).toHaveLength(1)
   })
 
   it('drops a queued task once its last subscriber goes away', async () => {
-    // One slot, so the second request has to wait in the queue where it can
-    // still be called off — the case a fast scroll produces constantly.
     const backend = controllableBackend(1)
     const pool = new HighlighterPool({ backend })
     const held = {}
@@ -95,7 +80,7 @@ describe('HighlighterPool', () => {
     expect(backend.requests.map((request) => request.request.cacheKey)).toEqual(['first'])
   })
 
-  it('keeps a priming task alive even though nothing is subscribed to it', async () => {
+  it('keeps a priming task alive without subscribers and skips priming cached content', async () => {
     const backend = controllableBackend(1)
     const pool = new HighlighterPool({ backend })
 
@@ -106,17 +91,9 @@ describe('HighlighterPool', () => {
 
     expect(backend.requests.map((request) => request.request.cacheKey)).toEqual(['first', 'warm'])
     expect(pool.peekFile('warm')).toBe(RESULT)
-  })
 
-  it('skips priming content the cache already holds', async () => {
-    const backend = controllableBackend()
-    const pool = new HighlighterPool({ backend })
-
-    pool.requestFile({}, fileRequest('k'), vi.fn())
-    await backend.settle()
-    pool.primeFile(fileRequest('k'))
-
-    expect(backend.requests).toHaveLength(1)
+    pool.primeFile(fileRequest('warm'))
+    expect(backend.requests).toHaveLength(2)
   })
 
   it('evicts the oldest entry once the cache is full', async () => {
@@ -134,8 +111,6 @@ describe('HighlighterPool', () => {
   })
 
   it('dispatches work queued before the backend finished starting', async () => {
-    // A backend reporting no free slots until it is ready tells the pool it has
-    // nowhere to dispatch, so without a re-drain the first request never leaves the queue.
     let ready = false
     let resolveReady = (): void => {}
     const readyPromise = new Promise<void>((resolve) => {
@@ -170,23 +145,7 @@ describe('HighlighterPool', () => {
     expect(onResult).toHaveBeenCalledWith(RESULT)
   })
 
-  it('stays usable after being terminated and mounted again', async () => {
-    // React runs an effect, its cleanup, and the effect again on every mount in
-    // development, so the provider terminates the pool once before it is really in
-    // use. A pool that can only be torn down once is then dead for the whole session.
-    const backend = controllableBackend()
-    const pool = new HighlighterPool({ backend })
-
-    pool.terminate()
-
-    const onResult = vi.fn()
-    pool.requestFile({}, fileRequest('k'), onResult)
-    await backend.settle()
-
-    expect(onResult).toHaveBeenCalledWith(RESULT)
-  })
-
-  it('forgets cached results when terminated', async () => {
+  it('forgets cached results when terminated and stays usable afterwards', async () => {
     const backend = controllableBackend()
     const pool = new HighlighterPool({ backend })
     pool.requestFile({}, fileRequest('k'), vi.fn())
@@ -194,8 +153,12 @@ describe('HighlighterPool', () => {
     expect(pool.peekFile('k')).toBe(RESULT)
 
     pool.terminate()
-
     expect(pool.peekFile('k')).toBeUndefined()
+
+    const onResult = vi.fn()
+    pool.requestFile({}, fileRequest('k'), onResult)
+    await backend.settle()
+    expect(onResult).toHaveBeenCalledWith(RESULT)
   })
 
   it('reports pool activity to stat subscribers', () => {

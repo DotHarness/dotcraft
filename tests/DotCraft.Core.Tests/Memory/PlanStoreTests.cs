@@ -22,32 +22,7 @@ public sealed class PlanStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveStructuredPlanAsync_RoundTripsStructuredPlan()
-    {
-        var thread = CreateThread("thread_plan_db");
-        await _threadStore.SaveThreadAsync(thread);
-
-        await _planStore.SaveStructuredPlanAsync(thread.Id, new StructuredPlan
-        {
-            Title = "DB plan",
-            Overview = "Stored in SQLite",
-            Content = "Implementation details",
-            Todos =
-            [
-                new PlanTodo { Id = "do-work", Content = "Do the work", Status = PlanTodoStatus.Pending }
-            ],
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        });
-
-        var loaded = await _planStore.LoadStructuredPlanAsync(thread.Id);
-
-        Assert.NotNull(loaded);
-        Assert.Equal("DB plan", loaded.Title);
-    }
-
-    [Fact]
-    public async Task DeleteThread_CascadesPlanButArchiveKeepsIt()
+    public async Task StructuredPlan_RoundTripsAndFollowsTheThreadLifecycle()
     {
         var thread = CreateThread("thread_plan_lifecycle");
         await _threadStore.SaveThreadAsync(thread);
@@ -69,19 +44,33 @@ public sealed class PlanStoreTests : IDisposable
         _threadStore.DeleteThread(thread.Id);
 
         Assert.False(_planStore.StructuredPlanExists(thread.Id));
+
+        var savedThread = CreateThread("thread_plan_db");
+        await _threadStore.SaveThreadAsync(savedThread);
+
+        await _planStore.SaveStructuredPlanAsync(savedThread.Id, new StructuredPlan
+        {
+            Title = "DB plan",
+            Overview = "Stored in SQLite",
+            Content = "Implementation details",
+            Todos =
+            [
+                new PlanTodo { Id = "do-work", Content = "Do the work", Status = PlanTodoStatus.Pending }
+            ],
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+
+        var loaded = await _planStore.LoadStructuredPlanAsync(savedThread.Id);
+
+        Assert.NotNull(loaded);
+        Assert.Equal("DB plan", loaded.Title);
     }
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
-        }
-        catch
-        {
-            // Test cleanup is best-effort on Windows.
-        }
+        try { Directory.Delete(_root, recursive: true); }
+        catch { }
     }
 
     private static SessionThread CreateThread(string id) => new()

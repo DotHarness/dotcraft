@@ -6,7 +6,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-public sealed partial class SessionServiceRuntimeSignalTests
+public sealed class SessionServicePassiveHistoryTests : SessionServiceRuntimeSignalTestBase
 {
     [Theory]
     [InlineData(false)]

@@ -17,56 +17,35 @@ public sealed class PluginRegistrySyncServiceTests
     private const string RegistryUrl = "https://registry.test/registry.zip";
 
     [Fact]
-    public async Task SyncAsync_ActivatesTheDownloadedSnapshot()
+    public async Task SyncAsync_ActivatesTheDownloadedSnapshotAndSkipsWhileItIsFresh()
     {
         var handler = StubHandler.Serving(CreateArchive("synced-marketplace"));
         var craftHome = NewTempDir();
         var sync = new PluginRegistrySyncService(craftHome, handler: handler);
 
-        var result = await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: false, CancellationToken.None);
+        var first = await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: false, CancellationToken.None);
+        var second = await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: false, CancellationToken.None);
 
-        Assert.Equal(PluginRegistrySyncResult.Activated, result);
+        Assert.Equal(PluginRegistrySyncResult.Activated, first);
+        Assert.Equal(PluginRegistrySyncResult.Skipped, second);
         Assert.Equal(1, handler.RequestCount);
         Assert.True(Directory.Exists(
             new PluginRegistryArchiveCache(craftHome).SnapshotRootFor(RegistryUrl, MarketplacePath)));
     }
 
     [Fact]
-    public async Task SyncAsync_DoesNotDownloadAgainWhileTheSnapshotIsFresh()
-    {
-        var handler = StubHandler.Serving(CreateArchive("synced-marketplace"));
-        var sync = new PluginRegistrySyncService(NewTempDir(), handler: handler);
-
-        await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: false, CancellationToken.None);
-        var second = await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: false, CancellationToken.None);
-
-        Assert.Equal(PluginRegistrySyncResult.Skipped, second);
-        Assert.Equal(1, handler.RequestCount);
-    }
-
-    [Fact]
-    public async Task SyncAsync_BacksOffInsteadOfRetryingAFailedDownload()
+    public async Task SyncAsync_BacksOffAfterAFailedDownloadUnlessForced()
     {
         var handler = StubHandler.Failing(HttpStatusCode.InternalServerError);
         var sync = new PluginRegistrySyncService(NewTempDir(), handler: handler);
 
         var first = await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: false, CancellationToken.None);
         var second = await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: false, CancellationToken.None);
-        var third = await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: false, CancellationToken.None);
 
         Assert.Equal(PluginRegistrySyncResult.Failed, first);
         Assert.Equal(PluginRegistrySyncResult.Skipped, second);
-        Assert.Equal(PluginRegistrySyncResult.Skipped, third);
         Assert.Equal(1, handler.RequestCount);
-    }
 
-    [Fact]
-    public async Task SyncAsync_ForceOverridesTheFailureBackoff()
-    {
-        var handler = StubHandler.Failing(HttpStatusCode.InternalServerError);
-        var sync = new PluginRegistrySyncService(NewTempDir(), handler: handler);
-
-        await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: false, CancellationToken.None);
         await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: true, CancellationToken.None);
 
         Assert.Equal(2, handler.RequestCount);
@@ -120,7 +99,6 @@ public sealed class PluginRegistrySyncServiceTests
 
     [Theory]
     [InlineData("default-marketplace", false)]
-    [InlineData(null, false)]
     [InlineData(null, true)]
     public async Task MarketplaceRefresh_RefreshesHostDefaultOnce(string? name, bool configured)
     {

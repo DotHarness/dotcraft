@@ -88,17 +88,10 @@ afterEach(() => {
 })
 
 describe('SatellitesHubBridge subscription', () => {
-  it('opens one Hub stream no matter how many windows subscribe', () => {
+  it('shares one Hub stream across subscribers and closes it at zero', async () => {
     bridge.acquire()
     bridge.acquire()
-    bridge.acquire()
-
     expect(hub.subscribeCalls).toBe(1)
-  })
-
-  it('keeps the stream while any subscriber remains and closes it at zero', async () => {
-    bridge.acquire()
-    bridge.acquire()
 
     bridge.release()
     hub.emit(satelliteFrame('satellite.online', 'sat_1'))
@@ -106,9 +99,6 @@ describe('SatellitesHubBridge subscription', () => {
     expect(received).toHaveLength(1)
 
     bridge.release()
-    await vi.advanceTimersByTimeAsync(0)
-
-    // The abort resolves the stream; with no subscribers nothing resubscribes.
     await vi.advanceTimersByTimeAsync(60_000)
     expect(hub.subscribeCalls).toBe(1)
   })
@@ -119,7 +109,6 @@ describe('SatellitesHubBridge subscription', () => {
     hub.endStream(new Error('hub unavailable'))
     await vi.advanceTimersByTimeAsync(0)
 
-    // The first tick only records the baseline; it must not announce arrivals.
     await vi.advanceTimersByTimeAsync(30_000)
     expect(hub.listCalls).toBe(1)
     expect(received).toHaveLength(0)
@@ -214,7 +203,6 @@ describe('SatellitesHubBridge recent activity', () => {
 
     const activity = bridge.recentActivity('sat_1')
     expect(activity).toHaveLength(20)
-    // Event 24 was the 25th emitted and used the even (online) kind.
     expect(activity[0].kind).toBe('online')
   })
 

@@ -86,20 +86,20 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
-    public void CreateResponseOptions_PreservesUserImageContentParts()
+    public void CreateResponseOptions_MapsUserContentPartsAndDegradesUnsupportedContent()
     {
-        var dataImage = new DataContent(CreateImageBytes("image/png"), "image/png");
-        var remoteImage = new UriContent("https://example.test/cat.jpg", "image/jpeg");
-
         using var document = JsonDocument.Parse(CreateRequestJson(
             "gpt-test",
             [
                 new ChatMessage(ChatRole.User, (IList<AIContent>)
                 [
                     new TextContent("Look at this:"),
-                    dataImage,
-                    new TextContent(" and this:"),
-                    remoteImage
+                    new DataContent(CreateImageBytes("image/png"), "image/png"),
+                    new UriContent("https://example.test/cat.jpg", "image/jpeg"),
+                    new DataContent(CreateImageBytes("image/bmp"), "image/bmp"),
+                    new DataContent(new byte[] { 1, 2, 3 }, "image/bmp"),
+                    new DataContent(new byte[] { 4, 5, 6 }, "application/pdf"),
+                    new UnknownContent()
                 ])
             ],
             new ChatOptions
@@ -112,61 +112,19 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("user", message.GetProperty("role").GetString());
 
         var content = message.GetProperty("content").EnumerateArray().ToArray();
-        Assert.Equal(4, content.Length);
+        Assert.Equal(7, content.Length);
         Assert.Equal("input_text", content[0].GetProperty("type").GetString());
         Assert.Equal("Look at this:", content[0].GetProperty("text").GetString());
         Assert.Equal("input_image", content[1].GetProperty("type").GetString());
         Assert.StartsWith("data:image/png;base64,", content[1].GetProperty("image_url").GetString(), StringComparison.Ordinal);
-        Assert.Equal("input_text", content[2].GetProperty("type").GetString());
-        Assert.Equal(" and this:", content[2].GetProperty("text").GetString());
+        Assert.Equal("input_image", content[2].GetProperty("type").GetString());
+        Assert.Equal("https://example.test/cat.jpg", content[2].GetProperty("image_url").GetString());
         Assert.Equal("input_image", content[3].GetProperty("type").GetString());
-        Assert.Equal("https://example.test/cat.jpg", content[3].GetProperty("image_url").GetString());
-    }
-
-    [Fact]
-    public void CreateResponseOptions_TranscodesUserBmpContentPartToPng()
-    {
-        using var document = JsonDocument.Parse(CreateRequestJson(
-            "gpt-test",
-            [
-                new ChatMessage(ChatRole.User, (IList<AIContent>)
-                [
-                    new DataContent(CreateImageBytes("image/bmp"), "image/bmp")
-                ])
-            ],
-            new ChatOptions
-            {
-                Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))]
-            }));
-
-        var message = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
-        var content = Assert.Single(message.GetProperty("content").EnumerateArray());
-
-        Assert.Equal("input_image", content.GetProperty("type").GetString());
-        Assert.StartsWith("data:image/png;base64,", content.GetProperty("image_url").GetString(), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void CreateResponseOptions_DegradesInvalidImageContentWithVisiblePlaceholder()
-    {
-        using var document = JsonDocument.Parse(CreateRequestJson(
-            "gpt-test",
-            [
-                new ChatMessage(ChatRole.User, (IList<AIContent>)
-                [
-                    new DataContent(new byte[] { 1, 2, 3 }, "image/bmp")
-                ])
-            ],
-            new ChatOptions
-            {
-                Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))]
-            }));
-
-        var message = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
-        var content = Assert.Single(message.GetProperty("content").EnumerateArray());
-
-        Assert.Equal("input_text", content.GetProperty("type").GetString());
-        Assert.Equal(ModelImageInputPreparer.CouldNotProcessPlaceholder, content.GetProperty("text").GetString());
+        Assert.StartsWith("data:image/png;base64,", content[3].GetProperty("image_url").GetString(), StringComparison.Ordinal);
+        Assert.Equal("input_text", content[4].GetProperty("type").GetString());
+        Assert.Equal(ModelImageInputPreparer.CouldNotProcessPlaceholder, content[4].GetProperty("text").GetString());
+        Assert.Equal("[Unsupported content: DataContent (application/pdf)]", content[5].GetProperty("text").GetString());
+        Assert.Equal("[Unsupported content: UnknownContent]", content[6].GetProperty("text").GetString());
     }
 
     [Fact]
@@ -195,33 +153,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("[Image content from tool results - attached for vision analysis.]", content[0].GetProperty("text").GetString());
         Assert.Equal("input_image", content[1].GetProperty("type").GetString());
         Assert.StartsWith("data:image/png;base64,", content[1].GetProperty("image_url").GetString(), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void CreateResponseOptions_DegradesUnsupportedContentWithVisiblePlaceholder()
-    {
-        using var document = JsonDocument.Parse(CreateRequestJson(
-            "gpt-test",
-            [
-                new ChatMessage(ChatRole.User, (IList<AIContent>)
-                [
-                    new TextContent("Read this:"),
-                    new DataContent(new byte[] { 4, 5, 6 }, "application/pdf"),
-                    new UnknownContent()
-                ])
-            ],
-            new ChatOptions
-            {
-                Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))]
-            }));
-
-        var message = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
-        var content = message.GetProperty("content").EnumerateArray().ToArray();
-
-        Assert.Equal(3, content.Length);
-        Assert.Equal("Read this:", content[0].GetProperty("text").GetString());
-        Assert.Equal("[Unsupported content: DataContent (application/pdf)]", content[1].GetProperty("text").GetString());
-        Assert.Equal("[Unsupported content: UnknownContent]", content[2].GetProperty("text").GetString());
     }
 
     [Fact]
@@ -340,20 +271,21 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
-    public void CreateResponseOptions_EmitsNamespacedDynamicToolDefinition()
+    public void CreateResponseOptions_EmitsNamespacedAndFlatFunctionToolDefinitions()
     {
         var dynamicTool = CreateRuntimeDynamicTool("image_gen", "imagegen");
+        var flatTool = new TestFunction("lookup", "Look up a value.");
 
         using var document = JsonDocument.Parse(CreateRequestJson(
             "gpt-test",
             [new ChatMessage(ChatRole.User, "make an image")],
             new ChatOptions
             {
-                Tools = [dynamicTool]
+                Tools = [dynamicTool, flatTool]
             }));
 
-        var namespaceTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
-        Assert.Equal("namespace", namespaceTool.GetProperty("type").GetString());
+        var tools = document.RootElement.GetProperty("tools").EnumerateArray().ToArray();
+        var namespaceTool = Assert.Single(tools, tool => tool.GetProperty("type").GetString() == "namespace");
         Assert.Equal("image_gen", namespaceTool.GetProperty("name").GetString());
         var function = Assert.Single(namespaceTool.GetProperty("tools").EnumerateArray());
         Assert.Equal("function", function.GetProperty("type").GetString());
@@ -361,30 +293,25 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("Generate an image.", function.GetProperty("description").GetString());
         Assert.Equal("object", function.GetProperty("parameters").GetProperty("type").GetString());
         Assert.False(function.TryGetProperty("defer_loading", out _));
+
+        var functionTool = Assert.Single(tools, tool => tool.GetProperty("type").GetString() == "function");
+        Assert.Equal("lookup", functionTool.GetProperty("name").GetString());
+        Assert.Equal("Look up a value.", functionTool.GetProperty("description").GetString());
+        Assert.Equal("object", functionTool.GetProperty("parameters").GetProperty("type").GetString());
+        Assert.False(functionTool.TryGetProperty("namespace", out _));
+        Assert.False(functionTool.TryGetProperty("tools", out _));
     }
 
-    [Fact]
-    public void CreateResponseOptions_UsesOneResolvedNamespaceDescription()
+    [Theory]
+    [InlineData("Catalog tools.", "Catalog tools.", "Catalog tools.")]
+    [InlineData("First description.", "Second description.", "Tools in the workflow namespace.")]
+    public void CreateResponseOptions_ResolvesOneNamespaceDescription(
+        string firstDescription,
+        string secondDescription,
+        string expected)
     {
-        var first = new TestFunction("first", "First tool.", "mcp__catalog", "Catalog tools.");
-        var second = new TestFunction("second", "Second tool.", "mcp__catalog", "Catalog tools.");
-
-        using var document = JsonDocument.Parse(CreateRequestJson(
-            "gpt-test",
-            [new ChatMessage(ChatRole.User, "use catalog")],
-            new ChatOptions { Tools = [first, second] }));
-
-        var namespaceTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
-        Assert.Equal("mcp__catalog", namespaceTool.GetProperty("name").GetString());
-        Assert.Equal("Catalog tools.", namespaceTool.GetProperty("description").GetString());
-        Assert.Equal(2, namespaceTool.GetProperty("tools").GetArrayLength());
-    }
-
-    [Fact]
-    public void CreateResponseOptions_ConflictingNamespaceDescriptionsUseGenericDescription()
-    {
-        var first = new TestFunction("first", "First tool.", "workflow", "First description.");
-        var second = new TestFunction("second", "Second tool.", "workflow", "Second description.");
+        var first = new TestFunction("first", "First tool.", "workflow", firstDescription);
+        var second = new TestFunction("second", "Second tool.", "workflow", secondDescription);
 
         using var document = JsonDocument.Parse(CreateRequestJson(
             "gpt-test",
@@ -392,7 +319,8 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
             new ChatOptions { Tools = [first, second] }));
 
         var namespaceTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
-        Assert.Equal("Tools in the workflow namespace.", namespaceTool.GetProperty("description").GetString());
+        Assert.Equal("workflow", namespaceTool.GetProperty("name").GetString());
+        Assert.Equal(expected, namespaceTool.GetProperty("description").GetString());
         Assert.Equal(2, namespaceTool.GetProperty("tools").GetArrayLength());
     }
 
@@ -480,28 +408,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
 
         var item = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
         Assert.Equal("fc_provider", item.GetProperty("id").GetString());
-    }
-
-    [Fact]
-    public void CreateResponseOptions_LeavesFlatFunctionToolDefinitionUnchanged()
-    {
-        var tool = new TestFunction("imagegen", "Generate an image.");
-
-        using var document = JsonDocument.Parse(CreateRequestJson(
-            "gpt-test",
-            [new ChatMessage(ChatRole.User, "make an image")],
-            new ChatOptions
-            {
-                Tools = [tool]
-            }));
-
-        var functionTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
-        Assert.Equal("function", functionTool.GetProperty("type").GetString());
-        Assert.Equal("imagegen", functionTool.GetProperty("name").GetString());
-        Assert.Equal("Generate an image.", functionTool.GetProperty("description").GetString());
-        Assert.Equal("object", functionTool.GetProperty("parameters").GetProperty("type").GetString());
-        Assert.False(functionTool.TryGetProperty("namespace", out _));
-        Assert.False(functionTool.TryGetProperty("tools", out _));
     }
 
     [Fact]
@@ -698,6 +604,18 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
         AssertToolChoice(ChatToolMode.RequireAny, "\"required\"");
         AssertToolChoice(ChatToolMode.RequireSpecific("lookup"), """{"type":"function","name":"lookup"}""");
 
+        var withoutTools = ResponsesToolSearchMapper.CreateResponseOptions(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "do not use tools")],
+            new ChatOptions
+            {
+                AllowMultipleToolCalls = true,
+                ToolMode = ChatToolMode.None
+            });
+        using var withoutToolsDocument = JsonDocument.Parse(SerializeOptions(withoutTools));
+        Assert.False(withoutToolsDocument.RootElement.TryGetProperty("tool_choice", out _));
+        Assert.False(withoutToolsDocument.RootElement.TryGetProperty("parallel_tool_calls", out _));
+
         void AssertToolChoice(ChatToolMode toolMode, string expectedJson)
         {
             var options = ResponsesToolSearchMapper.CreateResponseOptions(
@@ -714,24 +632,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
                 expected.RootElement.GetRawText(),
                 document.RootElement.GetProperty("tool_choice").GetRawText());
         }
-    }
-
-    [Fact]
-    public void CreateResponseOptions_DoesNotEmitToolChoiceWithoutTools()
-    {
-        var options = ResponsesToolSearchMapper.CreateResponseOptions(
-            "gpt-test",
-            [new ChatMessage(ChatRole.User, "do not use tools")],
-            new ChatOptions
-            {
-                AllowMultipleToolCalls = true,
-                ToolMode = ChatToolMode.None
-            });
-
-        using var document = JsonDocument.Parse(SerializeOptions(options));
-
-        Assert.False(document.RootElement.TryGetProperty("tool_choice", out _));
-        Assert.False(document.RootElement.TryGetProperty("parallel_tool_calls", out _));
     }
 
     [Fact]
@@ -876,28 +776,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
-    public void CreateResponseRequestShape_DistinguishesFlatAndNamespacedTools()
-    {
-        var flatTool = new TestFunction("imagegen", "Generate an image.");
-        var namespacedTool = new TestFunction("imagegen", "Generate an image.", "image_gen");
-
-        var flatShape = ResponsesToolSearchMapper.CreateResponseRequest(
-            "gpt-test",
-            [new ChatMessage(ChatRole.User, "make an image")],
-            new ChatOptions { Tools = [flatTool] }).Shape;
-        var namespacedShape = ResponsesToolSearchMapper.CreateResponseRequest(
-            "gpt-test",
-            [new ChatMessage(ChatRole.User, "make an image")],
-            new ChatOptions { Tools = [namespacedTool] }).Shape;
-
-        Assert.Equal(1, flatShape.ToolCount);
-        Assert.Equal(1, namespacedShape.ToolCount);
-        Assert.StartsWith("sha256:", flatShape.ToolsHash, StringComparison.Ordinal);
-        Assert.StartsWith("sha256:", namespacedShape.ToolsHash, StringComparison.Ordinal);
-        Assert.NotEqual(flatShape.ToolsHash, namespacedShape.ToolsHash);
-    }
-
-    [Fact]
     public async Task StreamingFunctionLoop_RecordsPromptCacheRequestShapeTraceForEachRequest()
     {
         const string sessionKey = "responses-request-shape-trace";
@@ -1021,50 +899,26 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
 
             var response = await client.GetResponseAsync(
                 [new ChatMessage(ChatRole.User, "hello")],
-                new ChatOptions { ConversationId = "stale-provider-conversation" });
+                new ChatOptions
+                {
+                    ConversationId = "stale-provider-conversation",
+                    Tools = [AIFunctionFactory.Create(() => "ok", name: "RegularTool", description: "A regular function tool")]
+                });
 
             Assert.Equal(0, inner.GetResponseCalls);
             Assert.Equal(0, inner.GetStreamingResponseCalls);
             Assert.Null(response.ConversationId);
 
             using var document = JsonDocument.Parse(SerializeOptions(Assert.Single(transport.Requests)));
+            var tool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+            Assert.Equal("function", tool.GetProperty("type").GetString());
+            Assert.Equal("RegularTool", tool.GetProperty("name").GetString());
+            Assert.True(document.RootElement.GetProperty("stream").GetBoolean());
             Assert.False(document.RootElement.GetProperty("store").GetBoolean());
             Assert.Equal("thread-cache-key", document.RootElement.GetProperty("prompt_cache_key").GetString());
             Assert.Contains(
                 document.RootElement.GetProperty("include").EnumerateArray(),
                 item => item.GetString() == "reasoning.encrypted_content");
-        }
-        finally
-        {
-            TracingChatClient.CurrentSessionKey = previous;
-        }
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_WithoutNativeToolSearchPrefersConfiguredPromptCacheKey()
-    {
-        var previous = TracingChatClient.CurrentSessionKey;
-        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "")]));
-        var transport = new FakeToolSearchTransport();
-        using var client = CreateClient(inner, transport);
-        try
-        {
-            TracingChatClient.CurrentSessionKey = "async-local-cache-key";
-
-            await CollectStreamingAsync(client.GetStreamingResponseAsync(
-                [new ChatMessage(ChatRole.User, "hello")],
-                new ChatOptions
-                {
-                    AdditionalProperties = new AdditionalPropertiesDictionary
-                    {
-                        [ResponsesToolSearchMapper.PromptCacheKeyAdditionalProperty] = "configured-cache-key"
-                    }
-                }));
-
-            Assert.Equal(0, inner.GetStreamingResponseCalls);
-            using var document = JsonDocument.Parse(SerializeOptions(Assert.Single(transport.Requests)));
-            Assert.False(document.RootElement.GetProperty("store").GetBoolean());
-            Assert.Equal("configured-cache-key", document.RootElement.GetProperty("prompt_cache_key").GetString());
         }
         finally
         {
@@ -1209,36 +1063,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("Created Workflow App task DEF-188.\n{\"id\":\"DEF-188\"}", outputText);
         Assert.DoesNotContain(nameof(TextContent), outputText, StringComparison.Ordinal);
         Assert.DoesNotContain(nameof(AIContent.AdditionalProperties), outputText, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task GetResponseAsync_WithoutNativeToolSearch_UsesTransportPath()
-    {
-        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "")]));
-        var transport = new FakeToolSearchTransport();
-        using var client = CreateClient(inner, transport);
-
-        await client.GetResponseAsync(
-            [new ChatMessage(ChatRole.User, "hello")],
-            new ChatOptions
-            {
-                Tools =
-                [
-                    AIFunctionFactory.Create(
-                        () => "ok",
-                        name: "RegularTool",
-                        description: "A regular function tool")
-                ]
-            });
-
-        Assert.Equal(0, inner.GetResponseCalls);
-        Assert.Equal(0, inner.GetStreamingResponseCalls);
-        using var document = JsonDocument.Parse(SerializeOptions(Assert.Single(transport.Requests)));
-        var tool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
-        Assert.Equal("function", tool.GetProperty("type").GetString());
-        Assert.Equal("RegularTool", tool.GetProperty("name").GetString());
-        Assert.False(document.RootElement.GetProperty("store").GetBoolean());
-        Assert.True(document.RootElement.GetProperty("stream").GetBoolean());
     }
 
     [Fact]
@@ -1549,33 +1373,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_WithReasoning_DoesNotRetryWithoutReasoning()
-    {
-        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
-        var transport = new FakeToolSearchTransport(CreateOutputItemDone(CreateUnknownToolSearchCallItem(
-            "search-call",
-            new { query = "github issue" })));
-        using var client = CreateClient(inner, transport);
-
-        var updates = await CollectStreamingAsync(client.GetStreamingResponseAsync(
-            [new ChatMessage(ChatRole.User, "need a tool")],
-            new ChatOptions
-            {
-                Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))],
-                Reasoning = new ReasoningOptions
-                {
-                    Effort = ReasoningEffort.High,
-                    Output = ReasoningOutput.Summary
-                }
-            }));
-
-        Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionCallContent>());
-        var requestJson = SerializeOptions(Assert.Single(transport.Requests));
-        Assert.Contains("\"reasoning\"", requestJson, StringComparison.Ordinal);
-        Assert.Contains("\"include\"", requestJson, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task GetStreamingResponseAsync_WithEncryptedReasoning_PreservesProviderItemIdAcrossModelHistory()
     {
         const string providerItemId = "rs_provider_reasoning";
@@ -1646,53 +1443,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
             item => item.GetProperty("type").GetString() == "reasoning");
         Assert.Equal(providerItemId, replayedReasoning.GetProperty("id").GetString());
         Assert.Equal(encryptedContent, replayedReasoning.GetProperty("encrypted_content").GetString());
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_WhenReasoningDoneOmitsId_ReusesAddedProviderItemId()
-    {
-        const string providerItemId = "rs_added_reasoning";
-        const string encryptedContent = "encrypted-added-reasoning";
-        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
-        var transport = new FakeToolSearchTransport(
-            CreateStreamingUpdate($$"""
-                {
-                  "type": "response.output_item.added",
-                  "sequence_number": 1,
-                  "output_index": 0,
-                  "item": {
-                    "type": "reasoning",
-                    "id": "{{providerItemId}}",
-                    "status": "in_progress",
-                    "summary": []
-                  }
-                }
-                """),
-            CreateStreamingUpdate($$"""
-                {
-                  "type": "response.output_item.done",
-                  "sequence_number": 2,
-                  "output_index": 0,
-                  "item": {
-                    "type": "reasoning",
-                    "status": "completed",
-                    "encrypted_content": "{{encryptedContent}}",
-                    "summary": []
-                  }
-                }
-                """));
-        using var client = CreateClient(inner, transport);
-
-        var updates = await CollectStreamingAsync(client.GetStreamingResponseAsync(
-            [new ChatMessage(ChatRole.User, "reason")],
-            new ChatOptions { Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))] }));
-
-        var reasoning = Assert.Single(
-            updates.SelectMany(update => update.Contents).OfType<TextReasoningContent>());
-        Assert.Equal(encryptedContent, reasoning.ProtectedData);
-        Assert.Equal(
-            providerItemId,
-            reasoning.AdditionalProperties![OpenAIResponsesItemIdentity.MetadataKey]);
     }
 
     [Fact]

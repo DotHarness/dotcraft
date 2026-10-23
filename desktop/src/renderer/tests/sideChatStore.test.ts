@@ -197,16 +197,13 @@ describe('side chats', () => {
 })
 
 describe('side slash command', () => {
-  it.each([
-    ['/side', ''],
-    ['/side  why is this slow? ', 'why is this slow?'],
-    ['/BTW what changed', 'what changed']
-  ])('reads %j', (text, question) => {
-    expect(parseSideSlashCommand(text)).toEqual({ question })
-  })
-
-  it.each(['/sidebar', 'side', 'ask /side later'])('ignores %j', (text) => {
-    expect(parseSideSlashCommand(text)).toBeNull()
+  it('reads the question after /side or /btw and ignores other text', () => {
+    expect(parseSideSlashCommand('/side')).toEqual({ question: '' })
+    expect(parseSideSlashCommand('/side  why is this slow? ')).toEqual({ question: 'why is this slow?' })
+    expect(parseSideSlashCommand('/BTW what changed')).toEqual({ question: 'what changed' })
+    for (const text of ['/sidebar', 'side', 'ask /side later']) {
+      expect(parseSideSlashCommand(text)).toBeNull()
+    }
   })
 
   it('removes the command but keeps the rest of the message', () => {

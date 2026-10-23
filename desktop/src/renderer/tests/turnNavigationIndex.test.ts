@@ -170,12 +170,9 @@ describe('turn navigation index', () => {
 describe('turn navigation groups', () => {
   const keys = (count: number, prefix = 'k'): string[] => Array.from({ length: count }, (_unused, index) => `${prefix}${index}`)
 
-  it('splits entries into groups of 64', () => {
-    expect(groupEntries(keys(130)).map((group) => group.entryKeys.length)).toEqual([64, 64, 2])
-  })
-
-  it('keeps unchanged entries in their groups when entries are inserted or replaced', () => {
+  it('splits entries into groups of 64 and keeps unchanged entries in their groups on insert or replace', () => {
     const before = groupEntries(keys(130))
+    expect(before.map((group) => group.entryKeys.length)).toEqual([64, 64, 2])
     const next = keys(130)
     next.splice(10, 1, 'new-a', 'new-b', 'new-c')
 
@@ -198,22 +195,16 @@ describe('adjacent entry for Alt+Arrow navigation', () => {
   const rendered = (tops: number[]): Array<{ index: number; top: number }> =>
     tops.map((top, offset) => ({ index: offset + 1, top }))
 
-  it('moves above an entry that sits at the viewport top within the tolerance', () => {
+  it('moves relative to the entry at the viewport top within the tolerance', () => {
     expect(pickAdjacentEntry(entries, rendered([-400, 20, 400]), 0, 'previous')?.id).toBe('t2:t2-u')
     expect(pickAdjacentEntry(entries, rendered([-400, -30, 400]), 0, 'previous')?.id).toBe('t3:t3-u')
-  })
-
-  it('moves to the entry after the last one at or above the viewport top', () => {
     expect(pickAdjacentEntry(entries, rendered([-400, 20, 400]), 0, 'next')?.id).toBe('t4:t4-u')
     expect(pickAdjacentEntry(entries, rendered([-400, 30, 400]), 0, 'next')?.id).toBe('t3:t3-u')
   })
 
-  it('reaches unloaded entries beyond the rendered ones', () => {
+  it('reaches unloaded entries beyond the rendered ones and falls back to the ends when nothing is rendered', () => {
     expect(pickAdjacentEntry(entries, rendered([0, 400, 800]), 0, 'previous')?.id).toBe('t1')
     expect(pickAdjacentEntry(entries, rendered([-800, -400, 0]), 0, 'next')?.id).toBe('t5')
-  })
-
-  it('falls back to the ends when nothing is rendered', () => {
     expect(pickAdjacentEntry(entries, [], 0, 'previous')?.id).toBe('t5')
     expect(pickAdjacentEntry(entries, [], 0, 'next')?.id).toBe('t1')
   })

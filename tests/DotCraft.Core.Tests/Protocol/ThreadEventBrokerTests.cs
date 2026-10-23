@@ -7,9 +7,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-/// <summary>
-/// Tests for thread-scoped event fan-out and replay behavior.
-/// </summary>
 public sealed class ThreadEventBrokerTests
 {
     [Fact]

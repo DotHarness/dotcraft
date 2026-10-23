@@ -60,7 +60,7 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
         var thread = await CreateThreadAsync();
         var turn = DrainAsync(_service.SubmitInputAsync(thread.Id, [new TextContent("write the notes")]));
         await WaitForAsync(() => thread.Turns.LastOrDefault()?.Status == TurnStatus.WaitingApproval);
-        await Task.Delay(200);
+        await Task.Delay(100);
         Assert.Equal(TurnStatus.WaitingApproval, thread.Turns[^1].Status);
 
         var phone = await ConnectAsync("dotcraft-mobile");
@@ -84,7 +84,7 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
         var held = await desktop.NextRequestAsync();
 
         await desktop.DisconnectAsync();
-        await Task.Delay(300);
+        await Task.Delay(100);
         Assert.Equal(TurnStatus.WaitingApproval, thread.Turns[^1].Status);
 
         var phone = await ConnectAsync("dotcraft-mobile");
@@ -110,7 +110,7 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
         var onPhone = await phone.NextRequestAsync();
 
         onDesktop.Response.TrySetResult(null);
-        await Task.Delay(200);
+        await Task.Delay(100);
         Assert.Equal(TurnStatus.WaitingApproval, thread.Turns[^1].Status);
 
         await desktop.SubscribeAsync(thread.Id);
@@ -133,7 +133,7 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
         await phone.SubscribeAsync(thread.Id);
         var first = await phone.NextRequestAsync();
         first.Answer(new { decision = "maybe" });
-        await Task.Delay(200);
+        await Task.Delay(100);
         Assert.Equal(TurnStatus.WaitingApproval, thread.Turns[^1].Status);
 
         await phone.SubscribeAsync(thread.Id);
@@ -170,7 +170,7 @@ public sealed class AppServerMultiClientInteractiveTests : IAsyncDisposable
         Assert.False(await _model.Approved);
 
         onPhone.Answer(new { decision = "accept" });
-        await Task.Delay(200);
+        await Task.Delay(100);
         var response = Assert.Single(thread.Turns[^1].Items.Select(item => item.Payload).OfType<ApprovalResponsePayload>());
         Assert.Equal(SessionApprovalDecision.CancelTurn, response.Decision);
         await phone.Wire.SendRequestAsync(Methods.ThreadRead, new { threadId = thread.Id }, TimeSpan.FromSeconds(5));

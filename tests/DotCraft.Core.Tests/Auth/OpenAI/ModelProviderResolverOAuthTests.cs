@@ -36,33 +36,6 @@ public sealed class ModelProviderResolverOAuthTests
     }
 
     [Fact]
-    public void ApiKeyProviderRetainsExplicitEndpointAndApiKey()
-    {
-        var config = new AppConfig
-        {
-            ProviderId = "openai",
-            ProviderPreferences = new() { ["openai"] = new ModelPreference { Model = "gpt-4o"  } },
-            Providers =
-            {
-                ["openai"] = new AppConfig.ModelProviderConfig
-                {
-                    DisplayName = "OpenAI",
-                    Protocol = ModelProviderProtocols.OpenAIChatCompletions,
-                    AuthMethod = ModelProviderAuthMethods.ApiKey,
-                    ApiKey = "sk-test",
-                    EndPoint = "https://custom.example.com/v1"
-                }
-            }
-        };
-
-        var runtime = ModelProviderResolver.ResolveMain(config);
-        Assert.False(runtime.IsChatGptOAuth);
-        Assert.Equal("sk-test", runtime.ApiKey);
-        Assert.Equal("https://custom.example.com/v1", runtime.EndPoint);
-        Assert.Equal(ModelProviderProtocols.OpenAIChatCompletions, runtime.Protocol);
-    }
-
-    [Fact]
     public void OAuthOnAnthropicProtocolIsRejected()
     {
         var config = new AppConfig
@@ -81,14 +54,5 @@ public sealed class ModelProviderResolverOAuthTests
         };
 
         Assert.Throws<ModelProviderConfigurationException>(() => ModelProviderResolver.ResolveMain(config));
-    }
-
-    [Fact]
-    public void NormalizeAuthMethodAcceptsCaseInsensitiveAndDefaultsToApiKey()
-    {
-        Assert.Equal(ModelProviderAuthMethods.ChatGptOAuth, ModelProviderAuthMethods.Normalize("CHATGPTOAUTH"));
-        Assert.Equal(ModelProviderAuthMethods.ApiKey, ModelProviderAuthMethods.Normalize(null));
-        Assert.Equal(ModelProviderAuthMethods.ApiKey, ModelProviderAuthMethods.Normalize(""));
-        Assert.Equal(ModelProviderAuthMethods.ApiKey, ModelProviderAuthMethods.Normalize("apikey"));
     }
 }

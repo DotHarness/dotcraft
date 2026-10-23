@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.CLI;
-using DotCraft.Configuration;
 using Xunit;
 
 namespace DotCraft.Tests.CLI;
@@ -12,32 +11,10 @@ public sealed class ConfigCliRunnerTests : IDisposable
         "dotcraft-configcli-tests",
         Guid.NewGuid().ToString("N"));
 
-    [Fact]
-    public async Task Schema_Json_UsesWireFieldNamesAndReloadStrings()
-    {
-        using var output = new StringWriter();
-        using var error = new StringWriter();
-
-        var exitCode = await ConfigCliRunner.SchemaAsync(
-            new ConfigSchemaCommandOptions("Tools.Web", Json: true), output, error);
-
-        using var document = JsonDocument.Parse(output.ToString());
-        var section = Assert.Single(document.RootElement.EnumerateArray().ToArray());
-        var field = section.GetProperty("fields").EnumerateArray()
-            .Single(f => f.GetProperty("key").GetString() == "SearchProvider");
-
-        Assert.Equal(0, exitCode);
-        Assert.Equal("select", field.GetProperty("type").GetString());
-        Assert.Equal("subsystemRestart", field.GetProperty("reload").GetString());
-        Assert.Equal(
-            new[] { "Tools", "Web" },
-            section.GetProperty("path").EnumerateArray().Select(v => v.GetString()).ToArray());
-    }
-
     [Theory]
     [InlineData("tools > web")]
     [InlineData("Tools.Web")]
-    public async Task Schema_Section_AcceptsDisplayNameOrPath(string filter)
+    public async Task Schema_Json_FindsSectionByDisplayNameOrPath_AndUsesWireFieldNames(string filter)
     {
         using var output = new StringWriter();
         using var error = new StringWriter();
@@ -47,9 +24,16 @@ public sealed class ConfigCliRunnerTests : IDisposable
 
         using var document = JsonDocument.Parse(output.ToString());
         var section = Assert.Single(document.RootElement.EnumerateArray().ToArray());
+        var field = section.GetProperty("fields").EnumerateArray()
+            .Single(f => f.GetProperty("key").GetString() == "SearchProvider");
 
         Assert.Equal(0, exitCode);
         Assert.Equal("Tools > Web", section.GetProperty("section").GetString());
+        Assert.Equal("select", field.GetProperty("type").GetString());
+        Assert.Equal("subsystemRestart", field.GetProperty("reload").GetString());
+        Assert.Equal(
+            new[] { "Tools", "Web" },
+            section.GetProperty("path").EnumerateArray().Select(v => v.GetString()).ToArray());
     }
 
     [Fact]

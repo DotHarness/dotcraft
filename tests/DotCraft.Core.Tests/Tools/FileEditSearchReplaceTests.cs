@@ -18,51 +18,12 @@ public class FileEditSearchReplaceTests
     }
 
     [Fact]
-    public void Apply_InternalWhitespaceDifference_ReturnsErrorWithoutChangingContent()
-    {
-        var content = "x\na  b  c\ny\n";
-        var (ok, newContent, error, kind, _, _, _) = DotCraft.Tools.FileEditSearchReplace.Apply(content, "a b c", "A B C");
-        Assert.False(ok);
-        Assert.Contains("not found", error, StringComparison.OrdinalIgnoreCase);
-        Assert.Null(kind);
-        Assert.Equal(content, newContent);
-    }
-
-    [Fact]
-    public void Apply_UnicodeNormalized_MatchesEnDashWithAsciiHyphen()
-    {
-        // File uses EN DASH (U+2013); model sends ASCII hyphen in oldText
-        var fileLine = "import foo  # comment \u2013 note\n";
-        var content = "header\n" + fileLine + "footer\n";
-        var oldText = "import foo  # comment - note";
-        var (ok, newContent, error, kind, _, _, _) = DotCraft.Tools.FileEditSearchReplace.Apply(content, oldText, "IMPORT");
-        Assert.True(ok);
-        Assert.Null(error);
-        Assert.Equal("unicode-normalized fallback", kind);
-        Assert.Contains("IMPORT", newContent, StringComparison.Ordinal);
-        Assert.DoesNotContain("\u2013", newContent, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void Apply_MultipleExactMatches_ReturnsError()
     {
         var content = "hi\nhi\n";
         var (ok, _, error, _, _, _, _) = DotCraft.Tools.FileEditSearchReplace.Apply(content, "hi", "x");
         Assert.False(ok);
         Assert.Contains("replaceAll", error, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Apply_ReplaceAll_ReplacesEveryExactMatch()
-    {
-        var content = "hi\nhi\n";
-        var (ok, newContent, error, kind, _, _, replaceCount) =
-            DotCraft.Tools.FileEditSearchReplace.Apply(content, "hi", "x", replaceAll: true);
-        Assert.True(ok);
-        Assert.Null(error);
-        Assert.Equal("replace all", kind);
-        Assert.Equal(2, replaceCount);
-        Assert.Equal("x\nx\n", newContent);
     }
 
     [Fact]

@@ -8,19 +8,13 @@ namespace DotCraft.Tests.Auth.OpenAI;
 public sealed class PkceTests
 {
     [Fact]
-    public void CodeChallengeIsBase64UrlSha256OfVerifier()
-    {
-        var verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
-        var challenge = Pkce.CreateS256Challenge(verifier);
-
-        var expected = Base64UrlEncode(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
-        Assert.Equal(expected, challenge);
-    }
-
-    [Fact]
-    public void GeneratedVerifierIsUnreservedBase64UrlCharsOnly()
+    public void CodeChallengeIsBase64UrlSha256OfAUniqueUnreservedVerifier()
     {
         var verifier = Pkce.CreateCodeVerifier();
+        var challenge = Pkce.CreateS256Challenge(verifier);
+
+        Assert.Equal(Base64UrlEncode(SHA256.HashData(Encoding.ASCII.GetBytes(verifier))), challenge);
+        Assert.NotEqual(verifier, Pkce.CreateCodeVerifier());
         Assert.InRange(verifier.Length, 43, 128);
         Assert.DoesNotContain('=', verifier);
         Assert.DoesNotContain('+', verifier);
@@ -30,14 +24,6 @@ public sealed class PkceTests
             Assert.True(char.IsLetterOrDigit(c) || c is '-' or '_',
                 $"Unexpected verifier char: {c}");
         }
-    }
-
-    [Fact]
-    public void GeneratedVerifiersAreUnique()
-    {
-        var first = Pkce.CreateCodeVerifier();
-        var second = Pkce.CreateCodeVerifier();
-        Assert.NotEqual(first, second);
     }
 
     private static string Base64UrlEncode(byte[] bytes)

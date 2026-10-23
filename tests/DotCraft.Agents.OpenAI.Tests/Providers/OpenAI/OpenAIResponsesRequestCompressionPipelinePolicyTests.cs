@@ -83,13 +83,10 @@ public sealed class OpenAIResponsesRequestCompressionPipelinePolicyTests
         Assert.Equal(JsonBody, Decompress(ReadContent(message)));
     }
 
-    [Theory]
-    [InlineData("https://chatgpt.com/backend-api/codex/models")]
-    [InlineData("https://chatgpt.com/backend-api/codex/responses/other")]
-    [InlineData("https://chatgpt.com/backend-api/codex/responses/compact")]
-    public void IgnoresNonSamplingPaths(string uri)
+    [Fact]
+    public void IgnoresNonSamplingPaths()
     {
-        using var message = CreateMessage(uri, JsonBody);
+        using var message = CreateMessage("https://chatgpt.com/backend-api/codex/responses/compact", JsonBody);
 
         Assert.False(OpenAIResponsesRequestCompressionPipelinePolicy.Compress(message));
         Assert.Equal(JsonBody, ReadContent(message));

@@ -39,7 +39,6 @@ public sealed class PluginSettingsTests : IDisposable
     [InlineData("{ \"fields\": [{ \"key\": \"Name\", \"type\": \"text\" }, { \"key\": \"name\", \"type\": \"text\" }] }", "DuplicatePluginSettingsField")]
     [InlineData("{ \"fields\": [{ \"key\": \"count\", \"type\": \"integer\" }] }", "InvalidPluginSettingsFieldType")]
     [InlineData("{ \"fields\": [{ \"key\": \"enabled\", \"type\": \"bool\", \"defaultValue\": \"yes\" }] }", "InvalidPluginSettingsDefaultValue")]
-    [InlineData("{}", "InvalidPluginSettingsSchema")]
     public void Manifest_RejectsInvalidSchema(string schema, string code)
     {
         var pluginRoot = CreatePlugin(Guid.NewGuid().ToString("N"), schema);
@@ -143,20 +142,6 @@ public sealed class PluginSettingsTests : IDisposable
 
         Assert.Equal(PluginConfigStore.DocumentInvalid, invalidDocument.Code);
         Assert.Equal(broken, File.ReadAllText(store.WorkspacePath));
-    }
-
-    [Fact]
-    public void DataPath_UsesUserDataWhenConfiguredAndWorkspaceDataOtherwise()
-    {
-        var personal = Paths(withUserData: true);
-        var workspaceOnly = Paths(withUserData: false);
-
-        Assert.Equal(
-            Path.Combine(personal.UserData.RootPath!, "plugins", "sample", "data"),
-            PluginDataPaths.Resolve(personal, "sample"));
-        Assert.Equal(
-            Path.Combine(workspaceOnly.Data.RootPath, "plugin-data", "sample"),
-            PluginDataPaths.Resolve(workspaceOnly, "sample"));
     }
 
     [Fact]

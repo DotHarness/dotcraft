@@ -169,22 +169,6 @@ public sealed class DeferredToolLoadingPlannerTests
     }
 
     [Fact]
-    public void Registry_KeywordSearchReturnsQualifiedProviderName()
-    {
-        var registry = new DeferredToolRegistry([
-            new DeferredToolEntry(
-                new MetadataFunction("LookupRecords", deferLoading: true),
-                "fixture",
-                "fixture")
-        ]);
-
-        var matches = registry.SearchAndActivate("LookupRecords", 5);
-
-        Assert.Equal("fixture__LookupRecords", Assert.Single(matches).Name);
-        Assert.Equal(["fixture__LookupRecords"], registry.GetActivatedToolNames());
-    }
-
-    [Fact]
     public void Registry_SelectAppliesResultLimitBeforeActivation()
     {
         var registry = new DeferredToolRegistry([

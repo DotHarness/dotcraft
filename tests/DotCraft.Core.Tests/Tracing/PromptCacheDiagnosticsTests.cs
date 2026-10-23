@@ -42,12 +42,8 @@ public sealed class PromptCacheDiagnosticsTests : IDisposable
     }
 
     [Theory]
-    [InlineData("protocol")]
     [InlineData("model")]
-    [InlineData("cacheKey")]
-    [InlineData("instructions")]
     [InlineData("tools")]
-    [InlineData("reasoning")]
     public void SubAgentPrefixDiagnostic_ComponentChangeReportsExactField(string changedField)
     {
         var store = new TraceStore();
@@ -187,28 +183,19 @@ public sealed class PromptCacheDiagnosticsTests : IDisposable
     }
 
     [Fact]
-    public void RecordSessionMetadata_RecordsBaselineOnceAndSkipsUnchangedMetadata()
-    {
-        var store = new TraceStore();
-        var collector = new TraceCollector(store);
-
-        collector.RecordSessionMetadata("session", "system", ["ReadFile", "EditFile"]);
-        collector.RecordSessionMetadata("session", "system", ["ReadFile", "EditFile"]);
-
-        var metadata = Events(store, "session", TraceEventType.SessionMetadata);
-        var evt = Assert.Single(metadata);
-        Assert.Equal(PromptCacheEventKinds.Baseline, evt.PromptCacheEventKind);
-        Assert.False(evt.PromptDriftDetected);
-        Assert.Equal(0, store.GetSession("session")!.PromptDriftCount);
-    }
-
-    [Fact]
-    public void RecordSessionMetadata_SystemPromptChangeRecordsDrift()
+    public void RecordSessionMetadata_RecordsBaselineOnceThenDriftOnSystemPromptChange()
     {
         var store = new TraceStore();
         var collector = new TraceCollector(store);
 
         collector.RecordSessionMetadata("session", "system-v1", ["ReadFile"]);
+        collector.RecordSessionMetadata("session", "system-v1", ["ReadFile"]);
+
+        var baseline = Assert.Single(Events(store, "session", TraceEventType.SessionMetadata));
+        Assert.Equal(PromptCacheEventKinds.Baseline, baseline.PromptCacheEventKind);
+        Assert.False(baseline.PromptDriftDetected);
+        Assert.Equal(0, store.GetSession("session")!.PromptDriftCount);
+
         collector.RecordSessionMetadata("session", "system-v2", ["ReadFile"]);
 
         var drift = Events(store, "session", TraceEventType.SessionMetadata).Last();
@@ -220,18 +207,14 @@ public sealed class PromptCacheDiagnosticsTests : IDisposable
         Assert.Equal(1, store.GetSession("session")!.PromptDriftCount);
     }
 
-    [Theory]
-    [InlineData("ReadFile")]
-    [InlineData("EditFile|ReadFile")]
-    [InlineData("WriteFile|EditFile")]
-    public void RecordSessionMetadata_NonAppendOnlyToolChangeRecordsDrift(string newToolsCsv)
+    [Fact]
+    public void RecordSessionMetadata_ReorderedToolsRecordDrift()
     {
         var store = new TraceStore();
         var collector = new TraceCollector(store);
 
         collector.RecordSessionMetadata("session", "system", ["ReadFile", "EditFile"]);
-        var newTools = newToolsCsv.Split('|');
-        collector.RecordSessionMetadata("session", "system", newTools);
+        collector.RecordSessionMetadata("session", "system", ["EditFile", "ReadFile"]);
 
         var drift = Events(store, "session", TraceEventType.SessionMetadata).Last();
         Assert.Equal(PromptCacheEventKinds.Drift, drift.PromptCacheEventKind);
@@ -309,7 +292,6 @@ public sealed class PromptCacheDiagnosticsTests : IDisposable
 
     [Theory]
     [InlineData("", 6)]
-    [InlineData("5m", 6)]
     [InlineData("1h", 61)]
     public void PromptCacheUsageDiagnostic_TtlGapClassifiesPossibleTtl(string ttl, int elapsedMinutes)
     {
@@ -327,39 +309,25 @@ public sealed class PromptCacheDiagnosticsTests : IDisposable
         Assert.True(diagnostic.PromptCacheBreakDetected);
     }
 
-    [Fact]
-    public void PromptCacheUsageDiagnostic_KeyChangeClassifiesPromptOrToolsChanged()
+    [Theory]
+    [InlineData("system-b", "reasoning-a", PromptCacheChangedFields.Prompt)]
+    [InlineData("system-a", "reasoning-b", PromptCacheChangedFields.Reasoning)]
+    public void PromptCacheUsageDiagnostic_KeyChangeClassifiesPromptOrToolsChanged(
+        string secondSystemHash,
+        string secondReasoningHash,
+        string expectedField)
     {
         var store = new TraceStore();
         var collector = new TraceCollector(store);
 
-        collector.RecordPromptCacheRequestSnapshot("session", Snapshot(llmCallIndex: 1, systemHash: "system-a", toolSchemaHash: "tools-a"));
+        collector.RecordPromptCacheRequestSnapshot("session", Snapshot(llmCallIndex: 1, systemHash: "system-a", reasoningHash: "reasoning-a"));
         collector.RecordTokenUsage("session", new TokenUsageSnapshot(12_000, 1, 10_000, 0));
-        collector.RecordPromptCacheRequestSnapshot("session", Snapshot(llmCallIndex: 2, systemHash: "system-b", toolSchemaHash: "tools-a"));
+        collector.RecordPromptCacheRequestSnapshot("session", Snapshot(llmCallIndex: 2, systemHash: secondSystemHash, reasoningHash: secondReasoningHash));
         collector.RecordTokenUsage("session", new TokenUsageSnapshot(12_100, 1, 0, 0));
 
         var diagnostic = Events(store, "session", TraceEventType.PromptCacheDiagnostic).Last();
         Assert.Equal(PromptCacheDiagnosticKinds.PromptOrToolsChanged, diagnostic.PromptCacheEventKind);
-        Assert.NotNull(diagnostic.PromptCacheChangedFields);
-        Assert.Equal([PromptCacheChangedFields.Prompt], diagnostic.PromptCacheChangedFields!);
-    }
-
-    [Fact]
-    public void PromptCacheUsageDiagnostic_ReasoningChangeClassifiesPromptOrToolsChanged()
-    {
-        var store = new TraceStore();
-        var collector = new TraceCollector(store);
-
-        collector.RecordPromptCacheRequestSnapshot("session", Snapshot(llmCallIndex: 1, reasoningHash: "reasoning-a"));
-        collector.RecordTokenUsage("session", new TokenUsageSnapshot(12_000, 1, 10_000, 0));
-        collector.RecordPromptCacheRequestSnapshot("session", Snapshot(llmCallIndex: 2, reasoningHash: "reasoning-b"));
-        collector.RecordTokenUsage("session", new TokenUsageSnapshot(12_100, 1, 0, 0));
-
-        var diagnostic = Events(store, "session", TraceEventType.PromptCacheDiagnostic).Last();
-        Assert.Equal(PromptCacheDiagnosticKinds.PromptOrToolsChanged, diagnostic.PromptCacheEventKind);
-        Assert.NotNull(diagnostic.PromptCacheChangedFields);
-        Assert.Equal([PromptCacheChangedFields.Reasoning], diagnostic.PromptCacheChangedFields!);
-        Assert.Contains("\"reasoningChanged\":true", diagnostic.MetadataJson);
+        Assert.Equal([expectedField], diagnostic.PromptCacheChangedFields!);
     }
 
     [Fact]

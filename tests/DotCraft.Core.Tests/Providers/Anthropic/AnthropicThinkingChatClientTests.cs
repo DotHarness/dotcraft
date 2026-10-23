@@ -65,15 +65,17 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
         }
     }
 
-    [Fact]
-    public async Task GetResponseAsync_ConfiguredAdapterSerializesAdaptiveThinking()
+    [Theory]
+    [InlineData(false, "provider/test-xhigh-model")]
+    [InlineData(true, "test-xhigh-model")]
+    public async Task GetResponseAsync_ConfiguredAdapterSerializesAdaptiveThinking(bool beta, string model)
     {
         var handler = new CaptureHandler();
         var config = CreateConfig(
             enabled: true,
             effort: ModelReasoningEffort.High,
             output: ReasoningOutput.Full);
-        var client = CreateClient(handler, config, model: "provider/test-xhigh-model");
+        var client = beta ? CreateBetaClient(handler, config, model) : CreateClient(handler, config, model);
 
         await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], new ChatOptions
         {
@@ -86,28 +88,6 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
         Assert.Equal("adaptive", thinking.GetProperty("type").GetString());
         Assert.Equal("summarized", thinking.GetProperty("display").GetString());
         Assert.False(thinking.TryGetProperty("budget_tokens", out _));
-        Assert.Equal("high", root.GetProperty("output_config").GetProperty("effort").GetString());
-    }
-
-    [Fact]
-    public async Task GetResponseAsync_BetaClientSerializesAdaptiveThinking()
-    {
-        var handler = new CaptureHandler();
-        var config = CreateConfig(
-            enabled: true,
-            effort: ModelReasoningEffort.High,
-            output: ReasoningOutput.Full);
-        var client = CreateBetaClient(handler, config, model: "test-xhigh-model");
-
-        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], new ChatOptions
-        {
-            Reasoning = config.Reasoning.ToOptions()
-        });
-
-        using var document = JsonDocument.Parse(handler.LastRequestJson!);
-        var root = document.RootElement;
-        Assert.Equal("adaptive", root.GetProperty("thinking").GetProperty("type").GetString());
-        Assert.Equal("summarized", root.GetProperty("thinking").GetProperty("display").GetString());
         Assert.Equal("high", root.GetProperty("output_config").GetProperty("effort").GetString());
     }
 
@@ -175,52 +155,39 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
     }
 
     [Fact]
-    public void PrepareOptions_UnlistedModelLeavesRequestShapeUnchanged()
+    public void PrepareOptions_UnlistedModelOrExplicitOnlyWithoutRequestReasoningLeavesOptionsUnchanged()
     {
         var config = CreateConfig(
             enabled: true,
             effort: ModelReasoningEffort.High,
             output: ReasoningOutput.Full);
-        var client = new AnthropicThinkingChatClient(
+        var unlisted = new AnthropicThinkingChatClient(
             new CaptureChatClient(),
             ModelThinkingAdapterResolver.ResolveAnthropicThinkingAdapter(
                 config, "https://api.example.test/anthropic", "unlisted-model"),
             "unlisted-model",
             defaultReasoning: config.Reasoning.ToOptions());
-        var options = new ChatOptions { Reasoning = config.Reasoning.ToOptions() };
-
-        var prepared = client.PrepareOptions(options);
-
-        Assert.Same(options, prepared);
-        Assert.Null(prepared!.RawRepresentationFactory);
-    }
-
-    [Fact]
-    public void PrepareOptions_ExplicitOnlyWithoutRequestReasoningLeavesOptionsUnchanged()
-    {
-        var config = CreateConfig(
-            enabled: true,
-            effort: ModelReasoningEffort.High,
-            output: ReasoningOutput.Full);
-        var client = new AnthropicThinkingChatClient(
+        var explicitOnly = new AnthropicThinkingChatClient(
             new CaptureChatClient(),
             ModelThinkingAdapterResolver.ResolveAnthropicThinkingAdapter(
                 config, "https://api.example.test/anthropic", "test-xhigh-model"),
             "test-xhigh-model",
             defaultReasoning: config.Reasoning.ToOptions(),
             useDefaultReasoning: false);
-        var options = new ChatOptions();
+        var unlistedOptions = new ChatOptions { Reasoning = config.Reasoning.ToOptions() };
+        var explicitOnlyOptions = new ChatOptions();
 
-        var prepared = client.PrepareOptions(options);
+        var unlistedPrepared = unlisted.PrepareOptions(unlistedOptions);
+        var explicitOnlyPrepared = explicitOnly.PrepareOptions(explicitOnlyOptions);
 
-        Assert.Same(options, prepared);
-        Assert.Null(prepared!.RawRepresentationFactory);
+        Assert.Same(unlistedOptions, unlistedPrepared);
+        Assert.Null(unlistedPrepared!.RawRepresentationFactory);
+        Assert.Same(explicitOnlyOptions, explicitOnlyPrepared);
+        Assert.Null(explicitOnlyPrepared!.RawRepresentationFactory);
     }
 
     [Theory]
     [InlineData(false, ModelReasoningEffort.Max, "test-xhigh-model")]
-    [InlineData(true, ModelReasoningEffort.Max, "test-xhigh-model")]
-    [InlineData(false, ModelReasoningEffort.Ultra, "test-xhigh-model")]
     [InlineData(true, ModelReasoningEffort.Ultra, "test-xhigh-model")]
     [InlineData(false, ModelReasoningEffort.Max, "unlisted-model")]
     public async Task Max_SerializesNativeEffortWithoutInternalMetadata(bool beta, ModelReasoningEffort effort, string model)

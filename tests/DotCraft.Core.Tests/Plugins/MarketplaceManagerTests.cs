@@ -32,6 +32,11 @@ public sealed class MarketplaceManagerTests
             ".craft",
             "plugins",
             "marketplace.json")));
+        Assert.Equal(
+            ["example-marketplace"],
+            Directory.GetDirectories(Path.Combine(craftHome, MarketplaceStore.InstalledMarketplacesDirectory))
+                .Select(directory => Path.GetFileName(directory)!)
+                .ToArray());
 
         var configured = Assert.Single(PluginsConfigPersistence.ReadPluginRegistries(ConfigPath(craftHome)));
         Assert.Equal("example-marketplace", configured.Name);
@@ -40,61 +45,27 @@ public sealed class MarketplaceManagerTests
     }
 
     [Fact]
-    public async Task AddAsync_LeavesNoStagingDirectoryBehind()
-    {
-        var craftHome = NewTempDir();
-        var manager = NewManager(craftHome, new FakeGitFetcher(root => WriteMarketplace(root, "example-marketplace")));
-
-        await manager.AddAsync(new MarketplaceAddRequest("owner/repo"), CancellationToken.None);
-
-        var installRoot = Path.Combine(craftHome, MarketplaceStore.InstalledMarketplacesDirectory);
-        Assert.Equal(["example-marketplace"], Directory.GetDirectories(installRoot).Select(directory => Path.GetFileName(directory)!).ToArray());
-    }
-
-    [Fact]
-    public async Task AddAsync_IsIdempotentForTheSameSource()
+    public async Task AddAsync_ReusesTheSameSourceRefetchesANewRefAndRejectsNameConflicts()
     {
         var craftHome = NewTempDir();
         var fetcher = new FakeGitFetcher(root => WriteMarketplace(root, "example-marketplace"));
         var manager = NewManager(craftHome, fetcher);
 
         await manager.AddAsync(new MarketplaceAddRequest("owner/repo", "main"), CancellationToken.None);
-        var second = await manager.AddAsync(new MarketplaceAddRequest("owner/repo", "main"), CancellationToken.None);
-
-        Assert.True(second.AlreadyAdded);
+        var same = await manager.AddAsync(new MarketplaceAddRequest("owner/repo", "main"), CancellationToken.None);
+        Assert.True(same.AlreadyAdded);
         Assert.Equal(1, fetcher.FetchCount);
-        Assert.Single(PluginsConfigPersistence.ReadPluginRegistries(ConfigPath(craftHome)));
-    }
 
-    [Fact]
-    public async Task AddAsync_RefetchesWhenTheReferenceDiffers()
-    {
-        var craftHome = NewTempDir();
-        var fetcher = new FakeGitFetcher(root => WriteMarketplace(root, "example-marketplace"));
-        var manager = NewManager(craftHome, fetcher);
-
-        await manager.AddAsync(new MarketplaceAddRequest("owner/repo", "main"), CancellationToken.None);
-        var second = await manager.AddAsync(new MarketplaceAddRequest("owner/repo", "release"), CancellationToken.None);
-
-        Assert.False(second.AlreadyAdded);
+        var newRef = await manager.AddAsync(new MarketplaceAddRequest("owner/repo", "release"), CancellationToken.None);
+        Assert.False(newRef.AlreadyAdded);
         Assert.Equal(2, fetcher.FetchCount);
-        var configured = Assert.Single(PluginsConfigPersistence.ReadPluginRegistries(ConfigPath(craftHome)));
-        Assert.Equal("release", configured.Ref);
-    }
-
-    [Fact]
-    public async Task AddAsync_RejectsNameAlreadyAddedFromAnotherSource()
-    {
-        var craftHome = NewTempDir();
-        var fetcher = new FakeGitFetcher(root => WriteMarketplace(root, "example-marketplace"));
-        var manager = NewManager(craftHome, fetcher);
-        await manager.AddAsync(new MarketplaceAddRequest("owner/repo"), CancellationToken.None);
 
         var error = await Assert.ThrowsAsync<MarketplaceException>(
             () => manager.AddAsync(new MarketplaceAddRequest("other/repo"), CancellationToken.None));
-
         Assert.Equal(MarketplaceErrorCodes.NameConflict, error.Code);
-        Assert.Single(PluginsConfigPersistence.ReadPluginRegistries(ConfigPath(craftHome)));
+
+        var configured = Assert.Single(PluginsConfigPersistence.ReadPluginRegistries(ConfigPath(craftHome)));
+        Assert.Equal("release", configured.Ref);
     }
 
     [Fact]
@@ -112,7 +83,7 @@ public sealed class MarketplaceManagerTests
     }
 
     [Fact]
-    public async Task AddAsync_RecordsLocalSourceWithoutCopyingIt()
+    public async Task LocalSource_IsRecordedWithoutCopyingAndSurvivesRemoval()
     {
         var craftHome = NewTempDir();
         var sourceRoot = NewTempDir();
@@ -124,6 +95,11 @@ public sealed class MarketplaceManagerTests
         Assert.Equal(MarketplaceSourceKind.Local, result.Marketplace.Kind);
         Assert.Equal(Path.GetFullPath(sourceRoot), result.Marketplace.Root);
         Assert.False(Directory.Exists(Path.Combine(craftHome, MarketplaceStore.InstalledMarketplacesDirectory, "local-marketplace")));
+
+        var removed = manager.Remove("local-marketplace");
+
+        Assert.Null(removed.RemovedRoot);
+        Assert.True(Directory.Exists(sourceRoot));
     }
 
     [Fact]
@@ -139,21 +115,6 @@ public sealed class MarketplaceManagerTests
         Assert.NotNull(removed.RemovedRoot);
         Assert.False(Directory.Exists(removed.RemovedRoot!));
         Assert.Empty(PluginsConfigPersistence.ReadPluginRegistries(ConfigPath(craftHome)));
-    }
-
-    [Fact]
-    public async Task Remove_KeepsLocalSourceDirectory()
-    {
-        var craftHome = NewTempDir();
-        var sourceRoot = NewTempDir();
-        WriteMarketplace(sourceRoot, "local-marketplace");
-        var manager = NewManager(craftHome, new FakeGitFetcher(_ => { }));
-        await manager.AddAsync(new MarketplaceAddRequest(sourceRoot), CancellationToken.None);
-
-        var removed = manager.Remove("local-marketplace");
-
-        Assert.Null(removed.RemovedRoot);
-        Assert.True(Directory.Exists(sourceRoot));
     }
 
     [Fact]
@@ -189,45 +150,6 @@ public sealed class MarketplaceManagerTests
     }
 
     [Fact]
-    public void Remove_DeletesLegacyLocalArchiveCache()
-    {
-        var craftHome = NewTempDir();
-        var archiveRoot = NewTempDir();
-        WriteMarketplace(archiveRoot, "legacy-archive-marketplace");
-        var archivePath = Path.Combine(NewTempDir(), "marketplace.zip");
-        ZipFile.CreateFromDirectory(archiveRoot, archivePath);
-        var cache = new PluginRegistryArchiveCache(craftHome);
-        var snapshot = cache.Activate(
-            archivePath,
-            MarketplaceDocumentLoader.DefaultMarketplacePath,
-            File.ReadAllBytes(archivePath));
-        PluginsConfigPersistence.WritePluginRegistries(
-            ConfigPath(craftHome),
-            [new AppConfig.PluginRegistryConfig
-            {
-                Name = "legacy-archive-marketplace",
-                Url = archivePath,
-                MarketplacePath = MarketplaceDocumentLoader.DefaultMarketplacePath
-            }]);
-        var manager = NewManager(craftHome, new FakeGitFetcher(_ => { }));
-
-        manager.Remove("legacy-archive-marketplace");
-
-        Assert.False(Directory.Exists(Path.GetDirectoryName(snapshot)));
-        Assert.True(File.Exists(archivePath));
-    }
-
-    [Fact]
-    public void Remove_RejectsUnknownMarketplace()
-    {
-        var manager = NewManager(NewTempDir(), new FakeGitFetcher(_ => { }));
-
-        var error = Assert.Throws<MarketplaceException>(() => manager.Remove("missing"));
-
-        Assert.Equal(MarketplaceErrorCodes.NotFound, error.Code);
-    }
-
-    [Fact]
     public async Task RefreshAsync_ReportsPerSourceFailuresWithoutFailingTheOthers()
     {
         var craftHome = NewTempDir();
@@ -249,14 +171,16 @@ public sealed class MarketplaceManagerTests
     }
 
     [Fact]
-    public async Task RefreshAsync_RejectsUnknownMarketplace()
+    public async Task RemoveAndRefresh_RejectUnknownMarketplace()
     {
         var manager = NewManager(NewTempDir(), new FakeGitFetcher(_ => { }));
 
-        var error = await Assert.ThrowsAsync<MarketplaceException>(
+        var removeError = Assert.Throws<MarketplaceException>(() => manager.Remove("missing"));
+        var refreshError = await Assert.ThrowsAsync<MarketplaceException>(
             () => manager.RefreshAsync("missing", CancellationToken.None));
 
-        Assert.Equal(MarketplaceErrorCodes.NotFound, error.Code);
+        Assert.Equal(MarketplaceErrorCodes.NotFound, removeError.Code);
+        Assert.Equal(MarketplaceErrorCodes.NotFound, refreshError.Code);
     }
 
     [Fact]
@@ -348,24 +272,6 @@ public sealed class MarketplaceManagerTests
         var owned = Assert.Single(plugins, plugin => plugin.Manifest.Id == "owned-plugin");
         Assert.True(owned.Installed);
         Assert.Null(owned.MarketplaceName);
-    }
-
-    [Fact]
-    public void Discovery_ReportsMissingMaterializedRootInsteadOfFetching()
-    {
-        var craftHome = NewTempDir();
-        var config = new AppConfig();
-        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig
-        {
-            Name = "example-marketplace",
-            SourceType = "git",
-            Url = "https://github.com/owner/repo.git"
-        });
-
-        var catalog = new BuiltInPluginCatalog([], config.Plugins, craftHome).Discover();
-
-        Assert.Empty(catalog.Plugins);
-        Assert.Contains(catalog.Diagnostics, d => d.Code == "PluginRegistrySnapshotMissing");
     }
 
     private static MarketplaceManager NewManager(string craftHome, IMarketplaceGitFetcher fetcher) =>

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildComposerInputParts } from '../utils/composeInputParts'
 
 describe('buildComposerInputParts', () => {
-  it('emits external file attachments as structured fileRef parts', () => {
+  it('emits external file attachments as distinct, newline-separated fileRef parts', () => {
     const result = buildComposerInputParts({
       text: 'Review this file',
       files: [{ path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }]
@@ -14,6 +14,19 @@ describe('buildComposerInputParts', () => {
       { type: 'text', text: 'Review this file' }
     ])
     expect(result.visibleText).toBe('@C:\\temp\\notes.txt\n\nReview this file')
+
+    const multiple = buildComposerInputParts({
+      text: '',
+      files: [
+        { path: 'C:\\temp\\a.txt', fileName: 'a.txt' },
+        { path: 'D:\\docs\\b.md', fileName: 'b.md' }
+      ]
+    })
+    expect(multiple.inputParts).toEqual([
+      { type: 'fileRef', path: 'C:\\temp\\a.txt', displayPath: 'C:\\temp\\a.txt' },
+      { type: 'text', text: '\n' },
+      { type: 'fileRef', path: 'D:\\docs\\b.md', displayPath: 'D:\\docs\\b.md' }
+    ])
   })
 
   it('keeps workspace @ mentions as relative fileRef parts', () => {
@@ -28,22 +41,6 @@ describe('buildComposerInputParts', () => {
     expect(result.inputParts).toEqual([
       { type: 'fileRef', path: 'src/foo.ts', displayPath: 'src/foo.ts' },
       { type: 'text', text: ' explain it' }
-    ])
-  })
-
-  it('keeps multiple file attachments distinct and newline separated', () => {
-    const result = buildComposerInputParts({
-      text: '',
-      files: [
-        { path: 'C:\\temp\\a.txt', fileName: 'a.txt' },
-        { path: 'D:\\docs\\b.md', fileName: 'b.md' }
-      ]
-    })
-
-    expect(result.inputParts).toEqual([
-      { type: 'fileRef', path: 'C:\\temp\\a.txt', displayPath: 'C:\\temp\\a.txt' },
-      { type: 'text', text: '\n' },
-      { type: 'fileRef', path: 'D:\\docs\\b.md', displayPath: 'D:\\docs\\b.md' }
     ])
   })
 })

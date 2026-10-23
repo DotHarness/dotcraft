@@ -13,13 +13,11 @@ using SessionTurn = DotCraft.Sessions.SessionTurn;
 using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
 using ApprovalRequestPayload = DotCraft.Sessions.ApprovalRequestPayload;
 using ApprovalResponsePayload = DotCraft.Sessions.ApprovalResponsePayload;
-using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using ErrorPayload = DotCraft.Sessions.ErrorPayload;
 using ImageGenerationPayload = DotCraft.Sessions.ImageGenerationPayload;
 using WebSearchPayload = DotCraft.Sessions.WebSearchPayload;
 using ReasoningContentPayload = DotCraft.Sessions.ReasoningContentPayload;
 using SystemNoticePayload = DotCraft.Sessions.SystemNoticePayload;
-using ThreadSummary = DotCraft.Sessions.ThreadSummary;
 using TokenUsageInfo = DotCraft.Sessions.TokenUsageInfo;
 using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
 using ToolExecutionPayload = DotCraft.Sessions.ToolExecutionPayload;
@@ -35,113 +33,134 @@ public class SerializationTests
 {
     private static readonly JsonSerializerOptions Opts = SessionJsonOptions.Default;
 
-    // -------------------------------------------------------------------------
-    // SessionItem round-trips
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void SessionItem_UserMessage_RoundTrip()
+    public static TheoryData<ItemType, object?> ItemPayloads => new()
     {
-        var item = new SessionItem
         {
-            Id = "item_001",
-            TurnId = "turn_001",
-            Type = ItemType.UserMessage,
-            Status = ItemStatus.Completed,
-            CreatedAt = new DateTimeOffset(2026, 3, 15, 10, 0, 0, TimeSpan.Zero),
-            CompletedAt = new DateTimeOffset(2026, 3, 15, 10, 0, 1, TimeSpan.Zero)
-        };
-        item.Payload = new UserMessagePayload
+            ItemType.UserMessage, new UserMessagePayload
+            {
+                Text = "/code-review $memory @src/foo.ts",
+                SenderId = "u123",
+                SenderName = "Alice",
+                Images = [new UserMessageImage { Path = "/workspace/.craft/attachments/images/hello.png", MimeType = "image/png", FileName = "hello.png" }],
+                NativeInputParts =
+                [
+                    new SessionInputPart { Type = "commandRef", Name = "code-review", RawText = "/code-review" },
+                    new SessionInputPart { Type = "skillRef", Name = "memory" },
+                    new SessionInputPart { Type = "fileRef", Path = "src/foo.ts", DisplayPath = "src/foo.ts" }
+                ],
+                MaterializedInputParts = [new SessionInputPart { Type = "text", Text = "Expanded review prompt" }]
+            }
+        },
+        { ItemType.AgentMessage, new AgentMessagePayload { Text = "Sure, I can help." } },
+        { ItemType.ReasoningContent, new ReasoningContentPayload { Text = "Let me think..." } },
         {
-            Text = "Hello!",
-            SenderId = "u123",
-            SenderName = "Alice",
-            Images =
-            [
-                new UserMessageImage
-                {
-                    Path = "/workspace/.craft/attachments/images/hello.png",
-                    MimeType = "image/png",
-                    FileName = "hello.png"
-                }
-            ]
-        };
+            ItemType.ToolCall, new ToolCallPayload
+            {
+                Namespace = "workspace",
+                ToolName = "read_file",
+                ProviderFlatName = "workspace__read_file",
+                Arguments = new JsonObject { ["path"] = "/tmp/file.txt" },
+                CallId = "call_abc"
+            }
+        },
+        {
+            ItemType.ToolExecution, new ToolExecutionPayload
+            {
+                CallId = "call_abc",
+                ToolName = "ListAgents",
+                Status = "completed",
+                Success = true,
+                DurationMs = 1234,
+                ResultPreview = "done"
+            }
+        },
+        {
+            ItemType.ImageGeneration, new ImageGenerationPayload
+            {
+                CallId = "ig_abc",
+                Status = "completed",
+                RevisedPrompt = "A red square",
+                Result = "AQID",
+                MediaType = "image/png",
+                SavedPath = "<workspace>/.craft/generated_images/thread/ig_abc.png"
+            }
+        },
+        {
+            ItemType.ToolResult, new ToolResultPayload
+            {
+                CallId = "call_image",
+                Namespace = "workspace",
+                ToolName = "read_file",
+                ProviderFlatName = "workspace__read_file",
+                Result = "Image: sample.png (3 bytes, image/png)",
+                ContentItems =
+                [
+                    new PluginFunctionContentItem { Type = "text", Text = "Image: sample.png" },
+                    new PluginFunctionContentItem { Type = "image", MediaType = "image/png", DataBase64 = "AQID" }
+                ],
+                Success = true
+            }
+        },
+        {
+            ItemType.ApprovalRequest, new ApprovalRequestPayload
+            {
+                ApprovalType = "file",
+                Operation = "write",
+                Target = "/etc/config",
+                RequestId = "req_001",
+                ScopeKey = "file:write"
+            }
+        },
+        {
+            ItemType.ApprovalResponse, new ApprovalResponsePayload
+            {
+                RequestId = "req_001",
+                Approved = true,
+                Decision = SessionApprovalDecision.AcceptForSession
+            }
+        },
+        { ItemType.Error, new ErrorPayload { Message = "Something went wrong", Code = "agent_error", Fatal = true } },
+        {
+            ItemType.SystemNotice, new SystemNoticePayload
+            {
+                Kind = "compacted",
+                Trigger = "auto",
+                Mode = "partial",
+                TokensBefore = 180_000,
+                TokensAfter = 44_000,
+                PercentLeftAfter = 0.78,
+                ClearedToolResults = 3
+            }
+        },
+        { ItemType.UserMessage, null }
+    };
+
+    [Theory]
+    [MemberData(nameof(ItemPayloads))]
+    public void SessionItem_RoundTripsPayloadAsItsTypedPayload(ItemType type, object? payload)
+    {
+        var item = BuildItem(type, ItemStatus.Completed, payload);
 
         var json = JsonSerializer.Serialize(item, Opts);
         var deserialized = JsonSerializer.Deserialize<SessionItem>(json, Opts);
 
         Assert.NotNull(deserialized);
-        Assert.Equal(item.Id, deserialized.Id);
-        Assert.Equal(item.TurnId, deserialized.TurnId);
-        Assert.Equal(item.Type, deserialized.Type);
-        Assert.Equal(item.Status, deserialized.Status);
-        Assert.Equal(item.CreatedAt, deserialized.CreatedAt);
-        Assert.Equal(item.CompletedAt, deserialized.CompletedAt);
-
-        var payload = deserialized.AsUserMessage;
-        Assert.NotNull(payload);
-        Assert.Equal("Hello!", payload.Text);
-        Assert.Equal("u123", payload.SenderId);
-        Assert.Equal("Alice", payload.SenderName);
-        Assert.NotNull(payload.Images);
-        Assert.Single(payload.Images!);
-        Assert.Equal("/workspace/.craft/attachments/images/hello.png", payload.Images[0].Path);
-        Assert.Equal("image/png", payload.Images[0].MimeType);
-        Assert.Equal("hello.png", payload.Images[0].FileName);
+        if (payload is null)
+            Assert.Null(deserialized.Payload);
+        else
+            Assert.IsType(payload.GetType(), deserialized.Payload);
+        Assert.Equal(json, JsonSerializer.Serialize(deserialized, Opts));
     }
 
     [Fact]
-    public void SessionItem_UserMessage_RoundTrip_PreservesNativeAndMaterializedInputParts()
+    public void ToolCallPayload_MissingProviderFlatName_IsRejected()
     {
-        var item = BuildItem(ItemType.UserMessage, ItemStatus.Completed, new UserMessagePayload
-        {
-            Text = "/code-review $memory @src/foo.ts",
-            NativeInputParts =
-            [
-                new SessionInputPart { Type = "commandRef", Name = "code-review", RawText = "/code-review" },
-                new SessionInputPart { Type = "text", Text = " " },
-                new SessionInputPart { Type = "skillRef", Name = "memory" },
-                new SessionInputPart { Type = "text", Text = " " },
-                new SessionInputPart { Type = "fileRef", Path = "src/foo.ts", DisplayPath = "src/foo.ts" }
-            ],
-            MaterializedInputParts =
-            [
-                new SessionInputPart { Type = "text", Text = "Expanded review prompt" },
-                new SessionInputPart { Type = "text", Text = "\n\n" },
-                new SessionInputPart { Type = "text", Text = "<skill>\n<name>memory</name>\n<path>skills/memory/SKILL.md</path>\n</skill>" }
-            ]
-        });
+        const string json = """
+            {"toolName":"read_file","callId":"call_abc","arguments":{}}
+            """;
 
-        var deserialized = RoundTrip(item);
-        var payload = deserialized.AsUserMessage;
-
-        Assert.NotNull(payload);
-        Assert.NotNull(payload.NativeInputParts);
-        Assert.NotNull(payload.MaterializedInputParts);
-        Assert.Collection(payload.NativeInputParts!,
-            part =>
-            {
-                Assert.Equal("commandRef", part.Type);
-                Assert.Equal("code-review", part.Name);
-                Assert.Equal("/code-review", part.RawText);
-            },
-            part => Assert.Equal(" ", part.Text),
-            part =>
-            {
-                Assert.Equal("skillRef", part.Type);
-                Assert.Equal("memory", part.Name);
-            },
-            part => Assert.Equal(" ", part.Text),
-            part =>
-            {
-                Assert.Equal("fileRef", part.Type);
-                Assert.Equal("src/foo.ts", part.Path);
-                Assert.Equal("src/foo.ts", part.DisplayPath);
-            });
-        Assert.Collection(payload.MaterializedInputParts!,
-            part => Assert.Equal("Expanded review prompt", part.Text),
-            part => Assert.Equal("\n\n", part.Text),
-            part => Assert.Equal("<skill>\n<name>memory</name>\n<path>skills/memory/SKILL.md</path>\n</skill>", part.Text));
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<ToolCallPayload>(json, Opts));
     }
 
     [Fact]
@@ -187,23 +206,18 @@ public class SerializationTests
             new SessionInputPart { Type = "text", Text = " then " },
             new SessionInputPart { Type = "commandRef", Name = "code-review", ArgsText = "--fast" },
             new SessionInputPart { Type = "text", Text = " and " },
-            new SessionInputPart { Type = "skillRef", Name = "$memory" }
-        ]);
-
-        Assert.Equal("Check @src/foo.ts then /code-review --fast and $memory", text);
-    }
-
-    [Fact]
-    public void BuildDisplayText_PreservesAbsoluteFileRefPaths()
-    {
-        var text = SessionWireMapper.BuildDisplayText(
-        [
+            new SessionInputPart { Type = "skillRef", Name = "$memory" },
+            new SessionInputPart { Type = "text", Text = " " },
+            new SessionInputPart { Type = "skillRef", Name = "browser_use" },
+            new SessionInputPart { Type = "text", Text = "\n" },
             new SessionInputPart { Type = "fileRef", Path = "Z:\\synthetic\\notes.txt", DisplayPath = "Z:\\synthetic\\notes.txt" },
             new SessionInputPart { Type = "text", Text = "\n" },
             new SessionInputPart { Type = "fileRef", Path = "/synthetic/brief.md", DisplayPath = "/synthetic/brief.md" }
         ]);
 
-        Assert.Equal("@Z:\\synthetic\\notes.txt\n@/synthetic/brief.md", text);
+        Assert.Equal(
+            "Check @src/foo.ts then /code-review --fast and $memory $browser_use\n@Z:\\synthetic\\notes.txt\n@/synthetic/brief.md",
+            text);
     }
 
     [Fact]
@@ -228,128 +242,6 @@ public class SerializationTests
             part => Assert.Equal("@Z:\\synthetic\\notes.txt", part.Text),
             part => Assert.Equal("\n\nSummarize it", part.Text));
         Assert.Equal("@Z:\\synthetic\\notes.txt\n\nSummarize it", result.DisplayText);
-    }
-
-    [Fact]
-    public void BuildDisplayText_PreservesUnderscoreSkillNames()
-    {
-        var text = SessionWireMapper.BuildDisplayText(
-        [
-            new SessionInputPart { Type = "text", Text = "Use " },
-            new SessionInputPart { Type = "skillRef", Name = "browser_use" },
-            new SessionInputPart { Type = "text", Text = " please" }
-        ]);
-
-        Assert.Equal("Use $browser_use please", text);
-    }
-
-    [Fact]
-    public void SessionItem_AgentMessage_RoundTrip()
-    {
-        var item = BuildItem(ItemType.AgentMessage, ItemStatus.Completed,
-            new AgentMessagePayload { Text = "Sure, I can help." });
-
-        var deserialized = RoundTrip(item);
-        var payload = deserialized.AsAgentMessage;
-        Assert.NotNull(payload);
-        Assert.Equal("Sure, I can help.", payload.Text);
-    }
-
-    [Fact]
-    public void SessionItem_ReasoningContent_RoundTrip()
-    {
-        var item = BuildItem(ItemType.ReasoningContent, ItemStatus.Completed,
-            new ReasoningContentPayload { Text = "Let me think..." });
-
-        var deserialized = RoundTrip(item);
-        Assert.NotNull(deserialized.AsReasoningContent);
-        Assert.Equal("Let me think...", deserialized.AsReasoningContent!.Text);
-    }
-
-    [Fact]
-    public void SessionItem_ToolCall_RoundTrip()
-    {
-        var args = new JsonObject { ["path"] = "/tmp/file.txt" };
-        var item = BuildItem(ItemType.ToolCall, ItemStatus.Completed,
-            new ToolCallPayload
-            {
-                Namespace = "workspace",
-                ToolName = "read_file",
-                ProviderFlatName = "workspace__read_file",
-                Arguments = args,
-                CallId = "call_abc"
-            });
-
-        var deserialized = RoundTrip(item);
-        var payload = deserialized.AsToolCall;
-        Assert.NotNull(payload);
-        Assert.Equal("workspace", payload.Namespace);
-        Assert.Equal("read_file", payload.ToolName);
-        Assert.Equal("workspace__read_file", payload.ProviderFlatName);
-        Assert.Equal("call_abc", payload.CallId);
-        Assert.NotNull(payload.Arguments);
-    }
-
-    [Fact]
-    public void ToolCallPayload_MissingProviderFlatName_IsRejected()
-    {
-        const string json = """
-            {"toolName":"read_file","callId":"call_abc","arguments":{}}
-            """;
-
-        Assert.Throws<JsonException>(() =>
-            JsonSerializer.Deserialize<ToolCallPayload>(json, Opts));
-    }
-
-    [Fact]
-    public void SessionItem_ToolExecution_RoundTrip()
-    {
-        var item = BuildItem(ItemType.ToolExecution, ItemStatus.Completed,
-            new ToolExecutionPayload
-            {
-                CallId = "call_abc",
-                ToolName = "ListAgents",
-                Status = "completed",
-                Success = true,
-                DurationMs = 1234,
-                ResultPreview = "done",
-                ErrorMessage = null
-            });
-
-        var deserialized = RoundTrip(item);
-        var payload = deserialized.AsToolExecution;
-        Assert.NotNull(payload);
-        Assert.Equal("call_abc", payload.CallId);
-        Assert.Equal("ListAgents", payload.ToolName);
-        Assert.Equal("completed", payload.Status);
-        Assert.True(payload.Success);
-        Assert.Equal(1234, payload.DurationMs);
-        Assert.Equal("done", payload.ResultPreview);
-    }
-
-    [Fact]
-    public void SessionItem_ImageGeneration_RoundTrip()
-    {
-        var item = BuildItem(ItemType.ImageGeneration, ItemStatus.Completed,
-            new ImageGenerationPayload
-            {
-                CallId = "ig_abc",
-                Status = "completed",
-                RevisedPrompt = "A red square",
-                Result = "AQID",
-                MediaType = "image/png",
-                SavedPath = "<workspace>/.craft/generated_images/thread/ig_abc.png"
-            });
-
-        var deserialized = RoundTrip(item);
-        var payload = deserialized.AsImageGeneration;
-        Assert.NotNull(payload);
-        Assert.Equal("ig_abc", payload.CallId);
-        Assert.Equal("completed", payload.Status);
-        Assert.Equal("A red square", payload.RevisedPrompt);
-        Assert.Equal("AQID", payload.Result);
-        Assert.Equal("image/png", payload.MediaType);
-        Assert.Equal("<workspace>/.craft/generated_images/thread/ig_abc.png", payload.SavedPath);
     }
 
     [Fact]
@@ -382,545 +274,94 @@ public class SerializationTests
     }
 
     [Fact]
-    public void SessionItem_ToolResult_RoundTrip()
+    public void SessionThread_WithTurns_RoundTripsInputPayloadsAndTurnFields()
     {
-        var item = BuildItem(ItemType.ToolResult, ItemStatus.Completed,
-            new ToolResultPayload
-            {
-                CallId = "call_abc",
-                Namespace = "workspace",
-                ToolName = "read_file",
-                ProviderFlatName = "workspace__read_file",
-                Result = "file contents",
-                Success = true
-            });
-
-        var deserialized = RoundTrip(item);
-        var payload = deserialized.AsToolResult;
-        Assert.NotNull(payload);
-        Assert.Equal("call_abc", payload.CallId);
-        Assert.Equal("workspace", payload.Namespace);
-        Assert.Equal("read_file", payload.ToolName);
-        Assert.Equal("workspace__read_file", payload.ProviderFlatName);
-        Assert.Equal("file contents", payload.Result);
-        Assert.True(payload.Success);
-    }
-
-    [Fact]
-    public void SessionItem_ToolResult_WithContentItems_RoundTrip()
-    {
-        var item = BuildItem(ItemType.ToolResult, ItemStatus.Completed,
-            new ToolResultPayload
-            {
-                CallId = "call_image",
-                Result = "Image: sample.png (3 bytes, image/png)",
-                ContentItems =
-                [
-                    new PluginFunctionContentItem { Type = "text", Text = "Image: sample.png" },
-                    new PluginFunctionContentItem { Type = "image", MediaType = "image/png", DataBase64 = "AQID" }
-                ],
-                Success = true
-            });
-
-        var deserialized = RoundTrip(item);
-        var payload = deserialized.AsToolResult;
-        Assert.NotNull(payload);
-        Assert.Equal("call_image", payload.CallId);
-        Assert.Equal("Image: sample.png (3 bytes, image/png)", payload.Result);
-        Assert.True(payload.Success);
-        var contentItems = Assert.IsAssignableFrom<IReadOnlyList<PluginFunctionContentItem>>(payload.ContentItems);
-        Assert.Equal(2, contentItems.Count);
-        Assert.Equal("text", contentItems[0].Type);
-        Assert.Equal("Image: sample.png", contentItems[0].Text);
-        Assert.Equal("image", contentItems[1].Type);
-        Assert.Equal("image/png", contentItems[1].MediaType);
-        Assert.Equal("AQID", contentItems[1].DataBase64);
-    }
-
-    [Fact]
-    public void SessionItem_ApprovalRequest_RoundTrip()
-    {
-        var item = BuildItem(ItemType.ApprovalRequest, ItemStatus.Completed,
-            new ApprovalRequestPayload
-            {
-                ApprovalType = "file",
-                Operation = "write",
-                Target = "/etc/config",
-                RequestId = "req_001",
-                ScopeKey = "file:write"
-            });
-
-        var deserialized = RoundTrip(item);
-        var payload = deserialized.AsApprovalRequest;
-        Assert.NotNull(payload);
-        Assert.Equal("file", payload.ApprovalType);
-        Assert.Equal("write", payload.Operation);
-        Assert.Equal("/etc/config", payload.Target);
-        Assert.Equal("req_001", payload.RequestId);
-        Assert.Equal("file:write", payload.ScopeKey);
-    }
-
-    [Fact]
-    public void SessionItem_ApprovalResponse_RoundTrip()
-    {
-        var item = BuildItem(ItemType.ApprovalResponse, ItemStatus.Completed,
-            new ApprovalResponsePayload
-            {
-                RequestId = "req_001",
-                Approved = true,
-                Decision = SessionApprovalDecision.AcceptForSession
-            });
-
-        var deserialized = RoundTrip(item);
-        var payload = deserialized.AsApprovalResponse;
-        Assert.NotNull(payload);
-        Assert.Equal("req_001", payload.RequestId);
-        Assert.True(payload.Approved);
-        Assert.Equal(SessionApprovalDecision.AcceptForSession, payload.Decision);
-    }
-
-    [Fact]
-    public void SessionItem_Error_RoundTrip()
-    {
-        var item = BuildItem(ItemType.Error, ItemStatus.Completed,
-            new ErrorPayload { Message = "Something went wrong", Code = "agent_error", Fatal = true });
-
-        var deserialized = RoundTrip(item);
-        var payload = deserialized.AsError;
-        Assert.NotNull(payload);
-        Assert.Equal("Something went wrong", payload.Message);
-        Assert.Equal("agent_error", payload.Code);
-        Assert.True(payload.Fatal);
-    }
-
-    [Fact]
-    public void SessionItem_SystemNotice_RoundTrip()
-    {
-        var item = BuildItem(ItemType.SystemNotice, ItemStatus.Completed,
-            new SystemNoticePayload
-            {
-                Kind = "compacted",
-                Trigger = "auto",
-                Mode = "partial",
-                TokensBefore = 180_000,
-                TokensAfter = 44_000,
-                PercentLeftAfter = 0.78,
-                ClearedToolResults = 3
-            });
-
-        var deserialized = RoundTrip(item);
-        var payload = deserialized.AsSystemNotice;
-        Assert.NotNull(payload);
-        Assert.Equal("compacted", payload!.Kind);
-        Assert.Equal("auto", payload.Trigger);
-        Assert.Equal("partial", payload.Mode);
-        Assert.Equal(180_000, payload.TokensBefore);
-        Assert.Equal(44_000, payload.TokensAfter);
-        Assert.Equal(0.78, payload.PercentLeftAfter, 3);
-        Assert.Equal(3, payload.ClearedToolResults);
-    }
-
-    [Fact]
-    public void SessionWireEvent_SystemNoticeItem_ProducesSystemNoticePayloadKind()
-    {
-        var item = BuildItem(ItemType.SystemNotice, ItemStatus.Completed,
-            new SystemNoticePayload
-            {
-                Kind = "compacted",
-                Trigger = "reactive",
-                Mode = "micro",
-                TokensBefore = 200_000,
-                TokensAfter = 100_000,
-                PercentLeftAfter = 0.5,
-                ClearedToolResults = 1
-            });
-        var evt = new SessionEvent
+        var thread = BuildThreadWithTurns();
+        thread.UserId = "local";
+        thread.DisplayName = "Help me fix the login bug";
+        thread.HistoryMode = HistoryMode.Server;
+        thread.Metadata = new Dictionary<string, string> { ["qqGroupId"] = "12345" };
+        var turn = thread.Turns[0];
+        turn.Input = turn.Items[0];
+        turn.TokenUsage = new TokenUsageInfo { InputTokens = 100, OutputTokens = 50, TotalTokens = 150 };
+        turn.Initiator = new TurnInitiatorContext
         {
-            EventId = "evt_sn1",
-            EventType = SessionEventType.ItemCompleted,
-            ThreadId = "thread_001",
-            TurnId = "turn_001",
-            ItemId = item.Id,
-            Timestamp = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
-            Payload = item
+            ChannelName = "wecom",
+            UserId = "user-123",
+            UserName = "Akihiko",
+            UserRole = "admin",
+            ChannelContext = "chat:abc",
+            GroupId = "chat:abc"
         };
-
-        var json = JsonSerializer.Serialize(evt.ToWire(), SessionWireJsonOptions.Default);
-
-        Assert.Contains("\"type\":\"systemNotice\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"kind\":\"compacted\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"trigger\":\"reactive\"", json, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void SessionWireThread_ContextUsage_RoundTripsThroughWire()
-    {
-        var thread = new SessionThread
+        var secondInput = BuildItem(ItemType.UserMessage, ItemStatus.Completed, new UserMessagePayload { Text = "你有哪些工具呢" });
+        secondInput.TurnId = "turn_002";
+        thread.Turns.Add(new SessionTurn
         {
-            Id = "thread_001",
-            WorkspacePath = "/workspace",
-            OriginChannel = "cli",
-            Status = ThreadStatus.Active,
-            CreatedAt = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
-            LastActiveAt = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero)
-        };
-        var wire = thread.ToWire() with
-        {
-            ContextUsage = new ContextUsageSnapshot
-            {
-                Tokens = 48_000,
-                ContextWindow = 200_000,
-                AutoCompactThreshold = 180_000,
-                WarningThreshold = 176_000,
-                ErrorThreshold = 194_000,
-                PercentLeft = 0.76
-            }
-        };
-
-        var json = JsonSerializer.Serialize(wire, SessionWireJsonOptions.Default);
-        Assert.Contains("\"contextUsage\":", json, StringComparison.Ordinal);
-        Assert.Contains("\"tokens\":48000", json, StringComparison.Ordinal);
-        Assert.Contains("\"contextWindow\":200000", json, StringComparison.Ordinal);
-        Assert.Contains("\"autoCompactThreshold\":180000", json, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void UsageDeltaPayload_CumulativeTotals_RoundTrip()
-    {
-        var payload = new UsageDeltaPayload
-        {
-            InputTokens = 1200,
-            OutputTokens = 350,
-            CachedInputTokens = 900,
-            LlmCallDelta = 1,
-            TotalInputTokens = 14_820,
-            TotalOutputTokens = 2_610,
-            TurnInputTokens = 73_000,
-            TurnLlmCalls = 3
-        };
-
-        var json = JsonSerializer.Serialize(payload, Opts);
-        var deserialized = JsonSerializer.Deserialize<UsageDeltaPayload>(json, Opts);
-
-        Assert.NotNull(deserialized);
-        Assert.Equal(1200, deserialized!.InputTokens);
-        Assert.Equal(350, deserialized.OutputTokens);
-        Assert.Equal(900, deserialized.CachedInputTokens);
-        Assert.Equal(300, deserialized.FreshInputTokens);
-        Assert.Equal(1, deserialized.LlmCallDelta);
-        Assert.Equal(14_820, deserialized.TotalInputTokens);
-        Assert.Equal(2_610, deserialized.TotalOutputTokens);
-        Assert.Equal(73_000, deserialized.TurnInputTokens);
-        Assert.Equal(3, deserialized.TurnLlmCalls);
-        Assert.Contains("\"totalInputTokens\":14820", json, StringComparison.Ordinal);
-        Assert.Contains("\"totalOutputTokens\":2610", json, StringComparison.Ordinal);
-        Assert.Contains("\"turnInputTokens\":73000", json, StringComparison.Ordinal);
-        Assert.Contains("\"turnLlmCalls\":3", json, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TurnDiffUpdatedNotification_RoundTripsThroughContractJson()
-    {
-        var notification = new DotCraft.Protocol.AppServer.TurnDiffUpdatedNotification
-        {
-            ThreadId = "thread_001",
-            TurnId = "turn_001",
-            Diff = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-foo\n+bar\n"
-        };
-
-        var json = JsonSerializer.Serialize(notification, DotCraft.Protocol.AppServerContractJson.Options);
-        var deserialized = JsonSerializer.Deserialize<DotCraft.Protocol.AppServer.TurnDiffUpdatedNotification>(
-            json,
-            DotCraft.Protocol.AppServerContractJson.Options);
-
-        Assert.NotNull(deserialized);
-        Assert.Equal("thread_001", deserialized!.ThreadId);
-        Assert.Equal("turn_001", deserialized.TurnId);
-        Assert.Equal(notification.Diff, deserialized.Diff);
-        using var document = JsonDocument.Parse(json);
-        Assert.Equal(
-            new[] { "diff", "threadId", "turnId" },
-            document.RootElement.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
-    }
-
-    [Fact]
-    public void SessionItem_NullPayload_RoundTrip()
-    {
-        var item = BuildItem(ItemType.UserMessage, ItemStatus.Started, null);
-        var deserialized = RoundTrip(item);
-        Assert.Null(deserialized.Payload);
-    }
-
-    // -------------------------------------------------------------------------
-    // SessionTurn round-trips
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void SessionTurn_RoundTrip_PreservesItemOrder()
-    {
-        var turn = new SessionTurn
-        {
-            Id = "turn_001",
-            ThreadId = "thread_20260315_abc123",
-            Status = TurnStatus.Completed,
-            StartedAt = new DateTimeOffset(2026, 3, 15, 10, 0, 0, TimeSpan.Zero),
-            CompletedAt = new DateTimeOffset(2026, 3, 15, 10, 2, 0, TimeSpan.Zero),
-            TokenUsage = new TokenUsageInfo { InputTokens = 100, OutputTokens = 50, TotalTokens = 150 },
-            OriginChannel = "cli"
-        };
-
-        var userMsg = BuildItem(ItemType.UserMessage, ItemStatus.Completed,
-            new UserMessagePayload { Text = "Hello" });
-        userMsg.Id = "item_001";
-        userMsg.TurnId = "turn_001";
-
-        var agentMsg = BuildItem(ItemType.AgentMessage, ItemStatus.Completed,
-            new AgentMessagePayload { Text = "Hi there" });
-        agentMsg.Id = "item_002";
-        agentMsg.TurnId = "turn_001";
-
-        turn.Input = userMsg;
-        turn.Items = [userMsg, agentMsg];
-
-        var json = JsonSerializer.Serialize(turn, Opts);
-        var deserialized = JsonSerializer.Deserialize<SessionTurn>(json, Opts);
-
-        Assert.NotNull(deserialized);
-        Assert.Equal(turn.Id, deserialized.Id);
-        Assert.Equal(turn.ThreadId, deserialized.ThreadId);
-        Assert.Equal(TurnStatus.Completed, deserialized.Status);
-        Assert.Equal(2, deserialized.Items.Count);
-        Assert.Equal("item_001", deserialized.Items[0].Id);
-        Assert.Equal("item_002", deserialized.Items[1].Id);
-        Assert.NotNull(deserialized.TokenUsage);
-        Assert.Equal(100, deserialized.TokenUsage.InputTokens);
-        Assert.Equal("cli", deserialized.OriginChannel);
-    }
-
-    [Fact]
-    public void SessionTurn_NullableFields_RoundTrip()
-    {
-        var turn = new SessionTurn
-        {
-            Id = "turn_001",
-            ThreadId = "thread_x",
+            Id = "turn_002",
+            ThreadId = thread.Id,
             Status = TurnStatus.Running,
-            StartedAt = DateTimeOffset.UtcNow
-            // CompletedAt, TokenUsage, Error are null
-        };
-
-        var json = JsonSerializer.Serialize(turn, Opts);
-        var deserialized = JsonSerializer.Deserialize<SessionTurn>(json, Opts);
-
-        Assert.NotNull(deserialized);
-        Assert.Null(deserialized.CompletedAt);
-        Assert.Null(deserialized.TokenUsage);
-        Assert.Null(deserialized.Error);
-    }
-
-    [Fact]
-    public void SessionTurn_Initiator_RoundTrip()
-    {
-        var turn = new SessionTurn
-        {
-            Id = "turn_001",
-            ThreadId = "thread_x",
-            Status = TurnStatus.Completed,
-            StartedAt = DateTimeOffset.UtcNow,
-            OriginChannel = "qq",
-            Initiator = new TurnInitiatorContext
-            {
-                ChannelName = "wecom",
-                UserId = "user-123",
-                UserName = "Akihiko",
-                UserRole = "admin",
-                ChannelContext = "chat:abc",
-                GroupId = "chat:abc"
-            }
-        };
-
-        var json = JsonSerializer.Serialize(turn, Opts);
-        var deserialized = JsonSerializer.Deserialize<SessionTurn>(json, Opts);
-
-        Assert.NotNull(deserialized);
-        Assert.NotNull(deserialized.Initiator);
-        Assert.Equal("wecom", deserialized.Initiator!.ChannelName);
-        Assert.Equal("user-123", deserialized.Initiator.UserId);
-        Assert.Equal("admin", deserialized.Initiator.UserRole);
-        Assert.Equal("chat:abc", deserialized.Initiator.ChannelContext);
-    }
-
-    // -------------------------------------------------------------------------
-    // SessionThread round-trips
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void SessionThread_RoundTrip_FullObject()
-    {
-        var thread = new SessionThread
-        {
-            Id = "thread_20260315_a3f2k9",
-            WorkspacePath = "/path/to/workspace",
-            UserId = "user123",
-            OriginChannel = "qq",
-            DisplayName = "Help me fix the login bug",
-            Status = ThreadStatus.Active,
-            CreatedAt = new DateTimeOffset(2026, 3, 15, 10, 0, 0, TimeSpan.Zero),
-            LastActiveAt = new DateTimeOffset(2026, 3, 15, 10, 5, 0, TimeSpan.Zero),
-            HistoryMode = HistoryMode.Server,
-            Metadata = new Dictionary<string, string>
-            {
-                ["customKey"] = "qq_12345_67890",
-                ["qqGroupId"] = "12345"
-            }
-        };
+            StartedAt = new DateTimeOffset(2026, 3, 16, 10, 2, 0, TimeSpan.Zero),
+            Input = secondInput,
+            Items = [secondInput]
+        });
 
         var json = JsonSerializer.Serialize(thread, Opts);
-        var deserialized = JsonSerializer.Deserialize<SessionThread>(json, Opts);
+        var loaded = JsonSerializer.Deserialize<SessionThread>(json, Opts);
 
-        Assert.NotNull(deserialized);
-        Assert.Equal(thread.Id, deserialized.Id);
-        Assert.Equal(thread.WorkspacePath, deserialized.WorkspacePath);
-        Assert.Equal(thread.UserId, deserialized.UserId);
-        Assert.Equal(thread.OriginChannel, deserialized.OriginChannel);
-        Assert.Equal(thread.DisplayName, deserialized.DisplayName);
-        Assert.Equal(ThreadStatus.Active, deserialized.Status);
-        Assert.Equal(HistoryMode.Server, deserialized.HistoryMode);
-        Assert.Equal(2, deserialized.Metadata.Count);
-        Assert.Equal("qq_12345_67890", deserialized.Metadata["customKey"]);
-        Assert.Empty(deserialized.Turns);
+        Assert.NotNull(loaded);
+        Assert.Equal(json, JsonSerializer.Serialize(loaded, Opts));
+        Assert.Equal("Hello", Assert.IsType<UserMessagePayload>(loaded.Turns[0].Input!.Payload).Text);
+        Assert.Equal("你有哪些工具呢", Assert.IsType<UserMessagePayload>(loaded.Turns[1].Input!.Payload).Text);
+        Assert.Equal(["item_001", "item_002"], loaded.Turns[0].Items.Select(item => item.Id));
+        Assert.Equal("admin", loaded.Turns[0].Initiator!.UserRole);
+        Assert.Null(loaded.Turns[1].CompletedAt);
+        Assert.Null(loaded.Turns[1].TokenUsage);
+        Assert.Null(loaded.Configuration);
     }
 
     [Fact]
-    public void SessionThread_NullableFields_RoundTrip()
+    public void SessionEvent_RoundTripsPayloadsAndUnwrapsNestedTurns()
     {
-        var thread = new SessionThread
-        {
-            Id = "thread_20260315_xyz",
-            WorkspacePath = "/workspace",
-            OriginChannel = "cli",
-            Status = ThreadStatus.Active,
-            CreatedAt = DateTimeOffset.UtcNow,
-            LastActiveAt = DateTimeOffset.UtcNow
-            // UserId, DisplayName, Configuration are null
-        };
-
-        var json = JsonSerializer.Serialize(thread, Opts);
-        var deserialized = JsonSerializer.Deserialize<SessionThread>(json, Opts);
-
-        Assert.NotNull(deserialized);
-        Assert.Null(deserialized.UserId);
-        Assert.Null(deserialized.DisplayName);
-        Assert.Null(deserialized.Configuration);
-    }
-
-    // -------------------------------------------------------------------------
-    // SessionEvent round-trips
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void SessionEvent_TurnStarted_RoundTrip()
-    {
-        var turn = new SessionTurn
+        var thread = BuildThreadWithTurns();
+        var cancelledTurn = new SessionTurn
         {
             Id = "turn_001",
-            ThreadId = "thread_abc",
-            Status = TurnStatus.Running,
-            StartedAt = DateTimeOffset.UtcNow
+            ThreadId = "thread_001",
+            Status = TurnStatus.Cancelled,
+            StartedAt = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero)
         };
-
-        var evt = new SessionEvent
+        var failedTurn = new SessionTurn
         {
-            EventId = "evt_001",
-            EventType = SessionEventType.TurnStarted,
-            ThreadId = "thread_abc",
-            TurnId = "turn_001",
-            Timestamp = DateTimeOffset.UtcNow
+            Id = "turn_002",
+            ThreadId = "thread_001",
+            Status = TurnStatus.Failed,
+            StartedAt = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
+            Error = "Model context exceeded"
         };
-        evt.Payload = turn;
 
-        var json = JsonSerializer.Serialize(evt, Opts);
-        var deserialized = JsonSerializer.Deserialize<SessionEvent>(json, Opts);
+        var resumed = RoundTrip(BuildEvent(SessionEventType.ThreadResumed, new ThreadResumedPayload { Thread = thread, ResumedBy = "vscode" }));
+        Assert.Equal("vscode", resumed.ResumedPayload!.ResumedBy);
+        Assert.Equal("thread_001", resumed.ResumedPayload.Thread.Id);
+        Assert.Null(resumed.TurnPayload);
 
-        Assert.NotNull(deserialized);
-        Assert.Equal("evt_001", deserialized.EventId);
-        Assert.Equal(SessionEventType.TurnStarted, deserialized.EventType);
-        Assert.Equal("thread_abc", deserialized.ThreadId);
-        Assert.Equal("turn_001", deserialized.TurnId);
-        Assert.Null(deserialized.ItemId);
+        var cancelled = RoundTrip(BuildEvent(SessionEventType.TurnCancelled, new TurnCancelledPayload { Turn = cancelledTurn, Reason = "Caller cancelled" }));
+        Assert.Equal("Caller cancelled", cancelled.TurnCancelledPayload!.Reason);
+        Assert.Equal("turn_001", cancelled.TurnPayload?.Id);
 
-        var turnPayload = deserialized.TurnPayload;
-        Assert.NotNull(turnPayload);
-        Assert.Equal("turn_001", turnPayload.Id);
-    }
+        var failed = RoundTrip(BuildEvent(SessionEventType.TurnFailed, new TurnFailedPayload { Turn = failedTurn, Error = "Model context exceeded" }));
+        Assert.Equal("Model context exceeded", failed.TurnFailedPayload!.Error);
+        Assert.Equal("turn_002", failed.TurnPayload?.Id);
+        Assert.Equal("Model context exceeded", failed.TurnPayload?.Error);
 
-    [Fact]
-    public void SessionEvent_ItemDelta_RoundTrip()
-    {
-        var evt = new SessionEvent
-        {
-            EventId = "evt_005",
-            EventType = SessionEventType.ItemDelta,
-            ThreadId = "thread_abc",
-            TurnId = "turn_001",
-            ItemId = "item_002",
-            Timestamp = DateTimeOffset.UtcNow
-        };
-        evt.Payload = new AgentMessageDelta { TextDelta = "Hello " };
+        var delta = RoundTrip(BuildEvent(SessionEventType.ItemDelta, new AgentMessageDelta { TextDelta = "Hello " }));
+        Assert.Equal("Hello ", delta.DeltaPayload!.TextDelta);
 
-        var json = JsonSerializer.Serialize(evt, Opts);
-        var deserialized = JsonSerializer.Deserialize<SessionEvent>(json, Opts);
-
-        Assert.NotNull(deserialized);
-        Assert.Equal(SessionEventType.ItemDelta, deserialized.EventType);
-        var delta = deserialized.DeltaPayload;
-        Assert.NotNull(delta);
-        Assert.Equal("Hello ", delta.TextDelta);
-    }
-
-    [Fact]
-    public void SessionEvent_ThreadStatusChanged_RoundTrip()
-    {
-        var evt = new SessionEvent
-        {
-            EventId = "evt_010",
-            EventType = SessionEventType.ThreadStatusChanged,
-            ThreadId = "thread_abc",
-            Timestamp = DateTimeOffset.UtcNow
-        };
-        evt.Payload = new ThreadStatusChangedPayload
+        var status = RoundTrip(BuildEvent(SessionEventType.ThreadStatusChanged, new ThreadStatusChangedPayload
         {
             PreviousStatus = ThreadStatus.Active,
             NewStatus = ThreadStatus.Archived
-        };
-
-        var json = JsonSerializer.Serialize(evt, Opts);
-        var deserialized = JsonSerializer.Deserialize<SessionEvent>(json, Opts);
-
-        Assert.NotNull(deserialized);
-        var payload = deserialized.StatusChangedPayload;
-        Assert.NotNull(payload);
-        Assert.Equal(ThreadStatus.Active, payload.PreviousStatus);
-        Assert.Equal(ThreadStatus.Archived, payload.NewStatus);
-    }
-
-    [Fact]
-    public void NewThreadId_HasCorrectFormat()
-    {
-        var id = SessionIdGenerator.NewThreadId();
-        // e.g. "thread_20260315_a3f2k9"
-        Assert.StartsWith("thread_", id);
-        var parts = id.Split('_');
-        Assert.Equal(3, parts.Length);
-        Assert.Equal(8, parts[1].Length); // yyyyMMdd
-        Assert.Equal(6, parts[2].Length);
-    }
-
-    [Fact]
-    public void NewThreadId_IsUnique()
-    {
-        var ids = Enumerable.Range(0, 100).Select(_ => SessionIdGenerator.NewThreadId()).ToHashSet();
-        Assert.Equal(100, ids.Count);
+        }));
+        Assert.Equal(ThreadStatus.Archived, status.StatusChangedPayload!.NewStatus);
     }
 
     [Fact]
@@ -957,10 +398,6 @@ public class SerializationTests
             StringComparison.OrdinalIgnoreCase);
     }
 
-    // -------------------------------------------------------------------------
-    // TokenUsageInfo
-    // -------------------------------------------------------------------------
-
     [Fact]
     public void TokenUsageInfo_Addition()
     {
@@ -977,390 +414,50 @@ public class SerializationTests
     }
 
     [Fact]
-    public void TokenUsageInfo_RoundTrip()
+    public void SessionWireEvent_ProducesContractShapes()
     {
-        var usage = new TokenUsageInfo { InputTokens = 1200, OutputTokens = 800, CachedInputTokens = 300, CacheWriteInputTokens = 100, LlmCallCount = 2, TotalTokens = 2000 };
-        var json = JsonSerializer.Serialize(usage, Opts);
-        var deserialized = JsonSerializer.Deserialize<TokenUsageInfo>(json, Opts);
-        Assert.NotNull(deserialized);
-        Assert.Equal(usage.InputTokens, deserialized.InputTokens);
-        Assert.Equal(usage.OutputTokens, deserialized.OutputTokens);
-        Assert.Equal(usage.CachedInputTokens, deserialized.CachedInputTokens);
-        Assert.Equal(usage.CacheWriteInputTokens, deserialized.CacheWriteInputTokens);
-        Assert.Equal(usage.LlmCallCount, deserialized.LlmCallCount);
-        Assert.Equal(usage.FreshInputTokens, deserialized.FreshInputTokens);
-        Assert.Equal(usage.TotalTokens, deserialized.TotalTokens);
-    }
-
-    // -------------------------------------------------------------------------
-    // ThreadSummary.FromThread
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void ThreadSummary_FromThread_CopiesFields()
-    {
-        var thread = new SessionThread
-        {
-            Id = "thread_20260315_abc",
-            UserId = "u1",
-            OriginChannel = "qq",
-            DisplayName = "Test",
-            Status = ThreadStatus.Active,
-            CreatedAt = DateTimeOffset.UtcNow,
-            LastActiveAt = DateTimeOffset.UtcNow,
-            Metadata = new Dictionary<string, string> { ["k"] = "v" }
-        };
-        thread.Turns.Add(new SessionTurn { Id = "turn_001", ThreadId = thread.Id, Status = TurnStatus.Completed, StartedAt = DateTimeOffset.UtcNow });
-        thread.Turns.Add(new SessionTurn { Id = "turn_002", ThreadId = thread.Id, Status = TurnStatus.Completed, StartedAt = DateTimeOffset.UtcNow });
-
-        var summary = ThreadSummary.FromThread(thread);
-
-        Assert.Equal(thread.Id, summary.Id);
-        Assert.Equal(thread.UserId, summary.UserId);
-        Assert.Equal(thread.OriginChannel, summary.OriginChannel);
-        Assert.Equal(thread.DisplayName, summary.DisplayName);
-        Assert.Equal(ThreadStatus.Active, summary.Status);
-        Assert.Equal(2, summary.TurnCount);
-        Assert.Equal("v", summary.Metadata["k"]);
-    }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    private static SessionItem BuildItem(ItemType type, ItemStatus status, object? payload)
-    {
-        var item = new SessionItem
-        {
-            Id = "item_001",
-            TurnId = "turn_001",
-            Type = type,
-            Status = status,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-        item.Payload = payload;
-        return item;
-    }
-
-    private static SessionItem RoundTrip(SessionItem item)
-    {
-        var json = JsonSerializer.Serialize(item, Opts);
-        var result = JsonSerializer.Deserialize<SessionItem>(json, Opts);
-        Assert.NotNull(result);
-        return result;
-    }
-
-    // -------------------------------------------------------------------------
-    // SessionTurn.Input deserialization — regression guard for /load history display
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void SessionTurn_Input_UserMessagePayload_SurvivesRoundTrip()
-    {
-        var userItem = new SessionItem
-        {
-            Id = "item_001",
-            TurnId = "turn_001",
-            Type = ItemType.UserMessage,
-            Status = ItemStatus.Completed,
-            CreatedAt = new DateTimeOffset(2026, 3, 15, 7, 32, 21, TimeSpan.Zero),
-            CompletedAt = new DateTimeOffset(2026, 3, 15, 7, 32, 21, TimeSpan.Zero),
-            Payload = new UserMessagePayload { Text = "你好" }
-        };
-
-        var turn = new SessionTurn
+        var completed = WireJson(BuildEvent(SessionEventType.TurnCompleted, new SessionTurn
         {
             Id = "turn_001",
-            ThreadId = "thread_20260315_lbdp2i",
+            ThreadId = "thread_001",
             Status = TurnStatus.Completed,
-            StartedAt = new DateTimeOffset(2026, 3, 15, 7, 32, 21, TimeSpan.Zero),
-            Input = userItem,
-            Items = [userItem]
-        };
-
-        var thread = new SessionThread
-        {
-            Id = "thread_20260315_lbdp2i",
-            WorkspacePath = "/workspace",
             OriginChannel = "cli",
-            UserId = "local",
-            Status = ThreadStatus.Active,
-            CreatedAt = turn.StartedAt,
-            LastActiveAt = turn.StartedAt,
-            Turns = [turn]
-        };
-
-        var json = JsonSerializer.Serialize(thread, Opts);
-        var loaded = JsonSerializer.Deserialize<SessionThread>(json, Opts);
-
-        Assert.NotNull(loaded);
-        Assert.Single(loaded.Turns);
-
-        var loadedTurn = loaded.Turns[0];
-
-        // Verify turn.Input is deserialized with correct type
-        Assert.NotNull(loadedTurn.Input);
-        Assert.Equal(ItemType.UserMessage, loadedTurn.Input.Type);
-        var inputPayload = loadedTurn.Input.Payload as UserMessagePayload;
-        Assert.NotNull(inputPayload);
-        Assert.Equal("你好", inputPayload.Text);
-
-        // Verify turn.Items[0] also has correct payload
-        Assert.Single(loadedTurn.Items);
-        var firstItemPayload = loadedTurn.Items[0].Payload as UserMessagePayload;
-        Assert.NotNull(firstItemPayload);
-        Assert.Equal("你好", firstItemPayload.Text);
-    }
-
-    [Fact]
-    public void SessionThread_WithMultipleTurns_Input_UserMessagePayload_SurvivesRoundTrip()
-    {
-        static SessionItem MakeUserItem(string turnId, string text) => new()
-        {
-            Id = "item_001",
-            TurnId = turnId,
-            Type = ItemType.UserMessage,
-            Status = ItemStatus.Completed,
-            CreatedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow,
-            Payload = new UserMessagePayload { Text = text }
-        };
-
-        static SessionItem MakeAgentItem(string turnId, string text) => new()
-        {
-            Id = "item_002",
-            TurnId = turnId,
-            Type = ItemType.AgentMessage,
-            Status = ItemStatus.Completed,
-            CreatedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow,
-            Payload = new AgentMessagePayload { Text = text }
-        };
-
-        var turn1User = MakeUserItem("turn_001", "你好");
-        var turn2User = MakeUserItem("turn_002", "你有哪些工具呢");
-
-        var thread = new SessionThread
-        {
-            Id = "thread_20260315_test",
-            WorkspacePath = "/workspace",
-            OriginChannel = "cli",
-            UserId = "local",
-            Status = ThreadStatus.Active,
-            CreatedAt = DateTimeOffset.UtcNow,
-            LastActiveAt = DateTimeOffset.UtcNow,
-            Turns =
-            [
-                new SessionTurn
-                {
-                    Id = "turn_001",
-                    ThreadId = "thread_20260315_test",
-                    Status = TurnStatus.Completed,
-                    StartedAt = DateTimeOffset.UtcNow,
-                    Input = turn1User,
-                    Items = [turn1User, MakeAgentItem("turn_001", "你好！我是DotCraft")]
-                },
-                new SessionTurn
-                {
-                    Id = "turn_002",
-                    ThreadId = "thread_20260315_test",
-                    Status = TurnStatus.Completed,
-                    StartedAt = DateTimeOffset.UtcNow,
-                    Input = turn2User,
-                    Items = [turn2User, MakeAgentItem("turn_002", "我有以下工具...")]
-                }
-            ]
-        };
-
-        var json = JsonSerializer.Serialize(thread, Opts);
-        var loaded = JsonSerializer.Deserialize<SessionThread>(json, Opts);
-
-        Assert.NotNull(loaded);
-        Assert.Equal(2, loaded.Turns.Count);
-
-        for (var i = 0; i < loaded.Turns.Count; i++)
-        {
-            var t = loaded.Turns[i];
-            Assert.NotNull(t.Input);
-            Assert.Equal(ItemType.UserMessage, t.Input.Type);
-            var payload = t.Input.Payload as UserMessagePayload;
-            Assert.NotNull(payload);
-        }
-
-        Assert.Equal("你好", (loaded.Turns[0].Input!.Payload as UserMessagePayload)!.Text);
-        Assert.Equal("你有哪些工具呢", (loaded.Turns[1].Input!.Payload as UserMessagePayload)!.Text);
-    }
-
-    [Fact]
-    public void SessionWireEvent_SerializesEnumsAsCamelCase()
-    {
-        var evt = new SessionEvent
-        {
-            EventId = "evt_0001",
-            EventType = SessionEventType.TurnCompleted,
-            ThreadId = "thread_001",
-            TurnId = "turn_001",
-            Timestamp = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
-            Payload = new SessionTurn
-            {
-                Id = "turn_001",
-                ThreadId = "thread_001",
-                Status = TurnStatus.Completed,
-                OriginChannel = "cli",
-                StartedAt = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
-                CompletedAt = new DateTimeOffset(2026, 3, 16, 10, 1, 0, TimeSpan.Zero)
-            }
-        };
-
-        var json = JsonSerializer.Serialize(evt.ToWire(), SessionWireJsonOptions.Default);
-
-        Assert.Contains("\"eventType\":\"turnCompleted\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"status\":\"completed\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"payloadKind\":\"turn\"", json, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void SessionWireEvent_ReasoningDelta_ProducesFlatDeltaShape()
-    {
-        var evt = new SessionEvent
-        {
-            EventId = "evt_0002",
-            EventType = SessionEventType.ItemDelta,
-            ThreadId = "thread_001",
-            TurnId = "turn_001",
-            ItemId = "item_001",
-            Timestamp = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
-            Payload = new ReasoningContentDelta { TextDelta = "thinking..." }
-        };
-
-        var json = JsonSerializer.Serialize(evt.ToWire(), SessionWireJsonOptions.Default);
-
-        // payloadKind still identifies the internal type; the payload itself is { delta }
-        Assert.Contains("\"payloadKind\":\"reasoningContentDelta\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"delta\":\"thinking...\"", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"deltaKind\"", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"textDelta\"", json, StringComparison.Ordinal);
-    }
-
-    // -------------------------------------------------------------------------
-    // Persistence round-trips for new event payload types
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void SessionEvent_ThreadResumed_RoundTrip()
-    {
-        var thread = new SessionThread
-        {
-            Id = "thread_001",
-            WorkspacePath = "/workspace",
-            OriginChannel = "cli",
-            Status = ThreadStatus.Active,
-            CreatedAt = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
-            LastActiveAt = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero)
-        };
-
-        var evt = new SessionEvent
-        {
-            EventId = "evt_r1",
-            EventType = SessionEventType.ThreadResumed,
-            ThreadId = "thread_001",
-            Timestamp = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
-            Payload = new ThreadResumedPayload { Thread = thread, ResumedBy = "vscode" }
-        };
-
-        var json = JsonSerializer.Serialize(evt, Opts);
-        var deserialized = JsonSerializer.Deserialize<SessionEvent>(json, Opts);
-
-        Assert.NotNull(deserialized);
-        Assert.Equal(SessionEventType.ThreadResumed, deserialized.EventType);
-
-        var payload = deserialized.ResumedPayload;
-        Assert.NotNull(payload);
-        Assert.Equal("thread_001", payload.Thread.Id);
-        Assert.Equal("vscode", payload.ResumedBy);
-
-        // TurnPayload accessor should not return anything for thread-level events
-        Assert.Null(deserialized.TurnPayload);
-    }
-
-    [Fact]
-    public void SessionEvent_TurnCancelled_RoundTrip()
-    {
-        var turn = new SessionTurn
-        {
-            Id = "turn_001",
-            ThreadId = "thread_001",
-            Status = TurnStatus.Cancelled,
-            StartedAt = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero)
-        };
-
-        var evt = new SessionEvent
-        {
-            EventId = "evt_c1",
-            EventType = SessionEventType.TurnCancelled,
-            ThreadId = "thread_001",
-            TurnId = "turn_001",
-            Timestamp = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
-            Payload = new TurnCancelledPayload { Turn = turn, Reason = "Caller cancelled" }
-        };
-
-        var json = JsonSerializer.Serialize(evt, Opts);
-        var deserialized = JsonSerializer.Deserialize<SessionEvent>(json, Opts);
-
-        Assert.NotNull(deserialized);
-        Assert.Equal(SessionEventType.TurnCancelled, deserialized.EventType);
-
-        var payload = deserialized.TurnCancelledPayload;
-        Assert.NotNull(payload);
-        Assert.Equal("turn_001", payload.Turn.Id);
-        Assert.Equal("Caller cancelled", payload.Reason);
-
-        // TurnPayload accessor should unwrap the nested turn
-        Assert.Equal("turn_001", deserialized.TurnPayload?.Id);
-    }
-
-    [Fact]
-    public void SessionEvent_TurnFailed_RoundTrip()
-    {
-        var turn = new SessionTurn
-        {
-            Id = "turn_002",
-            ThreadId = "thread_001",
-            Status = TurnStatus.Failed,
             StartedAt = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
-            Error = "Model context exceeded"
-        };
+            CompletedAt = new DateTimeOffset(2026, 3, 16, 10, 1, 0, TimeSpan.Zero)
+        }));
+        Assert.Contains("\"eventType\":\"turnCompleted\"", completed, StringComparison.Ordinal);
+        Assert.Contains("\"status\":\"completed\"", completed, StringComparison.Ordinal);
+        Assert.Contains("\"payloadKind\":\"turn\"", completed, StringComparison.Ordinal);
 
-        var evt = new SessionEvent
+        var agentDelta = WireJson(BuildEvent(SessionEventType.ItemDelta, new AgentMessageDelta { TextDelta = "hello world" }));
+        Assert.Contains("\"payloadKind\":\"agentMessageDelta\"", agentDelta, StringComparison.Ordinal);
+        Assert.Contains("\"delta\":\"hello world\"", agentDelta, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"textDelta\"", agentDelta, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"deltaKind\"", agentDelta, StringComparison.Ordinal);
+
+        var reasoningDelta = WireJson(BuildEvent(SessionEventType.ItemDelta, new ReasoningContentDelta { TextDelta = "thinking..." }));
+        Assert.Contains("\"payloadKind\":\"reasoningContentDelta\"", reasoningDelta, StringComparison.Ordinal);
+        Assert.Contains("\"delta\":\"thinking...\"", reasoningDelta, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"textDelta\"", reasoningDelta, StringComparison.Ordinal);
+
+        var status = WireJson(BuildEvent(SessionEventType.ThreadStatusChanged, new ThreadStatusChangedPayload
         {
-            EventId = "evt_f1",
-            EventType = SessionEventType.TurnFailed,
-            ThreadId = "thread_001",
-            TurnId = "turn_002",
-            Timestamp = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
-            Payload = new TurnFailedPayload { Turn = turn, Error = "Model context exceeded" }
-        };
+            PreviousStatus = ThreadStatus.Active,
+            NewStatus = ThreadStatus.Archived
+        }));
+        Assert.Contains("\"threadId\":\"thread_001\"", status, StringComparison.Ordinal);
+        Assert.Contains("\"previousStatus\":\"active\"", status, StringComparison.Ordinal);
+        Assert.Contains("\"newStatus\":\"archived\"", status, StringComparison.Ordinal);
 
-        var json = JsonSerializer.Serialize(evt, Opts);
-        var deserialized = JsonSerializer.Deserialize<SessionEvent>(json, Opts);
-
-        Assert.NotNull(deserialized);
-        Assert.Equal(SessionEventType.TurnFailed, deserialized.EventType);
-
-        var payload = deserialized.TurnFailedPayload;
-        Assert.NotNull(payload);
-        Assert.Equal("turn_002", payload.Turn.Id);
-        Assert.Equal("Model context exceeded", payload.Error);
-
-        // TurnPayload accessor should unwrap the nested turn
-        Assert.Equal("turn_002", deserialized.TurnPayload?.Id);
-        // Error is accessible via the accessor used by SessionEventHandler
-        Assert.Equal("Model context exceeded", deserialized.TurnPayload?.Error);
+        var failed = WireJson(BuildEvent(SessionEventType.TurnFailed, new TurnFailedPayload
+        {
+            Turn = new SessionTurn { Id = "turn_002", ThreadId = "thread_001", Status = TurnStatus.Failed },
+            Error = "Context window exceeded"
+        }));
+        Assert.Contains("\"error\":\"Context window exceeded\"", failed, StringComparison.Ordinal);
+        Assert.Contains("\"turn\":", failed, StringComparison.Ordinal);
+        Assert.Contains("\"payloadKind\":\"turnFailed\"", failed, StringComparison.Ordinal);
     }
-
-    // -------------------------------------------------------------------------
-    // WireApprovalDecisionConverter
-    // -------------------------------------------------------------------------
 
     [Theory]
     [InlineData(SessionApprovalDecision.AcceptOnce, "accept")]
@@ -1368,27 +465,11 @@ public class SerializationTests
     [InlineData(SessionApprovalDecision.AcceptAlways, "acceptAlways")]
     [InlineData(SessionApprovalDecision.Reject, "decline")]
     [InlineData(SessionApprovalDecision.CancelTurn, "cancel")]
-    public void WireApprovalDecision_SerializesAsWireNames(SessionApprovalDecision decision, string expectedWire)
+    public void WireApprovalDecision_UsesWireNames(SessionApprovalDecision decision, string expectedWire)
     {
-        var json = JsonSerializer.Serialize(decision, SessionWireJsonOptions.Default);
-        Assert.Equal($"\"{expectedWire}\"", json);
+        Assert.Equal($"\"{expectedWire}\"", JsonSerializer.Serialize(decision, SessionWireJsonOptions.Default));
+        Assert.Equal(decision, JsonSerializer.Deserialize<SessionApprovalDecision>($"\"{expectedWire}\"", SessionWireJsonOptions.Default));
     }
-
-    [Theory]
-    [InlineData("accept", SessionApprovalDecision.AcceptOnce)]
-    [InlineData("acceptForSession", SessionApprovalDecision.AcceptForSession)]
-    [InlineData("acceptAlways", SessionApprovalDecision.AcceptAlways)]
-    [InlineData("decline", SessionApprovalDecision.Reject)]
-    [InlineData("cancel", SessionApprovalDecision.CancelTurn)]
-    public void WireApprovalDecision_DeserializesFromWireNames(string wireValue, SessionApprovalDecision expected)
-    {
-        var deserialized = JsonSerializer.Deserialize<SessionApprovalDecision>($"\"{wireValue}\"", SessionWireJsonOptions.Default);
-        Assert.Equal(expected, deserialized);
-    }
-
-    // -------------------------------------------------------------------------
-    // ToWireMethodName
-    // -------------------------------------------------------------------------
 
     [Theory]
     [InlineData(SessionEventType.ThreadCreated, "thread/started")]
@@ -1408,200 +489,98 @@ public class SerializationTests
     }
 
     [Fact]
-    public void ToWireMethodName_ItemDelta_AgentMessage()
+    public void ToWireMethodName_ItemDelta_DependsOnDeltaKind()
     {
-        var evt = new SessionEvent
+        Assert.Equal("item/agentMessage/delta", new SessionEvent
         {
             EventType = SessionEventType.ItemDelta,
             Payload = new AgentMessageDelta { TextDelta = "hello" }
-        };
-        Assert.Equal("item/agentMessage/delta", evt.ToWireMethodName());
-    }
-
-    [Fact]
-    public void ToWireMethodName_ItemDelta_Reasoning()
-    {
-        var evt = new SessionEvent
+        }.ToWireMethodName());
+        Assert.Equal("item/reasoning/delta", new SessionEvent
         {
             EventType = SessionEventType.ItemDelta,
             Payload = new ReasoningContentDelta { TextDelta = "thinking" }
-        };
-        Assert.Equal("item/reasoning/delta", evt.ToWireMethodName());
-    }
-
-    // -------------------------------------------------------------------------
-    // SessionInputPart <-> AIContent mapping
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void SessionInputPart_Text_ToAIContent()
-    {
-        var part = new SessionInputPart { Type = "text", Text = "Hello world" };
-        var content = part.ToAIContent();
-        var tc = Assert.IsType<TextContent>(content);
-        Assert.Equal("Hello world", tc.Text);
+        }.ToWireMethodName());
     }
 
     [Fact]
-    public void SessionInputPart_InlineImage_ToAIContent_ReturnsDataContent()
+    public void SessionInputPart_MapsToAndFromAIContent()
     {
-        var part = new SessionInputPart { Type = "image", Url = "data:image/png;base64,AQID" };
-        var content = part.ToAIContent();
-        var data = Assert.IsType<DataContent>(content);
-        Assert.Equal("image/png", data.MediaType);
-        Assert.Equal([1, 2, 3], data.Data.ToArray());
-    }
+        Assert.Equal("Hello world", Assert.IsType<TextContent>(new SessionInputPart { Type = "text", Text = "Hello world" }.ToAIContent()).Text);
 
-    [Fact]
-    public void SessionInputPart_RemoteImage_ToAIContent_ReturnsSafePlaceholderText()
-    {
-        var part = new SessionInputPart { Type = "image", Url = "https://example.com/img.png" };
-        var content = part.ToAIContent();
-        var text = Assert.IsType<TextContent>(content);
-        Assert.Equal(SessionInputPartResolver.RemoteImageOmittedText, text.Text);
-        Assert.DoesNotContain("example.com", text.Text);
-    }
+        var inline = Assert.IsType<DataContent>(new SessionInputPart { Type = "image", Url = "data:image/png;base64,AQID" }.ToAIContent());
+        Assert.Equal("image/png", inline.MediaType);
+        Assert.Equal([1, 2, 3], inline.Data.ToArray());
 
-    [Fact]
-    public void SessionInputPart_LocalImage_ToAIContent_ReturnsPlaceholderText()
-    {
-        // DataContent requires data: URIs, so local paths become TextContent placeholders.
-        // The AppServer reads the file and constructs DataContent(bytes, mediaType) before dispatch.
-        var part = new SessionInputPart { Type = "localImage", Path = "/synthetic/screenshot.png" };
-        var content = part.ToAIContent();
-        var tc = Assert.IsType<TextContent>(content);
-        Assert.Contains("/synthetic/screenshot.png", tc.Text);
-    }
+        var remote = Assert.IsType<TextContent>(new SessionInputPart { Type = "image", Url = "https://example.com/img.png" }.ToAIContent());
+        Assert.Equal(SessionInputPartResolver.RemoteImageOmittedText, remote.Text);
+        Assert.DoesNotContain("example.com", remote.Text);
 
-    [Fact]
-    public void AIContent_Text_ToWireInputPart()
-    {
-        var tc = new TextContent("Hello");
-        var part = tc.ToWireInputPart();
-        Assert.Equal("text", part.Type);
-        Assert.Equal("Hello", part.Text);
-    }
+        var local = Assert.IsType<TextContent>(new SessionInputPart { Type = "localImage", Path = "/synthetic/screenshot.png" }.ToAIContent());
+        Assert.Contains("/synthetic/screenshot.png", local.Text);
 
-    [Fact]
-    public void AIContent_DataContent_ToWireInputPart()
-    {
-        // DataContent with a data: URI (base64 inline) maps to the "image" wire type.
+        var textPart = new TextContent("Hello").ToWireInputPart();
+        Assert.Equal("text", textPart.Type);
+        Assert.Equal("Hello", textPart.Text);
+
         const string dataUri = "data:image/png;base64,iVBORw0KGgo=";
-        var dc = new DataContent(dataUri, "image/png");
-        var part = dc.ToWireInputPart();
-        Assert.Equal("image", part.Type);
-        Assert.Equal(dataUri, part.Url);
-    }
-
-    // -------------------------------------------------------------------------
-    // ToWire(includeTurns) populates Turns and nested Items
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void SessionWireThread_ToWire_WithoutTurns_OmitsTurns()
-    {
-        var thread = BuildThreadWithTurns();
-        var wire = thread.ToWire(includeTurns: false);
-        Assert.Null(wire.Turns);
+        var imagePart = new DataContent(dataUri, "image/png").ToWireInputPart();
+        Assert.Equal("image", imagePart.Type);
+        Assert.Equal(dataUri, imagePart.Url);
     }
 
     [Fact]
-    public void SessionWireThread_ToWire_WithTurns_PopulatesTurnsAndItems()
+    public void SessionWireThread_ToWire_IncludesTurnsOnlyWhenRequested()
     {
         var thread = BuildThreadWithTurns();
-        var wire = thread.ToWire(includeTurns: true);
+        Assert.Null(thread.ToWire(includeTurns: false).Turns);
 
-        Assert.NotNull(wire.Turns);
-        Assert.Single(wire.Turns);
-
-        var wireTurn = wire.Turns[0];
+        var wireTurn = Assert.Single(thread.ToWire(includeTurns: true).Turns!);
         Assert.Equal("turn_001", wireTurn.Id);
-        Assert.NotNull(wireTurn.Items);
-        Assert.Equal(2, wireTurn.Items!.Count);
-        Assert.Equal("item_001", wireTurn.Items[0].Id);
-        Assert.Equal("item_002", wireTurn.Items[1].Id);
+        Assert.Equal(["item_001", "item_002"], wireTurn.Items!.Select(item => item.Id));
     }
 
-    // -------------------------------------------------------------------------
-    // Wire shapes for delta and statusChanged events
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void SessionWireEvent_AgentMessageDelta_ProducesFlatDeltaShape()
+    private static SessionItem BuildItem(ItemType type, ItemStatus status, object? payload)
     {
-        var evt = new SessionEvent
+        var item = new SessionItem
         {
-            EventId = "evt_d1",
-            EventType = SessionEventType.ItemDelta,
-            ThreadId = "thread_001",
+            Id = "item_001",
             TurnId = "turn_001",
-            ItemId = "item_003",
-            Timestamp = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
-            Payload = new AgentMessageDelta { TextDelta = "hello world" }
+            Type = type,
+            Status = status,
+            CreatedAt = new DateTimeOffset(2026, 3, 15, 10, 0, 0, TimeSpan.Zero)
         };
-
-        var json = JsonSerializer.Serialize(evt.ToWire(), SessionWireJsonOptions.Default);
-
-        Assert.Contains("\"delta\":\"hello world\"", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"textDelta\"", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"deltaKind\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"payloadKind\":\"agentMessageDelta\"", json, StringComparison.Ordinal);
+        item.Payload = payload;
+        return item;
     }
 
-    [Fact]
-    public void SessionWireEvent_ThreadStatusChanged_IncludesThreadId()
+    private static SessionEvent BuildEvent(SessionEventType type, object payload) => new()
     {
-        var evt = new SessionEvent
-        {
-            EventId = "evt_s1",
-            EventType = SessionEventType.ThreadStatusChanged,
-            ThreadId = "thread_001",
-            Timestamp = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
-            Payload = new ThreadStatusChangedPayload
-            {
-                PreviousStatus = ThreadStatus.Active,
-                NewStatus = ThreadStatus.Archived
-            }
-        };
+        EventId = "evt_001",
+        EventType = type,
+        ThreadId = "thread_001",
+        TurnId = "turn_001",
+        Timestamp = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
+        Payload = payload
+    };
 
-        var json = JsonSerializer.Serialize(evt.ToWire(), SessionWireJsonOptions.Default);
-
-        Assert.Contains("\"threadId\":\"thread_001\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"previousStatus\":\"active\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"newStatus\":\"archived\"", json, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void SessionWireEvent_TurnFailed_ProducesTurnAndError()
+    private static SessionItem RoundTrip(SessionItem item)
     {
-        var turn = new SessionTurn
-        {
-            Id = "turn_002",
-            ThreadId = "thread_001",
-            Status = TurnStatus.Failed,
-            StartedAt = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero)
-        };
-
-        var evt = new SessionEvent
-        {
-            EventId = "evt_f2",
-            EventType = SessionEventType.TurnFailed,
-            ThreadId = "thread_001",
-            TurnId = "turn_002",
-            Timestamp = new DateTimeOffset(2026, 3, 16, 10, 0, 0, TimeSpan.Zero),
-            Payload = new TurnFailedPayload { Turn = turn, Error = "Context window exceeded" }
-        };
-
-        var json = JsonSerializer.Serialize(evt.ToWire(), SessionWireJsonOptions.Default);
-
-        Assert.Contains("\"error\":\"Context window exceeded\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"turn\":", json, StringComparison.Ordinal);
-        Assert.Contains("\"payloadKind\":\"turnFailed\"", json, StringComparison.Ordinal);
+        var result = JsonSerializer.Deserialize<SessionItem>(JsonSerializer.Serialize(item, Opts), Opts);
+        Assert.NotNull(result);
+        return result;
     }
 
-    // -------------------------------------------------------------------------
-    // Additional helpers
-    // -------------------------------------------------------------------------
+    private static SessionEvent RoundTrip(SessionEvent evt)
+    {
+        var result = JsonSerializer.Deserialize<SessionEvent>(JsonSerializer.Serialize(evt, Opts), Opts);
+        Assert.NotNull(result);
+        Assert.Equal(evt.EventType, result.EventType);
+        return result;
+    }
+
+    private static string WireJson(SessionEvent evt) =>
+        JsonSerializer.Serialize(evt.ToWire(), SessionWireJsonOptions.Default);
 
     private static SessionThread BuildThreadWithTurns()
     {

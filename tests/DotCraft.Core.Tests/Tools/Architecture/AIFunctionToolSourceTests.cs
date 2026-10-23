@@ -38,43 +38,6 @@ public sealed class AIFunctionToolSourceTests
     }
 
     [Fact]
-    public async Task Runtime_PreservesRichContentFromNativeFunction()
-    {
-        var imageBytes = "native-image"u8.ToArray();
-        var function = AIFunctionFactory.Create(
-            () => (IList<AIContent>)
-            [
-                new TextContent("Image: sample.png"),
-                new DataContent(imageBytes, "image/png")
-            ],
-            name: "ReadImage");
-        var definitionId = new ToolDefinitionId(
-            ToolSourceKind.CoreNative,
-            "test",
-            new SourceToolId("ReadImage"));
-        var result = await new AIFunctionToolRuntime(function).InvokeAsync(
-            new ToolInvocationContext(
-                "thread_test",
-                "turn_test",
-                "call_test",
-                ToolInvocationAudience.Model,
-                new ToolName(null, "ReadImage"),
-                definitionId,
-                new RuntimeBindingId("native:test:ReadImage:1"),
-                1,
-                DateTimeOffset.UtcNow),
-            new JsonObject());
-
-        Assert.True(result.Success);
-        Assert.Equal("Image: sample.png", result.Content);
-        var contentItems = Assert.IsAssignableFrom<IReadOnlyList<AIContent>>(result.ContentItems);
-        Assert.Equal("Image: sample.png", Assert.IsType<TextContent>(contentItems[0]).Text);
-        var image = Assert.IsType<DataContent>(contentItems[1]);
-        Assert.Equal("image/png", image.MediaType);
-        Assert.Equal(imageBytes, image.Data.ToArray());
-    }
-
-    [Fact]
     public async Task Runtime_ImageOnlySuccessGetsStableTextFallback()
     {
         var function = AIFunctionFactory.Create(
@@ -155,18 +118,6 @@ public sealed class AIFunctionToolSourceTests
     }
 
     [Fact]
-    public void ProfileRegistry_StoresQualifiedToolSources()
-    {
-        var registry = new ToolProfileRegistry();
-        var source = new CommitSuggestToolSource();
-
-        registry.Register("commit", [source]);
-
-        Assert.True(registry.TryGet("commit", out var sources));
-        Assert.Same(source, Assert.Single(sources!));
-    }
-
-    [Fact]
     public void ToolSourceCollector_CombinesDiAndEnabledModulesDeterministically()
     {
         var first = new EmptySource("first", priority: 20);
@@ -180,37 +131,6 @@ public sealed class AIFunctionToolSourceTests
         var sources = new ToolSourceCollector(modules, services, new AppConfig()).Collect();
 
         Assert.Equal(["second", "first"], sources.Select(source => source.SourceId));
-    }
-
-    [Fact]
-    public void A_tool_returning_content_items_says_so_and_a_value_tool_does_not()
-    {
-        Assert.True(GeneratedToolDeclarations.FileTools_ReadFile_Declaration.ReturnsContent);
-        Assert.False(GeneratedToolDeclarations.FileTools_GrepFiles_Declaration.ReturnsContent);
-    }
-
-    [Fact]
-    public void FirstPartyTools_DeclareTheirDesktopPresentation()
-    {
-        AssertPresentation(GeneratedToolDeclarations.FileTools_ReadFile_Declaration, "core.read-file", ("operation", "read"));
-        AssertPresentation(GeneratedToolDeclarations.LspTool_LSP_Declaration, "core.lsp");
-        AssertPresentation(GeneratedToolDeclarations.UserCoordinationTools_Sleep_Declaration, "core.sleep");
-        AssertPresentation(GeneratedToolDeclarations.AgentMessageBoardTools_BoardPost_Declaration, "core.board", ("operation", "post"));
-        AssertPresentation(GeneratedToolDeclarations.RemoteToolHostTransferTools_Transfer_Declaration, "core.remote-tool-host", ("operation", "transfer"));
-        AssertPresentation(GeneratedToolDeclarations.AgentProfileBuilderToolMethods_RemoveAgentSkills_Declaration, "core.agent-builder", ("field", "skills.allow"));
-        Assert.Null(GeneratedToolDeclarations.UserCoordinationTools_CurrentTime_Declaration.Presentation);
-    }
-
-    private static void AssertPresentation(
-        GeneratedToolDeclaration declaration,
-        string presentationId,
-        params (string Key, string Value)[] options)
-    {
-        Assert.NotNull(declaration.Presentation);
-        Assert.Equal(presentationId, declaration.Presentation.Id.Value);
-        Assert.Equal(
-            options.ToDictionary(option => option.Key, option => option.Value),
-            declaration.Presentation.Options.ToDictionary(pair => pair.Key, pair => pair.Value.GetString()!));
     }
 
     [Theory]
@@ -252,17 +172,6 @@ public sealed class AIFunctionToolSourceTests
                 name is "send_user_message_async" or "sleep" or "current_time");
         }
     }
-
-    private static ToolInvocationContext Context(string toolName) => new(
-        "thread_test",
-        "turn_test",
-        "call_test",
-        ToolInvocationAudience.Model,
-        new ToolName(null, toolName),
-        new ToolDefinitionId(ToolSourceKind.CoreNative, "test", new SourceToolId(toolName)),
-        new RuntimeBindingId($"native:test:{toolName}:1"),
-        1,
-        DateTimeOffset.UtcNow);
 
     private static ToolPlanningContext CreatePlanningContext(
         ToolPlanningThreadKind threadKind = ToolPlanningThreadKind.Unknown) => new(

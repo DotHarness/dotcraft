@@ -31,14 +31,12 @@ describe('derivePetActivity', () => {
   it('is idle on the welcome surface', () => {
     expect(derivePetActivity(input({ threadId: null }))).toMatchObject({ status: 'idle', line: '', turnId: '', canStop: false })
   })
-  it('names the live tool while it runs, from a partial or a complete argument set', () => {
+  it('names the newest live tool from partial or complete arguments and counts the others', () => {
     const streaming = derivePetActivity(running([item({ type: 'toolCall', toolName: 'Exec', ...coreToolFields('Exec'), status: 'streaming', argumentsPreview: '{"command":"npm test' })]))
     expect(streaming.status).toBe('running')
     expect(streaming.line).toContain('npm test')
     const started = derivePetActivity(running([item({ type: 'toolCall', toolName: 'Exec', ...coreToolFields('Exec'), status: 'started', arguments: { command: 'npm test' } })]))
     expect(started.line).toContain('npm test')
-  })
-  it('counts additional live tools', () => {
     const info = derivePetActivity(running([
       item({ type: 'toolCall', toolName: 'ReadFile', ...coreToolFields('ReadFile'), status: 'started', arguments: { path: 'src/a.ts' } }),
       item({ type: 'toolCall', toolName: 'ReadFile', ...coreToolFields('ReadFile'), status: 'started', arguments: { path: 'src/b.ts' } })
@@ -118,14 +116,10 @@ describe('derivePetActivity', () => {
 })
 
 describe('flattenPetLine', () => {
-  it('collapses markdown into one plain line', () => {
+  it('collapses markdown into one plain line, keeping identifiers and clipping by code point', () => {
     expect(flattenPetLine('## Plan\n\n- run `npm i`\n> quoted **bold** and _em_ [link](http://x) ![img](y)'))
       .toBe('Plan run npm i quoted bold and em link img')
-  })
-  it('drops fenced code and nested emphasis', () => {
     expect(flattenPetLine('Before ```js\nconst a = 1\n``` after **_both_**!')).toBe('Before after both')
-  })
-  it('keeps identifiers with underscores and clips by code point', () => {
     expect(flattenPetLine('Renamed snake_case_name.')).toBe('Renamed snake_case_name')
     expect(flattenPetLine('好'.repeat(70))).toBe(`${'好'.repeat(59)}…`)
     expect(flattenPetLine('句子结束。')).toBe('句子结束')

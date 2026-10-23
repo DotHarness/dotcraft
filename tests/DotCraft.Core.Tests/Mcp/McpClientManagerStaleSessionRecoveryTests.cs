@@ -95,7 +95,7 @@ public sealed class McpClientManagerStaleSessionRecoveryTests
             Assert.NotNull(target);
             Assert.Same(newTool, target.Tool);
         });
-        Assert.Equal(2, factory.CallCount); // one startup connect + one shared stale-session reconnect
+        Assert.Equal(2, factory.CallCount);
     }
 
     private static McpServerConfig StreamableServer() =>

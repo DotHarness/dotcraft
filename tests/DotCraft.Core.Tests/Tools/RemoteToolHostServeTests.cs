@@ -43,7 +43,6 @@ public sealed class RemoteToolHostServeTests
             await client.ConnectAsync("thread-opted-out", server.PeerId, "opted-out"));
 
         Assert.Contains("LSP", withLsp.MatchedTools);
-
     }
 
     [Fact]
@@ -128,14 +127,7 @@ public sealed class RemoteToolHostServeTests
     }
 
     [Fact]
-    public Task WriteStdin_DeniedForSessionNotCreatedByThisLease() =>
-        AssertUnboundWriteStdinIsDeniedAsync(policyIsAllow: false);
-
-    [Fact]
-    public Task WriteStdin_DeniedEvenWhenPolicyIsAllow() =>
-        AssertUnboundWriteStdinIsDeniedAsync(policyIsAllow: true);
-
-    private static async Task AssertUnboundWriteStdinIsDeniedAsync(bool policyIsAllow)
+    public async Task WriteStdin_DeniedForSessionNotCreatedByThisLease_EvenWhenPolicyIsAllow()
     {
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
@@ -143,16 +135,13 @@ public sealed class RemoteToolHostServeTests
         var state = RemoteToolHostTestHost.Setup(
             storage,
             new Dictionary<string, string>(StringComparer.Ordinal) { ["repo"] = workspace.Path });
-        if (policyIsAllow)
+        storage.SaveHostState(state with
         {
-            storage.SaveHostState(state with
+            ToolPolicies = new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                ToolPolicies = new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    ["WriteStdin"] = "allow"
-                }
-            });
-        }
+                ["WriteStdin"] = "allow"
+            }
+        });
 
         await using var server = new RemoteToolHostTestServer(storage);
         await using var client = server.CreateClient();
@@ -193,7 +182,8 @@ public sealed class RemoteToolHostServeTests
         {
             ["command"] = "echo bound",
             ["runInBackground"] = true,
-            ["interactive"] = true
+            ["interactive"] = true,
+            ["yieldTimeMs"] = 1
         });
         Assert.True(started.Success, started.Error?.Message);
         var sessionId = ReadSessionId(started.Content);
@@ -201,7 +191,8 @@ public sealed class RemoteToolHostServeTests
         var result = await InvokeAsync(client, connected.Route, writeStdin, "stdin", new JsonObject
         {
             ["sessionId"] = sessionId,
-            ["input"] = string.Empty
+            ["input"] = string.Empty,
+            ["yieldTimeMs"] = 1
         });
 
         Assert.NotEqual(RemoteToolErrorCodes.RemotePolicyDenied, result.Error?.Code);

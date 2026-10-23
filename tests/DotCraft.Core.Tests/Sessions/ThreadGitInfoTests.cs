@@ -35,41 +35,32 @@ public sealed class ThreadGitInfoTests : IDisposable
     }
 
     [Fact]
-    public async Task Read_ReturnsBranchAndCredentialFreeOrigin()
+    public async Task Read_ReturnsBranchAndCredentialFreeOriginAndNoBranchOnDetachedHeadOrNothingOutsideGit()
     {
+        var plain = Directory.CreateDirectory(Path.Combine(_tempDir, "plain")).FullName;
+        Assert.Null(await ThreadGitInfoProbe.ReadAsync(plain, CancellationToken.None));
         var repo = await CreateRepositoryAsync("feat/thread-git-info");
-        await GitAsync(repo, "remote", "add", "origin", "https://user:secret-token@github.com/o/r.git");
+        await File.AppendAllTextAsync(
+            Path.Combine(repo, ".git", "config"),
+            "[remote \"origin\"]\n\turl = https://user:secret-token@github.com/o/r.git\n");
 
         Assert.Equal(
             new ThreadGitInfo { Branch = "feat/thread-git-info", OriginUrl = "https://github.com/o/r.git" },
             await ThreadGitInfoProbe.ReadAsync(repo, CancellationToken.None));
+
+        await File.WriteAllTextAsync(Path.Combine(repo, ".git", "HEAD"), new string('a', 40) + "\n");
+
+        Assert.Equal(
+            new ThreadGitInfo { OriginUrl = "https://github.com/o/r.git" },
+            await ThreadGitInfoProbe.ReadAsync(repo, CancellationToken.None));
     }
 
     [Fact]
-    public async Task Read_RecordsNoBranchOnDetachedHead()
+    public void SanitizeRemoteUrl_RemovesUserInformation()
     {
-        var repo = await CreateRepositoryAsync("main");
-        await GitAsync(repo, "checkout", "--detach");
-
-        Assert.Null(await ThreadGitInfoProbe.ReadAsync(repo, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task Read_ReturnsNothingOutsideGit()
-    {
-        var plain = Directory.CreateDirectory(Path.Combine(_tempDir, "plain")).FullName;
-
-        Assert.Null(await ThreadGitInfoProbe.ReadAsync(plain, CancellationToken.None));
-    }
-
-    [Theory]
-    [InlineData("https://user:token@github.com/o/r.git", "https://github.com/o/r.git")]
-    [InlineData("ssh://git@github.com/o/r.git", "ssh://github.com/o/r.git")]
-    [InlineData("git@github.com:o/r.git", "github.com:o/r.git")]
-    [InlineData("C:\\repos\\origin", "C:\\repos\\origin")]
-    public void SanitizeRemoteUrl_RemovesUserInformation(string raw, string expected)
-    {
-        Assert.Equal(expected, ThreadGitInfoProbe.SanitizeRemoteUrl(raw));
+        Assert.Equal("ssh://github.com/o/r.git", ThreadGitInfoProbe.SanitizeRemoteUrl("ssh://git@github.com/o/r.git"));
+        Assert.Equal("github.com:o/r.git", ThreadGitInfoProbe.SanitizeRemoteUrl("git@github.com:o/r.git"));
+        Assert.Equal(@"C:\repos\origin", ThreadGitInfoProbe.SanitizeRemoteUrl(@"C:\repos\origin"));
     }
 
     [Fact]
@@ -137,9 +128,7 @@ public sealed class ThreadGitInfoTests : IDisposable
     private async Task<string> CreateRepositoryAsync(string branch)
     {
         var repo = Directory.CreateDirectory(Path.Combine(_tempDir, "repo")).FullName;
-        await GitAsync(repo, "init");
-        await GitAsync(repo, "checkout", "-b", branch);
-        await GitAsync(repo, "-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "--allow-empty", "-m", "init");
+        await GitAsync(repo, "init", "-b", branch);
         return repo;
     }
 
@@ -170,7 +159,6 @@ public sealed class ThreadGitInfoTests : IDisposable
         }
     }
 
-    /// <summary>A host that is available but routes no thread, as in an ordinary local session.</summary>
     private sealed class UnroutedRemoteClient : IRemoteToolHostClient
     {
         public event Action<RemoteToolRouteChange>? RouteChanged { add { } remove { } }

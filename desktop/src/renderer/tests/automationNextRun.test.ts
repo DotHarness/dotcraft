@@ -9,7 +9,5 @@ it('formats future hours and days and never describes overdue runs as past activ
   expect(automationNextRun('2026-09-08T00:00:00Z', now, 'en')).toBe('Due now')
   expect(automationNextRun(null, now, 'en')).toBeNull()
   expect(automationNextRun('invalid', now, 'en')).toBeNull()
-})
-it('localizes next-run timing in the client locale', () => {
   expect(automationNextRun('2026-09-09T20:00:00Z', now, 'zh-Hans')).toBe('下次运行：20小时后')
 })

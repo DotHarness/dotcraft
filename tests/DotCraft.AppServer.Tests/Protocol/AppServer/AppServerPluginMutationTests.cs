@@ -1,12 +1,6 @@
-using System.Text.Json;
 using DotCraft.Configuration;
-using DotCraft.Lsp;
-using DotCraft.Mcp;
 using DotCraft.Plugins;
-using DotCraft.Skills;
 using DotCraft.AppServer;
-using McpServerConfig = DotCraft.Mcp.McpServerConfig;
-using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -14,7 +8,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed partial class AppServerPluginManagementTests
 {
     [Fact]
-    public async Task PluginSetTrusted_GrantActivatesBlockedPluginAndRevokeBlocksItAgain()
+    public async Task PluginSetTrusted_GrantsAndRevokesWithMonotonicRevisions()
     {
         WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
         var runtime = CreateUntrustedBrowserRuntime();
@@ -28,7 +22,13 @@ public sealed partial class AppServerPluginManagementTests
             blocked.GetProperty("blockers").EnumerateArray(),
             item => item.GetProperty("code").GetString() == PluginDotnetDiagnosticCodes.Untrusted);
 
+        var observed = new List<long> { await ReadListRevisionAsync(harness) };
+        var unchanged = await SetTrustedAsync(harness, trusted: false, expectNotification: false);
+        Assert.Equal("noChange", unchanged.GetProperty("outcome").GetString());
+
         var granted = await SetTrustedAsync(harness, trusted: true);
+        observed.Add(granted.GetProperty("snapshotRevision").GetInt64());
+        observed.Add(await ReadListRevisionAsync(harness));
         Assert.Equal("applied", granted.GetProperty("outcome").GetString());
         var activeRuntime = granted.GetProperty("plugin").GetProperty("dotnetRuntime");
         Assert.Equal("active", activeRuntime.GetProperty("state").GetString());
@@ -36,45 +36,19 @@ public sealed partial class AppServerPluginManagementTests
         Assert.Empty(activeRuntime.GetProperty("blockers").EnumerateArray());
 
         var revoked = await SetTrustedAsync(harness, trusted: false);
+        observed.Add(revoked.GetProperty("snapshotRevision").GetInt64());
+        observed.Add(await ReadListRevisionAsync(harness));
         Assert.Equal("applied", revoked.GetProperty("outcome").GetString());
         var revokedRuntime = revoked.GetProperty("plugin").GetProperty("dotnetRuntime");
         Assert.Equal("blocked", revokedRuntime.GetProperty("state").GetString());
         Assert.Equal("untrusted", revokedRuntime.GetProperty("trustStatus").GetString());
+
+        Assert.Equal(observed.Order().ToArray(), observed);
+        Assert.True(observed[^1] > observed[0]);
     }
 
     [Fact]
-    public async Task PluginSetTrusted_RepeatingCurrentTrustStateReturnsNoChange()
-    {
-        WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
-        using var harness = CreateHarness(pluginDotnetRuntimeCoordinator: CreateUntrustedBrowserRuntime());
-        await harness.InitializeAsync();
-
-        var result = await SetTrustedAsync(harness, trusted: false, expectNotification: false);
-
-        Assert.Equal("noChange", result.GetProperty("outcome").GetString());
-    }
-
-    [Fact]
-    public async Task PluginSetTrusted_MissingTrustedReturnsInvalidParamsWithoutRevokingTrust()
-    {
-        WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
-        using var harness = CreateHarness(pluginDotnetRuntimeCoordinator: CreateUntrustedBrowserRuntime());
-        await harness.InitializeAsync();
-        await SetTrustedAsync(harness, trusted: true);
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetTrusted,
-            new { id = "browser" }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-        var runtime = await ReadBrowserRuntimeAsync(harness);
-        Assert.Equal("trusted", runtime.GetProperty("trustStatus").GetString());
-        Assert.Equal("active", runtime.GetProperty("state").GetString());
-    }
-
-    [Fact]
-    public async Task PluginSetTrusted_AfterBundleBytesChange_ReprojectsModifiedUntilReconfirmed()
+    public async Task PluginSetTrusted_KeepsTrustOnInvalidParamsAndRequiresReconfirmationAfterBundleChange()
     {
         WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
         var runtime = CreateUntrustedBrowserRuntime();
@@ -82,7 +56,15 @@ public sealed partial class AppServerPluginManagementTests
         await harness.InitializeAsync();
         await SetTrustedAsync(harness, trusted: true);
 
-        // An update replaces the bundle bytes, so the fingerprint-bound grant no longer matches.
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetTrusted,
+            new { id = "browser" }));
+        using (var response = await harness.Transport.ReadNextSentAsync())
+            AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        var stillTrusted = await ReadBrowserRuntimeAsync(harness);
+        Assert.Equal("trusted", stillTrusted.GetProperty("trustStatus").GetString());
+        Assert.Equal("active", stillTrusted.GetProperty("state").GetString());
+
         runtime.MarkBundleModified("browser");
 
         var modified = await ReadBrowserRuntimeAsync(harness);
@@ -100,27 +82,14 @@ public sealed partial class AppServerPluginManagementTests
     }
 
     [Fact]
-    public async Task PluginSnapshotRevision_IncreasesMonotonicallyAcrossMutations()
+    public async Task PluginInstall_DeploysBrowserEnablesContentsAndReportsChangedRegions()
     {
-        WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
-        var runtime = CreateUntrustedBrowserRuntime();
-        using var harness = CreateHarness(pluginDotnetRuntimeCoordinator: runtime);
-        await harness.InitializeAsync();
-
-        var observed = new List<long> { await ReadListRevisionAsync(harness) };
-        observed.Add((await SetTrustedAsync(harness, trusted: true)).GetProperty("snapshotRevision").GetInt64());
-        observed.Add(await ReadListRevisionAsync(harness));
-        observed.Add((await SetTrustedAsync(harness, trusted: false)).GetProperty("snapshotRevision").GetInt64());
-        observed.Add(await ReadListRevisionAsync(harness));
-
-        Assert.Equal(observed.Order().ToArray(), observed);
-        Assert.True(observed[^1] > observed[0]);
-    }
-    [Fact]
-    public async Task PluginInstall_DeploysBrowserAndEnablesContents()
-    {
-        var loader = CreateSkillsLoader(new AppConfig());
-        using var harness = CreateHarness(loader: loader);
+        var config = new AppConfig();
+        config.Plugins.DisabledPlugins.Add("node-repl");
+        var loader = CreateSkillsLoader(config);
+        var changes = new List<AppConfigChangedEventArgs>();
+        using var harness = CreateHarness(config, loader);
+        harness.Monitor.Changed += OnChanged;
         await harness.InitializeAsync(configChange: true);
 
         var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
@@ -138,20 +107,52 @@ public sealed partial class AppServerPluginManagementTests
         Assert.False(Directory.Exists(Path.Combine(_workspaceCraftPath, "plugins")));
         Assert.True(File.Exists(Path.Combine(_userDataPath, "imports", "revision.json")));
         Assert.Contains(loader.ListSkills(), skill => skill.Name == "browser");
+
+        var change = Assert.Single(changes);
+        Assert.Contains(ConfigChangeRegions.Plugins, change.Regions);
+        Assert.Contains(ConfigChangeRegions.Skills, change.Regions);
+        Assert.Contains(ConfigChangeRegions.Mcp, change.Regions);
+        Assert.Contains(ConfigChangeRegions.Lsp, change.Regions);
+
+        harness.Monitor.Changed -= OnChanged;
+        void OnChanged(object? sender, AppConfigChangedEventArgs args) => changes.Add(args);
     }
 
     [Fact]
-    public async Task PluginInstallLocal_InstallsUserPluginAsRemovable()
+    public async Task PluginInstallLocal_RejectsInvalidSourcesAndInstallsUserPluginAsRemovable()
     {
         var loader = CreateSkillsLoader(new AppConfig());
         using var harness = CreateHarness(loader: loader);
         await harness.InitializeAsync(configChange: true);
 
+        var notAPlugin = Path.Combine(_tempRoot, "not-a-plugin");
+        Directory.CreateDirectory(notAPlugin);
+        var relativeSource = "dotcraft-relative-plugin-test-" + Guid.NewGuid().ToString("N");
+        var relativeRoot = Path.Combine(Directory.GetCurrentDirectory(), relativeSource);
+        try
+        {
+            WriteSkillOnlyPlugin(relativeRoot);
+            foreach (var path in new[] { notAPlugin, relativeSource })
+            {
+                await harness.ExecuteRequestAsync(harness.BuildRequest(
+                    DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal,
+                    new { path }));
+                using var rejected = await harness.Transport.ReadNextSentAsync();
+                AppServerTestHarness.AssertIsErrorResponse(rejected, AppServerErrors.InvalidParamsCode);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(relativeRoot))
+                Directory.Delete(relativeRoot, recursive: true);
+        }
+        Assert.False(Directory.Exists(Path.Combine(_userDataPath, "plugins")));
+
         var source = Path.Combine(_tempRoot, "source-plugin");
         WriteSkillOnlyPlugin(source);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source });
-        await harness.ExecuteRequestAsync(msg);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal,
+            new { path = source }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
@@ -163,60 +164,15 @@ public sealed partial class AppServerPluginManagementTests
 
         var installed = Path.Combine(_userDataPath, "plugins", "demo-plugin");
         Assert.True(File.Exists(Path.Combine(installed, ".craft-plugin", "plugin.json")));
-        // Local installs are user-owned: no .builtin marker is written, yet the plugin is removable.
         Assert.False(File.Exists(Path.Combine(installed, ".builtin")));
         Assert.Contains(loader.ListSkills(), skill => skill.Name == "demo-skill");
     }
 
     [Fact]
-    public async Task PluginInstallLocal_RejectsNonPluginFolder()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync(configChange: true);
-
-        var source = Path.Combine(_tempRoot, "not-a-plugin");
-        Directory.CreateDirectory(source);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-        Assert.False(Directory.Exists(Path.Combine(_userDataPath, "plugins", "demo-plugin")));
-    }
-
-    [Fact]
-    public async Task PluginInstallLocal_RejectsRelativePathWithoutWritingPlugin()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync(configChange: true);
-
-        var relativeSource = "dotcraft-relative-plugin-test-" + Guid.NewGuid().ToString("N");
-        var source = Path.Combine(Directory.GetCurrentDirectory(), relativeSource);
-
-        try
-        {
-            WriteSkillOnlyPlugin(source);
-
-            var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = relativeSource });
-            await harness.ExecuteRequestAsync(msg);
-
-            using var response = await harness.Transport.ReadNextSentAsync();
-            AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-            Assert.False(Directory.Exists(Path.Combine(_userDataPath, "plugins")));
-        }
-        finally
-        {
-            if (Directory.Exists(source))
-                Directory.Delete(source, recursive: true);
-        }
-    }
-
-    [Fact]
-    public async Task PluginInstall_DeploysRegistryAppAndSkill()
+    public async Task PluginInstall_DeploysRegistryAppDespiteUnrelatedBrokenRegistryEntry()
     {
         var config = new AppConfig();
-        ConfigureRegistryAppRegistry(config);
+        ConfigureRegistryAppRegistry(config, includeBrokenEntry: true);
         var loader = CreateSkillsLoader(config);
         using var harness = CreateHarness(config, loader);
         await harness.InitializeAsync(configChange: true);
@@ -236,49 +192,6 @@ public sealed partial class AppServerPluginManagementTests
         var app = Assert.Single(plugin.GetProperty("apps").EnumerateArray());
         Assert.Equal("com.example.registry-app", app.GetProperty("appId").GetString());
         Assert.False(app.TryGetProperty("toolNamespace", out _));
-    }
-
-    [Fact]
-    public async Task PluginInstall_DeploysRegistryPluginWhenUnrelatedRegistryEntryHasError()
-    {
-        var config = new AppConfig();
-        ConfigureRegistryAppRegistry(config, includeBrokenEntry: true);
-        var loader = CreateSkillsLoader(config);
-        using var harness = CreateHarness(config, loader);
-        await harness.InitializeAsync(configChange: true);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "registry-app" });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
-        Assert.Equal("registry-app", plugin.GetProperty("id").GetString());
-        Assert.True(plugin.GetProperty("installed").GetBoolean());
-        Assert.True(File.Exists(Path.Combine(_userDataPath, "plugins", "registry-app", ".builtin")));
-    }
-
-    [Fact]
-    public async Task PluginInstall_EmitsLspConfigRegion()
-    {
-        var changes = new List<AppConfigChangedEventArgs>();
-        using var harness = CreateHarness();
-        harness.Monitor.Changed += OnChanged;
-        await harness.InitializeAsync();
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var change = Assert.Single(changes);
-        Assert.Contains(ConfigChangeRegions.Plugins, change.Regions);
-        Assert.Contains(ConfigChangeRegions.Skills, change.Regions);
-        Assert.Contains(ConfigChangeRegions.Mcp, change.Regions);
-        Assert.Contains(ConfigChangeRegions.Lsp, change.Regions);
-
-        harness.Monitor.Changed -= OnChanged;
-        void OnChanged(object? sender, AppConfigChangedEventArgs args) => changes.Add(args);
     }
 
     [Fact]
@@ -305,71 +218,38 @@ public sealed partial class AppServerPluginManagementTests
     }
 
     [Fact]
-    public async Task PluginSetEnabled_WhenAlreadyInRequestedState_ReturnsNoChangeAndWritesNothing()
+    public async Task PluginSetEnabled_RejectsInvalidRequestsAndIsIdempotent()
     {
         using var harness = CreateHarness();
         await harness.InitializeAsync(configChange: true);
-        await InstallBrowserAsync(harness);
-
-        var msg = harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled,
-            new { id = "browser", enabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.Equal("noChange", response.RootElement.GetProperty("result").GetProperty("outcome").GetString());
-    }
-
-    [Fact]
-    public async Task PluginSetEnabled_MissingEnabledReturnsInvalidParamsWithoutDisablingPlugin()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync(configChange: true);
-        await InstallBrowserAsync(harness);
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled,
-            new { id = "browser" }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-        var plugins = (await ReadPluginListResultAsync(harness)).GetProperty("plugins");
-        var browser = Assert.Single(
-            plugins.EnumerateArray(),
-            plugin => plugin.GetProperty("id").GetString() == "browser");
-        Assert.True(browser.GetProperty("enabled").GetBoolean());
-    }
-
-    [Fact]
-    public async Task PluginLifecycleMutations_MissingIdReturnInvalidParams()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
 
         foreach (var (method, parameters) in new (string Method, object Params)[]
                  {
+                     (DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled, new { id = "browser", enabled = true }),
                      (DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled, new { enabled = false }),
                      (DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetTrusted, new { trusted = false })
                  })
         {
             await harness.ExecuteRequestAsync(harness.BuildRequest(method, parameters));
-            using var response = await harness.Transport.ReadNextSentAsync();
-            AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+            using var rejected = await harness.Transport.ReadNextSentAsync();
+            AppServerTestHarness.AssertIsErrorResponse(rejected, AppServerErrors.InvalidParamsCode);
         }
-    }
 
-    [Fact]
-    public async Task PluginSetEnabled_WhenNotInstalled_ReturnsError()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
+        await InstallBrowserAsync(harness);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled, new { id = "browser", enabled = true });
-        await harness.ExecuteRequestAsync(msg);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled,
+            new { id = "browser" }));
+        using (var missingEnabled = await harness.Transport.ReadNextSentAsync())
+            AppServerTestHarness.AssertIsErrorResponse(missingEnabled, AppServerErrors.InvalidParamsCode);
+        Assert.True(FindPlugin(await ReadPluginListResultAsync(harness), "browser").GetProperty("enabled").GetBoolean());
 
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled,
+            new { id = "browser", enabled = true }));
         using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        Assert.Equal("noChange", response.RootElement.GetProperty("result").GetProperty("outcome").GetString());
     }
 
     [Fact]
@@ -416,13 +296,8 @@ public sealed partial class AppServerPluginManagementTests
             DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSnapshotUpdated,
             snapshotUpdated.RootElement.GetProperty("method").GetString());
 
-        var list = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(list);
-
-        using var listResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(listResponse);
         Assert.DoesNotContain(
-            listResponse.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
+            (await ReadPluginListResultAsync(harness)).GetProperty("plugins").EnumerateArray(),
             item => item.GetProperty("id").GetString() == "review-tools");
     }
 
@@ -436,14 +311,7 @@ public sealed partial class AppServerPluginManagementTests
         using var harness = CreateHarness(config);
         await harness.InitializeAsync();
 
-        var list = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(list);
-
-        using var listResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(listResponse);
-        var plugin = Assert.Single(
-            listResponse.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "review-tools");
+        var plugin = FindPlugin(await ReadPluginListResultAsync(harness), "review-tools");
         Assert.Equal("explicit", plugin.GetProperty("source").GetString());
         Assert.False(plugin.GetProperty("removable").GetBoolean());
 
@@ -453,25 +321,5 @@ public sealed partial class AppServerPluginManagementTests
         using var removeResponse = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsErrorResponse(removeResponse, AppServerErrors.InvalidParamsCode);
         Assert.True(Directory.Exists(pluginRoot));
-    }
-
-    [Fact]
-    public async Task PluginInstall_DoesNotTreatNodeReplDisabledAsBrowserDisabled()
-    {
-        var config = new AppConfig();
-        config.Plugins.DisabledPlugins.Add("node-repl");
-        var loader = CreateSkillsLoader(config);
-        using var harness = CreateHarness(config, loader);
-        await harness.InitializeAsync(configChange: true);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
-        Assert.Equal("browser", plugin.GetProperty("id").GetString());
-        Assert.True(plugin.GetProperty("enabled").GetBoolean());
-        Assert.Contains(loader.ListSkills(), skill => skill.Name == "browser");
     }
 }

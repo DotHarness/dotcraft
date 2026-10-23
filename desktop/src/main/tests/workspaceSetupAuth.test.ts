@@ -11,7 +11,7 @@ afterEach(async () => {
 })
 
 describe('setup sign-in bridge', () => {
-  it('signs an unsaved provider draft in through stdin', async () => {
+  it('signs an unsaved provider draft in through stdin and keeps backend failure details', async () => {
     const runBackend = vi.fn().mockResolvedValue({ kind: 'success' })
     const result = await loginSetupChatGpt({
       provider: {
@@ -29,6 +29,11 @@ describe('setup sign-in bridge', () => {
     expect(args).toEqual(['auth', 'login', '--stdin'])
     expect(JSON.parse(stdin)).toMatchObject({ id: 'chatgpt', protocol: 'openai-responses', authMethod: 'chatgptOAuth' })
     expect(timeoutMs).toBe(15 * 60_000)
+
+    runBackend.mockRejectedValueOnce(new Error('Authorization cancelled'))
+    await expect(loginSetupChatGpt({
+      provider: { id: 'chatgpt', displayName: '', protocol: 'openai-responses', apiKey: '', endPoint: '', authMethod: 'chatgptOAuth' }
+    }, { runBackend })).resolves.toEqual({ kind: 'error', errorCode: 'provider_login_failed', errorMessage: 'Authorization cancelled' })
   })
 
   it('signs a saved provider in from its user configuration without putting secrets in argv', async () => {
@@ -46,14 +51,5 @@ describe('setup sign-in bridge', () => {
     expect(args).toEqual(['auth', 'login', '--stdin'])
     expect(args.join(' ')).not.toContain('secret-key')
     expect(JSON.parse(stdin)).toMatchObject({ id: 'subscription', authMethod: 'chatgptOAuth' })
-  })
-
-  it('preserves backend failure details for a retryable sign-in prompt', async () => {
-    const runBackend = vi.fn().mockRejectedValue(new Error('Authorization cancelled'))
-    const result = await loginSetupChatGpt({
-      provider: { id: 'chatgpt', displayName: '', protocol: 'openai-responses', apiKey: '', endPoint: '', authMethod: 'chatgptOAuth' }
-    }, { runBackend })
-
-    expect(result).toEqual({ kind: 'error', errorCode: 'provider_login_failed', errorMessage: 'Authorization cancelled' })
   })
 })

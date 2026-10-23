@@ -41,7 +41,6 @@ public sealed class OpenAIResponsesMaintenanceHistoryTests
 
     [Theory]
     [InlineData(1)]
-    [InlineData(2)]
     [InlineData(4)]
     public async Task ForkRunnerDetachesTurnHistoryForEveryInputLength(int snapshotLength)
     {

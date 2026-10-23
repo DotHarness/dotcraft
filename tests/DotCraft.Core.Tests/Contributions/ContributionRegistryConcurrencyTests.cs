@@ -22,7 +22,6 @@ public sealed class ContributionRegistryConcurrencyTests
             {
                 for (var read = 0; read < readsPerReader; read++)
                 {
-                    // The materialized view must never be observed mid-mutation.
                     foreach (var contribution in registry.Resolve<ILabelContract>("thread-1"))
                         Assert.False(string.IsNullOrEmpty(contribution.Label));
                 }
@@ -112,7 +111,6 @@ public sealed class ContributionRegistryConcurrencyTests
 
     private static void AssertOrdered(IReadOnlyList<ILabelContract> contributions)
     {
-        // Labels encode their order key as the trailing index modulo five.
         var previous = int.MinValue;
         foreach (var contribution in contributions)
         {

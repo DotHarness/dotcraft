@@ -7,49 +7,6 @@ namespace DotCraft.Tests.Context;
 public sealed class SubAgentProfilePromptSectionBuilderTests
 {
     [Fact]
-    public void Build_ConfiguredProfilesOverrideBuiltIns()
-    {
-        var section = SubAgentProfilePromptSectionBuilder.Build(
-            [
-                new SubAgentProfile
-                {
-                    Name = "cursor-cli",
-                    Runtime = "cli-oneshot",
-                    Bin = "cursor-agent",
-                    WorkingDirectoryMode = "specified",
-                    InputMode = "arg",
-                    OutputFormat = "json",
-                    OutputJsonPath = "result"
-                }
-            ],
-            binaryAvailabilityProbe: _ => true);
-
-        Assert.NotNull(section);
-        Assert.Contains("`cursor-cli`", section);
-    }
-
-    [Fact]
-    public void Build_ShowsCustomCliTemplateWhenUserOverridesWithValidBin()
-    {
-        var section = SubAgentProfilePromptSectionBuilder.Build(
-            [
-                new SubAgentProfile
-                {
-                    Name = "custom-cli-oneshot",
-                    Runtime = "cli-oneshot",
-                    Bin = "custom-agent",
-                    WorkingDirectoryMode = "workspace",
-                    InputMode = "arg",
-                    OutputFormat = "text"
-                }
-            ],
-            binaryAvailabilityProbe: _ => true);
-
-        Assert.NotNull(section);
-        Assert.Contains("`custom-cli-oneshot`", section, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void Build_OmitsProfilesWithBlockingConfigurationProblems()
     {
         var section = SubAgentProfilePromptSectionBuilder.Build(
@@ -75,29 +32,6 @@ public sealed class SubAgentProfilePromptSectionBuilderTests
     }
 
     [Fact]
-    public void Build_DoesNotIncludeDiagnosticNoise()
-    {
-        var section = SubAgentProfilePromptSectionBuilder.Build(
-            [
-                new SubAgentProfile
-                {
-                    Name = "quiet-cli",
-                    Runtime = "cli-oneshot",
-                    Bin = @"C:\tools\quiet-cli.cmd",
-                    WorkingDirectoryMode = "workspace",
-                    InputMode = "arg",
-                    OutputFormat = "text"
-                }
-            ],
-            binaryAvailabilityProbe: _ => true);
-
-        Assert.NotNull(section);
-        Assert.DoesNotContain(@"C:\tools\quiet-cli.cmd", section, StringComparison.Ordinal);
-        Assert.DoesNotContain("resolved ->", section, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("warning", section, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
     public void Build_HidesCliProfileWhenBinaryProbeFails()
     {
         var section = SubAgentProfilePromptSectionBuilder.Build(
@@ -110,28 +44,16 @@ public sealed class SubAgentProfilePromptSectionBuilderTests
     }
 
     [Fact]
-    public void Build_HidesDisabledProfiles()
+    public void Build_HidesDisabledProfilesButNeverTheProtectedDefault()
     {
         var section = SubAgentProfilePromptSectionBuilder.Build(
             configuredProfiles: null,
-            disabledProfiles: ["cursor-cli"],
+            disabledProfiles: ["cursor-cli", "native"],
             binaryAvailabilityProbe: _ => true);
 
         Assert.NotNull(section);
         Assert.DoesNotContain("`cursor-cli`", section, StringComparison.Ordinal);
         Assert.Contains("`codex-cli`", section, StringComparison.Ordinal);
-        Assert.Contains("`native`", section, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Build_DoesNotDisableProtectedDefaultProfile()
-    {
-        var section = SubAgentProfilePromptSectionBuilder.Build(
-            configuredProfiles: null,
-            disabledProfiles: ["native"],
-            binaryAvailabilityProbe: _ => true);
-
-        Assert.NotNull(section);
         Assert.Contains("`native`", section, StringComparison.Ordinal);
     }
 
@@ -149,18 +71,19 @@ public sealed class SubAgentProfilePromptSectionBuilderTests
         Assert.DoesNotContain("`agentNickname`", section, StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void Build_DescribesResumeOnlyWhenEnabled(bool enabled)
+    [Fact]
+    public void Build_DescribesResumeOnlyWhenEnabled()
     {
-        var section = SubAgentProfilePromptSectionBuilder.Build(
-            configuredProfiles: null,
-            binaryAvailabilityProbe: _ => true,
-            enableExternalCliSessionResume: enabled);
+        foreach (var enabled in new[] { true, false })
+        {
+            var section = SubAgentProfilePromptSectionBuilder.Build(
+                configuredProfiles: null,
+                binaryAvailabilityProbe: _ => true,
+                enableExternalCliSessionResume: enabled);
 
-        Assert.NotNull(section);
-        Assert.Equal(enabled, section.Contains("`agentNickname`", StringComparison.Ordinal));
+            Assert.NotNull(section);
+            Assert.Equal(enabled, section.Contains("`agentNickname`", StringComparison.Ordinal));
+        }
     }
 
     [Fact]

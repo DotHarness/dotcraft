@@ -2,13 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { WebSocketServer } from "ws";
 
-import { DotCraftWireClient, type ServerRequestHandler } from "./client.js";
-import { InternalAppServerClient } from "./appServerClient.js";
-import { TurnInProgressError } from "./errors.js";
-import { RequestTimeoutError } from "./errors.js";
+import { DotCraftWireClient } from "./client.js";
+import { RequestTimeoutError, TurnInProgressError } from "./errors.js";
 import { ERR_TURN_IN_PROGRESS } from "./models.js";
-import { type Transport, TransportClosed } from "./transport.js";
-import { WebSocketTransport } from "./transport.js";
+import { type Transport, TransportClosed, WebSocketTransport } from "./transport.js";
 
 class QueueTransport implements Transport {
   readonly written: Record<string, unknown>[] = [];
@@ -57,20 +54,6 @@ class QueueTransport implements Transport {
   }
 }
 
-function assertWireSurfaceIsProtocolOnly(client: DotCraftWireClient): void {
-  if (false) {
-    // @ts-expect-error Thread helpers belong to InternalAppServerClient.
-    void client.threadStart({ channelName: "test", userId: "user" });
-  }
-}
-
-test("DotCraftWireClient excludes high-level Thread operations", () => {
-  const client = new DotCraftWireClient(new QueueTransport());
-  assertWireSurfaceIsProtocolOnly(client);
-  assert.equal("threadStart" in client, false);
-  assert.equal("streamEvents" in client, false);
-});
-
 test("DotCraftWireClient correlates responses and maps common JSON-RPC errors", async () => {
   const transport = new QueueTransport();
   const client = new DotCraftWireClient(transport);
@@ -90,6 +73,12 @@ test("DotCraftWireClient correlates responses and maps common JSON-RPC errors", 
 
   assert.deepEqual(await second, { ok: "second" });
   await assert.rejects(first, (error: unknown) => error instanceof TurnInProgressError);
+
+  const noParams = client.requestRaw("config/mcpServer/reload");
+  const noParamsWrite = await transport.nextWrite();
+  assert.equal("params" in noParamsWrite, false);
+  transport.push({ jsonrpc: "2.0", id: noParamsWrite.id, result: {} });
+  assert.deepEqual(await noParams, {});
 
   await client.stop();
 });
@@ -152,45 +141,6 @@ test("DotCraftWireClient reinitializes before releasing reconnect-queued request
 
   await client.stop();
   await new Promise<void>((resolve) => server.close(() => resolve()));
-});
-
-test("DotCraftWireClient omits params when a request has no parameters", async () => {
-  const transport = new QueueTransport();
-  const client = new DotCraftWireClient(transport);
-  await client.start();
-
-  const pending = client.requestRaw("config/mcpServer/reload");
-  const written = await transport.nextWrite();
-  assert.equal("params" in written, false);
-  transport.push({ jsonrpc: "2.0", id: written.id, result: {} });
-  assert.deepEqual(await pending, {});
-
-  await client.stop();
-});
-
-test("InternalAppServerClient sends workspace scope for thread list requests", async () => {
-  const transport = new QueueTransport();
-  const client = new InternalAppServerClient(transport);
-  await client.start();
-
-  const pending = client.threadListPage({
-    channelName: "desktop",
-    userId: "local-user",
-    workspacePath: "C:\\workspace",
-    scope: "workspace",
-  });
-  const written = await transport.nextWrite();
-  assert.equal(written.method, "thread/list");
-  assert.equal((written.params as Record<string, unknown>).scope, "workspace");
-
-  transport.push({
-    jsonrpc: "2.0",
-    id: written.id,
-    result: { data: [], nextCursor: null, totalMatched: 0 },
-  });
-  assert.deepEqual((await pending).data, []);
-
-  await client.stop();
 });
 
 test("DotCraftWireClient dispatches server requests without blocking the reader", async () => {

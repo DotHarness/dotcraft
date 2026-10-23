@@ -35,31 +35,15 @@ describe('search provider metadata', () => {
   })
 })
 
-describe('isSecretStored', () => {
-  it('treats the masked read value as stored and empty values as unset', () => {
+describe('secret key fields', () => {
+  it('treats the mask as stored and commits only edited values', () => {
     expect(isSecretStored('***')).toBe(true)
     expect(isSecretStored('')).toBe(false)
     expect(isSecretStored(undefined)).toBe(false)
-  })
-})
-
-describe('resolveSecretKeyCommit', () => {
-  it('does nothing when the field was not edited or still shows the mask', () => {
     expect(resolveSecretKeyCommit(null, true)).toEqual({ kind: 'none' })
-    expect(resolveSecretKeyCommit(SECRET_KEY_MASK, true)).toEqual({
-      kind: 'none'
-    })
-  })
-
-  it('clears a stored key when the field is emptied', () => {
+    expect(resolveSecretKeyCommit(SECRET_KEY_MASK, true)).toEqual({ kind: 'none' })
     expect(resolveSecretKeyCommit('  ', true)).toEqual({ kind: 'clear' })
     expect(resolveSecretKeyCommit('', false)).toEqual({ kind: 'none' })
-  })
-
-  it('saves a new trimmed key', () => {
-    expect(resolveSecretKeyCommit(' exa-key ', true)).toEqual({
-      kind: 'set',
-      value: 'exa-key'
-    })
+    expect(resolveSecretKeyCommit(' exa-key ', true)).toEqual({ kind: 'set', value: 'exa-key' })
   })
 })

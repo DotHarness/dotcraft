@@ -57,7 +57,6 @@ try {
 
   const styles = readFileSync(join(project, "dist", "index.css"), "utf8");
   assert.match(styles, /--text-primary/);
-  // A stylesheet already resolves url() against its own address, so it keeps the plain path.
   assert.match(styles, /url\("?\.\/assets\/logo-[A-Z0-9]+\.svg"?\)/);
 
   const runtimeModule = await import(pathToFileURL(join(packageRoot, "dist", "runtime.js")));
@@ -85,7 +84,6 @@ try {
   const activation = plugin.activate({});
   assert.equal(activation.mainViews[0].id, "sample");
 
-  // An asset import must already be the URL of the emitted file, resolved against the bundle.
   assert.match(plugin.logoUrl, /^file:\/\/.*\/assets\/logo-[A-Z0-9]+\.svg$/);
   assert.equal(existsSync(fileURLToPath(plugin.logoUrl)), true);
 

@@ -5,10 +5,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Protocol;
 
-/// <summary>
-/// Streaming providers often send cumulative <c>UsageContent</c> snapshots; <see cref="UsageSnapshotDelta"/>
-/// converts them to true deltas for <c>item/usage/delta</c> (see appserver-protocol §6.6).
-/// </summary>
 public sealed class UsageSnapshotDeltaTests
 {
     [Fact]

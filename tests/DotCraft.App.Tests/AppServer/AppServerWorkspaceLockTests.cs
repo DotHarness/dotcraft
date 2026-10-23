@@ -25,6 +25,9 @@ public sealed class AppServerWorkspaceLockTests : IDisposable
         Assert.True(AppServerWorkspaceLock.TryAcquire(paths, out var first, out var initialInfo));
         Assert.Null(initialInfo);
         Assert.NotNull(first);
+        Assert.False(AppServerWorkspaceLock.TryAcquire(paths, out var blocked, out var unpublished));
+        Assert.Null(blocked);
+        Assert.Null(unpublished);
 
         first!.Publish(new AppServerLockInfo(
             Pid: Environment.ProcessId,
@@ -48,20 +51,7 @@ public sealed class AppServerWorkspaceLockTests : IDisposable
     }
 
     [Fact]
-    public void TryAcquire_ActiveLockWithoutMetadataBlocksSecondOwner()
-    {
-        var paths = Paths();
-
-        Assert.True(AppServerWorkspaceLock.TryAcquire(paths, out var first, out _));
-        Assert.False(AppServerWorkspaceLock.TryAcquire(paths, out var second, out var existingInfo));
-        Assert.Null(second);
-        Assert.Null(existingInfo);
-
-        first!.DeleteAfterDispose();
-    }
-
-    [Fact]
-    public void TryAcquire_AfterReleaseTreatsOldLockAsRecoverable()
+    public void TryAcquire_RecoversReleasedAndUnheldLocks()
     {
         var paths = Paths();
 
@@ -80,20 +70,12 @@ public sealed class AppServerWorkspaceLockTests : IDisposable
         Assert.NotNull(second);
         Assert.NotNull(existingInfo);
         Assert.Equal(999999, existingInfo!.Pid);
+        second!.Dispose();
 
-        second!.DeleteAfterDispose();
-    }
-
-    [Fact]
-    public void TryAcquire_RecoversUnheldLockWithoutMetadata()
-    {
-        var lockPath = AppServerWorkspaceLock.GetLockFilePath(BotPath);
-        File.WriteAllText(lockPath, string.Empty);
-
-        Assert.True(AppServerWorkspaceLock.TryAcquire(Paths(), out var recovered, out var existingInfo));
+        File.WriteAllText(AppServerWorkspaceLock.GetLockFilePath(BotPath), string.Empty);
+        Assert.True(AppServerWorkspaceLock.TryAcquire(paths, out var recovered, out var emptyInfo));
         Assert.NotNull(recovered);
-        Assert.Null(existingInfo);
-
+        Assert.Null(emptyInfo);
         recovered!.DeleteAfterDispose();
     }
 
@@ -129,7 +111,6 @@ public sealed class AppServerWorkspaceLockTests : IDisposable
         }
         catch
         {
-            // ignored
         }
     }
 }

@@ -11,7 +11,7 @@ namespace DotCraft.Tests.Tools;
 public sealed class RemoteExecutionSessionTests
 {
     [Fact]
-    public async Task IndependentSessionsShareLease_AndRemainingConnectionRenewsIt()
+    public async Task IndependentSessionsShareLease_AndClosingOneInvalidatesOnlyItsRoute()
     {
         await using var fixture = await RemoteExecutionFixture.CreateAsync();
         await using var first = await fixture.OpenAsync("first");
@@ -24,8 +24,6 @@ public sealed class RemoteExecutionSessionTests
         Assert.Equal(RemoteToolErrorCodes.WorkspaceBusy, busy.Code);
 
         await first.DisposeAsync();
-        var before = fixture.Server.Leases.GetStatus("repo")!.ExpiresAt;
-        await fixture.WaitAsync(() => fixture.Server.Leases.GetStatus("repo")!.ExpiresAt > before, TimeSpan.FromSeconds(20));
         Assert.True((await fixture.InvokeAsync(second, "WriteFile", new() { ["path"] = "shared.txt", ["content"] = "kept" })).Success);
         var captured = await second.InvokeAsync(first.Route, fixture.Tool("ReadFile").Definition,
             RemoteToolContractHasher.Compute(fixture.Tool("ReadFile").Definition),
@@ -68,7 +66,7 @@ public sealed class RemoteExecutionSessionTests
         await using var second = await fixture.OpenAsync("second");
         var a = await fixture.StartTerminalAsync(first);
         var b = await fixture.StartTerminalAsync(second);
-        var denied = await fixture.InvokeAsync(first, "WriteStdin", new() { ["sessionId"] = b, ["input"] = "" });
+        var denied = await fixture.InvokeAsync(first, "WriteStdin", new() { ["sessionId"] = b, ["input"] = "", ["yieldTimeMs"] = 1 });
         Assert.Equal(RemoteToolErrorCodes.RemotePolicyDenied, denied.Error?.Code);
         var aFile = Assert.Single(Directory.GetFiles(fixture.Storage.RootPath, a + ".json", SearchOption.AllDirectories));
         var bFile = Assert.Single(Directory.GetFiles(fixture.Storage.RootPath, b + ".json", SearchOption.AllDirectories));
@@ -82,7 +80,7 @@ public sealed class RemoteExecutionSessionTests
         Assert.True(File.Exists(bFile));
         Assert.False(IsRunning(aPid));
         Assert.True(IsRunning(bPid));
-        Assert.True((await fixture.InvokeAsync(second, "WriteStdin", new() { ["sessionId"] = b, ["input"] = "" })).Success);
+        Assert.True((await fixture.InvokeAsync(second, "WriteStdin", new() { ["sessionId"] = b, ["input"] = "", ["yieldTimeMs"] = 1 })).Success);
         await second.DisposeAsync();
         Assert.False(IsRunning(bPid));
     }
@@ -250,7 +248,7 @@ internal sealed class RemoteExecutionFixture : IAsyncDisposable
     internal static JsonObject TerminalArguments() => new()
     {
         ["command"] = OperatingSystem.IsWindows() ? "Start-Sleep -Seconds 120" : "sleep 120",
-        ["runInBackground"] = true, ["interactive"] = true
+        ["runInBackground"] = true, ["interactive"] = true, ["yieldTimeMs"] = 1
     };
     internal static string TerminalId(ToolExecutionResult result)
     {

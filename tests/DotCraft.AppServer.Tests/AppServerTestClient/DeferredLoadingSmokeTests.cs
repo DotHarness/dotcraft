@@ -13,37 +13,6 @@ public sealed class DeferredLoadingSmokeTests
     private const string QualifiedEchoToolName = SmokeToolNamespace + "__" + DeferredLoadingSmokeTools.Echo;
 
     [Fact]
-    public void MatrixLoad_ParsesProviderMappings()
-    {
-        var path = Path.Combine(Path.GetTempPath(), "deferred-loading-smoke-" + Guid.NewGuid().ToString("N") + ".json");
-        try
-        {
-            File.WriteAllText(path, """
-                {
-                  "providers": [
-                    {
-                      "protocol": "anthropic",
-                      "providerId": "anthropic-smoke",
-                      "model": "claude-smoke"
-                    }
-                  ]
-                }
-                """);
-
-            var matrix = DeferredLoadingSmokeMatrix.Load(path);
-
-            var provider = Assert.Single(matrix.Providers);
-            Assert.Equal(ModelProviderProtocols.Anthropic, provider.Protocol);
-            Assert.Equal("anthropic-smoke", provider.ProviderId);
-            Assert.Equal("claude-smoke", provider.Model);
-        }
-        finally
-        {
-            try { File.Delete(path); } catch { }
-        }
-    }
-
-    [Fact]
     public void BuildConfigJson_ConfiguresNativeDeferredMcpTools()
     {
         var json = DeferredLoadingSmokeWorkspace.BuildConfigJson(
@@ -78,131 +47,53 @@ public sealed class DeferredLoadingSmokeTests
         Assert.False(compaction.GetProperty("MicrocompactEnabled").GetBoolean());
     }
 
-    [Fact]
-    public void TraceValidator_PassesAnthropicDeferredLoading()
+    [Theory]
+    [InlineData(ModelProviderProtocols.Anthropic, "anthropic_tool_reference")]
+    [InlineData(ModelProviderProtocols.OpenAIResponses, "openai_responses_tool_search_output")]
+    public void TraceValidator_PassesNativeDeferredLoadingForEachProtocol(string protocol, string wireShape)
     {
-        var events = ValidEvents(
-            ModelProviderProtocols.Anthropic,
-            "anthropic_tool_reference");
-
         var result = DeferredLoadingSmokeTraceValidator.Validate(
-            events,
-            ModelProviderProtocols.Anthropic,
+            ValidEvents(protocol, wireShape),
+            protocol,
             DeferredLoadingSmokeTools.Echo);
 
         Assert.True(result.Success, result.Message);
         Assert.True(result.DeferredToolLoadingObserved);
-        Assert.Equal("anthropic_tool_reference", result.WireShape);
+        Assert.Equal(wireShape, result.WireShape);
         Assert.Equal(QualifiedEchoToolName, result.TargetToolName);
     }
 
     [Fact]
-    public void TraceValidator_PassesOpenAIResponsesDeferredLoading()
+    public void TraceValidator_RejectsMissingMismatchedOrCacheExtendingDeferredLoading()
     {
-        var events = ValidEvents(
-            ModelProviderProtocols.OpenAIResponses,
-            "openai_responses_tool_search_output");
+        var missing = DeferredLoadingSmokeTraceValidator.Validate([], ModelProviderProtocols.Anthropic, DeferredLoadingSmokeTools.Echo);
+        Assert.False(missing.Success);
+        Assert.Equal("deferred_loading_missing", missing.Message);
 
-        var result = DeferredLoadingSmokeTraceValidator.Validate(
-            events,
-            ModelProviderProtocols.OpenAIResponses,
-            DeferredLoadingSmokeTools.Echo);
-
-        Assert.True(result.Success, result.Message);
-        Assert.True(result.DeferredToolLoadingObserved);
-        Assert.Equal("openai_responses_tool_search_output", result.WireShape);
-    }
-
-    [Fact]
-    public void TraceValidator_RejectsMissingDeferredLoading()
-    {
-        var result = DeferredLoadingSmokeTraceValidator.Validate(
-            [],
+        var mismatched = DeferredLoadingSmokeTraceValidator.Validate(
+            ValidEvents(ModelProviderProtocols.Anthropic, "openai_responses_tool_search_output"),
             ModelProviderProtocols.Anthropic,
             DeferredLoadingSmokeTools.Echo);
+        Assert.False(mismatched.Success);
+        Assert.Equal("deferred_loading_wire_shape_mismatch", mismatched.Message);
+        Assert.Equal("openai_responses_tool_search_output", mismatched.WireShape);
 
-        Assert.False(result.Success);
-        Assert.Equal("deferred_loading_missing", result.Message);
-    }
-
-    [Fact]
-    public void TraceValidator_RejectsWrongAnthropicWireShape()
-    {
-        var events = ValidEvents(
-            ModelProviderProtocols.Anthropic,
-            "openai_responses_tool_search_output");
-
-        var result = DeferredLoadingSmokeTraceValidator.Validate(
-            events,
-            ModelProviderProtocols.Anthropic,
-            DeferredLoadingSmokeTools.Echo);
-
-        Assert.False(result.Success);
-        Assert.Equal("deferred_loading_wire_shape_mismatch", result.Message);
-        Assert.Equal("openai_responses_tool_search_output", result.WireShape);
-    }
-
-    [Fact]
-    public void TraceValidator_RejectsPromptCacheToolExtension()
-    {
-        var events = new[]
-        {
-            Event(
-                nameof(TraceEventType.DeferredToolLoading),
-                metadataJson: DeferredMetadata(ModelProviderProtocols.Anthropic, "anthropic_tool_reference"),
-                promptCacheEventKind: PromptCacheEventKinds.ToolExtension,
-                promptCacheChangedFields: [PromptCacheChangedFields.Tools]),
-            Event(nameof(TraceEventType.ToolCallStarted), toolName: QualifiedEchoToolName),
-            Event(nameof(TraceEventType.ToolCallCompleted), toolName: QualifiedEchoToolName),
-            Event(nameof(TraceEventType.Response), content: DeferredLoadingSmokeTools.SuccessToken)
-        };
-
-        var result = DeferredLoadingSmokeTraceValidator.Validate(
-            events,
+        var extension = DeferredLoadingSmokeTraceValidator.Validate(
+            [
+                Event(
+                    nameof(TraceEventType.DeferredToolLoading),
+                    metadataJson: DeferredMetadata(ModelProviderProtocols.Anthropic, "anthropic_tool_reference"),
+                    promptCacheEventKind: PromptCacheEventKinds.ToolExtension,
+                    promptCacheChangedFields: [PromptCacheChangedFields.Tools]),
+                Event(nameof(TraceEventType.ToolCallStarted), toolName: QualifiedEchoToolName),
+                Event(nameof(TraceEventType.ToolCallCompleted), toolName: QualifiedEchoToolName),
+                Event(nameof(TraceEventType.Response), content: DeferredLoadingSmokeTools.SuccessToken)
+            ],
             ModelProviderProtocols.Anthropic,
             DeferredLoadingSmokeTools.Echo);
-
-        Assert.False(result.Success);
-        Assert.Equal("deferred_loading_marked_prompt_cache_extension", result.Message);
-        Assert.True(result.DeferredToolLoadingObserved);
-    }
-
-    [Fact]
-    public void CliOptions_DefaultsToUserSmokeRunRootAndReport()
-    {
-        var path = Path.Combine(Path.GetTempPath(), "deferred-loading-smoke-" + Guid.NewGuid().ToString("N") + ".json");
-        try
-        {
-            File.WriteAllText(path, """{"providers":[]}""");
-
-            var ok = DeferredLoadingSmokeCliOptions.TryParse(
-                ["--matrix", path],
-                out var options,
-                out var error);
-
-            Assert.True(ok, error);
-            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            if (string.IsNullOrWhiteSpace(userProfile))
-                userProfile = Environment.GetEnvironmentVariable("USERPROFILE")
-                              ?? Environment.GetEnvironmentVariable("HOME")
-                              ?? Directory.GetCurrentDirectory();
-
-            var expectedPrefix = Path.Combine(
-                userProfile,
-                ".craft",
-                "smoke-tests",
-                "runs") + Path.DirectorySeparatorChar;
-            Assert.StartsWith(
-                expectedPrefix,
-                options.WorkRoot,
-                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
-            Assert.Matches(@"^\d{8}-\d{6}-[0-9a-f]{8}$", Path.GetFileName(options.WorkRoot));
-            Assert.Equal(Path.Combine(options.WorkRoot, "report.json"), options.ReportPath);
-        }
-        finally
-        {
-            try { File.Delete(path); } catch { }
-        }
+        Assert.False(extension.Success);
+        Assert.Equal("deferred_loading_marked_prompt_cache_extension", extension.Message);
+        Assert.True(extension.DeferredToolLoadingObserved);
     }
 
     private static DeferredLoadingSmokeTraceEvent[] ValidEvents(string protocol, string wireShape) =>

@@ -10,7 +10,7 @@ public sealed class SkillsLoaderTests : IDisposable
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "dotcraft-skillsloader-tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void GetSkillInterface_LocalOnlyReadsOwnAssetsAndRejectsOtherDirectories()
+    public void GetSkillInterface_LocalOnlyReadsOwnAssetsAndRejectsOtherParentAndAbsolutePaths()
     {
         Directory.CreateDirectory(_tempRoot);
         var loader = new SkillsLoader(_tempRoot);
@@ -38,13 +38,7 @@ public sealed class SkillsLoaderTests : IDisposable
         Assert.StartsWith("data:image/svg+xml;base64,", info.IconSmallDataUrl);
         Assert.Null(info.IconLargeDataUrl);
         Assert.Equal("Use $demo-skill.", info.DefaultPrompt);
-    }
 
-    [Fact]
-    public void GetSkillInterface_LocalOnlyRejectsParentAndAbsolutePaths()
-    {
-        var loader = new SkillsLoader(_tempRoot);
-        var skillDir = WriteSkill(loader.WorkspaceSkillsPath, "demo-skill");
         var sharedAssets = Path.Combine(_tempRoot, "assets");
         Directory.CreateDirectory(sharedAssets);
         var sharedIcon = Path.Combine(sharedAssets, "shared.svg");
@@ -54,11 +48,11 @@ public sealed class SkillsLoaderTests : IDisposable
         {
             WriteInterface(skillDir, iconPath);
 
-            var info = loader.GetSkillInterface("demo-skill");
+            var rejected = loader.GetSkillInterface("demo-skill");
 
-            Assert.NotNull(info);
-            Assert.Equal("Demo Skill", info.DisplayName);
-            Assert.Null(info.IconSmallDataUrl);
+            Assert.NotNull(rejected);
+            Assert.Equal("Demo Skill", rejected.DisplayName);
+            Assert.Null(rejected.IconSmallDataUrl);
         }
     }
 
@@ -121,7 +115,7 @@ public sealed class SkillsLoaderTests : IDisposable
     }
 
     [Fact]
-    public void DeployBuiltInSkills_WritesCanonicalProductVersion()
+    public void DeployBuiltInSkills_WritesCanonicalProductVersionAndIncludesAutomations()
     {
         Directory.CreateDirectory(_tempRoot);
         var loader = new SkillsLoader(_tempRoot);
@@ -134,16 +128,6 @@ public sealed class SkillsLoaderTests : IDisposable
                 loader.WorkspaceSkillsPath,
                 "plugin-creator",
                 ".builtin")));
-    }
-
-    [Fact]
-    public void DeployBuiltInSkills_IncludesAutomations()
-    {
-        Directory.CreateDirectory(_tempRoot);
-        var loader = new SkillsLoader(_tempRoot);
-
-        loader.DeployBuiltInSkills();
-
         var skill = loader.ResolveSkillInfo("automations");
         Assert.NotNull(skill);
         Assert.Equal("builtin", skill.Source);
@@ -197,28 +181,20 @@ public sealed class SkillsLoaderTests : IDisposable
     }
 
     [Fact]
-    public void SharedRoot_SkillsAreDiscoveredAsUserSource()
-    {
-        var sharedSkills = Path.Combine(_tempRoot, "shared-skills");
-        var loader = new SkillsLoader(_tempRoot, null, sharedSkills);
-        WriteSkill(sharedSkills, "shared-only-skill", "Shared instructions");
-
-        var info = loader.ResolveSkillInfo("shared-only-skill");
-
-        Assert.NotNull(info);
-        Assert.Equal("user", info.Source);
-        Assert.StartsWith(sharedSkills, info.Path);
-        Assert.Contains("Shared instructions", loader.LoadSkill("shared-only-skill"));
-    }
-
-    [Fact]
-    public void SharedRoot_UserRootWinsOnDuplicateName()
+    public void SharedRoot_SkillsAreUserSourceButTheUserRootWinsOnDuplicateName()
     {
         var userSkills = Path.Combine(_tempRoot, "user-skills");
         var sharedSkills = Path.Combine(_tempRoot, "shared-skills");
         var loader = new SkillsLoader(_tempRoot, userSkills, sharedSkills);
+        WriteSkill(sharedSkills, "shared-only-skill", "Shared instructions");
         WriteSkill(userSkills, "duplicate-skill", "User instructions");
         WriteSkill(sharedSkills, "duplicate-skill", "Shared instructions");
+
+        var shared = loader.ResolveSkillInfo("shared-only-skill");
+        Assert.NotNull(shared);
+        Assert.Equal("user", shared.Source);
+        Assert.StartsWith(sharedSkills, shared.Path);
+        Assert.Contains("Shared instructions", loader.LoadSkill("shared-only-skill"));
 
         var info = loader.ResolveSkillInfo("duplicate-skill");
 
@@ -229,7 +205,7 @@ public sealed class SkillsLoaderTests : IDisposable
     }
 
     [Fact]
-    public void DeclaredRequirements_DoNotFilterDiscoveryOrCatalog()
+    public void DeclaredRequirements_DoNotFilterDiscoveryCatalogOrAlwaysSkills()
     {
         var sharedSkills = Path.Combine(_tempRoot, "shared-skills");
         var loader = new SkillsLoader(_tempRoot, null, sharedSkills);
@@ -248,16 +224,11 @@ public sealed class SkillsLoaderTests : IDisposable
         Assert.Equal("command-that-does-not-exist-dotcraft", metadata!["bins"]);
         Assert.Equal("Declarative requirements", entry.Description);
         Assert.False(entry.AlwaysLoaded);
-    }
 
-    [Fact]
-    public void AlwaysSkill_WithMissingDeclaredRequirements_IsLoaded()
-    {
-        var loader = new SkillsLoader(_tempRoot);
-        var skillDir = Path.Combine(loader.WorkspaceSkillsPath, "always-declarative");
-        Directory.CreateDirectory(skillDir);
+        var alwaysDir = Path.Combine(loader.WorkspaceSkillsPath, "always-declarative");
+        Directory.CreateDirectory(alwaysDir);
         File.WriteAllText(
-            Path.Combine(skillDir, "SKILL.md"),
+            Path.Combine(alwaysDir, "SKILL.md"),
             "---\nname: always-declarative\ndescription: Always loaded\nalways: true\nbins: command-that-does-not-exist-dotcraft\ntools: ToolThatDoesNotExist\n---\nAlways instructions");
 
         Assert.Contains("always-declarative", loader.GetAlwaysSkills());
@@ -287,7 +258,6 @@ public sealed class SkillsLoaderTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup for temp test directories.
         }
     }
 

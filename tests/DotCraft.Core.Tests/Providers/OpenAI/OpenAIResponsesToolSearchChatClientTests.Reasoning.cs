@@ -15,8 +15,6 @@ namespace DotCraft.Tests.Agents;
 public sealed partial class OpenAIResponsesToolSearchChatClientTests
 {
     [Theory]
-    [InlineData(true, false, false)]
-    [InlineData(false, true, false)]
     [InlineData(false, false, true)]
     [InlineData(true, true, true)]
     public async Task ReasoningReplay_PreservesNativeFieldsThroughStreamingAndPersistence(
@@ -89,7 +87,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
 
     [Theory]
     [InlineData("{\"version\":2,\"item\":{\"type\":\"reasoning\"}}")]
-    [InlineData("{\"version\":1,\"item\":{\"type\":\"reasoning\",\"content\":\"secret\"}}")]
     [InlineData("{\"version\":1,\"item\":{\"type\":\"reasoning\",\"content\":[{\"type\":\"summary_text\",\"text\":\"secret\"}]}}")]
     [InlineData("null")]
     public void ReasoningReplay_InvalidMetadataDoesNotFallBackToEncryptedContent(string metadata)

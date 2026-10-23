@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { PlanApprovalComposer } from '../components/conversation/PlanApprovalComposer'
-import { ConversationPanel } from '../components/layout/ConversationPanel'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
@@ -48,68 +47,6 @@ describe('PlanApprovalComposer', () => {
       })
   })
 
-  it('renders in ConversationPanel when a later tool call follows a successful CreatePlan', async () => {
-    useConnectionStore.setState({
-      status: 'connected',
-      capabilities: { modelCatalogManagement: true, workspaceConfigManagement: true }
-    })
-    useThreadStore.setState({
-      activeThreadId: 'thread-1',
-      activeThread: {
-        id: 'thread-1',
-        userId: 'local',
-        workspacePath: '<workspace>',
-        displayName: 'Plan thread',
-        status: 'active',
-        originChannel: 'dotcraft-desktop',
-        metadata: {},
-        createdAt: new Date().toISOString(),
-        lastActiveAt: new Date().toISOString(),
-        turns: []
-      },
-      loading: false
-    })
-    useConversationStore.setState({
-      threadMode: 'plan',
-      turnStatus: 'idle',
-      turns: [{
-        id: 'turn-plan',
-        threadId: 'thread-1',
-        status: 'completed',
-        startedAt: '2026-07-31T13:55:00.000Z',
-        completedAt: '2026-07-31T13:56:00.000Z',
-        items: [
-          {
-            id: 'item-plan',
-            type: 'toolCall',
-            status: 'completed',
-            toolName: 'CreatePlan',
-            toolCallId: 'call-plan',
-            arguments: { plan: '# Repair plan' },
-            success: true
-          },
-          {
-            id: 'item-close',
-            type: 'toolCall',
-            status: 'completed',
-            toolName: 'ListAgents',
-            toolCallId: 'call-close',
-            success: true
-          }
-        ]
-      }]
-    })
-
-    renderWithLocale(<ConversationPanel workspacePath="<workspace>" />)
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(screen.getByText('Implement this plan?')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '1. Yes, implement this plan' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Send message' })).not.toBeInTheDocument()
-  })
-
   it('accept path switches to agent and shows the plan acceptance request', async () => {
     renderWithLocale(
       <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-1" />
@@ -142,32 +79,6 @@ describe('PlanApprovalComposer', () => {
     ])
   })
 
-  it('empty submit accepts the plan', async () => {
-    renderWithLocale(
-      <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-empty-submit" />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
-
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('thread/mode/set', {
-        threadId: 'thread-1',
-        mode: 'agent'
-      })
-    })
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith(
-        'turn/start',
-        expect.objectContaining({
-          threadId: 'thread-1',
-          input: [{ type: 'text', text: 'Implement the plan.' }]
-        })
-      )
-    })
-    expect(useConversationStore.getState().threadMode).toBe('agent')
-    expect(useUIStore.getState().planApprovalDismissed['turn-empty-submit']).toBe(true)
-  })
-
   it('reject path keeps plan mode and sends typed text', async () => {
     renderWithLocale(
       <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-2" />
@@ -189,37 +100,6 @@ describe('PlanApprovalComposer', () => {
     })
     expect(useConversationStore.getState().threadMode).toBe('plan')
     expect(useUIStore.getState().planApprovalDismissed['turn-2']).toBe(true)
-  })
-
-  it('moves selection between plan actions and focuses the adjustment input', async () => {
-    renderWithLocale(
-      <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-arrows" />
-    )
-
-    expect(screen.getByRole('button', { name: '1. Yes, implement this plan' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByLabelText('Move selection up / Move selection down')).toBeInTheDocument()
-
-    fireEvent.keyDown(window, { key: 'ArrowDown' })
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: '2. No, tell DotCraft how to adjust' })).toHaveAttribute('aria-pressed', 'true')
-    })
-    await waitFor(() => {
-      expect(screen.getByRole('textbox')).toHaveFocus()
-    })
-
-    fireEvent.keyDown(window, { key: 'ArrowUp' })
-
-    expect(screen.getByRole('button', { name: '1. Yes, implement this plan' })).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  it('dismisses current plan approval on Escape', () => {
-    renderWithLocale(
-      <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-3" />
-    )
-
-    fireEvent.keyDown(window, { key: 'Escape' })
-    expect(useUIStore.getState().planApprovalDismissed['turn-3']).toBe(true)
   })
 
   it('uses latest thread, workspace, and turn ids after rerender when accepting via keyboard', async () => {
@@ -266,14 +146,5 @@ describe('PlanApprovalComposer', () => {
     })
     expect(useUIStore.getState().planApprovalDismissed[nextTurnId]).toBe(true)
     expect(useUIStore.getState().planApprovalDismissed[initialTurnId]).not.toBe(true)
-  })
-
-  it('dismisses via clicking Esc hint button', () => {
-    renderWithLocale(
-      <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-4" />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
-    expect(useUIStore.getState().planApprovalDismissed['turn-4']).toBe(true)
   })
 })

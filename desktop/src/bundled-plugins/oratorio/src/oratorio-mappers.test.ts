@@ -13,12 +13,10 @@ function summary(overrides: Partial<ItemSummaryDto> = {}): ItemSummaryDto {
 }
 
 describe('Oratorio contract mapping', () => {
-  it('preserves server lifecycle and the latest Oratorio result', () => {
+  it('maps lifecycle, latest result, and source identity and timestamps', () => {
     expect(mapItemSummary(summary())).toMatchObject({ id: 'item-1', state: 'awaiting-review', column: 'in-review', latestResult: 'none' })
     expect(mapItemSummary(summary({ latestResult: 'findings' })).latestResult).toBe('findings')
-  })
-
-  it('keeps the internal id separate from source identity and timestamps', () => {
+    expect(mapItemSummary(summary({ state: 'futureState' as never })).state).toBe('discovered')
     expect(mapItemSummary(summary({
       shortId: 'DEF-42',
       sourceUpdatedAt: '2026-08-09T11:50:00Z',
@@ -26,14 +24,16 @@ describe('Oratorio contract mapping', () => {
     }))).toMatchObject({ shortId: 'DEF-42', sourceLabel: '#42', syncedAt: '2026-08-09T11:55:00Z', updatedAt: '2026-08-09T11:50:00Z' })
   })
 
-  it.each([
-    { source: 'github', kind: 'issue', externalId: 'issue:sample-org/widget-service#6', expected: '#6' },
-    { source: 'github', kind: 'pullRequest', externalId: 'pr:sample-org/widget-service#174', expected: '#174' },
-    { source: 'gitlab', kind: 'pullRequest', externalId: 'mr:gitlab.example.com/platform/runtime/oratorio!38', expected: '!38' },
-    { source: 'local', kind: 'localTask', externalId: 'task:local-1', expected: 'Task' },
-    { source: 'github', kind: 'issue', externalId: 'unparseable-source-id', expected: 'Issue' },
-  ])('maps $source $kind source identity without exposing the raw external id', ({ source, kind, externalId, expected }) => {
-    expect(mapItemSummary(summary({ source, kind: kind as ItemSummaryDto['kind'], externalId })).sourceLabel).toBe(expected)
+  it('maps source identity without exposing the raw external id', () => {
+    for (const { source, kind, externalId, expected } of [
+      { source: 'github', kind: 'issue', externalId: 'issue:sample-org/widget-service#6', expected: '#6' },
+      { source: 'github', kind: 'pullRequest', externalId: 'pr:sample-org/widget-service#174', expected: '#174' },
+      { source: 'gitlab', kind: 'pullRequest', externalId: 'mr:gitlab.example.com/platform/runtime/oratorio!38', expected: '!38' },
+      { source: 'local', kind: 'localTask', externalId: 'task:local-1', expected: 'Task' },
+      { source: 'github', kind: 'issue', externalId: 'unparseable-source-id', expected: 'Issue' },
+    ]) {
+      expect(mapItemSummary(summary({ source, kind: kind as ItemSummaryDto['kind'], externalId })).sourceLabel).toBe(expected)
+    }
   })
 
   it('maps the source body and latest run from detail', () => {
@@ -49,37 +49,28 @@ describe('Oratorio contract mapping', () => {
     expect(task.detail?.runs[0].worktreeBranch).toBe('oratorio/run/item-1')
   })
 
-  it('keeps the brief separate from the full source body', () => {
+  it('keeps the brief separate from the full source body and never uses the agent summary as body', () => {
     const detail = {
       item: { ...summary({ latestSummary: null }), itemId: 'item-1', workspaceId: 'workspace', description: '## Summary\nKeep filters stable.\n\n## Steps\n1. Reload', currentRunId: null, lastSourceSyncAt: null },
       rounds: [], runs: [], comments: [], timeline: [], decisions: [], sourceWrites: [], reviewDrafts: [], implementationDrafts: [], followUpDrafts: [], discussionTurns: [],
     } as ItemDetailResponse
 
     expect(mapItemDetail(detail)).toMatchObject({ description: 'Keep filters stable.', body: '## Summary\nKeep filters stable.\n\n## Steps\n1. Reload' })
-  })
 
-  it('does not treat the agent latest summary as the source body', () => {
-    const detail = {
+    const agentOnly = {
       item: { ...summary({ latestSummary: 'Agent-generated result' }), itemId: 'item-1', workspaceId: 'workspace', description: null, currentRunId: null, lastSourceSyncAt: null },
       rounds: [], runs: [], comments: [], timeline: [], decisions: [], sourceWrites: [], reviewDrafts: [], implementationDrafts: [], followUpDrafts: [], discussionTurns: [],
     } as ItemDetailResponse
 
-    expect(mapItemDetail(detail)).toMatchObject({ description: 'Agent-generated result', body: '' })
-  })
-
-  it('falls back safely for an unknown lifecycle state', () => {
-    expect(mapItemSummary(summary({ state: 'futureState' as never })).state).toBe('discovered')
+    expect(mapItemDetail(agentOnly)).toMatchObject({ description: 'Agent-generated result', body: '' })
   })
 })
 
 describe('GitLab sources', () => {
-  it('names a nested GitLab project by its last two segments, like owner/name', () => {
+  it('names a nested GitLab project by its last two segments and spells out its path, keeping only a self-hosted instance', () => {
     expect(repositoryName('gitlab:gitlab.example.com/platform/payments/backend/billing-api')).toBe('backend/billing-api')
     expect(repositoryName('gitlab:gitlab.com/group/project')).toBe('group/project')
     expect(repositoryName('example-org/sample-project')).toBe('example-org/sample-project')
-  })
-
-  it('spells out the project path and keeps only a self-hosted instance', () => {
     expect(repositoryPath('gitlab:gitlab.com/group/sub/project')).toBe('group/sub/project')
     expect(repositoryPath('gitlab:gitlab.example.com/platform/billing-api')).toBe('gitlab.example.com/platform/billing-api')
     expect(repositoryPath('example-org/sample-project')).toBe('example-org/sample-project')

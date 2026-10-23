@@ -19,22 +19,11 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
     public void Dispose() => _h.Dispose();
 
     [Fact]
-    public async Task Initialize_AdvertisesWelcomeSuggestionsCapability()
+    public async Task WelcomeSuggestions_IsAdvertisedAndRoutesToServiceReturningTypedPayload()
     {
-        var initDoc = await _h.InitializeAsync();
-
-        var extensions = initDoc.RootElement
-            .GetProperty("result")
-            .GetProperty("capabilities")
-            .GetProperty("extensions");
-
-        Assert.True(extensions.GetProperty("welcomeSuggestions").GetBoolean());
-    }
-
-    [Fact]
-    public async Task WelcomeSuggestions_RoutesToServiceAndReturnsTypedPayload()
-    {
-        await _h.InitializeAsync();
+        using (var initDoc = await _h.InitializeAsync())
+            Assert.True(initDoc.RootElement.GetProperty("result").GetProperty("capabilities")
+                .GetProperty("extensions").GetProperty("welcomeSuggestions").GetBoolean());
 
         var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WelcomeSuggestions, new
         {
@@ -56,23 +45,6 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
         Assert.Equal(4, result.GetProperty("items").GetArrayLength());
         Assert.NotNull(_welcomeSuggestionService.LastParams);
         Assert.Equal("dotcraft-desktop", _welcomeSuggestionService.LastParams!.Identity.ChannelName);
-    }
-
-    [Fact]
-    public async Task WelcomeSuggestions_BeforeInitialize_ReturnsNotInitialized()
-    {
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WelcomeSuggestions, new
-        {
-            identity = new
-            {
-                channelName = "dotcraft-desktop",
-                workspacePath = _h.Identity.WorkspacePath
-            }
-        });
-        await _h.ExecuteRequestAsync(msg);
-
-        var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(doc, AppServerErrors.NotInitializedCode);
     }
 
     [Fact]
@@ -110,7 +82,6 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
             }
             catch
             {
-                // Best-effort cleanup.
             }
         }
     }

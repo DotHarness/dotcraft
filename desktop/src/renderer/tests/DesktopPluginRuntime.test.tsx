@@ -118,7 +118,7 @@ function dependencies(activate: (host: unknown) => unknown): DesktopPluginRuntim
 describe('DesktopPluginRuntime', () => {
   it('publishes one active generation and withdraws it when the plugin is disabled', async () => {
     const dispose = vi.fn()
-    const deps = dependencies((host) => ({
+    const deps = dependencies(() => ({
       mainViews: [{
         id: 'fixture',
         label: { default: 'Fixture' },

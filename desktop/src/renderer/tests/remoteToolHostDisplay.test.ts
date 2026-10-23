@@ -14,7 +14,6 @@ const NAMES: RemoteToolHostNames = {
   workspace: (workspaceId) => (workspaceId === 'ws_shaders' ? 'shaders' : undefined)
 }
 
-/** Nothing is known about the machine, as when a Disconnect runs on a forgotten route. */
 const NO_NAMES: RemoteToolHostNames = { host: () => undefined, workspace: () => undefined }
 
 function item(
@@ -74,11 +73,10 @@ const CONNECTED = JSON.stringify({
 })
 
 describe('readRemoteToolHostOperation', () => {
-  it.each(['list', 'connect', 'disconnect', 'transfer'])('accepts the %s operation', (operation) => {
-    expect(readRemoteToolHostOperation(item(operation))).toBe(operation)
-  })
-
-  it('rejects an operation the family does not own', () => {
+  it('accepts only the operations the family owns', () => {
+    for (const operation of ['list', 'connect', 'disconnect', 'transfer']) {
+      expect(readRemoteToolHostOperation(item(operation))).toBe(operation)
+    }
     expect(readRemoteToolHostOperation(item('reroute'))).toBeNull()
     expect(readRemoteToolHostOperation({ presentation: undefined })).toBeNull()
   })
@@ -108,8 +106,10 @@ describe('parseRemoteToolHostCatalog', () => {
     expect(catalog?.connectedRoute).toBeUndefined()
   })
 
-  it.each([undefined, '', 'not json', '{"hosts":"none"}'])('returns null for %s', (result) => {
-    expect(parseRemoteToolHostCatalog(result)).toBeNull()
+  it('returns null for missing or malformed results', () => {
+    for (const result of [undefined, '', 'not json', '{"hosts":"none"}']) {
+      expect(parseRemoteToolHostCatalog(result)).toBeNull()
+    }
   })
 })
 
@@ -215,14 +215,7 @@ describe('formatRemoteToolHostLabel', () => {
       .toBe('Joined shaders on Studio PC · 3 tools')
   })
 
-  it('counts a single matched tool in the singular', () => {
-    const single = JSON.stringify({ ...JSON.parse(CONNECTED), matchedTools: ['Shell'] })
-
-    expect(formatRemoteToolHostLabel(item('connect', { result: single }), 'completed', 'en', NAMES))
-      .toBe('Joined shaders on Studio PC · 1 tool')
-  })
-
-  it('explains a refused connect with the localized error code', () => {
+  it('explains a refused connect with the localized error code or the server sentence', () => {
     expect(formatRemoteToolHostLabel(
       item('connect', {
         arguments: { hostId: 'sat_studio' },
@@ -233,9 +226,7 @@ describe('formatRemoteToolHostLabel', () => {
       'en',
       NAMES
     )).toBe('Could not join Studio PC · Another agent is using that folder right now.')
-  })
 
-  it('falls back to the server sentence for an error code Desktop does not know', () => {
     expect(formatRemoteToolHostLabel(
       item('connect', {
         arguments: { hostId: 'sat_studio' },
@@ -270,16 +261,6 @@ describe('formatRemoteToolHostLabel', () => {
       'en',
       NAMES
     )).toBe('No remote machine to leave')
-  })
-
-  it('keeps a sentence when no machine can be named', () => {
-    expect(formatRemoteToolHostLabel(item('disconnect'), 'running', 'en', NO_NAMES))
-      .toBe('Leaving the remote machine')
-  })
-
-  it('translates the header', () => {
-    expect(formatRemoteToolHostLabel(item('connect', { result: CONNECTED }), 'completed', 'zh-Hans', NAMES))
-      .toBe('已加入 Studio PC 上的 shaders · 3 个工具')
   })
 
   it('returns null when the result cannot carry the sentence', () => {

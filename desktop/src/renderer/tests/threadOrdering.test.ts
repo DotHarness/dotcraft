@@ -20,29 +20,20 @@ const threads = [
 ]
 
 describe('orderThreadsBySortMode', () => {
-  it('orders by latest activity when sorting by last updated', () => {
+  it('orders by activity when updated, by saved order when manual, with unsaved threads first by creation', () => {
     expect(orderThreadsBySortMode(threads, 'updated', ['mid']).map((t) => t.id))
       .toEqual(['old-busy', 'new-quiet', 'mid'])
-  })
-
-  it('keeps the saved order regardless of activity in manual mode', () => {
     expect(orderThreadsBySortMode(threads, 'manual', ['mid', 'new-quiet', 'old-busy']).map((t) => t.id))
       .toEqual(['mid', 'new-quiet', 'old-busy'])
-  })
-
-  it('places threads without a saved position first, newest created first', () => {
     expect(orderThreadsBySortMode(threads, 'manual', ['mid', 'gone']).map((t) => t.id))
       .toEqual(['new-quiet', 'old-busy', 'mid'])
   })
 })
 
 describe('moveThreadId', () => {
-  it('inserts the moved id before or after the target', () => {
+  it('inserts the moved id before or after the target, ignoring self drops and unknown targets', () => {
     expect(moveThreadId(['a', 'b', 'c', 'd'], 'd', 'b', 'before')).toEqual(['a', 'd', 'b', 'c'])
     expect(moveThreadId(['a', 'b', 'c', 'd'], 'a', 'c', 'after')).toEqual(['b', 'c', 'a', 'd'])
-  })
-
-  it('leaves the order unchanged for a self drop or an unknown target', () => {
     expect(moveThreadId(['a', 'b'], 'a', 'a', 'after')).toEqual(['a', 'b'])
     expect(moveThreadId(['a', 'b'], 'a', 'z', 'before')).toEqual(['a', 'b'])
   })

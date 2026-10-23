@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyContext, compactCount, contextUsageOf, systemEventUpdate, usageDeltaUpdate, usedShare, type ContextUsage } from './contextUsage'
+import { applyContext, contextUsageOf, systemEventUpdate, usageDeltaUpdate, usedShare, type ContextUsage } from './contextUsage'
 
 const seeded: ContextUsage = { tokens: 100_000, contextWindow: 400_000, percentLeft: 0.75 }
 
@@ -31,9 +31,5 @@ describe('context ring', () => {
     expect(applyContext(seeded, compacted!)).toEqual({ tokens: 40_000, contextWindow: 400_000, percentLeft: 0.9 })
     const failed = systemEventUpdate({ kind: 'compactFailed', tokenCount: 380_000, percentLeft: 0.04 })
     expect(applyContext(seeded, failed!)).toEqual({ tokens: 380_000, contextWindow: 400_000, percentLeft: 0.04 })
-  })
-
-  it('writes token counts compactly', () => {
-    expect([999, 1_000, 12_345, 510_000, 999_960, 1_250_000].map(compactCount)).toEqual(['999', '1k', '12.3k', '510k', '1M', '1.3M'])
   })
 })

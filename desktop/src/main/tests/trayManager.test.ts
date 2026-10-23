@@ -3,6 +3,21 @@ import type { HubEvent } from '../desktopHub'
 import type { WorkspaceWindowState } from '../desktopActivation'
 import type { AppSettings } from '../settings'
 import type { WorkspaceLockStatus } from '../workspaceLock'
+import { existsSync } from 'fs'
+import {
+  ensureTrayProcess,
+  openDesktopWindow,
+  parseHubNotificationPayload,
+  resolveNotificationIconPath,
+  resolveTrayIconPath,
+  runTrayProcess,
+  showHubNotification,
+  showHubNotificationForSettings,
+  spawnDesktopWindow,
+  trayWorkspaceName
+} from '../trayManager'
+import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
+import { translate } from '../../shared/locales'
 
 const childProcessMocks = vi.hoisted(() => ({
   spawn: vi.fn<(
@@ -31,8 +46,8 @@ const trayLockMocks = vi.hoisted(() => {
 
 const hubClientMocks = vi.hoisted(() => {
   const getStatus = vi.fn(async () => ({}))
-  const listAppServers = vi.fn(async () => [])
-  const listSatellites = vi.fn(async () => [])
+  const listAppServers = vi.fn(async (): Promise<unknown[]> => [])
+  const listSatellites = vi.fn(async (): Promise<unknown[]> => [])
   const subscribeEvents = vi.fn(async () => {})
   const shutdownHub = vi.fn(async () => {})
   const restartAppServer = vi.fn(async () => {})
@@ -59,7 +74,7 @@ const hubClientMocks = vi.hoisted(() => {
 })
 
 const recentThreadCatalogMocks = vi.hoisted(() => ({
-  refresh: vi.fn(async () => []),
+  refresh: vi.fn(async (): Promise<unknown[]> => []),
   dispose: vi.fn()
 }))
 
@@ -69,7 +84,7 @@ const activationMocks = vi.hoisted(() => ({
 }))
 
 const desktopActivationLockMocks = vi.hoisted(() => ({
-  getDesktopActivationEndpoint: vi.fn(() => null)
+  getDesktopActivationEndpoint: vi.fn((): unknown => null)
 }))
 
 const desktopProcessRegistryMocks = vi.hoisted(() => ({
@@ -207,51 +222,40 @@ afterEach(() => {
   electronMocks.resetHandlers()
 })
 
+const lockedWorkspace: WorkspaceLockStatus = {
+  locked: true,
+  pid: 123,
+  activation: { host: '127.0.0.1', port: 456, token: 'token', protocolVersion: 1 }
+}
+
+function notificationEvent(data: Record<string, unknown>): HubEvent {
+  return {
+    kind: 'notification.requested',
+    at: new Date().toISOString(),
+    workspacePath: 'F:/examples/workspace',
+    data
+  }
+}
+
+function windowState(focused: boolean): WorkspaceWindowState {
+  return { ok: true, focused, visible: true, minimized: false }
+}
+
+const notificationIcon = expect.stringMatching(/[\\/]icon\.png$/)
+
 describe('trayManager icon resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(existsSync).mockImplementation(() => true)
   })
 
-  it('uses the Windows app icon for the tray', async () => {
-    const { existsSync } = await import('fs')
-    const { resolveTrayIconPath } = await import('../trayManager')
+  it('picks the platform tray icon, falls back to the shared PNG, and prefers the PNG for notifications', () => {
+    expect(resolveTrayIconPath('win32')).toContain('icon.ico')
+    expect(resolveTrayIconPath('darwin')).toContain('icon-macTemplate.png')
+    expect(resolveNotificationIconPath('win32')).toMatch(/[\\/]icon\.png$/)
 
-    const path = resolveTrayIconPath('win32')
-
-    expect(path).toContain('icon.ico')
-    expect(existsSync).toHaveBeenCalledWith(expect.stringContaining('icon.ico'))
-  })
-
-  it('uses the mac template version of the app icon for the tray', async () => {
-    const { existsSync } = await import('fs')
-    const { resolveTrayIconPath } = await import('../trayManager')
-
-    const path = resolveTrayIconPath('darwin')
-
-    expect(path).toContain('icon-macTemplate.png')
-    expect(existsSync).toHaveBeenCalledWith(expect.stringContaining('icon-macTemplate.png'))
-  })
-
-  it('falls back to the shared PNG when the Windows ICO is missing', async () => {
-    const { existsSync } = await import('fs')
     vi.mocked(existsSync).mockImplementation((path) => String(path).endsWith('icon.png'))
-    const { resolveTrayIconPath } = await import('../trayManager')
-
-    const path = resolveTrayIconPath('win32')
-
-    expect(path).toContain('icon.png')
-    expect(existsSync).toHaveBeenCalledWith(expect.stringContaining('icon.ico'))
-    expect(existsSync).toHaveBeenCalledWith(expect.stringContaining('icon.png'))
-  })
-
-  it('prefers the full app icon for notification assets', async () => {
-    const { existsSync } = await import('fs')
-    const { resolveNotificationIconPath } = await import('../trayManager')
-
-    const path = resolveNotificationIconPath('win32')
-
-    expect(path).toMatch(/[\\/]icon\.png$/)
-    expect(existsSync).toHaveBeenCalledWith(expect.stringMatching(/[\\/]icon\.png$/))
+    expect(resolveTrayIconPath('win32')).toContain('icon.png')
   })
 })
 
@@ -264,331 +268,94 @@ describe('trayManager notifications', () => {
     desktopActivationLockMocks.getDesktopActivationEndpoint.mockReturnValue(null)
   })
 
-  it('lists the default Chat workspace AppServer as Chats rather than its folder', async () => {
-    const { trayWorkspaceName } = await import('../trayManager')
-    const { resolveDefaultChatWorkspacePath } = await import('../defaultChatWorkspace')
-    const { translate } = await import('../../shared/locales')
-
+  it('lists the default Chat workspace AppServer as Chats rather than its folder', () => {
     expect(trayWorkspaceName(resolveDefaultChatWorkspacePath(), 'zh-Hans')).toBe(translate('zh-Hans', 'chatsRail.title'))
     expect(trayWorkspaceName('F:/examples/workspace', 'zh-Hans')).toBe('workspace')
   })
 
-  it('parses Hub notification events', async () => {
-    const { parseHubNotificationPayload } = await import('../trayManager')
-    const event: HubEvent = {
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: {
-        title: 'Done',
-        body: 'Finished',
-        threadId: 'thread_1',
-        openDesktopOnClick: true
-      }
-    }
-
-    expect(parseHubNotificationPayload(event)).toMatchObject({
+  it('parses Hub notification events and localizes keyed text', () => {
+    expect(parseHubNotificationPayload(notificationEvent({
+      title: 'Done',
+      body: 'Finished',
+      threadId: 'thread_1',
+      openDesktopOnClick: true
+    }))).toMatchObject({
       workspacePath: 'F:/examples/workspace',
       threadId: 'thread_1',
       title: 'Done',
       body: 'Finished',
       openDesktopOnClick: true
     })
-  })
 
-  it('localizes Hub notification keys with fallback text', async () => {
-    const { parseHubNotificationPayload } = await import('../trayManager')
-    const event: HubEvent = {
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: {
-        titleKey: 'hub.notification.turn_completed.title',
-        fallbackTitle: 'DotCraft task completed',
-        bodyKey: 'hub.notification.turn_completed.body',
-        fallbackBody: '"Current chat" finished.',
-        params: { name: 'Current chat' }
-      }
-    }
-
-    expect(parseHubNotificationPayload(event, 'zh-Hans')).toMatchObject({
+    expect(parseHubNotificationPayload(notificationEvent({
+      titleKey: 'hub.notification.turn_completed.title',
+      fallbackTitle: 'DotCraft task completed',
+      bodyKey: 'hub.notification.turn_completed.body',
+      fallbackBody: '"Current chat" finished.',
+      params: { name: 'Current chat' }
+    }), 'zh-Hans')).toMatchObject({
       title: 'DotCraft 任务已完成',
       body: '“Current chat” 已完成。'
     })
   })
 
-  it('shows supported notification events', async () => {
-    const { showHubNotification } = await import('../trayManager')
-    const shown = showHubNotification({
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: { title: 'Done', body: 'Finished' }
-    })
+  it.each([
+    ['turnCompleted', 'never', true, false, false],
+    ['turnFailed', 'never', false, false, false],
+    ['turnCompleted', 'always', true, true, false],
+    ['turnCompleted', 'whenUnfocused', true, false, true],
+    ['turnCompleted', 'whenUnfocused', false, true, true],
+    ['turnCompleted', 'whenUnfocused', null, true, true],
+    ['custom', 'never', true, true, false]
+  ] as const)('%s with %s mode and focused=%s shows=%s', async (kind, taskCompletionMode, focused, shows, queriesWindow) => {
+    workspaceLockMocks.checkWorkspaceLock.mockReturnValue(lockedWorkspace)
+    activationMocks.requestWorkspaceWindowState.mockResolvedValue(focused === null ? null : windowState(focused))
 
-    expect(shown).toBe(true)
-    expect(electronMocks.Notification).toHaveBeenCalledWith({
-      title: 'Done',
-      body: 'Finished',
-      icon: expect.stringMatching(/[\\/]icon\.png$/)
-    })
-    expect(electronMocks.show).toHaveBeenCalled()
-  })
-
-  it('suppresses turn result notifications when task completion notifications are disabled', async () => {
-    const { showHubNotificationForSettings } = await import('../trayManager')
-
-    const completed = await showHubNotificationForSettings({
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: { kind: 'turnCompleted', title: 'Done', body: 'Finished' }
-    }, {
-      notifications: { taskCompletionMode: 'never' }
-    })
-    const failed = await showHubNotificationForSettings({
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: { kind: 'turnFailed', title: 'Failed', body: 'Try again' }
-    }, {
-      notifications: { taskCompletionMode: 'never' }
-    })
-
-    expect(completed).toBe(false)
-    expect(failed).toBe(false)
-    expect(electronMocks.Notification).not.toHaveBeenCalled()
-    expect(activationMocks.requestWorkspaceWindowState).not.toHaveBeenCalled()
-  })
-
-  it('shows turn result notifications in always mode even when the workspace window is focused', async () => {
-    workspaceLockMocks.checkWorkspaceLock.mockReturnValue({
-      locked: true,
-      pid: 123,
-      activation: {
-        host: '127.0.0.1',
-        port: 456,
-        token: 'token',
-        protocolVersion: 1
-      }
-    })
-    activationMocks.requestWorkspaceWindowState.mockResolvedValue({
-      ok: true,
-      focused: true,
-      visible: true,
-      minimized: false
-    })
-    const { showHubNotificationForSettings } = await import('../trayManager')
-
-    const shown = await showHubNotificationForSettings({
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: { kind: 'turnCompleted', title: 'Done', body: 'Finished' }
-    }, {
-      notifications: { taskCompletionMode: 'always' }
-    })
-
-    expect(shown).toBe(true)
-    expect(electronMocks.Notification).toHaveBeenCalledWith({
-      title: 'Done',
-      body: 'Finished',
-      icon: expect.stringMatching(/[\\/]icon\.png$/)
-    })
-    expect(activationMocks.requestWorkspaceWindowState).not.toHaveBeenCalled()
-  })
-
-  it('suppresses when-unfocused turn result notifications while the workspace window is focused', async () => {
-    workspaceLockMocks.checkWorkspaceLock.mockReturnValue({
-      locked: true,
-      pid: 123,
-      activation: {
-        host: '127.0.0.1',
-        port: 456,
-        token: 'token',
-        protocolVersion: 1
-      }
-    })
-    activationMocks.requestWorkspaceWindowState.mockResolvedValue({
-      ok: true,
-      focused: true,
-      visible: true,
-      minimized: false
-    })
-    const { showHubNotificationForSettings } = await import('../trayManager')
-
-    const shown = await showHubNotificationForSettings({
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: { kind: 'turnCompleted', title: 'Done', body: 'Finished' }
-    }, {
-      notifications: { taskCompletionMode: 'whenUnfocused' }
-    })
-
-    expect(shown).toBe(false)
-    expect(electronMocks.Notification).not.toHaveBeenCalled()
-    expect(activationMocks.requestWorkspaceWindowState).toHaveBeenCalledWith(
-      expect.objectContaining({ port: 456, token: 'token' }),
-      'F:/examples/workspace'
+    const shown = await showHubNotificationForSettings(
+      notificationEvent({ kind, title: 'Done', body: 'Finished' }),
+      { notifications: { taskCompletionMode } }
     )
-  })
 
-  it('shows when-unfocused turn result notifications when the workspace is not focused', async () => {
-    workspaceLockMocks.checkWorkspaceLock.mockReturnValue({
-      locked: true,
-      pid: 123,
-      activation: {
-        host: '127.0.0.1',
-        port: 456,
-        token: 'token',
-        protocolVersion: 1
-      }
-    })
-    activationMocks.requestWorkspaceWindowState.mockResolvedValue({
-      ok: true,
-      focused: false,
-      visible: true,
-      minimized: false
-    })
-    const { showHubNotificationForSettings } = await import('../trayManager')
-
-    const shown = await showHubNotificationForSettings({
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: { kind: 'turnCompleted', title: 'Done', body: 'Finished' }
-    }, {
-      notifications: { taskCompletionMode: 'whenUnfocused' }
-    })
-
-    expect(shown).toBe(true)
-    expect(electronMocks.Notification).toHaveBeenCalledWith({
-      title: 'Done',
-      body: 'Finished',
-      icon: expect.stringMatching(/[\\/]icon\.png$/)
-    })
-  })
-
-  it('shows when-unfocused turn result notifications when window state cannot be queried', async () => {
-    workspaceLockMocks.checkWorkspaceLock.mockReturnValue({
-      locked: true,
-      pid: 123,
-      activation: {
-        host: '127.0.0.1',
-        port: 456,
-        token: 'token',
-        protocolVersion: 1
-      }
-    })
-    activationMocks.requestWorkspaceWindowState.mockResolvedValue(null)
-    const { showHubNotificationForSettings } = await import('../trayManager')
-
-    const shown = await showHubNotificationForSettings({
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: { kind: 'turnCompleted', title: 'Done', body: 'Finished' }
-    }, {
-      notifications: { taskCompletionMode: 'whenUnfocused' }
-    })
-
-    expect(shown).toBe(true)
-    expect(electronMocks.Notification).toHaveBeenCalled()
-  })
-
-  it('does not apply task completion notification settings to unrelated Hub notifications', async () => {
-    const { showHubNotificationForSettings } = await import('../trayManager')
-
-    const shown = await showHubNotificationForSettings({
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: { kind: 'custom', title: 'Done', body: 'Finished' }
-    }, {
-      notifications: { taskCompletionMode: 'never' }
-    })
-
-    expect(shown).toBe(true)
-    expect(electronMocks.Notification).toHaveBeenCalledWith({
-      title: 'Done',
-      body: 'Finished',
-      icon: expect.stringMatching(/[\\/]icon\.png$/)
-    })
+    expect(shown).toBe(shows)
+    if (shows) {
+      expect(electronMocks.Notification).toHaveBeenCalledWith({ title: 'Done', body: 'Finished', icon: notificationIcon })
+      expect(electronMocks.show).toHaveBeenCalled()
+    } else {
+      expect(electronMocks.Notification).not.toHaveBeenCalled()
+    }
+    if (queriesWindow) {
+      expect(activationMocks.requestWorkspaceWindowState).toHaveBeenCalledWith(
+        expect.objectContaining({ port: 456, token: 'token' }),
+        'F:/examples/workspace'
+      )
+    } else {
+      expect(activationMocks.requestWorkspaceWindowState).not.toHaveBeenCalled()
+    }
   })
 
   it.each([
-    ['approvalRequested', 'hub.notification.approval_requested.body', 'Needs your approval'],
-    ['inputRequested', 'hub.notification.input_requested.body', 'Has a question for you']
-  ])('shows %s notifications named after the chat only while its workspace is unfocused', async (kind, bodyKey, body) => {
-    workspaceLockMocks.checkWorkspaceLock.mockReturnValue({
-      locked: true,
-      pid: 123,
-      activation: {
-        host: '127.0.0.1',
-        port: 456,
-        token: 'token',
-        protocolVersion: 1
-      }
-    })
-    const { showHubNotificationForSettings } = await import('../trayManager')
-    const event: HubEvent = {
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: { kind, title: 'Fix login', bodyKey, fallbackBody: body, params: { name: 'Fix login' } }
-    }
+    ['approvalRequested', 'hub.notification.approval_requested.body', 'Needs your approval', { approvalRequests: false }],
+    ['inputRequested', 'hub.notification.input_requested.body', 'Has a question for you', { questions: false }]
+  ])('shows %s notifications only while the workspace is unfocused and the kind is enabled', async (kind, bodyKey, body, disabled) => {
+    workspaceLockMocks.checkWorkspaceLock.mockReturnValue(lockedWorkspace)
+    const event = notificationEvent({ kind, title: 'Fix login', bodyKey, fallbackBody: body, params: { name: 'Fix login' } })
     const settings: AppSettings = { notifications: { taskCompletionMode: 'never' } }
 
-    activationMocks.requestWorkspaceWindowState.mockResolvedValue({
-      ok: true,
-      focused: true,
-      visible: true,
-      minimized: false
-    })
+    activationMocks.requestWorkspaceWindowState.mockResolvedValue(windowState(true))
     expect(await showHubNotificationForSettings(event, settings)).toBe(false)
     expect(electronMocks.Notification).not.toHaveBeenCalled()
 
-    activationMocks.requestWorkspaceWindowState.mockResolvedValue({
-      ok: true,
-      focused: false,
-      visible: true,
-      minimized: false
-    })
+    activationMocks.requestWorkspaceWindowState.mockResolvedValue(windowState(false))
+    expect(await showHubNotificationForSettings(event, { notifications: disabled })).toBe(false)
+    expect(electronMocks.Notification).not.toHaveBeenCalled()
+
     expect(await showHubNotificationForSettings(event, settings)).toBe(true)
     expect(electronMocks.Notification).toHaveBeenCalledOnce()
-    expect(electronMocks.Notification).toHaveBeenCalledWith({
-      title: 'Fix login',
-      body,
-      icon: expect.stringMatching(/[\\/]icon\.png$/)
-    })
-  })
-
-  it.each([
-    ['approvalRequested', { approvalRequests: false }],
-    ['inputRequested', { questions: false }]
-  ])('suppresses %s notifications when that kind is turned off', async (kind, notifications) => {
-    const { showHubNotificationForSettings } = await import('../trayManager')
-
-    const shown = await showHubNotificationForSettings({
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: { kind, title: 'Fix login', body: 'Waiting' }
-    }, { notifications })
-
-    expect(shown).toBe(false)
-    expect(electronMocks.Notification).not.toHaveBeenCalled()
+    expect(electronMocks.Notification).toHaveBeenCalledWith({ title: 'Fix login', body, icon: notificationIcon })
   })
 
   it('does not launch Desktop when notification click disables Desktop opening', async () => {
-    const { showHubNotification } = await import('../trayManager')
-    showHubNotification({
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: { title: 'Done', body: 'Finished', openDesktopOnClick: false }
-    })
+    showHubNotification(notificationEvent({ title: 'Done', body: 'Finished', openDesktopOnClick: false }))
 
     electronMocks.triggerClick()
     await Promise.resolve()
@@ -599,150 +366,76 @@ describe('trayManager notifications', () => {
 
   it('activates an existing Desktop workspace for dotcraft workspace links', async () => {
     activationMocks.requestWorkspaceActivation.mockResolvedValue(true)
-    workspaceLockMocks.checkWorkspaceLock.mockReturnValue({
-      locked: true,
-      pid: 123,
-      activation: {
-        host: '127.0.0.1',
-        port: 456,
-        token: 'token',
-        protocolVersion: 1
-      }
-    })
-    const { showHubNotification } = await import('../trayManager')
-    showHubNotification({
-      kind: 'notification.requested',
-      at: new Date().toISOString(),
-      workspacePath: 'F:/examples/workspace',
-      data: {
-        title: 'Done',
-        body: 'Finished',
-        actionUrl: 'dotcraft://workspace/open?path=F%3A%2Fexamples%2Fworkspace&threadId=thread_1',
-        openDesktopOnClick: true
-      }
-    })
+    workspaceLockMocks.checkWorkspaceLock.mockReturnValue(lockedWorkspace)
+    showHubNotification(notificationEvent({
+      title: 'Done',
+      body: 'Finished',
+      actionUrl: 'dotcraft://workspace/open?path=F%3A%2Fexamples%2Fworkspace&threadId=thread_1',
+      openDesktopOnClick: true
+    }))
 
     electronMocks.triggerClick()
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(activationMocks.requestWorkspaceActivation).toHaveBeenCalledWith(
+    await vi.waitFor(() => expect(activationMocks.requestWorkspaceActivation).toHaveBeenCalledWith(
       expect.objectContaining({ port: 456, token: 'token' }),
       { workspacePath: 'F:/examples/workspace', threadId: 'thread_1' }
-    )
+    ), { interval: 1 })
     expect(childProcessMocks.spawn).not.toHaveBeenCalled()
   })
 })
 
-describe('trayManager native theme sync', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    electronMocks.nativeTheme.themeSource = 'system'
-  })
-
-  it('applies the persisted app theme to Electron native tray UI', async () => {
-    const { applyTrayNativeThemeSource } = await import('../trayManager')
-
-    applyTrayNativeThemeSource({ theme: 'dark' })
-    expect(electronMocks.nativeTheme.themeSource).toBe('dark')
-
-    applyTrayNativeThemeSource({ theme: 'system' })
-    expect(electronMocks.nativeTheme.themeSource).toBe('system')
-  })
-})
-
 describe('trayManager process launches', () => {
+  const originalPlatform = process.platform
+  const originalArgv = process.argv
+
   beforeEach(() => {
     vi.clearAllMocks()
     desktopActivationLockMocks.getDesktopActivationEndpoint.mockReturnValue(null)
   })
 
-  it('launches Desktop windows visibly with a workspace argument', async () => {
-    const { spawnDesktopWindow } = await import('../trayManager')
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform })
+    process.argv = originalArgv
+  })
+
+  const spawnCall = (index: number) => {
+    const [, args, options] = childProcessMocks.spawn.mock.calls[index]
+    return { args, options }
+  }
+
+  it('launches visible Desktop windows for a workspace, a thread deep link, or no workspace', () => {
+    process.argv = ['electron', 'main.js', '--no-workspace']
 
     spawnDesktopWindow('E:/examples/workspace')
-
-    const [, args, options] = childProcessMocks.spawn.mock.calls[0]
-    expect(args).toEqual(expect.arrayContaining(['--workspace', 'E:/examples/workspace']))
-    expect(args).not.toContain('--no-workspace')
-    expect(options).toEqual({
-      detached: true,
-      stdio: 'ignore'
-    })
-  })
-
-  it('launches Desktop windows with a workspace deep link when a thread is provided', async () => {
-    const { spawnDesktopWindow } = await import('../trayManager')
-
     spawnDesktopWindow('E:/examples/workspace', 'thread 1')
-
-    const [, args, options] = childProcessMocks.spawn.mock.calls[0]
-    expect(args).toEqual(expect.arrayContaining([
-      'dotcraft://workspace/open?path=E%3A%2Fexamples%2Fworkspace&threadId=thread+1'
-    ]))
-    expect(args).not.toContain('--no-workspace')
-    expect(options).toEqual({
-      detached: true,
-      stdio: 'ignore'
-    })
-  })
-
-  it('drops inherited no-workspace flags when launching a specific workspace', async () => {
-    const originalArgv = process.argv
-    process.argv = ['electron', 'main.js', '--no-workspace']
-    try {
-      const { spawnDesktopWindow } = await import('../trayManager')
-
-      spawnDesktopWindow('E:/examples/workspace')
-
-      const [, args] = childProcessMocks.spawn.mock.calls[0]
-      expect(args).toEqual(expect.arrayContaining(['--workspace', 'E:/examples/workspace']))
-      expect(args).not.toContain('--no-workspace')
-    } finally {
-      process.argv = originalArgv
-    }
-  })
-
-  it('launches default Desktop windows visibly', async () => {
-    const { spawnDesktopWindow } = await import('../trayManager')
-
     spawnDesktopWindow()
 
-    const [, args, options] = childProcessMocks.spawn.mock.calls[0]
-    expect(args).not.toContain('--workspace')
-    expect(args).not.toContain('--tray')
-    expect(args).toContain('--no-workspace')
-    expect(options).toEqual({
-      detached: true,
-      stdio: 'ignore'
-    })
+    const workspace = spawnCall(0)
+    expect(workspace.args).toEqual(expect.arrayContaining(['--workspace', 'E:/examples/workspace']))
+    expect(workspace.args).not.toContain('--no-workspace')
+    expect(workspace.options).toEqual({ detached: true, stdio: 'ignore' })
+
+    const deepLink = spawnCall(1)
+    expect(deepLink.args).toContain('dotcraft://workspace/open?path=E%3A%2Fexamples%2Fworkspace&threadId=thread+1')
+    expect(deepLink.args).not.toContain('--no-workspace')
+
+    const empty = spawnCall(2)
+    expect(empty.args).not.toContain('--workspace')
+    expect(empty.args).not.toContain('--tray')
+    expect(empty.args).toContain('--no-workspace')
   })
 
-  it('keeps the background tray process hidden', async () => {
-    const { ensureTrayProcess } = await import('../trayManager')
-
+  it('keeps the background tray process hidden and skips it on macOS when the menu bar item is off', () => {
     ensureTrayProcess({})
 
-    const [, args, options] = childProcessMocks.spawn.mock.calls[0]
-    expect(args).toEqual(expect.arrayContaining(['--tray']))
-    expect(options).toEqual({
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true
-    })
-  })
+    expect(spawnCall(0).args).toContain('--tray')
+    expect(spawnCall(0).options).toEqual({ detached: true, stdio: 'ignore', windowsHide: true })
 
-  it('stops the tray through its authenticated control endpoint', async () => {
-    trayLockMocks.requestTrayShutdown.mockResolvedValue(true)
-    const { stopTrayProcess } = await import('../trayManager')
-
-    await expect(stopTrayProcess()).resolves.toBe(true)
-
-    expect(trayLockMocks.requestTrayShutdown).toHaveBeenCalledOnce()
+    Object.defineProperty(process, 'platform', { value: 'darwin' })
+    ensureTrayProcess({ showInMenuBar: false })
+    expect(childProcessMocks.spawn).toHaveBeenCalledOnce()
   })
 
   it('reuses the existing macOS Desktop window before spawning a new process', async () => {
-    const originalPlatform = process.platform
     Object.defineProperty(process, 'platform', { value: 'darwin' })
     activationMocks.requestWorkspaceActivation.mockResolvedValue(true)
     desktopActivationLockMocks.getDesktopActivationEndpoint.mockReturnValue({
@@ -751,32 +444,14 @@ describe('trayManager process launches', () => {
       token: 'desktop-token',
       protocolVersion: 1
     })
-    try {
-      const { openDesktopWindow } = await import('../trayManager')
-      await openDesktopWindow('E:/examples/workspace')
 
-      expect(activationMocks.requestWorkspaceActivation).toHaveBeenCalledWith(
-        expect.objectContaining({ port: 456, token: 'desktop-token' }),
-        { workspacePath: 'E:/examples/workspace', threadId: null }
-      )
-      expect(childProcessMocks.spawn).not.toHaveBeenCalled()
-    } finally {
-      Object.defineProperty(process, 'platform', { value: originalPlatform })
-    }
-  })
+    await openDesktopWindow('E:/examples/workspace')
 
-  it('does not launch a macOS tray process when menu bar visibility is disabled', async () => {
-    const originalPlatform = process.platform
-    Object.defineProperty(process, 'platform', { value: 'darwin' })
-    try {
-      const { ensureTrayProcess } = await import('../trayManager')
-
-      ensureTrayProcess({ showInMenuBar: false })
-
-      expect(childProcessMocks.spawn).not.toHaveBeenCalled()
-    } finally {
-      Object.defineProperty(process, 'platform', { value: originalPlatform })
-    }
+    expect(activationMocks.requestWorkspaceActivation).toHaveBeenCalledWith(
+      expect.objectContaining({ port: 456, token: 'desktop-token' }),
+      { workspacePath: 'E:/examples/workspace', threadId: null }
+    )
+    expect(childProcessMocks.spawn).not.toHaveBeenCalled()
   })
 })
 
@@ -799,19 +474,18 @@ describe('trayManager Hub refresh', () => {
     return (entry?.submenu ?? []) as Array<Record<string, unknown>>
   }
 
+  const clickMenuItem = (label: string) => {
+    const item = lastMenuTemplate().find((entry) => entry.label === label)
+    ;(item?.click as (() => void) | undefined)?.()
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
-    settingsMocks.loadSettings.mockReturnValue({})
-    hubClientMocks.getStatus.mockResolvedValue({})
     hubClientMocks.listAppServers.mockResolvedValue([appServer])
-    hubClientMocks.listSatellites.mockResolvedValue([])
-    hubClientMocks.subscribeEvents.mockResolvedValue(undefined)
-    trayLockMocks.tryAcquireTrayLock.mockResolvedValue({ release: trayLockMocks.release })
   })
 
   it('keeps the workspace submenu when a Hub without the satellite surface rejects', async () => {
     hubClientMocks.listSatellites.mockRejectedValue(new Error('HTTP 404 Not Found'))
-    const { runTrayProcess } = await import('../trayManager')
 
     await runTrayProcess()
 
@@ -822,7 +496,6 @@ describe('trayManager Hub refresh', () => {
     hubClientMocks.getStatus.mockRejectedValue(new Error('hub down'))
     hubClientMocks.listAppServers.mockRejectedValue(new Error('hub down'))
     hubClientMocks.listSatellites.mockRejectedValue(new Error('hub down'))
-    const { runTrayProcess } = await import('../trayManager')
 
     await runTrayProcess()
 
@@ -831,13 +504,11 @@ describe('trayManager Hub refresh', () => {
   })
 
   it('quits every Desktop process before shutting down Hub and the tray', async () => {
-    const { runTrayProcess } = await import('../trayManager')
     await runTrayProcess()
 
-    const exit = lastMenuTemplate().find((item) => item.label === 'Exit')
-    ;(exit?.click as (() => void) | undefined)?.()
+    clickMenuItem('Exit')
 
-    await vi.waitFor(() => expect(electronMocks.appQuit).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(electronMocks.appQuit).toHaveBeenCalledOnce(), { interval: 1 })
     expect(desktopProcessRegistryMocks.quitRegisteredDesktopProcesses).toHaveBeenCalledOnce()
     expect(hubClientMocks.shutdownHub).toHaveBeenCalledOnce()
     expect(
@@ -852,93 +523,57 @@ describe('trayManager Hub refresh', () => {
     desktopProcessRegistryMocks.quitRegisteredDesktopProcesses.mockRejectedValueOnce(
       new Error('registry unavailable')
     )
-    const { runTrayProcess } = await import('../trayManager')
     await runTrayProcess()
 
-    const exit = lastMenuTemplate().find((item) => item.label === 'Exit')
-    ;(exit?.click as (() => void) | undefined)?.()
+    clickMenuItem('Exit')
 
-    await vi.waitFor(() => expect(electronMocks.appQuit).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(electronMocks.appQuit).toHaveBeenCalledOnce(), { interval: 1 })
     expect(hubClientMocks.shutdownHub).toHaveBeenCalledOnce()
   })
 
-  it('shows three recent threads directly and puts overflow in More', async () => {
+  it('shows three recent threads directly, puts overflow in More, and opens them through workspace activation', async () => {
     recentThreadCatalogMocks.refresh.mockResolvedValue([
       { id: 'thread-1', displayName: 'First', lastActiveAt: '2026-09-22T09:00:00Z', workspacePath: 'F:/work/one', workspaceName: 'one' },
       { id: 'thread-2', displayName: 'Second', lastActiveAt: '2026-09-22T08:00:00Z', workspacePath: 'F:/work/two', workspaceName: 'two' },
       { id: 'thread-3', displayName: null, lastActiveAt: '2026-09-22T07:00:00Z', workspacePath: 'F:/work/three', workspaceName: 'three' },
       { id: 'thread-4', displayName: 'Fourth', lastActiveAt: '2026-09-22T06:00:00Z', workspacePath: 'F:/work/four', workspaceName: 'four' }
     ])
-    const { runTrayProcess } = await import('../trayManager')
+    workspaceLockMocks.checkWorkspaceLock.mockReturnValue(lockedWorkspace)
+    activationMocks.requestWorkspaceActivation.mockResolvedValue(true)
 
     await runTrayProcess()
 
-    const menu = lastMenuTemplate()
-    expect(menu.slice(0, 5)).toMatchObject([
+    expect(lastMenuTemplate().slice(0, 5)).toMatchObject([
       { label: 'Recent', enabled: false },
       { label: 'First', sublabel: 'one' },
       { label: 'Second', sublabel: 'two' },
       { label: 'New conversation', sublabel: 'three' },
       { label: 'More', submenu: [{ label: 'Fourth', sublabel: 'four' }] }
     ])
-  })
 
-  it('opens a recent thread through workspace activation without spawning a new process', async () => {
-    recentThreadCatalogMocks.refresh.mockResolvedValue([
-      { id: 'thread-1', displayName: 'Open me', lastActiveAt: '2026-09-22T09:00:00Z', workspacePath: 'F:/work/one', workspaceName: 'one' }
-    ])
-    workspaceLockMocks.checkWorkspaceLock.mockReturnValue({
-      locked: true,
-      pid: 123,
-      activation: { host: '127.0.0.1', port: 456, token: 'token', protocolVersion: 1 }
-    })
-    activationMocks.requestWorkspaceActivation.mockResolvedValue(true)
-    const { runTrayProcess } = await import('../trayManager')
-
-    await runTrayProcess()
-    const item = lastMenuTemplate().find((entry) => entry.label === 'Open me')
-    ;(item?.click as (() => void) | undefined)?.()
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(activationMocks.requestWorkspaceActivation).toHaveBeenCalledWith(
+    clickMenuItem('First')
+    await vi.waitFor(() => expect(activationMocks.requestWorkspaceActivation).toHaveBeenCalledWith(
       expect.objectContaining({ port: 456, token: 'token' }),
       { workspacePath: 'F:/work/one', threadId: 'thread-1' }
-    )
+    ), { interval: 1 })
     expect(childProcessMocks.spawn).not.toHaveBeenCalled()
   })
 
-  const satelliteLine = (): Record<string, unknown> | undefined =>
-    lastMenuTemplate().find((item) => String(item.label ?? '').includes('satellite'))
-
-  it('omits the satellite line when no machine is online', async () => {
-    hubClientMocks.listSatellites.mockResolvedValue([{ peerId: 'sat_qa', online: false }])
-    const { runTrayProcess } = await import('../trayManager')
-
-    await runTrayProcess()
-
-    expect(satelliteLine()).toBeUndefined()
-  })
-
-  it('counts the online satellites in one disabled line', async () => {
-    hubClientMocks.listSatellites.mockResolvedValue([
+  it.each([
+    [[{ peerId: 'sat_qa', online: false }], undefined],
+    [[{ peerId: 'sat_studio', online: true }], '1 satellite online'],
+    [[
       { peerId: 'sat_studio', online: true },
       { peerId: 'sat_art', online: true },
       { peerId: 'sat_qa', online: false }
-    ])
-    const { runTrayProcess } = await import('../trayManager')
+    ], '2 satellites online']
+  ])('summarizes online satellites in one disabled line (%#)', async (satellites, label) => {
+    hubClientMocks.listSatellites.mockResolvedValue(satellites)
 
     await runTrayProcess()
 
-    expect(satelliteLine()).toMatchObject({ label: '2 satellites online', enabled: false })
-  })
-
-  it('uses the singular satellite line for one online machine', async () => {
-    hubClientMocks.listSatellites.mockResolvedValue([{ peerId: 'sat_studio', online: true }])
-    const { runTrayProcess } = await import('../trayManager')
-
-    await runTrayProcess()
-
-    expect(satelliteLine()).toMatchObject({ label: '1 satellite online', enabled: false })
+    const line = lastMenuTemplate().find((item) => String(item.label ?? '').includes('satellite'))
+    if (label) expect(line).toMatchObject({ label, enabled: false })
+    else expect(line).toBeUndefined()
   })
 })

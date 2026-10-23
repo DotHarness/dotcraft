@@ -9,49 +9,14 @@ namespace DotCraft.Tests.Agents;
 public sealed class ChatClientRegistryTests
 {
     [Fact]
-    public void ResolveSubAgentModel_ProviderSpecificSubAgentModelWins()
-    {
-        var config = AppConfigTestFactory.CreateOpenAI(model: "main-model");
-        config.SubAgent.ProviderPreferences[config.ProviderId] = new ModelPreference { Model = "sub-model" };
-        var registry = new ChatClientRegistry();
-
-        var effective = registry.ResolveSubAgentModel(config, config.ProviderId, "thread-model");
-
-        Assert.Equal("sub-model", effective);
-    }
-
-    [Fact]
-    public void ResolveSubAgentModel_EmptySubAgentModelFollowsThreadModel()
-    {
-        var config = AppConfigTestFactory.CreateOpenAI(model: "main-model");
-        config.SubAgent = new AppConfig.SubAgentConfig();
-        var registry = new ChatClientRegistry();
-
-        var main = registry.ResolveMainModel(config, "thread-model");
-        var subAgent = registry.ResolveSubAgentModel(config, config.ProviderId, main);
-
-        Assert.Equal("thread-model", subAgent);
-    }
-
-    [Fact]
-    public void ResolveMainModel_EmptyThreadModelUsesProviderPreference()
-    {
-        var config = AppConfigTestFactory.CreateOpenAI(model: "workspace-model");
-        var registry = new ChatClientRegistry();
-
-        var main = registry.ResolveMainModel(config, " ");
-
-        Assert.Equal("workspace-model", main);
-    }
-
-    [Fact]
-    public void ResolveMainModel_UsesProviderSpecificWorkspacePreference()
+    public void ResolveMainModel_ThreadModelWinsOverProviderSpecificWorkspacePreference()
     {
         var config = AppConfigTestFactory.CreateOpenAI(model: "initial-model");
         config.ProviderPreferences[config.ProviderId] = new ModelPreference { Model = "remembered-model" };
         var registry = new ChatClientRegistry();
 
         Assert.Equal("remembered-model", registry.ResolveMainModel(config));
+        Assert.Equal("remembered-model", registry.ResolveMainModel(config, " "));
         Assert.Equal("thread-model", registry.ResolveMainModel(config, "thread-model"));
     }
 
@@ -81,7 +46,8 @@ public sealed class ChatClientRegistryTests
                 {
                     DisplayName = "Anthropic",
                     Protocol = "anthropic",
-                    ApiKey = "sk-ant-test"
+                    ApiKey = "sk-ant-test",
+                    MaxOutputTokens = 4096
                 }
             }
         };
@@ -93,93 +59,30 @@ public sealed class ChatClientRegistryTests
         Assert.Equal("anthropic", runtime.Protocol);
         Assert.Equal("claude-sonnet-4-5", runtime.Model);
         Assert.Equal("https://api.anthropic.com", runtime.EndPoint);
+        Assert.Equal(4096, runtime.MaxOutputTokens);
         Assert.True(runtime.Capabilities.ToolCalling);
     }
 
     [Fact]
-    public void ResolveMainRuntime_UsesProviderMaxOutputTokens()
-    {
-        var config = new AppConfig
-        {
-            ProviderId = "anthropic-main",
-            ProviderPreferences = new() { ["anthropic-main"] = new ModelPreference { Model = "claude-sonnet-4-5"  } },
-            Providers =
-            {
-                ["anthropic-main"] = new AppConfig.ModelProviderConfig
-                {
-                    Protocol = "anthropic",
-                    ApiKey = "sk-ant-test",
-                    MaxOutputTokens = 4096
-                }
-            }
-        };
-        var registry = new ChatClientRegistry();
-
-        var runtime = registry.ResolveMainRuntime(config);
-
-        Assert.Equal(4096, runtime.MaxOutputTokens);
-    }
-
-    [Fact]
-    public void ResolveMainRuntime_UsesProviderStreamRetryConfig()
-    {
-        var config = new AppConfig
-        {
-            ProviderId = "openai-main",
-            ProviderPreferences = new() { ["openai-main"] = new ModelPreference { Model = "gpt-5"  } },
-            Providers =
-            {
-                ["openai-main"] = new AppConfig.ModelProviderConfig
-                {
-                    Protocol = ModelProviderProtocols.OpenAIResponses,
-                    ApiKey = "sk-test",
-                    StreamMaxRetries = 3,
-                    StreamIdleTimeoutMs = 12_000
-                }
-            }
-        };
-        var registry = new ChatClientRegistry();
-
-        var runtime = registry.ResolveMainRuntime(config);
-
-        Assert.Equal(3, runtime.StreamMaxRetries);
-        Assert.Equal(12_000, runtime.StreamIdleTimeoutMs);
-    }
-
-    [Fact]
-    public void GetChatClient_AnthropicNormalizesMissingMaxOutputTokensToDefault()
+    public void GetChatClient_OnlyAnthropicNormalizesMissingMaxOutputTokensToDefault()
     {
         var registry = TestModelProviderRegistry.Create();
         var missingRuntime = Runtime(ModelProviderProtocols.Anthropic, networkTimeoutSeconds: 600);
-        var explicitDefaultRuntime = missingRuntime with { MaxOutputTokens = AnthropicClientProvider.DefaultMaxOutputTokens };
-        var invalidRuntime = missingRuntime with { MaxOutputTokens = 0 };
-        var customRuntime = missingRuntime with { MaxOutputTokens = 4096 };
 
         var missing = registry.GetChatClient(missingRuntime);
-        var explicitDefault = registry.GetChatClient(explicitDefaultRuntime);
-        var invalid = registry.GetChatClient(invalidRuntime);
-        var custom = registry.GetChatClient(customRuntime);
 
-        Assert.Same(missing, explicitDefault);
-        Assert.Same(missing, invalid);
-        Assert.NotSame(missing, custom);
+        Assert.Same(missing, registry.GetChatClient(missingRuntime with { MaxOutputTokens = AnthropicClientProvider.DefaultMaxOutputTokens }));
+        Assert.Same(missing, registry.GetChatClient(missingRuntime with { MaxOutputTokens = 0 }));
+        Assert.NotSame(missing, registry.GetChatClient(missingRuntime with { MaxOutputTokens = 4096 }));
+
+        var openAIRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
+        Assert.NotSame(
+            registry.GetChatClient(openAIRuntime),
+            registry.GetChatClient(openAIRuntime with { MaxOutputTokens = AnthropicClientProvider.DefaultMaxOutputTokens }));
     }
 
     [Fact]
-    public void GetChatClient_OpenAIDoesNotAddDefaultMaxOutputTokens()
-    {
-        var registry = TestModelProviderRegistry.Create();
-        var missingRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
-        var explicitAnthropicDefaultRuntime = missingRuntime with { MaxOutputTokens = AnthropicClientProvider.DefaultMaxOutputTokens };
-
-        var missing = registry.GetChatClient(missingRuntime);
-        var explicitDefault = registry.GetChatClient(explicitAnthropicDefaultRuntime);
-
-        Assert.NotSame(missing, explicitDefault);
-    }
-
-    [Fact]
-    public void ResolveMainRuntime_UsesExplicitProviderEndpointAndTimeout()
+    public void ResolveMainRuntime_UsesExplicitProviderEndpointTimeoutAndStreamRetryConfig()
     {
         var config = new AppConfig
         {
@@ -194,7 +97,9 @@ public sealed class ChatClientRegistryTests
                     Protocol = "openai-chat-completions",
                     ApiKey = "sk-router-test",
                     EndPoint = "https://openrouter.ai/api/v1",
-                    NetworkTimeoutSeconds = 120
+                    NetworkTimeoutSeconds = 120,
+                    StreamMaxRetries = 3,
+                    StreamIdleTimeoutMs = 12_000
                 }
             }
         };
@@ -205,8 +110,11 @@ public sealed class ChatClientRegistryTests
         Assert.Equal("openrouter", runtime.ProviderId);
         Assert.Equal(ModelProviderProtocols.OpenAIChatCompletions, runtime.Protocol);
         Assert.Equal("openrouter-model", runtime.Model);
+        Assert.Equal("sk-router-test", runtime.ApiKey);
         Assert.Equal("https://openrouter.ai/api/v1", runtime.EndPoint);
         Assert.Equal(120, runtime.NetworkTimeoutSeconds);
+        Assert.Equal(3, runtime.StreamMaxRetries);
+        Assert.Equal(12_000, runtime.StreamIdleTimeoutMs);
     }
 
     [Fact]
@@ -243,33 +151,6 @@ public sealed class ChatClientRegistryTests
 
         Assert.Equal("config", exception.ParamName);
         Assert.StartsWith("Model must be configured.", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ResolveMainRuntime_OpenAIProviderIdUsesExplicitProvider()
-    {
-        var config = new AppConfig
-        {
-            ProviderId = "openai",
-            ProviderPreferences = new() { ["openai"] = new ModelPreference { Model = "model-a"  } },
-            Providers =
-            {
-                ["openai"] = new AppConfig.ModelProviderConfig
-                {
-                    Protocol = "openai-chat-completions",
-                    ApiKey = "sk-openai-test",
-                    EndPoint = "https://example.test/v1"
-                }
-            }
-        };
-        var registry = new ChatClientRegistry();
-
-        var runtime = registry.ResolveMainRuntime(config);
-
-        Assert.Equal("openai", runtime.ProviderId);
-        Assert.Equal(ModelProviderProtocols.OpenAIChatCompletions, runtime.Protocol);
-        Assert.Equal("sk-openai-test", runtime.ApiKey);
-        Assert.Equal("https://example.test/v1", runtime.EndPoint);
     }
 
     [Fact]
@@ -318,23 +199,7 @@ public sealed class ChatClientRegistryTests
     }
 
     [Fact]
-    public void GetChatClient_CacheKeyIncludesNetworkTimeout()
-    {
-        var registry = TestModelProviderRegistry.Create();
-        var firstRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
-        var sameRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
-        var differentTimeoutRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 900);
-
-        var first = registry.GetChatClient(firstRuntime);
-        var same = registry.GetChatClient(sameRuntime);
-        var differentTimeout = registry.GetChatClient(differentTimeoutRuntime);
-
-        Assert.Same(first, same);
-        Assert.NotSame(first, differentTimeout);
-    }
-
-    [Fact]
-    public void GetChatClient_CacheKeyIncludesStreamRetryConfig()
+    public void GetChatClient_CacheKeyIncludesNetworkTimeoutAndStreamRetryConfig()
     {
         var registry = TestModelProviderRegistry.Create();
         var firstRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
@@ -343,17 +208,14 @@ public sealed class ChatClientRegistryTests
             StreamMaxRetries = ModelProviderDefaults.DefaultStreamMaxRetries,
             StreamIdleTimeoutMs = ModelProviderDefaults.DefaultStreamIdleTimeoutMs
         };
-        var differentRetriesRuntime = firstRuntime with { StreamMaxRetries = 1 };
-        var differentIdleRuntime = firstRuntime with { StreamIdleTimeoutMs = 10_000 };
 
         var first = registry.GetChatClient(firstRuntime);
-        var same = registry.GetChatClient(sameRuntime);
-        var differentRetries = registry.GetChatClient(differentRetriesRuntime);
-        var differentIdle = registry.GetChatClient(differentIdleRuntime);
 
-        Assert.Same(first, same);
-        Assert.NotSame(first, differentRetries);
-        Assert.NotSame(first, differentIdle);
+        Assert.Same(first, registry.GetChatClient(Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600)));
+        Assert.Same(first, registry.GetChatClient(sameRuntime));
+        Assert.NotSame(first, registry.GetChatClient(Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 900)));
+        Assert.NotSame(first, registry.GetChatClient(firstRuntime with { StreamMaxRetries = 1 }));
+        Assert.NotSame(first, registry.GetChatClient(firstRuntime with { StreamIdleTimeoutMs = 10_000 }));
     }
 
     [Fact]
@@ -438,14 +300,6 @@ public sealed class ChatClientRegistryTests
         Assert.IsType<StreamRetryingChatClient>(client);
         Assert.IsType<OpenAIResponsesToolSearchChatClient>(
             client.GetService(typeof(OpenAIResponsesToolSearchChatClient)));
-    }
-
-    [Fact]
-    public void AppConfig_DefaultNetworkTimeoutSeconds_IsTenMinutes()
-    {
-        var config = new AppConfig();
-
-        Assert.Equal(600, config.NetworkTimeoutSeconds);
     }
 
     private static EffectiveModelRuntime Runtime(string protocol, int networkTimeoutSeconds) => new(

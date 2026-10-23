@@ -15,7 +15,7 @@ public sealed class ThreadProjectionMetadataTests : IDisposable
     {
         SqliteConnection.ClearAllPools();
         try { Directory.Delete(_root, recursive: true); }
-        catch { /* best effort */ }
+        catch { }
     }
 
     [Fact]

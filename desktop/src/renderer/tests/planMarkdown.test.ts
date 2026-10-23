@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { parsePlanMarkdown } from '../utils/planMarkdown'
 
 describe('parsePlanMarkdown', () => {
-  it('extracts H1 title, first section overview, and content without the H1', () => {
+  it('extracts H1 title, first non-empty section overview, and content without the H1', () => {
     const parsed = parsePlanMarkdown(`# Streaming Plan
 
 ## 概览
@@ -21,6 +21,8 @@ describe('parsePlanMarkdown', () => {
     expect(parsed.content.startsWith('# Streaming Plan')).toBe(false)
     expect(parsed.content).toContain('## 概览')
     expect(parsed.content).toContain('## 验证方案')
+    expect(parsePlanMarkdown('# 计划\n\n## 空章节\n\n## 背景\n\n使用结构而不是英文标题识别概要。').overview)
+      .toBe('使用结构而不是英文标题识别概要。')
   })
 
   it('uses first non-empty line as title and following paragraph as overview without H1', () => {
@@ -35,17 +37,5 @@ Keep the existing storage format.
     expect(parsed.title).toBe('Implement cache invalidation')
     expect(parsed.overview).toBe('Keep the existing storage format.')
     expect(parsed.content).toContain('Implement cache invalidation')
-  })
-
-  it('skips empty sections when extracting overview', () => {
-    const parsed = parsePlanMarkdown(`# 计划
-
-## 空章节
-
-## 背景
-
-使用结构而不是英文标题识别概要。`)
-
-    expect(parsed.overview).toBe('使用结构而不是英文标题识别概要。')
   })
 })

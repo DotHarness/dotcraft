@@ -37,20 +37,15 @@ describe('new thread deep link', () => {
     expect(target.calls).toEqual([`switch:${root}`, 'new-chat:hi'])
   })
 
-  it.each([
-    ['a missing directory', () => join(root, 'missing')],
-    ['a file', () => {
-      const file = join(root, 'notes.txt')
-      writeFileSync(file, '')
-      return file
-    }],
-    ['a relative path', () => 'relative/project']
-  ])('keeps the current project for %s', async (_kind, path) => {
-    const target = host()
+  it('keeps the current project for a missing directory, a file, or a relative path', async () => {
+    const file = join(root, 'notes.txt')
+    writeFileSync(file, '')
 
-    await openNewThreadDeepLink({ workspacePath: path(), prompt: 'hi' }, target)
-
-    expect(target.calls).toEqual(['new-chat:hi'])
+    for (const path of [join(root, 'missing'), file, 'relative/project']) {
+      const target = host()
+      await openNewThreadDeepLink({ workspacePath: path, prompt: 'hi' }, target)
+      expect(target.calls, path).toEqual(['new-chat:hi'])
+    }
   })
 
   it('does not switch to the foreground project or while local projects are unavailable', async () => {

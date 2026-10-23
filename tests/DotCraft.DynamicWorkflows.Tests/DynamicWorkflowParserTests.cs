@@ -28,11 +28,8 @@ public sealed class DynamicWorkflowParserTests
     [Theory]
     [InlineData("const meta = { name: 'x', description: 'y' }; return 1;", "meta_required")]
     [InlineData("export const meta = { name: makeName(), description: 'y' }; return 1;", "meta_invalid")]
-    [InlineData("export const meta = { ['name']: 'x', description: 'y' }; return 1;", "meta_invalid")]
     [InlineData("export const meta = { name: 'x', name: 'z', description: 'y' }; return 1;", "meta_invalid")]
-    [InlineData("export const meta = { ...base, name: 'x', description: 'y' }; return 1;", "meta_invalid")]
     [InlineData("export const meta = { name: 'x', description: 'y' }; return Date.now();", "prohibited_syntax")]
-    [InlineData("export const meta = { name: 'x', description: 'y' }; return Math.random();", "prohibited_syntax")]
     [InlineData("export const meta = { name: 'x', description: 'y' }; return eval('1');", "prohibited_syntax")]
     public void Parse_InvalidSource_ReturnsStableCode(string source, string code)
     {

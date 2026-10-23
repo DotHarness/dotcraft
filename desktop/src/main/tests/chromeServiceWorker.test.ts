@@ -232,44 +232,31 @@ describe('chrome extension service worker', () => {
     })).rejects.toThrow('current URL is "chrome://extensions/"')
   })
 
-  it('rejects oversized tab.evaluate results', async () => {
+  it('classifies missing sessions, unsupported commands, oversized results, and debugger failures', async () => {
     const tabs = new Map<number, ChromeTab>([[
       1,
       { id: 1, windowId: 1, index: 0, title: 'Example', url: 'https://example.test/', status: 'complete', active: true }
     ]])
     const worker = loadServiceWorker(tabs)
-    worker.context.chrome.debugger.sendCommand = async () => ({ result: { value: 'x'.repeat(100) } })
-
-    await expect(worker.context.dispatchCommand('tab.evaluate', {
-      ...sessionParams(),
-      tab: { id: 1 },
-      source: 'return "large";',
-      maxBytes: 10
-    })).rejects.toThrow('ResultTooLarge: tab.evaluate result exceeded 10 bytes')
-  })
-
-  it('classifies unsupported commands', async () => {
-    const worker = loadServiceWorker(new Map<number, ChromeTab>())
-
     await expect(worker.context.dispatchCommand('dotcraft.nope', {})).rejects.toThrow(
       'SessionMetadataMissing: Chrome command requires browserSession.sessionId'
     )
     await expect(worker.context.dispatchCommand('dotcraft.nope', sessionParams())).rejects.toThrow(
       'UnsupportedApi: Unsupported DotCraft Chrome command: dotcraft.nope'
     )
-  })
+    worker.context.chrome.debugger.sendCommand = async () => ({ result: { value: 'x'.repeat(100) } })
+    await expect(worker.context.dispatchCommand('tab.evaluate', {
+      ...sessionParams(),
+      tab: { id: 1 },
+      source: 'return "large";',
+      maxBytes: 10
+    })).rejects.toThrow('ResultTooLarge: tab.evaluate result exceeded 10 bytes')
 
-  it('classifies debugger attachment failures', async () => {
-    const tabs = new Map<number, ChromeTab>([[
-      1,
-      { id: 1, windowId: 1, index: 0, title: 'Example', url: 'https://example.test/', status: 'complete', active: true }
-    ]])
-    const worker = loadServiceWorker(tabs)
-    worker.context.chrome.debugger.attach = async () => {
+    const failing = loadServiceWorker(tabs)
+    failing.context.chrome.debugger.attach = async () => {
       throw new Error('Another debugger is already attached')
     }
-
-    await expect(worker.context.dispatchCommand('tab.evaluate', {
+    await expect(failing.context.dispatchCommand('tab.evaluate', {
       ...sessionParams(),
       tab: { id: 1 },
       source: 'return true;'

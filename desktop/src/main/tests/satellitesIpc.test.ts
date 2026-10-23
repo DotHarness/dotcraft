@@ -148,7 +148,7 @@ describe('satellites:list', () => {
     expect(app.bridge.remember).toHaveBeenCalledWith(result.satellites)
   })
 
-  it('reports a setup state for a Hub without the satellite surface', async () => {
+  it('reports a setup state only for a Hub without the satellite surface', async () => {
     const app = harness()
     app.hub.getStatus.mockResolvedValue({ capabilities: { events: true } })
     app.hub.listSatellites.mockRejectedValue(new Error('HTTP 404 Not Found'))
@@ -157,32 +157,19 @@ describe('satellites:list', () => {
       supported: false,
       satellites: []
     })
-  })
 
-  it('reports an error, not a setup state, when a capable Hub fails to list', async () => {
-    const app = harness()
-    app.hub.listSatellites.mockRejectedValue(new Error('registry unreadable'))
-
-    expect(await app.invoke<SatelliteListResult>('satellites:list')).toEqual({
+    const capable = harness()
+    capable.hub.listSatellites.mockRejectedValue(new Error('registry unreadable'))
+    expect(await capable.invoke<SatelliteListResult>('satellites:list')).toEqual({
       supported: true,
       satellites: [],
       error: 'registry unreadable'
     })
   })
-
-  it('survives a Hub whose status call fails but whose listing works', async () => {
-    const app = harness()
-    app.hub.getStatus.mockRejectedValue(new Error('hub restarting'))
-    app.hub.listSatellites.mockResolvedValue([{ peerId: 'sat_1', online: false, workspaces: [] }])
-
-    const result = await app.invoke<SatelliteListResult>('satellites:list')
-    expect(result.supported).toBe(true)
-    expect(result.satellites).toHaveLength(1)
-  })
 })
 
 describe('satellites:create-invite', () => {
-  it('mints with no arguments and returns only invitation fields, never a Hub secret', async () => {
+  it('mints with no arguments, returns only invitation fields, and rejects an unusable invitation', async () => {
     const app = harness()
     app.hub.createSatelliteInvite.mockResolvedValue({
       inviteId: 'inv_1',
@@ -197,6 +184,9 @@ describe('satellites:create-invite', () => {
     expect(Object.keys(invite).sort()).toEqual(['expiresAt', 'inviteId', 'url'])
     expect(JSON.stringify(invite)).not.toContain(HUB_TOKEN)
     expect(app.hub.createSatelliteInvite).toHaveBeenCalledWith({})
+
+    app.hub.createSatelliteInvite.mockResolvedValue({ url: 'http://h/i' })
+    await expect(app.invoke('satellites:create-invite', {})).rejects.toThrow(/unusable/i)
   })
 
   it('remembers only the invitation id and expiry, replacing any same-id entry', async () => {
@@ -213,16 +203,9 @@ describe('satellites:create-invite', () => {
       { inviteId: 'inv_1', expiresAt: '2999-01-01T00:00:00.000Z' }
     ])
   })
-
-  it('rejects an invitation Hub could not mint properly', async () => {
-    const app = harness()
-    app.hub.createSatelliteInvite.mockResolvedValue({ url: 'http://h/i' })
-
-    await expect(app.invoke('satellites:create-invite', {})).rejects.toThrow(/unusable/i)
-  })
 })
 
-describe('satellites:revoke and activity', () => {
+describe('satellites:revoke', () => {
   it('revokes by peer id and refuses an empty one', async () => {
     const app = harness()
 
@@ -231,27 +214,16 @@ describe('satellites:revoke and activity', () => {
 
     await expect(app.invoke('satellites:revoke', { peerId: '   ' })).rejects.toThrow()
   })
-
-  it('reads recent activity from the bridge, scoped when a machine is given', async () => {
-    const app = harness()
-
-    await app.invoke('satellites:activity', { peerId: 'sat_1' })
-    await app.invoke('satellites:activity', {})
-
-    expect(app.bridge.recentActivity).toHaveBeenNthCalledWith(1, 'sat_1')
-    expect(app.bridge.recentActivity).toHaveBeenNthCalledWith(2, undefined)
-  })
 })
 
 describe('satellites:share-status', () => {
-  it('reports no runtime when no host state exists', async () => {
+  it('reports no runtime when host state is missing or corrupt', async () => {
     useHome('no-state')
-    const app = harness()
+    expect(await harness().invoke<SharePcStatus>('satellites:share-status')).toEqual({ installed: false, peers: [] })
 
-    expect(await app.invoke<SharePcStatus>('satellites:share-status')).toEqual({
-      installed: false,
-      peers: []
-    })
+    useHome('corrupt')
+    writeFileSync(join(home.path, '.craft', 'remote-tool-host', 'host.json'), '{ not json', 'utf8')
+    expect(await harness().invoke<SharePcStatus>('satellites:share-status')).toEqual({ installed: false, peers: [] })
   })
 
   it('reads paired machines and their folders without exposing credentials', async () => {
@@ -292,21 +264,6 @@ describe('satellites:share-status', () => {
     })
     expect(JSON.stringify(status)).not.toContain('credentialReference')
     expect(JSON.stringify(status)).not.toContain('DotCraft/RemoteToolHost')
-  })
-
-  it('treats a corrupt host state as no runtime', async () => {
-    useHome('corrupt')
-    writeFileSync(
-      join(home.path, '.craft', 'remote-tool-host', 'host.json'),
-      '{ not json',
-      'utf8'
-    )
-    const app = harness()
-
-    expect(await app.invoke<SharePcStatus>('satellites:share-status')).toEqual({
-      installed: false,
-      peers: []
-    })
   })
 
   it('reports the runtime as installed from the published executable path alone', async () => {

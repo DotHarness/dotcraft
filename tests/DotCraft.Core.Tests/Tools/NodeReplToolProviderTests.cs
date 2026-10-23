@@ -52,13 +52,15 @@ public sealed class NodeReplToolProviderTests
     }
 
     [Fact]
-    public async Task Source_WithoutAvailableProxy_ReturnsNoRegistrations()
+    public async Task Source_ReturnsNoRegistrations_WithoutProxyOrEnabledMatchingPlugin()
     {
-        var fixture = CreateSource(new FakeNodeReplProxy(false));
+        var unavailable = CreateSource(new FakeNodeReplProxy(false));
+        var browserDisabled = CreateSource(new FakeNodeReplProxy(true));
+        browserDisabled.Config.Plugins.DisabledPlugins.Add(PluginIds.Browser);
+        var computerOnBrowserOnlyClient = CreateSource(new FakeNodeReplProxy(true), [PluginIds.Computer]);
 
-        var registrations = await fixture.Source.GetRegistrationsAsync(fixture.Planning);
-
-        Assert.Empty(registrations);
+        foreach (var fixture in new[] { unavailable, browserDisabled, computerOnBrowserOnlyClient })
+            Assert.Empty(await fixture.Source.GetRegistrationsAsync(fixture.Planning));
     }
 
     [Fact]
@@ -76,17 +78,14 @@ public sealed class NodeReplToolProviderTests
         Assert.Equal(PluginIds.Browser, registration.Definition.Provenance.SourceId);
         Assert.Equal("core.node-repl", registration.Definition.Presentation?.Id.Value);
         Assert.Equal(PluginIds.Browser, registration.Definition.Presentation?.Options["surface"].GetString());
-    }
-
-    [Fact]
-    public async Task Source_WhenBrowserPluginDisabled_ReturnsNoRegistrations()
-    {
-        var fixture = CreateSource(new FakeNodeReplProxy(true));
-        fixture.Config.Plugins.DisabledPlugins.Add(PluginIds.Browser);
-
-        var registrations = await fixture.Source.GetRegistrationsAsync(fixture.Planning);
-
-        Assert.Empty(registrations);
+        var schema = registration.Definition.InputSchema;
+        Assert.Equal("code", Assert.Single(schema.GetProperty("required").EnumerateArray()).GetString());
+        var properties = schema.GetProperty("properties");
+        Assert.Equal("string", properties.GetProperty("code").GetProperty("type").GetString());
+        var timeout = properties.GetProperty("timeoutSeconds");
+        Assert.Equal("integer", timeout.GetProperty("type").GetString());
+        Assert.False(timeout.TryGetProperty("default", out _));
+        Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
     }
 
     [Fact]
@@ -110,16 +109,6 @@ public sealed class NodeReplToolProviderTests
         var registration = Assert.Single(await fixture.Source.GetRegistrationsAsync(fixture.Planning));
 
         Assert.Equal(PluginIds.Computer, registration.Definition.Id.SourceId);
-    }
-
-    [Fact]
-    public async Task Source_BrowserOnlyClient_DoesNotExposeComputerPlugin()
-    {
-        var fixture = CreateSource(new FakeNodeReplProxy(true), [PluginIds.Computer]);
-
-        var registrations = await fixture.Source.GetRegistrationsAsync(fixture.Planning);
-
-        Assert.Empty(registrations);
     }
 
     [Fact]
@@ -151,22 +140,6 @@ public sealed class NodeReplToolProviderTests
         Assert.Equal("thread_test", proxy.LastMetadata.SessionId);
         Assert.Equal("turn_001", proxy.LastMetadata.TurnId);
         Assert.Equal(1, proxy.LastMetadata.ProtocolVersion);
-    }
-
-    [Fact]
-    public async Task Source_GeneratedSchemaPreservesRequiredCodeAndOptionalIntegerTimeout()
-    {
-        var fixture = CreateSource(new FakeNodeReplProxy(true));
-        var registration = Assert.Single(await fixture.Source.GetRegistrationsAsync(fixture.Planning));
-        var schema = registration.Definition.InputSchema;
-
-        Assert.Equal("code", Assert.Single(schema.GetProperty("required").EnumerateArray()).GetString());
-        var properties = schema.GetProperty("properties");
-        Assert.Equal("string", properties.GetProperty("code").GetProperty("type").GetString());
-        var timeout = properties.GetProperty("timeoutSeconds");
-        Assert.Equal("integer", timeout.GetProperty("type").GetString());
-        Assert.False(timeout.TryGetProperty("default", out _));
-        Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
     }
 
     [Theory]

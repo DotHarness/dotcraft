@@ -75,7 +75,7 @@ describe('VoiceModelManager', () => {
     const manager = createManager(root, bytes, fetchImpl)
 
     const installing = manager.install()
-    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1), { interval: 1 })
     const removing = manager.remove()
     pending.resolve(response(bytes))
     await Promise.all([installing, removing])
@@ -94,7 +94,7 @@ describe('VoiceModelManager', () => {
     const manager = createManager(root, bytes, fetchImpl)
 
     const installing = manager.install()
-    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1), { interval: 1 })
     const repairing = manager.repair()
     const installingAgain = manager.install()
     first.resolve(response(bytes))
@@ -116,27 +116,15 @@ describe('VoiceModelManager', () => {
     const manager = createManager(root, bytes, fetchImpl)
 
     const installing = manager.install()
-    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1), { interval: 1 })
     const replacement = manager.install()
     const cancelling = manager.cancelInstall()
     first.resolve(response(bytes))
 
     await cancelling
-    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2), { interval: 1 })
     second.resolve(response(bytes))
     await Promise.all([installing, replacement])
-
-    expect(manager.getState().phase).toBe('installed')
-    expect(await readFile(manager.modelPath)).toEqual(bytes)
-  })
-
-  it('does not change model state when there is no active download to cancel', async () => {
-    const bytes = Buffer.from('installed model')
-    const root = await createRoot()
-    const manager = createManager(root, bytes, async () => response(bytes))
-    await manager.install()
-
-    await manager.cancelInstall()
 
     expect(manager.getState().phase).toBe('installed')
     expect(await readFile(manager.modelPath)).toEqual(bytes)

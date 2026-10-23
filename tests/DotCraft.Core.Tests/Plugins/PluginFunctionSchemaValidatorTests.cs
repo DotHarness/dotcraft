@@ -7,7 +7,7 @@ namespace DotCraft.Tests.Plugins;
 public sealed class PluginFunctionSchemaValidatorTests
 {
     [Fact]
-    public void NullableGeneratedToolProperties_AcceptConcreteAndNullValues()
+    public void NullableGeneratedToolProperties_AcceptConcreteAndNullValuesButNotOtherTypes()
     {
         var schema = JsonNode.Parse(
             """
@@ -47,21 +47,6 @@ public sealed class PluginFunctionSchemaValidatorTests
                 },
                 out var nullMessage),
             nullMessage);
-    }
-
-    [Fact]
-    public void NullableGeneratedToolProperty_RejectsValueOutsideUnion()
-    {
-        var schema = JsonNode.Parse(
-            """
-            {
-              "type": "object",
-              "properties": {
-                "kind": { "type": ["string", "null"] }
-              }
-            }
-            """)!.AsObject();
-
         Assert.False(
             PluginFunctionSchemaValidator.TryValidateArguments(
                 schema,

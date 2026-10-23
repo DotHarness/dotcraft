@@ -229,7 +229,7 @@ public sealed class GitHubMentionReviewDispatchTests
                 return;
             }
 
-            await Task.Delay(100);
+            await Task.Delay(20);
         }
 
         Assert.Fail($"Condition was not met within {timeoutSeconds} seconds.");

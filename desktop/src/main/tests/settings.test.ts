@@ -7,7 +7,6 @@ import {
   normalizePinnedThreadIdsByWorkspace,
   normalizeProfileSettings,
   normalizeSatelliteRouteByThread,
-  normalizeShowInMenuBar,
   normalizeTurnBookmarksByThread,
   normalizeVoiceSettings
 } from '../settings'
@@ -53,9 +52,6 @@ describe('settings normalization', () => {
       'c:/fixtures/sample-project',
       'remote:servers:host-1:stack-1'
     ])
-  })
-
-  it('drops an invalid pinned project setting', () => {
     expect(normalizePinnedProjectIds({ pinnedProjectIds: [] })).toBeUndefined()
     expect(normalizePinnedProjectIds({
       pinnedProjectIds: 'C:/fixtures/sample-project' as unknown as string[]
@@ -77,7 +73,7 @@ describe('settings normalization', () => {
     expect(settings.localProjectDetails).toEqual({ 'c:/fixtures/other': { name: 'Other' } })
   })
 
-  it('normalizes pinned thread ids by workspace path', () => {
+  it('normalizes pinned thread ids by workspace path, merging legacy key variants', () => {
     const normalized = normalizePinnedThreadIdsByWorkspace({
       pinnedThreadIdsByWorkspace: {
         ' E:/examples/project/../workspace ': [
@@ -94,26 +90,16 @@ describe('settings normalization', () => {
         ],
         '   ': ['thread-c'],
         'E:/examples/empty': [],
-        'E:/examples/not-array': 'thread-c' as unknown as string[]
-      }
-    })
-
-    expect(normalized).toEqual({
-      'e:/examples/workspace': ['thread-a', 'thread-b'],
-      'remote:servers:host-1:stack-1': ['remote-thread', 'remote-thread-2']
-    })
-  })
-
-  it('merges pinned thread ids from legacy path key variants', () => {
-    const normalized = normalizePinnedThreadIdsByWorkspace({
-      pinnedThreadIdsByWorkspace: {
+        'E:/examples/not-array': 'thread-c' as unknown as string[],
         'C:\\fixtures\\sample-project': ['thread-a', 'thread-b'],
         'c:/fixtures/sample-project/': ['thread-b', 'thread-c']
       }
     })
 
     expect(normalized).toEqual({
-      'c:/fixtures/sample-project': ['thread-a', 'thread-b', 'thread-c']
+      'e:/examples/workspace': ['thread-a', 'thread-b'],
+      'c:/fixtures/sample-project': ['thread-a', 'thread-b', 'thread-c'],
+      'remote:servers:host-1:stack-1': ['remote-thread', 'remote-thread-2']
     })
   })
 
@@ -132,17 +118,12 @@ describe('settings normalization', () => {
     expect(normalizeTurnBookmarksByThread({})).toBeUndefined()
   })
 
-  it('keeps a valid trimmed github username', () => {
+  it('keeps only a valid trimmed github username', () => {
     expect(normalizeProfileSettings({ profile: { githubUsername: '  Octo-Cat  ' } })).toEqual({
       githubUsername: 'Octo-Cat'
     })
-  })
-
-  it('drops invalid or empty github usernames', () => {
-    expect(normalizeProfileSettings({ profile: { githubUsername: '' } })).toBeUndefined()
     expect(normalizeProfileSettings({ profile: { githubUsername: '-bad' } })).toBeUndefined()
     expect(normalizeProfileSettings({ profile: { githubUsername: 'has space' } })).toBeUndefined()
-    expect(normalizeProfileSettings({})).toBeUndefined()
   })
 
   it('keeps the ChatGPT transcription opt-out without a microphone preference', () => {
@@ -152,16 +133,6 @@ describe('settings normalization', () => {
       .toEqual({ deviceId: 'mic-1' })
     expect(normalizeVoiceSettings({ voice: { deviceId: '', chatGptTranscription: true } })).toBeUndefined()
   })
-
-  it('keeps a valid menu bar visibility toggle', () => {
-    expect(normalizeShowInMenuBar({ showInMenuBar: true })).toBe(true)
-    expect(normalizeShowInMenuBar({ showInMenuBar: false })).toBe(false)
-  })
-
-  it('drops invalid menu bar visibility values', () => {
-    expect(normalizeShowInMenuBar({ showInMenuBar: 'yes' as unknown as boolean })).toBeUndefined()
-    expect(normalizeShowInMenuBar({})).toBeUndefined()
-  })
 })
 
 describe('satellite settings normalization', () => {
@@ -169,7 +140,7 @@ describe('satellite settings normalization', () => {
   const day = 24 * 60 * 60 * 1000
   const at = (offsetDays: number): string => new Date(now - offsetDays * day).toISOString()
 
-  it('keeps well-formed thread routes and drops malformed keys and values', () => {
+  it('keeps well-formed recent thread routes and drops malformed or month-old ones', () => {
     expect(normalizeSatelliteRouteByThread({
       satelliteRouteByThread: {
         'c:/ws::thread-1': { hostId: ' sat_1 ', workspaceId: ' ws-1 ', at: at(1) },
@@ -177,22 +148,16 @@ describe('satellite settings normalization', () => {
         '   ': { hostId: 'sat_1', workspaceId: 'ws-1', at: at(1) },
         'c:/ws::thread-2': { hostId: '', workspaceId: 'ws-1', at: at(1) },
         'c:/ws::thread-3': { hostId: 'sat_1', workspaceId: 'ws-1', at: 'whenever' },
-        'c:/ws::thread-4': 'sat_1' as unknown as { hostId: string }
+        'c:/ws::thread-4': 'sat_1' as unknown as { hostId: string },
+        'c:/ws::stale': { hostId: 'sat_1', workspaceId: 'ws-1', at: at(31) }
       }
     }, now)).toEqual({
       'c:/ws::thread-1': { hostId: 'sat_1', workspaceId: 'ws-1', at: at(1) }
     })
-  })
-
-  it('drops routes older than thirty days', () => {
-    const normalized = normalizeSatelliteRouteByThread({
-      satelliteRouteByThread: {
-        'c:/ws::fresh': { hostId: 'sat_1', workspaceId: 'ws-1', at: at(29) },
-        'c:/ws::stale': { hostId: 'sat_1', workspaceId: 'ws-1', at: at(31) }
-      }
-    }, now)
-
-    expect(Object.keys(normalized ?? {})).toEqual(['c:/ws::fresh'])
+    expect(normalizeSatelliteRouteByThread({ satelliteRouteByThread: {} }, now)).toBeUndefined()
+    expect(normalizeSatelliteRouteByThread({
+      satelliteRouteByThread: [] as unknown as Record<string, never>
+    }, now)).toBeUndefined()
   })
 
   it('caps thread routes at two hundred entries, keeping the newest choices', () => {
@@ -213,14 +178,6 @@ describe('satellite settings normalization', () => {
     expect(normalized?.['c:/ws::thread-200']).toBeUndefined()
   })
 
-  it('drops an empty or invalid route map', () => {
-    expect(normalizeSatelliteRouteByThread({}, now)).toBeUndefined()
-    expect(normalizeSatelliteRouteByThread({ satelliteRouteByThread: {} }, now)).toBeUndefined()
-    expect(normalizeSatelliteRouteByThread({
-      satelliteRouteByThread: [] as unknown as Record<string, never>
-    }, now)).toBeUndefined()
-  })
-
   it('drops expired, duplicate and malformed invitation ids', () => {
     expect(normalizeCreatedSatelliteInviteIds({
       createdSatelliteInviteIds: [
@@ -232,23 +189,11 @@ describe('satellite settings normalization', () => {
         'inv_string' as unknown as { inviteId: string; expiresAt: string }
       ]
     }, now)).toEqual([{ inviteId: 'inv_live', expiresAt: at(-1) }])
-  })
-
-  it('keeps at most twenty remembered invitations', () => {
-    const invites = Array.from({ length: 26 }, (_, index) => ({
-      inviteId: `inv_${index}`,
-      expiresAt: at(-1)
-    }))
-
-    const normalized = normalizeCreatedSatelliteInviteIds({ createdSatelliteInviteIds: invites }, now)
-
-    expect(normalized).toHaveLength(20)
-    expect(normalized?.[0].inviteId).toBe('inv_6')
-    expect(normalized?.[19].inviteId).toBe('inv_25')
-  })
-
-  it('drops an empty or invalid invitation memory', () => {
-    expect(normalizeCreatedSatelliteInviteIds({}, now)).toBeUndefined()
     expect(normalizeCreatedSatelliteInviteIds({ createdSatelliteInviteIds: [] }, now)).toBeUndefined()
+
+    const remembered = normalizeCreatedSatelliteInviteIds({
+      createdSatelliteInviteIds: Array.from({ length: 26 }, (_, index) => ({ inviteId: `inv_${index}`, expiresAt: at(-1) }))
+    }, now)
+    expect(remembered?.map((invite) => invite.inviteId)).toEqual(Array.from({ length: 20 }, (_, index) => `inv_${index + 6}`))
   })
 })

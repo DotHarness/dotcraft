@@ -5,9 +5,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
-/// <summary>
-/// Tests for command/* methods that mutate thread state.
-/// </summary>
 public sealed class AppServerCommandExecutionTests : IDisposable
 {
     private readonly AppServerTestHarness _h = new();
@@ -20,58 +17,39 @@ public sealed class AppServerCommandExecutionTests : IDisposable
     public void Dispose() => _h.Dispose();
 
     [Fact]
-    public async Task CommandList_DoesNotExposeClientOnlyClearCommand()
+    public async Task CommandList_HidesClientOnlyClearAndInitExpandsIntoAPrompt()
     {
         var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandList, new { language = "zh" });
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
-
-        var commands = response.RootElement
-            .GetProperty("result")
-            .GetProperty("commands")
-            .EnumerateArray()
-            .Select(e => e.GetProperty("name").GetString())
-            .Where(n => !string.IsNullOrWhiteSpace(n))
-            .ToList();
-
-        Assert.Contains("/new", commands);
-        Assert.Contains("/init", commands);
-        Assert.DoesNotContain("/clear", commands);
-
-        var newCommand = response.RootElement
-            .GetProperty("result")
-            .GetProperty("commands")
-            .EnumerateArray()
-            .First(e => e.GetProperty("name").GetString() == "/new");
+        var commands = response.RootElement.GetProperty("result").GetProperty("commands").EnumerateArray().ToList();
+        var names = commands.Select(e => e.GetProperty("name").GetString()).ToList();
+        Assert.Contains("/new", names);
+        Assert.Contains("/init", names);
+        Assert.DoesNotContain("/clear", names);
+        var newCommand = commands.First(e => e.GetProperty("name").GetString() == "/new");
         Assert.Equal("cmd.new", newCommand.GetProperty("descriptionKey").GetString());
         Assert.Equal(
             newCommand.GetProperty("fallbackDescription").GetString(),
             newCommand.GetProperty("description").GetString());
-    }
 
-    [Fact]
-    public async Task CommandExecute_Init_ReturnsPromptExpansion()
-    {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandExecute, new
+        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandExecute, new
         {
             threadId = thread.Id,
             command = "/init"
-        });
-        await _h.ExecuteRequestAsync(msg);
-
-        var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-
-        var result = response.RootElement.GetProperty("result");
+        }));
+        var init = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(init);
+        var result = init.RootElement.GetProperty("result");
         Assert.True(result.GetProperty("handled").GetBoolean());
         Assert.False(string.IsNullOrWhiteSpace(result.GetProperty("expandedPrompt").GetString()));
     }
 
     [Fact]
-    public async Task CommandList_IncludeBuiltinsFalse_ReturnsCustomCommandsOnly()
+    public async Task CommandList_ListsCustomCommandsAndHidesInitWhenWorkspaceInstructionsExist()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"command_list_custom_{Guid.NewGuid():N}");
         var workspaceCraftPath = Path.Combine(tempRoot, ".craft");
@@ -91,28 +69,17 @@ public sealed class AppServerCommandExecutionTests : IDisposable
             using var harness = new AppServerTestHarness(workspaceCraftPath: workspaceCraftPath);
             await harness.InitializeAsync();
 
-            var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandList, new { includeBuiltins = false });
-            await harness.ExecuteRequestAsync(msg);
+            var custom = await ListCommandsAsync(harness, new { includeBuiltins = false });
+            Assert.Contains(custom, c => c.Name == "/code-review" && c.Category == "custom");
+            Assert.DoesNotContain(custom, c => c.Name is "/new" or "/help" or "/stop" or "/debug");
 
-            var response = await harness.Transport.ReadNextSentAsync();
-            AppServerTestHarness.AssertIsSuccessResponse(response);
-
-            var commands = response.RootElement
-                .GetProperty("result")
-                .GetProperty("commands")
-                .EnumerateArray()
-                .Select(e => new
-                {
-                    Name = e.GetProperty("name").GetString(),
-                    Category = e.GetProperty("category").GetString()
-                })
-                .ToList();
-
-            Assert.Contains(commands, c => c.Name == "/code-review" && c.Category == "custom");
-            Assert.DoesNotContain(commands, c => c.Name == "/new");
-            Assert.DoesNotContain(commands, c => c.Name == "/help");
-            Assert.DoesNotContain(commands, c => c.Name == "/stop");
-            Assert.DoesNotContain(commands, c => c.Name == "/debug");
+            foreach (var fileName in new[] { "AGENTS.override.md", "AGENTS.md" })
+            {
+                var path = Path.Combine(tempRoot, fileName);
+                await File.WriteAllTextAsync(path, string.Empty);
+                Assert.DoesNotContain(await ListCommandsAsync(harness, new { }), c => c.Name == "/init");
+                File.Delete(path);
+            }
         }
         finally
         {
@@ -123,37 +90,18 @@ public sealed class AppServerCommandExecutionTests : IDisposable
             }
             catch
             {
-                // Best-effort cleanup.
             }
         }
     }
 
-    [Theory]
-    [InlineData("AGENTS.md")]
-    [InlineData("AGENTS.override.md")]
-    public async Task CommandList_HidesInitWhenWorkspaceRootInstructionsExist(string fileName)
+    private static async Task<List<(string? Name, string? Category)>> ListCommandsAsync(AppServerTestHarness harness, object parameters)
     {
-        var tempRoot = Path.Combine(Path.GetTempPath(), $"command_list_init_{Guid.NewGuid():N}");
-        var workspaceCraftPath = Path.Combine(tempRoot, ".craft");
-        try
-        {
-            Directory.CreateDirectory(workspaceCraftPath);
-            await File.WriteAllTextAsync(Path.Combine(tempRoot, fileName), string.Empty);
-            using var harness = new AppServerTestHarness(workspaceCraftPath: workspaceCraftPath);
-            await harness.InitializeAsync();
-
-            await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandList, new { }));
-            var response = await harness.Transport.ReadNextSentAsync();
-            AppServerTestHarness.AssertIsSuccessResponse(response);
-            var names = response.RootElement.GetProperty("result").GetProperty("commands")
-                .EnumerateArray().Select(item => item.GetProperty("name").GetString()).ToList();
-
-            Assert.DoesNotContain("/init", names);
-        }
-        finally
-        {
-            if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true);
-        }
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandList, parameters));
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        return response.RootElement.GetProperty("result").GetProperty("commands").EnumerateArray()
+            .Select(e => (e.GetProperty("name").GetString(), e.GetProperty("category").GetString()))
+            .ToList();
     }
 
     [Fact]
@@ -231,25 +179,17 @@ public sealed class AppServerCommandExecutionTests : IDisposable
     }
 
     [Fact]
-    public async Task CommandExecute_AdminCommandFromAUserSender_IsDenied()
+    public async Task CommandExecute_DeniesAdminCommandsToUserSendersAndReturnsModeChoices()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandExecute, new
+        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandExecute, new
         {
             threadId = thread.Id,
             command = "/model",
             sender = new { senderId = "user-1", senderName = "User", senderRole = "user" }
-        });
-        await _h.ExecuteRequestAsync(msg);
+        }));
+        AppServerTestHarness.AssertIsErrorResponse(await _h.Transport.ReadNextSentAsync(), -32061);
 
-        var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, -32061);
-    }
-
-    [Fact]
-    public async Task CommandExecute_ModeChoices_AreReturnedOnTheWire()
-    {
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandExecute, new
         {
             threadId = thread.Id,

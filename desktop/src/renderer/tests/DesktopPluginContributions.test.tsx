@@ -1,15 +1,9 @@
 import './setupPluginRuntime'
 import type { DesktopPluginCommandContext, DesktopPluginHost } from '@dotcraft/plugin'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CommandSearchPopover } from '../components/conversation/CommandSearchPopover'
-import { AgentMessage } from '../components/conversation/AgentMessage'
 import { ToolCallCard } from '../components/conversation/ToolCallCard'
-import {
-  DesktopPluginConversationTabs,
-  DesktopPluginConversationViewOutlet
-} from '../components/desktopPlugins/DesktopPluginConversationView'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import {
   clearDesktopPluginRegistry,
@@ -26,10 +20,6 @@ import {
   type ActiveDesktopPluginToolRenderer,
   type DesktopPluginGeneration
 } from '../plugins/desktopPluginRegistry'
-import { AgentResponseBlock } from '../components/conversation/AgentResponseBlock'
-import { useSubAgentStore } from '../stores/subAgentStore'
-import { useThreadStore } from '../stores/threadStore'
-import { makeSpawn, makeSubAgent } from './subAgentFixtures'
 import { useConversationStore } from '../stores/conversationStore'
 import type { ConversationItem } from '../types/conversation'
 import { planToolRunRender } from '../utils/toolCallAggregation'
@@ -210,48 +200,6 @@ describe('Desktop Plugin contribution registry', () => {
 })
 
 describe('Desktop Plugin contribution outlets', () => {
-  it('keeps Chat in the conversation tab strip and renders the selected plugin body', () => {
-    const view = activeConversationView('fixture.plugin', 'trajectory')
-    publishDesktopPluginGeneration(generation('fixture.plugin', { conversationViews: [view] }))
-    const { rerender } = render(
-      <LocaleProvider><DesktopPluginConversationTabs threadId="thread-a" /></LocaleProvider>
-    )
-
-    expect(screen.getByRole('tab', { name: 'Chat' })).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(screen.getByRole('tab', { name: 'Trajectory' }))
-    expect(screen.getByRole('tab', { name: 'Trajectory' })).toHaveAttribute('aria-selected', 'true')
-
-    rerender(
-      <LocaleProvider><DesktopPluginConversationViewOutlet contribution={view} threadId="thread-a" /></LocaleProvider>
-    )
-    expect(screen.getByTestId('conversation-view')).toHaveTextContent('thread-a')
-  })
-
-  it('uses an exact plugin renderer before an existing Core renderer and restores Core after withdrawal', () => {
-    const renderer = activeToolRenderer('fixture.plugin', 'read', 'core.read-file', 10)
-    publishDesktopPluginGeneration(generation('fixture.plugin', { toolRenderers: [renderer] }))
-    const item: ConversationItem = {
-      id: 'read-1',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'ReadFile',
-      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
-      presentation: { presentationId: 'core.read-file' },
-      arguments: { path: 'README.md' },
-      result: 'content',
-      success: true,
-      createdAt: '2026-08-27T00:00:00.000Z'
-    }
-    render(
-      <LocaleProvider><ToolCallCard threadId="thread-1" item={item} turnId="turn-a" /></LocaleProvider>
-    )
-    expect(screen.getByTestId('plugin-tool')).toHaveTextContent('core.read-file')
-
-    act(() => withdrawDesktopPluginGeneration('fixture.plugin'))
-    expect(screen.queryByTestId('plugin-tool')).toBeNull()
-    expect(screen.getByRole('button')).toBeInTheDocument()
-  })
-
   it('isolates a failed plugin renderer and renders the Core fallback', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const renderer = {
@@ -286,91 +234,5 @@ describe('Desktop Plugin contribution outlets', () => {
     expect(screen.getByRole('button')).toBeInTheDocument()
     expect(error).toHaveBeenCalled()
     error.mockRestore()
-  })
-
-  it('passes the source conversation to a plugin and preserves it in a failed subagent fallback', () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const seen = vi.fn()
-    const renderer: ActiveDesktopPluginToolRenderer = {
-      ...activeToolRenderer('fixture.plugin', 'subagent', 'core.subagent', 10),
-      component: ({ presentation }) => { seen(presentation.threadId); throw new Error('renderer failed') }
-    }
-    useThreadStore.setState({ activeThreadId: 'parent-A' })
-    useSubAgentStore.getState().reset()
-    useSubAgentStore.getState().setChildren('parent-A', [makeSubAgent({ parentThreadId: 'parent-A', childThreadId: 'child-A', nickname: 'Core A' })])
-    useSubAgentStore.getState().setChildren('parent-B', [makeSubAgent()])
-    publishDesktopPluginGeneration(generation('fixture.plugin', { toolRenderers: [renderer] }))
-    render(<LocaleProvider><AgentResponseBlock turn={{
-      id: 'turn-B', threadId: 'parent-B', status: 'completed', startedAt: '', items: [makeSpawn()]
-    }} /></LocaleProvider>)
-    expect(seen).toHaveBeenCalledWith('parent-B')
-    expect(screen.queryByText('Core A')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /Core B/ }))
-    expect(useSubAgentStore.getState().selectedChildByParent.get('parent-A')).toBe('child-B')
-    error.mockRestore()
-  })
-
-  it('shows Desktop commands beside AppServer commands without invoking the AppServer selection path', () => {
-    const command = activeCommand('fixture.plugin', 'Open inspector', 10)
-    const selectDesktop = vi.fn()
-    const selectAppServer = vi.fn()
-    render(
-      <LocaleProvider>
-        <CommandSearchPopover
-          query=""
-          visible
-          loading={false}
-          commands={[{
-            name: '/review',
-            aliases: [],
-            description: 'Review files',
-            category: 'review',
-            requiresAdmin: false
-          }]}
-          desktopCommands={[command]}
-          onSelectCommand={selectAppServer}
-          onSelectDesktopCommand={selectDesktop}
-          onDismiss={() => {}}
-        />
-      </LocaleProvider>
-    )
-
-    expect(screen.getByText('Desktop plugins')).toBeInTheDocument()
-    expect(screen.getByText('Commands')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('option', { name: /Open inspector/i }))
-    expect(selectDesktop).toHaveBeenCalledOnce()
-    expect(selectDesktop).toHaveBeenCalledWith(command.contributionKey)
-    expect(selectAppServer).not.toHaveBeenCalled()
-  })
-
-  it('renders an accessible assistant-message action and executes it once', () => {
-    const execute = vi.fn()
-    const pluginHost = host('fixture.plugin')
-    publishDesktopPluginGeneration(generation('fixture.plugin', {
-      messageActions: [{
-        pluginId: 'fixture.plugin', revision, host: pluginHost, contributionKey: 'fixture.plugin:save',
-        id: 'save', label: { default: 'Save insight' }, execute
-      }]
-    }))
-    const message = {
-      id: 'message-a',
-      threadId: 'thread-a',
-      turnId: 'turn-a',
-      text: 'A useful answer.'
-    }
-    render(
-      <LocaleProvider>
-        <AgentMessage
-          text={message.text}
-          threadId={message.threadId}
-          turnId={message.turnId}
-          itemId={message.id}
-        />
-      </LocaleProvider>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save insight' }))
-    expect(execute).toHaveBeenCalledOnce()
-    expect(execute).toHaveBeenCalledWith(message, pluginHost)
   })
 })

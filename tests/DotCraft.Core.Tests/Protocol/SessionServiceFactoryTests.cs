@@ -38,7 +38,6 @@ public sealed class SessionServiceFactoryTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup for test artifacts.
         }
     }
 

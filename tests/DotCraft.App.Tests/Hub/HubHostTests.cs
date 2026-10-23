@@ -14,7 +14,7 @@ public sealed class HubHostTests : IDisposable
         "DotCraftHubHost_" + Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task RunAsync_StatusAndShutdownEndpointsWork()
+    public async Task RunAsync_ServesStatus_GuardsProtectedEndpoints_AndShutsDown()
     {
         var paths = HubPaths.Resolve(_userProfile);
         await using var host = new HubHost(new HubConfig { Port = 0 }, paths);
@@ -28,93 +28,43 @@ public sealed class HubHostTests : IDisposable
         var status = await http.GetStringAsync($"{info.ApiBaseUrl}/v1/status", cts.Token);
         using var statusDoc = JsonDocument.Parse(status);
         var root = statusDoc.RootElement;
-
         Assert.Equal(Environment.ProcessId, root.GetProperty("pid").GetInt32());
         Assert.Equal(paths.HubStatePath, root.GetProperty("statePath").GetString());
         Assert.Equal(info.BinaryPath, root.GetProperty("binaryPath").GetString());
         Assert.True(root.GetProperty("capabilities").GetProperty("appServerManagement").GetBoolean());
-        Assert.True(root.GetProperty("capabilities").GetProperty("managedServiceManagement").GetBoolean());
-        Assert.True(root.GetProperty("capabilities").GetProperty("portManagement").GetBoolean());
-        Assert.True(root.GetProperty("capabilities").GetProperty("events").GetBoolean());
-        Assert.True(root.GetProperty("capabilities").GetProperty("notifications").GetBoolean());
         Assert.False(root.GetProperty("capabilities").GetProperty("tray").GetBoolean());
 
-        var unauthorized = await http.PostAsync($"{info.ApiBaseUrl}/v1/shutdown", content: null, cts.Token);
-        Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await http.GetAsync($"{info.ApiBaseUrl}/v1/appservers", cts.Token)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await http.GetAsync($"{info.ApiBaseUrl}/v1/projects", cts.Token)).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await http.PostAsJsonAsync($"{info.ApiBaseUrl}/v1/projects/open", new { path = _userProfile }, cts.Token)).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await http.GetAsync($"{info.ApiBaseUrl}/v1/services/by-id?id=oratorio", cts.Token)).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await http.PostAsJsonAsync($"{info.ApiBaseUrl}/v1/notifications/request", new { kind = "turnCompleted", title = "Done" }, cts.Token)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await http.GetAsync($"{info.ApiBaseUrl}/v1/events", cts.Token)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await http.PostAsync($"{info.ApiBaseUrl}/v1/shutdown", content: null, cts.Token)).StatusCode);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{info.ApiBaseUrl}/v1/shutdown");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", info.Token);
-        var shutdown = await http.SendAsync(request, cts.Token);
-        Assert.True(shutdown.IsSuccessStatusCode);
-
-        await runTask.WaitAsync(cts.Token);
-        Assert.False(File.Exists(paths.LockFilePath));
-    }
-
-    [Fact]
-    public async Task RunAsync_ProtectedEndpointsRequireToken()
-    {
-        var paths = HubPaths.Resolve(_userProfile);
-        await using var host = new HubHost(new HubConfig { Port = 0 }, paths);
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-
-        var runTask = host.RunAsync(cts.Token);
-        var info = await WaitForLockAsync(paths.LockFilePath, runTask, cts.Token);
-
-        using var http = new HttpClient();
-        var appservers = await http.GetAsync($"{info.ApiBaseUrl}/v1/appservers", cts.Token);
-        Assert.Equal(HttpStatusCode.Unauthorized, appservers.StatusCode);
-
-        var projects = await http.GetAsync($"{info.ApiBaseUrl}/v1/projects", cts.Token);
-        Assert.Equal(HttpStatusCode.Unauthorized, projects.StatusCode);
-
-        var openProject = await http.PostAsJsonAsync($"{info.ApiBaseUrl}/v1/projects/open", new { path = _userProfile }, cts.Token);
-        Assert.Equal(HttpStatusCode.Unauthorized, openProject.StatusCode);
-
-        var service = await http.GetAsync($"{info.ApiBaseUrl}/v1/services/by-id?id=oratorio", cts.Token);
-        Assert.Equal(HttpStatusCode.Unauthorized, service.StatusCode);
-
-        var notify = await http.PostAsJsonAsync($"{info.ApiBaseUrl}/v1/notifications/request", new
-        {
-            kind = "turnCompleted",
-            title = "Done"
-        }, cts.Token);
-        Assert.Equal(HttpStatusCode.Unauthorized, notify.StatusCode);
-
-        var events = await http.GetAsync($"{info.ApiBaseUrl}/v1/events", cts.Token);
-        Assert.Equal(HttpStatusCode.Unauthorized, events.StatusCode);
-
-        await ShutdownAsync(http, info, cts.Token);
-        await runTask.WaitAsync(cts.Token);
-    }
-
-    [Fact]
-    public async Task RunAsync_UnexpectedEndpointErrorsReturnHubErrorResponse()
-    {
-        var paths = HubPaths.Resolve(_userProfile);
-        await using var host = new HubHost(new HubConfig { Port = 0 }, paths);
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-
-        var runTask = host.RunAsync(cts.Token);
-        var info = await WaitForLockAsync(paths.LockFilePath, runTask, cts.Token);
-
-        using var http = new HttpClient();
-        using var request = AuthorizedPost(info, $"{info.ApiBaseUrl}/v1/appservers/ensure", new
+        using var failing = AuthorizedPost(info, $"{info.ApiBaseUrl}/v1/appservers/ensure", new
         {
             workspacePath = "\0",
             startIfMissing = false
         });
-
-        var response = await http.SendAsync(request, cts.Token);
-        var body = await response.Content.ReadAsStringAsync(cts.Token);
+        var response = await http.SendAsync(failing, cts.Token);
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        using var doc = JsonDocument.Parse(body);
-        var error = doc.RootElement.GetProperty("error");
-        Assert.Equal("hubInternalError", error.GetProperty("code").GetString());
-        Assert.Equal("Hub encountered an unexpected internal error.", error.GetProperty("message").GetString());
+        using (var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cts.Token)))
+        {
+            var error = doc.RootElement.GetProperty("error");
+            Assert.Equal("hubInternalError", error.GetProperty("code").GetString());
+            Assert.Equal("Hub encountered an unexpected internal error.", error.GetProperty("message").GetString());
+        }
 
         await ShutdownAsync(http, info, cts.Token);
         await runTask.WaitAsync(cts.Token);
+        Assert.False(File.Exists(paths.LockFilePath));
     }
 
     [Fact]
@@ -355,7 +305,6 @@ public sealed class HubHostTests : IDisposable
             }
             catch
             {
-                // ignored
             }
         }
     }
@@ -369,7 +318,6 @@ public sealed class HubHostTests : IDisposable
         }
         catch
         {
-            // ignored
         }
     }
 }

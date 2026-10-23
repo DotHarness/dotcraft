@@ -76,72 +76,31 @@ function settledReadToolTurn(): ConversationTurn {
 }
 
 describe('conversationNeedsFullSnapshotReconcile', () => {
-  it('requests a full snapshot when server is idle but local state is still running', () => {
-    expect(conversationNeedsFullSnapshotReconcile({
-      runtime: idleRuntime,
-      conversation: conversation({
-        turnStatus: 'running',
-        activeTurnId: 'turn-1',
-        turns: [runningReadToolTurn()]
-      })
-    })).toBe(true)
+  const running = { turnStatus: 'running' as const, activeTurnId: 'turn-1', turns: [runningReadToolTurn()] }
+
+  it('requests a full snapshot when the idle server disagrees with lingering local state', () => {
+    const lingering: Array<Parameters<typeof conversation>[0]> = [
+      running,
+      { turns: [runningReadToolTurn()] },
+      {
+        turnStatus: 'waitingInput' as const,
+        pendingUserInput: { bridgeId: 'bridge-input', requestId: 'input-1', threadId: 'thread-1', turnId: 'turn-1', isBlocking: true, questions: [] }
+      }
+    ]
+    for (const local of lingering) {
+      expect(conversationNeedsFullSnapshotReconcile({ runtime: idleRuntime, conversation: conversation(local) })).toBe(true)
+    }
   })
 
-  it('requests a full snapshot when server is idle but a completed toolCall is awaiting result locally', () => {
+  it('does not request a full snapshot while the server is active or both sides are settled', () => {
+    expect(conversationNeedsFullSnapshotReconcile({ runtime: runningRuntime, conversation: conversation(running) })).toBe(false)
     expect(conversationNeedsFullSnapshotReconcile({
-      runtime: idleRuntime,
-      conversation: conversation({
-        turns: [runningReadToolTurn()]
-      })
-    })).toBe(true)
-  })
-
-  it('does not request a full snapshot while the server still reports active runtime', () => {
-    expect(conversationNeedsFullSnapshotReconcile({
-      runtime: runningRuntime,
-      conversation: conversation({
-        turnStatus: 'running',
-        activeTurnId: 'turn-1',
-        turns: [runningReadToolTurn()]
-      })
+      runtime: { ...idleRuntime, waitingOnPlanConfirmation: true },
+      conversation: conversation(running)
     })).toBe(false)
-  })
-
-  it('does not request a full snapshot while the server waits on plan confirmation', () => {
-    expect(conversationNeedsFullSnapshotReconcile({
-      runtime: {
-        ...idleRuntime,
-        waitingOnPlanConfirmation: true
-      },
-      conversation: conversation({
-        turnStatus: 'running',
-        activeTurnId: 'turn-1',
-        turns: [runningReadToolTurn()]
-      })
-    })).toBe(false)
-  })
-
-  it('does not request a full snapshot when both server and local conversation are settled', () => {
     expect(conversationNeedsFullSnapshotReconcile({
       runtime: idleRuntime,
-      conversation: conversation({
-        turns: [settledReadToolTurn()]
-      })
+      conversation: conversation({ turns: [settledReadToolTurn()] })
     })).toBe(false)
-  })
-
-  it('requests a full snapshot when local interactive state remains after server idle', () => {
-    expect(conversationNeedsFullSnapshotReconcile({
-      runtime: idleRuntime,
-      conversation: conversation({
-        turnStatus: 'waitingInput',
-        pendingUserInput: {
-          bridgeId: 'bridge-input',
-          requestId: 'input-1',
-          turnId: 'turn-1',
-          questions: []
-        }
-      })
-    })).toBe(true)
   })
 })

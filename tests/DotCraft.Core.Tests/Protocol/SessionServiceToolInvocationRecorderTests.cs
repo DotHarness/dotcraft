@@ -25,7 +25,7 @@ public sealed class SessionServiceToolInvocationRecorderTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_tempDir, true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]

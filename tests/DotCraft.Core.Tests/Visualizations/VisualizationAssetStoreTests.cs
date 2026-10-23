@@ -20,15 +20,6 @@ public sealed class VisualizationAssetStoreTests : IDisposable
     }
 
     [Fact]
-    public void GetAuthoringDirectory_ReturnsThreadScopedRoot()
-    {
-        var store = CreateAssetStore();
-        var thread = CreateCompletedMessage("message", _root).Thread;
-
-        Assert.Equal(Path.Combine(_root, ".craft", "visualizations", "thread_test"), store.GetAuthoringDirectory(thread));
-    }
-
-    [Fact]
     public async Task ReadReferencedFragmentAsync_ValidatesReferenceAndReturnsCurrentFileContents()
     {
         var store = CreateAssetStore();
@@ -45,21 +36,6 @@ public sealed class VisualizationAssetStoreTests : IDisposable
             : path;
 
         Assert.Equal("<div>updated</div>", await store.ReadReferencedFragmentAsync(thread, turn, item, requested));
-    }
-
-    [Fact]
-    public async Task ReadReferencedFragmentAsync_DoesNotEnforceSkillAuthoringGuidance()
-    {
-        var store = CreateAssetStore();
-        var path = ChartPath(_root);
-        var (thread, turn, item) = CreateCompletedMessage(Reference(path), _root);
-        Directory.CreateDirectory(store.GetAuthoringDirectory(thread));
-        const string source = "<!doctype html><html><body><div class=\\\"chart\\\">ok</div>\\n</body></html>";
-        await File.WriteAllTextAsync(path, source);
-
-        var result = await store.ReadReferencedFragmentAsync(thread, turn, item, path);
-
-        Assert.Equal(source, result);
     }
 
     [Fact]

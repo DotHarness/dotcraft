@@ -8,16 +8,17 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-/// <summary>
-/// Tests for SessionApprovalService: approval request/resolve, rejection, and turn-end resolution.
-/// </summary>
-public sealed class SessionApprovalServiceTests
+public sealed class SessionApprovalServiceTests : IDisposable
 {
     private const string TurnId = "turn_aprv_001";
 
-    // -------------------------------------------------------------------------
-    // Setup helpers
-    // -------------------------------------------------------------------------
+    private readonly string _storeDir = Path.Combine(Path.GetTempPath(), $"dotcraft_test_{Guid.NewGuid():N}");
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_storeDir, recursive: true); }
+        catch { }
+    }
 
     private static (SessionApprovalService svc, SessionEventChannel channel, SessionTurn turn)
         MakeApprovalService(ApprovalStore? store = null)
@@ -66,326 +67,88 @@ public sealed class SessionApprovalServiceTests
         return (svc, channel, turn, signals);
     }
 
-    // -------------------------------------------------------------------------
-    // SessionApprovalDecision extension methods
-    // -------------------------------------------------------------------------
-
     [Theory]
-    [InlineData(SessionApprovalDecision.AcceptOnce, true)]
-    [InlineData(SessionApprovalDecision.AcceptForSession, true)]
-    [InlineData(SessionApprovalDecision.AcceptAlways, true)]
-    [InlineData(SessionApprovalDecision.Reject, false)]
-    [InlineData(SessionApprovalDecision.CancelTurn, false)]
-    public void IsApproved_ReturnsCorrectValue(SessionApprovalDecision decision, bool expected) =>
-        Assert.Equal(expected, decision.IsApproved());
-
-    [Theory]
-    [InlineData(SessionApprovalDecision.AcceptOnce, false)]
-    [InlineData(SessionApprovalDecision.AcceptForSession, true)]
-    [InlineData(SessionApprovalDecision.AcceptAlways, true)]
-    [InlineData(SessionApprovalDecision.Reject, false)]
-    [InlineData(SessionApprovalDecision.CancelTurn, false)]
-    public void AppliesToSession_ReturnsCorrectValue(SessionApprovalDecision decision, bool expected) =>
-        Assert.Equal(expected, decision.AppliesToSession());
-
-    [Theory]
-    [InlineData(SessionApprovalDecision.AcceptOnce, false)]
-    [InlineData(SessionApprovalDecision.AcceptForSession, false)]
-    [InlineData(SessionApprovalDecision.AcceptAlways, true)]
-    [InlineData(SessionApprovalDecision.Reject, false)]
-    [InlineData(SessionApprovalDecision.CancelTurn, false)]
-    public void IsPersistent_ReturnsCorrectValue(SessionApprovalDecision decision, bool expected) =>
-        Assert.Equal(expected, decision.IsPersistent());
-
-    // -------------------------------------------------------------------------
-    // File approval: approve
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task RequestFileApproval_WhenApproved_ReturnsTrue()
+    [InlineData(SessionApprovalDecision.AcceptOnce, true, false, false)]
+    [InlineData(SessionApprovalDecision.AcceptForSession, true, true, false)]
+    [InlineData(SessionApprovalDecision.AcceptAlways, true, true, true)]
+    [InlineData(SessionApprovalDecision.Reject, false, false, false)]
+    [InlineData(SessionApprovalDecision.CancelTurn, false, false, false)]
+    public void Decision_ReportsApprovalSessionScopeAndPersistence(
+        SessionApprovalDecision decision,
+        bool approved,
+        bool appliesToSession,
+        bool persistent)
     {
-        var (svc, channel, _) = MakeApprovalService();
-
-        // Start the request, then resolve it immediately from another task
-        var requestTask = svc.RequestFileApprovalAsync("write", "/tmp/test.txt");
-
-        // Give the request task time to register
-        await Task.Delay(10);
-
-        // Find the requestId from the emitted event
-        string? requestId = null;
-        await foreach (var evt in DrainWithTimeout(channel))
-        {
-            if (evt.EventType == SessionEventType.ApprovalRequested)
-            {
-                requestId = (evt.ItemPayload?.Payload as ApprovalRequestPayload)?.RequestId;
-                break;
-            }
-        }
-
-        Assert.NotNull(requestId);
-        svc.TryResolve(requestId!, SessionApprovalDecision.AcceptOnce);
-
-        var result = await requestTask;
-        Assert.True(result);
+        Assert.Equal(approved, decision.IsApproved());
+        Assert.Equal(appliesToSession, decision.AppliesToSession());
+        Assert.Equal(persistent, decision.IsPersistent());
     }
 
-    [Fact]
-    public async Task RequestFileApproval_WhenRejected_ReturnsFalse()
+    [Theory]
+    [InlineData("file", SessionApprovalDecision.AcceptOnce, true)]
+    [InlineData("file", SessionApprovalDecision.Reject, false)]
+    [InlineData("shell", SessionApprovalDecision.AcceptOnce, true)]
+    [InlineData("remoteResource", SessionApprovalDecision.AcceptOnce, true)]
+    [InlineData("remoteResource", SessionApprovalDecision.Reject, false)]
+    public async Task Request_ReturnsTheResolvedDecisionForEachApprovalKind(
+        string kind,
+        SessionApprovalDecision decision,
+        bool expected)
     {
         var (svc, channel, _) = MakeApprovalService();
 
-        var requestTask = svc.RequestFileApprovalAsync("delete", "/important/file.txt");
-        await Task.Delay(10);
-
-        string? requestId = null;
-        await foreach (var evt in DrainWithTimeout(channel))
+        var requestTask = kind switch
         {
-            if (evt.EventType == SessionEventType.ApprovalRequested)
-            {
-                requestId = (evt.ItemPayload?.Payload as ApprovalRequestPayload)?.RequestId;
-                break;
-            }
-        }
-
-        Assert.NotNull(requestId);
-        svc.TryResolve(requestId!, SessionApprovalDecision.Reject);
-
-        var result = await requestTask;
-        Assert.False(result);
-    }
-
-    // -------------------------------------------------------------------------
-    // Shell approval
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task RequestShellApproval_WhenApproved_ReturnsTrue()
-    {
-        var (svc, channel, _) = MakeApprovalService();
-
-        var requestTask = svc.RequestShellApprovalAsync(ShellApprovalRequests.For("rm -rf /tmp/data", "/tmp"));
-        await Task.Delay(10);
-
-        string? requestId = null;
-        await foreach (var evt in DrainWithTimeout(channel))
-        {
-            if (evt.EventType == SessionEventType.ApprovalRequested)
-            {
-                requestId = (evt.ItemPayload?.Payload as ApprovalRequestPayload)?.RequestId;
-                break;
-            }
-        }
-
-        Assert.NotNull(requestId);
-        svc.TryResolve(requestId!, SessionApprovalDecision.AcceptOnce);
-
-        var result = await requestTask;
-        Assert.True(result);
-    }
-
-    // -------------------------------------------------------------------------
-    // Remote resource approval
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task RequestResourceApproval_WhenApproved_ReturnsTrue()
-    {
-        var (svc, channel, _) = MakeApprovalService();
-
-        var requestTask = svc.RequestResourceApprovalAsync("remoteResource", "create", "doc-123");
-        await Task.Delay(10);
-
-        ApprovalRequestPayload? payload = null;
-        await foreach (var evt in DrainWithTimeout(channel))
-        {
-            if (evt.EventType == SessionEventType.ApprovalRequested)
-            {
-                payload = evt.ItemPayload?.Payload as ApprovalRequestPayload;
-                break;
-            }
-        }
+            "file" => svc.RequestFileApprovalAsync("write", "/tmp/test.txt"),
+            "shell" => svc.RequestShellApprovalAsync(ShellApprovalRequests.For("rm -rf /tmp/data", "/tmp")),
+            _ => svc.RequestResourceApprovalAsync("remoteResource", "create", "doc-123")
+        };
+        var payload = await GetApprovalRequestAsync(channel);
 
         Assert.NotNull(payload);
-        Assert.Equal("remoteResource", payload!.ApprovalType);
-        Assert.Equal("create", payload.Operation);
-        Assert.Equal("doc-123", payload.Target);
-
-        svc.TryResolve(payload.RequestId, SessionApprovalDecision.AcceptOnce);
-
-        var result = await requestTask;
-        Assert.True(result);
-    }
-
-    [Fact]
-    public async Task RequestResourceApproval_WhenRejected_ReturnsFalse()
-    {
-        var (svc, channel, _) = MakeApprovalService();
-
-        var requestTask = svc.RequestResourceApprovalAsync("remoteResource", "move", "node-456");
-        await Task.Delay(10);
-
-        string? requestId = null;
-        await foreach (var evt in DrainWithTimeout(channel))
+        Assert.Equal(kind, payload!.ApprovalType);
+        if (kind == "remoteResource")
         {
-            if (evt.EventType == SessionEventType.ApprovalRequested)
-            {
-                requestId = (evt.ItemPayload?.Payload as ApprovalRequestPayload)?.RequestId;
-                break;
-            }
+            Assert.Equal("create", payload.Operation);
+            Assert.Equal("doc-123", payload.Target);
         }
 
-        Assert.NotNull(requestId);
-        svc.TryResolve(requestId!, SessionApprovalDecision.Reject);
-
-        var result = await requestTask;
-        Assert.False(result);
+        Assert.True(svc.TryResolve(payload.RequestId, decision));
+        Assert.Equal(expected, await requestTask);
     }
 
-    // -------------------------------------------------------------------------
-    // Turn status transitions
-    // -------------------------------------------------------------------------
-
     [Fact]
-    public async Task RequestApproval_SetsTurnStatusToWaitingApproval()
+    public async Task RequestAndResolve_TrackTurnStatusItemsAndRuntimeSignals()
     {
-        var (svc, channel, turn) = MakeApprovalService();
+        var (svc, channel, turn, signals) = MakeApprovalServiceWithSignals();
+        Assert.False(svc.HasPendingApproval);
+        Assert.False(svc.TryResolve("nonexistent_req", SessionApprovalDecision.AcceptOnce));
 
         var requestTask = svc.RequestFileApprovalAsync("write", "/path");
-        await Task.Delay(10);
+        var requestId = await GetApprovalRequestIdAsync(channel);
 
         Assert.Equal(TurnStatus.WaitingApproval, turn.Status);
         Assert.True(svc.HasPendingApproval);
+        Assert.Equal([SessionThreadRuntimeSignal.ApprovalRequested], signals);
+        var request = Assert.Single(turn.Items, i => i.Type == ItemType.ApprovalRequest).AsApprovalRequest!;
+        Assert.Equal(requestId, request.RequestId);
+        Assert.Equal("file", request.ApprovalType);
+        Assert.Equal("write", request.Operation);
 
-        // Clean up
-        string? requestId = null;
-        await foreach (var evt in DrainWithTimeout(channel))
-        {
-            if (evt.EventType == SessionEventType.ApprovalRequested)
-            {
-                requestId = (evt.ItemPayload?.Payload as ApprovalRequestPayload)?.RequestId;
-                break;
-            }
-        }
-        svc.TryResolve(requestId!, SessionApprovalDecision.AcceptOnce);
-        await requestTask;
-    }
-
-    [Fact]
-    public async Task TryResolve_SetsTurnStatusBackToRunning()
-    {
-        var (svc, channel, turn) = MakeApprovalService();
-
-        var requestTask = svc.RequestFileApprovalAsync("write", "/path");
-        await Task.Delay(10);
-
-        string? requestId = null;
-        await foreach (var evt in DrainWithTimeout(channel))
-        {
-            if (evt.EventType == SessionEventType.ApprovalRequested)
-            {
-                requestId = (evt.ItemPayload?.Payload as ApprovalRequestPayload)?.RequestId;
-                break;
-            }
-        }
-
-        svc.TryResolve(requestId!, SessionApprovalDecision.AcceptOnce);
-        await requestTask;
+        Assert.True(svc.TryResolve(requestId!, SessionApprovalDecision.AcceptOnce));
+        Assert.True(await requestTask);
 
         Assert.Equal(TurnStatus.Running, turn.Status);
         Assert.False(svc.HasPendingApproval);
-    }
-
-    // -------------------------------------------------------------------------
-    // HasPendingApproval
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void HasPendingApproval_InitiallyFalse()
-    {
-        var (svc, _, _) = MakeApprovalService();
-        Assert.False(svc.HasPendingApproval);
-    }
-
-    [Fact]
-    public async Task RequestApproval_EmitsApprovalRequestedRuntimeSignal()
-    {
-        var (svc, channel, _, signals) = MakeApprovalServiceWithSignals();
-
-        var requestTask = svc.RequestFileApprovalAsync("write", "/path");
-        await Task.Delay(10);
-
-        string? requestId = null;
-        await foreach (var evt in DrainWithTimeout(channel))
-        {
-            if (evt.EventType == SessionEventType.ApprovalRequested)
-            {
-                requestId = (evt.ItemPayload?.Payload as ApprovalRequestPayload)?.RequestId;
-                break;
-            }
-        }
-
-        Assert.Equal([SessionThreadRuntimeSignal.ApprovalRequested], signals);
-
-        svc.TryResolve(requestId!, SessionApprovalDecision.AcceptOnce);
-        await requestTask;
-    }
-
-    [Fact]
-    public async Task TryResolve_EmitsApprovalResolvedRuntimeSignal()
-    {
-        var (svc, channel, _, signals) = MakeApprovalServiceWithSignals();
-
-        var requestTask = svc.RequestFileApprovalAsync("write", "/path");
-        await Task.Delay(10);
-
-        string? requestId = null;
-        await foreach (var evt in DrainWithTimeout(channel))
-        {
-            if (evt.EventType == SessionEventType.ApprovalRequested)
-            {
-                requestId = (evt.ItemPayload?.Payload as ApprovalRequestPayload)?.RequestId;
-                break;
-            }
-        }
-
-        svc.TryResolve(requestId!, SessionApprovalDecision.AcceptOnce);
-        await requestTask;
-
         Assert.Equal(
             [SessionThreadRuntimeSignal.ApprovalRequested, SessionThreadRuntimeSignal.ApprovalResolved],
             signals);
+        var response = Assert.Single(turn.Items, i => i.Type == ItemType.ApprovalResponse).AsApprovalResponse!;
+        Assert.True(response.Approved);
+        Assert.Equal(requestId, response.RequestId);
+        Assert.Equal(SessionApprovalDecision.AcceptOnce, response.Decision);
+        Assert.False(svc.TryResolve(requestId!, SessionApprovalDecision.AcceptOnce));
     }
-
-    // -------------------------------------------------------------------------
-    // TryResolve with unknown requestId
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void TryResolve_UnknownRequestId_ReturnsFalse()
-    {
-        var (svc, _, _) = MakeApprovalService();
-        var result = svc.TryResolve("nonexistent_req", SessionApprovalDecision.AcceptOnce);
-        Assert.False(result);
-    }
-
-    [Fact]
-    public void TryResolve_CalledTwiceForSameRequest_SecondReturnsFalse()
-    {
-        var (svc, channel, _) = MakeApprovalService();
-
-        // Start request but don't await - just register it
-        _ = svc.RequestFileApprovalAsync("write", "/path");
-
-        // We need to find the requestId; since we can't await the drain easily,
-        // just verify that resolving a made-up ID returns false
-        var result = svc.TryResolve("made_up_id", SessionApprovalDecision.AcceptOnce);
-        Assert.False(result);
-    }
-
-    // -------------------------------------------------------------------------
-    // Turn end
-    // -------------------------------------------------------------------------
 
     [Fact]
     public async Task TurnCancellation_ResolvesPendingApprovalAsCancelled_AndIgnoresLateAnswer()
@@ -416,51 +179,6 @@ public sealed class SessionApprovalServiceTests
         Assert.Empty(turn.Items);
     }
 
-    // -------------------------------------------------------------------------
-    // Items added to Turn
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task RequestApproval_AddsApprovalRequestItemToTurn()
-    {
-        var (svc, channel, turn) = MakeApprovalService();
-        var requestTask = svc.RequestFileApprovalAsync("write", "/path");
-        await Task.Delay(10);
-
-        var approvalItem = turn.Items.FirstOrDefault(i => i.Type == ItemType.ApprovalRequest);
-        Assert.NotNull(approvalItem);
-        var payload = approvalItem!.AsApprovalRequest;
-        Assert.NotNull(payload);
-        Assert.Equal("file", payload!.ApprovalType);
-        Assert.Equal("write", payload.Operation);
-
-        // Resolve to clean up
-        svc.TryResolve(payload.RequestId, SessionApprovalDecision.AcceptOnce);
-        await requestTask;
-    }
-
-    [Fact]
-    public async Task TryResolve_AddsApprovalResponseItemToTurn()
-    {
-        var (svc, channel, turn) = MakeApprovalService();
-        var requestTask = svc.RequestFileApprovalAsync("write", "/path");
-        await Task.Delay(10);
-
-        var requestItem = turn.Items.First(i => i.Type == ItemType.ApprovalRequest);
-        var requestId = requestItem.AsApprovalRequest!.RequestId;
-
-        svc.TryResolve(requestId, SessionApprovalDecision.AcceptOnce);
-        await requestTask;
-
-        var responseItem = turn.Items.FirstOrDefault(i => i.Type == ItemType.ApprovalResponse);
-        Assert.NotNull(responseItem);
-        var payload = responseItem!.AsApprovalResponse;
-        Assert.NotNull(payload);
-        Assert.True(payload!.Approved);
-        Assert.Equal(requestId, payload.RequestId);
-        Assert.Equal(SessionApprovalDecision.AcceptOnce, payload.Decision);
-    }
-
     [Fact]
     public async Task TryResolve_WithParallelPendingApprovals_KeepsTurnWaitingUntilAllResolve()
     {
@@ -468,7 +186,6 @@ public sealed class SessionApprovalServiceTests
         var firstRequest = svc.RequestFileApprovalAsync("write", "/path/a.txt");
         var secondRequest = svc.RequestFileApprovalAsync("write", "/path/b.txt");
         var thirdRequest = svc.RequestFileApprovalAsync("write", "/path/c.txt");
-        await Task.Delay(10);
 
         var requestIds = await GetApprovalRequestIdsAsync(channel, 3);
         Assert.Equal(3, requestIds.Count);
@@ -496,7 +213,6 @@ public sealed class SessionApprovalServiceTests
     {
         var (svc, channel, _) = MakeApprovalService();
         var firstRequest = svc.RequestFileApprovalAsync("write", "/path/a.txt");
-        await Task.Delay(10);
 
         var firstRequestId = await GetApprovalRequestIdAsync(channel);
         Assert.NotNull(firstRequestId);
@@ -504,138 +220,70 @@ public sealed class SessionApprovalServiceTests
         svc.TryResolve(firstRequestId!, SessionApprovalDecision.AcceptForSession);
         Assert.True(await firstRequest);
 
-        var secondRequest = await svc.RequestFileApprovalAsync("write", "/path/b.txt");
-        Assert.True(secondRequest);
-    }
-
-    // -------------------------------------------------------------------------
-    // AcceptAlways: session cache + persistence
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task AcceptAlways_CachesForSessionAndPersistsToStore()
-    {
-        var storeDir = Path.Combine(Path.GetTempPath(), $"dotcraft_test_{Guid.NewGuid():N}");
-        try
-        {
-            Directory.CreateDirectory(storeDir);
-            var store = new ApprovalStore(storeDir);
-            var (svc, channel, _) = MakeApprovalService(store: store);
-
-            var requestTask = svc.RequestFileApprovalAsync("write", "/path/important.txt");
-            await Task.Delay(10);
-
-            var requestId = await GetApprovalRequestIdAsync(channel);
-            Assert.NotNull(requestId);
-
-            svc.TryResolve(requestId!, SessionApprovalDecision.AcceptAlways);
-            Assert.True(await requestTask);
-
-            // Session cache should prevent a second prompt
-            Assert.True(await svc.RequestFileApprovalAsync("write", "/path/other.txt"));
-
-            // Persistent store should have recorded the operation
-            Assert.True(store.IsFileOperationApproved("write", "/path/important.txt"));
-        }
-        finally
-        {
-            Directory.Delete(storeDir, recursive: true);
-        }
+        Assert.True(await svc.RequestFileApprovalAsync("write", "/path/b.txt"));
     }
 
     [Fact]
-    public async Task AcceptAlways_Shell_PersistsToStore()
+    public async Task AcceptAlways_CachesForSessionAndPersistsFileAndShellApprovals()
     {
-        var storeDir = Path.Combine(Path.GetTempPath(), $"dotcraft_test_{Guid.NewGuid():N}");
-        try
-        {
-            Directory.CreateDirectory(storeDir);
-            var store = new ApprovalStore(storeDir);
-            var (svc, channel, _) = MakeApprovalService(store: store);
+        var store = new ApprovalStore(_storeDir);
+        var (svc, channel, _) = MakeApprovalService(store: store);
+        var shell = ShellApprovalRequests.For("rm -rf /tmp/data", "/tmp");
 
-            var requestTask = svc.RequestShellApprovalAsync(ShellApprovalRequests.For("rm -rf /tmp/data", "/tmp"));
-            await Task.Delay(10);
+        var fileRequest = svc.RequestFileApprovalAsync("write", "/path/important.txt");
+        svc.TryResolve((await GetApprovalRequestIdAsync(channel))!, SessionApprovalDecision.AcceptAlways);
+        Assert.True(await fileRequest);
+        var shellRequest = svc.RequestShellApprovalAsync(shell);
+        svc.TryResolve((await GetApprovalRequestIdAsync(channel))!, SessionApprovalDecision.AcceptAlways);
+        Assert.True(await shellRequest);
 
-            var requestId = await GetApprovalRequestIdAsync(channel);
-            Assert.NotNull(requestId);
-
-            svc.TryResolve(requestId!, SessionApprovalDecision.AcceptAlways);
-            Assert.True(await requestTask);
-
-            Assert.True(store.IsShellApproved(ShellApprovalRequests.For("rm -rf /tmp/data", "/tmp").ApprovalKey.Hash));
-        }
-        finally
-        {
-            Directory.Delete(storeDir, recursive: true);
-        }
+        Assert.True(await svc.RequestFileApprovalAsync("write", "/path/other.txt"));
+        Assert.True(store.IsFileOperationApproved("write", "/path/important.txt"));
+        Assert.True(store.IsShellApproved(shell.ApprovalKey.Hash));
     }
 
     [Fact]
     public async Task AcceptAlways_GenericResource_PersistsExactSourceHashScope()
     {
-        var storeDir = Path.Combine(Path.GetTempPath(), $"dotcraft_test_{Guid.NewGuid():N}");
-        try
-        {
-            var store = new ApprovalStore(storeDir);
-            var (svc, channel, _) = MakeApprovalService(store: store);
-            const string target = "/workspace/.craft/workflows/review.js#sha256:abc";
-            var request = svc.RequestResourceApprovalAsync("workflow", "start", target);
-            var requestId = await GetApprovalRequestIdAsync(channel);
-            svc.TryResolve(requestId!, SessionApprovalDecision.AcceptAlways);
-            Assert.True(await request);
-            Assert.True(store.IsResourceOperationApproved("workflow", "start", target));
-            Assert.False(store.IsResourceOperationApproved("workflow", "start", target.Replace("abc", "def")));
+        var store = new ApprovalStore(_storeDir);
+        var (svc, channel, _) = MakeApprovalService(store: store);
+        const string target = "/workspace/.craft/workflows/review.js#sha256:abc";
+        var request = svc.RequestResourceApprovalAsync("workflow", "start", target);
+        var requestId = await GetApprovalRequestIdAsync(channel);
+        svc.TryResolve(requestId!, SessionApprovalDecision.AcceptAlways);
+        Assert.True(await request);
+        Assert.True(store.IsResourceOperationApproved("workflow", "start", target));
+        Assert.False(store.IsResourceOperationApproved("workflow", "start", target.Replace("abc", "def")));
 
-            var reloaded = new ApprovalStore(storeDir);
-            Assert.True(reloaded.IsResourceOperationApproved("workflow", "start", target));
-        }
-        finally
-        {
-            Directory.Delete(storeDir, recursive: true);
-        }
+        var reloaded = new ApprovalStore(_storeDir);
+        Assert.True(reloaded.IsResourceOperationApproved("workflow", "start", target));
     }
 
     [Fact]
     public async Task AcceptAlways_ClientOwnedResource_CoversThreadWithoutPersisting()
     {
-        var storeDir = Path.Combine(Path.GetTempPath(), $"dotcraft_test_{Guid.NewGuid():N}");
-        try
+        var store = new ApprovalStore(_storeDir);
+        var (svc, channel, _) = MakeApprovalService(store: store);
+        var approval = new ResourceApprovalRequest("computerUse", "use", @"C:\Apps\Notepad.exe")
         {
-            var store = new ApprovalStore(storeDir);
-            var (svc, channel, _) = MakeApprovalService(store: store);
-            var approval = new ResourceApprovalRequest("computerUse", "use", @"C:\Apps\Notepad.exe")
-            {
-                TargetLabel = "Notepad",
-                PersistAcceptAlways = false
-            };
+            TargetLabel = "Notepad",
+            PersistAcceptAlways = false
+        };
 
-            var request = svc.RequestResourceApprovalAsync(approval);
-            ApprovalRequestPayload? payload = null;
-            await foreach (var evt in DrainWithTimeout(channel))
-            {
-                if (evt.EventType != SessionEventType.ApprovalRequested)
-                    continue;
-                payload = evt.ItemPayload?.Payload as ApprovalRequestPayload;
-                break;
-            }
+        var request = svc.RequestResourceApprovalAsync(approval);
+        var payload = await GetApprovalRequestAsync(channel);
 
-            Assert.NotNull(payload);
-            Assert.Equal("Notepad", payload!.TargetLabel);
-            svc.TryResolve(payload.RequestId, SessionApprovalDecision.AcceptAlways);
-            Assert.True(await request);
-            Assert.False(store.IsResourceOperationApproved("computerUse", "use", approval.Target));
-            Assert.True(await svc.RequestResourceApprovalAsync(approval));
+        Assert.NotNull(payload);
+        Assert.Equal("Notepad", payload!.TargetLabel);
+        svc.TryResolve(payload.RequestId, SessionApprovalDecision.AcceptAlways);
+        Assert.True(await request);
+        Assert.False(store.IsResourceOperationApproved("computerUse", "use", approval.Target));
+        Assert.True(await svc.RequestResourceApprovalAsync(approval));
 
-            var (nextTurn, nextChannel, _) = MakeApprovalService(store: store);
-            var pending = nextTurn.RequestResourceApprovalAsync(approval);
-            Assert.NotNull(await GetApprovalRequestIdAsync(nextChannel));
-            Assert.False(pending.IsCompleted);
-        }
-        finally
-        {
-            if (Directory.Exists(storeDir))
-                Directory.Delete(storeDir, recursive: true);
-        }
+        var (nextTurn, nextChannel, _) = MakeApprovalService(store: store);
+        var pending = nextTurn.RequestResourceApprovalAsync(approval);
+        Assert.NotNull(await GetApprovalRequestIdAsync(nextChannel));
+        Assert.False(pending.IsCompleted);
     }
 
     [Fact]
@@ -664,79 +312,23 @@ public sealed class SessionApprovalServiceTests
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Pre-check: persistent store skips prompt
-    // -------------------------------------------------------------------------
-
     [Fact]
-    public async Task RequestFileApproval_WhenPersistedInStore_SkipsPrompt()
+    public async Task PersistedApprovals_SkipThePromptOnlyForTheRecordedOperation()
     {
-        var storeDir = Path.Combine(Path.GetTempPath(), $"dotcraft_test_{Guid.NewGuid():N}");
-        try
-        {
-            Directory.CreateDirectory(storeDir);
-            var store = new ApprovalStore(storeDir);
-            store.RecordFileOperation("write", "/pre-approved.txt");
+        var store = new ApprovalStore(_storeDir);
+        store.RecordFileOperation("write", "/pre-approved.txt");
+        store.RecordShellApproval(ShellApprovalRequests.For("npm install", "/workspace"));
+        var (svc, channel, turn) = MakeApprovalService(store: store);
 
-            var (svc, channel, turn) = MakeApprovalService(store: store);
+        Assert.True(await svc.RequestFileApprovalAsync("write", "/pre-approved.txt"));
+        Assert.True(await svc.RequestShellApprovalAsync(ShellApprovalRequests.For("npm install", "/workspace")));
+        Assert.DoesNotContain(turn.Items, i => i.Type == ItemType.ApprovalRequest);
 
-            var result = await svc.RequestFileApprovalAsync("write", "/pre-approved.txt");
-            Assert.True(result);
-
-            Assert.DoesNotContain(turn.Items, i => i.Type == ItemType.ApprovalRequest);
-        }
-        finally
-        {
-            Directory.Delete(storeDir, recursive: true);
-        }
-    }
-
-    [Fact]
-    public async Task RequestShellApproval_WhenPersistedInStore_SkipsPrompt()
-    {
-        var storeDir = Path.Combine(Path.GetTempPath(), $"dotcraft_test_{Guid.NewGuid():N}");
-        try
-        {
-            Directory.CreateDirectory(storeDir);
-            var store = new ApprovalStore(storeDir);
-            store.RecordShellApproval(ShellApprovalRequests.For("npm install", "/workspace"));
-
-            var (svc, channel, turn) = MakeApprovalService(store: store);
-
-            var result = await svc.RequestShellApprovalAsync(ShellApprovalRequests.For("npm install", "/workspace"));
-            Assert.True(result);
-            Assert.DoesNotContain(turn.Items, i => i.Type == ItemType.ApprovalRequest);
-        }
-        finally
-        {
-            Directory.Delete(storeDir, recursive: true);
-        }
-    }
-
-    [Fact]
-    public async Task RequestFileApproval_NotInStore_StillPromptsNormally()
-    {
-        var storeDir = Path.Combine(Path.GetTempPath(), $"dotcraft_test_{Guid.NewGuid():N}");
-        try
-        {
-            Directory.CreateDirectory(storeDir);
-            var store = new ApprovalStore(storeDir);
-
-            var (svc, channel, turn) = MakeApprovalService(store: store);
-            var requestTask = svc.RequestFileApprovalAsync("write", "/not-approved.txt");
-            await Task.Delay(10);
-
-            Assert.Equal(TurnStatus.WaitingApproval, turn.Status);
-            Assert.True(svc.HasPendingApproval);
-
-            var requestId = await GetApprovalRequestIdAsync(channel);
-            svc.TryResolve(requestId!, SessionApprovalDecision.AcceptOnce);
-            Assert.True(await requestTask);
-        }
-        finally
-        {
-            Directory.Delete(storeDir, recursive: true);
-        }
+        var requestTask = svc.RequestFileApprovalAsync("write", "/not-approved.txt");
+        var requestId = await GetApprovalRequestIdAsync(channel);
+        Assert.Equal(TurnStatus.WaitingApproval, turn.Status);
+        svc.TryResolve(requestId!, SessionApprovalDecision.AcceptOnce);
+        Assert.True(await requestTask);
     }
 
     [Fact]
@@ -761,7 +353,6 @@ public sealed class SessionApprovalServiceTests
             () => cancelled = true);
 
         var requestTask = svc.RequestShellApprovalAsync(ShellApprovalRequests.For("rm -rf /tmp/data", "/tmp"));
-        await Task.Delay(10);
         var requestId = await GetApprovalRequestIdAsync(channel);
 
         svc.TryResolve(requestId!, SessionApprovalDecision.CancelTurn);
@@ -770,71 +361,27 @@ public sealed class SessionApprovalServiceTests
         Assert.True(cancelled);
     }
 
-    // -------------------------------------------------------------------------
-    // SessionScopedApprovalService
-    // -------------------------------------------------------------------------
-
     [Fact]
-    public async Task ScopedApprovalService_NoOverride_DelegatesToInner()
+    public async Task ScopedApprovalService_DelegatesToTheOverrideOnlyWhileItIsSet()
     {
-        var innerResults = new List<bool>();
-        var inner = new CallbackApprovalService(async (type, op, path) =>
-        {
-            innerResults.Add(true);
-            return true;
-        });
+        var calls = new List<string>();
+        var inner = new CallbackApprovalService((_, _, path) => { calls.Add("inner:" + path); return Task.FromResult(true); });
+        var overrideService = new CallbackApprovalService((_, _, path) => { calls.Add("override:" + path); return Task.FromResult(false); });
         var scoped = new SessionScopedApprovalService(inner);
 
-        var result = await scoped.RequestFileApprovalAsync("read", "/file.txt");
-
-        Assert.True(result);
-        Assert.Single(innerResults);
-    }
-
-    [Fact]
-    public async Task ScopedApprovalService_WithOverride_DelegatesToOverride()
-    {
-        var innerCalled = false;
-        var overrideCalled = false;
-
-        var inner = new CallbackApprovalService(async (_, _, _) => { innerCalled = true; return true; });
-        var overrideService = new CallbackApprovalService(async (_, _, _) => { overrideCalled = true; return false; });
-        var scoped = new SessionScopedApprovalService(inner);
-
+        Assert.True(await scoped.RequestFileApprovalAsync("read", "/f1"));
         using (SessionScopedApprovalService.SetOverride(overrideService))
         {
-            await scoped.RequestFileApprovalAsync("write", "/file.txt");
+            Assert.False(await scoped.RequestFileApprovalAsync("write", "/f2"));
         }
+        Assert.True(await scoped.RequestFileApprovalAsync("write", "/f3"));
 
-        Assert.False(innerCalled);
-        Assert.True(overrideCalled);
+        Assert.Equal(["inner:/f1", "override:/f2", "inner:/f3"], calls);
     }
-
-    [Fact]
-    public async Task ScopedApprovalService_AfterOverrideDisposed_DelegatesToInner()
-    {
-        var innerCalled = false;
-        var inner = new CallbackApprovalService(async (_, _, _) => { innerCalled = true; return true; });
-        var overrideService = new CallbackApprovalService(async (_, _, _) => false);
-        var scoped = new SessionScopedApprovalService(inner);
-
-        using (SessionScopedApprovalService.SetOverride(overrideService))
-        {
-            await scoped.RequestFileApprovalAsync("write", "/f1");
-        }
-
-        // After dispose, should delegate to inner again
-        await scoped.RequestFileApprovalAsync("write", "/f2");
-        Assert.True(innerCalled);
-    }
-
-    // -------------------------------------------------------------------------
-    // Helper: drain channel with timeout
-    // -------------------------------------------------------------------------
 
     private static async IAsyncEnumerable<SessionEvent> DrainWithTimeout(
         SessionEventChannel channel,
-        int timeoutMs = 200)
+        int timeoutMs = 2000)
     {
         using var cts = new CancellationTokenSource(timeoutMs);
         await foreach (var evt in channel.ReadAllAsync(cts.Token)
@@ -844,16 +391,19 @@ public sealed class SessionApprovalServiceTests
         }
     }
 
-    private static async Task<string?> GetApprovalRequestIdAsync(SessionEventChannel channel)
+    private static async Task<ApprovalRequestPayload?> GetApprovalRequestAsync(SessionEventChannel channel)
     {
         await foreach (var evt in DrainWithTimeout(channel))
         {
             if (evt.EventType == SessionEventType.ApprovalRequested)
-                return (evt.ItemPayload?.Payload as ApprovalRequestPayload)?.RequestId;
+                return evt.ItemPayload?.Payload as ApprovalRequestPayload;
         }
 
         return null;
     }
+
+    private static async Task<string?> GetApprovalRequestIdAsync(SessionEventChannel channel) =>
+        (await GetApprovalRequestAsync(channel))?.RequestId;
 
     private static async Task<List<string>> GetApprovalRequestIdsAsync(
         SessionEventChannel channel,
@@ -877,9 +427,6 @@ public sealed class SessionApprovalServiceTests
     }
 }
 
-/// <summary>
-/// Test helper: IApprovalService that invokes a callback.
-/// </summary>
 internal sealed class CallbackApprovalService(
     Func<string, string, string, Task<bool>> callback) : IApprovalService
 {

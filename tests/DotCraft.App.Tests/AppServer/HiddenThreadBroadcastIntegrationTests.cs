@@ -9,10 +9,8 @@ namespace DotCraft.Tests.AppServer;
 
 public sealed class HiddenThreadBroadcastIntegrationTests
 {
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task HiddenThread_NotifiesOnlySubscribedConnections(bool ephemeral)
+    [Fact]
+    public async Task HiddenThreads_NotifyOnlySubscribedConnections()
     {
         var root = Path.Combine(Path.GetTempPath(), "dotcraft-hidden-broadcast-" + Guid.NewGuid().ToString("N"));
         var workspace = Path.Combine(root, "workspace");
@@ -58,26 +56,37 @@ public sealed class HiddenThreadBroadcastIntegrationTests
             using var subscriberInit = await subscriber.Wire.InitializeAsync(ct: deadline.Token);
             using var observerInit = await observer.Wire.InitializeAsync(ct: deadline.Token);
 
-            using var created = await server.Wire.SendRequestAsync("thread/start", new
+            var hiddenIds = new List<string>();
+            foreach (var ephemeral in new[] { true, false })
             {
-                identity = new { channelName = ephemeral ? "dotcraft-desktop" : "commit-suggest", userId = "local", workspacePath = workspace },
-                ephemeral
-            }, ct: deadline.Token);
-            var threadId = Result(created).GetProperty("thread").GetProperty("id").GetString()!;
-            using var subscribed = await subscriber.Wire.SendRequestAsync("thread/subscribe", new { threadId }, ct: deadline.Token);
-            Result(subscribed);
+                using var created = await server.Wire.SendRequestAsync("thread/start", new
+                {
+                    identity = new { channelName = ephemeral ? "dotcraft-desktop" : "commit-suggest", userId = "local", workspacePath = workspace },
+                    ephemeral
+                }, ct: deadline.Token);
+                var threadId = Result(created).GetProperty("thread").GetProperty("id").GetString()!;
+                hiddenIds.Add(threadId);
+                using var subscribed = await subscriber.Wire.SendRequestAsync("thread/subscribe", new { threadId }, ct: deadline.Token);
+                Result(subscribed);
 
-            using var turn = await server.Wire.SendRequestAsync("turn/start", new
-            {
-                threadId,
-                input = new[] { new { type = "text", text = "hello" } }
-            }, ct: deadline.Token);
-            Result(turn);
-            var subscriberSaw = await CollectUntilAsync(subscriber.Wire, IsTurnEnd, deadline.Token);
-            using var deleted = await server.Wire.SendRequestAsync("thread/delete", new { threadId }, ct: deadline.Token);
-            Result(deleted);
-            using var subscriberDeleted = await subscriber.Wire.WaitForNotificationAsync(
-                "thread/deleted", TimeSpan.FromSeconds(10), deadline.Token);
+                using var turn = await server.Wire.SendRequestAsync("turn/start", new
+                {
+                    threadId,
+                    input = new[] { new { type = "text", text = "hello" } }
+                }, ct: deadline.Token);
+                Result(turn);
+                var subscriberSaw = await CollectUntilAsync(subscriber.Wire, IsTurnEnd, deadline.Token);
+                using var deleted = await server.Wire.SendRequestAsync("thread/delete", new { threadId }, ct: deadline.Token);
+                Result(deleted);
+                using var subscriberDeleted = await subscriber.Wire.WaitForNotificationAsync(
+                    "thread/deleted", TimeSpan.FromSeconds(10), deadline.Token);
+
+                Assert.Contains(subscriberSaw, notification =>
+                    notification.RootElement.GetProperty("method").GetString() == "thread/status/changed"
+                    && ThreadIdOf(notification) == threadId);
+                Assert.NotNull(subscriberDeleted);
+                Assert.Equal(threadId, ThreadIdOf(subscriberDeleted));
+            }
 
             using var visible = await server.Wire.SendRequestAsync("thread/start", new
             {
@@ -87,15 +96,10 @@ public sealed class HiddenThreadBroadcastIntegrationTests
             var observerSaw = await CollectUntilAsync(observer.Wire, IsStartOf(visibleId), deadline.Token);
             var creatorSaw = await CollectUntilAsync(server.Wire, IsStartOf(visibleId), deadline.Token);
 
-            Assert.Contains(subscriberSaw, notification =>
-                notification.RootElement.GetProperty("method").GetString() == "thread/status/changed"
-                && ThreadIdOf(notification) == threadId);
-            Assert.NotNull(subscriberDeleted);
-            Assert.Equal(threadId, ThreadIdOf(subscriberDeleted));
-            Assert.DoesNotContain(observerSaw, notification => ThreadIdOf(notification) == threadId);
+            Assert.DoesNotContain(observerSaw, notification => hiddenIds.Contains(ThreadIdOf(notification)!));
             Assert.Contains(observerSaw, notification => ThreadIdOf(notification) == visibleId);
             Assert.DoesNotContain(creatorSaw, notification =>
-                ThreadIdOf(notification) == threadId
+                hiddenIds.Contains(ThreadIdOf(notification)!)
                 && notification.RootElement.GetProperty("method").GetString() is "thread/status/changed" or "thread/updated" or "thread/deleted");
         }
         finally

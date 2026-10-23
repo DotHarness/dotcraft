@@ -25,42 +25,22 @@ public sealed class OpenAIInstallationIdProviderTests : IDisposable
     }
 
     [Fact]
-    public void GeneratesAndPersistsUuidV4OnFirstCall()
+    public void GeneratesPersistsAndCachesUuidV4OnFirstCall()
     {
         var provider = new OpenAIInstallationIdProvider(_tempDir);
         var id = provider.GetInstallationId();
 
         Assert.Matches(UuidV4Lowercase, id);
-        Assert.True(File.Exists(provider.FilePath!));
         Assert.Equal(id, File.ReadAllText(provider.FilePath!));
+
+        File.WriteAllText(provider.FilePath!, Guid.NewGuid().ToString("D").ToLowerInvariant());
+        Assert.Equal(id, provider.GetInstallationId());
     }
 
     [Fact]
-    public void ReusesPersistedUuidAcrossInstances()
+    public void ExistingFile_IsNormalizedWhenValidAndRewrittenWhenNot()
     {
-        var existing = Guid.NewGuid().ToString("D").ToLowerInvariant();
-        File.WriteAllText(Path.Combine(_tempDir, OpenAIInstallationIdProvider.InstallationIdFileName), existing);
-
-        var provider = new OpenAIInstallationIdProvider(_tempDir);
-        Assert.Equal(existing, provider.GetInstallationId());
-    }
-
-    [Fact]
-    public void RewritesFileWhenContentsAreNotAValidUuid()
-    {
-        File.WriteAllText(Path.Combine(_tempDir, OpenAIInstallationIdProvider.InstallationIdFileName), "not-a-uuid");
-
-        var provider = new OpenAIInstallationIdProvider(_tempDir);
-        var id = provider.GetInstallationId();
-
-        Assert.Matches(UuidV4Lowercase, id);
-        Assert.Equal(id, File.ReadAllText(provider.FilePath!));
-    }
-
-    [Fact]
-    public void TrimsWhitespaceAndAcceptsUppercaseHexFromExistingFile()
-    {
-        var raw = Guid.NewGuid().ToString("D"); // uppercase or mixed depending on runtime
+        var raw = Guid.NewGuid().ToString("D");
         File.WriteAllText(
             Path.Combine(_tempDir, OpenAIInstallationIdProvider.InstallationIdFileName),
             "  " + raw.ToUpperInvariant() + "  \n");
@@ -69,18 +49,15 @@ public sealed class OpenAIInstallationIdProviderTests : IDisposable
         var id = provider.GetInstallationId();
 
         Assert.Equal(raw.ToLowerInvariant(), id);
-    }
 
-    [Fact]
-    public void CachesResolvedValueWithinAProcess()
-    {
-        var provider = new OpenAIInstallationIdProvider(_tempDir);
-        var first = provider.GetInstallationId();
+        var otherDir = Path.Combine(_tempDir, "invalid");
+        Directory.CreateDirectory(otherDir);
+        File.WriteAllText(Path.Combine(otherDir, OpenAIInstallationIdProvider.InstallationIdFileName), "not-a-uuid");
+        var rewritten = new OpenAIInstallationIdProvider(otherDir);
+        var rewrittenId = rewritten.GetInstallationId();
 
-        // Mutate the file underneath; cached value should win.
-        File.WriteAllText(provider.FilePath!, Guid.NewGuid().ToString("D").ToLowerInvariant());
-
-        Assert.Equal(first, provider.GetInstallationId());
+        Assert.Matches(UuidV4Lowercase, rewrittenId);
+        Assert.Equal(rewrittenId, File.ReadAllText(rewritten.FilePath!));
     }
 
     [Fact]

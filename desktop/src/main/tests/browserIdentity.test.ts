@@ -7,36 +7,31 @@ import {
 } from '../browserIdentity'
 
 describe('cleanEmbeddedBrowserUserAgent', () => {
-  it.each([
-    [
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/148.0.7778.97 Electron/42.0.1 DotCraft/0.7.2 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/148.0.7778.97 Safari/537.36'
-    ],
-    [
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Electron/42.0.1 Chrome/148.0.7778.97 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/148.0.7778.97 Safari/537.36'
-    ],
-    [
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/148.0.7778.97 Safari/537.36 DotCraft/0.7.2',
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/148.0.7778.97 Safari/537.36'
+  it('removes only Electron and app product tokens while preserving the runtime platform', () => {
+    const cases = [
+      [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/148.0.7778.97 Electron/42.0.1 DotCraft/0.7.2 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/148.0.7778.97 Safari/537.36'
+      ],
+      [
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Electron/42.0.1 Chrome/148.0.7778.97 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/148.0.7778.97 Safari/537.36'
+      ],
+      [
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/148.0.7778.97 Safari/537.36 DotCraft/0.7.2',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/148.0.7778.97 Safari/537.36'
+      ]
     ]
-  ])('removes only Electron and app product tokens while preserving the runtime platform', (source, expected) => {
-    expect(cleanEmbeddedBrowserUserAgent(source, 'DotCraft')).toBe(expected)
+    for (const [source, expected] of cases) {
+      expect(cleanEmbeddedBrowserUserAgent(source, 'DotCraft')).toBe(expected)
+    }
   })
 })
 
-describe('buildAcceptLanguages', () => {
-  it('builds the ordered language-code list required by Electron sessions', () => {
-    expect(buildAcceptLanguages(['zh-CN', 'en-US', 'ZH-cn', 'ja'], 'en-US'))
-      .toBe('zh-CN,en-US,ja')
-  })
-
-  it('builds a weighted HTTP header from the same language order', () => {
-    expect(buildAcceptLanguageHeader(['zh-CN', 'en-US', 'ZH-cn', 'ja'], 'en-US'))
-      .toBe('zh-CN, en-US;q=0.9, ja;q=0.8')
-  })
-
-  it('uses a stable fallback when the system does not provide a locale', () => {
+describe('accept languages', () => {
+  it('builds the deduplicated session list and weighted header in the same order, with a stable fallback', () => {
+    expect(buildAcceptLanguages(['zh-CN', 'en-US', 'ZH-cn', 'ja'], 'en-US')).toBe('zh-CN,en-US,ja')
+    expect(buildAcceptLanguageHeader(['zh-CN', 'en-US', 'ZH-cn', 'ja'], 'en-US')).toBe('zh-CN, en-US;q=0.9, ja;q=0.8')
     expect(buildAcceptLanguages([], '')).toBe('en-US')
   })
 })

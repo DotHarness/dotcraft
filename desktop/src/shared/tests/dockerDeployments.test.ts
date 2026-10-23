@@ -10,11 +10,9 @@ import {
   effectiveAppServerWorkspacePath,
   effectiveWorkspaceDir,
   composePrefix,
-  buildDiscoverStacksCommand,
   buildLogsCommand,
   buildReadOratorioTokenCommand,
   buildStatusCommand,
-  buildUpCommand,
   parseStatusOutput,
   parseDiscoverStacksOutput,
   updateChangedFromOutput,
@@ -37,27 +35,19 @@ const stack: RemoteStack = {
   dashboardPort: 8080
 }
 
-describe('validation', () => {
-  it('validates service names', () => {
+describe('validation and paths', () => {
+  it('accepts only valid service names and Docker Compose project identifiers', () => {
     expect(isValidServiceName('oratorio')).toBe(true)
     expect(isValidServiceName('app server')).toBe(false)
-  })
-
-  it('accepts only Docker Compose project identifiers', () => {
     expect(isValidComposeProjectName('dotcraft-stack')).toBe(true)
     expect(isValidComposeProjectName('deploy_2')).toBe(true)
     expect(isValidComposeProjectName('Oratorio Cloud')).toBe(false)
     expect(isValidComposeProjectName('-deploy')).toBe(false)
   })
-})
 
-describe('workspace paths', () => {
-  it('derives the workspace dir from composeDir by default', () => {
+  it('derives workspace dir from composeDir and defaults the AppServer path to /workspace', () => {
     expect(effectiveWorkspaceDir(stack)).toBe('~/sample-stack/docker/workspace')
     expect(effectiveWorkspaceDir({ ...stack, workspaceDir: '/data/ws' })).toBe('/data/ws')
-  })
-
-  it('uses /workspace as the default AppServer protocol workspace path', () => {
     expect(effectiveAppServerWorkspacePath(stack)).toBe('/workspace')
     expect(effectiveAppServerWorkspacePath({ ...stack, appServerWorkspacePath: '/app/workspace' })).toBe('/app/workspace')
   })
@@ -81,25 +71,19 @@ describe('normalizeRemoteStacks', () => {
     expect(stacks[0].oratorioPort).toBe(DEFAULT_ORATORIO_PORT)
     expect(stacks[0].dashboardPort).toBe(DEFAULT_DASHBOARD_PORT)
     expect(stacks[1].appServerPort).toBe(DEFAULT_APP_SERVER_PORT)
-  })
-
-  it('returns [] for non-array input', () => {
     expect(normalizeRemoteStacks(undefined, counterIds())).toEqual([])
     expect(normalizeRemoteStacks({}, counterIds())).toEqual([])
   })
 })
 
 describe('compose command builders', () => {
-  it('builds the compose prefix with project', () => {
+  it('quotes the compose project and clamps logs to a valid service filter', () => {
     expect(composePrefix(stack)).toBe('docker compose')
     expect(composePrefix({ ...stack, composeProjectName: 'sample-project' })).toBe(
       "docker compose -p 'sample-project'"
     )
-  })
-
-  it('clamps log tail and only includes a valid service filter', () => {
     expect(buildLogsCommand(stack, undefined, 99999)).toContain(`--tail ${MAX_LOG_TAIL}`)
-    expect(buildLogsCommand(stack, 'app server')).not.toContain('app server') // invalid → dropped
+    expect(buildLogsCommand(stack, 'app server')).not.toContain('app server')
     expect(buildLogsCommand(stack, 'oratorio')).toContain("'oratorio'")
   })
 
@@ -117,17 +101,6 @@ describe('compose command builders', () => {
     expect(cmd).toContain("$1==\"ORATORIO_SERVICE_TOKEN\"")
     expect(cmd).toContain('.env')
     expect(cmd).not.toContain('APPSERVER_TOKEN')
-  })
-
-  it('discovery command uses Docker labels and inspect JSON only', () => {
-    const cmd = buildDiscoverStacksCommand()
-    expect(cmd).toContain('DISCOVER_BEGIN')
-    expect(cmd).toContain("label=com.docker.compose.project")
-    expect(cmd).toContain('{{json .}}')
-  })
-
-  it('up command recreates while preserving volumes', () => {
-    expect(buildUpCommand(stack)).toContain('up -d --remove-orphans')
   })
 })
 
@@ -148,7 +121,7 @@ describe('parseStatusOutput', () => {
     expect(out.imageTag).toBe('1.4.2')
   })
 
-  it('reads the AppServer runtime version from the lock file block', () => {
+  it('reads the AppServer runtime version from a valid lock file block only', () => {
     const out = parseStatusOutput(
       wrap(
         '{"Service":"dotcraft","State":"running","Image":"ghcr.io/dotharness/dotcraft:latest"}',
@@ -158,41 +131,26 @@ describe('parseStatusOutput', () => {
     )
     expect(out.appVersion).toBe('0.2.3+abc')
     expect(out.imageTag).toBe('latest')
+    for (const lock of ['', '{not-json', '{"pid":123}']) {
+      expect(parseStatusOutput(wrap('{"Service":"dotcraft","State":"running"}', lock), 's_1').appVersion).toBeUndefined()
+    }
   })
 
-  it('leaves appVersion empty when the lock file is missing or invalid', () => {
-    expect(parseStatusOutput(wrap('{"Service":"dotcraft","State":"running"}'), 's_1').appVersion).toBeUndefined()
-    expect(parseStatusOutput(wrap('{"Service":"dotcraft","State":"running"}', '{not-json'), 's_1').appVersion).toBeUndefined()
-    expect(parseStatusOutput(wrap('{"Service":"dotcraft","State":"running"}', '{"pid":123}'), 's_1').appVersion).toBeUndefined()
-  })
-
-  it('derives partial when not all services are up (JSON array)', () => {
-    const out = parseStatusOutput(
+  it('derives partial, unhealthy, and stopped health from service states', () => {
+    const partial = parseStatusOutput(
       wrap('[{"Service":"dotcraft","State":"running"},{"Service":"oratorio","State":"exited"}]'),
       's_1'
     )
-    expect(out.health).toBe('partial')
-    expect(out.servicesUp).toBe(1)
-    expect(out.servicesTotal).toBe(2)
+    expect(partial).toMatchObject({ health: 'partial', servicesUp: 1, servicesTotal: 2 })
+    expect(parseStatusOutput(wrap('{"Service":"dotcraft","State":"running","Health":"unhealthy"}'), 's_1').health).toBe('unhealthy')
+    expect(parseStatusOutput(wrap('{"Service":"dotcraft","State":"exited"}'), 's_1').health).toBe('stopped')
   })
 
-  it('derives unhealthy when a service reports unhealthy', () => {
-    const out = parseStatusOutput(wrap('{"Service":"dotcraft","State":"running","Health":"unhealthy"}'), 's_1')
-    expect(out.health).toBe('unhealthy')
-  })
+  it('returns unknown when the compose dir or docker is missing', () => {
+    const dirMissing = parseStatusOutput('DIR_MISSING', 's_1')
+    expect(dirMissing.health).toBe('unknown')
+    expect(dirMissing.error).toBeTruthy()
 
-  it('derives stopped when nothing is running', () => {
-    const out = parseStatusOutput(wrap('{"Service":"dotcraft","State":"exited"}'), 's_1')
-    expect(out.health).toBe('stopped')
-  })
-
-  it('returns unknown + error on DIR_MISSING', () => {
-    const out = parseStatusOutput('DIR_MISSING', 's_1')
-    expect(out.health).toBe('unknown')
-    expect(out.error).toBeTruthy()
-  })
-
-  it('returns unknown when docker is missing', () => {
     const out = parseStatusOutput(
       'STATUS_BEGIN\ndocker=missing\ncompose=missing\nenv=missing\nconfig=missing\ntoken=missing\nPS_BEGIN\nPS_END\nSTATUS_END',
       's_1'

@@ -104,19 +104,16 @@ describe('mobile:status', () => {
     expect(JSON.stringify(result)).not.toContain(HUB_TOKEN)
   })
 
-  it('keeps a Hub without phone access in the setup state', async () => {
+  it('keeps a Hub without phone access in the setup state and reports failed reads otherwise', async () => {
     const app = harness()
     app.hub.getStatus.mockResolvedValue({ capabilities: {} } as never)
     app.hub.getMobile.mockRejectedValue(hubError('hubRequestFailed', 'Hub request failed with HTTP 404.'))
 
     expect(await app.invoke('mobile:status')).toEqual({ supported: false, status: null })
-  })
 
-  it('reports a failed read from a Hub that has phone access', async () => {
-    const app = harness()
-    app.hub.getMobile.mockRejectedValue(hubError('hubInternalError', 'Gateway state unavailable.'))
-
-    expect(await app.invoke('mobile:status')).toEqual({
+    const capable = harness()
+    capable.hub.getMobile.mockRejectedValue(hubError('hubInternalError', 'Gateway state unavailable.'))
+    expect(await capable.invoke('mobile:status')).toEqual({
       supported: true,
       status: null,
       error: 'Gateway state unavailable.'
@@ -133,6 +130,7 @@ describe('mobile requests', () => {
     expect(await app.invoke('mobile:create-pairing')).toEqual({ ok: true, value: PAIRING })
     expect(await app.invoke('mobile:revoke', { deviceId: 'dev_1' })).toEqual({ ok: true, value: undefined })
     expect(app.hub.revokeMobileDevice).toHaveBeenCalledWith('dev_1')
+    expect(await app.invoke('mobile:clear-relay')).toMatchObject({ ok: true, value: { relay: null } })
   })
 
   it('sends the relay token to Hub and never returns it', async () => {
@@ -144,13 +142,6 @@ describe('mobile requests', () => {
     expect(app.hub.setMobileRelay).toHaveBeenCalledWith('wss://relay.example.com', relayToken)
     expect(result).toMatchObject({ ok: true, value: { relay: { url: 'wss://relay.example.com', state: 'connecting' } } })
     expect(JSON.stringify(result)).not.toContain(relayToken)
-  })
-
-  it('clears the relay', async () => {
-    const app = harness()
-
-    expect(await app.invoke('mobile:clear-relay')).toMatchObject({ ok: true, value: { relay: null } })
-    expect(app.hub.clearMobileRelay).toHaveBeenCalledTimes(1)
   })
 
   it('returns the Hub error code so the renderer can explain a failure', async () => {

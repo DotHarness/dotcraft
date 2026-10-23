@@ -126,10 +126,12 @@ public sealed partial class SessionServiceAgentInstructionsTests : IDisposable
     }
 
     [Theory]
-    [InlineData(ModelProviderProtocols.OpenAI)]
-    [InlineData(ModelProviderProtocols.OpenAIResponses)]
-    [InlineData(ModelProviderProtocols.Anthropic)]
-    public async Task ProviderRequest_UsesExactlyOnePlainUserInstructionItem(string protocol)
+    [InlineData(ModelProviderProtocols.OpenAI, "user")]
+    [InlineData(ModelProviderProtocols.OpenAIResponses, "developer")]
+    [InlineData(ModelProviderProtocols.Anthropic, "user")]
+    public async Task ProviderRequest_UsesOnePlainUserInstructionItemAndWorldStateInTheProtocolsOwnRole(
+        string protocol,
+        string worldStateRole)
     {
         File.WriteAllText(Path.Combine(_workspace, "AGENTS.md"), "wire project rules");
         var recorder = new RecordingChatClient();
@@ -159,34 +161,15 @@ public sealed partial class SessionServiceAgentInstructionsTests : IDisposable
             traceStore.GetEvents(thread.Id),
             evt => evt.Type == TraceEventType.AgentInstructions);
         Assert.Equal(instructions.Text, trace.Content);
-    }
-
-    [Theory]
-    [InlineData(ModelProviderProtocols.OpenAI, "user")]
-    [InlineData(ModelProviderProtocols.OpenAIResponses, "developer")]
-    [InlineData(ModelProviderProtocols.Anthropic, "user")]
-    public async Task ProviderRequest_CarriesWorldStateInTheProtocolsOwnRole(string protocol, string expectedRole)
-    {
-        var recorder = new RecordingChatClient();
-        await using var factory = CreateAgentFactory(protocol);
-        var service = new SessionService(
-            factory,
-            recorder.AsAIAgent(),
-            _persistence,
-            new SessionGate());
-        var thread = await service.CreateThreadAsync(MakeIdentity());
-
-        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
 
         var mode = Assert.Single(
             recorder.LastMessages,
             message => ThreadContextItems.IsKind(message, WorldStateComposer.ItemKind(ModeSection.SectionId)));
-        Assert.Equal(expectedRole, mode.Role.Value);
+        Assert.Equal(worldStateRole, mode.Role.Value);
         Assert.Contains("CurrentMode: Agent", mode.Text, StringComparison.Ordinal);
         Assert.Equal(
-            expectedRole == "user",
+            worldStateRole == "user",
             mode.Text.Contains("<system-reminder>", StringComparison.Ordinal));
-
         var userMessage = recorder.LastMessages.Last(message => ThreadContextItems.GetKind(message) == null);
         Assert.Contains("hello", userMessage.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("CurrentMode:", userMessage.Text, StringComparison.Ordinal);
@@ -479,7 +462,6 @@ public sealed partial class SessionServiceAgentInstructionsTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup for test-only files.
         }
     }
 }

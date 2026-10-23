@@ -16,7 +16,7 @@ public sealed class DreamsReviewTests : IDisposable
     private string Store => _workspace.WorkspaceStore;
 
     [Fact]
-    public async Task Run_WritesTheManifestBaselineAndCandidate()
+    public async Task RunWithoutChanges_WritesTheManifestBaselineAndCandidateAndIsAppliedWithNothingToChange()
     {
         _workspace.WriteMemory("deploy", "Deploy on Fridays.", type: "feedback");
         await _workspace.SaveThreadAsync("thread_one");
@@ -24,6 +24,11 @@ public sealed class DreamsReviewTests : IDisposable
 
         var run = await RunAsync(service);
 
+        Assert.Equal(DreamsRunStatuses.Succeeded, run.Status);
+        Assert.Equal(DreamsReviewStatuses.Applied, run.ReviewStatus);
+        Assert.False(run.AutoApplied);
+        Assert.False(run.Changes!.Any);
+        Assert.Throws<InvalidOperationException>(() => service.ApplyRun(run.Id));
         var input = Assert.Single(_runner.Inputs);
         var manifest = await File.ReadAllTextAsync(run.InputManifestPath!);
         Assert.Contains("deploy.md", manifest, StringComparison.Ordinal);
@@ -39,7 +44,7 @@ public sealed class DreamsReviewTests : IDisposable
     }
 
     [Fact]
-    public async Task SucceededRunWithChanges_StaysPendingUntilApplied()
+    public async Task SucceededRunWithChanges_IsReviewableAndStaysPendingUntilApplied()
     {
         WriteStore();
         var monitor = new AppConfigMonitor(_workspace.Config);
@@ -57,6 +62,11 @@ public sealed class DreamsReviewTests : IDisposable
         Assert.Equal(["stale.md"], run.Changes.Deleted);
         Assert.True(run.Changes.IndexChanged);
         Assert.Equal(["MEMORY.md", "kept.md", "stale.md"], FileNames(Store));
+        var review = service.GetRunReview(run.Id)!;
+        Assert.Equal(["added.md", "kept.md", "stale.md", "MEMORY.md"], review.Files.Select(static file => file.Name));
+        Assert.Equal(("added", null, "new fact"), (review.Files[0].Change, review.Files[0].Baseline, review.Files[0].Candidate));
+        Assert.Equal(("updated", "kept", "kept, merged"), (review.Files[1].Change, review.Files[1].Baseline, review.Files[1].Candidate));
+        Assert.Equal(("deleted", "stale", null), (review.Files[2].Change, review.Files[2].Baseline, review.Files[2].Candidate));
 
         var applied = service.ApplyRun(run.Id)!;
 
@@ -87,22 +97,7 @@ public sealed class DreamsReviewTests : IDisposable
     }
 
     [Fact]
-    public async Task RunWithoutChanges_IsAppliedWithNothingToChange()
-    {
-        WriteStore();
-        await using var service = _workspace.CreateService(_runner);
-
-        var run = await RunAsync(service);
-
-        Assert.Equal(DreamsRunStatuses.Succeeded, run.Status);
-        Assert.Equal(DreamsReviewStatuses.Applied, run.ReviewStatus);
-        Assert.False(run.AutoApplied);
-        Assert.False(run.Changes!.Any);
-        Assert.Throws<InvalidOperationException>(() => service.ApplyRun(run.Id));
-    }
-
-    [Fact]
-    public async Task AutoApply_AppliesNewRunsButNotRunsAlreadyPending()
+    public async Task AutoApply_AppliesNewRunsButNotRunsAlreadyPendingOrRacedByAStoreChange()
     {
         WriteStore();
         _runner.Edit = EditCandidate;
@@ -118,26 +113,18 @@ public sealed class DreamsReviewTests : IDisposable
         Assert.True(autoApplied.AutoApplied);
         Assert.Equal("kept, automatically", await File.ReadAllTextAsync(Path.Combine(Store, "kept.md")));
         Assert.Throws<DreamsStoreChangedException>(() => service.ApplyRun(pending.Id));
-    }
 
-    [Fact]
-    public async Task AutoApply_WhenTheStoreChangedDuringTheRun_LeavesTheRunPending()
-    {
-        WriteStore();
-        _workspace.Config.Dreams.AutoApply = true;
         _runner.Edit = input =>
         {
-            EditCandidate(input);
+            File.WriteAllText(Path.Combine(input.CandidateDirectory, "kept.md"), "kept, again");
             File.WriteAllText(Path.Combine(Store, "concurrent.md"), "saved while the run worked");
         };
-        await using var service = _workspace.CreateService(_runner);
+        var raced = await RunAsync(service);
 
-        var run = await RunAsync(service);
-
-        Assert.Equal(DreamsReviewStatuses.Pending, run.ReviewStatus);
-        Assert.False(run.AutoApplied);
-        Assert.Equal(DreamsConstants.StoreChangedErrorType, run.ErrorType);
-        Assert.Equal(["MEMORY.md", "concurrent.md", "kept.md", "stale.md"], FileNames(Store));
+        Assert.Equal(DreamsReviewStatuses.Pending, raced.ReviewStatus);
+        Assert.False(raced.AutoApplied);
+        Assert.Equal(DreamsConstants.StoreChangedErrorType, raced.ErrorType);
+        Assert.Equal("kept, automatically", await File.ReadAllTextAsync(Path.Combine(Store, "kept.md")));
     }
 
     [Fact]
@@ -165,46 +152,18 @@ public sealed class DreamsReviewTests : IDisposable
     }
 
     [Fact]
-    public async Task GetRunReview_ListsEachChangedFileWithBaselineAndCandidate()
+    public async Task DiscardArchiveAndDelete_RemoveRunsButNeverTouchTheStore()
     {
         WriteStore();
         _runner.Edit = EditCandidate;
         await using var service = _workspace.CreateService(_runner);
-        var run = await RunAsync(service);
-
-        var review = service.GetRunReview(run.Id)!;
-
-        Assert.Equal(["added.md", "kept.md", "stale.md", "MEMORY.md"], review.Files.Select(static file => file.Name));
-        var added = review.Files[0];
-        Assert.Equal(("added", null, "new fact"), (added.Change, added.Baseline, added.Candidate));
-        var deleted = review.Files[2];
-        Assert.Equal(("deleted", "stale", null), (deleted.Change, deleted.Baseline, deleted.Candidate));
-        Assert.Equal(("updated", "kept", "kept, merged"), (review.Files[1].Change, review.Files[1].Baseline, review.Files[1].Candidate));
-    }
-
-    [Fact]
-    public async Task DiscardAndArchive_LeaveTheStoreUnchanged()
-    {
-        WriteStore();
-        _runner.Edit = EditCandidate;
-        await using var service = _workspace.CreateService(_runner);
-        var run = await RunAsync(service);
-
-        Assert.Equal(DreamsReviewStatuses.Discarded, service.DiscardRun(run.Id)!.ReviewStatus);
-        Assert.Throws<InvalidOperationException>(() => service.ApplyRun(run.Id));
-        Assert.Equal(DreamsReviewStatuses.Archived, service.ArchiveRun(run.Id)!.ReviewStatus);
-
-        Assert.Empty(service.ListRuns());
-        Assert.Single(service.ListRuns(includeArchived: true));
+        var discarded = await RunAsync(service);
+        Assert.Equal(DreamsReviewStatuses.Discarded, service.DiscardRun(discarded.Id)!.ReviewStatus);
+        Assert.Throws<InvalidOperationException>(() => service.ApplyRun(discarded.Id));
+        Assert.Equal(DreamsReviewStatuses.Archived, service.ArchiveRun(discarded.Id)!.ReviewStatus);
+        Assert.DoesNotContain(service.ListRuns(), run => run.Id == discarded.Id);
         Assert.Equal(["MEMORY.md", "kept.md", "stale.md"], FileNames(Store));
-    }
-
-    [Fact]
-    public async Task DeleteRuns_RemovesRunRecordsButNeverTheStore()
-    {
-        WriteStore();
-        _runner.Edit = EditCandidate;
-        await using var service = _workspace.CreateService(_runner);
+        Assert.NotNull(service.DeleteRun(discarded.Id));
         var first = await RunAsync(service);
         service.ApplyRun(first.Id);
         var second = await RunAsync(service);

@@ -1,15 +1,5 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, waitFor, within } from '@testing-library/react'
 
-/**
- * `Select` renders a button plus a portalled listbox rather than a `<select>`, so
- * `fireEvent.change` on the trigger does nothing. Options carry `data-value`, letting
- * callers name the stored value rather than the localized label.
- */
-export async function chooseSelectValue(name: string | RegExp, value: string): Promise<void> {
-  await chooseValueIn(await screen.findByRole('combobox', { name }), value)
-}
-
-/** Same, for a trigger the caller already has a handle on. */
 export async function chooseValueIn(trigger: HTMLElement, value: string): Promise<void> {
   fireEvent.click(trigger)
 

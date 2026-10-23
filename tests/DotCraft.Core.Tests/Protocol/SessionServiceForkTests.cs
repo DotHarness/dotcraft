@@ -39,7 +39,7 @@ public sealed partial class SessionServiceForkTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_tempDir, recursive: true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]
@@ -73,39 +73,26 @@ public sealed partial class SessionServiceForkTests : IDisposable
     }
 
     [Fact]
-    public async Task ForkThreadAsync_DefaultDisplayNameUsesSourceDisplayName()
+    public async Task ForkThreadAsync_DefaultDisplayNameUsesSourceNameOrFirstRetainedUserMessage()
     {
         await using var agentFactory = CreateAgentFactory();
         var service = CreateService(agentFactory);
-        var source = await service.CreateThreadAsync(MakeIdentity(), displayName: "Research worktree handoff");
-        AddCompletedTurn(source, "turn_001", "first", "answer one");
-
-        var fork = await service.ForkThreadAsync(source.Id);
-
-        Assert.Equal("Research worktree handoff", fork.DisplayName);
-        var loaded = await _store.LoadThreadAsync(fork.Id);
-        Assert.NotNull(loaded);
-        Assert.Equal("Research worktree handoff", loaded!.DisplayName);
-        var indexed = Assert.Single(await _store.LoadIndexAsync(), summary => summary.Id == fork.Id);
-        Assert.Equal("Research worktree handoff", indexed.DisplayName);
-    }
-
-    [Fact]
-    public async Task ForkThreadAsync_DefaultDisplayNameFallsBackToFirstRetainedUserMessage()
-    {
-        await using var agentFactory = CreateAgentFactory();
-        var service = CreateService(agentFactory);
-        var source = await service.CreateThreadAsync(MakeIdentity());
+        var named = await service.CreateThreadAsync(MakeIdentity(), displayName: "Research worktree handoff");
+        AddCompletedTurn(named, "turn_001", "first", "answer one");
+        var unnamed = await service.CreateThreadAsync(MakeIdentity());
         const string firstUserMessage = "Review the worktree handoff behavior and draft the implementation plan";
-        AddCompletedTurn(source, "turn_001", firstUserMessage, "answer one");
+        AddCompletedTurn(unnamed, "turn_001", firstUserMessage, "answer one");
 
-        var fork = await service.ForkThreadAsync(source.Id);
+        var namedFork = await service.ForkThreadAsync(named.Id);
+        var unnamedFork = await service.ForkThreadAsync(unnamed.Id);
 
+        Assert.Equal("Research worktree handoff", namedFork.DisplayName);
+        Assert.Equal("Research worktree handoff", (await _store.LoadThreadAsync(namedFork.Id))?.DisplayName);
+        var indexed = Assert.Single(await _store.LoadIndexAsync(), summary => summary.Id == namedFork.Id);
+        Assert.Equal("Research worktree handoff", indexed.DisplayName);
         var expected = firstUserMessage[..50] + "...";
-        Assert.Equal(expected, fork.DisplayName);
-        var loaded = await _store.LoadThreadAsync(fork.Id);
-        Assert.NotNull(loaded);
-        Assert.Equal(expected, loaded!.DisplayName);
+        Assert.Equal(expected, unnamedFork.DisplayName);
+        Assert.Equal(expected, (await _store.LoadThreadAsync(unnamedFork.Id))?.DisplayName);
     }
 
     [Fact]

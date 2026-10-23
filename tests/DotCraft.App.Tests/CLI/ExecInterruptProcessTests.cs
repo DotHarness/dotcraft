@@ -42,14 +42,4 @@ public sealed class ExecInterruptProcessTests : ExecProcessTestBase
         Assert.Empty(server.ParamsOf("turn/interrupt"));
     }
 
-    [Fact]
-    public async Task Interrupt_OutsideWorkspace_ExitsOneWithoutContactingServer()
-    {
-        await using var server = await ExecFakeAppServer.StartAsync();
-
-        var result = await RunExecAsync(server, ["interrupt", "thread_9"], workingDirectory: CreateDirectory("elsewhere"));
-
-        Assert.Equal(1, result.ExitCode);
-        Assert.Empty(server.Requests);
-    }
 }

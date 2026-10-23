@@ -17,31 +17,17 @@ function validConfig(): WeixinConfig {
   };
 }
 
-test("validateConfig throws when weixin.apiBaseUrl is missing", () => {
-  const config = validConfig();
-  config.weixin.apiBaseUrl = "";
-  assert.throws(
-    () => validateWeixinConfig(config),
-    (error: unknown) =>
-      error instanceof ConfigValidationError &&
-      Array.isArray(error.fields) &&
-      error.fields.includes("weixin.apiBaseUrl"),
-  );
-});
-
-test("validateConfig throws when dotcraft.wsUrl is missing", () => {
-  const config = validConfig();
-  config.dotcraft.wsUrl = "";
-  assert.throws(
-    () => validateWeixinConfig(config),
-    (error: unknown) =>
-      error instanceof ConfigValidationError &&
-      Array.isArray(error.fields) &&
-      error.fields.includes("dotcraft.wsUrl"),
-  );
-});
-
-test("validateConfig succeeds with minimal valid config", () => {
-  const config = validConfig();
-  assert.doesNotThrow(() => validateWeixinConfig(config));
+test("validateWeixinConfig accepts a minimal config and reports each missing required field", () => {
+  assert.doesNotThrow(() => validateWeixinConfig(validConfig()));
+  for (const [field, mutate] of [
+    ["weixin.apiBaseUrl", (config: WeixinConfig) => { config.weixin.apiBaseUrl = ""; }],
+    ["dotcraft.wsUrl", (config: WeixinConfig) => { config.dotcraft.wsUrl = ""; }],
+  ] as const) {
+    const config = validConfig();
+    mutate(config);
+    assert.throws(
+      () => validateWeixinConfig(config),
+      (error: unknown) => error instanceof ConfigValidationError && error.fields?.includes(field) === true,
+    );
+  }
 });

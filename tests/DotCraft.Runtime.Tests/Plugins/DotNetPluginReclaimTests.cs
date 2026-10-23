@@ -6,8 +6,6 @@ using static DotCraft.Tests.Runtime.Plugins.PluginRuntimeHarness;
 
 namespace DotCraft.Tests.Runtime.Plugins;
 
-/// <summary>Covers the leak-tolerant half of deactivation: reclaim is best-effort and blocks nothing.
-/// Each test leaks on purpose by letting the plugin hand a delegate over a static Host event.</summary>
 public sealed class DotNetPluginReclaimTests : IDisposable
 {
     private readonly PluginRuntimeHarness _harness = new();
@@ -60,10 +58,12 @@ public sealed class DotNetPluginReclaimTests : IDisposable
     }
 
     [Fact]
-    public async Task LeakedGenerationEntersReclaimingAndDoesNotBlockReactivation()
+    public async Task LeakedGenerationsEnterReclaiming_DoNotBlockReactivation_AndRecommendARestartAtTheThreshold()
     {
         _harness.WriteLeaking("leaking");
-        await using var manager = _harness.CreateManager(collectionTimeout: TimeSpan.FromMilliseconds(200));
+        await using var manager = _harness.CreateManager(
+            collectionTimeout: TimeSpan.FromMilliseconds(200),
+            leakedGenerationRestartThreshold: 2);
         await manager.StartAsync(CancellationToken.None);
         var firstGeneration = Plugin(manager, "leaking").GenerationId;
 
@@ -80,6 +80,14 @@ public sealed class DotNetPluginReclaimTests : IDisposable
         AssertState(active, PluginDotnetRuntimeState.Active);
         Assert.NotEqual(firstGeneration, active.GenerationId);
         Assert.Equal(1, active.LeakedGenerations);
+
+        await manager.SetEnabledAsync("leaking", enabled: false);
+        // Crossing the threshold changes what the client is told, never what the runtime allows.
+        var recommended = Plugin(manager, "leaking");
+        Assert.Equal(2, recommended.LeakedGenerations);
+        Assert.True(recommended.RestartRecommended);
+        await manager.SetEnabledAsync("leaking", enabled: true);
+        AssertState(Plugin(manager, "leaking"), PluginDotnetRuntimeState.Active);
     }
 
     [Fact]
@@ -96,28 +104,6 @@ public sealed class DotNetPluginReclaimTests : IDisposable
         Assert.Null(stopped.GenerationId);
         Assert.False(stopped.RestartRecommended);
         Assert.DoesNotContain(generationId, GenerationCopies(_harness.GenerationsRoot), StringComparer.Ordinal);
-    }
-
-    [Fact]
-    public async Task LeakCounterReachingTheThresholdRecommendsARestart()
-    {
-        _harness.WriteLeaking("repeat-offender");
-        await using var manager = _harness.CreateManager(
-            collectionTimeout: TimeSpan.FromMilliseconds(200),
-            leakedGenerationRestartThreshold: 2);
-        await manager.StartAsync(CancellationToken.None);
-
-        await manager.SetEnabledAsync("repeat-offender", enabled: false);
-        Assert.False(Plugin(manager, "repeat-offender").RestartRecommended);
-        await manager.SetEnabledAsync("repeat-offender", enabled: true);
-        await manager.SetEnabledAsync("repeat-offender", enabled: false);
-
-        // Crossing the threshold changes what the client is told, never what the runtime allows.
-        var reclaiming = Plugin(manager, "repeat-offender");
-        Assert.Equal(2, reclaiming.LeakedGenerations);
-        Assert.True(reclaiming.RestartRecommended);
-        await manager.SetEnabledAsync("repeat-offender", enabled: true);
-        AssertState(Plugin(manager, "repeat-offender"), PluginDotnetRuntimeState.Active);
     }
 
     [Fact]
@@ -154,7 +140,7 @@ public sealed class DotNetPluginReclaimTests : IDisposable
         await manager.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(30));
 
         Assert.True(File.Exists(Path.Combine(_harness.Workspace, "conforming-disposed")));
-        AssertState(Plugin(manager, "shutdown.conforming"), PluginDotnetRuntimeState.Stopped);
+        await WaitForStateAsync(manager, "shutdown.conforming", PluginDotnetRuntimeState.Stopped);
         AssertState(Plugin(manager, "shutdown.leaking"), PluginDotnetRuntimeState.Reclaiming);
         Assert.Equal(1, Plugin(manager, "shutdown.leaking").LeakedGenerations);
     }

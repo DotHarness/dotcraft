@@ -9,42 +9,33 @@ namespace DotCraft.Tests.Runtime.Plugins;
 public sealed class PluginObjectGraphGuardTests
 {
     [Fact]
-    public void HostResponseWithNestedCollectibleObject_IsRejected()
-    {
-        var payloadType = CreateCollectibleType();
-        var response = ResponseWith(Activator.CreateInstance(payloadType)!);
-
-        Assert.Throws<NotSupportedException>(() =>
-            PluginObjectGraphGuard.EnsureHostOwnedGraph(response, "chat response"));
-    }
-
-    [Fact]
-    public void EmptyGenericContainerAndTypeTokenForCollectibleType_AreRejected()
+    public void CollectibleObjectsContainersTypeTokensAndRawRepresentations_AreRejected()
     {
         var payloadType = CreateCollectibleType();
         var list = Activator.CreateInstance(typeof(List<>).MakeGenericType(payloadType))!;
+        var update = new ChatResponseUpdate(ChatRole.Assistant, "ok")
+        {
+            RawRepresentation = Activator.CreateInstance(payloadType)
+        };
 
+        Assert.Throws<NotSupportedException>(() =>
+            PluginObjectGraphGuard.EnsureHostOwnedGraph(ResponseWith(Activator.CreateInstance(payloadType)!), "chat response"));
         Assert.Throws<NotSupportedException>(() =>
             PluginObjectGraphGuard.EnsureHostOwnedGraph(ResponseWith(list), "chat response"));
         Assert.Throws<NotSupportedException>(() =>
             PluginObjectGraphGuard.EnsureHostOwnedGraph(ResponseWith(payloadType), "chat response"));
+        Assert.Throws<NotSupportedException>(() =>
+            PluginObjectGraphGuard.EnsureHostOwnedGraph(update, "chat response update"));
     }
 
     [Fact]
-    public void OrdinaryHostResponseGraph_IsAccepted()
+    public void OrdinaryHostGraphs_AndLargeProviderRawRepresentations_AreAccepted()
     {
         var response = ResponseWith(new Dictionary<string, object?>
         {
             ["count"] = 2,
             ["values"] = new[] { "one", "two" }
         });
-
-        PluginObjectGraphGuard.EnsureHostOwnedGraph(response, "chat response");
-    }
-
-    [Fact]
-    public void LargeProviderRawRepresentation_IsTreatedAsOpaque()
-    {
         var update = new ChatResponseUpdate(ChatRole.Assistant, "ok")
         {
             RawRepresentation = Enumerable.Range(0, 25_000)
@@ -52,20 +43,8 @@ public sealed class PluginObjectGraphGuardTests
                 .ToArray()
         };
 
+        PluginObjectGraphGuard.EnsureHostOwnedGraph(response, "chat response");
         PluginObjectGraphGuard.EnsureHostOwnedGraph(update, "chat response update");
-    }
-
-    [Fact]
-    public void CollectibleProviderRawRepresentation_IsRejected()
-    {
-        var payloadType = CreateCollectibleType();
-        var update = new ChatResponseUpdate(ChatRole.Assistant, "ok")
-        {
-            RawRepresentation = Activator.CreateInstance(payloadType)
-        };
-
-        Assert.Throws<NotSupportedException>(() =>
-            PluginObjectGraphGuard.EnsureHostOwnedGraph(update, "chat response update"));
     }
 
     [Fact]

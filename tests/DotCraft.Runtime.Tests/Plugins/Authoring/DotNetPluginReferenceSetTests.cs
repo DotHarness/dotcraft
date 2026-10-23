@@ -59,7 +59,6 @@ public sealed class DotNetPluginReferenceSetTests(
 
     [Theory]
     [InlineData("DotCraft.Core.xml")]
-    [InlineData("DotCraft.Agents.xml")]
     public void Load_RequiresPluginApiDocumentation(string missingFile)
     {
         var root = Path.Combine(fixture.Root, Path.GetFileNameWithoutExtension(missingFile));

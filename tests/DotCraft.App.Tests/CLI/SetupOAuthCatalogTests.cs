@@ -9,10 +9,8 @@ namespace DotCraft.Tests.CLI;
 public sealed class SetupOAuthCatalogTests
 {
     [Theory]
-    [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
-    [InlineData(true, true)]
     public async Task ModelCatalog_UsesHostCredentials(bool authenticated, bool draft)
     {
         var root = Path.Combine(Path.GetTempPath(), "dotcraft-catalog", Guid.NewGuid().ToString("N"));

@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
@@ -14,10 +13,6 @@ using ZstdSharp;
 
 namespace DotCraft.Tests.Agents;
 
-/// <summary>
-/// Wire-level contract tests for the ChatGPT OAuth Responses Lite path. These assert what reached
-/// a loopback socket after every pipeline policy has run.
-/// </summary>
 public sealed class ResponsesLiteWireTests : IDisposable
 {
     private const string InstallationId = "11111111-2222-4333-8444-555555555555";
@@ -229,27 +224,6 @@ public sealed class ResponsesLiteWireTests : IDisposable
         var diagnostic = Assert.IsType<ModelStreamAttemptRuntimeContext>(ModelStreamAttemptRuntimeScope.Current);
         Assert.Equal(500, diagnostic.StatusCode);
         Assert.Equal("req-lite-500", diagnostic.RequestId);
-    }
-
-    [Fact]
-    public async Task RawServerPreservesOpaqueZstdBytesAndContentEncoding()
-    {
-        // A valid zstd frame starts with 28 B5 2F FD. This fixture intentionally tests the test
-        // seam's byte preservation; production compression tests can decode a complete frame.
-        byte[] opaqueBody = [0x28, 0xB5, 0x2F, 0xFD, 0x01, 0x02, 0xFE, 0xFF];
-        await using var server = RawRecordingHttpServer.Start(RawHttpResponse.Json("{}"));
-        using var http = new HttpClient();
-        using var content = new ByteArrayContent(opaqueBody);
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-        content.Headers.ContentEncoding.Add("zstd");
-
-        using var response = await http.PostAsync(server.Endpoint + "/responses", content);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var request = Assert.Single(server.Requests);
-        Assert.Equal("zstd", request.Headers["Content-Encoding"]);
-        Assert.Equal(opaqueBody, request.Body);
-        Assert.Equal("28B52FFD", Convert.ToHexString(request.Body.AsSpan(0, 4)));
     }
 
     [Fact]

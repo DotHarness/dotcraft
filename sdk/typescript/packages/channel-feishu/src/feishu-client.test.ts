@@ -4,6 +4,8 @@ import test from "node:test";
 import { FeishuClient } from "./feishu-client.js";
 import { FeishuApiError } from "./feishu-types.js";
 
+type ApiCall = { url: string; init?: RequestInit };
+
 function createClient(): FeishuClient {
   return new FeishuClient({
     appId: "cli_test",
@@ -11,470 +13,160 @@ function createClient(): FeishuClient {
   });
 }
 
-test("Feishu client classifies fetch failures with FeishuApiError", async () => {
-  const client = createClient();
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+async function withApi(
+  respond: (url: string, init?: RequestInit) => Response,
+  run: (client: FeishuClient, calls: ApiCall[]) => Promise<void>,
+): Promise<void> {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async (input: string | URL | Request) => {
+  const calls: ApiCall[] = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("/tenant_access_token/internal")) {
-      return new Response(
-        JSON.stringify({
-          code: 0,
-          tenant_access_token: "tenant_token",
-          expire: 7200,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      return json({ code: 0, tenant_access_token: "tenant_token", expire: 7200 });
     }
-
-    return new Response(
-      JSON.stringify({
-        code: 99991429,
-        msg: "rate limited",
-      }),
-      { status: 429, headers: { "Content-Type": "application/json" } },
-    );
+    calls.push({ url, init });
+    return respond(url, init);
   }) as typeof fetch;
-
   try {
-    await assert.rejects(
-      async () =>
-        await (client as unknown as {
-          sendMessage: (
-            receiveId: string,
-            receiveIdType: "chat_id" | "open_id",
-            msgType: string,
-            content: Record<string, unknown>,
-          ) => Promise<Record<string, unknown>>;
-        }).sendMessage("oc_chat_123", "chat_id", "text", { text: "hello" }),
-      (error: unknown) => {
-        assert.ok(error instanceof FeishuApiError);
-        assert.equal(error.kind, "rateLimited");
-        assert.equal(error.retryable, true);
-        assert.equal(error.code, 99991429);
-        assert.equal(error.httpStatus, 429);
-        assert.match(error.message, /rate limited/);
-        return true;
-      },
-    );
+    await run(createClient(), calls);
   } finally {
     globalThis.fetch = originalFetch;
   }
-});
+}
 
-test("Feishu client classifies SDK failures with FeishuApiError", async () => {
-  const client = createClient();
-  (client as unknown as { sdk: unknown }).sdk = {
+function isApiError(kind: string, extra: Partial<FeishuApiError> = {}) {
+  return (error: unknown) => {
+    assert.ok(error instanceof FeishuApiError);
+    assert.equal(error.kind, kind);
+    for (const [key, value] of Object.entries(extra)) {
+      assert.equal((error as unknown as Record<string, unknown>)[key], value);
+    }
+    return true;
+  };
+}
+
+test("Feishu client classifies HTTP, SDK, and authorization failures as FeishuApiError", async () => {
+  await withApi(() => json({ code: 99991429, msg: "rate limited" }, 429), async (client) => {
+    await assert.rejects(
+      client.sendTextMessage("group:oc_chat_123", "hello"),
+      isApiError("rateLimited", { retryable: true, code: 99991429, httpStatus: 429 }),
+    );
+  });
+
+  await withApi(() => json({ code: 99991403, msg: "permission denied" }, 403), async (client) => {
+    await assert.rejects(client.replyToMessage("om_origin_1", "reply text"), isApiError("permission", { httpStatus: 403 }));
+    await assert.rejects(
+      client.listChatMessages("oc_chat_123", { startTime: "1710000000000" }),
+      isApiError("permission", { httpStatus: 403 }),
+    );
+  });
+
+  const sdkClient = createClient();
+  (sdkClient as unknown as { sdk: unknown }).sdk = {
     im: {
       messageReaction: {
         async create(): Promise<void> {
-          throw {
-            code: 99991403,
-            msg: "permission denied",
-          };
+          throw { code: 99991403, msg: "permission denied" };
         },
       },
     },
   };
-
   await assert.rejects(
-    async () => await client.addMessageReaction("om_test_1", "GLANCE"),
-    (error: unknown) => {
-      assert.ok(error instanceof FeishuApiError);
-      assert.equal(error.kind, "permission");
-      assert.equal(error.retryable, false);
-      assert.equal(error.code, 99991403);
-      assert.match(error.message, /permission denied/);
-      return true;
+    sdkClient.addMessageReaction("om_test_1", "GLANCE"),
+    isApiError("permission", { retryable: false, code: 99991403 }),
+  );
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => json({ code: 99991663, msg: "token invalid" }, 401)) as typeof fetch;
+  try {
+    await assert.rejects(createClient().probeBot(), isApiError("auth"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Feishu client sends text and replies with tenant token auth and the expected bodies", async () => {
+  await withApi(
+    (url) => json({ code: 0, data: { message_id: url.endsWith("/reply") ? "om_reply_1" : "om_text_1", chat_id: "oc_chat_123" } }),
+    async (client, calls) => {
+      assert.deepEqual(await client.sendTextMessage("group:oc_chat_123", "hello text"), {
+        messageId: "om_text_1",
+        chatId: "oc_chat_123",
+      });
+      assert.deepEqual(await client.replyToMessage("om_origin_1", "reply text", { replyInThread: true, uuid: "uuid-1" }), {
+        messageId: "om_reply_1",
+        chatId: "oc_chat_123",
+      });
+      await assert.rejects(client.sendTextMessage("group:oc_chat_123", "   "), /non-empty text/);
+
+      assert.equal(calls.length, 2);
+      assert.match(calls[0]!.url, /receive_id_type=chat_id/);
+      const sent = JSON.parse(String(calls[0]!.init?.body)) as Record<string, string>;
+      assert.equal(sent.msg_type, "text");
+      assert.deepEqual(JSON.parse(sent.content), { text: "hello text" });
+
+      assert.match(calls[1]!.url, /\/messages\/om_origin_1\/reply$/);
+      assert.equal((calls[1]!.init?.headers as Record<string, string>).Authorization, "Bearer tenant_token");
+      const reply = JSON.parse(String(calls[1]!.init?.body)) as Record<string, string | boolean>;
+      assert.equal(reply.reply_in_thread, true);
+      assert.equal(reply.uuid, "uuid-1");
+      assert.deepEqual(JSON.parse(String(reply.content)), { text: "reply text" });
     },
   );
 });
 
-test("Feishu client keeps successful SDK response shape", async () => {
-  const client = createClient();
-  (client as unknown as { sdk: unknown }).sdk = {
-    im: {
-      message: {
-        async create(): Promise<{ data: { message_id: string; chat_id: string } }> {
-          return {
-            data: {
-              message_id: "om_success_1",
-              chat_id: "oc_chat_123",
-            },
-          };
-        },
-      },
-    },
-  };
+test("Feishu client probes bot identity and diagnoses a missing one", async () => {
+  const responses = [
+    { code: 0, data: { app_name: "DotCraft", activate_status: 1 }, bot: { open_id: "ou_bot_123", app_name: "DotCraft" } },
+    { code: 0, data: { app_name: "DotCraft", activate_status: 0 } },
+    { code: 0, data: { app_name: "DotCraft" } },
+  ];
+  await withApi(() => json(responses.shift()), async (client, calls) => {
+    const found = await client.probeBot();
+    assert.equal(found.openId, "ou_bot_123");
+    assert.equal(found.hasBotIdentity, true);
+    assert.equal(found.diagnosticTag, undefined);
+    assert.match(calls[0]!.url, /\/bot\/v3\/info$/);
+    assert.equal((calls[0]!.init?.headers as Record<string, string>).Authorization, "Bearer tenant_token");
 
-  const result = await client.sendInteractiveCard("group:oc_chat_123", {
-    schema: "1.0",
-  });
+    const disabled = await client.probeBot();
+    assert.equal(disabled.hasBotIdentity, false);
+    assert.equal(disabled.diagnosticTag, "botCapabilityDisabled");
 
-  assert.deepEqual(result, {
-    messageId: "om_success_1",
-    chatId: "oc_chat_123",
+    const missing = await client.probeBot();
+    assert.equal(missing.hasBotIdentity, false);
+    assert.equal(missing.diagnosticTag, "identityFieldsMissing");
   });
 });
 
-test("Feishu client sends text messages through the shared message API", async () => {
-  const client = createClient();
-  const originalFetch = globalThis.fetch;
-  const calls: Array<{ url: string; init?: RequestInit }> = [];
-  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
-    calls.push({ url, init });
-    if (url.includes("/tenant_access_token/internal")) {
-      return new Response(
-        JSON.stringify({
-          code: 0,
-          tenant_access_token: "tenant_token",
-          expire: 7200,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
-    return new Response(
-      JSON.stringify({
-        code: 0,
-        data: {
-          message_id: "om_text_1",
-          chat_id: "oc_chat_123",
-        },
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  }) as typeof fetch;
-
-  try {
-    const result = await client.sendTextMessage("group:oc_chat_123", "hello text");
-    assert.deepEqual(result, {
-      messageId: "om_text_1",
-      chatId: "oc_chat_123",
-    });
-    assert.equal(calls.length, 2);
-    assert.match(calls[1]!.url, /receive_id_type=chat_id/);
-    const body = JSON.parse(String(calls[1]!.init?.body ?? "{}")) as Record<string, string>;
-    assert.equal(body.msg_type, "text");
-    assert.deepEqual(JSON.parse(body.content), { text: "hello text" });
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("Feishu client rejects empty text sends before calling the API", async () => {
-  const client = createClient();
-  await assert.rejects(
-    async () => await client.sendTextMessage("group:oc_chat_123", "   "),
-    (error: unknown) => {
-      assert.ok(error instanceof TypeError);
-      assert.match(String((error as Error).message), /non-empty text/);
-      return true;
-    },
-  );
-});
-
-test("Feishu client replies to a message with explicit token auth", async () => {
-  const client = createClient();
-  const originalFetch = globalThis.fetch;
-  const calls: Array<{ url: string; init?: RequestInit }> = [];
-  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
-    calls.push({ url, init });
-    if (url.includes("/tenant_access_token/internal")) {
-      return new Response(
-        JSON.stringify({
-          code: 0,
-          tenant_access_token: "tenant_token",
-          expire: 7200,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
-    return new Response(
-      JSON.stringify({
-        code: 0,
-        data: {
-          message_id: "om_reply_1",
-          chat_id: "oc_chat_456",
-        },
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  }) as typeof fetch;
-
-  try {
-    const result = await client.replyToMessage("om_origin_1", "reply text", {
-      replyInThread: true,
-      uuid: "uuid-1",
-    });
-    assert.deepEqual(result, {
-      messageId: "om_reply_1",
-      chatId: "oc_chat_456",
-    });
-    assert.equal(calls.length, 2);
-    assert.match(calls[1]!.url, /\/messages\/om_origin_1\/reply$/);
-    assert.equal((calls[1]!.init?.headers as Record<string, string>).Authorization, "Bearer tenant_token");
-    const body = JSON.parse(String(calls[1]!.init?.body ?? "{}")) as Record<string, string | boolean>;
-    assert.equal(body.msg_type, "text");
-    assert.equal(body.reply_in_thread, true);
-    assert.equal(body.uuid, "uuid-1");
-    assert.deepEqual(JSON.parse(String(body.content)), { text: "reply text" });
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("Feishu client classifies reply failures with FeishuApiError", async () => {
-  const client = createClient();
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async (input: string | URL | Request) => {
-    const url = String(input);
-    if (url.includes("/tenant_access_token/internal")) {
-      return new Response(
-        JSON.stringify({
-          code: 0,
-          tenant_access_token: "tenant_token",
-          expire: 7200,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-    }
-    return new Response(
-      JSON.stringify({
-        code: 99991403,
-        msg: "permission denied",
-      }),
-      { status: 403, headers: { "Content-Type": "application/json" } },
-    );
-  }) as typeof fetch;
-
-  try {
-    await assert.rejects(
-      async () => await client.replyToMessage("om_origin_1", "reply text"),
-      (error: unknown) => {
-        assert.ok(error instanceof FeishuApiError);
-        assert.equal(error.kind, "permission");
-        assert.equal(error.httpStatus, 403);
-        return true;
-      },
-    );
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("Feishu client probes bot info with explicit tenant token and parses identity", async () => {
-  const client = createClient();
-  const originalFetch = globalThis.fetch;
-  const calls: Array<{ url: string; init?: RequestInit }> = [];
-  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
-    calls.push({ url, init });
-    if (url.includes("/tenant_access_token/internal")) {
-      return new Response(
-        JSON.stringify({
-          code: 0,
-          tenant_access_token: "tenant_token",
-          expire: 7200,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-    }
-    return new Response(
-      JSON.stringify({
-        code: 0,
-        data: {
-          app_name: "DotCraft",
+test("Feishu client lists chat messages with normalized metadata and validates arguments", async () => {
+  await withApi(() => json({
+    code: 0,
+    data: {
+      has_more: true,
+      page_token: "next-page",
+      items: [{
+        message_id: "om_hist_1",
+        chat_id: "oc_chat_123",
+        chat_type: "group",
+        msg_type: "text",
+        create_time: "1710000000000",
+        parent_id: "om_parent_1",
+        root_id: "om_root_1",
+        sender: {
+          sender_type: "user",
           tenant_key: "tenant-1",
-          activate_status: 1,
+          id: { open_id: "ou_user_1", user_id: "user_1", union_id: "union_1" },
         },
-        bot: {
-          open_id: "ou_bot_123",
-          app_name: "DotCraft",
-        },
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  }) as typeof fetch;
-
-  try {
-    const result = await client.probeBot();
-    assert.equal(result.openId, "ou_bot_123");
-    assert.equal(result.hasBotIdentity, true);
-    assert.equal(result.appName, "DotCraft");
-    assert.equal(result.diagnosticTag, undefined);
-    assert.ok(result.rawFieldKeys?.includes("bot.open_id"));
-    assert.match(calls[1]!.url, /\/bot\/v3\/info$/);
-    assert.equal((calls[1]!.init?.headers as Record<string, string>).Authorization, "Bearer tenant_token");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("Feishu client marks missing bot identity as capability disabled when status hints say so", async () => {
-  const client = createClient();
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async (input: string | URL | Request) => {
-    const url = String(input);
-    if (url.includes("/tenant_access_token/internal")) {
-      return new Response(
-        JSON.stringify({
-          code: 0,
-          tenant_access_token: "tenant_token",
-          expire: 7200,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-    }
-    return new Response(
-      JSON.stringify({
-        code: 0,
-        data: {
-          app_name: "DotCraft",
-          activate_status: 0,
-        },
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  }) as typeof fetch;
-
-  try {
-    const result = await client.probeBot();
-    assert.equal(result.hasBotIdentity, false);
-    assert.equal(result.diagnosticTag, "botCapabilityDisabled");
-    assert.match(result.diagnosticMessage ?? "", /disabled|unpublished/);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("Feishu client marks missing bot identity as shape mismatch when capability hints are absent", async () => {
-  const client = createClient();
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async (input: string | URL | Request) => {
-    const url = String(input);
-    if (url.includes("/tenant_access_token/internal")) {
-      return new Response(
-        JSON.stringify({
-          code: 0,
-          tenant_access_token: "tenant_token",
-          expire: 7200,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-    }
-    return new Response(
-      JSON.stringify({
-        code: 0,
-        data: {
-          app_name: "DotCraft",
-        },
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  }) as typeof fetch;
-
-  try {
-    const result = await client.probeBot();
-    assert.equal(result.hasBotIdentity, false);
-    assert.equal(result.diagnosticTag, "identityFieldsMissing");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("Feishu client raises auth errors when bot probe authorization fails", async () => {
-  const client = createClient();
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async (_input: string | URL | Request) =>
-    new Response(
-      JSON.stringify({
-        code: 99991663,
-        msg: "token invalid",
-      }),
-      { status: 401, headers: { "Content-Type": "application/json" } },
-    )) as typeof fetch;
-
-  try {
-    await assert.rejects(
-      async () => await client.probeBot(),
-      (error: unknown) => {
-        assert.ok(error instanceof FeishuApiError);
-        assert.equal(error.kind, "auth");
-        return true;
-      },
-    );
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("Feishu client lists chat messages with normalized metadata and raw content", async () => {
-  const client = createClient();
-  const originalFetch = globalThis.fetch;
-  const calls: Array<{ url: string; init?: RequestInit }> = [];
-  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
-    calls.push({ url, init });
-    if (url.includes("/tenant_access_token/internal")) {
-      return new Response(
-        JSON.stringify({
-          code: 0,
-          tenant_access_token: "tenant_token",
-          expire: 7200,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
-    return new Response(
-      JSON.stringify({
-        code: 0,
-        data: {
-          has_more: true,
-          page_token: "next-page",
-          items: [
-            {
-              message_id: "om_hist_1",
-              chat_id: "oc_chat_123",
-              chat_type: "group",
-              msg_type: "text",
-              create_time: "1710000000000",
-              parent_id: "om_parent_1",
-              root_id: "om_root_1",
-              sender: {
-                sender_type: "user",
-                tenant_key: "tenant-1",
-                id: {
-                  open_id: "ou_user_1",
-                  user_id: "user_1",
-                  union_id: "union_1",
-                },
-              },
-              mentions: [
-                {
-                  key: "@_user_1",
-                  id: {
-                    open_id: "ou_mention_1",
-                  },
-                  name: "Mentioned User",
-                },
-              ],
-              body: {
-                content: "{\"text\":\"hello history\"}",
-              },
-            },
-          ],
-        },
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  }) as typeof fetch;
-
-  try {
+        mentions: [{ key: "@_user_1", id: { open_id: "ou_mention_1" }, name: "Mentioned User" }],
+        body: { content: "{\"text\":\"hello history\"}" },
+      }],
+    },
+  }), async (client, calls) => {
     const result = await client.listChatMessages("oc_chat_123", {
       startTime: "1710000000000",
       endTime: "1710003600000",
@@ -483,8 +175,7 @@ test("Feishu client lists chat messages with normalized metadata and raw content
     });
     assert.equal(result.nextPageToken, "next-page");
     assert.equal(result.hasMore, true);
-    assert.equal(result.items.length, 1);
-    assert.deepEqual(result.items[0], {
+    assert.deepEqual(result.items, [{
       messageId: "om_hist_1",
       chatId: "oc_chat_123",
       chatType: "group",
@@ -499,143 +190,43 @@ test("Feishu client lists chat messages with normalized metadata and raw content
         senderType: "user",
         tenantKey: "tenant-1",
       },
-      mentions: [
-        {
-          key: "@_user_1",
-          id: {
-            open_id: "ou_mention_1",
-            user_id: undefined,
-            union_id: undefined,
-          },
-          name: "Mentioned User",
-          tenant_key: undefined,
-        },
-      ],
+      mentions: [{
+        key: "@_user_1",
+        id: { open_id: "ou_mention_1", user_id: undefined, union_id: undefined },
+        name: "Mentioned User",
+        tenant_key: undefined,
+      }],
       rawContent: "{\"text\":\"hello history\"}",
-    });
-    assert.equal(calls.length, 2);
-    assert.match(calls[1]!.url, /container_id_type=chat/);
-    assert.match(calls[1]!.url, /container_id=oc_chat_123/);
-    assert.match(calls[1]!.url, /start_time=1710000000000/);
-    assert.match(calls[1]!.url, /end_time=1710003600000/);
-    assert.match(calls[1]!.url, /page_size=50/);
-    assert.match(calls[1]!.url, /page_token=current-page/);
-    assert.equal((calls[1]!.init?.headers as Record<string, string>).Authorization, "Bearer tenant_token");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
+    }]);
+    const query = new URL(calls[0]!.url).searchParams;
+    assert.equal(query.get("container_id_type"), "chat");
+    assert.equal(query.get("container_id"), "oc_chat_123");
+    assert.equal(query.get("start_time"), "1710000000000");
+    assert.equal(query.get("end_time"), "1710003600000");
+    assert.equal(query.get("page_size"), "50");
+    assert.equal(query.get("page_token"), "current-page");
 
-test("Feishu client rejects invalid history lookup arguments before calling the API", async () => {
-  const client = createClient();
-  await assert.rejects(
-    async () =>
-      await client.listChatMessages("", {
-        startTime: "1710000000000",
-      }),
-    (error: unknown) => {
-      assert.ok(error instanceof TypeError);
-      assert.match(String((error as Error).message), /chatId/);
-      return true;
-    },
-  );
-
-  await assert.rejects(
-    async () =>
-      await client.listChatMessages("oc_chat_123", {
-        startTime: "   ",
-      }),
-    (error: unknown) => {
-      assert.ok(error instanceof TypeError);
-      assert.match(String((error as Error).message), /startTime/);
-      return true;
-    },
-  );
-
-  await assert.rejects(
-    async () =>
-      await client.listChatMessages("oc_chat_123", {
-        startTime: "1710000000000",
-        pageSize: 0,
-      }),
-    (error: unknown) => {
-      assert.ok(error instanceof TypeError);
-      assert.match(String((error as Error).message), /pageSize/);
-      return true;
-    },
-  );
-});
-
-test("Feishu client classifies history lookup failures with FeishuApiError", async () => {
-  const client = createClient();
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async (input: string | URL | Request) => {
-    const url = String(input);
-    if (url.includes("/tenant_access_token/internal")) {
-      return new Response(
-        JSON.stringify({
-          code: 0,
-          tenant_access_token: "tenant_token",
-          expire: 7200,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-    }
-    return new Response(
-      JSON.stringify({
-        code: 99991403,
-        msg: "permission denied",
-      }),
-      { status: 403, headers: { "Content-Type": "application/json" } },
-    );
-  }) as typeof fetch;
-
-  try {
-    await assert.rejects(
-      async () =>
-        await client.listChatMessages("oc_chat_123", {
-          startTime: "1710000000000",
-        }),
-      (error: unknown) => {
-        assert.ok(error instanceof FeishuApiError);
-        assert.equal(error.kind, "permission");
-        assert.equal(error.httpStatus, 403);
-        return true;
-      },
-    );
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+    await assert.rejects(client.listChatMessages("", { startTime: "1710000000000" }), /chatId/);
+    await assert.rejects(client.listChatMessages("oc_chat_123", { startTime: "   " }), /startTime/);
+    await assert.rejects(client.listChatMessages("oc_chat_123", { startTime: "1710000000000", pageSize: 0 }), /pageSize/);
+    assert.equal(calls.length, 1);
+  });
 });
 
 test("Feishu client lists the user-token scopes enabled for the app", async () => {
-  const client = createClient();
-  const originalFetch = globalThis.fetch;
-  const urls: string[] = [];
-  globalThis.fetch = (async (input: string | URL | Request) => {
-    const url = String(input);
-    urls.push(url);
-    if (url.includes("/tenant_access_token/internal")) {
-      return new Response(JSON.stringify({ code: 0, tenant_access_token: "tenant_token", expire: 7200 }), { status: 200 });
-    }
-    return new Response(JSON.stringify({
-      code: 0,
-      data: {
-        app: {
-          scopes: [
-            { scope: "calendar:calendar.event:read", token_types: ["user"] },
-            { scope: "im:message", token_types: ["tenant"] },
-            { scope: "docx:document:readonly", token_types: ["tenant", "user"] },
-          ],
-        },
+  await withApi(() => json({
+    code: 0,
+    data: {
+      app: {
+        scopes: [
+          { scope: "calendar:calendar.event:read", token_types: ["user"] },
+          { scope: "im:message", token_types: ["tenant"] },
+          { scope: "docx:document:readonly", token_types: ["tenant", "user"] },
+        ],
       },
-    }), { status: 200 });
-  }) as typeof fetch;
-
-  try {
+    },
+  }), async (client, calls) => {
     assert.deepEqual(await client.listAppUserScopes(), ["calendar:calendar.event:read", "docx:document:readonly"]);
-    assert.match(urls[1]!, /\/application\/v6\/applications\/cli_test\?lang=en_us$/);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+    assert.match(calls[0]!.url, /\/application\/v6\/applications\/cli_test\?lang=en_us$/);
+  });
 });

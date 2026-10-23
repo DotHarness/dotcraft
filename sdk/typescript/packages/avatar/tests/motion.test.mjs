@@ -3,10 +3,8 @@ import assert from 'node:assert/strict'
 import { slotIds } from '../dist/items.js'
 import { advanceDecoration, decorationFrame, decorationMotionProfiles, eventDuration, frameTransform, requestDecorationEvent, restFrame } from '../dist/decorationMotion.js'
 
-test('every head item has an explicit contact and motion profile', () => {
+test('every head item has a motion profile whose events start and land at the mounting pose with bounded movement', () => {
   assert.deepEqual(Object.keys(decorationMotionProfiles).sort(), slotIds('head').sort())
-})
-test('every event starts and lands at its exact mounting pose, with bounded movement', () => {
   for (const profile of Object.values(decorationMotionProfiles)) {
     for (const pose of ['acknowledge', 'done', 'greeting', 'blocked']) {
       assert.deepEqual(decorationFrame(profile, pose, 0), restFrame)

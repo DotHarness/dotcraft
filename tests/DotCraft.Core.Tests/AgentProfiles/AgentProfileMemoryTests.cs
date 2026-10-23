@@ -28,7 +28,6 @@ public sealed class AgentProfileMemoryTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 

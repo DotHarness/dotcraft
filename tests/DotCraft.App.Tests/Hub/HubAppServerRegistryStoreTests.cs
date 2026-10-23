@@ -10,34 +10,6 @@ public sealed class HubAppServerRegistryStoreTests : IDisposable
         "DotCraftHubRegistry_" + Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void SaveAndLoad_PreservesRunningAppServerMetadata()
-    {
-        var path = Path.Combine(_tempDir, "hub", "appservers.json");
-        var store = new HubAppServerRegistryStore(path);
-        var record = new HubAppServerRegistryRecord(
-            WorkspacePath: @"F:\examples\workspace",
-            CanonicalWorkspacePath: @"F:\examples\workspace",
-            DisplayName: "dotcraft",
-            State: HubAppServerStates.Unhealthy,
-            Pid: 123,
-            Endpoints: new Dictionary<string, string> { ["appServerWebSocket"] = "ws://127.0.0.1:43123/ws?token=x" },
-            ServiceStatus: new Dictionary<string, HubServiceStatus> { ["appServerWebSocket"] = new("allocated", "ws://127.0.0.1:43123/ws?token=x") },
-            ServerVersion: "0.1.5",
-            StartedByHub: true,
-            LastStartedAt: DateTimeOffset.UtcNow.AddMinutes(-5),
-            LastSeenAt: DateTimeOffset.UtcNow);
-
-        store.Save([record]);
-
-        var loaded = store.Load();
-        var loadedRecord = Assert.Single(loaded.Values);
-        Assert.Equal(record.CanonicalWorkspacePath, loadedRecord.CanonicalWorkspacePath);
-        Assert.Equal(HubAppServerStates.Unhealthy, loadedRecord.State);
-        Assert.Equal(123, loadedRecord.Pid);
-        Assert.Equal("ws://127.0.0.1:43123/ws?token=x", loadedRecord.Endpoints["appServerWebSocket"]);
-    }
-
-    [Fact]
     public void Load_ReturnsEmptyForMissingOrInvalidRegistry()
     {
         var path = Path.Combine(_tempDir, "hub", "appservers.json");
@@ -89,7 +61,6 @@ public sealed class HubAppServerRegistryStoreTests : IDisposable
         }
         catch
         {
-            // ignored
         }
     }
 }

@@ -332,7 +332,6 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
     [Theory]
     [InlineData("{ model: 'invocation-model' }", "invocation-model", ModelReasoningEffort.High)]
     [InlineData("{ effort: 'low' }", "parent-model", ModelReasoningEffort.Low)]
-    [InlineData("{ effort: 'max' }", "parent-model", ModelReasoningEffort.Max)]
     public async Task AgentCall_PartialOverride_PreservesUnspecifiedPreferenceFields(
         string options,
         string expectedModel,

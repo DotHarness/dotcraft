@@ -6,7 +6,7 @@ namespace DotCraft.Tests.Context;
 public sealed class ContextPageManagerTests
 {
     [Fact]
-    public void GetOrAdd_KeepsStablePageUntilReleased()
+    public void GetOrAdd_KeepsStablePageUntilReleasedOrForgotten()
     {
         var manager = new ContextPageManager();
         var key = new ContextPageKey("scope", "name", "variant");
@@ -22,36 +22,29 @@ public sealed class ContextPageManagerTests
         manager.ReleaseStablePages("thread");
 
         Assert.Equal("v2", manager.GetOrAdd("thread", key, ContextPageLifecycle.StableUntilCompaction, () => value).Content);
+
+        value = "v3";
+        manager.ForgetThread("thread");
+
+        Assert.Equal("v3", manager.GetOrAdd("thread", key, ContextPageLifecycle.StableUntilCompaction, () => value).Content);
     }
 
     [Fact]
-    public void GetOrAdd_CachesPerThread()
+    public void GetOrAdd_CachesPerThreadAndImmediatePagesAlwaysReload()
     {
         var manager = new ContextPageManager();
         var key = new ContextPageKey("scope", "name", "variant");
+        var immediateKey = new ContextPageKey("scope", "immediate", "variant");
         var value = "v1";
 
         Assert.Equal("v1", manager.GetOrAdd("thread-a", key, ContextPageLifecycle.StableUntilCompaction, () => value).Content);
+        Assert.Equal("v1", manager.GetOrAdd("thread-a", immediateKey, ContextPageLifecycle.Immediate, () => value).Content);
 
         value = "v2";
 
         Assert.Equal("v1", manager.GetOrAdd("thread-a", key, ContextPageLifecycle.StableUntilCompaction, () => value).Content);
         Assert.Equal("v2", manager.GetOrAdd("thread-b", key, ContextPageLifecycle.StableUntilCompaction, () => value).Content);
-    }
-
-    [Fact]
-    public void ForgetThread_RemovesStablePages()
-    {
-        var manager = new ContextPageManager();
-        var key = new ContextPageKey("scope", "name", "variant");
-        var value = "v1";
-
-        Assert.Equal("v1", manager.GetOrAdd("thread", key, ContextPageLifecycle.StableUntilCompaction, () => value).Content);
-
-        value = "v2";
-        manager.ForgetThread("thread");
-
-        Assert.Equal("v2", manager.GetOrAdd("thread", key, ContextPageLifecycle.StableUntilCompaction, () => value).Content);
+        Assert.Equal("v2", manager.GetOrAdd("thread-a", immediateKey, ContextPageLifecycle.Immediate, () => value).Content);
     }
 
     [Fact]
@@ -72,20 +65,6 @@ public sealed class ContextPageManagerTests
 
         Assert.Equal("released-v2", manager.GetOrAdd("thread", releasedKey, ContextPageLifecycle.StableUntilCompaction, () => releasedValue).Content);
         Assert.Equal("pinned-v1", manager.GetOrAdd("thread", pinnedKey, ContextPageLifecycle.StableUntilCompaction, () => pinnedValue).Content);
-    }
-
-    [Fact]
-    public void ImmediateLifecycle_AlwaysReloads()
-    {
-        var manager = new ContextPageManager();
-        var key = new ContextPageKey("scope", "name", "variant");
-        var value = "v1";
-
-        Assert.Equal("v1", manager.GetOrAdd("thread", key, ContextPageLifecycle.Immediate, () => value).Content);
-
-        value = "v2";
-
-        Assert.Equal("v2", manager.GetOrAdd("thread", key, ContextPageLifecycle.Immediate, () => value).Content);
     }
 
     [Fact]

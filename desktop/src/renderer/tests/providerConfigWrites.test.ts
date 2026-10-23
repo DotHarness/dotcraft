@@ -24,21 +24,15 @@ const unchanged: ProviderFields = {
 }
 
 describe('provider update edits', () => {
-  it('writes nothing for an untouched provider and leaves the stored key alone', () => {
+  it('writes only edited fields, a new key and cleared fields', () => {
     expect(providerUpdateValue(stored, unchanged)).toEqual({})
-  })
-
-  it('writes a new key and clears emptied fields', () => {
     expect(providerUpdateValue(stored, { ...unchanged, apiKey: 'sk-new', networkTimeoutSeconds: null }))
       .toEqual({ ApiKey: 'sk-new', NetworkTimeoutSeconds: null })
   })
 
-  it('clears the stored key when the provider switches to subscription sign-in', () => {
+  it('clears the stored key when switching to subscription sign-in or a backend', () => {
     expect(providerUpdateValue(stored, { ...unchanged, authMethod: 'chatgptOAuth', apiKey: 'ignored' }))
       .toEqual({ AuthMethod: 'chatgptOAuth', ApiKey: null })
-  })
-
-  it('moves a provider onto a backend without keeping its key or endpoint', () => {
     expect(providerUpdateValue(stored, {
       ...unchanged, backendId: 'local-llm', protocol: 'local-chat', authMethod: 'device', apiKey: 'ignored'
     })).toEqual({
@@ -48,7 +42,7 @@ describe('provider update edits', () => {
 })
 
 describe('provider create value', () => {
-  it('writes the backend, its protocol and sign-in method without HTTP fields', () => {
+  it('writes backend and subscription sign-in without HTTP fields or a key', () => {
     expect(providerCreateValue({
       ...unchanged,
       displayName: '',
@@ -59,9 +53,6 @@ describe('provider create value', () => {
       endPoint: 'https://ignored.example.com',
       networkTimeoutSeconds: null
     })).toEqual({ BackendId: 'local-llm', Protocol: 'local-chat', AuthMethod: 'device' })
-  })
-
-  it('writes the subscription method instead of a key', () => {
     expect(providerCreateValue({ ...unchanged, authMethod: 'chatgptOAuth', apiKey: 'ignored', networkTimeoutSeconds: null }))
       .toEqual({ Protocol: 'openai-responses', DisplayName: 'Work', AuthMethod: 'chatgptOAuth', EndPoint: 'https://api.example.com/v1' })
   })

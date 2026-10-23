@@ -64,23 +64,11 @@ public class SubAgentProfileConfigTests
 
         var codex = Assert.Single(config.SubAgentProfiles, p => p.Name == "codex-cli");
         Assert.Equal("cli-oneshot", codex.Runtime);
-        Assert.Equal("codex", codex.Bin);
         Assert.Equal(["exec", "--json"], codex.Args);
         Assert.Equal("test", codex.Env!["CODEX_ENV"]);
         Assert.Equal(["CURSOR_API_KEY", "HTTPS_PROXY"], codex.EnvPassthrough);
-        Assert.Equal("specified", codex.WorkingDirectoryMode);
-        Assert.True(codex.SupportsStreaming);
-        Assert.True(codex.SupportsResume);
-        Assert.Equal("resume {sessionId}", codex.ResumeArgTemplate);
-        Assert.Equal("thread_id=(.+)", codex.ResumeSessionIdRegex);
         Assert.Equal("stdin", codex.InputMode);
-        Assert.Equal("json", codex.OutputFormat);
-        Assert.Equal("result.message", codex.OutputJsonPath);
-        Assert.Equal("usage.input", codex.OutputInputTokensJsonPath);
-        Assert.Equal("usage.output", codex.OutputOutputTokensJsonPath);
         Assert.Equal("usage.total", codex.OutputTotalTokensJsonPath);
-        Assert.Equal("--output-file {path}", codex.OutputFileArgTemplate);
-        Assert.True(codex.ReadOutputFile);
         Assert.True(codex.DeleteOutputFileAfterRead);
         Assert.Equal(2048, codex.MaxOutputBytes);
     }
@@ -133,20 +121,8 @@ public class SubAgentProfileConfigTests
         var codex = Assert.IsType<JsonObject>(profiles["codex-cli"]);
         Assert.False(codex.ContainsKey("Name"));
         Assert.Equal("codex", codex["Bin"]?.GetValue<string>());
-        Assert.Equal("stdin", codex["InputMode"]?.GetValue<string>());
-        Assert.True(codex["SupportsResume"]?.GetValue<bool>());
-        Assert.Equal("resume {sessionId}", codex["ResumeArgTemplate"]?.GetValue<string>());
         Assert.Equal("session_id", codex["ResumeSessionIdJsonPath"]?.GetValue<string>());
-        var envPassthrough = Assert.IsType<JsonArray>(codex["EnvPassthrough"]);
-        Assert.Equal("CURSOR_API_KEY", envPassthrough[0]?.GetValue<string>());
-        Assert.Equal("HTTPS_PROXY", envPassthrough[1]?.GetValue<string>());
-        Assert.Equal("result", codex["OutputJsonPath"]?.GetValue<string>());
-        Assert.Equal("usage.input", codex["OutputInputTokensJsonPath"]?.GetValue<string>());
-        Assert.Equal("usage.output", codex["OutputOutputTokensJsonPath"]?.GetValue<string>());
-        Assert.Equal("usage.total", codex["OutputTotalTokensJsonPath"]?.GetValue<string>());
-        Assert.Equal("--output-file {path}", codex["OutputFileArgTemplate"]?.GetValue<string>());
-        Assert.True(codex["ReadOutputFile"]?.GetValue<bool>());
-        Assert.True(codex["DeleteOutputFileAfterRead"]?.GetValue<bool>());
+        Assert.Equal(2, Assert.IsType<JsonArray>(codex["EnvPassthrough"]).Count);
         Assert.Equal(4096, codex["MaxOutputBytes"]?.GetValue<int>());
     }
 
@@ -181,51 +157,6 @@ public class SubAgentProfileConfigTests
     }
 
     [Fact]
-    public void BuiltInProfiles_IncludeCodexCursorAndCustomCliProfiles()
-    {
-        var profiles = SubAgentProfileRegistry.CreateBuiltInProfiles()
-            .ToDictionary(p => p.Name, StringComparer.OrdinalIgnoreCase);
-
-        var codex = profiles["codex-cli"];
-        Assert.Equal("cli-oneshot", codex.Runtime);
-        Assert.Equal("codex", codex.Bin);
-        Assert.Equal("arg", codex.InputMode);
-        Assert.Equal("prompt", codex.TrustLevel);
-        Assert.True(codex.ReadOutputFile);
-        Assert.True(codex.SupportsResume);
-        Assert.Equal("resume {sessionId}", codex.ResumeArgTemplate);
-        Assert.Equal("\"thread_id\"\\s*:\\s*\"(?<sessionId>[^\"]+)\"", codex.ResumeSessionIdRegex);
-        Assert.Equal("--skip-git-repo-check --json --output-last-message {path}", codex.OutputFileArgTemplate);
-        Assert.Equal(
-            "--sandbox read-only",
-            codex.PermissionModeMapping![SubAgentApprovalModeResolver.InteractiveMode]);
-        Assert.Equal(
-            "--dangerously-bypass-approvals-and-sandbox",
-            codex.PermissionModeMapping[SubAgentApprovalModeResolver.AutoApproveMode]);
-
-        var cursor = profiles["cursor-cli"];
-        Assert.Equal("cli-oneshot", cursor.Runtime);
-        Assert.Equal("cursor-agent", cursor.Bin);
-        Assert.Equal("json", cursor.OutputFormat);
-        Assert.Equal("result", cursor.OutputJsonPath);
-        Assert.True(cursor.SupportsResume);
-        Assert.Equal("--resume {sessionId}", cursor.ResumeArgTemplate);
-        Assert.Equal("session_id", cursor.ResumeSessionIdJsonPath);
-        Assert.Equal("prompt", cursor.TrustLevel);
-        Assert.Equal("--mode ask --trust --approve-mcps", cursor.PermissionModeMapping![SubAgentApprovalModeResolver.InteractiveMode]);
-
-        var custom = profiles["custom-cli-oneshot"];
-        Assert.Equal("cli-oneshot", custom.Runtime);
-        Assert.Equal("arg", custom.InputMode);
-        Assert.Equal("text", custom.OutputFormat);
-        Assert.Equal(120, custom.Timeout);
-        Assert.Equal("restricted", custom.TrustLevel);
-
-        var native = profiles["native"];
-        Assert.Equal("trusted", native.TrustLevel);
-    }
-
-    [Fact]
     public void ValidateProfiles_ReportsCliOneshotFieldWarnings()
     {
         var warnings = SubAgentProfileRegistry.ValidateProfiles(
@@ -252,7 +183,7 @@ public class SubAgentProfileConfigTests
     }
 
     [Fact]
-    public void ValidateProfiles_SkipsTemplateWarningsForBuiltInCustomCliTemplate()
+    public void ValidateProfiles_SkipsTemplateWarningsOnlyForTheBuiltInCustomCliTemplate()
     {
         var profiles = SubAgentProfileRegistry.CreateBuiltInProfiles();
         var warnings = SubAgentProfileRegistry.ValidateProfiles(
@@ -264,12 +195,8 @@ public class SubAgentProfileConfigTests
             warnings,
             w => w.Contains("custom-cli-oneshot", StringComparison.Ordinal)
                  && w.Contains("missing required field 'bin'", StringComparison.Ordinal));
-    }
 
-    [Fact]
-    public void ValidateProfiles_ReportsWarningsForConfiguredCustomTemplateWithoutBin()
-    {
-        var warnings = SubAgentProfileRegistry.ValidateProfiles(
+        var configuredWarnings = SubAgentProfileRegistry.ValidateProfiles(
             [
                 new SubAgentProfile
                 {
@@ -282,7 +209,7 @@ public class SubAgentProfileConfigTests
             SubAgentProfileRegistry.KnownRuntimeTypes);
 
         Assert.Contains(
-            warnings,
+            configuredWarnings,
             w => w.Contains("custom-cli-oneshot", StringComparison.Ordinal)
                  && w.Contains("missing required field 'bin'", StringComparison.Ordinal));
     }

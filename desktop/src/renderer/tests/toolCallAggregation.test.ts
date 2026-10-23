@@ -84,8 +84,12 @@ function shape(
 }
 
 describe('planToolRunRender', () => {
-  it('keeps a lone finished call as its own row', () => {
+  it('keeps a lone finished call as its own row and groups missing-result calls of a completed turn', () => {
     expect(shape([makeItem(EXPLORE, 'ReadFile', '1')])).toEqual([['single', '1']])
+    expect(shape([
+      makeItem(EXPLORE, 'ReadFile', '1'),
+      makeItem(EXPLORE, 'ReadFile', '2')
+    ])).toEqual([['group', ['1', '2']]])
   })
 
   it('groups consecutive calls across categories, with reasoning inside the group', () => {
@@ -113,7 +117,8 @@ describe('planToolRunRender', () => {
     ])
   })
 
-  it('renders the trailing run of a running turn as one active row', () => {
+  it('renders the trailing run of a running turn as one active row, leaving lone reasoning on its own', () => {
+    expect(shape([reasoning('r1')], { isRunning: true, isTrailingRun: true })).toEqual([['reasoning', 'r1']])
     expect(shape([
       makeItem(SUBAGENT_LIST, 'ListAgents', '1'),
       makeItem(EXPLORE, 'ReadFile', '2'),
@@ -123,10 +128,6 @@ describe('planToolRunRender', () => {
       ['single', '1'],
       ['active', ['2', '3', 'r1']]
     ])
-  })
-
-  it('leaves reasoning without calls to render on its own', () => {
-    expect(shape([reasoning('r1')], { isRunning: true, isTrailingRun: true })).toEqual([['reasoning', 'r1']])
   })
 
   it('splits a live call out of an earlier group while the turn runs', () => {
@@ -140,13 +141,6 @@ describe('planToolRunRender', () => {
       ['single', '2'],
       ['group', ['3', '4']]
     ])
-  })
-
-  it('does not keep missing-result historical tools live after the turn is completed', () => {
-    expect(shape([
-      makeItem(EXPLORE, 'ReadFile', '1'),
-      makeItem(EXPLORE, 'ReadFile', '2')
-    ])).toEqual([['group', ['1', '2']]])
   })
 
   it('treats completed tool calls without tool results as live only while the turn is running', () => {
@@ -219,18 +213,12 @@ describe('resolveShellBackgroundState', () => {
   const live = makeItem(SHELL, 'Exec', 'live', { executionStatus: 'inProgress', terminalSessionId: 'term_1' })
   const stopped = makeItem(SHELL, 'Exec', 'stopped', { executionStatus: 'cancelled', terminalSessionId: 'term_1', success: true })
 
-  it('leaves rows of a running turn in their in-turn state', () => {
+  it('marks commands that outlive their turn as running or stopped background terminals', () => {
     expect(resolveShellBackgroundState(live, { turnRunning: true })).toBeNull()
     expect(resolveShellBackgroundState(stopped, { turnRunning: true })).toBeNull()
-  })
-
-  it('marks a command still running after its turn as a background terminal', () => {
     expect(resolveShellBackgroundState(live)).toBe('backgroundRunning')
     expect(resolveShellBackgroundState(makeItem(SHELL, 'Exec', 'term', { executionStatus: 'completed', terminalRunning: true })))
       .toBe('backgroundRunning')
-  })
-
-  it('marks a cancelled handed-back command as a stopped background terminal', () => {
     expect(resolveShellBackgroundState(stopped)).toBe('backgroundStopped')
   })
 

@@ -54,7 +54,7 @@ describe('AppUpdateService', () => {
     expect(updater.quitAndInstall).toHaveBeenCalledWith(true, true)
   })
 
-  it('does not check again while an update is downloading or ready', async () => {
+  it('does not check again while an update is downloading or ready, and reports unsupported without an updater', async () => {
     const updater = new FakeUpdater()
     const { service } = createService(updater)
     updater.emit('update-available', { version: '0.7.4' })
@@ -64,11 +64,10 @@ describe('AppUpdateService', () => {
     await service.checkForUpdates()
 
     expect(updater.checkForUpdates).not.toHaveBeenCalled()
+
+    const { service: unsupported } = createService(null)
+
+    expect((await unsupported.checkForUpdates()).status).toBe('unsupported')
   })
 
-  it('reports updates as unsupported without an updater', async () => {
-    const { service } = createService(null)
-
-    expect((await service.checkForUpdates()).status).toBe('unsupported')
-  })
 })

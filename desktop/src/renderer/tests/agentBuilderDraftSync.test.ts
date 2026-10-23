@@ -8,14 +8,11 @@ import {
 } from '../components/agents/agentBuilderDraftSync'
 
 describe('agentBuilderDraftSync', () => {
-  it('recognizes builder tool names', () => {
-    expect(isBuilderToolName('SetAgentName')).toBe(true)
+  it('recognizes builder tool names and maps them to edited fields', () => {
     expect(isBuilderToolName('SetAgentToolPolicy')).toBe(true)
     expect(isBuilderToolName('ReadFile')).toBe(false)
     expect(isBuilderToolName(undefined)).toBe(false)
-  })
 
-  it('maps builder tool names to edited fields', () => {
     expect(builderFieldForToolName('SetAgentName')).toBe('name')
     expect(builderFieldForToolName('AppendAgentInstructions')).toBe('instructions')
     expect(builderFieldForToolName('SetAgentToolPolicy')).toBe('tools.policy')
@@ -25,21 +22,18 @@ describe('agentBuilderDraftSync', () => {
     expect(builderFieldForToolName('ReadFile')).toBeNull()
   })
 
-  it('parses a JSON-string result and rejects malformed input', () => {
+  it('parses JSON-string and object results and rejects malformed input', () => {
     const ok = parseBuilderToolResult('{"ok":true,"field":"name","change":{"op":"set","value":"triage"}}')
     expect(ok).toEqual({ ok: true, field: 'name', change: { op: 'set', value: 'triage' } })
+    expect(parseBuilderToolResult({ ok: false, field: 'approval', error: 'bad' }))
+      .toEqual({ ok: false, field: 'approval', error: 'bad' })
 
     expect(parseBuilderToolResult('not json')).toBeNull()
     expect(parseBuilderToolResult('')).toBeNull()
     expect(parseBuilderToolResult({ missingOk: true })).toBeNull()
   })
 
-  it('parses an already-parsed object', () => {
-    const r = parseBuilderToolResult({ ok: false, field: 'approval', error: 'bad' })
-    expect(r).toEqual({ ok: false, field: 'approval', error: 'bad' })
-  })
-
-  it('applies scalar text changes', () => {
+  it('applies text, instructions and enum changes', () => {
     let draft = createEmptyDraft()
     ;({ draft } = applyBuilderChange(draft, { ok: true, field: 'name', change: { op: 'set', value: 'triage-bot' } }))
     ;({ draft } = applyBuilderChange(draft, {
@@ -47,8 +41,26 @@ describe('agentBuilderDraftSync', () => {
       field: 'description',
       change: { op: 'set', value: 'Triages issues' }
     }))
-    expect(draft.name).toBe('triage-bot')
-    expect(draft.description).toBe('Triages issues')
+    ;({ draft } = applyBuilderChange(draft, {
+      ok: true,
+      field: 'tools.agentControl',
+      change: { op: 'set', value: 'allowList' }
+    }))
+    ;({ draft } = applyBuilderChange(draft, { ok: true, field: 'approval', change: { op: 'set', value: 'autoApprove' } }))
+    const res = applyBuilderChange(draft, {
+      ok: true,
+      field: 'instructions',
+      change: { op: 'append', value: 'First.\n\nSecond.' }
+    })
+
+    expect(res.changedField).toBe('instructions')
+    expect(res.draft).toMatchObject({
+      name: 'triage-bot',
+      description: 'Triages issues',
+      roleInstructions: 'First.\n\nSecond.',
+      tools: { agentControl: 'allowList' },
+      permissions: { approvalPolicy: 'autoApprove' }
+    })
   })
 
   it('sets and clears the provider model preset', () => {
@@ -87,33 +99,7 @@ describe('agentBuilderDraftSync', () => {
     expect(res.draft.tools.allow).toEqual([])
     expect(res.draft.tools.deny).toEqual(['WriteFile'])
     expect(res.changedField).toBe('tools.policy')
-    // Original draft is not mutated (immutability for React).
     expect(draft.tools.allow).toEqual([])
-  })
-
-  it('applies the instructions body carried in the change value', () => {
-    const draft = createEmptyDraft()
-    const res = applyBuilderChange(draft, {
-      ok: true,
-      field: 'instructions',
-      change: { op: 'append', value: 'First.\n\nSecond.' }
-    })
-
-    expect(res.draft.roleInstructions).toBe('First.\n\nSecond.')
-    expect(res.changedField).toBe('instructions')
-  })
-
-  it('applies agentControl and approval enum values', () => {
-    let draft = createEmptyDraft()
-    ;({ draft } = applyBuilderChange(draft, {
-      ok: true,
-      field: 'tools.agentControl',
-      change: { op: 'set', value: 'allowList' }
-    }))
-    const res = applyBuilderChange(draft, { ok: true, field: 'approval', change: { op: 'set', value: 'autoApprove' } })
-
-    expect(res.draft.tools.agentControl).toBe('allowList')
-    expect(res.draft.permissions.approvalPolicy).toBe('autoApprove')
   })
 
   it('ignores rejections and unknown fields', () => {

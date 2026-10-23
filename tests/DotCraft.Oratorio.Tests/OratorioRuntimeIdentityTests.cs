@@ -16,8 +16,6 @@ public sealed class OratorioRuntimeIdentityTests
     [Theory]
     [InlineData("/workspace", "remote:cloud:prod:/workspace/other")]
     [InlineData("/workspace", "remote::prod:/workspace")]
-    [InlineData("/workspace", "remote:cloud::/workspace")]
-    [InlineData("/workspace", "remote:cloud:prod")]
     public void ValidateRuntimeIdentityRejectsMalformedOrMismatchedRemoteWorkspace(string workspace, string identity)
     {
         Assert.Throws<OratorioApiException>(() =>

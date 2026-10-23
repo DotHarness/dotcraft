@@ -78,7 +78,6 @@ public sealed class FileAccessGuardTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup for temp directories.
         }
     }
 

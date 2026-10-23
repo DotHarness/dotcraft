@@ -16,6 +16,7 @@ type CommandTestAdapter = {
   renderCommandChoices: (target: string, choices: Array<Record<string, string>>, context: unknown) => Promise<void>;
   onApprovalRequest: (request: Record<string, unknown>) => Promise<string>;
   running: boolean;
+  statusCards: { stopAll: () => Promise<void> };
 };
 
 function createAdapter(): { adapter: CommandTestAdapter; executed: Array<Record<string, unknown>>; cards: Array<Record<string, unknown>> } {
@@ -131,4 +132,5 @@ test("Feishu /approve aliases answer only the approval of the member who started
 
   assert.equal(await decision, "decline");
   assert.deepEqual(steered.map((sender) => sender.senderId), ["ou_bob"]);
+  await adapter.statusCards.stopAll();
 });

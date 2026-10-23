@@ -23,7 +23,7 @@ public sealed class ChatContextProviderContributionTests : IDisposable
     }
 
     [Fact]
-    public void ChatContextProviders_ContributeToThePromptInRegistrationOrder()
+    public void ChatContextProviders_ContributeInRegistrationOrderAndInactiveOnesAreOmitted()
     {
         var registry = CreateRegistry();
         var builder = CreateBuilder(registry);
@@ -38,25 +38,21 @@ public sealed class ChatContextProviderContributionTests : IDisposable
         Assert.True(
             prompt.IndexOf("MARKER-FIRST", StringComparison.Ordinal)
             < prompt.IndexOf("MARKER-SECOND", StringComparison.Ordinal));
-    }
 
-    [Fact]
-    public void ChatContextProvider_WithoutActiveContext_IsOmitted()
-    {
-        var registry = CreateRegistry();
-        var builder = CreateBuilder(registry);
-        var withoutProviders = builder.BuildSystemPrompt("thread-a");
+        var inactiveRegistry = CreateRegistry();
+        var inactiveBuilder = CreateBuilder(inactiveRegistry);
+        var inactiveBaseline = inactiveBuilder.BuildSystemPrompt("thread-a");
 
-        var handle = registry.Add<IChatContextProvider>(new StubChatContextProvider(section: null, line: null));
+        var handle = inactiveRegistry.Add<IChatContextProvider>(new StubChatContextProvider(section: null, line: null));
 
-        Assert.Equal(withoutProviders, builder.BuildSystemPrompt("thread-a"));
+        Assert.Equal(inactiveBaseline, inactiveBuilder.BuildSystemPrompt("thread-a"));
 
         handle.Dispose();
-        Assert.Equal(withoutProviders, builder.BuildSystemPrompt("thread-a"));
+        Assert.Equal(inactiveBaseline, inactiveBuilder.BuildSystemPrompt("thread-a"));
     }
 
     [Fact]
-    public void ChatContextProviders_ContributeRuntimeReminderLines()
+    public void ChatContextProviders_ContributeRuntimeReminderLinesOnlyWhenPresent()
     {
         var block = RuntimeContextBuilder.BuildBlock(
             workspacePath: Directory.GetCurrentDirectory(),
@@ -69,18 +65,14 @@ public sealed class ChatContextProviderContributionTests : IDisposable
         Assert.Contains("## Additional Runtime Context", block, StringComparison.Ordinal);
         Assert.Contains("line-one", block, StringComparison.Ordinal);
         Assert.Contains("line-two", block, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "## Additional Runtime Context",
+            RuntimeContextBuilder.BuildBlock(workspacePath: Directory.GetCurrentDirectory()),
+            StringComparison.Ordinal);
     }
 
     [Fact]
-    public void RuntimeReminder_WithoutChatContextProviders_HasNoAdditionalContextSection()
-    {
-        var block = RuntimeContextBuilder.BuildBlock(workspacePath: Directory.GetCurrentDirectory());
-
-        Assert.DoesNotContain("## Additional Runtime Context", block, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ThreadPromptProviders_HonorPlacementAndRequireAThread()
+    public void ThreadPromptProviders_HonorPlacementRequireAThreadAndStayInTheirThread()
     {
         var registry = CreateRegistry();
         var builder = CreateBuilder(registry);
@@ -96,19 +88,15 @@ public sealed class ChatContextProviderContributionTests : IDisposable
         // Connection-bound sections are delivered as history items, never in the cached prefix.
         Assert.DoesNotContain("MARKER-ITEM", withThread, StringComparison.Ordinal);
         Assert.DoesNotContain("MARKER-BASE", withoutThread, StringComparison.Ordinal);
-    }
 
-    [Fact]
-    public void ThreadPromptProviders_ContributedForOneThreadDoNotLeakToAnother()
-    {
-        var registry = CreateRegistry();
-        var builder = CreateBuilder(registry);
-        registry.Add<IThreadSystemPromptContextProvider>(
+        var scopedRegistry = CreateRegistry();
+        var scopedBuilder = CreateBuilder(scopedRegistry);
+        scopedRegistry.Add<IThreadSystemPromptContextProvider>(
             new StubThreadPromptProvider("scoped", ThreadPromptPlacement.BaseInstructions, "MARKER-SCOPED"),
             ContributionOptions.ForThread("thread-a"));
 
-        Assert.Contains("MARKER-SCOPED", builder.BuildSystemPrompt("thread-a"), StringComparison.Ordinal);
-        Assert.DoesNotContain("MARKER-SCOPED", builder.BuildSystemPrompt("thread-b"), StringComparison.Ordinal);
+        Assert.Contains("MARKER-SCOPED", scopedBuilder.BuildSystemPrompt("thread-a"), StringComparison.Ordinal);
+        Assert.DoesNotContain("MARKER-SCOPED", scopedBuilder.BuildSystemPrompt("thread-b"), StringComparison.Ordinal);
     }
 
     private static ContributionRegistry CreateRegistry()

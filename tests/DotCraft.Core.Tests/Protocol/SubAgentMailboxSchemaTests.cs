@@ -65,6 +65,6 @@ public sealed class SubAgentMailboxSchemaTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 }

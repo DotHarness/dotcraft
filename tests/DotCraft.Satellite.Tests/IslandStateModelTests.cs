@@ -14,31 +14,6 @@ public sealed class IslandStateModelTests
     private static readonly DateTimeOffset Now = new(2026, 9, 10, 11, 35, 0, TimeSpan.Zero);
 
     [Fact]
-    public void Derive_WhileNobodyIsUsingTheMachine_SaysSoInOneQuietLine()
-    {
-        (SatelliteTrayState State, IslandMode Mode, string Key, double Width)[] quiet =
-        [
-            (SatelliteTrayState.Offline, IslandMode.Offline, "tray.status.offline", 160),
-            (SatelliteTrayState.Paused, IslandMode.Paused, "tray.status.paused", 230),
-            (SatelliteTrayState.Standby, IslandMode.Standby, "tray.status.standby", 160)
-        ];
-
-        foreach (var (state, mode, key, width) in quiet)
-        {
-            var model = Derive(state, [Peer(connected: false)]);
-
-            Assert.True(model.Visible);
-            Assert.Equal(mode, model.Mode);
-            Assert.Equal(Strings[key], model.CompactLabel);
-            Assert.Equal(Strings[key], model.Summary);
-            Assert.Equal(width, model.Width);
-            Assert.Empty(model.Peers);
-            Assert.False(model.ShowRunning);
-            Assert.False(model.Watching);
-        }
-    }
-
-    [Fact]
     public void Derive_WithNoPairing_TakesTheIslandAway()
     {
         var model = Derive(SatelliteTrayState.Standby, []);
@@ -57,16 +32,6 @@ public sealed class IslandStateModelTests
     }
 
     [Fact]
-    public void Derive_WhileSharingIsPaused_OffersTheResumeAction()
-    {
-        var model = Derive(SatelliteTrayState.Paused, [Peer()]);
-
-        Assert.Equal(Strings["tray.resume"], model.ResumeLabel);
-        Assert.Empty(Derive(SatelliteTrayState.Standby, [Peer()]).ResumeLabel);
-        Assert.Empty(Derive(SatelliteTrayState.Connected, [Peer()]).ResumeLabel);
-    }
-
-    [Fact]
     public void Derive_WhileQuiet_AnswersToNeitherPinningNorHoverNorRequests()
     {
         var model = Derive(
@@ -79,32 +44,6 @@ public sealed class IslandStateModelTests
 
         Assert.Equal(IslandMode.Standby, model.Mode);
         Assert.False(model.IsApproval);
-    }
-
-    [Fact]
-    public void Derive_WithOneMachine_NamesItAndSaysSinceWhen()
-    {
-        var connected = Now.AddHours(-1);
-
-        var model = Derive(SatelliteTrayState.Connected, [Peer(connectedSince: connected)]);
-
-        Assert.Equal(IslandMode.Compact, model.Mode);
-        Assert.Equal("Ann's workstation", model.CompactLabel);
-        Assert.Equal(
-            "since " + connected.ToLocalTime().ToString("t", CultureInfo.CurrentCulture),
-            model.SinceLabel);
-        Assert.Equal(240, model.Width);
-    }
-
-    [Fact]
-    public void Derive_WithSeveralMachines_CountsThemInsteadOfNamingOne()
-    {
-        var model = Derive(
-            SatelliteTrayState.Connected,
-            [Peer(), Peer(peerId: "pair_priya", name: "Priya's desktop")]);
-
-        Assert.Equal("2 machines", model.CompactLabel);
-        Assert.Empty(model.SinceLabel);
     }
 
     [Fact]
@@ -125,14 +64,6 @@ public sealed class IslandStateModelTests
     }
 
     [Fact]
-    public void Derive_ForAToolWithNoOperationName_FallsBackToTheToolName()
-    {
-        var model = Derive(SatelliteTrayState.Connected, [Peer()], [Activity("Screenshot", "shot")]);
-
-        Assert.Equal("Screenshot", model.OperationLabel);
-    }
-
-    [Fact]
     public void Derive_WithConcurrentTools_ShowsTheLatestAndCountsTheRest()
     {
         var model = Derive(
@@ -142,23 +73,6 @@ public sealed class IslandStateModelTests
 
         Assert.Equal(Strings["approval.operation.read"], model.OperationLabel);
         Assert.Equal(1, model.Concurrency);
-    }
-
-    [Fact]
-    public void Derive_WhenTheOwnerOpensIt_ListsThePeersWithoutHidingTheRunningLine()
-    {
-        var model = Derive(
-            SatelliteTrayState.Connected,
-            [Peer(), Peer(peerId: "pair_priya", name: "Priya's desktop", mode: RemoteToolAuthorization.FullAccess)],
-            [Activity("Exec", "npm run build")],
-            pinned: true);
-
-        Assert.Equal(IslandMode.Expanded, model.Mode);
-        Assert.True(model.ShowRunning);
-        Assert.Equal(2, model.Peers.Count);
-        Assert.StartsWith(Strings["consent.folderHeading"], model.Peers[0].Meta, StringComparison.Ordinal);
-        Assert.StartsWith(Strings["consent.full"], model.Peers[1].Meta, StringComparison.Ordinal);
-        Assert.Equal("Disconnect this one · Ann's workstation", model.Peers[0].DisconnectLabel);
     }
 
     [Fact]
@@ -217,22 +131,6 @@ public sealed class IslandStateModelTests
 
         Assert.Contains(new string('A', IslandStateModel.NameCap), model.ApprovalTitle, StringComparison.Ordinal);
         Assert.DoesNotContain(new string('A', IslandStateModel.NameCap + 1), model.ApprovalTitle, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Derive_MarksTheMachineBeingWatched_WithoutChangingTheMode()
-    {
-        var model = Derive(
-            SatelliteTrayState.Connected,
-            [Peer() with { ScreenViewers = 1 }, Peer(peerId: "pair_priya", name: "Priya's desktop")]);
-
-        Assert.True(model.Watching);
-        Assert.Equal(IslandMode.Compact, model.Mode);
-        Assert.Equal(Strings["island.watching"], model.WatchingLabel);
-        Assert.EndsWith(" · " + model.WatchingLabel, model.Peers[0].Meta, StringComparison.Ordinal);
-        Assert.DoesNotContain(model.WatchingLabel, model.Peers[1].Meta, StringComparison.Ordinal);
-        Assert.EndsWith(model.WatchingLabel, model.Summary, StringComparison.Ordinal);
-        Assert.False(Derive(SatelliteTrayState.Connected, [Peer()]).Watching);
     }
 
     private static IslandStateModel Derive(

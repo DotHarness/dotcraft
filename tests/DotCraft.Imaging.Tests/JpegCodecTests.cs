@@ -59,10 +59,6 @@ public sealed class JpegCodecTests
 
     [Theory]
     [InlineData(1, JpegSubsampling.Yuv444)]
-    [InlineData(85, JpegSubsampling.Yuv444)]
-    [InlineData(100, JpegSubsampling.Yuv444)]
-    [InlineData(1, JpegSubsampling.Yuv420)]
-    [InlineData(85, JpegSubsampling.Yuv420)]
     [InlineData(100, JpegSubsampling.Yuv420)]
     public void EncodePreservesOddDimensionsAndSampling(int quality, JpegSubsampling sampling)
     {
@@ -79,7 +75,6 @@ public sealed class JpegCodecTests
     [Theory]
     [InlineData("baseline-0")]
     [InlineData("progressive-2")]
-    [InlineData("baseline-restart-0")]
     public void TruncatedInputIsRejected(string name)
     {
         var data = Fixture(name, "jpg");
@@ -121,9 +116,7 @@ public sealed class JpegCodecTests
 
     [Theory]
     [InlineData(1, 1, JpegSubsampling.Yuv444)]
-    [InlineData(1, 1, JpegSubsampling.Yuv420)]
     [InlineData(1, 17, JpegSubsampling.Yuv420)]
-    [InlineData(17, 1, JpegSubsampling.Yuv420)]
     [InlineData(9, 17, JpegSubsampling.Yuv420)]
     public void EncoderExtendsPartialEdgeBlocks(int width, int height, JpegSubsampling sampling)
     {

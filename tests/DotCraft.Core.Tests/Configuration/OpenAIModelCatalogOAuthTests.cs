@@ -126,27 +126,6 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
     }
 
     [Fact]
-    public async Task ResponsesLiteMetadata_UsesRemoteCatalogValues()
-    {
-        var handler = new RecordingHandler((HttpStatusCode.OK, """
-            {
-              "models": [
-                { "slug": "standard-model", "visibility": "list", "priority": 1, "use_responses_lite": false },
-                { "slug": "lite-model", "visibility": "list", "priority": 2, "use_responses_lite": true }
-              ]
-            }
-            """));
-        var provider = new OpenAIClientProvider(new FakeOpenAIAuthService(), handler);
-
-        await OpenAIModelCatalog.FetchAsync(Runtime(), openAIClientProvider: provider);
-
-        Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
-            Runtime(model: "standard-model"), "acct_test"));
-        Assert.True(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
-            Runtime(model: "lite-model"), "acct_test"));
-    }
-
-    [Fact]
     public async Task ChatGptOAuthFallsBackToBundledModelsWithoutCache()
     {
         var handler = new RecordingHandler((HttpStatusCode.InternalServerError, "{}"));

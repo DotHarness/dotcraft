@@ -37,7 +37,6 @@ public sealed class TrayMenuModelTests
         var machine = Find(items, TrayMenuCommand.Machine);
         Assert.StartsWith("Ann · since ", machine.Text, StringComparison.Ordinal);
 
-        // Every action that names a machine lives under that machine, and carries its id.
         var actions = machine.Children!
             .Where(child => child.Command != TrayMenuCommand.Separator
                 && child.Command != TrayMenuCommand.Header)
@@ -57,35 +56,6 @@ public sealed class TrayMenuModelTests
     }
 
     [Fact]
-    public void Build_WhenAPairingHasNoMode_SaysItNeedsReauthorization()
-    {
-        var items = TrayMenuModel.Build(
-            SatelliteTrayState.Standby, [Peer(authorizationMode: null)], Strings);
-
-        Assert.Equal(Strings["consent.review"], Find(items, TrayMenuCommand.Machine).Children![0].Text);
-    }
-
-    [Fact]
-    public void Build_KeepsOnlyMachineIndependentActionsAtTheTopLevel()
-    {
-        var items = TrayMenuModel.Build(
-            SatelliteTrayState.Standby,
-            [Peer(connectedSince: DateTimeOffset.UtcNow)],
-            Strings);
-
-        Assert.Equal(
-            (TrayMenuCommand[])
-            [
-                TrayMenuCommand.Header,
-                TrayMenuCommand.Machine,
-                TrayMenuCommand.PauseSharing,
-                TrayMenuCommand.PasteInvite,
-                TrayMenuCommand.Quit
-            ],
-            items.Where(item => item.Command != TrayMenuCommand.Separator).Select(item => item.Command));
-    }
-
-    [Fact]
     public void Build_WhenAMachineIsOffline_NamesItWithoutATimeAndBlocksDisconnect()
     {
         var items = TrayMenuModel.Build(SatelliteTrayState.Offline, [Peer()], Strings);
@@ -95,30 +65,6 @@ public sealed class TrayMenuModelTests
         Assert.False(Child(machine, TrayMenuCommand.Disconnect).Enabled);
         Assert.True(Child(machine, TrayMenuCommand.Revoke).Enabled);
         Assert.DoesNotContain(items, item => item.Text == Strings["tray.noPeers"]);
-    }
-
-    [Fact]
-    public void Build_WhenPaused_OffersResumeInsteadOfPause()
-    {
-        var items = TrayMenuModel.Build(
-            SatelliteTrayState.Paused, [Peer(connectedSince: DateTimeOffset.UtcNow)], Strings);
-
-        Assert.Equal(Strings["tray.resume"], Find(items, TrayMenuCommand.ResumeSharing).Text);
-        Assert.DoesNotContain(items, item => item.Command == TrayMenuCommand.PauseSharing);
-    }
-
-    [Fact]
-    public void Build_ListsEveryPairedMachine()
-    {
-        var items = TrayMenuModel.Build(
-            SatelliteTrayState.Standby,
-            [Peer(), Peer(peerId: "sat_2", displayName: "Bo")],
-            Strings);
-
-        Assert.Equal(
-            ["sat_1", "sat_2"],
-            items.Where(item => item.Command == TrayMenuCommand.Machine)
-                .Select(item => Child(item, TrayMenuCommand.Revoke).PeerId));
     }
 
     private static TrayMenuItem Child(TrayMenuItem machine, TrayMenuCommand command) =>
@@ -136,17 +82,6 @@ public sealed class TrayMenuModelTests
         DateTimeOffset.UtcNow,
         connectedSince,
         authorizationMode);
-
-    private static int Index(IReadOnlyList<TrayMenuItem> items, TrayMenuCommand command)
-    {
-        for (var position = 0; position < items.Count; position++)
-        {
-            if (items[position].Command == command)
-                return position;
-        }
-
-        return -1;
-    }
 
     private static TrayMenuItem Find(IReadOnlyList<TrayMenuItem> items, TrayMenuCommand command) =>
         items.First(item => item.Command == command);

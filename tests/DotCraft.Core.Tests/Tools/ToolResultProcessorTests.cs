@@ -5,41 +5,23 @@ namespace DotCraft.Core.Tests.Tools;
 
 public class ToolResultProcessorTests
 {
-    [Fact]
-    public void Process_Null_ReturnsEmptyMessage()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("   \n\t  ")]
+    [InlineData("(no output)")]
+    public void Process_EmptyOutput_ReturnsEmptyMessage(string? output)
     {
-        var r = ToolResultProcessor.Process("Exec", null, 1000, "C:\\w", "C:\\w\\.craft", "s1", 40);
+        var r = ToolResultProcessor.Process("Exec", output, 1000, "C:\\w", "C:\\w\\.craft", "s1", 40);
         Assert.Equal("(Exec completed with no output)", r);
     }
 
     [Fact]
-    public void Process_WhitespaceString_ReturnsEmptyMessage()
+    public void Process_UnderLimitOrUnlimited_ReturnsOriginalString()
     {
-        var r = ToolResultProcessor.Process("Exec", "   \n\t  ", 1000, "C:\\w", "C:\\w\\.craft", "s1", 40);
-        Assert.Equal("(Exec completed with no output)", r);
-    }
-
-    [Fact]
-    public void Process_DescribeNoOutput_ReturnsEmptyMessage()
-    {
-        var r = ToolResultProcessor.Process("Exec", "(no output)", 1000, "C:\\w", "C:\\w\\.craft", "s1", 40);
-        Assert.Equal("(Exec completed with no output)", r);
-    }
-
-    [Fact]
-    public void Process_UnderLimit_ReturnsOriginalString()
-    {
-        var s = new string('a', 100);
-        var r = ToolResultProcessor.Process("Exec", s, 200, "C:\\w", "C:\\w\\.craft", "s1", 40);
-        Assert.Same(s, r);
-    }
-
-    [Fact]
-    public void Process_MaxZero_Unlimited_PassesThroughNonEmpty()
-    {
-        var s = new string('x', 500_000);
-        var r = ToolResultProcessor.Process("Exec", s, 0, "C:\\w", "C:\\w\\.craft", "s1", 40);
-        Assert.Same(s, r);
+        var small = new string('a', 100);
+        var large = new string('x', 500_000);
+        Assert.Same(small, ToolResultProcessor.Process("Exec", small, 200, "C:\\w", "C:\\w\\.craft", "s1", 40));
+        Assert.Same(large, ToolResultProcessor.Process("Exec", large, 0, "C:\\w", "C:\\w\\.craft", "s1", 40));
     }
 
     [Fact]
@@ -49,7 +31,6 @@ public class ToolResultProcessorTests
         try
         {
             Directory.CreateDirectory(workspace);
-            // Many lines so BuildPreview uses head/tail (not the short single-block form).
             var text = string.Join("\n", Enumerable.Range(0, 200).Select(_ => new string('z', 24)));
             var dataPath = Path.Combine(workspace, ".craft");
             var r = ToolResultProcessor.Process("GrepFiles", text, 1000, workspace, dataPath, "thread-1", 2) as string;
@@ -64,7 +45,7 @@ public class ToolResultProcessorTests
         }
         finally
         {
-            try { Directory.Delete(workspace, recursive: true); } catch { /* ignore */ }
+            try { Directory.Delete(workspace, recursive: true); } catch { }
         }
     }
 
@@ -76,7 +57,6 @@ public class ToolResultProcessorTests
         try
         {
             Directory.CreateDirectory(workspace);
-            // Two lines total: stays in BuildPreview short-line branch; body would exceed the preview cap without truncation.
             var text = new string('a', 50_000) + "\n" + new string('b', 10);
             var dataPath = Path.Combine(workspace, ".craft");
             var r = ToolResultProcessor.Process("Exec", text, limit, workspace, dataPath, "s1", 40) as string;
@@ -91,16 +71,8 @@ public class ToolResultProcessorTests
         }
         finally
         {
-            try { Directory.Delete(workspace, recursive: true); } catch { /* ignore */ }
+            try { Directory.Delete(workspace, recursive: true); } catch { }
         }
-    }
-
-    [Fact]
-    public void BuildPreview_ShortText_IncludesFullOutputReference()
-    {
-        var lines = string.Join("\n", Enumerable.Range(1, 5).Select(i => $"L{i}"));
-        var p = ToolResultProcessor.BuildPreview(lines, 40, ".craft/tool-results/t/x.txt");
-        Assert.Contains("full output at:", p, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -108,7 +80,6 @@ public class ToolResultProcessorTests
     {
         const int maxPreviewChars = 1000;
         const string spillPath = ".craft/tool-results/s/file.txt";
-        // Long-form branch: many lines with long rows so head+tail would exceed maxPreviewChars without truncation.
         var longLine = new string('x', 800);
         var text = string.Join("\n", Enumerable.Range(0, 50).Select(_ => longLine));
         var p = ToolResultProcessor.BuildPreview(text, previewLines: 2, spillRelativePath: spillPath, maxPreviewChars: maxPreviewChars);
@@ -173,7 +144,7 @@ public class ToolResultProcessorTests
         }
         finally
         {
-            try { Directory.Delete(workspace, recursive: true); } catch { /* ignore */ }
+            try { Directory.Delete(workspace, recursive: true); } catch { }
         }
     }
 
@@ -205,7 +176,7 @@ public class ToolResultProcessorTests
         }
         finally
         {
-            try { Directory.Delete(workspace, recursive: true); } catch { /* ignore */ }
+            try { Directory.Delete(workspace, recursive: true); } catch { }
         }
     }
 }

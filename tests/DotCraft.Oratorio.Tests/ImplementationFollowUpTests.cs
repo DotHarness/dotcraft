@@ -403,7 +403,7 @@ public sealed class ImplementationFollowUpTests
                 }
             }
 
-            await Task.Delay(100);
+            await Task.Delay(20);
         }
 
         throw new TimeoutException("Timed out waiting for an implementation follow-up run.");
@@ -433,7 +433,7 @@ public sealed class ImplementationFollowUpTests
                 return latest;
             }
 
-            await Task.Delay(150);
+            await Task.Delay(20);
         }
 
         throw new TimeoutException($"Timed out waiting for {itemId}. Latest state: {latest?.Item.State}");

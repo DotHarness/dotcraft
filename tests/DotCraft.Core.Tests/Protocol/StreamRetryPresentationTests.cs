@@ -6,31 +6,22 @@ namespace DotCraft.Tests.Sessions.Protocol;
 
 public sealed class StreamRetryPresentationTests
 {
-    [Fact]
-    public void NamesTheCauseWhenTheProviderReportedCapacity()
+    public static TheoryData<ProviderFailure?, string> MessageCases => new()
     {
-        var presentation = StreamRetryPresentation.For(Notification(
-            new ProviderFailure(ProviderFailureKind.ServerOverloaded)));
+        { new ProviderFailure(ProviderFailureKind.ServerOverloaded), StreamRetryPresentation.ServerBusyKey },
+        { new ProviderFailure(ProviderFailureKind.Other, HttpStatus: 429), StreamRetryPresentation.ServerBusyKey },
+        { new ProviderFailure(ProviderFailureKind.HttpConnectionFailed), StreamRetryPresentation.ReconnectingKey },
+        { null, StreamRetryPresentation.ReconnectingKey }
+    };
 
-        Assert.Equal(StreamRetryPresentation.ServerBusyKey, presentation.MessageKey);
-    }
-
-    [Fact]
-    public void NamesTheCauseWhenTheProviderThrottled()
+    [Theory]
+    [MemberData(nameof(MessageCases))]
+    public void NamesTheCauseOnlyWhenTheProviderReportedCapacityOrThrottling(ProviderFailure? classification, string expectedKey)
     {
-        var presentation = StreamRetryPresentation.For(Notification(
-            new ProviderFailure(ProviderFailureKind.Other, HttpStatus: 429)));
+        var presentation = StreamRetryPresentation.For(Notification(classification));
 
-        Assert.Equal(StreamRetryPresentation.ServerBusyKey, presentation.MessageKey);
-    }
-
-    [Fact]
-    public void NamesOnlyTheRemedyWhenTheCauseIsUnknown()
-    {
-        var presentation = StreamRetryPresentation.For(Notification(
-            new ProviderFailure(ProviderFailureKind.HttpConnectionFailed)));
-
-        Assert.Equal(StreamRetryPresentation.ReconnectingKey, presentation.MessageKey);
+        Assert.Equal(expectedKey, presentation.MessageKey);
+        Assert.Equal(classification != null, presentation.Params.ContainsKey("providerError"));
     }
 
     [Fact]
@@ -44,15 +35,6 @@ public sealed class StreamRetryPresentationTests
         Assert.Equal("rateLimitExceeded", presentation.Params["providerError"]);
         Assert.Equal(429, presentation.Params["httpStatus"]);
         Assert.Equal("stream closed", presentation.Params["detail"]);
-    }
-
-    [Fact]
-    public void OmitsClassificationWhenNoneWasProduced()
-    {
-        var presentation = StreamRetryPresentation.For(Notification(classification: null));
-
-        Assert.Equal(StreamRetryPresentation.ReconnectingKey, presentation.MessageKey);
-        Assert.False(presentation.Params.ContainsKey("providerError"));
     }
 
     private static ModelStreamRetryNotification Notification(ProviderFailure? classification) =>

@@ -1,81 +1,47 @@
 import { describe, expect, it } from 'vitest'
 import { parseUserMessageSegments, segmentsFromNativeInputParts } from '../components/conversation/parseUserMessageSegments'
-import type { InputPart } from '../types/conversation'
 
-describe('segmentsFromNativeInputParts commandRef rendering', () => {
-  it('keeps underscore skill names intact when parsing fallback message text', () => {
+describe('segmentsFromNativeInputParts', () => {
+  it('keeps underscore skill names intact from text and native parts', () => {
     expect(parseUserMessageSegments('$browser_use ok')).toEqual([
       { type: 'skillRef', skillName: 'browser_use' },
       { type: 'text', value: ' ok' }
     ])
-  })
-
-  it('keeps underscore skill names intact from native input parts', () => {
-    const parts: InputPart[] = [
-      { type: 'skillRef', name: 'browser_use' }
-    ]
-
-    expect(segmentsFromNativeInputParts(parts)).toEqual([
+    expect(segmentsFromNativeInputParts([{ type: 'skillRef', name: 'browser_use' }])).toEqual([
       { type: 'skillRef', skillName: 'browser_use' }
     ])
   })
 
-  it('splits commandRef with argsText into command chip and trailing plain text', () => {
-    const parts: InputPart[] = [
-      {
-        type: 'commandRef',
-        name: 'summarize',
-        rawText: '/summarize 一些文本',
-        argsText: '一些文本'
-      }
-    ]
-
-    expect(segmentsFromNativeInputParts(parts)).toEqual([
+  it('splits commandRef into a command chip and trailing args from argsText or rawText', () => {
+    expect(segmentsFromNativeInputParts([
+      { type: 'commandRef', name: 'summarize', rawText: '/summarize 一些文本', argsText: '一些文本' }
+    ])).toEqual([
       { type: 'commandRef', commandText: '/summarize' },
       { type: 'text', value: ' 一些文本' }
     ])
-  })
-
-  it('keeps command-only commandRef as a single command segment', () => {
-    const parts: InputPart[] = [
-      {
-        type: 'commandRef',
-        name: 'code-review',
-        rawText: '/code-review'
-      }
-    ]
-
-    expect(segmentsFromNativeInputParts(parts)).toEqual([
-      { type: 'commandRef', commandText: '/code-review' }
-    ])
-  })
-
-  it('falls back to parsing args from rawText when argsText is missing', () => {
-    const parts: InputPart[] = [
-      {
-        type: 'commandRef',
-        name: 'summarize',
-        rawText: '/summarize some text'
-      }
-    ]
-
-    expect(segmentsFromNativeInputParts(parts)).toEqual([
+    expect(segmentsFromNativeInputParts([
+      { type: 'commandRef', name: 'summarize', rawText: '/summarize some text' }
+    ])).toEqual([
       { type: 'commandRef', commandText: '/summarize' },
       { type: 'text', value: ' some text' }
     ])
+    expect(segmentsFromNativeInputParts([
+      { type: 'commandRef', name: 'code-review', rawText: '/code-review' }
+    ])).toEqual([{ type: 'commandRef', commandText: '/code-review' }])
   })
 
   it('keeps fileRef displayPath separate from the real target path', () => {
-    const parts: InputPart[] = [
-      {
-        type: 'fileRef',
-        path: 'C:\\temp\\notes.txt',
-        displayPath: 'notes.txt'
-      }
-    ]
-
-    expect(segmentsFromNativeInputParts(parts)).toEqual([
+    expect(segmentsFromNativeInputParts([
+      { type: 'fileRef', path: 'C:\\temp\\notes.txt', displayPath: 'notes.txt' }
+    ])).toEqual([
       { type: 'fileRef', relativePath: 'notes.txt', targetPath: 'C:\\temp\\notes.txt' }
+    ])
+  })
+
+  it('recognizes file links inside native text parts', () => {
+    expect(segmentsFromNativeInputParts([{ type: 'text', text: 'Fix [x](a.ts:3)' }])).toEqual([
+      { type: 'text', value: 'Fix ' },
+      { type: 'fileRef', relativePath: 'a.ts', targetPath: 'a.ts:3' }
     ])
   })
 })
@@ -89,23 +55,14 @@ describe('parseUserMessageSegments Markdown file links', () => {
     ])
   })
 
-  it('accepts absolute paths and file URLs', () => {
+  it('accepts absolute paths, file URLs and line fragments, using the target rather than the label', () => {
     expect(parseUserMessageSegments('[a](C:/repo/a.ts:4-9) [b](file:///home/me/b.md)')).toEqual([
       { type: 'fileRef', relativePath: 'C:/repo/a.ts', targetPath: 'C:/repo/a.ts:4-9' },
       { type: 'text', value: ' ' },
       { type: 'fileRef', relativePath: '/home/me/b.md', targetPath: 'file:///home/me/b.md' }
     ])
-  })
-
-  it('accepts line fragments', () => {
-    expect(parseUserMessageSegments('[notes](docs/notes.md#L10)')).toEqual([
+    expect(parseUserMessageSegments('[other.ts](docs/notes.md#L10)')).toEqual([
       { type: 'fileRef', relativePath: 'docs/notes.md', targetPath: 'docs/notes.md#L10' }
-    ])
-  })
-
-  it('uses the link target rather than the label', () => {
-    expect(parseUserMessageSegments('[other.ts](src/real.ts)')).toEqual([
-      { type: 'fileRef', relativePath: 'src/real.ts', targetPath: 'src/real.ts' }
     ])
   })
 
@@ -113,12 +70,5 @@ describe('parseUserMessageSegments Markdown file links', () => {
     for (const text of ['[docs](https://example.com/a.md)', '[mail](mailto:me@example.com)', '![shot](shot.png)', 'notes.md:2']) {
       expect(parseUserMessageSegments(text)).toEqual([{ type: 'text', value: text }])
     }
-  })
-
-  it('recognizes file links inside native text parts', () => {
-    expect(segmentsFromNativeInputParts([{ type: 'text', text: 'Fix [x](a.ts:3)' }])).toEqual([
-      { type: 'text', value: 'Fix ' },
-      { type: 'fileRef', relativePath: 'a.ts', targetPath: 'a.ts:3' }
-    ])
   })
 })

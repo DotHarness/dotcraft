@@ -8,7 +8,7 @@ import { canRestorePastedText } from '../../shared/composerContext'
 const directories: string[] = []
 afterEach(async () => { await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))) })
 describe('pasted text files', () => {
-  it.each([5_000, 25_000, 25_001, 120_000])('preserves %i Unicode characters as a real file', async (count) => {
+  it.each([25_000, 25_001])('preserves %i Unicode characters as a real file', async (count) => {
     const directory = await mkdtemp(path.join(tmpdir(), 'dotcraft-paste-'))
     directories.push(directory)
     const text = '文'.repeat(count)

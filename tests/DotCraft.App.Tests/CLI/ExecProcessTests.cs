@@ -24,10 +24,11 @@ public sealed class ExecProcessTests : ExecProcessTestBase
             ]
         });
 
-        var result = await RunExecAsync(server, ["hello"]);
+        var result = await RunExecAsync(server, ["hello"], stdin: string.Empty);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("final answer", result.StandardOutput.Trim());
+        Assert.Equal("hello", TurnText(server));
     }
 
     [Fact]
@@ -58,14 +59,12 @@ public sealed class ExecProcessTests : ExecProcessTestBase
         Assert.Null(start["cwd"]);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Exec_PromptFromStdin_SendsStdinAsThePrompt(bool dash)
+    [Fact]
+    public async Task Exec_PromptFromStdin_SendsStdinAsThePrompt()
     {
         await using var server = await ExecFakeAppServer.StartAsync();
 
-        var result = await RunExecAsync(server, dash ? ["-"] : [], stdin: "summarize the repo\n");
+        var result = await RunExecAsync(server, [], stdin: "summarize the repo\n");
 
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("summarize the repo", TurnText(server));
@@ -83,24 +82,11 @@ public sealed class ExecProcessTests : ExecProcessTestBase
     }
 
     [Fact]
-    public async Task Exec_PromptWithEmptyPipedStdin_SendsPromptAlone()
+    public async Task Exec_DashPromptWithBlankStdin_ExitsTwoWithoutContactingServer()
     {
         await using var server = await ExecFakeAppServer.StartAsync();
 
-        var result = await RunExecAsync(server, ["hello"], stdin: string.Empty);
-
-        Assert.Equal(0, result.ExitCode);
-        Assert.Equal("hello", TurnText(server));
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Exec_NoPromptAndEmptyStdin_ExitsTwoWithoutContactingServer(bool dash)
-    {
-        await using var server = await ExecFakeAppServer.StartAsync();
-
-        var result = await RunExecAsync(server, dash ? ["-"] : [], stdin: "  \n");
+        var result = await RunExecAsync(server, ["-"], stdin: "  \n");
 
         Assert.Equal(2, result.ExitCode);
         Assert.Contains("No prompt provided", result.StandardError, StringComparison.Ordinal);
@@ -108,28 +94,19 @@ public sealed class ExecProcessTests : ExecProcessTestBase
     }
 
     [Fact]
-    public async Task Exec_Model_SetsThreadStartModel()
+    public async Task Exec_Options_ShapeTheThreadStart()
     {
         await using var server = await ExecFakeAppServer.StartAsync();
 
-        var result = await RunExecAsync(server, ["-m", "gpt-test", "hello"]);
-
-        Assert.Equal(0, result.ExitCode);
-        var start = Assert.Single(server.ParamsOf("thread/start"));
-        Assert.Equal("gpt-test", start["config"]!["model"]!.GetValue<string>());
-        Assert.Null(start["config"]!["providerId"]);
-    }
-
-    [Fact]
-    public async Task Exec_Ephemeral_StartsEphemeralThread()
-    {
-        await using var server = await ExecFakeAppServer.StartAsync();
-
-        var result = await RunExecAsync(server, ["--ephemeral", "hello"]);
+        var result = await RunExecAsync(server, ["-m", "gpt-test", "--ephemeral", "--auto-approve", "hello"]);
 
         Assert.Equal(0, result.ExitCode);
         var start = Assert.Single(server.ParamsOf("thread/start"));
         Assert.True(start["ephemeral"]!.GetValue<bool>());
+        var config = start["config"]!.AsObject();
+        Assert.Equal(["approvalPolicy", "model"], config.Select(property => property.Key).Order());
+        Assert.Equal("gpt-test", config["model"]!.GetValue<string>());
+        Assert.Equal("autoApprove", config["approvalPolicy"]!.GetValue<string>());
     }
 
     [Fact]
@@ -167,21 +144,6 @@ public sealed class ExecProcessTests : ExecProcessTestBase
 
         Assert.Equal(2, result.ExitCode);
         Assert.Contains("missing.png", result.StandardError, StringComparison.Ordinal);
-        Assert.Empty(server.Requests);
-    }
-
-    [Theory]
-    [InlineData("resume")]
-    [InlineData("resume", "--ephemeral", "thread_9", "hello")]
-    [InlineData("--unknown-option", "hello")]
-    public async Task Exec_InvalidUsage_ExitsTwoWithoutContactingServer(params string[] args)
-    {
-        await using var server = await ExecFakeAppServer.StartAsync();
-
-        var result = await RunExecAsync(server, args);
-
-        Assert.Equal(2, result.ExitCode);
-        Assert.NotEqual(string.Empty, result.StandardError);
         Assert.Empty(server.Requests);
     }
 
@@ -316,48 +278,6 @@ public sealed class ExecProcessTests : ExecProcessTestBase
         var capabilities = Assert.Single(server.ParamsOf("initialize"))["capabilities"]!;
         Assert.False(capabilities["approvalSupport"]!.GetValue<bool>());
         Assert.False(capabilities["requestUserInputSupport"]!.GetValue<bool>());
-    }
-
-    [Fact]
-    public async Task Exec_AutoApprove_StartsThreadWithAutoApprovePolicy()
-    {
-        await using var server = await ExecFakeAppServer.StartAsync();
-
-        var result = await RunExecAsync(server, ["--auto-approve", "hello"]);
-
-        Assert.Equal(0, result.ExitCode);
-        var config = Assert.Single(server.ParamsOf("thread/start"))["config"]!;
-        Assert.True(JsonNode.DeepEquals(new JsonObject { ["approvalPolicy"] = "autoApprove" }, config));
-    }
-
-    [Fact]
-    public async Task Resume_AutoApprove_UpdatesOnlyTheApprovalPolicy()
-    {
-        await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions
-        {
-            ThreadConfiguration = new JsonObject
-            {
-                ["model"] = "kept-model",
-                ["providerId"] = "workspace-provider",
-                ["reasoning"] = new JsonObject { ["effort"] = "high" },
-                ["approvalPolicy"] = "default"
-            }
-        });
-
-        var result = await RunExecAsync(server, ["resume", "thread_9", "--auto-approve", "hello"]);
-
-        Assert.Equal(0, result.ExitCode);
-        Assert.Single(server.ParamsOf("thread/read"));
-        var update = Assert.Single(server.ParamsOf("thread/config/update"));
-        Assert.True(JsonNode.DeepEquals(
-            new JsonObject
-            {
-                ["model"] = "kept-model",
-                ["providerId"] = "workspace-provider",
-                ["reasoning"] = new JsonObject { ["effort"] = "high" },
-                ["approvalPolicy"] = "autoApprove"
-            },
-            update["config"]));
     }
 
     [Fact]

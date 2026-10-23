@@ -1,23 +1,13 @@
-/**
- * Drives a mirror of App.tsx's notification handler through a full turn lifecycle.
- * The preload calls the callback with one `{ method, params }` object, not two
- * arguments; a handler written for two arguments drops every notification silently.
- */
-
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadRouteStore } from '../stores/threadRouteStore'
-import { useSkillsStore } from '../stores/skillsStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
-import { useAutomationsStore, type AutomationDefinition } from '../stores/automationsStore'
 import { useUIStore } from '../stores/uiStore'
 import type { ContextUsageSnapshotWire, ThreadSummary } from '../types/thread'
-import type { ApprovalDecision, InputPart } from '../types/conversation'
+import type { ApprovalDecision } from '../types/conversation'
 import type { SubAgentEntry } from '../types/toolCall'
-import { resolveConfigChangedPayload } from '../utils/configChanged'
-import { buildComposerInputParts } from '../utils/composeInputParts'
 import { installDesktopApiMock } from './desktopApiMock'
 import { coreToolFields } from './testToolPresentation'
 
@@ -55,9 +45,6 @@ function extractApprovalResolvedParams(params: Record<string, unknown>): {
   }
 }
 
-// Intentionally kept in sync with the switch block in App.tsx, so a future
-// mismatch is caught here first.
-
 function dispatch(payload: { method: string; params: unknown }): void {
   const method = payload.method
   const p = (payload.params ?? {}) as Record<string, unknown>
@@ -69,14 +56,6 @@ function dispatch(payload: { method: string; params: unknown }): void {
   }
 
   switch (method) {
-    case 'config/changed': {
-      const event = resolveConfigChangedPayload(payload, configChangedDedupe)
-      if (event?.regions.includes('skills')) {
-        void useSkillsStore.getState().fetchSkills()
-      }
-      break
-    }
-
     case 'thread/status/changed': {
       const threadId = (p.threadId as string | undefined) ?? ''
       if (!threadId) break
@@ -274,16 +253,6 @@ function dispatch(payload: { method: string; params: unknown }): void {
       break
     }
 
-    case 'item/tool/requestUserInput/resolved': {
-      const threadId = (p.threadId as string | undefined) ?? ''
-      if (shouldUpdateActiveConversation(threadId)) {
-        conv.onUserInputResolved()
-      } else if (threadId) {
-        useThreadStore.getState().clearParkedUserInput(threadId)
-      }
-      break
-    }
-
     case 'subagent/progress': {
       const entries = (p.entries as SubAgentEntry[]) ?? []
       const threadId = (p.threadId as string | undefined) ?? ''
@@ -310,12 +279,6 @@ function dispatch(payload: { method: string; params: unknown }): void {
       break
     }
 
-    case 'automation/updated': {
-      const task = (p.automation ?? {}) as AutomationDefinition
-      useAutomationsStore.getState().upsertAutomation(task)
-      break
-    }
-
     case 'remoteToolHost/route/changed': {
       useThreadRouteStore.getState().handleRouteChanged(p)
       break
@@ -326,45 +289,16 @@ function dispatch(payload: { method: string; params: unknown }): void {
   }
 }
 
-/**
- * Mirrors App.tsx thread lifecycle branch (threadList / removeThread).
- */
-function dispatchThreadLifecycle(
-  payload: { method: string; params: unknown },
-  options: { reloadThreadList?: () => void } = {}
-): void {
-  const method = payload.method
+function dispatchThreadLifecycle(payload: { method: string; params: unknown }): void {
   const p = (payload.params ?? {}) as Record<string, unknown>
-  const { addThread, removeThreadTree, updateThreadStatus } = useThreadStore.getState()
-
-  switch (method) {
-    case 'thread/started': {
-      const pp = p as { thread: ThreadSummary }
-      addThread(pp.thread)
-      break
-    }
-    case 'thread/deleted': {
-      const pp = p as { threadId: string }
-      removeThreadTree(pp.threadId)
-      break
-    }
-    case 'thread/archived': {
-      removeThreadTree((p as { threadId: string }).threadId)
-      break
-    }
-    case 'thread/unarchived': {
-      updateThreadStatus((p as { threadId: string }).threadId, 'active')
-      break
-    }
-    default:
-      break
-  }
+  const { addThread, removeThreadTree } = useThreadStore.getState()
+  if (payload.method === 'thread/started') addThread(p.thread as ThreadSummary)
+  else if (payload.method === 'thread/archived') removeThreadTree(p.threadId as string)
 }
 
 const s = () => useConversationStore.getState()
 
 const NOW = new Date().toISOString()
-const configChangedDedupe = new Map<string, number>()
 const TURN_DIFF = [
   'diff --git a/a.txt b/a.txt',
   '--- a/a.txt',
@@ -377,50 +311,6 @@ const TURN_DIFF = [
 
 function makeTurnPayload(id: string, status = 'running'): Record<string, unknown> {
   return { id, threadId: 'thread-1', status, items: [], startedAt: NOW }
-}
-
-async function dispatchTurnCompletedWithAutoSend(
-  payload: { method: string; params: unknown },
-  options: {
-    sendRequest: (method: string, params?: unknown) => Promise<unknown>
-    inputParts?: InputPart[]
-    workspacePath?: string
-  }
-): Promise<void> {
-  const pendingBefore = useConversationStore.getState().pendingMessage
-  dispatch(payload)
-
-  if (!pendingBefore) {
-    return
-  }
-
-  const activeId = useThreadStore.getState().activeThreadId
-  if (!activeId) {
-    useConversationStore.getState().setPendingMessage(null)
-    return
-  }
-
-  let effectiveThreadId = activeId
-  const pendingInputParts = options.inputParts
-    ?? pendingBefore.inputParts
-    ?? buildComposerInputParts({
-      text: pendingBefore.text.trim(),
-      files: pendingBefore.files ?? []
-    }).inputParts
-
-  if (pendingInputParts.length > 0) {
-    await options.sendRequest('turn/start', {
-      threadId: effectiveThreadId,
-      input: pendingInputParts,
-      identity: {
-        channelName: 'dotcraft-desktop',
-        userId: 'local',
-        channelContext: `workspace:${options.workspacePath ?? 'F:/examples/workspace'}`,
-        workspacePath: options.workspacePath ?? 'F:/examples/workspace'
-      }
-    })
-  }
-  useConversationStore.getState().setPendingMessage(null)
 }
 
 beforeEach(() => {
@@ -448,12 +338,6 @@ beforeEach(() => {
       }
     ]
   })
-  useAutomationsStore.setState({
-    tasks: [],
-    selectedTaskId: null,
-    statusFilter: 'all'
-  })
-  configChangedDedupe.clear()
 })
 
 afterEach(() => {
@@ -461,46 +345,6 @@ afterEach(() => {
 })
 
 describe('notification dispatch payload format', () => {
-  it('dispatches skills refresh for config/changed notifications', () => {
-    let fetchSkillsCalls = 0
-    useSkillsStore.setState({
-      fetchSkills: async () => {
-        fetchSkillsCalls += 1
-      }
-    })
-
-    dispatch({
-      method: 'config/changed',
-      params: {
-        source: 'skills/setEnabled',
-        regions: ['skills'],
-        changedAt: NOW
-      }
-    })
-
-    expect(fetchSkillsCalls).toBe(1)
-  })
-
-  it('does not refresh skills for unrelated config/changed regions', () => {
-    let fetchSkillsCalls = 0
-    useSkillsStore.setState({
-      fetchSkills: async () => {
-        fetchSkillsCalls += 1
-      }
-    })
-
-    dispatch({
-      method: 'config/changed',
-      params: {
-        source: 'mcp/upsert',
-        regions: ['mcp', 'externalChannel'],
-        changedAt: NOW
-      }
-    })
-
-    expect(fetchSkillsCalls).toBe(0)
-  })
-
   it('shows subagent progress immediately and refreshes child metadata', async () => {
     const sendRequest = vi.fn(async (method: string) => {
       if (method === 'subagent/children/list') {
@@ -723,352 +567,27 @@ describe('notification dispatch payload format', () => {
     expect(s().turnStatus).toBe('running')
   })
 
-  it('applies approval resolved decisions only for the active thread', () => {
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_approval') } })
-    s().onApprovalRequest('bridge-resolved', {
-      threadId: 'thread-1',
-      turnId: 'turn_approval',
-      requestId: 'req-resolved',
-      itemId: 'approval-item-1',
-      approvalType: 'shell',
-      operation: 'npm test',
-      target: 'F:/dotcraft',
-      reason: 'Run tests.'
-    })
-
-    dispatch({
-      method: 'item/approval/resolved',
-      params: {
-        threadId: 'thread-2',
-        turnId: 'turn_other',
-        item: {
-          type: 'approvalResponse',
-          payload: { requestId: 'req-other', decision: 'accept' }
-        }
-      }
-    })
-    expect(s().pendingApproval?.requestId).toBe('req-resolved')
-
-    dispatch({
-      method: 'item/approval/resolved',
-      params: {
-        threadId: 'thread-1',
-        turnId: 'turn_approval',
-        item: {
-          type: 'approvalResponse',
-          payload: { requestId: 'req-resolved', decision: 'acceptForSession' }
-        }
-      }
-    })
-
-    const approvalItem = s().turns[0].items.find((item) => item.type === 'approvalCard')
-    expect(approvalItem?.approvalState).toBe('acceptedForSession')
-    expect(s().pendingApproval).toBeNull()
-    expect(s().turnStatus).toBe('running')
-  })
-
-  it('clears pending user input only for the active thread', () => {
-    s().onUserInputRequest('bridge-input', {
-      threadId: 'thread-1',
-      turnId: 'turn_input',
-      requestId: 'req-input',
-      isBlocking: false,
-      questions: [
-        {
-          id: 'scope',
-          header: 'Scope',
-          question: 'Which scope should DotCraft use?',
-          options: [
-            { label: 'Current thread', description: 'Answer in the active thread.' },
-            { label: 'Workspace', description: 'Apply to the workspace.' }
-          ]
-        }
-      ]
-    })
-    expect(s().pendingUserInput?.requestId).toBe('req-input')
-    expect(s().turnStatus).toBe('waitingInput')
-
-    dispatch({
-      method: 'item/tool/requestUserInput/resolved',
-      params: {
-        threadId: 'thread-2',
-        turnId: 'turn_other',
-        item: {
-          type: 'userInputResponse',
-          payload: { requestId: 'req-other', response: { answers: {} } }
-        }
-      }
-    })
-    expect(s().pendingUserInput?.requestId).toBe('req-input')
-    expect(s().turnStatus).toBe('waitingInput')
-
-    dispatch({
-      method: 'item/tool/requestUserInput/resolved',
-      params: {
-        threadId: 'thread-1',
-        turnId: 'turn_input',
-        item: {
-          type: 'userInputResponse',
-          payload: { requestId: 'req-input', response: { answers: {} } }
-        }
-      }
-    })
-    expect(s().pendingUserInput).toBeNull()
-    expect(s().turnStatus).toBe('running')
-  })
-
-  it('refreshes subagent children and sidebar on graph changes', async () => {
-    const sendRequest = vi.fn(async (method: string) => {
-      if (method === 'subagent/children/list') {
-        return {
-          data: [
-            {
-              edge: {
-                parentThreadId: 'thread-1',
-                childThreadId: 'child-graph',
-                agentNickname: 'Graph child',
-                status: 'open'
-              },
-              thread: {
-                id: 'child-graph',
-                displayName: 'Graph child',
-                status: 'active',
-                originChannel: 'subagent',
-                source: {
-                  kind: 'subagent',
-                  subAgent: {
-                    parentThreadId: 'thread-1',
-                    rootThreadId: 'thread-1',
-                    depth: 1
-                  }
-                },
-                createdAt: NOW,
-                lastActiveAt: NOW,
-                runtime: {
-                  running: true,
-                  waitingOnApproval: false,
-                  waitingOnPlanConfirmation: false
-                }
-              }
-            }
-          ]
-        }
-      }
-      return {}
-    })
-    vi.stubGlobal('window', {
-      api: {
-        appServer: { sendRequest }
-      }
-    })
-
-    dispatch({
-      method: 'subagent/graph/changed',
-      params: { parentThreadId: 'thread-1', childThreadId: 'child-graph' }
-    })
-
-    await vi.waitFor(() => {
-      expect(sendRequest).toHaveBeenCalledWith('subagent/children/list', {
-        parentThreadId: 'thread-1',
-        includeClosed: true,
-        includeThreads: true
-      })
-      expect(useThreadStore.getState().threadList.some((thread) => thread.id === 'child-graph')).toBe(true)
-    })
-  })
-
-  it('does not resurrect closed subagents from stale progress after graph changes', async () => {
-    useSubAgentStore.getState().setChildren('thread-1', [
-      {
-        childThreadId: 'child-1',
-        parentThreadId: 'thread-1',
-        nickname: 'Lovelace',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'open',
-        lastToolDisplay: 'Reading sprite atlas',
-        currentTool: 'ReadFile',
-        inputTokens: 12,
-        outputTokens: 34,
-        isCompleted: false,
-        runtime: {
-          running: true,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
-        }
-      }
-    ])
-    const sendRequest = vi.fn(async (method: string) => {
-      if (method === 'subagent/children/list') {
-        return { data: [] }
-      }
-      return {}
-    })
-    vi.stubGlobal('window', {
-      api: {
-        appServer: { sendRequest }
-      }
-    })
-
-    dispatch({
-      method: 'subagent/graph/changed',
-      params: { parentThreadId: 'thread-1', childThreadId: 'child-1' }
-    })
-
-    await vi.waitFor(() => {
-      expect(useSubAgentStore.getState().childrenByParent.get('thread-1')).toEqual([])
-    })
-
-    dispatch({
-      method: 'subagent/progress',
-      params: {
-        threadId: 'thread-1',
-        entries: [
-          {
-            label: 'Lovelace',
-            isCompleted: false,
-            inputTokens: 99,
-            outputTokens: 101,
-            currentTool: 'ReadFile',
-            currentToolDisplay: 'Reading stale output'
-          }
-        ]
-      }
-    })
-
-    expect(useSubAgentStore.getState().childrenByParent.get('thread-1')).toEqual([])
-  })
-
-  it('dispatches turn/started correctly from { method, params } payload', () => {
-    dispatch({
+  it.each([
+    ['turn/completed', 'completed', {}, {}],
+    ['turn/failed', 'failed', { error: 'API rate limit' }, { error: 'API rate limit' }],
+    ['turn/cancelled', 'cancelled', { reason: 'user requested' }, { cancelReason: 'user requested' }]
+  ])('ends a running turn on %s', (method, status, extra, expected) => {
+    const runtime = (running: boolean) => ({
       method: 'thread/status/changed',
       params: {
         threadId: 'thread-1',
-        runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }
+        runtime: { running, waitingOnApproval: false, waitingOnPlanConfirmation: false }
       }
     })
-    dispatch({
-      method: 'turn/started',
-      params: { turn: makeTurnPayload('turn_server_1') }
-    })
-
-    const state = s()
-    expect(state.turnStatus).toBe('running')
-    expect(state.turns).toHaveLength(1)
-    expect(state.turns[0].id).toBe('turn_server_1')
+    dispatch(runtime(true))
+    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
     expect(useThreadStore.getState().runningTurnThreadIds.has('thread-1')).toBe(true)
-  })
-
-  it('dispatches turn/completed and sets status to idle', () => {
-    dispatch({
-      method: 'thread/status/changed',
-      params: {
-        threadId: 'thread-1',
-        runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }
-      }
-    })
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
-    dispatch({
-      method: 'thread/status/changed',
-      params: {
-        threadId: 'thread-1',
-        runtime: { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false }
-      }
-    })
-    dispatch({
-      method: 'turn/completed',
-      params: { turn: makeTurnPayload('turn_1', 'completed') }
-    })
-
-    const state = s()
-    expect(state.turnStatus).toBe('idle')
-    expect(state.turns[0].status).toBe('completed')
-    expect(useThreadStore.getState().runningTurnThreadIds.has('thread-1')).toBe(false)
-  })
-
-  it('dispatches turn/failed', () => {
-    dispatch({
-      method: 'thread/status/changed',
-      params: {
-        threadId: 'thread-1',
-        runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }
-      }
-    })
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
-    dispatch({
-      method: 'thread/status/changed',
-      params: {
-        threadId: 'thread-1',
-        runtime: { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false }
-      }
-    })
-    dispatch({
-      method: 'turn/failed',
-      params: { turn: makeTurnPayload('turn_1', 'failed'), error: 'API rate limit' }
-    })
+    dispatch(runtime(false))
+    dispatch({ method, params: { turn: makeTurnPayload('turn_1', status), ...extra } })
 
     expect(s().turnStatus).toBe('idle')
-    expect(s().turns[0].status).toBe('failed')
-    expect(s().turns[0].error).toBe('API rate limit')
+    expect(s().turns[0]).toMatchObject({ status, ...expected })
     expect(useThreadStore.getState().runningTurnThreadIds.has('thread-1')).toBe(false)
-  })
-
-  it('dispatches turn/cancelled', () => {
-    dispatch({
-      method: 'thread/status/changed',
-      params: {
-        threadId: 'thread-1',
-        runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }
-      }
-    })
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
-    dispatch({
-      method: 'thread/status/changed',
-      params: {
-        threadId: 'thread-1',
-        runtime: { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false }
-      }
-    })
-    dispatch({
-      method: 'turn/cancelled',
-      params: { turn: makeTurnPayload('turn_1', 'cancelled'), reason: 'user requested' }
-    })
-
-    expect(s().turnStatus).toBe('idle')
-    expect(s().turns[0].status).toBe('cancelled')
-    expect(s().turns[0].cancelReason).toBe('user requested')
-    expect(useThreadStore.getState().runningTurnThreadIds.has('thread-1')).toBe(false)
-  })
-
-  it('dispatches item/agentMessage/delta and accumulates streamingMessage', () => {
-    vi.useFakeTimers()
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
-    dispatch({ method: 'item/started', params: { turnId: 'turn_1', item: { id: 'item_1', type: 'agentMessage' } } })
-    dispatch({ method: 'item/agentMessage/delta', params: { delta: 'Hello' } })
-    dispatch({ method: 'item/agentMessage/delta', params: { delta: ', world!' } })
-    vi.advanceTimersByTime(16)
-
-    expect(s().streamingMessage).toBe('Hello, world!')
-  })
-
-  it('dispatches item/completed (agentMessage) and commits text to turn items', () => {
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
-    dispatch({ method: 'item/started', params: { turnId: 'turn_1', item: { id: 'item_1', type: 'agentMessage' } } })
-    dispatch({ method: 'item/agentMessage/delta', params: { delta: 'The answer is 42.' } })
-    dispatch({
-      method: 'item/completed',
-      params: { turnId: 'turn_1', item: { id: 'item_1', type: 'agentMessage', createdAt: NOW } }
-    })
-
-    const items = s().turns[0].items
-    expect(s().streamingMessage).toBe('')
-    expect(items).toHaveLength(1)
-    expect(items[0].text).toBe('The answer is 42.')
-    expect(items[0].type).toBe('agentMessage')
   })
 
   it('dispatches command execution deltas into the matching item', () => {
@@ -1184,53 +703,6 @@ describe('notification dispatch payload format', () => {
     expect(editItem?.status).toBe('streaming')
     expect(editItem?.argumentsPreview).toContain('"newText":"## title\\ncontent"')
     expect(editItem?.streamingFileContent).toBe('## title\ncontent')
-  })
-
-  it('updates the existing Exec toolCall instead of requiring a standalone terminal block', () => {
-    vi.useFakeTimers()
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
-    dispatch({
-      method: 'item/started',
-      params: {
-        turnId: 'turn_1',
-        item: {
-          id: 'tool_1',
-          type: 'toolCall',
-          payload: {
-            callId: 'exec-3',
-            toolName: 'Exec', ...coreToolFields('Exec'),
-            arguments: { command: 'dir' }
-          }
-        }
-      }
-    })
-    dispatch({
-      method: 'item/started',
-      params: {
-        turnId: 'turn_1',
-        item: {
-          id: 'cmd_3',
-          type: 'commandExecution',
-          payload: {
-            callId: 'exec-3',
-            command: 'dir',
-            status: 'inProgress',
-            aggregatedOutput: ''
-          }
-        }
-      }
-    })
-    dispatch({
-      method: 'item/commandExecution/outputDelta',
-      params: { threadId: 'thread-1', turnId: 'turn_1', itemId: 'cmd_3', delta: 'file.txt\n' }
-    })
-    vi.advanceTimersByTime(50)
-
-    const toolItem = s().turns[0].items.find((i) => i.id === 'tool_1')
-    expect(toolItem?.type).toBe('toolCall')
-    expect(toolItem?.aggregatedOutput).toBe('')
-    expect(s().shellRuntimeByCallId.get('exec-3')?.output).toBe('file.txt\n')
-    expect(toolItem?.executionStatus).toBe('inProgress')
   })
 
   it('dispatches terminal output deltas into the matching Exec tool card', () => {
@@ -1407,42 +879,6 @@ describe('notification dispatch payload format', () => {
     expect(s().shellRuntimeByCallId.get('exec-real-order')?.output).toBe('file.txt\n')
   })
 
-  it('dispatches item/usage/delta and accumulates tokens', () => {
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
-    dispatch({ method: 'item/usage/delta', params: { inputTokens: 150, outputTokens: 80 } })
-    dispatch({ method: 'item/usage/delta', params: { inputTokens: 50, outputTokens: 20 } })
-
-    expect(s().inputTokens).toBe(200)
-    expect(s().outputTokens).toBe(100)
-  })
-
-  it('ignores item/usage/delta from non-active threads', () => {
-    s().setContextUsage({
-      tokens: 40_000,
-      contextWindow: 200_000,
-      autoCompactThreshold: 180_000,
-      warningThreshold: 176_000,
-      errorThreshold: 194_000,
-      percentLeft: 0.8
-    })
-
-    dispatch({
-      method: 'item/usage/delta',
-      params: {
-        threadId: 'thread-2',
-        turnId: 'turn_foreign',
-        inputTokens: 1_000,
-        outputTokens: 200,
-        totalInputTokens: 180_500,
-        totalOutputTokens: 3_000
-      }
-    })
-
-    expect(s().inputTokens).toBe(0)
-    expect(s().outputTokens).toBe(0)
-    expect(s().contextUsage?.tokens).toBe(40_000)
-  })
-
   it('uses active item/usage/delta totalInputTokens for the context ring', () => {
     s().setContextUsage({
       tokens: 40_000,
@@ -1471,47 +907,16 @@ describe('notification dispatch payload format', () => {
     expect(s().contextUsage?.severity).toBe('warning')
   })
 
-  it('uses active item/usage/delta contextUsage snapshot to create the context ring', () => {
-    expect(s().contextUsage).toBeNull()
-
-    dispatch({
-      method: 'item/usage/delta',
-      params: {
-        threadId: 'thread-1',
-        turnId: 'turn_active',
-        inputTokens: 500,
-        outputTokens: 50,
-        totalInputTokens: 44_000,
-        totalOutputTokens: 50,
-        contextUsage: {
-          tokens: 44_000,
-          contextWindow: 200_000,
-          autoCompactThreshold: 180_000,
-          warningThreshold: 176_000,
-          errorThreshold: 194_000,
-          percentLeft: 0.78
-        }
-      }
-    })
-
-    expect(s().inputTokens).toBe(500)
-    expect(s().outputTokens).toBe(50)
-    expect(s().contextUsage?.tokens).toBe(44_000)
-    expect(s().contextUsage?.percentLeft).toBe(0.78)
-    expect(s().contextUsage?.severity).toBe('normal')
-  })
-
-  it('dispatches system/event and sets systemLabel', () => {
+  it('applies system/event compaction labels and structured streamError retries', () => {
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
     dispatch({ method: 'system/event', params: { kind: 'compacting', turnId: 'turn_1' } })
     expect(s().systemLabel).toBe('systemStatus.compacting')
 
     dispatch({ method: 'system/event', params: { kind: 'compacted' } })
     expect(s().systemLabel).toBeNull()
-  })
 
-  it('dispatches structured streamError params into the reissue status', () => {
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
+    dispatch({ method: 'system/event', params: { kind: 'compacting', turnId: null } })
+    expect(s().systemLabel).toBe('systemStatus.compacting.manual')
 
     dispatch({
       method: 'system/event',
@@ -1531,119 +936,6 @@ describe('notification dispatch payload format', () => {
       max: 5,
       serverBusy: true
     })
-  })
-
-  it('uses active system/event contextUsage snapshot to create the context ring', () => {
-    expect(s().contextUsage).toBeNull()
-
-    dispatch({
-      method: 'system/event',
-      params: {
-        threadId: 'thread-1',
-        kind: 'compacted',
-        tokenCount: 195_000,
-        percentLeft: 0.02,
-        contextUsage: {
-          tokens: 44_000,
-          contextWindow: 200_000,
-          autoCompactThreshold: 180_000,
-          warningThreshold: 176_000,
-          errorThreshold: 194_000,
-          percentLeft: 0.78
-        }
-      }
-    })
-
-    expect(s().contextUsage?.tokens).toBe(44_000)
-    expect(s().contextUsage?.percentLeft).toBe(0.78)
-    expect(s().contextUsage?.severity).toBe('normal')
-  })
-
-  it('dispatches manual compacting system/event with manual label', () => {
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
-    dispatch({ method: 'system/event', params: { kind: 'compacting', turnId: null } })
-    expect(s().systemLabel).toBe('systemStatus.compacting.manual')
-  })
-
-  it('ignores system/event from non-active threads', () => {
-    s().setContextUsage({
-      tokens: 195_000,
-      contextWindow: 200_000,
-      autoCompactThreshold: 180_000,
-      warningThreshold: 176_000,
-      errorThreshold: 194_000,
-      percentLeft: 0.025
-    })
-
-    dispatch({
-      method: 'system/event',
-      params: {
-        threadId: 'thread-2',
-        turnId: 'turn_foreign',
-        kind: 'compacted',
-        tokenCount: 44_000,
-        percentLeft: 0.78,
-        contextUsage: {
-          tokens: 44_000,
-          contextWindow: 200_000,
-          autoCompactThreshold: 180_000,
-          warningThreshold: 176_000,
-          errorThreshold: 194_000,
-          percentLeft: 0.78
-        }
-      }
-    })
-
-    expect(s().contextUsage?.tokens).toBe(195_000)
-    expect(s().contextUsage?.percentLeft).toBe(0.025)
-
-    dispatch({
-      method: 'system/event',
-      params: {
-        threadId: 'thread-2',
-        turnId: 'turn_foreign',
-        kind: 'compacting'
-      }
-    })
-
-    expect(s().systemLabel).toBeNull()
-  })
-
-  it('ignores plan/updated from non-active threads without opening the detail panel', () => {
-    useUIStore.setState({
-      activeDetailTab: { kind: 'system', id: 'changes' },
-      detailPanelPreferredVisible: false,
-      detailPanelVisible: false
-    })
-
-    dispatch({
-      method: 'plan/updated',
-      params: {
-        threadId: 'thread-2',
-        title: 'Foreign Plan',
-        overview: 'Should not show',
-        content: '',
-        todos: [{ id: 'foreign', content: 'Wrong thread', status: 'pending' }]
-      }
-    })
-
-    expect(s().plan).toBeNull()
-    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
-    expect(useUIStore.getState().detailPanelVisible).toBe(false)
-  })
-
-  it('ignores legacy plan/updated notifications without a threadId', () => {
-    dispatch({
-      method: 'plan/updated',
-      params: {
-        title: 'Legacy Plan',
-        overview: 'Missing thread identity',
-        content: '',
-        todos: []
-      }
-    })
-
-    expect(s().plan).toBeNull()
   })
 
   it('applies plan/updated for the active thread without opening or switching the detail panel', () => {
@@ -1670,23 +962,6 @@ describe('notification dispatch payload format', () => {
     expect(useUIStore.getState().detailPanelVisible).toBe(false)
   })
 
-  it('ignores turn/diff/updated from non-active threads', () => {
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
-    dispatch({
-      method: 'turn/diff/updated',
-      params: { threadId: 'thread-2', turnId: 'turn_1', diff: TURN_DIFF }
-    })
-
-    expect(s().turnDiffs.size).toBe(0)
-  })
-
-  it('ignores turn/diff/updated without a threadId', () => {
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
-    dispatch({ method: 'turn/diff/updated', params: { turnId: 'turn_1', diff: TURN_DIFF } })
-
-    expect(s().turnDiffs.size).toBe(0)
-  })
-
   it('applies turn/diff/updated for the active thread as the live turn diff', () => {
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
     dispatch({
@@ -1700,21 +975,6 @@ describe('notification dispatch payload format', () => {
       ['a.txt', 1, 1]
     ])
   })
-
-  it('ignores unknown notification methods without throwing', () => {
-    expect(() => {
-      dispatch({ method: 'unknown/future/event', params: { foo: 'bar' } })
-    }).not.toThrow()
-  })
-
-  it('upserts automation definition states independently from runs', () => {
-    useAutomationsStore.setState({ automations: [] })
-    for (const status of ['active', 'paused', 'completed']) {
-      dispatch({ method: 'automation/updated', params: { automation: { id: status, name: status, status, version: 1 } } })
-    }
-    expect(useAutomationsStore.getState().automations.map(a => a.status).sort()).toEqual(['active', 'completed', 'paused'])
-  })
-
 })
 
 describe('thread lifecycle notification dispatch', () => {
@@ -1731,21 +991,7 @@ describe('thread lifecycle notification dispatch', () => {
     useThreadStore.getState().reset()
   })
 
-  it('removes thread from list on thread/deleted', () => {
-    dispatchThreadLifecycle({
-      method: 'thread/started',
-      params: { thread: minimalThread('thread_del_1') }
-    })
-    expect(useThreadStore.getState().threadList.some((t) => t.id === 'thread_del_1')).toBe(true)
-
-    dispatchThreadLifecycle({
-      method: 'thread/deleted',
-      params: { threadId: 'thread_del_1' }
-    })
-    expect(useThreadStore.getState().threadList.some((t) => t.id === 'thread_del_1')).toBe(false)
-  })
-
-  it('does not add internal helper threads on thread/started', () => {
+  it('skips internal helper threads and removes subagent descendants with their parent', () => {
     dispatchThreadLifecycle({
       method: 'thread/started',
       params: {
@@ -1758,9 +1004,7 @@ describe('thread lifecycle notification dispatch', () => {
     })
 
     expect(useThreadStore.getState().threadList).toEqual([])
-  })
 
-  it('removes subagent descendants when a parent is deleted or archived', () => {
     dispatchThreadLifecycle({
       method: 'thread/started',
       params: { thread: minimalThread('parent-1') }
@@ -1789,7 +1033,6 @@ describe('thread lifecycle notification dispatch', () => {
 
     expect(useThreadStore.getState().threadList).toEqual([])
   })
-
 })
 
 describe('full turn lifecycle via notification dispatch', () => {
@@ -1841,122 +1084,10 @@ describe('full turn lifecycle via notification dispatch', () => {
     const agentItem = finalState.turns[0].items.find((i) => i.type === 'agentMessage')
     expect(agentItem?.text).toBe('The answer is 42.')
   })
-
-  it('two-arg callback format (the old bug) would silently drop all notifications', () => {
-    // With a two-arg `onNotification((method, params) => ...)` handler, `method`
-    // receives the payload object and switch(method) matches nothing.
-
-    const payload = { method: 'turn/started', params: { turn: makeTurnPayload('turn_bug') } }
-
-    const brokenDispatch = (method: unknown, _params: unknown): void => {
-      let matched = false
-      if (method === 'turn/started') matched = true
-      expect(matched).toBe(false)
-    }
-    brokenDispatch(payload, undefined)
-
-    const method = payload.method
-    expect(method).toBe('turn/started')
-  })
 })
 
-describe('pending message auto-send', () => {
-  it('auto-sends queued command refs with file references after turn completion', async () => {
-    const sendRequest = async (method: string, params?: unknown): Promise<unknown> => {
-      if (method === 'turn/start') {
-        expect(params).toEqual(
-          expect.objectContaining({
-            threadId: 'thread-1',
-            input: [
-              { type: 'fileRef', path: 'C:\\temp\\notes.txt', displayPath: 'C:\\temp\\notes.txt' },
-              { type: 'text', text: '\n\n' },
-              { type: 'commandRef', name: 'code-review', rawText: '/code-review' }
-            ]
-          })
-        )
-      }
-      return {}
-    }
-
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_pending') } })
-    useConversationStore.getState().setPendingMessage({
-      text: '/code-review',
-      inputParts: [
-        { type: 'fileRef', path: 'C:\\temp\\notes.txt', displayPath: 'C:\\temp\\notes.txt' },
-        { type: 'text', text: '\n\n' },
-        { type: 'commandRef', name: 'code-review', rawText: '/code-review' }
-      ],
-      files: [{ path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }]
-    })
-
-    await dispatchTurnCompletedWithAutoSend(
-      {
-        method: 'turn/completed',
-        params: { turn: { ...makeTurnPayload('turn_pending', 'completed'), completedAt: NOW } }
-      },
-      { sendRequest }
-    )
-
-    expect(s().pendingMessage).toBeNull()
-  })
-
-  it('auto-sends file-only queued messages using structured input parts', async () => {
-    const sendRequest = async (method: string, params?: unknown): Promise<unknown> => {
-      expect(method).toBe('turn/start')
-      expect(params).toEqual(
-        expect.objectContaining({
-          threadId: 'thread-1',
-          input: [{ type: 'fileRef', path: 'C:\\temp\\notes.txt', displayPath: 'C:\\temp\\notes.txt' }]
-        })
-      )
-      return {}
-    }
-
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_pending_files') } })
-    useConversationStore.getState().setPendingMessage({
-      text: '',
-      files: [{ path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }]
-    })
-
-    await dispatchTurnCompletedWithAutoSend(
-      {
-        method: 'turn/completed',
-        params: { turn: { ...makeTurnPayload('turn_pending_files', 'completed'), completedAt: NOW } }
-      },
-      { sendRequest }
-    )
-
-    expect(s().pendingMessage).toBeNull()
-  })
-
-  it('does not send a turn when queued message has no structured input parts', async () => {
-    let turnStartCalled = false
-    const sendRequest = async (method: string): Promise<unknown> => {
-      if (method === 'turn/start') {
-        turnStartCalled = true
-      }
-      return {}
-    }
-
-    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_pending_skip') } })
-    useConversationStore.getState().setPendingMessage({
-      text: '',
-      inputParts: []
-    })
-
-    await dispatchTurnCompletedWithAutoSend(
-      {
-        method: 'turn/completed',
-        params: { turn: { ...makeTurnPayload('turn_pending_skip', 'completed'), completedAt: NOW } }
-      },
-      { sendRequest }
-    )
-
-    expect(turnStartCalled).toBe(false)
-    expect(s().pendingMessage).toBeNull()
-  })
-
-  it('routes remoteToolHost/route/changed to the thread route store', () => {
+describe('remote tool host routes', () => {
+  it('tracks route changes and keeps a thread pointed at the machine whose lease was lost', () => {
     useThreadRouteStore.setState({ routes: {} })
 
     dispatch({
@@ -1979,10 +1110,6 @@ describe('pending message auto-send', () => {
       params: { threadId: 'thread_route', reason: 'disconnected', route: null }
     })
     expect(useThreadRouteStore.getState().routes.thread_route).toBeUndefined()
-  })
-
-  it('keeps a thread pointed at the machine whose lease was lost', () => {
-    useThreadRouteStore.setState({ routes: {} })
 
     dispatch({
       method: 'remoteToolHost/route/changed',

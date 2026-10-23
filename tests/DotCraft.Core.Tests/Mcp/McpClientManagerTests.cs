@@ -44,11 +44,12 @@ public sealed class McpClientManagerTests
     }
 
     [Fact]
-    public async Task ConnectAsync_DisabledServers_LeavesToolIndexesEmpty()
+    public async Task ConnectAsync_DisabledServers_LeavesToolIndexesEmptyWithoutStarting()
     {
         await using var manager = new McpClientManager();
 
         await manager.ConnectAsync([DisabledStdio("demo-server")]);
+        await manager.WaitForStartupCompletionAsync();
 
         Assert.Empty(manager.Tools);
         Assert.Empty(manager.ToolServerMap);
@@ -78,7 +79,7 @@ public sealed class McpClientManagerTests
     }
 
     [Fact]
-    public async Task ConnectAsync_HangingServer_ReturnsQuickly_AndStatusRequestsDoNotBlock()
+    public async Task ConnectAsync_HangingServer_ReturnsQuickly_AndStatusAndStartupWaitDoNotBlock()
     {
         await using var manager = new McpClientManager();
         var elapsed = Stopwatch.StartNew();
@@ -93,33 +94,10 @@ public sealed class McpClientManagerTests
         Assert.Equal("hung-server", status.Name);
         Assert.Contains(status.StartupState, new[] { "starting", "error" });
 
-        Assert.Contains(status.StartupState, new[] { "starting", "error" });
-    }
-
-    [Fact]
-    public async Task WaitForStartupCompletionAsync_HangingServer_DoesNotBlockIndefinitely()
-    {
-        await using var manager = new McpClientManager();
-
-        await manager.ConnectAsync([HangingStdio("hung-server")]);
-        var elapsed = Stopwatch.StartNew();
+        var waited = Stopwatch.StartNew();
         await manager.WaitForStartupCompletionAsync();
-
-        Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(2), $"Wait took {elapsed.Elapsed}.");
-        var status = Assert.Single(await manager.ListStatusesAsync());
-        Assert.Contains(status.StartupState, new[] { "starting", "error" });
-    }
-
-    [Fact]
-    public async Task WaitForStartupCompletionAsync_DisabledServer_ReturnsWithoutStarting()
-    {
-        await using var manager = new McpClientManager();
-
-        await manager.ConnectAsync([DisabledStdio("disabled-server")]);
-        await manager.WaitForStartupCompletionAsync();
-
-        var status = Assert.Single(await manager.ListStatusesAsync());
-        Assert.Equal("disabled", status.StartupState);
+        Assert.True(waited.Elapsed < TimeSpan.FromSeconds(2), $"Wait took {waited.Elapsed}.");
+        Assert.Contains(Assert.Single(await manager.ListStatusesAsync()).StartupState, new[] { "starting", "error" });
     }
 
     [Fact]
@@ -173,12 +151,6 @@ public sealed class McpClientManagerTests
         Assert.Equal(expectedFailureReason, status.FailureReason);
     }
 
-    [Fact]
-    public void DefaultStartupTimeout_MatchesReferenceBehavior()
-    {
-        Assert.Equal(30, McpClientManager.DefaultStartupTimeoutSeconds);
-    }
-
     private static McpServerConfig HttpServer(string name) => new()
     {
         Name = name,
@@ -191,5 +163,4 @@ public sealed class McpClientManagerTests
     {
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
-
 }

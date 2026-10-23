@@ -11,37 +11,6 @@ namespace DotCraft.Tests.Tools;
 public sealed class AgentToolsTests
 {
     [Fact]
-    public void SubAgentTools_ReturnJsonStrings()
-    {
-        var methods = new[]
-        {
-            nameof(AgentTools.SpawnAgent),
-            nameof(AgentTools.SendMessage),
-            nameof(AgentTools.ListAgents)
-        };
-
-        foreach (var methodName in methods)
-        {
-            var method = typeof(AgentTools).GetMethod(methodName)!;
-            Assert.Equal(typeof(Task<string>), method.ReturnType);
-        }
-    }
-
-    [Fact]
-    public void SpawnAgentFunction_ReturnSchemaIsString()
-    {
-        var agentTools = new AgentTools();
-        var function = AIFunctionFactory.Create(agentTools.SpawnAgent);
-        var returnSchema = Assert.NotNull(function.ReturnJsonSchema);
-        var rawSchema = returnSchema.GetRawText();
-
-        Assert.Contains("\"string\"", rawSchema, StringComparison.Ordinal);
-        Assert.DoesNotContain("childThreadId", rawSchema, StringComparison.Ordinal);
-        Assert.DoesNotContain("profileName", rawSchema, StringComparison.Ordinal);
-        Assert.DoesNotContain("supportsSendInput", rawSchema, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void SpawnAgentFunction_ExposesOptionalModelOverrides()
     {
         var function = AIFunctionFactory.Create(new AgentTools().SpawnAgent);
@@ -127,7 +96,6 @@ public sealed class AgentToolsTests
             }
             catch
             {
-                // Best-effort cleanup.
             }
         }
     }

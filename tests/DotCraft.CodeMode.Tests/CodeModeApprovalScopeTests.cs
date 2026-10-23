@@ -10,8 +10,8 @@ public sealed class CodeModeApprovalScopeTests
     [Fact]
     public async Task PendingApproval_PausesTheScriptDeadlineUntilItReturns()
     {
-        using var deadline = new PausableDeadline(TimeSpan.FromSeconds(1), CancellationToken.None);
-        var approvals = new DelayedApprovalService(TimeSpan.FromMilliseconds(2500));
+        using var deadline = new PausableDeadline(TimeSpan.FromMilliseconds(300), CancellationToken.None);
+        var approvals = new DelayedApprovalService(TimeSpan.FromMilliseconds(750));
         using var hostScope = ToolHostExecutionScope.Set(
             new ToolHostExecutionContext("thread_1", "turn_1", Path.GetTempPath(), approvals, null!));
 

@@ -26,7 +26,7 @@ beforeEach(() => {
 })
 
 describe('handleBrowserUseOpen', () => {
-  it('opens and focuses first browser tab for the active thread', () => {
+  it('opens and focuses first browser tab for the active thread without duplicating repeated ids', () => {
     handleBrowserUseOpen({
       threadId: 'thread-a',
       tabId: 'browser-thread-a-1',
@@ -43,6 +43,16 @@ describe('handleBrowserUseOpen', () => {
       kind: 'viewer',
       id: 'browser-thread-a-1'
     })
+
+    handleBrowserUseOpen({
+      threadId: 'thread-a',
+      tabId: 'browser-thread-a-1',
+      initialUrl: 'http://localhost:3001/',
+      focusMode: 'first-open'
+    })
+    const reopened = useViewerTabStore.getState().getThreadState('thread-a').tabs
+    expect(reopened).toHaveLength(1)
+    expect(reopened[0]).toMatchObject({ kind: 'browser', currentUrl: 'http://localhost:3001/' })
   })
 
   it('registers non-active thread tabs without switching the active thread', () => {
@@ -59,28 +69,7 @@ describe('handleBrowserUseOpen', () => {
     expect(useViewerTabStore.getState().getThreadState('thread-b').tabs).toHaveLength(1)
   })
 
-  it('does not duplicate repeated browser tab ids', () => {
-    const payload = {
-      threadId: 'thread-a',
-      tabId: 'browser-thread-a-1',
-      initialUrl: 'http://localhost:3000/',
-      title: 'Browser',
-      focusMode: 'first-open' as const
-    }
-
-    handleBrowserUseOpen(payload)
-    handleBrowserUseOpen({ ...payload, initialUrl: 'http://localhost:3001/' })
-
-    const viewerState = useViewerTabStore.getState().getThreadState('thread-a')
-    expect(viewerState.tabs).toHaveLength(1)
-    const tab = viewerState.tabs[0]
-    expect(tab?.kind).toBe('browser')
-    if (tab?.kind === 'browser') {
-      expect(tab.currentUrl).toBe('http://localhost:3001/')
-    }
-  })
-
-  it('removes browser-use tabs on close events', () => {
+  it('removes browser-use tabs on close events and ignores unknown tabs', () => {
     handleBrowserUseOpen({
       threadId: 'thread-a',
       tabId: 'browser-thread-a-1',
@@ -104,24 +93,8 @@ describe('handleBrowserUseOpen', () => {
     const viewerState = useViewerTabStore.getState().getThreadState('thread-a')
     expect(viewerState.tabs.map((tab) => tab.id)).toEqual(['browser-thread-a-2'])
     expect(viewerState.activeTabId).toBe('browser-thread-a-2')
-  })
 
-  it('ignores close events for unknown browser-use tabs', () => {
-    handleBrowserUseOpen({
-      threadId: 'thread-a',
-      tabId: 'browser-thread-a-1',
-      initialUrl: 'http://localhost:3000/',
-      title: 'Browser',
-      focusMode: 'first-open'
-    })
-
-    handleBrowserUseClose({
-      threadId: 'thread-a',
-      tabId: 'missing-tab'
-    })
-
-    const viewerState = useViewerTabStore.getState().getThreadState('thread-a')
-    expect(viewerState.tabs).toHaveLength(1)
-    expect(viewerState.activeTabId).toBe('browser-thread-a-1')
+    handleBrowserUseClose({ threadId: 'thread-a', tabId: 'missing-tab' })
+    expect(useViewerTabStore.getState().getThreadState('thread-a').tabs).toHaveLength(1)
   })
 })

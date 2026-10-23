@@ -10,78 +10,11 @@ namespace DotCraft.Tests.Context.Compaction;
 public sealed class MessageTokenEstimatorTests
 {
     [Fact]
-    public void EstimateContent_Text()
+    public void EstimateContent_TextUsesUtf8BytesAndImagesAFixedCost()
     {
-        var content = new TextContent("hello world"); // 11 UTF-8 bytes -> ceil(11/4) = 3
-        Assert.Equal(3, MessageTokenEstimator.EstimateContent(content));
-    }
-
-    [Fact]
-    public void EstimateContent_CjkTextUsesUtf8Bytes()
-    {
-        var content = new TextContent("你好"); // 6 UTF-8 bytes -> ceil(6/4) = 2
-        Assert.Equal(2, MessageTokenEstimator.EstimateContent(content));
-    }
-
-    [Fact]
-    public void EstimateContent_ImageUsesFixedCost()
-    {
-        var content = new DataContent(new byte[] { 1, 2, 3 }, "image/png");
-        Assert.Equal(2000, MessageTokenEstimator.EstimateContent(content));
-    }
-
-    [Fact]
-    public void EstimateModelVisibleBytes_ReplacesLargeMediaPayload()
-    {
-        var media = new DataContent(new byte[1_000_000], "image/png");
-        var message = new ChatMessage(ChatRole.User, [media]);
-
-        var bytes = MessageTokenEstimator.EstimateModelVisibleBytes(message);
-
-        Assert.InRange(bytes, 8_000, 20_000);
-    }
-
-    [Fact]
-    public void EstimateContent_FunctionCallIncludesNameAndArgs()
-    {
-        var args = new Dictionary<string, object?> { ["path"] = "README.md" };
-        var call = new FunctionCallContent("call-1", "ReadFile", args);
-        var tokens = MessageTokenEstimator.EstimateContent(call);
-        Assert.True(tokens > MessageTokenEstimator.RoughTokenCount("ReadFile" + JsonSerializer.Serialize(args)));
-    }
-
-    [Fact]
-    public void EstimateContent_FunctionResultUsesSerializedPayload()
-    {
-        var fr = new FunctionResultContent("call-1", "file contents go here");
-        Assert.True(MessageTokenEstimator.EstimateContent(fr) > 0);
-    }
-
-    [Fact]
-    public void EstimateContent_FunctionResultStringStillCounted()
-    {
-        var text = new string('x', 400);
-        var fr = new FunctionResultContent("call-1", text);
-
-        Assert.True(MessageTokenEstimator.EstimateContent(fr) > MessageTokenEstimator.RoughTokenCount(text));
-    }
-
-    [Fact]
-    public void EstimateContent_FunctionResultListWithImage_DoesNotScaleWithImageBytes()
-    {
-        var imageBytes = new byte[1_000_000];
-        var fr = new FunctionResultContent(
-            "call-1",
-            (IList<AIContent>)
-            [
-                new TextContent("Image: screenshot.png (1,000,000 bytes, image/png)"),
-                new DataContent(imageBytes, "image/png")
-            ]);
-
-        var tokens = MessageTokenEstimator.EstimateContent(fr);
-
-        Assert.InRange(tokens, 2_000, 20_000);
-        Assert.True(tokens < imageBytes.Length / 16);
+        Assert.Equal(3, MessageTokenEstimator.EstimateContent(new TextContent("hello world")));
+        Assert.Equal(2, MessageTokenEstimator.EstimateContent(new TextContent("你好")));
+        Assert.Equal(2000, MessageTokenEstimator.EstimateContent(new DataContent(new byte[] { 1, 2, 3 }, "image/png")));
     }
 
     [Fact]
@@ -104,66 +37,36 @@ public sealed class MessageTokenEstimatorTests
     }
 
     [Fact]
-    public void EstimateContent_JsonFunctionResultImage_DoesNotScaleWithBase64Payload()
-    {
-        static int Estimate(int imageBytes)
-        {
-            var contents = new List<AIContent>
-            {
-                new TextContent("Screenshot captured"),
-                new DataContent(new byte[imageBytes], "image/png")
-            };
-            var json = JsonSerializer.SerializeToElement(contents, SessionPersistenceJsonOptions.Default);
-            return MessageTokenEstimator.EstimateContent(new FunctionResultContent("call-image", json));
-        }
-
-        Assert.Equal(Estimate(1_000), Estimate(1_000_000));
-    }
-
-    [Theory]
-    [InlineData("list")]
-    [InlineData("array")]
-    [InlineData("deserialized")]
-    public void Estimate_HistoricalToolImageShapes_UsesDescriptionCost(string shape)
+    public void Estimate_HistoricalToolImagesUseDescriptionCostButTheCurrentRoundKeepsTheImageCost()
     {
         var contents = new List<AIContent>
         {
             new TextContent("Screenshot captured"),
             new DataContent(new byte[1_000_000], "image/png")
         };
-        object result = shape switch
+        foreach (var result in new object[]
+                 {
+                     contents,
+                     contents.ToArray(),
+                     JsonSerializer.SerializeToElement(contents, SessionPersistenceJsonOptions.Default)
+                 })
         {
-            "list" => contents,
-            "array" => contents.ToArray(),
-            "deserialized" => JsonSerializer.SerializeToElement(contents, SessionPersistenceJsonOptions.Default),
-            _ => throw new ArgumentOutOfRangeException(nameof(shape))
-        };
-        var messages = new List<ChatMessage>
-        {
-            new(ChatRole.Tool, [new FunctionResultContent("call-image", result)]),
-            new(ChatRole.User, "continue")
-        };
+            var history = new List<ChatMessage>
+            {
+                new(ChatRole.Tool, [new FunctionResultContent("call-image", result)]),
+                new(ChatRole.User, "continue")
+            };
 
-        var sanitized = ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(messages);
+            var described = ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(history);
 
-        Assert.True(MessageTokenEstimator.Estimate(sanitized) + 1_000 < MessageTokenEstimator.Estimate(messages));
-    }
+            Assert.True(MessageTokenEstimator.Estimate(described) + 1_000 < MessageTokenEstimator.Estimate(history));
+        }
 
-    [Fact]
-    public void Estimate_CurrentRoundToolImage_PreservesFixedImageCost()
-    {
         var messages = new List<ChatMessage>
         {
             new(ChatRole.User, "capture"),
             new(ChatRole.Assistant, [new FunctionCallContent("call-image", "capture", new Dictionary<string, object?>())]),
-            new(ChatRole.Tool,
-            [
-                new FunctionResultContent("call-image", (IList<AIContent>)
-                [
-                    new TextContent("Screenshot captured"),
-                    new DataContent(new byte[1_000_000], "image/png")
-                ])
-            ])
+            new(ChatRole.Tool, [new FunctionResultContent("call-image", (IList<AIContent>)contents)])
         };
 
         var sanitized = ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(messages);
@@ -173,19 +76,17 @@ public sealed class MessageTokenEstimatorTests
     }
 
     [Fact]
-    public void EstimateContent_JsonFunctionResultNonImageData_PreservesSerializedPayloadCost()
+    public void EstimateContent_JsonFunctionResult_IgnoresImageBase64ButCountsOtherData()
     {
-        static int Estimate(int dataBytes)
+        static int Estimate(int bytes, string mediaType)
         {
-            var contents = new List<AIContent>
-            {
-                new DataContent(new byte[dataBytes], "application/octet-stream")
-            };
+            var contents = new List<AIContent> { new DataContent(new byte[bytes], mediaType) };
             var json = JsonSerializer.SerializeToElement(contents, SessionPersistenceJsonOptions.Default);
             return MessageTokenEstimator.EstimateContent(new FunctionResultContent("call-data", json));
         }
 
-        Assert.True(Estimate(100_000) > Estimate(1_000));
+        Assert.Equal(Estimate(1_000, "image/png"), Estimate(1_000_000, "image/png"));
+        Assert.True(Estimate(100_000, "application/octet-stream") > Estimate(1_000, "application/octet-stream"));
     }
 
     [Fact]
@@ -210,8 +111,18 @@ public sealed class MessageTokenEstimatorTests
     }
 
     [Fact]
-    public void EstimateContent_FunctionResultIncludesDenseStructuredPayload()
+    public void EstimateContent_ToolContentCountsNamesArgumentsAndPayloads()
     {
+        var args = new Dictionary<string, object?> { ["path"] = "README.md" };
+        Assert.True(
+            MessageTokenEstimator.EstimateContent(new FunctionCallContent("call-1", "ReadFile", args))
+            > MessageTokenEstimator.RoughTokenCount("ReadFile" + JsonSerializer.Serialize(args)));
+
+        var text = new string('x', 400);
+        Assert.True(
+            MessageTokenEstimator.EstimateContent(new FunctionResultContent("call-1", text))
+            > MessageTokenEstimator.RoughTokenCount(text));
+
         var payload = new Dictionary<string, object?>
         {
             ["items"] = Enumerable.Range(0, 50).Select(i => new Dictionary<string, object?>
@@ -229,7 +140,7 @@ public sealed class MessageTokenEstimatorTests
     }
 
     [Fact]
-    public void EstimateDelta_ImageToolResult_StaysBoundedByImageTokenCost()
+    public void EstimateDelta_ImagePayloadsStayBoundedByImageCost()
     {
         var imageBytes = new byte[1_000_000];
         var message = new ChatMessage(
@@ -249,10 +160,15 @@ public sealed class MessageTokenEstimatorTests
 
         Assert.InRange(tokens, 2_000, 20_000);
         Assert.True(tokens < imageBytes.Length / 16);
+        Assert.InRange(
+            MessageTokenEstimator.EstimateModelVisibleBytes(
+                new ChatMessage(ChatRole.User, [new DataContent(imageBytes, "image/png")])),
+            8_000,
+            20_000);
     }
 
     [Fact]
-    public void EstimateDelta_RangeMatchesMaterializedSlice()
+    public void EstimateDelta_RangeMatchesMaterializedSliceAndEstimateAddsASafetyPad()
     {
         var messages = new List<ChatMessage>
         {
@@ -266,15 +182,6 @@ public sealed class MessageTokenEstimatorTests
         var actual = MessageTokenEstimator.EstimateDelta(messages, startIndex: 1, count: 2);
 
         Assert.Equal(expected, actual);
-    }
-
-    [Fact]
-    public void Estimate_AppliesSafetyPad()
-    {
-        var messages = new List<ChatMessage>
-        {
-            new(ChatRole.User, "hello world"),
-        };
         Assert.True(MessageTokenEstimator.Estimate(messages) > MessageTokenEstimator.EstimateDelta(messages));
     }
 }

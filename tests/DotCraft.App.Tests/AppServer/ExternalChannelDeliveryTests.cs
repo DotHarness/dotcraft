@@ -9,7 +9,6 @@ using DotCraft.Channels;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.ExternalChannel;
-using DotCraft.Memory;
 using DotCraft.Processes;
 using DotCraft.Modules;
 using DotCraft.Security;
@@ -18,7 +17,6 @@ using DotCraft.Sessions;
 using DotCraft.Tools;
 using DotCraft.Workspaces;
 using Contract = DotCraft.Protocol.AppServer;
-using DotCraft.Skills;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions.Wire;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
@@ -52,7 +50,6 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         try { Directory.Delete(_tempDir, recursive: true); }
         catch
         {
-            // ignored
         }
     }
 
@@ -98,43 +95,24 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     }
 
     [Fact]
-    public async Task ChannelMediaResolver_RejectsTextMessageWithSource()
+    public async Task ChannelMediaResolver_RejectsMalformedSources()
     {
-        var store = new InMemoryChannelMediaArtifactStore();
-        var resolver = CreateResolver(store, _tempDir);
+        var resolver = CreateResolver(new InMemoryChannelMediaArtifactStore(), _tempDir);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelDeliveryMessage
+        var text = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelDeliveryMessage
         {
             Kind = "text",
             Text = "hello",
-            Source = new ChannelDeliveryMediaSource
-            {
-                Kind = "hostPath",
-                HostPath = "x.txt"
-            }
+            Source = new ChannelDeliveryMediaSource { Kind = "hostPath", HostPath = "x.txt" }
         }));
-
-        Assert.Contains("Text delivery", ex.Message);
-    }
-
-    [Fact]
-    public async Task ChannelMediaResolver_RejectsSourceWithMultipleFields()
-    {
-        var store = new InMemoryChannelMediaArtifactStore();
-        var resolver = CreateResolver(store, _tempDir);
-
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelDeliveryMessage
+        var ambiguous = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelDeliveryMessage
         {
             Kind = "file",
-            Source = new ChannelDeliveryMediaSource
-            {
-                Kind = "hostPath",
-                HostPath = "a.txt",
-                Url = "https://example.com/a.txt"
-            }
+            Source = new ChannelDeliveryMediaSource { Kind = "hostPath", HostPath = "a.txt", Url = "https://example.com/a.txt" }
         }));
 
-        Assert.Contains("exactly one", ex.Message);
+        Assert.Contains("Text delivery", text.Message);
+        Assert.Contains("exactly one", ambiguous.Message);
     }
 
     [Fact]
@@ -170,8 +148,10 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         Assert.Equal(path, second.Artifact.ResolvedPath);
     }
 
-    [Fact]
-    public async Task ChannelMediaResolver_HostPathOutsideWorkspace_RequestsApprovalAndRejectsWhenDenied()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ChannelMediaResolver_HostPathOutsideWorkspace_RequiresApproval(bool approve)
     {
         var outsideDir = Path.Combine(Path.GetTempPath(), "ExternalChannelOutside_" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(outsideDir);
@@ -179,58 +159,25 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         {
             var outsidePath = Path.Combine(outsideDir, "secret.txt");
             await File.WriteAllTextAsync(outsidePath, "secret");
-
-            var store = new InMemoryChannelMediaArtifactStore();
-            var approvalService = new RecordingApprovalService(approve: false);
-            var resolver = CreateResolver(store, _tempDir, approvalService: approvalService);
-
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelDeliveryMessage
+            var approvalService = new RecordingApprovalService(approve);
+            var resolver = CreateResolver(new InMemoryChannelMediaArtifactStore(), _tempDir, approvalService: approvalService);
+            var message = new ChannelDeliveryMessage
             {
                 Kind = "file",
-                Source = new ChannelDeliveryMediaSource
-                {
-                    Kind = "hostPath",
-                    HostPath = outsidePath
-                }
-            }));
+                Source = new ChannelDeliveryMediaSource { Kind = "hostPath", HostPath = outsidePath }
+            };
 
-            Assert.Contains("rejected by user", ex.Message);
+            if (approve)
+            {
+                Assert.Equal(Path.GetFullPath(outsidePath), (await resolver.ResolveAsync(message)).Artifact.ResolvedPath);
+            }
+            else
+            {
+                var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(message));
+                Assert.Contains("rejected by user", ex.Message);
+            }
             Assert.Equal("read-for-delivery", approvalService.LastOperation);
             Assert.Equal(Path.GetFullPath(outsidePath), approvalService.LastPath);
-        }
-        finally
-        {
-            try { Directory.Delete(outsideDir, recursive: true); }
-            catch { }
-        }
-    }
-
-    [Fact]
-    public async Task ChannelMediaResolver_HostPathOutsideWorkspace_AllowsApprovedDelivery()
-    {
-        var outsideDir = Path.Combine(Path.GetTempPath(), "ExternalChannelOutside_" + Guid.NewGuid().ToString("N")[..8]);
-        Directory.CreateDirectory(outsideDir);
-        try
-        {
-            var outsidePath = Path.Combine(outsideDir, "approved.txt");
-            await File.WriteAllTextAsync(outsidePath, "approved");
-
-            var store = new InMemoryChannelMediaArtifactStore();
-            var approvalService = new RecordingApprovalService(approve: true);
-            var resolver = CreateResolver(store, _tempDir, approvalService: approvalService);
-
-            var result = await resolver.ResolveAsync(new ChannelDeliveryMessage
-            {
-                Kind = "file",
-                Source = new ChannelDeliveryMediaSource
-                {
-                    Kind = "hostPath",
-                    HostPath = outsidePath
-                }
-            });
-
-            Assert.Equal(Path.GetFullPath(outsidePath), result.Artifact.ResolvedPath);
-            Assert.Equal("read-for-delivery", approvalService.LastOperation);
         }
         finally
         {
@@ -283,18 +230,22 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         Assert.False(Directory.Exists(tmpDir) && Directory.EnumerateFiles(tmpDir).Any());
     }
 
-    [Fact]
-    public async Task ExternalChannelMessageDispatcher_RejectsUnsupportedUrlSource()
+    [Theory]
+    [InlineData("file", false, null, "UnsupportedMediaSource")]
+    [InlineData("file", true, 1024L, "MediaResolutionFailed")]
+    [InlineData("audio", true, null, "UnsupportedDeliveryKind")]
+    public async Task ExternalChannelMessageDispatcher_RejectsUndeliverableUrlMedia_BeforeDispatch(
+        string kind,
+        bool supportsUrl,
+        long? maxBytes,
+        string errorCode)
     {
         var store = new InMemoryChannelMediaArtifactStore();
-        var resolver = CreateResolver(store, _tempDir);
-        var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
+        var dispatcher = new ExternalChannelMessageDispatcher(CreateResolver(store, _tempDir), store);
         var transport = new StubTransport();
-        var connection = CreateAdapterConnection(fileConstraints: new ChannelMediaConstraintSnapshot
-        {
-            SupportsUrl = false,
-            SupportsBase64 = true
-        });
+        var connection = CreateAdapterConnection(fileConstraints: kind == "file"
+            ? new ChannelMediaConstraintSnapshot { SupportsUrl = supportsUrl, SupportsBase64 = true, MaxBytes = maxBytes }
+            : null);
 
         var result = await dispatcher.DeliverAsync(
             transport,
@@ -303,89 +254,15 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             "group:1",
             new ChannelDeliveryMessage
             {
-                Kind = "file",
-                Source = new ChannelDeliveryMediaSource
-                {
-                    Kind = "url",
-                    Url = "https://example.com/file.pdf"
-                }
+                Kind = kind,
+                Source = new ChannelDeliveryMediaSource { Kind = "url", Url = "https://example.com/media.bin" }
             },
             metadata: null,
             deliveryId: "d1");
 
         Assert.False(result.Delivered);
-        Assert.Equal("UnsupportedMediaSource", result.ErrorCode);
-    }
-
-    [Fact]
-    public async Task ExternalChannelMessageDispatcher_RejectsUrlSource_WhenMaxBytesCannotBeValidated()
-    {
-        var store = new InMemoryChannelMediaArtifactStore();
-        var resolver = CreateResolver(store, _tempDir);
-        var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
-        var transport = new StubTransport();
-        var connection = CreateAdapterConnection(fileConstraints: new ChannelMediaConstraintSnapshot
-        {
-            SupportsUrl = true,
-            MaxBytes = 1024
-        });
-
-        var result = await dispatcher.DeliverAsync(
-            transport,
-            connection,
-            "telegram",
-            "group:1",
-            new ChannelDeliveryMessage
-            {
-                Kind = "file",
-                Source = new ChannelDeliveryMediaSource
-                {
-                    Kind = "url",
-                    Url = "https://example.com/file.pdf"
-                }
-            },
-            metadata: null,
-            deliveryId: "d1");
-
-        Assert.False(result.Delivered);
-        Assert.Equal("MediaResolutionFailed", result.ErrorCode);
+        Assert.Equal(errorCode, result.ErrorCode);
         Assert.Null(transport.LastMethod);
-    }
-
-    [Fact]
-    public async Task ExternalChannelMessageDispatcher_CleansUpTemporaryBase64Artifact()
-    {
-        var mediaRoot = Path.Combine(_tempDir, "media");
-        var store = new InMemoryChannelMediaArtifactStore();
-        var resolver = CreateResolver(store, mediaRoot);
-        var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
-        var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
-        var connection = CreateAdapterConnection(fileConstraints: new ChannelMediaConstraintSnapshot
-        {
-            SupportsBase64 = true
-        });
-
-        var result = await dispatcher.DeliverAsync(
-            transport,
-            connection,
-            "feishu",
-            "group:1",
-            new ChannelDeliveryMessage
-            {
-                Kind = "file",
-                FileName = "report.txt",
-                Source = new ChannelDeliveryMediaSource
-                {
-                    Kind = "dataBase64",
-                    DataBase64 = Convert.ToBase64String("hello"u8.ToArray())
-                }
-            },
-            metadata: null,
-            deliveryId: "d1");
-
-        Assert.True(result.Delivered);
-        var tmpDir = Path.Combine(mediaRoot, "tmp");
-        Assert.False(Directory.Exists(tmpDir) && Directory.EnumerateFiles(tmpDir).Any());
     }
 
     [Fact]
@@ -417,37 +294,6 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.ExtChannelSend, transport.LastMethod);
         var sent = JsonSerializer.SerializeToElement(transport.LastParams, SessionWireJsonOptions.Default);
         Assert.Equal("d1", sent.GetProperty("deliveryId").GetString());
-    }
-
-    [Fact]
-    public async Task ExternalChannelMessageDispatcher_RejectsUnsupportedMediaKind_BeforeDispatch()
-    {
-        var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
-        var store = new InMemoryChannelMediaArtifactStore();
-        var resolver = CreateResolver(store, _tempDir);
-        var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
-        var connection = CreateAdapterConnection(fileConstraints: null);
-
-        var result = await dispatcher.DeliverAsync(
-            transport,
-            connection,
-            "telegram",
-            "group:1",
-            new ChannelDeliveryMessage
-            {
-                Kind = "audio",
-                Source = new ChannelDeliveryMediaSource
-                {
-                    Kind = "url",
-                    Url = "https://example.com/voice.mp3"
-                }
-            },
-            metadata: null,
-            deliveryId: "d1");
-
-        Assert.False(result.Delivered);
-        Assert.Equal("UnsupportedDeliveryKind", result.ErrorCode);
-        Assert.Null(transport.LastMethod);
     }
 
     [Fact]
@@ -500,44 +346,11 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     }
 
     [Fact]
-    public async Task ExternalChannelHost_ConfigOptionAvailability_WhenDisconnected_IsUnknown()
+    public async Task ExternalChannelHost_WhenDisconnected_FailsDeliveryAndReportsUnknownConfigAvailability()
     {
-        var host = new ExternalChannelHost(
-            new ExternalChannelEntry
-            {
-                Name = "feishu",
-                Enabled = true,
-                Transport = ExternalChannelTransport.Subprocess,
-                Command = "node"
-            },
-            new FakeSessionService(),
-            "0.0.1-test",
-            new ModuleRegistry(),
-            WorkspacePaths,
-            EmptyChatClients,
-            EmptyModelProviders);
+        var host = CreateHost("telegram");
 
         Assert.Null(await host.GetConfigOptionAvailabilityAsync("feishu.cli.userScopes", CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task ExternalChannelHost_DeliverAsync_WhenDisconnected_ReturnsFailure()
-    {
-        var host = new ExternalChannelHost(
-            new ExternalChannelEntry
-            {
-                Name = "telegram",
-                Enabled = true,
-                Transport = ExternalChannelTransport.Subprocess,
-                Command = "python"
-            },
-            new FakeSessionService(),
-            "0.0.1-test",
-            new ModuleRegistry(),
-            WorkspacePaths,
-            EmptyChatClients,
-            EmptyModelProviders);
-
         var result = await host.DeliverAsync(
             "group:1",
             new ChannelDeliveryMessage
@@ -1029,135 +842,37 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         Assert.Empty(sources);
     }
 
-    [Fact]
-    public void ExternalChannelHost_AcceptsWebSocketAdapterAttach_MatchesTransport()
-    {
-        var subprocess = CreateHost("telegram");
-        Assert.Equal(ExternalChannelTransport.Subprocess, subprocess.Transport);
-        Assert.False(subprocess.AcceptsWebSocketAdapterAttach);
-
-        var websocket = new ExternalChannelHost(
-            new ExternalChannelEntry
-            {
-                Name = "feishu",
-                Enabled = true,
-                Transport = ExternalChannelTransport.Websocket,
-            },
-            new FakeSessionService(),
-            "0.0.1-test",
-            new ModuleRegistry(),
-            WorkspacePaths,
-            EmptyChatClients,
-            EmptyModelProviders);
-        Assert.Equal(ExternalChannelTransport.Websocket, websocket.Transport);
-        Assert.True(websocket.AcceptsWebSocketAdapterAttach);
-
-        var managedWebsocket = new ExternalChannelHost(
-            new ExternalChannelEntry
-            {
-                Name = "weixin",
-                Enabled = true,
-                Transport = ExternalChannelTransport.ManagedWebsocket,
-                BuiltinModule = "channel-weixin",
-            },
-            new FakeSessionService(),
-            "0.0.1-test",
-            new ModuleRegistry(),
-            WorkspacePaths,
-            EmptyChatClients,
-            EmptyModelProviders);
-        Assert.Equal(ExternalChannelTransport.ManagedWebsocket, managedWebsocket.Transport);
-        Assert.True(managedWebsocket.AcceptsWebSocketAdapterAttach);
-    }
-
-    [Fact]
-    public void ExternalChannelManager_RegistersSubprocessHostInRegistry()
-    {
-        var registry = new ExternalChannelRegistry();
-        var config = new AppConfig
-        {
-            ExternalChannels =
-            [
-                new ExternalChannelEntry
-                {
-                    Name = "telegram",
-                    Enabled = true,
-                    Transport = ExternalChannelTransport.Subprocess,
-                    Command = "python",
-                },
-            ]
-        };
-
-        var ecManager = new ExternalChannelManager(
-            config,
-            new FakeSessionService(),
-            [],
-            new ModuleRegistry(),
-            WorkspacePaths,
-            EmptyChatClients,
-            EmptyModelProviders,
-            registry: registry);
-
-        Assert.Single(ecManager.Channels);
-        Assert.True(registry.TryGet("telegram", out var host));
-        Assert.NotNull(host);
-        Assert.Equal(ExternalChannelTransport.Subprocess, host.Transport);
-        Assert.False(host.AcceptsWebSocketAdapterAttach);
-    }
-
-    [Fact]
-    public void ExternalChannelManager_RegistersSubprocessBuiltinModuleHostInRegistry()
-    {
-        var registry = new ExternalChannelRegistry();
-        var config = new AppConfig
-        {
-            ExternalChannels =
-            [
-                new ExternalChannelEntry
-                {
-                    Name = "telegram",
-                    Enabled = true,
-                    Transport = ExternalChannelTransport.Subprocess,
-                    BuiltinModule = "channel-telegram",
-                },
-            ]
-        };
-
-        var ecManager = new ExternalChannelManager(
-            config,
-            new FakeSessionService(),
-            [],
-            new ModuleRegistry(),
-            WorkspacePaths,
-            EmptyChatClients,
-            EmptyModelProviders,
-            registry: registry);
-
-        Assert.Single(ecManager.Channels);
-        Assert.True(registry.TryGet("telegram", out var host));
-        Assert.NotNull(host);
-        Assert.Equal(ExternalChannelTransport.Subprocess, host.Transport);
-        Assert.False(host.AcceptsWebSocketAdapterAttach);
-    }
-
-    [Fact]
-    public void ExternalChannelManager_RegistersManagedWebsocketBuiltinModuleHostWhenAppServerWebSocketEnabled()
+    [Theory]
+    [InlineData(ExternalChannelTransport.Subprocess, "python", null, null, true, false)]
+    [InlineData(ExternalChannelTransport.Subprocess, null, null, null, false, false)]
+    [InlineData(ExternalChannelTransport.Websocket, null, null, AppServerMode.WebSocket, true, true)]
+    [InlineData(ExternalChannelTransport.ManagedWebsocket, null, "channel-feishu", AppServerMode.StdioAndWebSocket, true, true)]
+    [InlineData(ExternalChannelTransport.ManagedWebsocket, null, "channel-feishu", AppServerMode.Stdio, false, false)]
+    public void ExternalChannelManager_RegistersOnlyLaunchableHosts(
+        ExternalChannelTransport transport,
+        string? command,
+        string? builtinModule,
+        AppServerMode? appServerMode,
+        bool registered,
+        bool acceptsWebSocketAttach)
     {
         var registry = new ExternalChannelRegistry();
         var config = new AppConfig();
-        config.SetSection("AppServer", new AppServerConfig { Mode = AppServerMode.StdioAndWebSocket });
+        if (appServerMode is { } mode)
+            config.SetSection("AppServer", new AppServerConfig { Mode = mode });
         config.ExternalChannels =
         [
             new ExternalChannelEntry
             {
-                Name = "feishu",
+                Name = "channel",
                 Enabled = true,
-                Transport = ExternalChannelTransport.ManagedWebsocket,
-                BuiltinModule = "channel-feishu",
-            },
+                Transport = transport,
+                Command = command,
+                BuiltinModule = builtinModule
+            }
         ];
 
-        var ecManager = new ExternalChannelManager(
+        var manager = new ExternalChannelManager(
             config,
             new FakeSessionService(),
             [],
@@ -1168,137 +883,13 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             registry: registry,
             appConfigMonitor: new AppConfigMonitor(config));
 
-        Assert.Single(ecManager.Channels);
-        Assert.True(registry.TryGet("feishu", out var host));
-        Assert.NotNull(host);
-        Assert.Equal(ExternalChannelTransport.ManagedWebsocket, host.Transport);
-        Assert.True(host.AcceptsWebSocketAdapterAttach);
-    }
-
-    [Fact]
-    public void ExternalChannelManager_SkipsSubprocessHostWithoutCommandOrBuiltinModule()
-    {
-        var registry = new ExternalChannelRegistry();
-        var config = new AppConfig
+        Assert.Equal(registered ? 1 : 0, manager.Channels.Count);
+        Assert.Equal(registered, registry.TryGet("channel", out var host));
+        if (registered)
         {
-            ExternalChannels =
-            [
-                new ExternalChannelEntry
-                {
-                    Name = "telegram",
-                    Enabled = true,
-                    Transport = ExternalChannelTransport.Subprocess,
-                },
-            ]
-        };
-
-        var ecManager = new ExternalChannelManager(
-            config,
-            new FakeSessionService(),
-            [],
-            new ModuleRegistry(),
-            WorkspacePaths,
-            EmptyChatClients,
-            EmptyModelProviders,
-            registry: registry);
-
-        Assert.Empty(ecManager.Channels);
-        Assert.False(registry.TryGet("telegram", out _));
-    }
-
-    [Fact]
-    public void ExternalChannelManager_SkipsManagedWebsocketWithoutCommandOrBuiltinModule()
-    {
-        var registry = new ExternalChannelRegistry();
-        var config = new AppConfig();
-        config.SetSection("AppServer", new AppServerConfig { Mode = AppServerMode.WebSocket });
-        config.ExternalChannels =
-        [
-            new ExternalChannelEntry
-            {
-                Name = "feishu",
-                Enabled = true,
-                Transport = ExternalChannelTransport.ManagedWebsocket,
-            },
-        ];
-
-        var ecManager = new ExternalChannelManager(
-            config,
-            new FakeSessionService(),
-            [],
-            new ModuleRegistry(),
-            WorkspacePaths,
-            EmptyChatClients,
-            EmptyModelProviders,
-            registry: registry,
-            appConfigMonitor: new AppConfigMonitor(config));
-
-        Assert.Empty(ecManager.Channels);
-        Assert.False(registry.TryGet("feishu", out _));
-    }
-
-    [Fact]
-    public void ExternalChannelManager_SkipsManagedWebsocketWhenAppServerWebSocketDisabled()
-    {
-        var registry = new ExternalChannelRegistry();
-        var config = new AppConfig();
-        config.SetSection("AppServer", new AppServerConfig { Mode = AppServerMode.Stdio });
-        config.ExternalChannels =
-        [
-            new ExternalChannelEntry
-            {
-                Name = "feishu",
-                Enabled = true,
-                Transport = ExternalChannelTransport.ManagedWebsocket,
-                BuiltinModule = "channel-feishu",
-            },
-        ];
-
-        var ecManager = new ExternalChannelManager(
-            config,
-            new FakeSessionService(),
-            [],
-            new ModuleRegistry(),
-            WorkspacePaths,
-            EmptyChatClients,
-            EmptyModelProviders,
-            registry: registry,
-            appConfigMonitor: new AppConfigMonitor(config));
-
-        Assert.Empty(ecManager.Channels);
-        Assert.False(registry.TryGet("feishu", out _));
-    }
-
-    [Fact]
-    public void ExternalChannelManager_RegistersWebsocketHostWhenAppServerWebSocketEnabled()
-    {
-        var registry = new ExternalChannelRegistry();
-        var config = new AppConfig();
-        config.SetSection("AppServer", new AppServerConfig { Mode = AppServerMode.WebSocket });
-        config.ExternalChannels =
-        [
-            new ExternalChannelEntry
-            {
-                Name = "feishu",
-                Enabled = true,
-                Transport = ExternalChannelTransport.Websocket,
-            },
-        ];
-
-        var ecManager = new ExternalChannelManager(
-            config,
-            new FakeSessionService(),
-            [],
-            new ModuleRegistry(),
-            WorkspacePaths,
-            EmptyChatClients,
-            EmptyModelProviders,
-            registry: registry);
-
-        Assert.Single(ecManager.Channels);
-        Assert.True(registry.TryGet("feishu", out var host));
-        Assert.NotNull(host);
-        Assert.True(host.AcceptsWebSocketAdapterAttach);
+            Assert.Equal(transport, host!.Transport);
+            Assert.Equal(acceptsWebSocketAttach, host.AcceptsWebSocketAdapterAttach);
+        }
     }
 
     private static AppServerConnection CreateAdapterConnection(
@@ -1377,78 +968,22 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             EmptyChatClients,
             EmptyModelProviders);
 
-    private static ProcessStartInfo CreateLongRunningStartInfo()
+    private static ProcessStartInfo CreateLongRunningStartInfo() =>
+        Shell(OperatingSystem.IsWindows() ? "pause" : "read line");
+
+    private static ProcessStartInfo CreateImmediateExitStartInfo(int exitCode = 0) => Shell($"exit {exitCode}");
+
+    private static ProcessStartInfo Shell(string command)
     {
-        if (OperatingSystem.IsWindows())
-        {
-            return new ProcessStartInfo
-            {
-                FileName = "powershell",
-                UseShellExecute = false,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                ArgumentList =
-                {
-                    "-NoProfile",
-                    "-Command",
-                    "Start-Sleep -Seconds 30"
-                }
-            };
-        }
-
-        return new ProcessStartInfo
-        {
-            FileName = "/bin/sh",
-            UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-            ArgumentList =
-            {
-                "-c",
-                "sleep 30"
-            }
-        };
-    }
-
-    private static ProcessStartInfo CreateImmediateExitStartInfo(int exitCode = 0)
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            return new ProcessStartInfo
-            {
-                FileName = "powershell",
-                UseShellExecute = false,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                ArgumentList =
-                {
-                    "-NoProfile",
-                    "-Command",
-                    $"exit {exitCode}"
-                }
-            };
-        }
-
-        return new ProcessStartInfo
-        {
-            FileName = "/bin/sh",
-            UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-            ArgumentList =
-            {
-                "-c",
-                $"exit {exitCode}"
-            }
-        };
+        var start = OperatingSystem.IsWindows()
+            ? new ProcessStartInfo("cmd.exe") { ArgumentList = { "/c", command } }
+            : new ProcessStartInfo("/bin/sh") { ArgumentList = { "-c", command } };
+        start.UseShellExecute = false;
+        start.RedirectStandardInput = true;
+        start.RedirectStandardOutput = true;
+        start.RedirectStandardError = true;
+        start.CreateNoWindow = true;
+        return start;
     }
 
     private static ChannelToolSpec ReadResourceTool() => new()
@@ -1484,61 +1019,6 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             .Invoke(host, [transport, connection]);
     }
 
-    private AgentFactory CreateAgentFactoryForSessionTests()
-    {
-        var config = new AppConfig
-        {
-            ProviderId = "openai",
-            Providers =
-            {
-                ["openai"] = new AppConfig.ModelProviderConfig
-                {
-                    Protocol = ModelProviderProtocols.OpenAI,
-                    ApiKey = "sk-test-not-used-for-network",
-                    EndPoint = "https://127.0.0.1:9/v1"
-                }
-            }
-        };
-        var memory = new MemoryStore(_tempDir);
-        var skills = new SkillsLoader(_tempDir);
-        return new AgentFactory(
-            dotcraftPath: _tempDir,
-            workspacePath: _tempDir,
-            config: config,
-            memoryStore: memory,
-            skillsLoader: skills,
-            approvalService: new AutoApproveApprovalService(),
-            blacklist: null,
-            toolSources: Array.Empty<IToolSource>());
-    }
-
-    private static void SeedExternalChannelToolNames(
-        SessionService service,
-        string threadId,
-        IReadOnlySet<string> toolNames)
-    {
-        var method = typeof(SessionService)
-            .GetMethod("DebugGetRuntime", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(method);
-        var runtime = method!.Invoke(service, [threadId]);
-        Assert.NotNull(runtime);
-        var property = runtime!.GetType()
-            .GetProperty("PluginFunctionToolNames", BindingFlags.Instance | BindingFlags.Public);
-        Assert.NotNull(property);
-        property!.SetValue(runtime, new HashSet<string>(toolNames, StringComparer.Ordinal));
-    }
-
-    private static string ExtractResultText(object? result)
-    {
-        if (result is string text)
-            return text;
-
-        if (result is IReadOnlyList<AIContent> contents)
-            return string.Join("\n", contents.OfType<TextContent>().Select(content => content.Text));
-
-        return result?.ToString() ?? string.Empty;
-    }
-
     private sealed class StubTransport(object? result = null, Exception? exception = null) : IAppServerTransport
     {
         public string? LastMethod { get; private set; }
@@ -1567,114 +1047,6 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
-
-    private sealed class ExternalToolScriptedChatClient(
-        AIFunction externalTool,
-        string toolName,
-        bool nullToolNameInFirstDelta) : IChatClient
-    {
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default)
-            => Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation]
-            CancellationToken cancellationToken = default)
-        {
-            const string callId = "call_external_001";
-            var args = new Dictionary<string, object?> { ["fileName"] = "report.pdf" };
-
-            if (nullToolNameInFirstDelta)
-            {
-                yield return new ChatResponseUpdate(ChatRole.Assistant, [new ToolCallArgumentsDeltaContent
-                {
-                    ToolCallIndex = 0,
-                    ToolName = null,
-                    CallId = null,
-                    ArgumentsDelta = "{"
-                }]);
-                yield return new ChatResponseUpdate(ChatRole.Assistant, [new ToolCallArgumentsDeltaContent
-                {
-                    ToolCallIndex = 0,
-                    ToolName = toolName,
-                    CallId = callId,
-                    ArgumentsDelta = "\"fileName\":\"report.pdf\"}"
-                }]);
-            }
-            else
-            {
-                yield return new ChatResponseUpdate(ChatRole.Assistant, [new ToolCallArgumentsDeltaContent
-                {
-                    ToolCallIndex = 0,
-                    ToolName = toolName,
-                    CallId = callId,
-                    ArgumentsDelta = "{\"fileName\":\"report.pdf\"}"
-                }]);
-            }
-
-            yield return new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent(
-                callId: callId,
-                name: toolName,
-                arguments: args)]);
-
-            await externalTool.InvokeAsync(new AIFunctionArguments(args), cancellationToken);
-
-            yield return new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent(callId, "Document sent.")]);
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class InterleavingExternalToolScriptedChatClient(AIFunction externalTool, string toolName) : IChatClient
-    {
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default)
-            => Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation]
-            CancellationToken cancellationToken = default)
-        {
-            const string callA = "call_external_a";
-            const string callC = "call_external_c";
-            var argsA = new Dictionary<string, object?> { ["fileName"] = "a.pdf" };
-            var argsC = new Dictionary<string, object?> { ["fileName"] = "c.pdf" };
-
-            yield return new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent(
-                callId: callA,
-                name: toolName,
-                arguments: argsA)]);
-            await externalTool.InvokeAsync(new AIFunctionArguments(argsA), cancellationToken);
-            yield return new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent(callA, "done a")]);
-            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("b")]);
-
-            yield return new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent(
-                callId: callC,
-                name: toolName,
-                arguments: argsC)]);
-            await externalTool.InvokeAsync(new AIFunctionArguments(argsC), cancellationToken);
-            yield return new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent(callC, "done c")]);
-            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("d")]);
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
     }
 
     private sealed class RecordingApprovalService(bool approve) : IApprovalService

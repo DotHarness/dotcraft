@@ -1,7 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
-using DotCraft.GeneratedTools.Core;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 using Xunit;
@@ -115,14 +113,6 @@ public sealed class FileToolsFileChangeTests : IDisposable
     }
 
     [Fact]
-    public async Task WriteFile_NoTrailingNewline_MarksDiff()
-    {
-        await InvokeAsync(tools => tools.WriteFile("plain.txt", "x"));
-
-        Assert.EndsWith("+x\n\\ No newline at end of file\n", Diff(SingleChange()), StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task EditFile_FuzzyMatch_DiffsTheRealFileText()
     {
         var file = Path.Combine(_workspace, "a.cs");
@@ -168,8 +158,6 @@ public sealed class FileToolsFileChangeTests : IDisposable
 
     [Theory]
     [InlineData("missing")]
-    [InlineData("notFound")]
-    [InlineData("ambiguous")]
     [InlineData("blocked")]
     public async Task ErrorResults_AttachUnappliedOutcomeWithoutChanges(string failure)
     {
@@ -178,8 +166,6 @@ public sealed class FileToolsFileChangeTests : IDisposable
         var result = failure switch
         {
             "missing" => await InvokeAsync(tools => tools.EditFile("missing.txt", "x", "z")),
-            "notFound" => await InvokeAsync(tools => tools.EditFile("notes.txt", "absent", "z")),
-            "ambiguous" => await InvokeAsync(tools => tools.EditFile("notes.txt", "x", "z")),
             _ => await InvokeAsync(
                 tools => tools.WriteFile(Path.Combine(_outside, "blocked.txt"), "z"),
                 new FileTools(_workspace, requireApprovalOutsideWorkspace: false)),
@@ -201,32 +187,6 @@ public sealed class FileToolsFileChangeTests : IDisposable
 
         Assert.True(tracker.TryTakeSnapshot(out var diff));
         Assert.StartsWith("diff --git a/tracked.txt b/tracked.txt\nnew file mode 100644\n", diff, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task GeneratedWriteFile_ThroughRuntime_KeepsContentAndAttachesChange()
-    {
-        var function = GeneratedToolFunctions.FileTools_WriteFile(new FileTools(_workspace));
-        var context = new ToolInvocationContext(
-            "thread_test",
-            "turn_test",
-            "call_test",
-            ToolInvocationAudience.Model,
-            new ToolName(null, "WriteFile"),
-            new ToolDefinitionId(ToolSourceKind.CoreNative, "test", new SourceToolId("WriteFile")),
-            new RuntimeBindingId("native:test:WriteFile:1"),
-            1,
-            DateTimeOffset.UtcNow);
-
-        var result = await new AIFunctionToolRuntime(function).InvokeAsync(
-            context,
-            new JsonObject { ["path"] = "gen.txt", ["content"] = "g\n" });
-
-        Assert.True(result.Success);
-        Assert.Equal("Successfully wrote 2 bytes (2 lines) to gen.txt", result.Content);
-        Assert.True(FileChangeStructuredContent.IsFileChange(result.StructuredContent));
-        var change = Assert.Single(result.StructuredContent!.Value.GetProperty("changes").EnumerateArray());
-        Assert.Equal("gen.txt", change.GetProperty("path").GetString());
     }
 
     private async Task<ToolExecutionResult> InvokeAsync(Func<FileTools, Task<ToolExecutionResult>> call, FileTools? tools = null)

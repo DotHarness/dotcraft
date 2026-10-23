@@ -117,10 +117,10 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
             new AppConfig.ShellBackgroundConfig());
         var command = (OperatingSystem.IsWindows(), runInBackground) switch
         {
-            (true, true) => "Start-Sleep -Milliseconds 3000; Write-Output 'after-turn'",
-            (true, false) => "Start-Sleep -Milliseconds 1500; Write-Output 'after-turn'",
-            (false, true) => "sleep 3; echo 'after-turn'",
-            (false, false) => "sleep 1.5; echo 'after-turn'"
+            (true, true) => "ping -n 3 127.0.0.1 >nul & echo after-turn",
+            (true, false) => "ping -n 2 127.0.0.1 >nul & echo after-turn",
+            (false, true) => "sleep 2; echo after-turn",
+            (false, false) => "sleep 1; echo after-turn"
         };
         var chatClient = new ShellCallingChatClient(command, yieldTimeMs: 100, runInBackground);
         var recorder = new ToolInvocationRecorderRouter();
@@ -193,7 +193,7 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
             Assert.Single(turn.Items, item => item.Type == ItemType.CommandExecution).Payload);
 
     private static string SleepCommand() =>
-        OperatingSystem.IsWindows() ? "Write-Output started; Start-Sleep -Seconds 30" : "echo started; sleep 30";
+        OperatingSystem.IsWindows() ? "echo started & ping -n 30 127.0.0.1 >nul" : "echo started; sleep 30";
 
     private sealed class ShellToolSource(ShellTools shellTools) : AIFunctionToolSource
     {
@@ -224,7 +224,11 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
                 yield break;
             }
 
-            var arguments = new Dictionary<string, object?> { ["command"] = command };
+            var arguments = new Dictionary<string, object?>
+            {
+                ["command"] = command,
+                ["shell"] = OperatingSystem.IsWindows() ? "cmd" : "sh"
+            };
             if (yieldTimeMs is { } yieldTime)
                 arguments["yieldTimeMs"] = yieldTime;
             if (runInBackground)

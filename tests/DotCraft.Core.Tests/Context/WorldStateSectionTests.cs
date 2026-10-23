@@ -32,14 +32,7 @@ public sealed class WorldStateSectionTests
         Assert.StartsWith("TimeZone: ", lines[2], StringComparison.Ordinal);
         Assert.Equal($"WorkingDirectory: {Path.GetFullPath(workspace)}", lines[3]);
         Assert.Equal(4, lines.Length);
-    }
-
-    [Fact]
-    public void EnvironmentSection_OmitsWorkingDirectoryWithoutAWorkspace()
-    {
-        var text = RenderFull(new EnvironmentSection(), Context());
-
-        Assert.DoesNotContain("WorkingDirectory", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("WorkingDirectory", RenderFull(new EnvironmentSection(), Context()), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -70,27 +63,17 @@ public sealed class WorldStateSectionTests
     }
 
     [Fact]
-    public void ModeSection_RendersAgentModeAndItsAction()
+    public void ModeSection_RendersEachModeWithItsAction()
     {
-        var text = RenderFull(new ModeSection(), Context(mode: AgentMode.Agent));
-
-        Assert.Equal($"## Mode\nCurrentMode: Agent\n\n## Mode Action\n{AgentAction}", text);
-    }
-
-    [Fact]
-    public void ModeSection_RendersPlanModeAndItsAction()
-    {
-        var text = RenderFull(new ModeSection(), Context(mode: AgentMode.Plan));
-
-        Assert.Equal($"## Mode\nCurrentMode: Plan\n\n## Mode Action\n{PlanAction}", text);
-    }
-
-    [Fact]
-    public void ModeSection_RendersTheSavedPlanActionWhenAPlanIsActive()
-    {
-        var text = RenderFull(new ModeSection(), Context(hasActivePlan: true));
-
-        Assert.Equal($"## Mode\nCurrentMode: Agent\nPlan: Active\n\n## Mode Action\n{SavedPlanAction}", text);
+        Assert.Equal(
+            $"## Mode\nCurrentMode: Agent\n\n## Mode Action\n{AgentAction}",
+            RenderFull(new ModeSection(), Context(mode: AgentMode.Agent)));
+        Assert.Equal(
+            $"## Mode\nCurrentMode: Plan\n\n## Mode Action\n{PlanAction}",
+            RenderFull(new ModeSection(), Context(mode: AgentMode.Plan)));
+        Assert.Equal(
+            $"## Mode\nCurrentMode: Agent\nPlan: Active\n\n## Mode Action\n{SavedPlanAction}",
+            RenderFull(new ModeSection(), Context(hasActivePlan: true)));
     }
 
     [Fact]
@@ -111,7 +94,7 @@ public sealed class WorldStateSectionTests
     }
 
     [Fact]
-    public void ModeSection_ReadsTheTransitionFromTheBaselineWhenTheOneShotIsGone()
+    public void ModeSection_DiffsAgainstTheBaselineToNameTransitionsAndRetireEarlierGuidance()
     {
         var section = new ModeSection();
         var context = Context(mode: AgentMode.Agent);
@@ -121,17 +104,13 @@ public sealed class WorldStateSectionTests
 
         Assert.Contains("ModeTransition: PlanToAgent", text, StringComparison.Ordinal);
         Assert.Contains("## Mode Transition", text, StringComparison.Ordinal);
-    }
 
-    [Fact]
-    public void ModeSection_RetiresEarlierGuidanceWhenTheModeMoves()
-    {
-        var section = new ModeSection();
+        var planSection = new ModeSection();
         var previousAgent = new JsonObject { ["mode"] = "Agent", ["planActive"] = false };
 
-        var text = section.RenderDiff(Context(mode: AgentMode.Plan), PreviousSectionState.Known(previousAgent));
+        var retired = planSection.RenderDiff(Context(mode: AgentMode.Plan), PreviousSectionState.Known(previousAgent));
 
-        Assert.Contains("This mode guidance replaces all previously provided mode guidance.", text, StringComparison.Ordinal);
+        Assert.Contains("This mode guidance replaces all previously provided mode guidance.", retired, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -149,20 +128,15 @@ public sealed class WorldStateSectionTests
         Assert.DoesNotContain("TokensUsed", text, StringComparison.Ordinal);
         Assert.DoesNotContain("RemainingTokens", text, StringComparison.Ordinal);
         Assert.DoesNotContain("ElapsedSeconds", text, StringComparison.Ordinal);
-    }
 
-    [Fact]
-    public void ThreadGoalSection_SnapshotIgnoresConsumptionSoSpendingAloneStaysSilent()
-    {
         var section = new ThreadGoalSection();
-        var before = section.Snapshot(Context(goal: Goal(tokensUsed: 10, elapsedSeconds: 5)));
-        var after = section.Snapshot(Context(goal: Goal(tokensUsed: 900, elapsedSeconds: 400)));
-
-        Assert.True(JsonNode.DeepEquals(before, after));
+        Assert.True(JsonNode.DeepEquals(
+            section.Snapshot(Context(goal: Goal(tokensUsed: 10, elapsedSeconds: 5))),
+            section.Snapshot(Context(goal: Goal(tokensUsed: 900, elapsedSeconds: 400)))));
     }
 
     [Fact]
-    public void ThreadGoalSection_RetiresAGoalThatWasCleared()
+    public void ThreadGoalSection_RetiresAGoalThatWasClearedOrMoved()
     {
         var section = new ThreadGoalSection();
         var shown = section.Snapshot(Context(goal: Goal()))!;
@@ -173,33 +147,24 @@ public sealed class WorldStateSectionTests
         Assert.Contains("no longer apply", retraction, StringComparison.Ordinal);
         Assert.Null(section.RenderDiff(cleared, PreviousSectionState.Absent));
         Assert.Null(section.RenderDiff(cleared, PreviousSectionState.Known(section.Snapshot(cleared)!)));
-    }
 
-    [Fact]
-    public void ThreadGoalSection_RetiresTheEarlierGoalWhenTheGoalMoves()
-    {
-        var section = new ThreadGoalSection();
-        var shown = section.Snapshot(Context(goal: Goal()))!;
+        var movedSection = new ThreadGoalSection();
+        var movedShown = movedSection.Snapshot(Context(goal: Goal()))!;
 
-        var text = section.RenderDiff(
+        var moved = movedSection.RenderDiff(
             Context(goal: Goal(status: ThreadGoalStatus.Paused)),
-            PreviousSectionState.Known(shown));
+            PreviousSectionState.Known(movedShown));
 
-        Assert.StartsWith("This thread goal replaces", text, StringComparison.Ordinal);
-        Assert.Contains("Status: Paused", text, StringComparison.Ordinal);
+        Assert.StartsWith("This thread goal replaces", moved, StringComparison.Ordinal);
+        Assert.Contains("Status: Paused", moved, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void SessionStartHookSection_StaysSilentWithoutHookContext()
-    {
-        Assert.Null(RenderFull(new SessionStartHookSection(), Context()));
-    }
-
-    [Fact]
-    public void SessionStartHookSection_RendersTrimmedHookContext()
+    public void SessionStartHookSection_RendersTrimmedHookContextOnlyWhenPresent()
     {
         var context = Context(sessionStartHookContext: "  loaded 3 notes  ");
 
+        Assert.Null(RenderFull(new SessionStartHookSection(), Context()));
         Assert.Equal(
             "## SessionStart Hook Context\nloaded 3 notes",
             RenderFull(new SessionStartHookSection(), context));
@@ -240,7 +205,7 @@ public sealed class WorldStateSectionTests
     }
 
     [Fact]
-    public void WorldState_SurvivesASectionThatThrows()
+    public void WorldState_SurvivesASectionThatThrowsOrDuplicatesAnId()
     {
         var world = WorldStateComposer.Build([new ThrowingSection()]);
 
@@ -249,10 +214,17 @@ public sealed class WorldStateSectionTests
         Assert.Contains(render.Faults, fault => fault.SectionId == "throwing");
         Assert.Contains(render.Fragments, fragment => fragment.SectionId == ModeSection.SectionId);
         Assert.False(render.Snapshot.TryGetSection("throwing", out _));
+
+        var duplicateWorld = WorldStateComposer.Build([new DuplicateModeSection()]);
+
+        var mode = Assert.Single(
+            duplicateWorld.RenderFull(Context()).Fragments,
+            fragment => fragment.SectionId == ModeSection.SectionId);
+        Assert.Contains("CurrentMode: Agent", mode.Text, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void WorldState_KeepsTheDeliveredSnapshotWhenARenderFails()
+    public void WorldState_KeepsTheDeliveredSnapshotWhenARenderFailsOrFactsAreUnavailable()
     {
         var section = new FlakySection();
         var world = WorldStateComposer.Build([section]);
@@ -271,38 +243,23 @@ public sealed class WorldStateSectionTests
         var retry = world.Render(Context(), failed.Snapshot, sectionIdsInHistory: null);
 
         Assert.Contains(retry.Fragments, fragment => fragment.SectionId == FlakySection.SectionId);
-    }
 
-    [Fact]
-    public void WorldState_KeepsTheBaselineOfASectionWhoseFactsAreUnavailable()
-    {
-        var section = new FlakySection();
-        var world = WorldStateComposer.Build([section]);
-        var delivered = world.RenderFull(Context()).Snapshot;
-        Assert.True(delivered.TryGetSection(FlakySection.SectionId, out var shown));
+        var unavailableSection = new FlakySection();
+        var unavailableWorld = WorldStateComposer.Build([unavailableSection]);
+        var unavailableDelivered = unavailableWorld.RenderFull(Context()).Snapshot;
+        Assert.True(unavailableDelivered.TryGetSection(FlakySection.SectionId, out var unavailableShown));
 
-        section.Unavailable = true;
-        var skipped = world.Render(Context(), delivered, sectionIdsInHistory: null);
+        unavailableSection.Unavailable = true;
+        var skipped = unavailableWorld.Render(Context(), unavailableDelivered, sectionIdsInHistory: null);
 
         Assert.DoesNotContain(skipped.Fragments, fragment => fragment.SectionId == FlakySection.SectionId);
-        Assert.True(skipped.Snapshot.TryGetSection(FlakySection.SectionId, out var kept));
-        Assert.True(JsonNode.DeepEquals(shown, kept));
+        Assert.True(skipped.Snapshot.TryGetSection(FlakySection.SectionId, out var unavailableKept));
+        Assert.True(JsonNode.DeepEquals(unavailableShown, unavailableKept));
 
-        section.Unavailable = false;
-        var restored = world.Render(Context(), skipped.Snapshot, sectionIdsInHistory: null);
+        unavailableSection.Unavailable = false;
+        var restored = unavailableWorld.Render(Context(), skipped.Snapshot, sectionIdsInHistory: null);
 
         Assert.DoesNotContain(restored.Fragments, fragment => fragment.SectionId == FlakySection.SectionId);
-    }
-
-    [Fact]
-    public void WorldState_RejectsADuplicateSectionIdWithoutFailingTheTurn()
-    {
-        var world = WorldStateComposer.Build([new DuplicateModeSection()]);
-
-        var mode = Assert.Single(
-            world.RenderFull(Context()).Fragments,
-            fragment => fragment.SectionId == ModeSection.SectionId);
-        Assert.Contains("CurrentMode: Agent", mode.Text, StringComparison.Ordinal);
     }
 
     private static string? RenderFull(IWorldStateSection section, WorldStateContext context) =>

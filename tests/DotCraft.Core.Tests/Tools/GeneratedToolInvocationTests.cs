@@ -60,35 +60,35 @@ public sealed class GeneratedToolInvocationTests
         Assert.Contains("requires a live ToolInvocationContext", exception.Message);
     }
 
-    [Theory]
-    [InlineData("Sync")]
-    [InlineData("TaskResult")]
-    [InlineData("ValueTaskResult")]
-    public async Task Runtime_ForwardsExecutionResultsWithoutSerializingTheirEnvelope(string method)
+    [Fact]
+    public async Task Runtime_ForwardsExecutionResultsWithoutSerializingTheirEnvelope()
     {
-        var target = Activator.CreateInstance(FixtureAssembly.GetType("Fixture.Results")!)!;
-        var function = ToolGeneratorTestCompilation.Function(FixtureAssembly, $"Results_{method}", target);
-        Assert.Null(function.ReturnJsonSchema);
         var expected = new ToolExecutionResult(
             true, "model content", JsonSerializer.SerializeToElement(new { client = true }),
             JsonSerializer.SerializeToElement(new { host = true }),
             JsonSerializer.SerializeToElement(new { raw = true }),
             providerResult: new object(), contentItems: [new TextContent("rich")],
             directive: ToolExecutionDirective.TerminateTurn);
-        var property = target.GetType().GetProperty("Result")!;
-        var runtime = new AIFunctionToolRuntime(function);
-        property.SetValue(target, expected);
-        Assert.Same(expected, await runtime.InvokeAsync(Context(method), new JsonObject()));
-
         var failure = ToolExecutionResult.Failed(new ToolError("OutcomeUnknown", "Do not replay.",
             new Dictionary<string, JsonElement> { ["executionId"] = JsonSerializer.SerializeToElement("execution-1") }));
-        property.SetValue(target, failure);
-        Assert.Same(failure, await runtime.InvokeAsync(Context(method), new JsonObject()));
+        foreach (var method in new[] { "Sync", "TaskResult", "ValueTaskResult" })
+        {
+            var target = Activator.CreateInstance(FixtureAssembly.GetType("Fixture.Results")!)!;
+            var function = ToolGeneratorTestCompilation.Function(FixtureAssembly, $"Results_{method}", target);
+            Assert.Null(function.ReturnJsonSchema);
+            var property = target.GetType().GetProperty("Result")!;
+            var runtime = new AIFunctionToolRuntime(function);
+            property.SetValue(target, expected);
+            Assert.Same(expected, await runtime.InvokeAsync(Context(method), new JsonObject()));
 
-        property.SetValue(target, null);
-        var invalid = await runtime.InvokeAsync(Context(method), new JsonObject());
-        Assert.False(invalid.Success);
-        Assert.Equal(ToolErrorCodes.ResultInvalid, invalid.Error?.Code);
+            property.SetValue(target, failure);
+            Assert.Same(failure, await runtime.InvokeAsync(Context(method), new JsonObject()));
+
+            property.SetValue(target, null);
+            var invalid = await runtime.InvokeAsync(Context(method), new JsonObject());
+            Assert.False(invalid.Success);
+            Assert.Equal(ToolErrorCodes.ResultInvalid, invalid.Error?.Code);
+        }
     }
 
     [Fact]
@@ -133,10 +133,8 @@ public sealed class GeneratedToolInvocationTests
             await new AIFunctionToolRuntime(unhandled).InvokeAsync(Context("unhandled"), Arguments(), cancellation.Token));
     }
 
-    [Theory]
-    [InlineData("missing")]
-    [InlineData("enum")]
-    public async Task Dispatcher_RejectsInvalidModelArgumentsBeforeCallingTheMethod(string invalid)
+    [Fact]
+    public async Task Dispatcher_RejectsInvalidModelArgumentsBeforeCallingTheMethod()
     {
         var invoked = false;
         var function = CreateObserve((_, _, _) =>
@@ -147,38 +145,40 @@ public sealed class GeneratedToolInvocationTests
         var planning = new ToolPlanningContext("thread", "planned-turn", Path.GetTempPath(),
             Path.GetTempPath(), "agent", null, [], 1);
         var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync([new SourceAdapter(function)], planning);
-        var arguments = Arguments();
-        if (invalid == "missing") arguments.Remove("input");
-        if (invalid == "enum") arguments["mode"] = 1;
-        var result = await new ToolDispatcher().DispatchAsync(snapshot, new ToolName(null, function.Name), arguments,
-            new ToolInvocationRequest("thread", "live-turn", "call", ToolInvocationAudience.Model));
-        Assert.False(result.Success);
-        Assert.Equal(ToolErrorCodes.InputInvalid, result.Error?.Code);
+        var missing = Arguments();
+        missing.Remove("input");
+        var badEnum = Arguments();
+        badEnum["mode"] = 1;
+        foreach (var arguments in new[] { missing, badEnum })
+        {
+            var result = await new ToolDispatcher().DispatchAsync(snapshot, new ToolName(null, function.Name), arguments,
+                new ToolInvocationRequest("thread", "live-turn", "call", ToolInvocationAudience.Model));
+            Assert.False(result.Success);
+            Assert.Equal(ToolErrorCodes.InputInvalid, result.Error?.Code);
+        }
         Assert.False(invoked);
     }
 
-    [Theory]
-    [InlineData("ToolInvocationContext? context")]
-    [InlineData("ToolInvocationContext context = null!")]
-    [InlineData("ref ToolInvocationContext context")]
-    [InlineData("ToolInvocationContext first, ToolInvocationContext second")]
-    [InlineData("[ToolParameter(Name = \"context\")] ToolInvocationContext context")]
-    public void Generator_RejectsInvalidContextDeclarations(string parameters)
+    [Fact]
+    public void Generator_RejectsInvalidContextDeclarations()
     {
-        var source = $$"""
-            using System;
-            using System.ComponentModel;
-            using System.ComponentModel.DataAnnotations;
-            using DotCraft.Tools;
-            public class InvalidTool
-            {
-                [GeneratedTool, Description("Invalid tool.")]
-                public void Run({{parameters}}) { throw new NotImplementedException(); }
-            }
-            """;
+        string[] declarations =
+        [
+            "ToolInvocationContext? context",
+            "ToolInvocationContext context = null!",
+            "ref ToolInvocationContext context",
+            "ToolInvocationContext first, ToolInvocationContext second",
+            "[ToolParameter(Name = \"context\")] ToolInvocationContext context"
+        ];
+        var tools = string.Join("\n", declarations.Select((parameters, index) =>
+            $"public class InvalidTool{index} {{ [GeneratedTool, Description(\"Invalid tool.\")] public void Run({parameters}) {{ throw new NotImplementedException(); }} }}"));
+        var source = "using System;\nusing System.ComponentModel;\nusing DotCraft.Tools;\n" + tools;
         var generated = ToolGeneratorTestCompilation.Run(source, "InvalidContext", out _);
-        Assert.Contains(generated.Diagnostics, diagnostic => diagnostic.Id == "DCGEN012"
-            && diagnostic.Severity == DiagnosticSeverity.Error);
+        var rejectedLines = generated.Diagnostics
+            .Where(diagnostic => diagnostic.Id == "DCGEN012" && diagnostic.Severity == DiagnosticSeverity.Error)
+            .Select(diagnostic => diagnostic.Location.GetLineSpan().StartLinePosition.Line)
+            .ToHashSet();
+        Assert.Equal(Enumerable.Range(3, declarations.Length), rejectedLines.Order());
         Assert.DoesNotContain(generated.Diagnostics, diagnostic => diagnostic.Id == "DCGEN002");
     }
 

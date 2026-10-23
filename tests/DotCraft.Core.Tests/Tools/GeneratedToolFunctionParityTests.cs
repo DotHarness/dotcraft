@@ -40,7 +40,6 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup on Windows.
         }
     }
 

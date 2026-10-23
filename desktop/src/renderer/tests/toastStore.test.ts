@@ -17,14 +17,12 @@ describe('toast replacement', () => {
     expect(onExpire).toHaveBeenCalledTimes(1)
   })
 
-  it('coalesces an identical plain notice instead of stacking it', () => {
+  it('coalesces identical plain notices but keeps them apart when either carries an action', () => {
     addToast('Copied to clipboard', 'success', 2000)
     const second = addToast('Copied to clipboard', 'success', 2000)
-
     expect(useToastStore.getState().toasts.map((t) => t.id)).toEqual([second])
-  })
 
-  it('keeps identical messages apart when either carries an action', () => {
+    useToastStore.setState({ toasts: [] })
     showToast({ message: 'Chat archived', action: { label: 'Undo', onClick: () => {} } })
     showToast({ message: 'Chat archived', action: { label: 'Undo', onClick: () => {} } })
     addToast('Chat archived')

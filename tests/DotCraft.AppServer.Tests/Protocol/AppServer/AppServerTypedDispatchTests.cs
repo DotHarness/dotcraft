@@ -41,28 +41,23 @@ public sealed class AppServerTypedDispatchTests
     }
 
     [Fact]
-    public async Task TypedNotification_WritesDescriptorMethodAndPayload()
+    public async Task TypedNotifications_WriteDescriptorMethodsAndEstablishedPayloads()
     {
         var transport = new InMemoryTransport();
 
         await transport.NotifyAsync(
             Contract.AppServerRpc.ThreadDeleted,
             new Contract.ThreadDeletedNotification { ThreadId = "thread_001" });
-
-        using var message = await transport.ReadNextSentAsync();
-        Assert.Equal("2.0", message.RootElement.GetProperty("jsonrpc").GetString());
-        Assert.Equal(Contract.AppServerRpc.ThreadDeleted.Name, message.RootElement.GetProperty("method").GetString());
-        Assert.Equal("thread_001", message.RootElement.GetProperty("params").GetProperty("threadId").GetString());
+        using (var message = await transport.ReadNextSentAsync())
+        {
+            Assert.Equal("2.0", message.RootElement.GetProperty("jsonrpc").GetString());
+            Assert.Equal(Contract.AppServerRpc.ThreadDeleted.Name, message.RootElement.GetProperty("method").GetString());
+            Assert.Equal("thread_001", message.RootElement.GetProperty("params").GetProperty("threadId").GetString());
+        }
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => transport.NotifyAsync(
             Contract.AppServerRpc.Initialized,
             new DotCraft.Protocol.RpcEmpty()));
-    }
-
-    [Fact]
-    public async Task CatalogNotification_ProjectsEstablishedWirePayload()
-    {
-        var transport = new InMemoryTransport();
 
         await transport.NotifyContractAsync(
             Contract.AppServerRpc.ProviderAuthUsageUpdated,
@@ -72,17 +67,16 @@ public sealed class AppServerTypedDispatchTests
                 Available = true,
                 Primary = new Contract.ProviderAuthUsageWindow { UsedPercent = 42, WindowSeconds = 18_000 }
             });
-
-        using var message = await transport.ReadNextSentAsync();
-        Assert.Equal(Contract.AppServerRpc.ProviderAuthUsageUpdated.Name, message.RootElement.GetProperty("method").GetString());
-        var parameters = message.RootElement.GetProperty("params");
+        using var usage = await transport.ReadNextSentAsync();
+        Assert.Equal(Contract.AppServerRpc.ProviderAuthUsageUpdated.Name, usage.RootElement.GetProperty("method").GetString());
+        var parameters = usage.RootElement.GetProperty("params");
         Assert.Equal("openai", parameters.GetProperty("providerId").GetString());
         Assert.Equal(42, parameters.GetProperty("primary").GetProperty("usedPercent").GetInt32());
         Assert.False(parameters.TryGetProperty("secondary", out _));
     }
 
     [Fact]
-    public async Task TypedReverseRequest_DeserializesResultAndPreservesUnknownProperties()
+    public async Task TypedReverseRequest_DeserializesResultsPreservingUnknownPropertiesAndReportsInvalidResults()
     {
         var transport = new InMemoryTransport
         {
@@ -93,33 +87,17 @@ public sealed class AppServerTypedDispatchTests
             })
         };
 
-        var response = await transport.RequestAsync(
-            Contract.AppServerRpc.ApprovalRequest,
-            CreateApprovalRequest());
-
+        var response = await transport.RequestAsync(Contract.AppServerRpc.ApprovalRequest, CreateApprovalRequest());
         Assert.Null(response.Error);
         Assert.Null(response.InvalidResult);
         Assert.Equal("accept", response.Result!.Decision);
-        Assert.Equal(
-            "client",
-            response.Result.ExtensionData!["futureMetadata"].GetProperty("source").GetString());
-    }
+        Assert.Equal("client", response.Result.ExtensionData!["futureMetadata"].GetProperty("source").GetString());
 
-    [Fact]
-    public async Task TypedReverseRequest_ReportsInvalidResultWithoutThrowing()
-    {
-        var transport = new InMemoryTransport
-        {
-            ApprovalHandler = (_, _) => InMemoryTransport.BuildClientResponse(1, new { })
-        };
-
-        var response = await transport.RequestAsync(
-            Contract.AppServerRpc.ApprovalRequest,
-            CreateApprovalRequest());
-
-        Assert.Null(response.Result);
-        Assert.Null(response.Error);
-        Assert.NotNull(response.InvalidResult);
+        transport.ApprovalHandler = (_, _) => InMemoryTransport.BuildClientResponse(1, new { });
+        var invalid = await transport.RequestAsync(Contract.AppServerRpc.ApprovalRequest, CreateApprovalRequest());
+        Assert.Null(invalid.Result);
+        Assert.Null(invalid.Error);
+        Assert.NotNull(invalid.InvalidResult);
     }
 
     private static Contract.ApprovalRequestParams CreateApprovalRequest() => new()

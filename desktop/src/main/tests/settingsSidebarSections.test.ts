@@ -40,32 +40,17 @@ describe('desktop sidebar section settings', () => {
     return JSON.parse(raw) as Record<string, unknown>
   }
 
-  it('loads explicit collapsed sidebar section preferences', async () => {
+  it('loads only explicit true collapsed sidebar section preferences', async () => {
     const root = await useTempUserData()
     await writeFile(join(root, 'settings.json'), JSON.stringify({
       projectsSectionCollapsed: true,
-      pinnedSectionCollapsed: true,
-      chatsSectionCollapsed: true
-    }), 'utf8')
-
-    const settings = loadSettings()
-
-    expect(settings.projectsSectionCollapsed).toBe(true)
-    expect(settings.pinnedSectionCollapsed).toBe(true)
-    expect(settings.chatsSectionCollapsed).toBe(true)
-  })
-
-  it('treats false and invalid collapsed sidebar section values as expanded defaults on load', async () => {
-    const root = await useTempUserData()
-    await writeFile(join(root, 'settings.json'), JSON.stringify({
-      projectsSectionCollapsed: false,
       pinnedSectionCollapsed: 'false',
       chatsSectionCollapsed: 'true'
     }), 'utf8')
 
     const settings = loadSettings()
 
-    expect(settings.projectsSectionCollapsed).toBeUndefined()
+    expect(settings.projectsSectionCollapsed).toBe(true)
     expect(settings.pinnedSectionCollapsed).toBeUndefined()
     expect(settings.chatsSectionCollapsed).toBeUndefined()
   })
@@ -75,14 +60,14 @@ describe('desktop sidebar section settings', () => {
 
     saveSettings({
       projectsSectionCollapsed: true,
-      pinnedSectionCollapsed: true,
-      chatsSectionCollapsed: true
-    })
+      pinnedSectionCollapsed: false,
+      chatsSectionCollapsed: 'yes' as unknown as boolean
+    } satisfies AppSettings)
 
     const saved = await readSavedSettings()
     expect(saved.projectsSectionCollapsed).toBe(true)
-    expect(saved.pinnedSectionCollapsed).toBe(true)
-    expect(saved.chatsSectionCollapsed).toBe(true)
+    expect(saved).not.toHaveProperty('pinnedSectionCollapsed')
+    expect(saved).not.toHaveProperty('chatsSectionCollapsed')
   })
 
   it('saves thread ordering preferences, omitting defaults and emptied orders', async () => {
@@ -105,20 +90,5 @@ describe('desktop sidebar section settings', () => {
     expect(saved).not.toHaveProperty('recentsShowProjects')
     expect(saved.recentsThreadOrder).toEqual(['thread-b', 'thread-a'])
     expect(saved.threadOrderByProject).toEqual({ 'c:/projects/a': ['thread-c'] })
-  })
-
-  it('omits expanded default sidebar section preferences when saving', async () => {
-    await useTempUserData()
-
-    saveSettings({
-      projectsSectionCollapsed: false,
-      pinnedSectionCollapsed: false,
-      chatsSectionCollapsed: 'yes' as unknown as boolean
-    } satisfies AppSettings)
-
-    const saved = await readSavedSettings()
-    expect(saved).not.toHaveProperty('projectsSectionCollapsed')
-    expect(saved).not.toHaveProperty('pinnedSectionCollapsed')
-    expect(saved).not.toHaveProperty('chatsSectionCollapsed')
   })
 })

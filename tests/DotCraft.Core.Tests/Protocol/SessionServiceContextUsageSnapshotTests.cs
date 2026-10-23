@@ -29,45 +29,19 @@ public sealed class SessionServiceContextUsageSnapshotTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_tempDir, true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]
-    public async Task TryGetContextUsageSnapshot_ReturnsNull_ForBlankThreadId()
+    public async Task TryGetContextUsageSnapshot_ReturnsNullWithoutCreatingATrackerForBlankOrUnknownThreads()
     {
         await using var agentFactory = CreateAgentFactory();
         var service = CreateSessionService(agentFactory);
 
         Assert.Null(service.TryGetContextUsageSnapshot(""));
         Assert.Null(service.TryGetContextUsageSnapshot("   "));
-    }
-
-    [Fact]
-    public async Task TryGetContextUsageSnapshot_ReturnsNull_WhenPersistedUsageDoesNotExist()
-    {
-        const string threadId = "thread-missing";
-
-        await using var agentFactory = CreateAgentFactory();
-        var service = CreateSessionService(agentFactory);
-
-        var snapshot = service.TryGetContextUsageSnapshot(threadId);
-
-        Assert.Null(snapshot);
-        Assert.Null(agentFactory.TryGetTokenTracker(threadId));
-    }
-
-    [Fact]
-    public async Task TryGetContextUsageSnapshot_DoesNotCreateTracker_WhenReadingMissingSnapshot()
-    {
-        const string threadId = "thread-readonly";
-
-        await using var agentFactory = CreateAgentFactory();
-        var service = CreateSessionService(agentFactory);
-
-        var snapshot = service.TryGetContextUsageSnapshot(threadId);
-
-        Assert.Null(snapshot);
-        Assert.Null(agentFactory.TryGetTokenTracker(threadId));
+        Assert.Null(service.TryGetContextUsageSnapshot("thread-missing"));
+        Assert.Null(agentFactory.TryGetTokenTracker("thread-missing"));
     }
 
     [Fact]

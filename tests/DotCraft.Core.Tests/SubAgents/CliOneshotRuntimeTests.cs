@@ -32,7 +32,6 @@ public sealed class CliOneshotRuntimeTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 
@@ -78,60 +77,32 @@ public sealed class CliOneshotRuntimeTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_EnvMode_WritesTaskToConfiguredEnvironmentVariable()
+    public async Task RunAsync_EnvMode_WritesTaskAndPassesThroughConfiguredAndCodexVariables()
     {
-        var profile = CreateProfile(CreateEnvEchoScript());
-        profile.InputMode = "env";
-        profile.InputEnvKey = "DOTCRAFT_TEST_TASK";
-
-        var result = await RunProfileAsync(profile, "env payload");
-
-        Assert.False(result.IsError);
-        Assert.Contains("env=env payload", result.Text, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task RunAsync_EnvPassthrough_CopiesParentEnvironmentWhenConfigured()
-    {
-        const string key = "DOTCRAFT_TEST_PASSTHROUGH";
-        var previous = Environment.GetEnvironmentVariable(key);
-        Environment.SetEnvironmentVariable(key, "passthrough-value");
+        const string passthroughKey = "DOTCRAFT_TEST_PASSTHROUGH";
+        const string codexKey = "CODEX_API_KEY";
+        var previousPassthrough = Environment.GetEnvironmentVariable(passthroughKey);
+        var previousCodex = Environment.GetEnvironmentVariable(codexKey);
+        Environment.SetEnvironmentVariable(passthroughKey, "passthrough-value");
+        Environment.SetEnvironmentVariable(codexKey, "codex-test-key");
         try
         {
-            var profile = CreateProfile(CreatePassthroughEchoScript());
-            profile.InputMode = "arg";
-            profile.EnvPassthrough = [key];
+            var profile = CreateProfile(CreateEnvEchoScript());
+            profile.InputMode = "env";
+            profile.InputEnvKey = "DOTCRAFT_TEST_TASK";
+            profile.EnvPassthrough = [passthroughKey];
 
-            var result = await RunProfileAsync(profile, "ignored");
+            var result = await RunProfileAsync(profile, "env payload");
 
             Assert.False(result.IsError);
+            Assert.Contains("env=env payload", result.Text, StringComparison.Ordinal);
             Assert.Contains("passthrough=passthrough-value", result.Text, StringComparison.Ordinal);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(key, previous);
-        }
-    }
-
-    [Fact]
-    public async Task RunAsync_DefaultEnvironment_CopiesCodexApiKey()
-    {
-        const string key = "CODEX_API_KEY";
-        var previous = Environment.GetEnvironmentVariable(key);
-        Environment.SetEnvironmentVariable(key, "codex-test-key");
-        try
-        {
-            var profile = CreateProfile(CreateCodexApiKeyEchoScript());
-            profile.InputMode = "arg";
-
-            var result = await RunProfileAsync(profile, "ignored");
-
-            Assert.False(result.IsError);
             Assert.Contains("codex_api_key=codex-test-key", result.Text, StringComparison.Ordinal);
         }
         finally
         {
-            Environment.SetEnvironmentVariable(key, previous);
+            Environment.SetEnvironmentVariable(passthroughKey, previousPassthrough);
+            Environment.SetEnvironmentVariable(codexKey, previousCodex);
         }
     }
 
@@ -142,43 +113,19 @@ public sealed class CliOneshotRuntimeTests : IDisposable
         profile.InputMode = "arg";
         profile.OutputFormat = "json";
         profile.OutputJsonPath = "result";
+        profile.OutputInputTokensJsonPath = "usage.input";
+        profile.OutputOutputTokensJsonPath = "usage.output";
+        profile.SupportsResume = true;
+        profile.ResumeArgTemplate = "--resume {sessionId}";
+        profile.ResumeSessionIdJsonPath = "session_id";
 
         var result = await RunProfileAsync(profile, "ignored");
 
         Assert.False(result.IsError);
         Assert.Equal("json-ok", result.Text);
-    }
-
-    [Fact]
-    public async Task RunAsync_JsonOutput_ExtractsConfiguredTokenUsage()
-    {
-        var profile = CreateProfile(CreateJsonOutputScript());
-        profile.InputMode = "arg";
-        profile.OutputFormat = "json";
-        profile.OutputJsonPath = "result";
-        profile.OutputInputTokensJsonPath = "usage.input";
-        profile.OutputOutputTokensJsonPath = "usage.output";
-
-        var result = await RunProfileAsync(profile, "ignored");
-
-        Assert.False(result.IsError);
-        Assert.NotNull(result.TokensUsed);
-        Assert.Equal(123, result.TokensUsed!.InputTokens);
-        Assert.Equal(45, result.TokensUsed!.OutputTokens);
-    }
-
-    [Fact]
-    public async Task RunAsync_ReadOutputFile_PrefersCapturedFileContent()
-    {
-        var profile = CreateProfile(CreateOutputFileScript());
-        profile.InputMode = "arg";
-        profile.ReadOutputFile = true;
-        profile.OutputFileArgTemplate = "--output-file \"{path}\"";
-
-        var result = await RunProfileAsync(profile, "ignored");
-
-        Assert.False(result.IsError);
-        Assert.Equal("from-file", result.Text);
+        Assert.Equal(123, result.TokensUsed?.InputTokens);
+        Assert.Equal(45, result.TokensUsed?.OutputTokens);
+        Assert.Equal("sess-json", result.SessionId);
     }
 
     [Fact]
@@ -277,23 +224,6 @@ public sealed class CliOneshotRuntimeTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_JsonOutput_CapturesSessionIdFromJsonPath()
-    {
-        var profile = CreateProfile(CreateJsonOutputWithSessionScript());
-        profile.InputMode = "arg";
-        profile.OutputFormat = "json";
-        profile.OutputJsonPath = "result";
-        profile.SupportsResume = true;
-        profile.ResumeArgTemplate = "--resume {sessionId}";
-        profile.ResumeSessionIdJsonPath = "session_id";
-
-        var result = await RunProfileAsync(profile, "ignored");
-
-        Assert.False(result.IsError);
-        Assert.Equal("sess-json", result.SessionId);
-    }
-
-    [Fact]
     public async Task RunAsync_TextOutput_CapturesSessionIdFromRegex_OrFallsBackToResumeId()
     {
         var profile = CreateProfile(CreateRegexSessionOutputScript());
@@ -345,21 +275,6 @@ public sealed class CliOneshotRuntimeTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_ExtraLaunchArgs_ArePrependedToInvocationArguments()
-    {
-        var profile = CreateProfile(CreateArgsDumpScript());
-        profile.InputMode = "arg";
-
-        var result = await RunProfileAsync(
-            profile,
-            "hello-cli",
-            extraLaunchArgs: ["--sandbox", "read-only"]);
-
-        Assert.False(result.IsError);
-        Assert.Contains("args=--sandbox|read-only|hello-cli", result.Text, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void SplitArguments_PreservesQuotedSegments()
     {
         var args = SubAgentArgumentSyntax.Split("--output-file \"C:\\temp path\\out.txt\" --flag");
@@ -368,7 +283,7 @@ public sealed class CliOneshotRuntimeTests : IDisposable
     }
 
     [Fact]
-    public void TryResolveExecutablePath_AbsolutePath_ResolvesExistingAndRejectsMissing()
+    public void TryResolveExecutablePath_ResolvesPathLookupAndAbsolutePathsAndRejectsMissing()
     {
         var knownBinary = OperatingSystem.IsWindows() ? "powershell" : "sh";
         Assert.True(SubAgentBinaryProbe.TryResolve(knownBinary, out var knownResolved));
@@ -380,34 +295,9 @@ public sealed class CliOneshotRuntimeTests : IDisposable
         var missingPath = Path.Combine(_rootPath, $"missing-{Guid.NewGuid():N}.cmd");
         Assert.False(SubAgentBinaryProbe.TryResolve(missingPath, out var resolvedMissing));
         Assert.Null(resolvedMissing);
-    }
-
-    [Fact]
-    public void TryResolveExecutablePath_PathLookup_ResolvesKnownBinaryAndRejectsMissing()
-    {
-        var knownBinary = OperatingSystem.IsWindows() ? "powershell" : "sh";
-        Assert.True(SubAgentBinaryProbe.TryResolve(knownBinary, out var resolvedKnown));
-        Assert.False(string.IsNullOrWhiteSpace(resolvedKnown));
-
-        var missingBinary = $"definitely-missing-{Guid.NewGuid():N}";
-        Assert.False(SubAgentBinaryProbe.TryResolve(missingBinary, out var resolvedMissing));
-        Assert.Null(resolvedMissing);
-    }
-
-    [Fact]
-    public void TryResolveExecutablePath_Windows_PathsWithPathextResolveWithoutExtension()
-    {
-        if (!OperatingSystem.IsWindows())
-            return;
-
-        Assert.True(SubAgentBinaryProbe.TryResolve("powershell", out var resolved));
-        Assert.NotNull(resolved);
-        var extension = Path.GetExtension(resolved);
-        Assert.True(
-            string.Equals(extension, ".exe", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(extension, ".cmd", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(extension, ".bat", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(extension, ".com", StringComparison.OrdinalIgnoreCase));
+        Assert.False(SubAgentBinaryProbe.TryResolve($"definitely-missing-{Guid.NewGuid():N}", out _));
+        if (OperatingSystem.IsWindows())
+            Assert.Equal(".exe", Path.GetExtension(knownResolved), ignoreCase: true);
     }
 
     private async Task<DotCraft.Agents.SubAgentRunResult> RunProfileAsync(
@@ -523,17 +413,12 @@ public sealed class CliOneshotRuntimeTests : IDisposable
         => CreateScript(
             windows: """
             Write-Output ("env=" + $env:DOTCRAFT_TEST_TASK)
-            """,
-            unix: """
-            printf 'env=%s\n' "$DOTCRAFT_TEST_TASK"
-            """);
-
-    private string CreateCodexApiKeyEchoScript()
-        => CreateScript(
-            windows: """
+            Write-Output ("passthrough=" + $env:DOTCRAFT_TEST_PASSTHROUGH)
             Write-Output ("codex_api_key=" + $env:CODEX_API_KEY)
             """,
             unix: """
+            printf 'env=%s\n' "$DOTCRAFT_TEST_TASK"
+            printf 'passthrough=%s\n' "$DOTCRAFT_TEST_PASSTHROUGH"
             printf 'codex_api_key=%s\n' "$CODEX_API_KEY"
             """);
 
@@ -559,19 +444,10 @@ public sealed class CliOneshotRuntimeTests : IDisposable
     private string CreateJsonOutputScript()
         => CreateScript(
             windows: """
-            Write-Output '{"result":"json-ok","usage":{"input":123,"output":45,"total":168}}'
+            Write-Output '{"result":"json-ok","session_id":"sess-json","usage":{"input":123,"output":45,"total":168}}'
             """,
             unix: """
-            printf '%s\n' '{"result":"json-ok","usage":{"input":123,"output":45,"total":168}}'
-            """);
-
-    private string CreateJsonOutputWithSessionScript()
-        => CreateScript(
-            windows: """
-            Write-Output '{"result":"json-ok","session_id":"sess-json"}'
-            """,
-            unix: """
-            printf '%s\n' '{"result":"json-ok","session_id":"sess-json"}'
+            printf '%s\n' '{"result":"json-ok","session_id":"sess-json","usage":{"input":123,"output":45,"total":168}}'
             """);
 
     private string CreateRegexSessionOutputScript()
@@ -581,15 +457,6 @@ public sealed class CliOneshotRuntimeTests : IDisposable
             """,
             unix: """
             printf '%s\n' 'session=sess-regex'
-            """);
-
-    private string CreatePassthroughEchoScript()
-        => CreateScript(
-            windows: """
-            Write-Output ("passthrough=" + $env:DOTCRAFT_TEST_PASSTHROUGH)
-            """,
-            unix: """
-            printf 'passthrough=%s\n' "$DOTCRAFT_TEST_PASSTHROUGH"
             """);
 
     private string CreateOutputFileScript()

@@ -60,9 +60,6 @@ describe('sourceControlStore', () => {
     await flush()
     expect(useSourceControlStore.getState().effectiveProvider).toBe('perforce')
     sendRequest.mockClear()
-
-    // A workspace switch promotes a different connection and re-emits `connected`, bumping the
-    // epoch; `sourceControl/get` now describes the new foreground workspace (git).
     sendRequest.mockResolvedValue({ effectiveProvider: 'git', status: 'connected', capabilities: {} })
     useConnectionStore.getState().setStatus({ status: 'connected' })
     await flush()
@@ -79,8 +76,6 @@ describe('sourceControlStore', () => {
     useSourceControlStore.getState().ensure('B', true)
     await flush()
     expect(useSourceControlStore.getState().effectiveProvider).toBe('git')
-
-    // The stale first request resolves last; it must not overwrite the newer result.
     resolveStale({ effectiveProvider: 'perforce', status: 'connected', capabilities: { perforceChangelist: true } })
     await flush()
     expect(useSourceControlStore.getState().workspacePath).toBe('B')

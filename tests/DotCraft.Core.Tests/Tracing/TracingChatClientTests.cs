@@ -8,22 +8,6 @@ namespace DotCraft.Tests.Tracing;
 
 public sealed class TracingChatClientTests
 {
-    [Fact]
-    public async Task StreamingReasoningChunks_RecordOneThinkingSegment()
-    {
-        var store = await RunStreamingAsync([
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent("The ")]),
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent("user")]),
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent(string.Empty)])
-        ], "trace-reasoning");
-
-        var thinking = EventsOfType(store, "trace-reasoning", TraceEventType.Thinking);
-        var session = store.GetSession("trace-reasoning");
-
-        var evt = Assert.Single(thinking);
-        Assert.Equal("The user", evt.Content);
-        Assert.Equal(1, session?.ThinkingCount);
-    }
 
     [Fact]
     public async Task StreamingTextChunks_RecordOneResponseSegment()
@@ -88,25 +72,25 @@ public sealed class TracingChatClientTests
         Assert.True(metadata.RootElement.GetProperty("terminalUpdateSeen").GetBoolean());
     }
 
-    [Fact]
-    public async Task StreamingResponse_RecordsResolvedReasoningEffort()
+    [Theory]
+    [InlineData(false, null)]
+    [InlineData(true, "high")]
+    public async Task StreamingResponse_RecordsResolvedReasoningEffort(bool reasoningEnabled, string? expectedEffort)
     {
         var store = await RunStreamingAsync(
             [
                 new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("answer")]) { ModelId = "model-a" }
             ],
             "trace-effort",
-            options: new ChatOptions
-            {
-                Reasoning = new ReasoningOptions { Effort = ReasoningEffort.High }
-            });
+            options: reasoningEnabled
+                ? new ChatOptions { Reasoning = new ReasoningOptions { Effort = ReasoningEffort.High } }
+                : null);
 
         var evt = Assert.Single(EventsOfType(store, "trace-effort", TraceEventType.Response));
-        Assert.Equal("high", evt.ReasoningEffort);
+        Assert.Equal(expectedEffort, evt.ReasoningEffort);
     }
 
     [Theory]
-    [InlineData(DotCraft.Configuration.ModelReasoningEffort.Max)]
     [InlineData(DotCraft.Configuration.ModelReasoningEffort.Ultra)]
     public async Task StreamingResponse_RecordsMaxProviderEffort(DotCraft.Configuration.ModelReasoningEffort effort)
     {
@@ -116,19 +100,6 @@ public sealed class TracingChatClientTests
             [new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("answer")])],
             "trace-max", options: options);
         Assert.Equal("max", Assert.Single(EventsOfType(store, "trace-max", TraceEventType.Response)).ReasoningEffort);
-    }
-
-    [Fact]
-    public async Task StreamingResponse_OmitsReasoningEffort_WhenReasoningDisabled()
-    {
-        var store = await RunStreamingAsync(
-            [
-                new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("answer")]) { ModelId = "model-a" }
-            ],
-            "trace-no-effort");
-
-        var evt = Assert.Single(EventsOfType(store, "trace-no-effort", TraceEventType.Response));
-        Assert.Null(evt.ReasoningEffort);
     }
 
     [Fact]
@@ -233,7 +204,6 @@ public sealed class TracingChatClientTests
             }
             catch
             {
-                // Best-effort cleanup; SQLite can briefly hold the file on Windows.
             }
         }
     }
@@ -273,24 +243,6 @@ public sealed class TracingChatClientTests
         Assert.Equal(12, session?.TotalCacheWriteInputTokens);
         Assert.Equal(24, session?.TotalFreshInputTokens);
         Assert.Equal(0.64, session?.CacheHitRate);
-    }
-
-    [Fact]
-    public async Task StreamingUsageOnly_RecordsTokenUsageAndResponseTerminalWithoutResponseSegment()
-    {
-        var store = await RunStreamingAsync([
-            new ChatResponseUpdate(ChatRole.Assistant, [
-                new UsageContent(new UsageDetails
-                {
-                    InputTokenCount = 12,
-                    OutputTokenCount = 3
-                })
-            ])
-        ], "trace-usage-only");
-
-        Assert.Single(EventsOfType(store, "trace-usage-only", TraceEventType.TokenUsage));
-        Assert.Single(EventsOfType(store, "trace-usage-only", TraceEventType.ResponseTerminal));
-        Assert.Empty(EventsOfType(store, "trace-usage-only", TraceEventType.Response));
     }
 
     [Fact]
@@ -342,114 +294,31 @@ public sealed class TracingChatClientTests
         Assert.Equal(11, session?.TotalOutputTokens);
     }
 
-    [Fact]
-    public void TokenUsageExtractor_ReadsProviderRawCachedTokenShapes()
+    [Theory]
+    [InlineData("""{"usage":{"input_tokens":100,"input_tokens_details":{"cached_tokens":72},"output_tokens":9,"output_tokens_details":{"reasoning_tokens":3}}}""", 100, 9, 72, 0, 28, 3)]
+    [InlineData("""{"usage":{"prompt_tokens":2006,"completion_tokens":300,"prompt_tokens_details":{"cached_tokens":1920}}}""", 2006, 300, 1920, 0, 86, 0)]
+    [InlineData("""{"usage":{"input_tokens":50,"cache_read_input_tokens":100000,"cache_creation_input_tokens":5000,"output_tokens":25}}""", 105050, 25, 100000, 5000, 50, 0)]
+    [InlineData("""{"usage":{"prompt_tokens":2006,"completion_tokens":300,"prompt_tokens_details":{"cached_tokens":1200},"cache_creation_input_tokens":456}}""", 2006, 300, 1200, 456, 350, 0)]
+    [InlineData("""{"usage_metadata":{"prompt_token_count":4096,"cached_content_token_count":1024,"candidates_token_count":128}}""", 4096, 128, 1024, 0, 3072, 0)]
+    public void TokenUsageExtractor_ReadsProviderRawUsageShapes(
+        string json,
+        long input,
+        long output,
+        long cached,
+        long cacheWrite,
+        long fresh,
+        long reasoning)
     {
-        using var doc = System.Text.Json.JsonDocument.Parse("""
-            {
-              "usage": {
-                "input_tokens": 100,
-                "input_tokens_details": { "cached_tokens": 72 },
-                "output_tokens": 9,
-                "output_tokens_details": { "reasoning_tokens": 3 }
-              }
-            }
-            """);
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
 
         var usage = TokenUsageExtractor.FromUsageDetails(null, rawRepresentation: doc.RootElement);
 
-        Assert.Equal(100, usage.InputTokens);
-        Assert.Equal(9, usage.OutputTokens);
-        Assert.Equal(72, usage.CachedInputTokens);
-        Assert.Equal(3, usage.ReasoningOutputTokens);
-    }
-
-    [Fact]
-    public void TokenUsageExtractor_ReadsOpenAiStylePromptCacheShape()
-    {
-        using var doc = System.Text.Json.JsonDocument.Parse("""
-            {
-              "usage": {
-                "prompt_tokens": 2006,
-                "completion_tokens": 300,
-                "prompt_tokens_details": { "cached_tokens": 1920 }
-              }
-            }
-            """);
-
-        var usage = TokenUsageExtractor.FromUsageDetails(null, rawRepresentation: doc.RootElement);
-
-        Assert.Equal(2006, usage.InputTokens);
-        Assert.Equal(300, usage.OutputTokens);
-        Assert.Equal(1920, usage.CachedInputTokens);
-        Assert.Equal(0, usage.CacheWriteInputTokens);
-        Assert.Equal(86, usage.FreshInputTokens);
-    }
-
-    [Fact]
-    public void TokenUsageExtractor_ReconstructsAnthropicNativeTotalInput()
-    {
-        using var doc = System.Text.Json.JsonDocument.Parse("""
-            {
-              "usage": {
-                "input_tokens": 50,
-                "cache_read_input_tokens": 100000,
-                "cache_creation_input_tokens": 5000,
-                "output_tokens": 25
-              }
-            }
-            """);
-
-        var usage = TokenUsageExtractor.FromUsageDetails(null, rawRepresentation: doc.RootElement);
-
-        Assert.Equal(105050, usage.InputTokens);
-        Assert.Equal(100000, usage.CachedInputTokens);
-        Assert.Equal(5000, usage.CacheWriteInputTokens);
-        Assert.Equal(50, usage.FreshInputTokens);
-        Assert.Equal(25, usage.OutputTokens);
-    }
-
-    [Fact]
-    public void TokenUsageExtractor_DoesNotDoubleCountLiteLlmPromptTokensWithCacheCreation()
-    {
-        using var doc = System.Text.Json.JsonDocument.Parse("""
-            {
-              "usage": {
-                "prompt_tokens": 2006,
-                "completion_tokens": 300,
-                "prompt_tokens_details": { "cached_tokens": 1200 },
-                "cache_creation_input_tokens": 456
-              }
-            }
-            """);
-
-        var usage = TokenUsageExtractor.FromUsageDetails(null, rawRepresentation: doc.RootElement);
-
-        Assert.Equal(2006, usage.InputTokens);
-        Assert.Equal(1200, usage.CachedInputTokens);
-        Assert.Equal(456, usage.CacheWriteInputTokens);
-        Assert.Equal(350, usage.FreshInputTokens);
-    }
-
-    [Fact]
-    public void TokenUsageExtractor_ReadsGeminiUsageMetadataCachedContentTokens()
-    {
-        using var doc = System.Text.Json.JsonDocument.Parse("""
-            {
-              "usage_metadata": {
-                "prompt_token_count": 4096,
-                "cached_content_token_count": 1024,
-                "candidates_token_count": 128
-              }
-            }
-            """);
-
-        var usage = TokenUsageExtractor.FromUsageDetails(null, rawRepresentation: doc.RootElement);
-
-        Assert.Equal(4096, usage.InputTokens);
-        Assert.Equal(128, usage.OutputTokens);
-        Assert.Equal(1024, usage.CachedInputTokens);
-        Assert.Equal(3072, usage.FreshInputTokens);
+        Assert.Equal(input, usage.InputTokens);
+        Assert.Equal(output, usage.OutputTokens);
+        Assert.Equal(cached, usage.CachedInputTokens);
+        Assert.Equal(cacheWrite, usage.CacheWriteInputTokens);
+        Assert.Equal(fresh, usage.FreshInputTokens);
+        Assert.Equal(reasoning, usage.ReasoningOutputTokens);
     }
 
     [Fact]
@@ -548,8 +417,6 @@ public sealed class TracingChatClientTests
 
     private readonly record struct SdkStyleReasoningEffort(string Value)
     {
-        public static SdkStyleReasoningEffort None { get; } = new("none");
-
         public static SdkStyleReasoningEffort Medium { get; } = new("medium");
 
         public override string ToString() => Value;

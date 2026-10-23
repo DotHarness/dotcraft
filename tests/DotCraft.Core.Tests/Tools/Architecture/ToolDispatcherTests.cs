@@ -170,31 +170,6 @@ public sealed class ToolDispatcherTests
     }
 
     [Fact]
-    public async Task DispatchAsync_RejectsInvalidInputBeforePolicyAndRuntime()
-    {
-        var invoked = false;
-        var registration = Registration(
-            new ToolName(null, "requires_name"),
-            new DelegateRuntime((_, _) =>
-            {
-                invoked = true;
-                return ToolExecutionResult.Succeeded("unexpected");
-            }),
-            inputSchema: Json("""{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}"""));
-        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 1);
-
-        var result = await new ToolDispatcher().DispatchAsync(
-            snapshot,
-            registration.Definition.Name,
-            [],
-            Request());
-
-        Assert.False(result.Success);
-        Assert.Equal(ToolErrorCodes.InputInvalid, result.Error?.Code);
-        Assert.False(invoked);
-    }
-
-    [Fact]
     public async Task DispatchAsync_McpArgumentsAreValidatedByTheOwningServer()
     {
         JsonObject? observed = null;
@@ -359,13 +334,18 @@ public sealed class ToolDispatcherTests
     }
 
     [Fact]
-    public async Task DispatchAsync_InvalidInputTerminalizesTheAcceptedProjection()
+    public async Task DispatchAsync_InvalidInputSkipsPolicyAndRuntimeButTerminalizesTheAcceptedProjection()
     {
         var events = new List<string>();
         var probe = new PipelineProbe(events);
+        var invoked = false;
         var registration = Registration(
             new ToolName(null, "requires_name"),
-            new DelegateRuntime((_, _) => ToolExecutionResult.Succeeded("unexpected")),
+            new DelegateRuntime((_, _) =>
+            {
+                invoked = true;
+                return ToolExecutionResult.Succeeded("unexpected");
+            }),
             inputSchema: Json("""{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}"""));
         var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 1);
         var dispatcher = new ToolDispatcher(probe, probe, probe, probe, probe, probe);
@@ -375,6 +355,7 @@ public sealed class ToolDispatcherTests
         Assert.False(result.Success);
         Assert.Equal(ToolErrorCodes.InputInvalid, result.Error?.Code);
         Assert.Equal(["started", "authority", "terminal", "postHook"], events);
+        Assert.False(invoked);
     }
 
     [Fact]

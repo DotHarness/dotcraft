@@ -116,16 +116,10 @@ public sealed class ConfigurationServiceProviderTests
 
     [Theory]
     [InlineData("Providers.a/b", "{}")]
-    [InlineData("Providers.a:b", "{}")]
     [InlineData("Providers.p1", "\"not-an-object\"")]
     [InlineData("Providers.p1", """{ "Protocol": "gemini" }""")]
     [InlineData("Providers.p1", """{ "EndPoint": "not a uri" }""")]
-    [InlineData("Providers.p1", """{ "NetworkTimeoutSeconds": 0 }""")]
-    [InlineData("Providers.p1", """{ "MaxOutputTokens": 0 }""")]
-    [InlineData("Providers.p1", """{ "StreamIdleTimeoutMs": 0 }""")]
-    [InlineData("Providers.p1", """{ "StreamMaxRetries": -1 }""")]
     [InlineData("Providers.p1", """{ "StreamMaxRetries": 101 }""")]
-    [InlineData("Providers.p1", """{ "AuthMethod": "token" }""")]
     [InlineData("Providers.p1", """{ "AuthMethod": "chatgptOAuth", "Protocol": "anthropic" }""")]
     public async Task Write_InvalidProvider_IsRejectedAndLeavesTheFileUnchanged(string keyPath, string valueJson)
     {

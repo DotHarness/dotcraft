@@ -21,15 +21,12 @@ beforeEach(() => {
 })
 
 describe('microphone access', () => {
-  it('stops before requesting when the operating system reports a block', async () => {
-    getPermissionStatus.mockResolvedValue('denied')
-
-    await expect(requestMicrophoneAccess()).rejects.toMatchObject({ code: 'permission-denied' })
-    expect(requestPermission).not.toHaveBeenCalled()
-  })
-
-  it('requests permission and continues in the same action', async () => {
+  it('requests permission in the same action unless the operating system reports a block', async () => {
     await expect(requestMicrophoneAccess()).resolves.toBe('granted')
+    expect(requestPermission).toHaveBeenCalledTimes(1)
+
+    getPermissionStatus.mockResolvedValue('denied')
+    await expect(requestMicrophoneAccess()).rejects.toMatchObject({ code: 'permission-denied' })
     expect(requestPermission).toHaveBeenCalledTimes(1)
   })
 

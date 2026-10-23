@@ -45,32 +45,27 @@ describe('Chrome extension popup', () => {
     vi.resetModules()
   })
 
-  it('does not render native pipe paths in connected popup text', async () => {
+  it('never shows native pipe paths in connected or disconnected status text', async () => {
     const { statusViewModel } = await importPopup()
-    const view = statusViewModel({
+    const connected = statusViewModel({
       connected: true,
       bridgeReady: true,
       pipePath: '\\\\.\\pipe\\dotcraft-chrome-123-secret',
       version: '0.1.0'
     })
-
-    expect(view.message).toBe('Chrome backend ready. Control Chrome with DotCraft.')
-    expect(JSON.stringify(view)).not.toContain('dotcraft-chrome-123-secret')
-  })
-
-  it('redacts backend pipe paths from disconnected popup errors', async () => {
-    const { statusViewModel } = await importPopup()
-    const view = statusViewModel({
+    const disconnected = statusViewModel({
       connected: false,
       bridgeReady: false,
       error: 'Failed to open \\\\.\\pipe\\dotcraft-chrome-123-secret'
     })
 
-    expect(view.message).toContain('[Chrome backend pipe]')
-    expect(view.message).not.toContain('dotcraft-chrome-123-secret')
+    expect(connected.message).toBe('Chrome backend ready. Control Chrome with DotCraft.')
+    expect(JSON.stringify(connected)).not.toContain('dotcraft-chrome-123-secret')
+    expect(disconnected.message).toContain('[Chrome backend pipe]')
+    expect(disconnected.message).not.toContain('dotcraft-chrome-123-secret')
   })
 
-  it('asks the service worker for status when refreshed', async () => {
+  it('asks the service worker for status and to open settings', async () => {
     const sendMessage = vi.fn((_message, callback) => {
       callback({
         ok: true,
@@ -85,31 +80,13 @@ describe('Chrome extension popup', () => {
       }
     })
 
-    const { refreshStatus } = await importPopup()
-    const view = createRoot()
-    await refreshStatus(view.root)
-
-    expect(sendMessage).toHaveBeenCalledWith({ type: 'dotcraft-popup-status' }, expect.any(Function))
-  })
-
-  it('sends an open settings request through the service worker', async () => {
-    const sendMessage = vi.fn((_message, callback) => {
-      callback({
-        ok: true,
-        status: { connected: true, bridgeReady: true, version: '0.1.0' }
-      })
-    })
-    vi.stubGlobal('chrome', {
-      runtime: {
-        sendMessage,
-        lastError: null,
-        getManifest: () => ({ version: '0.1.0' })
-      }
-    })
-
-    const { openSettings } = await importPopup()
+    const { refreshStatus, openSettings } = await importPopup()
+    await refreshStatus(createRoot().root)
     await openSettings(createRoot().root)
 
-    expect(sendMessage).toHaveBeenCalledWith({ type: 'dotcraft-popup-open-settings' }, expect.any(Function))
+    expect(sendMessage.mock.calls.map(([message]) => message)).toEqual([
+      { type: 'dotcraft-popup-status' },
+      { type: 'dotcraft-popup-open-settings' }
+    ])
   })
 })

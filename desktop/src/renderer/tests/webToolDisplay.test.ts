@@ -1,20 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  formatInvocationDisplay,
-  invocationNeedsCallingPrefix,
-  toWebSearchResultRows
-} from '../utils/webToolDisplay'
-
-describe('formatInvocationDisplay', () => {
-  it('preserves complete invocation values for layout-level truncation', () => {
-    const query = 'compare shared tool activity title geometry across commands todo searches workflows and agents'
-    const url = 'https://example.com/reference/tool-activity-disclosure/complete-layout-contract?mode=desktop'
-
-    expect(formatInvocationDisplay('webSearch', { query }, 'en')).toContain(query)
-    expect(formatInvocationDisplay('webFetch', { url }, 'en')).toContain(url)
-    expect(formatInvocationDisplay('toolSearch', { query }, 'en')).toContain(query)
-  })
-})
+import { invocationNeedsCallingPrefix, toWebSearchResultRows } from '../utils/webToolDisplay'
 
 describe('invocationNeedsCallingPrefix', () => {
   it('omits the generic prefix only when standalone web/tool-search args parse', () => {

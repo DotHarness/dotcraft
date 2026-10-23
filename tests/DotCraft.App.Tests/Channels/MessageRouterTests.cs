@@ -7,52 +7,22 @@ namespace DotCraft.Tests.Channels;
 public sealed class MessageRouterTests
 {
     [Fact]
-    public async Task DeliverRequiredAsync_RejectsUnavailableChannels()
+    public async Task DeliverRequiredAsync_FailsUnlessTheChannelConfirmsDelivery()
     {
         var router = new MessageRouter(new ChannelRuntimeRegistry());
-        await Assert.ThrowsAsync<InvalidOperationException>(() => router.DeliverRequiredAsync(
-            "missing", "group:42", new ChannelDeliveryMessage { Kind = "text", Text = "result" }, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task DeliverRequiredAsync_PropagatesChannelRejection()
-    {
-        var router = new MessageRouter(new ChannelRuntimeRegistry());
+        var message = new ChannelDeliveryMessage { Kind = "text", Text = "result" };
         router.RegisterChannel(new StubChannel("telegram", [], new ChannelDeliveryResult
         {
             Delivered = false, ErrorCode = "Forbidden", ErrorMessage = "Bot removed from group"
         }));
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => router.DeliverRequiredAsync(
-            "telegram", "group:42", new ChannelDeliveryMessage { Kind = "text", Text = "result" }, CancellationToken.None));
-        Assert.Equal("Bot removed from group", error.Message);
-    }
+        router.RegisterChannel(new StubChannel("qq", [], new ChannelDeliveryResult { Delivered = true }));
 
-    [Fact]
-    public async Task DeliverRequiredAsync_CompletesWhenChannelConfirmsDelivery()
-    {
-        var router = new MessageRouter(new ChannelRuntimeRegistry());
-        router.RegisterChannel(new StubChannel("telegram", [], new ChannelDeliveryResult { Delivered = true }));
-        await router.DeliverRequiredAsync(
-            "telegram", "group:42", new ChannelDeliveryMessage { Kind = "text", Text = "result" }, CancellationToken.None);
-    }
-
-    [Fact]
-    public void UnregisterChannel_RemovesRuntimeRegistryEntry()
-    {
-        var registry = new ChannelRuntimeRegistry();
-        var router = new MessageRouter(registry);
-        var channel = new StubChannel(
-            "qq",
-            ["admin-user"],
-            new ChannelDeliveryResult { Delivered = true });
-
-        router.RegisterChannel(channel);
-        Assert.True(registry.TryGet("qq", out _));
-
-        var removed = router.UnregisterChannel("qq");
-
-        Assert.True(removed);
-        Assert.False(registry.TryGet("qq", out _));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => router.DeliverRequiredAsync(
+            "missing", "group:42", message, CancellationToken.None));
+        var rejected = await Assert.ThrowsAsync<InvalidOperationException>(() => router.DeliverRequiredAsync(
+            "telegram", "group:42", message, CancellationToken.None));
+        Assert.Equal("Bot removed from group", rejected.Message);
+        await router.DeliverRequiredAsync("qq", "group:42", message, CancellationToken.None);
     }
 
     [Fact]

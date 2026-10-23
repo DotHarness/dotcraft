@@ -6,10 +6,6 @@ using DotCraft.Tools.BackgroundTerminals;
 
 namespace DotCraft.Tests.Hub;
 
-/// <summary>
-/// An in-process Hub, a paired Remote Tool Host running in outbound mode, and the Agent-side
-/// directory that reaches it through the Hub bridge.
-/// </summary>
 internal sealed class SatelliteScenario : IAsyncDisposable
 {
     private readonly RemoteToolHostStorage _storage;
@@ -64,7 +60,11 @@ internal sealed class SatelliteScenario : IAsyncDisposable
         var storage = new RemoteToolHostStorage(
             Path.Combine(userProfile, "host-craft"),
             credentials ?? new MemoryCredentialStore());
-        var runtime = new RemoteToolHostRuntime(storage, "host-machine", heartbeatInterval, screenCapture);
+        var runtime = new RemoteToolHostRuntime(
+            storage,
+            "host-machine",
+            heartbeatInterval ?? TimeSpan.FromMilliseconds(200),
+            screenCapture);
         var invite = await hub.CreateInviteAsync("Ann");
         var peer = await runtime.AcceptInviteAsync(
             new RemoteToolJoinDecision(RemoteToolHostRuntime.ParseInvite(invite.Url), workspacePath, RemoteToolAuthorization.FullAccess));

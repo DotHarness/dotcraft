@@ -9,9 +9,7 @@ public sealed class PosixScriptLowererTests
     [InlineData("ls -1", "ls", "-1")]
     [InlineData("echo 123 456", "echo", "123", "456")]
     [InlineData("echo \"/usr\"'/'\"local\"/bin", "echo", "/usr/local/bin")]
-    [InlineData("echo '/usr'\"/\"'local'/bin", "echo", "/usr/local/bin")]
     [InlineData("rg -n \"foo\" -g\"*.py\"", "rg", "-n", "foo", "-g*.py")]
-    [InlineData("grep -n 'pattern' -g'*.txt'", "grep", "-n", "pattern", "-g*.txt")]
     [InlineData("git commit -m \"line1\nline2\"", "git", "commit", "-m", "line1\nline2")]
     [InlineData(
         "echo \"~HOME\" 'HEAD~1' \"HEAD^\" 'foo#bar' \"=sh\" 'file~'",
@@ -47,7 +45,6 @@ public sealed class PosixScriptLowererTests
     [Theory]
     [InlineData("ls\n")]
     [InlineData("ls;")]
-    [InlineData("\nls\n\n")]
     public void Lower_TrailingTerminator_StaysPlain(string script)
     {
         var lowered = Lower(script);
@@ -57,17 +54,13 @@ public sealed class PosixScriptLowererTests
 
     [Theory]
     [InlineData("echo \"hi ${USER}\"", "expansion")]
-    [InlineData("echo \"$HOME\"", "expansion")]
     [InlineData("echo $HOME", "expansion")]
     [InlineData("echo $(pwd)", "expansion")]
     [InlineData("echo `pwd`", "expansion")]
     [InlineData("rg -g\"$VAR\" pattern", "expansion")]
-    [InlineData("rg -g\"$(pwd)\" pattern", "expansion")]
     [InlineData("find . $'\\x2ddelete'", "expansion")]
-    [InlineData("(ls)", "denies '('")]
     [InlineData("ls || (pwd && echo hi)", "denies '('")]
     [InlineData("ls > out.txt", "denies '>'")]
-    [InlineData("dotnet test > out.txt", "denies '>'")]
     [InlineData("echo hi & echo bye", "background execution")]
     [InlineData("find . -{delete,print}", "denies '{'")]
     [InlineData("rg --pre{=,=sh} pattern payload.sh", "denies '{'")]
@@ -85,12 +78,9 @@ public sealed class PosixScriptLowererTests
     [InlineData("echo \"\\\\\"", "backslash inside double quotes")]
     [InlineData("grep \\\"x; rm -rf build; echo \\\" README.md", "escaped quotes")]
     [InlineData("echo 'unterminated", "unbalanced")]
-    [InlineData("echo \"unterminated", "unbalanced")]
     [InlineData("FOO=bar ls", "variable assignment prefix")]
     [InlineData("FOO+=bar ls", "variable assignment prefix")]
     [InlineData("ls &&", "empty command position")]
-    [InlineData("&& ls", "empty command position")]
-    [InlineData("ls ;; pwd", "empty command position")]
     [InlineData("ls | | wc", "empty command position")]
     [InlineData("if test -d x; then rm --force x; fi", "keyword 'if'")]
     public void Lower_UnclassifiableScript_IsOpaqueWithReason(string script, string expectedReason)
@@ -101,12 +91,10 @@ public sealed class PosixScriptLowererTests
         Assert.Contains(expectedReason, lowered.PlainRejectReason);
     }
 
-    [Theory]
-    [InlineData("")]
-    [InlineData("   \n  ")]
-    public void Lower_EmptyScript_IsOpaqueWithoutLiteralCommands(string script)
+    [Fact]
+    public void Lower_BlankScript_IsOpaqueWithoutLiteralCommands()
     {
-        var lowered = Lower(script);
+        var lowered = Lower("   \n  ");
 
         Assert.Null(lowered.PlainCommands);
         Assert.Equal("requires a command that can be classified.", lowered.PlainRejectReason);

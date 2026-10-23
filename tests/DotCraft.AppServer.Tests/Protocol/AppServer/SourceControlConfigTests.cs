@@ -6,11 +6,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
-/// <summary>
-/// Conformance tests for the source control binding methods (spec Section 25A):
-/// persistence, the <c>sourceControl</c> config-changed region, capability gating,
-/// and the no-password guarantee.
-/// </summary>
 public sealed class SourceControlConfigTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), $"source_control_{Guid.NewGuid():N}");
@@ -33,18 +28,26 @@ public sealed class SourceControlConfigTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 
     [Fact]
-    public async Task SourceControlUpdate_Perforce_PersistsNonSensitiveConfigAndEmitsRegion()
+    public async Task SourceControlUpdate_RejectsPasswordsThenPersistsNonSensitivePerforceConfigAndEmitsRegion()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
+        {
+            provider = "perforce",
+            perforce = new { port = "ssl:p4:1666", password = "super-secret" }
+        }));
+        var rejected = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(rejected), AppServerErrors.InvalidParamsCode);
+        Assert.False(File.Exists(_configPath));
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
         {
             provider = "perforce",
             connectionMode = "manual",
@@ -56,8 +59,7 @@ public sealed class SourceControlConfigTests : IDisposable
                 charset = "none",
                 timeoutSeconds = 45
             }
-        });
-        await harness.ExecuteRequestAsync(req);
+        }));
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
         AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, ConfigChangeRegions.SourceControl);
@@ -68,79 +70,52 @@ public sealed class SourceControlConfigTests : IDisposable
         Assert.Equal("manual", result.GetProperty("connectionMode").GetString());
         Assert.Equal("game-main-alice", result.GetProperty("perforce").GetProperty("client").GetString());
 
-        var json = await File.ReadAllTextAsync(_configPath);
-        using var doc = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(_configPath));
         var sc = doc.RootElement.GetProperty("SourceControl");
         Assert.Equal("perforce", sc.GetProperty("Provider").GetString());
         Assert.Equal("ssl:perforce.example.com:1666", sc.GetProperty("Perforce").GetProperty("Port").GetString());
         Assert.Equal(45, sc.GetProperty("Perforce").GetProperty("TimeoutSeconds").GetInt32());
+        Assert.DoesNotContain("super-secret", doc.RootElement.GetRawText(), StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task SourceControlUpdate_RejectsPasswordAndPersistsNothing()
+    public async Task SourceControlUpdate_PatchesPreserveOmittedPerforceFieldsAndNullClearsThem()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
-
-        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
-        {
-            provider = "perforce",
-            perforce = new { port = "ssl:p4:1666", password = "super-secret" }
-        });
-        await harness.ExecuteRequestAsync(req);
-
-        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
-        AssertNoConfigChanged(sent);
-        Assert.False(File.Exists(_configPath));
-    }
-
-    [Fact]
-    public async Task SourceControlUpdate_PartialPerforcePatch_PreservesOmittedFields()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        using var bridge = AttachConfigChangedBridge(harness);
-        await harness.InitializeAsync(configChange: true);
-
         await SeedPerforceConfigAsync(harness);
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
         {
             provider = "perforce",
-            perforce = new
-            {
-                timeoutSeconds = 60
-            }
+            perforce = new { timeoutSeconds = 60 }
         }));
-        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        var patched = SingleResult(await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5))).GetProperty("perforce");
+        Assert.Equal("ssl:p4:1666", patched.GetProperty("port").GetString());
+        Assert.Equal("game-main-alice", patched.GetProperty("client").GetString());
+        Assert.Equal("alice", patched.GetProperty("user").GetString());
+        Assert.Equal(60, patched.GetProperty("timeoutSeconds").GetInt32());
+        using (var doc = JsonDocument.Parse(await File.ReadAllTextAsync(_configPath)))
+        {
+            var persisted = doc.RootElement.GetProperty("SourceControl").GetProperty("Perforce");
+            Assert.Equal("ssl:p4:1666", persisted.GetProperty("Port").GetString());
+            Assert.Equal("game-main-alice", persisted.GetProperty("Client").GetString());
+            Assert.Equal("alice", persisted.GetProperty("User").GetString());
+            Assert.Equal(60, persisted.GetProperty("TimeoutSeconds").GetInt32());
+        }
 
-        var result = SingleResult(sent);
-        var perforce = result.GetProperty("perforce");
-        Assert.Equal("ssl:p4:1666", perforce.GetProperty("port").GetString());
-        Assert.Equal("game-main-alice", perforce.GetProperty("client").GetString());
-        Assert.Equal("alice", perforce.GetProperty("user").GetString());
-        Assert.Equal(60, perforce.GetProperty("timeoutSeconds").GetInt32());
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
+        {
+            provider = "perforce",
+            connectionMode = "p4config"
+        }));
+        var modeOnly = SingleResult(await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5)));
+        Assert.Equal("p4config", modeOnly.GetProperty("connectionMode").GetString());
+        Assert.Equal("ssl:p4:1666", modeOnly.GetProperty("perforce").GetProperty("port").GetString());
+        Assert.Equal("game-main-alice", modeOnly.GetProperty("perforce").GetProperty("client").GetString());
 
-        var json = await File.ReadAllTextAsync(_configPath);
-        using var doc = JsonDocument.Parse(json);
-        var persisted = doc.RootElement.GetProperty("SourceControl").GetProperty("Perforce");
-        Assert.Equal("ssl:p4:1666", persisted.GetProperty("Port").GetString());
-        Assert.Equal("game-main-alice", persisted.GetProperty("Client").GetString());
-        Assert.Equal("alice", persisted.GetProperty("User").GetString());
-        Assert.Equal(60, persisted.GetProperty("TimeoutSeconds").GetInt32());
-    }
-
-    [Fact]
-    public async Task SourceControlUpdate_NullPerforce_ClearsStaleFields()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        using var bridge = AttachConfigChangedBridge(harness);
-        await harness.InitializeAsync(configChange: true);
-
-        await SeedPerforceConfigAsync(harness);
-
-        var req = JsonSerializer.Deserialize<AppServerIncomingMessage>(
+        await harness.ExecuteRequestAsync(JsonSerializer.Deserialize<AppServerIncomingMessage>(
             """
             {
               "jsonrpc": "2.0",
@@ -151,139 +126,56 @@ public sealed class SourceControlConfigTests : IDisposable
                 "perforce": null
               }
             }
-            """)!;
-        await harness.ExecuteRequestAsync(req);
-        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-
-        var result = SingleResult(sent);
-        Assert.Equal("git", result.GetProperty("provider").GetString());
-        Assert.False(result.TryGetProperty("perforce", out _));
-
-        var json = await File.ReadAllTextAsync(_configPath);
-        using var doc = JsonDocument.Parse(json);
-        var perforce = doc.RootElement.GetProperty("SourceControl").GetProperty("Perforce");
-        Assert.Equal(string.Empty, perforce.GetProperty("Port").GetString());
-        Assert.Equal(string.Empty, perforce.GetProperty("Client").GetString());
-        Assert.Equal(string.Empty, perforce.GetProperty("User").GetString());
-    }
-
-    [Fact]
-    public async Task SourceControlUpdate_OmittedPerforce_PreservesExistingPerforceConfig()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        using var bridge = AttachConfigChangedBridge(harness);
-        await harness.InitializeAsync(configChange: true);
-
-        await SeedPerforceConfigAsync(harness);
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
+            """)!);
+        var cleared = SingleResult(await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5)));
+        Assert.Equal("git", cleared.GetProperty("provider").GetString());
+        Assert.False(cleared.TryGetProperty("perforce", out _));
+        using (var doc = JsonDocument.Parse(await File.ReadAllTextAsync(_configPath)))
         {
-            provider = "perforce",
-            connectionMode = "p4config"
-        }));
-        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-
-        var result = SingleResult(sent);
-        Assert.Equal("p4config", result.GetProperty("connectionMode").GetString());
-        Assert.Equal("ssl:p4:1666", result.GetProperty("perforce").GetProperty("port").GetString());
-        Assert.Equal("game-main-alice", result.GetProperty("perforce").GetProperty("client").GetString());
+            var perforce = doc.RootElement.GetProperty("SourceControl").GetProperty("Perforce");
+            Assert.Equal(string.Empty, perforce.GetProperty("Port").GetString());
+            Assert.Equal(string.Empty, perforce.GetProperty("Client").GetString());
+            Assert.Equal(string.Empty, perforce.GetProperty("User").GetString());
+        }
     }
 
     [Fact]
-    public async Task SourceControlGet_AfterBind_ReturnsPerforceSnapshotWithoutPassword()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        using var bridge = AttachConfigChangedBridge(harness);
-        await harness.InitializeAsync(configChange: true);
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
-        {
-            provider = "perforce",
-            connectionMode = "manual",
-            perforce = new { port = "ssl:p4:1666", client = "c", user = "u" }
-        }));
-        await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlGet, new { }));
-        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-
-        var result = SingleResult(sent);
-        Assert.Equal("perforce", result.GetProperty("provider").GetString());
-        Assert.Equal("notTested", result.GetProperty("status").GetString());
-        Assert.True(result.GetProperty("capabilities").GetProperty("perforceChangelist").GetBoolean());
-        Assert.False(result.GetProperty("capabilities").GetProperty("perforceSubmit").GetBoolean());
-        Assert.DoesNotContain("assword", result.GetRawText(), StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task SourceControlGet_OfflinePerforce_DisablesChangelistCapability()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        using var bridge = AttachConfigChangedBridge(harness);
-        await harness.InitializeAsync(configChange: true);
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
-        {
-            provider = "perforce",
-            connectionMode = "manual",
-            perforce = new
-            {
-                port = "ssl:p4:1666",
-                client = "c",
-                user = "u",
-                online = false
-            }
-        }));
-        await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlGet, new { }));
-        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-
-        var result = SingleResult(sent);
-        Assert.Equal("perforce", result.GetProperty("provider").GetString());
-        Assert.Equal("perforce", result.GetProperty("effectiveProvider").GetString());
-        Assert.Equal("offline", result.GetProperty("status").GetString());
-        var capabilities = result.GetProperty("capabilities");
-        Assert.False(capabilities.GetProperty("gitCommit").GetBoolean());
-        Assert.True(capabilities.GetProperty("perforceBinding").GetBoolean());
-        Assert.False(capabilities.GetProperty("perforceChangelist").GetBoolean());
-        Assert.False(capabilities.GetProperty("perforceShelve").GetBoolean());
-        Assert.False(capabilities.GetProperty("perforceSubmit").GetBoolean());
-    }
-
-    [Fact]
-    public async Task SourceControlChangelistList_OfflinePerforce_ReturnsInvalidParams()
+    public async Task SourceControlGet_ReflectsPerforceOnlineStateInCapabilitiesWithoutPassword()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
-        {
-            provider = "perforce",
-            connectionMode = "manual",
-            perforce = new
-            {
-                port = "ssl:p4:1666",
-                client = "c",
-                user = "u",
-                online = false
-            }
-        }));
-        await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        await UpdatePerforceAsync(harness, online: true);
+        var online = await GetSourceControlAsync(harness);
+        Assert.Equal("perforce", online.GetProperty("provider").GetString());
+        Assert.Equal("notTested", online.GetProperty("status").GetString());
+        Assert.True(online.GetProperty("capabilities").GetProperty("perforceChangelist").GetBoolean());
+        Assert.False(online.GetProperty("capabilities").GetProperty("perforceSubmit").GetBoolean());
+        Assert.DoesNotContain("assword", online.GetRawText(), StringComparison.OrdinalIgnoreCase);
+
+        await UpdatePerforceAsync(harness, online: false);
+        var offline = await GetSourceControlAsync(harness);
+        Assert.Equal("perforce", offline.GetProperty("effectiveProvider").GetString());
+        Assert.Equal("offline", offline.GetProperty("status").GetString());
+        var capabilities = offline.GetProperty("capabilities");
+        Assert.False(capabilities.GetProperty("gitCommit").GetBoolean());
+        Assert.True(capabilities.GetProperty("perforceBinding").GetBoolean());
+        Assert.False(capabilities.GetProperty("perforceChangelist").GetBoolean());
+        Assert.False(capabilities.GetProperty("perforceShelve").GetBoolean());
+        Assert.False(capabilities.GetProperty("perforceSubmit").GetBoolean());
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlChangelistList, new
         {
             threadId = thread.Id
         }));
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-
         AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
     }
 
     [Fact]
-    public async Task SourceControlThreadTarget_Update_PersistsPerThreadPerforceTarget()
+    public async Task SourceControlThreadTarget_Update_PersistsPerThreadPerforceTargetThatForksDoNotInherit()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync(configChange: true);
@@ -301,31 +193,19 @@ public sealed class SourceControlConfigTests : IDisposable
             threadId = thread.Id,
             target = new { provider = "perforce", changelist = "12345" }
         }));
-        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-        var result = SingleResult(sent);
+        var result = SingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         Assert.Equal("12345", result.GetProperty("target").GetProperty("changelist").GetString());
 
         var updated = await harness.Service.GetThreadAsync(thread.Id);
         Assert.Equal("perforce", updated.Metadata[ThreadSourceControlMetadata.ProviderKey]);
         Assert.Equal("12345", updated.Metadata[ThreadSourceControlMetadata.PerforceChangelistKey]);
-    }
 
-    [Fact]
-    public async Task ForkThread_DoesNotInheritPerforceThreadTarget()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        var source = await harness.Service.CreateThreadAsync(harness.Identity);
-        await harness.Service.UpdateThreadSourceControlTargetAsync(
-            source.Id,
-            new ThreadSourceControlTarget { Provider = "perforce", Changelist = "555" });
-
-        var fork = await harness.Service.ForkThreadAsync(source.Id);
-
+        var fork = await harness.Service.ForkThreadAsync(thread.Id);
         Assert.DoesNotContain(fork.Metadata, kv => kv.Key.StartsWith("sourceControl.", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public async Task SourceControlUpdate_PreservesUnrelatedConfigKeys()
+    public async Task SourceControl_DefaultsToGitAndPreservesUnrelatedConfigKeys()
     {
         await File.WriteAllTextAsync(_configPath, "{\n  \"CustomSettings\": { \"keep\": true }\n}\n");
 
@@ -333,14 +213,17 @@ public sealed class SourceControlConfigTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
+        var defaults = await GetSourceControlAsync(harness);
+        Assert.Equal("git", defaults.GetProperty("provider").GetString());
+        Assert.Equal("git", defaults.GetProperty("effectiveProvider").GetString());
+
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
         {
             provider = "git"
         }));
         await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
 
-        var json = await File.ReadAllTextAsync(_configPath);
-        using var doc = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(_configPath));
         Assert.True(doc.RootElement.GetProperty("CustomSettings").GetProperty("keep").GetBoolean());
         Assert.Equal("git", doc.RootElement.GetProperty("SourceControl").GetProperty("Provider").GetString());
     }
@@ -348,7 +231,6 @@ public sealed class SourceControlConfigTests : IDisposable
     [Fact]
     public async Task SourceControlGet_WithoutWorkspaceCraftPath_ReturnsMethodNotFound()
     {
-        // No workspaceCraftPath -> sourceControlManagement capability is absent and methods 404.
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync(configChange: true);
 
@@ -358,18 +240,21 @@ public sealed class SourceControlConfigTests : IDisposable
         AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), -32601);
     }
 
-    [Fact]
-    public async Task SourceControlGet_WithNoConfig_DefaultsToGit()
+    private static async Task UpdatePerforceAsync(AppServerTestHarness harness, bool online)
     {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await harness.InitializeAsync(configChange: true);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
+        {
+            provider = "perforce",
+            connectionMode = "manual",
+            perforce = new { port = "ssl:p4:1666", client = "c", user = "u", online }
+        }));
+        await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+    }
 
+    private static async Task<JsonElement> GetSourceControlAsync(AppServerTestHarness harness)
+    {
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlGet, new { }));
-        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-
-        var result = SingleResult(sent);
-        Assert.Equal("git", result.GetProperty("provider").GetString());
-        Assert.Equal("git", result.GetProperty("effectiveProvider").GetString());
+        return SingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5))).Clone();
     }
 
     private static async Task SeedPerforceConfigAsync(AppServerTestHarness harness)
@@ -438,14 +323,6 @@ public sealed class SourceControlConfigTests : IDisposable
         Assert.Equal(expectedSource, payload.GetProperty("source").GetString());
         Assert.Contains(expectedRegion, payload.GetProperty("regions").EnumerateArray().Select(v => v.GetString()));
         _ = payload.GetProperty("changedAt").GetDateTimeOffset();
-    }
-
-    private static void AssertNoConfigChanged(IReadOnlyList<JsonDocument> sent)
-    {
-        Assert.DoesNotContain(
-            sent,
-            d => d.RootElement.TryGetProperty("method", out var method)
-                 && string.Equals(method.GetString(), DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigChanged, StringComparison.Ordinal));
     }
 
     private sealed class ActionOnDispose(Action disposeAction) : IDisposable

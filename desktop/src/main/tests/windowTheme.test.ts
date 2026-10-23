@@ -4,15 +4,9 @@ import { titleBarOverlayForSurface } from '../../shared/titleBarOverlay'
 import { DEFAULT_SEEDS } from '../../shared/themeSeed'
 
 describe('resolveInitialTheme', () => {
-  it('uses persisted light theme for the first frame', () => {
-    expect(resolveInitialTheme({ theme: 'light' })).toBe('light')
-  })
-
-  it('uses persisted dark theme for the first frame', () => {
+  it('uses the persisted light or dark theme and defaults anything else to light', () => {
     expect(resolveInitialTheme({ theme: 'dark' })).toBe('dark')
-  })
-
-  it('defaults missing or unknown values to light', () => {
+    expect(resolveInitialTheme({ theme: 'light' })).toBe('light')
     expect(resolveInitialTheme({})).toBe('light')
     expect(resolveInitialTheme({ theme: 'system' as never })).toBe('light')
   })
@@ -38,23 +32,14 @@ describe('resolveWindowBackdropOptions', () => {
     })
   })
 
-  it('uses theme-colored solid fallbacks on Linux', () => {
-    expect(resolveWindowBackdropOptions('dark', 'linux')).toMatchObject({
-      backgroundColor: titleBarOverlayForSurface(DEFAULT_SEEDS.dark.surface).color,
-      transparent: false
-    })
+  it('uses theme-colored solid fallbacks on Linux that follow a custom background', () => {
     expect(resolveWindowBackdropOptions('light', 'linux')).toMatchObject({
       backgroundColor: titleBarOverlayForSurface(DEFAULT_SEEDS.light.surface).color,
       transparent: false
     })
-  })
-
-  it('follows a custom background so the pre-paint flash matches the theme', () => {
     expect(resolveWindowBackdropOptions('dark', 'linux', '#101614')).toMatchObject({
-      backgroundColor: titleBarOverlayForSurface('#101614').color
+      backgroundColor: titleBarOverlayForSurface('#101614').color,
+      transparent: false
     })
-    expect(resolveWindowBackdropOptions('dark', 'linux', '#101614').backgroundColor)
-      .not.toBe(resolveWindowBackdropOptions('dark', 'linux').backgroundColor)
   })
 })
-

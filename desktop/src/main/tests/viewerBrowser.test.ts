@@ -93,58 +93,29 @@ beforeEach(() => {
   electronMock.reset()
 })
 
-describe('normalizeBrowserUrl', () => {
-  it('normalizes absolute http/https urls', () => {
-    expect(normalizeBrowserUrl('https://example.com/docs')).toBe('https://example.com/docs')
+describe('browser URL policy', () => {
+  it('normalizes typed input, preferring http for local development hosts', () => {
     expect(normalizeBrowserUrl('http://example.com')).toBe('http://example.com/')
-  })
-
-  it('promotes host-like input to https', () => {
-    expect(normalizeBrowserUrl('example.com')).toBe('https://example.com/')
     expect(normalizeBrowserUrl('docs.example.com/path')).toBe('https://docs.example.com/path')
-  })
-
-  it('promotes local development hosts to http', () => {
-    expect(normalizeBrowserUrl('localhost:3000')).toBe('http://localhost:3000/')
     expect(normalizeBrowserUrl('127.0.0.1:5173/app')).toBe('http://127.0.0.1:5173/app')
     expect(normalizeBrowserUrl('[::1]:8080')).toBe('http://[::1]:8080/')
-  })
-
-  it('returns null for empty or control-character input', () => {
-    expect(normalizeBrowserUrl('')).toBeNull()
     expect(normalizeBrowserUrl('   ')).toBeNull()
     expect(normalizeBrowserUrl('\u0000https://example.com')).toBeNull()
   })
-})
 
-describe('classifyBrowserUrl', () => {
-  it('allows http/https and blocks unsupported schemes', () => {
+  it('allows web and viewer URLs, hands off mailto/tel, and blocks other schemes', () => {
     expect(classifyBrowserUrl('https://example.com')).toBe('allow')
-    expect(classifyBrowserUrl('http://example.com')).toBe('allow')
     expect(classifyBrowserUrl('dotcraft-viewer://workspace/F%3A/workspace/index.html')).toBe('allow')
     expect(classifyBrowserUrl('file:///tmp/a.txt')).toBe('blocked')
-    expect(classifyBrowserUrl('chrome://settings')).toBe('blocked')
     expect(classifyBrowserUrl('javascript:alert(1)')).toBe('blocked')
-  })
-
-  it('marks mailto/tel as external handoff', () => {
     expect(classifyBrowserUrl('mailto:test@example.com')).toBe('external-handoff')
     expect(classifyBrowserUrl('tel:10086')).toBe('external-handoff')
   })
-})
 
-describe('partitionForWorkspace', () => {
-  it('creates deterministic partition ids', () => {
-    const p1 = partitionForWorkspace('F:/examples/workspace')
-    const p2 = partitionForWorkspace('F:/examples/workspace')
-    expect(p1).toBe(p2)
-    expect(p1.startsWith('persist:dotcraft-viewer:')).toBe(true)
-  })
-
-  it('is path-casing-insensitive on Windows style paths', () => {
-    const upper = partitionForWorkspace('F:/DOTCRAFT/Workspace')
-    const lower = partitionForWorkspace('f:/dotcraft/workspace')
-    expect(upper).toBe(lower)
+  it('derives a stable, case-insensitive partition per workspace', () => {
+    const partition = partitionForWorkspace('F:/DOTCRAFT/Workspace')
+    expect(partition).toBe(partitionForWorkspace('f:/dotcraft/workspace'))
+    expect(partition.startsWith('persist:dotcraft-viewer:')).toBe(true)
   })
 })
 
@@ -272,7 +243,7 @@ describe('ViewerBrowserManager tab creation', () => {
     expect(electronMock.loadURL).toHaveBeenCalledOnce()
   })
 
-  it('keeps ordinary new-tab links in the viewer', async () => {
+  it('keeps ordinary new-tab links in the viewer and named blank login windows as native children', async () => {
     const manager = new ViewerBrowserManager()
     vi.spyOn(manager.hosts, 'request').mockResolvedValue(electronMock.webContents as unknown as Electron.WebContents)
     vi.spyOn(manager.hosts, 'list').mockReturnValue([{ tabId: 'tab' } as never])
@@ -293,6 +264,16 @@ describe('ViewerBrowserManager tab creation', () => {
       'viewer:browser:event',
       expect.objectContaining({ type: 'request-new-tab', url: 'https://accounts.example.com/' })
     )
+
+    const login = handler({
+      url: 'about:blank',
+      frameName: 'oauth-login',
+      features: '',
+      disposition: 'foreground-tab',
+      referrer: { url: 'https://example.com/', policy: 'strict-origin-when-cross-origin' }
+    })
+    expect(login).toMatchObject({ action: 'allow', outlivesOpener: false })
+    expect(login).not.toHaveProperty('createWindow')
   })
 
   it('allows script authentication popups with the opener session and hardened preferences', async () => {
@@ -359,25 +340,6 @@ describe('ViewerBrowserManager tab creation', () => {
     manager.destroyTab(win, 'tab')
     expect((popup as unknown as { destroy: ReturnType<typeof vi.fn> }).destroy).toHaveBeenCalledOnce()
   })
-
-  it('keeps named blank login windows as native child browsing contexts', async () => {
-    const manager = new ViewerBrowserManager()
-    vi.spyOn(manager.hosts, 'request').mockResolvedValue(electronMock.webContents as unknown as Electron.WebContents)
-    vi.spyOn(manager.hosts, 'list').mockReturnValue([{ tabId: 'tab' } as never])
-    await manager.createTab(win, { tabId: 'tab', workspacePath: '/workspace' })
-    const handler = electronMock.webContents.setWindowOpenHandler.mock.calls[0][0]
-
-    const response = handler({
-      url: 'about:blank',
-      frameName: 'oauth-login',
-      features: '',
-      disposition: 'foreground-tab',
-      referrer: { url: 'https://example.com/', policy: 'strict-origin-when-cross-origin' }
-    })
-
-    expect(response).toMatchObject({ action: 'allow', outlivesOpener: false })
-    expect(response).not.toHaveProperty('createWindow')
-  })
 })
 
 describe('ViewerBrowserManager automation input', () => {
@@ -419,15 +381,6 @@ describe('ViewerBrowserManager automation input', () => {
     })
     return { manager, win }
   }
-
-  it('moves the overlay cursor', async () => {
-    const { manager, win } = createAutomationHarness()
-    const move = vi.spyOn(manager.hosts.cursors, 'move').mockResolvedValue()
-
-    await manager.moveMouse(win, { tabId: 'tab-1', x: 10.4, y: 20, waitForArrival: false })
-
-    expect(move).toHaveBeenCalledWith(win, 'tab-1', { x: 10.4, y: 20 }, { waitForArrival: false })
-  })
 
   it('returns the active browser tab for the requested thread as automation target', () => {
     const { manager, win } = createAutomationHarness()

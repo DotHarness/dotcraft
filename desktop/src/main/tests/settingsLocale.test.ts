@@ -35,16 +35,11 @@ describe('desktop settings locale defaults', () => {
     return tempRoot
   }
 
-  it('uses the system locale when settings have no saved locale yet', async () => {
-    await useTempUserData('ja-JP')
-
+  it('uses the system locale until a saved locale exists, normalizing either', async () => {
+    const root = await useTempUserData('ja-JP')
     expect(loadSettings().locale).toBe('ja')
-  })
 
-  it('normalizes a saved locale before returning settings', async () => {
-    const root = await useTempUserData('en-US')
     await writeFile(join(root, 'settings.json'), JSON.stringify({ locale: 'fr-CA' }), 'utf8')
-
     expect(loadSettings().locale).toBe('fr')
   })
 })

@@ -7,7 +7,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
 public sealed class AppServerFileSystemWatchTests : IDisposable
 {
-    private static readonly TimeSpan Quiet = TimeSpan.FromMilliseconds(700);
+    private static readonly TimeSpan Quiet = TimeSpan.FromMilliseconds(500);
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"appserver_fswatch_{Guid.NewGuid():N}");
     private readonly AppServerTestHarness _harness = new();
@@ -74,20 +74,7 @@ public sealed class AppServerFileSystemWatchTests : IDisposable
     }
 
     [Fact]
-    public async Task Unwatch_StopsNotificationsAndToleratesUnknownIds()
-    {
-        await _harness.InitializeAsync();
-
-        await SendAsync(Rpc.FsWatch.Name, new { watchId = "w", path = _root });
-        await SendAsync(Rpc.FsUnwatch.Name, new { watchId = "w" });
-        await SendAsync(Rpc.FsUnwatch.Name, new { watchId = "never-watched" });
-        File.WriteAllText(Path.Combine(_root, "after.txt"), "x");
-
-        await AssertQuietAsync();
-    }
-
-    [Fact]
-    public async Task DuplicateActiveWatchId_IsInvalidParams()
+    public async Task WatchIds_AreUniqueWhileActiveAndUnwatchOrClosingTheConnectionEndsThem()
     {
         var other = Path.Combine(_root, "other");
         Directory.CreateDirectory(other);
@@ -95,22 +82,16 @@ public sealed class AppServerFileSystemWatchTests : IDisposable
 
         await SendAsync(Rpc.FsWatch.Name, new { watchId = "w", path = _root });
         await _harness.ExecuteRequestAsync(_harness.BuildRequest(Rpc.FsWatch.Name, new { watchId = "w", path = other }));
-        using var duplicate = await _harness.Transport.ReadNextSentAsync();
+        using (var duplicate = await _harness.Transport.ReadNextSentAsync())
+            Assert.Equal(AppServerErrors.InvalidParamsCode, duplicate.RootElement.GetProperty("error").GetProperty("code").GetInt32());
         await SendAsync(Rpc.FsUnwatch.Name, new { watchId = "w" });
+        await SendAsync(Rpc.FsUnwatch.Name, new { watchId = "never-watched" });
         await SendAsync(Rpc.FsWatch.Name, new { watchId = "w", path = other });
 
-        Assert.Equal(AppServerErrors.InvalidParamsCode, duplicate.RootElement.GetProperty("error").GetProperty("code").GetInt32());
-    }
-
-    [Fact]
-    public async Task ClosingTheConnection_EndsItsWatches()
-    {
-        await _harness.InitializeAsync();
-
-        await SendAsync(Rpc.FsWatch.Name, new { watchId = "w", path = _root });
         _harness.Connection.MarkClosed();
         await Task.Delay(100);
-        File.WriteAllText(Path.Combine(_root, "after-close.txt"), "x");
+        File.WriteAllText(Path.Combine(_root, "after.txt"), "x");
+        File.WriteAllText(Path.Combine(other, "after-close.txt"), "x");
 
         await AssertQuietAsync();
     }

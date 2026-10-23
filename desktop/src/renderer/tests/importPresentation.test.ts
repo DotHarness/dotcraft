@@ -4,14 +4,11 @@ import { categoryLocation } from '../components/settings/panels/importPresentati
 const located = (category: string, sourcePath: string, targetPath: string) => ({ category, sourcePath, targetPath })
 
 describe('import category location', () => {
-  it('names the shared category folder under the home directory', () => {
+  it('names the shared category folder under the home directory for POSIX and Windows paths', () => {
     expect(categoryLocation([
       located('skills', '/home/me/.agent/skills/docx', '/home/me/.craft/skills/docx'),
       located('skills', '/home/me/.agent/skills/pdf', '/home/me/.craft/skills/pdf')
     ])).toEqual({ source: '~/.agent/skills', target: '~/.craft/skills' })
-  })
-
-  it('normalizes Windows paths, including nested commands', () => {
     expect(categoryLocation([
       located('commands', 'C:\\Users\\Me\\.agent\\commands\\deploy\\staging.md', 'C:\\Users\\Me\\.craft\\commands\\deploy\\staging.md'),
       located('commands', 'C:\\Users\\Me\\.agent\\commands\\review.md', 'C:\\Users\\Me\\.craft\\commands\\review.md')

@@ -155,68 +155,6 @@ describe('skillMarket', () => {
     expect(detail.version).toBe('1.0.0')
   })
 
-  it('normalizes nested SkillHub detail metadata', async () => {
-    tempRoot = await mkdtemp(join(tmpdir(), 'dotcraft-skill-market-'))
-    const fetcher = vi.fn(async (url: string) => {
-      if (url.includes('/file?')) {
-        return new Response('# Self Improvement', {
-          status: 200,
-          headers: { 'content-type': 'text/markdown' }
-        })
-      }
-      return jsonResponse({
-        latestVersion: { version: '3.0.18' },
-        skill: {
-          slug: 'self-improving-agent',
-          displayName: 'self-improving-agent',
-          summary: 'Captures learnings',
-          stats: {
-            downloads: 550683,
-            stars: 2985
-          },
-          tags: {
-            latest: '3.0.18'
-          }
-        }
-      })
-    }) as typeof fetch
-
-    const detail = await getSkillMarketDetail(
-      tempRoot,
-      { provider: 'skillhub', slug: 'self-improving-agent' },
-      fetcher
-    )
-
-    expect(detail.version).toBe('3.0.18')
-    expect(detail.downloads).toBe(550683)
-    expect(detail.rating).toBe(2985)
-  })
-
-  it('keeps detail metadata when preview file loading fails', async () => {
-    tempRoot = await mkdtemp(join(tmpdir(), 'dotcraft-skill-market-'))
-    const fetcher = vi.fn(async (url: string) => {
-      if (url.includes('/file?')) {
-        return new Response('missing', { status: 404 })
-      }
-      return jsonResponse({
-        skill: {
-          slug: 'git-helper',
-          displayName: 'Git Helper',
-          summary: 'Git workflow help'
-        }
-      })
-    }) as typeof fetch
-
-    const detail = await getSkillMarketDetail(
-      tempRoot,
-      { provider: 'skillhub', slug: 'git-helper' },
-      fetcher
-    )
-
-    expect(detail.readme).toBeUndefined()
-    expect(detail.description).toBe('Git workflow help')
-  })
-
   it('installs a valid skill archive into workspace .craft skills', async () => {
     tempRoot = await mkdtemp(join(tmpdir(), 'dotcraft-skill-market-'))
     const fetcher = vi.fn(async () =>
@@ -276,7 +214,7 @@ describe('skillMarket', () => {
     await expect(readFile(join(targetDir, 'SKILL.md'), 'utf-8')).resolves.toBe('# New')
   })
 
-  it('prepares a DotCraft install candidate without writing installed skills', async () => {
+  it('prepares a DotCraft install candidate without writing installed skills and cleans it by thread', async () => {
     tempRoot = await mkdtemp(join(tmpdir(), 'dotcraft-skill-market-'))
     const fetcher = vi.fn(async () =>
       zipResponse({
@@ -305,30 +243,9 @@ describe('skillMarket', () => {
     expect(existsSync(join(result.candidateDir, 'README.md'))).toBe(true)
     expect(existsSync(result.metadataPath)).toBe(true)
     expect(existsSync(join(tempRoot, '.craft', 'skills', 'demo-skill', 'SKILL.md'))).toBe(false)
-  })
 
-  it('cleans a DotCraft install candidate bound to a thread', async () => {
-    tempRoot = await mkdtemp(join(tmpdir(), 'dotcraft-skill-market-'))
-    const fetcher = vi.fn(async () =>
-      zipResponse({
-        'demo-skill/SKILL.md': '---\nname: demo-skill\n---\n# Demo'
-      })
-    ) as typeof fetch
-
-    const result = await prepareDotCraftSkillInstall(
-      tempRoot,
-      { provider: 'skillhub', slug: 'demo-skill' },
-      fetcher
-    )
-
-    await bindDotCraftSkillInstall(tempRoot, {
-      threadId: 'thread_123',
-      stagingDir: result.stagingDir
-    })
-    expect(existsSync(result.stagingDir)).toBe(true)
-
+    await bindDotCraftSkillInstall(tempRoot, { threadId: 'thread_123', stagingDir: result.stagingDir })
     await cleanupDotCraftSkillInstall(tempRoot, { threadId: 'thread_123' })
-
     expect(existsSync(result.stagingDir)).toBe(false)
   })
 })

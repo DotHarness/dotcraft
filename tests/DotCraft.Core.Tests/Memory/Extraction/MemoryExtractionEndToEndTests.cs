@@ -41,11 +41,11 @@ public sealed class MemoryExtractionEndToEndTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]
-    public async Task SeventhTurn_ForksAnExtractionThatSavesAMemoryAndLeavesTheThreadUntouched()
+    public async Task SeventhTurn_ForksAnExtractionThatSavesAMemoryLocallyAndLeavesTheRemoteThreadUntouched()
     {
         var memoryFile = Path.Combine(_memoryStore.MemoryDirectoryPath, "feedback_tests.md");
         var outsideFile = Path.Combine(_workspace, "README.md");
@@ -54,7 +54,9 @@ public sealed class MemoryExtractionEndToEndTests : IDisposable
             WriteFile("call-outside", outsideFile, "Not a memory."),
             WriteFile("call-memory", memoryFile, "Run only the focused tests.")
         ]);
-        await using var harness = await Harness.StartAsync(this, chat);
+        var remote = new RoutedRemoteClient();
+        await using var harness = await Harness.StartAsync(this, chat, remote);
+        remote.Connect(harness.Thread.Id);
 
         for (var i = 1; i < MemoryExtractionScheduler.Cadence; i++)
             await harness.SubmitAsync($"Request {i}");
@@ -67,6 +69,8 @@ public sealed class MemoryExtractionEndToEndTests : IDisposable
         Assert.False(File.Exists(outsideFile));
         var fork = Assert.Single(harness.Created);
         Assert.Equal([fork], harness.Deleted);
+        Assert.Equal([fork], remote.Forked);
+        Assert.Equal(0, remote.RemoteCalls);
         Assert.Equal(turnsAfterReply, await harness.SerializeTurnsAsync());
         Assert.Equal(2, chat.ExtractionRequests.Count);
 
@@ -106,29 +110,6 @@ public sealed class MemoryExtractionEndToEndTests : IDisposable
         Assert.Equal(5, chat.ExtractionRequests.Count);
         using var outcome = harness.Outcome(Assert.Single(harness.Created));
         Assert.Equal("completed", outcome.RootElement.GetProperty("outcome").GetString());
-    }
-
-    [Fact]
-    public async Task ExtractionForkOfARemoteConnectedThread_SavesTheMemoryOnThisMachine()
-    {
-        var memoryFile = Path.Combine(_memoryStore.MemoryDirectoryPath, "feedback_tests.md");
-        var chat = new ScriptedChatClient([WriteFile("call-memory", memoryFile, "Run only the focused tests.")]);
-        var remote = new RoutedRemoteClient();
-        await using var harness = await Harness.StartAsync(this, chat, remote);
-        remote.Connect(harness.Thread.Id);
-
-        for (var i = 1; i <= MemoryExtractionScheduler.Cadence; i++)
-            await harness.SubmitAsync($"Request {i}");
-        await harness.Scheduler.WhenIdleAsync();
-
-        var fork = Assert.Single(harness.Created);
-        Assert.Equal([fork], remote.Forked);
-        Assert.Equal(0, remote.RemoteCalls);
-        Assert.Equal("Run only the focused tests.", File.ReadAllText(memoryFile).Trim());
-        using var outcome = harness.Outcome(fork);
-        Assert.Equal(
-            ["feedback_tests.md"],
-            outcome.RootElement.GetProperty("writtenFiles").EnumerateArray().Select(file => file.GetString()));
     }
 
     private static FunctionCallContent WriteFile(string callId, string path, string content) =>

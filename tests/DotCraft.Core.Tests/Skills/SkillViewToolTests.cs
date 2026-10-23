@@ -4,10 +4,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Skills;
 
-/// <summary>
-/// Verifies that an agent loading a skill via the SkillView tool is counted as a skill
-/// use for the Profile metrics (spec §27A.5), alongside user-typed <c>$name</c> references.
-/// </summary>
 public sealed class SkillViewToolTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(
@@ -24,7 +20,7 @@ public sealed class SkillViewToolTests : IDisposable
     }
 
     [Fact]
-    public void SkillView_RecordsSkillReferenced_OnSuccessfulLoad()
+    public void SkillView_RecordsSkillReferencedOnlyOnSuccessfulLoad()
     {
         WriteSourceSkill("demo-skill", "Body.");
         var store = new TraceStore();
@@ -34,6 +30,9 @@ public sealed class SkillViewToolTests : IDisposable
         TracingChatClient.CurrentSessionKey = "thread-x";
         try
         {
+            Assert.Contains("not found", tool.SkillView("missing-skill"));
+            Assert.DoesNotContain(store.GetEvents("thread-x"), e => e.Type == TraceEventType.SkillReferenced);
+
             var result = tool.SkillView("demo-skill");
             Assert.Contains("Body.", result);
 
@@ -50,27 +49,6 @@ public sealed class SkillViewToolTests : IDisposable
         {
             TracingChatClient.CurrentSessionKey = previous;
             TracingChatClient.ClearActiveSession("thread-x");
-        }
-    }
-
-    [Fact]
-    public void SkillView_DoesNotRecord_WhenSkillNotFound()
-    {
-        var store = new TraceStore();
-        var tool = new SkillViewTool(_skillsLoader, variantModeEnabled: true, _target, new TraceCollector(store));
-
-        var previous = TracingChatClient.CurrentSessionKey;
-        TracingChatClient.CurrentSessionKey = "thread-y";
-        try
-        {
-            var result = tool.SkillView("missing-skill");
-            Assert.Contains("not found", result);
-            Assert.DoesNotContain(store.GetEvents("thread-y"), e => e.Type == TraceEventType.SkillReferenced);
-        }
-        finally
-        {
-            TracingChatClient.CurrentSessionKey = previous;
-            TracingChatClient.ClearActiveSession("thread-y");
         }
     }
 
@@ -97,6 +75,6 @@ public sealed class SkillViewToolTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_tempRoot, recursive: true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 }

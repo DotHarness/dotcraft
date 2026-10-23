@@ -59,7 +59,7 @@ afterEach(() => {
 })
 
 describe('Desktop process registry', () => {
-  it('requests a graceful quit from every registered Desktop process', async () => {
+  it('requests a graceful quit from every registered Desktop process and removes registrations on release', async () => {
     const registry = temporaryRegistry('multiple')
     const firstQuit = vi.fn()
     const secondQuit = vi.fn()
@@ -78,6 +78,7 @@ describe('Desktop process registry', () => {
     } finally {
       for (const handle of handles) handle.release()
     }
+    for (const handle of handles) expect(existsSync(handle.path)).toBe(false)
   })
 
   it('rejects unauthenticated quit requests', async () => {
@@ -94,16 +95,6 @@ describe('Desktop process registry', () => {
     } finally {
       handle.release()
     }
-  })
-
-  it('removes its registration during normal release', async () => {
-    const registry = temporaryRegistry('release')
-    const handle = await registerDesktopProcess(vi.fn(), registry)
-    expect(existsSync(handle.path)).toBe(true)
-
-    handle.release()
-
-    expect(existsSync(handle.path)).toBe(false)
   })
 
   it('discards dead and malformed registrations without blocking live processes', async () => {

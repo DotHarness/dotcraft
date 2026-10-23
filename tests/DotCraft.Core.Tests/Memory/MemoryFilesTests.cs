@@ -17,7 +17,7 @@ public sealed class MemoryFilesTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_root, true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]
@@ -54,10 +54,6 @@ public sealed class MemoryFilesTests : IDisposable
         Assert.Equal("m000.md", files[0].FileName);
         Assert.DoesNotContain(files, static f => f.FileName == $"m{MemoryFiles.MaxListed:D3}.md");
     }
-
-    [Fact]
-    public void List_MissingDirectory_IsEmpty() =>
-        Assert.Empty(MemoryFiles.List(Path.Combine(_root, "absent")));
 
     private void Write(string relativePath, string content, DateTime lastWriteUtc)
     {

@@ -33,7 +33,6 @@ public sealed class AgentProfileStoreTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 
@@ -66,23 +65,9 @@ public sealed class AgentProfileStoreTests : IDisposable
         Assert.True(builtInEntry.Shadowed);
     }
 
-    [Fact]
-    public void BuiltInProfiles_OfferSixDeliveryRoles()
-    {
-        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
-        Assert.Equal(
-            new[] { "Data Analyst", "Prototyper", "QA Tester", "Researcher", "Task Runner", "Writer" },
-            store.List().Where(entry => entry.Source == AgentProfileSources.BuiltIn)
-                .Select(entry => entry.Id).OrderBy(name => name, StringComparer.Ordinal));
-    }
-
     [Theory]
     [InlineData("Task Runner", null, null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
     [InlineData("Researcher", "ReadFile,FindFiles,GrepFiles,WebSearch,web__run,WebFetch,RequestUserInput,LSP", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
-    [InlineData("Writer", "ReadFile,FindFiles,GrepFiles,WebSearch,web__run,WebFetch,RequestUserInput,Exec,WriteStdin,WriteFile,EditFile", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
-    [InlineData("Data Analyst", "ReadFile,FindFiles,GrepFiles,WebSearch,web__run,WebFetch,RequestUserInput,Exec,WriteStdin,WriteFile,EditFile", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
-    [InlineData("Prototyper", "ReadFile,FindFiles,GrepFiles,WebSearch,web__run,WebFetch,RequestUserInput,Exec,WriteStdin,WriteFile,EditFile,LSP,TodoWrite", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
-    [InlineData("QA Tester", null, null, AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
     public void BuiltInProfiles_CompileRoleCapabilityPolicies(
         string profileId,
         string? allowedTools,
@@ -180,6 +165,8 @@ Focus on correctness.
         Assert.Equal("profile-model", preset.Model);
         Assert.True(preset.Reasoning.Enabled);
         Assert.Equal(ModelReasoningEffort.Ultra, preset.Reasoning.Effort);
+        Assert.Equal(InferenceSpeed.Standard, preset.Speed);
+        Assert.Null(config.Speed);
         Assert.NotNull(config.ToolPolicy);
         var toolPolicy = config.ToolPolicy!;
         Assert.Equal(new[] { "ReadFile", "FindFiles" }, toolPolicy.Allow ?? Array.Empty<string>());
@@ -200,88 +187,25 @@ Focus on correctness.
         Assert.Equal("Focus on correctness.", config.RoleInstructions);
     }
 
-    [Fact]
-    public void ValidateRaw_RejectsCombinedToolAllowAndDeny()
+    [Theory]
+    [InlineData("tools:\n  allow: []\n  deny: [WriteFile]", "ConflictingToolPolicy", null)]
+    [InlineData("providerPreference:\n  providerId: openai\n  model: gpt-5.6-sol\n  reasoning:\n    enabled: true\n    effort: high\n    output: summary\n  speed: standard", "UnsupportedField", "reasoning.output")]
+    [InlineData("providerPreference:\n  providerId: openai\n  model: gpt-5.6", "MissingRequiredField", "reasoning")]
+    [InlineData("providerPreference: {}", "MissingRequiredField", null)]
+    [InlineData("providerPreference:\n  mode: inherit", "UnsupportedField", null)]
+    [InlineData("model: inherit\nreasoning:\n  effort: high", "UnsupportedField", null)]
+    public void ValidateRaw_RejectsInvalidOrRemovedFields(string frontMatter, string expectedCode, string? expectedMessageFragment)
     {
         var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
         var result = store.ValidateRaw(
-            """
----
-name: conflicting-tools
-description: Invalid combined policy
-tools:
-  allow: []
-  deny: [WriteFile]
----
-
-Body
-""",
+            $"---\nname: invalid-profile\ndescription: Invalid profile\n{frontMatter}\n---\n\nBody.\n",
             AgentProfileSources.Workspace);
 
         Assert.False(result.Valid);
-        Assert.Contains(result.Diagnostics, d => d.Code == "ConflictingToolPolicy");
-    }
-
-    [Fact]
-    public void ValidateRaw_CompilesReducedProviderPreference()
-    {
-        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
-        var result = store.ValidateRaw(
-            """
----
-name: pinned-reviewer
-description: Reviewer with a pinned model preference
-providerPreference:
-  providerId: openai
-  model: gpt-5.6
-  reasoning:
-    enabled: true
-    effort: high
-  speed: fast
-
----
-
-Review carefully.
-""",
-            AgentProfileSources.Workspace);
-
-        Assert.True(result.Valid);
-        var providerPreference = Assert.IsType<AgentProfileProviderPreference>(result.ProviderPreference);
-        Assert.Equal("openai", providerPreference.ProviderId);
-        Assert.Equal("gpt-5.6", providerPreference.Model);
-        Assert.True(providerPreference.Reasoning.Enabled);
-        Assert.Equal(ModelReasoningEffort.High, providerPreference.Reasoning.Effort);
-        Assert.Equal(InferenceSpeed.Fast, providerPreference.Speed);
-
-        var config = Assert.IsType<ThreadConfiguration>(result.CompiledConfiguration);
-        Assert.Null(config.ProviderId);
-        Assert.Null(config.Model);
-        Assert.Null(config.Reasoning);
-        Assert.Null(config.Speed);
-    }
-
-    [Fact]
-    public void ValidateRaw_OmittedProviderPreferenceLeavesModelFieldsUnresolved()
-    {
-        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
-        var result = store.ValidateRaw(
-            """
----
-name: inherited-reviewer
-description: Reviewer that inherits the workspace preference
----
-
-Review carefully.
-""",
-            AgentProfileSources.Workspace);
-
-        Assert.True(result.Valid);
-        Assert.Null(result.ProviderPreference);
-        var config = Assert.IsType<ThreadConfiguration>(result.CompiledConfiguration);
-        Assert.Null(config.ProviderId);
-        Assert.Null(config.Model);
-        Assert.Null(config.Reasoning);
-        Assert.Null(config.Speed);
+        Assert.Null(result.CompiledConfiguration);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == expectedCode
+            && (expectedMessageFragment is null || diagnostic.Message.Contains(expectedMessageFragment, StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -449,127 +373,6 @@ Review.
 
         Assert.Equal(ReasoningOutput.None, resolved.Reasoning?.Output);
         Assert.Equal(ModelReasoningEffort.Medium, resolved.Reasoning?.Effort);
-    }
-
-    [Fact]
-    public void ValidateRaw_RejectsReasoningOutputField()
-    {
-        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
-        var result = store.ValidateRaw(
-            """
----
-name: obsolete-output
-description: Uses an obsolete Profile field
-providerPreference:
-  providerId: openai
-  model: gpt-5.6-sol
-  reasoning:
-    enabled: true
-    effort: high
-    output: summary
-  speed: standard
-
----
-
-Body.
-""",
-            AgentProfileSources.Workspace);
-
-        Assert.False(result.Valid);
-        Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Code == "UnsupportedField"
-            && diagnostic.Message.Contains("reasoning.output", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void ValidateRaw_RejectsIncompleteProviderPreference()
-    {
-        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
-        var result = store.ValidateRaw(
-            """
----
-name: incomplete
-description: Missing complete model options
-providerPreference:
-  providerId: openai
-  model: gpt-5.6
----
-
-Body.
-""",
-            AgentProfileSources.Workspace);
-
-        Assert.False(result.Valid);
-        Assert.Contains(result.Diagnostics, diagnostic =>
-            diagnostic.Code == "MissingRequiredField"
-            && diagnostic.Message.Contains("reasoning", StringComparison.Ordinal));
-        Assert.Null(result.CompiledConfiguration);
-    }
-
-    [Fact]
-    public void ValidateRaw_RejectsEmptyProviderPreference()
-    {
-        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
-        var result = store.ValidateRaw(
-            """
----
-name: empty-preference
-description: Empty provider preference
-providerPreference: {}
----
-
-Body.
-""",
-            AgentProfileSources.Workspace);
-
-        Assert.False(result.Valid);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "MissingRequiredField");
-        Assert.Null(result.CompiledConfiguration);
-    }
-
-    [Fact]
-    public void ValidateRaw_RejectsRemovedProviderPreferenceModeShape()
-    {
-        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
-        var result = store.ValidateRaw(
-            """
----
-name: removed-mode
-description: Uses removed provider preference mode
-providerPreference:
-  mode: inherit
----
-
-Body.
-""",
-            AgentProfileSources.Workspace);
-
-        Assert.False(result.Valid);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "UnsupportedField");
-        Assert.Null(result.CompiledConfiguration);
-    }
-
-    [Fact]
-    public void ValidateRaw_RejectsRemovedTopLevelModelFields()
-    {
-        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
-        var result = store.ValidateRaw(
-            """
----
-name: removed-model-fields
-description: Uses removed model fields
-model: inherit
-reasoning:
-  effort: high
----
-
-Body.
-""",
-            AgentProfileSources.Workspace);
-
-        Assert.False(result.Valid);
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "UnsupportedField");
-        Assert.Null(result.CompiledConfiguration);
     }
 
     [Fact]

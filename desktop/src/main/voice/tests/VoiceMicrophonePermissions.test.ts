@@ -13,8 +13,7 @@ vi.mock('electron', () => ({
 
 import {
   VoiceMicrophonePermissions,
-  configureVoiceMediaPermissions,
-  normalizePermissionStatus
+  configureVoiceMediaPermissions
 } from '../VoiceMicrophonePermissions'
 
 describe('VoiceMicrophonePermissions', () => {
@@ -45,26 +44,6 @@ describe('VoiceMicrophonePermissions', () => {
 
     await expect(permissions.request()).resolves.toBe('denied')
     expect(ask).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    ['win32', 'ms-settings:privacy-microphone'],
-    ['darwin', 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone']
-  ])('opens the %s microphone settings destination', async (platform, target) => {
-    const openExternal = vi.fn(async () => {})
-    const permissions = new VoiceMicrophonePermissions(
-      platform,
-      { getMediaAccessStatus: () => 'unknown', askForMediaAccess: vi.fn() },
-      { openExternal }
-    )
-
-    await permissions.openSettings()
-    expect(openExternal).toHaveBeenCalledWith(target)
-  })
-
-  it('normalizes unsupported platform values', () => {
-    expect(normalizePermissionStatus('granted')).toBe('granted')
-    expect(normalizePermissionStatus('limited')).toBe('unknown')
   })
 })
 

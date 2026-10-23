@@ -27,7 +27,6 @@ public sealed class ShellToolsStdinProcessTests : IAsyncLifetime
     {
         Directory.CreateDirectory(_root);
         Directory.CreateDirectory(_outside);
-        // Output is captured per line, so a marker without a terminator never leaves the reader.
         File.WriteAllText(Path.Combine(_outside, "secret.txt"), Marker + Environment.NewLine);
         _terminals = new BackgroundTerminalService(
             _root,
@@ -45,21 +44,20 @@ public sealed class ShellToolsStdinProcessTests : IAsyncLifetime
         var policy = new ShellPolicySource([new ShellPrefixRule([readCommand], ShellDecision.Prompt)], null);
         var tools = new ShellTools(_root, terminals, approvalService: new FixedApprovalService(approve), policy: policy);
 
-        // A bare interpreter is an ordinary in-workspace command, so it starts without a prompt.
-        await tools.Exec(InteractiveShellCommand(), runInBackground: true, yieldTimeMs: 3000, interactive: true);
+        await tools.Exec(InteractiveShellCommand(), runInBackground: true, yieldTimeMs: 300, interactive: true);
         var session = Assert.Single(await terminals.ListAsync());
 
-        var result = await tools.WriteStdin(session.SessionId, ReadOutsideCommand(), yieldTimeMs: 3000);
+        var result = await tools.WriteStdin(session.SessionId, ReadOutsideCommand(), yieldTimeMs: 500);
 
         if (approve)
         {
-            Assert.Contains(Marker, result.Content + await PollAsync(tools, session.SessionId));
+            Assert.Contains(Marker, result.Content + await PollAsync(tools, session.SessionId, attempts: 20));
         }
         else
         {
             Assert.False(result.Success);
             Assert.Contains("rejected", result.Content);
-            Assert.DoesNotContain(Marker, await PollAsync(tools, session.SessionId));
+            Assert.DoesNotContain(Marker, await PollAsync(tools, session.SessionId, attempts: 2));
         }
     }
 
@@ -89,12 +87,12 @@ public sealed class ShellToolsStdinProcessTests : IAsyncLifetime
         return OperatingSystem.IsWindows() ? $"Get-Content {path}\n" : $"cat {path}\n";
     }
 
-    private static async Task<string> PollAsync(ShellTools tools, string sessionId)
+    private static async Task<string> PollAsync(ShellTools tools, string sessionId, int attempts)
     {
         var output = string.Empty;
-        for (var attempt = 0; attempt < 5; attempt++)
+        for (var attempt = 0; attempt < attempts; attempt++)
         {
-            var result = await tools.WriteStdin(sessionId, string.Empty, yieldTimeMs: 1000);
+            var result = await tools.WriteStdin(sessionId, string.Empty, yieldTimeMs: 500);
             Assert.True(result.Success, result.Error?.Message);
             output += result.Content;
             if (output.Contains(Marker, StringComparison.Ordinal))

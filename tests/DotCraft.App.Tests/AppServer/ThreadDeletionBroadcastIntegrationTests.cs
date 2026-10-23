@@ -9,10 +9,8 @@ namespace DotCraft.Tests.AppServer;
 
 public sealed class ThreadDeletionBroadcastIntegrationTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Delete_NotifiesInitiatorAndUnsubscribedObserver_ButHonorsOptOut(bool deleteOverWebSocket)
+    [Fact]
+    public async Task Delete_NotifiesInitiatorAndUnsubscribedObserver_ButHonorsOptOut()
     {
         var root = Path.Combine(Path.GetTempPath(), "dotcraft-delete-broadcast-" + Guid.NewGuid().ToString("N"));
         var workspace = Path.Combine(root, "workspace");
@@ -57,8 +55,8 @@ public sealed class ThreadDeletionBroadcastIntegrationTests
             using var observerInit = await observer.Wire.InitializeAsync(ct: deadline.Token);
             using var optedOutInit = await optedOut.Wire.InitializeAsync(
                 optOutMethods: ["thread/deleted"], ct: deadline.Token);
-            var initiator = deleteOverWebSocket ? observer.Wire : server.Wire;
-            var passive = deleteOverWebSocket ? server.Wire : observer.Wire;
+            var initiator = observer.Wire;
+            var passive = server.Wire;
 
             using var created = await server.Wire.SendRequestAsync("thread/start", new
             {

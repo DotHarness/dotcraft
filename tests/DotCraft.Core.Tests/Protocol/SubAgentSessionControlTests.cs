@@ -44,7 +44,6 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 
@@ -780,8 +779,11 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
         Assert.Equal(ModelReasoningEffort.High, child.Configuration?.Reasoning?.Effort);
     }
 
-    [Fact]
-    public async Task SpawnAgent_WorkerRole_DoesNotChangeParentToolConfiguration()
+    [Theory]
+    [InlineData("worker", 1)]
+    [InlineData("worker", 2)]
+    [InlineData("explorer", 1)]
+    public async Task SpawnAgent_BuiltInRoles_DoNotChangeParentToolConfiguration(string role, int maxDepth)
     {
         var context = await CreateContextAsync();
 
@@ -789,10 +791,10 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
             context,
             new SubAgentSpawnOptions
             {
-                AgentPrompt = "implement change",
-                TaskName = "worker",
-                AgentRole = "worker",
-                MaxDepth = 1
+                AgentPrompt = "do the work",
+                TaskName = role,
+                AgentRole = role,
+                MaxDepth = maxDepth
             },
             waitForCompletion: false,
             coordinator: null,
@@ -800,57 +802,10 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
 
         var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
 
-        Assert.Equal("worker", result.AgentRole);
+        Assert.Equal(role, result.AgentRole);
         Assert.Null(child.Configuration?.AgentControlToolAccess);
         Assert.Null(child.Configuration?.AllowedAgentControlTools);
-    }
-
-    [Fact]
-    public async Task SpawnAgent_WorkerRole_WhenDepthAllows_DoesNotChangeParentToolConfiguration()
-    {
-        var context = await CreateContextAsync();
-
-        var result = await SubAgentSessionControl.SpawnAgentAsync(
-            context,
-            new SubAgentSpawnOptions
-            {
-                AgentPrompt = "implement change",
-                TaskName = "worker",
-                AgentRole = "worker",
-                MaxDepth = 2
-            },
-            waitForCompletion: false,
-            coordinator: null,
-            CancellationToken.None);
-
-        var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
-
-        Assert.Null(child.Configuration?.AgentControlToolAccess);
-        Assert.Null(child.Configuration?.AllowedAgentControlTools);
-    }
-
-    [Fact]
-    public async Task SpawnAgent_ExplorerRole_DoesNotChangeParentToolConfiguration()
-    {
-        var context = await CreateContextAsync();
-
-        var result = await SubAgentSessionControl.SpawnAgentAsync(
-            context,
-            new SubAgentSpawnOptions
-            {
-                AgentPrompt = "map the code",
-                TaskName = "explore",
-                AgentRole = "explorer"
-            },
-            waitForCompletion: false,
-            coordinator: null,
-            CancellationToken.None);
-
-        var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
-        var allowList = child.Configuration?.ToolAllowList ?? [];
-
-        Assert.Empty(allowList);
-        Assert.Null(child.Configuration?.AgentControlToolAccess);
+        Assert.Empty(child.Configuration?.ToolAllowList ?? []);
     }
 
     [Fact]
@@ -898,13 +853,20 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
     }
 
     [Fact]
-    public async Task SpawnAgent_WhenResidencyLimitReached_ClosesOldestIdleSubAgent()
+    public async Task SpawnAgent_WhenResidencyLimitReached_ArchivesOldestIdleSubAgentSubtree()
     {
         var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "ok");
         var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
         var context = await CreateContextAsync();
         var now = DateTimeOffset.UtcNow;
         var older = await CreateIdleSubAgentAsync(context, "/root/older", "older", now.AddMinutes(-10));
+        var deep = await CreateIdleSubAgentAsync(
+            context,
+            "/root/older/deep",
+            "deep",
+            now.AddMinutes(-9),
+            parentThreadId: older.Id,
+            depth: 2);
         var newer = await CreateIdleSubAgentAsync(context, "/root/newer", "newer", now.AddMinutes(-5));
 
         await SubAgentSessionControl.SpawnAgentAsync(
@@ -925,46 +887,10 @@ public sealed partial class SubAgentSessionControlTests : IDisposable
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Collection(
-            openPaths,
-            path => Assert.Equal("/root/fresh", path),
-            path => Assert.Equal("/root/newer", path));
-        Assert.Equal(ThreadStatus.Archived, (await _sessionService.GetThreadAsync(older.Id)).Status);
-        Assert.Equal(ThreadStatus.Active, (await _sessionService.GetThreadAsync(newer.Id)).Status);
-    }
-
-    [Fact]
-    public async Task SpawnAgent_WhenResidencyLimitReached_EvictionArchivesIdleSubtree()
-    {
-        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "ok");
-        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
-        var context = await CreateContextAsync();
-        var now = DateTimeOffset.UtcNow;
-        var older = await CreateIdleSubAgentAsync(context, "/root/older", "older", now.AddMinutes(-10));
-        var deep = await CreateIdleSubAgentAsync(
-            context,
-            "/root/older/deep",
-            "deep",
-            now.AddMinutes(-9),
-            parentThreadId: older.Id,
-            depth: 2);
-        await CreateIdleSubAgentAsync(context, "/root/newer", "newer", now.AddMinutes(-5));
-
-        await SubAgentSessionControl.SpawnAgentAsync(
-            context,
-            new SubAgentSpawnOptions
-            {
-                AgentPrompt = "fresh work",
-                TaskName = "fresh",
-                ProfileName = "cli-run",
-                MaxConcurrentSubAgents = 2
-            },
-            waitForCompletion: true,
-            coordinator,
-            CancellationToken.None);
-
+        Assert.Equal(new[] { "/root/fresh", "/root/newer" }, openPaths);
         Assert.Equal(ThreadStatus.Archived, (await _sessionService.GetThreadAsync(older.Id)).Status);
         Assert.Equal(ThreadStatus.Archived, (await _sessionService.GetThreadAsync(deep.Id)).Status);
+        Assert.Equal(ThreadStatus.Active, (await _sessionService.GetThreadAsync(newer.Id)).Status);
     }
 
     [Fact]

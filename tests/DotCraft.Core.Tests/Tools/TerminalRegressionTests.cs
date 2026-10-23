@@ -22,11 +22,10 @@ public sealed class TerminalRegressionTests : IAsyncLifetime
         Directory.Delete(_root, true);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(7)]
-    public async Task PollAfterExitReturnsFinalOutputRepeatedlyAndAfterRecovery(int exitCode)
+    [Fact]
+    public async Task PollAfterExitReturnsFinalOutputRepeatedlyAndAfterRecovery()
     {
+        const int exitCode = 7;
         var shell = ShellIdentityResolver.Host.TryResolve(null, out var resolved, out var reason) ? resolved : throw new Exception(reason);
         var command = shell.Family == ShellFamily.PowerShell
             ? $"Write-Output 'final-tail'; exit {exitCode}"
@@ -53,10 +52,10 @@ public sealed class TerminalRegressionTests : IAsyncLifetime
     {
         var shell = ShellIdentityResolver.Host.TryResolve(null, out var resolved, out var reason) ? resolved : throw new Exception(reason);
         var command = shell.Family == ShellFamily.PowerShell
-            ? "Start-Sleep -Milliseconds 300; [Console]::Out.Write('stdout-tail'); [Console]::Error.Write('stderr-tail')"
-            : "sleep 0.3; printf stdout-tail; printf stderr-tail >&2";
+            ? "Start-Sleep -Milliseconds 100; [Console]::Out.Write('stdout-tail'); [Console]::Error.Write('stderr-tail')"
+            : "sleep 0.1; printf stdout-tail; printf stderr-tail >&2";
         var start = await _service.StartAsync(Request(command, shell) with { RunInBackground = true, YieldTimeMs = 1 });
-        var end = await _service.WriteStdinAsync(start.SessionId, "", 5000);
+        var end = await _service.WriteStdinAsync(start.SessionId, "", 30000);
         Assert.Equal(BackgroundTerminalStatus.Completed, end.Status);
         Assert.Equal(0, end.ExitCode);
         Assert.Contains("stdout-tail", end.Output);
@@ -101,16 +100,13 @@ public sealed class TerminalRegressionTests : IAsyncLifetime
         ThreadId = "thread", WorkingDirectory = _root, Command = command, Shell = shell, TimeoutSeconds = 60
     };
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task InvalidOutputBytesDoNotChangeUtf8Decoding(bool stderr)
+    [Fact]
+    public async Task InvalidOutputBytesDoNotChangeUtf8Decoding()
     {
         Assert.True(ShellIdentityResolver.Host.TryResolve("pwsh", out var shell, out var reason), reason);
         byte[] bytes = [0xFF, .. Encoding.UTF8.GetBytes("中文😀tail")];
         var data = Convert.ToBase64String(bytes);
-        var stream = stderr ? "OpenStandardError" : "OpenStandardOutput";
-        var command = $"$b = [Convert]::FromBase64String('{data}'); $o = [Console]::{stream}(); " +
+        var command = $"$b = [Convert]::FromBase64String('{data}'); $o = [Console]::OpenStandardError(); " +
             "foreach ($v in $b) { $o.WriteByte($v); $o.Flush() }";
         var result = await _service.StartAsync(Request(command, shell));
         Assert.Equal(0, result.ExitCode);
@@ -133,17 +129,17 @@ public sealed class TerminalRegressionTests : IAsyncLifetime
             try { observed.TrySetResult(_service.ReadAsync(evt.Terminal.SessionId, ct: deadline.Token).GetAwaiter().GetResult()); }
             catch (Exception exception) { observed.TrySetException(exception); }
         };
-        var started = await _service.StartAsync(Request("Start-Sleep -Seconds 1; Write-Output final-tail", shell)
+        var started = await _service.StartAsync(Request("Start-Sleep -Milliseconds 500; Write-Output final-tail", shell)
             with { RunInBackground = true, YieldTimeMs = 1 });
         var metadata = Path.ChangeExtension(started.OutputPath, ".json");
         var attributes = File.GetAttributes(metadata);
         try
         {
             File.SetAttributes(metadata, attributes | FileAttributes.ReadOnly);
-            var ended = await _service.WriteStdinAsync(started.SessionId, "", 5000);
+            var ended = await _service.WriteStdinAsync(started.SessionId, "", 30000);
             Assert.Equal(0, ended.ExitCode);
             Assert.Contains("final-tail", ended.Output);
-            var published = await observed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var published = await observed.Task.WaitAsync(TimeSpan.FromSeconds(30));
             Assert.Equal(ended.SessionId, published.SessionId);
             Assert.Equal(0, published.ExitCode);
             var next = await _service.StartAsync(Request("Write-Output next", shell));

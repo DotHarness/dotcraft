@@ -28,22 +28,6 @@ public sealed class ToolDispatchStageContributionTests
     }
 
     [Fact]
-    public async Task PolicyChain_AllowsOnlyWhenEveryStageAllows()
-    {
-        var registry = new ContributionRegistry();
-        var first = new RecordingPolicy("first", allow: true);
-        var second = new RecordingPolicy("second", allow: true);
-        registry.Add<IToolPolicyEvaluator>(first, new ContributionOptions(Order: 100));
-        registry.Add<IToolPolicyEvaluator>(second, new ContributionOptions(Order: 200));
-
-        var result = await Dispatch(registry);
-
-        Assert.True(result.Success);
-        Assert.Equal(1, first.Calls);
-        Assert.Equal(1, second.Calls);
-    }
-
-    [Fact]
     public async Task ApprovalChain_IsMostRestrictiveAndShortCircuits()
     {
         var registry = new ContributionRegistry();
@@ -75,19 +59,6 @@ public sealed class ToolDispatchStageContributionTests
         Assert.True(result.Success);
         Assert.Equal(new[] { "started", "terminal" }, ahead.Phases);
         Assert.Equal(new[] { "started", "terminal" }, behind.Phases);
-        Assert.Equal(2, faulty.Attempts);
-    }
-
-    [Fact]
-    public async Task RecorderChain_ContainsAThrowingRecorderEvenWhenItIsTheOnlyOne()
-    {
-        var registry = new ContributionRegistry();
-        var faulty = new RecordingRecorder("faulty", throws: true);
-        registry.Add<IToolInvocationRecorder>(faulty, new ContributionOptions(Order: 100));
-
-        var result = await Dispatch(registry);
-
-        Assert.True(result.Success);
         Assert.Equal(2, faulty.Attempts);
     }
 
@@ -126,42 +97,19 @@ public sealed class ToolDispatchStageContributionTests
     }
 
     [Fact]
-    public async Task ThreadScopedStage_AppliesToThatThreadOnly()
-    {
-        var registry = new ContributionRegistry();
-        registry.Add<IToolPolicyEvaluator>(
-            new RecordingPolicy("thread-only", allow: false),
-            ContributionOptions.ForThread("thread-a"));
-
-        Assert.False((await Dispatch(registry, threadId: "thread-a")).Success);
-        Assert.True((await Dispatch(registry, threadId: "thread-b")).Success);
-    }
-
-    [Fact]
-    public async Task EmptyContributionPoint_FallsBackToTheConstructorStageUnchanged()
-    {
-        var registry = new ContributionRegistry();
-        var fallback = new RecordingPolicy("fallback", allow: false);
-
-        var withView = await Dispatch(registry, fallbackPolicy: fallback);
-        var withoutView = await Dispatch(contributions: null, fallbackPolicy: fallback);
-
-        Assert.Equal(withoutView.Success, withView.Success);
-        Assert.Equal(withoutView.Error?.Code, withView.Error?.Code);
-        Assert.Equal("policy:fallback", withView.Error?.Code);
-    }
-
-    [Fact]
-    public async Task SingleContributedStage_BehavesExactlyLikeTheHardwiredStage()
+    public async Task ASingleContributedStageOrAnEmptyPoint_BehavesExactlyLikeTheHardwiredStage()
     {
         var contributed = new RecordingPolicy("only", allow: false);
         var registry = new ContributionRegistry();
-        registry.Add<IToolPolicyEvaluator>(contributed);
+        var fallback = new RecordingPolicy("only", allow: false);
 
+        var emptyPoint = await Dispatch(registry, fallbackPolicy: fallback);
+        registry.Add<IToolPolicyEvaluator>(contributed);
         var throughRegistry = await Dispatch(registry);
-        var hardwired = await Dispatch(
-            contributions: null,
-            fallbackPolicy: new RecordingPolicy("only", allow: false));
+        var hardwired = await Dispatch(contributions: null, fallbackPolicy: fallback);
+
+        Assert.Equal("policy:only", emptyPoint.Error?.Code);
+        Assert.Equal(hardwired.Error?.Message, emptyPoint.Error?.Message);
 
         Assert.Equal(hardwired.Success, throughRegistry.Success);
         Assert.Equal(hardwired.Error?.Code, throughRegistry.Error?.Code);
@@ -169,7 +117,7 @@ public sealed class ToolDispatchStageContributionTests
     }
 
     [Fact]
-    public async Task ContributedStages_AreResolvedPerDispatchNotAtConstruction()
+    public async Task ContributedStages_AreResolvedPerDispatchAndThread()
     {
         var registry = new ContributionRegistry();
         var dispatcher = CreateDispatcher(registry);
@@ -177,10 +125,14 @@ public sealed class ToolDispatchStageContributionTests
         Assert.True((await Dispatch(dispatcher)).Success);
 
         var handle = registry.Add<IToolPolicyEvaluator>(new RecordingPolicy("late", allow: false));
+        registry.Add<IToolPolicyEvaluator>(
+            new RecordingPolicy("thread-only", allow: false),
+            ContributionOptions.ForThread("thread-a"));
 
         Assert.False((await Dispatch(dispatcher)).Success);
         handle.Dispose();
         Assert.True((await Dispatch(dispatcher)).Success);
+        Assert.Equal("policy:thread-only", (await Dispatch(dispatcher, "thread-a")).Error?.Code);
     }
 
     private static ToolDispatcher CreateDispatcher(

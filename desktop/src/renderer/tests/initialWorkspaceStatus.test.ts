@@ -7,7 +7,7 @@ import {
 } from '../../shared/initialWorkspaceStatus'
 
 describe('initial workspace status argument parsing', () => {
-  it('round-trips an encoded ready workspace status', () => {
+  it('round-trips encoded ready workspace statuses, including remote metadata', () => {
     const status: InitialWorkspaceStatusPayload = {
       status: 'ready',
       workspacePath: 'C:\\sample\\workspace',
@@ -29,10 +29,8 @@ describe('initial workspace status argument parsing', () => {
     }
 
     expect(readInitialWorkspaceStatusFromArgv(['electron', encodeInitialWorkspaceStatusArg(status)])).toEqual(status)
-  })
 
-  it('round-trips remote workspace metadata from startup payloads', () => {
-    const status: InitialWorkspaceStatusPayload = {
+    const remote: InitialWorkspaceStatusPayload = {
       status: 'ready',
       workspacePath: 'C:\\sample\\workspace',
       hasUserConfig: true,
@@ -49,7 +47,7 @@ describe('initial workspace status argument parsing', () => {
       }
     }
 
-    expect(readInitialWorkspaceStatusFromArgv(['electron', encodeInitialWorkspaceStatusArg(status)])).toEqual(status)
+    expect(readInitialWorkspaceStatusFromArgv(['electron', encodeInitialWorkspaceStatusArg(remote)])).toEqual(remote)
   })
 
   it('falls back to the canonical default for unsupported provider protocols', () => {

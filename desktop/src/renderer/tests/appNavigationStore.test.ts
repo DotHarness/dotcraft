@@ -103,7 +103,7 @@ describe('app navigation history', () => {
     cleanup()
   })
 
-  it('skips a missing thread while moving through history', () => {
+  it('skips a missing thread and restores the built-in Agents view while moving through history', () => {
     const history = useAppNavigationStore.getState()
     history.push({ kind: 'settings', tab: 'general' })
     history.push({ ...conversationLocation, threadId: 'missing-thread' })
@@ -113,14 +113,9 @@ describe('app navigation history', () => {
 
     expect(useAppNavigationStore.getState().index).toBe(0)
     expect(useUIStore.getState().activeMainView).toBe('settings')
-  })
 
-  it('restores the built-in Agents view', () => {
-    const history = useAppNavigationStore.getState()
-    history.push({ kind: 'settings', tab: 'general' })
     history.push({ kind: 'agents' })
     history.push({ kind: 'channels', selection: null })
-
     history.goBack()
     expect(useUIStore.getState().activeMainView).toBe('agents')
   })

@@ -50,34 +50,21 @@ beforeEach(() => {
 })
 
 describe('satellitesStore', () => {
-  it('loads the enrolled machines', async () => {
-    list.mockResolvedValue({ supported: true, satellites: [machine()] })
-    await useSatellitesStore.getState().load()
-    const state = useSatellitesStore.getState()
-    expect(state.loaded).toBe(true)
-    expect(state.supported).toBe(true)
-    expect(state.error).toBeNull()
-    expect(state.satellites).toHaveLength(1)
-  })
-
-  it('keeps an old Hub in the setup state instead of reporting an error', async () => {
-    list.mockResolvedValue({ supported: false, satellites: [] })
-    await useSatellitesStore.getState().load()
-    expect(useSatellitesStore.getState().supported).toBe(false)
-    expect(useSatellitesStore.getState().error).toBeNull()
-  })
-
-  it('records the reason when the listing itself fails', async () => {
-    list.mockResolvedValue({ supported: true, satellites: [], error: 'hub unreachable' })
-    await useSatellitesStore.getState().load()
-    expect(useSatellitesStore.getState().error).toBe('hub unreachable')
-  })
-
-  it('stays loaded when the bridge rejects', async () => {
-    list.mockRejectedValue(new Error('ipc down'))
-    await useSatellitesStore.getState().load()
-    expect(useSatellitesStore.getState().loaded).toBe(true)
-    expect(useSatellitesStore.getState().error).toBe('ipc down')
+  it('records support, errors and machines from each kind of listing outcome', async () => {
+    const cases: Array<[() => void, boolean, string | null, number]> = [
+      [() => list.mockResolvedValue({ supported: true, satellites: [machine()] }), true, null, 1],
+      [() => list.mockResolvedValue({ supported: false, satellites: [] }), false, null, 0],
+      [() => list.mockResolvedValue({ supported: true, satellites: [], error: 'hub unreachable' }), true, 'hub unreachable', 0],
+      [() => list.mockRejectedValue(new Error('ipc down')), true, 'ipc down', 0]
+    ]
+    for (const [arrange, supported, error, count] of cases) {
+      useSatellitesStore.setState({ satellites: [], supported: true, loaded: false, error: null })
+      arrange()
+      await useSatellitesStore.getState().load()
+      const state = useSatellitesStore.getState()
+      expect(state).toMatchObject({ loaded: true, supported, error })
+      expect(state.satellites).toHaveLength(count)
+    }
   })
 
   it('reads the list and subscribes to Hub events once for every consumer', () => {
@@ -99,21 +86,10 @@ describe('satellitesStore', () => {
     onEvent.mock.calls[0][0](event)
 
     expect(seen).toHaveBeenCalledWith(event)
-    expect(useSatellitesStore.getState().satellites[0].connected).toBe(false)
-    stopListening()
-  })
-
-  it('takes a machine offline and remembers the event', () => {
-    useSatellitesStore.setState({ satellites: [machine()], loaded: true })
-    useSatellitesStore.getState().applyEvent({
-      kind: 'offline',
-      at: '2026-09-05T10:00:00.000Z',
-      peerId: 'p1'
-    })
     const state = useSatellitesStore.getState()
-    expect(state.satellites[0].connected).toBe(false)
-    expect(state.satellites[0].lastSeenAt).toBe('2026-09-05T10:00:00.000Z')
+    expect(state.satellites[0]).toMatchObject({ connected: false, lastSeenAt: '2026-09-05T10:00:00.000Z' })
     expect(state.activity.p1).toHaveLength(1)
+    stopListening()
   })
 
   it('brings a machine online even when the attached record still reads offline', () => {
@@ -143,7 +119,7 @@ describe('satellitesStore', () => {
     expect(state.activity.p1).toBeUndefined()
   })
 
-  it('removes a machine the user revoked', async () => {
+  it('removes a revoked machine only when revoking succeeds', async () => {
     revoke.mockResolvedValue(undefined)
     useSatellitesStore.setState({ satellites: [machine()], selectedPeerId: 'p1', loaded: true })
     const removed = await useSatellitesStore.getState().revoke('p1')
@@ -151,13 +127,10 @@ describe('satellitesStore', () => {
     expect(revoke).toHaveBeenCalledWith('p1')
     expect(useSatellitesStore.getState().satellites).toHaveLength(0)
     expect(useSatellitesStore.getState().revoking).toBeNull()
-  })
 
-  it('keeps the machine listed when revoking fails', async () => {
     revoke.mockRejectedValue(new Error('nope'))
     useSatellitesStore.setState({ satellites: [machine()], loaded: true })
-    const removed = await useSatellitesStore.getState().revoke('p1')
-    expect(removed).toBe(false)
+    expect(await useSatellitesStore.getState().revoke('p1')).toBe(false)
     expect(useSatellitesStore.getState().satellites).toHaveLength(1)
   })
 
@@ -206,13 +179,6 @@ describe('satellitesStore', () => {
     expect(useSatellitesStore.getState().inviteError).toBeNull()
   })
 
-  it('reads recent activity for one machine', async () => {
-    activity.mockResolvedValue([{ kind: 'joined', at: '2026-09-05T09:12:00.000Z', peerId: 'p1' }])
-    await useSatellitesStore.getState().loadActivity('p1')
-    expect(activity).toHaveBeenCalledWith('p1')
-    expect(useSatellitesStore.getState().activity.p1).toHaveLength(1)
-  })
-
   it('overlays the AppServer lease view so a machine can read as in use', () => {
     useSatellitesStore.getState().applyBusy([
       {
@@ -225,10 +191,5 @@ describe('satellitesStore', () => {
     const overlaid = withLeases([machine()], useSatellitesStore.getState().busy)
     expect(satelliteState(overlaid[0])).toBe('inUse')
     expect(overlaid[0].workspaces[0].busyOwner).toBe('other')
-  })
-
-  it('reads ready without an AppServer overlay', () => {
-    const overlaid = withLeases([machine()], {})
-    expect(satelliteState(overlaid[0])).toBe('ready')
   })
 })

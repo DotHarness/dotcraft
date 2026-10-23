@@ -182,7 +182,6 @@ public sealed class SessionServiceResidentModelHistoryTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup for temporary files.
         }
     }
 

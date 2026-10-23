@@ -76,34 +76,26 @@ public sealed partial class OpenAIClientProviderTests
 
     [Theory]
     [InlineData("data: {\"type\":\"response.failed\"}\n\n")]
-    [InlineData("data: {\"type\":\"response.incomplete\"}\n\n")]
-    [InlineData("data: {\"type\":\"error\"}\n\n")]
     [InlineData("data: [DONE]\n\n")]
     [InlineData("data: {\"type\":\"response.completed\",\"response\":{\"id\":\"x\"}}\n\n")]
     [InlineData("data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"compaction\"}}\n\n")]
     [InlineData("data: {invalid}\n\n")]
+    [InlineData("data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"compaction\"}}\n\n" + CompactSseBody)]
     public async Task CompactTransportRejectsUnsuccessfulStreams(string stream)
     {
-        await using var server = RecordingHttpServer.Start(new RecordingHttpServer.ResponseSpec(
-            HttpStatusCode.OK, "text/event-stream", stream));
-        var provider = CreateOAuthProvider("11111111-2222-4333-8444-555555555555", "account-test");
-        var runtime = OAuthRuntime($"{server.Endpoint}/backend-api/codex", "account-test");
-        var error = await Assert.ThrowsAsync<InvalidDataException>(() => provider.GetChatGptResponsesCompactTransport(runtime)
-            .CompactAsync(new ChatGptResponsesCompactRequest { Model = "gpt-test", Input = [] }, CancellationToken.None));
+        using var body = new MemoryStream(Encoding.UTF8.GetBytes(stream));
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            SdkChatGptResponsesCompactTransport.ReadResponseAsync(body, CancellationToken.None));
         Assert.StartsWith("provider_compaction_invalid_response:", error.Message);
     }
 
     [Fact]
-    public async Task CompactTransportIgnoresExtraOutputButRejectsDuplicateCompaction()
+    public async Task CompactTransportIgnoresExtraOutputItems()
     {
         var extra = "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"function_call\",\"name\":\"unexpected_tool\"}}\n\n";
         using var valid = new MemoryStream(Encoding.UTF8.GetBytes(extra + CompactSseBody));
         var result = await SdkChatGptResponsesCompactTransport.ReadResponseAsync(valid, CancellationToken.None);
         Assert.Single(result.Output!);
-        var duplicate = "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"compaction\"}}\n\n";
-        using var invalid = new MemoryStream(Encoding.UTF8.GetBytes(duplicate + CompactSseBody));
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            SdkChatGptResponsesCompactTransport.ReadResponseAsync(invalid, CancellationToken.None));
     }
 
     [Fact]

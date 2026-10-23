@@ -16,44 +16,27 @@ public sealed class LearnedShellRuleStoreTests : IDisposable
     }
 
     [Fact]
-    public void Load_WithoutAFile_ReturnsNoRules() => Assert.Empty(new LearnedShellRuleStore(FilePath).Load());
-
-    [Fact]
-    public void Append_CreatesTheDirectoryAndStoresTheRule()
+    public void Append_CreatesTheDirectoryAndStoresEachRuleOnce()
     {
         var rule = new ShellPrefixRule(["git", "status"], ShellDecision.Allow, "reads the working tree");
+        var store = new LearnedShellRuleStore(FilePath);
+        Assert.Empty(store.Load());
 
-        new LearnedShellRuleStore(FilePath).Append(rule);
+        store.Append(rule);
+        store.Append(new ShellPrefixRule(["git", "status"], ShellDecision.Allow, "reads the working tree"));
 
         Assert.True(File.Exists(FilePath));
         Assert.Equal(rule, Assert.Single(new LearnedShellRuleStore(FilePath).Load()));
     }
 
     [Fact]
-    public void Append_EqualRuleTwice_StoresItOnce()
-    {
-        var store = new LearnedShellRuleStore(FilePath);
-
-        store.Append(new ShellPrefixRule(["ls"], ShellDecision.Allow));
-        store.Append(new ShellPrefixRule(["ls"], ShellDecision.Allow));
-
-        Assert.Single(store.Load());
-    }
-
-    [Fact]
-    public void Load_CorruptFile_ReturnsNoRulesAndLeavesTheFile()
+    public void Load_CorruptFileOrForeignSchemaVersion_ReturnsNoRulesAndLeavesTheFile()
     {
         Write("{ not json");
-
         Assert.Empty(new LearnedShellRuleStore(FilePath).Load());
         Assert.Equal("{ not json", File.ReadAllText(FilePath));
-    }
 
-    [Fact]
-    public void Load_ForeignSchemaVersion_ReturnsNoRules()
-    {
         Write("""{ "schemaVersion": 2, "rules": [ { "prefix": ["ls"], "decision": "allow" } ] }""");
-
         Assert.Empty(new LearnedShellRuleStore(FilePath).Load());
     }
 

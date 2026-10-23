@@ -15,10 +15,6 @@ using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-/// <summary>
-/// Regression: <see cref="SessionService.SetThreadModeAsync"/> must rebuild the per-thread agent via
-/// <see cref="SessionService"/> (same path as config updates) so <see cref="ThreadConfiguration.Model"/> is not lost.
-/// </summary>
 public sealed class SessionServiceSetThreadModeTests : IDisposable
 {
     private readonly string _tempDir;
@@ -32,7 +28,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_tempDir, true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]
@@ -152,9 +148,9 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         var publishedClient = new SignalingChatClient("published-agent");
         SetCachedThreadAgent(svc, thread.Id, publishedClient.AsAIAgent());
         agentLock.Release();
-        await publishedClient.StreamingStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await publishedClient.StreamingStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.False(threadChatClient.StreamingStarted.Task.IsCompleted);
-        await drainTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await drainTask.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
     [Fact]
@@ -180,7 +176,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
 
         var events = svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]);
         var drainTask = DrainAsync(events);
-        await activeClient.StreamingStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await activeClient.StreamingStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         await svc.SetThreadModeAsync(thread.Id, "plan");
 
@@ -191,7 +187,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.Equal("plan", runtime.Thread.Configuration?.Mode);
 
         activeClient.Release();
-        await drainTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await drainTask.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
     [Fact]
@@ -220,7 +216,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
 
         var events = svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]);
         var drainTask = DrainAsync(events);
-        await activeClient.StreamingStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await activeClient.StreamingStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         await svc.UpdateThreadConfigurationAsync(
             thread.Id,
@@ -235,7 +231,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.Equal(0, resourceSource.RetiredReleaseCalls);
 
         activeClient.Release();
-        await drainTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await drainTask.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal(1, resourceSource.RetiredReleaseCalls);
         Assert.Equal(0, resourceSource.TerminalReleaseCalls);

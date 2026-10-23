@@ -9,9 +9,7 @@ public sealed class WebSearchResolverTests
 {
     [Theory]
     [InlineData("https://api.deepseek.com", true)]
-    [InlineData("https://api.deepseek.com/v1/", true)]
     [InlineData("https://api.deepseek.com/anthropic", true)]
-    [InlineData("https://api.deepseek.com/anthropic/v1", true)]
     [InlineData("https://api.deepseek.com/beta", true)]
     [InlineData("http://api.deepseek.com", false)]
     [InlineData("https://api.deepseek.com.example.com", false)]

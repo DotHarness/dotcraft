@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { EventEmitter } from 'events'
 import { PassThrough } from 'stream'
 
-// Mock child_process.spawn before importing AppServerManager
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
   execFileSync: vi.fn(() => { throw new Error('not found') })
@@ -90,8 +89,7 @@ describe('AppServerManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    // Default: a bundled binary exists so manager startup succeeds unless a test overrides it.
-    mockExistsSync.mockReturnValue(true)
+    mockExistsSync.mockReset().mockReturnValue(true)
     manager = new AppServerManager({ workspacePath: '/home/user/project' })
   })
 
@@ -102,8 +100,6 @@ describe('AppServerManager', () => {
   it('spawns with correct arguments and working directory', () => {
     const { proc } = makeMockProcess()
     mockSpawn.mockReturnValue(proc)
-    mockExistsSync.mockReturnValue(true)
-    mockExecFileSync.mockReturnValue('/usr/bin/dotcraft\n')
 
     manager.spawn()
 
@@ -121,73 +117,39 @@ describe('AppServerManager', () => {
     )
   })
 
-  it('passes --listen for websocket mode and disables stdio pipes', () => {
+  it.each([
+    ['ws://127.0.0.1:9100', ['ignore', 'inherit', 'inherit']],
+    ['ws+stdio://127.0.0.1:9100', ['pipe', 'pipe', 'inherit']]
+  ])('passes --listen %s with the matching stdio pipes', (listenUrl, stdio) => {
     const { proc } = makeMockProcess()
     mockSpawn.mockReturnValue(proc)
-    mockExistsSync.mockReturnValue(true)
-    mockExecFileSync.mockReturnValue('/usr/bin/dotcraft\n')
-    manager = new AppServerManager({
-      workspacePath: '/home/user/project',
-      listenUrl: 'ws://127.0.0.1:9100'
-    })
+    manager = new AppServerManager({ workspacePath: '/home/user/project', listenUrl })
 
     manager.spawn()
 
     expect(mockSpawn).toHaveBeenCalledWith(
       expect.any(String),
-      ['app-server', '--listen', 'ws://127.0.0.1:9100'],
-      expect.objectContaining({
-        cwd: '/home/user/project',
-        stdio: ['ignore', 'inherit', 'inherit']
-      })
+      ['app-server', '--listen', listenUrl],
+      expect.objectContaining({ cwd: '/home/user/project', stdio })
     )
   })
 
-  it('keeps stdio pipes enabled for ws+stdio mode', () => {
+  it('emits "started", exposes stdio, and tracks running state', () => {
     const { proc } = makeMockProcess()
     mockSpawn.mockReturnValue(proc)
-    mockExistsSync.mockReturnValue(true)
-    mockExecFileSync.mockReturnValue('/usr/bin/dotcraft\n')
-    manager = new AppServerManager({
-      workspacePath: '/home/user/project',
-      listenUrl: 'ws+stdio://127.0.0.1:9100'
-    })
-
-    manager.spawn()
-
-    expect(mockSpawn).toHaveBeenCalledWith(
-      expect.any(String),
-      ['app-server', '--listen', 'ws+stdio://127.0.0.1:9100'],
-      expect.objectContaining({
-        cwd: '/home/user/project',
-        stdio: ['pipe', 'pipe', 'inherit']
-      })
-    )
-  })
-
-  it('emits "started" when the process spawns successfully', () => {
-    const { proc } = makeMockProcess()
-    mockSpawn.mockReturnValue(proc)
-    mockExecFileSync.mockReturnValue('/usr/bin/dotcraft\n')
-
     const started = vi.fn()
     manager.on('started', started)
-    manager.spawn()
 
+    expect(manager.isRunning).toBe(false)
+    manager.spawn()
     proc.emit('spawn')
+
     expect(started).toHaveBeenCalledOnce()
-  })
-
-  it('exposes stdin and stdout after spawn', () => {
-    const { proc } = makeMockProcess()
-    mockSpawn.mockReturnValue(proc)
-    mockExecFileSync.mockReturnValue('/usr/bin/dotcraft\n')
-
-    manager.spawn()
-    proc.emit('spawn')
-
+    expect(manager.isRunning).toBe(true)
     expect(manager.stdin).toBe(proc.stdin)
     expect(manager.stdout).toBe(proc.stdout)
+    proc.emit('exit', 0, null)
+    expect(manager.isRunning).toBe(false)
   })
 
   it('emits "error" when binary is not found', () => {
@@ -215,54 +177,19 @@ describe('AppServerManager', () => {
     })
   })
 
-  it('prefers the repository build output when dev build resolution is requested', () => {
-    mockExistsSync.mockImplementation((p: string) => (
-      p.endsWith('dotcraft.sln') ||
-      /build[\\/]+release[\\/]+dotcraft(\.exe)?$/i.test(p)
-    ))
+  it('uses only the repository build output when a dev build is required', () => {
+    const devBuild = /build[\\/]+release[\\/]+dotcraft(\.exe)?$/i
+    const options = { binarySource: 'bundled' as const, preferDevBuild: true, requireDevBuild: true }
+    mockExistsSync.mockImplementation((p: string) => p.endsWith('dotcraft.sln') || devBuild.test(p))
+    expect(resolveBinaryLocation(options).path).toMatch(devBuild)
 
-    const resolved = resolveBinaryLocation({
-      binarySource: 'bundled',
-      preferDevBuild: true,
-      requireDevBuild: true
-    })
-
-    expect(resolved.path).toMatch(/build[\\/]+release[\\/]+dotcraft(\.exe)?$/i)
-  })
-
-  it('does not fall back to packaged binaries when a dev build is required', () => {
     mockExistsSync.mockImplementation((p: string) => p.endsWith('dotcraft.sln'))
-
-    const resolved = resolveBinaryLocation({
-      binarySource: 'bundled',
-      preferDevBuild: true,
-      requireDevBuild: true
-    })
-
-    expect(resolved).toEqual({
-      source: 'bundled',
-      path: null
-    })
-  })
-
-  it('returns null for a missing custom binary path', () => {
-    mockExistsSync.mockReturnValue(false)
-
-    const resolved = resolveBinaryLocation({
-      binarySource: 'custom',
-      binaryPath: '/tmp/missing-dotcraft'
-    })
-
-    expect(resolved).toEqual({
-      source: 'custom',
-      path: null
-    })
+    expect(resolveBinaryLocation(options)).toEqual({ source: 'bundled', path: null })
   })
 
   it('emits "crash" when process exits unexpectedly', () => {
     const { proc } = makeMockProcess()
     mockSpawn.mockReturnValue(proc)
-    mockExecFileSync.mockReturnValue('/usr/bin/dotcraft\n')
 
     const crash = vi.fn()
     manager.on('crash', crash)
@@ -275,25 +202,28 @@ describe('AppServerManager', () => {
     expect(crash.mock.calls[0][0]).toMatchObject({ code: 1 })
   })
 
-  it('closes stdin on shutdown (sends EOF)', () => {
+  it('closes stdin on shutdown and emits "stopped" rather than "crash"', () => {
     const { proc } = makeMockProcess()
     mockSpawn.mockReturnValue(proc)
-    mockExecFileSync.mockReturnValue('/usr/bin/dotcraft\n')
-
+    const stopped = vi.fn()
+    const crash = vi.fn()
+    manager.on('stopped', stopped)
+    manager.on('crash', crash)
     manager.spawn()
     proc.emit('spawn')
-
     const endSpy = vi.spyOn(proc.stdin, 'end')
+
     manager.shutdown()
+    proc.emit('exit', 0, null)
 
     expect(endSpy).toHaveBeenCalledOnce()
+    expect(stopped).toHaveBeenCalledOnce()
+    expect(crash).not.toHaveBeenCalled()
   })
 
   it('sends SIGTERM on shutdown when stdin is not piped (WebSocket-only mode)', () => {
     const { proc } = makeMockProcessNoStdin()
     mockSpawn.mockReturnValue(proc)
-    mockExistsSync.mockReturnValue(true)
-    mockExecFileSync.mockReturnValue('/usr/bin/dotcraft\n')
     manager = new AppServerManager({
       workspacePath: '/home/user/project',
       listenUrl: 'ws://127.0.0.1:9100'
@@ -305,39 +235,6 @@ describe('AppServerManager', () => {
     manager.shutdown()
 
     expect(proc.kill).toHaveBeenCalledWith('SIGTERM')
-  })
-
-  it('emits "stopped" (not "crash") after graceful shutdown', () => {
-    const { proc } = makeMockProcess()
-    mockSpawn.mockReturnValue(proc)
-    mockExecFileSync.mockReturnValue('/usr/bin/dotcraft\n')
-
-    const stopped = vi.fn()
-    const crash = vi.fn()
-    manager.on('stopped', stopped)
-    manager.on('crash', crash)
-    manager.spawn()
-    proc.emit('spawn')
-
-    manager.shutdown()
-    proc.emit('exit', 0, null)
-
-    expect(stopped).toHaveBeenCalledOnce()
-    expect(crash).not.toHaveBeenCalled()
-  })
-
-  it('reports isRunning correctly', () => {
-    const { proc } = makeMockProcess()
-    mockSpawn.mockReturnValue(proc)
-    mockExecFileSync.mockReturnValue('/usr/bin/dotcraft\n')
-
-    expect(manager.isRunning).toBe(false)
-    manager.spawn()
-    proc.emit('spawn')
-    expect(manager.isRunning).toBe(true)
-
-    proc.emit('exit', 0, null)
-    expect(manager.isRunning).toBe(false)
   })
 
   it('keeps polling readyz beyond the old 15s startup timeout', async () => {

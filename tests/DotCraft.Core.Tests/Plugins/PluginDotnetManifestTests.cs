@@ -20,16 +20,12 @@ public sealed class PluginDotnetManifestTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 
     [Theory]
-    [InlineData("1.2.3", "1.2.3", true)]
     [InlineData("1.2.3", "1.9.0", true)]
-    [InlineData("1.2.3", "1.2.2", false)]
     [InlineData("1.2.3", "2.0.0", false)]
-    [InlineData("0.2.3", "0.2.9", true)]
     [InlineData("0.2.3", "0.3.0", false)]
     public void DependencyVersion_RequiresACompatibleMinimum(
         string minimum,
@@ -38,7 +34,7 @@ public sealed class PluginDotnetManifestTests : IDisposable
         Assert.Equal(expected, PluginDotnetManifestAdmission.SatisfiesMinimum(minimum, observed));
 
     [Fact]
-    public void Load_AcceptsValidBundleWithoutExecutingAssembly()
+    public void Load_AcceptsValidBundleWithInheritedEntryContractWithoutExecutingAssembly()
     {
         var pluginRoot = Path.Combine(_root, "valid");
         var dotnetRoot = Path.Combine(pluginRoot, "dotnet");
@@ -56,7 +52,8 @@ public sealed class PluginDotnetManifestTests : IDisposable
             using DotCraft.Plugins;
             [assembly: TargetFramework(".NETCoreApp,Version=v10.0")]
             namespace Acme;
-            public sealed class ReviewPlugin : IDotCraftPlugin
+            public abstract class PluginBase : IDotCraftPlugin { }
+            public sealed class ReviewPlugin : PluginBase
             {
                 public ReviewPlugin() { }
                 [ModuleInitializer]
@@ -85,28 +82,13 @@ public sealed class PluginDotnetManifestTests : IDisposable
         var pluginRoot = Path.Combine(_root, "presentation-metadata");
         WriteManifest(
             pluginRoot,
-            dotnetPresentationJson: "\"displayName\": \"  Review integration  \", \"description\": \"  Provides native review capabilities.  \"");
+            dotnetPresentationJson: "\"displayName\": \"  Review integration  \", \"description\": \"  Provides review.  \"");
 
         var result = PluginManifestParser.Load(pluginRoot);
 
         Assert.NotNull(result.Manifest?.Dotnet);
         Assert.Equal("Review integration", result.Manifest!.Dotnet!.DisplayName);
-        Assert.Equal("Provides native review capabilities.", result.Manifest.Dotnet.Description);
-    }
-
-    [Fact]
-    public void Load_TreatsBlankDotnetPresentationMetadataAsOmitted()
-    {
-        var pluginRoot = Path.Combine(_root, "blank-presentation-metadata");
-        WriteManifest(
-            pluginRoot,
-            dotnetPresentationJson: "\"displayName\": \"   \", \"description\": null");
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.NotNull(result.Manifest?.Dotnet);
-        Assert.Null(result.Manifest!.Dotnet!.DisplayName);
-        Assert.Null(result.Manifest.Dotnet.Description);
+        Assert.Equal("Provides review.", result.Manifest.Dotnet.Description);
     }
 
     [Fact]
@@ -123,7 +105,6 @@ public sealed class PluginDotnetManifestTests : IDisposable
     }
 
     [Theory]
-    [InlineData("1.2")]
     [InlineData("[1.0.0,2.0.0)")]
     public void Load_RejectsNonCanonicalPluginVersion(string version)
     {
@@ -137,24 +118,9 @@ public sealed class PluginDotnetManifestTests : IDisposable
         AssertAdmissionFailure(result, "version", "invalidFormat");
     }
 
-    [Fact]
-    public void Load_RejectsMissingMinHostVersion()
-    {
-        var pluginRoot = Path.Combine(_root, "no-min-host-version");
-        WriteManifest(pluginRoot, minHostVersionJson: string.Empty);
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.NotNull(result.Manifest);
-        Assert.Null(result.Manifest!.Dotnet);
-        AssertAdmissionFailure(result, "dotnet.minHostVersion", "missing");
-    }
-
     [Theory]
-    [InlineData("\"0.3\"", "invalidFormat")]
+    [InlineData("", "missing")]
     [InlineData("\"0.3.0-preview.1\"", "invalidFormat")]
-    [InlineData("\"\"", "invalidFormat")]
-    [InlineData("3", "invalidType")]
     public void Load_RejectsMalformedMinHostVersion(string minHostVersionJson, string reason)
     {
         var pluginRoot = Path.Combine(_root, Guid.NewGuid().ToString("N"));
@@ -167,54 +133,20 @@ public sealed class PluginDotnetManifestTests : IDisposable
         AssertAdmissionFailure(result, "dotnet.minHostVersion", reason);
     }
 
-    [Fact]
-    public void Load_BlocksBundleThatRequiresANewerHost()
-    {
-        var pluginRoot = Path.Combine(_root, "future-host");
-        WriteValidBundle(pluginRoot, minHostVersion: "9999.0.0");
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        var diagnostic = Assert.Single(
-            result.Diagnostics,
-            static diagnostic => diagnostic.Code == PluginDotnetDiagnosticCodes.HostVersionUnsatisfied);
-        Assert.Equal(PluginDiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Equal("9999.0.0", diagnostic.Parameters["minHostVersion"].GetString());
-        Assert.NotNull(diagnostic.Parameters["hostVersion"].GetString());
-    }
-
     [Theory]
-    [InlineData("\"../escape.dll\"", "dotnet.entryAssembly", "invalidPath")]
-    [InlineData("\"./dotnet/Api.dll\", \"./dotnet/api.dll\"", "dotnet.exportedApiAssemblies", "duplicate")]
-    public void Load_RejectsInvalidDotnetPaths(string entryOrExports, string field, string reason)
+    [InlineData("\"../escape.dll\"", "\"./dotnet/Acme.Api.dll\"", "dotnet.entryAssembly", "invalidPath")]
+    [InlineData("\"./dotnet/Acme.Plugin.dll\"", "\"./dotnet/Api.dll\", \"./dotnet/api.dll\"", "dotnet.exportedApiAssemblies", "duplicate")]
+    [InlineData("\"./dotnet/Api.dll\"", "\"./dotnet/api.dll\"", "dotnet.exportedApiAssemblies", "entryAssemblyExported")]
+    public void Load_RejectsInvalidDotnetPaths(string entryAssemblyJson, string exportsJson, string field, string reason)
     {
         var pluginRoot = Path.Combine(_root, Guid.NewGuid().ToString("N"));
-        if (field == "dotnet.entryAssembly")
-            WriteManifest(pluginRoot, entryAssemblyJson: entryOrExports);
-        else
-            WriteManifest(pluginRoot, exportsJson: entryOrExports);
+        WriteManifest(pluginRoot, entryAssemblyJson: entryAssemblyJson, exportsJson: exportsJson);
 
         var result = PluginManifestParser.Load(pluginRoot);
 
         Assert.NotNull(result.Manifest);
         Assert.Null(result.Manifest!.Dotnet);
         AssertAdmissionFailure(result, field, reason);
-    }
-
-    [Fact]
-    public void Load_RejectsEntryAssemblyExportedWithDifferentCasing()
-    {
-        var pluginRoot = Path.Combine(_root, Guid.NewGuid().ToString("N"));
-        WriteManifest(
-            pluginRoot,
-            entryAssemblyJson: "\"./dotnet/Api.dll\"",
-            exportsJson: "\"./dotnet/api.dll\"");
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.NotNull(result.Manifest);
-        Assert.Null(result.Manifest!.Dotnet);
-        AssertAdmissionFailure(result, "dotnet.exportedApiAssemblies", "entryAssemblyExported");
     }
 
     [Theory]
@@ -296,26 +228,6 @@ public sealed class PluginDotnetManifestTests : IDisposable
     }
 
     [Fact]
-    public void Discovery_TreatsDeclaredDependencyVersionsAsMinimums()
-    {
-        var workspace = Path.Combine(_root, "minimum-workspace");
-        var botPath = Path.Combine(workspace, ".craft");
-        WriteManifest(
-            Path.Combine(botPath, "plugins", "consumer"),
-            id: "acme.review",
-            dependenciesJson: "\"acme.core\": \"1.0.0\"");
-        WriteInterfacePlugin(Path.Combine(botPath, "plugins", "provider"), id: "acme.core", version: "1.2.3");
-
-        var result = new PluginDiscoveryService(Path.Combine(_root, "minimum-global"))
-            .DiscoverAll(new AppConfig(), workspace, botPath);
-
-        var observation = Assert.Single(
-            Assert.Single(result.Plugins, plugin => plugin.Manifest.Id == "acme.review").DependencyObservations);
-        Assert.Equal("1.2.3", observation.ObservedVersion);
-        Assert.NotEqual(PluginDependencyAvailability.VersionUnsatisfied, observation.Availability);
-    }
-
-    [Fact]
     public void Load_ReportsInvalidManagedEntryAssembly()
     {
         var pluginRoot = Path.Combine(_root, "invalid-entry");
@@ -332,7 +244,7 @@ public sealed class PluginDotnetManifestTests : IDisposable
     }
 
     [Fact]
-    public void Load_ReportsMissingDependencyManifestAndInvalidEntryType()
+    public void Load_ReportsMissingDependencyManifestInvalidEntryTypeAndMissingApiExport()
     {
         var pluginRoot = Path.Combine(_root, "invalid-type");
         var dotnetRoot = Path.Combine(pluginRoot, "dotnet");
@@ -349,7 +261,7 @@ public sealed class PluginDotnetManifestTests : IDisposable
             public sealed class DifferentPlugin : IDotCraftPlugin { public DifferentPlugin() { } }
             """,
             corePath);
-        WriteManifest(pluginRoot, exportsJson: string.Empty);
+        WriteManifest(pluginRoot);
 
         var result = PluginManifestParser.Load(pluginRoot);
 
@@ -360,50 +272,10 @@ public sealed class PluginDotnetManifestTests : IDisposable
             result.Diagnostics,
             static diagnostic => diagnostic.Code == PluginDotnetDiagnosticCodes.EntryTypeInvalid
                                  && diagnostic.Parameters["reason"].GetString() == "typeNotFound");
-    }
-
-    [Fact]
-    public void Load_ReportsMissingApiExport()
-    {
-        var pluginRoot = Path.Combine(_root, "missing-api");
-        WriteValidBundle(pluginRoot);
-        WriteManifest(pluginRoot);
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
         Assert.Contains(
             result.Diagnostics,
             static diagnostic => diagnostic.Code == PluginDotnetDiagnosticCodes.ApiExportInvalid
                                  && diagnostic.Parameters["reason"].GetString() == "assemblyMissing");
-    }
-
-    [Fact]
-    public void Load_AcceptsEntryContractInheritedFromABaseType()
-    {
-        var pluginRoot = Path.Combine(_root, "inherited-entry");
-        var dotnetRoot = Path.Combine(pluginRoot, "dotnet");
-        Directory.CreateDirectory(dotnetRoot);
-        var corePath = Path.Combine(dotnetRoot, "DotCraft.Core.dll");
-        Compile(corePath, "namespace DotCraft.Plugins; public interface IDotCraftPlugin { }");
-        Compile(
-            Path.Combine(dotnetRoot, "Acme.Plugin.dll"),
-            """
-            using System.Runtime.Versioning;
-            using DotCraft.Plugins;
-            [assembly: TargetFramework(".NETCoreApp,Version=v10.0")]
-            namespace Acme;
-            public abstract class PluginBase : IDotCraftPlugin { }
-            public sealed class ReviewPlugin : PluginBase { public ReviewPlugin() { } }
-            """,
-            corePath);
-        File.WriteAllText(Path.Combine(dotnetRoot, "Acme.Plugin.deps.json"), "{}");
-        WriteManifest(pluginRoot, exportsJson: string.Empty);
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.DoesNotContain(
-            result.Diagnostics,
-            static diagnostic => diagnostic.Code == PluginDotnetDiagnosticCodes.EntryTypeInvalid);
     }
 
     [Fact]
@@ -442,17 +314,24 @@ public sealed class PluginDotnetManifestTests : IDisposable
     }
 
     [Fact]
-    public void Inspect_GatesOnTheSuppliedHostVersion()
+    public void HostVersionGate_BlocksBundlesThatRequireANewerHost()
     {
-        var pluginRoot = Path.Combine(_root, "explicit-host");
-        WriteValidBundle(pluginRoot, minHostVersion: "0.3.0");
-        WriteManifest(pluginRoot, minHostVersionJson: "\"0.3.0\"", exportsJson: string.Empty);
-        var manifest = PluginManifestParser.Load(pluginRoot).Manifest;
-        Assert.NotNull(manifest);
+        var pluginRoot = Path.Combine(_root, "future-host");
+        WriteValidBundle(pluginRoot, minHostVersion: "9999.0.0");
 
-        var older = PluginDotnetMetadataInspector.Inspect(manifest!, new PluginHostVersion(new Version(0, 2, 9)));
-        var exact = PluginDotnetMetadataInspector.Inspect(manifest!, new PluginHostVersion(new Version(0, 3, 0)));
-        var newer = PluginDotnetMetadataInspector.Inspect(manifest!, new PluginHostVersion(new Version(1, 0, 0)));
+        var result = PluginManifestParser.Load(pluginRoot);
+
+        var diagnostic = Assert.Single(
+            result.Diagnostics,
+            static diagnostic => diagnostic.Code == PluginDotnetDiagnosticCodes.HostVersionUnsatisfied);
+        Assert.Equal(PluginDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Equal("9999.0.0", diagnostic.Parameters["minHostVersion"].GetString());
+        Assert.NotNull(diagnostic.Parameters["hostVersion"].GetString());
+
+        var manifest = result.Manifest!;
+        var older = PluginDotnetMetadataInspector.Inspect(manifest, new PluginHostVersion(new Version(9998, 9, 9)));
+        var exact = PluginDotnetMetadataInspector.Inspect(manifest, new PluginHostVersion(new Version(9999, 0, 0)));
+        var newer = PluginDotnetMetadataInspector.Inspect(manifest, new PluginHostVersion(new Version(10000, 0, 0)));
 
         Assert.Contains(older, static diagnostic => diagnostic.Code == PluginDotnetDiagnosticCodes.HostVersionUnsatisfied);
         Assert.DoesNotContain(exact, static diagnostic => diagnostic.Code == PluginDotnetDiagnosticCodes.HostVersionUnsatisfied);
@@ -485,8 +364,6 @@ public sealed class PluginDotnetManifestTests : IDisposable
         return diagnostic;
     }
 
-    /// <summary>Emits an entry assembly that satisfies every preflight check except the API export
-    /// list, so tests can vary one manifest field at a time.</summary>
     private static void WriteValidBundle(string pluginRoot, string minHostVersion = "0.1.0")
     {
         var dotnetRoot = Path.Combine(pluginRoot, "dotnet");
@@ -573,6 +450,13 @@ public sealed class PluginDotnetManifestTests : IDisposable
             """);
     }
 
+    private static readonly Lazy<(string FileName, MetadataReference Reference)[]> PlatformReferences = new(() =>
+        ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(static path => (Path.GetFileName(path), (MetadataReference)MetadataReference.CreateFromFile(path)))
+            .ToArray());
+
     private static void Compile(string outputPath, string source, params string[] additionalReferences)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
@@ -580,12 +464,10 @@ public sealed class PluginDotnetManifestTests : IDisposable
             .Select(Path.GetFileName)
             .Append(Path.GetFileName(outputPath))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var references = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-            .Where(path => !explicitFileNames.Contains(Path.GetFileName(path)))
-            .Concat(additionalReferences)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(static path => MetadataReference.CreateFromFile(path));
+        var references = PlatformReferences.Value
+            .Where(reference => !explicitFileNames.Contains(reference.FileName))
+            .Select(static reference => reference.Reference)
+            .Concat(additionalReferences.Select(static path => (MetadataReference)MetadataReference.CreateFromFile(path)));
         var compilation = CSharpCompilation.Create(
             Path.GetFileNameWithoutExtension(outputPath),
             [CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview))],

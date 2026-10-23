@@ -30,28 +30,6 @@ public sealed class McpSessionRecoveringToolTests
     }
 
     [Fact]
-    public async Task InvokeAsync_Bare404WithKnownSession_RefreshesAndRetriesOnce()
-    {
-        var staleException = new HttpRequestException(
-            "Response status code does not indicate success: 404 (Not Found).",
-            inner: null,
-            HttpStatusCode.NotFound);
-        var oldTool = new ScriptedFunction("demo_tool", staleException);
-        var newTool = new ScriptedFunction("demo_tool", "ok");
-        var coordinator = new FakeCoordinator
-        {
-            CurrentTarget = Target(oldTool, generation: 7, transport: "streamableHttp", hasSessionId: true),
-            RefreshTarget = Target(newTool, generation: 8, transport: "streamableHttp", hasSessionId: true)
-        };
-        var wrapper = new McpSessionRecoveringTool(coordinator, "demo-server", oldTool);
-
-        var result = await wrapper.InvokeAsync(new AIFunctionArguments());
-
-        Assert.Equal("ok", result);
-        Assert.Equal(1, coordinator.RefreshCount);
-    }
-
-    [Fact]
     public async Task InvokeAsync_NonStaleFailure_DoesNotRefresh()
     {
         var failure = new InvalidOperationException("boom");

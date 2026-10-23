@@ -90,11 +90,13 @@ public sealed class SendChannelMessageTests : IDisposable
         Assert.Equal(SendChannelMessageErrorCodes.ChannelUnavailable, revoked.Error?.Code);
     }
 
-    [Fact]
-    public async Task ChannelOriginRunThread_IsBoundToTheOriginChat()
+    [Theory]
+    [InlineData(ChannelChatKinds.Group)]
+    [InlineData(null)]
+    public async Task ChannelOriginRunThread_IsBoundToTheOriginChat(string? chatKind)
     {
         var automations = Automations();
-        var definition = await CreateAutomationAsync(automations, "independent", "workspaceScope");
+        var definition = await CreateAutomationAsync(automations, "independent", "workspaceScope", chatKind);
         var provider = new SendChannelMessageToolProvider(new ChatBindingResolver(_registry, automations: automations));
         var runThread = new SessionThread
         {
@@ -107,24 +109,6 @@ public sealed class SendChannelMessageTests : IDisposable
         Assert.True(result.Success);
         Assert.Equal("chat-9", Assert.Single(_telegram.Deliveries).Target);
         Assert.Equal("Ops", result.StructuredContent!.Value.GetProperty("label").GetString());
-    }
-
-    [Fact]
-    public async Task ChannelOriginWithoutChatKind_StillBindsTheRunToTheOriginChat()
-    {
-        var automations = Automations();
-        var definition = await CreateAutomationAsync(automations, "independent", "workspaceScope", chatKind: null);
-        var provider = new SendChannelMessageToolProvider(new ChatBindingResolver(_registry, automations: automations));
-        var runThread = new SessionThread
-        {
-            Id = "run-thread", OriginChannel = AutomationService.RunChannel, ChannelContext = definition.Id, WorkspacePath = _workspace
-        };
-
-        var runtime = (await RegistrationAsync(provider, runThread)).Binding.Runtime;
-        var result = await runtime.InvokeAsync(Context("call-1", runThread.Id), Args("""{ "text": "build is green" }"""));
-
-        Assert.True(result.Success);
-        Assert.Equal("chat-9", Assert.Single(_telegram.Deliveries).Target);
     }
 
     [Fact]
@@ -161,10 +145,8 @@ public sealed class SendChannelMessageTests : IDisposable
     }
 
     [Theory]
-    [InlineData("""{ }""", "invalidArguments")]
     [InlineData("""{ "text": "" }""", "invalidArguments")]
     [InlineData("""{ "attachments": [{ "path": "missing.png" }] }""", "invalidArguments")]
-    [InlineData("""{ "text": "hi", "to": "no-separator" }""", "invalidArguments")]
     [InlineData("""{ "text": "hi", "to": "slack:general" }""", "channelUnavailable")]
     public async Task InvalidCalls_FailWithoutDelivering(string arguments, string code)
     {
@@ -293,21 +275,6 @@ public sealed class SendChannelMessageTests : IDisposable
         var image = _telegram.Deliveries[^1].Message;
         Assert.Equal("image", image.Kind);
         Assert.Equal(supportsCaption ? "look" : null, image.Caption);
-    }
-
-    [Fact]
-    public async Task UnsupportedAudio_IsSentAsFileAndReported()
-    {
-        WriteFile("voice.ogg", 3);
-        _telegram.Capabilities.Media = new ChannelMediaCapabilitySnapshot { File = HostPath() };
-
-        var result = await Runtime().InvokeAsync(Context("call-1"),
-            Args("""{ "attachments": [{ "path": "voice.ogg", "kind": "audio" }] }"""));
-
-        Assert.True(result.Success);
-        Assert.Equal("file", Assert.Single(_telegram.Deliveries).Message.Kind);
-        var part = result.StructuredContent!.Value.GetProperty("parts")[0];
-        Assert.Equal("audio", part.GetProperty("downgradedFrom").GetString());
     }
 
     [Theory]

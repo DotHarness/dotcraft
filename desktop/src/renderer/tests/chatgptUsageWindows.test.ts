@@ -6,43 +6,6 @@ import {
   shapeChatGptUsageWindows
 } from '../utils/chatgptUsageWindows'
 
-describe('ChatGPT usage window shaping', () => {
-  it('orders known windows by duration semantics instead of upstream slot', () => {
-    const weekly = windowWithDuration(604_800)
-    const fiveHour = windowWithDuration(18_000)
-
-    expect(shapeChatGptUsageWindows(snapshot(weekly, fiveHour))).toEqual([
-      { kind: 'fiveHour', window: fiveHour },
-      { kind: 'weekly', window: weekly }
-    ])
-  })
-
-  it.each([
-    ['primary', snapshot(windowWithDuration(604_800), null)],
-    ['secondary', snapshot(null, windowWithDuration(604_800))]
-  ])('recognizes a weekly-only %s slot', (_slot, usage) => {
-    expect(shapeChatGptUsageWindows(usage)).toEqual([
-      { kind: 'weekly', window: usage.primary ?? usage.secondary }
-    ])
-  })
-
-  it.each([
-    [17_100, 'fiveHour'],
-    [18_900, 'fiveHour'],
-    [574_560, 'weekly'],
-    [635_040, 'weekly']
-  ] as const)('accepts the five-percent tolerance for %s seconds', (windowSeconds, expected) => {
-    expect(classifyChatGptUsageWindow(windowWithDuration(windowSeconds), 'primary')).toBe(expected)
-  })
-
-  it('uses generic slot kinds for unknown durations', () => {
-    expect(shapeChatGptUsageWindows(snapshot(
-      windowWithDuration(30 * 24 * 60 * 60),
-      windowWithDuration(60 * 60)
-    )).map((entry) => entry.kind)).toEqual(['primary', 'secondary'])
-  })
-})
-
 function snapshot(
   primary: ProviderUsageWindow | null,
   secondary: ProviderUsageWindow | null
@@ -67,14 +30,37 @@ function windowWithDuration(windowSeconds: number): ProviderUsageWindow {
   }
 }
 
+describe('ChatGPT usage window shaping', () => {
+  it('orders known windows by duration semantics instead of upstream slot', () => {
+    const weekly = windowWithDuration(604_800)
+    const fiveHour = windowWithDuration(18_000)
+
+    expect(shapeChatGptUsageWindows(snapshot(weekly, fiveHour))).toEqual([
+      { kind: 'fiveHour', window: fiveHour },
+      { kind: 'weekly', window: weekly }
+    ])
+    expect(shapeChatGptUsageWindows(snapshot(weekly, null))).toEqual([{ kind: 'weekly', window: weekly }])
+    expect(shapeChatGptUsageWindows(snapshot(null, weekly))).toEqual([{ kind: 'weekly', window: weekly }])
+  })
+
+  it('classifies durations within five percent and falls back to slot kinds', () => {
+    const cases = [[17_100, 'fiveHour'], [18_900, 'fiveHour'], [574_560, 'weekly'], [635_040, 'weekly']] as const
+    for (const [windowSeconds, expected] of cases) {
+      expect(classifyChatGptUsageWindow(windowWithDuration(windowSeconds), 'primary')).toBe(expected)
+    }
+
+    expect(shapeChatGptUsageWindows(snapshot(
+      windowWithDuration(30 * 24 * 60 * 60),
+      windowWithDuration(60 * 60)
+    )).map((entry) => entry.kind)).toEqual(['primary', 'secondary'])
+  })
+})
+
 describe('Credits balance formatting', () => {
-  it('drops trailing zeros and groups digits for the locale', () => {
+  it('drops trailing zeros, groups digits for the locale and keeps non-numbers as sent', () => {
     expect(formatCreditsBalance('62500.0000000000', 'en')).toBe('62,500')
     expect(formatCreditsBalance('12.3456', 'en')).toBe('12.35')
     expect(formatCreditsBalance('62500.5', 'de')).toBe('62.500,5')
-  })
-
-  it('keeps a balance that is not a number as sent', () => {
     expect(formatCreditsBalance('n/a', 'en')).toBe('n/a')
     expect(formatCreditsBalance('', 'en')).toBe('')
   })

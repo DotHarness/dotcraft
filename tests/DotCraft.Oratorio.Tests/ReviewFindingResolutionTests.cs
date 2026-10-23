@@ -80,35 +80,34 @@ public sealed class ReviewFindingResolutionTests
     }
 
     [Fact]
-    public async Task Resolve_UnknownFinding_Returns409NotFound()
+    public async Task Resolve_RejectsUnknownAndUnpublishedFindings()
     {
         await using var app = new TestOratorioApp();
         var client = app.CreateClient();
-        var (draftId, _, _, _) = await SeedPublishedFindingAsync(app, client, "task:resolve-missing");
+        var (draftId, commentId, _, _) = await SeedPublishedFindingAsync(app, client, "task:resolve-rejected");
 
-        var response = await client.PostAsJsonAsync(
+        var unknown = await client.PostAsJsonAsync(
             $"/api/v1/review-drafts/{draftId}/comments/does-not-exist/resolve",
             new ResolveReviewFindingOperatorRequest("fixed", null),
             JsonOptions);
+        Assert.Equal(HttpStatusCode.Conflict, unknown.StatusCode);
+        Assert.Equal("reviewFindingNotFound", await ReadErrorCodeAsync(unknown));
 
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        Assert.Equal("reviewFindingNotFound", await ReadErrorCodeAsync(response));
-    }
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+            var draft = await db.ReviewDrafts.FirstAsync(x => x.DraftId == draftId);
+            draft.Status = ReviewDraftStatus.Draft;
+            draft.PublishedAt = null;
+            await db.SaveChangesAsync();
+        }
 
-    [Fact]
-    public async Task Resolve_UnpublishedDraftFinding_Returns409NotResolvable()
-    {
-        await using var app = new TestOratorioApp();
-        var client = app.CreateClient();
-        var (draftId, commentId) = await SeedDraftFindingAsync(app, client, "task:resolve-unpublished");
-
-        var response = await client.PostAsJsonAsync(
+        var unpublished = await client.PostAsJsonAsync(
             $"/api/v1/review-drafts/{draftId}/comments/{commentId}/resolve",
             new ResolveReviewFindingOperatorRequest("fixed", null),
             JsonOptions);
-
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        Assert.Equal("reviewFindingNotResolvable", await ReadErrorCodeAsync(response));
+        Assert.Equal(HttpStatusCode.Conflict, unpublished.StatusCode);
+        Assert.Equal("reviewFindingNotResolvable", await ReadErrorCodeAsync(unpublished));
     }
 
     [Fact]
@@ -312,20 +311,11 @@ public sealed class ReviewFindingResolutionTests
         Assert.Contains("\"replySkipped\":true", storedWrite.ResponseJson, StringComparison.Ordinal);
     }
 
-    private static async Task<(string DraftId, string CommentId, string ItemId, string RunId)> SeedPublishedFindingAsync(
+    private static Task<(string DraftId, string CommentId, string ItemId, string RunId)> SeedPublishedFindingAsync(
         TestOratorioApp app,
         HttpClient client,
         string externalId) =>
-        await SeedFindingAsync(app, client, externalId, ReviewDraftStatus.Published);
-
-    private static async Task<(string DraftId, string CommentId)> SeedDraftFindingAsync(
-        TestOratorioApp app,
-        HttpClient client,
-        string externalId)
-    {
-        var (draftId, commentId, _, _) = await SeedFindingAsync(app, client, externalId, ReviewDraftStatus.Draft);
-        return (draftId, commentId);
-    }
+        SeedFindingAsync(app, client, externalId, ReviewDraftStatus.Published);
 
     private static async Task<(string DraftId, string CommentId, string ItemId, string RunId)> SeedFindingAsync(
         TestOratorioApp app,
@@ -436,7 +426,7 @@ public sealed class ReviewFindingResolutionTests
                 return detail;
             }
 
-            await Task.Delay(100);
+            await Task.Delay(20);
         }
 
         throw new TimeoutException($"Timed out waiting for item {externalId}.");

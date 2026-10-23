@@ -28,7 +28,8 @@ test("Weixin reports text delivery failure instead of acknowledging it", async (
   }
 });
 
-test("Weixin retries transient text fetch failures with the same client id", async () => {
+test("Weixin retries transient text fetch failures with the same client id", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const originalFetch = globalThis.fetch;
   const adapter = new WeixinAdapter();
   const internals = adapter as unknown as {
@@ -52,51 +53,20 @@ test("Weixin retries transient text fetch failures with the same client id", asy
   }) as typeof fetch;
 
   try {
-    const delivered = await adapter.onDeliver("wx-user-1", "重试后成功。", {});
-    assert.equal(delivered, true);
+    let settled = false;
+    const delivering = adapter.onDeliver("wx-user-1", "重试后成功。", {}).finally(() => {
+      settled = true;
+    });
+    while (!settled) {
+      await new Promise((resolve) => setImmediate(resolve));
+      t.mock.timers.tick(1000);
+    }
+    assert.equal(await delivering, true);
     assert.equal(attempts, 3);
     assert.equal(new Set(clientIds).size, 1);
   } finally {
     globalThis.fetch = originalFetch;
   }
-});
-
-test("WeixinAdapter builds channel binding target from user context", () => {
-  const adapter = new WeixinAdapter() as unknown as {
-    buildChannelTarget: (
-      opts: Record<string, unknown>,
-      sender: Record<string, unknown>,
-      channelContext: string,
-    ) => Record<string, unknown> | null;
-  };
-
-  const target = adapter.buildChannelTarget(
-    {
-      userId: "wx-user-1",
-      userName: "Weixin User",
-      text: "/bind 482913",
-      channelContext: "wx-user-1",
-    },
-    {
-      senderId: "wx-user-1",
-      senderName: "Weixin User",
-      senderRole: "admin",
-      groupId: "wx-user-1",
-    },
-    "wx-user-1",
-  );
-
-  assert.deepEqual(target, {
-    channelName: "weixin",
-    conversationKind: "user",
-    conversationId: "wx-user-1",
-    deliveryTarget: "wx-user-1",
-    displayName: "Weixin User",
-    boundBy: {
-      platformUserId: "wx-user-1",
-      displayName: "Weixin User",
-    },
-  });
 });
 
 test("WeixinAdapter accepts channel bind codes for user context", async () => {

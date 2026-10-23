@@ -4,56 +4,34 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { listDirectory } from '../viewerIpc'
 
-const tempDirs: string[] = []
-
-function createTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'viewer-listdir-test-'))
-  tempDirs.push(dir)
-  return dir
-}
-
-afterEach(() => {
-  for (const dir of tempDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
 describe('listDirectory', () => {
   let root: string
 
   beforeEach(() => {
-    root = createTempDir()
+    root = mkdtempSync(join(tmpdir(), 'viewer-listdir-test-'))
     mkdirSync(join(root, '.git'))
-    mkdirSync(join(root, 'src'))
+    mkdirSync(join(root, 'src', 'inner'), { recursive: true })
     mkdirSync(join(root, 'Build'))
     writeFileSync(join(root, 'README.md'), '# hi')
     writeFileSync(join(root, 'app.ts'), 'x')
   })
 
-  it('lists immediate children, directories first then files, alpha-sorted', async () => {
-    const { entries } = await listDirectory(root, root)
-    expect(entries.map((e) => e.name)).toEqual(['Build', 'src', 'app.ts', 'README.md'])
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true })
   })
 
-  it('skips the .git directory', async () => {
+  it('lists immediate children without .git, directories first, with workspace-relative POSIX paths', async () => {
     const { entries } = await listDirectory(root, root)
-    expect(entries.some((e) => e.name === '.git')).toBe(false)
-  })
 
-  it('reports workspace-relative POSIX paths and directory flags', async () => {
-    const { entries } = await listDirectory(root, root)
-    const src = entries.find((e) => e.name === 'src')!
-    expect(src.isDir).toBe(true)
-    expect(src.relativePath).toBe('src')
-    const readme = entries.find((e) => e.name === 'README.md')!
-    expect(readme.isDir).toBe(false)
-    expect(readme.relativePath).toBe('README.md')
-  })
+    expect(entries.map((e) => [e.name, e.isDir, e.relativePath])).toEqual([
+      ['Build', true, 'Build'],
+      ['src', true, 'src'],
+      ['app.ts', false, 'app.ts'],
+      ['README.md', false, 'README.md']
+    ])
 
-  it('reports nested relative paths with forward slashes', async () => {
-    mkdirSync(join(root, 'src', 'inner'))
-    const { entries } = await listDirectory(join(root, 'src'), root)
-    expect(entries.find((e) => e.name === 'inner')?.relativePath).toBe('src/inner')
+    const nested = await listDirectory(join(root, 'src'), root)
+    expect(nested.entries.find((e) => e.name === 'inner')?.relativePath).toBe('src/inner')
   })
 
   it('throws when the target is not a directory', async () => {

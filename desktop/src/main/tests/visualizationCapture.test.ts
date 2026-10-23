@@ -12,22 +12,21 @@ import {
 describe('visualization image capture', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('normalizes the trusted renderer rectangle', () => {
+  it('rounds the trusted renderer rectangle and rejects unsafe or oversized ones', () => {
     expect(normalizeCaptureRect({ x: 1.4, y: 2.6, width: 735.6, height: 361.5 })).toEqual({
       x: 1,
       y: 3,
       width: 736,
       height: 362
     })
-  })
-
-  it.each([
-    { x: -1, y: 0, width: 100, height: 100 },
-    { x: 0, y: 0, width: 0, height: 100 },
-    { x: 0, y: 0, width: 4097, height: 100 },
-    { x: 0, y: 0, width: 4096, height: 10_000 }
-  ])('rejects unsafe or oversized rectangles: $width x $height', rect => {
-    expect(() => normalizeCaptureRect(rect)).toThrow()
+    for (const rect of [
+      { x: -1, y: 0, width: 100, height: 100 },
+      { x: 0, y: 0, width: 0, height: 100 },
+      { x: 0, y: 0, width: 4097, height: 100 },
+      { x: 0, y: 0, width: 4096, height: 10_000 }
+    ]) {
+      expect(() => normalizeCaptureRect(rect), JSON.stringify(rect)).toThrow()
+    }
   })
 
   it('captures, normalizes, and copies the image without returning pixels to the renderer', async () => {

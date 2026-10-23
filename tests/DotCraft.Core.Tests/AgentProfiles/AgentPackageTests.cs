@@ -68,47 +68,36 @@ public sealed class AgentPackageTests : IDisposable
     }
 
     [Fact]
-    public void Read_RefusesAnEntryOutsideTheZip()
+    public void Read_RefusesEscapingEntriesOtherFormatsAndMislabeledPackages()
     {
-        var path = Zip(new Dictionary<string, byte[]>
+        var invalid = new[]
         {
-            ["agent.json"] = Manifest(),
-            ["profile.md"] = Encoding.UTF8.GetBytes(Document),
-            ["../escape.txt"] = "outside"u8.ToArray()
-        });
-
-        var error = Assert.Throws<AgentPackageException>(() => AgentPackageReader.Read(path));
-        Assert.Equal(AgentPackageException.InvalidCode, error.Code);
-    }
-
-    [Fact]
-    public void Read_RefusesAnotherFormat()
-    {
-        var path = Zip(new Dictionary<string, byte[]>
-        {
-            ["agent.json"] = Manifest(format: "dotcraft-agent/2"),
-            ["profile.md"] = Encoding.UTF8.GetBytes(Document)
-        });
-
-        var error = Assert.Throws<AgentPackageException>(() => AgentPackageReader.Read(path));
-        Assert.Equal(AgentPackageException.InvalidCode, error.Code);
-    }
-
-    [Fact]
-    public void Read_RefusesAPackageThatIsNotWhatItClaims()
-    {
-        var path = Zip(new Dictionary<string, byte[]>
-        {
-            ["agent.json"] = Manifest(("skill", "release-notes")),
-            ["profile.md"] = Encoding.UTF8.GetBytes(Document),
-            ["packages/skill-release-notes.zip"] = PackageZip(new Dictionary<string, byte[]>
+            Zip(new Dictionary<string, byte[]>
             {
-                ["SKILL.md"] = Encoding.UTF8.GetBytes(Skill("something-else"))
+                ["agent.json"] = Manifest(),
+                ["profile.md"] = Encoding.UTF8.GetBytes(Document),
+                ["../escape.txt"] = "outside"u8.ToArray()
+            }),
+            Zip(new Dictionary<string, byte[]>
+            {
+                ["agent.json"] = Manifest(format: "dotcraft-agent/2"),
+                ["profile.md"] = Encoding.UTF8.GetBytes(Document)
+            }),
+            Zip(new Dictionary<string, byte[]>
+            {
+                ["agent.json"] = Manifest(("skill", "release-notes")),
+                ["profile.md"] = Encoding.UTF8.GetBytes(Document),
+                ["packages/skill-release-notes.zip"] = PackageZip(new Dictionary<string, byte[]>
+                {
+                    ["SKILL.md"] = Encoding.UTF8.GetBytes(Skill("something-else"))
+                })
             })
-        });
+        };
 
-        var error = Assert.Throws<AgentPackageException>(() => AgentPackageReader.Read(path));
-        Assert.Equal(AgentPackageException.InvalidCode, error.Code);
+        Assert.All(invalid, path =>
+            Assert.Equal(
+                AgentPackageException.InvalidCode,
+                Assert.Throws<AgentPackageException>(() => AgentPackageReader.Read(path)).Code));
     }
 
     [Fact]

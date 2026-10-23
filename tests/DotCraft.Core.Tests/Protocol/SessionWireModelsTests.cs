@@ -29,50 +29,23 @@ public sealed class SessionWireModelsTests
             wire.Path);
     }
 
-    [Fact]
-    public void ToWire_CompletedThread_IncludesStoppedRuntime()
+    [Theory]
+    [InlineData(TurnStatus.Completed, false, false, false)]
+    [InlineData(TurnStatus.Running, true, false, false)]
+    [InlineData(TurnStatus.WaitingApproval, true, true, false)]
+    [InlineData(TurnStatus.WaitingInput, true, false, true)]
+    public void ToWire_ProjectsLatestTurnStatusIntoRuntime(
+        TurnStatus status,
+        bool running,
+        bool waitingOnApproval,
+        bool waitingOnInput)
     {
-        var thread = BuildThread(TurnStatus.Completed);
+        var wire = BuildThread(status).ToWire();
 
-        var wire = thread.ToWire();
-
-        Assert.False(wire.Runtime.Running);
-        Assert.False(wire.Runtime.WaitingOnApproval);
+        Assert.Equal(running, wire.Runtime.Running);
+        Assert.Equal(waitingOnApproval, wire.Runtime.WaitingOnApproval);
+        Assert.Equal(waitingOnInput, wire.Runtime.WaitingOnInput);
         Assert.False(wire.Runtime.WaitingOnPlanConfirmation);
-    }
-
-    [Fact]
-    public void ToWire_RunningThread_IncludesRunningRuntime()
-    {
-        var thread = BuildThread(TurnStatus.Running);
-
-        var wire = thread.ToWire();
-
-        Assert.True(wire.Runtime.Running);
-        Assert.False(wire.Runtime.WaitingOnApproval);
-    }
-
-    [Fact]
-    public void ToWire_WaitingApprovalThread_IncludesApprovalRuntime()
-    {
-        var thread = BuildThread(TurnStatus.WaitingApproval);
-
-        var wire = thread.ToWire();
-
-        Assert.True(wire.Runtime.Running);
-        Assert.True(wire.Runtime.WaitingOnApproval);
-    }
-
-    [Fact]
-    public void ToWire_WaitingInputThread_IncludesUserInputRuntime()
-    {
-        var thread = BuildThread(TurnStatus.WaitingInput);
-
-        var wire = thread.ToWire();
-
-        Assert.True(wire.Runtime.Running);
-        Assert.False(wire.Runtime.WaitingOnApproval);
-        Assert.True(wire.Runtime.WaitingOnInput);
     }
 
     [Fact]

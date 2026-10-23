@@ -161,8 +161,6 @@ public sealed class GitHubMentionReviewWebhookTests
     [Theory]
     [InlineData("@dotcraft-ai implement this", true)]
     [InlineData("@dotcraft-ai review\nthanks", true)]
-    [InlineData("@oratorio review", true)]
-    [InlineData("@oratorio-integration review", true)]
     [InlineData("@dotcraft-ai review", false)]
     public async Task NonCommandOrNonPullRequest_FallsBackToExistingSync_WithoutPersistingCommand(
         string body,

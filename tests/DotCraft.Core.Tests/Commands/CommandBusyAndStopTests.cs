@@ -9,7 +9,7 @@ namespace DotCraft.Tests.Commands;
 public sealed class CommandBusyAndStopTests
 {
     [Fact]
-    public async Task Stop_CancelsTheActiveTurnAndLeavesTheBackgroundShellAndQueuedInput()
+    public async Task Stop_CancelsTheActiveTurnThatBlockedCompactAndLeavesTheBackgroundShellAndQueuedInput()
     {
         await using var harness = CommandSessionHarness.Create();
         var thread = await harness.CreateThreadAsync();
@@ -17,6 +17,7 @@ public sealed class CommandBusyAndStopTests
         var turn = await harness.StartBlockedTurnAsync(thread.Id);
         var queued = await harness.Service.EnqueueTurnInputAsync(thread.Id, [new TextContent("later")]);
 
+        Assert.Equal(FallbackText.CommandBusy, (await harness.ExecuteAsync(thread.Id, "/compact")).Message);
         var result = await harness.ExecuteAsync(thread.Id, "/stop");
 
         Assert.True(result.Handled);
@@ -52,49 +53,23 @@ public sealed class CommandBusyAndStopTests
     }
 
     [Fact]
-    public async Task TasksStop_StopsTheNumberedTaskFromTheList()
-    {
-        await using var harness = CommandSessionHarness.Create();
-        var thread = await harness.CreateThreadAsync();
-        var shell = await harness.StartBackgroundShellAsync(thread.Id);
-
-        var listed = await harness.ExecuteAsync(thread.Id, "/tasks");
-        var choice = Assert.Single(listed.Choices!);
-
-        var stopped = await harness.ExecuteAsync(thread.Id, choice.Command);
-
-        Assert.True(stopped.Handled);
-        Assert.Equal(BackgroundTerminalStatus.Killed, (await harness.Terminals.ReadAsync(shell.SessionId)).Status);
-        Assert.Null((await harness.ExecuteAsync(thread.Id, "/tasks")).Choices);
-    }
-
-    [Fact]
-    public async Task TasksStop_StopsTheListedTaskAfterANewerTaskStarts()
-    {
-        await using var harness = CommandSessionHarness.Create();
-        var thread = await harness.CreateThreadAsync();
-        var listedShell = await harness.StartBackgroundShellAsync(thread.Id);
-        var choice = Assert.Single((await harness.ExecuteAsync(thread.Id, "/tasks")).Choices!);
-        var newerShell = await harness.StartBackgroundShellAsync(thread.Id);
-
-        await harness.ExecuteAsync(thread.Id, choice.Command);
-
-        Assert.Equal(BackgroundTerminalStatus.Killed, (await harness.Terminals.ReadAsync(listedShell.SessionId)).Status);
-        Assert.Equal(BackgroundTerminalStatus.Running, (await harness.Terminals.ReadAsync(newerShell.SessionId)).Status);
-    }
-
-    [Fact]
-    public async Task TasksStop_NumbersFollowStartOrder()
+    public async Task TasksStop_NumbersFollowStartOrderAndListedChoicesKeepTheirTask()
     {
         await using var harness = CommandSessionHarness.Create();
         var thread = await harness.CreateThreadAsync();
         var older = await harness.StartBackgroundShellAsync(thread.Id);
+        var choice = Assert.Single((await harness.ExecuteAsync(thread.Id, "/tasks")).Choices!);
         var newer = await harness.StartBackgroundShellAsync(thread.Id);
 
-        await harness.ExecuteAsync(thread.Id, "/tasks stop 1");
+        Assert.True((await harness.ExecuteAsync(thread.Id, "/tasks stop 2")).Handled);
+
+        Assert.Equal(BackgroundTerminalStatus.Running, (await harness.Terminals.ReadAsync(older.SessionId)).Status);
+        Assert.Equal(BackgroundTerminalStatus.Killed, (await harness.Terminals.ReadAsync(newer.SessionId)).Status);
+
+        await harness.ExecuteAsync(thread.Id, choice.Command);
 
         Assert.Equal(BackgroundTerminalStatus.Killed, (await harness.Terminals.ReadAsync(older.SessionId)).Status);
-        Assert.Equal(BackgroundTerminalStatus.Running, (await harness.Terminals.ReadAsync(newer.SessionId)).Status);
+        Assert.Null((await harness.ExecuteAsync(thread.Id, "/tasks")).Choices);
     }
 
     [Fact]
@@ -112,20 +87,5 @@ public sealed class CommandBusyAndStopTests
             current.Turns.Single(item => item.Id == turn.Id).Status == TurnStatus.Cancelled);
         Assert.Equal(ThreadStatus.Archived, old.Status);
         Assert.Equal(ThreadStatus.Active, (await harness.Service.GetThreadAsync(result.ThreadId!)).Status);
-    }
-
-    [Fact]
-    public async Task Compact_IsRejectedWhileATurnIsActive()
-    {
-        await using var harness = CommandSessionHarness.Create();
-        var thread = await harness.CreateThreadAsync();
-        var turn = await harness.StartBlockedTurnAsync(thread.Id);
-
-        var result = await harness.ExecuteAsync(thread.Id, "/compact");
-
-        Assert.Equal(FallbackText.CommandBusy, result.Message);
-        var current = await harness.Service.GetThreadAsync(thread.Id);
-        Assert.Equal(TurnStatus.Running, current.Turns.Single(item => item.Id == turn.Id).Status);
-        await harness.ExecuteAsync(thread.Id, "/stop");
     }
 }

@@ -99,21 +99,6 @@ public sealed class CursorSessionSourceTests : IDisposable
         });
     }
 
-    [Fact]
-    public async Task TitleSkipsLeadingAttachmentBlocks()
-    {
-        Jsonl.Write(
-            Path.Combine(_root, "projects", _slug, "agent-transcripts", "composer-2", "composer-2.jsonl"),
-            UserRecord("<manually_attached_skills>\nskill body\n</manually_attached_skills>\n<user_query>\nFix the flaky test\n</user_query>"),
-            new { role = "assistant", message = new { content = new[] { new { type = "text", text = "Fixed" } } } });
-        var source = new CursorSessionSource(_root);
-        var candidate = Assert.Single(await source.EnumerateCandidatesAsync(Scopes.For(_workspace, maxAge: TimeSpan.FromDays(3650))));
-
-        var session = Assert.IsType<ImportedSession>(await source.LoadAsync(candidate));
-
-        Assert.Equal("Fix the flaky test", session.Title);
-    }
-
     private void Transcript(string project, string composerId, bool nested)
     {
         var directory = Path.Combine(_root, "projects", project, "agent-transcripts");

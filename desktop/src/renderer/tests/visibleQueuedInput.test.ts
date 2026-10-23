@@ -15,11 +15,8 @@ describe('queued input visibility', () => {
     queued('c')
   ]
 
-  it('leaves background terminal and subagent notices out of the dock', () => {
+  it('leaves background notices out of the dock and keeps their positions when visible ones are reordered', () => {
     expect(queue.filter(isVisibleQueuedInput).map((item) => item.id)).toEqual(['a', 'b', 'c'])
-  })
-
-  it('keeps hidden inputs in their positions when the visible ones are reordered', () => {
     expect(mergeVisibleQueueOrder(queue, ['c', 'a', 'b'])).toEqual(['c', 'notice', 'a', 'subagent', 'b'])
   })
 })

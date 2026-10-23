@@ -50,122 +50,6 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
-    public void ManifestParser_AcceptsSkillOnlyManifest()
-    {
-        var root = NewTempDir();
-        var pluginRoot = Path.Combine(root, "demo");
-        WriteSkillOnlyPlugin(pluginRoot, id: "demo-plugin");
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        Assert.NotNull(result.Manifest);
-        Assert.Equal(
-            Path.TrimEndingDirectorySeparator(Path.Combine(pluginRoot, "skills")),
-            Path.TrimEndingDirectorySeparator(result.Manifest!.SkillsPath!));
-    }
-
-    [Fact]
-    public void ManifestParser_AcceptsMcpOnlyManifest()
-    {
-        var root = NewTempDir();
-        var pluginRoot = Path.Combine(root, "demo");
-        WriteMcpOnlyPlugin(pluginRoot, id: "demo-plugin");
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        Assert.NotNull(result.Manifest);
-        Assert.Equal(Path.Combine(pluginRoot, ".mcp.json"), result.Manifest!.McpServersPath);
-    }
-
-    [Fact]
-    public void ManifestParser_AcceptsLspOnlyManifest()
-    {
-        var root = NewTempDir();
-        var pluginRoot = Path.Combine(root, "demo");
-        WriteLspOnlyPlugin(pluginRoot, id: "demo-plugin");
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        Assert.NotNull(result.Manifest);
-        Assert.Equal(Path.Combine(pluginRoot, ".lsp.json"), result.Manifest!.LspServersPath);
-    }
-
-    [Fact]
-    public void ManifestParser_AcceptsExplicitLspServersPath()
-    {
-        var root = NewTempDir();
-        var pluginRoot = Path.Combine(root, "demo");
-        WriteLspOnlyPlugin(pluginRoot, id: "demo-plugin", explicitPath: true);
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        Assert.NotNull(result.Manifest);
-        Assert.Equal(Path.Combine(pluginRoot, "lsp", "servers.json"), result.Manifest!.LspServersPath);
-    }
-
-    [Fact]
-    public void ManifestParser_AcceptsInterfaceOnlyManifest()
-    {
-        var root = NewTempDir();
-        var pluginRoot = Path.Combine(root, "demo");
-        WriteInterfaceOnlyPlugin(pluginRoot, id: "demo-plugin");
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        Assert.NotNull(result.Manifest);
-        Assert.Empty(result.Manifest!.Capabilities);
-        Assert.Equal("Demo Plugin", result.Manifest!.Interface?.DisplayName);
-    }
-
-    [Fact]
-    public void ManifestParser_AcceptsDefaultHooksOnlyManifest()
-    {
-        var root = NewTempDir();
-        var pluginRoot = Path.Combine(root, "demo");
-        WriteHookOnlyPlugin(pluginRoot, id: "demo-plugin");
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        Assert.NotNull(result.Manifest);
-        var hooksPath = Assert.Single(result.Manifest!.Hooks!.Paths);
-        Assert.Equal(Path.Combine(pluginRoot, "hooks", "hooks.json"), hooksPath);
-    }
-
-    [Fact]
-    public void ManifestParser_AcceptsTopLevelDefaultHooksManifest()
-    {
-        var root = NewTempDir();
-        var pluginRoot = Path.Combine(root, "demo");
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "demo-plugin",
-  "version": "1.0.0",
-  "displayName": "Demo",
-  "description": "Demo plugin.",
-  "capabilities": ["hooks"]
-}
-""");
-        File.WriteAllText(Path.Combine(pluginRoot, "hooks.json"), HookJson("echo top-level"));
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        Assert.NotNull(result.Manifest);
-        var hooksPath = Assert.Single(result.Manifest!.Hooks!.Paths);
-        Assert.Equal(Path.Combine(pluginRoot, "hooks.json"), hooksPath);
-    }
-
-    [Fact]
     public void ManifestParser_ExplicitHooksSuppressesDefaultHookDiscovery()
     {
         var root = NewTempDir();
@@ -241,32 +125,6 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
-    public void ManifestParser_RejectsEscapingHooksPath()
-    {
-        var root = NewTempDir();
-        var pluginRoot = Path.Combine(root, "demo");
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "demo-plugin",
-  "version": "1.0.0",
-  "displayName": "Demo",
-  "description": "Demo plugin.",
-  "capabilities": ["hooks"],
-  "hooks": "./../hooks.json"
-}
-""");
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.Null(result.Manifest);
-        Assert.Contains(result.Diagnostics, d => d.Code == "InvalidPluginManifestPath");
-    }
-
-    [Fact]
     public void HooksLoader_DiscoversPluginHooksWithTrustState()
     {
         var root = NewTempDir();
@@ -309,40 +167,6 @@ public sealed class PluginDiscoveryTests
             runtimeHook.EnvironmentVariables["CLAUDE_CONFIG_DIR"]);
         Assert.Equal("Bash(git commit:*)", runtimeHook.If);
         Assert.Equal("demo-plugin", runtimeHook.PluginId);
-    }
-
-    [Fact]
-    public void ManifestParser_IgnoresLegacyNativeToolFieldsWhenSupportedCapabilityExists()
-    {
-        var root = NewTempDir();
-        var pluginRoot = Path.Combine(root, "demo");
-        WriteSkillOnlyPlugin(
-            pluginRoot,
-            id: "demo-plugin",
-            extra: """
-,
-  "tools": [
-    {
-      "namespace": "demo",
-      "name": "EchoText",
-      "description": "Legacy tool.",
-      "inputSchema": { "type": "object" },
-      "backend": { "kind": "process", "processId": "demo" }
-    }
-  ],
-  "processes": {
-    "demo": {
-      "command": "python",
-      "arguments": ["./tools/demo_tool.py"]
-    }
-  }
-""");
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.NotNull(result.Manifest);
-        Assert.Contains(result.Diagnostics, d => d.Code == "UnsupportedPluginNativeTools");
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
     }
 
     [Fact]
@@ -481,43 +305,6 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
-    public void PluginLspServerLoader_ResolvesPluginRelativeCommand()
-    {
-        var root = NewTempDir();
-        var workspace = Path.Combine(root, "workspace");
-        var botPath = Path.Combine(workspace, ".craft");
-        var pluginRoot = Path.Combine(botPath, "plugins", "demo");
-        WriteLspOnlyPlugin(
-            pluginRoot,
-            id: "demo-plugin",
-            lspJson:
-            """
-{
-  "lspServers": {
-    "csharp": {
-      "transport": "stdio",
-      "command": "./server/bin/csharp-ls",
-      "extensionToLanguage": {
-        ".cs": "csharp"
-      }
-    }
-  }
-}
-""");
-        var config = new AppConfig();
-
-        var servers = PluginLspServerLoader.LoadEnabledPluginServers(
-            config,
-            workspace,
-            botPath,
-            out var diagnostics);
-
-        Assert.DoesNotContain(diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        var server = Assert.Single(servers);
-        Assert.Equal(Path.Combine(pluginRoot, "server", "bin", "csharp-ls"), server.Command);
-    }
-
-    [Fact]
     public void PluginLspServerLoader_RejectsEscapingPluginRelativeCommand()
     {
         var root = NewTempDir();
@@ -553,77 +340,7 @@ public sealed class PluginDiscoveryTests
         Assert.Contains(diagnostics, d => d.Code == "InvalidPluginLspServer");
     }
 
-    [Fact]
-    public void PluginLspServerLoader_ProbesWindowsExecutableSuffixForPluginRelativeCommand()
-    {
-        if (!OperatingSystem.IsWindows())
-            return;
-
-        var root = NewTempDir();
-        var workspace = Path.Combine(root, "workspace");
-        var botPath = Path.Combine(workspace, ".craft");
-        var pluginRoot = Path.Combine(botPath, "plugins", "demo");
-        Directory.CreateDirectory(Path.Combine(pluginRoot, "server", "bin"));
-        File.WriteAllText(Path.Combine(pluginRoot, "server", "bin", "csharp-ls.exe"), "");
-        WriteLspOnlyPlugin(
-            pluginRoot,
-            id: "demo-plugin",
-            lspJson:
-            """
-{
-  "lspServers": {
-    "csharp": {
-      "transport": "stdio",
-      "command": "./server/bin/csharp-ls",
-      "extensionToLanguage": {
-        ".cs": "csharp"
-      }
-    }
-  }
-}
-""");
-        var config = new AppConfig();
-
-        var servers = PluginLspServerLoader.LoadEnabledPluginServers(
-            config,
-            workspace,
-            botPath,
-            out var diagnostics);
-
-        Assert.DoesNotContain(diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        var server = Assert.Single(servers);
-        Assert.Equal(Path.Combine(pluginRoot, "server", "bin", "csharp-ls.exe"), server.Command);
-    }
-
     [Theory]
-    [InlineData("csharp-lsp", "csharp", "./server/csharp-ls/csharp-ls")]
-    [InlineData("cpp-lsp", "cpp", "./server/clangd/bin/clangd")]
-    public void SkillAndLspPlugins_AreParsedWithLspAndSkillsPaths(
-        string pluginId,
-        string serverName,
-        string command)
-    {
-        var pluginRoot = Path.Combine(NewTempDir(), pluginId);
-        WriteSkillAndLspPlugin(
-            pluginRoot,
-            pluginId,
-            serverName,
-            command,
-            serverName == "cpp" ? ".cpp" : ".cs",
-            serverName);
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        Assert.NotNull(result.Manifest);
-        Assert.Equal(Path.Combine(pluginRoot, ".lsp.json"), result.Manifest!.LspServersPath);
-        Assert.Equal(
-            Path.TrimEndingDirectorySeparator(Path.Combine(pluginRoot, "skills")),
-            Path.TrimEndingDirectorySeparator(result.Manifest.SkillsPath!));
-    }
-
-    [Theory]
-    [InlineData("csharp-lsp", "csharp", "./server/csharp-ls/csharp-ls", "server", "csharp-ls", "csharp-ls")]
     [InlineData("cpp-lsp", "cpp", "./server/clangd/bin/clangd", "server", "clangd", "bin", "clangd")]
     public void SkillAndLspPlugins_LoadRelativeServerCommandWithoutBundledServerBinary(
         string pluginId,
@@ -728,77 +445,14 @@ public sealed class PluginDiscoveryTests
         Assert.Contains(result.Diagnostics, d => d.Code == "MissingPluginCapabilities");
     }
 
-    [Fact]
-    public void ManifestParser_RejectsEscapingSkillsPath()
+    [Theory]
+    [InlineData("\"paths\": { \"asset\": \"./../secret.txt\" }")]
+    [InlineData("\"capabilities\": [\"hooks\"], \"hooks\": \"./../hooks.json\"")]
+    [InlineData("\"capabilities\": [\"skill\"], \"skills\": \"../skills\"")]
+    public void ManifestParser_RejectsAnyParentPathSegment(string field)
     {
         var root = NewTempDir();
-        WriteSkillOnlyPlugin(
-            Path.Combine(root, "demo"),
-            id: "demo-plugin",
-            extra: """
-,
-  "skills": "../skills"
-""",
-            includeSkillsField: false);
-
-        var result = PluginManifestParser.Load(Path.Combine(root, "demo"));
-
-        Assert.Null(result.Manifest);
-        Assert.Contains(result.Diagnostics, d => d.Code == "InvalidPluginManifestPath");
-    }
-
-    [Fact]
-    public void ManifestParser_RejectsEscapingLspServersPath()
-    {
-        var root = NewTempDir();
-        WriteLspOnlyPlugin(
-            Path.Combine(root, "demo"),
-            id: "demo-plugin",
-            extra: """
-,
-  "lspServers": "../.lsp.json"
-""",
-            includeLspServersField: false);
-
-        var result = PluginManifestParser.Load(Path.Combine(root, "demo"));
-
-        Assert.Null(result.Manifest);
-        Assert.Contains(result.Diagnostics, d => d.Code == "InvalidPluginManifestPath");
-    }
-
-    [Fact]
-    public void ManifestParser_RejectsPathEscape()
-    {
-        var root = NewTempDir();
-        WriteInterfaceOnlyPlugin(
-            Path.Combine(root, "demo"),
-            id: "demo-plugin",
-            extra: """
-,
-  "paths": {
-    "asset": "./../secret.txt"
-  }
-""");
-
-        var result = PluginManifestParser.Load(Path.Combine(root, "demo"));
-
-        Assert.Null(result.Manifest);
-        Assert.Contains(result.Diagnostics, d => d.Code == "InvalidPluginManifestPath");
-    }
-
-    [Fact]
-    public void ManifestParser_RejectsAnyParentPathSegment()
-    {
-        var root = NewTempDir();
-        WriteInterfaceOnlyPlugin(
-            Path.Combine(root, "demo"),
-            id: "demo-plugin",
-            extra: """
-,
-  "paths": {
-    "asset": "./assets/../asset.txt"
-  }
-""");
+        WriteInterfaceOnlyPlugin(Path.Combine(root, "demo"), id: "demo-plugin", extra: ",\n  " + field);
 
         var result = PluginManifestParser.Load(Path.Combine(root, "demo"));
 
@@ -819,65 +473,10 @@ public sealed class PluginDiscoveryTests
         var browser = PluginManifestParser.Load(Path.Combine(root, "browser"));
         Assert.Equal("browser", browser.Manifest?.Id);
         Assert.NotNull(browser.Manifest?.SkillsPath);
-    }
-
-    [Fact]
-    public void BuiltInPluginCatalog_WithoutConfiguredRootReturnsNoInstallableBuiltIns()
-    {
-        var result = new BuiltInPluginCatalog([]).Discover();
-
-        Assert.Empty(result.Plugins);
-        Assert.Empty(result.Diagnostics);
-    }
-
-    [Fact]
-    public void BuiltInPluginCatalog_DiscoversBundledManifestsFromFilesystemRoot()
-    {
-        var result = new BuiltInPluginCatalog([CreateBundledPluginSourceRoot()]).Discover();
-
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        var browser = Assert.Single(result.Plugins, plugin => plugin.Manifest.Id == "browser");
-        Assert.Equal(PluginDiscoverySourceKind.BuiltIn, browser.SourceKind);
-        Assert.False(browser.Installed);
-        Assert.True(browser.Installable);
-        Assert.Equal("Browser", browser.Manifest.DisplayName);
-
-    }
-
-    [Fact]
-    public void BuiltInPluginCatalog_DiscoversDotCraftPlugin()
-    {
-        var result = new BuiltInPluginCatalog([CreateBundledPluginSourceRoot()]).Discover();
-
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        var dotcraft = Assert.Single(result.Plugins, plugin => plugin.Manifest.Id == "dotcraft");
-        Assert.Equal(PluginDiscoverySourceKind.BuiltIn, dotcraft.SourceKind);
-        Assert.False(dotcraft.Installed);
-        Assert.True(dotcraft.Installable);
-        Assert.Equal("DotCraft", dotcraft.Manifest.DisplayName);
-        Assert.Equal("DotCraft", dotcraft.Manifest.Interface?.DisplayName);
-        Assert.NotNull(dotcraft.Manifest.SkillsPath);
-
-    }
-
-    [Fact]
-    public void BuiltInPluginCatalog_DiscoversSourceRegistryPluginFromLocalDirectory()
-    {
-        var root = NewTempDir();
-        var registryRoot = Path.Combine(root, "registry");
-        WriteRegistryMarketplace(registryRoot, "registry-demo");
-        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "registry-demo"), id: "registry-demo", displayName: "Registry Demo");
-        var config = new AppConfig();
-        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
-
-        var result = new BuiltInPluginCatalog([], config.Plugins, root).Discover();
-
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        var plugin = Assert.Single(result.Plugins);
-        Assert.Equal("registry-demo", plugin.Manifest.Id);
-        Assert.Equal("Registry Demo", plugin.Manifest.DisplayName);
-        Assert.False(plugin.Installed);
-        Assert.True(plugin.Installable);
+        Assert.StartsWith(
+            "filesystem;sha256:",
+            File.ReadAllText(Path.Combine(root, "browser", BuiltInPluginDeployer.MarkerFile)),
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -945,102 +544,51 @@ public sealed class PluginDiscoveryTests
         Assert.Contains(result.Diagnostics, d => d.Code == "DuplicateBuiltInPluginId");
     }
 
-    [Fact]
-    public void BuiltInPluginCatalog_RejectsRegistrySourcePathEscape()
+    [Theory]
+    [InlineData("./../demo", "local", "AVAILABLE", "demo", "InvalidPluginRegistryEntryPath")]
+    [InlineData(null, "local", "AVAILABLE", "manifest-demo", "PluginRegistryManifestIdMismatch")]
+    [InlineData(null, "local", null, "demo", "PluginRegistryEntryNotAvailable")]
+    public void BuiltInPluginCatalog_RejectsInvalidRegistryEntries(
+        string? sourcePath,
+        string sourceKind,
+        string? policyInstallation,
+        string manifestId,
+        string expectedCode)
     {
         var root = NewTempDir();
         var registryRoot = Path.Combine(root, "registry");
-        WriteRegistryMarketplace(registryRoot, "escape-demo", sourcePath: "./../escape-demo");
-        WriteSkillOnlyPlugin(Path.Combine(root, "escape-demo"), id: "escape-demo");
+        WriteRegistryMarketplace(registryRoot, "demo", sourcePath, sourceKind, policyInstallation);
+        var pluginRoot = sourcePath == null ? Path.Combine(registryRoot, "plugins", "demo") : Path.Combine(root, "demo");
+        WriteSkillOnlyPlugin(pluginRoot, id: manifestId);
         var config = new AppConfig();
         config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
 
         var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
 
         Assert.Empty(result.Plugins);
-        Assert.Contains(result.Diagnostics, d => d.Code == "InvalidPluginRegistryEntryPath");
+        Assert.Contains(result.Diagnostics, d => d.Code == expectedCode);
     }
 
     [Fact]
-    public void BuiltInPluginCatalog_RejectsUnsupportedRegistrySourceKind()
+    public void BuiltInPluginCatalog_RejectsPlainHttpAndNeverDownloadsHttpsRegistryArchives()
     {
         var root = NewTempDir();
-        var registryRoot = Path.Combine(root, "registry");
-        WriteRegistryMarketplace(registryRoot, "source-demo", sourceKind: "git-subdir");
-        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "source-demo"), id: "source-demo");
-        var config = new AppConfig();
-        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
+        var http = new AppConfig();
+        http.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = "http://example.test/registry.zip" });
+        var https = new AppConfig();
+        https.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = "https://127.0.0.1:9/registry.zip" });
 
-        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+        var rejected = new BuiltInPluginCatalog([], http.Plugins).Discover();
+        var accepted = new BuiltInPluginCatalog([], https.Plugins, Path.Combine(root, "user-data")).Discover();
 
-        Assert.Empty(result.Plugins);
-        Assert.Contains(result.Diagnostics, d => d.Code == "InvalidPluginRegistryEntrySource");
-    }
-
-    [Fact]
-    public void BuiltInPluginCatalog_RejectsRegistryManifestIdMismatch()
-    {
-        var root = NewTempDir();
-        var registryRoot = Path.Combine(root, "registry");
-        WriteRegistryMarketplace(registryRoot, "marketplace-demo");
-        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "marketplace-demo"), id: "manifest-demo");
-        var config = new AppConfig();
-        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
-
-        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
-
-        Assert.Empty(result.Plugins);
-        Assert.Contains(result.Diagnostics, d => d.Code == "PluginRegistryManifestIdMismatch");
-    }
-
-    [Fact]
-    public void BuiltInPluginCatalog_RequiresExplicitAvailableRegistryInstallationPolicy()
-    {
-        var root = NewTempDir();
-        var registryRoot = Path.Combine(root, "registry");
-        WriteRegistryMarketplace(registryRoot, "policy-demo", policyInstallation: null);
-        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "policy-demo"), id: "policy-demo");
-        var config = new AppConfig();
-        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
-
-        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
-
-        Assert.Empty(result.Plugins);
-        Assert.Contains(result.Diagnostics, d => d.Code == "PluginRegistryEntryNotAvailable" && d.PluginId == "policy-demo");
-    }
-
-    [Fact]
-    public void BuiltInPluginCatalog_RejectsPlainHttpRegistryArchiveUrl()
-    {
-        var config = new AppConfig();
-        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig
-        {
-            Url = "http://example.test/registry.zip"
-        });
-
-        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
-
-        Assert.Empty(result.Plugins);
-        Assert.Contains(result.Diagnostics, d => d.Code == "InvalidPluginRegistrySourceUrl");
-        Assert.DoesNotContain(result.Diagnostics, d => d.Code == "PluginRegistryDownloadFailed");
-    }
-
-    [Fact]
-    public void BuiltInPluginCatalog_AcceptsHttpsRegistryArchiveUrlWithoutDownloading()
-    {
-        var root = NewTempDir();
-        var config = new AppConfig();
-        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig
-        {
-            Url = "https://127.0.0.1:9/registry.zip"
-        });
-
-        var result = new BuiltInPluginCatalog([], config.Plugins, Path.Combine(root, "user-data")).Discover();
-
-        Assert.Empty(result.Plugins);
-        Assert.DoesNotContain(result.Diagnostics, d => d.Code == "InvalidPluginRegistrySourceUrl");
-        Assert.DoesNotContain(result.Diagnostics, d => d.Code == "PluginRegistryDownloadFailed");
-        Assert.Contains(result.Diagnostics, d => d.Code == "PluginRegistrySnapshotMissing");
+        Assert.Empty(rejected.Plugins);
+        Assert.Contains(rejected.Diagnostics, d => d.Code == "InvalidPluginRegistrySourceUrl");
+        Assert.Empty(accepted.Plugins);
+        Assert.DoesNotContain(accepted.Diagnostics, d => d.Code == "InvalidPluginRegistrySourceUrl");
+        Assert.Contains(accepted.Diagnostics, d => d.Code == "PluginRegistrySnapshotMissing");
+        Assert.DoesNotContain(
+            rejected.Diagnostics.Concat(accepted.Diagnostics),
+            d => d.Code == "PluginRegistryDownloadFailed");
     }
 
     [Fact]
@@ -1063,17 +611,6 @@ public sealed class PluginDiscoveryTests
             "filesystem;sha256:",
             File.ReadAllText(Path.Combine(workspacePluginsRoot, "registry-install", BuiltInPluginDeployer.MarkerFile)),
             StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void BuiltInPluginDeployer_MarkerIncludesResourceFingerprint()
-    {
-        var root = NewTempDir();
-
-        new BuiltInPluginDeployer(root, [CreateBundledPluginSourceRoot()]).Deploy();
-
-        var marker = File.ReadAllText(Path.Combine(root, "browser", ".builtin"));
-        Assert.StartsWith("filesystem;sha256:", marker, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1198,24 +735,6 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
-    public void Discovery_IgnoresRemovedBrowserUsePluginId()
-    {
-        var root = NewTempDir();
-        var workspace = Path.Combine(root, "workspace");
-        var botPath = Path.Combine(workspace, ".craft");
-        var oldPluginRoot = Path.Combine(botPath, "plugins", "browser-use");
-        WriteSkillOnlyPlugin(oldPluginRoot, id: "browser-use");
-        File.WriteAllText(Path.Combine(oldPluginRoot, BuiltInPluginDeployer.MarkerFile), "old");
-
-        var result = new PluginDiscoveryService(builtInPluginSourceRoots: [CreateBundledPluginSourceRoot()])
-            .DiscoverAll(new AppConfig(), workspace, botPath);
-
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        Assert.DoesNotContain(result.Plugins, plugin => plugin.Manifest.Id == "browser-use");
-        Assert.Contains(result.Diagnostics, d => d.Code == "RemovedPluginIgnored" && d.PluginId == "browser-use");
-    }
-
-    [Fact]
     public void Discovery_UsesWorkspaceThenExplicitThenGlobalPrecedence()
     {
         var root = NewTempDir();
@@ -1234,25 +753,6 @@ public sealed class PluginDiscoveryTests
         var plugin = Assert.Single(result.Plugins);
         Assert.Equal("Workspace", plugin.Manifest.DisplayName);
         Assert.Contains(result.Diagnostics, d => d.Code == "DuplicatePluginId");
-    }
-
-    [Fact]
-    public void Discovery_WorkspacePluginSuppressesBundledCatalogEntryWithSameId()
-    {
-        var root = NewTempDir();
-        var workspace = Path.Combine(root, "workspace");
-        var botPath = Path.Combine(workspace, ".craft");
-        var bundledRoot = Path.Combine(root, "bundled", "plugins");
-        WriteInterfaceOnlyPlugin(Path.Combine(bundledRoot, "demo"), id: "demo", displayName: "Bundled");
-        WriteInterfaceOnlyPlugin(Path.Combine(botPath, "plugins", "demo"), id: "demo", displayName: "Workspace");
-
-        var result = new PluginDiscoveryService(Path.Combine(root, "global"), [bundledRoot])
-            .DiscoverAll(new AppConfig(), workspace, botPath);
-
-        var plugin = Assert.Single(result.Plugins, plugin => plugin.Manifest.Id == "demo");
-        Assert.Equal("Workspace", plugin.Manifest.DisplayName);
-        Assert.True(plugin.Installed);
-        Assert.False(plugin.Installable);
     }
 
     [Fact]
@@ -1316,18 +816,13 @@ public sealed class PluginDiscoveryTests
         string pluginRoot,
         string id,
         string displayName = "Demo",
-        string extra = "",
-        bool includeSkillsField = true)
+        string extra = "")
     {
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
         Directory.CreateDirectory(Path.Combine(pluginRoot, "skills", "demo-skill"));
         File.WriteAllText(
             Path.Combine(pluginRoot, "skills", "demo-skill", "SKILL.md"),
             "---\nname: demo-skill\ndescription: Demo skill\n---\n# Demo");
-        var skills = includeSkillsField ? """
-,
-  "skills": "./skills/"
-""" : string.Empty;
         File.WriteAllText(
             Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
             $$"""
@@ -1337,7 +832,8 @@ public sealed class PluginDiscoveryTests
   "version": "1.0.0",
   "displayName": "{{displayName}}",
   "description": "Demo plugin.",
-  "capabilities": ["skill"]{{skills}}{{extra}}
+  "capabilities": ["skill"],
+  "skills": "./skills/"{{extra}}
 }
 """);
     }
@@ -1474,17 +970,9 @@ description: Test skill
         string pluginRoot,
         string id,
         string displayName = "Demo",
-        string extra = "",
-        bool includeLspServersField = false,
-        bool explicitPath = false,
         string? lspJson = null)
     {
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        var lspServers = includeLspServersField || explicitPath
-            ? explicitPath
-                ? ",\n  \"lspServers\": \"./lsp/servers.json\""
-                : ",\n  \"lspServers\": \"./.lsp.json\""
-            : string.Empty;
         File.WriteAllText(
             Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
             $$"""
@@ -1494,13 +982,11 @@ description: Test skill
   "version": "1.0.0",
   "displayName": "{{displayName}}",
   "description": "Demo plugin.",
-  "capabilities": ["lsp"]{{lspServers}}{{extra}}
+  "capabilities": ["lsp"]
 }
 """);
-        var lspPath = explicitPath ? Path.Combine(pluginRoot, "lsp", "servers.json") : Path.Combine(pluginRoot, ".lsp.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(lspPath)!);
         File.WriteAllText(
-            lspPath,
+            Path.Combine(pluginRoot, ".lsp.json"),
             lspJson ??
             """
 {

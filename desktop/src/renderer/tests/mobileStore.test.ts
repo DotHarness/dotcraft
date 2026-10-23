@@ -66,17 +66,14 @@ beforeEach(() => {
 })
 
 describe('mobileStore loading', () => {
-  it('splits the Hub state into the gateway and the phone list', async () => {
+  it('splits the Hub state into the gateway and the phone list and keeps it when a later read fails', async () => {
     await useMobileStore.getState().load()
     const store = useMobileStore.getState()
 
     expect(store.loaded).toBe(true)
     expect(store.gateway).toEqual({ state: 'on', port: 47610, relay: null })
     expect(store.devices).toEqual([IPHONE, PIXEL])
-  })
 
-  it('records a failed read without dropping what it already shows', async () => {
-    await useMobileStore.getState().load()
     status.mockResolvedValue({ supported: true, status: null, error: 'hub down' })
     await useMobileStore.getState().load()
 
@@ -109,7 +106,7 @@ describe('mobileStore gateway switch', () => {
     expect(useMobileStore.getState()).toMatchObject({ pendingEnabled: null, gateway: { state: 'on' } })
   })
 
-  it('shows a failed start with its reason and keeps the phone list', async () => {
+  it('shows a failed start with its reason, keeps the phone list, and leaves the gateway as it was when turning off fails', async () => {
     useMobileStore.setState({ gateway: { state: 'off', port: 47610, relay: null }, devices: [PIXEL] })
     enable.mockResolvedValue({ ok: false, failure: { code: 'portUnavailable', message: 'Port 47610 is in use.' } })
 
@@ -124,9 +121,7 @@ describe('mobileStore gateway switch', () => {
       failureMessage: 'Port 47610 is in use.'
     })
     expect(useMobileStore.getState().devices).toEqual([PIXEL])
-  })
 
-  it('leaves the gateway as it was when turning off fails', async () => {
     useMobileStore.setState({ gateway: { state: 'on', port: 47610, relay: null } })
     disable.mockResolvedValue({ ok: false, failure: { code: 'hubInternalError', message: 'no' } })
 
@@ -140,19 +135,16 @@ describe('mobileStore remove', () => {
     useMobileStore.setState({ gateway: { state: 'off', port: 47610, relay: null }, devices: [IPHONE, PIXEL] })
   })
 
-  it('drops the phone once Hub revokes it, even with access off', async () => {
-    revoke.mockResolvedValue({ ok: true, value: undefined })
+  it('drops the phone once Hub revokes it or no longer knows it, even with access off', async () => {
+    revoke.mockResolvedValueOnce({ ok: true, value: undefined })
 
     expect(await useMobileStore.getState().revoke('dev_2')).toBeNull()
     expect(revoke).toHaveBeenCalledWith('dev_2')
     expect(useMobileStore.getState().devices).toEqual([IPHONE])
-  })
 
-  it('treats a phone Hub no longer knows as removed', async () => {
-    revoke.mockResolvedValue({ ok: false, failure: { code: 'deviceNotFound', message: 'gone' } })
-
-    expect(await useMobileStore.getState().revoke('dev_2')).toBeNull()
-    expect(useMobileStore.getState().devices).toEqual([IPHONE])
+    revoke.mockResolvedValueOnce({ ok: false, failure: { code: 'deviceNotFound', message: 'gone' } })
+    expect(await useMobileStore.getState().revoke('dev_1')).toBeNull()
+    expect(useMobileStore.getState().devices).toEqual([])
   })
 
   it('keeps the phone when the revoke fails', async () => {
@@ -164,18 +156,16 @@ describe('mobileStore remove', () => {
 })
 
 describe('mobileStore pairing', () => {
-  it('shows the minted code', async () => {
-    createPairing.mockResolvedValue({ ok: true, value: PAIRING })
+  it('shows the minted code, or keeps the failure so the dialog can offer a retry', async () => {
+    createPairing.mockResolvedValueOnce({ ok: true, value: PAIRING })
 
     const minting = useMobileStore.getState().startPairing()
     expect(useMobileStore.getState().pairing).toEqual({ step: 'creating' })
     await minting
 
     expect(useMobileStore.getState().pairing).toEqual({ step: 'code', pairing: PAIRING })
-  })
 
-  it('keeps the failure so the dialog can offer a retry', async () => {
-    createPairing.mockResolvedValue({ ok: false, failure: { code: 'gatewayOff', message: 'off' } })
+    createPairing.mockResolvedValueOnce({ ok: false, failure: { code: 'gatewayOff', message: 'off' } })
     await useMobileStore.getState().startPairing()
 
     expect(useMobileStore.getState().pairing).toEqual({ step: 'error', failure: { code: 'gatewayOff', message: 'off' } })
@@ -227,7 +217,7 @@ describe('mobileStore events', () => {
     expect(useMobileStore.getState().devices).toEqual([PIXEL])
   })
 
-  it('updates presence from deviceSeen', () => {
+  it('updates presence from deviceSeen and removes a phone revoked elsewhere', () => {
     apply({ kind: 'deviceSeen', deviceId: 'dev_1', lastSeenAt: '2026-10-03T09:00:00Z', connected: false })
 
     expect(useMobileStore.getState().devices[0]).toMatchObject({
@@ -235,9 +225,7 @@ describe('mobileStore events', () => {
       connected: false,
       lastSeenAt: '2026-10-03T09:00:00Z'
     })
-  })
 
-  it('removes a phone revoked elsewhere', () => {
     apply({ kind: 'deviceRevoked', deviceId: 'dev_1' })
     expect(useMobileStore.getState().devices).toEqual([PIXEL])
   })

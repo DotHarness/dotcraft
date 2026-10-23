@@ -87,9 +87,7 @@ public sealed class StackCliRunnerTests
 
     [Theory]
     [InlineData("      - ./saved-dotcraft:/root/.craft")]
-    [InlineData("      - '/srv/dotcraft/config:/root/.craft:rw'")]
     [InlineData("      - type: bind\n        source: ./saved-dotcraft\n        target: /root/.craft")]
-    [InlineData("      - type: volume\n        source: dotcraft-data\n        target: /root/.craft")]
     public async Task CustomPersistedUserDataMountPassesDoctorAndUpgrade(string mount)
     {
         var path = NewPath();

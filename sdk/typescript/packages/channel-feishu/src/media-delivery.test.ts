@@ -28,24 +28,13 @@ class FakeMediaRouter {
   }
 }
 
-test("FeishuMediaDelivery sends structured images as image messages", async () => {
-  const router = new FakeMediaRouter();
-  const delivery = new FeishuMediaDelivery(router as never);
-
-  const result = await delivery.send("group:oc_1", {
-    kind: "image",
-    fileName: "ig_1.png",
-    source: { kind: "dataBase64", dataBase64: Buffer.from("generated").toString("base64") },
-  });
-
-  assert.deepEqual(result, { delivered: true, remoteMessageId: "om_image", remoteMediaId: "ik" });
-  assert.deepEqual(router.calls, [{ method: "image", target: "group:oc_1", bytes: "generated" }]);
-});
-
-test("FeishuMediaDelivery sends audio as a voice message and video as a media message", async () => {
+test("FeishuMediaDelivery sends images, voice audio, and media video with their message types", async () => {
   const router = new FakeMediaRouter();
   const delivery = new FeishuMediaDelivery(router as never);
   const source = (text: string) => ({ kind: "dataBase64", dataBase64: Buffer.from(text).toString("base64") });
+
+  const image = await delivery.send("group:oc_1", { kind: "image", fileName: "ig_1.png", source: source("generated") });
+  assert.deepEqual(image, { delivered: true, remoteMessageId: "om_image", remoteMediaId: "ik" });
 
   const audio = await delivery.send("dm:ou_1", { kind: "audio", fileName: "note.opus", source: source("opus") });
   const video = await delivery.send("dm:ou_1", { kind: "video", fileName: "clip.mp4", source: source("mp4") });
@@ -53,6 +42,7 @@ test("FeishuMediaDelivery sends audio as a voice message and video as a media me
   assert.equal(audio.delivered, true);
   assert.equal(video.delivered, true);
   assert.deepEqual(router.calls, [
+    { method: "image", target: "group:oc_1", bytes: "generated" },
     { method: "file", target: "dm:ou_1", bytes: "opus", messageType: "audio" },
     { method: "file", target: "dm:ou_1", bytes: "mp4", messageType: "media" },
   ]);

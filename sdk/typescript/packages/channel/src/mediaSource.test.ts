@@ -31,17 +31,6 @@ test("prepareMediaBytes reads hostPath sources", async () => {
   }
 });
 
-test("prepareMediaBytes decodes dataBase64 sources", async () => {
-  const prepared = await prepareMediaBytes(
-    { kind: "dataBase64", dataBase64: Buffer.from("abc", "utf-8").toString("base64") },
-    { fallbackFileName: "payload.bin" },
-  );
-
-  assert.equal(prepared.fileName, "payload.bin");
-  assert.equal(prepared.bytes.toString("utf-8"), "abc");
-  assert.equal(prepared.sourceKind, "dataBase64");
-});
-
 test("prepareMediaBytes requires URL opt-in and fetches allowed URLs", async () => {
   await assert.rejects(
     async () =>
@@ -66,7 +55,22 @@ test("prepareMediaBytes requires URL opt-in and fetches allowed URLs", async () 
   assert.equal(prepared.bytes.toString("utf-8"), "pdf");
 });
 
-test("prepareMediaBytes rejects invalid base64 and size overflows", async () => {
+test("prepareMediaBytes decodes base64 and rejects invalid base64 and size overflows", async () => {
+  const decoded = await prepareMediaBytes(
+    { kind: "dataBase64", dataBase64: Buffer.from("abc", "utf-8").toString("base64") },
+    { fallbackFileName: "payload.bin" },
+  );
+  assert.equal(decoded.fileName, "payload.bin");
+  assert.equal(decoded.bytes.toString("utf-8"), "abc");
+  assert.equal(decoded.sourceKind, "dataBase64");
+
+  const temp = await prepareMediaTempFile(
+    { kind: "dataBase64", dataBase64: Buffer.from("tmp").toString("base64") },
+    { fileName: "a:b.txt" },
+  );
+  assert.equal(temp.path.endsWith("a_b.txt"), true);
+  await temp.cleanup();
+
   await assert.rejects(
     async () => await prepareMediaBytes({ kind: "dataBase64", dataBase64: "%%%" }),
     (error: unknown) => error instanceof MediaSourceError && error.code === "InvalidArguments",
@@ -82,17 +86,7 @@ test("prepareMediaBytes rejects invalid base64 and size overflows", async () => 
   );
 });
 
-test("prepareMediaTempFile writes a cleanup-scoped file", async () => {
-  const prepared = await prepareMediaTempFile(
-    { kind: "dataBase64", dataBase64: Buffer.from("tmp").toString("base64") },
-    { fileName: "a:b.txt" },
-  );
-
-  assert.equal(prepared.path.endsWith("a_b.txt"), true);
-  await prepared.cleanup();
-});
-
-test("prepareMediaUploadUri converts hostPath to base64 URI by default", async () => {
+test("prepareMediaUploadUri inlines hostPath sources as base64 and passes URLs through", async () => {
   const dir = await mkdtemp(join(tmpdir(), "dotcraft-onebot-source-"));
   try {
     const filePath = join(dir, "napcat.txt");
@@ -103,15 +97,11 @@ test("prepareMediaUploadUri converts hostPath to base64 URI by default", async (
     assert.equal(prepared.fileName, "napcat.txt");
     assert.equal(prepared.sourceKind, "hostPath");
     assert.equal(prepared.uri, `base64://${Buffer.from("napcat").toString("base64")}`);
+
+    const url = await prepareMediaUploadUri({ kind: "url", url: "https://example.test/a.zip" });
+    assert.equal(url.uri, "https://example.test/a.zip");
+    assert.equal(url.fileName, "a.zip");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
-});
-
-test("prepareMediaUploadUri passes URL sources through", async () => {
-  const prepared = await prepareMediaUploadUri({ kind: "url", url: "https://example.test/a.zip" });
-
-  assert.equal(prepared.uri, "https://example.test/a.zip");
-  assert.equal(prepared.fileName, "a.zip");
-  assert.equal(prepared.sourceKind, "url");
 });

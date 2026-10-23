@@ -25,23 +25,17 @@ describe('viewerRoots', () => {
     })
   })
 
-  it('lists the workspace folder first, then the Project folders', () => {
+  it('lists the workspace folder first, then the Project folders, or the folder alone outside a Project', () => {
     expect(viewerRootsFor('X:/work/app')).toEqual(['X:/work/app', 'X:/work/shared', 'X:/work/assets'])
-  })
-
-  it('returns a single root for folders outside any multi-folder Project', () => {
     expect(viewerRootsFor('D:/solo')).toEqual(['D:/solo'])
     expect(viewerRootsFor('')).toEqual([])
   })
 
-  it('picks the longest containing root case-insensitively', () => {
+  it('picks the longest containing root case-insensitively and derives the relative path', () => {
     const roots = ['X:/work', 'X:/work/shared']
     expect(containingRoot('x:\\work\\shared\\src\\a.ts', roots)).toBe('X:/work/shared')
     expect(containingRoot('X:/work/other/a.ts', roots)).toBe('X:/work')
     expect(containingRoot('X:/workx/a.ts', roots)).toBeNull()
-  })
-
-  it('derives the path relative to a root', () => {
     expect(relativeToRoot('X:\\work\\shared\\src\\a.ts', 'X:/work/shared/')).toBe('src/a.ts')
   })
 })

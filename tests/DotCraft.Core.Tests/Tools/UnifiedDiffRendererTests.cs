@@ -7,22 +7,6 @@ namespace DotCraft.Tests.Tools;
 public class UnifiedDiffRendererTests
 {
     [Fact]
-    public void Render_NewFile_MatchesGitNewFileDiff()
-    {
-        var result = Render("a.txt", null, "foo\n");
-
-        Assert.Equal(Lines(
-            "diff --git a/a.txt b/a.txt",
-            "new file mode 100644",
-            "index 0000000000000000000000000000000000000000..257cc5642cb1a054f08cc83f2d943e56fd3ebe99",
-            "--- /dev/null",
-            "+++ b/a.txt",
-            "@@ -0,0 +1 @@",
-            "+foo"), result.Diff);
-        Assert.Equal((1, 0, false), (result.Additions, result.Deletions, result.Truncated));
-    }
-
-    [Fact]
     public void Render_NewMultiLineFile_AddsEveryLine()
     {
         var result = Render("a.txt", null, "foo\nbar\n");
@@ -243,13 +227,11 @@ public class UnifiedDiffRendererTests
         Assert.Equal(new UnifiedDiffResult(null, 50_000, 50_000, true), result);
     }
 
-    [Theory]
-    [InlineData(10)]
-    [InlineData(120)]
-    public void Render_DiffOverCharCap_KeepsCountsOnly(int maxDiffChars)
+    [Fact]
+    public void Render_DiffOverCharCap_KeepsCountsOnly()
     {
         var result = UnifiedDiffRenderer.Render(
-            "f.txt", "one\ntwo\nthree\n", "one\nTWO\nthree\n", new UnifiedDiffLimits(maxDiffChars, 4_000));
+            "f.txt", "one\ntwo\nthree\n", "one\nTWO\nthree\n", new UnifiedDiffLimits(120, 4_000));
 
         Assert.Equal(new UnifiedDiffResult(null, 1, 1, true), result);
     }

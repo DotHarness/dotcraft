@@ -47,19 +47,7 @@ describe('find store', () => {
     expect(matches.map((match) => match.surfaceId)).toEqual(['file:high', 'file:low'])
   })
 
-  it('updates the field immediately but defers the search', () => {
-    disposers.push(surface('file:a', 10, ['alpha']))
-    useFindStore.getState().openFind()
-
-    useFindStore.getState().setQuery('alpha')
-    expect(useFindStore.getState().query).toBe('alpha')
-    expect(useFindStore.getState().matches).toHaveLength(0)
-
-    vi.advanceTimersByTime(200)
-    expect(useFindStore.getState().matches).toHaveLength(1)
-  })
-
-  it('collapses a burst of keystrokes into one search', () => {
+  it('updates the field immediately but collapses a burst of keystrokes into one deferred search', () => {
     const getSegments = vi.fn((): FindSegment[] => [{ key: '0', text: 'alpha' }])
     disposers.push(registerFindSurface({
       id: 'file:a',
@@ -75,26 +63,12 @@ describe('find store', () => {
       useFindStore.getState().setQuery(query)
       vi.advanceTimersByTime(20)
     }
+    expect(useFindStore.getState().query).toBe('alpha')
+    expect(useFindStore.getState().matches).toHaveLength(0)
     vi.advanceTimersByTime(200)
 
     expect(getSegments).toHaveBeenCalledTimes(1)
     expect(useFindStore.getState().matches).toHaveLength(1)
-  })
-
-  it('ignores content refreshes while closed', () => {
-    const getSegments = vi.fn((): FindSegment[] => [{ key: '0', text: 'alpha' }])
-    disposers.push(registerFindSurface({
-      id: 'file:a',
-      domain: 'file',
-      priority: 10,
-      getSegments,
-      getContainer: () => null
-    }))
-
-    useFindStore.getState().refresh()
-    vi.advanceTimersByTime(200)
-
-    expect(getSegments).not.toHaveBeenCalled()
   })
 
   it('wraps around when stepping past either end', () => {
@@ -125,8 +99,15 @@ describe('find store', () => {
     expect(after?.id).toBe(before?.id)
   })
 
-  it('drops results when closed', () => {
-    disposers.push(surface('file:a', 10, ['alpha']))
+  it('drops results when closed and ignores content refreshes until reopened', () => {
+    const getSegments = vi.fn((): FindSegment[] => [{ key: '0', text: 'alpha' }])
+    disposers.push(registerFindSurface({
+      id: 'file:a',
+      domain: 'file',
+      priority: 10,
+      getSegments,
+      getContainer: () => null
+    }))
     useFindStore.getState().openFind()
     useFindStore.getState().setQuery('alpha')
     useFindStore.getState().searchNow()
@@ -135,5 +116,10 @@ describe('find store', () => {
     useFindStore.getState().closeFind()
     expect(useFindStore.getState().open).toBe(false)
     expect(useFindStore.getState().matches).toHaveLength(0)
+
+    getSegments.mockClear()
+    useFindStore.getState().refresh()
+    vi.advanceTimersByTime(200)
+    expect(getSegments).not.toHaveBeenCalled()
   })
 })

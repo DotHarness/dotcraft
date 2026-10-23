@@ -8,7 +8,6 @@ function item(type: string, payload: Record<string, unknown>, turnId = 'turn-1',
   return { id: `item-${counter}`, turnId, type, createdAt, payload }
 }
 
-// The trusted presentations the server declares on the source-producing tools.
 const PRESENTATIONS: Record<string, Record<string, unknown>> = {
   WebSearch: { presentationId: 'core.web', options: { operation: 'search' } },
   WebFetch: { presentationId: 'core.web', options: { operation: 'fetch' } },
@@ -115,13 +114,9 @@ describe('Summary sources', () => {
 })
 
 describe('Summary web search', () => {
-  it('marks a thread that searched the web', () => {
+  it('marks only a thread that searched the web', () => {
     expect(hasWebSearch([item('webSearch', { callId: 'w', status: 'inProgress', query: '', action: null, results: null })])).toBe(true)
     expect(hasWebSearch([call('c1', 'WebSearch', { query: 'dotnet 10' })])).toBe(true)
-  })
-
-  it('ignores threads without a web search', () => {
-    expect(hasWebSearch([])).toBe(false)
     expect(hasWebSearch([
       call('c1', 'WebFetch', { url: 'https://example.com' }),
       result('c1', 'WebFetch', '{"status":200}'),
@@ -142,6 +137,8 @@ describe('Summary changes', () => {
       edit('c3', [{ path: 'a.ts', kind: 'update', additions: 2, deletions: 3 }]),
       edit('c4', [{ path: 'b.ts', kind: 'add', additions: 10, deletions: 0 }])
     ])).toEqual({ additions: 16, deletions: 4 })
+    expect(changeTotals([call('c1', 'ReadFile', { path: 'a.ts' }), result('c1', 'ReadFile', 'x')])).toBeNull()
+    expect(changeTotals([edit('c2', [])])).toBeNull()
   })
 
   it("uses a turn's live diff in place of its per-call totals", () => {
@@ -162,11 +159,6 @@ describe('Summary changes', () => {
     expect(diffTotals(diff)).toEqual({ additions: 2, deletions: 1 })
     expect(diffTotals('')).toBeNull()
   })
-
-  it('reports no changes when nothing was written', () => {
-    expect(changeTotals([call('c1', 'ReadFile', { path: 'a.ts' }), result('c1', 'ReadFile', 'x')])).toBeNull()
-    expect(changeTotals([edit('c2', [])])).toBeNull()
-  })
 })
 
 describe('Summary rollback', () => {
@@ -176,16 +168,14 @@ describe('Summary rollback', () => {
     item('toolCall', {}, 'turn-3', '2026-10-01T10:10:01Z')
   ]
 
-  it('drops every unknown turn when the turn page is complete', () => {
+  it('drops every unknown turn for a complete page but only newer turns for a partial one', () => {
     const removed = rolledBackTurns(items, [{ id: 'turn-1', startedAt: '2026-10-01T10:00:00Z' }], true)
     expect([...removed].sort()).toEqual(['turn-2', 'turn-3'])
-  })
 
-  it('drops only turns newer than a partial page', () => {
-    const removed = rolledBackTurns(items, [
+    const partial = rolledBackTurns(items, [
       { id: 'turn-4', startedAt: '2026-10-01T10:11:00Z' },
       { id: 'turn-2', startedAt: '2026-10-01T10:05:00Z' }
     ], false)
-    expect([...removed]).toEqual(['turn-3'])
+    expect([...partial]).toEqual(['turn-3'])
   })
 })

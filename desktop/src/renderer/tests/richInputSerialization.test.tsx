@@ -3,7 +3,6 @@ import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS } from '../component
 import {
   buildEditorFragmentFromSegments,
   collectComposerDraftSegments,
-  createRefSpan,
   parseComposerTextWithCatalog,
   parseLegacyComposerText,
   serializeEditor,

@@ -48,10 +48,14 @@ public sealed class PluginContributionRegistrarTests
     }
 
     [Fact]
-    public async Task AddAfterCommit_IsRejected()
+    public async Task UnsupportedContractsAndAddsAfterCommit_AreRejected()
     {
         var registry = new ContributionRegistry();
         var registrar = Create(registry, out var calls);
+        Assert.Throws<InvalidOperationException>(() =>
+            registrar.Add<IUnsupportedContribution>(new UnsupportedContribution()));
+        Assert.Throws<InvalidOperationException>(() =>
+            registrar.Add<IThreadSystemPromptContextProvider>(new ThreadContextItemProvider()));
         registrar.Commit();
 
         var error = Assert.Throws<InvalidOperationException>(() =>
@@ -59,6 +63,8 @@ public sealed class PluginContributionRegistrarTests
 
         Assert.Contains("only during activation", error.Message, StringComparison.Ordinal);
         Assert.Empty(registry.Resolve<IChatContextProvider>());
+        Assert.Empty(registry.Resolve<IUnsupportedContribution>());
+        Assert.Empty(registry.Resolve<IThreadSystemPromptContextProvider>());
         registrar.Revoke();
         await calls.CloseAsync();
         Assert.Empty(await registrar.DisposeTargetsAsync());
@@ -88,37 +94,6 @@ public sealed class PluginContributionRegistrarTests
         Assert.Empty(await registrar.DisposeTargetsAsync());
         Assert.True(target.Disposed);
         Assert.Throws<PluginContributionUnavailableException>(adapter.GetSystemPromptSection);
-    }
-
-    [Fact]
-    public async Task UnknownContracts_AreRejectedBeforeCommit()
-    {
-        var registry = new ContributionRegistry();
-        var registrar = Create(registry, out var calls);
-
-        Assert.Throws<InvalidOperationException>(() =>
-            registrar.Add<IUnsupportedContribution>(new UnsupportedContribution()));
-
-        registrar.Revoke();
-        await calls.CloseAsync();
-        await registrar.DisposeTargetsAsync();
-        Assert.Empty(registry.Resolve<IUnsupportedContribution>());
-    }
-
-    [Fact]
-    public async Task ThreadContextItemProvider_IsRejectedBeforeCommit()
-    {
-        var registry = new ContributionRegistry();
-        var registrar = Create(registry, out var calls);
-
-        Assert.Throws<InvalidOperationException>(() =>
-            registrar.Add<IThreadSystemPromptContextProvider>(new ThreadContextItemProvider()));
-
-        registrar.Commit();
-        Assert.Empty(registry.Resolve<IThreadSystemPromptContextProvider>());
-        registrar.Revoke();
-        await calls.CloseAsync();
-        Assert.Empty(await registrar.DisposeTargetsAsync());
     }
 
     [Fact]

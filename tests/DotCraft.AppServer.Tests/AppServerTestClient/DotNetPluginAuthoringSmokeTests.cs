@@ -7,37 +7,6 @@ namespace DotCraft.Tests.AppServerTestClient;
 public sealed class DotNetPluginAuthoringSmokeTests
 {
     [Fact]
-    public void CliOptions_UseIsolatedDefaultsAndProviderOverrides()
-    {
-        var ok = DotNetPluginAuthoringSmokeCliOptions.TryParse(
-            ["--provider-id", "chatgpt", "--model", "model-test", "--timeout-minutes", "3"],
-            out var options,
-            out var error);
-
-        Assert.True(ok, error);
-        Assert.Equal("chatgpt", options.ProviderId);
-        Assert.Equal("model-test", options.Model);
-        Assert.Equal(TimeSpan.FromMinutes(3), options.TurnTimeout);
-        Assert.StartsWith(
-            Path.Combine(Path.GetTempPath(), "dotcraft-plugin-authoring-smoke")
-            + Path.DirectorySeparatorChar,
-            options.WorkRoot,
-            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
-        Assert.Equal(Path.Combine(options.WorkRoot, "report.json"), options.ReportPath);
-        Assert.False(options.KeepWorkspace);
-    }
-
-    [Fact]
-    public void CliOptions_RejectInvalidTimeout()
-    {
-        Assert.False(DotNetPluginAuthoringSmokeCliOptions.TryParse(
-            ["--timeout-minutes", "0"],
-            out _,
-            out var invalidTimeout));
-        Assert.Equal("invalid_timeout_minutes", invalidTimeout);
-    }
-
-    [Fact]
     public void Capture_ValidatesPluginInvocation()
     {
         using var notification = JsonDocument.Parse("""

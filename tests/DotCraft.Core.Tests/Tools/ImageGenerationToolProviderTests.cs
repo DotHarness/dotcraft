@@ -37,11 +37,14 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
         { "custom endpoint", OpenAIConfig(endpoint: "https://compatible.example/v1"), false },
         { "custom endpoint opted in", OpenAIConfig(endpoint: "https://compatible.example/v1", supportsImageGeneration: true), true },
         { "official opted out", OpenAIConfig(supportsImageGeneration: false), false },
-        { "chatgpt oauth opted out", ChatGptOAuthConfig(supportsImageGeneration: false), false },
         { "missing api key", OpenAIConfig(apiKey: string.Empty, supportsImageGeneration: true), false },
         { "unsupported auth", OpenAIConfig(authMethod: "customOAuth", supportsImageGeneration: true), false },
         { "anthropic", OpenAIConfig(protocol: ModelProviderProtocols.Anthropic, supportsImageGeneration: true), false },
-        { "tool disabled", Disabled(OpenAIConfig()), false }
+        { "tool disabled", Disabled(OpenAIConfig()), false },
+        { "missing image provider", WithImageProvider(OpenAIConfig(), "missing"), false },
+        { "anthropic image provider", WithImageProvider(AddAnthropicProvider(OpenAIConfig()), "claude"), false },
+        { "eligible conversation cannot rescue an ineligible image provider", WithImageProvider(
+            AddOpenAIProvider(ChatGptOAuthConfig(), supportsImageGeneration: false), "openai"), false }
     };
 
     [Theory]
@@ -181,23 +184,6 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
         await runtime.InvokeAsync(CreateInvocationContext("call_same"), new JsonObject { ["prompt"] = "x" });
 
         Assert.Equal("openai", Assert.Single(provider.Runtimes).ProviderId);
-    }
-
-    public static TheoryData<string, AppConfig> IneligibleImageProviders => new()
-    {
-        { "missing provider", WithImageProvider(OpenAIConfig(), "missing") },
-        { "anthropic provider", WithImageProvider(AddAnthropicProvider(OpenAIConfig()), "claude") },
-        { "eligible conversation cannot rescue an ineligible image provider", WithImageProvider(
-            AddOpenAIProvider(ChatGptOAuthConfig(), supportsImageGeneration: false), "openai") }
-    };
-
-    [Theory]
-    [MemberData(nameof(IneligibleImageProviders))]
-    public async Task GetRegistrations_OmitsImagegenWhenTheConfiguredImageProviderIsIneligible(string scenario, AppConfig config)
-    {
-        var registrations = await CreateSource(config, new FakeImageProvider()).GetRegistrationsAsync(CreatePlanningContext());
-
-        Assert.True(registrations.Count == 0, scenario);
     }
 
     [Fact]

@@ -34,11 +34,11 @@ public sealed class ConfigMethodsTests : IDisposable
     }
 
     [Fact]
-    public async Task Read_WithoutLayers_ReturnsMaskedEffectiveConfigAndOrigins()
+    public async Task Read_ReturnsMaskedEffectiveConfigOriginsAndOptionalLayers()
     {
         await File.WriteAllTextAsync(_workspaceConfigPath, """{ "InstantInterruptEnabled": false }""");
         using var harness = new AppServerTestHarness(workspaceCraftPath: _craftPath);
-        WriteUserConfig(harness, """{ "DashBoard": { "Password": "secret" } }""");
+        WriteUserConfig(harness, """{ "DashBoard": { "Password": "secret" }, "InstantInterruptEnabled": true }""");
         await harness.InitializeAsync();
 
         var result = await SendAsync(harness, Methods.ConfigRead, new JsonObject());
@@ -52,26 +52,15 @@ public sealed class ConfigMethodsTests : IDisposable
         Assert.StartsWith("sha256:", origin.GetProperty("version").GetString());
         Assert.Equal("user", result.GetProperty("origins").GetProperty("DashBoard.Password").GetProperty("name").GetProperty("type").GetString());
         Assert.False(result.TryGetProperty("layers", out _));
-    }
 
-    [Fact]
-    public async Task Read_WithLayers_ReturnsUserThenWorkspaceLayerContent()
-    {
-        await File.WriteAllTextAsync(_workspaceConfigPath, """{ "InstantInterruptEnabled": false }""");
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _craftPath);
-        WriteUserConfig(harness, """{ "DashBoard": { "Password": "secret" }, "InstantInterruptEnabled": true }""");
-        await harness.InitializeAsync();
+        var layered = await SendAsync(harness, Methods.ConfigRead, new JsonObject { ["includeLayers"] = true });
 
-        var result = await SendAsync(harness, Methods.ConfigRead, new JsonObject { ["includeLayers"] = true });
-
-        var layers = result.GetProperty("layers").EnumerateArray().ToArray();
+        var layers = layered.GetProperty("layers").EnumerateArray().ToArray();
         Assert.Equal(["user", "workspace"], layers.Select(l => l.GetProperty("name").GetProperty("type").GetString()));
         Assert.Equal("***", layers[0].GetProperty("config").GetProperty("DashBoard").GetProperty("Password").GetString());
         Assert.True(layers[0].GetProperty("config").GetProperty("InstantInterruptEnabled").GetBoolean());
         Assert.False(layers[1].GetProperty("config").GetProperty("InstantInterruptEnabled").GetBoolean());
-        Assert.Equal(
-            result.GetProperty("origins").GetProperty("InstantInterruptEnabled").GetProperty("version").GetString(),
-            layers[1].GetProperty("version").GetString());
+        Assert.Equal(origin.GetProperty("version").GetString(), layers[1].GetProperty("version").GetString());
     }
 
     [Fact]
@@ -232,19 +221,8 @@ public sealed class ConfigMethodsTests : IDisposable
         Assert.True(JsonDocument.Parse(await File.ReadAllTextAsync(userPath)).RootElement.GetProperty("InstantInterruptEnabled").GetBoolean());
     }
 
-    [Theory]
-    [InlineData("Tools.Unknown", "true", null, null, "configSchemaUnknownKey")]
-    [InlineData("InstantInterruptEnabled", "true", "elsewhere.json", null, "configLayerReadonly")]
-    [InlineData("InstantInterruptEnabled", "true", null, "sha256:stale", "configVersionConflict")]
-    [InlineData("Permissions.DefaultApprovalPolicy", "\"prompt\"", null, null, "configValidationError")]
-    [InlineData("Dreams.Interval", "\"00:00:00\"", null, null, "configValidationError")]
-    [InlineData("ProviderPreferences.openai", "{ \"Model\": \" \" }", null, null, "configValidationError")]
-    public async Task ValueWrite_Rejected_ReturnsErrorCodeAndLeavesFileUnchanged(
-        string keyPath,
-        string valueJson,
-        string? fileName,
-        string? expectedVersion,
-        string expectedCode)
+    [Fact]
+    public async Task ValueWrite_Rejected_ReturnsErrorCodeAndLeavesFileUnchanged()
     {
         await File.WriteAllTextAsync(_workspaceConfigPath, """{ "Theme": "dark" }""");
         var before = await File.ReadAllBytesAsync(_workspaceConfigPath);
@@ -252,14 +230,26 @@ public sealed class ConfigMethodsTests : IDisposable
         using var bridge = ConfigChangedTests.AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var edit = Edit(keyPath, valueJson);
-        edit["filePath"] = fileName == null ? null : Path.Combine(_root, fileName);
-        edit["expectedVersion"] = expectedVersion;
-        await harness.ExecuteRequestAsync(harness.BuildRequest(Methods.ConfigValueWrite, edit));
+        foreach (var (keyPath, valueJson, fileName, expectedVersion, expectedCode) in new (string, string, string?, string?, string)[]
+                 {
+                     ("Tools.Unknown", "true", null, null, "configSchemaUnknownKey"),
+                     ("InstantInterruptEnabled", "true", "elsewhere.json", null, "configLayerReadonly"),
+                     ("InstantInterruptEnabled", "true", null, "sha256:stale", "configVersionConflict"),
+                     ("Permissions.DefaultApprovalPolicy", "\"prompt\"", null, null, "configValidationError"),
+                     ("Dreams.Interval", "\"00:00:00\"", null, null, "configValidationError"),
+                     ("ProviderPreferences.openai", "{ \"Model\": \" \" }", null, null, "configValidationError")
+                 })
+        {
+            var edit = Edit(keyPath, valueJson);
+            edit["filePath"] = fileName == null ? null : Path.Combine(_root, fileName);
+            edit["expectedVersion"] = expectedVersion;
+            await harness.ExecuteRequestAsync(harness.BuildRequest(Methods.ConfigValueWrite, edit));
 
-        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-        AppServerTestHarness.AssertConfigWriteError(Assert.Single(sent), expectedCode);
-        Assert.Equal(before, await File.ReadAllBytesAsync(_workspaceConfigPath));
+            var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+            AppServerTestHarness.AssertConfigWriteError(Assert.Single(sent), expectedCode);
+            Assert.Equal(before, await File.ReadAllBytesAsync(_workspaceConfigPath));
+        }
+
         Assert.Equal(0, harness.Service.AgentInvalidationCount);
     }
 

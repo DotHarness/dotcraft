@@ -24,7 +24,7 @@ public sealed class MemoryIndexSectionTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_root, true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public sealed class MemoryIndexSectionTests : IDisposable
     }
 
     [Fact]
-    public void FirstStep_ShowsTheWholeIndexAndThenStaysSilent()
+    public void FirstStep_ShowsTheWholeIndexStaysSilentAndBaselineResetOrMissingBaselineRestatesIt()
     {
         WriteIndex(Branches, Release);
 
@@ -52,6 +52,22 @@ public sealed class MemoryIndexSectionTests : IDisposable
         var next = _world.Render(Context(), first.Snapshot, sectionIdsInHistory: null);
         Assert.Null(MemoryTextOrNull(next));
         Assert.Contains(MemoryIndexSection.SectionId, next.SilentSectionIds);
+
+        var afterCompaction = MemoryText(_world.RenderFull(Context()));
+        Assert.Contains(Branches, afterCompaction, StringComparison.Ordinal);
+        Assert.Contains(Release, afterCompaction, StringComparison.Ordinal);
+
+        WriteIndex(Branches, Release);
+        var baselineWithoutMemory = WorldStateSnapshot.FromSections([]);
+
+        var render = _world.Render(
+            Context(),
+            baselineWithoutMemory,
+            new HashSet<string>(StringComparer.Ordinal) { MemoryIndexSection.SectionId });
+
+        var historyText = MemoryText(render);
+        Assert.Contains(Branches, historyText, StringComparison.Ordinal);
+        Assert.Contains(Release, historyText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -98,36 +114,6 @@ public sealed class MemoryIndexSectionTests : IDisposable
 
         Assert.Contains("release.md", text, StringComparison.Ordinal);
         Assert.DoesNotContain(Branches, text, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void BaselineReset_RestatesTheWholeIndex()
-    {
-        WriteIndex(Branches, Release);
-        var first = _world.RenderFull(Context());
-        Assert.Null(MemoryTextOrNull(_world.Render(Context(), first.Snapshot, sectionIdsInHistory: null)));
-
-        var afterCompaction = _world.RenderFull(Context());
-
-        var text = MemoryText(afterCompaction);
-        Assert.Contains(Branches, text, StringComparison.Ordinal);
-        Assert.Contains(Release, text, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void SectionInHistoryWithoutABaseline_RestatesTheWholeIndex()
-    {
-        WriteIndex(Branches, Release);
-        var baselineWithoutMemory = WorldStateSnapshot.FromSections([]);
-
-        var render = _world.Render(
-            Context(),
-            baselineWithoutMemory,
-            new HashSet<string>(StringComparer.Ordinal) { MemoryIndexSection.SectionId });
-
-        var text = MemoryText(render);
-        Assert.Contains(Branches, text, StringComparison.Ordinal);
-        Assert.Contains(Release, text, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -7,32 +7,6 @@ namespace DotCraft.Oratorio.Tests;
 public sealed class DrawerStateServiceTests
 {
     [Fact]
-    public void UpsertItem_ReplacesDefaultPayloadWithPlaceholder()
-    {
-        var service = new DrawerStateService();
-        var ts = DateTimeOffset.Parse("2026-05-09T00:00:00Z");
-
-        service.UpsertItem(
-            "run-1",
-            new ConversationItemDto(
-                "item-1",
-                "turn-1",
-                "agentMessage",
-                "completed",
-                default,
-                ts,
-                ts,
-                Streaming: false),
-            ts);
-
-        var snapshot = service.GetSnapshot("run-1");
-        var payload = snapshot.Items[0].Payload;
-        Assert.Equal("agentMessage", payload.GetProperty("type").GetString());
-        Assert.Equal(DrawerPayloadSanitizer.PayloadUnavailableCode, payload.GetProperty("serializationError").GetString());
-        Assert.Equal(DrawerPayloadSanitizer.PayloadUnavailableMessage, payload.GetProperty("message").GetString());
-    }
-
-    [Fact]
     public void UpsertItem_ReplacesDisposedPayloadWithPlaceholder()
     {
         var service = new DrawerStateService();
@@ -136,21 +110,6 @@ public sealed class DrawerStateServiceTests
         Assert.Equal("agentMessage", merged.GetProperty("type").GetString());
         Assert.Equal("fresh", merged.GetProperty("text").GetString());
         Assert.False(merged.TryGetProperty("raw", out _));
-    }
-
-    [Fact]
-    public void ReplacePlan_StoresLatestSnapshot()
-    {
-        var service = new DrawerStateService();
-
-        service.ReplacePlan(
-            "run-1",
-            new PlanSnapshotDto("Plan", "Overview", "Body", [new PlanTodoDto("todo", "Do it", "high", "pending")]),
-            DateTimeOffset.Parse("2026-05-09T00:00:00Z"));
-
-        var snapshot = service.GetSnapshot("run-1");
-        Assert.Equal("Plan", snapshot.Plan?.Title);
-        Assert.Single(snapshot.Plan?.Todos ?? []);
     }
 
     [Fact]

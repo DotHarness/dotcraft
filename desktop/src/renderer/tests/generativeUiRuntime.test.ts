@@ -19,6 +19,7 @@ interface Session {
 }
 
 const open: MessagePort[] = []
+const waitFor = <T>(callback: () => T) => vi.waitFor(callback, { interval: 1 })
 
 afterEach(() => {
   for (const port of open.splice(0)) port.close()
@@ -63,7 +64,7 @@ describe('generative UI runtime and connection', () => {
   it('reports compile errors with their source position', async () => {
     const session = run('function App() {\n  const total = 1\n  const label = ;\n  return <Text>{label}</Text>\n}')
 
-    await vi.waitFor(() => expect(session.failures).toHaveLength(1))
+    await waitFor(() => expect(session.failures).toHaveLength(1))
     expect(session.failures[0]).toMatchObject({ stage: 'compile_error', line: 3, column: 17 })
     expect(session.snapshots).toHaveLength(0)
   })
@@ -77,12 +78,12 @@ describe('generative UI runtime and connection', () => {
       DotCraft.render(<Counter />)
     `)
 
-    await vi.waitFor(() => expect(session.snapshots).toHaveLength(1))
+    await waitFor(() => expect(session.snapshots).toHaveLength(1))
     expect(find(session.snapshots[0], 'Text').children).toEqual(['Count 1'])
     const id = callbackId(find(session.snapshots[0], 'Button'), 'onClick')
 
     session.connection.invoke(id, [])
-    await vi.waitFor(() => expect(session.snapshots).toHaveLength(2))
+    await waitFor(() => expect(session.snapshots).toHaveLength(2))
     expect(find(session.snapshots[1], 'Text').children).toEqual(['Count 2'])
     expect(callbackId(find(session.snapshots[1], 'Button'), 'onClick')).toBe(id)
   })
@@ -98,9 +99,9 @@ describe('generative UI runtime and connection', () => {
       DotCraft.render(<Field />)
     `)
 
-    await vi.waitFor(() => expect(session.snapshots.length).toBeGreaterThan(0))
+    await waitFor(() => expect(session.snapshots.length).toBeGreaterThan(0))
     session.connection.invoke(callbackId(find(session.snapshots.at(-1)!, 'Input'), 'onChange'), ['hello'])
-    await vi.waitFor(() => expect(find(session.snapshots.at(-1)!, 'Text').children).toEqual(['HELLO']))
+    await waitFor(() => expect(find(session.snapshots.at(-1)!, 'Text').children).toEqual(['HELLO']))
   })
 
   it('forwards actions requested by a user callback and drops unprompted ones', async () => {
@@ -112,12 +113,12 @@ describe('generative UI runtime and connection', () => {
       DotCraft.render(<Ask />)
     `)
 
-    await vi.waitFor(() => expect(session.snapshots).toHaveLength(1))
+    await waitFor(() => expect(session.snapshots).toHaveLength(1))
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(session.actions).toEqual([])
 
     session.connection.invoke(callbackId(find(session.snapshots[0], 'Button'), 'onClick'), [])
-    await vi.waitFor(() => expect(session.actions).toEqual([{ kind: 'sendMessage', text: 'Explain the score' }]))
+    await waitFor(() => expect(session.actions).toEqual([{ kind: 'sendMessage', text: 'Explain the score' }]))
   })
 
   it('rejects a prompt over its limit while larger copies pass', async () => {
@@ -131,12 +132,12 @@ describe('generative UI runtime and connection', () => {
       DotCraft.render(<Tools />)
     `)
 
-    await vi.waitFor(() => expect(session.snapshots).toHaveLength(1))
+    await waitFor(() => expect(session.snapshots).toHaveLength(1))
     const [copy, ask] = session.snapshots[0].flatMap(node => typeof node === 'string' ? [] : node.children) as GenerativeUiElementNode[]
     session.connection.invoke(callbackId(copy, 'onClick'), [])
-    await vi.waitFor(() => expect(session.actions).toEqual([expect.objectContaining({ kind: 'copy' })]))
+    await waitFor(() => expect(session.actions).toEqual([expect.objectContaining({ kind: 'copy' })]))
     session.connection.invoke(callbackId(ask, 'onClick'), [])
-    await vi.waitFor(() => expect(session.failures).toEqual([expect.objectContaining({ stage: 'callback_error' })]))
+    await waitFor(() => expect(session.failures).toEqual([expect.objectContaining({ stage: 'callback_error' })]))
   })
 
   it('saves useState after user interaction and restores it into a fresh runner', async () => {
@@ -157,19 +158,19 @@ describe('generative UI runtime and connection', () => {
       DotCraft.render(<Quiz />)
     `
     const first = run(program)
-    await vi.waitFor(() => expect(first.snapshots).toHaveLength(1))
+    await waitFor(() => expect(first.snapshots).toHaveLength(1))
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(first.states).toEqual([])
 
     first.connection.invoke(callbackId(find(first.snapshots[0], 'Slider'), 'onChange'), [7])
-    await vi.waitFor(() => expect(first.states).toHaveLength(1))
+    await waitFor(() => expect(first.states).toHaveLength(1))
     first.connection.invoke(callbackId(find(first.snapshots[0], 'Checkbox'), 'onChange'), [true])
-    await vi.waitFor(() => expect(first.states).toHaveLength(2))
+    await waitFor(() => expect(first.states).toHaveLength(2))
     const saved = first.states[1]
     expect(JSON.parse(JSON.stringify(saved))).toEqual(saved)
 
     const second = run(program, saved)
-    await vi.waitFor(() => expect(second.snapshots).toHaveLength(1))
+    await waitFor(() => expect(second.snapshots).toHaveLength(1))
     expect(find(second.snapshots[0], 'Slider').props.value).toBe(7)
     expect(find(second.snapshots[0], 'Checkbox').props.checked).toBe(true)
     await new Promise(resolve => setTimeout(resolve, 20))
@@ -194,13 +195,13 @@ describe('generative UI runtime and connection', () => {
       }
       DotCraft.render(<Quiz />)
     `)
-    await vi.waitFor(() => expect(find(session.snapshots.at(-1)!, 'Text').children).toEqual(['Mounted 1']))
+    await waitFor(() => expect(find(session.snapshots.at(-1)!, 'Text').children).toEqual(['Mounted 1']))
     session.connection.invoke(callbackId(find(session.snapshots.at(-1)!, 'Slider'), 'onChange'), [3])
-    await vi.waitFor(() => expect(session.states).toHaveLength(1))
+    await waitFor(() => expect(session.states).toHaveLength(1))
 
     session.connection.restore({ 'r#Quiz': { 0: 8 }, 'r#Quiz.2#Step': { 0: true } })
 
-    await vi.waitFor(() => expect(find(session.snapshots.at(-1)!, 'Slider').props.value).toBe(8))
+    await waitFor(() => expect(find(session.snapshots.at(-1)!, 'Slider').props.value).toBe(8))
     const tree = session.snapshots.at(-1)!
     expect(find(tree, 'Checkbox').props.checked).toBe(true)
     expect(find(tree, 'Text').children).toEqual(['Mounted 1'])
@@ -226,22 +227,22 @@ describe('generative UI runtime and connection', () => {
   it('reports a throwing event handler as a callback error', async () => {
     const session = run(`DotCraft.render(<Button label="Boom" onClick={() => { throw new Error('nope') }} />)`)
 
-    await vi.waitFor(() => expect(session.snapshots).toHaveLength(1))
+    await waitFor(() => expect(session.snapshots).toHaveLength(1))
     session.connection.invoke(callbackId(find(session.snapshots[0], 'Button'), 'onClick'), [])
-    await vi.waitFor(() => expect(session.failures).toEqual([expect.objectContaining({ stage: 'callback_error', message: 'nope' })]))
+    await waitFor(() => expect(session.failures).toEqual([expect.objectContaining({ stage: 'callback_error', message: 'nope' })]))
   })
 
   it('passes an undeclared component through for the host to reject', async () => {
     const session = run('DotCraft.render(<Card><Sparkline values={[1, 2]} /></Card>)')
 
-    await vi.waitFor(() => expect(session.snapshots).toHaveLength(1))
+    await waitFor(() => expect(session.snapshots).toHaveLength(1))
     expect(find(session.snapshots[0], 'Sparkline').props).toEqual({ values: [1, 2] })
   })
 
   it('stops a tree that exceeds the component limit', async () => {
     const session = run(`DotCraft.render(<Col>{Array.from({ length: ${GENERATIVE_UI_LIMITS.maxNodes + 1} }, (_, i) => <Text key={i}>x</Text>)}</Col>)`)
 
-    await vi.waitFor(() => expect(session.failures).toEqual([expect.objectContaining({ stage: 'payload_too_large' })]))
+    await waitFor(() => expect(session.failures).toEqual([expect.objectContaining({ stage: 'payload_too_large' })]))
     expect(session.snapshots).toHaveLength(0)
   })
 
@@ -255,7 +256,7 @@ describe('generative UI runtime and connection', () => {
       DotCraft.render(<Loop />)
     `)
 
-    await vi.waitFor(() => expect(session.failures).toEqual([expect.objectContaining({ stage: 'runtime_error' })]))
+    await waitFor(() => expect(session.failures).toEqual([expect.objectContaining({ stage: 'runtime_error' })]))
   })
 
   it('rejects an oversized program before starting it', () => {

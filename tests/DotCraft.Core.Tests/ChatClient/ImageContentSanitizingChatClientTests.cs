@@ -16,24 +16,6 @@ public sealed class ImageContentSanitizingChatClientTests
     };
 
     [Fact]
-    public async Task GetStreamingResponseAsync_ToolBmpResult_PromotesPreparedPngImage()
-    {
-        using var inner = new CapturingChatClient();
-        using var client = new ImageContentSanitizingChatClient(inner);
-
-        _ = await CollectStreamingAsync(client.GetStreamingResponseAsync(CreateToolResultMessages(
-            new DataContent(CreateBmpBytes(), "image/bmp"))));
-
-        var syntheticUser = Assert.Single(
-            inner.LastMessages,
-            message => message.Role == ChatRole.User &&
-                       message.Contents.OfType<DataContent>().Any());
-        var image = Assert.Single(syntheticUser.Contents.OfType<DataContent>());
-        Assert.Equal("image/png", image.MediaType);
-        Assert.Equal((1, 1), ImageFixture.PngSize(image.Data.Span));
-    }
-
-    [Fact]
     public async Task GetStreamingResponseAsync_InvalidToolImage_AddsPlaceholderWithoutPromotingImage()
     {
         using var inner = new CapturingChatClient();
@@ -78,9 +60,12 @@ public sealed class ImageContentSanitizingChatClientTests
         Assert.DoesNotContain(
             inner.LastMessages.SelectMany(message => message.Contents).OfType<TextContent>(),
             text => text.Text.Contains("data:image/", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(
+        var syntheticUser = Assert.Single(
             inner.LastMessages,
             message => message.Role == ChatRole.User && message.Contents.OfType<DataContent>().Any());
+        var image = Assert.Single(syntheticUser.Contents.OfType<DataContent>());
+        Assert.Equal("image/png", image.MediaType);
+        Assert.Equal((1, 1), ImageFixture.PngSize(image.Data.Span));
     }
 
     [Theory]

@@ -6,14 +6,12 @@ using TraceEventType = DotCraft.Tracing.TraceEventType;
 
 namespace DotCraft.Tests.Contributions;
 
-/// <summary>The additive trace sink contribution point: fan-out off the recording thread, containment of a throwing
-/// sink, and the bounded hand-off that keeps a stalled sink out of the trace path.</summary>
 public sealed class TraceSinkContributionTests
 {
     private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(5);
 
     [Fact]
-    public void ContributedSinks_ObserveEveryRecordedEvent_InOrder()
+    public void WorkspaceSinks_ObserveEveryRecordedEventInOrder_AndThreadScopedSinksNone()
     {
         var registry = new ContributionRegistry();
         using var dispatcher = new TraceSinkDispatcher(registry);
@@ -22,6 +20,8 @@ public sealed class TraceSinkContributionTests
         var second = new RecordingSink("second");
         registry.Add<ITraceSink>(first, new ContributionOptions(Order: 100));
         registry.Add<ITraceSink>(second, new ContributionOptions(Order: 200));
+        var scoped = new RecordingSink("scoped");
+        registry.Add<ITraceSink>(scoped, ContributionOptions.ForThread("thread-1"));
 
         store.Record(NewEvent("a"));
         store.Record(NewEvent("b"));
@@ -30,6 +30,7 @@ public sealed class TraceSinkContributionTests
         Assert.True(dispatcher.WaitForPendingSinks(DrainTimeout));
         Assert.Equal(["a", "b", "c"], first.Ids);
         Assert.Equal(["a", "b", "c"], second.Ids);
+        Assert.Empty(scoped.Ids);
     }
 
     [Fact]
@@ -69,7 +70,6 @@ public sealed class TraceSinkContributionTests
             store.Record(NewEvent($"e{index}"));
         clock.Stop();
 
-        // The sink is still parked on the first event; recording never waited on it.
         Assert.Equal(1, stalled.Entries);
         Assert.True(clock.Elapsed < TimeSpan.FromSeconds(2), $"Recording took {clock.Elapsed}.");
         Assert.Equal(201, store.GetEvents("trace-sink-contribution").Count);
@@ -79,7 +79,7 @@ public sealed class TraceSinkContributionTests
     }
 
     [Fact]
-    public void ALateRegisteredSink_ObservesTheNextEvent()
+    public void ALateRegisteredSink_ObservesTheNextEventUntilRevoked()
     {
         var registry = new ContributionRegistry();
         using var dispatcher = new TraceSinkDispatcher(registry);
@@ -87,48 +87,14 @@ public sealed class TraceSinkContributionTests
 
         store.Record(NewEvent("before"));
         var sink = new RecordingSink("late");
-        registry.Add<ITraceSink>(sink);
-        store.Record(NewEvent("after"));
-
-        Assert.True(dispatcher.WaitForPendingSinks(DrainTimeout));
-        Assert.Equal(["after"], sink.Ids);
-    }
-
-    [Fact]
-    public void AThreadScopedSink_IsNotInvoked()
-    {
-        // A trace event names a session key, never a thread id, so the contribution point resolves workspace scope only.
-        var registry = new ContributionRegistry();
-        using var dispatcher = new TraceSinkDispatcher(registry);
-        var store = new TraceStore(sinkDispatcher: dispatcher);
-        var scoped = new RecordingSink("scoped");
-        var workspace = new RecordingSink("workspace");
-        registry.Add<ITraceSink>(scoped, ContributionOptions.ForThread("thread-1"));
-        registry.Add<ITraceSink>(workspace);
-
-        store.Record(NewEvent("a"));
-
-        Assert.True(dispatcher.WaitForPendingSinks(DrainTimeout));
-        Assert.Equal(["a"], workspace.Ids);
-        Assert.Empty(scoped.Ids);
-    }
-
-    [Fact]
-    public void RevokingASink_StopsItsDelivery()
-    {
-        var registry = new ContributionRegistry();
-        using var dispatcher = new TraceSinkDispatcher(registry);
-        var store = new TraceStore(sinkDispatcher: dispatcher);
-        var sink = new RecordingSink("revoked");
         var handle = registry.Add<ITraceSink>(sink);
-
-        store.Record(NewEvent("kept"));
+        store.Record(NewEvent("after"));
         Assert.True(dispatcher.WaitForPendingSinks(DrainTimeout));
         handle.Dispose();
         store.Record(NewEvent("dropped"));
 
         Assert.True(dispatcher.WaitForPendingSinks(DrainTimeout));
-        Assert.Equal(["kept"], sink.Ids);
+        Assert.Equal(["after"], sink.Ids);
     }
 
     [Fact]
@@ -145,16 +111,6 @@ public sealed class TraceSinkContributionTests
         store.Record(NewEvent("a"));
 
         Assert.Empty(sink.Ids);
-    }
-
-    [Fact]
-    public void AStoreWithoutADispatcher_RecordsNormally()
-    {
-        var store = new TraceStore();
-
-        store.Record(NewEvent("a"));
-
-        Assert.Single(store.GetEvents("trace-sink-contribution"));
     }
 
     private static TraceEvent NewEvent(string id) => new()

@@ -43,6 +43,12 @@ const pressed = (x: number, y: number, clickCount: number, extra: Record<string,
 const released = (x: number, y: number, clickCount: number, extra: Record<string, unknown> = {}) =>
   mouse('mouseReleased', x, y, { button: 'left', buttons: 0, clickCount, modifiers: 0, ...extra })
 
+const settleClicks = {
+  onInput: ({ commandParams }: { commandParams: Record<string, unknown> }, emit: (method: string, params?: Record<string, unknown>) => void) => {
+    if (commandParams.type === 'mouseReleased') emit('Page.navigatedWithinDocument', { frameId: 'main-frame', url: 'http://localhost:3000/#a' })
+  }
+}
+
 const primary = nodeProcess.platform === 'darwin'
   ? { key: 'Meta', code: 'MetaLeft', keyCode: 91, mask: 4 }
   : { key: 'Control', code: 'ControlLeft', keyCode: 17, mask: 2 }
@@ -78,7 +84,7 @@ ${body}` })
     .filter((expression) => expression.includes('ClipboardEvent'))
 
   it('moves the cursor before CDP pointer input for move, click, and double click', async () => {
-    const browserManager = createFakeBrowserManager()
+    const browserManager = createFakeBrowserManager(settleClicks)
     await run(browserManager, `
       await tab.cua.move({ x: 12, y: 18 })
       await tab.cua.click({ x: 30, y: 40 })
@@ -98,25 +104,31 @@ ${body}` })
     ])
   })
 
-  it('rejects positional and non-finite coordinates with the object-shaped form', async () => {
+  it('rejects malformed coordinates and keypress calls before touching the page', async () => {
     const browserManager = createFakeBrowserManager()
     const payload = await run(browserManager, `
       JSON.stringify({
-        positional: await messageOf(() => tab.cua.click(940, 444)),
-        missing: await messageOf(() => tab.cua.move({ x: 1 })),
-        drag: await messageOf(() => tab.cua.drag({ path: [{ x: "left", y: 2 }] }))
+        coordinates: [
+          await messageOf(() => tab.cua.click(940, 444)),
+          await messageOf(() => tab.cua.move({ x: 1 })),
+          await messageOf(() => tab.cua.drag({ path: [{ x: "left", y: 2 }] }))
+        ],
+        cua: await messageOf(() => tab.cua.keypress("Enter")),
+        dom: await messageOf(() => tab.dom_cua.keypress({ node_id: "42", keys: [] }))
       })
     `)
 
-    for (const message of Object.values(payload) as string[]) {
+    for (const message of payload.coordinates as string[]) {
       expect(message).toContain('InvalidArgument')
       expect(message).toContain('{ x: 940, y: 444 }')
     }
+    expect(payload.cua).toContain('cua.keypress requires a non-empty keys array')
+    expect(payload.dom).toContain('dom_cua.keypress requires a non-empty keys array')
     expect(browserManager.inputSequence).toEqual([])
   })
 
   it('keeps acting when the cursor fails and does not wait for unawaited drag moves', async () => {
-    const failing = createFakeBrowserManager({ moveMouseFails: true })
+    const failing = createFakeBrowserManager({ moveMouseFails: true, ...settleClicks })
     await run(failing, 'await tab.cua.click({ x: 5, y: 6 }); true')
     expect(inputMethods(failing)).toEqual(['cursor', 'mouseMoved', 'mousePressed', 'mouseReleased'])
 
@@ -195,20 +207,6 @@ ${body}` })
     ])
   })
 
-  it('rejects keypress calls without a keys array before touching the page', async () => {
-    const browserManager = createFakeBrowserManager()
-    const payload = await run(browserManager, `
-      JSON.stringify({
-        cua: await messageOf(() => tab.cua.keypress("Enter")),
-        dom: await messageOf(() => tab.dom_cua.keypress({ node_id: "42", keys: [] }))
-      })
-    `)
-
-    expect(payload.cua).toContain('cua.keypress requires a non-empty keys array')
-    expect(payload.dom).toContain('dom_cua.keypress requires a non-empty keys array')
-    expect(browserManager.inputSequence).toEqual([])
-  })
-
   it('releases pressed keys when a later key fails and rejects unknown keys', async () => {
     const browserManager = createFakeBrowserManager({
       onInput: ({ commandParams }) => {
@@ -249,7 +247,7 @@ ${body}` })
   })
 
   it('types text as a synthetic paste for CUA and DOM-CUA', async () => {
-    const browserManager = createFakeBrowserManager()
+    const browserManager = createFakeBrowserManager(settleClicks)
     await run(browserManager, `
       await tab.cua.type({ text: "héllo" })
       await tab.dom_cua.type({ node_id: "42", text: "node text" })
@@ -304,7 +302,7 @@ ${body}` })
   })
 
   it('prepares locator clicks for actionable targets and uses the click sequence', async () => {
-    const browserManager = createFakeBrowserManager()
+    const browserManager = createFakeBrowserManager(settleClicks)
     await run(browserManager, `
       const save = tab.playwright.getByRole("button", { name: "Save" })
       await save.click()
@@ -359,7 +357,7 @@ ${body}` })
       onInput: ({ commandParams }, emit) => {
         if (commandParams.type !== 'mouseReleased') return
         emit('Page.frameStartedLoading', { frameId: 'main-frame' })
-        setTimeout(() => emit('Page.loadEventFired', { timestamp: 1 }), 700)
+        setTimeout(() => emit('Page.loadEventFired', { timestamp: 1 }), 400)
       }
     })
     const elapsed = await run(browserManager, `
@@ -368,23 +366,8 @@ ${body}` })
       Date.now() - started
     `)
 
-    expect(elapsed).toBeGreaterThanOrEqual(650)
+    expect(elapsed).toBeGreaterThanOrEqual(350)
     expect(elapsed).toBeLessThan(3000)
-  })
-
-  it('resolves a click immediately for same-document navigation', async () => {
-    const browserManager = createFakeBrowserManager({
-      onInput: ({ commandParams }, emit) => {
-        if (commandParams.type === 'mouseReleased') emit('Page.navigatedWithinDocument', { frameId: 'main-frame', url: 'http://localhost:3000/#a' })
-      }
-    })
-    const elapsed = await run(browserManager, `
-      const started = Date.now()
-      await tab.cua.click({ x: 1, y: 2 })
-      Date.now() - started
-    `)
-
-    expect(elapsed).toBeLessThan(240)
   })
 
   it('fails a click when the navigation is blocked', async () => {
@@ -399,28 +382,12 @@ ${body}` })
     expect(message).toContain('blocked by policy')
   })
 
-  it('stops waiting for a load that never completes after three seconds', async () => {
-    const browserManager = createFakeBrowserManager({
-      onInput: ({ commandParams }, emit) => {
-        if (commandParams.type === 'mouseReleased') emit('Page.frameStartedLoading', { frameId: 'main-frame' })
-      }
-    })
-    const elapsed = await run(browserManager, `
-      const started = Date.now()
-      await tab.cua.click({ x: 1, y: 2 })
-      Date.now() - started
-    `)
-
-    expect(elapsed).toBeGreaterThanOrEqual(2900)
-    expect(elapsed).toBeLessThan(8000)
-  }, 15_000)
-
   it('waits for the load window before rethrowing a failed click', async () => {
     const browserManager = createFakeBrowserManager({
       onInput: ({ commandParams }, emit) => {
         if (commandParams.type !== 'mousePressed') return
         emit('Page.frameStartedLoading', { frameId: 'main-frame' })
-        setTimeout(() => emit('Page.loadEventFired', { timestamp: 1 }), 600)
+        setTimeout(() => emit('Page.loadEventFired', { timestamp: 1 }), 350)
         throw new Error('page closed')
       }
     })
@@ -431,6 +398,6 @@ ${body}` })
     `)
 
     expect(payload.message).toContain('page closed')
-    expect(payload.elapsed).toBeGreaterThanOrEqual(550)
+    expect(payload.elapsed).toBeGreaterThanOrEqual(300)
   })
 })

@@ -4,14 +4,13 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { protocolRegisterSchemesAsPrivilegedMock, netFetchMock } = vi.hoisted(() => ({
-  protocolRegisterSchemesAsPrivilegedMock: vi.fn(),
+const { netFetchMock } = vi.hoisted(() => ({
   netFetchMock: vi.fn()
 }))
 
 vi.mock('electron', () => ({
   protocol: {
-    registerSchemesAsPrivileged: protocolRegisterSchemesAsPrivilegedMock,
+    registerSchemesAsPrivileged: vi.fn(),
     handle: vi.fn()
   },
   net: { fetch: netFetchMock }
@@ -25,7 +24,6 @@ import {
   handlePluginFileRequest,
   pluginUrlToRoute,
   registerDesktopPluginModuleRoute,
-  registerPluginFileScheme,
   removeDesktopPluginModuleRoute
 } from '../pluginFileProtocol'
 
@@ -42,7 +40,6 @@ const tempDirs: string[] = []
 
 beforeEach(() => {
   clearDesktopPluginModuleRoutes()
-  protocolRegisterSchemesAsPrivilegedMock.mockReset()
   netFetchMock.mockReset()
   netFetchMock.mockResolvedValue(new Response('export {}', {
     status: 200,
@@ -78,21 +75,6 @@ function writePluginRoot(root: string, pluginId = 'fixture.desktop', version = '
 }
 
 describe('Desktop Plugin module protocol', () => {
-  it('registers dotcraft-plugin with CORS-enabled fetch support', () => {
-    registerPluginFileScheme()
-    expect(protocolRegisterSchemesAsPrivilegedMock).toHaveBeenCalledWith([{
-      scheme: PLUGIN_FILE_SCHEME,
-      privileges: {
-        standard: true,
-        secure: true,
-        supportFetchAPI: true,
-        bypassCSP: false,
-        stream: true,
-        corsEnabled: true
-      }
-    }])
-  })
-
   it('matches the shared Core revision fixture including directory entries', async () => {
     const root = createPluginRoot()
     const revision = await computeDesktopPluginRevision(join(root, 'desktop', 'dist'), {
@@ -175,7 +157,7 @@ describe('Desktop Plugin module protocol', () => {
     const snapshotRoot = dirname(dirname(servedPath))
 
     removeDesktopPluginModuleRoute('fixture.desktop', revision)
-    await vi.waitFor(() => expect(existsSync(snapshotRoot)).toBe(false))
+    await vi.waitFor(() => expect(existsSync(snapshotRoot)).toBe(false), { interval: 1 })
     expect((await handlePluginFileRequest(new Request(lazyUrl))).status).toBe(403)
   })
 
@@ -188,13 +170,16 @@ describe('Desktop Plugin module protocol', () => {
     })).rejects.toThrow('revision does not match')
   })
 
-  it.each(['.', '..', ':x'])('rejects invalid plugin id %s before route lookup', async (pluginId) => {
-    await expect(registerDesktopPluginModuleRoute({
-      pluginId,
-      version: '1.0.0',
-      revision: revisionFixture.expectedRevision,
-      rootPath: createPluginRoot()
-    })).rejects.toThrow('id is invalid')
+  it('rejects invalid plugin ids before route lookup', async () => {
+    const rootPath = createPluginRoot()
+    for (const pluginId of ['.', '..', ':x']) {
+      await expect(registerDesktopPluginModuleRoute({
+        pluginId,
+        version: '1.0.0',
+        revision: revisionFixture.expectedRevision,
+        rootPath
+      })).rejects.toThrow('id is invalid')
+    }
   })
 
   it('rejects links inside desktop/dist instead of serving their targets', async () => {

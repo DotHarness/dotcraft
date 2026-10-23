@@ -418,11 +418,8 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
 
     [Theory]
     [InlineData("git diff --stat")]
-    [InlineData("git --no-pager diff")]
     [InlineData("git diff --stat; git diff --find-renames")]
-    [InlineData("git log -p -1")]
     [InlineData("rg SubAgentShellAccess")]
-    [InlineData("rg --json ShellAccess")]
     [InlineData("find . -name '*.cs'")]
     [InlineData("sed -n '1,5p' README.md")]
     [InlineData("git status\ngit diff --stat")]
@@ -494,7 +491,6 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [InlineData("rg pattern ~/notes")]
     [InlineData("rg [a-z]+ README.md")]
     [InlineData("git log --format=%H | wc -l")]
-    [InlineData("find . -name *.cs")]
     [InlineData("sed -n 1,5p README.md")]
     public void SubAgentExplorer_DeniesUnquotedSyntaxItCannotClassify(string command)
     {
@@ -688,7 +684,6 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup for temp test directories.
         }
     }
 

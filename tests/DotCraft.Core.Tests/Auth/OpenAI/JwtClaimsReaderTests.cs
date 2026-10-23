@@ -8,15 +8,8 @@ namespace DotCraft.Tests.Auth.OpenAI;
 public sealed class JwtClaimsReaderTests
 {
     [Fact]
-    public void ParsesChatGptAccountAndPlanFromAuthClaim()
+    public void ParsesChatGptAccountAndPlanFromAuthClaimAndToleratesItsAbsence()
     {
-        var payload = new
-        {
-            email = "user@example.com",
-            exp = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
-            chatgpt_auth = "ignored",
-        };
-
         var jwt = BuildJwt(new Dictionary<string, object>
         {
             ["email"] = "user@example.com",
@@ -37,34 +30,20 @@ public sealed class JwtClaimsReaderTests
         Assert.Equal("user@example.com", claims.Email);
         Assert.False(claims.IsFedramp);
         Assert.NotNull(claims.ExpiresAt);
+
+        var withoutAuthClaim = JwtClaimsReader.Parse(BuildJwt(new Dictionary<string, object> { ["sub"] = "user", ["exp"] = 1 }));
+        Assert.Null(withoutAuthClaim.AccountId);
+        Assert.Null(withoutAuthClaim.PlanType);
     }
 
     [Fact]
-    public void GracefullyReturnsNullsWhenAuthClaimMissing()
-    {
-        var jwt = BuildJwt(new Dictionary<string, object>
-        {
-            ["sub"] = "user",
-            ["exp"] = 1
-        });
-        var claims = JwtClaimsReader.Parse(jwt);
-        Assert.Null(claims.AccountId);
-        Assert.Null(claims.PlanType);
-    }
-
-    [Fact]
-    public void TryParseExpirationReadsExpClaim()
+    public void TryParseExpirationReadsExpClaimAndReturnsNullForGarbage()
     {
         var exp = DateTimeOffset.UtcNow.AddDays(7).ToUnixTimeSeconds();
         var jwt = BuildJwt(new Dictionary<string, object> { ["exp"] = exp });
         var parsed = JwtClaimsReader.TryParseExpiration(jwt);
         Assert.NotNull(parsed);
         Assert.Equal(exp, parsed!.Value.ToUnixTimeSeconds());
-    }
-
-    [Fact]
-    public void TryParseExpirationReturnsNullForGarbage()
-    {
         Assert.Null(JwtClaimsReader.TryParseExpiration("not.a.jwt"));
         Assert.Null(JwtClaimsReader.TryParseExpiration("xxx"));
     }

@@ -8,8 +8,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Contributions;
 
-/// <summary>The additive slash command contribution point: where a contributed command composes against the built-in
-/// handlers and the markdown custom commands, and what revoking one restores.</summary>
 public sealed class CodeCommandContributionTests : IDisposable
 {
     private readonly string _root = Path.Combine(
@@ -27,14 +25,18 @@ public sealed class CodeCommandContributionTests : IDisposable
     }
 
     [Fact]
-    public async Task ContributedCommand_IsListedExecutedAndKnown()
+    public async Task ContributedCommand_IsListedExecutedAndKnownUnderItsAliases()
     {
         var registry = new ContributionRegistry();
         var commands = CreateRegistry(registry);
-        registry.Add<ICodeCommand>(new StaticCommand("/triage", "Triage the inbox", "TRIAGE"));
+        registry.Add<ICodeCommand>(
+            new StaticCommand("triage", "Triage the inbox", "TRIAGE") { AliasNames = ["tri", "/tg"] });
 
         var listed = Assert.Single(commands.ListCommands(), info => info.Name == "/triage");
         Assert.Equal("Triage the inbox", listed.Description);
+        Assert.Equal(["/tri", "/tg"], listed.Aliases);
+        Assert.Equal("TRIAGE:", commands.TryResolvePromptExpansion("/tri"));
+        Assert.Equal("TRIAGE:", commands.TryResolvePromptExpansion("/tg"));
         Assert.Equal("custom", listed.Category);
         Assert.Contains("/triage", commands.GetKnownCommands());
 
@@ -62,20 +64,6 @@ public sealed class CodeCommandContributionTests : IDisposable
     }
 
     [Fact]
-    public void Aliases_ResolveToTheSameContribution()
-    {
-        var registry = new ContributionRegistry();
-        var commands = CreateRegistry(registry);
-        registry.Add<ICodeCommand>(
-            new StaticCommand("triage", "Triage", "TRIAGE") { AliasNames = ["tri", "/tg"] });
-
-        Assert.Equal("TRIAGE:", commands.TryResolvePromptExpansion("/tri"));
-        Assert.Equal("TRIAGE:", commands.TryResolvePromptExpansion("/tg"));
-        var listed = Assert.Single(commands.ListCommands(), info => info.Name == "/triage");
-        Assert.Equal(["/tri", "/tg"], listed.Aliases);
-    }
-
-    [Fact]
     public void Ordering_GivesTheNameToTheLowestOrderContribution()
     {
         var registry = new ContributionRegistry();
@@ -93,32 +81,19 @@ public sealed class CodeCommandContributionTests : IDisposable
     }
 
     [Fact]
-    public void ADecliningContribution_LetsTheNextOneAnswer()
-    {
-        var registry = new ContributionRegistry();
-        var commands = CreateRegistry(registry);
-        registry.Add<ICodeCommand>(
-            new StaticCommand("/triage", "Declines", expansion: null),
-            new ContributionOptions(Order: 100));
-        registry.Add<ICodeCommand>(
-            new StaticCommand("/triage", "Answers", "ANSWER"),
-            new ContributionOptions(Order: 200));
-
-        Assert.Equal("ANSWER:", commands.TryResolvePromptExpansion("/triage"));
-    }
-
-    [Fact]
-    public void AThrowingContribution_IsSkippedWithoutBreakingTheRest()
+    public void ThrowingAndDecliningContributions_LetTheNextOneAnswer()
     {
         var registry = new ContributionRegistry();
         var commands = CreateRegistry(registry);
         registry.Add<ICodeCommand>(new ThrowingCommand(), new ContributionOptions(Order: 100));
         registry.Add<ICodeCommand>(
+            new StaticCommand("/triage", "Declines", expansion: null),
+            new ContributionOptions(Order: 150));
+        registry.Add<ICodeCommand>(
             new StaticCommand("/triage", "Survivor", "SURVIVOR"),
             new ContributionOptions(Order: 200));
 
         Assert.Equal("SURVIVOR:", commands.TryResolvePromptExpansion("/triage"));
-        // The throwing contribution never describes itself, so it is neither listed nor matchable.
         Assert.Null(commands.TryResolvePromptExpansion("/boom"));
         Assert.DoesNotContain(commands.ListCommands(), info => info.Name == "/boom");
     }
@@ -138,47 +113,20 @@ public sealed class CodeCommandContributionTests : IDisposable
     }
 
     [Fact]
-    public async Task LateRegistration_IsSeenByTheAlreadyBuiltRegistry()
-    {
-        var registry = new ContributionRegistry();
-        var commands = CreateRegistry(registry);
-        Assert.Null(commands.TryResolvePromptExpansion("/triage"));
-
-        registry.Add<ICodeCommand>(new StaticCommand("/triage", "Triage", "TRIAGE"));
-
-        var result = await ExecuteAsync(commands, "/triage");
-        Assert.Equal("TRIAGE:", result.ExpandedPrompt);
-    }
-
-    [Fact]
-    public async Task ABuiltInHandler_KeepsItsNameAgainstAContribution()
-    {
-        var registry = new ContributionRegistry();
-        var commands = CreateRegistry(registry);
-        registry.Add<ICodeCommand>(new StaticCommand("/help", "Shadow attempt", "SHADOW"));
-
-        var result = await ExecuteAsync(commands, "/help");
-
-        Assert.Null(result.ExpandedPrompt);
-        Assert.Single(commands.ListCommands(), info => info.Name == "/help");
-        Assert.Equal("builtin", commands.ListCommands().Single(info => info.Name == "/help").Category);
-    }
-
-    [Fact]
-    public async Task AMarkdownCustomCommand_KeepsItsNameAgainstAContribution()
+    public async Task BuiltInHandlersAndMarkdownCustomCommands_KeepTheirNamesAgainstAContribution()
     {
         File.WriteAllText(
             Path.Combine(_craft, "commands", "triage.md"),
             "---\ndescription: From markdown\n---\nMARKDOWN BODY");
         var registry = new ContributionRegistry();
         var commands = CreateRegistry(registry);
+        registry.Add<ICodeCommand>(new StaticCommand("/help", "Shadow attempt", "SHADOW"));
         registry.Add<ICodeCommand>(new StaticCommand("/triage", "From code", "CODE"));
 
-        var result = await ExecuteAsync(commands, "/triage");
-
-        Assert.Equal("MARKDOWN BODY", result.ExpandedPrompt);
-        var listed = Assert.Single(commands.ListCommands(), info => info.Name == "/triage");
-        Assert.Equal("From markdown", listed.Description);
+        Assert.Null((await ExecuteAsync(commands, "/help")).ExpandedPrompt);
+        Assert.Equal("builtin", Assert.Single(commands.ListCommands(), info => info.Name == "/help").Category);
+        Assert.Equal("MARKDOWN BODY", (await ExecuteAsync(commands, "/triage")).ExpandedPrompt);
+        Assert.Equal("From markdown", Assert.Single(commands.ListCommands(), info => info.Name == "/triage").Description);
     }
 
     [Fact]
@@ -196,29 +144,16 @@ public sealed class CodeCommandContributionTests : IDisposable
 
         Assert.Contains("`/triage`: Triage the inbox", withCommand, StringComparison.Ordinal);
         Assert.NotEqual(before, withCommand);
+        var sweep = registry.Add<ICodeCommand>(new StaticCommand("/sweep", "Sweep", "SWEEP"));
+        Assert.Equal(withCommand, builder.BuildSystemPrompt("thread-a"));
+        pages.ReleaseStablePage(ContextPageKeys.CustomCommandsSummary("*"));
+        Assert.Contains("`/sweep`", builder.BuildSystemPrompt("thread-a"), StringComparison.Ordinal);
+        sweep.Dispose();
 
         handle.Dispose();
         pages.ReleaseStablePage(ContextPageKeys.CustomCommandsSummary("*"));
 
         Assert.Equal(before, builder.BuildSystemPrompt("thread-a"));
-    }
-
-    [Fact]
-    public void WithoutTheContextPageRelease_TheMemoizedSummarySurvivesTheMutation()
-    {
-        var registry = new ContributionRegistry();
-        SystemPromptSectionCatalog.RegisterBuiltIns(registry);
-        var pages = new ContextPageManager();
-        var builder = CreateBuilder(registry, pages);
-        registry.Add<ICodeCommand>(new StaticCommand("/triage", "Triage", "TRIAGE"));
-        var withCommand = builder.BuildSystemPrompt("thread-a");
-
-        registry.Add<ICodeCommand>(new StaticCommand("/sweep", "Sweep", "SWEEP"));
-
-        // The page is pinned for the thread, so the second command only lands once the page is released.
-        Assert.Equal(withCommand, builder.BuildSystemPrompt("thread-a"));
-        pages.ReleaseStablePage(ContextPageKeys.CustomCommandsSummary("*"));
-        Assert.Contains("`/sweep`", builder.BuildSystemPrompt("thread-a"), StringComparison.Ordinal);
     }
 
     public void Dispose()

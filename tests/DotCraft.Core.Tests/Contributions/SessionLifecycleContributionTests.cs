@@ -9,73 +9,13 @@ using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.Tests.Contributions;
 
-/// <summary>Covers the thread and turn lifecycle contribution points end to end through a real session service.</summary>
 public sealed class SessionLifecycleContributionTests : IDisposable
 {
     private readonly ContributionAgentHost _host = new("LifecycleContribution");
     private readonly ContributionRegistry _registry = new();
 
     [Fact]
-    public async Task ThreadContributor_ObservesStartedResumedAndDeleting()
-    {
-        var recorder = new RecordingThreadContributor();
-        _registry.Add<IThreadLifecycleContributor>(recorder);
-        var service = CreateService(new ContributionChatClient());
-
-        var thread = await CreateThreadAsync(service);
-        await service.ResumeThreadAsync(thread.Id);
-        await service.DeleteThreadPermanentlyAsync(thread.Id);
-
-        Assert.Equal(
-            [
-                $"started:{thread.Id}",
-                $"resumed:{thread.Id}",
-                $"deleting:{thread.Id}"
-            ],
-            recorder.Calls);
-    }
-
-    [Fact]
-    public async Task ThreadContributor_ScopedToAThread_ObservesOnlyThatThread()
-    {
-        var service = CreateService(new ContributionChatClient());
-        var observed = await CreateThreadAsync(service);
-        var other = await CreateThreadAsync(service);
-
-        var recorder = new RecordingThreadContributor();
-        _registry.Add<IThreadLifecycleContributor>(recorder, ContributionOptions.ForThread(observed.Id));
-
-        await service.DeleteThreadPermanentlyAsync(other.Id);
-        await service.DeleteThreadPermanentlyAsync(observed.Id);
-
-        Assert.Equal([$"deleting:{observed.Id}"], recorder.Calls);
-    }
-
-    [Fact]
-    public async Task DeletingThread_ReleasesThreadScopedContributionsAfterTheDeletingObservation()
-    {
-        var service = CreateService(new ContributionChatClient());
-        var thread = await CreateThreadAsync(service);
-        var kept = await CreateThreadAsync(service);
-
-        var order = new List<string>();
-        _registry.Add<IThreadLifecycleContributor>(
-            new DisposableThreadContributor(order),
-            ContributionOptions.ForThread(thread.Id));
-        _registry.Add<IThreadLifecycleContributor>(
-            new DisposableThreadContributor(order),
-            ContributionOptions.ForThread(kept.Id));
-
-        await service.DeleteThreadPermanentlyAsync(thread.Id);
-
-        // The contributor must see its own thread's deletion before it is released.
-        Assert.Equal(["deleting", "disposed"], order);
-        Assert.Empty(_registry.Resolve<IThreadLifecycleContributor>(thread.Id));
-        Assert.Single(_registry.Resolve<IThreadLifecycleContributor>(kept.Id));
-    }
-
-    [Fact]
-    public async Task ThreadContributor_ThatThrows_DoesNotBlockDeletionOrTheOtherContributors()
+    public async Task ThreadContributor_ObservesStartedResumedAndDeletingDespiteAThrowingContributor()
     {
         var recorder = new RecordingThreadContributor();
         _registry.Add<IThreadLifecycleContributor>(new ThrowingThreadContributor(), new ContributionOptions(Order: -1));
@@ -87,43 +27,51 @@ public sealed class SessionLifecycleContributionTests : IDisposable
         _registry.Add<IThreadLifecycleContributor>(
             new DisposableThreadContributor(order),
             ContributionOptions.ForThread(thread.Id));
-
+        await service.ResumeThreadAsync(thread.Id);
         await service.DeleteThreadPermanentlyAsync(thread.Id);
 
-        Assert.Contains($"deleting:{thread.Id}", recorder.Calls);
+        Assert.Equal(
+            [
+                $"started:{thread.Id}",
+                $"resumed:{thread.Id}",
+                $"deleting:{thread.Id}"
+            ],
+            recorder.Calls);
         Assert.Equal(["deleting", "disposed"], order);
     }
 
     [Fact]
-    public async Task ForkedThread_ReportsItsOwnStartAndInheritsNoThreadScopedContribution()
+    public async Task ThreadScopedContributor_ObservesOnlyItsThreadIsNotInheritedByAForkAndIsReleasedAfterItsDeletion()
     {
         var service = CreateService(new ContributionChatClient());
-        var source = await CreateThreadAsync(service);
-
+        var thread = await CreateThreadAsync(service);
+        var kept = await CreateThreadAsync(service);
         var recorder = new RecordingThreadContributor();
-        _registry.Add<IThreadLifecycleContributor>(recorder, ContributionOptions.ForThread(source.Id));
+        var order = new List<string>();
+        var keptOrder = new List<string>();
+        _registry.Add<IThreadLifecycleContributor>(recorder, ContributionOptions.ForThread(thread.Id));
+        _registry.Add<IThreadLifecycleContributor>(
+            new DisposableThreadContributor(order),
+            ContributionOptions.ForThread(thread.Id));
+        _registry.Add<IThreadLifecycleContributor>(
+            new DisposableThreadContributor(keptOrder),
+            ContributionOptions.ForThread(kept.Id));
 
-        var forked = await service.ForkThreadAsync(source.Id);
-
-        Assert.NotEqual(source.Id, forked.Id);
+        var forked = await service.ForkThreadAsync(thread.Id);
+        Assert.NotEqual(thread.Id, forked.Id);
         Assert.Empty(recorder.Calls);
         Assert.Empty(_registry.Resolve<IThreadLifecycleContributor>(forked.Id));
-    }
-
-    [Fact]
-    public async Task ThreadLifecycleObserver_StillReceivesDeletion()
-    {
-        var observer = new RecordingThreadObserver();
-        var service = CreateService(new ContributionChatClient(), observers: [observer]);
-
-        var thread = await CreateThreadAsync(service);
         await service.DeleteThreadPermanentlyAsync(thread.Id);
 
-        Assert.Equal([thread.Id], observer.Deleted);
+        Assert.Equal([$"deleting:{thread.Id}"], recorder.Calls);
+        Assert.Equal(["deleting", "disposed"], order);
+        Assert.Empty(keptOrder);
+        Assert.Empty(_registry.Resolve<IThreadLifecycleContributor>(thread.Id));
+        Assert.Single(_registry.Resolve<IThreadLifecycleContributor>(kept.Id));
     }
 
     [Fact]
-    public async Task ThreadLifecycleObserver_AlsoRegisteredAsAContribution_IsCalledOnce()
+    public async Task ThreadLifecycleObserver_AlsoRegisteredAsAContribution_ReceivesDeletionOnce()
     {
         var observer = new RecordingThreadObserver();
         _registry.Add<IThreadLifecycleContributor>(observer);
@@ -136,21 +84,26 @@ public sealed class SessionLifecycleContributionTests : IDisposable
     }
 
     [Fact]
-    public async Task TurnContributor_PairsStartAndEndOnASuccessfulTurn()
+    public async Task ThreadScopedTurnContributor_PairsStartAndEndOfItsThreadsTurnDespiteAThrowingContributor()
     {
-        var recorder = new RecordingTurnContributor();
-        _registry.Add<ITurnLifecycleContributor>(recorder);
         var service = CreateService(new ContributionChatClient());
-        var thread = await CreateThreadAsync(service);
+        var observed = await CreateThreadAsync(service);
+        var other = await CreateThreadAsync(service);
+        var recorder = new RecordingTurnContributor();
+        _registry.Add<ITurnLifecycleContributor>(new ThrowingTurnContributor(), new ContributionOptions(Order: -1));
+        _registry.Add<ITurnLifecycleContributor>(recorder, ContributionOptions.ForThread(observed.Id, order: 1));
 
-        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+        await DrainAsync(service.SubmitInputAsync(other.Id, [new TextContent("hello")]));
+        await DrainAsync(service.SubmitInputAsync(observed.Id, [new TextContent("hello")]));
 
         var started = Assert.Single(recorder.Started);
         var ended = Assert.Single(recorder.Ended);
-        Assert.Equal(thread.Id, started.ThreadId);
+        Assert.Equal(observed.Id, started.ThreadId);
         Assert.Equal(started.TurnId, ended.TurnId);
         Assert.Equal(TurnStatus.Completed, ended.Status);
         Assert.Null(ended.Error);
+        var persisted = await service.GetThreadAsync(observed.Id);
+        Assert.Equal(TurnStatus.Completed, Assert.Single(persisted!.Turns).Status);
     }
 
     [Fact]
@@ -167,39 +120,6 @@ public sealed class SessionLifecycleContributionTests : IDisposable
         var ended = Assert.Single(recorder.Ended);
         Assert.Equal(TurnStatus.Failed, ended.Status);
         Assert.False(string.IsNullOrWhiteSpace(ended.Error));
-    }
-
-    [Fact]
-    public async Task TurnContributor_ThatThrows_DoesNotFailTheTurnOrSkipTheOthers()
-    {
-        var recorder = new RecordingTurnContributor();
-        _registry.Add<ITurnLifecycleContributor>(new ThrowingTurnContributor(), new ContributionOptions(Order: -1));
-        _registry.Add<ITurnLifecycleContributor>(recorder, new ContributionOptions(Order: 1));
-        var service = CreateService(new ContributionChatClient());
-        var thread = await CreateThreadAsync(service);
-
-        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-
-        Assert.Single(recorder.Started);
-        Assert.Equal(TurnStatus.Completed, Assert.Single(recorder.Ended).Status);
-        var persisted = await service.GetThreadAsync(thread.Id);
-        Assert.Equal(TurnStatus.Completed, Assert.Single(persisted!.Turns).Status);
-    }
-
-    [Fact]
-    public async Task TurnContributor_ScopedToAThread_ObservesOnlyThatThread()
-    {
-        var service = CreateService(new ContributionChatClient());
-        var observed = await CreateThreadAsync(service);
-        var other = await CreateThreadAsync(service);
-        var recorder = new RecordingTurnContributor();
-        _registry.Add<ITurnLifecycleContributor>(recorder, ContributionOptions.ForThread(observed.Id));
-
-        await DrainAsync(service.SubmitInputAsync(other.Id, [new TextContent("hello")]));
-        await DrainAsync(service.SubmitInputAsync(observed.Id, [new TextContent("hello")]));
-
-        Assert.Equal([observed.Id], recorder.Started.Select(context => context.ThreadId));
-        Assert.Equal([observed.Id], recorder.Ended.Select(context => context.ThreadId));
     }
 
     private SessionService CreateService(

@@ -5,20 +5,18 @@ namespace DotCraft.Tests.CLI;
 
 public sealed class SetupProcessTests
 {
-    [Theory]
-    [InlineData("medium")]
-    [InlineData("extraHigh")]
-    public async Task Setup_AcceptsModelPreferenceWireValues(string reasoningEffort)
+    [Fact]
+    public async Task Setup_AcceptsModelPreferenceWireValues()
     {
         var workspacePath = CreateTemporaryWorkspace();
         try
         {
-            var preferenceJson = $$"""
+            const string preferenceJson = """
                 {
                   "model": "gpt-5.6-sol",
                   "reasoning": {
                     "enabled": true,
-                    "effort": "{{reasoningEffort}}",
+                    "effort": "extraHigh",
                     "output": "summary"
                   },
                   "speed": "fast",

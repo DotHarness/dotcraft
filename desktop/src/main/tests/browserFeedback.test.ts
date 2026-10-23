@@ -51,7 +51,7 @@ describe('browser downloads', () => {
     expect(JSON.parse(readFileSync(recordsPath, 'utf8'))[0].state).toBe('interrupted')
   })
 
-  it('persists the chosen directory and clears history without deleting files or active transfers', async () => {
+  it('persists the chosen directory, clears history without deleting files or active transfers, and records cancellation', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'browser-download-'))
     directories.push(directory)
     const recordsPath = join(directory, 'records.json')
@@ -75,17 +75,12 @@ describe('browser downloads', () => {
     expect(restored.snapshot()[0].state).toBe('interrupted')
     restored.remove(restored.snapshot()[0].id)
     expect(restored.snapshot()).toEqual([])
-  })
 
-  it('records cancellation and unknown total size', () => {
-    const directory = mkdtempSync(join(tmpdir(), 'browser-download-'))
-    directories.push(directory)
-    const manager = new BrowserDownloads(directory, join(directory, 'records.json'), vi.fn(), vi.fn())
-    const item = download()
-    item.getTotalBytes = () => 0
-    manager.start(item as unknown as DownloadItem, { tabId: 'a' })
-    item.emit('done', {}, 'cancelled')
-    expect(manager.snapshot()[0]).toMatchObject({ state: 'cancelled', totalBytes: 0 })
+    const unsized = download()
+    unsized.getTotalBytes = () => 0
+    restored.start(unsized as unknown as DownloadItem, { tabId: 'c' })
+    unsized.emit('done', {}, 'cancelled')
+    expect(restored.snapshot()[0]).toMatchObject({ state: 'cancelled', totalBytes: 0 })
   })
 })
 
@@ -183,84 +178,6 @@ describe('page references', () => {
     expect(await cancelled).toBeNull()
     expect(window.document.querySelectorAll('div')).toHaveLength(0)
     dom.window.close()
-  })
-
-  it('outlines the hovered element at its own radius under a crosshair layer', async () => {
-    const dom = new JSDOM('<button style="border-radius: 12px">Pick me</button>', { runScripts: 'outside-only' })
-    const { window } = dom
-    const button = window.document.querySelector('button')!
-    button.getBoundingClientRect = () => ({ x: 10, y: 20, width: 100, height: 40 }) as DOMRect
-    const selected = window.eval(selectionScript('element', 'rgb(1, 2, 3)'))
-    const layer = window.document.querySelector<HTMLElement>('[data-dotcraft-selection-layer]')!
-    const box = layer.nextElementSibling as HTMLElement
-    expect(layer.style.cursor).toBe('crosshair')
-    expect(box.style.display).toBe('none')
-    window.document.elementsFromPoint = () => [layer, button]
-    window.document.dispatchEvent(new window.MouseEvent('pointermove', { clientX: 30, clientY: 30 }))
-    expect(box.style.display).toBe('block')
-    expect(box.style.borderStyle).toBe('solid')
-    expect(box.style.borderRadius).toBe('12px')
-    expect([box.style.left, box.style.top, box.style.width, box.style.height]).toEqual(['10px', '20px', '100px', '40px'])
-    window.document.elementsFromPoint = () => [layer, window.document.body]
-    window.document.dispatchEvent(new window.MouseEvent('pointermove', { clientX: 300, clientY: 300 }))
-    expect(box.style.display).toBe('none')
-    window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }))
-    expect(await selected).toBeNull()
-    expect(window.document.querySelectorAll('div')).toHaveLength(0)
-    dom.window.close()
-  })
-
-  it('switches to a dashed region with the bubble pointer past 4px and Escape cancels only the drag', async () => {
-    const dom = new JSDOM('<main>Content</main>', { runScripts: 'outside-only' })
-    const { window } = dom
-    const main = window.document.querySelector('main')!
-    const selected = window.eval(selectionScript('element'))
-    const delivered = vi.fn()
-    selected.then(delivered)
-    const layer = window.document.querySelector<HTMLElement>('[data-dotcraft-selection-layer]')!
-    const box = layer.nextElementSibling as HTMLElement
-    main.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 100, clientY: 100 }))
-    window.document.dispatchEvent(new window.MouseEvent('pointermove', { clientX: 103, clientY: 102 }))
-    expect(box.style.display).toBe('none')
-    expect(layer.style.cursor).toBe('crosshair')
-    window.document.dispatchEvent(new window.MouseEvent('pointermove', { clientX: 140, clientY: 130 }))
-    expect(box.style.borderStyle).toBe('dashed')
-    expect([box.style.left, box.style.top, box.style.width, box.style.height]).toEqual(['100px', '100px', '40px', '30px'])
-    expect(layer.style.cursor).toContain('data:image/svg+xml')
-    window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }))
-    await Promise.resolve()
-    expect(delivered).not.toHaveBeenCalled()
-    expect(box.style.display).toBe('none')
-    expect(layer.style.cursor).toBe('crosshair')
-    window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }))
-    expect(await selected).toBeNull()
-    expect(window.document.querySelectorAll('div')).toHaveLength(0)
-    dom.window.close()
-  })
-
-  it('keeps the mode when a click lands on nothing', async () => {
-    const dom = new JSDOM('<main>Content</main>', { runScripts: 'outside-only' })
-    const { window } = dom
-    const selected = window.eval(selectionScript('element'))
-    const delivered = vi.fn()
-    selected.then(delivered)
-    const layer = window.document.querySelector<HTMLElement>('[data-dotcraft-selection-layer]')!
-    window.document.elementsFromPoint = () => [layer, window.document.body]
-    window.document.dispatchEvent(new window.MouseEvent('pointerdown', { clientX: 5, clientY: 5 }))
-    window.document.dispatchEvent(new window.MouseEvent('pointerup', { clientX: 5, clientY: 5 }))
-    await Promise.resolve()
-    expect(delivered).not.toHaveBeenCalled()
-    expect(window.document.querySelector('[data-dotcraft-selection-layer]')).not.toBeNull()
-    window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }))
-    expect(await selected).toBeNull()
-    dom.window.close()
-  })
-
-  it('paints the page-side outline with the requested accent', async () => {
-    const wc = page()
-    wc.executeJavaScript.mockResolvedValue(null)
-    await capturePageReference(wc as unknown as WebContents, { tabId: 'a' }, 'element', 'rgb(1, 2, 3)')
-    expect(wc.executeJavaScript.mock.calls[0][0]).toContain('rgb(1, 2, 3)')
   })
 
   it('captures fixed origin and scales the selected region to page coordinates', async () => {

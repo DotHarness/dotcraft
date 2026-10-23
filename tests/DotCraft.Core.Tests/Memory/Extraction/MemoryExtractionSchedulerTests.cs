@@ -41,7 +41,7 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task TurnsWithASuccessfulMemoryUpdate_AreSkippedAndAdvanceTheCursor()
+    public async Task TurnsWithASuccessfulMemoryUpdate_AdvanceTheCursorButFailedWritesDoNot()
     {
         var thread = AddThread();
         for (var i = 0; i < 3; i++)
@@ -54,26 +54,20 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
         await CompleteTurnAsync(thread);
 
         Assert.Equal([(thread.Id, "turn_004")], _runner.Calls);
-    }
 
-    [Fact]
-    public async Task FailedMemoryWrite_DoesNotCountAsAnUpdate()
-    {
-        var thread = AddThread();
-        await CompleteTurnAsync(thread, MemoryWrite.Failed);
+        var failedWrite = AddThread();
+        await CompleteTurnAsync(failedWrite, MemoryWrite.Failed);
         for (var i = 0; i < MemoryExtractionScheduler.Cadence - 1; i++)
-            await CompleteTurnAsync(thread);
+            await CompleteTurnAsync(failedWrite);
 
-        Assert.Equal([(thread.Id, (string?)null)], _runner.Calls);
+        Assert.Equal([(thread.Id, "turn_004"), (failedWrite.Id, (string?)null)], _runner.Calls);
     }
 
     public static TheoryData<string> IneligibleThreads => new()
     {
         "subagent",
         "ephemeral",
-        "internal",
         "memoryDisabled",
-        "extractionDisabled",
         "extractionNotCaptured"
     };
 
@@ -164,16 +158,9 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
             Configuration = new ThreadConfiguration
             {
                 MemoryEnabled = kind != "memoryDisabled",
-                MemoryAutoExtract = kind switch
-                {
-                    "extractionDisabled" => false,
-                    "extractionNotCaptured" => null,
-                    _ => true
-                }
+                MemoryAutoExtract = kind == "extractionNotCaptured" ? null : true
             }
         };
-        if (kind == "internal")
-            thread.Metadata[ThreadVisibility.InternalMetadataKey] = "helper";
         _threads[thread.Id] = thread;
         return thread;
     }

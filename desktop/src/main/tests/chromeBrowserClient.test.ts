@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createMockBridge, createPipePath } from './helpers/chromeBridgeFixture'
 
@@ -246,7 +246,7 @@ describe('chrome browser-client', () => {
   it('reports a helpful bridge recovery error when Chrome is not connected', async () => {
     const { setupBrowserRuntime } = await importChromeClient()
     const globals: Record<string, unknown> = {}
-    const agent = await setupBrowserRuntime({ globals, backend: 'extension', chromeHost: { pipePaths: [createPipePath()], timeoutMs: 50, discoveryTimeoutMs: 50 } })
+    const agent = await setupBrowserRuntime({ globals, backend: 'extension', chromeHost: { pipePaths: [createPipePath()], timeoutMs: 10, discoveryTimeoutMs: 10 } })
 
     await expect(agent.browsers.get('extension')).rejects.toThrow(
       'Chrome extension backend is not connected'
@@ -283,11 +283,12 @@ describe('chrome browser-client', () => {
     await expect(agent.browsers.get('chrome')).resolves.toBeTruthy()
   })
 
-  it('classifies bridge request timeouts as command timeouts', async () => {
+  it('classifies bridge request timeouts as command timeouts and rejects oversized evaluate results', async () => {
     const tab = { id: 7, tabId: 7, windowId: 1, title: 'Example', url: 'https://example.test/' }
+    let hang = true
     const bridge = createMockBridge((request) => {
       if (request.method === 'tabs.selected') return tab
-      if (request.method === 'tab.evaluate') return new Promise(() => undefined)
+      if (request.method === 'tab.evaluate') return hang ? new Promise(() => undefined) : 'x'.repeat(100)
       throw new Error(`unexpected method ${request.method}`)
     })
     bridges.push(bridge)
@@ -309,37 +310,13 @@ describe('chrome browser-client', () => {
     await expect(selected.evaluate('return true;', null, { timeoutMs: 5 })).rejects.toThrow(
       'CommandTimeout: Chrome bridge request timed out: tab.evaluate after 5ms.'
     )
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(bridge.cancels[0]).toMatchObject({
+    await vi.waitFor(() => expect(bridge.cancels[0]).toMatchObject({
       kind: 'cancel',
       commandId: bridge.requests.find((request) => request.method === 'tab.evaluate')?.commandId,
       reason: 'timeout'
-    })
-  })
+    }))
 
-  it('rejects oversized evaluate results on the client side', async () => {
-    const tab = { id: 7, tabId: 7, windowId: 1, title: 'Example', url: 'https://example.test/' }
-    const bridge = createMockBridge((request) => {
-      if (request.method === 'tabs.selected') return tab
-      if (request.method === 'tab.evaluate') return 'x'.repeat(100)
-      throw new Error(`unexpected method ${request.method}`)
-    })
-    bridges.push(bridge)
-    const pipePath = await bridge.listen()
-    const { setupBrowserRuntime } = await importChromeClient()
-    const browserSession = {
-      protocolVersion: 1,
-      sessionId: 'thread-1',
-      threadId: 'thread-1',
-      turnId: 'turn-1',
-      evaluationId: 'eval-1'
-    }
-    const globals: Record<string, unknown> = { dotcraft: { browserSession } }
-
-    const agent = await setupBrowserRuntime({ globals, backend: 'extension', chromeHost: { pipePaths: [pipePath] } })
-    const browser = await agent.browsers.get('extension')
-    const selected = await browser.tabs.selected()
-
+    hang = false
     await expect(selected.evaluate('return "large";', null, { maxBytes: 10 })).rejects.toThrow('ResultTooLarge')
   })
 })

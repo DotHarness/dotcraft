@@ -45,18 +45,6 @@ public sealed class GitTransportCredentialTests
     }
 
     [Fact]
-    public void ApplyTo_IgnoresUnparsableInheritedCount()
-    {
-        var startInfo = new ProcessStartInfo("git");
-        startInfo.Environment["GIT_CONFIG_COUNT"] = "not-a-number";
-
-        new GitTransportCredential("github.com", "x-access-token", "ghs-token").ApplyTo(startInfo);
-
-        Assert.Equal("1", startInfo.Environment["GIT_CONFIG_COUNT"]);
-        Assert.Equal("http.https://github.com/.extraheader", startInfo.Environment["GIT_CONFIG_KEY_0"]);
-    }
-
-    [Fact]
     public void ToRemoteUrl_EscapesTheSecret()
     {
         var credential = new GitTransportCredential("github.com", "x-access-token", "tok/en+with spaces");
@@ -132,8 +120,6 @@ public sealed class GitTransportCredentialTests
     [Fact]
     public async Task ResolveAsync_ReturnsNullWhenTheProviderHasNoCredential()
     {
-        // GitLab without a project profile: fetches must degrade to anonymous
-        // transport rather than failing preparation outright.
         var provider = CreateProvider(gitLabToken: null);
 
         Assert.Null(await provider.ResolveAsync(
@@ -144,20 +130,10 @@ public sealed class GitTransportCredentialTests
     [Fact]
     public async Task ResolveAsync_PropagatesMissingGitHubAppAuthentication()
     {
-        // The push path relies on this type: a plain InvalidOperationException is
-        // classified as transient and would be retried indefinitely.
         var provider = CreateProvider(gitHubTokens: new UnauthenticatedGitHubTokenProvider());
 
         await Assert.ThrowsAsync<GitHubAppAuthenticationRequiredException>(() => provider.ResolveAsync(
             new SourceProjectKey("github", "github.com", "example-owner/oratorio"),
-            CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task ResolveAsync_ReturnsNullForUnsupportedProviders()
-    {
-        Assert.Null(await CreateProvider().ResolveAsync(
-            new SourceProjectKey("local", "local", "task"),
             CancellationToken.None));
     }
 

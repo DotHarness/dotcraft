@@ -63,74 +63,16 @@ describe('mergeUpdatedSettings', () => {
     })
   })
 
-  it('merges notification settings without dropping unspecified fields', () => {
-    const current: AppSettings = {
-      notifications: {
-        taskCompletionMode: 'whenUnfocused'
-      }
-    }
-
-    const next = mergeUpdatedSettings(current, {
-      notifications: {
-        taskCompletionMode: 'never'
-      }
-    })
-
-    expect(next.notifications).toEqual({
-      taskCompletionMode: 'never'
-    })
-  })
-
-  it('merges profile settings when provided', () => {
-    const current: AppSettings = {}
-
-    const next = mergeUpdatedSettings(current, {
-      profile: { githubUsername: 'octocat' }
-    })
-
-    expect(next.profile).toEqual({ githubUsername: 'octocat' })
-  })
-
-  it('merges pinned thread ids by workspace without dropping other workspaces', () => {
+  it('merges per-workspace and per-thread maps by key without dropping other entries', () => {
     const current: AppSettings = {
       pinnedThreadIdsByWorkspace: {
         'C:\\Projects\\dotcraft-sample': ['thread-a'],
         'C:\\Projects\\workflow-sample': ['thread-b']
-      }
-    }
-
-    const next = mergeUpdatedSettings(current, {
-      pinnedThreadIdsByWorkspace: {
-        'C:\\Projects\\dotcraft-sample': ['thread-c', 'thread-a']
-      }
-    })
-
-    expect(next.pinnedThreadIdsByWorkspace).toEqual({
-      'C:\\Projects\\dotcraft-sample': ['thread-c', 'thread-a'],
-      'C:\\Projects\\workflow-sample': ['thread-b']
-    })
-  })
-
-  it('merges manual thread orders by project without dropping other projects', () => {
-    const current: AppSettings = {
+      },
       threadOrderByProject: {
         'c:/projects/a': ['thread-a', 'thread-b'],
         'c:/projects/b': ['thread-c']
-      }
-    }
-
-    const next = mergeUpdatedSettings(current, {
-      threadOrderByProject: { 'c:/projects/a': ['thread-b', 'thread-a'] }
-    })
-
-    expect(next.threadOrderByProject).toEqual({
-      'c:/projects/a': ['thread-b', 'thread-a'],
-      'c:/projects/b': ['thread-c']
-    })
-  })
-
-  it('merges turn bookmarks by thread without dropping other threads', () => {
-    const current: AppSettings = {
+      },
       turnBookmarksByThread: {
         'c:/ws::thread-1': ['turn-1:user-1'],
         'c:/ws::thread-2': ['turn-2:user-2']
@@ -138,9 +80,19 @@ describe('mergeUpdatedSettings', () => {
     }
 
     const next = mergeUpdatedSettings(current, {
+      pinnedThreadIdsByWorkspace: { 'C:\\Projects\\dotcraft-sample': ['thread-c', 'thread-a'] },
+      threadOrderByProject: { 'c:/projects/a': ['thread-b', 'thread-a'] },
       turnBookmarksByThread: { 'c:/ws::thread-1': [] }
     })
 
+    expect(next.pinnedThreadIdsByWorkspace).toEqual({
+      'C:\\Projects\\dotcraft-sample': ['thread-c', 'thread-a'],
+      'C:\\Projects\\workflow-sample': ['thread-b']
+    })
+    expect(next.threadOrderByProject).toEqual({
+      'c:/projects/a': ['thread-b', 'thread-a'],
+      'c:/projects/b': ['thread-c']
+    })
     expect(next.turnBookmarksByThread).toEqual({
       'c:/ws::thread-1': [],
       'c:/ws::thread-2': ['turn-2:user-2']

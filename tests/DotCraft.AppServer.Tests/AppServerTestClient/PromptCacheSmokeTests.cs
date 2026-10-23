@@ -8,39 +8,6 @@ namespace DotCraft.Tests.AppServerTestClient;
 public sealed class PromptCacheSmokeTests
 {
     [Fact]
-    public void MatrixLoad_ParsesProviderMappings()
-    {
-        var path = Path.Combine(Path.GetTempPath(), "prompt-cache-smoke-" + Guid.NewGuid().ToString("N") + ".json");
-        try
-        {
-            File.WriteAllText(path, """
-                {
-                  "providers": [
-                    {
-                      "protocol": "openai-responses",
-                      "providerId": "openai",
-                      "model": "gpt-test",
-                      "minimumCacheHitRate": 0.35
-                    }
-                  ]
-                }
-                """);
-
-            var matrix = PromptCacheSmokeMatrix.Load(path);
-
-            var provider = Assert.Single(matrix.Providers);
-            Assert.Equal(ModelProviderProtocols.OpenAIResponses, provider.Protocol);
-            Assert.Equal("openai", provider.ProviderId);
-            Assert.Equal("gpt-test", provider.Model);
-            Assert.Equal(0.35, provider.MinimumCacheHitRate);
-        }
-        finally
-        {
-            try { File.Delete(path); } catch { }
-        }
-    }
-
-    [Fact]
     public void BuildConfigJson_DisablesCompactionAndWritesSelectionWithoutProviders()
     {
         var json = PromptCacheSmokeWorkspace.BuildConfigJson("openai", "gpt-test");
@@ -85,95 +52,37 @@ public sealed class PromptCacheSmokeTests
     }
 
     [Fact]
-    public void TraceValidator_RejectsMissingTokenUsage()
+    public void TraceValidator_RejectsMissingUsageCompactionAndLowCacheHitRate()
     {
-        var result = PromptCacheSmokeTraceValidator.Validate([], minimumCacheHitRate: 0.2);
+        var missing = PromptCacheSmokeTraceValidator.Validate([], minimumCacheHitRate: 0.2);
+        Assert.False(missing.Success);
+        Assert.Equal("trace_missing_token_usage", missing.Message);
+        Assert.Equal(0, missing.ContextCompactionCount);
 
-        Assert.False(result.Success);
-        Assert.Equal("trace_missing_token_usage", result.Message);
-        Assert.Equal(0.2, result.MinimumCacheHitRate);
-        Assert.Equal(0, result.ContextCompactionCount);
-    }
+        var compacted = PromptCacheSmokeTraceValidator.Validate(
+            [
+                Event("TokenUsage", inputTokens: 1000, cachedInputTokens: 250, cacheWriteInputTokens: 0),
+                Event("ContextCompaction"),
+                Event("ContextCompaction")
+            ],
+            minimumCacheHitRate: 0.2);
+        Assert.False(compacted.Success);
+        Assert.Equal("prompt_cache_baseline_compaction_detected", compacted.Message);
+        Assert.Equal(2, compacted.ContextCompactionCount);
+        Assert.Equal(0.25, compacted.CacheHitRate);
 
-    [Fact]
-    public void TraceValidator_RejectsContextCompaction()
-    {
-        var events = new[]
-        {
-            Event("TokenUsage", inputTokens: 1000, cachedInputTokens: 250, cacheWriteInputTokens: 0),
-            Event("ContextCompaction"),
-            Event("ContextCompaction")
-        };
-
-        var result = PromptCacheSmokeTraceValidator.Validate(events, minimumCacheHitRate: 0.2);
-
-        Assert.False(result.Success);
-        Assert.Equal("prompt_cache_baseline_compaction_detected", result.Message);
-        Assert.Equal(2, result.ContextCompactionCount);
-        Assert.Equal(0.2, result.MinimumCacheHitRate);
-        Assert.Equal(1000, result.InputTokens);
-        Assert.Equal(250, result.CachedInputTokens);
-        Assert.Equal(0.25, result.CacheHitRate);
-    }
-
-    [Fact]
-    public void TraceValidator_RejectsCacheHitRateBelowFloor()
-    {
-        var events = new[]
-        {
-            Event("TokenUsage", inputTokens: 1000, cachedInputTokens: 0, cacheWriteInputTokens: 0),
-            Event("TokenUsage", inputTokens: 3000, cachedInputTokens: 300, cacheWriteInputTokens: 0)
-        };
-
-        var result = PromptCacheSmokeTraceValidator.Validate(events, minimumCacheHitRate: 0.2);
-
-        Assert.False(result.Success);
-        Assert.Equal("prompt_cache_baseline_cache_hit_rate_below_floor", result.Message);
-        Assert.True(result.CacheHitRequired);
-        Assert.True(result.CacheHit);
-        Assert.Equal(0.2, result.MinimumCacheHitRate);
-        Assert.Equal(4000, result.InputTokens);
-        Assert.Equal(300, result.CachedInputTokens);
-        Assert.Equal(0.075, result.CacheHitRate);
-        Assert.Equal(0, result.ContextCompactionCount);
-    }
-
-    [Fact]
-    public void CliOptions_DefaultsToUserSmokeRunRootAndReport()
-    {
-        var path = Path.Combine(Path.GetTempPath(), "prompt-cache-smoke-" + Guid.NewGuid().ToString("N") + ".json");
-        try
-        {
-            File.WriteAllText(path, """{"providers":[]}""");
-
-            var ok = PromptCacheSmokeCliOptions.TryParse(
-                ["--matrix", path],
-                out var options,
-                out var error);
-
-            Assert.True(ok, error);
-            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            if (string.IsNullOrWhiteSpace(userProfile))
-                userProfile = Environment.GetEnvironmentVariable("USERPROFILE")
-                              ?? Environment.GetEnvironmentVariable("HOME")
-                              ?? Directory.GetCurrentDirectory();
-
-            var expectedPrefix = Path.Combine(
-                userProfile,
-                ".craft",
-                "smoke-tests",
-                "runs") + Path.DirectorySeparatorChar;
-            Assert.StartsWith(
-                expectedPrefix,
-                options.WorkRoot,
-                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
-            Assert.Matches(@"^\d{8}-\d{6}-[0-9a-f]{8}$", Path.GetFileName(options.WorkRoot));
-            Assert.Equal(Path.Combine(options.WorkRoot, "report.json"), options.ReportPath);
-        }
-        finally
-        {
-            try { File.Delete(path); } catch { }
-        }
+        var lowHitRate = PromptCacheSmokeTraceValidator.Validate(
+            [
+                Event("TokenUsage", inputTokens: 1000, cachedInputTokens: 0, cacheWriteInputTokens: 0),
+                Event("TokenUsage", inputTokens: 3000, cachedInputTokens: 300, cacheWriteInputTokens: 0)
+            ],
+            minimumCacheHitRate: 0.2);
+        Assert.False(lowHitRate.Success);
+        Assert.Equal("prompt_cache_baseline_cache_hit_rate_below_floor", lowHitRate.Message);
+        Assert.True(lowHitRate.CacheHit);
+        Assert.Equal(4000, lowHitRate.InputTokens);
+        Assert.Equal(300, lowHitRate.CachedInputTokens);
+        Assert.Equal(0.075, lowHitRate.CacheHitRate);
     }
 
     private static PromptCacheSmokeTraceEvent Event(

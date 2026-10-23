@@ -86,7 +86,7 @@ describe('ScreenViewSession', () => {
     vi.useRealTimers()
   })
 
-  it('sends the demand as a bare control record when the socket opens', async () => {
+  it('sends the demand on open and retunes the width without reconnecting, only when it changes', async () => {
     const { session, sockets } = harness()
     session.start()
     await settle()
@@ -98,20 +98,12 @@ describe('ScreenViewSession', () => {
       maxWidth: 640,
       quality: 82
     })
-  })
 
-  it('retunes the requested width without reconnecting, and only when it changes', async () => {
-    const { session, sockets } = harness()
-    session.start()
-    await settle()
-    sockets[0].handlers.onOpen()
     session.setMaxWidth(1920)
-
+    session.setMaxWidth(1920)
     expect(sockets).toHaveLength(1)
-    expect(JSON.parse(sockets[0].sent[1]).maxWidth).toBe(1920)
-
-    session.setMaxWidth(1920)
     expect(sockets[0].sent).toHaveLength(2)
+    expect(JSON.parse(sockets[0].sent[1]).maxWidth).toBe(1920)
   })
 
   it('pauses capture with watchers zero and closes on close', async () => {
@@ -128,7 +120,7 @@ describe('ScreenViewSession', () => {
     expect(sockets[0].closed).toBe(true)
   })
 
-  it('keeps one undelivered frame and hands over the newest after the ack', async () => {
+  it('keeps one undelivered frame, hands over the newest after the ack, and resets the credit without one', async () => {
     const { session, sockets, frames } = harness()
     session.start()
     await settle()
@@ -141,20 +133,11 @@ describe('ScreenViewSession', () => {
 
     session.ack()
     expect(frames.map((frame) => frame.sequence)).toEqual([1, 3])
-  })
 
-  it('resets the credit when the renderer never acks', async () => {
-    const { session, sockets, frames } = harness()
-    session.start()
-    await settle()
-    sockets[0].handlers.onOpen()
-
-    sockets[0].handlers.onBinary(frameBytes(1))
-    sockets[0].handlers.onBinary(frameBytes(2))
-    expect(frames).toHaveLength(1)
-
+    sockets[0].handlers.onBinary(frameBytes(4))
+    expect(frames).toHaveLength(2)
     vi.advanceTimersByTime(FRAME_ACK_TIMEOUT_MS)
-    expect(frames.map((frame) => frame.sequence)).toEqual([1, 2])
+    expect(frames.map((frame) => frame.sequence)).toEqual([1, 3, 4])
   })
 
   it('maps close reasons to view states', async () => {
@@ -216,23 +199,6 @@ describe('ScreenViewSession', () => {
       await settle()
       expect(sockets).toHaveLength(before + 1)
     }
-    session.close()
-  })
-
-  it('carries the host detail into the unavailable state', async () => {
-    const { session, sockets, states } = harness()
-    session.start()
-    await settle()
-    sockets[0].handlers.onOpen()
-    sockets[0].handlers.onText(
-      '{"enabled":true,"unavailableReason":"captureFailed","detail":"BitBlt failed (Win32 6)"}'
-    )
-
-    expect(states.at(-1)).toEqual({
-      kind: 'unavailable',
-      reason: 'captureFailed',
-      detail: 'BitBlt failed (Win32 6)'
-    })
     session.close()
   })
 

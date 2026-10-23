@@ -24,7 +24,7 @@ public sealed class VisualizationRuntimeRegistryTests : IDisposable
     }
 
     [Fact]
-    public void BindThread_ProvidesThreadScopedPromptWithoutCreatingDirectory()
+    public void BindThread_ProvidesAConnectionScopedPromptWithoutCreatingTheDirectory()
     {
         var assets = CreateAssetStore();
         var registry = new VisualizationRuntimeRegistry(assets);
@@ -34,12 +34,16 @@ public sealed class VisualizationRuntimeRegistryTests : IDisposable
 
         Assert.True(registry.BindThread(thread, transport, connection));
         Assert.True(registry.IsBoundTo(thread.Id, connection));
+        Assert.False(registry.IsBoundTo(thread.Id, CapableConnection()));
         Assert.True(registry.TryGetAuthoringDirectory(thread.Id, out var directory));
         Assert.Equal(Path.Combine(_root, ".craft", "visualizations", thread.Id), directory);
         Assert.False(Directory.Exists(Path.Combine(_root, ".craft", "visualizations")));
         Assert.False(Directory.Exists(directory));
         var prompt = registry.GetSystemPromptSection(new ThreadSystemPromptContext(thread.Id, thread.WorkspacePath));
         Assert.Contains(directory, prompt, StringComparison.Ordinal);
+
+        Assert.Equal([thread.Id], registry.UnbindTransport(transport));
+        Assert.False(registry.TryGetAuthoringDirectory(thread.Id, out _));
     }
 
     [Fact]
@@ -87,32 +91,10 @@ public sealed class VisualizationRuntimeRegistryTests : IDisposable
     }
 
     [Fact]
-    public void Binding_IsConnectionAndTransportScoped()
+    public void BindThread_DoesNotEnableIncapableClientsOrAnUnavailableWorkspace()
     {
         var registry = new VisualizationRuntimeRegistry(CreateAssetStore());
-        var owner = CapableConnection();
-        var other = CapableConnection();
-        var transport = new InMemoryTransport();
-        var thread = Thread("thread_a");
-        registry.BindThread(thread, transport, owner);
-
-        Assert.False(registry.IsBoundTo(thread.Id, other));
-        Assert.Equal([thread.Id], registry.UnbindTransport(transport));
-        Assert.False(registry.TryGetAuthoringDirectory(thread.Id, out _));
-    }
-
-    [Fact]
-    public void BindThread_DoesNotEnableIncapableClients()
-    {
-        var thread = Thread("thread_a");
-        Assert.False(new VisualizationRuntimeRegistry(CreateAssetStore())
-            .BindThread(thread, new InMemoryTransport(), new AppServerConnection()));
-    }
-
-    [Fact]
-    public void BindThread_DoesNotEnableAnUnavailableWorkspace()
-    {
-        var registry = new VisualizationRuntimeRegistry(CreateAssetStore());
+        Assert.False(registry.BindThread(Thread("thread_a"), new InMemoryTransport(), new AppServerConnection()));
         var thread = Thread("thread_missing");
         thread.WorkspacePath = Path.Combine(_root, "missing");
 

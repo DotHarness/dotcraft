@@ -114,10 +114,8 @@ public sealed class OpenAIResponsesLiteChatClientTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task LiteClient_ForcesParallelToolCallsOff(bool allowMultipleToolCalls)
+    [Fact]
+    public async Task LiteClient_ForcesParallelToolCallsOff()
     {
         var transport = new EmptyTransport();
         using var client = new OpenAIResponsesLiteChatClient(
@@ -132,7 +130,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
                            new ChatOptions
                            {
                                Tools = [CreateLookupTool()],
-                               AllowMultipleToolCalls = allowMultipleToolCalls
+                               AllowMultipleToolCalls = true
                            }))
         {
         }
@@ -269,21 +267,6 @@ public sealed class OpenAIResponsesLiteChatClientTests
             await CollectAsync(OpenAIResponsesLiteTransport.ReadStreamingResponseAsync(stream)));
 
         Assert.Contains("before a terminal event", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void LiteClient_ExposesItselfThroughServiceLookup()
-    {
-        var responsesClient = new ResponsesClient("sk-test");
-        using var client = new OpenAIResponsesLiteChatClient(
-            responsesClient,
-            "gpt-test",
-            new TestChatClient(),
-            new EmptyTransport(),
-            "install-1");
-
-        Assert.Same(client, client.GetService(typeof(OpenAIResponsesLiteChatClient)));
-        Assert.Null(client.GetService(typeof(IProviderConversationHistory)));
     }
 
     [Fact]

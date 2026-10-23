@@ -25,24 +25,6 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_WhenStreamBreaks_DoesNotReyieldDeliveredText()
-    {
-        var inner = new ScriptedStreamChatClient(
-            ([Text("Let me ch")], new IOException("connection reset")),
-            ([Text("ecked.")], null));
-        var client = new StreamingFunctionInvokingChatClient(new RetryBudgetChatClient(inner, 1));
-
-        var updates = await CollectAsync(
-            client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "status?")]));
-
-        var delivered = updates
-            .SelectMany(update => update.Contents)
-            .OfType<TextContent>()
-            .Count(content => content.Text == "Let me ch");
-        Assert.Equal(1, delivered);
-    }
-
-    [Fact]
     public async Task GetStreamingResponseAsync_WhenStreamBreaksAfterToolCall_DispatchesToolOnceBeforeReissue()
     {
         var invocations = 0;
@@ -163,25 +145,13 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         Assert.Equal("Let me checked.", Text(updates));
     }
 
-    [Fact]
-    public async Task GetStreamingResponseAsync_WhenFailureCarriesNoWireStatus_DoesNotReissue()
+    [Theory]
+    [InlineData("something local went wrong")]
+    [InlineData("prompt is too long: 250000 tokens > 200000 maximum")]
+    public async Task GetStreamingResponseAsync_WhenFailureIsNotRetryable_DoesNotReissue(string message)
     {
         var inner = new ScriptedStreamChatClient(
-            ([Text("partial")], new InvalidOperationException("something local went wrong")),
-            ([Text("unused")], null));
-        var client = new StreamingFunctionInvokingChatClient(new RetryBudgetChatClient(inner, 3));
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")])));
-
-        Assert.Single(inner.Requests);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_WhenContextOverflows_DoesNotReissue()
-    {
-        var inner = new ScriptedStreamChatClient(
-            ([Text("partial")], new InvalidOperationException("prompt is too long: 250000 tokens > 200000 maximum")),
+            ([Text("partial")], new InvalidOperationException(message)),
             ([Text("unused")], null));
         var client = new StreamingFunctionInvokingChatClient(new RetryBudgetChatClient(inner, 3));
 
@@ -194,7 +164,9 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     [Fact]
     public async Task GetStreamingResponseAsync_WhenTransportExhaustsItsBudget_DoesNotStartAnotherRound()
     {
-        var inner = new ScriptedStreamChatClient(([], new IOException("connection reset")));
+        var inner = new ScriptedStreamChatClient(([], new ProviderFailureException(
+            new ProviderFailure(ProviderFailureKind.ResponseStreamDisconnected, ServerRetryAfter: TimeSpan.Zero),
+            new IOException("connection reset"))));
         IChatClient transport = new StreamRetryingChatClient(
             inner,
             new StreamRetryOptions(2, TimeSpan.FromSeconds(30)));

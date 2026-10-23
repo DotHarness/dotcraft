@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { placeSidebarEntryDetailsCard } from '../components/sidebar/SidebarEntryDetailsCard'
 
 describe('SidebarEntryDetailsCard placement', () => {
-  it('opens right with an eight-pixel overlap and aligned top edge', () => {
+  it('opens right with an eight-pixel overlap, flipping left and mirroring the overlap edge when needed', () => {
     const placement = placeSidebarEntryDetailsCard(
       { left: 0, right: 240, top: 40, width: 240, height: 28 },
       { width: 320, height: 104 },
@@ -16,17 +16,15 @@ describe('SidebarEntryDetailsCard placement', () => {
       side: 'right',
       overlapEdge: 'left'
     })
-  })
 
-  it('flips left and mirrors the eight-pixel overlap edge', () => {
-    const placement = placeSidebarEntryDetailsCard(
+    const flipped = placeSidebarEntryDetailsCard(
       { left: 960, right: 1200, top: 64, width: 240, height: 28 },
       { width: 240, height: 96 },
       1200,
       800
     )
 
-    expect(placement).toEqual({
+    expect(flipped).toEqual({
       left: 728,
       top: 64,
       side: 'left',
@@ -34,7 +32,7 @@ describe('SidebarEntryDetailsCard placement', () => {
     })
   })
 
-  it('clamps the card to the top and bottom viewport padding', () => {
+  it('clamps to the viewport padding and drops the overlap edge when clamping breaks attachment', () => {
     expect(placeSidebarEntryDetailsCard(
       { left: 0, right: 240, top: 2, width: 240, height: 28 },
       { width: 240, height: 100 },
@@ -48,9 +46,7 @@ describe('SidebarEntryDetailsCard placement', () => {
       1000,
       800
     ).top).toBe(692)
-  })
 
-  it('omits the overlap edge when horizontal clamping breaks attachment', () => {
     const placement = placeSidebarEntryDetailsCard(
       { left: 130, right: 170, top: 40, width: 40, height: 28 },
       { width: 280, height: 100 },

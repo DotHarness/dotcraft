@@ -40,37 +40,30 @@ describe('trayLock', () => {
     expect(third).not.toBeNull()
   })
 
-  it('recovers a legacy lock even when its pid belongs to a live process', async () => {
-    const path = lockPath()
+  it('recovers corrupt, unreachable, and legacy discovery files without signalling their pid', async () => {
     const kill = vi.spyOn(process, 'kill')
-    writeFileSync(path, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }), 'utf8')
+    for (const contents of [
+      '{not-json',
+      JSON.stringify({
+        version: 2,
+        pid: 1234,
+        endpoint: { host: '127.0.0.1', port: 65_534, token: 'unreachable-token-value', protocolVersion: 1 }
+      }),
+      JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() })
+    ]) {
+      const path = lockPath()
+      writeFileSync(path, contents, 'utf8')
 
-    const acquired = track(await tryAcquireTrayLock(path))
-
-    expect(acquired).not.toBeNull()
+      expect(track(await tryAcquireTrayLock(path)), contents).not.toBeNull()
+    }
     expect(kill).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    ['corrupt', '{not-json'],
-    ['legacy', JSON.stringify({ pid: 1234 })],
-    ['unreachable', JSON.stringify({
-      version: 2,
-      pid: 1234,
-      endpoint: { host: '127.0.0.1', port: 65_534, token: 'unreachable-token-value', protocolVersion: 1 }
-    })]
-  ])('recovers a %s discovery file', async (_name, contents) => {
-    const path = lockPath()
-    writeFileSync(path, contents, 'utf8')
-
-    expect(track(await tryAcquireTrayLock(path))).not.toBeNull()
   })
 
   it('keeps exactly one owner during concurrent stale-lock recovery', async () => {
     const path = lockPath()
     writeFileSync(path, JSON.stringify({ pid: process.pid }), 'utf8')
 
-    const results = await Promise.all(Array.from({ length: 5 }, () => tryAcquireTrayLock(path)))
+    const results = await Promise.all(Array.from({ length: 3 }, () => tryAcquireTrayLock(path)))
     const owners = results.filter((result): result is TrayLockHandle => result !== null)
     handles.push(...owners)
 

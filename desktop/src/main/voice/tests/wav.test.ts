@@ -4,7 +4,7 @@ import { VOICE_SAMPLE_RATE } from '../../../shared/voice'
 import { encodeMonoPcm16Wav } from '../wav'
 
 describe('encodeMonoPcm16Wav', () => {
-  it('writes a mono 16 kHz PCM header and preserves the samples', () => {
+  it('writes a mono 16 kHz PCM header, preserves the samples, and rejects empty or odd-length PCM', () => {
     const pcm = new Uint8Array([1, 2, 3, 4])
     const wav = encodeMonoPcm16Wav(pcm)
     const view = new DataView(wav.buffer)
@@ -15,9 +15,6 @@ describe('encodeMonoPcm16Wav', () => {
     expect(view.getUint32(24, true)).toBe(VOICE_SAMPLE_RATE)
     expect(view.getUint16(34, true)).toBe(16)
     expect([...wav.slice(44)]).toEqual([...pcm])
-  })
-
-  it('rejects empty and odd-length PCM', () => {
     expect(() => encodeMonoPcm16Wav(new Uint8Array())).toThrow('invalid-audio')
     expect(() => encodeMonoPcm16Wav(new Uint8Array([1]))).toThrow('invalid-audio')
   })

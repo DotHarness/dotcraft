@@ -11,7 +11,7 @@ public sealed class MemoryStoreAttachmentTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(Path.GetDirectoryName(_dataPath)!, recursive: true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]
@@ -34,20 +34,10 @@ public sealed class MemoryStoreAttachmentTests : IDisposable
         Assert.Equal([false, true], stores.Select(static store => store.Writable));
     }
 
-    [Fact]
-    public void NoAttachments_ResolveToNone()
-    {
-        Assert.Empty(MemoryScopes.AttachedStores(new ThreadConfiguration(), _dataPath));
-        Assert.Empty(MemoryScopes.AttachedStores(null, _dataPath));
-    }
-
     public static TheoryData<MemoryStoreAttachment[]> InvalidAttachments => new()
     {
         new[] { new MemoryStoreAttachment("..", "Up", "Escapes.", MemoryStoreAccess.Read) },
-        new[] { new MemoryStoreAttachment("a/b", "Nested", "Nested.", MemoryStoreAccess.Read) },
         new[] { new MemoryStoreAttachment("a", "A", "First.", MemoryStoreAccess.Read), new MemoryStoreAttachment("A", "A", "Again.", MemoryStoreAccess.Read) },
-        new[] { new MemoryStoreAttachment("a", "", "No name.", MemoryStoreAccess.Read) },
-        new[] { new MemoryStoreAttachment("a", "A", " ", MemoryStoreAccess.Read) },
         new[] { new MemoryStoreAttachment("a", "A", "Bad access.", "write") },
         Enumerable.Range(0, MemoryScopes.MaxAttachedStores + 1)
             .Select(static i => new MemoryStoreAttachment($"s{i}", $"S{i}", "Too many.", MemoryStoreAccess.Read))

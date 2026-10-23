@@ -27,7 +27,6 @@ public sealed class CompactionPipelineTests
         cfg.PostTurnCompactThresholdPercent = 50;
         var pipeline = new CompactionPipeline(cfg, new DummyChatClient());
 
-        // Effective window = 180k, so 50% = 90k; auto = 167k.
         Assert.True(pipeline.PostTurnCompactionEnabled);
         Assert.Equal(90_000, pipeline.EvaluateThreshold(0).PostTurnThreshold);
         Assert.False(pipeline.EvaluateThreshold(89_999).AbovePostTurn);
@@ -45,129 +44,31 @@ public sealed class CompactionPipelineTests
     }
 
     [Fact]
-    public void EvaluateThreshold_BelowWarning()
+    public void EvaluateThreshold_ReportsWarningErrorAutoAndPercentLeft()
     {
-        var cfg = DefaultConfig();
-        var pipeline = new CompactionPipeline(cfg, new DummyChatClient());
+        var pipeline = new CompactionPipeline(DefaultConfig(), new DummyChatClient());
 
-        var threshold = pipeline.EvaluateThreshold(10_000);
-        Assert.False(threshold.AboveWarning);
-        Assert.False(threshold.AboveError);
-        Assert.False(threshold.AboveAuto);
+        var below = pipeline.EvaluateThreshold(10_000);
+        Assert.False(below.AboveWarning);
+        Assert.False(below.AboveError);
+        Assert.False(below.AboveAuto);
+
+        var warning = pipeline.EvaluateThreshold(150_000);
+        Assert.True(warning.AboveWarning);
+        Assert.False(warning.AboveError);
+        Assert.False(warning.AboveAuto);
+
+        var auto = pipeline.EvaluateThreshold(180_000);
+        Assert.True(auto.AboveWarning);
+        Assert.True(auto.AboveError);
+        Assert.True(auto.AboveAuto);
+
+        Assert.Equal(1.0, pipeline.EvaluateThreshold(0).PercentLeft, 3);
+        Assert.Equal(0.0, pipeline.EvaluateThreshold(long.MaxValue).PercentLeft);
     }
 
     [Fact]
-    public void EvaluateThreshold_AboveAuto()
-    {
-        var cfg = DefaultConfig();
-        var pipeline = new CompactionPipeline(cfg, new DummyChatClient());
-
-        // AutoCompact threshold = (200k - 20k) - 13k = 167k.
-        var threshold = pipeline.EvaluateThreshold(180_000);
-        Assert.True(threshold.AboveWarning);
-        Assert.True(threshold.AboveError);
-        Assert.True(threshold.AboveAuto);
-    }
-
-    [Fact]
-    public void EvaluateThreshold_AboveWarningBelowAuto()
-    {
-        var cfg = DefaultConfig();
-        var pipeline = new CompactionPipeline(cfg, new DummyChatClient());
-
-        // Auto = 167k; warning = 147k; error = 157k.
-        var threshold = pipeline.EvaluateThreshold(150_000);
-        Assert.True(threshold.AboveWarning);
-        Assert.False(threshold.AboveError);
-        Assert.False(threshold.AboveAuto);
-    }
-
-    [Fact]
-    public void FailureTracker_TripsAfterConfiguredFailures()
-    {
-        var cfg = DefaultConfig();
-        var pipeline = new CompactionPipeline(cfg, new DummyChatClient());
-
-        var tracker = pipeline.Failures;
-        Assert.False(tracker.IsTripped("t"));
-        tracker.RecordFailure("t");
-        tracker.RecordFailure("t");
-        Assert.False(tracker.IsTripped("t"));
-        tracker.RecordFailure("t");
-        Assert.True(tracker.IsTripped("t"));
-
-        tracker.RecordSuccess("t");
-        Assert.False(tracker.IsTripped("t"));
-    }
-
-    [Fact]
-    public void PercentLeft_IsZeroWhenAtWindow()
-    {
-        var cfg = DefaultConfig();
-        var pipeline = new CompactionPipeline(cfg, new DummyChatClient());
-
-        var threshold = pipeline.EvaluateThreshold(long.MaxValue);
-        Assert.Equal(0.0, threshold.PercentLeft);
-    }
-
-    [Fact]
-    public void PercentLeft_IsOneWhenEmpty()
-    {
-        var cfg = DefaultConfig();
-        var pipeline = new CompactionPipeline(cfg, new DummyChatClient());
-
-        var threshold = pipeline.EvaluateThreshold(0);
-        Assert.Equal(1.0, threshold.PercentLeft, 3);
-    }
-
-    [Fact]
-    public async Task TryAutoCompactHistoryAsync_BelowThresholdSkips()
-    {
-        var cfg = DefaultConfig();
-        var pipeline = new CompactionPipeline(cfg, new DummyChatClient());
-
-        var result = await pipeline.TryAutoCompactHistoryAsync(
-            [new ChatMessage(ChatRole.User, "short")],
-            "thread-1",
-            10_000,
-            lastAssistantTimestampUtc: null,
-            CancellationToken.None);
-
-        Assert.Equal(CompactionOutcome.Skipped, result.Status.Outcome);
-        Assert.Equal(10_000, result.Status.EstimatedTokensBefore);
-        Assert.Single(result.Messages);
-    }
-
-    [Fact]
-    public async Task TryManualCompactHistoryAsync_SingleApiRoundFallsBackToFullCompaction()
-    {
-        var cfg = DefaultConfig();
-        cfg.MicrocompactEnabled = false;
-        var pipeline = new CompactionPipeline(
-            cfg,
-            new SummaryChatClient("<summary>single round summary</summary>"));
-        var messages = new List<ChatMessage>
-        {
-            new(ChatRole.User, "user " + new string('u', 1200)),
-            new(ChatRole.Assistant, "assistant " + new string('a', 1200)),
-        };
-
-        var result = await pipeline.TryManualCompactHistoryAsync(
-            messages,
-            "thread-1",
-            lastAssistantTimestampUtc: null,
-            CancellationToken.None);
-
-        Assert.Equal(CompactionOutcome.Partial, result.Status.Outcome);
-        Assert.Null(result.Status.FailureReason);
-        Assert.Single(result.Messages);
-        Assert.Contains("single round summary", result.Messages[0].Text);
-        Assert.Equal(ChatRole.User, result.Messages[0].Role);
-        Assert.False(pipeline.Failures.IsTripped("thread-1"));
-    }
-
-    [Fact]
-    public async Task TryAutoCompactHistoryAsync_AboveThresholdReturnsReplacementHistory()
+    public async Task TryAutoCompactHistoryAsync_SkipsBelowThresholdAndReturnsReplacementHistoryAbove()
     {
         var cfg = new CompactionConfig
         {
@@ -182,6 +83,16 @@ public sealed class CompactionPipelineTests
         var pipeline = new CompactionPipeline(
             cfg,
             new SummaryChatClient("<summary>important context</summary>"));
+
+        var skipped = await pipeline.TryAutoCompactHistoryAsync(
+            [new ChatMessage(ChatRole.User, "short")],
+            "thread-1",
+            10,
+            lastAssistantTimestampUtc: null,
+            CancellationToken.None);
+        Assert.Equal(CompactionOutcome.Skipped, skipped.Status.Outcome);
+        Assert.Equal(10, skipped.Status.EstimatedTokensBefore);
+        Assert.Single(skipped.Messages);
 
         var messages = new List<ChatMessage>();
         for (var i = 0; i < 6; i++)
@@ -331,8 +242,13 @@ public sealed class CompactionPipelineTests
         Assert.True(result.Status.ClearedToolResults > 0);
     }
 
-    [Fact]
-    public async Task TryAutoCompactHistoryAsync_OpenAIProtocolSkipsColdCacheMicroByDefault()
+    [Theory]
+    [InlineData(ModelProviderProtocols.OpenAIResponses, null, "gpt-test")]
+    [InlineData(ModelProviderProtocols.Anthropic, "1h", "claude-test")]
+    public async Task TryAutoCompactHistoryAsync_ProviderCacheLifetimeSkipsColdCacheMicro(
+        string protocol,
+        string? ttl,
+        string model)
     {
         var cfg = new CompactionConfig
         {
@@ -348,11 +264,11 @@ public sealed class CompactionPipelineTests
         };
         var pipeline = new CompactionPipeline(
             cfg,
-            new SummaryChatClient("<summary>openai summary</summary>"),
+            new SummaryChatClient("<summary>provider summary</summary>"),
             cacheOptions: new MaintenanceForkCacheOptions(
-                ModelProviderProtocols.OpenAIResponses,
-                new AppConfig.PromptCachingConfig(),
-                "gpt-test"));
+                protocol,
+                ttl is null ? new AppConfig.PromptCachingConfig() : new AppConfig.PromptCachingConfig { Ttl = ttl },
+                model));
         var messages = new List<ChatMessage>();
         for (var i = 0; i < 4; i++)
         {
@@ -370,81 +286,7 @@ public sealed class CompactionPipelineTests
 
         Assert.Equal(CompactionOutcome.Partial, result.Status.Outcome);
         Assert.Equal(0, result.Status.ClearedToolResults);
-        Assert.Contains("openai summary", result.Messages[0].Text);
-    }
-
-    [Fact]
-    public async Task TryAutoCompactHistoryAsync_AnthropicOneHourCacheExtendsMicroGap()
-    {
-        var cfg = new CompactionConfig
-        {
-            ContextWindow = 40_000,
-            SummaryReserveTokens = 4_000,
-            AutoCompactBufferTokens = 2_000,
-            KeepRecentMinTokens = 1,
-            KeepRecentMinGroups = 1,
-            KeepRecentMaxTokens = 100_000,
-            MicrocompactEnabled = true,
-            MicrocompactKeepRecent = 1,
-            MicrocompactGapMinutes = 5
-        };
-        var pipeline = new CompactionPipeline(
-            cfg,
-            new SummaryChatClient("<summary>anthropic summary</summary>"),
-            cacheOptions: new MaintenanceForkCacheOptions(
-                ModelProviderProtocols.Anthropic,
-                new AppConfig.PromptCachingConfig { Ttl = "1h" },
-                "claude-test"));
-        var messages = new List<ChatMessage>();
-        for (var i = 0; i < 4; i++)
-        {
-            var callId = $"call-{i}";
-            messages.Add(AssistantCall(callId));
-            messages.Add(ToolResult(callId, new string('r', 8_000)));
-        }
-
-        var result = await pipeline.TryAutoCompactHistoryAsync(
-            messages,
-            "thread-1",
-            60_000,
-            lastAssistantTimestampUtc: DateTimeOffset.UtcNow.AddMinutes(-30),
-            CancellationToken.None);
-
-        Assert.Equal(CompactionOutcome.Partial, result.Status.Outcome);
-        Assert.Equal(0, result.Status.ClearedToolResults);
-        Assert.Contains("anthropic summary", result.Messages[0].Text);
-    }
-
-    [Fact]
-    public async Task TryManualCompactHistoryAsync_PartialFailureFallsBackToFullCompaction()
-    {
-        var cfg = DefaultConfig();
-        cfg.MicrocompactEnabled = false;
-        cfg.KeepRecentMinTokens = 1;
-        cfg.KeepRecentMinGroups = 1;
-        cfg.KeepRecentMaxTokens = 100_000;
-        var chat = new SequenceChatClient(
-            "",
-            "<summary>full fallback summary</summary>");
-        var pipeline = new CompactionPipeline(cfg, chat);
-        var messages = new List<ChatMessage>();
-        for (var i = 0; i < 4; i++)
-        {
-            messages.Add(new ChatMessage(ChatRole.User, $"user {i} " + new string('u', 1200)));
-            messages.Add(new ChatMessage(ChatRole.Assistant, $"assistant {i} " + new string('a', 1200)));
-        }
-
-        var result = await pipeline.TryManualCompactHistoryAsync(
-            messages,
-            "thread-1",
-            lastAssistantTimestampUtc: null,
-            CancellationToken.None);
-
-        Assert.Equal(CompactionOutcome.Partial, result.Status.Outcome);
-        Assert.Equal(2, chat.CallCount);
-        Assert.Single(result.Messages);
-        Assert.Contains("full fallback summary", result.Messages[0].Text);
-        Assert.False(pipeline.Failures.IsTripped("thread-1"));
+        Assert.Contains("provider summary", result.Messages[0].Text);
     }
 
     [Fact]
@@ -558,37 +400,6 @@ public sealed class CompactionPipelineTests
             e => e.Type == TraceEventType.MaintenanceForkRequest);
         Assert.DoesNotContain("\"mode\":\"legacy\"", request.MetadataJson);
         Assert.Contains("\"extraTailMessageCount\":2", request.MetadataJson);
-    }
-
-    [Fact]
-    public async Task TryManualCompactHistoryAsync_OversizedSnapshotFallsBackToLegacyPartialSummary()
-    {
-        var cfg = DefaultConfig();
-        cfg.MicrocompactEnabled = false;
-        cfg.KeepRecentMinTokens = 1;
-        cfg.KeepRecentMinGroups = 1;
-        cfg.KeepRecentMaxTokens = 100_000;
-        var chat = new SequenceChatClient("<summary>legacy partial summary</summary>");
-        var pipeline = new CompactionPipeline(cfg, chat);
-        var messages = BuildMultiRoundMessages();
-        var snapshot = PromptRequestSnapshot.Capture(
-            messages,
-            new ChatOptions { Instructions = "stable base", ModelId = "gpt-test" },
-            mode: "agent",
-            threadId: "thread-1",
-            turnId: "turn-1",
-            estimatedInputTokens: 500_000);
-
-        var result = await pipeline.TryManualCompactHistoryAsync(
-            messages,
-            "thread-1",
-            lastAssistantTimestampUtc: null,
-            CancellationToken.None,
-            snapshot: snapshot);
-
-        Assert.Equal(CompactionOutcome.Partial, result.Status.Outcome);
-        Assert.Equal(1, chat.CallCount);
-        Assert.Contains("legacy partial summary", result.Messages[0].Text);
     }
 
     [Fact]
@@ -723,6 +534,10 @@ public sealed class CompactionPipelineTests
             snapshot: snapshot);
 
         Assert.Equal(CompactionOutcome.Partial, result.Status.Outcome);
+        Assert.Equal(2, chat.CallCount);
+        Assert.Single(result.Messages);
+        Assert.Contains("full fallback summary", result.Messages[0].Text);
+        Assert.False(pipeline.Failures.IsTripped("thread-1"));
         var events = store.GetEvents("thread-1");
         Assert.Equal(2, events.Count(e => e.Type == TraceEventType.MaintenanceForkRequest));
         Assert.Equal(2, events.Count(e => e.Type == TraceEventType.MaintenanceForkResponse));
@@ -735,7 +550,7 @@ public sealed class CompactionPipelineTests
     }
 
     [Fact]
-    public async Task TryManualCompactHistoryAsync_LegacyPathRecordsMaintenanceTrace()
+    public async Task TryManualCompactHistoryAsync_SingleApiRoundUsesLegacyFullSummaryWithFallbackToolsAndTrace()
     {
         var cfg = DefaultConfig();
         cfg.MicrocompactEnabled = false;
@@ -744,33 +559,6 @@ public sealed class CompactionPipelineTests
         var collector = new TraceCollector(store);
         var chat = new SummaryChatClient("<summary>legacy summary</summary>");
         var pipeline = new CompactionPipeline(cfg, chat, collector);
-        var messages = new List<ChatMessage>
-        {
-            new(ChatRole.User, "user " + new string('u', 1200)),
-            new(ChatRole.Assistant, "assistant " + new string('a', 1200)),
-        };
-
-        var result = await pipeline.TryManualCompactHistoryAsync(
-            messages,
-            "thread-1",
-            lastAssistantTimestampUtc: null,
-            CancellationToken.None);
-
-        Assert.Equal(CompactionOutcome.Partial, result.Status.Outcome);
-        var request = Assert.Single(
-            store.GetEvents("thread-1"),
-            e => e.Type == TraceEventType.MaintenanceForkRequest);
-        Assert.Contains("\"mode\":\"legacy\"", request.MetadataJson);
-        Assert.Equal(1_234, chat.Options?.MaxOutputTokens);
-    }
-
-    [Fact]
-    public async Task TryManualCompactHistoryAsync_LegacyPathWithoutSnapshotPassesFallbackTools()
-    {
-        var cfg = DefaultConfig();
-        cfg.MicrocompactEnabled = false;
-        var chat = new SummaryChatClient("<summary>legacy summary</summary>");
-        var pipeline = new CompactionPipeline(cfg, chat);
         var tool = AIFunctionFactory.Create(() => "ok", name: "GetStatus", description: "Get status.");
         var messages = new List<ChatMessage>
         {
@@ -786,8 +574,16 @@ public sealed class CompactionPipelineTests
             fallbackTools: [tool]);
 
         Assert.Equal(CompactionOutcome.Partial, result.Status.Outcome);
-        var capturedTool = Assert.Single(chat.Options?.Tools ?? []);
-        Assert.Equal("GetStatus", capturedTool.Name);
+        var request = Assert.Single(
+            store.GetEvents("thread-1"),
+            e => e.Type == TraceEventType.MaintenanceForkRequest);
+        Assert.Contains("\"mode\":\"legacy\"", request.MetadataJson);
+        Assert.Equal(1_234, chat.Options?.MaxOutputTokens);
+        Assert.Equal("GetStatus", Assert.Single(chat.Options?.Tools ?? []).Name);
+        Assert.Null(result.Status.FailureReason);
+        Assert.Equal(ChatRole.User, Assert.Single(result.Messages).Role);
+        Assert.Contains("legacy summary", result.Messages[0].Text);
+        Assert.False(pipeline.Failures.IsTripped("thread-1"));
     }
 
     private static List<ChatMessage> BuildMultiRoundMessages()

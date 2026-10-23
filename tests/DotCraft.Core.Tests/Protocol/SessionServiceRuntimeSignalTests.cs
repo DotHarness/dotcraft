@@ -45,14 +45,11 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-/// <summary>
-/// Verifies that <see cref="SessionService"/> emits runtime broadcast signals for turn lifecycle transitions.
-/// </summary>
-public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
+public abstract class SessionServiceRuntimeSignalTestBase : IDisposable
 {
-    private readonly string _tempDir;
+    protected readonly string _tempDir;
 
-    public SessionServiceRuntimeSignalTests()
+    protected SessionServiceRuntimeSignalTestBase()
     {
         _tempDir = Path.Combine(Path.GetTempPath(), "RuntimeSignal_" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempDir);
@@ -61,9 +58,1073 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_tempDir, true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
+    protected static ChatResponseUpdate UsageUpdate(int requestIndex, long input, long output, long cachedInput)
+        => new()
+        {
+            Role = ChatRole.Assistant,
+            AdditionalProperties = new AdditionalPropertiesDictionary
+            {
+                [TokenUsageRequestMetadata.RequestIndexKey] = requestIndex
+            },
+            Contents =
+            [
+                new UsageContent(new UsageDetails
+                {
+                    InputTokenCount = input,
+                    OutputTokenCount = output,
+                    CachedInputTokenCount = cachedInput
+                })
+            ]
+        };
+
+    protected async Task<SessionThread> SeedAndCompactThreadAsync()
+    {
+        var thread = await SeedCompactableThreadAsync(forceHighEstimate: false);
+        var compactMainChatClient = new RecordingChatClient("unused");
+        await using var compactFactory = CreateAgentFactory(
+            compactMainChatClient,
+            configureConfig: ConfigureSmallCompaction,
+            compactionChatClient: new SummaryChatClient("<summary>compacted previous context</summary>"));
+        var compactService = CreateService(compactFactory, compactMainChatClient);
+        await compactService.ResumeThreadAsync(thread.Id);
+        Assert.Equal("partial", (await compactService.CompactThreadAsync(thread.Id)).Outcome);
+        return thread;
+    }
+
+    protected async Task<List<string>> SubmitFollowUpAsync(string threadId)
+    {
+        var followUpChatClient = new RecordingChatClient("follow answer");
+        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
+        var followUpService = CreateService(followUpFactory, followUpChatClient);
+        await followUpService.ResumeThreadAsync(threadId);
+        await DrainAsync(followUpService.SubmitInputAsync(threadId, [new TextContent("follow up")]));
+        return followUpChatClient.LastMessages.Select(MessageText).ToList();
+    }
+
+    protected SessionService CreateService(
+        AgentFactory agentFactory,
+        IChatClient chatClient,
+        TokenUsageStore? tokenUsageStore = null,
+        bool useStreamingFunctionInvoker = false,
+        TraceCollector? traceCollector = null)
+    {
+        var defaultAgent = useStreamingFunctionInvoker
+            ? new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent()
+            : chatClient.AsAIAgent();
+        return new SessionService(
+            agentFactory,
+            defaultAgent,
+            new SessionPersistenceService(new ThreadStore(_tempDir)),
+            new SessionGate(),
+            traceCollector: traceCollector,
+            tokenUsageStore: tokenUsageStore);
+    }
+
+    protected SessionService CreateStreamingServiceWithInstructions(
+        AgentFactory agentFactory,
+        IChatClient chatClient,
+        string instructions)
+    {
+        var defaultAgent = new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent(
+            new ChatOptions { Instructions = instructions });
+        return new SessionService(
+            agentFactory,
+            defaultAgent,
+            new SessionPersistenceService(new ThreadStore(_tempDir)),
+            new SessionGate());
+    }
+
+    protected AgentFactory CreateAgentFactory(
+        IChatClient chatClientFactory,
+        IReadOnlyList<IToolSource>? toolProviders = null,
+        Action<AppConfig>? configureConfig = null,
+        IChatClient? compactionChatClient = null,
+        IApprovalService? approvalService = null,
+        IToolDispatcher? toolDispatcher = null,
+        PlanStore? planStore = null,
+        string? workspacePath = null)
+    {
+        var config = AppConfigTestFactory.CreateOpenAI();
+        configureConfig?.Invoke(config);
+        var catalogDirectory = Path.Combine(_tempDir, "catalog-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(catalogDirectory);
+        config.WorkspaceConfigPath = Path.Combine(catalogDirectory, "config.json");
+        var model = ModelProviderResolver.ResolveConfiguredModel(config);
+        File.WriteAllText(Path.Combine(catalogDirectory, "models.json"),
+            JsonSerializer.Serialize(new { models = new Dictionary<string, object>
+            {
+                [model!] = new { contextWindow = config.Compaction.ContextWindow }
+            } }));
+        var memory = new MemoryStore(_tempDir);
+        var skills = new SkillsLoader(_tempDir);
+        return new AgentFactory(
+            dotcraftPath: _tempDir,
+            workspacePath: workspacePath ?? _tempDir,
+            config: config,
+            memoryStore: memory,
+            skillsLoader: skills,
+            approvalService: approvalService ?? new SessionScopedApprovalService(new AutoApproveApprovalService()),
+            blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
+            chatClient: chatClientFactory,
+            toolDispatcher: toolDispatcher,
+            toolSources: toolProviders ?? Array.Empty<IToolSource>(),
+            planStore: planStore,
+            compactionChatClient: compactionChatClient);
+    }
+
+    protected SessionIdentity MakeIdentity() => new()
+    {
+        ChannelName = "test",
+        UserId = "u",
+        WorkspacePath = _tempDir
+    };
+
+    protected static async Task DrainAsync(IAsyncEnumerable<SessionEvent> events)
+    {
+        await foreach (var _ in events)
+        {
+        }
+    }
+
+    protected static async Task<List<SessionEvent>> CollectAsync(IAsyncEnumerable<SessionEvent> events)
+    {
+        var collected = new List<SessionEvent>();
+        await foreach (var evt in events)
+            collected.Add(evt);
+        return collected;
+    }
+
+    protected static async Task<SessionTurn> WaitForStartedSleepAsync(
+        SessionService service,
+        string threadId)
+    {
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            var thread = await service.GetThreadAsync(threadId);
+            var turn = thread.Turns.SingleOrDefault(candidate =>
+                candidate.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
+            if (turn?.Items.Any(item => item.Type == ItemType.Sleep && item.Status == ItemStatus.Started) == true)
+                return turn;
+
+            await Task.Delay(10);
+        }
+
+        throw new TimeoutException("The running turn did not start a Sleep item.");
+    }
+
+    protected static async Task<(string TurnId, UserInputRequestPayload Request)> WaitForUserInputRequestAsync(
+        SessionService service,
+        string threadId)
+    {
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            var thread = await service.GetThreadAsync(threadId);
+            var turn = thread.Turns.SingleOrDefault(candidate => candidate.Status == TurnStatus.WaitingInput);
+            var request = turn?.Items
+                .Select(item => item.Payload)
+                .OfType<UserInputRequestPayload>()
+                .SingleOrDefault();
+            if (turn is not null && request is not null)
+                return (turn.Id, request);
+
+            await Task.Delay(10);
+        }
+
+        throw new TimeoutException("The running turn did not request user input.");
+    }
+
+    protected static IEnumerable<ChatMessage> Conversation(IEnumerable<ChatMessage> messages) =>
+        messages.Where(static message => ThreadContextItems.GetKind(message) == null);
+
+    protected static string FormatMessage(ChatMessage message)
+    {
+        var text = string.Concat(message.Contents.OfType<TextContent>().Select(content => content.Text));
+        var runtimeContextIndex = text.IndexOf("\n[Runtime Context]", StringComparison.Ordinal);
+        if (runtimeContextIndex >= 0)
+            text = text[..runtimeContextIndex];
+        text = StripSystemReminderBlocks(text);
+        return $"{message.Role}:{text.Trim()}";
+    }
+
+    protected static string FormatMessageWithContents(ChatMessage message)
+    {
+        var parts = message.Contents.Select(content => content switch
+        {
+            TextContent text => text.Text,
+            FunctionCallContent call => $"function_call:{call.Name}:{call.CallId}",
+            FunctionResultContent result => $"function_result:{result.CallId}:{result.Result}",
+            _ => content.ToString() ?? string.Empty
+        });
+        var text = StripSystemReminderBlocks(string.Concat(parts));
+        var runtimeContextIndex = text.IndexOf("\n[Runtime Context]", StringComparison.Ordinal);
+        if (runtimeContextIndex >= 0)
+            text = text[..runtimeContextIndex];
+        return $"{message.Role}:{text.Trim()}";
+    }
+
+    protected static string MessageTextWithReminders(ChatMessage message) =>
+        string.Concat(message.Contents.OfType<TextContent>().Select(content => content.Text));
+
+    protected static string MessageText(ChatMessage message) =>
+        StripSystemReminderBlocks(string.Concat(message.Contents.Select(content => content switch
+        {
+            TextContent text => text.Text,
+            FunctionCallContent call => $"function_call:{call.Name}:{call.CallId}",
+            FunctionResultContent result => $"function_result:{result.CallId}:{result.Result}",
+            _ => content.ToString() ?? string.Empty
+        })));
+
+    protected static bool IsSystemEvent(SessionEvent evt, string kind) =>
+        evt.EventType == SessionEventType.SystemEvent
+        && evt.Payload is SystemEventPayload payload
+        && payload.Kind == kind;
+
+    protected static string StripSystemReminderBlocks(string input)
+    {
+        const string openTag = "<system-reminder>";
+        const string closeTag = "</system-reminder>";
+        var text = input;
+        while (true)
+        {
+            var open = text.IndexOf(openTag, StringComparison.Ordinal);
+            if (open < 0)
+                return text.TrimEnd();
+
+            var close = text.IndexOf(closeTag, open + openTag.Length, StringComparison.Ordinal);
+            if (close < 0)
+                return text[..open].TrimEnd();
+
+            text = (text[..open] + text[(close + closeTag.Length)..]).TrimEnd();
+        }
+    }
+
+    protected bool ThreadRowExists(string threadId)
+    {
+        using var connection = OpenStateConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT 1 FROM threads WHERE thread_id = $thread_id LIMIT 1";
+        command.Parameters.AddWithValue("$thread_id", threadId);
+        return command.ExecuteScalar() != null;
+    }
+
+    protected static void ConfigureSmallCompaction(AppConfig config)
+    {
+        config.Compaction.ContextWindow = 10_000;
+        config.Compaction.SummaryReserveTokens = 1_000;
+        config.Compaction.AutoCompactBufferTokens = 500;
+        config.Compaction.WarningBufferTokens = 500;
+        config.Compaction.ErrorBufferTokens = 250;
+        config.Compaction.KeepRecentMinTokens = 1;
+        config.Compaction.KeepRecentMinGroups = 1;
+        config.Compaction.KeepRecentMaxTokens = 500;
+        config.Compaction.MicrocompactEnabled = false;
+    }
+
+    protected SqliteConnection OpenStateConnection()
+    {
+        var connection = new SqliteConnection(
+            new SqliteConnectionStringBuilder
+            {
+                DataSource = Path.Combine(_tempDir, "state.db"),
+                Mode = SqliteOpenMode.ReadWrite
+            }.ToString());
+        connection.Open();
+        return connection;
+    }
+
+    protected sealed class FakeChatClient(ChatResponseUpdate[] streamUpdates) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (var update in streamUpdates)
+                yield return update;
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceType == typeof(IToolCallArgumentsDeltaExtractor)
+                ? AnthropicToolCallArgumentsDeltaExtractor.Instance
+                : null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected sealed class ProjectionTestToolSource : AIFunctionToolSource
+    {
+        public override string SourceId => "core-native";
+
+        protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
+        {
+            yield return AIFunctionFactory.Create(
+                () => "file contents",
+                name: "ProjectionRead",
+                description: "Read a file.");
+        }
+
+        protected override ToolPresentationDescriptor? GetPresentation(
+            AIFunction function,
+            ToolPlanningContext context) =>
+            new(new PresentationId("core.read-file"));
+    }
+
+    protected sealed class PlanConfirmationCleanupToolSource : AIFunctionToolSource
+    {
+        public override string SourceId => "plan-confirmation-cleanup";
+
+        protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
+        {
+            yield return AIFunctionFactory.Create(
+                () => "Scratch removed.",
+                name: "CleanUpScratch",
+                description: "Remove scratch files.");
+        }
+    }
+
+    protected sealed class PlanThenCleanupChatClient : IChatClient
+    {
+        private int _requestCount;
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            switch (Interlocked.Increment(ref _requestCount))
+            {
+                case 1:
+                    Assert.Contains(options?.Tools ?? [], tool => string.Equals(tool.Name, "CreatePlan", StringComparison.Ordinal));
+                    yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [
+                        new FunctionCallContent(
+                            "call-plan",
+                            "CreatePlan",
+                            new Dictionary<string, object?>
+                            {
+                                ["plan"] = "# Cleanup-safe plan\n\n## Summary\n\nKeep confirmation pending.",
+                                ["todos"] = Array.Empty<PlanTodoInput>()
+                            })
+                    ]);
+                    break;
+                case 2:
+                    Assert.Contains(
+                        chatMessages.SelectMany(message => message.Contents).OfType<FunctionResultContent>(),
+                        result => string.Equals(result.CallId, "call-plan", StringComparison.Ordinal));
+                    yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [
+                        new FunctionCallContent(
+                            "call-close",
+                            "CleanUpScratch",
+                            new Dictionary<string, object?>())
+                    ]);
+                    break;
+                default:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("Plan ready.")]);
+                    break;
+            }
+
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected static void AssertDynamicSourceFailure(
+        DynamicToolCallPayload payload,
+        string expectedCode,
+        string expectedMessage)
+    {
+        Assert.False(payload.Success);
+        Assert.Equal("failed", payload.Status);
+        Assert.Equal(expectedCode, payload.ErrorCode);
+        Assert.Equal(expectedMessage, payload.ErrorMessage);
+        Assert.Equal("CS1001", payload.StructuredContent?["diagnostics"]?[0]?["id"]?.GetValue<string>());
+    }
+
+    protected async Task<DynamicToolCallPayload> ExecuteDynamicProjectionAsync(ToolExecutionResult runtimeResult)
+    {
+        var chatClient = new CapturingToolFailureChatClient("RuntimeProjection");
+        var recorder = new ToolInvocationRecorderRouter();
+        var dispatcher = new ToolDispatcher(recorder: recorder);
+        await using var agentFactory = CreateAgentFactory(
+            chatClient,
+            [new DynamicProjectionToolSource(runtimeResult)],
+            toolDispatcher: dispatcher);
+        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
+        recorder.Bind(service);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("run the dynamic tool")]));
+
+        var updated = await service.GetThreadAsync(thread.Id);
+        return Assert.IsType<DynamicToolCallPayload>(
+            Assert.Single(Assert.Single(updated.Turns).Items, item => item.Type == ItemType.DynamicToolCall).Payload);
+    }
+
+    protected sealed class DynamicProjectionToolSource(ToolExecutionResult result) : IToolSource
+    {
+        public string SourceId => "runtime-dynamic-test";
+
+        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+            ToolPlanningContext context,
+            CancellationToken cancellationToken = default)
+        {
+            var sourceToolId = new SourceToolId("RuntimeProjection");
+            var definitionId = new ToolDefinitionId(ToolSourceKind.RuntimeDynamic, SourceId, sourceToolId);
+            var definition = new ToolDefinition(
+                definitionId,
+                new ToolName(null, "RuntimeProjection"),
+                "Return a Runtime Dynamic projection test result.",
+                JsonSerializer.SerializeToElement(new { type = "object" }),
+                provenance: new ToolProvenance(ToolSourceKind.RuntimeDynamic, SourceId, "thread"));
+            var binding = new ToolRuntimeBinding(
+                new RuntimeBindingId("runtime-dynamic-test:1"),
+                definitionId,
+                new DynamicProjectionRuntime(result),
+                ToolBindingLeases.AlwaysAvailable,
+                "test:runtime-dynamic",
+                context.Revision);
+            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([
+                new ToolRegistration(
+                    definition,
+                    binding,
+                    ToolProjectionShape.DynamicLifecycle,
+                    ToolExposure.Direct,
+                    ToolInvocationAudience.Model)
+            ]);
+        }
+    }
+
+    protected sealed class DynamicProjectionRuntime(ToolExecutionResult result) : IToolRuntime
+    {
+        public ValueTask<ToolExecutionResult> InvokeAsync(
+            ToolInvocationContext context,
+            JsonObject arguments,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(result);
+    }
+
+    protected sealed class NormalizedFailureToolSource(string errorCode, string content) : IToolSource
+    {
+        public string SourceId => "normalized-failure";
+
+        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+            ToolPlanningContext context,
+            CancellationToken cancellationToken = default)
+        {
+            var sourceToolId = new SourceToolId("FailingProjection");
+            var definitionId = new ToolDefinitionId(ToolSourceKind.CoreNative, SourceId, sourceToolId);
+            var definition = new ToolDefinition(
+                definitionId,
+                new ToolName(null, "FailingProjection"),
+                "Return a normalized test failure.",
+                JsonSerializer.SerializeToElement(new { type = "object" }));
+            var binding = new ToolRuntimeBinding(
+                new RuntimeBindingId("normalized-failure:1"),
+                definitionId,
+                new NormalizedFailureRuntime(errorCode, content),
+                ToolBindingLeases.AlwaysAvailable,
+                "test:normalized-failure",
+                context.Revision);
+            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([
+                new ToolRegistration(definition, binding, ToolProjectionShape.StandardPair)
+            ]);
+        }
+    }
+
+    protected sealed class NormalizedFailureRuntime(string errorCode, string content) : IToolRuntime
+    {
+        public ValueTask<ToolExecutionResult> InvokeAsync(
+            ToolInvocationContext context,
+            JsonObject arguments,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ToolExecutionResult.Failed(
+                new ToolError(errorCode, "The screenshot operation timed out."),
+                content));
+    }
+
+    protected sealed class CapturingToolFailureChatClient(string toolName) : IChatClient
+    {
+        private int _requestCount;
+
+        public FunctionResultContent? ToolResult { get; private set; }
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _requestCount) == 1)
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [new FunctionCallContent("call-failure", toolName, new Dictionary<string, object?>())]);
+            }
+            else
+            {
+                ToolResult = Assert.Single(chatMessages
+                    .SelectMany(message => message.Contents)
+                    .OfType<FunctionResultContent>());
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("handled failure")]);
+            }
+
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected sealed class ImageNodeReplProxy(byte[] imageBytes) : INodeReplProxy
+    {
+        public bool IsAvailable => true;
+
+        public NodeReplEvaluationMetadata? LastMetadata { get; private set; }
+
+        public Task<NodeReplEvaluation?> EvaluateAsync(
+            string code,
+            int? timeoutSeconds = null,
+            CancellationToken ct = default,
+            NodeReplEvaluationMetadata? metadata = null)
+        {
+            LastMetadata = metadata;
+            return Task.FromResult<NodeReplEvaluation?>(new NodeReplEvaluation
+            {
+                Images =
+                [
+                    new NodeReplImage
+                    {
+                        MediaType = "image/png",
+                        DataBase64 = Convert.ToBase64String(imageBytes)
+                    }
+                ]
+            });
+        }
+    }
+
+    protected sealed class CapturingImageToolChatClient(string toolName) : IChatClient
+    {
+        private int _requestCount;
+
+        public DataContent? ImageContent { get; private set; }
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _requestCount) == 1)
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [new FunctionCallContent(
+                        "call-node-repl-image",
+                        toolName,
+                        new Dictionary<string, object?> { ["code"] = "emitImage(image)" })]);
+            }
+            else
+            {
+                ImageContent = Assert.Single(chatMessages
+                    .SelectMany(message => message.Contents)
+                    .OfType<DataContent>());
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("handled image")]);
+            }
+
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected sealed class HistoricalImageUsageChatClient : IChatClient
+    {
+        public IReadOnlyList<ChatMessage> LastMessages { get; private set; } = [];
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("continued")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            LastMessages = chatMessages.ToList();
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("continued")]);
+            yield return UsageUpdate(requestIndex: 1, input: 5_000, output: 1, cachedInput: 0);
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected sealed class SingleToolCallChatClient(string toolName, bool emitFinalResponse = true) : IChatClient
+    {
+        private int _requestCount;
+
+        public int RequestCount => _requestCount;
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _requestCount) == 1)
+            {
+                Assert.Contains(options?.Tools ?? [], tool => string.Equals(tool.Name, toolName, StringComparison.Ordinal));
+                yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [new FunctionCallContent("call-projection", toolName, new Dictionary<string, object?>())]);
+            }
+            else if (emitFinalResponse)
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("done")]);
+            }
+
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected sealed class CoordinationToolCallChatClient(
+        string toolName,
+        IDictionary<string, object?> arguments,
+        Func<Task>? beforeToolCall = null) : IChatClient
+    {
+        private int _requestCount;
+
+        public int RequestCount => _requestCount;
+
+        public IReadOnlyList<ChatMessage> FollowUpMessages { get; private set; } = [];
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _requestCount) == 1)
+            {
+                Assert.Contains(options?.Tools ?? [], tool => string.Equals(tool.Name, toolName, StringComparison.Ordinal));
+                if (beforeToolCall is not null)
+                    await beforeToolCall();
+                yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [new FunctionCallContent("coordination-call", toolName, arguments)]);
+            }
+            else
+            {
+                FollowUpMessages = chatMessages.ToList();
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("done")]);
+            }
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected sealed class FakeImageGenerationProvider(byte[] image) : IModelProvider, IProviderImageGeneration
+    {
+        public IReadOnlyCollection<string> Protocols { get; } =
+            [ModelProviderProtocols.OpenAIChatCompletions, ModelProviderProtocols.OpenAIResponses];
+
+        public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => throw new NotSupportedException();
+
+        public Task<ProviderImageResult> GenerateImageAsync(
+            EffectiveModelRuntime runtime,
+            ProviderImageRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new ProviderImageResult(image));
+    }
+
+    protected sealed class ThrowingChatClient(Exception exception) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            throw exception;
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (Environment.TickCount < 0)
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent(string.Empty)]);
+            await Task.Yield();
+            throw exception;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected sealed class ThrowingAfterUpdatesChatClient(
+        ChatResponseUpdate[] streamUpdates,
+        Exception exception) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            throw exception;
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (var update in streamUpdates)
+                yield return update;
+            await Task.Yield();
+            throw exception;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected sealed class ThrowingThenUpdatesChatClient(
+        Exception firstException,
+        ChatResponseUpdate[] retryUpdates) : IChatClient
+    {
+        private int _calls;
+
+        public int Calls => _calls;
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var call = Interlocked.Increment(ref _calls);
+            await Task.Yield();
+            if (call == 1)
+                throw firstException;
+
+            foreach (var update in retryUpdates)
+                yield return update;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected sealed class ApprovalRequestingChatClient(IApprovalService approvalService) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var approved = await approvalService.RequestShellApprovalAsync(
+                ShellApprovalRequests.For("dotnet test", Directory.GetCurrentDirectory()));
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent($"approval={approved}")]);
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected sealed class RecordingBlockingChatClient : IChatClient
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public IReadOnlyList<ChatMessage> LastMessages { get; private set; } = [];
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            LastMessages = chatMessages.ToList();
+            Started.TrySetResult();
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            yield break;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected sealed class RecordingChatClient(string responseText) : IChatClient
+    {
+        public IReadOnlyList<ChatMessage> LastMessages { get; private set; } = [];
+        public ChatOptions? LastOptions { get; private set; }
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            LastMessages = chatMessages.ToList();
+            LastOptions = options;
+            return Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent(responseText)])]));
+        }
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            LastMessages = chatMessages.ToList();
+            LastOptions = options;
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent(responseText)]);
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected sealed class SummaryChatClient(string responseText) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    protected sealed class RecordingToolProvider : IToolSource
+    {
+        public string SourceId => "recording";
+        public int Priority => 10;
+
+        public List<ToolPlanningContext> Contexts { get; } = [];
+
+        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+            ToolPlanningContext context,
+            CancellationToken cancellationToken = default)
+        {
+            Contexts.Add(context);
+            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
+        }
+    }
+
+    protected sealed class NamespacedMcpToolSource : IToolSource
+    {
+        public string SourceId => "mcp-test";
+        public int Priority => 10;
+
+        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+            ToolPlanningContext context,
+            CancellationToken cancellationToken = default)
+        {
+            var sourceToolId = new SourceToolId("get_me");
+            var definitionId = new ToolDefinitionId(ToolSourceKind.Mcp, "plugin:code-host-apps", sourceToolId);
+            var appMetadata = new McpAppToolMetadata(
+                new Uri("ui://account/profile"),
+                McpAppVisibility.Model | McpAppVisibility.App);
+            var definition = new ToolDefinition(
+                definitionId,
+                new ToolName("mcp__code_host_apps", "get_me"),
+                "Get the current code-host user.",
+                JsonSerializer.SerializeToElement(new { type = "object" }),
+                annotations: new Dictionary<string, JsonElement>
+                {
+                    [McpAppMetadataParser.ToolAnnotationKey] =
+                        McpAppMetadataParser.ToDefinitionAnnotation(appMetadata)
+                },
+                provenance: new ToolProvenance(ToolSourceKind.Mcp, "plugin:code-host-apps", "plugin"));
+            var binding = new ToolRuntimeBinding(
+                new RuntimeBindingId("mcp:plugin:code-host-apps:get_me:1"),
+                definitionId,
+                new NamespacedMcpRuntime(),
+                ToolBindingLeases.AlwaysAvailable,
+                "mcp:plugin:code-host-apps:1",
+                1);
+            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([
+                new ToolRegistration(
+                    definition,
+                    binding,
+                    ToolProjectionShape.McpLifecycle,
+                    ToolExposure.Direct,
+                    ToolInvocationAudience.Model)
+            ]);
+        }
+    }
+
+    protected sealed class NamespacedMcpRuntime : IToolRuntime
+    {
+        public ValueTask<ToolExecutionResult> InvokeAsync(
+            ToolInvocationContext context,
+            JsonObject arguments,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ToolExecutionResult.Succeeded("ok"));
+    }
+
+    protected sealed class HistoryBoundaryClient(
+        Func<int, IReadOnlyList<ChatMessage>, CancellationToken, Task<AIContent>> respond) : IChatClient
+    {
+        public int Calls { get; private set; }
+        public static FunctionCallContent Tool() => new("sleep-call", "clock__Sleep",
+            new Dictionary<string, object?> { ["durationMs"] = 1 });
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            yield return new ChatResponseUpdate(ChatRole.Assistant,
+                [await respond(++Calls, messages.ToArray(), cancellationToken)]);
+        }
+        public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public void Dispose() { }
+    }
+
+    protected async Task<SessionThread> SeedCompactableThreadAsync(bool forceHighEstimate)
+    {
+        var seedChatClient = new RecordingChatClient("seed answer");
+        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureSmallCompaction);
+        var seedService = CreateService(seedFactory, seedChatClient);
+        var thread = await seedService.CreateThreadAsync(MakeIdentity());
+        for (var i = 0; i < 4; i++)
+        {
+            await DrainAsync(seedService.SubmitInputAsync(
+                thread.Id,
+                [new TextContent($"seed {i} " + new string('u', 1200))]));
+        }
+
+        if (forceHighEstimate)
+        {
+            await new ThreadStore(_tempDir).SaveContextUsageTokensAsync(
+                thread.Id,
+                9_500,
+                source: "history_estimate",
+                isEstimate: true);
+        }
+
+        return await seedService.GetThreadAsync(thread.Id);
+    }
+
+    protected static void AssertResponsesUserMessageIds(IReadOnlyList<ChatMessage> messages)
+    {
+        var options = ResponsesToolSearchMapper.CreateResponseOptions("gpt-test", messages, new ChatOptions());
+        using var body = JsonDocument.Parse(System.ClientModel.Primitives.ModelReaderWriter.Write(options).ToString());
+        var users = body.RootElement.GetProperty("input").EnumerateArray()
+            .Where(item => item.GetProperty("type").GetString() == "message"
+                && item.GetProperty("role").GetString() == "user").ToArray();
+        Assert.NotEmpty(users);
+        Assert.All(users, item => Assert.StartsWith("msg_", item.GetProperty("id").GetString()));
+    }
+}
+
+public sealed class SessionServiceRuntimeSignalTests : SessionServiceRuntimeSignalTestBase
+{
     [Fact]
     public async Task SubmitInputAsync_ConcurrentCallsCreateOnlyOneRunningTurn()
     {
@@ -117,9 +1178,9 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_RegisteredToolPersistsTrustedProjectionForTheLiveTurn()
+    public async Task SubmitInputAsync_RegisteredToolPersistsTrustedProjection_AndEmptyFinalResponseCompletes()
     {
-        var chatClient = new SingleToolCallChatClient("ProjectionRead");
+        var chatClient = new SingleToolCallChatClient("ProjectionRead", emitFinalResponse: false);
         var recorder = new ToolInvocationRecorderRouter();
         var dispatcher = new ToolDispatcher(recorder: recorder);
         await using var agentFactory = CreateAgentFactory(
@@ -133,9 +1194,12 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
 
         var events = await CollectAsync(service.SubmitInputAsync(thread.Id, [new TextContent("read")]));
 
+        Assert.Equal(2, chatClient.RequestCount);
+        Assert.DoesNotContain(events, evt => evt.EventType == SessionEventType.TurnFailed);
         var updated = await service.GetThreadAsync(thread.Id);
         var turn = Assert.Single(updated.Turns);
         Assert.True(turn.Status == TurnStatus.Completed, turn.Error);
+        Assert.DoesNotContain(turn.Items, item => item.Type == ItemType.Error);
         var callItem = Assert.Single(turn.Items, item => item.Type == ItemType.ToolCall);
         var call = Assert.IsType<ToolCallPayload>(callItem.Payload);
         Assert.Equal("ProjectionRead", call.ToolName);
@@ -176,34 +1240,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         var persistedTurn = Assert.Single(reloaded.Turns);
         Assert.Single(persistedTurn.Items, item => item.Type == ItemType.ToolCall);
         Assert.Single(persistedTurn.Items, item => item.Type == ItemType.ToolResult);
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_EmptyResponseAfterToolResult_CompletesTurn()
-    {
-        var chatClient = new SingleToolCallChatClient("ProjectionRead", emitFinalResponse: false);
-        var recorder = new ToolInvocationRecorderRouter();
-        var dispatcher = new ToolDispatcher(recorder: recorder);
-        await using var agentFactory = CreateAgentFactory(
-            chatClient,
-            [new ProjectionTestToolSource()],
-            toolDispatcher: dispatcher);
-        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
-        recorder.Bind(service);
-        var thread = await service.CreateThreadAsync(MakeIdentity());
-        await service.RefreshThreadAgentAsync(thread.Id);
-
-        var events = await CollectAsync(service.SubmitInputAsync(thread.Id, [new TextContent("read")]));
-
-        Assert.Equal(2, chatClient.RequestCount);
-        Assert.Contains(events, evt => evt.EventType == SessionEventType.TurnCompleted);
-        Assert.DoesNotContain(events, evt => evt.EventType == SessionEventType.TurnFailed);
-        var updated = await service.GetThreadAsync(thread.Id);
-        var turn = Assert.Single(updated.Turns);
-        Assert.Equal(TurnStatus.Completed, turn.Status);
-        Assert.Single(turn.Items, item => item.Type == ItemType.ToolCall);
-        Assert.Single(turn.Items, item => item.Type == ItemType.ToolResult);
-        Assert.DoesNotContain(turn.Items, item => item.Type == ItemType.Error);
     }
 
     [Fact]
@@ -399,12 +1435,19 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
         var thread = await service.CreateThreadAsync(MakeIdentity());
         await service.RefreshThreadAgentAsync(thread.Id);
+        var seen = new List<SessionThreadRuntimeSignal>();
+        service.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
+        {
+            if (threadId == thread.Id)
+                seen.Add(signal);
+        };
 
         var eventsTask = CollectAsync(service.SubmitInputAsync(thread.Id, [new TextContent("wait until cancelled")]));
         var runningTurn = await WaitForStartedSleepAsync(service, thread.Id);
         await service.CancelTurnAsync(thread.Id, runningTurn.Id);
         await eventsTask.WaitAsync(TimeSpan.FromSeconds(5));
 
+        Assert.Equal([SessionThreadRuntimeSignal.TurnStarted, SessionThreadRuntimeSignal.TurnCancelled], seen);
         var updated = await service.GetThreadAsync(thread.Id);
         var turn = Assert.Single(updated.Turns);
         Assert.Equal(TurnStatus.Cancelled, turn.Status);
@@ -531,9 +1574,9 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_DynamicToolFailureFallsBackToDispatcherError()
+    public async Task SubmitInputAsync_DynamicToolIgnoresUnusableOrSuccessfulRawErrorFields()
     {
-        var runtimeResult = new ToolExecutionResult(
+        var failedResult = new ToolExecutionResult(
             false,
             "Dynamic tool call failed.",
             rawSourceResult: JsonSerializer.SerializeToElement(new
@@ -544,17 +1587,13 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
             }),
             error: new ToolError(ToolErrorCodes.ExecutionFailed, "Dynamic tool call failed."));
 
-        var payload = await ExecuteDynamicProjectionAsync(runtimeResult);
+        var failed = await ExecuteDynamicProjectionAsync(failedResult);
 
-        Assert.False(payload.Success);
-        Assert.Equal(ToolErrorCodes.ExecutionFailed, payload.ErrorCode);
-        Assert.Equal("Dynamic tool call failed.", payload.ErrorMessage);
-    }
+        Assert.False(failed.Success);
+        Assert.Equal(ToolErrorCodes.ExecutionFailed, failed.ErrorCode);
+        Assert.Equal("Dynamic tool call failed.", failed.ErrorMessage);
 
-    [Fact]
-    public async Task SubmitInputAsync_SuccessfulDynamicToolDoesNotProjectRawErrorFields()
-    {
-        var runtimeResult = ToolExecutionResult.Succeeded(
+        var succeededResult = ToolExecutionResult.Succeeded(
             "RuntimeProjection completed.",
             rawSourceResult: JsonSerializer.SerializeToElement(new
             {
@@ -564,78 +1603,15 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
                 errorMessage = "Should not leak."
             }));
 
-        var payload = await ExecuteDynamicProjectionAsync(runtimeResult);
+        var succeeded = await ExecuteDynamicProjectionAsync(succeededResult);
 
-        Assert.True(payload.Success);
-        Assert.Null(payload.ErrorCode);
-        Assert.Null(payload.ErrorMessage);
+        Assert.True(succeeded.Success);
+        Assert.Null(succeeded.ErrorCode);
+        Assert.Null(succeeded.ErrorMessage);
     }
 
     [Fact]
-    public async Task SubmitInputAsync_NodeReplImageReachesModelAndToolResult()
-    {
-        var imageBytes = Convert.FromBase64String(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
-        var proxy = new ImageNodeReplProxy(imageBytes);
-        var chatClient = new CapturingImageToolChatClient("node_repl__NodeReplJs");
-        var recorder = new ToolInvocationRecorderRouter();
-        var dispatcher = new ToolDispatcher(recorder: recorder);
-        var source = new NodeReplPluginToolSource(
-            new AppConfig(),
-            proxy,
-            _tempDir,
-            (_, _) => true);
-        await using var agentFactory = CreateAgentFactory(
-            chatClient,
-            [source],
-            toolDispatcher: dispatcher);
-        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
-        recorder.Bind(service);
-        var thread = await service.CreateThreadAsync(MakeIdentity());
-        await service.RefreshThreadAgentAsync(thread.Id);
-
-        await DrainAsync(service.SubmitInputAsync(
-            thread.Id,
-            [new TextContent("capture screenshot")]));
-
-        var modelImage = Assert.IsType<DataContent>(chatClient.ImageContent);
-        Assert.Equal("image/png", modelImage.MediaType);
-        Assert.Equal(imageBytes, modelImage.Data.ToArray());
-
-        var updated = await service.GetThreadAsync(thread.Id);
-        var turn = Assert.Single(updated.Turns);
-        Assert.True(turn.Status == TurnStatus.Completed, turn.Error);
-        var persistedResult = Assert.IsType<ToolResultPayload>(
-            Assert.Single(turn.Items, item => item.Type == ItemType.ToolResult).Payload);
-        var contentItems = Assert.IsAssignableFrom<IReadOnlyList<DotCraft.Plugins.PluginFunctionContentItem>>(
-            persistedResult.ContentItems);
-        Assert.Equal("text", contentItems[0].Type);
-        Assert.Equal("image", contentItems[1].Type);
-        Assert.Equal("image/png", contentItems[1].MediaType);
-        Assert.Equal(Convert.ToBase64String(imageBytes), contentItems[1].DataBase64);
-
-        SessionEvent? completedResultEvent = null;
-        using var replayTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await foreach (var item in service.SubscribeThreadAsync(
-                           thread.Id,
-                           replayRecent: true,
-                           replayTimeout.Token))
-        {
-            if (item.EventType == SessionEventType.ItemCompleted
-                && item.ItemPayload?.Payload is ToolResultPayload)
-            {
-                completedResultEvent = item;
-                break;
-            }
-        }
-        Assert.NotNull(completedResultEvent);
-        var completedResult = Assert.IsType<ToolResultPayload>(completedResultEvent.ItemPayload!.Payload);
-        Assert.Equal(Convert.ToBase64String(imageBytes), completedResult.ContentItems?[1].DataBase64);
-        Assert.Equal(thread.Id, proxy.LastMetadata?.ThreadId);
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_RestoredHistoricalToolImage_NormalizesSnapshotAndProviderAnchor()
+    public async Task SubmitInputAsync_NodeReplImageReachesModel_AndIsNormalizedAfterRestore()
     {
         var imageBytes = Convert.FromBase64String(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
@@ -657,9 +1633,28 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         var thread = await seedService.CreateThreadAsync(MakeIdentity());
         await seedService.RefreshThreadAgentAsync(thread.Id);
 
-        await DrainAsync(seedService.SubmitInputAsync(
+        var seedEvents = await CollectAsync(seedService.SubmitInputAsync(
             thread.Id,
             [new TextContent("capture screenshot")]));
+
+        var modelImage = Assert.IsType<DataContent>(seedChatClient.ImageContent);
+        Assert.Equal("image/png", modelImage.MediaType);
+        Assert.Equal(imageBytes, modelImage.Data.ToArray());
+        Assert.Equal(thread.Id, proxy.LastMetadata?.ThreadId);
+        var seedTurn = Assert.Single((await seedService.GetThreadAsync(thread.Id)).Turns);
+        Assert.True(seedTurn.Status == TurnStatus.Completed, seedTurn.Error);
+        var persistedResult = Assert.IsType<ToolResultPayload>(
+            Assert.Single(seedTurn.Items, item => item.Type == ItemType.ToolResult).Payload);
+        var contentItems = Assert.IsAssignableFrom<IReadOnlyList<DotCraft.Plugins.PluginFunctionContentItem>>(
+            persistedResult.ContentItems);
+        Assert.Equal("text", contentItems[0].Type);
+        Assert.Equal("image", contentItems[1].Type);
+        Assert.Equal("image/png", contentItems[1].MediaType);
+        Assert.Equal(Convert.ToBase64String(imageBytes), contentItems[1].DataBase64);
+        var completedResult = Assert.IsType<ToolResultPayload>(Assert.Single(seedEvents, item =>
+            item.EventType == SessionEventType.ItemCompleted
+            && item.ItemPayload?.Payload is ToolResultPayload).ItemPayload!.Payload);
+        Assert.Equal(Convert.ToBase64String(imageBytes), completedResult.ContentItems?[1].DataBase64);
 
         var followUpChatClient = new HistoricalImageUsageChatClient();
         await using var followUpFactory = CreateAgentFactory(followUpChatClient);
@@ -698,7 +1693,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_EmitsTurnStartedThenCompleted()
+    public async Task SubmitInputAsync_WithNoInput_EmitsTurnStartedThenCompletedWithoutAUserMessage()
     {
         IChatClient chatClient = new FakeChatClient([new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])]);
         await using var agentFactory = CreateAgentFactory(chatClient);
@@ -711,7 +1706,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
                 seen.Add((signal, turn));
         };
 
-        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, []));
 
         Assert.Equal(
             [SessionThreadRuntimeSignal.TurnStarted, SessionThreadRuntimeSignal.TurnCompleted],
@@ -719,6 +1714,10 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         Assert.All(seen, entry => Assert.NotNull(entry.Turn));
         Assert.Single(seen.Select(entry => entry.Turn!.Id).Distinct());
         Assert.NotEqual(default, seen[0].Turn!.StartedAt);
+        var turn = Assert.Single((await svc.GetThreadAsync(thread.Id)).Turns);
+        Assert.Equal(TurnStatus.Completed, turn.Status);
+        Assert.Null(turn.Input);
+        Assert.DoesNotContain(turn.Items, item => item.Type == ItemType.UserMessage);
     }
 
     [Fact]
@@ -792,31 +1791,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_WhenAgentThrows_EmitsTurnStartedThenFailed()
-    {
-        IChatClient chatClient = new ThrowingChatClient(new InvalidOperationException("boom"));
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-        var seen = new List<SessionThreadRuntimeSignal>();
-        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
-        {
-            if (threadId == thread.Id)
-                seen.Add(signal);
-        };
-
-        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-
-        Assert.Equal(
-            [SessionThreadRuntimeSignal.TurnStarted, SessionThreadRuntimeSignal.TurnFailed],
-            seen);
-        var contextUsage = svc.TryGetContextUsageSnapshot(thread.Id);
-        Assert.NotNull(contextUsage);
-        Assert.Equal("estimate", contextUsage!.Source);
-        Assert.True(contextUsage.IsEstimate);
-    }
-
-    [Fact]
     public async Task SubmitInputAsync_WhenAgentThrowsAfterPartialResponse_RebuildsSessionFromFailedTurn()
     {
         var seedChatClient = new RecordingChatClient("first answer");
@@ -859,14 +1833,19 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
             Conversation(secondChatClient.LastMessages).Select(FormatMessageWithContents).ToList());
     }
 
-    [Fact]
-    public async Task SubmitInputAsync_WhenSdkNetworkTimeoutCancellationOccurs_MarksTurnFailed()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubmitInputAsync_WhenAgentThrows_EmitsTurnStartedThenFailed(bool sdkNetworkTimeout)
     {
-        const string timeoutMessage =
-            "The operation was cancelled because it exceeded the configured timeout of 0:01:40. " +
-            "The default timeout can be adjusted by passing a custom ClientPipelineOptions.NetworkTimeout value " +
-            "to the client's constructor.";
-        IChatClient chatClient = new ThrowingChatClient(new OperationCanceledException(timeoutMessage));
+        var message = sdkNetworkTimeout
+            ? "The operation was cancelled because it exceeded the configured timeout of 0:01:40. " +
+              "The default timeout can be adjusted by passing a custom ClientPipelineOptions.NetworkTimeout value " +
+              "to the client's constructor."
+            : "boom";
+        IChatClient chatClient = new ThrowingChatClient(sdkNetworkTimeout
+            ? new OperationCanceledException(message)
+            : new InvalidOperationException(message));
         await using var agentFactory = CreateAgentFactory(chatClient);
         var svc = CreateService(agentFactory, chatClient);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
@@ -885,12 +1864,15 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         var updatedThread = await svc.GetThreadAsync(thread.Id);
         var turn = Assert.Single(updatedThread.Turns);
         Assert.Equal(TurnStatus.Failed, turn.Status);
-        Assert.Equal(timeoutMessage, turn.Error);
+        Assert.Equal(message, turn.Error);
         var errorItem = Assert.Single(turn.Items, item => item.Type == ItemType.Error);
         var payload = Assert.IsType<ErrorPayload>(errorItem.Payload);
         Assert.Equal("agent_error", payload.Code);
         Assert.True(payload.Fatal);
-        Assert.Equal(timeoutMessage, payload.Message);
+        Assert.Equal(message, payload.Message);
+        var contextUsage = svc.TryGetContextUsageSnapshot(thread.Id);
+        Assert.Equal("estimate", contextUsage?.Source);
+        Assert.True(contextUsage!.IsEstimate);
     }
 
     [Fact]
@@ -948,25 +1930,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal(TurnStatus.Failed, turn.Status);
         Assert.Equal("rateLimitExceeded", turn.ProviderError);
         Assert.Equal(429, turn.HttpStatus);
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_WithNoInput_RunsATurnWithoutAUserMessage()
-    {
-        IChatClient chatClient = new FakeChatClient(
-            [new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("continued")])]);
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-
-        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, []));
-
-        Assert.Contains(events, evt => evt.EventType == SessionEventType.TurnCompleted);
-        var updatedThread = await svc.GetThreadAsync(thread.Id);
-        var turn = Assert.Single(updatedThread.Turns);
-        Assert.Equal(TurnStatus.Completed, turn.Status);
-        Assert.Null(turn.Input);
-        Assert.DoesNotContain(turn.Items, item => item.Type == ItemType.UserMessage);
     }
 
     [Fact]
@@ -1032,10 +1995,14 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         Assert.True(errorPayload.Fatal);
     }
 
-    [Fact]
-    public async Task SubmitInputAsync_WhenProviderStreamIsEmpty_MarksTurnFailed()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SubmitInputAsync_WhenProviderStreamHasNoContent_MarksTurnFailed(bool usageOnly)
     {
-        IChatClient chatClient = new FakeChatClient([]);
+        IChatClient chatClient = new FakeChatClient(usageOnly
+            ? [UsageUpdate(requestIndex: 1, input: 10_000, output: 0, cachedInput: 9_000)]
+            : []);
         await using var agentFactory = CreateAgentFactory(chatClient);
         var svc = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
@@ -1052,31 +2019,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal("agent_empty_response", errorPayload.Code);
         Assert.True(errorPayload.Fatal);
         Assert.Contains("empty streaming response", errorPayload.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(turn.Items, item => item.Type == ItemType.AgentMessage);
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_WhenProviderStreamHasOnlyUsage_MarksTurnFailed()
-    {
-        IChatClient chatClient = new FakeChatClient(
-        [
-            UsageUpdate(requestIndex: 1, input: 10_000, output: 0, cachedInput: 9_000)
-        ]);
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-
-        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-
-        Assert.DoesNotContain(events, evt => evt.EventType == SessionEventType.TurnCompleted);
-        Assert.Contains(events, evt => evt.EventType == SessionEventType.TurnFailed);
-        var updatedThread = await svc.GetThreadAsync(thread.Id);
-        var turn = Assert.Single(updatedThread.Turns);
-        Assert.Equal(TurnStatus.Failed, turn.Status);
-        var errorItem = Assert.Single(turn.Items, item => item.Type == ItemType.Error);
-        var errorPayload = Assert.IsType<ErrorPayload>(errorItem.Payload);
-        Assert.Equal("agent_empty_response", errorPayload.Code);
-        Assert.True(errorPayload.Fatal);
         Assert.DoesNotContain(turn.Items, item => item.Type == ItemType.AgentMessage);
     }
 
@@ -1247,60 +2189,18 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_SubAgentJsonStringResult_PersistsSuccessfulToolResult()
+    public async Task SubmitInputAsync_ToolResults_PersistJsonStringFailureAndImageContent()
     {
         const string resultJson = "{\"childThreadId\":\"thread_child\",\"status\":\"running\",\"profileName\":\"native\"}";
+        var imageBytes = "abc"u8.ToArray();
         IChatClient chatClient = new FakeChatClient([
-            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent("call-1", resultJson)])
-        ]);
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-
-        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-
-        var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
-        var turn = Assert.Single(loaded!.Turns);
-        var resultItem = Assert.Single(turn.Items, item => item.Type == ItemType.ToolResult);
-        var payload = Assert.IsType<ToolResultPayload>(resultItem.Payload);
-        Assert.True(payload.Success);
-        Assert.Equal("call-1", payload.CallId);
-        Assert.Equal(resultJson, payload.Result);
-        using var doc = JsonDocument.Parse(payload.Result);
-        Assert.Equal("thread_child", doc.RootElement.GetProperty("childThreadId").GetString());
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_UnknownToolResult_PersistsStableFailure()
-    {
-        IChatClient chatClient = new FakeChatClient([
+            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent("call-1", resultJson)]),
             new ChatResponseUpdate(ChatRole.Assistant, [
                 StreamingFunctionInvokingChatClient.CreateToolFailureResult(
                     "call-missing",
                     "Error: Requested function \"missing\" not found.",
                     ToolErrorCodes.NotFound)
-            ])
-        ]);
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-
-        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-
-        var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
-        var turn = Assert.Single(loaded!.Turns);
-        var resultItem = Assert.Single(turn.Items, item => item.Type == ItemType.ToolResult);
-        var payload = Assert.IsType<ToolResultPayload>(resultItem.Payload);
-        Assert.False(payload.Success);
-        Assert.Equal(ToolErrorCodes.NotFound, payload.ErrorCode);
-        Assert.Contains("not found", payload.ErrorMessage, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_ImageToolResult_PersistsAndEmitsContentItems()
-    {
-        var imageBytes = "abc"u8.ToArray();
-        IChatClient chatClient = new FakeChatClient([
+            ]),
             new ChatResponseUpdate(ChatRole.Assistant, [
                 new FunctionResultContent(
                     "call-image",
@@ -1318,14 +2218,25 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
 
         var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
-        var turn = Assert.Single(loaded!.Turns);
-        var resultItem = Assert.Single(turn.Items, item => item.Type == ItemType.ToolResult);
-        var payload = Assert.IsType<ToolResultPayload>(resultItem.Payload);
-        Assert.True(payload.Success);
-        Assert.Equal("call-image", payload.CallId);
-        Assert.Contains("Image: sample.png", payload.Result, StringComparison.Ordinal);
-        Assert.Contains("[Image (image/png), 3 bytes]", payload.Result, StringComparison.Ordinal);
-        var contentItems = Assert.IsAssignableFrom<IReadOnlyList<DotCraft.Plugins.PluginFunctionContentItem>>(payload.ContentItems);
+        var results = Assert.Single(loaded!.Turns).Items
+            .Where(item => item.Type == ItemType.ToolResult)
+            .Select(item => Assert.IsType<ToolResultPayload>(item.Payload))
+            .ToDictionary(payload => payload.CallId);
+
+        var json = results["call-1"];
+        Assert.True(json.Success);
+        Assert.Equal(resultJson, json.Result);
+
+        var missing = results["call-missing"];
+        Assert.False(missing.Success);
+        Assert.Equal(ToolErrorCodes.NotFound, missing.ErrorCode);
+        Assert.Contains("not found", missing.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+
+        var image = results["call-image"];
+        Assert.True(image.Success);
+        Assert.Contains("Image: sample.png", image.Result, StringComparison.Ordinal);
+        Assert.Contains("[Image (image/png), 3 bytes]", image.Result, StringComparison.Ordinal);
+        var contentItems = Assert.IsAssignableFrom<IReadOnlyList<DotCraft.Plugins.PluginFunctionContentItem>>(image.ContentItems);
         Assert.Equal(2, contentItems.Count);
         Assert.Equal("Image: sample.png (3 bytes, image/png)", contentItems[0].Text);
         Assert.Equal("image", contentItems[1].Type);
@@ -1335,11 +2246,9 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         var completedEvent = Assert.Single(
             events,
             e => e.EventType == SessionEventType.ItemCompleted
-                && e.ItemPayload?.Type == ItemType.ToolResult);
+                && e.ItemPayload?.Payload is ToolResultPayload { CallId: "call-image" });
         var eventPayload = Assert.IsType<ToolResultPayload>(completedEvent.ItemPayload!.Payload);
-        var eventContentItems = Assert.IsAssignableFrom<IReadOnlyList<DotCraft.Plugins.PluginFunctionContentItem>>(eventPayload.ContentItems);
-        Assert.Equal("image/png", eventContentItems[1].MediaType);
-        Assert.Equal(Convert.ToBase64String(imageBytes), eventContentItems[1].DataBase64);
+        Assert.Equal(Convert.ToBase64String(imageBytes), eventPayload.ContentItems?[1].DataBase64);
     }
 
     [Fact]
@@ -1396,57 +2305,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Contains(
             followUp.Concat(outputItems),
             content => content is DataContent data && data.Data.ToArray().SequenceEqual(imageBytes));
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_SpawnAgentArgumentsDelta_CompletesSameToolCallItem()
-    {
-        IChatClient chatClient = new FakeChatClient([
-            new ChatResponseUpdate(ChatRole.Assistant, [new ToolCallArgumentsDeltaContent
-            {
-                ToolCallIndex = 0,
-                ToolName = "SpawnAgent",
-                CallId = "call-spawn",
-                ArgumentsDelta = "{\"agentPrompt\":\"Inspect tests"
-            }]),
-            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent(
-                callId: "call-spawn",
-                name: "SpawnAgent",
-                arguments: new Dictionary<string, object?>
-                {
-                    ["agentPrompt"] = "Inspect tests",
-                    ["agentNickname"] = "tester"
-                })]),
-            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent(
-                "call-spawn",
-                "{\"childThreadId\":\"thread_child\",\"status\":\"running\"}")])
-        ]);
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-
-        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-
-        var deltaEvent = Assert.Single(events, e => e.ToolCallArgumentsDeltaPayload != null);
-        Assert.Equal("SpawnAgent", deltaEvent.ToolCallArgumentsDeltaPayload!.ToolName);
-        Assert.Equal("call-spawn", deltaEvent.ToolCallArgumentsDeltaPayload.CallId);
-
-        var startedToolCall = Assert.Single(
-            events,
-            e => e.EventType == SessionEventType.ItemStarted
-                && e.ItemId == deltaEvent.ItemId
-                && e.ItemPayload?.Payload is ToolCallPayload { ToolName: "SpawnAgent" });
-        var startedPayload = Assert.IsType<ToolCallPayload>(startedToolCall.ItemPayload!.Payload);
-        Assert.Null(startedPayload.Arguments);
-
-        var completedToolCall = Assert.Single(
-            events,
-            e => e.EventType == SessionEventType.ItemCompleted
-                && e.ItemPayload?.Type == ItemType.ToolCall
-                && e.ItemPayload.Payload is ToolCallPayload { ToolName: "SpawnAgent" });
-        Assert.Equal(deltaEvent.ItemId, completedToolCall.ItemId);
-        var payload = Assert.IsType<ToolCallPayload>(completedToolCall.ItemPayload!.Payload);
-        Assert.Equal("tester", payload.Arguments?["agentNickname"]?.ToString());
     }
 
     [Fact]
@@ -1538,18 +2396,25 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal("# Ship feature with fine-grained streaming", completedPayload.Arguments?["plan"]?.ToString());
     }
 
-    [Fact]
-    public async Task SubmitInputAsync_TextBeforeArgumentsDelta_FinalizesMessageBeforeToolCall()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SubmitInputAsync_TextBeforeToolCall_FinalizesMessageBeforeToolCall(bool withArgumentsDelta)
     {
         IChatClient chatClient = new FakeChatClient([
             new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("Before the tool")]),
-            new ChatResponseUpdate(ChatRole.Assistant, [new ToolCallArgumentsDeltaContent
-            {
-                ToolCallIndex = 0,
-                ToolName = "ExampleTool",
-                CallId = "call-1",
-                ArgumentsDelta = "{\"path\":\"a.txt\"}"
-            }]),
+            .. withArgumentsDelta
+                ? new[]
+                {
+                    new ChatResponseUpdate(ChatRole.Assistant, [new ToolCallArgumentsDeltaContent
+                    {
+                        ToolCallIndex = 0,
+                        ToolName = "ExampleTool",
+                        CallId = "call-1",
+                        ArgumentsDelta = "{\"path\":\"a.txt\"}"
+                    }])
+                }
+                : [],
             new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent(
                 callId: "call-1",
                 name: "ExampleTool",
@@ -1574,48 +2439,22 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal(ItemStatus.Completed, assistantItems[0].Status);
         Assert.NotNull(assistantItems[0].CompletedAt);
 
-        var messageCompletedIndex = events.Select((evt, index) => (evt, index)).Single(entry =>
-            entry.evt.EventType == SessionEventType.ItemCompleted &&
-            entry.evt.ItemPayload?.Payload is AgentMessagePayload { Text: "Before the tool" }).index;
-        var toolStartedIndex = events.Select((evt, index) => (evt, index)).Single(entry =>
-            entry.evt.EventType == SessionEventType.ItemStarted &&
-            entry.evt.ItemPayload?.Type == ItemType.ToolCall).index;
-        Assert.True(messageCompletedIndex < toolStartedIndex);
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_TextBeforeFunctionCallWithoutArgumentsDelta_FinalizesMessageFirst()
-    {
-        IChatClient chatClient = new FakeChatClient([
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("Before direct call")]),
-            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent(
-                callId: "call-direct",
-                name: "ExampleTool",
-                arguments: new Dictionary<string, object?> { ["path"] = "b.txt" })]),
-            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent("call-direct", "tool result")])
-        ]);
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-
-        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-
-        var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
-        var turn = Assert.Single(loaded!.Turns);
-        var assistantItems = turn.Items.Where(item => item.Type != ItemType.UserMessage).ToList();
-        Assert.Equal(
-            [ItemType.AgentMessage, ItemType.ToolCall, ItemType.ToolResult],
-            assistantItems.Select(item => item.Type));
-        Assert.Equal("Before direct call", Assert.IsType<AgentMessagePayload>(assistantItems[0].Payload).Text);
-        Assert.Equal(ItemStatus.Completed, assistantItems[0].Status);
-
-        var messageCompletedIndex = events.Select((evt, index) => (evt, index)).Single(entry =>
-            entry.evt.EventType == SessionEventType.ItemCompleted &&
-            entry.evt.ItemPayload?.Type == ItemType.AgentMessage).index;
-        var toolStartedIndex = events.Select((evt, index) => (evt, index)).Single(entry =>
-            entry.evt.EventType == SessionEventType.ItemStarted &&
-            entry.evt.ItemPayload?.Type == ItemType.ToolCall).index;
-        Assert.True(messageCompletedIndex < toolStartedIndex);
+        var messageCompletedIndex = events.FindIndex(evt =>
+            evt.EventType == SessionEventType.ItemCompleted &&
+            evt.ItemPayload?.Payload is AgentMessagePayload { Text: "Before the tool" });
+        var toolStartedIndex = events.FindIndex(evt =>
+            evt.EventType == SessionEventType.ItemStarted &&
+            evt.ItemPayload?.Type == ItemType.ToolCall);
+        Assert.True(messageCompletedIndex >= 0 && messageCompletedIndex < toolStartedIndex);
+        if (withArgumentsDelta)
+        {
+            var delta = Assert.Single(events, evt => evt.ToolCallArgumentsDeltaPayload != null);
+            Assert.Equal("call-1", delta.ToolCallArgumentsDeltaPayload!.CallId);
+            Assert.Equal(delta.ItemId, events[toolStartedIndex].ItemId);
+            Assert.Null(Assert.IsType<ToolCallPayload>(events[toolStartedIndex].ItemPayload!.Payload).Arguments);
+            Assert.Equal(delta.ItemId, assistantItems[1].Id);
+            Assert.Equal("a.txt", Assert.IsType<ToolCallPayload>(assistantItems[1].Payload).Arguments?["path"]?.ToString());
+        }
     }
 
     [Fact]
@@ -1753,30 +2592,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_ReasoningBeforeAgentMessage_FinalizesBeforeMessage()
-    {
-        IChatClient chatClient = new FakeChatClient([
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent("First ")]),
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent("thought")]),
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("answer")])
-        ]);
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-
-        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-
-        var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
-        var turn = Assert.Single(loaded!.Turns);
-        var assistantItems = turn.Items.Where(item => item.Type != ItemType.UserMessage).ToList();
-
-        Assert.Equal([ItemType.ReasoningContent, ItemType.AgentMessage], assistantItems.Select(item => item.Type));
-        Assert.Equal("First thought", Assert.IsType<ReasoningContentPayload>(assistantItems[0].Payload).Text);
-        Assert.Equal("answer", Assert.IsType<AgentMessagePayload>(assistantItems[1].Payload).Text);
-        Assert.NotNull(assistantItems[0].CompletedAt);
-    }
-
-    [Fact]
     public async Task SubAgentEdgeChanges_InvokeGraphChangedBroadcastHook()
     {
         IChatClient chatClient = new FakeChatClient([new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])]);
@@ -1819,49 +2634,38 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateThreadAsync_TopLevelThread_SetsAgentControlToolsFullInToolContext()
+    public async Task CreateThreadAsync_MarksOnlySubAgentThreadsAsSubAgentChildrenInToolContext()
     {
         IChatClient chatClient = new FakeChatClient([new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])]);
         var recorder = new RecordingToolProvider();
         await using var agentFactory = CreateAgentFactory(chatClient, [recorder]);
         var svc = CreateService(agentFactory, chatClient);
 
-        var thread = await svc.CreateThreadAsync(
+        var top = await svc.CreateThreadAsync(
             MakeIdentity(),
             config: new ThreadConfiguration(),
             threadId: "top-policy");
-
-        var seen = Assert.Single(recorder.Contexts, context => context.ThreadId == thread.Id);
-        Assert.DoesNotContain("subagent-child", seen.ProviderCapabilities);
-    }
-
-    [Fact]
-    public async Task CreateThreadAsync_SubAgentThread_SetsAgentControlToolsDisabledInToolContext()
-    {
-        IChatClient chatClient = new FakeChatClient([new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])]);
-        var recorder = new RecordingToolProvider();
-        await using var agentFactory = CreateAgentFactory(chatClient, [recorder]);
-        var svc = CreateService(agentFactory, chatClient);
-
         var child = await svc.CreateThreadAsync(
             new SessionIdentity
             {
                 ChannelName = SubAgentThreadOrigin.ChannelName,
                 UserId = "u",
-                ChannelContext = "parent-policy",
+                ChannelContext = top.Id,
                 WorkspacePath = _tempDir
             },
             config: new ThreadConfiguration(),
             threadId: "child-policy",
             source: ThreadSource.ForSubAgent(new SubAgentThreadSource
             {
-                ParentThreadId = "parent-policy",
-                RootThreadId = "parent-policy",
+                ParentThreadId = top.Id,
+                RootThreadId = top.Id,
                 Depth = 1
             }));
 
-        var seen = Assert.Single(recorder.Contexts, context => context.ThreadId == child.Id);
-        Assert.Contains("subagent-child", seen.ProviderCapabilities);
+        Assert.DoesNotContain("subagent-child",
+            Assert.Single(recorder.Contexts, context => context.ThreadId == top.Id).ProviderCapabilities);
+        Assert.Contains("subagent-child",
+            Assert.Single(recorder.Contexts, context => context.ThreadId == child.Id).ProviderCapabilities);
     }
 
     [Fact]
@@ -1970,25 +2774,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         Assert.DoesNotContain(events, evt => IsSystemEvent(evt, "compacted"));
     }
 
-    private static ChatResponseUpdate UsageUpdate(int requestIndex, long input, long output, long cachedInput)
-        => new()
-        {
-            Role = ChatRole.Assistant,
-            AdditionalProperties = new AdditionalPropertiesDictionary
-            {
-                [TokenUsageRequestMetadata.RequestIndexKey] = requestIndex
-            },
-            Contents =
-            [
-                new UsageContent(new UsageDetails
-                {
-                    InputTokenCount = input,
-                    OutputTokenCount = output,
-                    CachedInputTokenCount = cachedInput
-                })
-            ]
-        };
-
     [Fact]
     public async Task SubmitInputAsync_AppendsSenderRuntimeContext_AndPersistsInitiator()
     {
@@ -2051,30 +2836,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task CancelTurnAsync_EmitsTurnStartedThenCancelled()
-    {
-        IChatClient chatClient = new BlockingChatClient();
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-        var seen = new List<SessionThreadRuntimeSignal>();
-        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
-        {
-            if (threadId == thread.Id)
-                seen.Add(signal);
-        };
-
-        var drainTask = DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-        await Task.Delay(50);
-        await svc.CancelTurnAsync(thread.Id, "turn_001");
-        await drainTask;
-
-        Assert.Equal(
-            [SessionThreadRuntimeSignal.TurnStarted, SessionThreadRuntimeSignal.TurnCancelled],
-            seen);
-    }
-
-    [Fact]
     public async Task SubmitInputAsync_DenyApprovalPolicy_ReturnsToolDenialWithoutCancellingTurn()
     {
         var approvalService = new SessionScopedApprovalService(new AutoApproveApprovalService());
@@ -2107,24 +2868,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     [Fact]
     public async Task SubmitInputAsync_WhenCancelledAfterPreSamplingCompaction_PreservesCompactedSession()
     {
-        var seedChatClient = new RecordingChatClient("seed answer");
-        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureSmallCompaction);
-        var seedService = CreateService(seedFactory, seedChatClient);
-        var thread = await seedService.CreateThreadAsync(MakeIdentity());
-
-        for (var i = 0; i < 4; i++)
-        {
-            await DrainAsync(seedService.SubmitInputAsync(
-                thread.Id,
-                [new TextContent($"seed {i} " + new string('u', 1200))]));
-        }
-
-        var store = new ThreadStore(_tempDir);
-        await store.SaveContextUsageTokensAsync(
-            thread.Id,
-            9_500,
-            source: "history_estimate",
-            isEstimate: true);
+        var thread = await SeedCompactableThreadAsync(forceHighEstimate: true);
 
         var blockingChatClient = new RecordingBlockingChatClient();
         await using var compactFactory = CreateAgentFactory(
@@ -2137,7 +2881,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         var cancelEventsTask = CollectAsync(compactService.SubmitInputAsync(
             thread.Id,
             [new TextContent("cancel after compact")]));
-        await blockingChatClient.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await blockingChatClient.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Contains(blockingChatClient.LastMessages.Select(MessageText), text =>
             text.Contains("compacted old context", StringComparison.Ordinal));
         var runningThread = await compactService.GetThreadAsync(thread.Id);
@@ -2147,212 +2891,68 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         var cancelEvents = await cancelEventsTask;
         Assert.Contains(cancelEvents, evt => IsSystemEvent(evt, "compacted"));
 
-        var followUpChatClient = new RecordingChatClient("follow answer");
-        await using var followUpFactory = CreateAgentFactory(followUpChatClient, configureConfig: ConfigureSmallCompaction);
-        var followUpService = CreateService(followUpFactory, followUpChatClient);
-        await followUpService.ResumeThreadAsync(thread.Id);
-
-        await DrainAsync(followUpService.SubmitInputAsync(thread.Id, [new TextContent("follow up")]));
-
-        var followUpHistory = followUpChatClient.LastMessages.Select(MessageText).ToList();
+        var followUpHistory = await SubmitFollowUpAsync(thread.Id);
         Assert.Contains(followUpHistory, text => text.Contains("compacted old context", StringComparison.Ordinal));
         Assert.DoesNotContain(followUpHistory, text => text.Contains("seed 0", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public async Task SubmitInputAsync_WhenCancelledAfterPreviousCompaction_PreservesCompactedSession()
+    [Theory]
+    [InlineData("cancel")]
+    [InlineData("length")]
+    public async Task SubmitInputAsync_WhenInterruptedAfterPreviousCompaction_PreservesCompactedSessionAndTail(
+        string interruption)
     {
-        var seedChatClient = new RecordingChatClient("seed answer");
-        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureSmallCompaction);
-        var seedService = CreateService(seedFactory, seedChatClient);
-        var thread = await seedService.CreateThreadAsync(MakeIdentity());
+        var thread = await SeedAndCompactThreadAsync();
+        var input = interruption + " after compact";
 
-        for (var i = 0; i < 4; i++)
+        if (interruption == "cancel")
         {
-            await DrainAsync(seedService.SubmitInputAsync(
-                thread.Id,
-                [new TextContent($"seed {i} " + new string('u', 1200))]));
+            var blockingChatClient = new RecordingBlockingChatClient();
+            await using var cancelFactory = CreateAgentFactory(blockingChatClient, configureConfig: ConfigureSmallCompaction);
+            var cancelService = CreateService(cancelFactory, blockingChatClient);
+            await cancelService.ResumeThreadAsync(thread.Id);
+            var cancelEventsTask = DrainAsync(cancelService.SubmitInputAsync(thread.Id, [new TextContent(input)]));
+            await blockingChatClient.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var runningTurn = Assert.Single(
+                (await cancelService.GetThreadAsync(thread.Id)).Turns,
+                turn => turn.Status == TurnStatus.Running);
+            await cancelService.CancelTurnAsync(thread.Id, runningTurn.Id);
+            await cancelEventsTask;
         }
-
-        var compactMainChatClient = new RecordingChatClient("unused");
-        await using var compactFactory = CreateAgentFactory(
-            compactMainChatClient,
-            configureConfig: ConfigureSmallCompaction,
-            compactionChatClient: new SummaryChatClient("<summary>compacted previous context</summary>"));
-        var compactService = CreateService(compactFactory, compactMainChatClient);
-        await compactService.ResumeThreadAsync(thread.Id);
-
-        var compactResult = await compactService.CompactThreadAsync(thread.Id);
-        Assert.Equal("partial", compactResult.Outcome);
-
-        var blockingChatClient = new RecordingBlockingChatClient();
-        await using var cancelFactory = CreateAgentFactory(blockingChatClient, configureConfig: ConfigureSmallCompaction);
-        var cancelService = CreateService(cancelFactory, blockingChatClient);
-        await cancelService.ResumeThreadAsync(thread.Id);
-
-        var cancelEventsTask = CollectAsync(cancelService.SubmitInputAsync(
-            thread.Id,
-            [new TextContent("cancel after previous compact")]));
-        await blockingChatClient.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var runningThread = await cancelService.GetThreadAsync(thread.Id);
-        var runningTurn = Assert.Single(runningThread.Turns, turn => turn.Status == TurnStatus.Running);
-
-        await cancelService.CancelTurnAsync(thread.Id, runningTurn.Id);
-        await cancelEventsTask;
-
-        var followUpChatClient = new RecordingChatClient("follow answer");
-        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
-        var followUpService = CreateService(followUpFactory, followUpChatClient);
-        await followUpService.ResumeThreadAsync(thread.Id);
-
-        await DrainAsync(followUpService.SubmitInputAsync(thread.Id, [new TextContent("follow up")]));
-
-        var followUpHistory = followUpChatClient.LastMessages.Select(MessageText).ToList();
-        Assert.Contains(followUpHistory, text => text.Contains("compacted previous context", StringComparison.Ordinal));
-        Assert.DoesNotContain(followUpHistory, text => text.Contains("seed 0", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_WhenAgentFailsAfterPreviousCompaction_PreservesCompactedSessionAndFailedTurnTail()
-    {
-        var seedChatClient = new RecordingChatClient("seed answer");
-        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureSmallCompaction);
-        var seedService = CreateService(seedFactory, seedChatClient);
-        var thread = await seedService.CreateThreadAsync(MakeIdentity());
-
-        for (var i = 0; i < 4; i++)
+        else
         {
-            await DrainAsync(seedService.SubmitInputAsync(
-                thread.Id,
-                [new TextContent($"seed {i} " + new string('u', 1200))]));
-        }
-
-        var compactMainChatClient = new RecordingChatClient("unused");
-        await using var compactFactory = CreateAgentFactory(
-            compactMainChatClient,
-            configureConfig: ConfigureSmallCompaction,
-            compactionChatClient: new SummaryChatClient("<summary>compacted previous context</summary>"));
-        var compactService = CreateService(compactFactory, compactMainChatClient);
-        await compactService.ResumeThreadAsync(thread.Id);
-
-        var compactResult = await compactService.CompactThreadAsync(thread.Id);
-        Assert.Equal("partial", compactResult.Outcome);
-
-        IChatClient failingChatClient = new FakeChatClient(
+            IChatClient failingChatClient = new FakeChatClient(
             [
                 new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("partial failure")]),
                 new ChatResponseUpdate(ChatRole.Assistant, [
                     new FunctionCallContent("fail-call", "ReadFile", new Dictionary<string, object?>())
                 ]),
-                new ChatResponseUpdate(ChatRole.Assistant, [
-                    new FunctionResultContent("fail-call", "tool ok")
-                ]),
-                new ChatResponseUpdate(ChatRole.Assistant, [])
-                {
-                    FinishReason = ChatFinishReason.Length
-                }
+                new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent("fail-call", "tool ok")]),
+                new ChatResponseUpdate(ChatRole.Assistant, []) { FinishReason = ChatFinishReason.Length }
             ]);
-        await using var failFactory = CreateAgentFactory(failingChatClient, configureConfig: ConfigureSmallCompaction);
-        var failService = CreateService(failFactory, failingChatClient);
-        await failService.ResumeThreadAsync(thread.Id);
+            await using var failFactory = CreateAgentFactory(failingChatClient, configureConfig: ConfigureSmallCompaction);
+            var failService = CreateService(failFactory, failingChatClient);
+            await failService.ResumeThreadAsync(thread.Id);
+            await DrainAsync(failService.SubmitInputAsync(thread.Id, [new TextContent(input)]));
+            Assert.Equal(TurnStatus.Failed, (await failService.GetThreadAsync(thread.Id)).Turns[^1].Status);
+        }
 
-        await DrainAsync(failService.SubmitInputAsync(thread.Id, [new TextContent("fail after compact")]));
-
-        var failedThread = await failService.GetThreadAsync(thread.Id);
-        var failedTurn = failedThread.Turns.Last();
-        Assert.Equal(TurnStatus.Failed, failedTurn.Status);
-
-        var followUpChatClient = new RecordingChatClient("follow answer");
-        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
-        var followUpService = CreateService(followUpFactory, followUpChatClient);
-        await followUpService.ResumeThreadAsync(thread.Id);
-
-        await DrainAsync(followUpService.SubmitInputAsync(thread.Id, [new TextContent("follow up")]));
-
-        var followUpHistory = followUpChatClient.LastMessages.Select(MessageText).ToList();
+        var followUpHistory = await SubmitFollowUpAsync(thread.Id);
         Assert.Contains(followUpHistory, text => text.Contains("compacted previous context", StringComparison.Ordinal));
-        Assert.Contains(followUpHistory, text => text.Contains("fail after compact", StringComparison.Ordinal));
+        Assert.DoesNotContain(followUpHistory, text => text.Contains("seed 0", StringComparison.Ordinal));
+        if (interruption == "cancel")
+            return;
+        Assert.Contains(followUpHistory, text => text.Contains(input, StringComparison.Ordinal));
         Assert.Contains(followUpHistory, text => text.Contains("partial failure", StringComparison.Ordinal));
         Assert.Contains(followUpHistory, text => text.Contains("function_call:ReadFile:fail-call", StringComparison.Ordinal));
         Assert.Contains(followUpHistory, text => text.Contains("function_result:fail-call:tool ok", StringComparison.Ordinal));
-        Assert.DoesNotContain(followUpHistory, text => text.Contains("seed 0", StringComparison.Ordinal));
-        Assert.True(followUpHistory.Count < 10, string.Join(Environment.NewLine, followUpHistory));
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_WhenProviderThrowsAfterPreviousCompaction_PreservesCompactedSessionAndPartialAssistant()
-    {
-        var seedChatClient = new RecordingChatClient("seed answer");
-        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureSmallCompaction);
-        var seedService = CreateService(seedFactory, seedChatClient);
-        var thread = await seedService.CreateThreadAsync(MakeIdentity());
-
-        for (var i = 0; i < 4; i++)
-        {
-            await DrainAsync(seedService.SubmitInputAsync(
-                thread.Id,
-                [new TextContent($"seed {i} " + new string('u', 1200))]));
-        }
-
-        var compactMainChatClient = new RecordingChatClient("unused");
-        await using var compactFactory = CreateAgentFactory(
-            compactMainChatClient,
-            configureConfig: ConfigureSmallCompaction,
-            compactionChatClient: new SummaryChatClient("<summary>compacted previous context</summary>"));
-        var compactService = CreateService(compactFactory, compactMainChatClient);
-        await compactService.ResumeThreadAsync(thread.Id);
-
-        var compactResult = await compactService.CompactThreadAsync(thread.Id);
-        Assert.Equal("partial", compactResult.Outcome);
-
-        IChatClient failingChatClient = new ThrowingAfterUpdatesChatClient(
-            [new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("partial provider failure")])],
-            new InvalidOperationException("provider boom"));
-        await using var failFactory = CreateAgentFactory(failingChatClient, configureConfig: ConfigureSmallCompaction);
-        var failService = CreateService(failFactory, failingChatClient);
-        await failService.ResumeThreadAsync(thread.Id);
-
-        await DrainAsync(failService.SubmitInputAsync(thread.Id, [new TextContent("provider fail after compact")]));
-
-        var followUpChatClient = new RecordingChatClient("follow answer");
-        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
-        var followUpService = CreateService(followUpFactory, followUpChatClient);
-        await followUpService.ResumeThreadAsync(thread.Id);
-
-        await DrainAsync(followUpService.SubmitInputAsync(thread.Id, [new TextContent("follow up")]));
-
-        var followUpHistory = followUpChatClient.LastMessages.Select(MessageText).ToList();
-        Assert.Contains(followUpHistory, text => text.Contains("compacted previous context", StringComparison.Ordinal));
-        Assert.Contains(followUpHistory, text => text.Contains("provider fail after compact", StringComparison.Ordinal));
-        Assert.Contains(followUpHistory, text => text.Contains("partial provider failure", StringComparison.Ordinal));
-        Assert.DoesNotContain(followUpHistory, text => text.Contains("seed 0", StringComparison.Ordinal));
         Assert.True(followUpHistory.Count < 10, string.Join(Environment.NewLine, followUpHistory));
     }
 
     [Fact]
     public async Task RollbackThreadAsync_AfterCompaction_TrimsSessionTailWithoutRestoringOldHistory()
     {
-        var seedChatClient = new RecordingChatClient("seed answer");
-        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureSmallCompaction);
-        var seedService = CreateService(seedFactory, seedChatClient);
-        var thread = await seedService.CreateThreadAsync(MakeIdentity());
-
-        for (var i = 0; i < 4; i++)
-        {
-            await DrainAsync(seedService.SubmitInputAsync(
-                thread.Id,
-                [new TextContent($"seed {i} " + new string('u', 1200))]));
-        }
-
-        var compactMainChatClient = new RecordingChatClient("unused");
-        await using var compactFactory = CreateAgentFactory(
-            compactMainChatClient,
-            configureConfig: ConfigureSmallCompaction,
-            compactionChatClient: new SummaryChatClient("<summary>compacted previous context</summary>"));
-        var compactService = CreateService(compactFactory, compactMainChatClient);
-        await compactService.ResumeThreadAsync(thread.Id);
-        var compactResult = await compactService.CompactThreadAsync(thread.Id);
-        Assert.Equal("partial", compactResult.Outcome);
+        var thread = await SeedAndCompactThreadAsync();
 
         var rollbackChatClient = new RecordingChatClient("rolled back answer");
         await using var rollbackFactory = CreateAgentFactory(rollbackChatClient);
@@ -2361,13 +2961,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         await DrainAsync(rollbackService.SubmitInputAsync(thread.Id, [new TextContent("rolled back request")]));
         await rollbackService.RollbackThreadAsync(thread.Id, 1);
 
-        var followUpChatClient = new RecordingChatClient("follow answer");
-        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
-        var followUpService = CreateService(followUpFactory, followUpChatClient);
-        await followUpService.ResumeThreadAsync(thread.Id);
-        await DrainAsync(followUpService.SubmitInputAsync(thread.Id, [new TextContent("follow up")]));
-
-        var followUpHistory = followUpChatClient.LastMessages.Select(MessageText).ToList();
+        var followUpHistory = await SubmitFollowUpAsync(thread.Id);
         Assert.Contains(followUpHistory, text => text.Contains("compacted previous context", StringComparison.Ordinal));
         Assert.DoesNotContain(followUpHistory, text => text.Contains("seed 0", StringComparison.Ordinal));
         Assert.DoesNotContain(followUpHistory, text => text.Contains("rolled back request", StringComparison.Ordinal));
@@ -2375,7 +2969,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task RollbackThreadAsync_RecordsThreadRollbackTraceEvent()
+    public async Task RollbackThreadAsync_RecordsTraceEventAndBroadcastsHistoryRolledBackOnlyWhenAccepted()
     {
         var traceStore = new TraceStore();
         var traceCollector = new TraceCollector(traceStore);
@@ -2383,10 +2977,17 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         await using var factory = CreateAgentFactory(chatClient);
         var service = CreateService(factory, chatClient, traceCollector: traceCollector);
         var thread = await service.CreateThreadAsync(MakeIdentity());
-
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("request")]));
+        var signals = new List<SessionThreadRuntimeSignal>();
+        service.ThreadRuntimeSignalForBroadcast = (_, signal, _) => signals.Add(signal);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.RollbackThreadAsync(thread.Id, 0));
+        Assert.DoesNotContain(traceStore.GetEvents(thread.Id), e => e.Type == TraceEventType.ThreadRollback);
+        Assert.Empty(signals);
+
         await service.RollbackThreadAsync(thread.Id, 1);
 
+        Assert.Equal([SessionThreadRuntimeSignal.HistoryRolledBack], signals);
         var evt = Assert.Single(traceStore.GetEvents(thread.Id), e => e.Type == TraceEventType.ThreadRollback);
         Assert.Equal("Rollback removed 1 turn(s)", evt.Content);
         using var metadata = JsonDocument.Parse(evt.MetadataJson!);
@@ -2431,21 +3032,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task RollbackThreadAsync_WhenRejected_DoesNotRecordThreadRollbackTraceEvent()
-    {
-        var traceStore = new TraceStore();
-        var traceCollector = new TraceCollector(traceStore);
-        var chatClient = new RecordingChatClient("answer");
-        await using var factory = CreateAgentFactory(chatClient);
-        var service = CreateService(factory, chatClient, traceCollector: traceCollector);
-        var thread = await service.CreateThreadAsync(MakeIdentity());
-
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.RollbackThreadAsync(thread.Id, 0));
-
-        Assert.DoesNotContain(traceStore.GetEvents(thread.Id), e => e.Type == TraceEventType.ThreadRollback);
-    }
-
-    [Fact]
     public async Task RollbackThreadAsync_WithOnlyCompactedSessionCheckpointMissing_TrimsPersistedSessionTail()
     {
         var seedChatClient = new RecordingChatClient("seed answer");
@@ -2474,13 +3060,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         await rollbackService.ResumeThreadAsync(thread.Id);
         await rollbackService.RollbackThreadAsync(thread.Id, 1);
 
-        var followUpChatClient = new RecordingChatClient("follow answer");
-        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
-        var followUpService = CreateService(followUpFactory, followUpChatClient);
-        await followUpService.ResumeThreadAsync(thread.Id);
-        await DrainAsync(followUpService.SubmitInputAsync(thread.Id, [new TextContent("follow up")]));
-
-        var followUpHistory = followUpChatClient.LastMessages.Select(MessageText).ToList();
+        var followUpHistory = await SubmitFollowUpAsync(thread.Id);
         Assert.Contains(followUpHistory, text => text.Contains("legacy compacted context", StringComparison.Ordinal));
         Assert.DoesNotContain(followUpHistory, text => text.Contains("seed request", StringComparison.Ordinal));
         Assert.DoesNotContain(followUpHistory, text => text.Contains("rolled back request", StringComparison.Ordinal));
@@ -2488,52 +3068,16 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_WhenSessionRowMissingAfterCompaction_RebuildsFromCheckpoint()
-    {
-        var seedChatClient = new RecordingChatClient("seed answer");
-        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureSmallCompaction);
-        var seedService = CreateService(seedFactory, seedChatClient);
-        var thread = await seedService.CreateThreadAsync(MakeIdentity());
-
-        for (var i = 0; i < 4; i++)
-        {
-            await DrainAsync(seedService.SubmitInputAsync(
-                thread.Id,
-                [new TextContent($"seed {i} " + new string('u', 1200))]));
-        }
-
-        var compactMainChatClient = new RecordingChatClient("unused");
-        await using var compactFactory = CreateAgentFactory(
-            compactMainChatClient,
-            configureConfig: ConfigureSmallCompaction,
-            compactionChatClient: new SummaryChatClient("<summary>checkpoint compacted context</summary>"));
-        var compactService = CreateService(compactFactory, compactMainChatClient);
-        await compactService.ResumeThreadAsync(thread.Id);
-        var compactResult = await compactService.CompactThreadAsync(thread.Id);
-        Assert.Equal("partial", compactResult.Outcome);
-
-        var followUpChatClient = new RecordingChatClient("follow answer");
-        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
-        var followUpService = CreateService(followUpFactory, followUpChatClient);
-        await followUpService.ResumeThreadAsync(thread.Id);
-        await DrainAsync(followUpService.SubmitInputAsync(thread.Id, [new TextContent("follow up")]));
-
-        var followUpHistory = followUpChatClient.LastMessages.Select(MessageText).ToList();
-        Assert.Contains(followUpHistory, text => text.Contains("checkpoint compacted context", StringComparison.Ordinal));
-        Assert.DoesNotContain(followUpHistory, text => text.Contains("seed 0", StringComparison.Ordinal));
-    }
-
-    [Fact]
     public async Task DeleteThreadPermanentlyAsync_DuringRunningTurn_DoesNotRecreateThreadArtifacts()
     {
-        IChatClient chatClient = new BlockingChatClient();
+        using var chatClient = new RecordingBlockingChatClient();
         await using var agentFactory = CreateAgentFactory(chatClient);
         var svc = CreateService(agentFactory, chatClient);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
         Assert.Equal(1, svc.DebugRuntimeCount);
 
         var drainTask = DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-        await Task.Delay(50);
+        await chatClient.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         await svc.DeleteThreadPermanentlyAsync(thread.Id);
         await drainTask;
@@ -2547,24 +3091,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_FirstCompletedTurn_PersistsThreadBeforeSessionRow()
-    {
-        var firstChatClient = new RecordingChatClient("first answer");
-        await using var firstFactory = CreateAgentFactory(firstChatClient);
-        var firstService = CreateService(firstFactory, firstChatClient);
-        var thread = await firstService.CreateThreadAsync(MakeIdentity());
-
-        await DrainAsync(firstService.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-
-        var store = new ThreadStore(_tempDir);
-        Assert.NotNull(await store.LoadThreadAsync(thread.Id));
-        var rollout = await File.ReadAllTextAsync(
-            Path.Combine(_tempDir, "threads", "active", $"{thread.Id}.jsonl"));
-        Assert.Contains(RolloutKinds.ModelHistoryMessagesAppended, rollout, StringComparison.Ordinal);
-        Assert.True(ThreadRowExists(thread.Id));
-    }
-
-    [Fact]
     public async Task SubmitInputAsync_AcrossFreshServiceInstance_RestoresPriorConversation()
     {
         var firstChatClient = new RecordingChatClient("first answer");
@@ -2574,27 +3100,11 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
 
         await DrainAsync(firstService.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
 
-        var secondChatClient = new RecordingChatClient("second answer");
-        await using var secondFactory = CreateAgentFactory(secondChatClient);
-        var secondService = CreateService(secondFactory, secondChatClient);
-        await secondService.ResumeThreadAsync(thread.Id);
-
-        await DrainAsync(secondService.SubmitInputAsync(thread.Id, [new TextContent("follow up")]));
-
-        Assert.Equal(
-            ["user:hello", "assistant:first answer", "user:follow up"],
-            Conversation(secondChatClient.LastMessages).Select(FormatMessage).ToList());
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_AfterServiceRestart_RebuildsHistoryFromRollout()
-    {
-        var firstChatClient = new RecordingChatClient("first answer");
-        await using var firstFactory = CreateAgentFactory(firstChatClient);
-        var firstService = CreateService(firstFactory, firstChatClient);
-        var thread = await firstService.CreateThreadAsync(MakeIdentity());
-
-        await DrainAsync(firstService.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+        Assert.NotNull(await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id));
+        var rollout = await File.ReadAllTextAsync(
+            Path.Combine(_tempDir, "threads", "active", $"{thread.Id}.jsonl"));
+        Assert.Contains(RolloutKinds.ModelHistoryMessagesAppended, rollout, StringComparison.Ordinal);
+        Assert.True(ThreadRowExists(thread.Id));
 
         var secondChatClient = new RecordingChatClient("second answer");
         await using var secondFactory = CreateAgentFactory(secondChatClient);
@@ -2658,284 +3168,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
             reloaded.QueuedInputs.Select(q => q.Id).ToArray());
     }
 
-    private SessionService CreateService(
-        AgentFactory agentFactory,
-        IChatClient chatClient,
-        TokenUsageStore? tokenUsageStore = null,
-        bool useStreamingFunctionInvoker = false,
-        TraceCollector? traceCollector = null)
-    {
-        var defaultAgent = useStreamingFunctionInvoker
-            ? new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent()
-            : chatClient.AsAIAgent();
-        return new SessionService(
-            agentFactory,
-            defaultAgent,
-            new SessionPersistenceService(new ThreadStore(_tempDir)),
-            new SessionGate(),
-            traceCollector: traceCollector,
-            tokenUsageStore: tokenUsageStore);
-    }
-
-    private SessionService CreateStreamingServiceWithInstructions(
-        AgentFactory agentFactory,
-        IChatClient chatClient,
-        string instructions)
-    {
-        var defaultAgent = new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent(
-            new ChatOptions { Instructions = instructions });
-        return new SessionService(
-            agentFactory,
-            defaultAgent,
-            new SessionPersistenceService(new ThreadStore(_tempDir)),
-            new SessionGate());
-    }
-
-    private AgentFactory CreateAgentFactory(
-        IChatClient chatClientFactory,
-        IReadOnlyList<IToolSource>? toolProviders = null,
-        Action<AppConfig>? configureConfig = null,
-        IChatClient? compactionChatClient = null,
-        IApprovalService? approvalService = null,
-        IToolDispatcher? toolDispatcher = null,
-        PlanStore? planStore = null,
-        string? workspacePath = null)
-    {
-        var config = AppConfigTestFactory.CreateOpenAI();
-        configureConfig?.Invoke(config);
-        var catalogDirectory = Path.Combine(_tempDir, "catalog-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(catalogDirectory);
-        config.WorkspaceConfigPath = Path.Combine(catalogDirectory, "config.json");
-        var model = ModelProviderResolver.ResolveConfiguredModel(config);
-        File.WriteAllText(Path.Combine(catalogDirectory, "models.json"),
-            JsonSerializer.Serialize(new { models = new Dictionary<string, object>
-            {
-                [model!] = new { contextWindow = config.Compaction.ContextWindow }
-            } }));
-        var memory = new MemoryStore(_tempDir);
-        var skills = new SkillsLoader(_tempDir);
-        return new AgentFactory(
-            dotcraftPath: _tempDir,
-            workspacePath: workspacePath ?? _tempDir,
-            config: config,
-            memoryStore: memory,
-            skillsLoader: skills,
-            approvalService: approvalService ?? new SessionScopedApprovalService(new AutoApproveApprovalService()),
-            blacklist: null,
-            chatClientRegistry: TestModelProviderRegistry.Create(),
-            chatClient: chatClientFactory,
-            toolDispatcher: toolDispatcher,
-            toolSources: toolProviders ?? Array.Empty<IToolSource>(),
-            planStore: planStore,
-            compactionChatClient: compactionChatClient);
-    }
-
-    private SessionIdentity MakeIdentity() => new()
-    {
-        ChannelName = "test",
-        UserId = "u",
-        WorkspacePath = _tempDir
-    };
-
-    private static async Task DrainAsync(IAsyncEnumerable<SessionEvent> events)
-    {
-        await foreach (var _ in events)
-        {
-        }
-    }
-
-    private static async Task<List<SessionEvent>> CollectAsync(IAsyncEnumerable<SessionEvent> events)
-    {
-        var collected = new List<SessionEvent>();
-        await foreach (var evt in events)
-            collected.Add(evt);
-        return collected;
-    }
-
-    private static async Task<SessionTurn> WaitForStartedSleepAsync(
-        SessionService service,
-        string threadId)
-    {
-        for (var attempt = 0; attempt < 200; attempt++)
-        {
-            var thread = await service.GetThreadAsync(threadId);
-            var turn = thread.Turns.SingleOrDefault(candidate =>
-                candidate.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
-            if (turn?.Items.Any(item => item.Type == ItemType.Sleep && item.Status == ItemStatus.Started) == true)
-                return turn;
-
-            await Task.Delay(10);
-        }
-
-        throw new TimeoutException("The running turn did not start a Sleep item.");
-    }
-
-    private static async Task<(string TurnId, UserInputRequestPayload Request)> WaitForUserInputRequestAsync(
-        SessionService service,
-        string threadId)
-    {
-        for (var attempt = 0; attempt < 200; attempt++)
-        {
-            var thread = await service.GetThreadAsync(threadId);
-            var turn = thread.Turns.SingleOrDefault(candidate => candidate.Status == TurnStatus.WaitingInput);
-            var request = turn?.Items
-                .Select(item => item.Payload)
-                .OfType<UserInputRequestPayload>()
-                .SingleOrDefault();
-            if (turn is not null && request is not null)
-                return (turn.Id, request);
-
-            await Task.Delay(10);
-        }
-
-        throw new TimeoutException("The running turn did not request user input.");
-    }
-
-    private static IEnumerable<ChatMessage> Conversation(IEnumerable<ChatMessage> messages) =>
-        messages.Where(static message => ThreadContextItems.GetKind(message) == null);
-
-    private static string FormatMessage(ChatMessage message)
-    {
-        var text = string.Concat(message.Contents.OfType<TextContent>().Select(content => content.Text));
-        var runtimeContextIndex = text.IndexOf("\n[Runtime Context]", StringComparison.Ordinal);
-        if (runtimeContextIndex >= 0)
-            text = text[..runtimeContextIndex];
-        text = StripSystemReminderBlocks(text);
-        return $"{message.Role}:{text.Trim()}";
-    }
-
-    private static string FormatMessageWithContents(ChatMessage message)
-    {
-        var parts = message.Contents.Select(content => content switch
-        {
-            TextContent text => text.Text,
-            FunctionCallContent call => $"function_call:{call.Name}:{call.CallId}",
-            FunctionResultContent result => $"function_result:{result.CallId}:{result.Result}",
-            _ => content.ToString() ?? string.Empty
-        });
-        var text = StripSystemReminderBlocks(string.Concat(parts));
-        var runtimeContextIndex = text.IndexOf("\n[Runtime Context]", StringComparison.Ordinal);
-        if (runtimeContextIndex >= 0)
-            text = text[..runtimeContextIndex];
-        return $"{message.Role}:{text.Trim()}";
-    }
-
-    private static string MessageTextWithReminders(ChatMessage message) =>
-        string.Concat(message.Contents.OfType<TextContent>().Select(content => content.Text));
-
-    private static string MessageText(ChatMessage message) =>
-        StripSystemReminderBlocks(string.Concat(message.Contents.Select(content => content switch
-        {
-            TextContent text => text.Text,
-            FunctionCallContent call => $"function_call:{call.Name}:{call.CallId}",
-            FunctionResultContent result => $"function_result:{result.CallId}:{result.Result}",
-            _ => content.ToString() ?? string.Empty
-        })));
-
-    private static bool IsSystemEvent(SessionEvent evt, string kind) =>
-        evt.EventType == SessionEventType.SystemEvent
-        && evt.Payload is SystemEventPayload payload
-        && payload.Kind == kind;
-
-    private static string StripSystemReminderBlocks(string input)
-    {
-        const string openTag = "<system-reminder>";
-        const string closeTag = "</system-reminder>";
-        var text = input;
-        while (true)
-        {
-            var open = text.IndexOf(openTag, StringComparison.Ordinal);
-            if (open < 0)
-                return text.TrimEnd();
-
-            var close = text.IndexOf(closeTag, open + openTag.Length, StringComparison.Ordinal);
-            if (close < 0)
-                return text[..open].TrimEnd();
-
-            text = (text[..open] + text[(close + closeTag.Length)..]).TrimEnd();
-        }
-    }
-
-    private bool ThreadRowExists(string threadId)
-    {
-        using var connection = OpenStateConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT 1 FROM threads WHERE thread_id = $thread_id LIMIT 1";
-        command.Parameters.AddWithValue("$thread_id", threadId);
-        return command.ExecuteScalar() != null;
-    }
-
-    private static void ConfigureSmallCompaction(AppConfig config)
-    {
-        config.Compaction.ContextWindow = 10_000;
-        config.Compaction.SummaryReserveTokens = 1_000;
-        config.Compaction.AutoCompactBufferTokens = 500;
-        config.Compaction.WarningBufferTokens = 500;
-        config.Compaction.ErrorBufferTokens = 250;
-        config.Compaction.KeepRecentMinTokens = 1;
-        config.Compaction.KeepRecentMinGroups = 1;
-        config.Compaction.KeepRecentMaxTokens = 500;
-        config.Compaction.MicrocompactEnabled = false;
-    }
-
-    private SqliteConnection OpenStateConnection()
-    {
-        var connection = new SqliteConnection(
-            new SqliteConnectionStringBuilder
-            {
-                DataSource = Path.Combine(_tempDir, "state.db"),
-                Mode = SqliteOpenMode.ReadWrite
-            }.ToString());
-        connection.Open();
-        return connection;
-    }
-
-    private sealed class FakeChatClient(ChatResponseUpdate[] streamUpdates) : IChatClient
-    {
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            foreach (var update in streamUpdates)
-                yield return update;
-            await Task.CompletedTask;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) =>
-            serviceType == typeof(IToolCallArgumentsDeltaExtractor)
-                ? AnthropicToolCallArgumentsDeltaExtractor.Instance
-                : null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class ProjectionTestToolSource : AIFunctionToolSource
-    {
-        public override string SourceId => "core-native";
-
-        protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
-        {
-            yield return AIFunctionFactory.Create(
-                () => "file contents",
-                name: "ProjectionRead",
-                description: "Read a file.");
-        }
-
-        protected override ToolPresentationDescriptor? GetPresentation(
-            AIFunction function,
-            ToolPlanningContext context) =>
-            new(new PresentationId("core.read-file"));
-    }
-
     [Fact]
     public async Task SubmitInputAsync_SubAgentTraceBindingPreservesLineageAcrossResume()
     {
@@ -2985,715 +3217,5 @@ public sealed partial class SessionServiceRuntimeSignalTests : IDisposable
         var resumedBinding = traceStore.DescribeSessionDeletion(child.Id);
         Assert.Equal("threadChild", resumedBinding.BindingKind);
         Assert.Equal(rootThreadId, resumedBinding.RootThreadId);
-    }
-
-    private sealed class PlanConfirmationCleanupToolSource : AIFunctionToolSource
-    {
-        public override string SourceId => "plan-confirmation-cleanup";
-
-        protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
-        {
-            yield return AIFunctionFactory.Create(
-                () => "Scratch removed.",
-                name: "CleanUpScratch",
-                description: "Remove scratch files.");
-        }
-    }
-
-    private sealed class PlanThenCleanupChatClient : IChatClient
-    {
-        private int _requestCount;
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            switch (Interlocked.Increment(ref _requestCount))
-            {
-                case 1:
-                    Assert.Contains(options?.Tools ?? [], tool => string.Equals(tool.Name, "CreatePlan", StringComparison.Ordinal));
-                    yield return new ChatResponseUpdate(ChatRole.Assistant,
-                    [
-                        new FunctionCallContent(
-                            "call-plan",
-                            "CreatePlan",
-                            new Dictionary<string, object?>
-                            {
-                                ["plan"] = "# Cleanup-safe plan\n\n## Summary\n\nKeep confirmation pending.",
-                                ["todos"] = Array.Empty<PlanTodoInput>()
-                            })
-                    ]);
-                    break;
-                case 2:
-                    Assert.Contains(
-                        chatMessages.SelectMany(message => message.Contents).OfType<FunctionResultContent>(),
-                        result => string.Equals(result.CallId, "call-plan", StringComparison.Ordinal));
-                    yield return new ChatResponseUpdate(ChatRole.Assistant,
-                    [
-                        new FunctionCallContent(
-                            "call-close",
-                            "CleanUpScratch",
-                            new Dictionary<string, object?>())
-                    ]);
-                    break;
-                default:
-                    yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("Plan ready.")]);
-                    break;
-            }
-
-            await Task.CompletedTask;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private static void AssertDynamicSourceFailure(
-        DynamicToolCallPayload payload,
-        string expectedCode,
-        string expectedMessage)
-    {
-        Assert.False(payload.Success);
-        Assert.Equal("failed", payload.Status);
-        Assert.Equal(expectedCode, payload.ErrorCode);
-        Assert.Equal(expectedMessage, payload.ErrorMessage);
-        Assert.Equal("CS1001", payload.StructuredContent?["diagnostics"]?[0]?["id"]?.GetValue<string>());
-    }
-
-    private async Task<DynamicToolCallPayload> ExecuteDynamicProjectionAsync(ToolExecutionResult runtimeResult)
-    {
-        var chatClient = new CapturingToolFailureChatClient("RuntimeProjection");
-        var recorder = new ToolInvocationRecorderRouter();
-        var dispatcher = new ToolDispatcher(recorder: recorder);
-        await using var agentFactory = CreateAgentFactory(
-            chatClient,
-            [new DynamicProjectionToolSource(runtimeResult)],
-            toolDispatcher: dispatcher);
-        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
-        recorder.Bind(service);
-        var thread = await service.CreateThreadAsync(MakeIdentity());
-        await service.RefreshThreadAgentAsync(thread.Id);
-
-        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("run the dynamic tool")]));
-
-        var updated = await service.GetThreadAsync(thread.Id);
-        return Assert.IsType<DynamicToolCallPayload>(
-            Assert.Single(Assert.Single(updated.Turns).Items, item => item.Type == ItemType.DynamicToolCall).Payload);
-    }
-
-    private sealed class DynamicProjectionToolSource(ToolExecutionResult result) : IToolSource
-    {
-        public string SourceId => "runtime-dynamic-test";
-
-        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
-            ToolPlanningContext context,
-            CancellationToken cancellationToken = default)
-        {
-            var sourceToolId = new SourceToolId("RuntimeProjection");
-            var definitionId = new ToolDefinitionId(ToolSourceKind.RuntimeDynamic, SourceId, sourceToolId);
-            var definition = new ToolDefinition(
-                definitionId,
-                new ToolName(null, "RuntimeProjection"),
-                "Return a Runtime Dynamic projection test result.",
-                JsonSerializer.SerializeToElement(new { type = "object" }),
-                provenance: new ToolProvenance(ToolSourceKind.RuntimeDynamic, SourceId, "thread"));
-            var binding = new ToolRuntimeBinding(
-                new RuntimeBindingId("runtime-dynamic-test:1"),
-                definitionId,
-                new DynamicProjectionRuntime(result),
-                ToolBindingLeases.AlwaysAvailable,
-                "test:runtime-dynamic",
-                context.Revision);
-            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([
-                new ToolRegistration(
-                    definition,
-                    binding,
-                    ToolProjectionShape.DynamicLifecycle,
-                    ToolExposure.Direct,
-                    ToolInvocationAudience.Model)
-            ]);
-        }
-    }
-
-    private sealed class DynamicProjectionRuntime(ToolExecutionResult result) : IToolRuntime
-    {
-        public ValueTask<ToolExecutionResult> InvokeAsync(
-            ToolInvocationContext context,
-            JsonObject arguments,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(result);
-    }
-
-    private sealed class NormalizedFailureToolSource(string errorCode, string content) : IToolSource
-    {
-        public string SourceId => "normalized-failure";
-
-        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
-            ToolPlanningContext context,
-            CancellationToken cancellationToken = default)
-        {
-            var sourceToolId = new SourceToolId("FailingProjection");
-            var definitionId = new ToolDefinitionId(ToolSourceKind.CoreNative, SourceId, sourceToolId);
-            var definition = new ToolDefinition(
-                definitionId,
-                new ToolName(null, "FailingProjection"),
-                "Return a normalized test failure.",
-                JsonSerializer.SerializeToElement(new { type = "object" }));
-            var binding = new ToolRuntimeBinding(
-                new RuntimeBindingId("normalized-failure:1"),
-                definitionId,
-                new NormalizedFailureRuntime(errorCode, content),
-                ToolBindingLeases.AlwaysAvailable,
-                "test:normalized-failure",
-                context.Revision);
-            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([
-                new ToolRegistration(definition, binding, ToolProjectionShape.StandardPair)
-            ]);
-        }
-    }
-
-    private sealed class NormalizedFailureRuntime(string errorCode, string content) : IToolRuntime
-    {
-        public ValueTask<ToolExecutionResult> InvokeAsync(
-            ToolInvocationContext context,
-            JsonObject arguments,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(ToolExecutionResult.Failed(
-                new ToolError(errorCode, "The screenshot operation timed out."),
-                content));
-    }
-
-    private sealed class CapturingToolFailureChatClient(string toolName) : IChatClient
-    {
-        private int _requestCount;
-
-        public FunctionResultContent? ToolResult { get; private set; }
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            if (Interlocked.Increment(ref _requestCount) == 1)
-            {
-                yield return new ChatResponseUpdate(ChatRole.Assistant,
-                    [new FunctionCallContent("call-failure", toolName, new Dictionary<string, object?>())]);
-            }
-            else
-            {
-                ToolResult = Assert.Single(chatMessages
-                    .SelectMany(message => message.Contents)
-                    .OfType<FunctionResultContent>());
-                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("handled failure")]);
-            }
-
-            await Task.CompletedTask;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class ImageNodeReplProxy(byte[] imageBytes) : INodeReplProxy
-    {
-        public bool IsAvailable => true;
-
-        public NodeReplEvaluationMetadata? LastMetadata { get; private set; }
-
-        public Task<NodeReplEvaluation?> EvaluateAsync(
-            string code,
-            int? timeoutSeconds = null,
-            CancellationToken ct = default,
-            NodeReplEvaluationMetadata? metadata = null)
-        {
-            LastMetadata = metadata;
-            return Task.FromResult<NodeReplEvaluation?>(new NodeReplEvaluation
-            {
-                Images =
-                [
-                    new NodeReplImage
-                    {
-                        MediaType = "image/png",
-                        DataBase64 = Convert.ToBase64String(imageBytes)
-                    }
-                ]
-            });
-        }
-    }
-
-    private sealed class CapturingImageToolChatClient(string toolName) : IChatClient
-    {
-        private int _requestCount;
-
-        public DataContent? ImageContent { get; private set; }
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            if (Interlocked.Increment(ref _requestCount) == 1)
-            {
-                yield return new ChatResponseUpdate(ChatRole.Assistant,
-                    [new FunctionCallContent(
-                        "call-node-repl-image",
-                        toolName,
-                        new Dictionary<string, object?> { ["code"] = "emitImage(image)" })]);
-            }
-            else
-            {
-                ImageContent = Assert.Single(chatMessages
-                    .SelectMany(message => message.Contents)
-                    .OfType<DataContent>());
-                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("handled image")]);
-            }
-
-            await Task.CompletedTask;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class HistoricalImageUsageChatClient : IChatClient
-    {
-        public IReadOnlyList<ChatMessage> LastMessages { get; private set; } = [];
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("continued")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            LastMessages = chatMessages.ToList();
-            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("continued")]);
-            yield return UsageUpdate(requestIndex: 1, input: 5_000, output: 1, cachedInput: 0);
-            await Task.CompletedTask;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class SingleToolCallChatClient(string toolName, bool emitFinalResponse = true) : IChatClient
-    {
-        private int _requestCount;
-
-        public int RequestCount => _requestCount;
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            if (Interlocked.Increment(ref _requestCount) == 1)
-            {
-                Assert.Contains(options?.Tools ?? [], tool => string.Equals(tool.Name, toolName, StringComparison.Ordinal));
-                yield return new ChatResponseUpdate(ChatRole.Assistant,
-                    [new FunctionCallContent("call-projection", toolName, new Dictionary<string, object?>())]);
-            }
-            else if (emitFinalResponse)
-            {
-                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("done")]);
-            }
-
-            await Task.CompletedTask;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class CoordinationToolCallChatClient(
-        string toolName,
-        IDictionary<string, object?> arguments,
-        Func<Task>? beforeToolCall = null) : IChatClient
-    {
-        private int _requestCount;
-
-        public int RequestCount => _requestCount;
-
-        public IReadOnlyList<ChatMessage> FollowUpMessages { get; private set; } = [];
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            if (Interlocked.Increment(ref _requestCount) == 1)
-            {
-                Assert.Contains(options?.Tools ?? [], tool => string.Equals(tool.Name, toolName, StringComparison.Ordinal));
-                if (beforeToolCall is not null)
-                    await beforeToolCall();
-                yield return new ChatResponseUpdate(ChatRole.Assistant,
-                    [new FunctionCallContent("coordination-call", toolName, arguments)]);
-            }
-            else
-            {
-                FollowUpMessages = chatMessages.ToList();
-                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("done")]);
-            }
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class FakeImageGenerationProvider(byte[] image) : IModelProvider, IProviderImageGeneration
-    {
-        public IReadOnlyCollection<string> Protocols { get; } =
-            [ModelProviderProtocols.OpenAIChatCompletions, ModelProviderProtocols.OpenAIResponses];
-
-        public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => throw new NotSupportedException();
-
-        public Task<ProviderImageResult> GenerateImageAsync(
-            EffectiveModelRuntime runtime,
-            ProviderImageRequest request,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new ProviderImageResult(image));
-    }
-
-    private sealed class ThrowingChatClient(Exception exception) : IChatClient
-    {
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            throw exception;
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            if (Environment.TickCount < 0)
-                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent(string.Empty)]);
-            await Task.Yield();
-            throw exception;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class ThrowingAfterUpdatesChatClient(
-        ChatResponseUpdate[] streamUpdates,
-        Exception exception) : IChatClient
-    {
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            throw exception;
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            foreach (var update in streamUpdates)
-                yield return update;
-            await Task.Yield();
-            throw exception;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class ThrowingThenUpdatesChatClient(
-        Exception firstException,
-        ChatResponseUpdate[] retryUpdates) : IChatClient
-    {
-        private int _calls;
-
-        public int Calls => _calls;
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            var call = Interlocked.Increment(ref _calls);
-            await Task.Yield();
-            if (call == 1)
-                throw firstException;
-
-            foreach (var update in retryUpdates)
-                yield return update;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class BlockingChatClient : IChatClient
-    {
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            await Task.Delay(Timeout.Infinite, cancellationToken);
-            yield break;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class ApprovalRequestingChatClient(IApprovalService approvalService) : IChatClient
-    {
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            var approved = await approvalService.RequestShellApprovalAsync(
-                ShellApprovalRequests.For("dotnet test", Directory.GetCurrentDirectory()));
-            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent($"approval={approved}")]);
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class RecordingBlockingChatClient : IChatClient
-    {
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public IReadOnlyList<ChatMessage> LastMessages { get; private set; } = [];
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            LastMessages = chatMessages.ToList();
-            Started.TrySetResult();
-            await Task.Delay(Timeout.Infinite, cancellationToken);
-            yield break;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class RecordingChatClient(string responseText) : IChatClient
-    {
-        public IReadOnlyList<ChatMessage> LastMessages { get; private set; } = [];
-        public ChatOptions? LastOptions { get; private set; }
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default)
-        {
-            LastMessages = chatMessages.ToList();
-            LastOptions = options;
-            return Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent(responseText)])]));
-        }
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            LastMessages = chatMessages.ToList();
-            LastOptions = options;
-            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent(responseText)]);
-            await Task.CompletedTask;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class SummaryChatClient(string responseText) : IChatClient
-    {
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> messages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
-
-        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> messages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class RecordingToolProvider : IToolSource
-    {
-        public string SourceId => "recording";
-        public int Priority => 10;
-
-        public List<ToolPlanningContext> Contexts { get; } = [];
-
-        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
-            ToolPlanningContext context,
-            CancellationToken cancellationToken = default)
-        {
-            Contexts.Add(context);
-            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
-        }
-    }
-
-    private sealed class NamespacedMcpToolSource : IToolSource
-    {
-        public string SourceId => "mcp-test";
-        public int Priority => 10;
-
-        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
-            ToolPlanningContext context,
-            CancellationToken cancellationToken = default)
-        {
-            var sourceToolId = new SourceToolId("get_me");
-            var definitionId = new ToolDefinitionId(ToolSourceKind.Mcp, "plugin:code-host-apps", sourceToolId);
-            var appMetadata = new McpAppToolMetadata(
-                new Uri("ui://account/profile"),
-                McpAppVisibility.Model | McpAppVisibility.App);
-            var definition = new ToolDefinition(
-                definitionId,
-                new ToolName("mcp__code_host_apps", "get_me"),
-                "Get the current code-host user.",
-                JsonSerializer.SerializeToElement(new { type = "object" }),
-                annotations: new Dictionary<string, JsonElement>
-                {
-                    [McpAppMetadataParser.ToolAnnotationKey] =
-                        McpAppMetadataParser.ToDefinitionAnnotation(appMetadata)
-                },
-                provenance: new ToolProvenance(ToolSourceKind.Mcp, "plugin:code-host-apps", "plugin"));
-            var binding = new ToolRuntimeBinding(
-                new RuntimeBindingId("mcp:plugin:code-host-apps:get_me:1"),
-                definitionId,
-                new NamespacedMcpRuntime(),
-                ToolBindingLeases.AlwaysAvailable,
-                "mcp:plugin:code-host-apps:1",
-                1);
-            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([
-                new ToolRegistration(
-                    definition,
-                    binding,
-                    ToolProjectionShape.McpLifecycle,
-                    ToolExposure.Direct,
-                    ToolInvocationAudience.Model)
-            ]);
-        }
-    }
-
-    private sealed class NamespacedMcpRuntime : IToolRuntime
-    {
-        public ValueTask<ToolExecutionResult> InvokeAsync(
-            ToolInvocationContext context,
-            JsonObject arguments,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(ToolExecutionResult.Succeeded("ok"));
     }
 }

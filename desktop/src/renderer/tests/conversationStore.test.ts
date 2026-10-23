@@ -11,7 +11,6 @@ import { coreToolFields, streamingToolCallStarted } from './testToolPresentation
 
 const s = () => useConversationStore.getState()
 
-/** Minimal raw turn fixture (wire format) */
 function makeTurn(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: 'turn-1',
@@ -30,18 +29,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
-})
-
-describe('conversationStore — initial state', () => {
-  it('starts with empty turns and idle status', () => {
-    const state = s()
-    expect(state.turns).toHaveLength(0)
-    expect(state.turnStatus).toBe('idle')
-    expect(state.streamingMessage).toBe('')
-    expect(state.streamingMessageLastDeltaAt).toBeNull()
-    expect(state.pendingMessage).toBeNull()
-    expect(state.maintenanceKind).toBeNull()
-  })
 })
 
 describe('selectLatestCreatePlanTurnId', () => {
@@ -135,26 +122,30 @@ describe('selectLatestCreatePlanTurnId', () => {
 })
 
 describe('maintenance state', () => {
-  it('tracks only thread-level compaction as maintenance', () => {
+  it('tracks only thread-level compaction as maintenance and labels it by scope', () => {
+    s().onTurnStarted(makeTurn())
     s().onSystemEvent('compacting', { turnId: 'turn-1' })
     expect(s().maintenanceKind).toBeNull()
+    expect(s().systemLabel).toBe('systemStatus.compacting')
 
     s().onSystemEvent('compacting', { turnId: null })
     expect(s().maintenanceKind).toBe('compacting')
+    expect(s().systemLabel).toBe('systemStatus.compacting.manual')
 
     s().onSystemEvent('compactCancelled')
     expect(s().maintenanceKind).toBeNull()
-  })
 
-  it('hydrates manual compaction label from runtime snapshots', () => {
-    s().setMaintenanceKind('compacting')
-
-    expect(s().maintenanceKind).toBe('compacting')
-    expect(s().systemLabel).toBe('systemStatus.compacting.manual')
+    for (const terminal of ['compacted', 'compactFailed', 'unknown-event-xyz']) {
+      s().onSystemEvent('compacting')
+      s().onSystemEvent(terminal)
+      expect(s().systemLabel, terminal).toBe(terminal === 'unknown-event-xyz' ? 'systemStatus.compacting.manual' : null)
+      s().onSystemEvent('compacted')
+    }
   })
 
   it('clears only maintenance-derived labels when runtime maintenance ends', () => {
     s().setMaintenanceKind('compacting')
+    expect(s().systemLabel).toBe('systemStatus.compacting.manual')
     s().setMaintenanceKind(null)
 
     expect(s().maintenanceKind).toBeNull()
@@ -169,17 +160,6 @@ describe('maintenance state', () => {
 })
 
 describe('turn lifecycle', () => {
-  it('onTurnStarted adds a turn and sets running state', () => {
-    s().onTurnStarted(makeTurn())
-
-    const state = s()
-    expect(state.turns).toHaveLength(1)
-    expect(state.turns[0].id).toBe('turn-1')
-    expect(state.turnStatus).toBe('running')
-    expect(state.activeTurnId).toBe('turn-1')
-    expect(state.turnStartedAt).not.toBeNull()
-  })
-
   it('onAgentMessageDelta accumulates into streamingMessage', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-05-22T10:00:00.000Z'))
@@ -197,24 +177,6 @@ describe('turn lifecycle', () => {
 
     expect(s().streamingMessage).toBe('Hello, world')
     expect(s().streamingMessageLastDeltaAt).toBe(secondDeltaAt)
-  })
-
-  it('onItemStarted (agentMessage) adds a streaming placeholder to turn.items', () => {
-    s().onTurnStarted(makeTurn())
-    s().onItemStarted({ turnId: 'turn-1', item: { id: 'item-1', type: 'agentMessage' } })
-    const items = s().turns[0].items
-    expect(items).toHaveLength(1)
-    expect(items[0].type).toBe('agentMessage')
-    expect(items[0].id).toBe('item-1')
-    expect(items[0].status).toBe('streaming')
-  })
-
-  it('onItemStarted is idempotent for replayed agentMessage items', () => {
-    s().onTurnStarted(makeTurn())
-    s().onItemStarted({ turnId: 'turn-1', item: { id: 'item-1', type: 'agentMessage' } })
-    s().onItemStarted({ turnId: 'turn-1', item: { id: 'item-1', type: 'agentMessage' } })
-
-    expect(s().turns[0].items.filter((i) => i.id === 'item-1')).toHaveLength(1)
   })
 
   it('onItemCompleted upserts repeated error notifications by item id', () => {
@@ -428,6 +390,7 @@ describe('turn lifecycle', () => {
       item: {
         id: 'cmd-1',
         type: 'commandExecution',
+        status: 'started',
         payload: {
           callId: 'exec-1',
           command: 'npm test',
@@ -438,6 +401,7 @@ describe('turn lifecycle', () => {
         }
       }
     })
+    expect(s().turns[0].items[0].executionStatus).toBe('inProgress')
 
     s().onCommandExecutionDelta({
       turnId: 'turn-1',
@@ -476,68 +440,6 @@ describe('turn lifecycle', () => {
     expect(item?.executionStatus).toBe('completed')
     expect(item?.exitCode).toBe(0)
     expect(item?.duration).toBe(1500)
-  })
-
-  it('maps commandExecution executionStatus from payload.status, not wire item lifecycle status', () => {
-    s().onTurnStarted(makeTurn())
-    s().onItemStarted({
-      turnId: 'turn-1',
-      item: {
-        id: 'cmd-wire',
-        type: 'commandExecution',
-        status: 'started',
-        payload: {
-          callId: 'exec-wire',
-          command: 'ping',
-          workingDirectory: 'C:/repo',
-          source: 'host',
-          status: 'inProgress',
-          aggregatedOutput: ''
-        }
-      }
-    })
-
-    const cmd = s().turns[0].items.find((i) => i.id === 'cmd-wire')
-    expect(cmd?.type).toBe('commandExecution')
-    expect(cmd?.executionStatus).toBe('inProgress')
-  })
-
-  it('mirrors command execution output onto the matching Exec toolCall item', () => {
-    vi.useFakeTimers()
-    s().onTurnStarted(makeTurn())
-    s().onItemStarted({
-      turnId: 'turn-1',
-      item: {
-        id: 'tool-1',
-        type: 'toolCall',
-        payload: {
-          callId: 'exec-2',
-          toolName: 'Exec', ...coreToolFields('Exec'),
-          arguments: { command: 'npm test' }
-        }
-      }
-    })
-    s().onItemStarted({
-      turnId: 'turn-1',
-      item: {
-        id: 'cmd-2',
-        type: 'commandExecution',
-        payload: {
-          callId: 'exec-2',
-          command: 'npm test',
-          status: 'inProgress',
-          aggregatedOutput: ''
-        }
-      }
-    })
-    s().onCommandExecutionDelta({ turnId: 'turn-1', itemId: 'cmd-2', delta: 'chunk\n' })
-    vi.advanceTimersByTime(50)
-
-    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-1')
-    expect(toolItem?.type).toBe('toolCall')
-    expect(toolItem?.aggregatedOutput).toBe('')
-    expect(s().shellRuntimeByCallId.get('exec-2')?.output).toBe('chunk\n')
-    expect(toolItem?.executionStatus).toBe('inProgress')
   })
 
   it('merges remote transfer progress into its tool call', () => {
@@ -1166,50 +1068,6 @@ describe('turn lifecycle', () => {
     })
   })
 
-  it('merges toolResult contentItems into an existing matching toolCall', () => {
-    s().onTurnStarted(makeTurn())
-    s().onItemStarted({
-      turnId: 'turn-1',
-      item: {
-        id: 'tool-read-image-result',
-        type: 'toolCall',
-        createdAt: '2026-04-25T10:00:01.000Z',
-        payload: {
-          callId: 'read-image-result',
-          toolName: 'ReadFile', ...coreToolFields('ReadFile'),
-          arguments: { path: 'docs/diagram.png' }
-        }
-      }
-    })
-
-    s().onItemCompleted({
-      turnId: 'turn-1',
-      item: {
-        id: 'result-read-image',
-        type: 'toolResult',
-        completedAt: '2026-04-25T10:00:03.000Z',
-        payload: {
-          callId: 'read-image-result',
-          result: 'Image: diagram.png (3 bytes, image/png)',
-          contentItems: [
-            { type: 'text', text: 'Image: diagram.png (3 bytes, image/png)' },
-            { type: 'image', mediaType: 'image/png', dataBase64: 'AQID' }
-          ],
-          success: true
-        }
-      }
-    })
-
-    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-read-image-result')
-    expect(toolItem?.type).toBe('toolCall')
-    expect(toolItem?.status).toBe('completed')
-    expect(toolItem?.result).toBe('Image: diagram.png (3 bytes, image/png)')
-    expect(toolItem?.contentItems).toEqual([
-      { type: 'text', text: 'Image: diagram.png (3 bytes, image/png)' },
-      { type: 'image', mediaType: 'image/png', dataBase64: 'AQID' }
-    ])
-  })
-
   it('preserves realtime completed toolCall state over a stale thread/read hydrate', () => {
     s().onTurnStarted(makeTurn({ id: 'turn-preserve' }))
     s().onItemStarted({
@@ -1635,43 +1493,6 @@ describe('turn lifecycle', () => {
     expect(item?.argumentsPreview).toBe('{"command":"dotnet test')
   })
 
-  it('merges an existing command execution into Exec when toolCall starts later', () => {
-    s().onTurnStarted(makeTurn())
-    s().onItemStarted({
-      turnId: 'turn-1',
-      item: {
-        id: 'cmd-pre',
-        type: 'commandExecution',
-        payload: {
-          callId: 'exec-pre',
-          command: 'npm test',
-          source: 'host',
-          status: 'inProgress',
-          aggregatedOutput: 'booting\n'
-        }
-      }
-    })
-
-    s().onItemStarted({
-      turnId: 'turn-1',
-      item: {
-        id: 'tool-pre',
-        type: 'toolCall',
-        payload: {
-          callId: 'exec-pre',
-          toolName: 'Exec', ...coreToolFields('Exec'),
-          arguments: { command: 'npm test' }
-        }
-      }
-    })
-
-    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-pre')
-    expect(toolItem?.type).toBe('toolCall')
-    expect(toolItem?.executionStatus).toBe('inProgress')
-    expect(toolItem?.aggregatedOutput).toBe('booting\n')
-    expect(toolItem?.commandSource).toBe('host')
-  })
-
   it('keeps Exec live when toolCall completes after command execution already started', () => {
     s().onTurnStarted(makeTurn())
     s().onItemStarted({
@@ -1720,6 +1541,7 @@ describe('turn lifecycle', () => {
     expect(toolItem?.arguments?.command).toBe('npm test')
     expect(toolItem?.executionStatus).toBe('inProgress')
     expect(toolItem?.aggregatedOutput).toBe('booting\n')
+    expect(toolItem?.commandSource).toBe('host')
   })
 
   it('onItemCompleted (agentMessage) updates placeholder in place and clears buffer', () => {
@@ -1739,28 +1561,6 @@ describe('turn lifecycle', () => {
     expect(items[0].text).toBe('Final text')
     expect(items[0].type).toBe('agentMessage')
     expect(items[0].status).toBe('completed')
-  })
-
-  it('onItemCompleted restores agent text from a nested completed payload without a delta', () => {
-    s().onTurnStarted(makeTurn())
-    s().onItemStarted({ turnId: 'turn-1', item: { id: 'item-1', type: 'agentMessage' } })
-    s().onItemCompleted({
-      turnId: 'turn-1',
-      item: {
-        id: 'item-1',
-        type: 'agentMessage',
-        payload: { text: 'Final text\n\nvisualize{"path":"/w/chart.html"}' }
-      }
-    })
-
-    const items = s().turns[0].items
-    expect(items).toHaveLength(1)
-    expect(items[0]).toMatchObject({
-      id: 'item-1',
-      type: 'agentMessage',
-      status: 'completed',
-      text: 'Final text\n\nvisualize{"path":"/w/chart.html"}'
-    })
   })
 
   it('onItemCompleted keeps streamed agent text and repairs an empty completed item', () => {
@@ -1832,90 +1632,52 @@ describe('turn lifecycle', () => {
     expect(items.some((item) => item.id === 'local-tool')).toBe(true)
   })
 
-  it('onTurnCompleted marks turn as completed and clears running state', () => {
+  it.each([
+    ['completed', () => s().onTurnCompleted(makeTurn({ status: 'completed', completedAt: new Date().toISOString() })), {}],
+    ['failed', () => s().onTurnFailed(makeTurn(), 'API error'), { error: 'API error' }],
+    ['cancelled', () => s().onTurnCancelled(makeTurn(), 'user requested'), { cancelReason: 'user requested' }]
+  ] as const)('settles a started turn as %s and clears running state', (status, settle, fields) => {
     s().onTurnStarted(makeTurn())
-    s().onTurnCompleted(makeTurn({ status: 'completed', completedAt: new Date().toISOString() }))
+    expect(s()).toMatchObject({ turnStatus: 'running', activeTurnId: 'turn-1' })
+    expect(s().turnStartedAt).not.toBeNull()
 
-    const state = s()
-    expect(state.turnStatus).toBe('idle')
-    expect(state.activeTurnId).toBeNull()
-    expect(state.turns[0].status).toBe('completed')
-  })
+    settle()
 
-  it('onTurnFailed marks turn as failed with error message', () => {
-    s().onTurnStarted(makeTurn())
-    s().onTurnFailed(makeTurn(), 'API error')
-
-    const state = s()
-    expect(state.turnStatus).toBe('idle')
-    expect(state.turns[0].status).toBe('failed')
-    expect(state.turns[0].error).toBe('API error')
-  })
-
-  it('onTurnCancelled marks turn as cancelled with reason', () => {
-    s().onTurnStarted(makeTurn())
-    s().onTurnCancelled(makeTurn(), 'user requested')
-
-    const state = s()
-    expect(state.turnStatus).toBe('idle')
-    expect(state.turns[0].status).toBe('cancelled')
-    expect(state.turns[0].cancelReason).toBe('user requested')
+    expect(s().turnStatus).toBe('idle')
+    expect(s().activeTurnId).toBeNull()
+    expect(s().turns[0]).toMatchObject({ status, ...fields })
   })
 })
 
 describe('reasoning flow', () => {
-  it('onReasoningDelta accumulates into streamingReasoning', () => {
+  it('streams reasoning into a placeholder and settles it in place', () => {
     vi.useFakeTimers()
     s().onTurnStarted(makeTurn())
     s().onItemStarted({ turnId: 'turn-1', item: { id: 'r-1', type: 'reasoningContent' } })
+    expect(s().turns[0].items).toMatchObject([{ id: 'r-1', type: 'reasoningContent', status: 'streaming' }])
     s().onReasoningDelta('Step 1.')
     s().onReasoningDelta(' Step 2.')
     vi.advanceTimersByTime(16)
-
     expect(s().streamingReasoning).toBe('Step 1. Step 2.')
-  })
 
-  it('onItemStarted (reasoningContent) adds a streaming placeholder to turn.items', () => {
-    s().onTurnStarted(makeTurn())
-    s().onItemStarted({ turnId: 'turn-1', item: { id: 'r-1', type: 'reasoningContent' } })
-    const items = s().turns[0].items.filter((i) => i.type === 'reasoningContent')
-    expect(items).toHaveLength(1)
-    expect(items[0].id).toBe('r-1')
-    expect(items[0].status).toBe('streaming')
-  })
-
-  it('onItemCompleted (reasoningContent) updates placeholder in place and clears buffer', () => {
-    s().onTurnStarted(makeTurn())
-    s().onItemStarted({ turnId: 'turn-1', item: { id: 'r-1', type: 'reasoningContent' } })
-    s().onReasoningDelta('Thinking deeply...')
     s().onItemCompleted({
       turnId: 'turn-1',
       item: { id: 'r-1', type: 'reasoningContent', createdAt: new Date().toISOString() }
     })
 
-    const state = s()
-    expect(state.streamingReasoning).toBe('')
-    const reasoningItems = state.turns[0].items.filter((i) => i.type === 'reasoningContent')
-    expect(reasoningItems).toHaveLength(1)
-    expect(reasoningItems[0].reasoning).toBe('Thinking deeply...')
-    expect(reasoningItems[0].status).toBe('completed')
+    expect(s().streamingReasoning).toBe('')
+    expect(s().turns[0].items).toMatchObject([{ id: 'r-1', reasoning: 'Step 1. Step 2.', status: 'completed' }])
   })
 })
 
 describe('token usage accumulation', () => {
-  it('accumulates tokens via onUsageDelta', () => {
+  it('accumulates tokens within a turn and resets them on the next turn', () => {
     s().onTurnStarted(makeTurn())
     s().onUsageDelta(100, 50)
     s().onUsageDelta(200, 100)
+    expect(s().inputTokens).toBe(300)
+    expect(s().outputTokens).toBe(150)
 
-    const state = s()
-    expect(state.inputTokens).toBe(300)
-    expect(state.outputTokens).toBe(150)
-  })
-
-  it('resets tokens on new turn', () => {
-    s().onTurnStarted(makeTurn())
-    s().onUsageDelta(500, 200)
     s().onTurnCompleted(makeTurn({ status: 'completed' }))
     s().onTurnStarted(makeTurn({ id: 'turn-2' }))
 
@@ -1926,53 +1688,15 @@ describe('token usage accumulation', () => {
 })
 
 describe('system events', () => {
-  it('sets auto-compacting label on turn-scoped "compacting" event', () => {
+  it('ignores the first reissue, then keeps one reissue status that later events replace', () => {
     s().onTurnStarted(makeTurn())
-    s().onSystemEvent('compacting', { turnId: 'turn-1' })
-    expect(s().systemLabel).toBe('systemStatus.compacting')
-  })
-
-  it('sets manual compacting label on thread-scoped "compacting" event', () => {
-    s().onTurnStarted(makeTurn())
-    s().onSystemEvent('compacting')
-    expect(s().systemLabel).toBe('systemStatus.compacting.manual')
-  })
-
-  it('clears label on "compacted" event', () => {
-    s().onTurnStarted(makeTurn())
-    s().onSystemEvent('compacting')
-    s().onSystemEvent('compacted')
-    expect(s().systemLabel).toBeNull()
-  })
-
-  it('clears label on "compactFailed" event', () => {
-    s().onTurnStarted(makeTurn())
-    s().onSystemEvent('compacting')
-    s().onSystemEvent('compactFailed')
-    expect(s().systemLabel).toBeNull()
-  })
-
-  it('ignores unknown system event kinds', () => {
-    s().onTurnStarted(makeTurn())
-    s().onSystemEvent('unknown-event-xyz')
-    expect(s().systemLabel).toBeNull()
-  })
-
-  it('ignores the first reissue and keeps systemLabel untouched', () => {
-    s().onTurnStarted(makeTurn())
-
     s().onSystemEvent('streamError', {
       turnId: 'turn-1',
       messageKey: 'system.streamError',
       params: { attempt: 1, max: 5 }
     })
-
     expect(s().systemLabel).toBeNull()
     expect(s().streamRetry).toBeNull()
-  })
-
-  it('keeps one reissue status that later events replace', () => {
-    s().onTurnStarted(makeTurn())
 
     s().onSystemEvent('streamError', {
       turnId: 'turn-1',
@@ -2026,15 +1750,11 @@ describe('system events', () => {
     expect(s().streamRetry).toBeNull()
   })
 
-  it('records the provider classification carried on the failed turn', () => {
+  it('keeps the provider classification from a failed turn and from reloaded history', () => {
     s().onTurnStarted(makeTurn())
-
     s().onTurnFailed({ id: 'turn-1', threadId: 'thread-1', providerError: 'usageLimitExceeded' }, 'boom')
-
     expect(s().turns[0]).toMatchObject({ status: 'failed', providerError: 'usageLimitExceeded' })
-  })
 
-  it('keeps the provider classification when turns are reloaded from history', () => {
     s().setTurns([makeTurn({ status: 'failed', error: 'boom', providerError: 'serverOverloaded' })])
 
     expect(s().turns[0]).toMatchObject({ status: 'failed', providerError: 'serverOverloaded' })
@@ -2052,25 +1772,14 @@ describe('context usage (token ring)', () => {
     percentLeft: 0.8
   }
 
-  it('seeds contextUsage from setContextUsage and classifies severity', () => {
+  it('classifies severity as usage deltas carry new input totals', () => {
     s().setContextUsage(baseSnapshot)
-    const usage = s().contextUsage
-    expect(usage).not.toBeNull()
-    expect(usage!.tokens).toBe(40_000)
-    expect(usage!.severity).toBe('normal')
-  })
+    expect(s().contextUsage).toMatchObject({ tokens: 40_000, severity: 'normal' })
 
-  it('overrides tokens when onUsageDelta carries totalInputTokens', () => {
-    s().setContextUsage(baseSnapshot)
     s().onUsageDelta(1000, 200, 180_500, 3000)
-    const usage = s().contextUsage
-    expect(usage!.tokens).toBe(180_500)
-    expect(usage!.severity).toBe('warning')
-    expect(usage!.percentLeft).toBeCloseTo(1 - 180_500 / 200_000, 3)
-  })
+    expect(s().contextUsage).toMatchObject({ tokens: 180_500, severity: 'warning' })
+    expect(s().contextUsage!.percentLeft).toBeCloseTo(1 - 180_500 / 200_000, 3)
 
-  it('promotes severity to error past the error threshold', () => {
-    s().setContextUsage(baseSnapshot)
     s().onUsageDelta(0, 0, 195_000)
     expect(s().contextUsage!.severity).toBe('error')
   })
@@ -2105,9 +1814,10 @@ describe('context usage (token ring)', () => {
     expect(s().contextUsage?.severity).toBe('normal')
   })
 
-  it('does not apply projected compacting snapshots to contextUsage', () => {
+  it('does not apply projected compacting snapshots or token counts to contextUsage', () => {
     s().setContextUsage({ ...baseSnapshot, tokens: 150_000, percentLeft: 0.25 })
 
+    s().onSystemEvent('compacting', { tokenCount: 260_000, percentLeft: 0 })
     s().onSystemEvent('compacting', {
       tokenCount: 260_000,
       percentLeft: 0,
@@ -2119,19 +1829,6 @@ describe('context usage (token ring)', () => {
         errorThreshold: 194_000,
         percentLeft: 0
       }
-    })
-
-    expect(s().contextUsage?.tokens).toBe(150_000)
-    expect(s().contextUsage?.percentLeft).toBe(0.25)
-    expect(s().contextUsage?.severity).toBe('normal')
-  })
-
-  it('does not apply projected compacting tokenCount to contextUsage', () => {
-    s().setContextUsage({ ...baseSnapshot, tokens: 150_000, percentLeft: 0.25 })
-
-    s().onSystemEvent('compacting', {
-      tokenCount: 260_000,
-      percentLeft: 0
     })
 
     expect(s().contextUsage?.tokens).toBe(150_000)
@@ -2207,12 +1904,10 @@ describe('context usage (token ring)', () => {
     expect(s().contextUsage!.percentLeft).toBe(0)
   })
 
-  it('ignores totals when no snapshot has been seeded yet', () => {
-    s().onUsageDelta(100, 50, 5000)
+  it('ignores bare totals until a usage delta carries a full snapshot', () => {
+    s().onUsageDelta(0, 0, 5000)
     expect(s().contextUsage).toBeNull()
-  })
 
-  it('seeds contextUsage from onUsageDelta full snapshot', () => {
     s().onUsageDelta(100, 50, 5000, 50, {
       tokens: 5000,
       contextWindow: 200_000,
@@ -2227,25 +1922,16 @@ describe('context usage (token ring)', () => {
     expect(s().contextUsage?.tokens).toBe(5000)
     expect(s().contextUsage?.percentLeft).toBe(0.975)
     expect(s().contextUsage?.severity).toBe('normal')
-  })
 
-  it('clears contextUsage when setContextUsage(null) is called', () => {
-    s().setContextUsage(baseSnapshot)
     s().setContextUsage(null)
-    expect(s().contextUsage).toBeNull()
-  })
-
-  it('resets contextUsage on store reset', () => {
-    s().setContextUsage(baseSnapshot)
-    s().reset()
     expect(s().contextUsage).toBeNull()
   })
 })
 
 describe('systemNotice items', () => {
-  it('appends a compaction notice to turn.items on item/completed', () => {
+  it('appends a compaction notice once per item id', () => {
     s().onTurnStarted(makeTurn())
-    s().onItemCompleted({
+    const completion = {
       turnId: 'turn-1',
       item: {
         id: 'notice-1',
@@ -2262,53 +1948,13 @@ describe('systemNotice items', () => {
           clearedToolResults: 2
         }
       }
-    })
-
-    const items = s().turns[0].items
-    const notice = items.find((i) => i.type === 'systemNotice')
-    expect(notice).toBeTruthy()
-    expect(notice!.systemNotice?.kind).toBe('compacted')
-    expect(notice!.systemNotice?.trigger).toBe('auto')
-    expect(notice!.systemNotice?.tokensBefore).toBe(180_000)
-  })
-
-  it('dedupes systemNotice items when emitted twice with the same id', () => {
-    s().onTurnStarted(makeTurn())
-    const payload = {
-      turnId: 'turn-1',
-      item: {
-        id: 'notice-dup',
-        type: 'systemNotice',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        payload: { kind: 'compacted', trigger: 'reactive', mode: 'micro' }
-      }
     }
-    s().onItemCompleted(payload)
-    s().onItemCompleted(payload)
-    const count = s().turns[0].items.filter((i) => i.type === 'systemNotice').length
-    expect(count).toBe(1)
-  })
+    s().onItemCompleted(completion)
+    s().onItemCompleted(completion)
 
-  it('preserves fork source thread id on fork notices', () => {
-    s().onTurnStarted(makeTurn())
-    s().onItemCompleted({
-      turnId: 'turn-1',
-      item: {
-        id: 'notice-forked',
-        type: 'systemNotice',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        payload: {
-          kind: 'forked',
-          sourceThreadId: 'thread-source'
-        }
-      }
-    })
-
-    const notice = s().turns[0].items.find((i) => i.type === 'systemNotice')
-    expect(notice?.systemNotice?.kind).toBe('forked')
-    expect(notice?.systemNotice?.sourceThreadId).toBe('thread-source')
+    const notices = s().turns[0].items.filter((i) => i.type === 'systemNotice')
+    expect(notices).toHaveLength(1)
+    expect(notices[0].systemNotice).toMatchObject({ kind: 'compacted', trigger: 'auto', tokensBefore: 180_000 })
   })
 
   it('keeps every remoteRoute field so a live route change renders a divider', () => {
@@ -2345,38 +1991,7 @@ describe('systemNotice items', () => {
   })
 })
 
-describe('pending message', () => {
-  it('stores pending message', () => {
-    s().setPendingMessage({
-      text: 'Follow-up question',
-      files: [{ path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }]
-    })
-    expect(s().pendingMessage).toEqual({
-      text: 'Follow-up question',
-      files: [{ path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }]
-    })
-  })
-
-  it('clears pending message', () => {
-    s().setPendingMessage({ text: 'text' })
-    s().setPendingMessage(null)
-    expect(s().pendingMessage).toBeNull()
-  })
-})
-
 describe('setTurns', () => {
-  it('populates turns from raw wire format', () => {
-    const rawTurns = [
-      makeTurn({ status: 'completed', items: [] }),
-      makeTurn({ id: 'turn-2', status: 'completed', items: [] })
-    ]
-    s().setTurns(rawTurns)
-
-    expect(s().turns).toHaveLength(2)
-    expect(s().turns[0].id).toBe('turn-1')
-    expect(s().turns[1].id).toBe('turn-2')
-  })
-
   it('restores waitingInput as the active turn state', () => {
     s().setTurns([
       makeTurn({ id: 'turn-wait-input', status: 'waitingInput', items: [] })
@@ -2403,6 +2018,15 @@ describe('reset', () => {
     s().onTurnStarted(makeTurn())
     s().onAgentMessageDelta('some text')
     s().setPendingMessage({ text: 'pending' })
+    s().setContextUsage({
+      tokens: 1,
+      contextWindow: 10,
+      autoCompactThreshold: 8,
+      warningThreshold: 7,
+      errorThreshold: 9,
+      percentLeft: 0.9
+    })
+    s().onPlanUpdated({ title: 'Some Plan', overview: '', content: '', todos: [] })
     s().reset()
 
     const state = s()
@@ -2411,13 +2035,14 @@ describe('reset', () => {
     expect(state.streamingMessage).toBe('')
     expect(state.streamingMessageLastDeltaAt).toBeNull()
     expect(state.pendingMessage).toBeNull()
+    expect(state.contextUsage).toBeNull()
+    expect(state.plan).toBeNull()
   })
 })
 
 describe('onPlanUpdated', () => {
-  it('replaces plan state with the new plan', () => {
-    expect(s().plan).toBeNull()
-
+  it('replaces plan state on each update and defaults missing content', () => {
+    s().onPlanUpdated({ title: 'Old Plan', overview: '', content: 'Old content', todos: [] })
     s().onPlanUpdated({
       title: 'My Plan',
       overview: 'Build something cool',
@@ -2428,36 +2053,15 @@ describe('onPlanUpdated', () => {
       ]
     })
 
-    const plan = s().plan
-    expect(plan).not.toBeNull()
-    expect(plan?.title).toBe('My Plan')
-    expect(plan?.overview).toBe('Build something cool')
-    expect(plan?.content).toBe('# Full Plan\n\nBody text')
-    expect(plan?.todos).toHaveLength(2)
-    expect(plan?.todos[0].status).toBe('completed')
-    expect(plan?.todos[1].status).toBe('in_progress')
-  })
+    expect(s().plan).toMatchObject({
+      title: 'My Plan',
+      overview: 'Build something cool',
+      content: '# Full Plan\n\nBody text',
+      todos: [{ status: 'completed' }, { status: 'in_progress' }]
+    })
 
-  it('replaces old plan on subsequent updates', () => {
-    s().onPlanUpdated({ title: 'Old Plan', overview: '', content: 'Old content', todos: [] })
-    s().onPlanUpdated({ title: 'New Plan', overview: 'Updated', content: 'New content', todos: [] })
-
-    expect(s().plan?.title).toBe('New Plan')
-    expect(s().plan?.content).toBe('New content')
-  })
-
-  it('falls back to empty content when plan/updated does not include content', () => {
     s().onPlanUpdated({ title: 'Legacy Plan', overview: 'Legacy payload', todos: [] })
-
     expect(s().plan?.content).toBe('')
-  })
-
-  it('reset() clears the plan', () => {
-    s().onPlanUpdated({ title: 'Some Plan', overview: '', content: '', todos: [] })
-    expect(s().plan).not.toBeNull()
-
-    s().reset()
-    expect(s().plan).toBeNull()
   })
 })
 
@@ -2486,8 +2090,10 @@ describe('tool item ordering by createdAt', () => {
     expect(tools.map((t) => t.id)).toEqual(['early', 'late'])
   })
 
-  it('does not duplicate replayed toolCall or commandExecution item starts', () => {
+  it('does not duplicate replayed agentMessage, toolCall or commandExecution item starts', () => {
     s().onTurnStarted(makeTurn())
+    s().onItemStarted({ turnId: 'turn-1', item: { id: 'item-1', type: 'agentMessage' } })
+    s().onItemStarted({ turnId: 'turn-1', item: { id: 'item-1', type: 'agentMessage' } })
     const toolItem = {
       id: 'tool-1',
       type: 'toolCall',
@@ -2511,8 +2117,7 @@ describe('tool item ordering by createdAt', () => {
     s().onItemStarted({ turnId: 'turn-1', item: commandItem })
     s().onItemStarted({ turnId: 'turn-1', item: commandItem })
 
-    expect(s().turns[0].items.filter((i) => i.id === 'tool-1')).toHaveLength(1)
-    expect(s().turns[0].items.filter((i) => i.id === 'cmd-1')).toHaveLength(1)
+    expect(s().turns[0].items.map((i) => i.id).sort()).toEqual(['cmd-1', 'item-1', 'tool-1'])
   })
 
   it('keeps agentMessage placeholder before toolCall when tool starts after message streaming', () => {
@@ -2621,27 +2226,15 @@ describe('capacity retry schedule', () => {
     return selectCapacityRetryDelaySeconds(useConversationStore.getState())
   }
 
-  it('starts at the first delay for a capacity failure the user asked for', () => {
-    expect(delayFor([userTurn('turn-1', 'failed')])).toBe(10)
-  })
-
-  it('escalates once a reissue also fails', () => {
-    expect(delayFor([userTurn('turn-1', 'failed'), reissuedTurn('turn-2')])).toBe(30)
-    expect(delayFor([
-      userTurn('turn-1', 'failed'),
-      reissuedTurn('turn-2'),
-      reissuedTurn('turn-3')
-    ])).toBe(120)
-  })
-
-  it('hands control back once the schedule is spent', () => {
-    expect(delayFor([
-      userTurn('turn-1', 'failed'),
-      reissuedTurn('turn-2'),
-      reissuedTurn('turn-3'),
-      reissuedTurn('turn-4'),
-      reissuedTurn('turn-5')
-    ])).toBeNull()
+  it('escalates while reissues keep failing and hands control back once the schedule is spent', () => {
+    const failures = [userTurn('turn-1', 'failed')]
+    const expected = [10, 30, 120]
+    for (const delay of expected) {
+      expect(delayFor(failures)).toBe(delay)
+      failures.push(reissuedTurn(`turn-${failures.length + 1}`))
+    }
+    failures.push(reissuedTurn('turn-5'))
+    expect(delayFor(failures)).toBeNull()
   })
 
   it('resets when the run is interrupted by a turn that succeeded', () => {

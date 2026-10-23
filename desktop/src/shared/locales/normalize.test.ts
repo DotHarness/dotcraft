@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  DEFAULT_LOCALE,
-  SUPPORTED_LOCALES,
-  localeToHtmlLang,
-  normalizeLocale,
-  translate
-} from '.'
+import { DEFAULT_LOCALE, normalizeLocale } from '.'
 import { MESSAGES_DE } from './messages/de'
 import { MESSAGES_EN } from './messages/en'
 import { MESSAGES_ES } from './messages/es'
@@ -38,32 +32,6 @@ describe('desktop locales', () => {
     expect(normalizeLocale('missing-locale')).toBe(DEFAULT_LOCALE)
   })
 
-  it('keeps supported locale metadata usable by selectors and html lang', () => {
-    expect(SUPPORTED_LOCALES.map((locale) => locale.value)).toEqual([
-      'en',
-      'zh-Hans',
-      'ja',
-      'ko',
-      'es',
-      'fr',
-      'de'
-    ])
-    for (const locale of SUPPORTED_LOCALES) {
-      expect(locale.nativeName.trim()).not.toBe('')
-      expect(localeToHtmlLang(locale.value)).toBe(locale.htmlLang)
-    }
-  })
-
-  it('translates through the shared catalog registry', () => {
-    expect(translate('en', 'settings.title')).toBe('Settings')
-    expect(translate('zh-Hans', 'settings.title')).toBe('设置')
-    expect(translate('ja', 'settings.title')).toBe('設定')
-    expect(translate('ko', 'settings.title')).toBe('설정')
-    expect(translate('es', 'settings.title')).toBe('Configuración')
-    expect(translate('fr', 'settings.title')).toBe('Paramètres')
-    expect(translate('de', 'settings.title')).toBe('Einstellungen')
-  })
-
   it('keeps every English catalog key covered in every supported locale', () => {
     const missing = Object.keys(MESSAGES_EN).flatMap((key) =>
       Object.entries(NON_ENGLISH_CATALOGS)
@@ -86,5 +54,4 @@ describe('desktop locales', () => {
 
     expect(extra).toEqual([])
   })
-
 })

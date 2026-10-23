@@ -54,49 +54,37 @@ describe('normalizeSatellites', () => {
     expect(satellites[0].workspaces).toHaveLength(2)
   })
 
-  it('falls back to the machine name and then the id for a missing display name', () => {
-    const [named, unnamed] = normalizeSatellites([
-      { peerId: 'sat_1', machineName: 'ANN-DESK', online: false },
-      { peerId: 'sat_2', online: false }
-    ])
-
-    expect(named.displayName).toBe('ANN-DESK')
-    expect(unnamed.displayName).toBe('sat_2')
-  })
-
-  it('drops unusable entries, duplicates and invalid timestamps', () => {
+  it('drops unusable entries, duplicates and invalid timestamps, and falls back for display names', () => {
     const satellites = normalizeSatellites([
-      { peerId: 'sat_1', online: true, lastSeenAt: 'not a date' },
+      { peerId: 'sat_1', machineName: 'ANN-DESK', online: true, lastSeenAt: 'not a date' },
       { peerId: 'sat_1', online: false },
       { peerId: '  ', online: true },
+      { peerId: 'sat_2', online: false },
       null,
       'sat_3'
     ])
 
-    expect(satellites.map((entry) => entry.peerId)).toEqual(['sat_1'])
+    expect(satellites.map((entry) => [entry.peerId, entry.displayName])).toEqual([
+      ['sat_1', 'ANN-DESK'],
+      ['sat_2', 'sat_2']
+    ])
     expect(satellites[0].lastSeenAt).toBeUndefined()
-  })
-
-  it('returns an empty list for a non-array payload', () => {
     expect(normalizeSatellites(undefined)).toEqual([])
     expect(normalizeSatellites({ satellites: [] })).toEqual([])
   })
 })
 
 describe('satelliteState', () => {
-  it('reports offline, ready and in use', () => {
+  it('reports offline, ready and in use, with offline winning over a recorded lease', () => {
     expect(satelliteState({ connected: false })).toBe('offline')
     expect(satelliteState({ connected: true })).toBe('ready')
     expect(satelliteState({ connected: true, activeLease: { workspaceId: 'ws-1' } })).toBe('inUse')
-  })
-
-  it('reports offline even while a lease is still recorded', () => {
     expect(satelliteState({ connected: false, activeLease: { workspaceId: 'ws-1' } })).toBe('offline')
   })
 })
 
 describe('invitations', () => {
-  it('keeps only the id, url and expiry', () => {
+  it('keeps only the id, url and expiry and rejects an invitation missing any required field', () => {
     const invite = normalizeSatelliteInvite({
       inviteId: 'inv_1',
       url: 'http://192.168.1.20:47600/i/inv_1',
@@ -110,9 +98,6 @@ describe('invitations', () => {
       url: 'http://192.168.1.20:47600/i/inv_1',
       expiresAt: '2026-09-06T12:00:00.000Z'
     })
-  })
-
-  it('rejects an invitation missing any required field', () => {
     expect(normalizeSatelliteInvite({ url: 'http://h/i', expiresAt: '2026-09-06T12:00:00.000Z' })).toBeNull()
     expect(normalizeSatelliteInvite({ inviteId: 'inv_1', url: 'http://h/i', expiresAt: 'soon' })).toBeNull()
     expect(normalizeSatelliteInvite(null)).toBeNull()
@@ -126,15 +111,14 @@ describe('invitations', () => {
 })
 
 describe('parseSatelliteEvent', () => {
-  it.each(['joined', 'online', 'offline', 'revoked'] as const)('reads a satellite.%s frame', (kind) => {
-    expect(parseSatelliteEvent({
-      kind: `satellite.${kind}`,
-      at: '2026-09-05T12:00:00.000Z',
-      data: { peerId: 'sat_1' }
-    })).toEqual({ kind, at: '2026-09-05T12:00:00.000Z', peerId: 'sat_1' })
-  })
-
-  it('keeps the invitation id that identifies a newly consumed link', () => {
+  it('reads satellite frames and keeps the invitation id of a newly consumed link', () => {
+    for (const kind of ['joined', 'online', 'offline', 'revoked'] as const) {
+      expect(parseSatelliteEvent({
+        kind: `satellite.${kind}`,
+        at: '2026-09-05T12:00:00.000Z',
+        data: { peerId: 'sat_1' }
+      })).toEqual({ kind, at: '2026-09-05T12:00:00.000Z', peerId: 'sat_1' })
+    }
     expect(parseSatelliteEvent({
       kind: 'satellite.joined',
       at: '2026-09-05T12:00:00.000Z',
@@ -147,14 +131,16 @@ describe('parseSatelliteEvent', () => {
     })
   })
 
-  it.each([
-    { kind: 'appserver.started', at: '2026-09-05T12:00:00.000Z', data: { peerId: 'sat_1' } },
-    { kind: 'satellite.renamed', at: '2026-09-05T12:00:00.000Z', data: { peerId: 'sat_1' } },
-    { kind: 'satellite.online', at: '2026-09-05T12:00:00.000Z', data: {} },
-    { kind: 'satellite.online', at: '2026-09-05T12:00:00.000Z' },
-    null
-  ])('ignores frames this surface does not own: %j', (frame) => {
-    expect(parseSatelliteEvent(frame)).toBeNull()
+  it('ignores frames this surface does not own', () => {
+    for (const frame of [
+      { kind: 'appserver.started', at: '2026-09-05T12:00:00.000Z', data: { peerId: 'sat_1' } },
+      { kind: 'satellite.renamed', at: '2026-09-05T12:00:00.000Z', data: { peerId: 'sat_1' } },
+      { kind: 'satellite.online', at: '2026-09-05T12:00:00.000Z', data: {} },
+      { kind: 'satellite.online', at: '2026-09-05T12:00:00.000Z' },
+      null
+    ]) {
+      expect(parseSatelliteEvent(frame)).toBeNull()
+    }
   })
 })
 

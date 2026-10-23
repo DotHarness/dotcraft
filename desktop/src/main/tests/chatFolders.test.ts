@@ -7,34 +7,17 @@ import { chatFolderFor, setLocalChatsFolderRootsResolver } from '../chatFolderAc
 import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 
 describe('chatFolderSlug', () => {
-  it('joins lowercase ASCII words with dashes', () => {
+  it('builds a short lowercase ASCII slug that is safe as a Windows folder name', () => {
     expect(chatFolderSlug('Write a release note for v2!')).toBe('write-a-release-note-for-v2')
-  })
-
-  it('falls back to new-chat when no ASCII letters or digits remain', () => {
+    expect(chatFolderSlug('修复 bug 123')).toBe('bug-123')
     expect(chatFolderSlug('帮我写一份周报')).toBe('new-chat')
     expect(chatFolderSlug('   ')).toBe('new-chat')
-  })
-
-  it('suffixes Windows reserved device names', () => {
     expect(chatFolderSlug('con')).toBe('con-chat')
     expect(chatFolderSlug('COM1')).toBe('com1-chat')
     expect(chatFolderSlug('Lpt9?')).toBe('lpt9-chat')
     expect(chatFolderSlug('console')).toBe('console')
-  })
-
-  it('keeps only the ASCII runs of mixed text', () => {
-    expect(chatFolderSlug('修复 bug 123')).toBe('bug-123')
-  })
-
-  it('keeps the first six words', () => {
     expect(chatFolderSlug('one two three four five six seven eight')).toBe('one-two-three-four-five-six')
-  })
-
-  it('caps the slug at 80 characters', () => {
-    const slug = chatFolderSlug(`${'a'.repeat(50)} ${'b'.repeat(50)}`)
-    expect(slug.length).toBeLessThanOrEqual(80)
-    expect(slug).toBe(`${'a'.repeat(50)}-${'b'.repeat(29)}`)
+    expect(chatFolderSlug(`${'a'.repeat(50)} ${'b'.repeat(50)}`)).toBe(`${'a'.repeat(50)}-${'b'.repeat(29)}`)
   })
 })
 
@@ -82,17 +65,13 @@ describe('createChatFolder', () => {
     await rm(root, { recursive: true, force: true })
   })
 
-  it('creates a dated folder with work and outputs', async () => {
+  it('creates a dated folder with work and outputs and numbers later chats with the same name', async () => {
     const folder = await createChatFolder(root, 'Write a release note for v2', now)
-
-    expect(folder).toBe(join(root, '2026-10-11', 'write-a-release-note-for-v2'))
-    expect((await readdir(folder)).sort()).toEqual(['outputs', 'work'])
-  })
-
-  it('numbers later chats with the same name', async () => {
     const first = await createChatFolder(root, '你好', now)
     const second = await createChatFolder(root, '再见', now)
 
+    expect(folder).toBe(join(root, '2026-10-11', 'write-a-release-note-for-v2'))
+    expect((await readdir(folder)).sort()).toEqual(['outputs', 'work'])
     expect(basename(first)).toBe('new-chat')
     expect(basename(second)).toBe('new-chat-2')
   })

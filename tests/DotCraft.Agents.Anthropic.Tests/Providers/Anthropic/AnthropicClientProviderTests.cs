@@ -36,30 +36,13 @@ public sealed class AnthropicClientProviderTests
     }
 
     [Fact]
-    public void GetAnthropicClient_RejectsNonAnthropicProtocol()
+    public void GetAnthropicClient_RejectsNonAnthropicProtocolMissingApiKeyAndInvalidEndpoint()
     {
         var provider = new AnthropicClientProvider();
-        var runtime = Runtime(ModelProviderProtocols.OpenAI);
 
-        Assert.Throws<ArgumentException>(() => provider.GetAnthropicClient(runtime));
-    }
-
-    [Fact]
-    public void GetAnthropicClient_RejectsMissingApiKey()
-    {
-        var provider = new AnthropicClientProvider();
-        var runtime = Runtime(ModelProviderProtocols.Anthropic) with { ApiKey = " " };
-
-        Assert.Throws<ArgumentException>(() => provider.GetAnthropicClient(runtime));
-    }
-
-    [Fact]
-    public void GetAnthropicClient_RejectsInvalidEndpoint()
-    {
-        var provider = new AnthropicClientProvider();
-        var runtime = Runtime(ModelProviderProtocols.Anthropic) with { EndPoint = "not a uri" };
-
-        Assert.Throws<ArgumentException>(() => provider.GetAnthropicClient(runtime));
+        Assert.Throws<ArgumentException>(() => provider.GetAnthropicClient(Runtime(ModelProviderProtocols.OpenAI)));
+        Assert.Throws<ArgumentException>(() => provider.GetAnthropicClient(Runtime(ModelProviderProtocols.Anthropic) with { ApiKey = " " }));
+        Assert.Throws<ArgumentException>(() => provider.GetAnthropicClient(Runtime(ModelProviderProtocols.Anthropic) with { EndPoint = "not a uri" }));
     }
 
     [Fact]
@@ -83,15 +66,6 @@ public sealed class AnthropicClientProviderTests
 
         Assert.Equal(ModelProviderDefaults.DefaultAnthropicEndpoint, runtime.EndPoint);
         Assert.Equal(600, runtime.NetworkTimeoutSeconds);
-    }
-
-    [Fact]
-    public void AnthropicCapabilities_EnablePromptCacheRequestShaping()
-    {
-        var capabilities = ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.Anthropic);
-
-        Assert.True(capabilities.PromptCacheRequestShaping);
-        Assert.True(capabilities.NativeDeferredToolLoading);
     }
 
     [Fact]

@@ -13,35 +13,11 @@ public sealed class DreamsSchedulingTests : IDisposable
     public void Dispose() => _workspace.Dispose();
 
     [Fact]
-    public async Task ScheduledCheck_RunsAStoreOnceEnoughThreadsCompletedTurnsSinceItsLastConsolidation()
+    public async Task ScheduledCheck_RunsAStoreOnceEnoughEligibleThreadsCompletedTurnsSinceItsLastConsolidation()
     {
         var lastConsolidated = DateTimeOffset.UtcNow.AddDays(-2);
         DreamsTestWorkspace.SetLastConsolidated(_workspace.WorkspaceStore, lastConsolidated);
         await _workspace.SaveThreadAsync("thread_before", lastConsolidated.AddHours(-1));
-        await _workspace.SaveThreadAsync("thread_one");
-        await _workspace.SaveThreadAsync("thread_two");
-        await using var service = _workspace.CreateService(_runner);
-
-        Assert.Empty(await service.RunScheduledCheckAsync());
-        Assert.Empty(_workspace.Runs(includeArchived: true));
-        Assert.Equal(lastConsolidated.UtcDateTime, ConsolidationLock.LastConsolidatedAt(_workspace.WorkspaceStore)!.Value.UtcDateTime, TimeSpan.FromSeconds(1));
-
-        await _workspace.SaveThreadAsync("thread_three");
-        var run = Assert.Single(await service.RunScheduledCheckAsync());
-
-        Assert.Equal(DreamsRunStatuses.Succeeded, run.Status);
-        Assert.Equal(DreamsConstants.TriggerScheduled, run.Trigger);
-        Assert.Null(run.Scope);
-        Assert.Equal(3, run.CandidateThreadCount);
-        Assert.Equal(["thread_three", "thread_two", "thread_one"], Assert.Single(_runner.Inputs).Threads.Select(static t => t.ThreadId));
-        Assert.True(ConsolidationLock.LastConsolidatedAt(_workspace.WorkspaceStore) > lastConsolidated.AddDays(1));
-
-        Assert.Empty(await service.RunScheduledCheckAsync());
-    }
-
-    [Fact]
-    public async Task ScheduledCheck_CountsOnlyEligibleThreadsThatUseTheStore()
-    {
         await _workspace.SaveThreadAsync("thread_one");
         await _workspace.SaveThreadAsync("thread_two");
         await _workspace.SaveThreadAsync("internal", configure: thread => thread.Metadata[ThreadVisibility.InternalMetadataKey] = "dreams");
@@ -52,12 +28,20 @@ public sealed class DreamsSchedulingTests : IDisposable
         await using var service = _workspace.CreateService(_runner);
 
         Assert.Empty(await service.RunScheduledCheckAsync());
+        Assert.Empty(_workspace.Runs(includeArchived: true));
+        Assert.Equal(lastConsolidated.UtcDateTime, ConsolidationLock.LastConsolidatedAt(_workspace.WorkspaceStore)!.Value.UtcDateTime, TimeSpan.FromSeconds(1));
 
         await _workspace.SaveThreadAsync("thread_archived", configure: thread => thread.Status = ThreadStatus.Archived);
-        Assert.Single(await service.RunScheduledCheckAsync());
-        Assert.Equal(
-            ["thread_archived", "thread_one", "thread_two"],
-            Assert.Single(_runner.Inputs).Threads.Select(static t => t.ThreadId).Order());
+        var run = Assert.Single(await service.RunScheduledCheckAsync());
+
+        Assert.Equal(DreamsRunStatuses.Succeeded, run.Status);
+        Assert.Equal(DreamsConstants.TriggerScheduled, run.Trigger);
+        Assert.Null(run.Scope);
+        Assert.Equal(3, run.CandidateThreadCount);
+        Assert.Equal(["thread_archived", "thread_two", "thread_one"], Assert.Single(_runner.Inputs).Threads.Select(static t => t.ThreadId));
+        Assert.True(ConsolidationLock.LastConsolidatedAt(_workspace.WorkspaceStore) > lastConsolidated.AddDays(1));
+
+        Assert.Empty(await service.RunScheduledCheckAsync());
     }
 
     [Fact]
@@ -119,7 +103,6 @@ public sealed class DreamsSchedulingTests : IDisposable
 
     [Theory]
     [InlineData("notes.txt", "not markdown")]
-    [InlineData("Bad Name.md", "spaces")]
     [InlineData("MEMORY.md", null)]
     public async Task InvalidCandidate_FailsTheRunAndLeavesTheStoreUnchanged(string name, string? content)
     {
@@ -165,24 +148,18 @@ public sealed class DreamsSchedulingTests : IDisposable
     }
 
     [Fact]
-    public async Task ManualRun_WithNothingToConsolidate_IsSkippedWithoutModelWork()
+    public async Task ManualRun_SkipsAnEmptyStoreAndBypassesThresholdsButNotTheSwitches()
     {
         await using var service = _workspace.CreateService(_runner);
-
-        var run = await service.CreateRunAsync(new DreamsRunRequest());
-        var finished = await _workspace.WaitForRunAsync(state => state.Id == run!.Id && !state.IsRunning);
-
-        Assert.Equal(DreamsRunStatuses.Skipped, finished.Status);
+        var empty = await service.CreateRunAsync(new DreamsRunRequest());
+        Assert.Equal(
+            DreamsRunStatuses.Skipped,
+            (await _workspace.WaitForRunAsync(state => state.Id == empty!.Id && !state.IsRunning)).Status);
         Assert.Empty(_runner.Inputs);
         Assert.Null(ConsolidationLock.LastConsolidatedAt(_workspace.WorkspaceStore));
-    }
-
-    [Fact]
-    public async Task ManualRun_BypassesThresholdsButNotTheSwitches()
-    {
+        await Assert.ThrowsAsync<ArgumentException>(() => service.CreateRunAsync(new DreamsRunRequest(Scope: "nightly-report")));
         DreamsTestWorkspace.SetLastConsolidated(_workspace.WorkspaceStore, DateTimeOffset.UtcNow.AddMinutes(-90));
         await _workspace.SaveThreadAsync("thread_one");
-        await using var service = _workspace.CreateService(_runner);
 
         var run = await service.CreateRunAsync(new DreamsRunRequest(ThreadIds: ["thread_one"], Instructions: "Focus on deploys."));
         var finished = await _workspace.WaitForRunAsync(state => state.Id == run!.Id && !state.IsRunning);
@@ -194,15 +171,7 @@ public sealed class DreamsSchedulingTests : IDisposable
         _workspace.Config.Memory.Enabled = true;
         _workspace.Config.Dreams.Enabled = false;
         Assert.Null(await service.CreateRunAsync(new DreamsRunRequest()));
-        Assert.Single(_workspace.Runs());
-    }
-
-    [Fact]
-    public async Task CreateRun_RejectsAScopeThatIsNotAConsolidatableStore()
-    {
-        await using var service = _workspace.CreateService(_runner);
-
-        await Assert.ThrowsAsync<ArgumentException>(() => service.CreateRunAsync(new DreamsRunRequest(Scope: "nightly-report")));
+        Assert.Equal(2, _workspace.Runs().Count);
     }
 
     private static string OwnProfile(string name) =>

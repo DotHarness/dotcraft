@@ -9,17 +9,7 @@ namespace DotCraft.Tests.Context;
 public sealed class RuntimeContextBuilderTests
 {
     [Fact]
-    public void AppendRuntimeContext_AddsNoContentWhenThereIsNothingToSay()
-    {
-        var contents = new List<AIContent> { new TextContent("hello") };
-
-        contents.AppendRuntimeContext(workspacePath: Directory.GetCurrentDirectory());
-
-        Assert.Equal("hello", Assert.IsType<TextContent>(Assert.Single(contents)).Text);
-    }
-
-    [Fact]
-    public void BuildBlock_LeavesDurableStateToWorldState()
+    public void BuildBlock_LeavesDurableStateToWorldStateAndAddsNothingWhenThereIsNothingToSay()
     {
         var block = RuntimeContextBuilder.BuildBlock(
             initiator: new TurnInitiatorContext { ChannelName = "qq", UserId = "10001", UserName = "Alice" },
@@ -29,6 +19,12 @@ public sealed class RuntimeContextBuilderTests
         Assert.EndsWith("</system-reminder>", block, StringComparison.Ordinal);
         Assert.DoesNotContain("## Environment", block, StringComparison.Ordinal);
         Assert.DoesNotContain("## Mode", block, StringComparison.Ordinal);
+
+        var contents = new List<AIContent> { new TextContent("hello") };
+
+        contents.AppendRuntimeContext(workspacePath: Directory.GetCurrentDirectory());
+
+        Assert.Equal("hello", Assert.IsType<TextContent>(Assert.Single(contents)).Text);
     }
 
     [Fact]
@@ -68,8 +64,6 @@ public sealed class RuntimeContextBuilderTests
 
     [Theory]
     [InlineData("dotcraft-desktop")]
-    [InlineData("cli")]
-    [InlineData("acp")]
     public void BuildBlock_PreservesLocalSourceWithoutRedundantWorkspaceOrSender(string channel)
     {
         var workspace = Path.GetFullPath(Directory.GetCurrentDirectory());

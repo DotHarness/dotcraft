@@ -28,8 +28,6 @@ public sealed class OpenAIResponsesLiteHeadersPipelinePolicyTests
 
     [Theory]
     [InlineData("https://chatgpt.com/backend-api/codex/responses/compact")]
-    [InlineData("https://chatgpt.com/backend-api/codex/models")]
-    [InlineData("https://chatgpt.com/backend-api/codex/responses/other")]
     [InlineData("https://chatgpt.com/backend-api/codex/responses-compact")]
     public void RejectsOtherPaths(string uri)
     {

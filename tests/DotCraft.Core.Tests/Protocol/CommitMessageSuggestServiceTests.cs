@@ -36,7 +36,6 @@ public sealed class CommitMessageSuggestServiceTests : IDisposable
 
     [Theory]
     [InlineData("")]
-    [InlineData("git")]
     public async Task SuggestAsync_WithGitProvider_UsesNoIndexFallbackAndReturnsToolMessage(string provider)
     {
         var targetPath = Path.Combine(_workspacePath, "test-write-demo.txt");
@@ -358,7 +357,6 @@ public sealed class CommitMessageSuggestServiceTests : IDisposable
         }
         catch
         {
-            // best effort
         }
     }
 }

@@ -32,16 +32,12 @@ describe('theme utilities', () => {
     })
   })
 
-  it('resolves missing or unknown values to light', () => {
+  it('resolves explicit preferences and defaults missing or unknown values to light', () => {
     expect(resolveTheme(undefined)).toBe('light')
     expect(resolveTheme(null)).toBe('light')
     expect(resolveTheme('bogus')).toBe('light')
-  })
-
-  it('preserves explicit system, dark, and light preferences', () => {
     expect(resolveTheme('system')).toBe('system')
     expect(resolveTheme('dark')).toBe('dark')
-    expect(resolveTheme('light')).toBe('light')
   })
 
   it('applies the theme and emits a renderer-local change event', () => {

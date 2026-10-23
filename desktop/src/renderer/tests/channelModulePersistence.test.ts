@@ -5,7 +5,7 @@ import {
 } from '../../shared/channelModulePersistence'
 
 describe('channel module persistence helpers', () => {
-  it('selects only enabled embedded managed module channels for Desktop auto-start', () => {
+  it('selects only enabled embedded managed module channels, tolerating transport casing and whitespace', () => {
     const channels = [
       {
         name: 'telegram',
@@ -45,9 +45,6 @@ describe('channel module persistence helpers', () => {
     ]
 
     expect(getEnabledEmbeddedModuleChannelNames(channels)).toEqual(['telegram', 'feishu'])
-  })
-
-  it('accepts canonical subprocess transport regardless of casing or whitespace', () => {
     expect(
       isPersistedEmbeddedModuleChannelEnabled({
         name: 'telegram',

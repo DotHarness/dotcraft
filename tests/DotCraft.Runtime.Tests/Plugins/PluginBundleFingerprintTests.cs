@@ -14,7 +14,7 @@ public sealed class PluginBundleFingerprintTests : IDisposable
         $"dotcraft-plugin-tree-{Guid.NewGuid():N}");
 
     [Fact]
-    public void Compute_IsStableAndExcludesTheDeploymentMarker()
+    public void ComputeAndCopy_AreStableAndExcludeTheDeploymentMarker()
     {
         Directory.CreateDirectory(Path.Combine(_root, "nested"));
         File.WriteAllText(Path.Combine(_root, "plugin.dll"), "one");
@@ -25,23 +25,20 @@ public sealed class PluginBundleFingerprintTests : IDisposable
         File.WriteAllText(Path.Combine(_root, ".builtin"), "second deployment");
         Assert.Equal(first, PluginBundleFingerprint.Compute(_root));
 
+        var copy = Path.Combine(Path.GetTempPath(), $"dotcraft-plugin-copy-{Guid.NewGuid():N}");
+        try
+        {
+            Assert.Equal(first, PluginBundleTree.CopyAndFingerprint(_root, copy));
+            Assert.False(File.Exists(Path.Combine(copy, ".builtin")));
+            Assert.Equal(first, PluginBundleFingerprint.Compute(copy));
+        }
+        finally
+        {
+            Directory.Delete(copy, recursive: true);
+        }
+
         File.WriteAllText(Path.Combine(_root, "nested", "data.txt"), "changed");
         Assert.NotEqual(first, PluginBundleFingerprint.Compute(_root));
-    }
-
-    [Fact]
-    public void CopyAndFingerprint_OmitsTheDeploymentMarkerFromRuntimeSnapshots()
-    {
-        var bundle = Path.Combine(_root, "marker-source");
-        var copy = Path.Combine(_root, "marker-copy");
-        Directory.CreateDirectory(bundle);
-        File.WriteAllText(Path.Combine(bundle, "plugin.dll"), "plugin");
-        File.WriteAllText(Path.Combine(bundle, ".builtin"), "deployment metadata");
-
-        var sourceFingerprint = PluginBundleTree.CopyAndFingerprint(bundle, copy);
-
-        Assert.False(File.Exists(Path.Combine(copy, ".builtin")));
-        Assert.Equal(sourceFingerprint, PluginBundleFingerprint.Compute(copy));
     }
 
     [Fact]
@@ -90,20 +87,6 @@ public sealed class PluginBundleFingerprintTests : IDisposable
             () => PluginBundleTree.CopyAndFingerprint(bundle, copy));
         Assert.Equal("Plugin bundles cannot contain filesystem links.", copyError.Message);
         Assert.False(Directory.Exists(copy));
-    }
-
-    [Fact]
-    public void SnapshotStore_DoesNotDeletePathsOutsideItsRuntimeRoot()
-    {
-        var runtime = Path.Combine(_root, "runtime");
-        var outside = Path.Combine(_root, "outside-generation");
-        Directory.CreateDirectory(outside);
-        var sentinel = Path.Combine(outside, "keep.txt");
-        File.WriteAllText(sentinel, "keep");
-        using var store = new PluginBundleSnapshotStore(Path.Combine(runtime, "current"));
-
-        Assert.False(store.DeleteGeneration(outside));
-        Assert.True(File.Exists(sentinel));
     }
 
     [Fact]
@@ -178,7 +161,7 @@ public sealed class PluginBundleFingerprintTests : IDisposable
     }
 
     [Fact]
-    public void SnapshotStore_CleansOnlyRuntimeRootsWithoutAnActiveOwner()
+    public void SnapshotStore_CleansOnlyItsOwnUnownedRuntimeRoots()
     {
         var parent = Path.Combine(_root, "runtime-roots");
         var stale = Path.Combine(parent, "stale");
@@ -194,6 +177,12 @@ public sealed class PluginBundleFingerprintTests : IDisposable
         Assert.False(Directory.Exists(stale));
         Assert.True(Directory.Exists(activePath));
         Assert.True(File.Exists(Path.Combine(activePath, "active-bundle.txt")));
+
+        var outside = Path.Combine(_root, "outside-generation");
+        Directory.CreateDirectory(outside);
+        File.WriteAllText(Path.Combine(outside, "keep.txt"), "keep");
+        Assert.False(current.DeleteGeneration(outside));
+        Assert.True(File.Exists(Path.Combine(outside, "keep.txt")));
     }
 
     public void Dispose()

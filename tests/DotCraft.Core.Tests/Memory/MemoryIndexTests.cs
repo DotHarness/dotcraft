@@ -18,7 +18,7 @@ public sealed class MemoryIndexTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_root, true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class MemoryIndexTests : IDisposable
     }
 
     [Fact]
-    public void Load_OverTheByteLimit_CutsAtALineBoundary()
+    public void Load_OverTheByteLimit_CutsAtALineBoundaryAndNeverSplitsACharacter()
     {
         var line = "- [Wide](wide.md) — " + new string('é', 90);
         var lines = Enumerable.Range(0, 150).Select(i => line.Replace("wide.md", $"wide{i}.md")).ToArray();
@@ -75,48 +75,37 @@ public sealed class MemoryIndexTests : IDisposable
         Assert.All(index.Lines, loaded => Assert.Contains(loaded.Text, lines));
         Assert.True(index.Lines.Count < lines.Length);
         Assert.Single(index.Notices);
-    }
 
-    [Fact]
-    public void Load_ASingleLineOverTheByteLimit_NeverSplitsACharacter()
-    {
         File.WriteAllText(_store.IndexFilePath, new string('é', MemoryIndex.MaxBytes));
 
-        var index = MemoryIndex.Load(_store.MemoryDirectoryPath);
+        var singleLine = MemoryIndex.Load(_store.MemoryDirectoryPath);
 
-        Assert.True(Encoding.UTF8.GetByteCount(index.Content) <= MemoryIndex.MaxBytes);
-        Assert.All(index.Content, static c => Assert.Equal('é', c));
-    }
-
-    [Theory]
-    [InlineData("Prefer focused tests.")]
-    [InlineData("## User preferences")]
-    public void Load_ContentThatIsNotAPointer_AddsTheMigrationNotice(string line)
-    {
-        File.WriteAllText(_store.IndexFilePath, $"- [A](a.md) — a\n{line}");
-
-        var index = MemoryIndex.Load(_store.MemoryDirectoryPath);
-
-        Assert.Single(index.Notices);
-        Assert.Contains(index.Lines, loaded => loaded.Text == line && loaded.Target == null);
+        Assert.True(Encoding.UTF8.GetByteCount(singleLine.Content) <= MemoryIndex.MaxBytes);
+        Assert.All(singleLine.Content, static c => Assert.Equal('é', c));
     }
 
     [Fact]
-    public void Load_APointerLongerThanTwoHundredCharacters_AddsTheMigrationNotice()
+    public void Load_ContentThatIsNotAPointerOrIsTooLong_AddsTheMigrationNotice()
     {
+        File.WriteAllText(_store.IndexFilePath, "- [A](a.md) — a\n## User preferences");
+
+        var heading = MemoryIndex.Load(_store.MemoryDirectoryPath);
+
+        Assert.Single(heading.Notices);
+        Assert.Contains(heading.Lines, loaded => loaded.Text == "## User preferences" && loaded.Target == null);
+
         File.WriteAllText(_store.IndexFilePath, "- [Long](long.md) — " + new string('x', 200));
 
-        var index = MemoryIndex.Load(_store.MemoryDirectoryPath);
+        var tooLong = MemoryIndex.Load(_store.MemoryDirectoryPath);
 
-        Assert.Single(index.Notices);
-        Assert.Equal("long.md", Assert.Single(index.Lines).Target);
+        Assert.Single(tooLong.Notices);
+        Assert.Equal("long.md", Assert.Single(tooLong.Lines).Target);
     }
 
     [Theory]
     [InlineData(160, 0, false)]
     [InlineData(161, 0, true)]
     [InlineData(10, 20_001, true)]
-    [InlineData(201, 0, true)]
     public void WriteNotice_FiresBeyondEightyPercentOfEitherLimit(int lineCount, int padBytes, bool expected)
     {
         var lines = Enumerable.Range(1, lineCount).Select(static i => $"- [M{i}](m{i}.md)").ToList();

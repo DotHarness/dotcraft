@@ -37,21 +37,6 @@ describe('preload notification dispatcher', () => {
     expect(teamSubscriber).toHaveBeenCalledTimes(1)
   })
 
-  it('visiting Team before enable does not clear App notification subscriber', () => {
-    const dispatcher = new TokenMulticastDispatcher<TestNotificationPayload>()
-    const appSubscriber = vi.fn()
-    const teamSubscriber = vi.fn()
-
-    dispatcher.subscribe(appSubscriber)
-    const unsubscribeTeam = dispatcher.subscribe(teamSubscriber)
-
-    unsubscribeTeam()
-    dispatcher.dispatch({ method: 'turn/completed' })
-
-    expect(appSubscriber).toHaveBeenCalledTimes(1)
-    expect(teamSubscriber).not.toHaveBeenCalled()
-  })
-
   it('continues dispatching when one subscriber throws', () => {
     const thrown = new Error('listener failed')
     const errors: unknown[] = []

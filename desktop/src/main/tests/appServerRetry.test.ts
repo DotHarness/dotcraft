@@ -13,40 +13,24 @@ function context(overrides: Partial<Parameters<typeof retryAppServerConnection>[
 }
 
 describe('retryAppServerConnection', () => {
-  it('reconnects the current workspace for a plain local retry', async () => {
-    const ctx = context()
+  it('reconnects a plain local retry and restarts the Hub-managed AppServer only when requested', async () => {
+    const plain = context()
+    await retryAppServerConnection({ restartManaged: false }, plain)
+    expect(plain.reconnect).toHaveBeenCalledOnce()
+    expect(plain.restartManaged).not.toHaveBeenCalled()
 
-    await retryAppServerConnection({ restartManaged: false }, ctx)
-
-    expect(ctx.reconnect).toHaveBeenCalledOnce()
-    expect(ctx.restartManaged).not.toHaveBeenCalled()
+    const restart = context()
+    await retryAppServerConnection({ restartManaged: true }, restart)
+    expect(restart.restartManaged).toHaveBeenCalledOnce()
+    expect(restart.reconnect).not.toHaveBeenCalled()
   })
 
-  it('restarts a Hub-managed local AppServer when requested', async () => {
-    const ctx = context()
-
-    await retryAppServerConnection({ restartManaged: true }, ctx)
-
-    expect(ctx.restartManaged).toHaveBeenCalledOnce()
-    expect(ctx.reconnect).not.toHaveBeenCalled()
-  })
-
-  it('reconnects remote mode instead of restarting even when restart is requested', async () => {
-    const ctx = context({ connectionMode: 'remote' })
-
-    await retryAppServerConnection({ restartManaged: true }, ctx)
-
-    expect(ctx.reconnect).toHaveBeenCalledOnce()
-    expect(ctx.restartManaged).not.toHaveBeenCalled()
-  })
-
-  it('reconnects CLI remote mode instead of restarting even when restart is requested', async () => {
-    const ctx = context({ launchedWithRemote: true })
-
-    await retryAppServerConnection({ restartManaged: true }, ctx)
-
-    expect(ctx.reconnect).toHaveBeenCalledOnce()
-    expect(ctx.restartManaged).not.toHaveBeenCalled()
+  it('reconnects remote and CLI remote modes instead of restarting even when restart is requested', async () => {
+    for (const ctx of [context({ connectionMode: 'remote' }), context({ launchedWithRemote: true })]) {
+      await retryAppServerConnection({ restartManaged: true }, ctx)
+      expect(ctx.reconnect).toHaveBeenCalledOnce()
+      expect(ctx.restartManaged).not.toHaveBeenCalled()
+    }
   })
 
   it('requires a workspace before retrying', async () => {

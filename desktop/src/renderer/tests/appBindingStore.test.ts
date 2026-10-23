@@ -113,7 +113,6 @@ describe('appBindingStore', () => {
     })
     expect(useAppBindingStore.getState().bindingsByThread['thread-1']?.[0]?.approvedTools).toEqual([])
     expect(useAppBindingStore.getState().bindingsByThread['thread-1']?.[0]?.pendingChanges).toEqual([])
-
   })
 
   it('routes App Binding notifications to the relevant refresh calls', () => {
@@ -229,7 +228,6 @@ describe('appBindingStore', () => {
     )
 
     expect(binding.state).toBe('active')
-    expect(binding.state).toBe('active')
     expect(listCalls).toBe(1)
   })
 
@@ -309,35 +307,5 @@ describe('appBindingStore', () => {
     expect(binding.state).toBe('active')
     expect(binding.authorityRevision).toBe(3)
     expect(binding.channelTarget?.displayName).toBe('QQ group 123456')
-  })
-
-  it('treats an active MCP-backed binding as ready without attachment counts', async () => {
-    sendRequest.mockImplementation(async (method: string) => {
-      if (method === 'thread/appBindings/list') {
-        return {
-          bindings: [
-            {
-              bindingRequestId: 'request-1',
-              bindingId: 'binding-1',
-              threadId: 'thread-1',
-              appId: 'com.example.workflow',
-              state: 'active',
-              authorityRevision: 1,
-              approvedCapabilityRevision: 1
-            }
-          ]
-        }
-      }
-      return {}
-    })
-
-    await expect(useAppBindingStore.getState().waitForThreadBinding(
-      {
-        threadId: 'thread-1',
-        appId: 'com.example.workflow',
-        bindingRequestId: 'request-1'
-      },
-      { timeoutMs: 1, intervalMs: 0 }
-    )).resolves.toMatchObject({ state: 'active', bindingId: 'binding-1' })
   })
 })

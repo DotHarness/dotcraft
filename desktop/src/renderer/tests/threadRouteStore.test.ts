@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadRouteStore } from '../stores/threadRouteStore'
 import { useThreadStore } from '../stores/threadStore'
@@ -47,13 +47,17 @@ function rememberedRoute(): Record<string, unknown> {
   }
 }
 
-/** The re-apply is debounced by 400 ms, then awaits settings, list, and connect. */
 async function settle(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 500))
+  await vi.advanceTimersByTimeAsync(500)
 }
 
 describe('threadRouteStore', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
+    vi.useFakeTimers()
     vi.clearAllMocks()
     useThreadRouteStore.setState({
       supported: false,
@@ -126,11 +130,13 @@ describe('threadRouteStore', () => {
     expect(sendRequest.mock.calls.filter(([method]) => method === 'remoteToolHost/connect')).toHaveLength(1)
   })
 
-  it('re-arms the single attempt when the AppServer connection is replaced', async () => {
+  it('re-arms the single attempt and drops the pending route when the AppServer connection is replaced', async () => {
     useThreadRouteStore.getState().maybeReapply(THREAD_ID)
     await settle()
+    useThreadRouteStore.getState().setPendingRoute({ hostId: 'sat_studio', workspaceId: 'ws_shaders' })
 
     useThreadRouteStore.getState().resetForConnection()
+    expect(useThreadRouteStore.getState().pendingRoute).toBeNull()
     useThreadRouteStore.getState().maybeReapply(THREAD_ID)
     await settle()
 
@@ -145,9 +151,12 @@ describe('threadRouteStore', () => {
     expect(useThreadRouteStore.getState().attempted.size).toBe(0)
   })
 
-  it('does not connect to an offline machine', async () => {
+  it.each([
+    ['an offline machine', host({ online: false })],
+    ['a folder another agent holds', host({ available: false, busyOwner: 'other' })]
+  ])('does not connect to %s', async (_, unavailable) => {
     sendRequest.mockImplementation(async (method: string) => {
-      if (method === 'remoteToolHost/list') return { hosts: [host({ online: false })], route: null }
+      if (method === 'remoteToolHost/list') return { hosts: [unavailable], route: null }
       throw new Error('unexpected call')
     })
 
@@ -156,20 +165,6 @@ describe('threadRouteStore', () => {
 
     expect(sendRequest.mock.calls.filter(([method]) => method === 'remoteToolHost/connect')).toHaveLength(0)
     expect(useThreadRouteStore.getState().routes[THREAD_ID]).toBeUndefined()
-  })
-
-  it('does not connect to a folder another agent holds', async () => {
-    sendRequest.mockImplementation(async (method: string) => {
-      if (method === 'remoteToolHost/list') {
-        return { hosts: [host({ available: false, busyOwner: 'other' })], route: null }
-      }
-      throw new Error('unexpected call')
-    })
-
-    useThreadRouteStore.getState().maybeReapply(THREAD_ID)
-    await settle()
-
-    expect(sendRequest.mock.calls.filter(([method]) => method === 'remoteToolHost/connect')).toHaveLength(0)
   })
 
   it('stays silent when the re-applied connect fails', async () => {
@@ -233,14 +228,6 @@ describe('threadRouteStore', () => {
 
     expect(failure?.hostName).toBe('Studio PC')
     expect(useThreadRouteStore.getState().routes[THREAD_ID]).toBeUndefined()
-    expect(useThreadRouteStore.getState().pendingRoute).toBeNull()
-  })
-
-  it('drops the pending route when the AppServer connection is replaced', () => {
-    useThreadRouteStore.getState().setPendingRoute({ hostId: 'sat_studio', workspaceId: 'ws_shaders' })
-
-    useThreadRouteStore.getState().resetForConnection()
-
     expect(useThreadRouteStore.getState().pendingRoute).toBeNull()
   })
 

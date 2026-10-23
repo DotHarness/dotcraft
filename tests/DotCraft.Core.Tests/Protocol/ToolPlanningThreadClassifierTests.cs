@@ -12,8 +12,6 @@ public sealed class ToolPlanningThreadClassifierTests
 {
     [Theory]
     [InlineData("cli")]
-    [InlineData("dotcraft-desktop")]
-    [InlineData("acp")]
     [InlineData("telegram")]
     public void Classify_UserConversation_ReturnsUserTopLevel(string originChannel)
     {

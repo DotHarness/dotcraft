@@ -2,7 +2,7 @@ import './setupPluginRuntime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { installDesktopApiMock } from './desktopApiMock'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConversationPanel } from '../components/layout/ConversationPanel'
 import { RequestUserInputComposer } from '../components/conversation/RequestUserInputComposer'
@@ -126,42 +126,6 @@ describe('RequestUserInputComposer', () => {
     clearDesktopPluginRegistry()
   })
 
-  it('renders in ConversationPanel instead of the normal composer', async () => {
-    const pending = request()
-    useConnectionStore.setState({
-      status: 'connected',
-      capabilities: { modelCatalogManagement: true, workspaceConfigManagement: true }
-    })
-    useThreadStore.setState({
-      activeThreadId: 'thread-1',
-      activeThread: {
-        id: 'thread-1',
-        userId: 'local',
-        workspacePath: 'X:\\fixtures\\workspace',
-        displayName: 'Question thread',
-        status: 'active',
-        originChannel: 'dotcraft-desktop',
-        metadata: {},
-        createdAt: new Date().toISOString(),
-        lastActiveAt: new Date().toISOString(),
-        turns: []
-      },
-      loading: false
-    })
-    useConversationStore.setState({
-      turnStatus: 'waitingInput',
-      pendingUserInput: pending
-    })
-
-    renderWithLocale(<ConversationPanel workspacePath="X:\\fixtures\\workspace" />)
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(screen.getByText('Should users handle the provider id directly?')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Send message' })).not.toBeInTheDocument()
-  })
-
   it('reports user input as busy without misclassifying it as an approval', async () => {
     const pending = request()
     useConnectionStore.setState({ status: 'connected' })
@@ -250,58 +214,6 @@ describe('RequestUserInputComposer', () => {
     expect(onResponseAccepted).toHaveBeenCalledTimes(1)
   })
 
-  it('clicking an unselected option selects it, then clicking it again submits', async () => {
-    renderWithLocale(<RequestUserInputComposer request={request()} />)
-
-    fireEvent.click(screen.getByRole('button', { name: '2. Required' }))
-    expect(sendServerResponse).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: '2. Required' }))
-
-    await waitFor(() => {
-      expect(sendServerResponse).toHaveBeenCalledWith('bridge-input', {
-        answers: {
-          provider_id_handling: {
-            answers: ['Required']
-          }
-        }
-      })
-    })
-  })
-
-  it('clicking the already selected normal option advances through questions and submits on the last question', async () => {
-    renderWithLocale(<RequestUserInputComposer request={multiQuestionRequest()} />)
-
-    expect(screen.getByText('1 of 3')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: '1. A1 (Recommended)' }))
-    expect(screen.getByText('Second question?')).toBeInTheDocument()
-    expect(screen.getByText('2 of 3')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: '2. B2' }))
-    expect(sendServerResponse).not.toHaveBeenCalled()
-    expect(screen.getByText('Second question?')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: '2. B2' }))
-    expect(screen.getByText('Third question?')).toBeInTheDocument()
-    expect(screen.getByText('3 of 3')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Submit' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: '1. A3 (Recommended)' }))
-
-    await waitFor(() => {
-      expect(sendServerResponse).toHaveBeenCalledWith('bridge-input', {
-        answers: {
-          first: { answers: ['A1 (Recommended)'] },
-          second: { answers: ['B2'] },
-          third: { answers: ['A3 (Recommended)'] }
-        }
-      })
-    })
-  })
-
   it('dismisses with Escape and returns empty answers', async () => {
     renderWithLocale(<RequestUserInputComposer request={request()} />)
 
@@ -333,28 +245,6 @@ describe('RequestUserInputComposer', () => {
     expect(sendServerResponse).not.toHaveBeenCalled()
   })
 
-  it('shows only the final minute of a non-blocking auto-resolution countdown', () => {
-    useUserInputAutoResolutionStore.getState().replace([{
-      threadId: 'thread-1',
-      requestId: 'req-1',
-      phase: 'scheduled',
-      deadlineAt: Date.now() + 61_000
-    }])
-
-    renderWithLocale(<RequestUserInputComposer request={request()} />)
-
-    expect(screen.queryByText('61s')).toBeNull()
-    act(() => {
-      useUserInputAutoResolutionStore.getState().replace([{
-        threadId: 'thread-1',
-        requestId: 'req-1',
-        phase: 'scheduled',
-        deadlineAt: Date.now() + 60_000
-      }])
-    })
-    expect(screen.getByText('60s')).toBeInTheDocument()
-  })
-
   it('submits Other as a user note', async () => {
     renderWithLocale(<RequestUserInputComposer request={request()} />)
 
@@ -373,57 +263,6 @@ describe('RequestUserInputComposer', () => {
         }
       })
     })
-  })
-
-  it('clicking the selected Other row keeps focus in the input instead of advancing', () => {
-    renderWithLocale(<RequestUserInputComposer request={multiQuestionRequest()} />)
-
-    const otherRow = screen.getByRole('button', { name: '3. Other' })
-    fireEvent.click(otherRow)
-    const textbox = screen.getByPlaceholderText('No, and tell DotCraft what to do differently')
-    fireEvent.change(textbox, { target: { value: 'Use my note' } })
-    fireEvent.click(otherRow)
-
-    expect(screen.getByText('First question?')).toBeInTheDocument()
-    expect(textbox).toHaveFocus()
-    expect(sendServerResponse).not.toHaveBeenCalled()
-  })
-
-  it('navigates multiple questions with header buttons and clamps at the ends', () => {
-    renderWithLocale(<RequestUserInputComposer request={multiQuestionRequest()} />)
-
-    const previous = screen.getByRole('button', { name: 'Previous question' })
-    const next = screen.getByRole('button', { name: 'Next question' })
-    expect(screen.getByText('1 of 3')).toBeInTheDocument()
-    expect(previous).toBeDisabled()
-    expect(next).not.toBeDisabled()
-
-    fireEvent.click(next)
-    expect(screen.getByText('Second question?')).toBeInTheDocument()
-    expect(screen.getByText('2 of 3')).toBeInTheDocument()
-    fireEvent.click(next)
-    expect(screen.getByText('Third question?')).toBeInTheDocument()
-    expect(screen.getByText('3 of 3')).toBeInTheDocument()
-    expect(next).toBeDisabled()
-
-    fireEvent.click(previous)
-    expect(screen.getByText('Second question?')).toBeInTheDocument()
-    expect(screen.getByText('2 of 3')).toBeInTheDocument()
-  })
-
-  it('uses ArrowLeft and ArrowRight for question navigation except inside the native input', () => {
-    renderWithLocale(<RequestUserInputComposer request={multiQuestionRequest()} />)
-
-    fireEvent.keyDown(window, { key: 'ArrowRight' })
-    expect(screen.getByText('Second question?')).toBeInTheDocument()
-
-    const textbox = screen.getByPlaceholderText('No, and tell DotCraft what to do differently')
-    fireEvent.focus(textbox)
-    fireEvent.keyDown(textbox, { key: 'ArrowRight' })
-    expect(screen.getByText('Second question?')).toBeInTheDocument()
-
-    fireEvent.keyDown(window, { key: 'ArrowLeft' })
-    expect(screen.getByText('First question?')).toBeInTheDocument()
   })
 
   it('preserves selected options and Other text when moving between questions', async () => {

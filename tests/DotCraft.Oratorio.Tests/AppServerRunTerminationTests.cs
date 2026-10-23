@@ -197,7 +197,7 @@ public sealed class AppServerRunTerminationTests
         string externalId,
         Func<ItemDetailResponse, bool> predicate)
     {
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(8);
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
         ItemDetailResponse? latest = null;
         while (DateTimeOffset.UtcNow < deadline)
         {
@@ -207,7 +207,7 @@ public sealed class AppServerRunTerminationTests
                 return latest;
             }
 
-            await Task.Delay(150);
+            await Task.Delay(20);
         }
 
         throw new TimeoutException($"Timed out waiting for {externalId}. Latest state: {latest?.Item.State}");

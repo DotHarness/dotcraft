@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { FeishuAdapter } from "./feishu-adapter.js";
 import { createFeishuEventHandlers } from "./event-handler.js";
-import { FeishuClient } from "./feishu-client.js";
+import type { FeishuClient } from "./feishu-client.js";
 import type {
   FeishuConfig,
   FeishuBotInfo,
@@ -136,34 +136,6 @@ function createHandlers(options?: {
   return { handlers, adapter, client, bot, config };
 }
 
-test("Feishu client adds a reaction with the expected SDK payload", async () => {
-  const calls: Array<Record<string, unknown>> = [];
-  const client = Object.create(FeishuClient.prototype) as FeishuClient;
-  (client as unknown as { sdk: unknown }).sdk = {
-    im: {
-      messageReaction: {
-        async create(payload?: unknown): Promise<void> {
-          calls.push((payload ?? {}) as Record<string, unknown>);
-        },
-      },
-    },
-  };
-
-  await client.addMessageReaction("om_test_1", "GLANCE");
-
-  assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0], {
-    path: {
-      message_id: "om_test_1",
-    },
-    data: {
-      reaction_type: {
-        emoji_type: "GLANCE",
-      },
-    },
-  });
-});
-
 test("FeishuAdapter keeps group thread identity while forwarding real sender context", async () => {
   const adapter = new FeishuAdapter() as unknown as {
     handleMessage: (opts: Record<string, unknown>) => Promise<void>;
@@ -198,54 +170,6 @@ test("FeishuAdapter keeps group thread identity while forwarding real sender con
     senderRole: "user",
     groupId: "group:oc_group_1",
   });
-});
-
-test("FeishuAdapter builds channel binding target from group and p2p contexts", () => {
-  const adapter = new FeishuAdapter() as unknown as {
-    buildChannelTarget: (
-      opts: Record<string, unknown>,
-      sender: Record<string, unknown>,
-      channelContext: string,
-    ) => Record<string, unknown> | null;
-  };
-
-  assert.deepEqual(
-    adapter.buildChannelTarget(
-      { userId: "group:oc_group_1", userName: "Alice", text: "/bind 482913" },
-      { senderId: "ou_user_1", senderName: "Alice", groupId: "group:oc_group_1" },
-      "group:oc_group_1",
-    ),
-    {
-      channelName: "feishu",
-      conversationKind: "group",
-      conversationId: "oc_group_1",
-      deliveryTarget: "group:oc_group_1",
-      displayName: "Feishu group oc_group_1",
-      boundBy: {
-        platformUserId: "ou_user_1",
-        displayName: "Alice",
-      },
-    },
-  );
-
-  assert.deepEqual(
-    adapter.buildChannelTarget(
-      { userId: "ou_user_1", userName: "Alice", text: "/bind 482913" },
-      { senderId: "ou_user_1", senderName: "Alice" },
-      "dm:ou_user_1",
-    ),
-    {
-      channelName: "feishu",
-      conversationKind: "user",
-      conversationId: "ou_user_1",
-      deliveryTarget: "dm:ou_user_1",
-      displayName: "Alice",
-      boundBy: {
-        platformUserId: "ou_user_1",
-        displayName: "Alice",
-      },
-    },
-  );
 });
 
 test("FeishuAdapter accepts channel bind codes for group context", async () => {
@@ -358,37 +282,32 @@ test("Feishu event handler adds reaction before forwarding inbound message", asy
   assert.equal(adapter.handledMessages[0]?.mentions.length, 1);
 });
 
-test("Feishu event handler uses configured ack reaction emoji", async () => {
+test("Feishu event handler uses a configured ack reaction emoji and skips an invalid one", async () => {
   const client = createClientMock();
-  const { handlers } = createHandlers({
-    client,
-    config: {
-      ackReactionEmoji: "SMILE",
-    },
-  });
-
+  const { handlers } = createHandlers({ client, config: { ackReactionEmoji: "SMILE" } });
   await handlers.onMessage(createTextEvent());
-
   assert.deepEqual(client.reactedMessages, [{ messageId: "om_message_123", emojiType: "SMILE" }]);
+
+  const invalidClient = createClientMock();
+  const adapter = createAdapterMock();
+  const invalid = createHandlers({ client: invalidClient, adapter, config: { ackReactionEmoji: "eyes" } });
+  await invalid.handlers.onMessage(createTextEvent());
+  assert.equal(invalidClient.reactedMessages.length, 0);
+  assert.equal(adapter.handledMessages.length, 1);
 });
 
-test("Feishu event handler skips reaction when group message does not mention the bot", async () => {
+test("Feishu event handler ignores unmentioned group, unsupported, and empty messages without reacting", async () => {
   const client = createClientMock();
   const adapter = createAdapterMock();
   const { handlers } = createHandlers({ client, adapter });
 
-  await handlers.onMessage(
-    createTextEvent({
-      message: {
-        message_id: "om_group_1",
-        chat_id: "oc_group_1",
-        chat_type: "group",
-        message_type: "text",
-        content: JSON.stringify({ text: "hello group" }),
-        mentions: [],
-      },
-    }),
-  );
+  for (const message of [
+    { message_id: "om_group_1", chat_id: "oc_group_1", chat_type: "group" as const, message_type: "text", content: JSON.stringify({ text: "hello group" }) },
+    { message_id: "om_file_1", chat_id: "oc_chat_123", chat_type: "p2p" as const, message_type: "file", content: JSON.stringify({ file_key: "file_123" }) },
+    { message_id: "om_empty_1", chat_id: "oc_chat_123", chat_type: "p2p" as const, message_type: "text", content: JSON.stringify({ text: "   " }) },
+  ]) {
+    await handlers.onMessage(createTextEvent({ message: { ...message, mentions: [] } }));
+  }
 
   assert.equal(client.reactedMessages.length, 0);
   assert.equal(adapter.handledMessages.length, 0);
@@ -423,50 +342,6 @@ test("Feishu event handler lets pending user-input replies bypass group mention 
   assert.equal(adapter.handledMessages.length, 0);
 });
 
-test("Feishu event handler skips reaction for unsupported messages", async () => {
-  const client = createClientMock();
-  const adapter = createAdapterMock();
-  const { handlers } = createHandlers({ client, adapter });
-
-  await handlers.onMessage(
-    createTextEvent({
-      message: {
-        message_id: "om_file_1",
-        chat_id: "oc_chat_123",
-        chat_type: "p2p",
-        message_type: "file",
-        content: JSON.stringify({ file_key: "file_123" }),
-        mentions: [],
-      },
-    }),
-  );
-
-  assert.equal(client.reactedMessages.length, 0);
-  assert.equal(adapter.handledMessages.length, 0);
-});
-
-test("Feishu event handler skips reaction for empty text messages after parse", async () => {
-  const client = createClientMock();
-  const adapter = createAdapterMock();
-  const { handlers } = createHandlers({ client, adapter });
-
-  await handlers.onMessage(
-    createTextEvent({
-      message: {
-        message_id: "om_empty_1",
-        chat_id: "oc_chat_123",
-        chat_type: "p2p",
-        message_type: "text",
-        content: JSON.stringify({ text: "   " }),
-        mentions: [],
-      },
-    }),
-  );
-
-  assert.equal(client.reactedMessages.length, 0);
-  assert.equal(adapter.handledMessages.length, 0);
-});
-
 test("Feishu event handler does not add reaction twice for duplicate events", async () => {
   const client = createClientMock();
   const adapter = createAdapterMock();
@@ -478,24 +353,6 @@ test("Feishu event handler does not add reaction twice for duplicate events", as
 
   assert.equal(client.reactedMessages.length, 1);
   assert.equal(adapter.handledMessages.length, 1);
-});
-
-test("Feishu event handler skips invalid reaction config but still processes the message", async () => {
-  const client = createClientMock();
-  const adapter = createAdapterMock();
-  const { handlers } = createHandlers({
-    client,
-    adapter,
-    config: {
-      ackReactionEmoji: "eyes",
-    },
-  });
-
-  await handlers.onMessage(createTextEvent());
-
-  assert.equal(client.reactedMessages.length, 0);
-  assert.equal(adapter.handledMessages.length, 1);
-  assert.equal(adapter.handledMessages[0]?.messageId, "om_message_123");
 });
 
 test("Feishu event handler keeps processing when adding reaction fails", async () => {

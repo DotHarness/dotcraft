@@ -7,67 +7,40 @@ namespace DotCraft.Tests.Mcp;
 public sealed class McpStaleSessionDetectorTests
 {
     [Fact]
-    public void IsStaleSessionFailure_MatchesHttp404WithSessionNotFound()
+    public void IsStaleSessionFailure_MatchesA404WithSessionNotFoundOrAKnownSession()
     {
-        var exception = new HttpRequestException(
+        var bodyMessage = new HttpRequestException(
             "Response status code does not indicate success: 404 (Not Found). Response body: {\"error\":{\"code\":-32001,\"message\":\"Session not found\"}}",
             inner: null,
             HttpStatusCode.NotFound);
-
-        Assert.True(McpStaleSessionDetector.IsStaleSessionFailure(exception));
-    }
-
-    [Fact]
-    public void IsStaleSessionFailure_MatchesNestedCodeMinus32001()
-    {
-        var inner = new InvalidOperationException(
-            "Response body: { \"error\": { \"code\": -32001, \"message\": \"gone\" } }");
-        var exception = new HttpRequestException(
+        var nestedCode = new HttpRequestException(
             "Response status code does not indicate success: 404 (Not Found).",
-            inner,
+            new InvalidOperationException("Response body: { \"error\": { \"code\": -32001, \"message\": \"gone\" } }"),
+            HttpStatusCode.NotFound);
+        var plain404 = new HttpRequestException(
+            "Response status code does not indicate success: 404 (Not Found).",
+            inner: null,
             HttpStatusCode.NotFound);
 
-        Assert.True(McpStaleSessionDetector.IsStaleSessionFailure(exception));
+        Assert.True(McpStaleSessionDetector.IsStaleSessionFailure(bodyMessage));
+        Assert.True(McpStaleSessionDetector.IsStaleSessionFailure(nestedCode));
+        Assert.True(McpStaleSessionDetector.IsStaleSessionFailure(plain404, requestHadSessionId: true));
     }
 
     [Fact]
-    public void IsStaleSessionFailure_DoesNotMatchPlain404()
+    public void IsStaleSessionFailure_DoesNotMatchOther404sSessionMessagesOrStatuses()
     {
-        var exception = new HttpRequestException(
+        var routeMissing = new HttpRequestException(
             "Response status code does not indicate success: 404 (Not Found). Response body: route missing",
             inner: null,
             HttpStatusCode.NotFound);
-
-        Assert.False(McpStaleSessionDetector.IsStaleSessionFailure(exception));
-    }
-
-    [Fact]
-    public void IsStaleSessionFailure_MatchesPlain404WhenRequestHadSessionId()
-    {
-        var exception = new HttpRequestException(
-            "Response status code does not indicate success: 404 (Not Found).",
-            inner: null,
-            HttpStatusCode.NotFound);
-
-        Assert.True(McpStaleSessionDetector.IsStaleSessionFailure(exception, requestHadSessionId: true));
-    }
-
-    [Fact]
-    public void IsStaleSessionFailure_DoesNotMatchSessionMessageWithout404()
-    {
-        var exception = new InvalidOperationException("Session not found");
-
-        Assert.False(McpStaleSessionDetector.IsStaleSessionFailure(exception));
-    }
-
-    [Fact]
-    public void IsStaleSessionFailure_DoesNotMatchNonStaleHttpFailures()
-    {
-        var exception = new HttpRequestException(
+        var unauthorized = new HttpRequestException(
             "Response status code does not indicate success: 401 (Unauthorized).",
             inner: null,
             HttpStatusCode.Unauthorized);
 
-        Assert.False(McpStaleSessionDetector.IsStaleSessionFailure(exception));
+        Assert.False(McpStaleSessionDetector.IsStaleSessionFailure(routeMissing));
+        Assert.False(McpStaleSessionDetector.IsStaleSessionFailure(new InvalidOperationException("Session not found")));
+        Assert.False(McpStaleSessionDetector.IsStaleSessionFailure(unauthorized));
     }
 }

@@ -8,34 +8,7 @@ public sealed class SkillInstallServiceTests : IDisposable
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "dotcraft-skillinstall-tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task VerifyAsync_WithValidCandidate_ReturnsSkillName()
-    {
-        var candidate = WriteCandidate("demo-skill");
-        var service = CreateService();
-
-        var result = await service.VerifyAsync(new SkillInstallVerifyRequest(candidate));
-
-        Assert.True(result.IsValid);
-        Assert.Equal("demo-skill", result.SkillName);
-        Assert.Empty(result.Errors);
-    }
-
-    [Fact]
-    public async Task VerifyAsync_RejectsMissingRootSkillFile()
-    {
-        var candidate = Path.Combine(_tempRoot, "candidate");
-        Directory.CreateDirectory(Path.Combine(candidate, "nested"));
-        File.WriteAllText(Path.Combine(candidate, "nested", "SKILL.md"), ValidSkill("demo-skill"));
-        var service = CreateService();
-
-        var result = await service.VerifyAsync(new SkillInstallVerifyRequest(candidate));
-
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, error => error.Contains("SKILL.md at its root", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task VerifyAsync_AllowsOrdinaryBundleFiles()
+    public async Task VerifyAsync_AcceptsOrdinaryBundleFilesAndReturnsSkillName()
     {
         var candidate = WriteCandidate("demo-skill");
         Directory.CreateDirectory(Path.Combine(candidate, "docs"));
@@ -49,45 +22,43 @@ public sealed class SkillInstallServiceTests : IDisposable
         var result = await service.VerifyAsync(new SkillInstallVerifyRequest(candidate));
 
         Assert.True(result.IsValid);
+        Assert.Equal("demo-skill", result.SkillName);
         Assert.Empty(result.Errors);
     }
 
     [Fact]
-    public async Task VerifyAsync_AllowsUppercaseFrontmatterName()
+    public async Task VerifyAsync_RejectsMissingRootSkillFileAndHiddenControlFiles()
+    {
+        var nested = Path.Combine(_tempRoot, "candidate");
+        Directory.CreateDirectory(Path.Combine(nested, "nested"));
+        File.WriteAllText(Path.Combine(nested, "nested", "SKILL.md"), ValidSkill("demo-skill"));
+        var hidden = WriteCandidate("demo-skill");
+        File.WriteAllText(Path.Combine(hidden, ".env"), "SECRET=1");
+        var service = CreateService();
+
+        var missingRoot = await service.VerifyAsync(new SkillInstallVerifyRequest(nested));
+        var hiddenFile = await service.VerifyAsync(new SkillInstallVerifyRequest(hidden));
+
+        Assert.False(missingRoot.IsValid);
+        Assert.Contains(missingRoot.Errors, error => error.Contains("SKILL.md at its root", StringComparison.Ordinal));
+        Assert.False(hiddenFile.IsValid);
+        Assert.Contains(hiddenFile.Errors, error => error.Contains(".env", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task VerifyAsync_AllowsUppercaseFrontmatterNameAndPrefersTheExpectedLocalName()
     {
         var candidate = WriteCandidate("Git");
         var service = CreateService();
 
-        var result = await service.VerifyAsync(new SkillInstallVerifyRequest(candidate));
+        var frontmatter = await service.VerifyAsync(new SkillInstallVerifyRequest(candidate));
+        var expected = await service.VerifyAsync(new SkillInstallVerifyRequest(candidate, ExpectedName: "git"));
 
-        Assert.True(result.IsValid);
-        Assert.Equal("Git", result.SkillName);
-    }
-
-    [Fact]
-    public async Task VerifyAsync_WithExpectedName_UsesLocalNameWithoutRequiringFrontmatterMatch()
-    {
-        var candidate = WriteCandidate("Git");
-        var service = CreateService();
-
-        var result = await service.VerifyAsync(new SkillInstallVerifyRequest(candidate, ExpectedName: "git"));
-
-        Assert.True(result.IsValid);
-        Assert.Equal("git", result.SkillName);
-        Assert.Empty(result.Errors);
-    }
-
-    [Fact]
-    public async Task VerifyAsync_RejectsHiddenControlFiles()
-    {
-        var candidate = WriteCandidate("demo-skill");
-        File.WriteAllText(Path.Combine(candidate, ".env"), "SECRET=1");
-        var service = CreateService();
-
-        var result = await service.VerifyAsync(new SkillInstallVerifyRequest(candidate));
-
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, error => error.Contains(".env", StringComparison.Ordinal));
+        Assert.True(frontmatter.IsValid);
+        Assert.Equal("Git", frontmatter.SkillName);
+        Assert.True(expected.IsValid);
+        Assert.Equal("git", expected.SkillName);
+        Assert.Empty(expected.Errors);
     }
 
     [Fact]
@@ -113,29 +84,19 @@ public sealed class SkillInstallServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task InstallAsync_WithDuplicateName_RejectsWithoutOverwrite()
-    {
-        var candidate = WriteCandidate("demo-skill");
-        var loader = CreateLoader();
-        Directory.CreateDirectory(Path.Combine(loader.WorkspaceSkillsPath, "demo-skill"));
-        File.WriteAllText(Path.Combine(loader.WorkspaceSkillsPath, "demo-skill", "SKILL.md"), ValidSkill("demo-skill", "Existing."));
-        var service = new SkillInstallService(loader);
-
-        var result = await service.InstallAsync(new SkillInstallRequest(candidate));
-
-        Assert.False(result.Success);
-        Assert.Contains(result.Errors, error => error.Contains("already exists", StringComparison.Ordinal));
-        Assert.Contains("Existing.", File.ReadAllText(Path.Combine(loader.WorkspaceSkillsPath, "demo-skill", "SKILL.md")));
-    }
-
-    [Fact]
-    public async Task InstallAsync_WithOverwrite_ReplacesWorkspaceSkill()
+    public async Task InstallAsync_WithDuplicateName_ReplacesOnlyWhenOverwriteIsRequested()
     {
         var candidate = WriteCandidate("demo-skill", "Replacement.");
         var loader = CreateLoader();
         Directory.CreateDirectory(Path.Combine(loader.WorkspaceSkillsPath, "demo-skill"));
         File.WriteAllText(Path.Combine(loader.WorkspaceSkillsPath, "demo-skill", "SKILL.md"), ValidSkill("demo-skill", "Existing."));
         var service = new SkillInstallService(loader);
+
+        var rejected = await service.InstallAsync(new SkillInstallRequest(candidate));
+
+        Assert.False(rejected.Success);
+        Assert.Contains(rejected.Errors, error => error.Contains("already exists", StringComparison.Ordinal));
+        Assert.Contains("Existing.", File.ReadAllText(Path.Combine(loader.WorkspaceSkillsPath, "demo-skill", "SKILL.md")));
 
         var result = await service.InstallAsync(new SkillInstallRequest(candidate, Overwrite: true));
 
@@ -155,7 +116,6 @@ public sealed class SkillInstallServiceTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup for temp test directories.
         }
     }
 

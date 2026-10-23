@@ -8,69 +8,56 @@ function marked(line: HighlightedLine): string[] {
 }
 
 describe('lineChangeRanges', () => {
-  it('marks only the words that differ', () => {
-    const ranges = lineChangeRanges('const value = 1', 'const value = 2')
-    expect(ranges).toBeDefined()
+  it('marks only the words that differ and absorbs a one-character gap into one mark', () => {
     const before = 'const value = 1'
     const after = 'const value = 2'
+    const ranges = lineChangeRanges(before, after)
     expect(ranges?.deletion.map((range) => before.slice(range.start, range.end))).toEqual(['1'])
     expect(ranges?.addition.map((range) => after.slice(range.start, range.end))).toEqual(['2'])
+
+    const renamed = lineChangeRanges('a.b()', 'a.c()')
+    expect(renamed?.addition.length).toBe(1)
+    expect('a.c()'.slice(renamed?.addition[0]?.start, renamed?.addition[0]?.end)).toContain('c')
   })
 
-  it('absorbs a one-character gap so a renamed member is one mark, not two', () => {
-    const before = 'a.b()'
-    const after = 'a.c()'
-    const ranges = lineChangeRanges(before, after)
-    // Without the gap rule the dot would split `b` and `(` into separate marks.
-    expect(ranges?.addition.length).toBe(1)
-    expect(after.slice(ranges?.addition[0]?.start, ranges?.addition[0]?.end)).toContain('c')
-  })
-
-  it('returns no ranges for identical lines', () => {
+  it('returns no ranges for identical lines and declines lines longer than the cap', () => {
     expect(lineChangeRanges('same', 'same')).toEqual({ deletion: [], addition: [] })
-  })
-
-  it('declines lines longer than the cap rather than diffing a minified bundle', () => {
     const long = 'x'.repeat(1001)
     expect(lineChangeRanges(long, `${long}y`)).toBeUndefined()
   })
 })
 
 describe('pairChangedLines', () => {
-  it('pairs a run of removals with the run of additions that replaced it', () => {
-    const hunk = {
+  it('pairs runs of removals with the additions that replaced them and leaves extras unpaired', () => {
+    expect(pairChangedLines({
       oldStart: 1,
       oldLines: 3,
       newStart: 1,
       newLines: 3,
       lines: [
-        { type: 'context' as const, content: 'a' },
-        { type: 'remove' as const, content: 'b' },
-        { type: 'remove' as const, content: 'c' },
-        { type: 'add' as const, content: 'B' },
-        { type: 'add' as const, content: 'C' },
-        { type: 'context' as const, content: 'd' }
+        { type: 'context', content: 'a' },
+        { type: 'remove', content: 'b' },
+        { type: 'remove', content: 'c' },
+        { type: 'add', content: 'B' },
+        { type: 'add', content: 'C' },
+        { type: 'context', content: 'd' }
       ]
-    }
-    expect(pairChangedLines(hunk)).toEqual([
+    })).toEqual([
       { removeIndex: 1, addIndex: 3 },
       { removeIndex: 2, addIndex: 4 }
     ])
-  })
 
-  it('leaves an unmatched removal unpaired', () => {
-    const hunk = {
+    expect(pairChangedLines({
       oldStart: 1,
       oldLines: 2,
       newStart: 1,
       newLines: 1,
       lines: [
-        { type: 'remove' as const, content: 'b' },
-        { type: 'remove' as const, content: 'c' },
-        { type: 'add' as const, content: 'B' }
+        { type: 'remove', content: 'b' },
+        { type: 'remove', content: 'c' },
+        { type: 'add', content: 'B' }
       ]
-    }
-    expect(pairChangedLines(hunk)).toEqual([{ removeIndex: 0, addIndex: 2 }])
+    })).toEqual([{ removeIndex: 0, addIndex: 2 }])
   })
 })
 
@@ -81,17 +68,14 @@ describe('applyChangeRanges', () => {
     { text: ' = 1', style: { '--dc-token-light': '#c' } }
   ]
 
-  it('splits a syntax run at the change boundary and keeps its color', () => {
+  it('splits syntax runs at change boundaries, keeping their colors, including across several runs', () => {
     const result = applyChangeRanges(line, [{ start: 6, end: 8 }])
     expect(result.map((span) => span.text).join('')).toBe('const value = 1')
     expect(marked(result)).toEqual(['va'])
     expect(result.find((span) => span.text === 'va')?.style).toEqual({ '--dc-token-light': '#b' })
-  })
 
-  it('marks a range spanning several runs', () => {
-    const result = applyChangeRanges(line, [{ start: 3, end: 12 }])
-    expect(marked(result).join('')).toBe('st value ')
-    expect(result.map((span) => span.text).join('')).toBe('const value = 1')
+    const spanning = applyChangeRanges(line, [{ start: 3, end: 12 }])
+    expect(marked(spanning).join('')).toBe('st value ')
+    expect(spanning.map((span) => span.text).join('')).toBe('const value = 1')
   })
-
 })

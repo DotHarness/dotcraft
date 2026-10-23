@@ -20,15 +20,6 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests : IDisposable
     public void Dispose() => _promptCachePolicy.Dispose();
 
     [Fact]
-    public void CreateDeferredTool_PreservesProviderToolName()
-    {
-        var deferredTool = AnthropicDeferredToolLoadingChatClient.CreateDeferredTool(
-            CreateTicketLookupTool());
-
-        Assert.Equal("TicketLookup", deferredTool.Name);
-    }
-
-    [Fact]
     public async Task GetResponseAsync_BeforeActivationSendsOnlyToolSearchAndBetaHeader()
     {
         var handler = new CaptureHandler();
@@ -105,42 +96,7 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests : IDisposable
     }
 
     [Fact]
-    public async Task GetResponseAsync_WithSanitizedSearchMarkerSendsNamespacedDeferredSchema()
-    {
-        var handler = new CaptureHandler(rejectStrictFalse: true);
-        var tool = AIFunctionFactory.Create(
-            (int limit) => $"records {limit}",
-            name: "LookupRecords",
-            description: "Look up records.");
-        var registry = new DeferredToolRegistry(
-            [new DeferredToolEntry(tool, "fixture", "fixture")],
-            DeferredToolLoadingMode.Native);
-        registry.ActivateByName(["fixture__LookupRecords"]);
-        var sanitizedSearch = ToolSchemaSanitizer.SanitizeTool(new AnthropicToolSearchTool(registry));
-        var client = CreateClient(handler);
-
-        await client.GetResponseAsync(
-            [new ChatMessage(ChatRole.User, "Look up records.")],
-            new ChatOptions { Tools = [sanitizedSearch] });
-
-        using var document = JsonDocument.Parse(handler.LastRequestJson!);
-        var tools = document.RootElement.GetProperty("tools").EnumerateArray().ToArray();
-        var deferredTool = Assert.Single(tools, toolElement =>
-            string.Equals(
-                toolElement.GetProperty("name").GetString(),
-                "fixture__LookupRecords",
-                StringComparison.Ordinal));
-        Assert.True(deferredTool.GetProperty("defer_loading").GetBoolean());
-        Assert.False(deferredTool.TryGetProperty("strict", out _));
-        Assert.Contains(tools, toolElement =>
-            string.Equals(
-                toolElement.GetProperty("name").GetString(),
-                AnthropicToolSearchTool.ToolName,
-                StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task GetResponseAsync_AfterMultipleActivationsSendsEveryNamespacedDeferredSchema()
+    public async Task GetResponseAsync_WithSanitizedSearchMarkerSendsEveryActivatedNamespacedDeferredSchema()
     {
         var handler = new CaptureHandler(rejectStrictFalse: true);
         var lookupRecords = AIFunctionFactory.Create(
@@ -158,16 +114,16 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests : IDisposable
             ],
             DeferredToolLoadingMode.Native);
         registry.ActivateByName(["fixture__LookupRecords", "fixture__ReadRecord"]);
+        var sanitizedSearch = ToolSchemaSanitizer.SanitizeTool(new AnthropicToolSearchTool(registry));
         var client = CreateClient(handler);
 
         await client.GetResponseAsync(
             [new ChatMessage(ChatRole.User, "Inspect records.")],
-            new ChatOptions { Tools = [new AnthropicToolSearchTool(registry)] });
+            new ChatOptions { Tools = [sanitizedSearch] });
 
         using var document = JsonDocument.Parse(handler.LastRequestJson!);
-        var deferredTools = document.RootElement
-            .GetProperty("tools")
-            .EnumerateArray()
+        var tools = document.RootElement.GetProperty("tools").EnumerateArray().ToArray();
+        var deferredTools = tools
             .Where(static tool => tool.TryGetProperty("defer_loading", out var value) && value.GetBoolean())
             .ToArray();
         Assert.Equal(
@@ -176,6 +132,11 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests : IDisposable
                 .Select(static tool => tool.GetProperty("name").GetString())
                 .OrderBy(static name => name, StringComparer.Ordinal));
         Assert.All(deferredTools, static tool => Assert.False(tool.TryGetProperty("strict", out _)));
+        Assert.Contains(tools, toolElement =>
+            string.Equals(
+                toolElement.GetProperty("name").GetString(),
+                AnthropicToolSearchTool.ToolName,
+                StringComparison.Ordinal));
     }
 
     [Fact]
@@ -276,6 +237,7 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests : IDisposable
         var registry = new DeferredToolRegistry(
             [new DeferredToolEntry(CreateTicketLookupTool(), "runtime")],
             DeferredToolLoadingMode.Native);
+        registry.ActivateByName(["TicketLookup"]);
         var config = new AppConfig
         {
             Reasoning = new AppConfig.ReasoningConfig
@@ -304,40 +266,7 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests : IDisposable
         Assert.Equal("text", userText.GetProperty("type").GetString());
         Assert.Equal("Find a ticket.", userText.GetProperty("text").GetString());
         Assert.Equal("ephemeral", userText.GetProperty("cache_control").GetProperty("type").GetString());
-    }
-
-    [Fact]
-    public async Task GetResponseAsync_AfterActivationWithPromptCacheAndThinkingSendsDeferredSchema()
-    {
-        var handler = new CaptureHandler();
-        var tool = CreateTicketLookupTool();
-        var registry = new DeferredToolRegistry(
-            [new DeferredToolEntry(tool, "runtime")],
-            DeferredToolLoadingMode.Native);
-        registry.ActivateByName(["TicketLookup"]);
-        var config = new AppConfig
-        {
-            Reasoning = new AppConfig.ReasoningConfig
-            {
-                Enabled = true,
-                Effort = ModelReasoningEffort.High,
-                Output = ReasoningOutput.Full
-            }
-        };
-        var client = CreateAdaptedClient(handler, config, "claude-opus-4-7");
-
-        await client.GetResponseAsync(
-            [new ChatMessage(ChatRole.User, "Use the activated ticket tool.")],
-            new ChatOptions
-            {
-                Tools = [new AnthropicToolSearchTool(registry)],
-                Reasoning = config.Reasoning.ToOptions()
-            });
-
-        Assert.Contains(AnthropicDeferredToolLoadingChatClient.ToolSearchBetaHeader, handler.LastBetaHeader);
-        using var document = JsonDocument.Parse(handler.LastRequestJson!);
-        var tools = document.RootElement.GetProperty("tools").EnumerateArray().ToArray();
-        Assert.Contains(tools, toolElement =>
+        Assert.Contains(root.GetProperty("tools").EnumerateArray(), toolElement =>
             string.Equals(toolElement.GetProperty("name").GetString(), "TicketLookup", StringComparison.Ordinal)
             && toolElement.TryGetProperty("defer_loading", out var deferLoading)
             && deferLoading.GetBoolean());

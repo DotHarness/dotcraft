@@ -28,14 +28,14 @@ describe('unified automations', () => {
     ])
     expect(state.welcomeDraft?.text).toContain('$automations')
   })
-  it('sends optimistic concurrency and only editable fields', async () => {
+  it('sends optimistic concurrency with only editable fields and keeps the definition on rejection', async () => {
     sendRequest.mockResolvedValue({ automation: { ...definition, version: 4 } })
     await useAutomationsStore.getState().save({ ...definition, name: 'Updated' }, definition)
     expect(sendRequest).toHaveBeenCalledWith('automation/update', expect.objectContaining({ automationId: 'a', expectedVersion: 3, automation: expect.objectContaining({ name: 'Updated', targetThreadId: 't' }) }))
     expect(sendRequest.mock.calls[0][1].automation).not.toHaveProperty('version')
     expect(sendRequest.mock.calls[0][1].automation).not.toHaveProperty('origin')
-  })
-  it('preserves definition on rejected writes', async () => {
+
+    useAutomationsStore.setState({ automations: [definition] })
     sendRequest.mockRejectedValue(new Error('Version conflict'))
     await expect(useAutomationsStore.getState().save({ ...definition, name: 'Draft' }, definition)).rejects.toThrow('Version conflict')
     expect(useAutomationsStore.getState().automations[0].name).toBe('Check CI')
@@ -52,31 +52,30 @@ describe('unified automations', () => {
     expect(useAutomationsStore.getState().runs.a[0].status).toBe('queued')
     expect(useAutomationsStore.getState().automations[0].status).toBe('active')
   })
-  it('validates weekly day selection and explicit time zones', () => {
+  it('validates schedules and fills only a missing calendar time zone', () => {
     expect(validSchedule({ kind: 'weekly', hour: 9, minute: 0, timeZone: 'UTC', days: [] })).toBe(false)
     expect(validSchedule({ kind: 'weekly', hour: 9, minute: 0, timeZone: 'UTC', days: [1,5] })).toBe(true)
     expect(validSchedule({ kind: 'daily', hour: 9, minute: 0, timeZone: 'not-a-zone' })).toBe(false)
+
+    const inferred = ensureScheduleTimeZone({ kind: 'daily', hour: 9, minute: 0 })
+    expect(inferred.timeZone).toBeTruthy()
+    expect(ensureScheduleTimeZone({ ...inferred, timeZone: 'America/New_York' }).timeZone).toBe('America/New_York')
+    expect(ensureScheduleTimeZone({ kind: 'every', everyMs: 60000 })).not.toHaveProperty('timeZone')
   })
   it('parses operation snapshots without requiring a live definition', () => {
     expect(parseAutomationResult(JSON.stringify({ operation: 'delete', automation: definition }))?.automation?.name).toBe('Check CI')
     expect(parseAutomationResult(JSON.stringify({ operation: 'complete', automation: definition }))).toBeNull()
     expect(parseAutomationResult('invalid')).toBeNull()
   })
-  it('fills a missing calendar time zone and preserves a stored one', () => {
-    const inferred = ensureScheduleTimeZone({ kind: 'daily', hour: 9, minute: 0 })
-    expect(inferred.timeZone).toBeTruthy()
-    expect(ensureScheduleTimeZone({ ...inferred, timeZone: 'America/New_York' }).timeZone).toBe('America/New_York')
-    expect(ensureScheduleTimeZone({ kind: 'every', everyMs: 60000 })).not.toHaveProperty('timeZone')
-  })
 })
 
 it('refreshes a selected cached definition and removes it on not found', async () => {
   sendRequest.mockResolvedValueOnce({ automation: { ...definition, version: 4 } })
   useAutomationsStore.getState().selectAutomation('a')
-  await vi.waitFor(() => expect(useAutomationsStore.getState().automations[0].version).toBe(4))
+  await vi.waitFor(() => expect(useAutomationsStore.getState().automations[0].version).toBe(4), { interval: 1 })
   sendRequest.mockRejectedValueOnce({ code: -32051 })
   useAutomationsStore.getState().selectAutomation('a')
-  await vi.waitFor(() => expect(useAutomationsStore.getState().automations).toEqual([]))
+  await vi.waitFor(() => expect(useAutomationsStore.getState().automations).toEqual([]), { interval: 1 })
   expect(useAutomationsStore.getState().selectedAutomationId).toBe('a')
 })
 

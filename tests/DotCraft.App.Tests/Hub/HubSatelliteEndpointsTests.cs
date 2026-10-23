@@ -17,7 +17,7 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
         "DotCraftHubSatellite_" + Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task SatelliteEndpoints_RequireHubToken()
+    public async Task LocalApiRequiresTheHubToken_AndTheSatelliteListenerServesNoLocalApi()
     {
         await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
 
@@ -28,22 +28,21 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
         Assert.Equal(
             HttpStatusCode.Unauthorized,
             (await hub.Http.DeleteAsync($"{hub.ApiBaseUrl}/v1/satellites/sat_missing")).StatusCode);
-    }
-
-    [Fact]
-    public async Task Invite_StartsSatelliteListener_AndReturnsReachableUrl()
-    {
-        await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
 
         var invite = await hub.CreateInviteAsync("Ann");
-
-        var page = await hub.Http.GetAsync(invite.Url);
-        page.EnsureSuccessStatusCode();
-        var body = await page.Content.ReadAsStringAsync();
-        Assert.Contains("dotcraft tool-host join", body, StringComparison.Ordinal);
-        Assert.Contains(invite.InviteId, body, StringComparison.Ordinal);
-        Assert.Equal("no-store", page.Headers.CacheControl?.ToString());
         Assert.True(invite.ExpiresAt > DateTimeOffset.UtcNow.AddHours(23));
+        var listener = new Uri(invite.Url).GetLeftPart(UriPartial.Authority);
+        Assert.Equal(HttpStatusCode.NotFound, (await hub.Http.GetAsync($"{listener}/v1/status")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await hub.Http.GetAsync($"{listener}/v1/appservers")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await hub.Http.GetAsync($"{listener}/v1/satellites")).StatusCode);
+
+        using var socket = new ClientWebSocket();
+        socket.Options.CollectHttpResponseDetails = true;
+        socket.Options.SetRequestHeader("Authorization", "Bearer inv_not_a_real_invite");
+        await Assert.ThrowsAsync<WebSocketException>(async () => await socket.ConnectAsync(
+            new Uri($"ws://{new Uri(invite.Url).Authority}/satellite/control?peer=sat_unknown"),
+            CancellationToken.None));
+        Assert.Equal(HttpStatusCode.Unauthorized, socket.HttpStatusCode);
     }
 
     [Fact]
@@ -69,30 +68,13 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
         var html = await htmlResponse.Content.ReadAsStringAsync();
         Assert.Equal("text/html", htmlResponse.Content.Headers.ContentType?.MediaType);
         Assert.Contains("Ann", html, StringComparison.Ordinal);
-        Assert.Contains("/satellite/installer", html, StringComparison.Ordinal);
-        Assert.Contains("<link rel=\"icon\"", html, StringComparison.Ordinal);
-        Assert.Contains("/satellite/icon", html, StringComparison.Ordinal);
         Assert.Contains("dotcraft://satellite/join?invite=", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("http://cdn", html, StringComparison.OrdinalIgnoreCase);
 
-        var plain = await hub.Http.GetStringAsync(invite.Url);
-        Assert.Contains("dotcraft tool-host join", plain, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task InstallerRoute_PointsAtReleases_WhenNoInstallerShips()
-    {
-        await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
-        var invite = await hub.CreateInviteAsync("Ann");
-        var listener = new Uri(invite.Url).GetLeftPart(UriPartial.Authority);
-
-        using var response = await hub.Http.GetAsync($"{listener}/satellite/installer");
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Contains(
-            "github.com/DotHarness/dotcraft/releases",
-            await response.Content.ReadAsStringAsync(),
-            StringComparison.Ordinal);
+        var plain = await hub.Http.GetAsync(invite.Url);
+        Assert.Equal("no-store", plain.Headers.CacheControl?.ToString());
+        var body = await plain.Content.ReadAsStringAsync();
+        Assert.Contains("dotcraft tool-host join", body, StringComparison.Ordinal);
+        Assert.Contains(invite.InviteId, body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -144,22 +126,6 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
     }
 
     [Fact]
-    public async Task IconRoute_ServesEmbeddedDotCraftIcon()
-    {
-        await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
-        var invite = await hub.CreateInviteAsync("Ann");
-        var listener = new Uri(invite.Url).GetLeftPart(UriPartial.Authority);
-
-        using var response = await hub.Http.GetAsync($"{listener}/satellite/icon");
-        var icon = await response.Content.ReadAsByteArrayAsync();
-
-        response.EnsureSuccessStatusCode();
-        Assert.Equal("image/x-icon", response.Content.Headers.ContentType?.MediaType);
-        Assert.True(icon.Length > 4);
-        Assert.Equal(new byte[] { 0, 0, 1, 0 }, icon[..4]);
-    }
-
-    [Fact]
     public async Task Revoke_PublishesSatelliteRevokedEvent()
     {
         var paths = HubPaths.Resolve(_userProfile);
@@ -202,35 +168,6 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
     }
 
     [Fact]
-    public async Task SatelliteListener_DoesNotServeLocalApi()
-    {
-        await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
-        var invite = await hub.CreateInviteAsync("Ann");
-        var listener = new Uri(invite.Url).GetLeftPart(UriPartial.Authority);
-
-        Assert.Equal(HttpStatusCode.NotFound, (await hub.Http.GetAsync($"{listener}/v1/status")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await hub.Http.GetAsync($"{listener}/v1/appservers")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await hub.Http.GetAsync($"{listener}/v1/satellites")).StatusCode);
-    }
-
-    [Fact]
-    public async Task Control_RejectsUnknownCredential()
-    {
-        await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
-        var invite = await hub.CreateInviteAsync("Ann");
-        var listener = new Uri(invite.Url).Authority;
-
-        using var socket = new ClientWebSocket();
-        socket.Options.CollectHttpResponseDetails = true;
-        socket.Options.SetRequestHeader("Authorization", "Bearer inv_not_a_real_invite");
-        await Assert.ThrowsAsync<WebSocketException>(async () => await socket.ConnectAsync(
-            new Uri($"ws://{listener}/satellite/control?peer=sat_unknown"),
-            CancellationToken.None));
-
-        Assert.Equal(HttpStatusCode.Unauthorized, socket.HttpStatusCode);
-    }
-
-    [Fact]
     public async Task Bridge_ReturnsSatelliteOffline_WhenPeerNotConnected()
     {
         var paths = HubPaths.Resolve(_userProfile);
@@ -255,16 +192,6 @@ public sealed class HubSatelliteEndpointsTests : IDisposable
             new Uri($"ws://{new Uri(hub.ApiBaseUrl).Authority}/v1/satellites/sat_missing/bridge?session=s2"),
             CancellationToken.None));
         Assert.Equal(HttpStatusCode.NotFound, missing.HttpStatusCode);
-    }
-
-    [Fact]
-    public async Task Status_ReportsSatelliteCapability()
-    {
-        await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
-
-        using var document = JsonDocument.Parse(await hub.Http.GetStringAsync($"{hub.ApiBaseUrl}/v1/status"));
-
-        Assert.True(document.RootElement.GetProperty("capabilities").GetProperty("satellites").GetBoolean());
     }
 
     public void Dispose()

@@ -19,18 +19,11 @@ public sealed class ShellPolicyTests
     }
 
     [Fact]
-    public void Match_LongerCommand_MatchesTheShorterPrefix()
+    public void Match_IsAPrefixMatchOnWholeWords()
     {
         var policy = new ShellPolicy([Rule(ShellDecision.Allow, "git", "status")]);
 
         Assert.Single(policy.Match(["git", "status", "--short"], CommandPlatform.Posix));
-    }
-
-    [Fact]
-    public void Match_ShorterCommand_DoesNotMatchTheLongerPrefix()
-    {
-        var policy = new ShellPolicy([Rule(ShellDecision.Allow, "git", "status")]);
-
         Assert.Empty(policy.Match(["git"], CommandPlatform.Posix));
     }
 
@@ -88,22 +81,13 @@ public sealed class ShellPolicyTests
     }
 
     [Fact]
-    public void Fingerprint_IgnoresRuleOrder()
+    public void Fingerprint_IgnoresRuleOrderButChangesWhenARuleIsAdded()
     {
         var list = Rule(ShellDecision.Allow, "ls");
         var push = Rule(ShellDecision.Prompt, "git", "push");
 
         Assert.Equal(new ShellPolicy([list, push]).Fingerprint, new ShellPolicy([push, list]).Fingerprint);
-    }
-
-    [Fact]
-    public void Fingerprint_ChangesWhenARuleIsAdded()
-    {
-        var policy = new ShellPolicy([Rule(ShellDecision.Allow, "ls")]);
-
-        var extended = new ShellPolicy([.. policy.Rules, Rule(ShellDecision.Prompt, "git", "push")]);
-
-        Assert.NotEqual(policy.Fingerprint, extended.Fingerprint);
+        Assert.NotEqual(new ShellPolicy([list]).Fingerprint, new ShellPolicy([list, push]).Fingerprint);
     }
 
     [Fact]

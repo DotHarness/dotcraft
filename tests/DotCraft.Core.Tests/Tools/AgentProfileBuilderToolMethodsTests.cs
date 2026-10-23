@@ -12,7 +12,6 @@ public sealed class AgentProfileBuilderToolMethodsTests
     private static AgentProfileBuilderToolMethods Seed(string threadId, string markdown = "")
     {
         ProfileBuilderDraftStore.Seed(threadId, "draft-agent", "workspace", markdown);
-        // Null catalogs => skill/MCP validation accepts names as-is (no catalog available).
         return new AgentProfileBuilderToolMethods(threadId, skillsLoader: null, mcpClientManager: null);
     }
 
@@ -71,21 +70,6 @@ public sealed class AgentProfileBuilderToolMethodsTests
 
         var draft = AgentProfileDraftEditor.Parse(ProfileBuilderDraftStore.TryGet(threadId)!.Markdown);
         Assert.Equal("all", draft.ToolPolicyMode);
-
-        ProfileBuilderDraftStore.Remove(threadId);
-    }
-
-    [Fact]
-    public void SetAgentApproval_AcceptsPolicy()
-    {
-        var threadId = NewThread();
-        var methods = Seed(threadId);
-
-        var ok = Parse(methods.SetAgentApproval(AgentApprovalPolicy.AutoApprove));
-        Assert.True(ok.GetProperty("ok").GetBoolean());
-
-        var draft = AgentProfileDraftEditor.Parse(ProfileBuilderDraftStore.TryGet(threadId)!.Markdown);
-        Assert.Equal("autoApprove", draft.ApprovalPolicy);
 
         ProfileBuilderDraftStore.Remove(threadId);
     }

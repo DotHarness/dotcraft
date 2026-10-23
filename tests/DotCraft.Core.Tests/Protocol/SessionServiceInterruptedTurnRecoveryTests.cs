@@ -2,6 +2,7 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Security;
+using DotCraft.Security.ShellCommands;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tools;
@@ -29,7 +30,6 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup for temporary files.
         }
     }
 
@@ -100,14 +100,16 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
         var finished = await terminals.StartAsync(new BackgroundTerminalStartRequest
         {
             ThreadId = "thread_terminals",
-            Command = OperatingSystem.IsWindows() ? "Write-Output 'finished'" : "echo finished",
+            Command = "echo finished",
+            Shell = FastShell(),
             WorkingDirectory = _tempDir,
             TimeoutSeconds = 30
         });
         var running = await terminals.StartAsync(new BackgroundTerminalStartRequest
         {
             ThreadId = "thread_terminals",
-            Command = OperatingSystem.IsWindows() ? "Start-Sleep -Seconds 30" : "sleep 30",
+            Command = OperatingSystem.IsWindows() ? "ping -n 30 127.0.0.1 >nul" : "sleep 30",
+            Shell = FastShell(),
             WorkingDirectory = _tempDir,
             RunInBackground = true,
             YieldTimeMs = 100
@@ -133,6 +135,12 @@ public sealed class SessionServiceInterruptedTurnRecoveryTests : IDisposable
         Assert.Contains($"Full output: {finished.OutputPath}", payloads[0].AggregatedOutput);
         Assert.Equal([ItemStatus.Completed, ItemStatus.Completed, ItemStatus.Started], items.Select(static item => item.Status));
         await terminals.StopAsync(running.SessionId);
+    }
+
+    private static ShellIdentity FastShell()
+    {
+        Assert.True(ShellIdentityResolver.Host.TryResolve(OperatingSystem.IsWindows() ? "cmd" : "sh", out var shell, out var reason), reason);
+        return shell;
     }
 
     private async Task<string> SeedCompletedTurnWithCommandsAsync(params string[] sessionIds)

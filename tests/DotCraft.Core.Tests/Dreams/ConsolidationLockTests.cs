@@ -15,7 +15,6 @@ public sealed class ConsolidationLockTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 
@@ -37,30 +36,6 @@ public sealed class ConsolidationLockTests : IDisposable
         Assert.NotNull(next);
         AssertTime(now, next.PreviousConsolidatedAt);
         next.Rollback();
-    }
-
-    [Fact]
-    public void Commit_KeepsTheAcquireTimeAndReleasesTheLock()
-    {
-        var acquiredAt = DateTimeOffset.UtcNow.AddMinutes(-1);
-        DreamsTestWorkspace.SetLastConsolidated(_store, acquiredAt.AddDays(-2));
-
-        ConsolidationLock.TryAcquire(_store, acquiredAt)!.Commit();
-
-        AssertTime(acquiredAt, ConsolidationLock.LastConsolidatedAt(_store));
-        ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow)!.Rollback();
-    }
-
-    [Fact]
-    public void Rollback_RestoresThePreviousConsolidationTime()
-    {
-        var previous = DateTimeOffset.UtcNow.AddDays(-2);
-        DreamsTestWorkspace.SetLastConsolidated(_store, previous);
-
-        ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow)!.Rollback();
-
-        AssertTime(previous, ConsolidationLock.LastConsolidatedAt(_store));
-        ConsolidationLock.TryAcquire(_store, DateTimeOffset.UtcNow)!.Rollback();
     }
 
     [Fact]

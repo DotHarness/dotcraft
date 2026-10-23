@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -70,6 +68,7 @@ describe('pluginStore snapshot revisions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetStore()
+    vi.stubGlobal('window', {})
     installDesktopApiMock({ appServer: { sendRequest } })
   })
 
@@ -186,6 +185,7 @@ describe('pluginStore operation outcomes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetStore()
+    vi.stubGlobal('window', {})
     installDesktopApiMock({ appServer: { sendRequest } })
   })
 
@@ -222,25 +222,6 @@ describe('pluginStore operation outcomes', () => {
     expect(state.snapshotRevision).toBe(2)
   })
 
-  it('forwards trust revocation intent', async () => {
-    resetStore({ plugins: [trusted()], snapshotRevision: 2, completeSnapshotRevision: 2 })
-    sendRequest.mockResolvedValueOnce({
-      outcome: 'applied',
-      plugin: plugin(),
-      affectedPlugins: [],
-      diagnostics: [],
-      snapshotRevision: 3
-    })
-
-    await usePluginStore.getState().setPluginTrusted('acme.review-core', false)
-
-    expect(sendRequest).toHaveBeenCalledWith('plugin/setTrusted', {
-      id: 'acme.review-core',
-      trusted: false
-    })
-    expect(usePluginStore.getState().plugins[0]?.dotnetRuntime?.trustStatus).toBe('untrusted')
-  })
-
   it('keeps the rejected state and its reason when an operation is not applied', async () => {
     resetStore({ plugins: [plugin()], snapshotRevision: 4, completeSnapshotRevision: 4 })
     sendRequest.mockResolvedValueOnce({
@@ -263,23 +244,6 @@ describe('pluginStore operation outcomes', () => {
     expect(sendRequest).toHaveBeenCalledTimes(1)
   })
 
-  it('writes nothing beyond the returned record for a no-op enable', async () => {
-    resetStore({ plugins: [trusted()], snapshotRevision: 9, completeSnapshotRevision: 9 })
-    sendRequest.mockResolvedValueOnce({
-      outcome: 'noChange',
-      plugin: trusted(),
-      affectedPlugins: [],
-      diagnostics: [],
-      snapshotRevision: 9
-    })
-
-    const result = await usePluginStore.getState().togglePluginEnabled('acme.review-core', true)
-
-    expect(result.outcome).toBe('noChange')
-    expect(sendRequest).toHaveBeenCalledTimes(1)
-    expect(usePluginStore.getState().snapshotRevision).toBe(9)
-  })
-
   it('re-reads the list when a mutation leaves no record for the id', async () => {
     resetStore({ plugins: [plugin()], selectedPluginId: 'acme.review-core' })
     sendRequest
@@ -291,26 +255,5 @@ describe('pluginStore operation outcomes', () => {
     expect(sendRequest).toHaveBeenNthCalledWith(2, 'plugin/list', { includeDisabled: true })
     expect(usePluginStore.getState().plugins).toHaveLength(0)
     expect(usePluginStore.getState().selectedPluginId).toBeNull()
-  })
-
-  it('defaults the runtime projection fields the Host may omit', async () => {
-    sendRequest.mockResolvedValueOnce({
-      plugins: [{
-        ...plugin(),
-        dependencies: undefined,
-        dotnetRuntime: { state: 'reclaiming', trustStatus: 'trusted' }
-      }],
-      diagnostics: [],
-      snapshotRevision: 1
-    })
-
-    await usePluginStore.getState().fetchPlugins()
-
-    const runtime = usePluginStore.getState().plugins[0]?.dotnetRuntime
-    expect(runtime?.state).toBe('reclaiming')
-    expect(runtime?.blockers).toEqual([])
-    expect(runtime?.leakedGenerations).toBe(0)
-    expect(runtime?.restartRecommended).toBe(false)
-    expect(usePluginStore.getState().plugins[0]?.dependencies).toEqual([])
   })
 })

@@ -11,6 +11,7 @@ public sealed class LocalPluginInstallerTests
         var root = NewTempDir();
         var source = Path.Combine(root, "my-plugin");
         WritePlugin(source, "my-plugin");
+        File.WriteAllText(Path.Combine(source, BuiltInPluginDeployer.MarkerFile), "filesystem;sha256:deadbeef");
         var workspacePlugins = Path.Combine(root, ".craft", "plugins");
 
         var result = new LocalPluginInstaller(workspacePlugins).Install(source);
@@ -21,24 +22,8 @@ public sealed class LocalPluginInstallerTests
         var installed = Path.Combine(workspacePlugins, "my-plugin");
         Assert.True(File.Exists(Path.Combine(installed, ".craft-plugin", "plugin.json")));
         Assert.True(File.Exists(Path.Combine(installed, "skills", "demo-skill", "SKILL.md")));
-        // No built-in marker is written, so discovery treats it as a removable workspace plugin.
         Assert.False(File.Exists(Path.Combine(installed, BuiltInPluginDeployer.MarkerFile)));
         Assert.False(BuiltInPluginDeployer.IsManagedBuiltInPluginRoot(installed));
-    }
-
-    [Fact]
-    public void Install_DropsAnyStrayBuiltInMarkerFromSource()
-    {
-        var root = NewTempDir();
-        var source = Path.Combine(root, "my-plugin");
-        WritePlugin(source, "my-plugin");
-        File.WriteAllText(Path.Combine(source, BuiltInPluginDeployer.MarkerFile), "filesystem;sha256:deadbeef");
-        var workspacePlugins = Path.Combine(root, ".craft", "plugins");
-
-        var result = new LocalPluginInstaller(workspacePlugins).Install(source);
-
-        Assert.Equal("my-plugin", result.PluginId);
-        Assert.False(File.Exists(Path.Combine(workspacePlugins, "my-plugin", BuiltInPluginDeployer.MarkerFile)));
     }
 
     [Fact]
@@ -59,52 +44,36 @@ public sealed class LocalPluginInstallerTests
     }
 
     [Fact]
-    public void Install_RejectsMissingDirectory()
-    {
-        var root = NewTempDir();
-
-        var result = new LocalPluginInstaller(Path.Combine(root, ".craft", "plugins"))
-            .Install(Path.Combine(root, "does-not-exist"));
-
-        Assert.Null(result.PluginId);
-        Assert.Contains(result.Diagnostics, d => d.Code == "LocalPluginPathMissing");
-    }
-
-    [Fact]
-    public void Install_RejectsRelativePathWithoutWritingWorkspacePlugin()
+    public void Install_RejectsBlankMissingOrRelativePath()
     {
         var root = NewTempDir();
         var workspacePlugins = Path.Combine(root, ".craft", "plugins");
+        var installer = new LocalPluginInstaller(workspacePlugins);
         var relativeSource = "dotcraft-relative-plugin-test-" + Guid.NewGuid().ToString("N");
         var source = Path.Combine(Directory.GetCurrentDirectory(), relativeSource);
+        WritePlugin(source, "my-plugin");
 
+        var missing = installer.Install(Path.Combine(root, "does-not-exist"));
+        var blank = installer.Install("   ");
+        LocalPluginInstallResult relative;
         try
         {
-            WritePlugin(source, "my-plugin");
-
-            var result = new LocalPluginInstaller(workspacePlugins).Install(relativeSource);
-
-            Assert.Null(result.PluginId);
-            Assert.Contains(result.Diagnostics, d =>
-                d.Severity == PluginDiagnosticSeverity.Error && d.Code == "LocalPluginPathNotAbsolute");
-            Assert.False(Directory.Exists(workspacePlugins));
+            relative = installer.Install(relativeSource);
         }
         finally
         {
-            if (Directory.Exists(source))
-                Directory.Delete(source, recursive: true);
+            Directory.Delete(source, recursive: true);
         }
-    }
 
-    [Fact]
-    public void Install_RejectsBlankPath()
-    {
-        var root = NewTempDir();
+        Assert.Null(relative.PluginId);
+        Assert.Contains(relative.Diagnostics, d =>
+            d.Severity == PluginDiagnosticSeverity.Error && d.Code == "LocalPluginPathNotAbsolute");
+        Assert.False(Directory.Exists(workspacePlugins));
 
-        var result = new LocalPluginInstaller(Path.Combine(root, ".craft", "plugins")).Install("   ");
-
-        Assert.Null(result.PluginId);
-        Assert.Contains(result.Diagnostics, d => d.Code == "LocalPluginPathRequired");
+        Assert.Null(missing.PluginId);
+        Assert.Contains(missing.Diagnostics, d => d.Code == "LocalPluginPathMissing");
+        Assert.Null(blank.PluginId);
+        Assert.Contains(blank.Diagnostics, d => d.Code == "LocalPluginPathRequired");
     }
 
     [Fact]

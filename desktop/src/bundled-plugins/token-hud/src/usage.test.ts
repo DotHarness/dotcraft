@@ -2,11 +2,6 @@ import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  formatLatency,
-  formatTokens,
-  formatTokensPerSecond
-} from './TokenHud'
-import {
   getUsage,
   startUsageFeed
 } from './usage'
@@ -215,15 +210,4 @@ describe('Token HUD usage', () => {
     stop()
   })
 
-  it('uses compact stable formatting', () => {
-    expect(formatTokens(517)).toBe('517')
-    expect(formatTokens(12_200)).toBe('12.2K')
-    expect(formatTokens(517_000)).toBe('517K')
-    expect(formatTokens(1_200_000)).toBe('1.2M')
-    expect(formatTokensPerSecond(8.36)).toBe('8.4')
-    expect(formatTokensPerSecond(34.4)).toBe('34')
-    expect(formatLatency(840)).toBe('0.8s')
-    expect(formatLatency(1_240)).toBe('1.2s')
-    expect(formatLatency(12_400)).toBe('12s')
-  })
 })

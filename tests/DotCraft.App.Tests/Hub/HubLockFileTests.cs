@@ -10,13 +10,16 @@ public sealed class HubLockFileTests : IDisposable
         "DotCraftHubLock_" + Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void TryAcquire_FirstAcquireSucceedsAndSecondDetectsExistingLock()
+    public void TryAcquire_FirstAcquireSucceeds_SecondDetectsTheLock_AndRemoteToolsReadIt()
     {
         var paths = HubPaths.Resolve(_userProfile);
 
         Assert.True(HubLockFile.TryAcquire(paths, out var first, out var initialInfo));
         Assert.Null(initialInfo);
         Assert.NotNull(first);
+        Assert.False(HubLockFile.TryAcquire(paths, out var blocked, out var unpublished));
+        Assert.Null(blocked);
+        Assert.Null(unpublished);
 
         var currentBinaryPath = CurrentProcessBinaryPath();
         var info = new HubLockInfo(
@@ -34,43 +37,11 @@ public sealed class HubLockFileTests : IDisposable
         Assert.Equal(Environment.ProcessId, existingInfo!.Pid);
         Assert.Equal("http://127.0.0.1:43000", existingInfo.ApiBaseUrl);
         Assert.Equal(currentBinaryPath, existingInfo.BinaryPath);
+        var resolved = new RemoteTools.HubEndpointProvider(paths.CraftHomePath).TryResolve();
+        Assert.Equal(new Uri("http://127.0.0.1:43000"), resolved!.BaseUrl);
+        Assert.Equal("token", resolved.Token);
 
         first.DeleteAfterDispose();
-    }
-
-    [Fact]
-    public void HubLockFile_PublishedPayload_IsReadableByRemoteToolsProvider()
-    {
-        var paths = HubPaths.Resolve(_userProfile);
-        Assert.True(HubLockFile.TryAcquire(paths, out var lockFile, out _));
-        lockFile!.Publish(new HubLockInfo(
-            Pid: Environment.ProcessId,
-            ApiBaseUrl: "http://127.0.0.1:43010",
-            Token: "hub-token",
-            StartedAt: DateTimeOffset.UtcNow,
-            Version: "test",
-            BinaryPath: CurrentProcessBinaryPath()));
-
-        var resolved = new RemoteTools.HubEndpointProvider(paths.CraftHomePath).TryResolve();
-
-        Assert.NotNull(resolved);
-        Assert.Equal(new Uri("http://127.0.0.1:43010"), resolved!.BaseUrl);
-        Assert.Equal("hub-token", resolved.Token);
-
-        lockFile.DeleteAfterDispose();
-    }
-
-    [Fact]
-    public void TryAcquire_ActiveLockWithoutMetadataBlocksSecondOwner()
-    {
-        var paths = HubPaths.Resolve(_userProfile);
-
-        Assert.True(HubLockFile.TryAcquire(paths, out var first, out _));
-        Assert.False(HubLockFile.TryAcquire(paths, out var second, out var existingInfo));
-        Assert.Null(second);
-        Assert.Null(existingInfo);
-
-        first!.DeleteAfterDispose();
     }
 
     [Fact]
@@ -197,7 +168,6 @@ public sealed class HubLockFileTests : IDisposable
         }
         catch
         {
-            // Fall back below.
         }
 
         return Environment.ProcessPath ?? typeof(HubLockFileTests).Assembly.Location;
@@ -212,7 +182,6 @@ public sealed class HubLockFileTests : IDisposable
         }
         catch
         {
-            // ignored
         }
     }
 }

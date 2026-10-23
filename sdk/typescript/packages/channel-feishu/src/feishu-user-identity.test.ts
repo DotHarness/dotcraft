@@ -59,7 +59,7 @@ async function createIdentity(replies: Reply[], scopes = ["calendar:calendar:rea
   return { identity, urls, bodies, stateDir };
 }
 
-test("stays disabled until scopes are configured", async () => {
+test("stays disabled until scopes are configured and unauthorized before the first device flow", async () => {
   const { identity } = await createIdentity([], []);
   assert.equal(identity.isConfigured(), false);
   await assert.rejects(
@@ -70,18 +70,16 @@ test("stays disabled until scopes are configured", async () => {
     () => identity.requestAuthorization(),
     (error) => error instanceof FeishuUserIdentityError && error.code === "not_configured",
   );
-});
 
-test("reports that no account is authorized before the first device flow", async () => {
-  const { identity } = await createIdentity([]);
-  assert.equal(identity.getBinding(), null);
+  const unauthorized = (await createIdentity([])).identity;
+  assert.equal(unauthorized.getBinding(), null);
   await assert.rejects(
-    () => identity.getAccessToken(),
+    () => unauthorized.getAccessToken(),
     (error) => error instanceof FeishuUserIdentityError && error.code === "not_authorized",
   );
 });
 
-test("requests a device code with offline access and stores the granted binding", async () => {
+test("requests a device code with offline access, stores the granted binding, and clears it", async () => {
   const { identity, urls, bodies, stateDir } = await createIdentity([
     DEVICE_REPLY,
     { error: "authorization_pending" },
@@ -113,6 +111,13 @@ test("requests a device code with offline access and stores the granted binding"
     scopes: ["calendar:calendar:readonly"],
     stateDir,
   }).getBinding()?.openId, "ou_operator");
+
+  identity.clearBinding();
+  assert.equal(identity.getBinding(), null);
+  await assert.rejects(
+    () => readFile(join(stateDir, "user-identity.json"), "utf8"),
+    (error) => (error as NodeJS.ErrnoException).code === "ENOENT",
+  );
 });
 
 test("surfaces a declined or expired device authorization", async () => {
@@ -155,16 +160,4 @@ test("refreshes an expiring token and clears the binding when the refresh token 
     (error) => error instanceof FeishuUserIdentityError && error.code === "authorization_expired",
   );
   assert.equal(rejected.identity.getBinding(), null);
-});
-
-test("clearing the binding removes the stored record", async () => {
-  const { identity, stateDir } = await createIdentity([DEVICE_REPLY, TOKEN_REPLY, PROFILE_REPLY]);
-  await identity.waitForAuthorization(await identity.requestAuthorization());
-  identity.clearBinding();
-
-  assert.equal(identity.getBinding(), null);
-  await assert.rejects(
-    () => readFile(join(stateDir, "user-identity.json"), "utf8"),
-    (error) => (error as NodeJS.ErrnoException).code === "ENOENT",
-  );
 });

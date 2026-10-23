@@ -15,33 +15,13 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed partial class AppServerPluginManagementTests
 {
     [Fact]
-    public async Task Initialize_ReportsPluginManagementCapability()
-    {
-        using var harness = CreateHarness();
-        using var init = await harness.InitializeAsync();
-
-        Assert.True(init.RootElement
-            .GetProperty("result")
-            .GetProperty("capabilities")
-            .GetProperty("pluginManagement")
-            .GetBoolean());
-    }
-
-    [Fact]
     public async Task PluginList_ReturnsBrowserContents()
     {
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = Assert.Single(
-            response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "browser");
-        Assert.Equal("browser", plugin.GetProperty("id").GetString());
+        var result = await ReadPluginListResultAsync(harness);
+        var plugin = FindPlugin(result, "browser");
         Assert.False(plugin.GetProperty("enabled").GetBoolean());
         Assert.False(plugin.GetProperty("installed").GetBoolean());
         Assert.True(plugin.GetProperty("installable").GetBoolean());
@@ -90,7 +70,7 @@ public sealed partial class AppServerPluginManagementTests
     }
 
     [Fact]
-    public async Task PluginList_ProjectsRuntimeSnapshotAndNativeFunctions()
+    public async Task PluginList_ProjectsRuntimeSnapshotNativeFunctionsAndDiagnostics()
     {
         WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
         var runtime = new FakePluginRuntimeCoordinator(new PluginRuntimeSnapshot(
@@ -102,43 +82,6 @@ public sealed partial class AppServerPluginManagementTests
                 "browser-g7",
                 [],
                 [new PluginRuntimeToolInfo("browser.search", "browser", "search", "Search the browser")])],
-            []));
-        using var harness = CreateHarness(pluginDotnetRuntimeCoordinator: runtime);
-        await harness.InitializeAsync();
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
-        Assert.Equal(7, result.GetProperty("snapshotRevision").GetInt64());
-        var plugin = Assert.Single(
-            result.GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "browser");
-        Assert.Equal("active", plugin.GetProperty("dotnetRuntime").GetProperty("state").GetString());
-        Assert.Equal("browser-g7", plugin.GetProperty("dotnetRuntime").GetProperty("generationId").GetString());
-        var function = Assert.Single(plugin.GetProperty("functions").EnumerateArray());
-        Assert.Equal("browser", function.GetProperty("namespace").GetString());
-        Assert.Equal("search", function.GetProperty("name").GetString());
-    }
-
-    [Fact]
-    public async Task PluginList_CarriesTheRuntimesOwnDiagnostics()
-    {
-        WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
-        var runtime = new FakePluginRuntimeCoordinator(new PluginRuntimeSnapshot(
-            3,
-            [new PluginDotnetRuntimeInfo(
-                "browser",
-                "1.0.0",
-                PluginDotnetRuntimeState.Faulted,
-                null,
-                [new PluginRuntimeBlocker(
-                    "PluginActivationTimeout",
-                    "Plugin activation did not complete before the deadline.",
-                    new Dictionary<string, JsonElement>(StringComparer.Ordinal))],
-                [])],
             [PluginDiagnostic.Error(
                 "PluginActivationTimeout",
                 "Plugin activation did not complete before the deadline.",
@@ -146,13 +89,16 @@ public sealed partial class AppServerPluginManagementTests
         using var harness = CreateHarness(pluginDotnetRuntimeCoordinator: runtime);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var result = await ReadPluginListResultAsync(harness);
+        Assert.Equal(7, result.GetProperty("snapshotRevision").GetInt64());
+        var plugin = FindPlugin(result, "browser");
+        Assert.Equal("active", plugin.GetProperty("dotnetRuntime").GetProperty("state").GetString());
+        Assert.Equal("browser-g7", plugin.GetProperty("dotnetRuntime").GetProperty("generationId").GetString());
+        var function = Assert.Single(plugin.GetProperty("functions").EnumerateArray());
+        Assert.Equal("browser", function.GetProperty("namespace").GetString());
+        Assert.Equal("search", function.GetProperty("name").GetString());
         var diagnostic = Assert.Single(
-            response.RootElement.GetProperty("result").GetProperty("diagnostics").EnumerateArray(),
+            result.GetProperty("diagnostics").EnumerateArray(),
             item => item.GetProperty("code").GetString() == "PluginActivationTimeout");
         Assert.Equal("error", diagnostic.GetProperty("severity").GetString());
         Assert.Equal("browser", diagnostic.GetProperty("pluginId").GetString());
@@ -164,13 +110,9 @@ public sealed partial class AppServerPluginManagementTests
         using var harness = CreateHarness(includeBundledRoots: false);
         await harness.InitializeAsync();
 
-        var list = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(list);
-
-        using var listResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(listResponse);
+        var result = await ReadPluginListResultAsync(harness);
         Assert.DoesNotContain(
-            listResponse.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
+            result.GetProperty("plugins").EnumerateArray(),
             item => item.GetProperty("id").GetString() == "browser");
 
         var install = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
@@ -181,165 +123,105 @@ public sealed partial class AppServerPluginManagementTests
     }
 
     [Fact]
-    public async Task PluginList_ReturnsInstallableRegistryAppContents()
+    public async Task RegistryApp_IsListedAndItsSkillReadableWithoutInstalling()
     {
         var config = new AppConfig();
         ConfigureRegistryAppRegistry(config);
         using var harness = CreateHarness(config);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = Assert.Single(
-            response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "registry-app");
+        var plugin = FindPlugin(await ReadPluginListResultAsync(harness), "registry-app");
         Assert.False(plugin.GetProperty("installed").GetBoolean());
         Assert.True(plugin.GetProperty("installable").GetBoolean());
-
         var app = Assert.Single(plugin.GetProperty("apps").EnumerateArray());
         Assert.Equal("com.example.registry-app", app.GetProperty("appId").GetString());
         Assert.Equal("Registry App", app.GetProperty("displayName").GetString());
         Assert.Equal("registryapp", app.GetProperty("nativeApplication").GetProperty("protocol").GetString());
         Assert.False(app.TryGetProperty("toolNamespace", out _));
         Assert.False(app.TryGetProperty("toolCatalog", out _));
-
         Assert.Contains(
             plugin.GetProperty("skills").EnumerateArray(),
             item => item.GetProperty("name").GetString() == "registry-app");
-    }
-
-    [Fact]
-    public async Task PluginSkillRead_ReturnsUninstalledMarketplaceSkillWithoutInstallingPlugin()
-    {
-        var config = new AppConfig();
-        ConfigureRegistryAppRegistry(config);
-        using var harness = CreateHarness(config);
-        await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSkillRead,
             new { id = "registry-app", name = "registry-app" }));
+        using (var response = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(response);
+            var result = response.RootElement.GetProperty("result");
+            Assert.Equal("registry-app", result.GetProperty("id").GetString());
+            Assert.Equal("registry-app", result.GetProperty("name").GetString());
+            Assert.Contains("# Registry App", result.GetProperty("content").GetString());
+        }
 
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
-        Assert.Equal("registry-app", result.GetProperty("id").GetString());
-        Assert.Equal("registry-app", result.GetProperty("name").GetString());
-        Assert.Contains("# Registry App", result.GetProperty("content").GetString());
+        foreach (var (id, name) in new[]
+                 {
+                     ("", "registry-app"),
+                     ("registry-app", ""),
+                     ("missing-plugin", "registry-app"),
+                     ("registry-app", "missing-skill")
+                 })
+        {
+            await harness.ExecuteRequestAsync(harness.BuildRequest(
+                DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSkillRead,
+                new { id, name }));
+            using var rejected = await harness.Transport.ReadNextSentAsync();
+            AppServerTestHarness.AssertIsErrorResponse(rejected, AppServerErrors.InvalidParamsCode);
+        }
 
-        var list = await ReadPluginListResultAsync(harness);
-        var plugin = Assert.Single(
-            list.GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "registry-app");
-        Assert.False(plugin.GetProperty("installed").GetBoolean());
-    }
-
-    [Theory]
-    [InlineData("", "registry-app")]
-    [InlineData("registry-app", "")]
-    [InlineData("missing-plugin", "registry-app")]
-    [InlineData("registry-app", "missing-skill")]
-    public async Task PluginSkillRead_RejectsUnknownOrEmptyIdentity(string id, string name)
-    {
-        var config = new AppConfig();
-        ConfigureRegistryAppRegistry(config);
-        using var harness = CreateHarness(config);
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSkillRead,
-            new { id, name }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        Assert.False(FindPlugin(await ReadPluginListResultAsync(harness), "registry-app").GetProperty("installed").GetBoolean());
     }
 
     [Fact]
-    public async Task PluginList_ReturnsSkillOnlyPluginWithEmptyFunctions()
+    public async Task SkillOnlyPlugin_IsListedWithSharedIconsInListViewAndSkills()
     {
         WriteSkillOnlyPlugin(Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin"));
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(msg);
+        var listed = FindPlugin(await ReadPluginListResultAsync(harness), "demo-plugin");
+        Assert.True(listed.GetProperty("enabled").GetBoolean());
+        Assert.True(listed.GetProperty("installed").GetBoolean());
+        Assert.Empty(listed.GetProperty("functions").EnumerateArray());
+        AssertSharedIcon(Assert.Single(listed.GetProperty("skills").EnumerateArray()));
 
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugins = response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray().ToArray();
-        var plugin = Assert.Single(plugins, item => item.GetProperty("id").GetString() == "demo-plugin");
-        Assert.True(plugin.GetProperty("enabled").GetBoolean());
-        Assert.True(plugin.GetProperty("installed").GetBoolean());
-        Assert.Empty(plugin.GetProperty("functions").EnumerateArray());
-        Assert.Contains(
-            plugin.GetProperty("skills").EnumerateArray(),
-            item => item.GetProperty("name").GetString() == "demo-skill");
-    }
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginView, new { id = "demo-plugin" }));
+        using (var view = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(view);
+            AssertSharedIcon(Assert.Single(view.RootElement.GetProperty("result").GetProperty("plugin").GetProperty("skills").EnumerateArray()));
+        }
 
-    [Fact]
-    public async Task SkillsList_ResolvesSharedIconFromDiscoveredPluginRoot()
-    {
-        WriteSkillOnlyPlugin(Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin"));
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-
-        var msg = harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsList,
-            new { });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsList, new { }));
+        using var skills = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(skills);
         var skill = Assert.Single(
-            response.RootElement.GetProperty("result").GetProperty("skills").EnumerateArray(),
+            skills.RootElement.GetProperty("result").GetProperty("skills").EnumerateArray(),
             item => item.GetProperty("name").GetString() == "demo-skill");
         Assert.Equal("plugin", skill.GetProperty("source").GetString());
         Assert.Equal("demo-plugin", skill.GetProperty("pluginId").GetString());
-        Assert.StartsWith(
-            "data:image/svg+xml;base64,",
-            skill.GetProperty("iconSmallDataUrl").GetString());
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PluginSkills_ExposeDeclaredSharedIcons(bool detail)
-    {
-        WriteSkillOnlyPlugin(Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin"));
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-        await harness.ExecuteRequestAsync(detail
-            ? harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginView, new { id = "demo-plugin" })
-            : harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
-        var plugin = detail ? result.GetProperty("plugin") : Assert.Single(
-            result.GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "demo-plugin");
-        var skill = Assert.Single(plugin.GetProperty("skills").EnumerateArray());
         Assert.Equal("data:image/svg+xml;base64,PHN2ZyAvPg==", skill.GetProperty("iconSmallDataUrl").GetString());
-        Assert.Equal(skill.GetProperty("iconSmallDataUrl").GetString(), skill.GetProperty("iconLargeDataUrl").GetString());
+
+        static void AssertSharedIcon(JsonElement skill)
+        {
+            Assert.Equal("data:image/svg+xml;base64,PHN2ZyAvPg==", skill.GetProperty("iconSmallDataUrl").GetString());
+            Assert.Equal(skill.GetProperty("iconSmallDataUrl").GetString(), skill.GetProperty("iconLargeDataUrl").GetString());
+        }
     }
 
     [Fact]
-    public async Task PluginList_ReturnsWorkspaceMcpPlugin()
+    public async Task PluginList_ReturnsWorkspaceMcpAndLspPlugins()
     {
         WriteMcpPlugin(Path.Combine(_workspaceCraftPath, "plugins", "review-tools"));
-        using var harness = CreateHarness();
+        WriteLspPlugin(Path.Combine(_workspaceCraftPath, "plugins", "csharp-lsp"));
+        var config = new AppConfig();
+        config.Tools.Lsp.Enabled = true;
+        using var harness = CreateHarness(config);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugins = response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray().ToArray();
-        var plugin = Assert.Single(plugins, item => item.GetProperty("id").GetString() == "review-tools");
+        var result = await ReadPluginListResultAsync(harness);
+        var plugin = FindPlugin(result, "review-tools");
         Assert.Equal("Review Tools", plugin.GetProperty("displayName").GetString());
         Assert.True(plugin.GetProperty("enabled").GetBoolean());
         Assert.True(plugin.GetProperty("installed").GetBoolean());
@@ -357,13 +239,23 @@ public sealed partial class AppServerPluginManagementTests
         Assert.Equal("stdio", mcpServer.GetProperty("transport").GetString());
         Assert.True(mcpServer.GetProperty("enabled").GetBoolean());
         Assert.True(mcpServer.GetProperty("active").GetBoolean());
+
+        var lspServer = Assert.Single(FindPlugin(result, "csharp-lsp").GetProperty("lspServers").EnumerateArray());
+        Assert.Equal("csharp", lspServer.GetProperty("name").GetString());
+        Assert.Equal("csharp-lsp:csharp", lspServer.GetProperty("runtimeName").GetString());
+        Assert.Equal("stdio", lspServer.GetProperty("transport").GetString());
+        Assert.True(lspServer.GetProperty("enabled").GetBoolean());
+        Assert.True(lspServer.GetProperty("active").GetBoolean());
+        Assert.Contains(lspServer.GetProperty("extensions").EnumerateArray(), item => item.GetString() == ".cs");
     }
 
     [Fact]
-    public async Task PluginList_WhenWorkspaceMcpShadowsPlugin_MarksPluginMcpShadowed()
+    public async Task PluginList_WhenWorkspaceServersShadowPluginServers_MarksThemShadowed()
     {
         WriteMcpPlugin(Path.Combine(_workspaceCraftPath, "plugins", "review-tools"));
+        WriteLspPlugin(Path.Combine(_workspaceCraftPath, "plugins", "csharp-lsp"));
         var config = new AppConfig();
+        config.Tools.Lsp.Enabled = true;
         config.McpServers.Add(new McpServerConfig
         {
             Name = "review-tools:review",
@@ -371,54 +263,6 @@ public sealed partial class AppServerPluginManagementTests
             Transport = "stdio",
             Command = "node"
         });
-        using var harness = CreateHarness(config);
-        await harness.InitializeAsync();
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugins = response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray().ToArray();
-        var plugin = Assert.Single(plugins, item => item.GetProperty("id").GetString() == "review-tools");
-        var mcpServer = Assert.Single(plugin.GetProperty("mcpServers").EnumerateArray());
-        Assert.False(mcpServer.GetProperty("active").GetBoolean());
-        Assert.Equal("workspace", mcpServer.GetProperty("shadowedBy").GetString());
-    }
-
-    [Fact]
-    public async Task PluginList_ReturnsWorkspaceLspPlugin()
-    {
-        WriteLspPlugin(Path.Combine(_workspaceCraftPath, "plugins", "csharp-lsp"));
-        var config = new AppConfig();
-        config.Tools.Lsp.Enabled = true;
-        using var harness = CreateHarness(config);
-        await harness.InitializeAsync();
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugins = response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray().ToArray();
-        var plugin = Assert.Single(plugins, item => item.GetProperty("id").GetString() == "csharp-lsp");
-        var lspServer = Assert.Single(plugin.GetProperty("lspServers").EnumerateArray());
-        Assert.Equal("csharp", lspServer.GetProperty("name").GetString());
-        Assert.Equal("csharp-lsp:csharp", lspServer.GetProperty("runtimeName").GetString());
-        Assert.Equal("stdio", lspServer.GetProperty("transport").GetString());
-        Assert.True(lspServer.GetProperty("enabled").GetBoolean());
-        Assert.True(lspServer.GetProperty("active").GetBoolean());
-        Assert.Contains(
-            lspServer.GetProperty("extensions").EnumerateArray(),
-            item => item.GetString() == ".cs");
-    }
-
-    [Fact]
-    public async Task PluginList_WhenWorkspaceLspShadowsPlugin_MarksPluginLspShadowed()
-    {
-        WriteLspPlugin(Path.Combine(_workspaceCraftPath, "plugins", "csharp-lsp"));
-        var config = new AppConfig();
-        config.Tools.Lsp.Enabled = true;
         config.LspServers.Add(new LspServerConfig
         {
             Name = "csharp-lsp:csharp",
@@ -429,22 +273,19 @@ public sealed partial class AppServerPluginManagementTests
         using var harness = CreateHarness(config);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugins = response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray().ToArray();
-        var plugin = Assert.Single(plugins, item => item.GetProperty("id").GetString() == "csharp-lsp");
-        var lspServer = Assert.Single(plugin.GetProperty("lspServers").EnumerateArray());
+        var result = await ReadPluginListResultAsync(harness);
+        var mcpServer = Assert.Single(FindPlugin(result, "review-tools").GetProperty("mcpServers").EnumerateArray());
+        Assert.False(mcpServer.GetProperty("active").GetBoolean());
+        Assert.Equal("workspace", mcpServer.GetProperty("shadowedBy").GetString());
+        var lspServer = Assert.Single(FindPlugin(result, "csharp-lsp").GetProperty("lspServers").EnumerateArray());
         Assert.False(lspServer.GetProperty("active").GetBoolean());
         Assert.Equal("workspace", lspServer.GetProperty("shadowedBy").GetString());
     }
 
     [Fact]
-    public async Task McpList_ReturnsPluginOriginReadOnlyMetadata()
+    public async Task PluginOriginMcpServer_IsListedReadOnlyAndCannotBeRemoved()
     {
-        var manager = new McpClientManager();
+        await using var manager = new McpClientManager();
         await manager.ConnectAsync([
             new McpServerConfig
             {
@@ -458,19 +299,25 @@ public sealed partial class AppServerPluginManagementTests
         using var harness = CreateHarness(mcpClientManager: manager);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpList, new { });
-        await harness.ExecuteRequestAsync(msg);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpList, new { }));
+        using (var response = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(response);
+            var server = Assert.Single(response.RootElement.GetProperty("result").GetProperty("servers").EnumerateArray());
+            Assert.Equal("review-tools:review", server.GetProperty("name").GetString());
+            Assert.True(server.GetProperty("readOnly").GetBoolean());
+            var origin = server.GetProperty("origin");
+            Assert.Equal("plugin", origin.GetProperty("kind").GetString());
+            Assert.Equal("review-tools", origin.GetProperty("pluginId").GetString());
+            Assert.Equal("Review Tools", origin.GetProperty("pluginDisplayName").GetString());
+            Assert.Equal("review", origin.GetProperty("declaredName").GetString());
+        }
 
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var server = Assert.Single(response.RootElement.GetProperty("result").GetProperty("servers").EnumerateArray());
-        Assert.Equal("review-tools:review", server.GetProperty("name").GetString());
-        Assert.True(server.GetProperty("readOnly").GetBoolean());
-        var origin = server.GetProperty("origin");
-        Assert.Equal("plugin", origin.GetProperty("kind").GetString());
-        Assert.Equal("review-tools", origin.GetProperty("pluginId").GetString());
-        Assert.Equal("Review Tools", origin.GetProperty("pluginDisplayName").GetString());
-        Assert.Equal("review", origin.GetProperty("declaredName").GetString());
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.McpRemove,
+            new { name = "review-tools:review", scope = "workspace" }));
+        using var removeResponse = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(removeResponse, AppServerErrors.McpServerReadOnlyCode);
     }
 
     [Fact]
@@ -511,42 +358,14 @@ public sealed partial class AppServerPluginManagementTests
     }
 
     [Fact]
-    public async Task McpRemove_WhenPluginOrigin_ReturnsReadOnlyError()
-    {
-        var manager = new McpClientManager();
-        await manager.ConnectAsync([
-            new McpServerConfig
-            {
-                Name = "review-tools:review",
-                Enabled = false,
-                Transport = "stdio",
-                Command = "node",
-                Origin = McpServerOrigin.Plugin("review-tools", "Review Tools", "review")
-            }
-        ]);
-        using var harness = CreateHarness(mcpClientManager: manager);
-        await harness.InitializeAsync();
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpRemove, new { name = "review-tools:review", scope = "workspace" });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.McpServerReadOnlyCode);
-    }
-
-    [Fact]
-    public async Task PluginList_ReturnsDiagnosticsForInvalidLocalManifest()
+    public async Task PluginList_ReportsManifestAndDotnetDiagnostics()
     {
         WriteInvalidPlugin(Path.Combine(_workspaceCraftPath, "plugins", "broken-plugin"));
+        WriteDotNetPluginWithMissingEntry(Path.Combine(_workspaceCraftPath, "plugins", "dotnet-demo"));
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
+        var result = await ReadPluginListResultAsync(harness);
         Assert.DoesNotContain(
             result.GetProperty("plugins").EnumerateArray(),
             item => item.GetProperty("id").GetString() == "broken-plugin");
@@ -554,24 +373,8 @@ public sealed partial class AppServerPluginManagementTests
             result.GetProperty("diagnostics").EnumerateArray(),
             item => item.GetProperty("code").GetString() == "MissingPluginCapabilities"
                     && item.GetProperty("pluginId").GetString() == "broken-plugin");
-    }
 
-    [Fact]
-    public async Task PluginList_ProjectsDotnetMetadataDependenciesAndStructuredDiagnostics()
-    {
-        WriteDotNetPluginWithMissingEntry(Path.Combine(_workspaceCraftPath, "plugins", "dotnet-demo"));
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList,
-            new { includeDisabled = true }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = Assert.Single(
-            response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "dotnet-demo");
+        var plugin = FindPlugin(result, "dotnet-demo");
         Assert.Equal("Review integration", plugin.GetProperty("dotnet").GetProperty("displayName").GetString());
         Assert.Equal("Provides native review capabilities.", plugin.GetProperty("dotnet").GetProperty("description").GetString());
         Assert.Equal("./dotnet/DotnetDemo.dll", plugin.GetProperty("dotnet").GetProperty("entryAssembly").GetString());
@@ -588,4 +391,8 @@ public sealed partial class AppServerPluginManagementTests
             diagnostic.GetProperty("parameters").GetProperty("assemblyPath").GetString());
     }
 
+    private static JsonElement FindPlugin(JsonElement listResult, string id) =>
+        Assert.Single(
+            listResult.GetProperty("plugins").EnumerateArray(),
+            item => item.GetProperty("id").GetString() == id);
 }

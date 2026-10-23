@@ -173,15 +173,13 @@ describe('github reference summaries', () => {
     expect(await forbidden.service.getReferenceSummary(target)).toEqual({ status: 'error', error: 'unavailable' })
   })
 
-  it('maps missing items and network failures to unavailable', async () => {
+  it('maps missing items, network failures, and malformed targets to unavailable', async () => {
     const notFound = setup({ responses: [json({ data: { repository: null }, errors: [{ type: 'NOT_FOUND' }] })] })
     expect(await notFound.service.getReferenceSummary(target)).toEqual({ status: 'error', error: 'unavailable' })
 
     const offline = setup({ responses: [new Error('net::ERR_INTERNET_DISCONNECTED')] })
     expect(await offline.service.getReferenceSummary(target)).toEqual({ status: 'error', error: 'unavailable' })
-  })
 
-  it('rejects malformed targets without a request', async () => {
     const env = setup()
     expect(await env.service.getReferenceSummary({ ...target, owner: '..' })).toEqual({ status: 'error', error: 'unavailable' })
     expect(await env.service.getReferenceSummary({ ...target, number: 0 })).toEqual({ status: 'error', error: 'unavailable' })
@@ -221,7 +219,7 @@ describe('github branch pull requests', () => {
     return json({ data: { repository: { pullRequests: { nodes } } } })
   }
 
-  it('prefers an open pull request over a more recent closed one', async () => {
+  it('prefers an open pull request over a more recent closed one, else the most recent', async () => {
     const env = setup({
       responses: [branchResponse([
         pullNode({ number: 48, state: 'MERGED' }),
@@ -232,13 +230,11 @@ describe('github branch pull requests', () => {
       .toMatchObject({ status: 'ready', ref: { number: 42, state: 'open', owner: 'OctoOrg', repo: 'sample-app' } })
     const body = JSON.parse(String(env.fetch.mock.calls[0][1]?.body))
     expect(body.variables).toEqual({ owner: 'OctoOrg', name: 'sample-app', branch: 'feat/settings-page' })
-  })
 
-  it('falls back to the most recent pull request when none is open', async () => {
-    const env = setup({
+    const closed = setup({
       responses: [branchResponse([pullNode({ number: 48, state: 'CLOSED' }), pullNode({ number: 42, state: 'MERGED' })])]
     })
-    expect(await env.service.getBranchPullRequest('F:/work/sample-app', 'main'))
+    expect(await closed.service.getBranchPullRequest('F:/work/sample-app', 'main'))
       .toMatchObject({ status: 'ready', ref: { number: 48, state: 'closed' } })
   })
 
@@ -249,7 +245,7 @@ describe('github branch pull requests', () => {
     expect(await env.service.getBranchPullRequest('F:/work/sample-app', 'main')).toEqual({ status: 'none' })
   })
 
-  it('looks nothing up without a GitHub origin or a branch', async () => {
+  it('looks nothing up without a GitHub origin or a branch and shares one cached lookup per origin and branch', async () => {
     const elsewhere = setup({ origin: 'https://gitlab.com/OctoOrg/sample-app.git' })
     expect(await elsewhere.service.getBranchPullRequest('F:/work/sample-app', 'main')).toEqual({ status: 'none' })
     const noOrigin = setup({ origin: null })
@@ -257,9 +253,7 @@ describe('github branch pull requests', () => {
     const noBranch = setup()
     expect(await noBranch.service.getBranchPullRequest('F:/work/sample-app', '  ')).toEqual({ status: 'none' })
     for (const env of [elsewhere, noOrigin, noBranch]) expect(env.fetch).not.toHaveBeenCalled()
-  })
 
-  it('shares one cached lookup per origin and branch', async () => {
     const env = setup({ responses: [branchResponse([pullNode()])] })
     await env.service.getBranchPullRequest('F:/work/sample-app', 'main')
     await env.service.getBranchPullRequest('F:/work/sample-app/.craft/worktrees/a', 'main')
@@ -276,16 +270,13 @@ describe('github branch pull requests', () => {
 })
 
 describe('parseGithubRemoteUrl', () => {
-  it('reads https and ssh GitHub remotes', () => {
+  it('reads https and ssh GitHub remotes and rejects other hosts and malformed paths', () => {
     const expected = { owner: 'OctoOrg', repo: 'sample-app' }
     expect(parseGithubRemoteUrl('https://github.com/OctoOrg/sample-app.git')).toEqual(expected)
     expect(parseGithubRemoteUrl('https://user:token@github.com/OctoOrg/sample-app')).toEqual(expected)
     expect(parseGithubRemoteUrl('git@github.com:OctoOrg/sample-app.git')).toEqual(expected)
     expect(parseGithubRemoteUrl('ssh://git@github.com/OctoOrg/sample-app.git')).toEqual(expected)
     expect(parseGithubRemoteUrl('ssh://git@github.com:22/OctoOrg/sample-app/')).toEqual(expected)
-  })
-
-  it('rejects other hosts and malformed paths', () => {
     expect(parseGithubRemoteUrl('https://gitlab.com/OctoOrg/sample-app.git')).toBeNull()
     expect(parseGithubRemoteUrl('https://github.com.evil.example/OctoOrg/sample-app')).toBeNull()
     expect(parseGithubRemoteUrl('https://github.com/OctoOrg')).toBeNull()

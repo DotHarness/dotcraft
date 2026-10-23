@@ -39,7 +39,8 @@ public sealed class HookApprovalServiceTests : IDisposable
                             new HookEntry
                             {
                                 Type = "command",
-                                Command = StderrAndExitCommand("permission denied", 2)
+                                Command = TestHookCommands.StderrAndExit("permission denied", 2),
+                                Shell = TestHookCommands.Shell
                             }
                         ]
                     }
@@ -59,11 +60,6 @@ public sealed class HookApprovalServiceTests : IDisposable
         Assert.False(approved);
         Assert.Empty(inner.Requests);
     }
-
-    private static string StderrAndExitCommand(string output, int exitCode) =>
-        OperatingSystem.IsWindows()
-            ? $"[Console]::Error.WriteLine('{output}'); exit {exitCode}"
-            : $"printf '%s\\n' '{output}' >&2; exit {exitCode}";
 
     private sealed class RecordingApprovalService : IApprovalService
     {

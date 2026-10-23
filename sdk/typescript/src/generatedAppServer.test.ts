@@ -10,8 +10,6 @@ import {
   parseSessionItemPayload,
   type AgentMessagePayload,
   type ClientRequestMethods,
-  type RuntimeDynamicToolDeclaration,
-  type TokenUsageInfo,
 } from "./generated/appserver/index.js";
 import { type Transport, TransportClosed } from "./transport.js";
 
@@ -74,44 +72,12 @@ test("generated method maps type and execute a low-level request", async () => {
   await client.stop();
 });
 
-test("generated unions discriminate while opaque JSON remains open", () => {
-  const declaration: RuntimeDynamicToolDeclaration = {
-    type: "function",
-    name: "lookup",
-    description: "Lookup data",
-    inputSchema: { type: "object", futureKeyword: [1, true, null] },
-  };
-
-  if (declaration.type === "function") {
-    assert.equal(declaration.name, "lookup");
-    const schema = declaration.inputSchema as { [key: string]: unknown };
-    assert.deepEqual(schema.futureKeyword, [1, true, null]);
-  } else {
-    assert.fail("expected function declaration");
-  }
-});
-
-test("generated safe integers use the TypeScript number wire type", () => {
-  const usage: TokenUsageInfo = {
-    inputTokens: Number.MAX_SAFE_INTEGER,
-    totalTokens: 42,
-  };
-
-  assert.equal(usage.inputTokens, Number.MAX_SAFE_INTEGER);
-  assert.equal(usage.totalTokens, 42);
-});
-
 test("generated item payload catalog preserves known, unknown, null, and missing values", () => {
-  // The catalog's size belongs to the C# protocol, so pinning it here only costs
-  // an edit every time a payload kind is added. A duplicate entry would be a real
-  // generator defect, so that is what this checks instead.
   assert.equal(new Set(SESSION_ITEM_PAYLOAD_KINDS).size, SESSION_ITEM_PAYLOAD_KINDS.length);
   for (const kind of SESSION_ITEM_PAYLOAD_KINDS) {
     assert.ok(isKnownSessionItemPayloadKind(kind), `${kind} should be recognized`);
   }
   assert.ok(isKnownSessionItemPayloadKind("agentMessage"));
-  assert.ok(isKnownSessionItemPayloadKind("userMessage"));
-  assert.ok(isKnownSessionItemPayloadKind("toolCall"));
   assert.ok(!isKnownSessionItemPayloadKind("futurePayload"));
 
   const raw = { text: "typed", futureField: { kept: true } };

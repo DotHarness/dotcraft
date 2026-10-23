@@ -91,7 +91,6 @@ public sealed class AppConfigProviderPreferencesTests : IDisposable
         }
         catch
         {
-            // Best effort cleanup for Windows test runners that still hold file handles.
         }
     }
 }

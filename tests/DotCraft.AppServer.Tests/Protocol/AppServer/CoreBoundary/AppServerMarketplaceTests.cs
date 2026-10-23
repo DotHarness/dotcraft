@@ -27,179 +27,113 @@ public sealed class AppServerMarketplaceTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 
     [Fact]
-    public async Task Initialize_ReportsPluginMarketplacesCapability()
-    {
-        using var harness = CreateHarness();
-        using var init = await harness.InitializeAsync();
-
-        Assert.True(init.RootElement
-            .GetProperty("result")
-            .GetProperty("capabilities")
-            .GetProperty("pluginMarketplaces")
-            .GetBoolean());
-    }
-
-    [Fact]
-    public async Task MarketplaceAdd_RecordsLocalSourceAndExposesItsPluginAsInstallable()
+    public async Task Marketplace_AddRefreshAndRemove_DriveInstallablePluginListings()
     {
         var sourceRoot = Path.Combine(_tempRoot, "source");
         WriteMarketplace(sourceRoot, "example-marketplace", "Example Plugins", ["example-plugin"]);
         WritePlugin(Path.Combine(sourceRoot, "plugins", "example-plugin"), "example-plugin");
         using var harness = CreateHarness();
-        await harness.InitializeAsync();
+        using (var init = await harness.InitializeAsync())
+            Assert.True(init.RootElement.GetProperty("result").GetProperty("capabilities").GetProperty("pluginMarketplaces").GetBoolean());
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd,
             new { source = sourceRoot }));
-
-        using var response = await ReadMarketplaceMutationAsync(harness);
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
-        Assert.False(result.GetProperty("alreadyAdded").GetBoolean());
-        var marketplace = result.GetProperty("marketplace");
-        Assert.Equal("example-marketplace", marketplace.GetProperty("name").GetString());
-        Assert.Equal("Example Plugins", marketplace.GetProperty("displayName").GetString());
-        Assert.Equal("local", marketplace.GetProperty("sourceType").GetString());
-        Assert.Equal(
-            ["example-plugin"],
-            marketplace.GetProperty("pluginIds").EnumerateArray().Select(item => item.GetString()!).ToArray());
-
-        using var list = await ListPluginsAsync(harness);
-        var listResult = list.RootElement.GetProperty("result");
-        Assert.True(listResult.GetProperty("snapshotRevision").GetInt64() > 0);
-        var plugin = Assert.Single(
-            listResult.GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "example-plugin");
-        Assert.True(plugin.GetProperty("installable").GetBoolean());
-        Assert.False(plugin.GetProperty("installed").GetBoolean());
-        Assert.Equal("example-marketplace", plugin.GetProperty("marketplaceName").GetString());
-        Assert.Single(listResult.GetProperty("marketplaces").EnumerateArray());
-    }
-
-    [Fact]
-    public async Task MarketplaceAdd_ReportsAlreadyAddedForTheSameSource()
-    {
-        var sourceRoot = Path.Combine(_tempRoot, "source");
-        WriteMarketplace(sourceRoot, "example-marketplace");
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd, new { source = sourceRoot }));
-        using (await ReadMarketplaceMutationAsync(harness))
+        using (var response = await ReadMarketplaceMutationAsync(harness))
         {
+            var result = response.RootElement.GetProperty("result");
+            Assert.False(result.GetProperty("alreadyAdded").GetBoolean());
+            var marketplace = result.GetProperty("marketplace");
+            Assert.Equal("example-marketplace", marketplace.GetProperty("name").GetString());
+            Assert.Equal("Example Plugins", marketplace.GetProperty("displayName").GetString());
+            Assert.Equal("local", marketplace.GetProperty("sourceType").GetString());
+            Assert.Equal(
+                ["example-plugin"],
+                marketplace.GetProperty("pluginIds").EnumerateArray().Select(item => item.GetString()!).ToArray());
+        }
+
+        using (var list = await ListPluginsAsync(harness))
+        {
+            var listResult = list.RootElement.GetProperty("result");
+            Assert.True(listResult.GetProperty("snapshotRevision").GetInt64() > 0);
+            var plugin = Assert.Single(
+                listResult.GetProperty("plugins").EnumerateArray(),
+                item => item.GetProperty("id").GetString() == "example-plugin");
+            Assert.True(plugin.GetProperty("installable").GetBoolean());
+            Assert.False(plugin.GetProperty("installed").GetBoolean());
+            Assert.Equal("example-marketplace", plugin.GetProperty("marketplaceName").GetString());
+            Assert.Single(listResult.GetProperty("marketplaces").EnumerateArray());
         }
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd, new { source = sourceRoot }));
-        using var response = await harness.Transport.ReadNextSentAsync();
+        using (var again = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(again);
+            Assert.True(again.RootElement.GetProperty("result").GetProperty("alreadyAdded").GetBoolean());
+        }
 
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.True(response.RootElement.GetProperty("result").GetProperty("alreadyAdded").GetBoolean());
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceRefresh, new { }));
+        using (var refreshed = await ReadMarketplaceMutationAsync(harness))
+        {
+            var result = refreshed.RootElement.GetProperty("result");
+            Assert.Single(result.GetProperty("marketplaces").EnumerateArray());
+            Assert.Empty(result.GetProperty("errors").EnumerateArray());
+        }
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceRemove,
+            new { name = "example-marketplace" }));
+        using (var removed = await ReadMarketplaceMutationAsync(harness))
+            Assert.Equal("example-marketplace", removed.RootElement.GetProperty("result").GetProperty("name").GetString());
+        Assert.True(Directory.Exists(sourceRoot));
+
+        using (var list = await ListPluginsAsync(harness))
+        {
+            var listResult = list.RootElement.GetProperty("result");
+            Assert.Empty(listResult.GetProperty("marketplaces").EnumerateArray());
+            Assert.DoesNotContain(
+                listResult.GetProperty("plugins").EnumerateArray(),
+                item => item.GetProperty("id").GetString() == "example-plugin");
+        }
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceRemove,
+            new { name = "example-marketplace" }));
+        using var missing = await harness.Transport.ReadNextSentAsync();
+        Assert.Equal(
+            "MarketplaceNotFound",
+            missing.RootElement.GetProperty("error").GetProperty("data").GetProperty("code").GetString());
     }
 
     [Fact]
-    public async Task MarketplaceAdd_RejectsInvalidSourceWithStableCode()
+    public async Task MarketplaceAdd_RejectsCredentialedUrlsAndSparsePathsOnLocalSources()
     {
+        var sourceRoot = Path.Combine(_tempRoot, "source");
+        WriteMarketplace(sourceRoot, "example-marketplace");
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd,
             new { source = "https://user:secret@example.com/team/repo.git" }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        var error = response.RootElement.GetProperty("error");
-        Assert.Equal(-32093, error.GetProperty("code").GetInt32());
-        Assert.Equal("MarketplaceSourceInvalid", error.GetProperty("data").GetProperty("code").GetString());
-    }
-
-    [Fact]
-    public async Task MarketplaceAdd_RejectsSparsePathsOnLocalSource()
-    {
-        var sourceRoot = Path.Combine(_tempRoot, "source");
-        WriteMarketplace(sourceRoot, "example-marketplace");
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
+        using (var response = await harness.Transport.ReadNextSentAsync())
+        {
+            var error = response.RootElement.GetProperty("error");
+            Assert.Equal(-32093, error.GetProperty("code").GetInt32());
+            Assert.Equal("MarketplaceSourceInvalid", error.GetProperty("data").GetProperty("code").GetString());
+        }
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd,
             new { source = sourceRoot, sparsePaths = new[] { "plugins/example" } }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
+        using var sparse = await harness.Transport.ReadNextSentAsync();
         Assert.Equal(
             "MarketplaceSourceInvalid",
-            response.RootElement.GetProperty("error").GetProperty("data").GetProperty("code").GetString());
-    }
-
-    [Fact]
-    public async Task MarketplaceRemove_DropsTheSourceFromSubsequentListings()
-    {
-        var sourceRoot = Path.Combine(_tempRoot, "source");
-        WriteMarketplace(sourceRoot, "example-marketplace", plugins: ["example-plugin"]);
-        WritePlugin(Path.Combine(sourceRoot, "plugins", "example-plugin"), "example-plugin");
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd, new { source = sourceRoot }));
-        using (await ReadMarketplaceMutationAsync(harness))
-        {
-        }
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceRemove,
-            new { name = "example-marketplace" }));
-
-        using var response = await ReadMarketplaceMutationAsync(harness);
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.Equal("example-marketplace", response.RootElement.GetProperty("result").GetProperty("name").GetString());
-        Assert.True(Directory.Exists(sourceRoot));
-
-        using var list = await ListPluginsAsync(harness);
-        var listResult = list.RootElement.GetProperty("result");
-        Assert.Empty(listResult.GetProperty("marketplaces").EnumerateArray());
-        Assert.DoesNotContain(
-            listResult.GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "example-plugin");
-    }
-
-    [Fact]
-    public async Task MarketplaceRemove_RejectsUnknownMarketplace()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceRemove,
-            new { name = "missing" }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        Assert.Equal(
-            "MarketplaceNotFound",
-            response.RootElement.GetProperty("error").GetProperty("data").GetProperty("code").GetString());
-    }
-
-    [Fact]
-    public async Task MarketplaceRefresh_RevalidatesEveryConfiguredSource()
-    {
-        var sourceRoot = Path.Combine(_tempRoot, "source");
-        WriteMarketplace(sourceRoot, "example-marketplace");
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd, new { source = sourceRoot }));
-        using (await ReadMarketplaceMutationAsync(harness))
-        {
-        }
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceRefresh, new { }));
-
-        using var response = await ReadMarketplaceMutationAsync(harness);
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
-        Assert.Single(result.GetProperty("marketplaces").EnumerateArray());
-        Assert.Empty(result.GetProperty("errors").EnumerateArray());
+            sparse.RootElement.GetProperty("error").GetProperty("data").GetProperty("code").GetString());
     }
 
     [Fact]

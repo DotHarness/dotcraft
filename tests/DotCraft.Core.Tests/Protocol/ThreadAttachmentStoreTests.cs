@@ -178,7 +178,6 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
         }
         catch
         {
-            // Test cleanup is best-effort on Windows.
         }
     }
 

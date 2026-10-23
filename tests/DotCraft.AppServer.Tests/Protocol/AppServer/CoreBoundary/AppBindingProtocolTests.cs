@@ -11,14 +11,30 @@ public sealed class AppBindingProtocolTests : IDisposable
     private string DataPath => Path.Combine(_root, ".agents");
 
     [Fact]
-    public async Task Initialize_ReportsOnlyAppBindingVersion1()
+    public async Task ProtocolSurface_IsVersionedAndKeepsAppPrincipalsOutOfTheThreadControlPlane()
     {
         using var harness = CreateHarness();
-        using var initialized = await harness.InitializeAsync();
-        var capabilities = initialized.RootElement.GetProperty("result").GetProperty("capabilities");
-        Assert.Equal(1, capabilities.GetProperty("appBindingVersion").GetInt32());
-        Assert.False(capabilities.TryGetProperty("appBinding", out _));
-        Assert.False(capabilities.TryGetProperty("appContextBlocks", out _));
+        using (var initialized = await harness.InitializeAsync())
+        {
+            var capabilities = initialized.RootElement.GetProperty("result").GetProperty("capabilities");
+            Assert.Equal(1, capabilities.GetProperty("appBindingVersion").GetInt32());
+            Assert.False(capabilities.TryGetProperty("appBinding", out _));
+            Assert.False(capabilities.TryGetProperty("appContextBlocks", out _));
+        }
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest("app/binding/request/create", new { }));
+        using (var undeclared = await harness.Transport.ReadNextSentAsync())
+        {
+            var error = undeclared.RootElement.GetProperty("error");
+            Assert.Equal(-32601, error.GetProperty("code").GetInt32());
+            Assert.Equal("MethodNotFound", error.GetProperty("data").GetProperty("code").GetString());
+        }
+
+        harness.Connection.BindAppPrincipal("apppr_test", "com.example.test");
+        await harness.ExecuteRequestAsync(harness.BuildRequest("thread/list", new { }));
+        using var response = await harness.Transport.ReadNextSentAsync();
+        Assert.Equal("AppPrincipalUnauthorized",
+            response.RootElement.GetProperty("error").GetProperty("data").GetProperty("code").GetString());
     }
 
     [Fact]
@@ -55,49 +71,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
-    public async Task UndeclaredAppBindingMethod_ReturnsMethodNotFound()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-        await harness.ExecuteRequestAsync(harness.BuildRequest("app/binding/request/create", new { }));
-        using var response = await harness.Transport.ReadNextSentAsync();
-        var error = response.RootElement.GetProperty("error");
-        Assert.Equal(-32601, error.GetProperty("code").GetInt32());
-        Assert.Equal("MethodNotFound", error.GetProperty("data").GetProperty("code").GetString());
-    }
-
-    [Fact]
-    public async Task AppPrincipalCannotCallThreadControlPlane()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-        harness.Connection.BindAppPrincipal("apppr_test", "com.example.test");
-        await harness.ExecuteRequestAsync(harness.BuildRequest("thread/list", new { }));
-        using var response = await harness.Transport.ReadNextSentAsync();
-        Assert.Equal("AppPrincipalUnauthorized",
-            response.RootElement.GetProperty("error").GetProperty("data").GetProperty("code").GetString());
-    }
-
-    [Fact]
-    public async Task ConnectionStart_FillsAppServerEndpointInHandoff()
-    {
-        WriteHandoffAppPlugin();
-        WriteAppServerLock();
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest("app/connection/start", new
-        {
-            appId = "com.example.handoff"
-        }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        AssertHandoff(response.RootElement.GetProperty("result"), "connect");
-    }
-
-    [Fact]
-    public async Task BindingEnable_FillsAppServerEndpointInHandoff()
+    public async Task ConnectionStartAndBindingEnable_FillAppServerEndpointAndPersistUnderTheDataPath()
     {
         WriteHandoffAppPlugin();
         WriteAppServerLock();
@@ -105,15 +79,35 @@ public sealed class AppBindingProtocolTests : IDisposable
         await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
 
+        await harness.ExecuteRequestAsync(harness.BuildRequest("app/connection/start", new
+        {
+            appId = "com.example.handoff"
+        }));
+        using (var response = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(response);
+            AssertHandoff(response.RootElement.GetProperty("result"), "connect");
+        }
+
         await harness.ExecuteRequestAsync(harness.BuildRequest("thread/appBindings/enable", new
         {
             threadId = thread.Id,
             appId = "com.example.handoff"
         }));
+        using (var enabled = await ReadSuccessResponseAsync(harness.Transport))
+            AssertHandoff(enabled.RootElement.GetProperty("result"), "bind");
 
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        AssertHandoff(response.RootElement.GetProperty("result"), "bind");
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead,
+            new { threadId = thread.Id }));
+        using var read = await ReadSuccessResponseAsync(harness.Transport);
+        var binding = Assert.Single(read.RootElement
+            .GetProperty("result")
+            .GetProperty("thread")
+            .GetProperty("appBindings")
+            .EnumerateArray());
+        Assert.Equal("com.example.handoff", binding.GetProperty("appId").GetString());
+        Assert.False(Directory.Exists(Path.Combine(_root, ".craft")));
     }
 
     [Fact]
@@ -166,37 +160,6 @@ public sealed class AppBindingProtocolTests : IDisposable
         Assert.Equal("thread", result.GetProperty("source").GetString());
         Assert.Equal("app", result.GetProperty("bindingKind").GetString());
         Assert.Equal("connecting", result.GetProperty("state").GetString());
-    }
-
-    [Fact]
-    public async Task ThreadRead_UsesConfiguredDataPathForAppBindings()
-    {
-        WriteHandoffAppPlugin();
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest("thread/appBindings/enable", new
-        {
-            threadId = thread.Id,
-            appId = "com.example.handoff"
-        }));
-        using var enabled = await ReadSuccessResponseAsync(harness.Transport);
-        AppServerTestHarness.AssertIsSuccessResponse(enabled);
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead,
-            new { threadId = thread.Id }));
-        using var response = await ReadSuccessResponseAsync(harness.Transport);
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-
-        var binding = Assert.Single(response.RootElement
-            .GetProperty("result")
-            .GetProperty("thread")
-            .GetProperty("appBindings")
-            .EnumerateArray());
-        Assert.Equal("com.example.handoff", binding.GetProperty("appId").GetString());
-        Assert.False(Directory.Exists(Path.Combine(_root, ".craft")));
     }
 
     [Fact]

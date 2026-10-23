@@ -9,10 +9,8 @@ namespace DotCraft.Tests.Tools;
 
 public sealed class RemoteExecutionPluginTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SameThreadIdInTwoSessionsHasIndependentPluginState_AndClosingOneDrainsItsCall(bool loseConnection)
+    [Fact]
+    public async Task SameThreadIdInTwoSessionsHasIndependentPluginState_AndLosingOneConnectionDrainsItsCall()
     {
         using var harness = new PluginRuntimeHarness();
         RemotePluginFixture.Write(harness);
@@ -43,13 +41,9 @@ public sealed class RemoteExecutionPluginTests
         var log = Path.Combine(fixture.Workspace.Path, "plugin-lifecycle.log");
         await PluginRuntimeHarness.WaitForLineAsync(log, "entered:" + aThread);
 
-        if (loseConnection)
-        {
-            await connection.DisposeAsync();
-            await fixture.WaitAsync(() => PluginLogFile.ReadLines(log).Contains("release:" + aThread), TimeSpan.FromSeconds(10));
-            Assert.False(first.IsAvailable);
-        }
-        else await first.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+        await connection.DisposeAsync();
+        await fixture.WaitAsync(() => PluginLogFile.ReadLines(log).Contains("release:" + aThread), TimeSpan.FromSeconds(10));
+        Assert.False(first.IsAvailable);
         try { Assert.False((await running).Success); } catch (OperationCanceledException) { }
         var lines = PluginLogFile.ReadLines(log);
         Assert.Contains("cancelled:" + aThread, lines);

@@ -186,9 +186,9 @@ describe('file editor sessions', () => {
     await external('source disk')
     expect(session().review?.newText).toBe('source disk')
   })
-  it.each(['accept', 'reject', 'edit'] as const)(
-    'resolves clean source review with %s using old/new roles',
-    async (choice) => {
+  it('resolves clean and divergent reviews with each choice using old/new roles', async () => {
+    for (const choice of ['accept', 'reject', 'edit'] as const) {
+      disk = { ...opened }
       await open()
       await external('disk')
       await expect(store().resolveReview('tab', choice)).resolves.toBe(true)
@@ -197,11 +197,9 @@ describe('file editor sessions', () => {
       expect(session().focusRevision).toBe(choice === 'edit' ? 1 : 0)
       await vi.advanceTimersByTimeAsync(3000)
       expect(disk.text).toBe(choice === 'reject' ? 'base\n' : 'disk')
-    }
-  )
-  it.each(['accept', 'reject', 'edit'] as const)(
-    'resolves divergent review with %s using old/new roles',
-    async (choice) => {
+      store().discard('tab')
+
+      disk = { ...opened }
       await open()
       store().updateText('tab', 'local')
       await external('disk')
@@ -211,8 +209,9 @@ describe('file editor sessions', () => {
       expect(session().text).toBe(choice === 'reject' ? 'disk' : 'local')
       await vi.advanceTimersByTimeAsync(3000)
       expect(disk.text).toBe(choice === 'reject' ? 'disk' : 'local')
+      store().discard('tab')
     }
-  )
+  })
   it('blocks saving and mode switching during unresolved review', async () => {
     await open(true)
     store().updateText('tab', 'local')

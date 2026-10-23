@@ -59,28 +59,34 @@ public sealed class ChatGptProviderAuthTests : IDisposable
         Assert.False((await host.Authentication.GetStatusAsync(config, "openai", CancellationToken.None)).IsAuthenticated);
     }
 
-    [Theory]
-    [InlineData(null, null, null)]
-    [InlineData(false, false, null)]
-    [InlineData(true, false, "access-token")]
-    [InlineData(true, true, "refreshed-token")]
-    public async Task StatusReturnsAccessTokenOnlyWhenRequested(bool? includeToken, bool? refreshToken, string? expected)
+    [Fact]
+    public async Task StatusReturnsAccessTokenOnlyWhenRequested()
     {
         var auth = new FakeOpenAIAuthService();
         await using var host = Host(auth, Config());
         await host.Harness.InitializeAsync();
 
-        var parameters = new Dictionary<string, object> { ["providerId"] = "openai" };
-        if (includeToken is { } include) parameters["includeToken"] = include;
-        if (refreshToken is { } refresh) parameters["refreshToken"] = refresh;
+        foreach (var (includeToken, refreshToken, expected) in new (bool?, bool?, string?)[]
+                 {
+                     (null, null, null),
+                     (false, false, null),
+                     (true, false, "access-token"),
+                     (true, true, "refreshed-token")
+                 })
+        {
+            auth.TokenRequests.Clear();
+            var parameters = new Dictionary<string, object> { ["providerId"] = "openai" };
+            if (includeToken is { } include) parameters["includeToken"] = include;
+            if (refreshToken is { } refresh) parameters["refreshToken"] = refresh;
 
-        var result = await Result(host.Harness, "provider/auth/status", parameters);
+            var result = await Result(host.Harness, "provider/auth/status", parameters);
 
-        Assert.True(result.GetProperty("isAuthenticated").GetBoolean());
-        Assert.Equal("pro", result.GetProperty("planType").GetString());
-        Assert.Equal(expected, result.TryGetProperty("authToken", out var token) ? token.GetString() : null);
-        bool[] expectedRequests = includeToken == true ? [refreshToken == true] : [];
-        Assert.Equal(expectedRequests, auth.TokenRequests);
+            Assert.True(result.GetProperty("isAuthenticated").GetBoolean());
+            Assert.Equal("pro", result.GetProperty("planType").GetString());
+            Assert.Equal(expected, result.TryGetProperty("authToken", out var token) ? token.GetString() : null);
+            bool[] expectedRequests = includeToken == true ? [refreshToken == true] : [];
+            Assert.Equal(expectedRequests, auth.TokenRequests);
+        }
     }
 
     [Fact]

@@ -22,12 +22,18 @@ function context(settings = createDefaultOratorioSettings(), overrides: Partial<
 }
 
 describe('Oratorio connect-a-source model', () => {
-  it('reports whether any source can produce Board items', () => {
+  it('reports whether any source can produce Board items and maps schedule presets to intervals', () => {
     expect(hasConfiguredSource(createDefaultOratorioSettings())).toBe(false)
     expect(hasConfiguredSource(settingsWithGitHubApp())).toBe(true)
     const withProject = createDefaultOratorioSettings()
     withProject.projects.push({ id: 'gitlab-x', provider: 'gitlab', projectKey: 'group/x', workspacePath: '/w', profileId: '', enabled: true })
     expect(hasConfiguredSource(withProject)).toBe(true)
+
+    const draft = createConnectDraft(createDefaultOratorioSettings(), 'gitlab')
+    expect(scheduleSeconds({ ...draft, schedule: 'off' })).toBeNull()
+    expect(scheduleSeconds({ ...draft, schedule: '15m' })).toBe(900)
+    expect(scheduleSeconds({ ...draft, schedule: '1h' })).toBe(3600)
+    expect(scheduleSeconds({ ...draft, schedule: 'custom', customMinutes: 45 })).toBe(2700)
   })
 
   it('gates each step on the fields the user still owes', () => {
@@ -67,14 +73,6 @@ describe('Oratorio connect-a-source model', () => {
     const draft = createConnectDraft(settings, 'github')
     expect(draft.github.appId).toBe('184203')
     expect(connectStepIssues('source', draft, context(settings))).toEqual([])
-  })
-
-  it('maps schedule presets to the sync-schedule interval', () => {
-    const draft = createConnectDraft(createDefaultOratorioSettings(), 'gitlab')
-    expect(scheduleSeconds({ ...draft, schedule: 'off' })).toBeNull()
-    expect(scheduleSeconds({ ...draft, schedule: '15m' })).toBe(900)
-    expect(scheduleSeconds({ ...draft, schedule: '1h' })).toBe(3600)
-    expect(scheduleSeconds({ ...draft, schedule: 'custom', customMinutes: 45 })).toBe(2700)
   })
 
   it('derives the GitLab profile from the project path and writes one atomic transaction', () => {

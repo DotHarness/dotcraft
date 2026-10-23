@@ -169,7 +169,7 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
 
     private static async Task<SessionThread> WaitForThreadAsync(Harness harness, Func<SessionThread, bool> condition)
     {
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(60);
         while (true)
         {
             var thread = await harness.Service.GetThreadAsync(harness.ThreadId);
@@ -182,14 +182,16 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
 
     private static string DelayedEchoCommand(string text) =>
         OperatingSystem.IsWindows()
-            ? $"Start-Sleep -Milliseconds 800; Write-Output '{text}'"
-            : $"sleep 0.8; echo '{text}'";
+            ? $"ping -n 2 127.0.0.1 >nul & echo {text}"
+            : $"sleep 0.8; echo {text}";
+
+    private static string TestShell => OperatingSystem.IsWindows() ? "cmd" : "sh";
 
     private static string LongRunningCommand() =>
-        OperatingSystem.IsWindows() ? "Start-Sleep -Seconds 60" : "sleep 60";
+        OperatingSystem.IsWindows() ? "ping -n 60 127.0.0.1 >nul" : "sleep 60";
 
     private static string QuickCommand() =>
-        OperatingSystem.IsWindows() ? "Start-Sleep -Milliseconds 300; Write-Output tick" : "sleep 0.3; echo tick";
+        OperatingSystem.IsWindows() ? "echo tick" : "sleep 0.1; echo tick";
 
     private sealed class Harness(
         SessionService service,
@@ -264,6 +266,7 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
                     new FunctionCallContent("call-build", "Exec", new Dictionary<string, object?>
                     {
                         ["command"] = command,
+                        ["shell"] = TestShell,
                         ["runInBackground"] = true,
                         ["yieldTimeMs"] = 100
                     })
@@ -277,7 +280,8 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
                 [
                     new FunctionCallContent($"call-tick-{call}", "Exec", new Dictionary<string, object?>
                     {
-                        ["command"] = QuickCommand()
+                        ["command"] = QuickCommand(),
+                        ["shell"] = TestShell
                     })
                 ]);
                 yield break;
@@ -318,6 +322,7 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
                         new FunctionCallContent("call-build", "Exec", new Dictionary<string, object?>
                         {
                             ["command"] = command,
+                            ["shell"] = TestShell,
                             ["runInBackground"] = true,
                             ["yieldTimeMs"] = 100
                         })

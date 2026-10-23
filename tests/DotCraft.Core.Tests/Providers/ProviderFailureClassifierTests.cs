@@ -8,25 +8,32 @@ namespace DotCraft.Tests.Providers;
 
 public sealed class ProviderFailureClassifierTests
 {
-    [Fact]
-    public void Anthropic_OverloadedFrameIsTerminalCapacity()
+    [Theory]
+    [InlineData("overloaded_frame", ProviderFailureKind.ServerOverloaded, true)]
+    [InlineData("status_529", ProviderFailureKind.ServerOverloaded, true)]
+    [InlineData("exhausted_balance", ProviderFailureKind.UsageLimitExceeded, true)]
+    [InlineData("capacity_signal", ProviderFailureKind.ServerOverloaded, true)]
+    [InlineData("connection_reset", ProviderFailureKind.HttpConnectionFailed, false)]
+    public void Anthropic_ClassifiesFailureKindAndTerminality(string scenario, ProviderFailureKind expectedKind, bool terminal)
     {
-        var failure = AnthropicProviderFailureClassifier.Instance.Classify(
-            new IOException("{\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\"}}"));
+        Exception exception = scenario switch
+        {
+            "overloaded_frame" => new IOException("{\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\"}}"),
+            "status_529" => new HttpRequestException("overloaded", null, (HttpStatusCode)529),
+            "exhausted_balance" => new HttpRequestException(
+                "{\"error\":{\"message\":\"Insufficient Balance\"}}",
+                null,
+                HttpStatusCode.TooManyRequests),
+            "capacity_signal" => new InvalidOperationException("model stopped: insufficient_system_resource"),
+            _ => new IOException("connection reset by peer")
+        };
 
-        Assert.Equal(ProviderFailureKind.ServerOverloaded, failure.Kind);
-        Assert.True(failure.IsTerminal);
-        Assert.Null(failure.GetRetryDelay(1));
-    }
+        var failure = AnthropicProviderFailureClassifier.Instance.Classify(exception);
 
-    [Fact]
-    public void Anthropic_Status529IsTerminalCapacity()
-    {
-        var failure = AnthropicProviderFailureClassifier.Instance.Classify(
-            new HttpRequestException("overloaded", null, (HttpStatusCode)529));
-
-        Assert.Equal(ProviderFailureKind.ServerOverloaded, failure.Kind);
-        Assert.True(failure.IsTerminal);
+        Assert.Equal(expectedKind, failure.Kind);
+        Assert.Equal(terminal, failure.IsTerminal);
+        if (terminal)
+            Assert.Null(failure.GetRetryDelay(1));
     }
 
     [Fact]
@@ -44,173 +51,42 @@ public sealed class ProviderFailureClassifierTests
         Assert.InRange(failure.GetRetryDelay(1)!.Value, TimeSpan.Zero, TimeSpan.FromSeconds(3.5));
     }
 
-    [Fact]
-    public void Anthropic_ExhaustedBalanceIsTerminalEvenOnThrottlingStatus()
+    [Theory]
+    [InlineData(true, 503, "{\"error\":{\"code\":\"server_is_overloaded\"}}", ProviderFailureKind.ServerOverloaded, true)]
+    [InlineData(true, 503, "{\"error\":{\"code\":\"slow_down\"}}", ProviderFailureKind.RateLimitExceeded, false)]
+    [InlineData(true, 500, "{}", ProviderFailureKind.InternalServerError, false)]
+    [InlineData(false, 429, "{\"error\":{\"code\":\"insufficient_quota\"}}", ProviderFailureKind.UsageLimitExceeded, true)]
+    [InlineData(true, 429, "{\"error\":{\"code\":\"rate_limit_exceeded\"}}", ProviderFailureKind.ResponseTooManyFailedAttempts, true)]
+    [InlineData(true, 429, "{\"error\":{\"type\":\"rate_limit_error\",\"code\":\"turn_rate_limit_exceeded\",\"message\":\"Codex is at capacity, please try again later\"}}", ProviderFailureKind.ServerOverloaded, true)]
+    public void OpenAI_ClassifiesFailureKindAndTerminality(
+        bool isSubscriptionBackend,
+        int status,
+        string body,
+        ProviderFailureKind expectedKind,
+        bool terminal)
     {
-        var failure = AnthropicProviderFailureClassifier.Instance.Classify(
-            new HttpRequestException(
-                "{\"error\":{\"message\":\"Insufficient Balance\"}}",
-                null,
-                HttpStatusCode.TooManyRequests));
+        var failure = Classify(isSubscriptionBackend, status, body, requestId: "req_abc123");
 
-        Assert.Equal(ProviderFailureKind.UsageLimitExceeded, failure.Kind);
-        Assert.True(failure.IsTerminal);
-    }
-
-    [Fact]
-    public void Anthropic_CapacitySignalOnASuccessfulStatusIsStillCapacity()
-    {
-        var failure = AnthropicProviderFailureClassifier.Instance.Classify(
-            new InvalidOperationException("model stopped: insufficient_system_resource"));
-
-        Assert.Equal(ProviderFailureKind.ServerOverloaded, failure.Kind);
-        Assert.True(failure.IsTerminal);
-    }
-
-    [Fact]
-    public void Anthropic_TransportFailureFallsBackToConnectionKind()
-    {
-        var failure = AnthropicProviderFailureClassifier.Instance.Classify(
-            new IOException("connection reset by peer"));
-
-        Assert.Equal(ProviderFailureKind.HttpConnectionFailed, failure.Kind);
-        Assert.False(failure.IsTerminal);
-    }
-
-    [Fact]
-    public void OpenAI_ExplicitCapacityRejectionIsTerminal()
-    {
-        var failure = Classify(
-            isSubscriptionBackend: true,
-            status: 503,
-            body: "{\"error\":{\"code\":\"server_is_overloaded\"}}");
-
-        Assert.Equal(ProviderFailureKind.ServerOverloaded, failure.Kind);
-        Assert.True(failure.IsTerminal);
-    }
-
-    [Fact]
-    public void OpenAI_SlowDownIsRetryableThrottling()
-    {
-        var failure = Classify(
-            isSubscriptionBackend: true,
-            status: 503,
-            body: "{\"error\":{\"code\":\"slow_down\"}}");
-
-        Assert.Equal(ProviderFailureKind.RateLimitExceeded, failure.Kind);
-        Assert.False(failure.IsTerminal);
-    }
-
-    [Fact]
-    public void OpenAI_InternalServerErrorIsRetryable()
-    {
-        var failure = Classify(isSubscriptionBackend: true, status: 500, body: "{}");
-
-        Assert.Equal(ProviderFailureKind.InternalServerError, failure.Kind);
-        Assert.False(failure.IsTerminal);
-    }
-
-    [Fact]
-    public void OpenAI_ExhaustedQuotaIsTerminal()
-    {
-        var failure = Classify(
-            isSubscriptionBackend: false,
-            status: 429,
-            body: "{\"error\":{\"code\":\"insufficient_quota\"}}");
-
-        Assert.Equal(ProviderFailureKind.UsageLimitExceeded, failure.Kind);
-        Assert.True(failure.IsTerminal);
-    }
-
-    [Fact]
-    public void OpenAI_ThrottlingHonorsTheRetryAfterHeader()
-    {
-        var failure = Classify(
-            isSubscriptionBackend: false,
-            status: 429,
-            body: "{\"error\":{\"code\":\"rate_limit_exceeded\"}}",
-            retryAfter: "30");
-
-        Assert.Equal(ProviderFailureKind.RateLimitExceeded, failure.Kind);
-        Assert.Equal(TimeSpan.FromSeconds(30), failure.ServerRetryAfter);
-        Assert.InRange(failure.GetRetryDelay(1)!.Value, TimeSpan.Zero, TimeSpan.FromSeconds(30));
-    }
-
-    [Fact]
-    public void OpenAI_SubscriptionThrottlingIsSurfacedRatherThanRetried()
-    {
-        var failure = Classify(
-            isSubscriptionBackend: true,
-            status: 429,
-            body: "{\"error\":{\"code\":\"rate_limit_exceeded\"}}");
-
-        Assert.Equal(ProviderFailureKind.ResponseTooManyFailedAttempts, failure.Kind);
-        Assert.True(failure.IsTerminal);
-    }
-
-    [Fact]
-    public void OpenAI_SubscriptionCapacityRejectionIsServerOverload()
-    {
-        var failure = Classify(
-            isSubscriptionBackend: true,
-            status: 429,
-            body: "{\"error\":{\"type\":\"rate_limit_error\",\"code\":\"turn_rate_limit_exceeded\",\"message\":\"Codex is at capacity, please try again later\"}}");
-
-        Assert.Equal(ProviderFailureKind.ServerOverloaded, failure.Kind);
-        Assert.Equal(429, failure.HttpStatus);
-        Assert.True(failure.IsTerminal);
-    }
-
-    [Fact]
-    public void OpenAI_SubscriptionThrottlingWithRetryAfterIsRetried()
-    {
-        var failure = Classify(
-            isSubscriptionBackend: true,
-            status: 429,
-            body: "{\"error\":{\"code\":\"rate_limit_exceeded\"}}",
-            retryAfter: "5");
-
-        Assert.Equal(ProviderFailureKind.RateLimitExceeded, failure.Kind);
-        Assert.InRange(failure.GetRetryDelay(1)!.Value, TimeSpan.Zero, TimeSpan.FromSeconds(5));
-    }
-
-    [Fact]
-    public void OpenAI_RequestIdSurvivesClassification()
-    {
-        var failure = Classify(
-            isSubscriptionBackend: false,
-            status: 500,
-            body: "{}",
-            requestId: "req_abc123");
-
+        Assert.Equal(expectedKind, failure.Kind);
+        Assert.Equal(terminal, failure.IsTerminal);
+        Assert.Equal(status, failure.HttpStatus);
         Assert.Equal("req_abc123", failure.RequestId);
-        Assert.Equal(500, failure.HttpStatus);
     }
 
     [Theory]
-    [InlineData("-5")]
-    [InlineData("not-a-delay")]
-    public void RetryAfterRejectsValuesThatCannotSchedule(string value)
+    [InlineData(false, 30)]
+    [InlineData(true, 5)]
+    public void OpenAI_ThrottlingHonorsTheRetryAfterHeader(bool isSubscriptionBackend, int seconds)
     {
-        Assert.Null(ProviderFailureParsing.ParseRetryAfter(value, DateTimeOffset.UnixEpoch));
-    }
+        var failure = Classify(
+            isSubscriptionBackend,
+            status: 429,
+            body: "{\"error\":{\"code\":\"rate_limit_exceeded\"}}",
+            retryAfter: seconds.ToString());
 
-    [Fact]
-    public void RetryAfterAcceptsAnHttpDateInTheFuture()
-    {
-        var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
-
-        var delay = ProviderFailureParsing.ParseRetryAfter("Thu, 01 Jan 2026 00:00:45 GMT", now);
-
-        Assert.Equal(TimeSpan.FromSeconds(45), delay);
-    }
-
-    [Fact]
-    public void RetryAfterAcceptsAnElapsedHttpDateWithoutBackoff()
-    {
-        var now = new DateTimeOffset(2026, 1, 1, 0, 1, 0, TimeSpan.Zero);
-
-        Assert.Equal(TimeSpan.Zero, ProviderFailureParsing.ParseRetryAfter("Thu, 01 Jan 2026 00:00:45 GMT", now));
+        Assert.Equal(ProviderFailureKind.RateLimitExceeded, failure.Kind);
+        Assert.Equal(TimeSpan.FromSeconds(seconds), failure.ServerRetryAfter);
+        Assert.InRange(failure.GetRetryDelay(1)!.Value, TimeSpan.Zero, TimeSpan.FromSeconds(seconds));
     }
 
     private static ProviderFailure Classify(

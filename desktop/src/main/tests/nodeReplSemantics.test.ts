@@ -103,8 +103,8 @@ it('ignores old asynchronous output and host calls after their evaluation ends',
     nodeRepl.write('stale');
     try { nodeRepl.createElicitation({ stale: true }); } catch {}
     throw new Error('expired callback')
-  }, 40); 'scheduled'`)
-  const result = await evaluate('await new Promise(r => setTimeout(r, 100)); nodeRepl.write("current"); 42')
+  }, 10); 'scheduled'`)
+  const result = await evaluate('await new Promise(r => setTimeout(r, 40)); nodeRepl.write("current"); 42')
   expect(result.logs).toEqual(['current'])
   expect(result.resultText).toBe('42')
   expect(browserManager.handleBrowserUseElicitation).not.toHaveBeenCalled()
@@ -135,7 +135,7 @@ it('invalidates queued evaluations during Desktop teardown', async () => {
   expect((await evaluate('typeof initialized')).resultText).toBe('undefined')
 })
 
-it('supports cross-cell redeclaration and recovery after a failed initializer without rewriting source', async () => {
+it('supports cross-cell redeclaration, recovery after a failed initializer, and const and closure semantics', async () => {
   expect((await evaluate('const x = 1; x')).resultText).toBe('1')
   expect((await evaluate('const x = 2; x')).resultText).toBe('2')
   expect((await evaluate('let changing = 3; changing')).resultText).toBe('3')
@@ -146,9 +146,6 @@ it('supports cross-cell redeclaration and recovery after a failed initializer wi
   expect((await evaluate('const { field } = { field: 2 }; field')).resultText).toBe('2')
   expect((await evaluate('class Item { value() { return 1 } }; new Item().value()')).resultText).toBe('1')
   expect((await evaluate('class Item { value() { return 2 } }; new Item().value()')).resultText).toBe('2')
-})
-
-it('retains const assignment and closure behavior across cells', async () => {
   await evaluate('const fixed = 1; let observed = 1; const read = () => observed;')
   expect((await evaluate('fixed = 2')).error).toContain('constant variable')
   expect((await evaluate('let observed = 2; read()')).resultText).toBe('2')

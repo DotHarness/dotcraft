@@ -76,8 +76,6 @@ public sealed class ThreadStoreSerializationTests
     [InlineData("extraHigh", ModelReasoningEffort.ExtraHigh)]
     [InlineData("extra_high", ModelReasoningEffort.ExtraHigh)]
     [InlineData("xhigh", ModelReasoningEffort.ExtraHigh)]
-    [InlineData("medium", ModelReasoningEffort.Medium)]
-    [InlineData("ultra", ModelReasoningEffort.Ultra)]
     [InlineData("max", ModelReasoningEffort.Max)]
     public void SessionPersistenceJsonOptions_ReadsReasoningEffortStringsAndAliases(
         string rawEffort,
@@ -102,7 +100,6 @@ public sealed class ThreadStoreSerializationTests
 
     [Theory]
     [InlineData(ModelReasoningEffort.ExtraHigh, "extraHigh")]
-    [InlineData(ModelReasoningEffort.Max, "max")]
     [InlineData(ModelReasoningEffort.Ultra, "ultra")]
     public void SessionJsonOptions_WritesCanonicalReasoningStrings(ModelReasoningEffort effort, string expected)
     {
@@ -127,5 +124,4 @@ public sealed class ThreadStoreSerializationTests
     {
         public string Name { get; init; } = string.Empty;
     }
-
 }

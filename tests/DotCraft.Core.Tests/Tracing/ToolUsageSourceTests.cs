@@ -6,10 +6,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Tracing;
 
-/// <summary>
-/// Usage-source attribution recorded on trace events at invocation time (spec §27A.3
-/// <c>toolSource</c>), and the last-response model used to attribute completed Turns.
-/// </summary>
 public sealed class ToolUsageSourceTests : IDisposable
 {
     private readonly string _root;
@@ -72,6 +68,6 @@ public sealed class ToolUsageSourceTests : IDisposable
     {
         _db.Dispose();
         try { Directory.Delete(_root, recursive: true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 }

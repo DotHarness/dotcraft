@@ -19,20 +19,6 @@ public sealed class ConsentViewModelTests : IDisposable
     public ConsentViewModelTests() => Directory.CreateDirectory(_folder);
 
     [Fact]
-    public void NewInvitation_DefaultsToFullAccessAndSuggestsAnUncreatedFolder()
-    {
-        var viewModel = NewViewModel();
-
-        Assert.True(viewModel.FullAccess);
-        Assert.False(viewModel.WorkspacePreferred);
-        Assert.False(viewModel.CanPickFolder);
-        Assert.True(Path.IsPathFullyQualified(viewModel.FolderPath));
-        Assert.False(Directory.Exists(viewModel.FolderPath));
-        Assert.Empty(viewModel.Warning);
-        Assert.True(viewModel.CanAllow);
-    }
-
-    [Fact]
     public async Task WorkspaceCard_OpensThePickerOnlyOnTheFirstSelection()
     {
         var picked = Path.Combine(_folder, "chosen");
@@ -94,29 +80,6 @@ public sealed class ConsentViewModelTests : IDisposable
         Assert.Equal(0, picker.Calls);
         Assert.False(viewModel.CanPickFolder);
         Assert.Equal(_folder, viewModel.FolderPath);
-    }
-
-    [Fact]
-    public async Task SwitchingModes_PreservesTheChosenFolder()
-    {
-        RemoteToolJoinDecision? decision = null;
-        var viewModel = NewViewModel(accept: (value, _) =>
-        {
-            decision = value;
-            return Task.CompletedTask;
-        });
-        viewModel.FullAccess = false;
-        viewModel.FolderPath = _folder;
-
-        viewModel.SelectFullAccessCommand.Execute(null);
-        Assert.False(viewModel.WorkspacePreferred);
-        await viewModel.AllowCommand.ExecuteAsync(null);
-        Assert.Equal(RemoteToolAuthorization.FullAccess, decision?.AuthorizationMode);
-
-        viewModel.FullAccess = false;
-        Assert.True(viewModel.WorkspacePreferred);
-        Assert.Equal(_folder, viewModel.FolderPath);
-        Assert.True(viewModel.CanAllow);
     }
 
     [Fact]

@@ -41,7 +41,7 @@ public sealed class McpAppsMetadataTests
     }
 
     [Fact]
-    public void ToolMetadata_AcceptsFlatResourceUriWhenNestedMetadataIsAbsent()
+    public void ToolMetadata_AcceptsFlatResourceUriOnlyWhenNestedMetadataIsAbsent()
     {
         var meta = new JsonObject
         {
@@ -51,20 +51,11 @@ public sealed class McpAppsMetadataTests
         Assert.True(McpAppMetadataParser.TryParseToolMetadata(meta, out var metadata));
         Assert.Equal("ui://catalog/status", metadata.ResourceUri?.AbsoluteUri.TrimEnd('/'));
         Assert.Equal(McpAppVisibility.Model | McpAppVisibility.App, metadata.Visibility);
-    }
 
-    [Fact]
-    public void ToolMetadata_InvalidNestedResourceDoesNotFallBackToFlatAlias()
-    {
-        var meta = new JsonObject
-        {
-            ["ui"] = new JsonObject { ["resourceUri"] = "https://invalid.example/view" },
-            ["ui/resourceUri"] = "ui://catalog/status"
-        };
-
-        Assert.False(McpAppMetadataParser.TryParseToolMetadata(meta, out var metadata));
-        Assert.Null(metadata.ResourceUri);
-        Assert.Equal(McpAppVisibility.None, metadata.Visibility);
+        meta["ui"] = new JsonObject { ["resourceUri"] = "https://invalid.example/view" };
+        Assert.False(McpAppMetadataParser.TryParseToolMetadata(meta, out var invalid));
+        Assert.Null(invalid.ResourceUri);
+        Assert.Equal(McpAppVisibility.None, invalid.Visibility);
     }
 
     [Fact]

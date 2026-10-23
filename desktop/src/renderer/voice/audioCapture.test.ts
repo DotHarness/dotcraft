@@ -5,14 +5,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { floatToPcm16, resampleLinear, VoiceAudioCapture } from './audioCapture'
 
 describe('voice audio conversion', () => {
-  it('resamples to the requested rate while preserving duration', () => {
+  it('resamples preserving duration and clamps float samples into signed PCM16', () => {
     const input = Float32Array.from({ length: 48_000 }, (_, index) => Math.sin(index / 10))
     const output = resampleLinear(input, 48_000, 16_000)
     expect(output).toHaveLength(16_000)
     expect(output.some((value) => value !== 0)).toBe(true)
-  })
-
-  it('clamps float samples into signed PCM16', () => {
     expect([...floatToPcm16(new Float32Array([-2, -1, 0, 1, 2]))])
       .toEqual([-32768, -32768, 0, 32767, 32767])
   })

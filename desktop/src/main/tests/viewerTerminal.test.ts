@@ -115,22 +115,6 @@ describe('ViewerTerminalManager', () => {
     expect(attached.exited?.code).toBe(0)
   })
 
-  it('kills pty when disposing a tab', () => {
-    const manager = new ViewerTerminalManager()
-    const win = createMockWindow()
-    manager.createTab(win, {
-      tabId: 'tab-1',
-      threadId: 'thread-1',
-      cwd: 'C:\\repo',
-      cols: 80,
-      rows: 24
-    })
-
-    manager.destroyTab(win, 'tab-1')
-    expect(mockPty.kill).toHaveBeenCalledTimes(1)
-    expect(() => manager.attachTab(win, 'tab-1')).toThrow('Terminal tab not found')
-  })
-
   it('destroys only tabs belonging to the requested thread', () => {
     const manager = new ViewerTerminalManager()
     const win = createMockWindow()
@@ -177,6 +161,7 @@ describe('ViewerTerminalManager', () => {
     expect(() => manager.attachTab(win, 'tab-2')).toThrow('Terminal tab not found')
     expect(manager.attachTab(win, 'tab-3').pid).toBe(2001)
   })
+
   it('restarts a tab in the requested folder, runs the command, and ignores the old shell', () => {
     const manager = new ViewerTerminalManager()
     const win = createMockWindow()

@@ -149,7 +149,6 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 
@@ -246,5 +245,4 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
             });
         }
     }
-
 }

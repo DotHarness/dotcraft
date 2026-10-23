@@ -4,7 +4,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-public sealed partial class SessionServiceRuntimeSignalTests
+public sealed class SessionServiceStructuredInputTests : SessionServiceRuntimeSignalTestBase
 {
     [Theory]
     [InlineData("start")]

@@ -21,29 +21,19 @@ const MODEL: ModelCatalogItem = {
 }
 
 describe('resolveComposerMascotEffectState', () => {
-  it('resolves model defaults and supported Fast mode', () => {
+  it('resolves model defaults and degrades Fast for models that do not support it', () => {
     expect(resolveComposerMascotEffectState({
       modelName: MODEL.id,
       modelCatalog: [MODEL],
       reasoningValue: 'default',
       speedValue: 'fast',
-    })).toEqual({
-      reasoningEffort: 'medium',
-      speed: 'fast',
-    })
-  })
+    })).toEqual({ reasoningEffort: 'medium', speed: 'fast' })
 
-  it('degrades unsupported Fast', () => {
     expect(resolveComposerMascotEffectState({
       modelName: 'unknown-model',
       modelCatalog: [MODEL],
       reasoningValue: 'extraHigh',
       speedValue: 'fast',
-    })).toEqual({
-      reasoningEffort: 'extraHigh',
-      speed: 'standard',
-    })
+    })).toEqual({ reasoningEffort: 'extraHigh', speed: 'standard' })
   })
-
-
 })

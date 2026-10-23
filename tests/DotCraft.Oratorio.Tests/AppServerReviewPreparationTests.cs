@@ -199,7 +199,7 @@ public sealed class AppServerReviewPreparationTests
             latest = await client.GetFromJsonAsync<ItemDetailResponse>($"/api/v1/items/id/{itemId}", JsonOptions);
             if (latest is not null && predicate(latest))
                 return latest;
-            await Task.Delay(100);
+            await Task.Delay(20);
         }
         throw new TimeoutException($"Timed out waiting for {itemId}. Latest state: {latest?.Item.State}");
     }

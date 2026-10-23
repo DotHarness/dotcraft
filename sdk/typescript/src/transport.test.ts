@@ -44,13 +44,13 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs = 400): Promise<T> 
   ]);
 }
 
-test("WebSocketTransport keeps ordered frames across burst and consumer gap", async () => {
+test("WebSocketTransport keeps ordered text and binary frames across burst and consumer gap", async () => {
   await withServer(
     async (socket) => {
       socket.send(JSON.stringify({ seq: 1 }));
       socket.send(JSON.stringify({ seq: 2 }));
       await sleep(10);
-      socket.send(JSON.stringify({ seq: 3 }));
+      socket.send(Buffer.from(JSON.stringify({ seq: 3 }), "utf-8"));
     },
     async (url) => {
       const transport = new WebSocketTransport({ url });
@@ -84,21 +84,6 @@ test("WebSocketTransport rejects pending read on close", async () => {
         return error instanceof TransportClosed;
       });
 
-      await transport.close();
-    },
-  );
-});
-
-test("WebSocketTransport decodes binary UTF-8 frames", async () => {
-  await withServer(
-    async (socket) => {
-      socket.send(Buffer.from(JSON.stringify({ mode: "binary" }), "utf-8"));
-    },
-    async (url) => {
-      const transport = new WebSocketTransport({ url });
-      await transport.connect();
-      const message = await withTimeout(transport.readMessage());
-      assert.deepEqual(message, { mode: "binary" });
       await transport.close();
     },
   );

@@ -32,7 +32,6 @@ public sealed class AppServerMemoryResetTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 
@@ -131,7 +130,7 @@ public sealed class AppServerMemoryResetTests : IDisposable
     }
 
     [Fact]
-    public async Task MemoryReset_ObjectParams_ReturnsEmptyObject()
+    public async Task MemoryReset_AcceptsObjectParamsButRejectsNonObjectParams()
     {
         var memoryStore = new MemoryStore(_workspaceCraftPath);
         File.WriteAllText(memoryStore.IndexFilePath, "remember this");
@@ -140,27 +139,16 @@ public sealed class AppServerMemoryResetTests : IDisposable
             memoryStore: memoryStore);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MemoryReset, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MemoryReset, "bad"));
+        using (var rejected = await harness.Transport.ReadNextSentAsync())
+            AppServerTestHarness.AssertIsErrorResponse(rejected, AppServerErrors.InvalidParamsCode);
+        Assert.NotEmpty(Directory.EnumerateFileSystemEntries(memoryStore.MemoryDirectoryPath));
 
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MemoryReset, new { }));
         var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
         Assert.Empty(response.RootElement.GetProperty("result").EnumerateObject());
         Assert.Empty(Directory.EnumerateFileSystemEntries(memoryStore.MemoryDirectoryPath));
-    }
-
-    [Fact]
-    public async Task MemoryReset_InvalidParams_ReturnsInvalidParams()
-    {
-        var memoryStore = new MemoryStore(_workspaceCraftPath);
-        using var harness = new AppServerTestHarness(
-            workspaceCraftPath: _workspaceCraftPath,
-            memoryStore: memoryStore);
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MemoryReset, "bad"));
-
-        var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
     }
 
     private static AppServerIncomingMessage BuildMemoryResetWithoutParams()

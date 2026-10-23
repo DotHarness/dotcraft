@@ -1,7 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Security;
-using System.Text;
 using Xunit;
 
 namespace DotCraft.Tests.Agents;
@@ -24,13 +23,11 @@ public sealed class SubAgentCoordinatorTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
 
         SubAgentProgressBridge.Remove("Inspect");
         SubAgentProgressBridge.Remove("cli run");
         SubAgentProgressBridge.Remove("diag");
-        SubAgentProgressBridge.Remove("external tokens");
         SubAgentProgressBridge.Remove("disabled run");
     }
 
@@ -109,21 +106,7 @@ public sealed class SubAgentCoordinatorTests : IDisposable
     }
 
     [Fact]
-    public void PrepareRun_WithUnknownProfile_ThrowsClearError()
-    {
-        var coordinator = new SubAgentCoordinator(
-            _workspacePath,
-            [new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "cli ok")]);
-
-        var error = Assert.Throws<InvalidOperationException>(() => coordinator.PrepareRun(
-            new SubAgentTaskRequest { Task = "inspect code" },
-            "missing-profile"));
-
-        Assert.Equal("Unknown subagent profile 'missing-profile'.", error.Message);
-    }
-
-    [Fact]
-    public void PrepareRun_WithUnknownRuntimeProfile_EmitsWarning_AndThrows()
+    public void PrepareRun_WithUnknownProfileOrRuntime_EmitsWarning_AndThrows()
     {
         var coordinator = new SubAgentCoordinator(
             _workspacePath,
@@ -141,6 +124,12 @@ public sealed class SubAgentCoordinatorTests : IDisposable
             coordinator.ValidationWarnings,
             w => w.Contains("broken-profile", StringComparison.Ordinal)
                  && w.Contains("unknown-runtime", StringComparison.Ordinal));
+
+        Assert.Equal(
+            "Unknown subagent profile 'missing-profile'.",
+            Assert.Throws<InvalidOperationException>(() => coordinator.PrepareRun(
+                new SubAgentTaskRequest { Task = "inspect code" },
+                "missing-profile")).Message);
 
         var error = Assert.Throws<InvalidOperationException>(() => coordinator.PrepareRun(
             new SubAgentTaskRequest { Task = "inspect code" },
@@ -265,7 +254,7 @@ public sealed class SubAgentCoordinatorTests : IDisposable
     }
 
     [Fact]
-    public async Task ExecutePreparedRun_ExternalRuntimeSink_UpdatesBridgeProgressAndTokens()
+    public async Task ExecutePreparedRun_ExternalRuntimeSink_UpdatesBridgeProgressAndTokenTracker()
     {
         var runtime = new FakeRuntime(
             CliOneshotRuntime.RuntimeTypeName,
@@ -288,14 +277,27 @@ public sealed class SubAgentCoordinatorTests : IDisposable
                 }
             ]);
 
-        var result = await RunAsync(
-            coordinator,
-            new SubAgentTaskRequest
-            {
-                Task = "inspect code",
-                Label = "cli run"
-            },
-            "cli-run");
+        var previousTracker = DotCraft.Context.TokenTracker.Current;
+        DotCraft.Context.TokenTracker.Current = new DotCraft.Context.TokenTracker();
+        string result;
+        try
+        {
+            result = await RunAsync(
+                coordinator,
+                new SubAgentTaskRequest
+                {
+                    Task = "inspect code",
+                    Label = "cli run"
+                },
+                "cli-run");
+
+            Assert.Equal(12, DotCraft.Context.TokenTracker.Current?.SubAgentInputTokens);
+            Assert.Equal(34, DotCraft.Context.TokenTracker.Current?.SubAgentOutputTokens);
+        }
+        finally
+        {
+            DotCraft.Context.TokenTracker.Current = previousTracker;
+        }
 
         Assert.Equal("cli ok", result);
         var progress = SubAgentProgressBridge.TryGet("cli run");
@@ -306,85 +308,10 @@ public sealed class SubAgentCoordinatorTests : IDisposable
         Assert.Equal("Completed cursor-cli.", progress.LastToolDisplay);
     }
 
-    [Fact]
-    public async Task ExecutePreparedRun_ExternalRuntimeSink_AlsoAggregatesTokensToTokenTracker()
-    {
-        var runtime = new FakeRuntime(
-            CliOneshotRuntime.RuntimeTypeName,
-            "cli ok",
-            onRun: sink => sink.OnCompleted("Completed cursor-cli.", new SubAgentTokenUsage(7, 11)));
-        var coordinator = new SubAgentCoordinator(
-            _workspacePath,
-            [runtime],
-            [
-                new SubAgentProfile
-                {
-                    Name = "external-tokens",
-                    Runtime = CliOneshotRuntime.RuntimeTypeName,
-                    WorkingDirectoryMode = "workspace",
-                    Bin = "test-cli"
-                }
-            ]);
-
-        var previousTracker = DotCraft.Context.TokenTracker.Current;
-        DotCraft.Context.TokenTracker.Current = new DotCraft.Context.TokenTracker();
-        try
-        {
-            var result = await RunAsync(
-                coordinator,
-                new SubAgentTaskRequest
-                {
-                    Task = "inspect code",
-                    Label = "external tokens"
-                },
-                "external-tokens");
-
-            Assert.Equal("cli ok", result);
-            Assert.Equal(7, DotCraft.Context.TokenTracker.Current?.SubAgentInputTokens);
-            Assert.Equal(11, DotCraft.Context.TokenTracker.Current?.SubAgentOutputTokens);
-        }
-        finally
-        {
-            DotCraft.Context.TokenTracker.Current = previousTracker;
-        }
-    }
-
-    [Fact]
-    public async Task ExecutePreparedRun_WhenExternalCliResumeDisabled_DoesNotPassStoredSessionId()
-    {
-        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "cli ok");
-        var store = new FakeExternalCliSessionStore(
-            new ExternalCliStoredSession("cli-run", "same", _workspacePath, "sess-123"));
-        var coordinator = new SubAgentCoordinator(
-            _workspacePath,
-            [runtime],
-            [
-                new SubAgentProfile
-                {
-                    Name = "cli-run",
-                    Runtime = CliOneshotRuntime.RuntimeTypeName,
-                    WorkingDirectoryMode = "workspace",
-                    Bin = "test-cli",
-                    SupportsResume = true,
-                    ResumeArgTemplate = "--resume {sessionId}",
-                    ResumeSessionIdJsonPath = "session_id"
-                }
-            ],
-            externalCliSessionStore: store,
-            enableExternalCliSessionResume: false);
-
-        var result = await RunAsync(
-            coordinator,
-            new SubAgentTaskRequest { Task = "inspect code", Label = "same" },
-            "cli-run");
-
-        Assert.Equal("cli ok", result);
-        Assert.Null(runtime.LastLaunchContext?.ResumeSessionId);
-        Assert.Empty(store.RecordedSessionIds);
-    }
-
-    [Fact]
-    public async Task ExecutePreparedRun_WhenExternalCliResumeEnabled_PassesAndUpdatesSessionId()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExecutePreparedRun_ExternalCliResume_PassesAndUpdatesSessionIdOnlyWhenEnabled(bool enabled)
     {
         var runtime = new FakeRuntime(
             CliOneshotRuntime.RuntimeTypeName,
@@ -408,7 +335,7 @@ public sealed class SubAgentCoordinatorTests : IDisposable
                 }
             ],
             externalCliSessionStore: store,
-            enableExternalCliSessionResume: true);
+            enableExternalCliSessionResume: enabled);
 
         var result = await RunAsync(
             coordinator,
@@ -416,8 +343,8 @@ public sealed class SubAgentCoordinatorTests : IDisposable
             "cli-run");
 
         Assert.Equal("cli ok", result);
-        Assert.Equal("sess-123", runtime.LastLaunchContext?.ResumeSessionId);
-        Assert.Equal(["sess-456"], store.RecordedSessionIds);
+        Assert.Equal(enabled ? "sess-123" : null, runtime.LastLaunchContext?.ResumeSessionId);
+        Assert.Equal(enabled ? new[] { "sess-456" } : Array.Empty<string>(), store.RecordedSessionIds);
     }
 
     [Fact]
@@ -496,36 +423,6 @@ public sealed class SubAgentCoordinatorTests : IDisposable
         var builtIn = Assert.Single(diagnostics, d => d.Name == SubAgentCoordinator.DefaultProfileName);
         Assert.True(builtIn.Enabled);
         Assert.False(builtIn.HiddenFromPrompt);
-    }
-
-    [Fact]
-    public void Constructor_DoesNotWriteValidationWarningsToConsoleError()
-    {
-        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "unused");
-        var originalError = Console.Error;
-        var writer = new StringWriter(new StringBuilder());
-        Console.SetError(writer);
-        try
-        {
-            _ = new SubAgentCoordinator(
-                _workspacePath,
-                [runtime],
-                [
-                    new SubAgentProfile
-                    {
-                        Name = "broken-cli",
-                        Runtime = CliOneshotRuntime.RuntimeTypeName,
-                        WorkingDirectoryMode = "workspace",
-                        OutputFormat = "json"
-                    }
-                ]);
-        }
-        finally
-        {
-            Console.SetError(originalError);
-        }
-
-        Assert.Equal(string.Empty, writer.ToString());
     }
 
     private static async Task<string> RunAsync(

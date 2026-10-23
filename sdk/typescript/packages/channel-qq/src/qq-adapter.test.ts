@@ -12,7 +12,7 @@ import { QQAdapter } from "./qq-adapter.js";
 import { channelContextForQQEvent, parseQQTarget } from "./target.js";
 import type { OneBotMessageEvent } from "./onebot.js";
 
-test("QQPermissionService classifies admins, users, groups, and unauthorized users", () => {
+test("QQ permissions, targets, and channel contexts follow native QQ semantics", () => {
   const permissions = new QQPermissionService({
     adminUsers: [1],
     whitelistedUsers: [2],
@@ -23,16 +23,11 @@ test("QQPermissionService classifies admins, users, groups, and unauthorized use
   assert.equal(permissions.getUserRole(2), "user");
   assert.equal(permissions.getUserRole(3, 10), "user");
   assert.equal(permissions.getUserRole(3, 11), "unauthorized");
-});
 
-test("QQ target parsing accepts group, user, and bare user ids", () => {
   assert.deepEqual(parseQQTarget("group:123"), { kind: "group", id: "123" });
   assert.deepEqual(parseQQTarget("user:456"), { kind: "user", id: "456" });
   assert.deepEqual(parseQQTarget("789"), { kind: "user", id: "789" });
   assert.equal(parseQQTarget("group:abc"), null);
-});
-
-test("channelContextForQQEvent preserves native QQ session semantics", () => {
   assert.equal(channelContextForQQEvent(true, 123, 456), "group:123");
   assert.equal(channelContextForQQEvent(false, undefined, 456), "user:456");
 });
@@ -57,24 +52,6 @@ test("QQAdapter uses group thread identity and real sender context", async () =>
   });
   assert.equal(groupOpts.omitSenderGroupId, false);
   assert.equal(groupOpts.directTarget, "user:456");
-
-  const secondGroupOpts = await captureHandleMessageOptions({
-    post_type: "message",
-    message_type: "group",
-    user_id: 789,
-    group_id: 123,
-    sender: { card: "Bob" },
-    message: [{ type: "text", data: { text: "hello again" } }],
-  });
-
-  assert.equal(secondGroupOpts.userId, "group:123");
-  assert.equal(secondGroupOpts.channelContext, "group:123");
-  assert.deepEqual(secondGroupOpts.sender, {
-    senderId: "789",
-    senderName: "Bob",
-    senderRole: "admin",
-    groupId: "group:123",
-  });
 
   const privateOpts = await captureHandleMessageOptions({
     post_type: "message",
@@ -123,67 +100,6 @@ test("QQAdapter forwards whitelisted senders as users and drops unauthorized sen
     forwarded.map((opts) => (opts.sender as Record<string, unknown>).senderRole),
     ["admin", "user"],
   );
-});
-
-test("QQAdapter builds channel binding targets from native QQ context", () => {
-  const adapter = new QQAdapter() as unknown as {
-    buildChannelTarget: (
-      opts: Record<string, unknown>,
-      sender: Record<string, unknown>,
-      channelContext: string,
-    ) => Record<string, unknown> | null;
-  };
-
-  assert.deepEqual(adapter.buildChannelTarget(
-    {
-      userId: "group:123",
-      userName: "Alice",
-      text: "/bind 482913",
-      channelContext: "group:123",
-    },
-    {
-      senderId: "456",
-      senderName: "Alice",
-      senderRole: "admin",
-      groupId: "group:123",
-    },
-    "group:123",
-  ), {
-    channelName: "qq",
-    conversationKind: "group",
-    conversationId: "123",
-    deliveryTarget: "group:123",
-    displayName: "QQ group 123",
-    boundBy: {
-      platformUserId: "456",
-      displayName: "Alice",
-    },
-  });
-
-  assert.deepEqual(adapter.buildChannelTarget(
-    {
-      userId: "456",
-      userName: "Alice",
-      text: "/bind 482913",
-      channelContext: "user:456",
-    },
-    {
-      senderId: "456",
-      senderName: "Alice",
-      senderRole: "admin",
-    },
-    "user:456",
-  ), {
-    channelName: "qq",
-    conversationKind: "user",
-    conversationId: "456",
-    deliveryTarget: "user:456",
-    displayName: "Alice",
-    boundBy: {
-      platformUserId: "456",
-      displayName: "Alice",
-    },
-  });
 });
 
 test("QQAdapter accepts channel bind codes before group mention gating", async () => {

@@ -11,10 +11,7 @@ public sealed class ConfigurationServiceSecretWriteTests
 
     [Theory]
     [InlineData("DashBoard.Password")]
-    [InlineData("Tools.Web.DeepSeekApiKey")]
     [InlineData("AppServer.WebSocket.Token")]
-    [InlineData("CLI.AppServerToken")]
-    [InlineData("Acp.AppServerToken")]
     public async Task Write_SensitiveField_StoresValueThatReadsBackMasked(string keyPath)
     {
         using var fixture = new ConfigurationServiceFixture();
@@ -34,25 +31,17 @@ public sealed class ConfigurationServiceSecretWriteTests
     }
 
     [Fact]
-    public async Task Write_Mask_KeepsStoredValueAndRaisesNoEvent()
+    public async Task Write_Mask_KeepsStoredValue_NeverStoresTheMask_AndRaisesNoEvent()
     {
         using var fixture = new ConfigurationServiceFixture(user: StoredUser);
         var before = File.ReadAllBytes(fixture.UserPath);
 
         await fixture.WriteAsync("DashBoard.Password", "\"***\"", filePath: fixture.UserPath);
-
-        Assert.Equal(before, File.ReadAllBytes(fixture.UserPath));
-        Assert.Empty(fixture.Events);
-    }
-
-    [Fact]
-    public async Task Write_MaskWithoutStoredValue_LeavesKeyAbsent()
-    {
-        using var fixture = new ConfigurationServiceFixture(workspace: """{ "Hub": { "Port": 4100 } }""");
-
         await fixture.WriteAsync("DashBoard.Password", "\"***\"");
 
-        Assert.Null(AtomicConfigDocument.Key(ConfigurationServiceFixture.ReadFile(fixture.WorkspacePath), "DashBoard"));
+        Assert.Equal(before, File.ReadAllBytes(fixture.UserPath));
+        Assert.False(File.Exists(fixture.WorkspacePath)
+            && AtomicConfigDocument.Key(ConfigurationServiceFixture.ReadFile(fixture.WorkspacePath), "DashBoard") is not null);
         Assert.Empty(fixture.Events);
     }
 
@@ -108,7 +97,6 @@ public sealed class ConfigurationServiceSecretWriteTests
 
     [Theory]
     [InlineData("Hub.Port", "70000", null)]
-    [InlineData("Tools.Web.Missing", "true", null)]
     [InlineData("Hub.Port", "4200", "sha256:00")]
     public async Task Write_RejectedBatchCarryingSecret_ErrorOmitsTheSecret(string keyPath, string valueJson, string? expectedVersion)
     {

@@ -8,15 +8,16 @@ namespace DotCraft.Tests.Security;
 public sealed class PrefixedApprovalServiceTests
 {
     [Fact]
-    public async Task RequestFileApprovalAsync_PrefixesPath()
+    public async Task FileAndResourceApprovals_PrefixTheirTarget()
     {
         var inner = new RecordingApprovalService();
         var service = new PrefixedApprovalService(inner, "[subagent:test] ");
 
-        var approved = await service.RequestFileApprovalAsync("read", "/tmp/demo.txt");
+        Assert.True(await service.RequestFileApprovalAsync("read", "/tmp/demo.txt"));
+        Assert.True(await service.RequestResourceApprovalAsync("remoteResource", "create", "doc-123"));
 
-        Assert.True(approved);
         Assert.Equal("[subagent:test] /tmp/demo.txt", inner.LastFilePath);
+        Assert.Equal("[subagent:test] doc-123", inner.LastResourceTarget);
     }
 
     [Fact]
@@ -32,18 +33,6 @@ public sealed class PrefixedApprovalServiceTests
         Assert.Equal("dotnet test", inner.LastShellRequest!.Command);
         Assert.Equal("[subagent:test]", inner.LastShellRequest.Label);
         Assert.Equal(request.ApprovalKey, inner.LastShellRequest.ApprovalKey);
-    }
-
-    [Fact]
-    public async Task RequestResourceApprovalAsync_PrefixesTarget()
-    {
-        var inner = new RecordingApprovalService();
-        var service = new PrefixedApprovalService(inner, "[subagent:test] ");
-
-        var approved = await service.RequestResourceApprovalAsync("remoteResource", "create", "doc-123");
-
-        Assert.True(approved);
-        Assert.Equal("[subagent:test] doc-123", inner.LastResourceTarget);
     }
 
     private sealed class RecordingApprovalService : IApprovalService

@@ -54,14 +54,12 @@ describe('link preview address policy', () => {
 describe('link preview body', () => {
   const page = gzipSync(Buffer.from(`<html><head><title>${'x'.repeat(4000)}</title></head>`))
 
-  it('reads a compressed body up to the end of the head', async () => {
+  it('reads a compressed body up to the end of the head and settles when it is cut off', async () => {
     const source = new PassThrough()
     const reading = readLinkPreviewBody(source, 'gzip', { maxBytes: 64 * 1024, stopAt: '</head' })
     source.end(page)
     expect((await reading).toString()).toContain('</head')
-  })
 
-  it('settles when a compressed body is cut off', async () => {
     const failed = new PassThrough()
     const failing = readLinkPreviewBody(failed, 'gzip', { maxBytes: 64 * 1024 })
     failed.write(page.subarray(0, 24))
@@ -77,7 +75,7 @@ describe('link preview body', () => {
 })
 
 describe('link preview service', () => {
-  it('reads the title, preview image, and favicon from the page head', async () => {
+  it('reads the title, preview image, and favicon from the page head and drops non-raster images', async () => {
     const fetch = fakeFetch({
       'https://example.com/post': html(
         '<title>Fallback</title><meta property="og:title" content="Tom &amp; Jerry&#39;s post">' +
@@ -95,14 +93,12 @@ describe('link preview service', () => {
       faviconDataUrl: `data:image/png;base64,${PNG.toString('base64')}`
     })
     expect(fetch).toHaveBeenCalledWith('https://example.com/post', expect.anything())
-  })
 
-  it('drops images whose bytes are not a supported raster type', async () => {
-    const fetch = fakeFetch({
+    const svgFetch = fakeFetch({
       'https://example.com/post': html('<title>Page</title><meta property="og:image" content="https://example.com/x.svg">'),
       'https://example.com/x.svg': { url: '', contentType: 'image/png', body: Buffer.from('<svg onload="x()"/>') }
     })
-    expect(await createLinkPreviewService(fetch).get('https://example.com/post')).toEqual({ status: 'ready', title: 'Page' })
+    expect(await createLinkPreviewService(svgFetch).get('https://example.com/post')).toEqual({ status: 'ready', title: 'Page' })
   })
 
   it('reports refused addresses as blocked and other failures as unavailable', async () => {

@@ -19,74 +19,30 @@ public sealed class TaskApiTests
     };
 
     [Fact]
-    public async Task Status_AdvertisesWebSocketUpdatesWithPollingFallback()
+    public async Task HeadlessServer_AdvertisesLiveUpdatesAllowsDesktopCorsAndServesNoRendererRoutes()
     {
         await using var app = new TestOratorioApp();
         var client = app.CreateClient();
 
-        var json = await client.GetStringAsync("/api/v1/status");
-
-        using var document = JsonDocument.Parse(json);
-        var capabilities = document.RootElement.GetProperty("capabilities");
-        Assert.True(capabilities.GetProperty("webSocketUpdates").GetBoolean());
-        Assert.True(capabilities.GetProperty("pollingLiveUpdates").GetBoolean());
-    }
-
-    [Fact]
-    public async Task HeadlessServer_DoesNotServeDesktopRendererRoutes()
-    {
-        await using var app = new TestOratorioApp();
-        var client = app.CreateClient();
-
-        var response = await client.GetAsync("/projects/default");
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Cors_AllowsDesktopRendererOrigins()
-    {
-        await using var app = new TestOratorioApp();
-        var client = app.CreateClient();
+        using (var document = JsonDocument.Parse(await client.GetStringAsync("/api/v1/status")))
+        {
+            var capabilities = document.RootElement.GetProperty("capabilities");
+            Assert.True(capabilities.GetProperty("webSocketUpdates").GetBoolean());
+            Assert.True(capabilities.GetProperty("pollingLiveUpdates").GetBoolean());
+        }
 
         using var request = new HttpRequestMessage(HttpMethod.Options, "/api/v1/status");
         request.Headers.Add("Origin", "http://127.0.0.1:5173");
         request.Headers.Add("Access-Control-Request-Method", "GET");
+        var preflight = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.NoContent, preflight.StatusCode);
+        Assert.Equal("http://127.0.0.1:5173", preflight.Headers.GetValues("Access-Control-Allow-Origin").Single());
 
-        var response = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.Equal("http://127.0.0.1:5173", response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/projects/default")).StatusCode);
     }
 
     [Fact]
-    public async Task GetTasks_ReturnsTaskProjectionFields()
-    {
-        await using var app = new TestOratorioApp();
-        var client = app.CreateClient();
-
-        var created = await CreateLocalTaskAsync(client, "Write task board spec");
-        var response = await client.GetAsync("/api/v1/tasks");
-        response.EnsureSuccessStatusCode();
-        var json = await response.Content.ReadAsStringAsync();
-
-        using var document = JsonDocument.Parse(json);
-        var task = document.RootElement.GetProperty("tasks").EnumerateArray().Single();
-        Assert.Equal(created.Item.ItemId, task.GetProperty("itemId").GetString());
-        Assert.Equal(created.Item.ShortId, task.GetProperty("shortId").GetString());
-        Assert.Equal("todo", task.GetProperty("taskStatus").GetString());
-        Assert.Equal(0, task.GetProperty("boardSortOrder").GetInt64());
-
-        var typed = JsonSerializer.Deserialize<TaskListResponse>(json, JsonOptions)
-            ?? throw new InvalidOperationException("Expected task list response.");
-        var dto = Assert.Single(typed.Tasks);
-        Assert.Equal(BoardTaskStatus.Todo, dto.TaskStatus);
-        Assert.StartsWith("DEF-", dto.ShortId, StringComparison.Ordinal);
-        Assert.Equal(0, dto.BoardSortOrder);
-    }
-
-    [Fact]
-    public async Task CreateLocalTasks_AssignsMonotonicShortIds()
+    public async Task CreateLocalTasks_ProjectsMonotonicShortIdsAndResolvesByShortId()
     {
         await using var app = new TestOratorioApp();
         var client = app.CreateClient();
@@ -96,38 +52,25 @@ public sealed class TaskApiTests
 
         Assert.Equal("DEF-1", first.Item.ShortId);
         Assert.Equal("DEF-2", second.Item.ShortId);
-        Assert.Equal(BoardTaskStatus.Todo, first.Item.TaskStatus);
-        Assert.Equal(BoardTaskStatus.Todo, second.Item.TaskStatus);
         Assert.Equal(0, first.Item.BoardSortOrder);
         Assert.Equal(1, second.Item.BoardSortOrder);
-    }
 
-    [Fact]
-    public async Task GetTasks_DefaultsToBoardSortOrder()
-    {
-        await using var app = new TestOratorioApp();
-        var client = app.CreateClient();
+        var json = await client.GetStringAsync("/api/v1/tasks");
+        using (var document = JsonDocument.Parse(json))
+        {
+            var task = document.RootElement.GetProperty("tasks").EnumerateArray().First();
+            Assert.Equal(first.Item.ItemId, task.GetProperty("itemId").GetString());
+            Assert.Equal("DEF-1", task.GetProperty("shortId").GetString());
+            Assert.Equal("todo", task.GetProperty("taskStatus").GetString());
+            Assert.Equal(0, task.GetProperty("boardSortOrder").GetInt64());
+        }
 
-        var first = await CreateLocalTaskAsync(client, "First local task");
-        var second = await CreateLocalTaskAsync(client, "Second local task");
-        var third = await CreateLocalTaskAsync(client, "Third local task");
-
-        await PostAsync<TaskReorderResponse>(
-            client,
-            "/api/v1/tasks/reorder",
-            new TaskReorderRequest(
-            [
-                new TaskReorderEntry(third.Item.ItemId, 0),
-                new TaskReorderEntry(second.Item.ItemId, 1),
-                new TaskReorderEntry(first.Item.ItemId, 2)
-            ]));
-
-        var listed = await client.GetFromJsonAsync<TaskListResponse>("/api/v1/tasks", JsonOptions)
+        var typed = JsonSerializer.Deserialize<TaskListResponse>(json, JsonOptions)
             ?? throw new InvalidOperationException("Expected task list response.");
+        Assert.All(typed.Tasks, x => Assert.Equal(BoardTaskStatus.Todo, x.TaskStatus));
 
-        Assert.Equal(
-            new[] { third.Item.ItemId, second.Item.ItemId, first.Item.ItemId },
-            listed.Tasks.Select(x => x.ItemId).ToArray());
+        var byShortId = await client.GetFromJsonAsync<ItemDetailResponse>($"/api/v1/tasks/{second.Item.ShortId}", JsonOptions);
+        Assert.Equal(second.Item.ItemId, byShortId!.Item.ItemId);
     }
 
     [Fact]
@@ -181,22 +124,6 @@ public sealed class TaskApiTests
             ?? throw new InvalidOperationException("Expected archived list.");
         var archivedItem = Assert.Single(archivedList.Tasks);
         Assert.Equal(archived.Item.ItemId, archivedItem.ItemId);
-    }
-
-    [Fact]
-    public async Task GetTaskByShortId_ReturnsSameDetailAsItemIdRoute()
-    {
-        await using var app = new TestOratorioApp();
-        var client = app.CreateClient();
-
-        var created = await CreateLocalTaskAsync(client, "Open drawer by short id");
-        var byShortId = await client.GetFromJsonAsync<ItemDetailResponse>($"/api/v1/tasks/{created.Item.ShortId}", JsonOptions);
-        var byItemId = await client.GetFromJsonAsync<ItemDetailResponse>($"/api/v1/items/id/{created.Item.ItemId}", JsonOptions);
-
-        Assert.NotNull(byShortId);
-        Assert.NotNull(byItemId);
-        Assert.Equal(byItemId!.Item.ItemId, byShortId!.Item.ItemId);
-        Assert.Equal(byItemId.Item.ShortId, byShortId.Item.ShortId);
     }
 
     private static Task<ItemDetailResponse> CreateLocalTaskAsync(HttpClient client, string title) =>

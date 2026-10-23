@@ -58,21 +58,7 @@ describe('modelCatalogStore', () => {
     })
   })
 
-  it('keeps loading after model/list fails before returning a promise', async () => {
-    appServerListModels.mockImplementation(() => {
-      throw new Error('bridge unavailable')
-    })
-
-    await useModelCatalogStore.getState().loadIfNeeded(false, 'provider-a')
-    expect(useModelCatalogStore.getState()).toMatchObject({ status: 'error', errorMessage: 'bridge unavailable' })
-
-    await useModelCatalogStore.getState().loadIfNeeded(false, 'provider-b')
-
-    expect(appServerListModels).toHaveBeenCalledTimes(2)
-    expect(useModelCatalogStore.getState()).toMatchObject({ status: 'error', requestedProviderId: 'provider-b' })
-  })
-
-  it('stores thrown model/list errors', async () => {
+  it('stores thrown model/list errors and keeps loading after a synchronous failure', async () => {
     appServerListModels.mockRejectedValueOnce(new Error('proxy unavailable'))
 
     await useModelCatalogStore.getState().loadIfNeeded()
@@ -83,6 +69,18 @@ describe('modelCatalogStore', () => {
       modelListUnsupportedEndpoint: false,
       errorMessage: 'proxy unavailable'
     })
+
+    appServerListModels.mockImplementation(() => {
+      throw new Error('bridge unavailable')
+    })
+
+    await useModelCatalogStore.getState().loadIfNeeded(false, 'provider-a')
+    expect(useModelCatalogStore.getState()).toMatchObject({ status: 'error', errorMessage: 'bridge unavailable' })
+
+    await useModelCatalogStore.getState().loadIfNeeded(false, 'provider-b')
+
+    expect(appServerListModels).toHaveBeenCalledTimes(3)
+    expect(useModelCatalogStore.getState()).toMatchObject({ status: 'error', requestedProviderId: 'provider-b' })
   })
 
   it('keeps a pre-connection model list retryable without surfacing an error', async () => {
@@ -99,8 +97,13 @@ describe('modelCatalogStore', () => {
     })
   })
 
-  it('passes provider id to model/list and reloads when it changes', async () => {
+  it('passes provider id to model/list, reloads when it changes and stores the effective default provider', async () => {
     appServerListModels
+      .mockResolvedValueOnce({
+        success: true,
+        providerId: 'openai',
+        models: [{ id: 'gpt-5.5' }]
+      })
       .mockResolvedValueOnce({
         success: true,
         models: [{ id: 'claude-sonnet' }]
@@ -110,11 +113,19 @@ describe('modelCatalogStore', () => {
         models: [{ id: 'gpt-5' }]
       })
 
+    await useModelCatalogStore.getState().loadIfNeeded()
+    expect(appServerListModels).toHaveBeenCalledWith(null)
+    expect(useModelCatalogStore.getState()).toMatchObject({
+      providerId: 'openai',
+      requestedProviderId: null,
+      modelOptions: ['gpt-5.5']
+    })
+
     await useModelCatalogStore.getState().loadIfNeeded(false, 'anthropic-main')
     await useModelCatalogStore.getState().loadIfNeeded(false, 'openrouter')
 
-    expect(appServerListModels).toHaveBeenNthCalledWith(1, 'anthropic-main')
-    expect(appServerListModels).toHaveBeenNthCalledWith(2, 'openrouter')
+    expect(appServerListModels).toHaveBeenNthCalledWith(2, 'anthropic-main')
+    expect(appServerListModels).toHaveBeenNthCalledWith(3, 'openrouter')
     expect(useModelCatalogStore.getState()).toMatchObject({
       providerId: 'openrouter',
       modelOptions: ['gpt-5']
@@ -157,24 +168,7 @@ describe('modelCatalogStore', () => {
     })
   })
 
-  it('stores the effective provider id returned for the workspace default provider', async () => {
-    appServerListModels.mockResolvedValueOnce({
-      success: true,
-      providerId: 'openai',
-      models: [{ id: 'gpt-5.5' }]
-    })
-
-    await useModelCatalogStore.getState().loadIfNeeded()
-
-    expect(appServerListModels).toHaveBeenCalledWith(null)
-    expect(useModelCatalogStore.getState()).toMatchObject({
-      providerId: 'openai',
-      requestedProviderId: null,
-      modelOptions: ['gpt-5.5']
-    })
-  })
-
-  it('keeps reasoning metadata from model/list', async () => {
+  it('keeps reasoning and Fast metadata from model/list, dropping unknown efforts', async () => {
     appServerListModels.mockResolvedValueOnce({
       success: true,
       models: [
@@ -191,7 +185,8 @@ describe('modelCatalogStore', () => {
             defaultEffort: 'ultra',
             supportedOutputs: ['none', 'full'],
             defaultOutput: 'full'
-          }
+          },
+          speed: { supportedModes: ['standard', 'fast'], defaultMode: 'standard' }
         }
       ]
     })
@@ -209,26 +204,10 @@ describe('modelCatalogStore', () => {
             { effort: 'extraHigh', label: 'Extra High', description: 'Deep' },
             { effort: 'ultra', label: 'Ultra', description: 'Orchestrated' }
           ]
-        })
+        }),
+        speed: { supportedModes: ['standard', 'fast'], defaultMode: 'standard' }
       })
     ])
-  })
-
-  it('keeps Fast capability from model/list', async () => {
-    appServerListModels.mockResolvedValueOnce({
-      success: true,
-      models: [{
-        id: 'gpt-5.5',
-        speed: { supportedModes: ['standard', 'fast'], defaultMode: 'standard' }
-      }]
-    })
-
-    await useModelCatalogStore.getState().loadIfNeeded()
-
-    expect(useModelCatalogStore.getState().models[0]).toMatchObject({
-      id: 'gpt-5.5',
-      speed: { supportedModes: ['standard', 'fast'], defaultMode: 'standard' }
-    })
   })
 
   it('reuses catalogs across preference changes, provider switches and the resolved default provider', async () => {

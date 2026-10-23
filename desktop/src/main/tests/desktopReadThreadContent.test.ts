@@ -2,31 +2,34 @@ import { describe, expect, it } from 'vitest'
 import { historyClient, item, read, type RecordValue } from './readThreadTestHelpers'
 
 describe('ReadThread content projection', () => {
-  it.each([
-    { kind: 'pastedText', path: 'paste.txt', fileName: 'paste.txt', preview: 'pasted preview' },
-    { kind: 'responseAnnotation', threadId: 'source', turnId: 'turn', itemId: 'item', selectedText: 'selected response', comment: 'explain' },
-    { kind: 'diffAnnotation', path: 'example.ts', side: 'right', startLine: 1, endLine: 2, selectedText: 'selected code', comment: 'check' },
-    { kind: 'pageReference', url: 'https://example.test', title: 'Page', selectionKind: 'region', text: 'selected page', comment: 'describe' },
-    { kind: 'threadReferences', text: 'referenced thread snapshot' }
-  ])('preserves the saved materialized input for $kind', async context => {
-    const snapshot = `Saved context snapshot: ${JSON.stringify(context)}\n${'context text '.repeat(2_000)}`
-    const { client } = historyClient([{ id: 'turn-1', items: [item('user', 'userMessage', {
-      text: '',
-      nativeInputParts: [
-        { type: 'text', text: 'question' },
-        { type: 'contextRef', context: { id: 'context-1', ...context } }
-      ],
-      materializedInputParts: [
-        { type: 'text', text: 'question' },
-        { type: 'text', text: snapshot },
-        { type: 'localImage', path: 'evidence.png', mimeType: 'image/png' }
-      ]
-    })] }])
-    const { data } = await read(client, { threadId: 'thread-1', includeOutputs: false, maxOutputCharsPerItem: 0 })
-    const content = data.turns[0].items[0].content
-    expect(content.filter((part: RecordValue) => part.type === 'text').map((part: RecordValue) => part.text))
-      .toEqual(['question', snapshot])
-    expect(content.find((part: RecordValue) => part.type === 'localImage')).toMatchObject({ path: 'evidence.png' })
+  it('preserves the saved materialized input for every context kind', async () => {
+    const contexts = [
+      { kind: 'pastedText', path: 'paste.txt', fileName: 'paste.txt', preview: 'pasted preview' },
+      { kind: 'responseAnnotation', threadId: 'source', turnId: 'turn', itemId: 'item', selectedText: 'selected response', comment: 'explain' },
+      { kind: 'diffAnnotation', path: 'example.ts', side: 'right', startLine: 1, endLine: 2, selectedText: 'selected code', comment: 'check' },
+      { kind: 'pageReference', url: 'https://example.test', title: 'Page', selectionKind: 'region', text: 'selected page', comment: 'describe' },
+      { kind: 'threadReferences', text: 'referenced thread snapshot' }
+    ]
+    for (const context of contexts) {
+      const snapshot = `Saved context snapshot: ${JSON.stringify(context)}\n${'context text '.repeat(2_000)}`
+      const { client } = historyClient([{ id: 'turn-1', items: [item('user', 'userMessage', {
+        text: '',
+        nativeInputParts: [
+          { type: 'text', text: 'question' },
+          { type: 'contextRef', context: { id: 'context-1', ...context } }
+        ],
+        materializedInputParts: [
+          { type: 'text', text: 'question' },
+          { type: 'text', text: snapshot },
+          { type: 'localImage', path: 'evidence.png', mimeType: 'image/png' }
+        ]
+      })] }])
+      const { data } = await read(client, { threadId: 'thread-1', includeOutputs: false, maxOutputCharsPerItem: 0 })
+      const content = data.turns[0].items[0].content
+      expect(content.filter((part: RecordValue) => part.type === 'text').map((part: RecordValue) => part.text))
+        .toEqual(['question', snapshot])
+      expect(content.find((part: RecordValue) => part.type === 'localImage')).toMatchObject({ path: 'evidence.png' })
+    }
   })
 
   it('preserves native context data when no materialized snapshot exists, excluding inline media', async () => {
@@ -45,8 +48,8 @@ describe('ReadThread content projection', () => {
     expect(JSON.stringify(data)).not.toContain('BINARY')
   })
 
-  it.each(['data:', 'DATA:', 'DaTa:'])('omits inline image URLs with scheme %s from native and materialized input', async scheme => {
-    for (const materialized of [false, true]) {
+  it('omits inline image URLs from native and materialized input regardless of scheme case', async () => {
+    for (const scheme of ['data:', 'DATA:', 'DaTa:']) for (const materialized of [false, true]) {
       const image = { type: 'image', url: `${scheme}image/png;base64,BINARY` }
       const { client } = historyClient([{ id: 'turn-1', items: [item('user', 'userMessage', {
         nativeInputParts: materialized ? [{ type: 'contextRef', context: { id: 'context-1', kind: 'threadReferences', text: 'reference' } }] : [image],
@@ -58,7 +61,7 @@ describe('ReadThread content projection', () => {
     }
   })
 
-  it.each([false, true])('preserves complete messages independently of output controls (%s)', async includeOutputs => {
+  it('preserves complete messages independently of output controls', async () => {
     const text = '完整正文😀\n'.repeat(5_000)
     const argumentsValue = { prompt: text, nested: { flags: [true, false] } }
     const { client } = historyClient([{ id: 'turn-1', status: 'completed', items: [
@@ -66,23 +69,25 @@ describe('ReadThread content projection', () => {
       item('call', 'toolCall', { toolName: 'Example', callId: 'call-1', arguments: argumentsValue }),
       item('assistant', 'agentMessage', { text, deliveryMode: 'final' })
     ] }])
-    const { response, data } = await read(client, { threadId: 'thread-1', includeOutputs, maxOutputCharsPerItem: 0 })
-    expect(response.success).toBe(true)
-    expect(data.turns[0].items[0].text).toBe(text)
-    expect(data.turns[0].items[0].content[0].text).toBe(text)
-    expect(data.turns[0].items[1].arguments).toEqual(argumentsValue)
-    expect(data.turns[0].items[2].text).toBe(text)
-    expect(JSON.parse(response.contentItems![0].text!)).toEqual(data)
+    for (const includeOutputs of [false, true]) {
+      const { response, data } = await read(client, { threadId: 'thread-1', includeOutputs, maxOutputCharsPerItem: 0 })
+      expect(response.success).toBe(true)
+      expect(data.turns[0].items[0].text).toBe(text)
+      expect(data.turns[0].items[0].content[0].text).toBe(text)
+      expect(data.turns[0].items[1].arguments).toEqual(argumentsValue)
+      expect(data.turns[0].items[2].text).toBe(text)
+      expect(JSON.parse(response.contentItems![0].text!)).toEqual(data)
+    }
   })
 
-  it.each([false, true])('preserves the final answer in large tool-heavy turns (%s)', async includeOutputs => {
+  it('preserves the final answer in large tool-heavy turns', async () => {
     const answer = '答'.repeat(4_266)
     const items = Array.from({ length: 51 }, (_, index) => item(`result-${index}`, 'toolResult', {
       callId: `call-${index}`, success: true, result: 'output'.repeat(2_000)
     }))
     items.push(item('final', 'agentMessage', { text: answer }))
     const { client } = historyClient([{ id: 'turn-1', items }])
-    for (const maxOutputCharsPerItem of [0, 2_000, 6_000, 20_000]) {
+    for (const includeOutputs of [false, true]) for (const maxOutputCharsPerItem of [0, 2_000, 6_000, 20_000]) {
       const { response, data } = await read(client, { threadId: 'thread-1', includeOutputs, maxOutputCharsPerItem })
       expect(response.success).toBe(true)
       expect(data.turns[0].items.at(-1).text).toBe(answer)
@@ -91,7 +96,7 @@ describe('ReadThread content projection', () => {
     }
   })
 
-  it.each([0, 5, 6, 10])('bounds each output with explicit metadata at limit %i', async limit => {
+  it('bounds each output with explicit metadata at every limit', async () => {
     const text = 'abcdef'
     const args = { value: 'full arguments' }
     const { client } = historyClient([{ id: 'turn-1', items: [
@@ -103,20 +108,22 @@ describe('ReadThread content projection', () => {
       item('reasoning', 'reasoningContent', { text }),
       item('execution', 'toolExecution', { resultPreview: text, durationMs: 25 })
     ] }])
-    const { data } = await read(client, { threadId: 'thread-1', includeOutputs: true, maxOutputCharsPerItem: limit })
-    const projected = data.turns[0].items
-    const expected = {
-      text: text.slice(0, limit), truncated: text.length > limit,
-      ...(text.length > limit ? { originalChars: text.length } : {})
+    for (const limit of [0, 5, 6, 10]) {
+      const { data } = await read(client, { threadId: 'thread-1', includeOutputs: true, maxOutputCharsPerItem: limit })
+      const projected = data.turns[0].items
+      const expected = {
+        text: text.slice(0, limit), truncated: text.length > limit,
+        ...(text.length > limit ? { originalChars: text.length } : {})
+      }
+      for (const output of [projected[0].output, projected[1].result, projected[2].content,
+        projected[3].text, projected[4].resultPreview]) expect(output).toEqual(expected)
+      const structured = JSON.stringify({ text })
+      expect(projected[2].structuredContent).toEqual({
+        text: structured.slice(0, limit), truncated: true, originalChars: structured.length
+      })
+      expect(projected[2].arguments).toEqual(args)
+      expect(projected[4].durationMs).toBe(25)
     }
-    for (const output of [projected[0].output, projected[1].result, projected[2].content,
-      projected[3].text, projected[4].resultPreview]) expect(output).toEqual(expected)
-    const structured = JSON.stringify({ text })
-    expect(projected[2].structuredContent).toEqual({
-      text: structured.slice(0, limit), truncated: true, originalChars: structured.length
-    })
-    expect(projected[2].arguments).toEqual(args)
-    expect(projected[4].durationMs).toBe(25)
   })
 
   it('omits all tool output and reasoning by default, including execution previews', async () => {

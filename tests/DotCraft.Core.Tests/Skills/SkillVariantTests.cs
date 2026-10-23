@@ -34,46 +34,31 @@ public sealed class SkillVariantTests : IDisposable
     }
 
     [Fact]
-    public async Task VariantMutation_PatchesVariantWithoutChangingSource()
+    public async Task VariantMutation_PatchesAndReusesOneVariantWithoutChangingSourceUntilRestored()
     {
         var sourcePath = WriteSourceSkill("demo-skill", "Source body.");
         var applier = CreateVariantApplier();
 
-        var result = await applier.PatchAsync(new SkillPatchRequest(
-            "demo-skill",
-            "Source body.",
-            "Variant body.",
-            null,
-            false));
+        var first = await applier.PatchAsync(new SkillPatchRequest("demo-skill", "Source body.", "Variant body.", null, false));
+        var second = await applier.PatchAsync(new SkillPatchRequest("demo-skill", "Variant body.", "Second variant body.", null, false));
 
-        Assert.True(result.Success);
+        Assert.True(first.Success);
+        Assert.True(second.Success);
         Assert.Contains("Source body.", File.ReadAllText(sourcePath));
-
+        Assert.Single(Directory.EnumerateFiles(
+            _skillsLoader.VariantStore.VariantsRoot,
+            "manifest.json",
+            SearchOption.AllDirectories));
         var effective = _skillsLoader.LoadEffectiveSkill("demo-skill", true, _target);
         Assert.NotNull(effective);
         Assert.Equal("variant", effective.Origin);
-        Assert.Contains("Variant body.", effective.Content);
-    }
-
-    [Fact]
-    public async Task VariantMutation_ReusesCurrentVariant()
-    {
-        WriteSourceSkill("demo-skill", "Source body.");
-        var applier = CreateVariantApplier();
-
-        await applier.PatchAsync(new SkillPatchRequest("demo-skill", "Source body.", "Variant body.", null, false));
-        await applier.PatchAsync(new SkillPatchRequest("demo-skill", "Variant body.", "Second variant body.", null, false));
-
-        var manifestCount = Directory.EnumerateFiles(
-                _skillsLoader.VariantStore.VariantsRoot,
-                "manifest.json",
-                SearchOption.AllDirectories)
-            .Count();
-        var effective = _skillsLoader.LoadEffectiveSkill("demo-skill", true, _target);
-
-        Assert.Equal(1, manifestCount);
-        Assert.NotNull(effective);
         Assert.Contains("Second variant body.", effective.Content);
+
+        Assert.True(_skillsLoader.RestoreOriginalSkill("demo-skill", _target));
+        var restored = _skillsLoader.LoadEffectiveSkill("demo-skill", true, _target);
+        Assert.NotNull(restored);
+        Assert.Equal("source", restored.Origin);
+        Assert.Contains("Source body.", restored.Content);
     }
 
     [Fact]
@@ -90,22 +75,6 @@ public sealed class SkillVariantTests : IDisposable
         Assert.NotNull(effective);
         Assert.Equal("source", effective.Origin);
         Assert.Contains("Changed source body.", effective.Content);
-    }
-
-    [Fact]
-    public async Task RestoreOriginalSkill_FallsBackToSource()
-    {
-        WriteSourceSkill("demo-skill", "Source body.");
-        var applier = CreateVariantApplier();
-        await applier.PatchAsync(new SkillPatchRequest("demo-skill", "Source body.", "Variant body.", null, false));
-
-        var restored = _skillsLoader.RestoreOriginalSkill("demo-skill", _target);
-        var effective = _skillsLoader.LoadEffectiveSkill("demo-skill", true, _target);
-
-        Assert.True(restored);
-        Assert.NotNull(effective);
-        Assert.Equal("source", effective.Origin);
-        Assert.Contains("Source body.", effective.Content);
     }
 
     [Fact]
@@ -141,7 +110,6 @@ public sealed class SkillVariantTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup for temp test directories.
         }
     }
 

@@ -18,82 +18,42 @@ public sealed class LatestResultTests
     private static readonly DateTimeOffset Start = DateTimeOffset.Parse("2026-10-01T10:00:00Z");
 
     [Fact]
-    public async Task NoDrafts_ReportsNone()
+    public async Task LatestResult_PrefersPendingFollowUpsThenNewestNonDiscardedDraft()
     {
         await using var app = new TestOratorioApp();
         var client = app.CreateClient();
-        var itemId = await CreateLocalTaskAsync(client, "No drafts");
-
-        Assert.Equal(LatestResult.None, (await GetDetailAsync(client, itemId)).Item.LatestResult);
-    }
-
-    [Fact]
-    public async Task CleanReview_ReportsNoIssues()
-    {
-        await using var app = new TestOratorioApp();
-        var client = app.CreateClient();
-        var itemId = await CreateLocalTaskAsync(client, "Clean review");
-        await SeedAsync(app, itemId, (db, round, run) =>
+        var noDrafts = await CreateLocalTaskAsync(client, "No drafts");
+        var cleanReview = await CreateLocalTaskAsync(client, "Clean review");
+        var findings = await CreateLocalTaskAsync(client, "Review with findings");
+        var changesReady = await CreateLocalTaskAsync(client, "Implementation draft");
+        var delivered = await CreateLocalTaskAsync(client, "Delivered implementation");
+        var followUps = await CreateLocalTaskAsync(client, "Pending follow-up");
+        await SeedAsync(app, cleanReview, (db, round, run) =>
         {
-            db.ReviewDrafts.Add(ReviewDraft(itemId, round, run, Start, majorCount: 0, minorCount: 0));
-            db.ReviewDrafts.Add(ReviewDraft(itemId, round, run, Start.AddMinutes(1), majorCount: 2, minorCount: 0, ReviewDraftStatus.Discarded));
+            db.ReviewDrafts.Add(ReviewDraft(cleanReview, round, run, Start, majorCount: 0, minorCount: 0));
+            db.ReviewDrafts.Add(ReviewDraft(cleanReview, round, run, Start.AddMinutes(1), majorCount: 2, minorCount: 0, ReviewDraftStatus.Discarded));
+        });
+        await SeedAsync(app, findings, (db, round, run) =>
+            db.ReviewDrafts.Add(ReviewDraft(findings, round, run, Start, majorCount: 0, minorCount: 1)));
+        await SeedAsync(app, changesReady, (db, round, run) =>
+        {
+            db.ReviewDrafts.Add(ReviewDraft(changesReady, round, run, Start, majorCount: 1, minorCount: 0));
+            db.ImplementationDrafts.Add(ImplementationDraft(changesReady, round, run, Start.AddMinutes(1), ImplementationDraftStatus.Draft));
+        });
+        await SeedAsync(app, delivered, (db, round, run) =>
+            db.ImplementationDrafts.Add(ImplementationDraft(delivered, round, run, Start, ImplementationDraftStatus.Delivered)));
+        await SeedAsync(app, followUps, (db, round, run) =>
+        {
+            db.FollowUpDrafts.Add(FollowUpDraft(followUps, round, run, Start, FollowUpDraftStatus.Draft));
+            db.ImplementationDrafts.Add(ImplementationDraft(followUps, round, run, Start.AddMinutes(1), ImplementationDraftStatus.Delivered));
         });
 
-        Assert.Equal(LatestResult.NoIssues, (await GetDetailAsync(client, itemId)).Item.LatestResult);
-    }
-
-    [Fact]
-    public async Task ReviewWithFindings_ReportsFindings()
-    {
-        await using var app = new TestOratorioApp();
-        var client = app.CreateClient();
-        var itemId = await CreateLocalTaskAsync(client, "Review with findings");
-        await SeedAsync(app, itemId, (db, round, run) =>
-            db.ReviewDrafts.Add(ReviewDraft(itemId, round, run, Start, majorCount: 0, minorCount: 1)));
-
-        Assert.Equal(LatestResult.Findings, (await GetDetailAsync(client, itemId)).Item.LatestResult);
-    }
-
-    [Fact]
-    public async Task ImplementationDraft_ReportsChangesReady()
-    {
-        await using var app = new TestOratorioApp();
-        var client = app.CreateClient();
-        var itemId = await CreateLocalTaskAsync(client, "Implementation draft");
-        await SeedAsync(app, itemId, (db, round, run) =>
-        {
-            db.ReviewDrafts.Add(ReviewDraft(itemId, round, run, Start, majorCount: 1, minorCount: 0));
-            db.ImplementationDrafts.Add(ImplementationDraft(itemId, round, run, Start.AddMinutes(1), ImplementationDraftStatus.Draft));
-        });
-
-        Assert.Equal(LatestResult.ChangesReady, (await GetDetailAsync(client, itemId)).Item.LatestResult);
-    }
-
-    [Fact]
-    public async Task DeliveredImplementation_ReportsDelivered()
-    {
-        await using var app = new TestOratorioApp();
-        var client = app.CreateClient();
-        var itemId = await CreateLocalTaskAsync(client, "Delivered implementation");
-        await SeedAsync(app, itemId, (db, round, run) =>
-            db.ImplementationDrafts.Add(ImplementationDraft(itemId, round, run, Start, ImplementationDraftStatus.Delivered)));
-
-        Assert.Equal(LatestResult.Delivered, (await GetDetailAsync(client, itemId)).Item.LatestResult);
-    }
-
-    [Fact]
-    public async Task PendingFollowUp_ReportsFollowUpsOverLaterResults()
-    {
-        await using var app = new TestOratorioApp();
-        var client = app.CreateClient();
-        var itemId = await CreateLocalTaskAsync(client, "Pending follow-up");
-        await SeedAsync(app, itemId, (db, round, run) =>
-        {
-            db.FollowUpDrafts.Add(FollowUpDraft(itemId, round, run, Start, FollowUpDraftStatus.Draft));
-            db.ImplementationDrafts.Add(ImplementationDraft(itemId, round, run, Start.AddMinutes(1), ImplementationDraftStatus.Delivered));
-        });
-
-        Assert.Equal(LatestResult.FollowUps, (await GetDetailAsync(client, itemId)).Item.LatestResult);
+        Assert.Equal(LatestResult.None, (await GetDetailAsync(client, noDrafts)).Item.LatestResult);
+        Assert.Equal(LatestResult.NoIssues, (await GetDetailAsync(client, cleanReview)).Item.LatestResult);
+        Assert.Equal(LatestResult.Findings, (await GetDetailAsync(client, findings)).Item.LatestResult);
+        Assert.Equal(LatestResult.ChangesReady, (await GetDetailAsync(client, changesReady)).Item.LatestResult);
+        Assert.Equal(LatestResult.Delivered, (await GetDetailAsync(client, delivered)).Item.LatestResult);
+        Assert.Equal(LatestResult.FollowUps, (await GetDetailAsync(client, followUps)).Item.LatestResult);
     }
 
     [Fact]

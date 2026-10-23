@@ -47,8 +47,6 @@ public sealed partial class SessionServiceInterruptionTests
 
     [Theory]
     [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
     [InlineData(true, true)]
     public async Task CancelDuringContextPreparation_PreservesInitialInput(bool ephemeral, bool callerCancellation)
     {

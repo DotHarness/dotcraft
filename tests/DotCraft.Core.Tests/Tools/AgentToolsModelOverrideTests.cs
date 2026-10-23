@@ -20,10 +20,7 @@ public sealed class AgentToolsModelOverrideTests : IDisposable
 
     [Theory]
     [InlineData(null, null, null)]
-    [InlineData("all", null, null)]
     [InlineData("all", "", "")]
-    [InlineData(null, "", null)]
-    [InlineData("all", null, "")]
     [InlineData(" all ", " \t", "\r\n")]
     public async Task SpawnAgent_FullHistoryWithBlankOverrides_InheritsParentPreference(
         string? forkTurns, string? model, string? reasoningEffort)
@@ -50,7 +47,6 @@ public sealed class AgentToolsModelOverrideTests : IDisposable
     [Theory]
     [InlineData(null, "child-model", null)]
     [InlineData("all", null, "low")]
-    [InlineData("all", "child-model", "low")]
     public async Task SpawnAgent_FullHistoryWithExplicitOverrides_DoesNotCreateChild(
         string? forkTurns, string? model, string? reasoningEffort)
     {

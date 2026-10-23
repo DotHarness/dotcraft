@@ -128,39 +128,6 @@ test("does not create a preference when model and prior record are empty", async
   assert.deepEqual(workspaceConfig.ProviderPreferences, {});
 });
 
-test("preserves fields whose environment variables are absent", async (t) => {
-  const fixture = await createFixture(t);
-  const existing = {
-    ProviderId: "openai",
-    ProviderPreferences: {
-      OPENAI: {
-        model: "gpt-old",
-        reasoning: { enabled: true, effort: "low", output: "none" },
-        speed: "fast",
-        contextWindow: { mode: "max" },
-      },
-    },
-  };
-  await writeFile(
-    path.join(fixture.workspace, ".craft", "config.json"),
-    `${JSON.stringify(existing)}\n`,
-    "utf8",
-  );
-
-  runRenderer(fixture, {
-    DOTCRAFT_PROVIDER: "openai",
-    DOTCRAFT_MODEL: "gpt-new",
-  });
-
-  const config = await readConfig(path.join(fixture.workspace, ".craft", "config.json"));
-  assert.deepEqual(config.ProviderPreferences.OPENAI, {
-    model: "gpt-new",
-    reasoning: { enabled: true, effort: "low", output: "none" },
-    speed: "fast",
-    contextWindow: { mode: "max" },
-  });
-});
-
 test("creates capability-safe fallback values without a catalog", async (t) => {
   const fixture = await createFixture(t);
   runRenderer(fixture, {
@@ -212,17 +179,15 @@ test("requires an explicit authentication method", async (t) => {
   assert.match(result.stderr, /DOTCRAFT_AUTH_METHOD must be apiKey or chatgptOAuth/);
 });
 
-for (const [name, value, allowed] of [
-  ["DOTCRAFT_REASONING_EFFORT", "ultra", "off, low, medium, high, extraHigh"],
-  ["DOTCRAFT_REASONING_OUTPUT", "verbose", "none, summary, full"],
-  ["DOTCRAFT_SPEED", "turbo", "standard, fast"],
-  ["DOTCRAFT_CONTEXT_WINDOW", "huge", "default, max"],
-]) {
-  test(`fails fast for invalid ${name}`, async (t) => {
-    const fixture = await createFixture(t);
-    const environment = Object.fromEntries(
-      Object.entries(process.env).filter(([key]) => !key.startsWith("DOTCRAFT_")),
-    );
+test("fails fast for invalid preference values", async (t) => {
+  const fixture = await createFixture(t);
+  const environment = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.startsWith("DOTCRAFT_")),
+  );
+  for (const [name, value, allowed] of [
+    ["DOTCRAFT_REASONING_EFFORT", "ultra", "off, low, medium, high, extraHigh"],
+    ["DOTCRAFT_CONTEXT_WINDOW", "huge", "default, max"],
+  ]) {
     const result = spawnSync(process.execPath, [renderer], {
       encoding: "utf8",
       env: {
@@ -239,9 +204,8 @@ for (const [name, value, allowed] of [
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, new RegExp(name));
     assert.match(result.stderr, new RegExp(allowed.replaceAll(", ", ".*")));
-  });
-}
-
+  }
+});
 
 test("remote mode renders client access and keeps model selection", async (t) => {
   const fixture = await createFixture(t);

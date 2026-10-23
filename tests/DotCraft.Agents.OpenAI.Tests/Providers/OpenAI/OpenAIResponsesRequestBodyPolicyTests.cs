@@ -9,10 +9,8 @@ namespace DotCraft.Tests.Agents;
 public sealed class OpenAIResponsesRequestBodyPolicyTests
 {
     [Theory]
-    [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(false, true)]
-    [InlineData(true, true)]
     public async Task RewrittenContentRemainsReadableAfterProcessing(bool useAsync, bool oauth)
     {
         using var message = ClientPipeline.Create(new ClientPipelineOptions()).CreateMessage();

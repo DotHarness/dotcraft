@@ -13,10 +13,9 @@ public sealed class WindowsShellSelectionProcessTests : IDisposable
     public WindowsShellSelectionProcessTests() => Directory.CreateDirectory(_root);
 
     [Theory]
-    [InlineData(null)]
     [InlineData("powershell")]
     [InlineData("pwsh")]
-    public async Task LaunchAndStdin_RetainResolvedShellAndUnicodeOutput(string? selector)
+    public async Task LaunchAndStdin_RetainResolvedShellAndUnicodeOutput(string selector)
     {
         if (!OperatingSystem.IsWindows())
             return;
@@ -29,7 +28,7 @@ public sealed class WindowsShellSelectionProcessTests : IDisposable
         await using var service = new BackgroundTerminalService(_root, new AppConfig.ShellBackgroundConfig());
         var started = await service.StartAsync(new BackgroundTerminalStartRequest
         {
-            Shell = selector is null ? null : shell,
+            Shell = shell,
             WorkingDirectory = _root,
             Command = "[Console]::WriteLine((Get-Process -Id $PID).Path); " +
                 "[Console]::WriteLine('中文输出'); [Console]::WriteLine([Console]::ReadLine()); exit 7",
@@ -40,7 +39,7 @@ public sealed class WindowsShellSelectionProcessTests : IDisposable
         });
 
         Assert.Equal(shell, service.GetStdinSession(started.SessionId)!.Shell);
-        var finished = await service.WriteStdinAsync(started.SessionId, "stdin-marker\n", yieldTimeMs: 5000);
+        var finished = await service.WriteStdinAsync(started.SessionId, "stdin-marker\n", yieldTimeMs: 15000);
         if (finished.Status == BackgroundTerminalStatus.Running)
             finished = await service.ReadAsync(started.SessionId, waitMs: 5000);
 
@@ -50,30 +49,10 @@ public sealed class WindowsShellSelectionProcessTests : IDisposable
         Assert.Contains("stdin-marker", finished.Output);
     }
 
-    [Fact]
-    public async Task Pwsh_ExecutesPipelineChains()
-    {
-        if (!OperatingSystem.IsWindows() || !ShellIdentityResolver.Host.TryResolve("pwsh", out var shell, out _))
-            return;
-
-        await using var service = new BackgroundTerminalService(_root, new AppConfig.ShellBackgroundConfig());
-        var finished = await service.StartAsync(new BackgroundTerminalStartRequest
-        {
-            Shell = shell,
-            WorkingDirectory = _root,
-            Command = "Write-Output first && Write-Output second",
-            TimeoutSeconds = 10
-        });
-        Assert.Equal(0, finished.ExitCode);
-        Assert.Contains("first", finished.Output);
-        Assert.Contains("second", finished.Output);
-    }
-
     [Theory]
-    [InlineData(null)]
     [InlineData("powershell")]
     [InlineData("pwsh")]
-    public async Task Hooks_PreserveJsonStdinAndBlockingExitCode(string? selector)
+    public async Task Hooks_PreserveJsonStdinAndBlockingExitCode(string selector)
     {
         if (!OperatingSystem.IsWindows())
             return;

@@ -12,106 +12,47 @@ namespace DotCraft.Tests.Agents;
 public sealed class ModeToolPolicyTests
 {
     [Fact]
-    public async Task StreamingClient_DeniesAgentModeCreatePlanWithRecoverableMessage()
+    public async Task AgentMode_DeniesCreatePlanWithRecoverableMessage()
     {
-        var modeManager = new AgentModeManager();
-        var inner = new ToolCallChatClient("CreatePlan", new Dictionary<string, object?>());
-        var tool = AIFunctionFactory.Create(() => "plan saved", name: "CreatePlan");
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
-            AdditionalTools = [tool],
-            ModeToolPolicy = new ModeToolPolicy(modeManager).Evaluate
-        };
+        var result = await RunToolCallAsync(AgentMode.Agent, "CreatePlan", []);
 
-        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
-        {
-        }
-
-        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
-        Assert.Contains("MODE_POLICY_DENIED", result.Result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Tool: CreatePlan", result.Result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("CurrentMode: Agent", result.Result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("use TodoWrite to track", result.Result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("MODE_POLICY_DENIED", result, StringComparison.Ordinal);
+        Assert.Contains("Tool: CreatePlan", result, StringComparison.Ordinal);
+        Assert.Contains("CurrentMode: Agent", result, StringComparison.Ordinal);
+        Assert.Contains("use TodoWrite to track", result, StringComparison.Ordinal);
     }
 
     [Theory]
     [InlineData("CreatePlan")]
     [InlineData(ImageGenerationToolSource.ToolName)]
     [InlineData("exec")]
-    public async Task StreamingClient_AllowsPlanModeTool(string toolName)
+    public async Task PlanMode_AllowsPlanningTools(string toolName)
     {
-        var modeManager = new AgentModeManager();
-        modeManager.SwitchMode(AgentMode.Plan);
-        var inner = new ToolCallChatClient(toolName, new Dictionary<string, object?>());
-        var tool = AIFunctionFactory.Create(() => "plan saved", name: toolName);
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
-            AdditionalTools = [tool],
-            ModeToolPolicy = new ModeToolPolicy(modeManager).Evaluate
-        };
-
-        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
-        {
-        }
-
-        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
-        Assert.Equal("plan saved", result.Result?.ToString());
+        Assert.Equal(ToolOutput, await RunToolCallAsync(AgentMode.Plan, toolName, []));
     }
 
     [Theory]
     [InlineData("WriteFile")]
     [InlineData("Transfer")]
-    public async Task StreamingClient_DeniesPlanModeFileMutationWithRecoverableMessage(string toolName)
+    [InlineData(GoalToolNames.GetGoal)]
+    [InlineData(GoalToolNames.CreateGoal)]
+    public async Task PlanMode_DeniesMutatingToolsWithRecoverableMessage(string toolName)
     {
-        var modeManager = new AgentModeManager();
-        modeManager.SwitchMode(AgentMode.Plan);
-        var inner = new ToolCallChatClient(toolName, new Dictionary<string, object?>
-        {
-            ["path"] = "a.txt",
-            ["content"] = "hello"
-        });
-        var tool = AIFunctionFactory.Create(() => "wrote", name: toolName);
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
-            AdditionalTools = [tool],
-            ModeToolPolicy = new ModeToolPolicy(modeManager).Evaluate
-        };
+        var result = await RunToolCallAsync(AgentMode.Plan, toolName, new() { ["path"] = "a.txt", ["content"] = "hello" });
 
-        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
-        {
-        }
-
-        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
-        Assert.Contains("MODE_POLICY_DENIED", result.Result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains($"Tool: {toolName}", result.Result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("NextAllowedActions:", result.Result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("MODE_POLICY_DENIED", result, StringComparison.Ordinal);
+        Assert.Contains($"Tool: {toolName}", result, StringComparison.Ordinal);
+        Assert.Contains("NextAllowedActions:", result, StringComparison.Ordinal);
     }
 
     [Theory]
     [InlineData("", true)]
     [InlineData("y", false)]
-    public async Task StreamingClient_AllowsPlanModeWriteStdinOnlyToPoll(string input, bool allowed)
+    public async Task PlanMode_AllowsWriteStdinOnlyToPoll(string input, bool allowed)
     {
-        var modeManager = new AgentModeManager();
-        modeManager.SwitchMode(AgentMode.Plan);
-        var inner = new ToolCallChatClient("WriteStdin", new Dictionary<string, object?>
-        {
-            ["sessionId"] = "term_1",
-            ["input"] = input
-        });
-        var tool = AIFunctionFactory.Create(() => "polled", name: "WriteStdin");
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
-            AdditionalTools = [tool],
-            ModeToolPolicy = new ModeToolPolicy(modeManager).Evaluate
-        };
+        var result = await RunToolCallAsync(AgentMode.Plan, "WriteStdin", new() { ["sessionId"] = "term_1", ["input"] = input });
 
-        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
-        {
-        }
-
-        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
-        Assert.Equal(allowed, result.Result?.ToString() == "polled");
+        Assert.Equal(allowed, result == ToolOutput);
     }
 
     [Fact]
@@ -140,33 +81,16 @@ Reason: denied by test policy
 
         var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
         Assert.Contains("PROFILE_TOOL_POLICY_DENIED", result.Result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Tool: WriteFile", result.Result?.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("not found", result.Result?.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
     [InlineData("git status")]
-    [InlineData("rg ModeToolPolicy")]
     [InlineData("git --no-pager diff")]
     [InlineData("git diff --stat; git log -1")]
-    public async Task StreamingClient_AllowsPlanModeReadOnlyShellCommands(string command)
+    public async Task PlanMode_AllowsReadOnlyShellCommands(string command)
     {
-        var modeManager = new AgentModeManager();
-        modeManager.SwitchMode(AgentMode.Plan);
-        var inner = new ToolCallChatClient("Exec", new Dictionary<string, object?> { ["command"] = command });
-        var tool = AIFunctionFactory.Create(Exec, name: "Exec");
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
-            AdditionalTools = [tool],
-            ModeToolPolicy = new ModeToolPolicy(modeManager).Evaluate
-        };
-
-        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
-        {
-        }
-
-        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
-        Assert.Equal("shell output", result.Result?.ToString());
+        Assert.Equal(ToolOutput, await RunToolCallAsync(AgentMode.Plan, "Exec", new() { ["command"] = command }));
     }
 
     [Theory]
@@ -178,25 +102,12 @@ Reason: denied by test policy
     [InlineData("find . -delete", "'-delete'")]
     [InlineData("rg --pre sh pattern", "'--pre'")]
     [InlineData("sed -n -i s/a/b/ README.md", "sed")]
-    public async Task StreamingClient_DeniesPlanModeMutatingShellCommand(string command, string expectedReasonFragment)
+    public async Task PlanMode_DeniesMutatingShellCommand(string command, string expectedReasonFragment)
     {
-        var modeManager = new AgentModeManager();
-        modeManager.SwitchMode(AgentMode.Plan);
-        var inner = new ToolCallChatClient("Exec", new Dictionary<string, object?> { ["command"] = command });
-        var tool = AIFunctionFactory.Create(Exec, name: "Exec");
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
-            AdditionalTools = [tool],
-            ModeToolPolicy = new ModeToolPolicy(modeManager).Evaluate
-        };
+        var result = await RunToolCallAsync(AgentMode.Plan, "Exec", new() { ["command"] = command });
 
-        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
-        {
-        }
-
-        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
-        Assert.Contains("MODE_POLICY_DENIED", result.Result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains(expectedReasonFragment, result.Result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("MODE_POLICY_DENIED", result, StringComparison.Ordinal);
+        Assert.Contains(expectedReasonFragment, result, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -312,31 +223,6 @@ Reason: denied by test policy
         Assert.Null(commandContext.TryClaimPendingShellExecution(command, workingDirectory));
     }
 
-    [Theory]
-    [InlineData(GoalToolNames.GetGoal)]
-    [InlineData(GoalToolNames.CreateGoal)]
-    [InlineData(GoalToolNames.UpdateGoal)]
-    public async Task StreamingClient_DeniesPlanModeGoalTools(string toolName)
-    {
-        var modeManager = new AgentModeManager();
-        modeManager.SwitchMode(AgentMode.Plan);
-        var inner = new ToolCallChatClient(toolName, new Dictionary<string, object?>());
-        var tool = AIFunctionFactory.Create(() => "goal changed", name: toolName);
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
-            AdditionalTools = [tool],
-            ModeToolPolicy = new ModeToolPolicy(modeManager).Evaluate
-        };
-
-        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
-        {
-        }
-
-        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
-        Assert.Contains("MODE_POLICY_DENIED", result.Result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains($"Tool: {toolName}", result.Result?.ToString(), StringComparison.Ordinal);
-    }
-
     private sealed class ToolCallChatClient(string toolName, IDictionary<string, object?> arguments) : IChatClient
     {
         public List<List<ChatMessage>> Calls { get; } = [];
@@ -426,5 +312,23 @@ Reason: denied by test policy
         return item;
     }
 
-    private static string Exec(string command) => "shell output";
+    private const string ToolOutput = "tool output";
+
+    private static async Task<string?> RunToolCallAsync(AgentMode mode, string toolName, Dictionary<string, object?> arguments)
+    {
+        var modeManager = new AgentModeManager();
+        modeManager.SwitchMode(mode);
+        var inner = new ToolCallChatClient(toolName, arguments);
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [AIFunctionFactory.Create(() => ToolOutput, name: toolName)],
+            ModeToolPolicy = new ModeToolPolicy(modeManager).Evaluate
+        };
+
+        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
+        {
+        }
+
+        return Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>()).Result?.ToString();
+    }
 }

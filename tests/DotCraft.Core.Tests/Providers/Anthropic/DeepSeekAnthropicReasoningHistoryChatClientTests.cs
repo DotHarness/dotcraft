@@ -46,40 +46,20 @@ public sealed class DeepSeekAnthropicReasoningHistoryChatClientTests
         Assert.Same(call, prepared.Contents[2]);
     }
 
-    [Fact]
-    public async Task ProviderAdapters_OfficialAnthropicDoesNotApplyDeepSeekHistoryAdapter()
+    [Theory]
+    [InlineData(ModelProviderProtocols.Anthropic, "claude-opus-4-7", "https://api.anthropic.com")]
+    [InlineData(ModelProviderProtocols.OpenAIChatCompletions, "deepseek-v4-pro", "https://api.deepseek.com/v1")]
+    public async Task ProviderAdapters_OtherProvidersDoNotApplyDeepSeekAnthropicHistoryAdapter(
+        string protocol,
+        string model,
+        string endpoint)
     {
         using var inner = new CapturingChatClient();
         using var client = ProviderChatClientAdapters.CreateRequestAdaptedClient(
             inner,
             new AppConfig(),
-            CreateRuntime(
-                ModelProviderProtocols.Anthropic,
-                "claude-opus-4-7",
-                "https://api.anthropic.com"));
-        var reasoning = new TextReasoningContent("native anthropic reasoning");
-
-        await client.GetResponseAsync(
-            [new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[reasoning])]);
-
-        var message = Assert.Single(inner.LastMessages);
-        var capturedReasoning = Assert.Single(message.Contents.OfType<TextReasoningContent>());
-        Assert.Same(reasoning, capturedReasoning);
-        Assert.Null(capturedReasoning.RawRepresentation);
-    }
-
-    [Fact]
-    public async Task ProviderAdapters_OpenAICompatibleDeepSeekDoesNotApplyAnthropicHistoryAdapter()
-    {
-        using var inner = new CapturingChatClient();
-        using var client = ProviderChatClientAdapters.CreateRequestAdaptedClient(
-            inner,
-            new AppConfig(),
-            CreateRuntime(
-                ModelProviderProtocols.OpenAIChatCompletions,
-                "deepseek-v4-pro",
-                "https://api.deepseek.com/v1"));
-        var reasoning = new TextReasoningContent("openai-compatible reasoning");
+            CreateRuntime(protocol, model, endpoint));
+        var reasoning = new TextReasoningContent("native reasoning");
 
         await client.GetResponseAsync(
             [new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[reasoning])]);

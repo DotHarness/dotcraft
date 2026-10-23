@@ -34,42 +34,22 @@ public sealed class FileToolsEncodingTests : IDisposable
         }
     }
 
-    [Theory]
-    [InlineData(0, 0)]
-    [InlineData(1, 10)]
-    public async Task ReadFile_GbkFile_ReturnsError(int offset, int limit)
-    {
-        await WriteGbkFileAsync();
-
-        var result = await Tools().ReadFile("gbk.txt", offset, limit);
-
-        Assert.StartsWith(GbkRefusal, Assert.Single(result.OfType<TextContent>()).Text, StringComparison.Ordinal);
-    }
-
     [Fact]
-    public async Task EditFile_GbkFile_RefusesWithoutWriting()
+    public async Task GbkFile_ReadEditAndOverwriteAreRefusedWithoutWriting()
     {
         var file = await WriteGbkFileAsync();
+        var tools = Tools();
 
-        var result = await Tools().EditFile("gbk.txt", "needle", "pin");
+        foreach (var (offset, limit) in new[] { (0, 0), (1, 10) })
+            Assert.StartsWith(GbkRefusal, Assert.Single((await tools.ReadFile("gbk.txt", offset, limit)).OfType<TextContent>()).Text, StringComparison.Ordinal);
 
-        Assert.StartsWith(GbkRefusal, result.Content, StringComparison.Ordinal);
-        Assert.Equal(GbkBytes, await File.ReadAllBytesAsync(file));
-        Assert.Equal("notApplied", result.StructuredContent!.Value.GetProperty("writeState").GetString());
-        Assert.NotNull(result.Error);
-    }
-
-    [Fact]
-    public async Task WriteFile_OverGbkFile_RefusesWithoutWriting()
-    {
-        var file = await WriteGbkFileAsync();
-
-        var result = await Tools().WriteFile("gbk.txt", "replacement");
-
-        Assert.StartsWith(GbkRefusal, result.Content, StringComparison.Ordinal);
-        Assert.Equal(GbkBytes, await File.ReadAllBytesAsync(file));
-        Assert.Equal("notApplied", result.StructuredContent!.Value.GetProperty("writeState").GetString());
-        Assert.NotNull(result.Error);
+        foreach (var result in new[] { await tools.EditFile("gbk.txt", "needle", "pin"), await tools.WriteFile("gbk.txt", "replacement") })
+        {
+            Assert.StartsWith(GbkRefusal, result.Content, StringComparison.Ordinal);
+            Assert.Equal(GbkBytes, await File.ReadAllBytesAsync(file));
+            Assert.Equal("notApplied", result.StructuredContent!.Value.GetProperty("writeState").GetString());
+            Assert.NotNull(result.Error);
+        }
     }
 
     [Theory]
@@ -136,5 +116,4 @@ public sealed class FileToolsEncodingTests : IDisposable
         await File.WriteAllBytesAsync(file, GbkBytes);
         return file;
     }
-
 }

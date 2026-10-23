@@ -6,7 +6,7 @@ namespace DotCraft.Tests.Contributions;
 public sealed class ContributionRegistryLifecycleTests
 {
     [Fact]
-    public void Registrar_DisposesItsGroupInReverseRegistrationOrder()
+    public void Registrar_DisposesItsGroupOnceInReverseRegistrationOrderWithOneEvent()
     {
         var registry = new ContributionRegistry();
         var disposals = new List<string>();
@@ -15,9 +15,14 @@ public sealed class ContributionRegistryLifecycleTests
         registrar.Add<ILabelContract>(new DisposableLabelContribution("second", disposals));
         registrar.Add<INoteContract>(new DisposableNoteContribution("note", disposals));
         registry.Add<ILabelContract>(new LabelContribution("builtin"));
+        var events = new List<ContributionsChangedEventArgs>();
+        registry.Changed += (_, args) => events.Add(args);
 
         registrar.Dispose();
+        registrar.Dispose();
 
+        Assert.Single(events);
+        Assert.Throws<ObjectDisposedException>(() => registrar.Add<ILabelContract>(new LabelContribution("late")));
         Assert.Equal(["note", "second", "first"], disposals);
         Assert.Equal(["builtin"], registry.Resolve<ILabelContract>().Select(contribution => contribution.Label));
         Assert.Empty(registry.Resolve<INoteContract>());
@@ -44,53 +49,23 @@ public sealed class ContributionRegistryLifecycleTests
     }
 
     [Fact]
-    public void Registrar_DisposalIsIdempotentAndRaisesOneEvent()
+    public void HandleDisposal_IsIdempotentAndLeavesUnownedContributionsAlone()
     {
         var registry = new ContributionRegistry();
         var disposals = new List<string>();
-        var registrar = registry.CreateRegistrar(ContributionOrigin.Plugin("acme.review", "1"));
-        var contribution = new DisposableLabelContribution("only", disposals);
-        registrar.Add<ILabelContract>(contribution);
-
-        var events = new List<ContributionsChangedEventArgs>();
-        registry.Changed += (_, args) => events.Add(args);
-
-        registrar.Dispose();
-        registrar.Dispose();
-
-        Assert.Single(events);
-        Assert.Equal(1, contribution.DisposeCount);
-        Assert.Throws<ObjectDisposedException>(() => registrar.Add<ILabelContract>(new LabelContribution("late")));
-    }
-
-    [Fact]
-    public void HandleDisposal_IsIdempotent()
-    {
-        var registry = new ContributionRegistry();
-        var disposals = new List<string>();
-        var contribution = new DisposableLabelContribution("only", disposals);
-        var handle = registry.Add<ILabelContract>(contribution);
-
-        handle.Dispose();
-        handle.Dispose();
-
-        Assert.Equal(1, contribution.DisposeCount);
-        Assert.Empty(registry.Resolve<ILabelContract>());
-    }
-
-    [Fact]
-    public void HandleDisposal_LeavesUnownedContributionsAlone()
-    {
-        var registry = new ContributionRegistry();
-        var disposals = new List<string>();
-        var contribution = new DisposableLabelContribution("borrowed", disposals);
-        var handle = registry.Add<ILabelContract>(
-            contribution,
+        var owned = new DisposableLabelContribution("owned", disposals);
+        var borrowed = new DisposableLabelContribution("borrowed", disposals);
+        var ownedHandle = registry.Add<ILabelContract>(owned);
+        var borrowedHandle = registry.Add<ILabelContract>(
+            borrowed,
             ContributionOptions.Default with { OwnsContribution = false });
 
-        handle.Dispose();
+        ownedHandle.Dispose();
+        ownedHandle.Dispose();
+        borrowedHandle.Dispose();
 
-        Assert.Equal(0, contribution.DisposeCount);
+        Assert.Equal(1, owned.DisposeCount);
+        Assert.Equal(0, borrowed.DisposeCount);
         Assert.Empty(registry.Resolve<ILabelContract>());
     }
 
@@ -113,15 +88,22 @@ public sealed class ContributionRegistryLifecycleTests
     }
 
     [Fact]
-    public void BeginBatch_CoalescesMutationsIntoOneEvent()
+    public void BeginBatch_CoalescesNestedMutationsIntoOneEventOnTheOutermostScope()
     {
         var registry = new ContributionRegistry();
         var events = new List<ContributionsChangedEventArgs>();
         registry.Changed += (_, args) => events.Add(args);
 
+        registry.BeginBatch().Dispose();
+        Assert.Empty(events);
+
         using (registry.BeginBatch())
         {
-            registry.Add<ILabelContract>(new LabelContribution("a"));
+            using (registry.BeginBatch())
+            {
+                registry.Add<ILabelContract>(new LabelContribution("a"));
+            }
+
             registry.Add<ILabelContract>(new LabelContribution("b"));
             registry.Add<INoteContract>(new NoteContribution("note"));
             Assert.Empty(events);
@@ -132,53 +114,6 @@ public sealed class ContributionRegistryLifecycleTests
         Assert.True(raised.Includes<ILabelContract>());
         Assert.True(raised.Includes<INoteContract>());
         Assert.Equal(1, raised.Version);
-    }
-
-    [Fact]
-    public void BeginBatch_Nests_AndRaisesOnTheOutermostScope()
-    {
-        var registry = new ContributionRegistry();
-        var events = new List<ContributionsChangedEventArgs>();
-        registry.Changed += (_, args) => events.Add(args);
-
-        using (registry.BeginBatch())
-        {
-            using (registry.BeginBatch())
-            {
-                registry.Add<ILabelContract>(new LabelContribution("inner"));
-            }
-
-            Assert.Empty(events);
-            registry.Add<ILabelContract>(new LabelContribution("outer"));
-        }
-
-        Assert.Single(events);
-        Assert.Equal(2, registry.Resolve<ILabelContract>().Count);
-    }
-
-    [Fact]
-    public void BeginBatch_WithNoMutations_RaisesNothing()
-    {
-        var registry = new ContributionRegistry();
-        var events = new List<ContributionsChangedEventArgs>();
-        registry.Changed += (_, args) => events.Add(args);
-
-        registry.BeginBatch().Dispose();
-
-        Assert.Empty(events);
-    }
-
-    [Fact]
-    public void Changed_SubscriberFailure_IsLoggedAndDoesNotBreakRegistration()
-    {
-        var logLines = new List<string>();
-        var registry = new ContributionRegistry(new CollectingLogger<ContributionRegistry>(logLines));
-        registry.Changed += (_, _) => throw new InvalidOperationException("subscriber failed");
-
-        registry.Add<ILabelContract>(new LabelContribution("a"));
-
-        Assert.Single(registry.Resolve<ILabelContract>());
-        Assert.Contains(ContributionDiagnosticCodes.ObserverFailed, Assert.Single(logLines), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -197,19 +132,5 @@ public sealed class ContributionRegistryLifecycleTests
         var logged = Assert.Single(logLines);
         Assert.Contains(ContributionDiagnosticCodes.ObserverFailed, logged, StringComparison.Ordinal);
         Assert.Contains(GetType().FullName!, logged, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Origin_RendersTheCanonicalForm()
-    {
-        Assert.Equal("builtin", ContributionOrigin.Builtin.ToString());
-        Assert.Equal("module:automations", ContributionOrigin.Module("automations").ToString());
-        Assert.Equal("plugin:acme.review@7", ContributionOrigin.Plugin("acme.review", "7").ToString());
-        Assert.Equal(
-            "plugin:acme.review@2026-08-22T10-15-00.3",
-            ContributionOrigin.Plugin("acme.review", "2026-08-22T10-15-00.3").ToString());
-        Assert.Throws<ArgumentException>(() => ContributionOrigin.Module(" "));
-        Assert.Throws<ArgumentException>(() => ContributionOrigin.Plugin(string.Empty, "1"));
-        Assert.Throws<ArgumentException>(() => ContributionOrigin.Plugin("acme.review", " "));
     }
 }

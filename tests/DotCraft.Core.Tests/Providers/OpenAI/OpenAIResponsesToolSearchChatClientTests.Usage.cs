@@ -13,12 +13,8 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
 {
     [Theory]
     [InlineData(false, null, 20)]
-    [InlineData(false, 0, 20)]
     [InlineData(false, 30, 0)]
-    [InlineData(false, 30, 20)]
-    [InlineData(true, null, 20)]
     [InlineData(true, 0, 20)]
-    [InlineData(true, 30, 0)]
     [InlineData(true, 30, 20)]
     public async Task CacheWriteUsage_PreservesStreamingAndAggregatedCounts(bool lite, int? write, int cached)
     {

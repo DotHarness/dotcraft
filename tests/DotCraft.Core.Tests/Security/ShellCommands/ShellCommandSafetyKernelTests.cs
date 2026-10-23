@@ -43,21 +43,14 @@ public sealed class ShellCommandSafetyKernelTests : IDisposable
     }
 
     [Fact]
-    public void Evaluate_ForcedRemove_PromptsAsDangerous()
+    public void Evaluate_ForcedRemove_PromptsAsDangerousAndRemembersOnlyTheExactKey()
     {
         var assessment = Posix().Evaluate(Request("rm -rf build"));
 
         Assert.Equal(ShellDecision.Prompt, assessment.Decision);
         Assert.Equal(ShellRiskLevel.Dangerous, assessment.Risk);
-    }
-
-    [Fact]
-    public void Evaluate_ForcedRemove_RemembersOnlyTheExactKey()
-    {
-        var remember = Posix().Evaluate(Request("rm -rf build")).Remember;
-
-        Assert.Empty(remember.Rules);
-        Assert.True(remember.ExactKeyFallback);
+        Assert.Empty(assessment.Remember.Rules);
+        Assert.True(assessment.Remember.ExactKeyFallback);
     }
 
     [Fact]

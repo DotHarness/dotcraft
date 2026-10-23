@@ -11,13 +11,11 @@ namespace DotCraft.Tests.Tools;
 
 public sealed class RemotePluginExecutionTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Connect_PreparesAcceptedBundleDependenciesAndResources_WithoutPreinstallation(bool deferred)
+    [Fact]
+    public async Task Connect_PreparesAcceptedBundleDependenciesAndResources_WithoutPreinstallation()
     {
         using var harness = new PluginRuntimeHarness();
-        RemotePluginFixture.Write(harness, deferred: deferred);
+        RemotePluginFixture.Write(harness, deferred: false);
         File.WriteAllText(Path.Combine(harness.Workspace, "executor-unavailable"), "");
         harness.CreatePluginConfigStore().Mutate(PluginManifestParser.Load(harness.PluginRoot("probe")).Manifest!,
             "personal", [new PluginConfigMutation("set", "label", JsonSerializer.SerializeToElement("agent-setting"))]);
@@ -195,10 +193,8 @@ public sealed class RemotePluginExecutionTests
         Assert.Equal(stamp, File.GetLastWriteTimeUtc(Path.Combine(root, "resource.txt")));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task OwnerApprovalPrecedesRemoteAssemblyLoad(bool approved)
+    [Fact]
+    public async Task OwnerApprovalPrecedesRemoteAssemblyLoad()
     {
         using var harness = new PluginRuntimeHarness();
         RemotePluginFixture.Write(harness);
@@ -207,7 +203,7 @@ public sealed class RemotePluginExecutionTests
         using var home = new TemporaryDirectory();
         using var workspace = new TemporaryDirectory();
         var storage = Setup(home.Path, workspace.Path);
-        var owner = new Owner(approved);
+        var owner = new Owner(false, true);
         await using var server = new RemoteToolHostTestServer(storage, ownerApprovals: owner);
         storage.SaveHostState(storage.LoadHostState()! with
         {
@@ -215,21 +211,18 @@ public sealed class RemotePluginExecutionTests
         });
         await using var client = server.CreateClient();
         await SnapshotAsync(manager, client, "thread", 1);
-        if (approved) await client.ConnectAsync("thread", server.PeerId, "repo");
-        else
-        {
-            var failure = await Assert.ThrowsAsync<RemoteToolHostException>(async () => await client.ConnectAsync("thread", server.PeerId, "repo"));
-            Assert.Equal(RemoteToolErrorCodes.ApprovalDeclined, failure.Code);
-            Assert.False(client.TryGetRoute("thread", out _));
-        }
-        Assert.Equal(approved, File.Exists(Path.Combine(workspace.Path, "plugin-lifecycle.log")));
-        Assert.Single(owner.Requests, request => request.Kind == "plugin");
+        var failure = await Assert.ThrowsAsync<RemoteToolHostException>(async () => await client.ConnectAsync("thread", server.PeerId, "repo"));
+        Assert.Equal(RemoteToolErrorCodes.ApprovalDeclined, failure.Code);
+        Assert.False(client.TryGetRoute("thread", out _));
+        Assert.False(File.Exists(Path.Combine(workspace.Path, "plugin-lifecycle.log")));
+
+        await client.ConnectAsync("thread", server.PeerId, "repo");
+        Assert.True(File.Exists(Path.Combine(workspace.Path, "plugin-lifecycle.log")));
+        Assert.Equal(2, owner.Requests.Count(request => request.Kind == "plugin"));
     }
 
-    [Theory]
-    [InlineData("block")]
-    [InlineData("block-until-stop")]
-    public async Task LeaseRevocationCancelsAndDrainsAnExecutingPlugin(string operation)
+    [Fact]
+    public async Task LeaseRevocationCancelsAndDrainsAnExecutingPlugin()
     {
         using var harness = new PluginRuntimeHarness();
         RemotePluginFixture.Write(harness);
@@ -243,7 +236,7 @@ public sealed class RemotePluginExecutionTests
         await client.ConnectAsync("thread", server.PeerId, "repo");
         var ready = await InvokeAsync(snapshot, "thread", "read");
         var remoteThread = JsonDocument.Parse(ready.Content!).RootElement.GetProperty("thread").GetString();
-        var running = InvokeAsync(snapshot, "thread", operation).AsTask();
+        var running = InvokeAsync(snapshot, "thread", "block-until-stop").AsTask();
         var log = Path.Combine(workspace.Path, "plugin-lifecycle.log");
         await PluginRuntimeHarness.WaitForLineAsync(log, "entered:" + remoteThread);
         server.Leases.ReleaseWorkspace("repo");
@@ -275,13 +268,13 @@ public sealed class RemotePluginExecutionTests
         new ToolDispatcher().DispatchAsync(snapshot, new("Probe", "Run"), new JsonObject { ["operation"] = operation },
             new(threadId, "turn", Guid.NewGuid().ToString("N"), ToolInvocationAudience.Model));
 
-    private sealed class Owner(bool accepted) : IRemoteToolApprovalPresenter
+    private sealed class Owner(params bool[] decisions) : IRemoteToolApprovalPresenter
     {
         internal List<RemoteToolApprovalRequest> Requests { get; } = [];
         public Task<bool> RequestAsync(RemoteToolApprovalRequest request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
-            return Task.FromResult(accepted);
+            return Task.FromResult(decisions[Math.Min(Requests.Count, decisions.Length) - 1]);
         }
     }
 }

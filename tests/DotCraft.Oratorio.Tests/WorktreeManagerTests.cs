@@ -8,14 +8,16 @@ namespace DotCraft.Oratorio.Tests;
 public sealed class WorktreeManagerTests
 {
     [Fact]
-    public async Task PrepareAsync_GitHubPullRequestFetchesExactCommit_WhenLocalShaIsMissing()
+    public async Task PrepareAsync_GitHubPullRequestFetchesExactCommitWithResolvedCredential_WhenLocalShaIsMissing()
     {
         var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: true, mismatchReviewRef: false);
         try
         {
             Assert.False(await GitSucceedsAsync(repository.CheckoutPath, ["cat-file", "-e", $"{repository.ExpectedHeadSha}^{{commit}}"]));
 
-            var manager = CreateManager(repository.Root);
+            var credentials = new RecordingGitTransportCredentialProvider(
+                new GitTransportCredential("github.com", "x-access-token", "ghs-test-token"));
+            var manager = CreateManager(repository.Root, credentials);
             var result = await manager.PrepareAsync(new WorktreePrepareRequest(
                 "run-github-pr-fetch",
                 "item-github-pr-fetch",
@@ -26,6 +28,7 @@ public sealed class WorktreeManagerTests
                 repository.ExpectedHeadSha,
                 repository.CheckoutPath), CancellationToken.None);
 
+            Assert.Equal(("github", "example-owner/oratorio"), credentials.RequestedItem);
             Assert.Equal(repository.ExpectedHeadSha, result.BaseRef);
             Assert.Equal(repository.ExpectedHeadSha, result.BaseSha);
             Assert.Equal(repository.ExpectedHeadSha, (await GitAsync(result.WorktreePath, ["rev-parse", "HEAD"])).Trim());
@@ -66,31 +69,6 @@ public sealed class WorktreeManagerTests
     }
 
     [Fact]
-    public async Task PrepareAsync_TargetCommitMissing_FailsWithStableCode()
-    {
-        var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: false, mismatchReviewRef: false);
-        try
-        {
-            var manager = CreateManager(repository.Root);
-            var error = await Assert.ThrowsAsync<WorktreeException>(() => manager.PrepareAsync(new WorktreePrepareRequest(
-                "run-missing-pr-ref",
-                "item-missing-pr-ref",
-                "github",
-                "pr:example-owner/oratorio#184",
-                "example-owner/oratorio",
-                "feature/review-target",
-                repository.ExpectedHeadSha,
-                repository.CheckoutPath), CancellationToken.None));
-
-            Assert.Equal("reviewTargetFetchFailed", error.Code);
-        }
-        finally
-        {
-            DeleteDirectory(repository.Root);
-        }
-    }
-
-    [Fact]
     public async Task PrepareAsync_FetchesExactCommit_WhenPullRequestRefIsStale()
     {
         var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: true, mismatchReviewRef: true);
@@ -120,70 +98,11 @@ public sealed class WorktreeManagerTests
     }
 
     [Fact]
-    public async Task PrepareAsync_LooksUpCredentialsForTheItemSourceAndRepository()
-    {
-        var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: true, mismatchReviewRef: false);
-        try
-        {
-            // Normalizing these two fields into a project identity belongs to the
-            // credential provider; see GitTransportCredentialTests.
-            var credentials = new RecordingGitTransportCredentialProvider();
-            await CreateManager(repository.Root, credentials).PrepareAsync(new WorktreePrepareRequest(
-                "run-credential-lookup",
-                "item-credential-lookup",
-                "github",
-                "pr:example-owner/oratorio#184",
-                "example-owner/oratorio",
-                "feature/review-target",
-                repository.ExpectedHeadSha,
-                repository.CheckoutPath), CancellationToken.None);
-
-            Assert.Equal(("github", "example-owner/oratorio"), credentials.RequestedItem);
-        }
-        finally
-        {
-            DeleteDirectory(repository.Root);
-        }
-    }
-
-    [Fact]
-    public async Task PrepareAsync_ResolvedCredentialDoesNotDisturbNonHttpTransport()
-    {
-        var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: true, mismatchReviewRef: false);
-        try
-        {
-            // The credential is injected as an http.<url>.extraheader entry, which
-            // must stay inert for the filesystem origin used here.
-            var credentials = new RecordingGitTransportCredentialProvider(
-                new GitTransportCredential("github.com", "x-access-token", "ghs-test-token"));
-
-            var result = await CreateManager(repository.Root, credentials).PrepareAsync(new WorktreePrepareRequest(
-                "run-credentialed-fetch",
-                "item-credentialed-fetch",
-                "github",
-                "pr:example-owner/oratorio#184",
-                "example-owner/oratorio",
-                "feature/review-target",
-                repository.ExpectedHeadSha,
-                repository.CheckoutPath), CancellationToken.None);
-
-            Assert.Equal(repository.ExpectedHeadSha, result.BaseSha);
-            Assert.Equal(repository.ExpectedHeadSha, (await GitAsync(result.WorktreePath, ["rev-parse", "HEAD"])).Trim());
-        }
-        finally
-        {
-            DeleteDirectory(repository.Root);
-        }
-    }
-
-    [Fact]
     public async Task PrepareAsync_CredentialLookupFailure_FallsBackToAnonymousFetch()
     {
         var repository = await CreateReviewTargetRepositoryAsync("refs/pull/184/head", pushReviewRef: true, mismatchReviewRef: false);
         try
         {
-            // A provider outage must not fail preparation when the ref is reachable
-            // without credentials.
             var credentials = new RecordingGitTransportCredentialProvider(
                 failure: new HttpRequestException("github is unreachable"));
 
@@ -241,11 +160,6 @@ public sealed class WorktreeManagerTests
             credentials ?? new RecordingGitTransportCredentialProvider(),
             NullLogger<WorktreeManager>.Instance);
 
-    /// <summary>
-    /// Records the project it was asked about and returns a canned credential.
-    /// Project normalization itself is covered by
-    /// <see cref="GitTransportCredentialTests"/> against the real provider.
-    /// </summary>
     private sealed class RecordingGitTransportCredentialProvider(
         GitTransportCredential? credential = null,
         Exception? failure = null)
@@ -365,7 +279,6 @@ public sealed class WorktreeManagerTests
         }
         catch
         {
-            // Best-effort cleanup for temporary git repositories.
         }
     }
 

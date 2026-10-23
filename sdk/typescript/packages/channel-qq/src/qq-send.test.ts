@@ -88,7 +88,7 @@ test("sendQQMessage uploads files to groups and private chats with the given nam
   ]);
 });
 
-test("sendQQMessage rejects targets outside QQ target syntax without sending", async () => {
+test("sendQQMessage rejects unsupported targets and reports OneBot failures", async () => {
   const server = new FakeOneBot();
   for (const target of ["channel:1", "group:abc", ""]) {
     const result = await sendQQMessage(server as never, target, { kind: "text", text: "hi" });
@@ -96,11 +96,8 @@ test("sendQQMessage rejects targets outside QQ target syntax without sending", a
     assert.equal(result.errorCode, "UnsupportedTarget");
   }
   assert.equal(server.actions.length, 0);
-});
 
-test("sendQQMessage reports OneBot failures as AdapterDeliveryFailed", async () => {
-  const server = new FakeOneBot({ status: "failed", retcode: 100, wording: "not a friend" });
-  const result = await sendQQMessage(server as never, "user:456", { kind: "text", text: "hi" });
-
+  const failing = new FakeOneBot({ status: "failed", retcode: 100, wording: "not a friend" });
+  const result = await sendQQMessage(failing as never, "user:456", { kind: "text", text: "hi" });
   assert.deepEqual(result, { delivered: false, errorCode: "AdapterDeliveryFailed", errorMessage: "not a friend" });
 });

@@ -9,7 +9,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
-
 public sealed class ProviderManagementTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), $"provider_management_{Guid.NewGuid():N}");
@@ -30,7 +29,6 @@ public sealed class ProviderManagementTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 
@@ -67,6 +65,7 @@ public sealed class ProviderManagementTests : IDisposable
         Assert.DoesNotContain("sk-", response.RootElement.GetRawText());
         var providers = response.RootElement.GetProperty("result").GetProperty("providers").EnumerateArray()
             .ToDictionary(provider => provider.GetProperty("id").GetString()!);
+        Assert.Equal(["anthropic-main", "custom-responses", "minimal", "official-responses", "responses-off"], providers.Keys.Order());
 
         var minimal = providers["minimal"];
         Assert.Equal("minimal", minimal.GetProperty("displayName").GetString());
@@ -268,108 +267,32 @@ public sealed class ProviderManagementTests : IDisposable
         Assert.False(provider.TryGetProperty("EndPoint", out _));
     }
 
-    [Fact]
-    public async Task ProviderList_IncludesExplicitProvidersOnly()
+    [Theory]
+    [InlineData("openai-chat-completions", "/v1", """{ "object": "list", "data": [{ "id": "gpt-test", "object": "model", "created": 1778544000, "owned_by": "dotcraft-test" }] }""", "gpt-test")]
+    [InlineData("anthropic", "", """{ "data": [{ "id": "claude-test", "display_name": "Claude Test", "created_at": "2026-05-12T00:00:00Z" }] }""", "claude-test")]
+    public async Task ProviderTest_DraftProvider_ReturnsModelsAndDoesNotPersistDraft(
+        string protocol,
+        string endpointSuffix,
+        string modelsJson,
+        string expectedModel)
     {
-        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await WritePersonalConfigAsync(
-            harness,
-            """
-            {
-              "Providers": {
-                "anthropic-main": {
-                  "DisplayName": "Anthropic Main",
-                  "Protocol": "anthropic",
-                  "ApiKey": "sk-ant-test"
-                }
-              }
-            }
-            """);
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderList, new { }));
-
-        var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        var providers = response.RootElement.GetProperty("result").GetProperty("providers").EnumerateArray().ToList();
-        var explicitProvider = Assert.Single(providers);
-        Assert.Equal("anthropic-main", explicitProvider.GetProperty("id").GetString());
-        Assert.Equal("Anthropic Main", explicitProvider.GetProperty("displayName").GetString());
-    }
-
-    [Fact]
-    public async Task ProviderTest_DraftOpenAICompatibleProvider_ReturnsModelsAndDoesNotPersistDraft()
-    {
-        var (endpoint, serverTask) = await StartSingleJsonResponseServerAsync(
-            """
-            {
-              "object": "list",
-              "data": [
-                {
-                  "id": "gpt-test",
-                  "object": "model",
-                  "created": 1778544000,
-                  "owned_by": "dotcraft-test"
-                }
-              ]
-            }
-            """);
+        var (endpoint, serverTask) = await StartSingleJsonResponseServerAsync(modelsJson);
         using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderTest, new
         {
-            protocol = "openai-chat-completions",
-            apiKey = "sk-openai-test",
-            endPoint = $"{endpoint}/v1",
+            protocol,
+            apiKey = "sk-draft-test",
+            endPoint = endpoint + endpointSuffix,
             networkTimeoutSeconds = 5
         }));
 
         var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         var result = response.RootElement.GetProperty("result");
         Assert.True(result.GetProperty("success").GetBoolean());
-        Assert.Equal(ModelProviderProtocols.OpenAIChatCompletions, result.GetProperty("protocol").GetString());
-        Assert.Equal("gpt-test", result.GetProperty("models")[0].GetProperty("id").GetString());
-        Assert.False(result.TryGetProperty("providerId", out _));
-
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(5));
-        if (File.Exists(harness.Monitor.Current.GlobalConfigPath!))
-        {
-            var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
-            Assert.False(personal.RootElement.TryGetProperty("Providers", out _));
-        }
-    }
-
-    [Fact]
-    public async Task ProviderTest_DraftAnthropicProvider_ReturnsModelsAndDoesNotPersistDraft()
-    {
-        var (endpoint, serverTask) = await StartSingleJsonResponseServerAsync(
-            """
-            {
-              "data": [
-                {
-                  "id": "claude-test",
-                  "display_name": "Claude Test",
-                  "created_at": "2026-05-12T00:00:00Z"
-                }
-              ]
-            }
-            """);
-        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderTest, new
-        {
-            protocol = "anthropic",
-            apiKey = "sk-ant-test",
-            endPoint = endpoint,
-            networkTimeoutSeconds = 5
-        }));
-
-        var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        var result = response.RootElement.GetProperty("result");
-        Assert.True(result.GetProperty("success").GetBoolean());
-        Assert.Equal("anthropic", result.GetProperty("protocol").GetString());
-        Assert.Equal("claude-test", result.GetProperty("models")[0].GetProperty("id").GetString());
+        Assert.Equal(protocol, result.GetProperty("protocol").GetString());
+        Assert.Equal(expectedModel, result.GetProperty("models")[0].GetProperty("id").GetString());
         Assert.False(result.TryGetProperty("providerId", out _));
 
         await serverTask.WaitAsync(TimeSpan.FromSeconds(5));

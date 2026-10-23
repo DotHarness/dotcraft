@@ -12,10 +12,6 @@ using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-/// <summary>
-/// Verifies <see cref="SessionService.EnsureThreadLoadedAsync"/> hydrates the per-thread runtime agent
-/// after a cold load from disk (simulated second <see cref="SessionService"/> instance).
-/// </summary>
 public sealed class SessionServiceEnsureThreadLoadedTests : IDisposable
 {
     private readonly string _tempDir;
@@ -29,7 +25,7 @@ public sealed class SessionServiceEnsureThreadLoadedTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_tempDir, true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]

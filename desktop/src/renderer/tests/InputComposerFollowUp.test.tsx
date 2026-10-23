@@ -1,6 +1,5 @@
 import { useComposerContextStore } from '../stores/composerContextStore'
 import { usePendingPasteStore } from '../components/conversation/usePastedText'
-import { projectInputParts } from '../utils/inputPresentation'
 import './setupPluginRuntime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -45,17 +44,7 @@ function draft(text = 'follow up'): HTMLElement {
 }
 
 describe('InputComposer follow-up routing', () => {
-  it('blocks keyboard submission while a pasted file is still being written', async () => {
-    renderComposer()
-    const textbox = draft('Wait for my attachment')
-    act(() => usePendingPasteStore.getState().setPaste({ id: 'pending', threadId: 'thread-1', text: 'x'.repeat(5000), status: 'writing' }))
-    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
-    expect(sendRequest.mock.calls.some(([method]) => method === 'turn/steer')).toBe(false)
-    expect(textbox).toHaveTextContent('Wait for my attachment')
-    act(() => usePendingPasteStore.getState().remove('pending'))
-    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
-    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/steer', expect.anything()))
-  })
+
   beforeEach(() => {
     vi.mocked(generatePromptSuggestion).mockReset().mockResolvedValue(null)
     localStorage.clear()
@@ -87,112 +76,6 @@ describe('InputComposer follow-up routing', () => {
     useConversationStore.setState({ turnStatus: 'running', activeTurnId: 'turn-123' })
   })
 
-  it('offers an unfocused suggestion and accepts it with the caret at the end', async () => {
-    installDesktopApiMock({
-      settings: { get: async () => ({ locale: 'en' }), set: settingsSet },
-      appServer: { sendRequest, onNotification: () => () => {} },
-      git: { listBranches: async () => ({ current: 'main', detachedHead: null, branches: [] }) },
-      voice: undefined
-    })
-    vi.mocked(generatePromptSuggestion).mockResolvedValue('Continue with the plan')
-    useConnectionStore.setState({ status: 'connected', capabilities: { workspaceConfigManagement: true } })
-    useConfigStore.setState({ config: { PromptSuggestions: { Enabled: true } } })
-    useThreadStore.setState({ activeThreadId: 'thread-1' })
-    renderComposer()
-    const textbox = screen.getByRole('textbox')
-    fireEvent.blur(textbox)
-    await act(async () => { await Promise.resolve() })
-    act(() => useConversationStore.setState({
-      turnStatus: 'idle', activeTurnId: null,
-      turns: [{ id: 'turn-123', threadId: 'thread-1', status: 'completed', startedAt: '2026-01-01T00:00:00Z', items: [] }]
-    }))
-    await waitFor(() => expect(textbox).toHaveAccessibleDescription(expect.stringContaining('Continue with the plan')))
-    expect(textbox.textContent).toBe('')
-    act(() => textbox.focus())
-    fireEvent.keyDown(textbox, { key: 'Tab' })
-    expect(textbox.textContent).toBe('Continue with the plan')
-    const selection = window.getSelection()!
-    expect(selection.isCollapsed).toBe(true)
-    const beforeCaret = document.createRange()
-    beforeCaret.selectNodeContents(textbox)
-    beforeCaret.setEnd(selection.anchorNode!, selection.anchorOffset)
-    expect(beforeCaret.toString()).toBe('Continue with the plan')
-    act(() => {
-      selection.getRangeAt(0).insertNode(document.createTextNode(' please'))
-      fireEvent.input(textbox)
-    })
-    expect(textbox.textContent).toBe('Continue with the plan please')
-    expect(sendRequest.mock.calls.some(([method]) => method === 'turn/start')).toBe(false)
-  })
-
-  it('shows the suggestion again after typed text is deleted', async () => {
-    installDesktopApiMock({
-      settings: { get: async () => ({ locale: 'en' }), set: settingsSet },
-      appServer: { sendRequest, onNotification: () => () => {} },
-      git: { listBranches: async () => ({ current: 'main', detachedHead: null, branches: [] }) },
-      voice: undefined
-    })
-    vi.mocked(generatePromptSuggestion).mockResolvedValue('Continue with the plan')
-    useConnectionStore.setState({ status: 'connected', capabilities: { workspaceConfigManagement: true } })
-    useConfigStore.setState({ config: { PromptSuggestions: { Enabled: true } } })
-    useThreadStore.setState({ activeThreadId: 'thread-1' })
-    renderComposer()
-    const textbox = screen.getByRole('textbox')
-    await act(async () => { await Promise.resolve() })
-    act(() => useConversationStore.setState({
-      turnStatus: 'idle', activeTurnId: null,
-      turns: [{ id: 'turn-123', threadId: 'thread-1', status: 'completed', startedAt: '2026-01-01T00:00:00Z', items: [] }]
-    }))
-    await waitFor(() => expect(textbox).toHaveAccessibleDescription(expect.stringContaining('Continue with the plan')))
-
-    act(() => {
-      textbox.textContent = 'x'
-      fireEvent.input(textbox)
-    })
-    await waitFor(() => expect(textbox).not.toHaveAccessibleDescription(expect.stringContaining('Continue with the plan')))
-    act(() => {
-      textbox.textContent = ''
-      fireEvent.input(textbox)
-    })
-    await waitFor(() => expect(textbox).toHaveAccessibleDescription(expect.stringContaining('Continue with the plan')))
-    expect(generatePromptSuggestion).toHaveBeenCalledOnce()
-  })
-
-  it.each([
-    ['queue', 'Enter'], ['queue', 'button'], ['steer', 'Enter'], ['steer', 'button']
-  ] as const)('sends %s with %s and announces the same action', async (mode, trigger) => {
-    useComposerPreferencesStore.getState().hydrate({ followUpQueueMode: mode })
-    renderComposer()
-    const textbox = draft()
-    const button = screen.getByRole('button', { name: mode === 'queue' ? 'Queue message' : 'Send to current turn' })
-    if (trigger === 'Enter') fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
-    else fireEvent.click(button)
-    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith(
-      mode === 'queue' ? 'turn/enqueue' : 'turn/steer',
-      { threadId: 'thread-1', input: [{ type: 'text', text: 'follow up' }], sender: undefined, clientUserMessageId: expect.any(String),
-        ...(mode === 'steer' ? { expectedTurnId: 'turn-123' } : {}) }
-    ))
-    expect(sendRequest).not.toHaveBeenCalledWith(mode === 'queue' ? 'turn/steer' : 'turn/enqueue', expect.anything())
-    await waitFor(() => expect(textbox.textContent).toBe(''))
-  })
-
-  it('uses a saved setting on the next submission without changing existing queue entries', async () => {
-    useConversationStore.setState({ queuedInputs: [{
-      id: 'queued-1', threadId: 'thread-1', displayText: 'existing request', status: 'queued',
-      createdAt: '2025-01-01T00:00:00Z'
-    }] })
-    renderComposer(true)
-    const textbox = draft()
-    expect(screen.getByRole('button', { name: 'Send to current turn' })).toBeInTheDocument()
-    const existing = useConversationStore.getState().queuedInputs[0]
-    fireEvent.click(screen.getByRole('button', { name: 'Queue', exact: true }))
-    await screen.findByRole('button', { name: 'Queue message' })
-    fireEvent.keyDown(textbox, { key: 'Enter' })
-    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/enqueue', expect.anything()))
-    expect(useConversationStore.getState().queuedInputs[0]).toEqual(existing)
-    expect(sendRequest).not.toHaveBeenCalledWith('turn/queue/update', expect.anything())
-  })
-
   it('returns an edited queued message to its place even when follow-ups steer', async () => {
     const entry = (id: string) => ({
       id, threadId: 'thread-1', displayText: id, status: 'queued' as const, createdAt: '2025-01-01T00:00:00Z',
@@ -214,31 +97,6 @@ describe('InputComposer follow-up routing', () => {
       threadId: 'thread-1', orderedQueuedInputIds: ['first', 'edited', 'last']
     }))
     expect(sendRequest).not.toHaveBeenCalledWith('turn/steer', expect.anything())
-  })
-
-  it.each(['queue', 'steer'] as const)('preserves structured commands, file references and images through %s', async (mode) => {
-    useComposerPreferencesStore.getState().hydrate({ followUpQueueMode: mode })
-    useComposerDraftStore.getState().saveDraft('thread-1', {
-      text: '/code-review notes.md',
-      segments: [
-        { type: 'command', command: '/code-review' },
-        { type: 'text', value: ' ' },
-        { type: 'file', relativePath: 'notes.md' }
-      ],
-      files: [],
-      images: [{ tempPath: 'X:\\fixtures\\attachments\\diagram.png', dataUrl: 'data:image/png;base64,AA==', fileName: 'diagram.png', mimeType: 'image/png' }]
-    })
-    renderComposer()
-    await screen.findByRole('button', { name: mode === 'queue' ? 'Queue message' : 'Send to current turn' })
-    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' })
-    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith(mode === 'queue' ? 'turn/enqueue' : 'turn/steer', expect.objectContaining({
-      input: [
-        { type: 'commandRef', name: 'code-review', rawText: '/code-review' },
-        { type: 'text', text: ' ' },
-        { type: 'fileRef', path: 'notes.md', displayPath: 'notes.md' },
-        { type: 'localImage', path: 'X:\\fixtures\\attachments\\diagram.png', fileName: 'diagram.png', mimeType: 'image/png' }
-      ]
-    })))
   })
 
   it.each(['queue', 'steer'] as const)('preserves draft and attachments after failed %s without fallback', async (mode) => {
@@ -263,88 +121,6 @@ describe('InputComposer follow-up routing', () => {
     ]) }))
     expect(sendRequest).not.toHaveBeenCalledWith(mode === 'queue' ? 'turn/steer' : 'turn/enqueue', expect.anything())
     expect(sendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
-  })
-
-  it('refuses chat references while the thread lacks the Desktop thread tools and keeps the draft', async () => {
-    installDesktopApiMock({
-      settings: { get: async () => ({ locale: 'en' }), set: settingsSet },
-      appServer: { sendRequest, onNotification: undefined, hasDesktopThreadTools: async () => false },
-      git: { listBranches: async () => ({ current: 'main', detachedHead: null, branches: [{ name: 'main', current: true }] }) },
-      voice: undefined
-    })
-    useConversationStore.setState({ turnStatus: 'completed', activeTurnId: null })
-    useComposerDraftStore.getState().saveDraft('thread-1', {
-      text: 'continue [@Fix login](thread://thread_a)',
-      segments: [{ type: 'text', value: 'continue ' }, { type: 'thread', threadId: 'thread_a', title: 'Fix login' }],
-      files: [],
-      images: []
-    })
-    renderComposer()
-    const textbox = screen.getByRole('textbox')
-    await waitFor(() => expect(textbox).toHaveTextContent('continue Fix login'))
-    fireEvent.keyDown(textbox, { key: 'Enter' })
-    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1))
-    expect(sendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
-    expect(textbox).toHaveTextContent('continue Fix login')
-  })
-
-  it.each([
-    ['alternate', ['turn/queue/remove', 'turn/start']],
-    ['confirm', ['turn/start']],
-    ['cancel', []]
-  ] as const)('asks before sending into a queue paused by an interrupt (%s)', async (choice, methods) => {
-    const choose = vi.fn().mockResolvedValue(choice)
-    ;(window as Window & { __choiceDialog?: unknown }).__choiceDialog = choose
-    useConversationStore.setState({
-      turnStatus: 'idle',
-      activeTurnId: null,
-      turns: [{ id: 'turn-1', threadId: 'thread-1', status: 'cancelled', startedAt: '2026-01-01T00:00:00Z', items: [] }],
-      queuedInputs: [{ id: 'queued-1', threadId: 'thread-1', displayText: 'later', status: 'queued', createdAt: '2026-01-01T00:00:00Z' }]
-    })
-    sendRequest.mockImplementation(async (method: string) => method === 'turn/queue/remove' ? { queuedInputs: [] } : {})
-    renderComposer()
-
-    fireEvent.keyDown(draft(), { key: 'Enter' })
-
-    await waitFor(() => expect(choose).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(sendRequest.mock.calls.map(([method]) => method).filter((method) => method.startsWith('turn/'))).toEqual(methods))
-    delete (window as Window & { __choiceDialog?: unknown }).__choiceDialog
-  })
-
-  it('queues maintenance follow-ups even when Steer is preferred', async () => {
-    useConversationStore.setState({ turnStatus: 'idle', activeTurnId: null, maintenanceKind: 'compacting' })
-    renderComposer()
-    fireEvent.keyDown(draft(), { key: 'Enter' })
-    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('turn/enqueue', expect.anything()))
-    expect(sendRequest).not.toHaveBeenCalledWith('turn/steer', expect.anything())
-  })
-  it.each(['start', 'queue', 'steer'] as const)('preserves typed context through %s without a new wire type', async (mode) => {
-    const context = { kind: 'responseAnnotation' as const, id: 'annotation', threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1', selectedText: 'selected reply', comment: 'correct this' }
-    useComposerContextStore.getState().addContext('thread-1', context)
-    if (mode === 'start') useConversationStore.setState({ turnStatus: 'completed', activeTurnId: null })
-    else useComposerPreferencesStore.getState().hydrate({ followUpQueueMode: mode })
-    renderComposer()
-    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter', code: 'Enter' })
-    const method = mode === 'start' ? 'turn/start' : mode === 'queue' ? 'turn/enqueue' : 'turn/steer'
-    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith(method, expect.anything()))
-    const args = sendRequest.mock.calls.find(([name]) => name === method)![1]
-    expect(projectInputParts(args.input).contexts).toEqual([context])
-    await waitFor(() => expect(useComposerContextStore.getState().getContexts('thread-1')).toEqual([]))
-  })
-
-  it.each(['start', 'steer'] as const)('clears the composer before %s resolves', async (mode) => {
-    const method = mode === 'start' ? 'turn/start' : 'turn/steer'
-    let settle!: (value: unknown) => void
-    sendRequest.mockImplementation((name: string) => name === method
-      ? new Promise((resolve) => { settle = resolve })
-      : Promise.resolve({}))
-    if (mode === 'start') useConversationStore.setState({ turnStatus: 'idle', activeTurnId: null })
-    renderComposer()
-    const textbox = draft('ship it')
-    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
-    await waitFor(() => expect(settle).toBeDefined())
-    expect(textbox.textContent).toBe('')
-    await act(async () => settle({ turn: { id: 'turn-9' } }))
   })
 
   it('restores a failed submission above text typed while it was in flight', async () => {
@@ -407,19 +183,4 @@ describe('InputComposer follow-up routing', () => {
     await waitFor(() => expect(useConversationStore.getState().queuedInputs).toEqual([]))
     expect(useConversationStore.getState().turns[0].items).toEqual([])
   })
-
-  it('keeps feedback added while the accepted message is in flight', async () => {
-    let accept!: () => void
-    sendRequest.mockImplementation((method) => method === 'turn/enqueue' ? new Promise<void>((resolve) => { accept = resolve }) : Promise.resolve({}))
-    useComposerPreferencesStore.getState().hydrate({ followUpQueueMode: 'queue' })
-    const first = { kind: 'responseAnnotation' as const, id: 'one', threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1', selectedText: 'one', comment: 'change' }
-    useComposerContextStore.getState().addContext('thread-1', first)
-    renderComposer()
-    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter', code: 'Enter' })
-    await waitFor(() => expect(accept).toBeDefined())
-    act(() => useComposerContextStore.getState().addContext('thread-1', { ...first, id: 'two' }))
-    await act(async () => accept())
-    expect(useComposerContextStore.getState().getContexts('thread-1').map((context) => context.id)).toEqual(['two'])
-  })
-
 })

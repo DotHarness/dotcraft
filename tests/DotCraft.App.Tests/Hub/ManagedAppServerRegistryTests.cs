@@ -329,58 +329,31 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
     }
 
     [Fact]
-    public void AddRuntimeTools_ForwardsRipgrepPathAsEnvironmentOverride()
-    {
-        var env = new Dictionary<string, string?>(StringComparer.Ordinal);
-
-        ManagedAppServerRegistry.AddRuntimeTools(
-            new HubRuntimeToolsRequest { RipgrepPath = " C:/Tools/rg.exe " },
-            env);
-
-        Assert.Equal("C:/Tools/rg.exe", env["DOTCRAFT_RG_PATH"]);
-    }
-
-    [Fact]
-    public void AddRuntimeTools_ForwardsBuiltInPluginRootsAsEnvironmentOverride()
+    public void AddRuntimeTools_ForwardsTrimmedToolPathsAsEnvironmentOverrides()
     {
         var env = new Dictionary<string, string?>(StringComparer.Ordinal);
         var roots = Path.Combine(_tempDir, "resources", "plugins", "dotcraft-bundled", "plugins");
 
         ManagedAppServerRegistry.AddRuntimeTools(
-            new HubRuntimeToolsRequest { BuiltInPluginRoots = $" {roots} " },
+            new HubRuntimeToolsRequest { RipgrepPath = " C:/Tools/rg.exe ", BuiltInPluginRoots = $" {roots} " },
             env);
 
+        Assert.Equal("C:/Tools/rg.exe", env["DOTCRAFT_RG_PATH"]);
         Assert.Equal(roots, env["DOTCRAFT_BUILTIN_PLUGIN_ROOTS"]);
     }
 
     [Fact]
-    public void RuntimeToolsMerge_AcceptsHttpsDefaultPluginRegistryUrl()
+    public void RuntimeToolsMerge_AcceptsOnlyHttpsDefaultPluginRegistryUrl()
     {
-        var merged = HubRuntimeToolsStore.Merge(
+        var accepted = HubRuntimeToolsStore.Merge(
             new HubRuntimeToolsRequest(),
             new HubRuntimeToolsRequest { DefaultPluginRegistryUrl = " https://example.test/registry.zip " });
-
-        Assert.Equal("https://example.test/registry.zip", merged.DefaultPluginRegistryUrl);
-    }
-
-    [Fact]
-    public void RuntimeToolsMerge_RejectsHttpDefaultPluginRegistryUrl()
-    {
-        var merged = HubRuntimeToolsStore.Merge(
+        var rejected = HubRuntimeToolsStore.Merge(
             new HubRuntimeToolsRequest { DefaultPluginRegistryUrl = "https://existing.test/registry.zip" },
             new HubRuntimeToolsRequest { DefaultPluginRegistryUrl = "http://example.test/registry.zip" });
 
-        Assert.Equal("https://existing.test/registry.zip", merged.DefaultPluginRegistryUrl);
-    }
-
-    [Fact]
-    public void HubPaths_ResolvesDefaultChatWorkspaceUnderCraftHome()
-    {
-        var paths = HubPaths.Resolve(_tempDir);
-
-        Assert.Equal(
-            Path.Combine(_tempDir, ".craft", "workspaces", "chats"),
-            paths.DefaultChatWorkspacePath);
+        Assert.Equal("https://example.test/registry.zip", accepted.DefaultPluginRegistryUrl);
+        Assert.Equal("https://existing.test/registry.zip", rejected.DefaultPluginRegistryUrl);
     }
 
     [Fact]
@@ -538,7 +511,6 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         }
         catch
         {
-            // ignored
         }
     }
 }

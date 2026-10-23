@@ -23,37 +23,41 @@ describe('visualization content references', () => {
     ])
   })
 
-  it.each([
-    'text visualize{"path":"/w/chart.html"}',
-    'visualize{"path":"/w/chart.html"} text',
-    'visualize{"path":"/w/chart.html",}',
-    "visualize{'path':'/w/chart.html'}",
-    'visualize{"path":"/w/chart.html","extra":1}',
-    'visualize{"path":"/w/chart.html","mode":"full"}',
-    'visualize{"path":"/w/chart.html","title":" "}',
-    'visualize{"path":"/w/chart.html","title":1}',
-    `visualize{"path":"/w/chart.html","title":"${'a'.repeat(201)}"}`,
-    'visualize["/w/chart.html"]',
-    'visualize{}',
-    'visualize{"path":"chart.html"}',
-    'visualize{"path":"/w/../chart.html"}',
-    'visualize{"path":"/w/Chart.html"}'
-  ])('keeps %s as ordinary text', markdown => {
-    expect(parseVisualizationContentReferences(markdown)).toEqual([])
-    expect(assistantMessageCopyText(markdown)).toBe(markdown)
+  it('keeps malformed or misplaced references as ordinary text', () => {
+    for (const markdown of [
+      'text visualize{"path":"/w/chart.html"}',
+      'visualize{"path":"/w/chart.html"} text',
+      'visualize{"path":"/w/chart.html",}',
+      "visualize{'path':'/w/chart.html'}",
+      'visualize{"path":"/w/chart.html","extra":1}',
+      'visualize{"path":"/w/chart.html","mode":"full"}',
+      'visualize{"path":"/w/chart.html","title":" "}',
+      'visualize{"path":"/w/chart.html","title":1}',
+      `visualize{"path":"/w/chart.html","title":"${'a'.repeat(201)}"}`,
+      'visualize["/w/chart.html"]',
+      'visualize{}',
+      'visualize{"path":"chart.html"}',
+      'visualize{"path":"/w/../chart.html"}',
+      'visualize{"path":"/w/Chart.html"}'
+    ]) {
+      expect(parseVisualizationContentReferences(markdown), markdown).toEqual([])
+      expect(assistantMessageCopyText(markdown)).toBe(markdown)
+    }
   })
 
-  it.each([
-    ['/w/chart.html', true],
-    ['C:\\w\\sales-by-region.html', true],
-    ['C:/w/chart.html', true],
-    ['\\\\server\\share\\chart.html', true],
-    ['chart.html', false],
-    ['w/chart.html', false],
-    ['/w/./chart.html', false],
-    ['/w/chart.htm', false],
-    ['/w/chart_1.html', false]
-  ])('validates path %s', (path, expected) => {
-    expect(isValidVisualizationPath(path)).toBe(expected)
+  it('validates visualization paths', () => {
+    for (const [path, expected] of [
+      ['/w/chart.html', true],
+      ['C:\\w\\sales-by-region.html', true],
+      ['C:/w/chart.html', true],
+      ['\\\\server\\share\\chart.html', true],
+      ['chart.html', false],
+      ['w/chart.html', false],
+      ['/w/./chart.html', false],
+      ['/w/chart.htm', false],
+      ['/w/chart_1.html', false]
+    ] as const) {
+      expect(isValidVisualizationPath(path), path).toBe(expected)
+    }
   })
 })

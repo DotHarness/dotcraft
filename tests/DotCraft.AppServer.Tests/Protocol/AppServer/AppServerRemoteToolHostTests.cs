@@ -15,29 +15,25 @@ public sealed class AppServerRemoteToolHostTests
     private const string WorkspaceId = "workspace_001";
 
     [Fact]
-    public async Task Initialize_WhenClientProvided_AdvertisesCapability()
+    public async Task CapabilityAndMethods_ExistOnlyWithAClient()
     {
-        using var harness = new AppServerTestHarness(remoteToolHostClient: new FakeRemoteToolHostClient());
+        using (var withClient = new AppServerTestHarness(remoteToolHostClient: new FakeRemoteToolHostClient()))
+        {
+            using var init = await withClient.InitializeAsync();
+            Assert.True(init.RootElement.GetProperty("result").GetProperty("capabilities").GetProperty("remoteToolHost").GetBoolean());
+        }
 
-        var init = await harness.InitializeAsync();
-
-        var capabilities = init.RootElement.GetProperty("result").GetProperty("capabilities");
-        Assert.True(capabilities.GetProperty("remoteToolHost").GetBoolean());
-    }
-
-    [Fact]
-    public async Task Initialize_WithoutClient_OmitsCapability()
-    {
         using var harness = new AppServerTestHarness();
+        using (var init = await harness.InitializeAsync())
+            Assert.False(init.RootElement.GetProperty("result").GetProperty("capabilities").TryGetProperty("remoteToolHost", out _));
 
-        var init = await harness.InitializeAsync();
-
-        var capabilities = init.RootElement.GetProperty("result").GetProperty("capabilities");
-        Assert.False(capabilities.TryGetProperty("remoteToolHost", out _));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(MethodNames.RemoteToolHostList, new { }));
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.MethodNotFoundCode);
     }
 
     [Fact]
-    public async Task List_MapsCatalogAndCurrentRoute()
+    public async Task List_MapsCatalogWithTheThreadRouteOrWithoutAThread()
     {
         var client = new FakeRemoteToolHostClient
         {
@@ -68,58 +64,35 @@ public sealed class AppServerRemoteToolHostTests
 
         await harness.ExecuteRequestAsync(
             harness.BuildRequest(MethodNames.RemoteToolHostList, new { threadId = "thread_001" }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
-        var host = Assert.Single(result.GetProperty("hosts").EnumerateArray().ToArray());
-        Assert.Equal(HostId, host.GetProperty("hostId").GetString());
-        Assert.Equal("Studio PC", host.GetProperty("displayName").GetString());
-        Assert.True(host.GetProperty("online").GetBoolean());
-        Assert.Equal(RemoteToolErrorCodes.HostOffline, host.GetProperty("errorCode").GetString());
-        var workspace = Assert.Single(host.GetProperty("workspaces").EnumerateArray().ToArray());
-        Assert.Equal(WorkspaceId, workspace.GetProperty("workspaceId").GetString());
-        Assert.False(workspace.GetProperty("available").GetBoolean());
-        Assert.Equal("other", workspace.GetProperty("busyOwner").GetString());
-        Assert.Equal(
-            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
-            workspace.GetProperty("leaseExpiresAt").GetDateTimeOffset());
-        var route = result.GetProperty("route");
-        Assert.Equal("thread_001", route.GetProperty("threadId").GetString());
-        Assert.Equal("leaseLost", route.GetProperty("status").GetString());
-        Assert.Equal("studio-pc", route.GetProperty("environment").GetProperty("hostName").GetString());
-        Assert.Equal("thread_001", client.ListedThreadIds.Single());
-    }
-
-    /// <summary>The welcome composer lists before a thread exists, so the catalog cannot depend on one.</summary>
-    [Fact]
-    public async Task List_WithoutThreadId_ReturnsSameMachinesAndOmitsRoute()
-    {
-        var client = new FakeRemoteToolHostClient
+        using (var response = await harness.Transport.ReadNextSentAsync())
         {
-            Catalog = new RemoteToolHostCatalog(
-            [
-                new RemoteToolHostDescriptor(
-                    HostId,
-                    "Studio PC",
-                    Online: true,
-                    [new RemoteToolWorkspaceDescriptor(WorkspaceId, "game-client", Available: true)])
-            ])
-        };
-        using var harness = new AppServerTestHarness(remoteToolHostClient: client);
-        await harness.InitializeAsync();
+            AppServerTestHarness.AssertIsSuccessResponse(response);
+            var result = response.RootElement.GetProperty("result");
+            var host = Assert.Single(result.GetProperty("hosts").EnumerateArray().ToArray());
+            Assert.Equal(HostId, host.GetProperty("hostId").GetString());
+            Assert.Equal("Studio PC", host.GetProperty("displayName").GetString());
+            Assert.True(host.GetProperty("online").GetBoolean());
+            Assert.Equal(RemoteToolErrorCodes.HostOffline, host.GetProperty("errorCode").GetString());
+            var workspace = Assert.Single(host.GetProperty("workspaces").EnumerateArray().ToArray());
+            Assert.Equal(WorkspaceId, workspace.GetProperty("workspaceId").GetString());
+            Assert.False(workspace.GetProperty("available").GetBoolean());
+            Assert.Equal("other", workspace.GetProperty("busyOwner").GetString());
+            Assert.Equal(
+                new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                workspace.GetProperty("leaseExpiresAt").GetDateTimeOffset());
+            var route = result.GetProperty("route");
+            Assert.Equal("thread_001", route.GetProperty("threadId").GetString());
+            Assert.Equal("leaseLost", route.GetProperty("status").GetString());
+            Assert.Equal("studio-pc", route.GetProperty("environment").GetProperty("hostName").GetString());
+            Assert.Equal("thread_001", client.ListedThreadIds.Single());
+        }
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(MethodNames.RemoteToolHostList, new { }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
-        var host = Assert.Single(result.GetProperty("hosts").EnumerateArray().ToArray());
-        Assert.Equal(HostId, host.GetProperty("hostId").GetString());
-        var workspace = Assert.Single(host.GetProperty("workspaces").EnumerateArray().ToArray());
-        Assert.Equal(WorkspaceId, workspace.GetProperty("workspaceId").GetString());
-        Assert.True(workspace.GetProperty("available").GetBoolean());
-        Assert.False(result.TryGetProperty("route", out _));
+        using var withoutThread = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(withoutThread);
+        var withoutThreadResult = withoutThread.RootElement.GetProperty("result");
+        Assert.Equal(HostId, Assert.Single(withoutThreadResult.GetProperty("hosts").EnumerateArray().ToArray()).GetProperty("hostId").GetString());
+        Assert.False(withoutThreadResult.TryGetProperty("route", out _));
     }
 
     [Fact]
@@ -164,9 +137,8 @@ public sealed class AppServerRemoteToolHostTests
         Assert.Equal(WorkspaceId, notification.Route.Value!.WorkspaceId);
     }
 
-    /// <summary>A model-driven route change reaches clients through the same notification.</summary>
     [Fact]
-    public async Task AgentDisconnect_BroadcastsDisconnectedWithAgentInitiator()
+    public async Task RouteChangesFromTheAgentOrLeaseLoss_AreBroadcast()
     {
         var client = new FakeRemoteToolHostClient();
         var broadcasts = new List<Contract.RemoteToolHostRouteChangedNotification>();
@@ -176,44 +148,34 @@ public sealed class AppServerRemoteToolHostTests
         await harness.InitializeAsync();
 
         await client.DisconnectAsync("thread_001", initiator: RemoteToolRouteInitiator.Agent);
-
-        var notification = Assert.Single(broadcasts);
-        Assert.Equal("thread_001", notification.ThreadId);
-        Assert.Equal("disconnected", notification.Reason);
-        Assert.Equal("agent", notification.Initiator.Value);
-        Assert.Null(notification.Route.Value);
-    }
-
-    /// <summary>Lease loss keeps the route so the client can show the machine as offline.</summary>
-    [Fact]
-    public async Task LeaseLoss_BroadcastsLeaseLostAndRetainsRoute()
-    {
-        var client = new FakeRemoteToolHostClient();
-        var broadcasts = new List<Contract.RemoteToolHostRouteChangedNotification>();
-        using var harness = new AppServerTestHarness(
-            remoteToolHostClient: client,
-            broadcastRemoteToolHostRouteChanged: broadcasts.Add);
-        await harness.InitializeAsync();
-
         client.RaiseLeaseLost("thread_001");
 
-        var notification = Assert.Single(broadcasts);
-        Assert.Equal("leaseLost", notification.Reason);
-        Assert.Equal("system", notification.Initiator.Value);
-        var route = Assert.IsType<Contract.RemoteToolRouteInfo>(notification.Route.Value);
+        Assert.Equal(2, broadcasts.Count);
+        var disconnected = broadcasts[0];
+        Assert.Equal("thread_001", disconnected.ThreadId);
+        Assert.Equal("disconnected", disconnected.Reason);
+        Assert.Equal("agent", disconnected.Initiator.Value);
+        Assert.Null(disconnected.Route.Value);
+
+        var leaseLost = broadcasts[1];
+        Assert.Equal("leaseLost", leaseLost.Reason);
+        Assert.Equal("system", leaseLost.Initiator.Value);
+        var route = Assert.IsType<Contract.RemoteToolRouteInfo>(leaseLost.Route.Value);
         Assert.Equal(HostId, route.HostId);
         Assert.Equal(WorkspaceId, route.WorkspaceId);
         Assert.Equal("leaseLost", route.Status);
     }
 
-    [Fact]
-    public async Task Connect_WhenWorkspaceBusy_ReturnsBusyErrorWithOwner()
+    [Theory]
+    [InlineData(RemoteToolErrorCodes.WorkspaceBusy, "error.remoteToolHost.remoteWorkspaceBusy", true)]
+    [InlineData(RemoteToolErrorCodes.HostOffline, "error.remoteToolHost.remoteHostOffline", false)]
+    public async Task Connect_MapsHostFailuresToStructuredErrors(string failureCode, string messageKey, bool busy)
     {
         var client = new FakeRemoteToolHostClient
         {
             ConnectFailure = new RemoteToolHostException(
-                RemoteToolErrorCodes.WorkspaceBusy,
-                "Workspace 'workspace_001' is leased by another Agent Host.")
+                failureCode,
+                busy ? "Workspace 'workspace_001' is leased by another Agent Host." : "The paired machine is not connected to the Hub.")
         };
         using var harness = new AppServerTestHarness(remoteToolHostClient: client);
         await harness.InitializeAsync();
@@ -224,86 +186,52 @@ public sealed class AppServerRemoteToolHostTests
             new { threadId = thread.Id, hostId = HostId, workspaceId = WorkspaceId }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.RemoteToolWorkspaceBusyCode);
+        AppServerTestHarness.AssertIsErrorResponse(
+            response,
+            busy ? AppServerErrors.RemoteToolWorkspaceBusyCode : AppServerErrors.RemoteToolHostUnavailableCode);
         var data = response.RootElement.GetProperty("error").GetProperty("data");
-        Assert.Equal(RemoteToolErrorCodes.WorkspaceBusy, data.GetProperty("code").GetString());
-        Assert.Equal("error.remoteToolHost.remoteWorkspaceBusy", data.GetProperty("messageKey").GetString());
-        Assert.Equal("other", data.GetProperty("params").GetProperty("owner").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(data.GetProperty("fallbackText").GetString()));
-    }
-
-    [Fact]
-    public async Task Connect_WhenHostOffline_ReturnsUnavailableErrorWithCode()
-    {
-        var client = new FakeRemoteToolHostClient
+        Assert.Equal(failureCode, data.GetProperty("code").GetString());
+        Assert.Equal(messageKey, data.GetProperty("messageKey").GetString());
+        if (busy)
         {
-            ConnectFailure = new RemoteToolHostException(
-                RemoteToolErrorCodes.HostOffline,
-                "The paired machine is not connected to the Hub.")
-        };
-        using var harness = new AppServerTestHarness(remoteToolHostClient: client);
-        await harness.InitializeAsync();
-        var thread = await SeedThreadAsync(harness);
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(
-            MethodNames.RemoteToolHostConnect,
-            new { threadId = thread.Id, hostId = HostId, workspaceId = WorkspaceId }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.RemoteToolHostUnavailableCode);
-        var data = response.RootElement.GetProperty("error").GetProperty("data");
-        Assert.Equal(RemoteToolErrorCodes.HostOffline, data.GetProperty("code").GetString());
-        Assert.Equal("error.remoteToolHost.remoteHostOffline", data.GetProperty("messageKey").GetString());
-        Assert.False(data.TryGetProperty("params", out _));
+            Assert.Equal("other", data.GetProperty("params").GetProperty("owner").GetString());
+            Assert.False(string.IsNullOrWhiteSpace(data.GetProperty("fallbackText").GetString()));
+        }
+        else
+        {
+            Assert.False(data.TryGetProperty("params", out _));
+        }
     }
 
     [Fact]
-    public async Task Connect_WhenTurnRunning_ReturnsTurnInProgress()
+    public async Task Connect_RejectsUnknownThreadMalformedParamsAndRunningTurnWithoutConnecting()
     {
         var client = new FakeRemoteToolHostClient();
         using var harness = new AppServerTestHarness(remoteToolHostClient: client);
         await harness.InitializeAsync();
-        var thread = await SeedThreadAsync(harness, running: true);
 
+        foreach (var (parameters, code) in new (object Params, int Code)[]
+                 {
+                     (new { threadId = "thread_missing", hostId = HostId, workspaceId = WorkspaceId }, AppServerErrors.ThreadNotFoundCode),
+                     (new { threadId = "thread_001", hostId = HostId }, AppServerErrors.InvalidParamsCode)
+                 })
+        {
+            await harness.ExecuteRequestAsync(harness.BuildRequest(MethodNames.RemoteToolHostConnect, parameters));
+            using var rejected = await harness.Transport.ReadNextSentAsync();
+            AppServerTestHarness.AssertIsErrorResponse(rejected, code);
+        }
+
+        var thread = await SeedThreadAsync(harness, running: true);
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             MethodNames.RemoteToolHostConnect,
             new { threadId = thread.Id, hostId = HostId, workspaceId = WorkspaceId }));
-
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.TurnInProgressCode);
         Assert.Empty(client.ConnectedRoutes);
     }
 
     [Fact]
-    public async Task Connect_WhenThreadUnknown_ReturnsThreadNotFound()
-    {
-        using var harness = new AppServerTestHarness(remoteToolHostClient: new FakeRemoteToolHostClient());
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(
-            MethodNames.RemoteToolHostConnect,
-            new { threadId = "thread_missing", hostId = HostId, workspaceId = WorkspaceId }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.ThreadNotFoundCode);
-    }
-
-    [Fact]
-    public async Task Connect_WithMalformedParams_ReturnsInvalidParams()
-    {
-        using var harness = new AppServerTestHarness(remoteToolHostClient: new FakeRemoteToolHostClient());
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(
-            MethodNames.RemoteToolHostConnect,
-            new { threadId = "thread_001", hostId = HostId }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-    }
-
-    [Fact]
-    public async Task Disconnect_ReturnsPreviousRouteAndBroadcasts()
+    public async Task Disconnect_ReturnsPreviousRouteAndBroadcastsOnlyWhenARouteExisted()
     {
         var client = new FakeRemoteToolHostClient();
         client.Snapshots["thread_001"] = new RemoteToolConnectionSnapshot(
@@ -321,50 +249,29 @@ public sealed class AppServerRemoteToolHostTests
             MethodNames.RemoteToolHostDisconnect,
             new { threadId = "thread_001" }));
 
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
-        Assert.True(result.GetProperty("disconnected").GetBoolean());
-        var previous = result.GetProperty("previousRoute");
-        Assert.Equal(HostId, previous.GetProperty("hostId").GetString());
-        Assert.Equal("connected", previous.GetProperty("status").GetString());
+        using (var response = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(response);
+            var result = response.RootElement.GetProperty("result");
+            Assert.True(result.GetProperty("disconnected").GetBoolean());
+            var previous = result.GetProperty("previousRoute");
+            Assert.Equal(HostId, previous.GetProperty("hostId").GetString());
+            Assert.Equal("connected", previous.GetProperty("status").GetString());
+        }
 
         var notification = Assert.Single(broadcasts);
         Assert.Equal("disconnected", notification.Reason);
         Assert.Equal("client", notification.Initiator.Value);
         Assert.Null(notification.Route.Value);
-    }
 
-    [Fact]
-    public async Task Disconnect_WhenNoRoute_ReportsNoChangeAndDoesNotBroadcast()
-    {
-        var client = new FakeRemoteToolHostClient { Disconnects = false };
-        var broadcasts = new List<Contract.RemoteToolHostRouteChangedNotification>();
-        using var harness = new AppServerTestHarness(
-            remoteToolHostClient: client,
-            broadcastRemoteToolHostRouteChanged: broadcasts.Add);
-        await harness.InitializeAsync();
-
+        client.Disconnects = false;
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             MethodNames.RemoteToolHostDisconnect,
             new { threadId = "thread_001" }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.False(response.RootElement.GetProperty("result").GetProperty("disconnected").GetBoolean());
-        Assert.Empty(broadcasts);
-    }
-
-    [Fact]
-    public async Task Methods_WithoutClient_ReturnMethodNotFound()
-    {
-        using var harness = new AppServerTestHarness();
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(MethodNames.RemoteToolHostList, new { }));
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.MethodNotFoundCode);
+        using var noRoute = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(noRoute);
+        Assert.False(noRoute.RootElement.GetProperty("result").GetProperty("disconnected").GetBoolean());
+        Assert.Single(broadcasts);
     }
 
     private static RemoteToolEnvironment NewEnvironment() =>
@@ -455,7 +362,6 @@ public sealed class AppServerRemoteToolHostTests
             return ValueTask.FromResult(new RemoteToolDisconnectResult(true, previous));
         }
 
-        /// <summary>Mirrors the client's heartbeat path: the route is retained and marked lost.</summary>
         public void RaiseLeaseLost(string threadId)
         {
             Snapshots[threadId] = new RemoteToolConnectionSnapshot(

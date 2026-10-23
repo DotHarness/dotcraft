@@ -81,7 +81,6 @@ public sealed class PlanToolsTests
             }
             catch
             {
-                // Best-effort cleanup; Windows may briefly retain the SQLite file handle.
             }
         }
     }
@@ -128,7 +127,7 @@ public sealed class PlanToolsTests
     }
 
     [Fact]
-    public void PlanMarkdownParser_FallsBackWithoutH1OrSectionOverview()
+    public void PlanMarkdownParser_FallsBackWithoutH1OrSectionOverviewAndDefaultsWhenEmpty()
     {
         var parsed = PlanMarkdownParser.Parse("""
             Implement cache invalidation
@@ -143,16 +142,9 @@ public sealed class PlanToolsTests
         Assert.Equal("Implement cache invalidation", parsed.Title);
         Assert.Equal("Keep the existing storage format.", parsed.Overview);
         Assert.StartsWith("Implement cache invalidation", parsed.Content);
-    }
 
-    [Fact]
-    public void PlanMarkdownParser_UsesPlanDefaultsForEmptyMarkdown()
-    {
-        var parsed = PlanMarkdownParser.Parse("   ");
-
-        Assert.Equal("Plan", parsed.Title);
-        Assert.Equal("", parsed.Overview);
-        Assert.Equal("", parsed.Content);
+        var empty = PlanMarkdownParser.Parse("   ");
+        Assert.Equal(("Plan", "", ""), (empty.Title, empty.Overview, empty.Content));
     }
 
     [Fact]
@@ -203,7 +195,6 @@ public sealed class PlanToolsTests
             }
             catch
             {
-                // Best-effort cleanup; Windows may briefly retain the SQLite file handle.
             }
         }
     }

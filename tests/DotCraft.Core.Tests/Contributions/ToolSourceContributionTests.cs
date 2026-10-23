@@ -5,7 +5,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Contributions;
 
-/// <summary>Composition of the <see cref="IToolSource"/> contribution point, asserted through the factory that plans with it.</summary>
 public sealed class ToolSourceContributionTests : IDisposable
 {
     private readonly ContributionAgentHost _host = new("ToolSourceContribution");
@@ -46,29 +45,19 @@ public sealed class ToolSourceContributionTests : IDisposable
     }
 
     [Fact]
-    public void ThreadScopedSource_AppliesToThatThreadOnly()
-    {
-        var registry = new ContributionRegistry();
-        registry.Add<IToolSource>(new StubToolSource("workspace"), new ContributionOptions(Order: 10));
-        registry.Add<IToolSource>(
-            new StubToolSource("thread-only"),
-            ContributionOptions.ForThread("thread-a", order: 20));
-        var factory = CreateFactory(registry, constructorSources: []);
-
-        Assert.Contains(factory.GetToolSources("thread-a"), source => source.SourceId == "thread-only");
-        Assert.DoesNotContain(factory.GetToolSources("thread-b"), source => source.SourceId == "thread-only");
-    }
-
-    [Fact]
-    public void PluginOriginSource_IsWithheldFromTheGeneralResolution()
+    public void ThreadScopedSourcesApplyToTheirThread_AndPluginOriginSourcesAreWithheld()
     {
         var registry = new ContributionRegistry();
         registry.Add<IToolSource>(new StubToolSource("workspace"), new ContributionOptions(Order: 10));
         var registrar = registry.CreateRegistrar(ContributionOrigin.Plugin("acme.tools", "gen-1"));
         registrar.Add<IToolSource>(new StubToolSource("plugin-raw"), new ContributionOptions(Order: 20));
+        registry.Add<IToolSource>(
+            new StubToolSource("thread-only"),
+            ContributionOptions.ForThread("thread-a", order: 30));
         var factory = CreateFactory(registry, constructorSources: []);
+        Assert.Contains(factory.GetToolSources("thread-a"), source => source.SourceId == "thread-only");
+        Assert.DoesNotContain(factory.GetToolSources("thread-b"), source => source.SourceId == "thread-only");
 
-        // A plugin source reaches a thread only through the aggregate that wraps it.
         Assert.Contains(factory.ToolSources, source => source.SourceId == "workspace");
         Assert.DoesNotContain(factory.ToolSources, source => source.SourceId == "plugin-raw");
         Assert.DoesNotContain(
@@ -76,23 +65,14 @@ public sealed class ToolSourceContributionTests : IDisposable
             source => source.SourceId == "plugin-raw");
     }
 
-    [Fact]
-    public void WithoutARegistry_TheConstructorInjectedListStillGoverns()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WithoutARegistryOrContributions_TheConstructorInjectedListGoverns(bool emptyRegistry)
     {
         var only = new StubToolSource("constructor-only");
 
-        var factory = CreateFactory(contributions: null, constructorSources: [only]);
-
-        Assert.Contains(factory.ToolSources, source => source.SourceId == "constructor-only");
-    }
-
-    [Fact]
-    public void EmptyContributionPoint_FallsBackToTheConstructorInjectedList()
-    {
-        var registry = new ContributionRegistry();
-        var only = new StubToolSource("constructor-only");
-
-        var factory = CreateFactory(registry, constructorSources: [only]);
+        var factory = CreateFactory(emptyRegistry ? new ContributionRegistry() : null, constructorSources: [only]);
 
         Assert.Contains(factory.ToolSources, source => source.SourceId == "constructor-only");
     }

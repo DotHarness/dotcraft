@@ -47,7 +47,7 @@ describe('UtilityVoiceWorkerClient', () => {
       () => worker as unknown as UtilityProcess
     )
     const transcription = client.transcribe('session-a', 'a.wav')
-    await vi.waitFor(() => expect(worker.messages.at(-1)?.method).toBe('transcribe'))
+    await vi.waitFor(() => expect(worker.messages.at(-1)?.method).toBe('transcribe'), { interval: 1 })
 
     await client.cancel('session-a')
 
@@ -67,7 +67,7 @@ describe('UtilityVoiceWorkerClient', () => {
     const fork = vi.fn(() => workers.shift() as unknown as UtilityProcess)
     const client = new UtilityVoiceWorkerClient({ modulePath: 'voiceWorker.js', modelPath: 'ggml-base.bin' }, fork)
     const failed = client.transcribe('session-a', 'a.wav')
-    await vi.waitFor(() => expect(first.messages.at(-1)?.method).toBe('transcribe'))
+    await vi.waitFor(() => expect(first.messages.at(-1)?.method).toBe('transcribe'), { interval: 1 })
 
     first.crash()
 

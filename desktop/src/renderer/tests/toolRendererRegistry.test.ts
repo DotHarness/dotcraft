@@ -24,80 +24,64 @@ function item(
   }
 }
 
-describe('ToolRendererRegistry', () => {
-  it('uses unified automation presentation only for trusted sources', () => {
-    expect(coreToolRendererRegistry.resolve(item('core.automation'))?.family).toBe('automation')
-    expect(coreToolRendererRegistry.resolve(item('core.automation', 'Mcp'))).toBeNull()
-  })
-  it('resolves the channel message row only for a trusted source without options', () => {
-    expect(coreToolRendererRegistry.resolve(item(CORE_TOOL_PRESENTATION_IDS.channel))).toMatchObject({
-      family: 'channel',
-      mode: 'standalone'
-    })
-    expect(coreToolRendererRegistry.resolve(item(CORE_TOOL_PRESENTATION_IDS.channel, 'PluginNative'))).toBeNull()
-    expect(coreToolRendererRegistry.resolve(item(CORE_TOOL_PRESENTATION_IDS.channel, 'CoreNative', { operation: 'send' }))).toBeNull()
-  })
-  it('resolves a registered Core renderer from presentation and provenance', () => {
-    const plan = coreToolRendererRegistry.resolve(item(
-      CORE_TOOL_PRESENTATION_IDS.web,
-      'CoreNative',
-      { operation: 'search' }
-    ))
+const resolve = (presentationId: string | undefined, kind = 'CoreNative', options?: Record<string, unknown>) =>
+  coreToolRendererRegistry.resolve(item(presentationId, kind, options))
 
-    expect(plan).toMatchObject({
+describe('ToolRendererRegistry', () => {
+  it('resolves trusted Core presentations to their renderer plan', () => {
+    expect(resolve('core.automation')?.family).toBe('automation')
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.channel)).toMatchObject({ family: 'channel', mode: 'standalone' })
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.web, 'CoreNative', { operation: 'search' })).toMatchObject({
       family: 'web',
       mode: 'collapsible',
       groupCategory: 'web',
       options: { operation: 'search' }
     })
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'CoreNative', { field: 'tools.policy' })).toMatchObject({
+      family: 'agentBuilder',
+      mode: 'standalone',
+      options: { field: 'tools.policy' }
+    })
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.readFile)).toMatchObject({ family: 'readFile', groupCategory: 'explore' })
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.deferredSearch)).toMatchObject({ family: 'deferredSearch' })
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.lsp)).toMatchObject({ family: 'lsp', groupCategory: 'explore' })
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.commitSuggest)).toMatchObject({ family: 'commitSuggest' })
+    for (const operation of ['list', 'connect', 'disconnect', 'transfer']) {
+      expect(resolve(CORE_TOOL_PRESENTATION_IDS.remoteToolHost, 'CoreNative', { operation })).toEqual({
+        family: 'remoteToolHost',
+        mode: 'collapsible',
+        options: { operation }
+      })
+    }
   })
 
   it.each(['Mcp', 'PluginNative', 'RuntimeDynamic', 'LegacyAppBinding'])(
     'rejects %s provenance even when it claims a Core presentation id',
     (kind) => {
-      expect(coreToolRendererRegistry.resolve(item(CORE_TOOL_PRESENTATION_IDS.shell, kind))).toBeNull()
+      expect(resolve(CORE_TOOL_PRESENTATION_IDS.shell, kind)).toBeNull()
+      expect(resolve(CORE_TOOL_PRESENTATION_IDS.channel, kind)).toBeNull()
+      expect(resolve('core.automation', kind)).toBeNull()
     }
   )
 
-  it('resolves the agent-builder family only for a known profile field', () => {
-    expect(coreToolRendererRegistry.resolve(item(
-      CORE_TOOL_PRESENTATION_IDS.agentBuilder,
-      'CoreNative',
-      { field: 'tools.policy' }
-    ))).toMatchObject({
-      family: 'agentBuilder',
-      mode: 'standalone',
-      options: { field: 'tools.policy' }
-    })
-    expect(coreToolRendererRegistry.resolve(item(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'CoreNative', { field: 'avatar' }))).toBeNull()
-    expect(coreToolRendererRegistry.resolve(item(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'CoreNative'))).toBeNull()
+  it('falls back to generic rendering for missing, unknown, or name-only presentations', () => {
+    expect(resolve(undefined)).toBeNull()
+    expect(resolve('core.not-registered')).toBeNull()
+    const namedLikeCore = item(undefined)
+    namedLikeCore.toolName = 'CreatePlan'
+    expect(coreToolRendererRegistry.resolve(namedLikeCore)).toBeNull()
   })
 
-  it('uses the generic fallback when presentation is missing or unknown', () => {
-    expect(coreToolRendererRegistry.resolve(item(undefined))).toBeNull()
-    expect(coreToolRendererRegistry.resolve(item('core.not-registered'))).toBeNull()
-  })
-
-  it('rejects invalid and oversized options', () => {
+  it('rejects invalid, oversized, or unowned options', () => {
     const invalidOptions = Object.create(null) as Record<string, unknown>
     invalidOptions.operation = 'search'
-    expect(coreToolRendererRegistry.resolve(item(
-      CORE_TOOL_PRESENTATION_IDS.web,
-      'CoreNative',
-      invalidOptions
-    ))).toBeNull()
-
-    expect(coreToolRendererRegistry.resolve(item(
-      CORE_TOOL_PRESENTATION_IDS.web,
-      'CoreNative',
-      { value: 'x'.repeat(5000) }
-    ))).toBeNull()
-
-    expect(coreToolRendererRegistry.resolve(item(
-      CORE_TOOL_PRESENTATION_IDS.web,
-      'CoreNative',
-      { operation: 'shell' }
-    ))).toBeNull()
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.web, 'CoreNative', invalidOptions)).toBeNull()
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.web, 'CoreNative', { value: 'x'.repeat(5000) })).toBeNull()
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.web, 'CoreNative', { operation: 'shell' })).toBeNull()
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.channel, 'CoreNative', { operation: 'send' })).toBeNull()
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'CoreNative', { field: 'avatar' })).toBeNull()
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'CoreNative')).toBeNull()
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.remoteToolHost, 'CoreNative', { operation: 'reroute' })).toBeNull()
   })
 
   it('rejects duplicate presentation ids at construction', () => {
@@ -107,77 +91,6 @@ describe('ToolRendererRegistry', () => {
     }
     expect(() => new ToolRendererRegistry([registration, registration]))
       .toThrow('Duplicate tool renderer presentation id: core.duplicate')
-  })
-
-  it('does not infer a renderer from a trusted tool name', () => {
-    const namedLikeCore = item(undefined)
-    namedLikeCore.toolName = 'CreatePlan'
-    expect(coreToolRendererRegistry.resolve(namedLikeCore)).toBeNull()
-  })
-
-  it.each(['ReadFile', 'GrepFiles', 'FindFiles'])(
-    'resolves %s through the production read presentation',
-    (toolName) => {
-      const projected = item(CORE_TOOL_PRESENTATION_IDS.readFile)
-      projected.toolName = toolName
-      projected.source = {
-        kind: 'CoreNative',
-        sourceId: 'core-native',
-        sourceToolId: toolName
-      }
-
-      expect(coreToolRendererRegistry.resolve(projected)).toMatchObject({
-        family: 'readFile',
-        groupCategory: 'explore'
-      })
-    }
-  )
-
-  it('resolves the canonical SearchTools call from its Core projection', () => {
-    const projected = item(CORE_TOOL_PRESENTATION_IDS.deferredSearch)
-    projected.toolName = 'SearchTools'
-    projected.source = {
-      kind: 'CoreNative',
-      sourceId: 'core-native',
-      sourceToolId: 'SearchTools'
-    }
-
-    expect(coreToolRendererRegistry.resolve(projected)).toMatchObject({
-      family: 'deferredSearch'
-    })
-  })
-
-  it.each(['list', 'connect', 'disconnect', 'transfer'])(
-    'resolves the remote tool host %s row as a collapsible tool row',
-    (operation) => {
-      expect(coreToolRendererRegistry.resolve(item(
-        CORE_TOOL_PRESENTATION_IDS.remoteToolHost,
-        'CoreNative',
-        { operation }
-      ))).toEqual({
-        family: 'remoteToolHost',
-        mode: 'collapsible',
-        options: { operation }
-      })
-    }
-  )
-
-  it('rejects a remote tool host row with an operation it does not own', () => {
-    expect(coreToolRendererRegistry.resolve(item(
-      CORE_TOOL_PRESENTATION_IDS.remoteToolHost,
-      'CoreNative',
-      { operation: 'reroute' }
-    ))).toBeNull()
-  })
-
-  it.each([
-    [CORE_TOOL_PRESENTATION_IDS.lsp, 'lsp', 'explore'],
-    [CORE_TOOL_PRESENTATION_IDS.commitSuggest, 'commitSuggest', undefined]
-  ])('resolves the trusted %s utility presentation', (presentationId, family, groupCategory) => {
-    expect(coreToolRendererRegistry.resolve(item(presentationId))).toMatchObject({
-      family,
-      ...(groupCategory ? { groupCategory } : {})
-    })
   })
 
   it.each([
@@ -191,16 +104,15 @@ describe('ToolRendererRegistry', () => {
     expect(resolveMemoryOperation(marked)).toBe(expected)
   })
 
-  it.each([
-    [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read', memory: 'update' }],
-    [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write', memory: 'recall' }],
-    [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write', memory: true }],
-    [CORE_TOOL_PRESENTATION_IDS.web, { operation: 'search', memory: 'recall' }]
-  ] as const)('rejects a memory mark %s does not carry: %o', (presentationId, options) => {
-    expect(coreToolRendererRegistry.resolve(item(presentationId, 'CoreNative', { ...options }))).toBeNull()
-  })
-
-  it('ignores a memory mark from an untrusted source', () => {
+  it('rejects memory marks a presentation does not carry, and ignores them from untrusted sources', () => {
+    for (const [presentationId, options] of [
+      [CORE_TOOL_PRESENTATION_IDS.readFile, { operation: 'read', memory: 'update' }],
+      [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write', memory: 'recall' }],
+      [CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation: 'write', memory: true }],
+      [CORE_TOOL_PRESENTATION_IDS.web, { operation: 'search', memory: 'recall' }]
+    ] as const) {
+      expect(resolve(presentationId, 'CoreNative', { ...options })).toBeNull()
+    }
     expect(resolveMemoryOperation(item(
       CORE_TOOL_PRESENTATION_IDS.fileWrite,
       'Mcp',

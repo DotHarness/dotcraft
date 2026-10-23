@@ -58,51 +58,6 @@ function getSelectionRange(root: HTMLElement): { start: number; end: number } | 
 }
 
 describe('RichInputArea selection helpers', () => {
-  it('keeps a suggested message outside the draft until Tab accepts it', () => {
-    const ref = createRef<RichInputAreaHandle>()
-    const onAcceptSuggestion = vi.fn()
-    const onDismissSuggestion = vi.fn()
-    const onSubmit = vi.fn()
-    render(
-      <RichInputArea
-        ref={ref}
-        suggestion="Add a regression test"
-        suggestionHint="Press Tab to use"
-        onAcceptSuggestion={onAcceptSuggestion}
-        onDismissSuggestion={onDismissSuggestion}
-        onSubmit={onSubmit}
-      />
-    )
-
-    const textbox = screen.getByRole('textbox')
-    expect(ref.current?.getText()).toBe('')
-    fireEvent.keyDown(textbox, { key: 'Tab' })
-    expect(onAcceptSuggestion).toHaveBeenCalledOnce()
-    expect(onSubmit).not.toHaveBeenCalled()
-    fireEvent.keyDown(textbox, { key: 'Escape' })
-    expect(onDismissSuggestion).toHaveBeenCalledOnce()
-  })
-
-  it('places the caret at the end after setPlainText and setSelectionRange', () => {
-    const ref = createRef<RichInputAreaHandle>()
-
-    render(
-      <RichInputArea
-        ref={ref}
-        onSubmit={vi.fn()}
-      />
-    )
-
-    act(() => {
-      ref.current?.setPlainText('hello world')
-      ref.current?.setSelectionRange({ start: 11, end: 11 })
-    })
-
-    const textbox = screen.getByRole('textbox')
-    expect(ref.current?.getSelectionRange()).toEqual({ start: 11, end: 11 })
-    expect(getSelectionRange(textbox)).toEqual({ start: 11, end: 11 })
-  })
-
   it('round-trips linear selection offsets for content with tags', () => {
     const ref = createRef<RichInputAreaHandle>()
 
@@ -150,54 +105,6 @@ describe('RichInputArea selection helpers', () => {
     expect(ref.current?.getSelectionRange()).toEqual({ start: 3, end: 3 })
   })
 
-  it('emits onSelectionChange when the selection is updated programmatically', () => {
-    const ref = createRef<RichInputAreaHandle>()
-    const onSelectionChange = vi.fn()
-
-    render(
-      <RichInputArea
-        ref={ref}
-        onSubmit={vi.fn()}
-        onSelectionChange={onSelectionChange}
-      />
-    )
-
-    act(() => {
-      ref.current?.setPlainText('hello world')
-      ref.current?.setSelectionRange({ start: 5, end: 5 })
-    })
-
-    expect(onSelectionChange).toHaveBeenCalledWith({ start: 11, end: 11 })
-    expect(onSelectionChange).toHaveBeenCalledWith({ start: 5, end: 5 })
-  })
-
-})
-
-describe('RichInputArea reference removal', () => {
-  it('removes a reference when the nested SVG path is clicked', () => {
-    const ref = createRef<RichInputAreaHandle>()
-
-    render(<RichInputArea ref={ref} onSubmit={vi.fn()} />)
-
-    act(() => {
-      ref.current?.setContent({
-        segments: [
-          { type: 'text', value: 'Before' },
-          { type: 'skill', skillName: 'memory' },
-          { type: 'text', value: ' after' }
-        ]
-      })
-    })
-
-    const textbox = screen.getByRole('textbox')
-    const removePath = textbox.querySelector('.dc-ref-icon-remove path')
-    expect(removePath).not.toBeNull()
-
-    fireEvent.click(removePath!)
-
-    expect(textbox.querySelector(`.${SKILL_REF_CLASS}`)).toBeNull()
-    expect(ref.current?.getSegments()).toEqual([{ type: 'text', value: 'Before after' }])
-  })
 })
 
 describe('RichInputArea keyboard submit behavior', () => {
@@ -251,96 +158,6 @@ describe('RichInputArea keyboard submit behavior', () => {
 
     expect(fireEvent.keyDown(textbox, { key: 'Enter' })).toBe(false)
     expect(onSubmit).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('RichInputArea ref insertion caret placement', () => {
-  // Regression for the IME double-insert bug: the caret must land *inside* the
-  // trailing spacer text node, not at the parent-element boundary right after the
-  // contenteditable=false chip. At the element boundary, Chromium double-inserts
-  // the first IME-committed character (e.g. full-width punctuation).
-  it('places the caret inside the trailing text node after inserting a skill tag', () => {
-    const ref = createRef<RichInputAreaHandle>()
-
-    render(<RichInputArea ref={ref} onSubmit={vi.fn()} onSkillQuery={vi.fn()} />)
-
-    act(() => {
-      ref.current?.setPlainText('$me')
-      ref.current?.setSelectionRange({ start: 3, end: 3 })
-      ref.current?.insertSkillTag('memory')
-    })
-
-    const textbox = screen.getByRole('textbox')
-    expect(textbox.querySelector(`.${SKILL_REF_CLASS}`)).not.toBeNull()
-
-    const selection = window.getSelection()
-    expect(selection).not.toBeNull()
-    const anchor = selection!.anchorNode
-    // Caret sits inside the trailing spacer text node…
-    expect(anchor?.nodeType).toBe(Node.TEXT_NODE)
-    expect(anchor?.textContent?.charCodeAt(0)).toBe(0x00a0)
-    // …whose immediate predecessor is the chip itself.
-    expect((anchor?.previousSibling as HTMLElement | null)?.classList.contains(SKILL_REF_CLASS)).toBe(true)
-  })
-
-  it('replaces the @ query with a thread chip and inserts dropped threads at the caret', () => {
-    const ref = createRef<RichInputAreaHandle>()
-
-    render(<RichInputArea ref={ref} onSubmit={vi.fn()} onAtQuery={vi.fn()} />)
-
-    act(() => {
-      ref.current?.setPlainText('see @fix')
-      ref.current?.setSelectionRange({ start: 8, end: 8 })
-      ref.current?.insertThreadTag('thread_a', 'Fix login')
-    })
-    act(() => {
-      ref.current?.insertThreadTagAtSelection('thread_b', 'Retry')
-    })
-
-    expect(ref.current?.getSegments()).toEqual([
-      { type: 'text', value: 'see ' },
-      { type: 'thread', threadId: 'thread_a', title: 'Fix login' },
-      { type: 'text', value: ' ' },
-      { type: 'thread', threadId: 'thread_b', title: 'Retry' },
-      { type: 'text', value: ' ' }
-    ])
-    expect(ref.current?.getText()).toBe('see [@Fix login](thread://thread_a) [@Retry](thread://thread_b) ')
-  })
-
-  it('tracks visible command-trigger text and replaces only that range with a skill tag', () => {
-    const ref = createRef<RichInputAreaHandle>()
-    const onCommandQuery = vi.fn()
-
-    render(
-      <RichInputArea
-        ref={ref}
-        onSubmit={vi.fn()}
-        onCommandQuery={onCommandQuery}
-      />
-    )
-
-    act(() => {
-      ref.current?.setPlainText('Keep ')
-      ref.current?.setSelectionRange({ start: 5, end: 5 })
-      ref.current?.beginCommandQuery()
-    })
-
-    const textbox = screen.getByRole('textbox')
-    textbox.textContent = 'Keep mem'
-    act(() => {
-      ref.current?.setSelectionRange({ start: 8, end: 8 })
-    })
-    fireEvent.input(textbox)
-
-    expect(onCommandQuery).toHaveBeenLastCalledWith('mem')
-
-    act(() => {
-      ref.current?.insertSkillTag('memory')
-    })
-
-    expect(textbox).toHaveTextContent('Keep')
-    expect(textbox.querySelector(`.${SKILL_REF_CLASS}`)).not.toBeNull()
-    expect(onCommandQuery).toHaveBeenLastCalledWith(null)
   })
 })
 

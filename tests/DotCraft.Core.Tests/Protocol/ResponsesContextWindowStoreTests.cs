@@ -18,7 +18,6 @@ public sealed class ResponsesContextWindowStoreTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup; SQLite WAL files can remain briefly locked on Windows.
         }
     }
 

@@ -149,7 +149,6 @@ public sealed class SubAgentModelCatalogSnapshotForkTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 }

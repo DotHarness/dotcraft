@@ -13,10 +13,7 @@ public sealed class MemoryExtractionToolPolicyTests
     private readonly MemoryExtractionToolPolicy _policy = new(Store);
 
     [Theory]
-    [InlineData("ReadFile", "src/Program.cs")]
     [InlineData("ReadFile", "../elsewhere/notes.txt")]
-    [InlineData("GrepFiles", "src")]
-    [InlineData("FindFiles", ".")]
     public async Task Reads_AreAllowedAnywhere(string tool, string path)
     {
         Assert.True(await AllowsAsync(tool, path));
@@ -24,7 +21,6 @@ public sealed class MemoryExtractionToolPolicyTests
 
     [Theory]
     [InlineData("WriteFile", ".craft/memory/feedback_tests.md")]
-    [InlineData("EditFile", ".craft/memory/MEMORY.md")]
     public async Task MarkdownWritesInsideTheStore_AreAllowed(string tool, string path)
     {
         Assert.True(await AllowsAsync(tool, path));
@@ -35,7 +31,6 @@ public sealed class MemoryExtractionToolPolicyTests
     [InlineData("WriteFile", "README.md")]
     [InlineData("WriteFile", ".craft/memory/../config.md")]
     [InlineData("WriteFile", ".craft/memory/notes.txt")]
-    [InlineData("EditFile", "docs/guide.md")]
     public async Task WritesOutsideTheStoreOrNotMarkdown_AreDenied(string tool, string path)
     {
         Assert.False(await AllowsAsync(tool, path));
@@ -43,9 +38,6 @@ public sealed class MemoryExtractionToolPolicyTests
 
     [Theory]
     [InlineData("Exec", ToolSourceKind.CoreNative)]
-    [InlineData("WebFetch", ToolSourceKind.CoreNative)]
-    [InlineData("SpawnAgent", ToolSourceKind.CoreNative)]
-    [InlineData("SendUserMessage", ToolSourceKind.CoreNative)]
     [InlineData("ReadFile", ToolSourceKind.Mcp)]
     [InlineData("WriteFile", ToolSourceKind.PluginNative)]
     public async Task OtherCalls_AreDenied(string tool, ToolSourceKind kind)

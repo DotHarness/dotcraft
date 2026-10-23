@@ -9,90 +9,52 @@ public sealed class ContributionRegistryReplacementTests
         new(Order: order) { TargetName = targetName };
 
     [Fact]
-    public void Replacement_ShadowsTheNamedDefault_AndRestoresItOnDisposal()
+    public void Replacement_ShadowsTheNamedDefaultOfItsOwnPointOnly_AndRestoresItOnDisposal()
     {
         var registry = new ContributionRegistry();
         registry.Add<ILabelContract>(new LabelContribution("default-identity"), Named("identity"));
         registry.Add<ILabelContract>(new LabelContribution("other"));
+        registry.Add<INoteContract>(new NoteContribution("note-default"), Named("identity"));
 
         var replacement = registry.Add<ILabelContract>(
             new LabelContribution("plugin-identity"),
             new ContributionOptions(ReplaceTarget: "identity"));
+        registry.Add<ILabelContract>(
+            new LabelContribution("unmatched"),
+            new ContributionOptions(ReplaceTarget: "missing"));
 
         Assert.Equal(
-            ["other", "plugin-identity"],
+            ["other", "plugin-identity", "unmatched"],
             registry.Resolve<ILabelContract>().Select(contribution => contribution.Label));
+        Assert.Equal(["note-default"], registry.Resolve<INoteContract>().Select(contribution => contribution.Note));
 
         replacement.Dispose();
 
         Assert.Equal(
-            ["default-identity", "other"],
+            ["default-identity", "other", "unmatched"],
             registry.Resolve<ILabelContract>().Select(contribution => contribution.Label));
     }
 
     [Fact]
-    public void Replacement_WithoutAMatchingDefault_ContributesAdditively()
-    {
-        var registry = new ContributionRegistry();
-        registry.Add<ILabelContract>(new LabelContribution("plain"));
-        registry.Add<ILabelContract>(
-            new LabelContribution("replacement"),
-            new ContributionOptions(ReplaceTarget: "missing"));
-
-        Assert.Equal(
-            ["plain", "replacement"],
-            registry.Resolve<ILabelContract>().Select(contribution => contribution.Label));
-    }
-
-    [Fact]
-    public void CompetingReplacements_LaterRegistrationWins_AndTheLoserIsLoggedOnce()
+    public void CompetingReplacements_LaterRegistrationWinsWhateverTheOrder_AndTheLoserIsLoggedOnce()
     {
         var logLines = new List<string>();
         var registry = new ContributionRegistry(new CollectingLogger<ContributionRegistry>(logLines));
         registry.Add<ILabelContract>(new LabelContribution("default"), Named("identity"));
         var loser = registry.Add<ILabelContract>(
             new LabelContribution("first"),
-            new ContributionOptions(ReplaceTarget: "identity"));
-        registry.Add<ILabelContract>(
+            new ContributionOptions(Order: 5, ReplaceTarget: "identity"));
+        var winner = registry.Add<ILabelContract>(
             new LabelContribution("second"),
-            new ContributionOptions(ReplaceTarget: "identity"));
+            new ContributionOptions(Order: 1, ReplaceTarget: "identity"));
 
         Assert.Equal(["second"], registry.Resolve<ILabelContract>().Select(contribution => contribution.Label));
-        // Every view is rebuilt on every mutation; the losing contribution is still reported only once.
         Assert.Equal(["second"], registry.Resolve<ILabelContract>("thread-1").Select(contribution => contribution.Label));
 
         var logged = Assert.Single(logLines);
         Assert.Contains(ContributionDiagnosticCodes.ReplaceConflict, logged, StringComparison.Ordinal);
         Assert.Contains(loser.Id.ToString(), logged, StringComparison.Ordinal);
         Assert.Contains(nameof(ILabelContract), logged, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void CompetingReplacements_AreNotArbitratedByOrder()
-    {
-        var registry = new ContributionRegistry();
-        registry.Add<ILabelContract>(new LabelContribution("default"), Named("identity"));
-        registry.Add<ILabelContract>(
-            new LabelContribution("high-order-first"),
-            new ContributionOptions(Order: 5, ReplaceTarget: "identity"));
-        registry.Add<ILabelContract>(
-            new LabelContribution("low-order-second"),
-            new ContributionOptions(Order: 1, ReplaceTarget: "identity"));
-
-        Assert.Equal(["low-order-second"], registry.Resolve<ILabelContract>().Select(contribution => contribution.Label));
-    }
-
-    [Fact]
-    public void CompetingReplacements_WinnerDisposal_PromotesTheRemainingReplacement()
-    {
-        var registry = new ContributionRegistry();
-        registry.Add<ILabelContract>(new LabelContribution("default"), Named("identity"));
-        registry.Add<ILabelContract>(
-            new LabelContribution("first"),
-            new ContributionOptions(ReplaceTarget: "identity"));
-        var winner = registry.Add<ILabelContract>(
-            new LabelContribution("second"),
-            new ContributionOptions(ReplaceTarget: "identity"));
 
         winner.Dispose();
 
@@ -135,19 +97,5 @@ public sealed class ContributionRegistryReplacementTests
         replacement.Dispose();
 
         Assert.Equal(["default"], registry.Resolve<ILabelContract>("thread-1").Select(contribution => contribution.Label));
-    }
-
-    [Fact]
-    public void NamedTargets_AreScopedToTheirContributionPoint()
-    {
-        var registry = new ContributionRegistry();
-        registry.Add<ILabelContract>(new LabelContribution("label-default"), Named("identity"));
-        registry.Add<INoteContract>(new NoteContribution("note-default"), Named("identity"));
-        registry.Add<INoteContract>(
-            new NoteContribution("note-replacement"),
-            new ContributionOptions(ReplaceTarget: "identity"));
-
-        Assert.Equal(["label-default"], registry.Resolve<ILabelContract>().Select(contribution => contribution.Label));
-        Assert.Equal(["note-replacement"], registry.Resolve<INoteContract>().Select(contribution => contribution.Note));
     }
 }

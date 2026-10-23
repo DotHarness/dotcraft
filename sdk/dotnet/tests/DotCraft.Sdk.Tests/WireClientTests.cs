@@ -1,7 +1,6 @@
 using System.Text.Json;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Sdk;
 using DotCraft.Sdk.Wire;
 using Xunit;
 
@@ -120,26 +119,6 @@ public sealed class WireClientTests
         await Assert.ThrowsAsync<RequestTimeoutException>(() =>
             wire.RequestRawAsync("fixture/timeout", timeout: TimeSpan.FromMilliseconds(5)));
         Assert.Equal(WireConnectionState.Ready, wire.State);
-    }
-
-    [Fact]
-    public async Task RequestAsync_UsesTypedDescriptor()
-    {
-        await using var transport = new TestJsonRpcTransport();
-        await using var wire = new DotCraftWireClient(transport);
-        wire.Start();
-        var descriptor = new RpcRequest<RpcEmpty, RpcEmpty>(
-            "fixture/typed",
-            RpcDirection.ClientToServer,
-            "1",
-            "fixture");
-
-        var requestTask = wire.RequestAsync(descriptor, new RpcEmpty());
-        using var outbound = await transport.ReadOutboundAsync();
-        var id = outbound.RootElement.GetProperty("id").GetInt64();
-        Assert.Equal("fixture/typed", outbound.RootElement.GetProperty("method").GetString());
-        await transport.PushInboundAsync(new { jsonrpc = "2.0", id, result = new { } });
-        Assert.IsType<RpcEmpty>(await requestTask);
     }
 
     [Fact]

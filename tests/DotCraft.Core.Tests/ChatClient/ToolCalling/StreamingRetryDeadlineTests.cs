@@ -50,9 +50,19 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var failure = new ProviderFailure(ProviderFailureKind.InternalServerError, 503, ServerRetryAfter: TimeSpan.FromSeconds(30));
         var inner = new ScriptedStreamChatClient(([], new ProviderFailureException(failure, new IOException("wire"))), ([Text("unused")], null));
         var client = new StreamRetryingChatClient(inner, new(1, TimeSpan.FromSeconds(10)));
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(700));
+        using var timeout = new CancellationTokenSource();
+        TimeSpan? scheduledDelay = null;
+        using var scope = ModelStreamRetryRuntimeScope.Set(new()
+        {
+            NotifyRetry = notification =>
+            {
+                scheduledDelay = notification.Classification!.GetRetryDelay(1);
+                timeout.Cancel();
+            }
+        });
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CollectAsync(client.GetStreamingResponseAsync(
             [new ChatMessage(ChatRole.User, "work")], cancellationToken: timeout.Token)));
+        Assert.True(scheduledDelay > TimeSpan.FromSeconds(29));
         Assert.Single(inner.Requests);
     }
 
@@ -69,6 +79,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "work")], cancellationToken: timeout.Token));
         Assert.Equal(2, inner.Requests.Count);
     }
+
     [Fact]
     public async Task TransportDisposal_ConsumesAdviceCapturedBeforeEnumeratorCleanup()
     {
@@ -119,5 +130,4 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             }
         }
     }
-
 }

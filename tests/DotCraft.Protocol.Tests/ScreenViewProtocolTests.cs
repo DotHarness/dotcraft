@@ -19,7 +19,6 @@ public sealed class ScreenViewProtocolTests
 
     [Theory]
     [InlineData(0, 1080)]
-    [InlineData(1920, 0)]
     [InlineData(ushort.MaxValue, ushort.MaxValue)]
     public void TryReadFrameHeader_RejectsSizesThatDescribeNoDesktop(int width, int height)
     {

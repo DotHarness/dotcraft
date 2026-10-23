@@ -3,23 +3,18 @@ import test from "node:test";
 
 import { WeComBizMsgCrypt } from "./wecom-crypto.js";
 
-const token = "test-token";
-const aesKey = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG";
+test("WeComBizMsgCrypt round-trips callback XML and verifies the URL echo string", () => {
+  const crypt = new WeComBizMsgCrypt("test-token", "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG");
+  const encryptedOf = (plain: string) =>
+    /<Encrypt><!\[CDATA\[(.*?)\]\]><\/Encrypt>/.exec(crypt.encryptMsg(plain, "123", "nonce"))?.[1] ?? "";
 
-test("WeComBizMsgCrypt encrypts and decrypts callback XML", () => {
-  const crypt = new WeComBizMsgCrypt(token, aesKey);
-  const encrypted = crypt.encryptMsg("<xml><MsgType>text</MsgType></xml>", "123", "nonce");
-  const encrypt = /<Encrypt><!\[CDATA\[(.*?)\]\]><\/Encrypt>/.exec(encrypted)?.[1] ?? "";
+  const encrypt = encryptedOf("<xml><MsgType>text</MsgType></xml>");
   const signature = crypt.computeSignature("123", "nonce", encrypt);
-  const decrypted = crypt.decryptMsg(signature, "123", "nonce", `<xml><Encrypt><![CDATA[${encrypt}]]></Encrypt></xml>`);
-  assert.equal(decrypted, "<xml><MsgType>text</MsgType></xml>");
-});
+  assert.equal(
+    crypt.decryptMsg(signature, "123", "nonce", `<xml><Encrypt><![CDATA[${encrypt}]]></Encrypt></xml>`),
+    "<xml><MsgType>text</MsgType></xml>",
+  );
 
-test("WeComBizMsgCrypt verifies URL echo string", () => {
-  const crypt = new WeComBizMsgCrypt(token, aesKey);
-  const encrypted = crypt.encryptMsg("hello", "123", "nonce");
-  const echo = /<Encrypt><!\[CDATA\[(.*?)\]\]><\/Encrypt>/.exec(encrypted)?.[1] ?? "";
-  const signature = crypt.computeSignature("123", "nonce", echo);
-  assert.equal(crypt.verifyUrl(signature, "123", "nonce", echo), "hello");
+  const echo = encryptedOf("hello");
+  assert.equal(crypt.verifyUrl(crypt.computeSignature("123", "nonce", echo), "123", "nonce", echo), "hello");
 });
-

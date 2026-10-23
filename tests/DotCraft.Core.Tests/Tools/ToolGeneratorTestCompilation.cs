@@ -11,18 +11,21 @@ namespace DotCraft.Tests.Tools;
 
 internal static class ToolGeneratorTestCompilation
 {
-    public static GeneratorRunResult Run(string source, string assemblyName, out Compilation outputCompilation)
-    {
-        var syntaxTree = CSharpSyntaxTree.ParseText(
-            source, new CSharpParseOptions(LanguageVersion.Preview, DocumentationMode.Diagnose));
-        var references = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
+    private static readonly Lazy<MetadataReference[]> References = new(static () =>
+        ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
             .Append(typeof(ToolAttribute).Assembly.Location)
             .Append(typeof(AIFunction).Assembly.Location)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(static path => MetadataReference.CreateFromFile(path));
+            .Select(static path => (MetadataReference)MetadataReference.CreateFromFile(path))
+            .ToArray());
+
+    public static GeneratorRunResult Run(string source, string assemblyName, out Compilation outputCompilation)
+    {
+        var syntaxTree = CSharpSyntaxTree.ParseText(
+            source, new CSharpParseOptions(LanguageVersion.Preview, DocumentationMode.Diagnose));
         var compilation = CSharpCompilation.Create(
-            assemblyName, [syntaxTree], references,
+            assemblyName, [syntaxTree], References.Value,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
                 nullableContextOptions: NullableContextOptions.Enable));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(

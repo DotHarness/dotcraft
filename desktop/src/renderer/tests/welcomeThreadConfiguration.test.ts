@@ -8,7 +8,7 @@ const reasoning = {
 }
 
 describe('buildWelcomeThreadConfiguration', () => {
-  it('keeps an untouched approval choice inherited while snapshotting Welcome settings', () => {
+  it('snapshots Welcome settings, writing an approval override only when chosen explicitly', () => {
     const config = buildWelcomeThreadConfiguration({
       mode: 'plan',
       providerId: 'openai',
@@ -27,17 +27,15 @@ describe('buildWelcomeThreadConfiguration', () => {
       speed: 'fast',
     })
     expect(config).not.toHaveProperty('approvalPolicy')
-  })
 
-  it('writes an explicit per-thread approval override', () => {
-    const config = buildWelcomeThreadConfiguration({
+    const explicit = buildWelcomeThreadConfiguration({
       mode: 'agent',
       reasoning,
       approvalPolicy: 'prompt',
       approvalPolicyExplicit: true
     })
 
-    expect(config.approvalPolicy).toBe('prompt')
+    expect(explicit.approvalPolicy).toBe('prompt')
   })
 
   it('creates a Profile-backed thread without overriding Profile-owned policy', () => {

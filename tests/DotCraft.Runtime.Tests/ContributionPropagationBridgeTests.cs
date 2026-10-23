@@ -4,7 +4,6 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Contributions;
-using DotCraft.Runtime;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 using DotCraft.Tracing;
@@ -12,22 +11,27 @@ using Xunit;
 
 namespace DotCraft.Runtime.Tests;
 
-/// <summary>Propagation of registry mutations into per-thread materialized state: captured contribution points
-/// trigger one invalidation per coalesced batch, per-call ones trigger none.</summary>
 public sealed class ContributionPropagationBridgeTests
 {
     [Fact]
-    public void ToolSourceMutation_InvalidatesThreadAgents()
+    public void CapturedContributionMutations_InvalidateThreadAgentsOnAddAndRemove()
     {
         var registry = new ContributionRegistry();
         var refresh = new RecordingRefreshService();
         using var bridge = new ContributionPropagationBridge(registry, refresh);
 
-        var handle = registry.Add<IToolSource>(new StubToolSource("late"));
-        Assert.Equal(1, refresh.Invalidations);
+        IDisposable[] handles =
+        [
+            registry.Add<IToolSource>(new StubToolSource("late")),
+            registry.Add<IAgentContextSource>(new StubContextContribution()),
+            registry.Add<IToolRestriction>(new StubRestriction()),
+            registry.Add<ISubAgentRuntimeSource>(new StubSubAgentRuntimeContribution())
+        ];
+        Assert.Equal(4, refresh.Invalidations);
 
-        handle.Dispose();
-        Assert.Equal(2, refresh.Invalidations);
+        foreach (var handle in handles)
+            handle.Dispose();
+        Assert.Equal(8, refresh.Invalidations);
     }
 
     [Fact]
@@ -46,49 +50,6 @@ public sealed class ContributionPropagationBridgeTests
         }
 
         Assert.Equal(1, refresh.Invalidations);
-    }
-
-    [Fact]
-    public void AgentContextMutation_InvalidatesThreadAgents()
-    {
-        var registry = new ContributionRegistry();
-        var refresh = new RecordingRefreshService();
-        using var bridge = new ContributionPropagationBridge(registry, refresh);
-
-        // Captured into the agent's provider list at build time, so a live thread must be rebuilt.
-        registry.Add<IAgentContextSource>(new StubContextContribution());
-
-        Assert.Equal(1, refresh.Invalidations);
-    }
-
-    [Fact]
-    public void ToolRestrictionMutation_InvalidatesThreadAgents()
-    {
-        var registry = new ContributionRegistry();
-        var refresh = new RecordingRefreshService();
-        using var bridge = new ContributionPropagationBridge(registry, refresh);
-
-        // Folded into the frozen tool snapshot, so a live thread must be rebuilt.
-        var handle = registry.Add<IToolRestriction>(new StubRestriction());
-        Assert.Equal(1, refresh.Invalidations);
-
-        handle.Dispose();
-        Assert.Equal(2, refresh.Invalidations);
-    }
-
-    [Fact]
-    public void SubAgentRuntimeMutation_InvalidatesThreadAgents()
-    {
-        var registry = new ContributionRegistry();
-        var refresh = new RecordingRefreshService();
-        using var bridge = new ContributionPropagationBridge(registry, refresh);
-
-        // The profiles section is captured into the agent's instructions, so a live thread must be rebuilt.
-        var handle = registry.Add<ISubAgentRuntimeSource>(new StubSubAgentRuntimeContribution());
-        Assert.Equal(1, refresh.Invalidations);
-
-        handle.Dispose();
-        Assert.Equal(2, refresh.Invalidations);
     }
 
     [Fact]

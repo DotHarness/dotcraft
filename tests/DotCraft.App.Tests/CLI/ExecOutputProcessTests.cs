@@ -9,7 +9,7 @@ public sealed class ExecOutputProcessTests : ExecProcessTestBase
     private const string ImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
     [Fact]
-    public async Task Exec_FailedTurn_LeavesStdoutEmptyAndExitsOne()
+    public async Task Exec_FailedTurn_LeavesStdoutAndTheLastMessageFileUntouchedAndExitsOne()
     {
         await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions
         {
@@ -20,11 +20,15 @@ public sealed class ExecOutputProcessTests : ExecProcessTestBase
             ]
         });
 
-        var result = await RunExecAsync(server, ["hello"]);
+        var output = Path.Combine(Root, "last.txt");
+        await File.WriteAllTextAsync(output, "previous");
+
+        var result = await RunExecAsync(server, ["-o", output, "hello"]);
 
         Assert.Equal(1, result.ExitCode);
         Assert.Equal(string.Empty, result.StandardOutput);
         Assert.Contains("provider exploded", result.StandardError, StringComparison.Ordinal);
+        Assert.Equal("previous", await File.ReadAllTextAsync(output));
     }
 
     [Fact]
@@ -59,22 +63,6 @@ public sealed class ExecOutputProcessTests : ExecProcessTestBase
         Assert.Equal(string.Empty, result.StandardOutput);
         Assert.Empty(await File.ReadAllBytesAsync(output));
         Assert.Contains(output, result.StandardError, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task Exec_OutputLastMessageWhenTurnFails_LeavesTheFileUntouched()
-    {
-        await using var server = await ExecFakeAppServer.StartAsync(new ExecFakeAppServerOptions
-        {
-            TurnNotifications = threadId => [Failed(threadId, "provider exploded", AgentMessage("partial answer"))]
-        });
-        var output = Path.Combine(Root, "last.txt");
-        await File.WriteAllTextAsync(output, "previous");
-
-        var result = await RunExecAsync(server, ["-o", output, "hello"]);
-
-        Assert.Equal(1, result.ExitCode);
-        Assert.Equal("previous", await File.ReadAllTextAsync(output));
     }
 
     [Fact]

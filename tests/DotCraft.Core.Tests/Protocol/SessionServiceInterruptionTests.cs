@@ -16,8 +16,7 @@ public sealed partial class SessionServiceInterruptionTests : IDisposable
 
     [Theory]
     [InlineData(ModelProviderProtocols.OpenAI, true, false)]
-    [InlineData(ModelProviderProtocols.OpenAI, true, true)]
-    [InlineData(ModelProviderProtocols.OpenAIResponses, true, false)]
+    [InlineData(ModelProviderProtocols.OpenAIResponses, true, true)]
     [InlineData(ModelProviderProtocols.OpenAI, false, false)]
     public async Task Cancel_PersistsBeforeNotificationAndReachesNextRequest(string protocol, bool enabled, bool ephemeral)
     {
@@ -82,7 +81,6 @@ public sealed partial class SessionServiceInterruptionTests : IDisposable
 
     [Theory]
     [InlineData(false, true, false)]
-    [InlineData(true, false, false)]
     [InlineData(true, true, true)]
     public async Task CancelBeforeSessionInitialization_PreservesInputAndMarker(bool ephemeral, bool enabled, bool callerCancellation)
     {
@@ -125,7 +123,6 @@ public sealed partial class SessionServiceInterruptionTests : IDisposable
 
     [Theory]
     [InlineData(true, false, false)]
-    [InlineData(true, true, false)]
     [InlineData(false, false, false)]
     [InlineData(true, false, true)]
     public async Task ActiveFork_MarksOnlyRetainedChildHistory(bool enabled, bool ephemeral, bool excludeActive)

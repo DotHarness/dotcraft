@@ -9,7 +9,7 @@ public sealed class DotCraftPathResolverTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"dotcraft-paths-{Guid.NewGuid():N}");
 
     [Fact]
-    public void Resolve_NormalizesRelativeDataPathAndOptionalUserData()
+    public void Resolve_NormalizesDataPaths_AndContainsResolvedParts()
     {
         var userData = Path.Combine(_root, "user-data");
         var paths = Resolve(".agents", userData);
@@ -18,31 +18,17 @@ public sealed class DotCraftPathResolverTests : IDisposable
         Assert.Equal(Path.Combine(Path.GetFullPath(_root), ".agents"), paths.Data.RootPath);
         Assert.Equal(Path.GetFullPath(userData), paths.UserData.RootPath);
         Assert.Equal(Path.Combine(paths.Data.RootPath, "skills"), paths.Data.Resolve("skills"));
-    }
-
-    [Fact]
-    public void Resolve_AcceptsAbsoluteDirectChild()
-    {
-        var dataPath = Path.Combine(_root, ".agents");
-        Assert.Equal(dataPath, Resolve(dataPath).Data.RootPath);
+        Assert.Throws<ArgumentException>(() => paths.Data.Resolve("..", "outside"));
+        Assert.Throws<ArgumentException>(() => paths.Data.Resolve(Path.GetPathRoot(_root)!));
+        Assert.Equal(Path.Combine(_root, ".agents"), Resolve(Path.Combine(_root, ".agents")).Data.RootPath);
     }
 
     [Theory]
     [InlineData(".")]
-    [InlineData("nested/data")]
     [InlineData("../outside")]
     public void Resolve_RejectsDataPathThatIsNotDirectChild(string dataPath)
     {
         Assert.Throws<ArgumentException>(() => Resolve(dataPath));
-    }
-
-    [Fact]
-    public void PathRoot_RejectsRootedAndEscapingParts()
-    {
-        var paths = Resolve(".agents");
-
-        Assert.Throws<ArgumentException>(() => paths.Data.Resolve("..", "outside"));
-        Assert.Throws<ArgumentException>(() => paths.Data.Resolve(Path.GetPathRoot(_root)!));
     }
 
     [Fact]

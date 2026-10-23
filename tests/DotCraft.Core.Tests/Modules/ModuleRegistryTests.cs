@@ -8,29 +8,17 @@ namespace DotCraft.Tests.Modules;
 public sealed class ModuleRegistryTests
 {
     [Fact]
-    public void SelectPrimaryModule_IgnoresEnabledCapabilityModules()
+    public void SelectPrimaryModule_IgnoresCapabilityModulesAndHonorsThePreferredHost()
     {
         var registry = new ModuleRegistry();
         registry.RegisterModule(new FakeModule("automations", priority: 50, canBePrimaryHost: false, enabled: true));
         registry.RegisterModule(new FakeModule("cli", priority: 0, canBePrimaryHost: true, enabled: true));
+        var preferred = new ModuleRegistry();
+        preferred.RegisterModule(new FakeModule("app-server", priority: 100, canBePrimaryHost: true, enabled: true));
+        preferred.RegisterModule(new FakeModule("cli", priority: 0, canBePrimaryHost: true, enabled: true));
 
-        var primary = registry.SelectPrimaryModule(new AppConfig());
-
-        Assert.NotNull(primary);
-        Assert.Equal("cli", primary!.Name);
-    }
-
-    [Fact]
-    public void SelectPrimaryModule_UsesPreferredPrimaryHostWhenProvided()
-    {
-        var registry = new ModuleRegistry();
-        registry.RegisterModule(new FakeModule("app-server", priority: 100, canBePrimaryHost: true, enabled: true));
-        registry.RegisterModule(new FakeModule("cli", priority: 0, canBePrimaryHost: true, enabled: true));
-
-        var primary = registry.SelectPrimaryModule(new AppConfig(), "cli");
-
-        Assert.NotNull(primary);
-        Assert.Equal("cli", primary!.Name);
+        Assert.Equal("cli", registry.SelectPrimaryModule(new AppConfig())?.Name);
+        Assert.Equal("cli", preferred.SelectPrimaryModule(new AppConfig(), "cli")?.Name);
     }
 
     private sealed class FakeModule(string name, int priority, bool canBePrimaryHost, bool enabled) : ModuleBase

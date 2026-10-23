@@ -12,7 +12,7 @@ public sealed class SatelliteRegistryTests : IDisposable
         "DotCraftSatelliteRegistry_" + Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void CreateInvite_ThenConsume_Once()
+    public void Invite_IsConsumedOnce_AndNotAfterExpiry()
     {
         var registry = NewRegistry();
 
@@ -24,17 +24,10 @@ public sealed class SatelliteRegistryTests : IDisposable
         Assert.Equal("Ann", consumed!.Label);
         Assert.False(registry.TryConsumeInvite(inviteId, out _));
         Assert.Null(registry.FindInvite(inviteId));
-    }
 
-    [Fact]
-    public void ConsumeInvite_AfterExpiry_Fails()
-    {
-        var registry = NewRegistry();
-
-        var (inviteId, _) = registry.CreateInvite("Ann", TimeSpan.FromMilliseconds(-1));
-
-        Assert.Null(registry.FindInvite(inviteId));
-        Assert.False(registry.TryConsumeInvite(inviteId, out _));
+        var (expired, _) = registry.CreateInvite("Ann", TimeSpan.FromMilliseconds(-1));
+        Assert.Null(registry.FindInvite(expired));
+        Assert.False(registry.TryConsumeInvite(expired, out _));
     }
 
     [Fact]
@@ -55,7 +48,7 @@ public sealed class SatelliteRegistryTests : IDisposable
     }
 
     [Fact]
-    public void Verify_RejectsWrongCredentialAndUnknownPeer()
+    public void Verify_RejectsWrongCredentialUnknownAndRevokedPeers()
     {
         var registry = NewRegistry();
         var (peer, credential) = registry.Pair("Ann", Hello());
@@ -63,13 +56,6 @@ public sealed class SatelliteRegistryTests : IDisposable
         Assert.NotNull(registry.Verify(peer.PeerId, credential));
         Assert.Null(registry.Verify(peer.PeerId, credential + "x"));
         Assert.Null(registry.Verify("sat_unknown", credential));
-    }
-
-    [Fact]
-    public void Revoke_RemovesPeerAndIsIdempotent()
-    {
-        var registry = NewRegistry();
-        var (peer, credential) = registry.Pair("Ann", Hello());
 
         Assert.True(registry.Revoke(peer.PeerId));
         Assert.False(registry.Revoke(peer.PeerId));

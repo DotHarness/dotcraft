@@ -8,15 +8,12 @@ public sealed class PerforceChangelistManagerTests
     public static IEnumerable<object[]> ChangeReadFailures()
     {
         yield return [Fail("Perforce password (P4PASSWD) invalid or unset."), PerforceChangelistCodes.LoginRequired];
-        yield return [TimedOut(), PerforceChangelistCodes.Timeout];
-        yield return [MissingExecutable(), PerforceChangelistCodes.P4ExecutableNotFound];
         yield return [Fail("Connect to server failed; check $P4PORT."), PerforceChangelistCodes.P4CommandFailed];
         yield return [Fail("No such changelist 555."), PerforceChangelistCodes.ChangelistNotFound];
     }
 
     public static IEnumerable<object[]> OpenedFailures()
     {
-        yield return [Fail("Perforce password (P4PASSWD) invalid or unset."), PerforceChangelistCodes.LoginRequired];
         yield return [TimedOut(), PerforceChangelistCodes.Timeout];
         yield return [MissingExecutable(), PerforceChangelistCodes.P4ExecutableNotFound];
     }

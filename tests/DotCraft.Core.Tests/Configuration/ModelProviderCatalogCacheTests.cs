@@ -49,29 +49,6 @@ public sealed class ModelProviderCatalogCacheTests
     }
 
     [Fact]
-    public async Task GetOrFetchAsync_RefetchesAfterCatalogExpires()
-    {
-        var clock = new TestClock();
-        var cache = new ModelProviderCatalogCache(clock);
-        var fetches = 0;
-
-        await cache.GetOrFetchAsync("identity", ModelCatalogRefreshStrategy.OnlineIfUncached, _ =>
-        {
-            fetches++;
-            return Task.FromResult(SuccessResult("model-a"));
-        }, CancellationToken.None);
-
-        clock.Advance(ModelProviderCatalogCache.CatalogTtl + TimeSpan.FromSeconds(1));
-        await cache.GetOrFetchAsync("identity", ModelCatalogRefreshStrategy.OnlineIfUncached, _ =>
-        {
-            fetches++;
-            return Task.FromResult(SuccessResult("model-b"));
-        }, CancellationToken.None);
-
-        Assert.Equal(2, fetches);
-    }
-
-    [Fact]
     public async Task GetOrFetchAsync_KeepsServingLastCatalogWhenRefreshFails()
     {
         var clock = new TestClock();

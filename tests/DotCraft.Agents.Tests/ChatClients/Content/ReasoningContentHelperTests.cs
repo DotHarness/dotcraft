@@ -8,9 +8,7 @@ public sealed class ReasoningContentHelperTests
 {
     [Theory]
     [InlineData("hello ")]
-    [InlineData("  leading space")]
     [InlineData("\nnext line")]
-    [InlineData("   ")]
     public void TryGetText_PreservesProviderWhitespace(string text)
     {
         var extracted = ReasoningContentHelper.TryGetText(

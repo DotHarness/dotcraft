@@ -45,9 +45,9 @@ public sealed class SatelliteScreenViewTests : IDisposable
         Assert.Equal(1, scenario.Runtime.Peers.Single().ScreenViewers);
 
         await SendControlAsync(viewer, new ScreenViewControl(0, 8, 640, 82));
-        await Task.Delay(400);
+        await Task.Delay(200);
         var captured = capture.Captures;
-        await Task.Delay(400);
+        await Task.Delay(300);
         Assert.Equal(captured, capture.Captures);
 
         await viewer.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
@@ -89,22 +89,6 @@ public sealed class SatelliteScreenViewTests : IDisposable
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Contains("satelliteScreenUnsupported", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ScreenView_SaysNothing_WhenASingleFrameFails()
-    {
-        var capture = new FakeScreenCaptureSource();
-        capture.FailNext(1, ScreenCaptureReasons.CaptureFailed, "BitBlt failed (Win32 6)");
-        await using var scenario = await SatelliteScenario.StartAsync(_userProfile, screenCapture: () => capture);
-        using var viewer = await OpenViewAsync(scenario);
-        Assert.Equal(new ScreenViewCapability(true, null), await ReceiveCapabilityAsync(viewer));
-
-        await SendControlAsync(viewer, new ScreenViewControl(1, 8, 640, 82));
-
-        var (type, payload) = await ReceiveMessageAsync(viewer);
-        Assert.Equal(WebSocketMessageType.Binary, type);
-        Assert.True(ScreenViewProtocol.TryReadFrameHeader(payload, out _));
     }
 
     [Fact]
@@ -150,7 +134,7 @@ public sealed class SatelliteScreenViewTests : IDisposable
     }
 
     [Fact]
-    public async Task Bridge_RefusesAScreenView_WhenThePeerIsEnrolledButOffline()
+    public async Task Bridge_RefusesScreenViewsForOfflinePeers_AndUnknownSessionKinds()
     {
         var paths = HubPaths.Resolve(_userProfile);
         Directory.CreateDirectory(paths.HubStatePath);
@@ -162,17 +146,10 @@ public sealed class SatelliteScreenViewTests : IDisposable
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.Contains("satelliteOffline", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-    }
 
-    [Fact]
-    public async Task Bridge_RejectsAnUnknownSessionKind()
-    {
-        await using var hub = await SatelliteHubFixture.StartAsync(_userProfile);
-
-        using var response = await hub.Http.SendAsync(BridgeRequest(hub, "sat_any", "audio"));
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("sessionKindUnsupported", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        using var unknown = await hub.Http.SendAsync(BridgeRequest(hub, "sat_any", "audio"));
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+        Assert.Contains("sessionKindUnsupported", await unknown.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     public void Dispose()

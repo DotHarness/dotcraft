@@ -29,7 +29,7 @@ const HUNK = {
 }
 
 describe('buildDiffSides', () => {
-  it('rebuilds each side from the whole-file contents when they are available', () => {
+  it('rebuilds each side from the whole-file contents and maps hunk lines to file rows', () => {
     const original = 'header\nconst a = 1\nconst b = 2\nconst c = 4\n'
     const current = 'header\nconst a = 1\nconst b = 3\nconst c = 4\n'
     const sides = buildDiffSides(diff({
@@ -39,52 +39,35 @@ describe('buildDiffSides', () => {
     }))
 
     expect(sides.exact).toBe(true)
-    // One segment per side: the whole file, so no seam falls inside it.
     expect(sides.deletion).toHaveLength(1)
     expect(sides.addition).toHaveLength(1)
     expect(sides.deletion[0]?.text).toBe(original)
     expect(sides.addition[0]?.text).toBe(current)
-    // Rows point at the file's own line numbers, not at positions within a hunk.
     expect(sides.deletion[0]?.lineIndices).toEqual([1, 2, 3])
     expect(sides.addition[0]?.lineIndices).toEqual([1, 2, 3])
     expect(sides.deletionText).toEqual(['const a = 1', 'const b = 2', 'const c = 4'])
     expect(sides.additionText).toEqual(['const a = 1', 'const b = 3', 'const c = 4'])
-  })
-
-  it('maps each hunk line to a row on the side that contains it', () => {
-    const sides = buildDiffSides(diff({
-      diffHunks: [HUNK],
-      originalContent: 'header\nconst a = 1\nconst b = 2\nconst c = 4\n',
-      currentContent: 'header\nconst a = 1\nconst b = 3\nconst c = 4\n'
-    }))
-
-    // context, remove, add, context
     expect(sides.deletionRow[0]).toEqual([0, 1, NO_ROW, 2])
     expect(sides.additionRow[0]).toEqual([0, NO_ROW, 1, 2])
   })
 
-  it('falls back to per-hunk segments when the whole-file contents are missing', () => {
-    const sides = buildDiffSides(diff({ diffHunks: [HUNK, HUNK] }))
+  it('falls back to per-hunk segments when the whole-file contents are missing or disagree with the hunks', () => {
+    const missing = buildDiffSides(diff({ diffHunks: [HUNK, HUNK] }))
 
-    expect(sides.exact).toBe(false)
-    expect(sides.deletion).toHaveLength(2)
-    expect(sides.addition).toHaveLength(2)
-    expect(sides.deletion[0]?.text).toBe('const a = 1\nconst b = 2\nconst c = 4')
-    expect(sides.addition[0]?.text).toBe('const a = 1\nconst b = 3\nconst c = 4')
-    expect(sides.deletion[0]?.lineIndices).toEqual([0, 1, 2])
-  })
+    expect(missing.exact).toBe(false)
+    expect(missing.deletion).toHaveLength(2)
+    expect(missing.addition).toHaveLength(2)
+    expect(missing.deletion[0]?.text).toBe('const a = 1\nconst b = 2\nconst c = 4')
+    expect(missing.addition[0]?.text).toBe('const a = 1\nconst b = 3\nconst c = 4')
+    expect(missing.deletion[0]?.lineIndices).toEqual([0, 1, 2])
 
-  it('falls back when the whole-file contents disagree with the hunks', () => {
-    // A stale `originalContent` would otherwise line tokens up against text the
-    // view is not showing, which is worse than a seam between hunks.
-    const sides = buildDiffSides(diff({
+    const stale = buildDiffSides(diff({
       diffHunks: [HUNK],
       originalContent: 'header\nsomething else entirely\n',
       currentContent: 'header\nconst a = 1\nconst b = 3\nconst c = 4\n'
     }))
-
-    expect(sides.exact).toBe(false)
-    expect(sides.deletion[0]?.text).toBe('const a = 1\nconst b = 2\nconst c = 4')
+    expect(stale.exact).toBe(false)
+    expect(stale.deletion[0]?.text).toBe('const a = 1\nconst b = 2\nconst c = 4')
   })
 
   it('normalizes CRLF so line indices mean the same thing everywhere', () => {

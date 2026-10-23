@@ -33,7 +33,7 @@ function harness() {
   return { cards, posted, patched, advance };
 }
 
-test("a Turn that ends within 20 seconds posts no status card", async (t) => {
+test("a Turn that ends within 20 seconds posts no status card unless it failed", async (t) => {
   t.after(() => mock.timers.reset());
   mock.timers.enable({ apis: ["setTimeout"] });
   const { cards, posted, patched, advance } = harness();
@@ -44,6 +44,12 @@ test("a Turn that ends within 20 seconds posts no status card", async (t) => {
   await advance(5_000);
 
   assert.deepEqual(posted, []);
+  assert.deepEqual(patched, []);
+
+  cards.start(turn);
+  await advance(4_000);
+  await cards.end(turn, { status: "failed", error: "provider detail" });
+  assert.deepEqual(posted, [{ target: "group:oc_1", text: "Failed after 4s" }]);
   assert.deepEqual(patched, []);
 });
 
@@ -85,17 +91,4 @@ test("a long Turn that fails or is stopped settles its card and keeps it", async
 
   assert.deepEqual(failed.patched, [{ messageId: "om_status", text: "Failed after 25s" }]);
   assert.deepEqual(stopped.patched, [{ messageId: "om_status", text: "Stopped after 30s" }]);
-});
-
-test("a Turn that fails within 20 seconds posts a failed card", async (t) => {
-  t.after(() => mock.timers.reset());
-  mock.timers.enable({ apis: ["setTimeout"] });
-  const { cards, posted, patched, advance } = harness();
-
-  cards.start(turn);
-  await advance(4_000);
-  await cards.end(turn, { status: "failed", error: "provider detail" });
-
-  assert.deepEqual(posted, [{ target: "group:oc_1", text: "Failed after 4s" }]);
-  assert.deepEqual(patched, []);
 });

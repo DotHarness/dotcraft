@@ -9,24 +9,11 @@ namespace DotCraft.Tests.Agents;
 public sealed class SubAgentApprovalModeResolverTests
 {
     [Fact]
-    public void Resolve_NullService_ReturnsRestricted()
+    public void Resolve_DirectServices_MapToTheirPolicy()
     {
-        var mode = SubAgentApprovalModeResolver.Resolve(null, null);
-        Assert.Equal(SubAgentApprovalModeResolver.RestrictedMode, mode);
-    }
-
-    [Fact]
-    public void Resolve_AutoApproveService_ReturnsAutoApprove()
-    {
-        var mode = SubAgentApprovalModeResolver.Resolve(new AutoApproveApprovalService(), null);
-        Assert.Equal(SubAgentApprovalModeResolver.AutoApproveMode, mode);
-    }
-
-    [Fact]
-    public void Resolve_DenyService_ReturnsRestricted()
-    {
-        var mode = SubAgentApprovalModeResolver.Resolve(new DenyApprovalService(), null);
-        Assert.Equal(SubAgentApprovalModeResolver.RestrictedMode, mode);
+        Assert.Equal(SubAgentApprovalModeResolver.RestrictedMode, SubAgentApprovalModeResolver.Resolve(null, null));
+        Assert.Equal(SubAgentApprovalModeResolver.AutoApproveMode, SubAgentApprovalModeResolver.Resolve(new AutoApproveApprovalService(), null));
+        Assert.Equal(SubAgentApprovalModeResolver.RestrictedMode, SubAgentApprovalModeResolver.Resolve(new DenyApprovalService(), null));
     }
 
     [Fact]
@@ -51,12 +38,10 @@ public sealed class SubAgentApprovalModeResolverTests
             new ConsoleApprovalService());
         var context = new ApprovalContext { Source = "qq" };
 
-        var mode = SubAgentApprovalModeResolver.Resolve(routing, context);
-
-        Assert.Equal(SubAgentApprovalModeResolver.AutoApproveMode, mode);
+        Assert.Equal(SubAgentApprovalModeResolver.AutoApproveMode, SubAgentApprovalModeResolver.Resolve(routing, context));
+        Assert.Equal(SubAgentApprovalModeResolver.AutoApproveMode, SubAgentApprovalModeResolver.Resolve(Hooked(routing), context));
     }
 
-    /// <summary>The standard SessionService turn shape: a hook decorator between the scope and the policy.</summary>
     [Fact]
     public void Resolve_HookDecoratedTurnService_SeesTheUnderlyingPolicy()
     {
@@ -74,24 +59,6 @@ public sealed class SubAgentApprovalModeResolverTests
                 SubAgentApprovalModeResolver.InteractiveMode,
                 SubAgentApprovalModeResolver.Resolve(scoped, null));
         }
-    }
-
-    /// <summary>Decoration order is not part of the contract: a hook above the router resolves the same.</summary>
-    [Fact]
-    public void Resolve_HookAboveChannelRouting_StillUsesApprovalContextSource()
-    {
-        var routing = new ChannelRoutingApprovalService(
-            new Dictionary<string, IApprovalService>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["qq"] = new AutoApproveApprovalService()
-            },
-            new ConsoleApprovalService());
-
-        var mode = SubAgentApprovalModeResolver.Resolve(
-            Hooked(routing),
-            new ApprovalContext { Source = "qq" });
-
-        Assert.Equal(SubAgentApprovalModeResolver.AutoApproveMode, mode);
     }
 
     private static IApprovalService Hooked(IApprovalService inner) =>

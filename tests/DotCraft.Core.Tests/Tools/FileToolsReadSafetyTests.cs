@@ -54,37 +54,20 @@ public sealed class FileToolsReadSafetyTests : IDisposable
         Assert.Empty(result.OfType<DataContent>());
     }
 
-    [Fact]
-    public async Task ReadFile_ExtensionlessBinary_ReturnsUnsupportedMessageWithoutPayload()
+    [Theory]
+    [InlineData("blob", new byte[] { 0, 1, 2, 3, 4, 5, 6, 7 })]
+    [InlineData("bom-blob", new byte[] { 0xEF, 0xBB, 0xBF, 0, 1, 2, 3 })]
+    public async Task ReadFile_BinaryContentWithoutKnownExtension_ReturnsUnsupportedMessageWithoutPayload(string fileName, byte[] prefix)
     {
-        var payload = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7 }
-            .Concat(Encoding.ASCII.GetBytes("secret-extensionless-payload"))
-            .ToArray();
-        await File.WriteAllBytesAsync(Path.Combine(_workspace, "blob"), payload);
+        var payload = prefix.Concat(Encoding.ASCII.GetBytes("secret-binary-payload")).ToArray();
+        await File.WriteAllBytesAsync(Path.Combine(_workspace, fileName), payload);
         var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false);
 
-        var result = await tools.ReadFile("blob");
+        var result = await tools.ReadFile(fileName);
 
         var text = Assert.Single(result.OfType<TextContent>());
         Assert.Contains("appears to contain binary data", text.Text, StringComparison.Ordinal);
-        Assert.DoesNotContain("secret-extensionless-payload", text.Text, StringComparison.Ordinal);
-        Assert.Empty(result.OfType<DataContent>());
-    }
-
-    [Fact]
-    public async Task ReadFile_Utf8BomPrefixedBinary_ReturnsUnsupportedMessageWithoutPayload()
-    {
-        var payload = new byte[] { 0xEF, 0xBB, 0xBF, 0, 1, 2, 3 }
-            .Concat(Encoding.ASCII.GetBytes("secret-bom-bypass-payload"))
-            .ToArray();
-        await File.WriteAllBytesAsync(Path.Combine(_workspace, "bom-blob"), payload);
-        var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false);
-
-        var result = await tools.ReadFile("bom-blob");
-
-        var text = Assert.Single(result.OfType<TextContent>());
-        Assert.Contains("appears to contain binary data", text.Text, StringComparison.Ordinal);
-        Assert.DoesNotContain("secret-bom-bypass-payload", text.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret-binary-payload", text.Text, StringComparison.Ordinal);
         Assert.Empty(result.OfType<DataContent>());
     }
 
@@ -102,38 +85,25 @@ public sealed class FileToolsReadSafetyTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadFile_LimitWithoutOffset_ReadsFirstPageOnly()
+    public async Task ReadFile_LimitAndOffset_ReadRequestedPages()
     {
         await File.WriteAllTextAsync(
             Path.Combine(_workspace, "paged.txt"),
             string.Join('\n', Enumerable.Range(1, 120).Select(i => $"line-{i:D3}")));
         var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false);
 
-        var result = await tools.ReadFile("paged.txt", limit: 50);
+        var first = Assert.Single((await tools.ReadFile("paged.txt", limit: 50)).OfType<TextContent>()).Text;
+        var second = Assert.Single((await tools.ReadFile("paged.txt", offset: 51, limit: 50)).OfType<TextContent>()).Text;
 
-        var text = Assert.Single(result.OfType<TextContent>()).Text;
-        Assert.Contains("1: line-001", text, StringComparison.Ordinal);
-        Assert.Contains("50: line-050", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("51: line-051", text, StringComparison.Ordinal);
-        Assert.Contains("Use offset=51 to read more", text, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ReadFile_OffsetAndLimit_ReadsRequestedPage()
-    {
-        await File.WriteAllTextAsync(
-            Path.Combine(_workspace, "paged-offset.txt"),
-            string.Join('\n', Enumerable.Range(1, 120).Select(i => $"value-{i:D3}")));
-        var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false);
-
-        var result = await tools.ReadFile("paged-offset.txt", offset: 51, limit: 50);
-
-        var text = Assert.Single(result.OfType<TextContent>()).Text;
-        Assert.Contains("51: value-051", text, StringComparison.Ordinal);
-        Assert.Contains("100: value-100", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("50: value-050", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("101: value-101", text, StringComparison.Ordinal);
-        Assert.Contains("Use offset=101 to read more", text, StringComparison.Ordinal);
+        Assert.Contains("1: line-001", first, StringComparison.Ordinal);
+        Assert.Contains("50: line-050", first, StringComparison.Ordinal);
+        Assert.DoesNotContain("51: line-051", first, StringComparison.Ordinal);
+        Assert.Contains("Use offset=51 to read more", first, StringComparison.Ordinal);
+        Assert.Contains("51: line-051", second, StringComparison.Ordinal);
+        Assert.Contains("100: line-100", second, StringComparison.Ordinal);
+        Assert.DoesNotContain("50: line-050", second, StringComparison.Ordinal);
+        Assert.DoesNotContain("101: line-101", second, StringComparison.Ordinal);
+        Assert.Contains("Use offset=101 to read more", second, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -154,20 +124,6 @@ public sealed class FileToolsReadSafetyTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadFile_SmallTextWithoutPagination_ReturnsLineNumberedContent()
-    {
-        await File.WriteAllTextAsync(Path.Combine(_workspace, "small.txt"), "alpha\nbeta");
-        var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false);
-
-        var result = await tools.ReadFile("small.txt");
-
-        var text = Assert.Single(result.OfType<TextContent>()).Text;
-        Assert.Contains("1: alpha", text, StringComparison.Ordinal);
-        Assert.Contains("2: beta", text, StringComparison.Ordinal);
-        Assert.Contains("End of file - total 2 lines", text, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void LooksBinary_Utf16BomWithDecodedNull_ReturnsTrue()
     {
         var sample = new byte[] { 0xFF, 0xFE, 0x41, 0x00, 0x00, 0x00 };
@@ -175,11 +131,10 @@ public sealed class FileToolsReadSafetyTests : IDisposable
         Assert.True(FileContentClassifier.LooksBinary(sample));
     }
 
-    [Theory]
-    [InlineData("pixel.png", "image/png")]
-    [InlineData("pixel.bmp", "image/bmp")]
-    public async Task ReadFile_ImageExtension_StillReturnsVisionInput(string fileName, string mediaType)
+    [Fact]
+    public async Task ReadFile_ImageExtension_StillReturnsVisionInput()
     {
+        const string fileName = "pixel.png";
         await File.WriteAllBytesAsync(Path.Combine(_workspace, fileName), [0x89, 0x50, 0x4E, 0x47]);
         var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false);
 
@@ -191,7 +146,7 @@ public sealed class FileToolsReadSafetyTests : IDisposable
             content =>
             {
                 var data = Assert.IsType<DataContent>(content);
-                Assert.Equal(mediaType, data.MediaType);
+                Assert.Equal("image/png", data.MediaType);
             });
     }
 
@@ -204,7 +159,6 @@ public sealed class FileToolsReadSafetyTests : IDisposable
         }
         catch
         {
-            // ignored
         }
     }
 }

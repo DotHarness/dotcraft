@@ -62,11 +62,6 @@ beforeEach(() => {
 afterEach(() => { owner.emit('closed'); vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('desktop pet native ownership', () => {
-  it('uses a sandboxed window with the dedicated preload', () => {
-    const pet = detach()
-    expect(pet.options.webPreferences).toMatchObject({ contextIsolation: true, nodeIntegration: false, sandbox: true })
-    expect(pet.options.webPreferences.preload).toMatch(/[\\/]preload[\\/]pet\.js$/)
-  })
   it('fades on edge entry while preserving source capture until release', async () => {
     const pet = detach(true)
     send(pet, { type: 'ready' })
@@ -112,10 +107,13 @@ describe('desktop pet native ownership', () => {
     expect(restoreDesktopPet(owner)).toBe(false)
     expect(owner.setOpacity).toHaveBeenLastCalledWith(1)
   })
-  it('rejects unknown senders and ignores invalid geometry', () => {
+  it('rejects unknown senders, ignores invalid geometry, and uses a sandboxed window with the dedicated preload', () => {
     expect(() => mocks.handler!({ sender: {} }, { type: 'return' })).toThrow('Unknown')
     send(owner, { type: 'detach', seat: { x: NaN, y: 0, width: 44, height: 44 }, point: { x: 0, y: 0 }, snapshot })
     expect(mocks.windows).toHaveLength(1)
+    const pet = detach()
+    expect(pet.options.webPreferences).toMatchObject({ contextIsolation: true, nodeIntegration: false, sandbox: true })
+    expect(pet.options.webPreferences.preload).toMatch(/[\\/]preload[\\/]pet\.js$/)
   })
   it('restores a reachable desktop when the companion cannot become ready', async () => {
     const pet = detach()
@@ -158,23 +156,19 @@ describe('desktop pet native ownership', () => {
     send(pet, edit)
     expect(events(owner)).toEqual([])
   })
-  it('accepts an optional busy flag on snapshots, rejects other shapes, and warns once', () => {
+  it('relays only snapshots that match the busy and status contract, warning once', () => {
     const pet = detach()
     send(owner, { type: 'snapshot', snapshot: { ...snapshot, busy: 'yes' } as any })
     send(owner, { type: 'snapshot', snapshot: { ...snapshot, followUpMode: 'now' } as any })
-    expect(events(pet)).toEqual([])
-    expect(warn).toHaveBeenCalledTimes(1)
-    send(owner, { type: 'snapshot', snapshot: { ...snapshot, busy: true } })
-    expect(events(pet)).toContainEqual({ type: 'snapshot', snapshot: { ...snapshot, busy: true } })
-  })
-  it('validates the status contract before relaying it to the companion', () => {
-    const pet = detach()
     const status = { status: 'running', title: 'Fix', line: 'Running tests', lineTone: 'neutral', turnId: 'turn-1', canStop: true }
     send(owner, { type: 'snapshot', snapshot: { ...snapshot, status: { ...status, status: 'flying' } } as any })
     send(owner, { type: 'snapshot', snapshot: { ...snapshot, status: { ...status, line: 'x'.repeat(201) } } as any })
     send(owner, { type: 'snapshot', snapshot: { ...snapshot, status: { ...status, stopping: 'yes' } } as any })
     send(owner, { type: 'snapshot', snapshot: { ...snapshot, status: { ...status, decision: { id: 'd', question: '', operation: '', target: '', reason: '', options: [], declineValue: 'decline' } } } as any })
     expect(events(pet)).toEqual([])
+    expect(warn).toHaveBeenCalledTimes(1)
+    send(owner, { type: 'snapshot', snapshot: { ...snapshot, busy: true } })
+    expect(events(pet)).toContainEqual({ type: 'snapshot', snapshot: { ...snapshot, busy: true } })
     send(owner, { type: 'snapshot', snapshot: { ...snapshot, status } as any })
     expect(events(pet)).toContainEqual({ type: 'snapshot', snapshot: { ...snapshot, status } })
   })

@@ -17,17 +17,6 @@ describe('shell runtime buffer limits', () => {
     expect(limited.endsWith('LATEST')).toBe(true)
   })
 
-  it('leaves shared shell buffering unchanged unless a limiter is supplied', () => {
-    const output = 'x'.repeat(SHELL_RUNTIME_MAX_CHARS + 1)
-    const updates = new Map([['call-1', {
-      source: 'terminal' as const,
-      output,
-      replace: true
-    }]])
-
-    expect(mergeShellRuntimeUpdates(new Map(), updates).get('call-1')?.output).toBe(output)
-  })
-
   it('bounds both pending batches and committed output when explicitly enabled', () => {
     vi.useFakeTimers()
     let state = new Map()

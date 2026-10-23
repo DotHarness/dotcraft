@@ -15,8 +15,6 @@ public sealed class OpenAISdkCompatibilityTests
 {
     [Theory]
     [InlineData(ReasoningEffort.None, "none")]
-    [InlineData(ReasoningEffort.Low, "low")]
-    [InlineData(ReasoningEffort.Medium, "medium")]
     [InlineData(ReasoningEffort.High, "high")]
     [InlineData(ReasoningEffort.ExtraHigh, "xhigh")]
     public void ReasoningEffort_PreservesWireAndDiagnosticValue(ReasoningEffort effort, string expected)

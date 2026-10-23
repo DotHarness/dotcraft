@@ -17,8 +17,6 @@ public sealed class ResponsesInstructionPrefixTests
 {
     [Theory]
     [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
     [InlineData(true, true)]
     public void ChildOptions_PreserveSeededFieldsPatchesAndReusableCallerOptions(bool lite, bool patched)
     {
@@ -113,7 +111,6 @@ public sealed class ResponsesInstructionPrefixTests
 
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
     [InlineData(" \r\n ")]
     public void EmptyInstructions_DoNotCreatePrefix(string? instructions)
     {

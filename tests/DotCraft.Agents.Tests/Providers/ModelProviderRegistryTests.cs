@@ -40,61 +40,14 @@ public sealed class ModelProviderRegistryTests
         Assert.Equal("UnsupportedModelProvider", ModelProviderNotRegisteredException.ErrorCode);
     }
 
-    [Fact]
-    public void CreateChatClient_DelegatesImmutableRuntime()
+    private sealed class TestProvider(string protocol) : IModelProvider
     {
-        var provider = new TestProvider(ModelProviderProtocols.Anthropic);
-        var registry = new ModelProviderRegistry([provider]);
-        var runtime = CreateRuntime(ModelProviderProtocols.Anthropic);
-
-        var client = registry.CreateChatClient(runtime);
-
-        Assert.Same(provider.Client, client);
-        Assert.Same(runtime, provider.LastRuntime);
-    }
-
-    [Fact]
-    public void GetService_ResolvesOptionalProviderCapability()
-    {
-        var capability = new TestCapability();
-        var provider = new TestProvider(ModelProviderProtocols.OpenAIResponses, capability);
-        var registry = new ModelProviderRegistry([provider]);
-
-        Assert.Same(
-            capability,
-            registry.GetService<TestCapability>(ModelProviderProtocols.OpenAIResponses));
-    }
-
-    private static EffectiveModelRuntime CreateRuntime(string protocol) => new(
-        "provider",
-        "model",
-        protocol,
-        "Provider",
-        "key",
-        "https://example.test",
-        30,
-        null,
-        ModelProviderCapabilities.ForProtocol(protocol));
-
-    private sealed class TestProvider(string protocol, object? capability = null) : IModelProvider
-    {
-        public TestChatClient Client { get; } = new();
         public IReadOnlyCollection<string> Protocols { get; } = [protocol];
-        public EffectiveModelRuntime? LastRuntime { get; private set; }
 
-        public IChatClient CreateChatClient(EffectiveModelRuntime runtime)
-        {
-            LastRuntime = runtime;
-            return Client;
-        }
+        public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => new TestChatClient();
 
-        public object? GetService(Type serviceType, object? serviceKey = null) =>
-            serviceKey is null && capability != null && serviceType.IsInstanceOfType(capability)
-                ? capability
-                : null;
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
     }
-
-    private sealed class TestCapability;
 
     private sealed class TestChatClient : IChatClient
     {

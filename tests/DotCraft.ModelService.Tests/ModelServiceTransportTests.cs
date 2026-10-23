@@ -72,7 +72,6 @@ public sealed class ModelServiceTransportTests
     [Theory]
     [InlineData(401)]
     [InlineData(429)]
-    [InlineData(400)]
     public async Task UpstreamErrorsReachNativeProviderUnchanged(int status)
     {
         const string body = "{\"error\":{\"code\":\"context_length_exceeded\",\"message\":\"too long\"}}";

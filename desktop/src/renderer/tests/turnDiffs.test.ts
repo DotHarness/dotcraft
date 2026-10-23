@@ -68,13 +68,16 @@ describe('deriveItemDiffs', () => {
     expect(diffs.get('b')?.diffHunks).toHaveLength(1)
   })
 
-  it('reuses previous entries by identity', () => {
+  it('reuses previous item and turn entries by identity when nothing changed', () => {
     const turns = [twoEditsOfA]
     const first = deriveItemDiffs(turns, new Map())
     const second = deriveItemDiffs(turns, first)
 
     expect(second.get('a')).toBe(first.get('a'))
     expect(second.get('c')).toBe(first.get('c'))
+
+    const firstFold = foldHistoryTurnDiffs(turns, first, new Map())
+    expect(foldHistoryTurnDiffs(turns, second, firstFold).get('t1')).toBe(firstFold.get('t1'))
   })
 
   it('ignores calls without a file change', () => {
@@ -153,15 +156,6 @@ describe('foldHistoryTurnDiffs', () => {
     expect(row).toMatchObject({ key: 't1::a', truncated: false, patchText: '' })
     expect(row?.diff).toMatchObject({ filePath: 'src/same.ts', additions: 0, deletions: 0, diffHunks: [] })
   })
-
-  it('returns the previous entry when nothing changed', () => {
-    const turns = [twoEditsOfA]
-    const itemDiffs = deriveItemDiffs(turns, new Map())
-    const first = foldHistoryTurnDiffs(turns, itemDiffs, new Map())
-    const second = foldHistoryTurnDiffs(turns, deriveItemDiffs(turns, itemDiffs), first)
-
-    expect(second.get('t1')).toBe(first.get('t1'))
-  })
 })
 
 describe('applyLiveTurnDiff', () => {
@@ -199,16 +193,12 @@ describe('applyLiveTurnDiff', () => {
 })
 
 describe('setTurnFileStatus', () => {
-  it('returns the same map when nothing changes', () => {
+  it('changes only the addressed row and returns the same map for no-op updates', () => {
     const map = fold([twoEditsOfA])
-
     expect(setTurnFileStatus(map, 't1', 't1::src/a.ts', 'written')).toBe(map)
     expect(setTurnFileStatus(map, 't1', 't1::missing', 'reverted')).toBe(map)
     expect(setTurnFileStatus(map, 'missing', 't1::src/a.ts', 'reverted')).toBe(map)
-  })
 
-  it('changes only the addressed row', () => {
-    const map = fold([twoEditsOfA])
     const next = setTurnFileStatus(map, 't1', 't1::c', 'reverted')
     const before = map.get('t1')!.files
     const after = next.get('t1')!.files
@@ -254,11 +244,8 @@ describe('runningTurnFiles', () => {
   const turnDiffs = fold([twoEditsOfA])
   const running = { turnStatus: 'running', activeTurnId: 't1', genericApproval: null, turnDiffs }
 
-  it('lists the files of the running turn', () => {
+  it('lists the running turn files unless the turn is idle, waits on the user, or has no changes', () => {
     expect(runningTurnFiles(running)).toBe(turnDiffs.get('t1')!.files)
-  })
-
-  it('is empty when the turn is not running, waits on the user, or has no changes', () => {
     expect(runningTurnFiles({ ...running, turnStatus: 'idle', activeTurnId: null })).toEqual([])
     expect(runningTurnFiles({ ...running, turnStatus: 'waitingApproval' })).toEqual([])
     expect(runningTurnFiles({ ...running, turnStatus: 'waitingInput' })).toEqual([])

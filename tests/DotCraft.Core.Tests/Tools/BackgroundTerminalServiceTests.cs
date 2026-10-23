@@ -37,24 +37,7 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StartAsync_ForegroundCommand_ReturnsCompletedOutput()
-    {
-        var snapshot = await Service.StartAsync(new BackgroundTerminalStartRequest
-        {
-            ThreadId = "thread_test",
-            Command = EchoCommand("hello"),
-            WorkingDirectory = _tempDir,
-            TimeoutSeconds = 5,
-            MaxOutputChars = 1000
-        });
-
-        Assert.Equal(BackgroundTerminalStatus.Completed, snapshot.Status);
-        Assert.Contains("hello", snapshot.Output);
-        Assert.True(File.Exists(snapshot.OutputPath));
-    }
-
-    [Fact]
-    public async Task StartAsync_ForegroundCommand_OutputDeltaCarriesCorrelationIds()
+    public async Task StartAsync_ForegroundCommand_CompletesAndOutputDeltaCarriesCorrelationIds()
     {
         var outputDeltaSource = new TaskCompletionSource<BackgroundTerminalEvent>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -79,6 +62,8 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
         });
 
         Assert.Equal(BackgroundTerminalStatus.Completed, snapshot.Status);
+        Assert.Contains("live", snapshot.Output);
+        Assert.True(File.Exists(snapshot.OutputPath));
         var outputDelta = await outputDeltaSource.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal("call_live", outputDelta.Terminal.CallId);
         Assert.Equal("thread_live", outputDelta.Terminal.ThreadId);
@@ -87,11 +72,11 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StartAsync_BackgroundCommand_CanBeReadAfterCompletion()
+    public async Task StartAsync_BackgroundCommand_CanBeReadAfterCompletionAndKeepsBackgroundReason()
     {
         var started = await Service.StartAsync(new BackgroundTerminalStartRequest
         {
-            ThreadId = "thread_test",
+            ThreadId = "thread_reason",
             Command = DelayedEchoCommand("done"),
             WorkingDirectory = _tempDir,
             RunInBackground = true,
@@ -105,21 +90,6 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
         var completed = await Service.ReadAsync(started.SessionId, waitMs: 5000, maxOutputChars: 1000);
         Assert.Equal(BackgroundTerminalStatus.Completed, completed.Status);
         Assert.Contains("done", completed.Output);
-    }
-
-    [Fact]
-    public async Task ListAsync_CompletedBackgroundCommand_KeepsBackgroundReason()
-    {
-        var started = await Service.StartAsync(new BackgroundTerminalStartRequest
-        {
-            ThreadId = "thread_reason",
-            Command = DelayedEchoCommand("done"),
-            WorkingDirectory = _tempDir,
-            RunInBackground = true,
-            YieldTimeMs = 100,
-            MaxOutputChars = 1000
-        });
-        await Service.ReadAsync(started.SessionId, waitMs: 5000, maxOutputChars: 1000);
 
         var listed = Assert.Single(await Service.ListAsync("thread_reason"));
         Assert.Equal(BackgroundTerminalStatus.Completed, listed.Status);
@@ -282,6 +252,8 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
 
         var stopped = await Service.StopAsync(started.SessionId);
         Assert.Equal(BackgroundTerminalStatus.Killed, stopped.Status);
+        Assert.Contains(await Service.ListAsync("thread_detached"),
+            s => s.SessionId == started.SessionId && s.Status == BackgroundTerminalStatus.Killed);
     }
 
     [Fact]
@@ -375,26 +347,6 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
         }
 
         Assert.InRange(totalDeltaCount, 4, 399);
-    }
-
-    [Fact]
-    public async Task StopAsync_KillsRunningBackgroundCommand()
-    {
-        var started = await Service.StartAsync(new BackgroundTerminalStartRequest
-        {
-            ThreadId = "thread_stop",
-            Command = SleepCommand(),
-            WorkingDirectory = _tempDir,
-            RunInBackground = true,
-            YieldTimeMs = 100,
-            MaxOutputChars = 1000
-        });
-
-        var stopped = await Service.StopAsync(started.SessionId);
-
-        Assert.Equal(BackgroundTerminalStatus.Killed, stopped.Status);
-        var sessions = await Service.ListAsync("thread_stop");
-        Assert.Contains(sessions, s => s.SessionId == started.SessionId && s.Status == BackgroundTerminalStatus.Killed);
     }
 
     [Fact]

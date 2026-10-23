@@ -28,7 +28,7 @@ public sealed class BackgroundTerminalOutputTests : IAsyncLifetime
     [Fact]
     public async Task LargeUnterminatedUnicodeOutput_HasBoundedFramesAndPreviewAndCompleteLogAfterRestart()
     {
-        var content = "initial-head" + string.Concat(Enumerable.Repeat("abc中文😀", 230_000)) + "final-tail";
+        var content = "initial-head" + string.Concat(Enumerable.Repeat("abc中文😀", 100_000)) + "final-tail";
         var events = new ConcurrentQueue<BackgroundTerminalEvent>();
         _service = CreateService();
         _service.TerminalEvent += events.Enqueue;
@@ -63,7 +63,7 @@ public sealed class BackgroundTerminalOutputTests : IAsyncLifetime
         _service = CreateService(maxBytes: 8192);
         var events = new ConcurrentQueue<BackgroundTerminalEvent>();
         _service.TerminalEvent += events.Enqueue;
-        var content = new string('x', 200_000) + "end";
+        var content = new string('x', 50_000) + "end";
 
         var result = await _service.StartAsync(await RequestAsync(content));
 

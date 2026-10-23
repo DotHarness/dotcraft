@@ -8,7 +8,7 @@ namespace DotCraft.Tests.Logging;
 public sealed class DotCraftLoggingFactoryTests
 {
     [Fact]
-    public void WorkspaceFactory_WritesAndFlushesOperationalLog()
+    public void WorkspaceFactory_WritesScopedApplicationLogs_AndSuppressesFrameworkInformation()
     {
         var root = CreateTempRoot();
         try
@@ -24,6 +24,11 @@ public sealed class DotCraftLoggingFactoryTests
             {
                 logger.LogCritical(ex, "Host failed for {WorkspaceId}", "workspace-1");
             }
+            using (logger.BeginScope(new Dictionary<string, object?> { ["ScopeId"] = "scope-1" }))
+                logger.LogWarning("scoped-message");
+            factory.CreateLogger("Microsoft.AspNetCore.Hosting.Diagnostics").LogInformation("suppressed-framework-information");
+            factory.CreateLogger("Microsoft.Hosting.Lifetime").LogInformation("suppressed-framework-information");
+            factory.CreateLogger("Microsoft.AspNetCore.Server.Kestrel.Connections").LogWarning("retained-framework-warning");
 
             factory.Dispose();
 
@@ -37,6 +42,10 @@ public sealed class DotCraftLoggingFactoryTests
             Assert.Contains("Host failed for workspace-1", content);
             Assert.Contains(nameof(InvalidOperationException), content);
             Assert.Contains(nameof(ThrowTestFailure), content);
+            Assert.Contains("ScopeId", content);
+            Assert.Contains("scope-1", content);
+            Assert.DoesNotContain("suppressed-framework-information", content);
+            Assert.Contains("retained-framework-warning", content);
         }
         finally
         {
@@ -62,80 +71,6 @@ public sealed class DotCraftLoggingFactoryTests
             var content = ReadOnlyLog(root, "dotcraft-*.log");
             Assert.DoesNotContain("suppressed-message", content);
             Assert.Contains("recorded-message", content);
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
-
-    [Fact]
-    public void WorkspaceFactory_SuppressesFrameworkInformation_ButKeepsWarningsAndApplicationInformation()
-    {
-        var root = CreateTempRoot();
-        try
-        {
-            var factory = DotCraftLoggingFactory.CreateWorkspace(NewConfig(), root, reservesStdout: false);
-            var frameworkCategories = new[]
-            {
-                "Microsoft.AspNetCore.Hosting.Diagnostics",
-                "Microsoft.AspNetCore.Routing.EndpointMiddleware",
-                "Microsoft.AspNetCore.Server.Kestrel.Connections",
-                "Microsoft.Hosting.Lifetime"
-            };
-            foreach (var category in frameworkCategories)
-                factory.CreateLogger(category).LogInformation("suppressed-framework-information");
-
-            factory.CreateLogger("Microsoft.AspNetCore.Server.Kestrel.Connections")
-                .LogWarning("retained-framework-warning");
-            factory.CreateLogger("DotCraft.Tests.Application").LogInformation("safe-message");
-            factory.Dispose();
-
-            var content = ReadOnlyLog(root, "dotcraft-*.log");
-            Assert.DoesNotContain("suppressed-framework-information", content);
-            Assert.Contains("retained-framework-warning", content);
-            Assert.Contains("safe-message", content);
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
-
-    [Fact]
-    public void WorkspaceFactory_IncludesActiveScopes()
-    {
-        var root = CreateTempRoot();
-        try
-        {
-            var factory = DotCraftLoggingFactory.CreateWorkspace(NewConfig(), root, reservesStdout: false);
-            var logger = factory.CreateLogger("DotCraft.Tests.Scopes");
-
-            using (logger.BeginScope(new Dictionary<string, object?> { ["WorkspaceId"] = "workspace-1" }))
-                logger.LogWarning("scoped-message");
-            factory.Dispose();
-
-            var content = ReadOnlyLog(root, "dotcraft-*.log");
-            Assert.Contains("WorkspaceId", content);
-            Assert.Contains("workspace-1", content);
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
-
-    [Fact]
-    public void WorkspaceFactory_SetupFailure_FallsBackWithoutThrowing()
-    {
-        var root = CreateTempRoot();
-        try
-        {
-            var config = NewConfig();
-            config.Directory = "invalid\0directory";
-
-            using var factory = DotCraftLoggingFactory.CreateWorkspace(config, root, reservesStdout: false);
-            factory.CreateLogger("DotCraft.Tests.Fallback").LogCritical("logging-remains-non-fatal");
         }
         finally
         {

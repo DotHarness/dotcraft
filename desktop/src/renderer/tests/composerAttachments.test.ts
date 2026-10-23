@@ -4,72 +4,35 @@ import {
   mergeComposerFileAttachments
 } from '../utils/composerAttachments'
 
+function dropped(...files: File[]) {
+  return {
+    files: files as unknown as FileList,
+    items: files.map((file) => ({
+      kind: 'file',
+      getAsFile: () => file,
+      webkitGetAsEntry: () => ({ isDirectory: false })
+    })) as unknown as DataTransferItemList
+  }
+}
+
 describe('composerAttachments', () => {
-  it('keeps external dropped non-image file paths resolved by Electron as attachments', () => {
+  it('attaches resolved external files, skips unresolved ones and keeps images without resolving paths', () => {
     const note = new File(['notes'], 'notes.txt', { type: 'text/plain' })
+    const image = new File(['png'], 'image.png', { type: 'image/png' })
     const resolvePath = vi.fn(() => 'C:\\temp\\notes.txt')
 
-    const result = classifyDroppedComposerFiles({
-      files: [note] as unknown as FileList,
-      items: [
-        {
-          kind: 'file',
-          getAsFile: () => note,
-          webkitGetAsEntry: () => ({ isDirectory: false })
-        }
-      ] as unknown as DataTransferItemList
-    }, resolvePath)
-
-    expect(result).toEqual({
-      imageFiles: [],
+    expect(classifyDroppedComposerFiles(dropped(note, image), resolvePath)).toEqual({
+      imageFiles: [image],
       fileAttachments: [{ path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }],
       skippedCount: 0
     })
-    expect(resolvePath).toHaveBeenCalledWith(note)
-  })
+    expect(resolvePath).toHaveBeenCalledExactlyOnceWith(note)
 
-  it('skips external non-image files when Electron cannot resolve a path', () => {
-    const note = new File(['notes'], 'notes.txt', { type: 'text/plain' })
-
-    const result = classifyDroppedComposerFiles({
-      files: [note] as unknown as FileList,
-      items: [
-        {
-          kind: 'file',
-          getAsFile: () => note,
-          webkitGetAsEntry: () => ({ isDirectory: false })
-        }
-      ] as unknown as DataTransferItemList
-    }, () => '')
-
-    expect(result).toEqual({
+    expect(classifyDroppedComposerFiles(dropped(note), () => '')).toEqual({
       imageFiles: [],
       fileAttachments: [],
       skippedCount: 1
     })
-  })
-
-  it('does not resolve local paths for dropped images', () => {
-    const image = new File(['png'], 'image.png', { type: 'image/png' })
-    const resolvePath = vi.fn(() => 'C:\\temp\\image.png')
-
-    const result = classifyDroppedComposerFiles({
-      files: [image] as unknown as FileList,
-      items: [
-        {
-          kind: 'file',
-          getAsFile: () => image,
-          webkitGetAsEntry: () => ({ isDirectory: false })
-        }
-      ] as unknown as DataTransferItemList
-    }, resolvePath)
-
-    expect(result).toEqual({
-      imageFiles: [image],
-      fileAttachments: [],
-      skippedCount: 0
-    })
-    expect(resolvePath).not.toHaveBeenCalled()
   })
 
   it('deduplicates file attachments by normalized path', () => {

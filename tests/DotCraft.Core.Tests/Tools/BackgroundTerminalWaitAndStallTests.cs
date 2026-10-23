@@ -66,7 +66,7 @@ public sealed class BackgroundTerminalWaitAndStallTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CheckStalls_ReportsAPromptOnceAndNotifiesTheModel()
+    public async Task CheckStalls_ReportsAPromptOnceAndNotifiesTheModel_ButIgnoresSilenceWithoutAPrompt()
     {
         var started = await Service.StartAsync(Request(PromptCommand()) with
         {
@@ -74,7 +74,13 @@ public sealed class BackgroundTerminalWaitAndStallTests : IAsyncLifetime
             YieldTimeMs = 50,
             NotifyOnCompletion = true
         });
-        await WaitForQuietAsync();
+        var silent = await Service.StartAsync(Request(SilentCommand()) with
+        {
+            RunInBackground = true,
+            YieldTimeMs = 50,
+            NotifyOnCompletion = true
+        });
+        await WaitForQuietAsync("(y/n)");
 
         Service.CheckStalls();
         Service.CheckStalls();
@@ -84,22 +90,8 @@ public sealed class BackgroundTerminalWaitAndStallTests : IAsyncLifetime
         var notice = Assert.Single(_events, evt => evt.EventType == BackgroundTerminalEventTypes.StallNotice);
         Assert.True(notice.Terminal.WaitingForInput);
         Assert.Contains("(y/n)", notice.Terminal.Output);
-    }
-
-    [Fact]
-    public async Task CheckStalls_IgnoresSilenceWithoutAPrompt()
-    {
-        await Service.StartAsync(Request(SilentCommand()) with
-        {
-            RunInBackground = true,
-            YieldTimeMs = 50,
-            NotifyOnCompletion = true
-        });
-        await WaitForQuietAsync();
-
-        Service.CheckStalls();
-
-        Assert.DoesNotContain(_events, evt => evt.EventType is BackgroundTerminalEventTypes.Stalled or BackgroundTerminalEventTypes.StallNotice);
+        Assert.DoesNotContain(_events, evt => evt.Terminal.SessionId == silent.SessionId
+            && evt.EventType is BackgroundTerminalEventTypes.Stalled or BackgroundTerminalEventTypes.StallNotice);
     }
 
     [Fact]
@@ -124,10 +116,10 @@ public sealed class BackgroundTerminalWaitAndStallTests : IAsyncLifetime
 
     private BackgroundTerminalService Service => _service ?? throw new InvalidOperationException("Not initialized.");
 
-    private async Task WaitForQuietAsync()
+    private async Task WaitForQuietAsync(string marker = "")
     {
         var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
-        while (!_events.Any(evt => evt.EventType == "outputDelta") && DateTimeOffset.UtcNow < deadline)
+        while (!_events.Any(evt => evt.EventType == "outputDelta" && evt.Delta?.Contains(marker) == true) && DateTimeOffset.UtcNow < deadline)
             await Task.Delay(50);
         await Task.Delay(1500);
     }

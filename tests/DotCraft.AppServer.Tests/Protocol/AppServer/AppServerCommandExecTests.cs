@@ -74,7 +74,7 @@ public sealed class AppServerCommandExecTests : IDisposable
         var result = await SendAsync(new
         {
             command = Shell("echo started& ping -n 30 127.0.0.1 >nul", "echo started; sleep 30"),
-            timeoutMs = 1000
+            timeoutMs = 500
         });
 
         Assert.Equal(124, result.GetProperty("exitCode").GetInt32());
@@ -101,16 +101,16 @@ public sealed class AppServerCommandExecTests : IDisposable
 
         var result = await SendAsync(new
         {
-            command = Shell("start /b ping -n 9 127.0.0.1 >nul & echo done", "sleep 8 & echo done")
+            command = Shell("start /b ping -n 31 127.0.0.1 >nul & echo done", "sleep 30 & echo done")
         });
 
         Assert.Equal(0, result.GetProperty("exitCode").GetInt32());
         Assert.Equal("done", result.GetProperty("stdout").GetString()!.Trim());
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), stopwatch.Elapsed.ToString());
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(15), stopwatch.Elapsed.ToString());
     }
 
     [Fact]
-    public async Task Exec_PassesArgumentsToABatchFileLiterally()
+    public async Task Exec_PassesArgumentsToABatchFileLiterallyAndRejectsLineBreaks()
     {
         if (!OperatingSystem.IsWindows())
             return;
@@ -135,19 +135,9 @@ public sealed class AppServerCommandExecTests : IDisposable
             Assert.Equal(0, result.GetProperty("exitCode").GetInt32());
             Assert.Equal([expected], result.GetProperty("stdout").GetString()!.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries));
         });
-    }
 
-    [Fact]
-    public async Task Exec_RejectsALineBreakInABatchFileArgument()
-    {
-        if (!OperatingSystem.IsWindows())
-            return;
-        var script = WriteEchoScript();
-        await _harness.InitializeAsync();
-
-        var error = await SendForErrorAsync(new { command = new[] { script, "one\r\necho injected" } });
-
-        Assert.Equal(AppServerErrors.InvalidParamsCode, error.GetProperty("code").GetInt32());
+        var lineBreak = await SendForErrorAsync(new { command = new[] { script, "one\r\necho injected" } });
+        Assert.Equal(AppServerErrors.InvalidParamsCode, lineBreak.GetProperty("code").GetInt32());
     }
 
     private string WriteEchoScript()

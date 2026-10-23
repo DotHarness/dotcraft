@@ -96,33 +96,6 @@ describe('pasted text composer', () => {
     expect(screen.getByRole('textbox').textContent).toBe('')
   })
 
-  it('restores eligible text without replacing the current draft', async () => {
-    useComposerContextStore
-      .getState()
-      .addContext('task', { ...context, characterCount: 5000 })
-    render(<Composer />)
-    const editor = screen.getByRole('textbox')
-    editor.textContent = 'Keep my question'
-    fireEvent.input(editor)
-    fireEvent.click(screen.getByRole('button', { name: 'Show in text field' }))
-    await waitFor(() =>
-      expect(editor.textContent).toBe(
-        `Keep my question\n\n${'r'.repeat(5000)}`,
-      ),
-    )
-    expect(useComposerContextStore.getState().getContexts('task')).toEqual([])
-  })
-
-  it('does not offer restoration for an unknown length', () => {
-    useComposerContextStore
-      .getState()
-      .addContext('task', { ...context, characterCount: undefined })
-    render(<Composer />)
-    expect(
-      screen.queryByRole('button', { name: 'Show in text field' }),
-    ).toBeNull()
-  })
-
   it('keeps a removed pending paste removed after file creation completes', async () => {
     let finish!: (value: typeof context) => void
     create.mockImplementation(

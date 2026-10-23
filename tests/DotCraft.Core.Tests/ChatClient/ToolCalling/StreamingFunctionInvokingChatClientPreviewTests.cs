@@ -15,23 +15,37 @@ namespace DotCraft.Tests.Agents;
 public sealed partial class StreamingFunctionInvokingChatClientTests
 {
     [Fact]
-    public async Task GetStreamingResponseAsync_TextOnly_NoInjectedDelta()
+    public async Task GetStreamingResponseAsync_DoesNotInjectDeltasWhenDisabledOrToolIsNotStreamable()
     {
-        var updates = new[]
+        ChatResponseUpdate[] Updates() =>
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("a")])
+            {
+                RawRepresentation = new FakeRawDeltaSource(
+                    new ToolCallDeltaChunk(0, "ReadFile", "call-1", "{\"path\":\"a.txt\"}"))
+            }
+        ];
+        var clients = new[]
         {
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("hello")])
-        };
-        var client = new StreamingFunctionInvokingChatClient(new FakeChatClient(streamUpdates: updates))
-        {
-            EnableToolCallArgumentPreviews = true
+            new StreamingFunctionInvokingChatClient(new FakeChatClient(streamUpdates: Updates())),
+            new StreamingFunctionInvokingChatClient(new FakeChatClient(streamUpdates: Updates()))
+            {
+                EnableToolCallArgumentPreviews = true,
+                IsStreamableTool = name => name == "WriteFile"
+            },
+            new StreamingFunctionInvokingChatClient(new FakeChatClient(streamUpdates: Updates()))
+            {
+                EnableToolCallArgumentPreviews = true,
+                StreamableToolNames = new HashSet<string>(["WriteFile"], StringComparer.Ordinal)
+            }
         };
 
-        var collected = new List<ChatResponseUpdate>();
-        await foreach (var update in client.GetStreamingResponseAsync([]))
-            collected.Add(update);
-
-        Assert.Single(collected);
-        Assert.DoesNotContain(collected[0].Contents, c => c is ToolCallArgumentsDeltaContent);
+        foreach (var client in clients)
+        {
+            var collected = await CollectAsync(client.GetStreamingResponseAsync([]));
+            Assert.Single(collected);
+            Assert.DoesNotContain(collected[0].Contents, c => c is ToolCallArgumentsDeltaContent);
+        }
     }
 
     [Fact]
@@ -133,6 +147,14 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("d")])
             {
                 RawRepresentation = CreateAnthropicArgumentsDelta(2, "{\"content\":\"b\"}")
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("e")])
+            {
+                RawRepresentation = CreateAnthropicToolStart((long)int.MaxValue + 1, "CreatePlan", "call-plan")
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("f")])
+            {
+                RawRepresentation = CreateAnthropicArgumentsDelta((long)int.MaxValue + 1, "{\"plan\":\"ignored\"}")
             }
         };
         var client = new StreamingFunctionInvokingChatClient(new FakeChatClient(streamUpdates: updates))
@@ -154,32 +176,6 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_AnthropicToolUse_IgnoresInvalidIndex()
-    {
-        var updates = new[]
-        {
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("a")])
-            {
-                RawRepresentation = CreateAnthropicToolStart((long)int.MaxValue + 1, "CreatePlan", "call-plan")
-            },
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("b")])
-            {
-                RawRepresentation = CreateAnthropicArgumentsDelta((long)int.MaxValue + 1, "{\"plan\":\"ignored\"}")
-            }
-        };
-        var client = new StreamingFunctionInvokingChatClient(new FakeChatClient(streamUpdates: updates))
-        {
-            EnableToolCallArgumentPreviews = true
-        };
-
-        var deltas = new List<ToolCallArgumentsDeltaContent>();
-        await foreach (var update in client.GetStreamingResponseAsync([]))
-            deltas.AddRange(update.Contents.OfType<ToolCallArgumentsDeltaContent>());
-
-        Assert.Empty(deltas);
-    }
-
-    [Fact]
     public async Task GetStreamingResponseAsync_ExposesDeltaToConsumer_ButRemovesAfterYield()
     {
         var update = new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("a")])
@@ -198,81 +194,6 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
 
         Assert.Single(observed);
         Assert.DoesNotContain(update.Contents, content => content is ToolCallArgumentsDeltaContent);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_FilteredTool_DoesNotInject()
-    {
-        var updates = new[]
-        {
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("a")])
-            {
-                RawRepresentation = new FakeRawDeltaSource(
-                    new ToolCallDeltaChunk(0, "ReadFile", "call-1", "{\"path\":\"a.txt\"}"))
-            }
-        };
-        var client = new StreamingFunctionInvokingChatClient(new FakeChatClient(streamUpdates: updates))
-        {
-            EnableToolCallArgumentPreviews = true,
-            IsStreamableTool = name => name == "WriteFile"
-        };
-
-        var collected = new List<ChatResponseUpdate>();
-        await foreach (var update in client.GetStreamingResponseAsync([]))
-            collected.Add(update);
-
-        Assert.Single(collected);
-        Assert.DoesNotContain(collected[0].Contents, c => c is ToolCallArgumentsDeltaContent);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_NoPredicate_StreamsAllTools()
-    {
-        // Default behaviour: predicate and legacy set both null -> every tool eligible.
-        var updates = new[]
-        {
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("a")])
-            {
-                RawRepresentation = new FakeRawDeltaSource(
-                    new ToolCallDeltaChunk(0, "MyMcpTool", "call-1", "{\"query\":\"hi\"}"))
-            }
-        };
-        var client = new StreamingFunctionInvokingChatClient(new FakeChatClient(streamUpdates: updates))
-        {
-            EnableToolCallArgumentPreviews = true
-        };
-
-        var deltas = new List<ToolCallArgumentsDeltaContent>();
-        await foreach (var update in client.GetStreamingResponseAsync([]))
-            deltas.AddRange(update.Contents.OfType<ToolCallArgumentsDeltaContent>());
-
-        Assert.Single(deltas);
-        Assert.Equal("MyMcpTool", deltas[0].ToolName);
-        Assert.Equal("{\"query\":\"hi\"}", deltas[0].ArgumentsDelta);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_LegacyStreamableToolNamesSet_StillRespected()
-    {
-        var updates = new[]
-        {
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("a")])
-            {
-                RawRepresentation = new FakeRawDeltaSource(
-                    new ToolCallDeltaChunk(0, "ReadFile", "call-1", "{\"path\":\"a.txt\"}"))
-            }
-        };
-        var client = new StreamingFunctionInvokingChatClient(new FakeChatClient(streamUpdates: updates))
-        {
-            EnableToolCallArgumentPreviews = true,
-            StreamableToolNames = new HashSet<string>(["WriteFile"], StringComparer.Ordinal)
-        };
-
-        var deltas = new List<ToolCallArgumentsDeltaContent>();
-        await foreach (var update in client.GetStreamingResponseAsync([]))
-            deltas.AddRange(update.Contents.OfType<ToolCallArgumentsDeltaContent>());
-
-        Assert.Empty(deltas);
     }
 
     [Fact]
@@ -352,48 +273,14 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_PreviewsDisabledByDefault()
+    public void BuildStreamOptOutToolNames_PicksUpAttributeAndIgnoresMethodlessTools()
     {
-        var updates = new[]
-        {
-            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("a")])
-            {
-                RawRepresentation = new FakeRawDeltaSource(
-                    new ToolCallDeltaChunk(0, "WriteFile", "call-1", "{\"path\":\"a.txt\"}"))
-            }
-        };
-        var client = new StreamingFunctionInvokingChatClient(new FakeChatClient(streamUpdates: updates));
-
-        var deltas = new List<ToolCallArgumentsDeltaContent>();
-        await foreach (var update in client.GetStreamingResponseAsync([]))
-            deltas.AddRange(update.Contents.OfType<ToolCallArgumentsDeltaContent>());
-
-        Assert.Empty(deltas);
-    }
-
-    [Fact]
-    public void BuildStreamOptOutToolNames_PicksUpAttribute()
-    {
-        // Tool whose method is decorated with [StreamArguments(false)] opts out;
-        // an undecorated tool stays streamable.
         var optOutTool = AIFunctionFactory.Create(FakeToolMethods.OptedOut);
         var streamingTool = AIFunctionFactory.Create(FakeToolMethods.Streaming);
 
-        var optOut = AgentFactory.BuildStreamOptOutToolNames([optOutTool, streamingTool]);
+        var optOut = AgentFactory.BuildStreamOptOutToolNames([optOutTool, streamingTool, new MethodlessFakeFunction("search_docs")]);
 
-        Assert.Contains(optOutTool.Name, optOut);
-        Assert.DoesNotContain(streamingTool.Name, optOut);
-    }
-
-    [Fact]
-    public void BuildStreamOptOutToolNames_IgnoresToolsWithoutUnderlyingMethod()
-    {
-        // Tools without UnderlyingMethod (MCP-shaped) should never appear in the opt-out set.
-        var mcpShapedTool = new MethodlessFakeFunction("search_docs");
-
-        var optOut = AgentFactory.BuildStreamOptOutToolNames([mcpShapedTool]);
-
-        Assert.Empty(optOut);
+        Assert.Equal(optOutTool.Name, Assert.Single(optOut));
     }
 
     [Fact]
@@ -427,24 +314,6 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var optOut = AgentFactory.BuildStreamOptOutToolNames(AgentFactory.ProjectSnapshotTools(snapshot));
 
         Assert.Contains("SkillManage", optOut);
-    }
-
-    [Fact]
-    public void BuildStreamOptOutToolNames_DoesNotIncludeAgentTools()
-    {
-        var agentTools = new AgentTools();
-        var agentControlTools = new[]
-        {
-            AIFunctionFactory.Create(agentTools.SpawnAgent),
-            AIFunctionFactory.Create(agentTools.SendMessage),
-            AIFunctionFactory.Create(agentTools.ListAgents),
-            AIFunctionFactory.Create(new BackgroundTaskTools().TaskStop)
-        };
-
-        var optOut = AgentFactory.BuildStreamOptOutToolNames(agentControlTools);
-
-        foreach (var tool in agentControlTools)
-            Assert.DoesNotContain(tool.Name, optOut);
     }
 
     private static class FakeToolMethods

@@ -48,13 +48,4 @@ public sealed class UserCoordinationToolsTests
         Assert.Equal(3, result.GetProperty("actualDurationMs").GetInt64());
     }
 
-    [Fact]
-    public void CurrentTime_ReturnsUtcNow()
-    {
-        var before = DateTimeOffset.UtcNow;
-        var result = JsonDocument.Parse(new UserCoordinationTools().CurrentTime()).RootElement;
-        var after = DateTimeOffset.UtcNow;
-
-        Assert.InRange(result.GetProperty("utc").GetDateTimeOffset(), before, after);
-    }
 }

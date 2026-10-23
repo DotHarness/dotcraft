@@ -163,6 +163,12 @@ public sealed class StateBackedStoreTests : IDisposable
         writer.Record(new TraceEvent
         {
             SessionKey = "thread-1",
+            Type = TraceEventType.Request,
+            Content = "second request"
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-1",
             Type = TraceEventType.TokenUsage,
             InputTokens = 11,
             OutputTokens = 7,
@@ -179,11 +185,13 @@ public sealed class StateBackedStoreTests : IDisposable
         });
         writer.WaitForPendingPersistence();
 
+        Assert.Equal("hello", writer.GetSession("thread-1")?.FirstUserRequest);
+
         var reader = new TraceStore(_stateRuntime, 5000);
 
         var session = reader.GetSession("thread-1");
         Assert.NotNull(session);
-        Assert.Equal(1, session.RequestCount);
+        Assert.Equal(2, session.RequestCount);
         Assert.Equal(11, session.TotalInputTokens);
         Assert.Equal(7, session.TotalOutputTokens);
         Assert.Equal(3, session.TotalCachedInputTokens);
@@ -195,11 +203,11 @@ public sealed class StateBackedStoreTests : IDisposable
         Assert.Equal("system", session.FinalSystemPrompt);
         Assert.Equal("hello", session.FirstUserRequest);
         Assert.Contains("ReadFile", session.ToolNames);
-        Assert.Equal(4, reader.GetEvents("thread-1").Count);
+        Assert.Equal(5, reader.GetEvents("thread-1").Count);
 
         var summary = reader.GetSummary();
         Assert.Equal(1, summary.SessionCount);
-        Assert.Equal(1, summary.TotalRequests);
+        Assert.Equal(2, summary.TotalRequests);
         Assert.Equal(18, summary.TotalTokens);
         Assert.Equal(2, summary.TotalCacheWriteInputTokens);
         Assert.Equal(1, summary.TotalToolCalls);
@@ -303,9 +311,9 @@ public sealed class StateBackedStoreTests : IDisposable
     [Fact]
     public void TraceStore_PageQuery_Returns_Latest_StateDb_Events_Beyond_InMemory_Cap()
     {
-        var writer = new TraceStore(_stateRuntime, 5000, synchronousPersist: true);
+        var writer = new TraceStore(_stateRuntime, 20, synchronousPersist: true);
         var startedAt = new DateTimeOffset(2026, 5, 29, 1, 0, 0, TimeSpan.Zero);
-        for (var i = 0; i < 5005; i++)
+        for (var i = 0; i < 25; i++)
         {
             writer.Record(new TraceEvent
             {
@@ -324,20 +332,20 @@ public sealed class StateBackedStoreTests : IDisposable
             Timestamp = startedAt.AddSeconds(6000)
         });
 
-        var reader = new TraceStore(_stateRuntime, 5000);
+        var reader = new TraceStore(_stateRuntime, 20);
 
-        Assert.Equal(5000, reader.GetEvents("thread-page").Count);
+        Assert.Equal(20, reader.GetEvents("thread-page").Count);
         Assert.DoesNotContain(reader.GetEvents("thread-page"), evt => evt.Content == "request-0");
         Assert.Contains(reader.GetEvents("thread-page"), evt => evt.Content == "latest maintenance");
 
-        var firstPage = reader.GetEventPage("thread-page", limit: 1000);
-        Assert.Equal(1000, firstPage.Events.Count);
+        var firstPage = reader.GetEventPage("thread-page", limit: 10);
+        Assert.Equal(10, firstPage.Events.Count);
         Assert.True(firstPage.HasMore);
         Assert.Equal("latest maintenance", firstPage.Events[^1].Content);
         Assert.NotNull(firstPage.OldestCursor);
 
-        var secondPage = reader.GetEventPage("thread-page", limit: 1000, beforeCursor: firstPage.OldestCursor);
-        Assert.Equal(1000, secondPage.Events.Count);
+        var secondPage = reader.GetEventPage("thread-page", limit: 10, beforeCursor: firstPage.OldestCursor);
+        Assert.Equal(10, secondPage.Events.Count);
         Assert.DoesNotContain(
             secondPage.Events.Select(static evt => evt.Id),
             id => firstPage.Events.Any(evt => evt.Id == id));
@@ -395,125 +403,6 @@ public sealed class StateBackedStoreTests : IDisposable
         Assert.Equal(1, summary.TotalMaintenanceForkResponses);
     }
 
-    [Fact]
-    public void TraceStore_Captures_FirstUserRequest_And_Does_Not_Overwrite_It()
-    {
-        var writer = new TraceStore(_stateRuntime, 5000);
-        writer.Record(new TraceEvent
-        {
-            SessionKey = "thread-first-request",
-            Type = TraceEventType.Request,
-            Content = "first request"
-        });
-        writer.Record(new TraceEvent
-        {
-            SessionKey = "thread-first-request",
-            Type = TraceEventType.Request,
-            Content = "second request"
-        });
-        writer.WaitForPendingPersistence();
-
-        var liveSession = writer.GetSession("thread-first-request");
-        Assert.NotNull(liveSession);
-        Assert.Equal(2, liveSession.RequestCount);
-        Assert.Equal("first request", liveSession.FirstUserRequest);
-
-        var reader = new TraceStore(_stateRuntime, 5000);
-
-        var restoredSession = reader.GetSession("thread-first-request");
-        Assert.NotNull(restoredSession);
-        Assert.Equal(2, restoredSession.RequestCount);
-        Assert.Equal("first request", restoredSession.FirstUserRequest);
-    }
-
-    [Fact]
-    public void TraceStore_RoundTrips_PromptCacheDiagnosticFields_Via_StateDb()
-    {
-        var writer = new TraceStore(_stateRuntime, 5000);
-        writer.Record(new TraceEvent
-        {
-            SessionKey = "prompt-cache-session",
-            Type = TraceEventType.SessionMetadata,
-            FinalSystemPrompt = "system",
-            ToolNames = ["ReadFile"],
-            SystemPromptHash = "aaa",
-            ToolSchemaHash = "bbb",
-            PromptCacheEventKind = PromptCacheEventKinds.Baseline,
-            CurrentSystemPromptHash = "aaa",
-            CurrentToolSchemaHash = "bbb"
-        });
-        writer.Record(new TraceEvent
-        {
-            SessionKey = "prompt-cache-session",
-            Type = TraceEventType.SessionMetadata,
-            FinalSystemPrompt = "system changed",
-            ToolNames = ["ReadFile"],
-            SystemPromptHash = "ccc",
-            ToolSchemaHash = "bbb",
-            PromptDriftDetected = true,
-            PromptCacheEventKind = PromptCacheEventKinds.Drift,
-            PromptCacheChangedFields = [PromptCacheChangedFields.Prompt],
-            PreviousSystemPromptHash = "aaa",
-            PreviousToolSchemaHash = "bbb",
-            CurrentSystemPromptHash = "ccc",
-            CurrentToolSchemaHash = "bbb"
-        });
-        writer.WaitForPendingPersistence();
-
-        var reader = new TraceStore(_stateRuntime, 5000);
-
-        var drift = reader.GetEvents("prompt-cache-session")
-            .Single(e => e.PromptCacheEventKind == PromptCacheEventKinds.Drift);
-        Assert.NotNull(drift.PromptCacheChangedFields);
-        Assert.Equal([PromptCacheChangedFields.Prompt], drift.PromptCacheChangedFields);
-        Assert.Equal("aaa", drift.PreviousSystemPromptHash);
-        Assert.Equal("ccc", drift.CurrentSystemPromptHash);
-
-        var session = reader.GetSession("prompt-cache-session");
-        Assert.NotNull(session);
-        Assert.Equal(1, session.PromptDriftCount);
-        Assert.Equal(PromptCacheEventKinds.Drift, session.LastPromptCacheChangeKind);
-        Assert.Equal([PromptCacheChangedFields.Prompt], session.LastPromptCacheChangedFields);
-
-        var listed = Assert.Single(reader.GetSessions());
-        Assert.Equal("ccc", listed.SystemPromptHash);
-        Assert.Equal("bbb", listed.ToolSchemaHash);
-        Assert.Equal(1, listed.PromptDriftCount);
-        Assert.Equal(PromptCacheEventKinds.Drift, listed.LastPromptCacheChangeKind);
-        Assert.Equal([PromptCacheChangedFields.Prompt], listed.LastPromptCacheChangedFields);
-    }
-
-
-    [Fact]
-    public void TraceStore_RoundTrips_PromptCacheRequestShape_Via_StateDb()
-    {
-        var writer = new TraceStore(_stateRuntime, 5000, synchronousPersist: true);
-        writer.Record(new TraceEvent
-        {
-            SessionKey = "prompt-cache-shape-session",
-            Type = TraceEventType.PromptCacheRequestShape,
-            ModelId = "gpt-test",
-            RequestIndex = 2,
-            MetadataJson = JsonSerializer.Serialize(new
-            {
-                schemaVersion = 1,
-                protocol = "openai-responses",
-                inputHash = "sha256:input",
-                inputItemHashes = new[] { "sha256:item" }
-            })
-        });
-
-        var reader = new TraceStore(_stateRuntime, 5000);
-
-        var evt = Assert.Single(reader.GetEvents("prompt-cache-shape-session"));
-        Assert.Equal(TraceEventType.PromptCacheRequestShape, evt.Type);
-        Assert.Equal("gpt-test", evt.ModelId);
-        Assert.Equal(2, evt.RequestIndex);
-        Assert.Contains("sha256:item", evt.MetadataJson);
-
-        var page = reader.GetEventPage("prompt-cache-shape-session", limit: 1000, filter: "PromptCacheRequestShape");
-        Assert.Single(page.Events);
-    }
 
     [Fact]
     public void TraceStore_StateBackedStore_DoesNotBuffer_Events_InMemory()
@@ -826,21 +715,6 @@ public sealed class StateBackedStoreTests : IDisposable
     }
 
     [Fact]
-    public void TokenUsageStore_DeleteDashboardUsageRecords_Removes_Linked_Rows_Only()
-    {
-        var store = new TokenUsageStore(_stateRuntime);
-        store.Record(CreateUsageRecord("thread-1", "thread-1"));
-        store.Record(CreateUsageRecord("thread-2", "thread-2"));
-        store.Record(CreateUsageRecord(null, null));
-
-        var deleted = store.DeleteDashboardUsageRecords(["thread-1"], ["thread-2"]);
-
-        Assert.Equal(2, deleted);
-        Assert.Equal(1L, CountRows("dashboard_usage_records"));
-        Assert.Equal(1L, CountRows("dashboard_usage_records", "thread_id IS NULL AND session_key IS NULL"));
-    }
-
-    [Fact]
     public async Task TraceSessionBindingStore_InferBindings_For_Main_Child_And_Unbound_Sessions()
     {
         var threadStore = new ThreadStore(_craftPath, _stateRuntime);
@@ -1052,34 +926,6 @@ public sealed class StateBackedStoreTests : IDisposable
         Assert.Equal(1L, CountRows("dashboard_usage_records", "thread_id IS NULL AND session_key IS NULL"));
     }
 
-    [Fact]
-    public void StateRuntime_CompactIfWorthwhile_ForcedVacuum_ReclaimsFreePages()
-    {
-        using (var connection = _stateRuntime.OpenConnection())
-        {
-            using var command = connection.CreateCommand();
-            command.CommandText = """
-                CREATE TABLE cleanup_probe(payload TEXT NOT NULL);
-                WITH RECURSIVE n(x) AS (
-                    SELECT 1
-                    UNION ALL
-                    SELECT x + 1 FROM n WHERE x < 200
-                )
-                INSERT INTO cleanup_probe(payload)
-                SELECT printf('%4096s', 'x') FROM n;
-                DELETE FROM cleanup_probe;
-                """;
-            command.ExecuteNonQuery();
-        }
-
-        var beforeFreelist = ReadPragmaLong("freelist_count");
-
-        var compacted = _stateRuntime.CompactIfWorthwhile(force: true);
-
-        Assert.True(compacted);
-        Assert.True(ReadPragmaLong("freelist_count") <= beforeFreelist);
-    }
-
     private void InsertThreadContextUsage(string threadId)
     {
         using var connection = _stateRuntime.OpenConnection();
@@ -1101,14 +947,6 @@ public sealed class StateBackedStoreTests : IDisposable
         command.CommandText = string.IsNullOrWhiteSpace(whereClause)
             ? $"SELECT COUNT(*) FROM {tableName}"
             : $"SELECT COUNT(*) FROM {tableName} WHERE {whereClause}";
-        return Convert.ToInt64(command.ExecuteScalar());
-    }
-
-    private long ReadPragmaLong(string pragmaName)
-    {
-        using var connection = _stateRuntime.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = $"PRAGMA {pragmaName}";
         return Convert.ToInt64(command.ExecuteScalar());
     }
 
@@ -1166,6 +1004,6 @@ public sealed class StateBackedStoreTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 }

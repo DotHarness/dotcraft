@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const electronMocks = vi.hoisted(() => ({
   app: {
@@ -10,22 +10,13 @@ const electronMocks = vi.hoisted(() => ({
 
 vi.mock('electron', () => electronMocks)
 
+import { resolveWindowsAppUserModelId } from '../appIdentity'
+
 describe('app identity', () => {
-  afterEach(() => {
-    electronMocks.app.isPackaged = false
-    vi.clearAllMocks()
-  })
-
-  it('uses the product name as the Windows notification identity in development', async () => {
-    const { resolveWindowsAppUserModelId } = await import('../appIdentity')
-
+  it('uses the product name in development and the package app id for installed builds', () => {
     expect(resolveWindowsAppUserModelId()).toBe('DotCraft')
-  })
 
-  it('uses the package app id for installed builds', async () => {
     electronMocks.app.isPackaged = true
-    const { resolveWindowsAppUserModelId } = await import('../appIdentity')
-
     expect(resolveWindowsAppUserModelId()).toBe('com.dotcraft.desktop')
   })
 })

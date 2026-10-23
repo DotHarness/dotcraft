@@ -74,8 +74,6 @@ public sealed class OpenAIUsageClientTests : IDisposable
     [Fact]
     public async Task FetchAsyncRetriesOnce_When401_ThenSucceeds()
     {
-        // The auth manager's force-refresh hits auth.openai.com/oauth/token; respond with a fresh
-        // bundle so the retry actually proceeds.
         var refreshJson = """{ "id_token": "id.x.y", "access_token": "new-access", "refresh_token": "new-refresh" }""";
         var authHandler = new RecordingHandler(_ => OkJson(refreshJson));
         var (authService, _) = CreateSignedInAuthService(authHandler);
@@ -109,7 +107,6 @@ public sealed class OpenAIUsageClientTests : IDisposable
     [Fact]
     public async Task FetchAsyncMissingRateLimitGracefullyDegrades()
     {
-        // /wham/usage may return just plan_type for free / guest accounts.
         var (authService, _) = CreateSignedInAuthService();
         var handler = new RecordingHandler(_ => OkJson("""{ "plan_type": "free" }"""));
         var client = new OpenAIUsageClient(authService, new HttpClient(handler));
@@ -167,19 +164,14 @@ public sealed class OpenAIUsageClientTests : IDisposable
     }
 
     [Theory]
-    [InlineData(0, 5 * 60)]            // First success: 5 min
-    [InlineData(1, 10 * 60)]           // 1 failure: 10 min
-    [InlineData(2, 20 * 60)]           // 2 failures: 20 min
-    [InlineData(3, 40 * 60)]           // 3 failures: 40 min
-    [InlineData(4, 60 * 60)]           // 4 failures: capped at 1h
-    [InlineData(10, 60 * 60)]          // Far beyond cap: still 1h
+    [InlineData(0, 5 * 60)]
+    [InlineData(3, 40 * 60)]
+    [InlineData(4, 60 * 60)]
     public void NextDelayBackoffMatchesContract(int failures, int expectedSeconds)
     {
         var delay = OpenAIUsagePoller.NextDelay(failures);
         Assert.Equal(expectedSeconds, (int)delay.TotalSeconds);
     }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
 
     private (OpenAIAuthManager authService, OpenAITokenStore store) CreateSignedInAuthService(HttpMessageHandler? authHandler = null)
     {

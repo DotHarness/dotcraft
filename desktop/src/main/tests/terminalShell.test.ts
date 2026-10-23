@@ -14,23 +14,20 @@ const env = {
 }
 
 describe('Windows terminal shell discovery', () => {
-  it.each([
-    [[pwsh, installedPwsh, powershell, systemPowerShell], pwsh],
-    [[installedPwsh, powershell, systemPowerShell], installedPwsh],
-    [[powershell, systemPowerShell], powershell],
-    [[systemPowerShell], systemPowerShell]
-  ])('selects the first available PowerShell from %j', (files, expected) => {
-    expect(resolveShellCommand({
-      platform: 'win32', env, fileExists: (path) => files.includes(path)
-    })).toEqual({ shell: expected, args: ['-NoLogo'] })
-  })
-
-  it('falls back to COMSPEC only without PowerShell', () => {
+  it('prefers PowerShell from PATH, then installed and system PowerShell, then COMSPEC and cmd', () => {
+    const cases: Array<[string[], string]> = [
+      [[pwsh, installedPwsh, powershell, systemPowerShell], pwsh],
+      [[installedPwsh, powershell, systemPowerShell], installedPwsh],
+      [[powershell, systemPowerShell], powershell],
+      [[systemPowerShell], systemPowerShell]
+    ]
+    for (const [files, expected] of cases) {
+      expect(resolveShellCommand({
+        platform: 'win32', env, fileExists: (path) => files.includes(path)
+      })).toEqual({ shell: expected, args: ['-NoLogo'] })
+    }
     expect(resolveShellCommand({ platform: 'win32', env, fileExists: () => false }))
       .toEqual({ shell: cmd, args: [] })
-  })
-
-  it('falls back to cmd without environment paths', () => {
     expect(resolveShellCommand({ platform: 'win32', env: {}, fileExists: () => false }))
       .toEqual({ shell: 'cmd.exe', args: [] })
   })

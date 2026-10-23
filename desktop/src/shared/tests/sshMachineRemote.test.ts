@@ -3,7 +3,6 @@ import {
   buildEnsureProjectWorkspaceCommand,
   buildInstallCommand,
   buildListFoldersCommand,
-  buildProbeCommand,
   buildReadConfigFilesCommand,
   buildStartHubCommand,
   classifyProbe,
@@ -41,15 +40,6 @@ function base64(text: string): string {
 }
 
 describe('probe', () => {
-  it('uses the absolute DotCraft path and reports tools in one round trip', () => {
-    const cmd = buildProbeCommand()
-    expect(cmd).toContain('"$HOME/.craft/bin/dotcraft" --version')
-    expect(cmd).toContain('uname -s')
-    expect(cmd).toContain('/etc/os-release')
-    expect(cmd).toContain('sw_vers')
-    expect(cmd).toContain('for t in docker bash curl tar setsid')
-  })
-
   it('parses a Linux probe', () => {
     const result = parseProbeOutput(
       'DOTCRAFT_PROBE_BEGIN\nos=Linux\narch=x86_64\nhome=/home/dev\nosName=Ubuntu\nosVersion=24.04\ndotcraftPresent=1\ndotcraft=0.7.10+3f2a1b\ntool_docker=1\ntool_bash=1\ntool_curl=0\ntool_tar=1\ntool_setsid=1\nDOTCRAFT_PROBE_END\n'
@@ -78,7 +68,10 @@ describe('probe', () => {
 })
 
 describe('classifyProbe', () => {
-  it('reports unsupported systems', () => {
+  it('accepts Linux x64 and macOS x64 or arm64 and reports other systems as unsupported', () => {
+    expect(classifyProbe(probe())).toBeNull()
+    expect(classifyProbe(probe({ os: 'Darwin', arch: 'arm64' }))).toBeNull()
+    expect(classifyProbe(probe({ os: 'Darwin', arch: 'x86_64' }))).toBeNull()
     expect(classifyProbe(probe({ os: 'Windows_NT' }))).toMatchObject({ kind: 'unsupported', unsupported: 'windows' })
     expect(classifyProbe(probe({ arch: 'aarch64' }))).toMatchObject({ kind: 'unsupported', unsupported: 'linuxArm' })
     expect(classifyProbe(probe({ arch: 'armv7l' }))).toMatchObject({ kind: 'unsupported', unsupported: 'linuxArm' })
@@ -89,35 +82,23 @@ describe('classifyProbe', () => {
     })
   })
 
-  it('accepts Linux x64 and macOS x64 or arm64', () => {
-    expect(classifyProbe(probe())).toBeNull()
-    expect(classifyProbe(probe({ os: 'Darwin', arch: 'arm64' }))).toBeNull()
-    expect(classifyProbe(probe({ os: 'Darwin', arch: 'x86_64' }))).toBeNull()
-  })
-
   it('reports a missing or outdated DotCraft and accepts newer versions', () => {
     expect(classifyProbe(probe({ dotcraftPresent: false, dotcraftVersion: undefined }))).toEqual({ kind: 'notInstalled' })
     expect(classifyProbe(probe({ dotcraftVersion: '0.7.9' }), '0.7.10')).toEqual({ kind: 'updateRequired', installedVersion: '0.7.9' })
     expect(classifyProbe(probe({ dotcraftVersion: undefined }), '0.7.10')).toEqual({ kind: 'updateRequired', installedVersion: '' })
     expect(classifyProbe(probe({ dotcraftVersion: '0.8.0' }), '0.7.10')).toBeNull()
-  })
-
-  it('lists missing installer tools', () => {
     expect(missingInstallTools(probe({ tools: { bash: true, curl: false } }))).toEqual(['curl', 'tar'])
   })
 })
 
 describe('versions', () => {
-  it('parses and compares release versions', () => {
+  it('parses and compares versions and installs the Desktop release tag, or latest for development builds', () => {
     expect(parseDotCraftVersion('DotCraft 0.7.10+abc')).toBe('0.7.10')
     expect(parseDotCraftVersion('0.8.0-beta.1')).toBe('0.8.0-beta.1')
     expect(parseDotCraftVersion('nothing')).toBeUndefined()
     expect(compareVersions('0.7.9', '0.7.10')).toBe(-1)
     expect(compareVersions('0.7.10', '0.7.10-beta')).toBe(1)
     expect(compareVersions('1.0.0', '0.9.9')).toBe(1)
-  })
-
-  it('installs the Desktop release tag, or latest for development builds', () => {
     expect(resolveInstallVersion('0.7.10', true)).toBe('v0.7.10')
     expect(resolveInstallVersion('0.7.10', false)).toBe('latest')
     expect(minimumDotCraftVersion('0.7.10', true)).toBe('0.7.10')

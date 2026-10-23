@@ -15,25 +15,15 @@ public sealed class AppServerDreamsTests : IDisposable
     public void Dispose() => _workspace.Dispose();
 
     [Fact]
-    public async Task Initialize_WithDreamsService_AdvertisesDreamsCapability()
-    {
-        await using var service = _workspace.CreateService(new FakeDreamsRunner());
-        using var harness = CreateHarness(service);
-
-        var init = await harness.InitializeAsync();
-
-        Assert.True(init.RootElement.GetProperty("result").GetProperty("capabilities").GetProperty("dreams").GetBoolean());
-    }
-
-    [Fact]
-    public async Task DreamsStatus_ReportsConfigurationAndNoRunBeforeTheFirst()
+    public async Task DreamsStatus_ReportsCapabilityConfigurationAndNoRunBeforeTheFirst()
     {
         _workspace.Config.Dreams.Interval = TimeSpan.FromHours(12);
         _workspace.Config.Dreams.AutoApply = true;
         _workspace.Config.Dreams.MinSessionsSinceLastRun = 4;
         await using var service = _workspace.CreateService(new FakeDreamsRunner());
         using var harness = CreateHarness(service);
-        await harness.InitializeAsync();
+        using (var init = await harness.InitializeAsync())
+            Assert.True(init.RootElement.GetProperty("result").GetProperty("capabilities").GetProperty("dreams").GetBoolean());
 
         var result = await RequestAsync(harness, Methods.DreamsStatus, new { });
 
@@ -44,6 +34,9 @@ public sealed class AppServerDreamsTests : IDisposable
         Assert.False(result.GetProperty("running").GetBoolean());
         Assert.Equal(JsonValueKind.Null, result.GetProperty("lastRun").ValueKind);
         Assert.False(result.TryGetProperty("threadLookbackCount", out _));
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(Methods.DreamsCreate, new { scope = "nightly-report" }));
+        AppServerTestHarness.AssertIsErrorResponse(await harness.Transport.ReadNextSentAsync(), AppServerErrors.InvalidParamsCode);
     }
 
     [Fact]
@@ -170,18 +163,6 @@ public sealed class AppServerDreamsTests : IDisposable
     }
 
     [Fact]
-    public async Task DreamsCreate_WithAnUnknownScope_ReturnsInvalidParams()
-    {
-        await using var service = _workspace.CreateService(new FakeDreamsRunner());
-        using var harness = CreateHarness(service);
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(Methods.DreamsCreate, new { scope = "nightly-report" }));
-
-        AppServerTestHarness.AssertIsErrorResponse(await harness.Transport.ReadNextSentAsync(), AppServerErrors.InvalidParamsCode);
-    }
-
-    [Fact]
     public async Task ConfigBatchWrite_DreamsFields_UpdateTheMonitor()
     {
         await File.WriteAllTextAsync(Path.Combine(_workspace.CraftPath, "config.json"), """{ "Dreams": { "Enabled": true } }""");
@@ -207,27 +188,12 @@ public sealed class AppServerDreamsTests : IDisposable
         Assert.Equal(TimeSpan.FromHours(12), monitor.Current.Dreams.Interval);
         Assert.Equal(5, monitor.Current.Dreams.MinSessionsSinceLastRun);
         Assert.True(monitor.Current.Dreams.AutoApply);
-    }
-
-    [Theory]
-    [InlineData("Dreams.Interval", "\"00:00:00\"")]
-    [InlineData("Dreams.MinSessionsSinceLastRun", "0")]
-    public async Task ConfigValueWrite_InvalidDreamsFields_ReturnsValidationError(string keyPath, string valueJson)
-    {
-        await using var service = _workspace.CreateService(new FakeDreamsRunner());
-        using var harness = CreateHarness(service);
-        await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             Methods.ConfigValueWrite,
-            new System.Text.Json.Nodes.JsonObject
-            {
-                ["keyPath"] = keyPath,
-                ["value"] = System.Text.Json.Nodes.JsonNode.Parse(valueJson),
-                ["mergeStrategy"] = "replace"
-            }));
-
+            new { keyPath = "Dreams.MinSessionsSinceLastRun", value = 0, mergeStrategy = "replace" }));
         AppServerTestHarness.AssertConfigWriteError(await harness.Transport.ReadNextSentAsync(), "configValidationError");
+        Assert.Equal(5, monitor.Current.Dreams.MinSessionsSinceLastRun);
     }
 
     [Fact]

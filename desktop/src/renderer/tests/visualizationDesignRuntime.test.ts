@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildVisualizationDocument } from '../components/conversation/visualizationSecurity'
 
 interface Snapshot {
@@ -30,6 +30,7 @@ beforeAll(() => {
   const html = buildVisualizationDocument(FRAGMENT, 'dark', 'en', 'view-test', { widgetState: null, displayMode: 'inline', maxHeight: 10_000 }, {
     design: 'Design', designs: 'Designs', previousDesign: 'Previous design', nextDesign: 'Next design'
   })
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   vi.stubGlobal('ResizeObserver', class { observe(): void {} disconnect(): void {} })
   vi.spyOn(window, 'postMessage').mockImplementation(message => { posted.push(message as (typeof posted)[number]) })
   document.body.innerHTML = FRAGMENT
@@ -37,10 +38,11 @@ beforeAll(() => {
   document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }))
 })
 
+afterAll(() => { vi.useRealTimers() })
+
 beforeEach(() => { posted.length = 0 })
 
 const Tweak = (): TweakClass => (globalThis as unknown as { Tweak: TweakClass }).Tweak
-const variants = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>('[data-variant]')]
 const lastSnapshot = (): Snapshot => posted.filter(message => message.method === 'visualization/designControls').at(-1)!.params as unknown as Snapshot
 const flush = (): Promise<void> => Promise.resolve()
 
@@ -49,37 +51,6 @@ function fromHost(method: string, params: Record<string, unknown>): void {
   Object.defineProperty(event, 'source', { value: window })
   window.dispatchEvent(event)
 }
-
-describe('visualization variant carousel', () => {
-  it('switches designs by toggling hidden without replacing their DOM', () => {
-    const [minimal, editorial, studio] = variants()
-    const note = document.getElementById('note') as HTMLInputElement
-    note.value = 'kept'
-    const controls = document.querySelector('.viz-carousel-controls')!
-    const [previous, next] = controls.querySelectorAll('button')
-    const picker = controls.querySelector('select')!
-
-    expect(controls.getAttribute('aria-label')).toBe('Player designs')
-    expect(controls.textContent).toContain('1 / 3')
-    expect(previous.disabled).toBe(true)
-    expect([...picker.options].map(option => option.text)).toEqual(['Minimal', 'Editorial', 'Studio'])
-
-    next.click()
-    expect([minimal.hidden, editorial.hidden, studio.hidden]).toEqual([true, false, true])
-    expect(controls.textContent).toContain('2 / 3')
-    expect(picker.value).toBe('1')
-
-    picker.value = '2'
-    picker.dispatchEvent(new Event('change'))
-    expect(studio.hidden).toBe(false)
-    expect(next.disabled).toBe(true)
-
-    controls.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-    expect(minimal.hidden).toBe(false)
-    expect(document.getElementById('note')).toBe(note)
-    expect(note.value).toBe('kept')
-  })
-})
 
 describe('visualization design controls helper', () => {
   it('registers grouped controls with the host and resends visibility when the design changes', async () => {

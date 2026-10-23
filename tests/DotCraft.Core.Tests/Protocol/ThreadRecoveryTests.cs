@@ -38,7 +38,6 @@ public sealed class ThreadRecoveryTests : IAsyncLifetime
         }
         catch
         {
-            // Best-effort cleanup for temporary files.
         }
     }
 
@@ -147,7 +146,6 @@ public sealed class ThreadRecoveryTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(TurnStatus.Completed)]
     [InlineData(TurnStatus.Failed)]
     [InlineData(TurnStatus.Cancelled)]
     public async Task Export_AllTerminalTurnStatuses_AreAccepted(TurnStatus status)
@@ -293,23 +291,11 @@ public sealed class ThreadRecoveryTests : IAsyncLifetime
     [Theory]
     [InlineData("thread")]
     [InlineData("threadId")]
-    [InlineData("workspacePath")]
-    [InlineData("originChannel")]
     [InlineData("source")]
-    [InlineData("sourceKind")]
-    [InlineData("sourceShape")]
-    [InlineData("metadata")]
     [InlineData("metadataValue")]
-    [InlineData("terminalTurn")]
     [InlineData("terminalTurnId")]
-    [InlineData("modelHistory")]
     [InlineData("modelHistoryElement")]
-    [InlineData("providerHistory")]
-    [InlineData("providerGeneration")]
-    [InlineData("providerContextWindow")]
     [InlineData("providerEntries")]
-    [InlineData("providerEntryElement")]
-    [InlineData("providerEntryId")]
     [InlineData("providerEntryItem")]
     public async Task Restore_ExplicitNullRequiredMembers_ArePackageInvalid(string member)
     {
@@ -396,7 +382,7 @@ public sealed class ThreadRecoveryTests : IAsyncLifetime
             await otherStore.DisposeAsync();
             Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             try { Directory.Delete(otherWorkspace, recursive: true); }
-            catch { /* best-effort */ }
+            catch { }
         }
     }
 

@@ -37,10 +37,12 @@ public sealed class DeepThinkingChatClientTests
         Assert.Equal("""{"path":"a.txt"}""", toolCall.GetProperty("function").GetProperty("arguments").GetString());
     }
 
-    [Fact]
-    public void Prepare_ForMimoModel_AddsReasoningContentRawRepresentation()
+    [Theory]
+    [InlineData("mimo-v2.5-pro")]
+    [InlineData("provider/xiaomi/mimo-v2.5-pro")]
+    public void Prepare_ForMimoModel_AddsReasoningContentRawRepresentation(string model)
     {
-        var client = CreateClient(endpoint: "https://api.openai-compatible.test/v1", model: "mimo-v2.5-pro");
+        var client = CreateClient(endpoint: "https://api.openai-compatible.test/v1", model: model);
         var message = new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
         [
             new TextReasoningContent("need a tool"),
@@ -54,22 +56,6 @@ public sealed class DeepThinkingChatClientTests
             Assert.Single(prepared.Messages).RawRepresentation);
         using var document = JsonDocument.Parse(ModelReaderWriter.Write(raw).ToString());
         Assert.Equal("need a tool", document.RootElement.GetProperty("reasoning_content").GetString());
-    }
-
-    [Fact]
-    public void Prepare_ForNamespacedMimoModel_AddsReasoningContentRawRepresentation()
-    {
-        var client = CreateClient(endpoint: "https://api.openai-compatible.test/v1", model: "provider/xiaomi/mimo-v2.5-pro");
-        var message = new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
-        [
-            new TextReasoningContent("need a tool"),
-            new FunctionCallContent("call-1", "ReadFile", null)
-        ]);
-
-        var prepared = client.Prepare([message], null);
-
-        Assert.IsType<OpenAI.Chat.AssistantChatMessage>(
-            Assert.Single(prepared.Messages).RawRepresentation);
     }
 
     [Fact]

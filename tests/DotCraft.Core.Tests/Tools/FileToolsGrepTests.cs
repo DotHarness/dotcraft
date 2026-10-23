@@ -17,7 +17,7 @@ public sealed class FileToolsGrepTests : IDisposable
     }
 
     [Fact]
-    public void ResolveRipgrepPath_ConfiguredPathWinsOverEnvironment()
+    public void ResolveRipgrepPath_ConfiguredPathWinsOverEnvironmentWhichIsTheFallback()
     {
         var configured = Touch("configured-rg.exe");
         var env = Touch("env-rg.exe");
@@ -26,28 +26,8 @@ public sealed class FileToolsGrepTests : IDisposable
         {
             Environment.SetEnvironmentVariable(RipgrepFileSearcher.EnvironmentVariableName, env);
 
-            var resolved = RipgrepFileSearcher.ResolveRipgrepPath(configured);
-
-            Assert.Equal(Path.GetFullPath(configured), resolved);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(RipgrepFileSearcher.EnvironmentVariableName, previous);
-        }
-    }
-
-    [Fact]
-    public void ResolveRipgrepPath_UsesEnvironmentWhenConfigIsEmpty()
-    {
-        var env = Touch("env-rg.exe");
-        var previous = Environment.GetEnvironmentVariable(RipgrepFileSearcher.EnvironmentVariableName);
-        try
-        {
-            Environment.SetEnvironmentVariable(RipgrepFileSearcher.EnvironmentVariableName, env);
-
-            var resolved = RipgrepFileSearcher.ResolveRipgrepPath("");
-
-            Assert.Equal(Path.GetFullPath(env), resolved);
+            Assert.Equal(Path.GetFullPath(configured), RipgrepFileSearcher.ResolveRipgrepPath(configured));
+            Assert.Equal(Path.GetFullPath(env), RipgrepFileSearcher.ResolveRipgrepPath(""));
         }
         finally
         {
@@ -284,7 +264,6 @@ public sealed class FileToolsGrepTests : IDisposable
         }
         catch
         {
-            // ignored
         }
     }
 }

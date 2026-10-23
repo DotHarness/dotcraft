@@ -13,64 +13,19 @@ public sealed class StreamRetryingChatClientTests
     private static readonly TimeSpan HangingStreamCompletionTimeout = TimeSpan.FromSeconds(10);
 
     [Fact]
-    public async Task GetStreamingResponseAsync_ReportsOneSuccessfulAttempt()
-    {
-        var inner = new SequenceChatClient(
-            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
-        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
-        var attempts = new List<ModelStreamAttemptDiagnostic>();
-
-        using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
-        {
-            NotifyRetry = _ => { },
-            NotifyAttemptCompleted = attempts.Add
-        });
-
-        _ = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]));
-
-        var attempt = Assert.Single(attempts);
-        Assert.Equal(1, attempt.AttemptNumber);
-        Assert.Equal("succeeded", attempt.Outcome);
-        Assert.Equal("none", attempt.RetryDecision);
-        Assert.Null(attempt.FailureKind);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_ReportsScheduledRetryThenSuccess()
-    {
-        var inner = new SequenceChatClient(
-            _ => ThrowStream(new IOException("stream closed before completion")),
-            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
-        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
-        var attempts = new List<ModelStreamAttemptDiagnostic>();
-
-        using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
-        {
-            NotifyRetry = _ => { },
-            NotifyAttemptCompleted = attempts.Add
-        });
-
-        _ = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]));
-
-        Assert.Equal([1, 2], attempts.Select(static attempt => attempt.AttemptNumber).ToArray());
-        Assert.Equal("scheduled", attempts[0].RetryDecision);
-        Assert.Equal("io", attempts[0].FailureKind);
-        Assert.Equal("succeeded", attempts[1].Outcome);
-        Assert.Equal("none", attempts[1].RetryDecision);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_RetriesBeforeVisibleUpdateAndReportsStreamError()
+    public async Task GetStreamingResponseAsync_RetriesBeforeVisibleUpdateAndReportsAttempts()
     {
         var inner = new SequenceChatClient(
             _ => ThrowStream(new IOException("stream closed before completion")),
             _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
         var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
         var notifications = new List<string>();
+        var attempts = new List<ModelStreamAttemptDiagnostic>();
 
         using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
         {
-            NotifyRetry = n => notifications.Add($"{n.Attempt}/{n.MaxAttempts}")
+            NotifyRetry = n => notifications.Add($"{n.Attempt}/{n.MaxAttempts}"),
+            NotifyAttemptCompleted = attempts.Add
         });
 
         var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]));
@@ -78,6 +33,12 @@ public sealed class StreamRetryingChatClientTests
         Assert.Equal(2, inner.Calls);
         Assert.Equal(["1/1"], notifications);
         Assert.Equal("ok", string.Concat(updates.SelectMany(update => update.Contents).OfType<TextContent>().Select(text => text.Text)));
+        Assert.Equal([1, 2], attempts.Select(static attempt => attempt.AttemptNumber).ToArray());
+        Assert.Equal("scheduled", attempts[0].RetryDecision);
+        Assert.Equal("io", attempts[0].FailureKind);
+        Assert.Equal("succeeded", attempts[1].Outcome);
+        Assert.Equal("none", attempts[1].RetryDecision);
+        Assert.Null(attempts[1].FailureKind);
     }
 
     [Fact]
@@ -159,10 +120,10 @@ public sealed class StreamRetryingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_DoesNotRetryAfterVisibleUpdateWhenIdleDisposeHangs()
+    public async Task GetStreamingResponseAsync_DoesNotRetryAfterVisibleUpdateWhenStreamGoesIdle()
     {
         var inner = new SequenceChatClient(
-            _ => new HangingStream([new ChatResponseUpdate(ChatRole.Assistant, "partial")]),
+            _ => new HangingStream([new ChatResponseUpdate(ChatRole.Assistant, "partial")], disposeHangs: false),
             _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "retry")]));
         var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1, idleTimeoutMs: FastIdleTimeoutMs));
         var seen = new List<ChatResponseUpdate>();
@@ -236,26 +197,21 @@ public sealed class StreamRetryingChatClientTests
             content => content is FunctionResultContent or ErrorContent);
     }
 
-    [Fact]
-    public async Task GetStreamingResponseAsync_DoesNotReplayRateLimitedFailure()
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.BadRequest)]
+    public async Task GetStreamingResponseAsync_DoesNotReplayNonTransientHttpFailure(HttpStatusCode status)
     {
         var inner = new SequenceChatClient(
-            _ => StreamThenThrow(
-                [],
-                new HttpRequestException("slow down", null, HttpStatusCode.TooManyRequests)),
-            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
+            _ => ThrowStream(new HttpRequestException("failed", null, status)),
+            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "retry")]));
         var client = new StreamRetryingChatClient(inner, Options(maxRetries: 3));
 
-        await Assert.ThrowsAsync<HttpRequestException>(async () =>
-        {
-            await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
-            {
-            }
-        });
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")])));
 
         Assert.Equal(1, inner.Calls);
     }
-
 
     [Fact]
     public async Task GetStreamingResponseAsync_RetriesCompletedServerErrorOnceWithoutVisibleOutput()
@@ -425,24 +381,6 @@ public sealed class StreamRetryingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_DoesNotRetryBadRequest()
-    {
-        var inner = new SequenceChatClient(
-            _ => ThrowStream(new HttpRequestException("bad request", null, HttpStatusCode.BadRequest)),
-            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "retry")]));
-        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
-
-        await Assert.ThrowsAsync<HttpRequestException>(async () =>
-        {
-            await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
-            {
-            }
-        });
-
-        Assert.Equal(1, inner.Calls);
-    }
-
-    [Fact]
     public async Task GetStreamingResponseAsync_ThrowsAfterRetryBudgetExhausted()
     {
         var inner = new SequenceChatClient(
@@ -574,7 +512,7 @@ public sealed class StreamRetryingChatClientTests
         public ValueTask DisposeAsync() => ValueTask.FromException(disposeException);
     }
 
-    private sealed class HangingStream(IReadOnlyList<ChatResponseUpdate>? prefix = null)
+    private sealed class HangingStream(IReadOnlyList<ChatResponseUpdate>? prefix = null, bool disposeHangs = true)
         : IAsyncEnumerable<ChatResponseUpdate>, IAsyncEnumerator<ChatResponseUpdate>
     {
         private readonly IReadOnlyList<ChatResponseUpdate> _prefix = prefix ?? [];
@@ -597,7 +535,7 @@ public sealed class StreamRetryingChatClientTests
             return new ValueTask<bool>(_moveNextCompletion.Task);
         }
 
-        public ValueTask DisposeAsync() => new(_disposeCompletion.Task);
+        public ValueTask DisposeAsync() => disposeHangs ? new(_disposeCompletion.Task) : ValueTask.CompletedTask;
     }
 
     private sealed class CancellationCleanupStream

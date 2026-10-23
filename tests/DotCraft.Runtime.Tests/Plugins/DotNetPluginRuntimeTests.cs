@@ -7,7 +7,6 @@ using static DotCraft.Tests.Runtime.Plugins.PluginRuntimeHarness;
 
 namespace DotCraft.Tests.Runtime.Plugins;
 
-/// <summary>Covers the manager-level activation and deactivation transaction.</summary>
 public sealed class DotNetPluginRuntimeTests : IDisposable
 {
     private readonly PluginRuntimeHarness _harness = new();
@@ -345,7 +344,7 @@ public sealed class DotNetPluginRuntimeTests : IDisposable
     }
 
     [Fact]
-    public async Task Runtime_CallerCancellationAfterActivationStartsDoesNotCancelTransition()
+    public async Task Runtime_CallerCancellationDoesNotCancelAStartedActivation_ButCancelsAQueuedMutation()
     {
         const string pluginId = "activation-caller-cancellation";
         WritePlugin(
@@ -354,50 +353,22 @@ public sealed class DotNetPluginRuntimeTests : IDisposable
             "ActivationCallerCancellation.Plugin",
             BlockingActivationPluginSource("ActivationCallerCancellation"));
         await using var manager = _harness.CreateManager(activationTimeout: TimeSpan.FromSeconds(10));
-        using var cancellation = new CancellationTokenSource();
+        using var startCancellation = new CancellationTokenSource();
+        using var mutationCancellation = new CancellationTokenSource();
         var startedPath = _harness.DataPath(pluginId, "activation-started");
         var releasePath = _harness.DataPath(pluginId, "activation-release");
 
-        var start = manager.StartAsync(cancellation.Token);
+        var start = manager.StartAsync(startCancellation.Token);
         await WaitForFileAsync(startedPath);
-        cancellation.Cancel();
+        startCancellation.Cancel();
 
         try
         {
             var completed = await Task.WhenAny(start, Task.Delay(200));
             Assert.NotSame(start, completed);
-        }
-        finally
-        {
-            File.WriteAllText(releasePath, "release");
-        }
-
-        await start.WaitAsync(TimeSpan.FromSeconds(30));
-        AssertState(Plugin(manager, pluginId), PluginDotnetRuntimeState.Active);
-    }
-
-    [Fact]
-    public async Task Runtime_CallerCancellationWhileWaitingForMutationLockCancelsTheWait()
-    {
-        const string pluginId = "mutation-lock-cancellation";
-        WritePlugin(
-            _harness.PluginRoot(pluginId),
-            pluginId,
-            "MutationLockCancellation.Plugin",
-            BlockingActivationPluginSource("MutationLockCancellation"));
-        await using var manager = _harness.CreateManager(activationTimeout: TimeSpan.FromSeconds(10));
-        var startedPath = _harness.DataPath(pluginId, "activation-started");
-        var releasePath = _harness.DataPath(pluginId, "activation-release");
-
-        var start = manager.StartAsync(CancellationToken.None);
-        await WaitForFileAsync(startedPath);
-        using var cancellation = new CancellationTokenSource();
-        var waiting = manager.SetEnabledAsync(pluginId, enabled: false, cancellation.Token);
-        Assert.False(waiting.IsCompleted);
-
-        try
-        {
-            cancellation.Cancel();
+            var waiting = manager.SetEnabledAsync(pluginId, enabled: false, mutationCancellation.Token);
+            Assert.False(waiting.IsCompleted);
+            mutationCancellation.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
         }
         finally
@@ -552,7 +523,6 @@ public sealed class DotNetPluginRuntimeTests : IDisposable
         Assert.Empty(GenerationAssemblies(_harness.GenerationsRoot));
     }
 
-    /// <summary>A failed activation must leave both an operator-visible log line and a client-visible diagnostic, not only a snapshot blocker.</summary>
     private void AssertReported(DotNetPluginRuntimeManager manager, string pluginId, string blockerCode)
     {
         Assert.Contains(

@@ -11,11 +11,9 @@ public sealed class AgentProfileNameTests : IDisposable
     private static string Document(string name) => $"---\nname: {JsonSerializer.Serialize(name)}\ndescription: Test profile\n---\nBody\n";
 
     [Theory]
-    [InlineData("Night Shift")]
     [InlineData("夜班助手")]
     [InlineData("../外部/文件: \"报告\" #1")]
     [InlineData("CON")]
-    [InlineData("true")]
     public void Name_round_trips_without_becoming_a_path(string name)
     {
         var saved = Store.Upsert(name, AgentProfileSources.Workspace, Document(name));

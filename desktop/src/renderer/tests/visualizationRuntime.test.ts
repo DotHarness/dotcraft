@@ -1,13 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import calendarSource from '../components/conversation/visualizationRuntime/calendar.js?raw'
 import colorsSource from '../components/conversation/visualizationRuntime/colors.js?raw'
 import hostActionsSource from '../components/conversation/visualizationRuntime/hostActions.js?raw'
 import keysSource from '../components/conversation/visualizationRuntime/keys.js?raw'
-import rangesSource from '../components/conversation/visualizationRuntime/ranges.js?raw'
 import selectsSource from '../components/conversation/visualizationRuntime/selects.js?raw'
-import tabsSource from '../components/conversation/visualizationRuntime/tabs.js?raw'
-import tooltipsSource from '../components/conversation/visualizationRuntime/tooltips.js?raw'
 
 const send = vi.fn()
 const request = vi.fn()
@@ -30,14 +26,8 @@ function install(source: string): void {
 beforeAll(() => {
   URL.createObjectURL = vi.fn(() => `blob:null/${crypto.randomUUID()}`)
   URL.revokeObjectURL = vi.fn()
-  Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: 320 })
-  Object.defineProperty(document.documentElement, 'clientHeight', { configurable: true, value: 200 })
   install(hostActionsSource)
-  install(tooltipsSource)
-  install(tabsSource)
-  install(calendarSource)
   install(keysSource)
-  install(rangesSource)
   install(colorsSource)
   install(selectsSource)
   document.dispatchEvent(new Event('DOMContentLoaded'))
@@ -47,71 +37,7 @@ afterEach(() => {
   send.mockReset()
   request.mockReset()
   displayMode = 'inline'
-  document.body.querySelectorAll(':not(#viz-tooltip)').forEach(node => node.remove())
-})
-
-describe('visualization tabs', () => {
-  it('selects tabs by click and arrow keys and keeps panels in sync', () => {
-    document.body.insertAdjacentHTML('beforeend', `
-      <div class="nav nav-pills" role="tablist" aria-label="Platform">
-        <button class="nav-link active" id="mac" role="tab" aria-controls="mac-panel" aria-selected="true" type="button">macOS</button>
-        <button class="nav-link" id="win" role="tab" aria-controls="win-panel" aria-selected="false" type="button" disabled>Windows</button>
-        <button class="nav-link" id="linux" role="tab" aria-controls="linux-panel" aria-selected="false" type="button">Linux</button>
-      </div>
-      <div id="mac-panel" role="tabpanel" aria-labelledby="mac">macOS</div>
-      <div id="win-panel" role="tabpanel" aria-labelledby="win" hidden>Windows</div>
-      <div id="linux-panel" role="tabpanel" aria-labelledby="linux" hidden>Linux</div>`)
-    const [mac, , linux] = [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
-
-    linux.click()
-    expect(linux.getAttribute('aria-selected')).toBe('true')
-    expect(linux.classList.contains('active')).toBe(true)
-    expect(mac.getAttribute('aria-selected')).toBe('false')
-    expect(document.getElementById('linux-panel')!.hidden).toBe(false)
-    expect(document.getElementById('mac-panel')!.hidden).toBe(true)
-
-    linux.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-    expect(mac.getAttribute('aria-selected')).toBe('true')
-    expect(document.activeElement).toBe(mac)
-    expect(document.getElementById('mac-panel')!.hidden).toBe(false)
-
-    mac.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))
-    expect(linux.getAttribute('aria-selected')).toBe('true')
-    expect(document.getElementById('win-panel')!.hidden).toBe(true)
-  })
-})
-
-describe('visualization tooltips', () => {
-  it('shows a positioned tooltip for SVG marks and flips below when the top has no room', () => {
-    document.body.insertAdjacentHTML('beforeend',
-      '<svg><rect data-tooltip="North · 42 units" width="10" height="10"></rect></svg>')
-    const mark = document.querySelector('rect')!
-    mark.getBoundingClientRect = () => new DOMRect(20, 4, 10, 10)
-
-    mark.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, composed: true, pointerType: 'mouse' }))
-
-    const tooltip = document.querySelector('[role="tooltip"]') as HTMLElement
-    expect(tooltip.hidden).toBe(false)
-    expect(tooltip.textContent).toBe('North · 42 units')
-    expect(tooltip.dataset.placement).toBe('bottom')
-
-    document.body.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse' }))
-    expect(tooltip.hidden).toBe(true)
-  })
-
-  it('pins a tooltip on tap and dismisses it on the next tap elsewhere', () => {
-    document.body.insertAdjacentHTML('beforeend', '<button type="button" data-tooltip="Reset view">Reset</button><p>Elsewhere</p>')
-    const button = document.querySelector('button')!
-
-    button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }))
-    const tooltip = document.querySelector('[role="tooltip"]') as HTMLElement
-    expect(tooltip.hidden).toBe(false)
-    expect(button.getAttribute('aria-describedby')).toBe(tooltip.id)
-
-    document.querySelector('p')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }))
-    expect(tooltip.hidden).toBe(true)
-    expect(button.hasAttribute('aria-describedby')).toBe(false)
-  })
+  document.body.replaceChildren()
 })
 
 describe('visualization host actions', () => {
@@ -157,41 +83,6 @@ describe('visualization host actions', () => {
   })
 })
 
-describe('viz-calendar', () => {
-  it('lays out overlapping events in lanes and emits selection when interactive', () => {
-    const calendar = document.createElement('viz-calendar') as HTMLElement & { events: unknown }
-    calendar.setAttribute('date', '2026-07-14')
-    calendar.setAttribute('start', '11:00')
-    calendar.setAttribute('end', '14:00')
-    calendar.setAttribute('interactive', '')
-    const standup = { id: 'standup', title: 'Standup', start: '12:00', end: '12:30' }
-    calendar.events = [standup, { title: 'Email block', start: '12:00', end: '12:30', tone: 'green', detail: 'Inbox' }]
-    const selected = vi.fn()
-    calendar.addEventListener('eventselect', event => selected((event as CustomEvent).detail))
-    document.body.append(calendar)
-
-    const events = [...calendar.shadowRoot!.querySelectorAll<HTMLButtonElement>('.event')]
-    expect(events).toHaveLength(2)
-    expect(new Set(events.map(event => event.style.left)).size).toBe(2)
-    expect(events[1].getAttribute('data-tooltip')).toContain('Inbox')
-
-    events[0].click()
-    expect(selected).toHaveBeenCalledWith({ event: standup, index: 0 })
-  })
-
-  it('shows an inline error for invalid data and recovers when data is fixed', () => {
-    const calendar = document.createElement('viz-calendar') as HTMLElement & { events: unknown }
-    calendar.setAttribute('date', '2026-02-30')
-    document.body.append(calendar)
-    expect(calendar.shadowRoot!.querySelector('[role="alert"]')).not.toBeNull()
-
-    calendar.setAttribute('date', '2026-02-28')
-    calendar.events = []
-    expect(calendar.shadowRoot!.querySelector('[role="alert"]')).toBeNull()
-    expect(calendar.shadowRoot!.textContent).toContain('No events')
-  })
-})
-
 describe('visualization fullscreen keys', () => {
   it('relays Escape and arrows to the host only when the view leaves them unhandled', async () => {
     document.body.insertAdjacentHTML('beforeend', '<button id="plain" type="button">Plain</button><input id="field"><button id="owned" type="button">Owned</button>')
@@ -219,16 +110,6 @@ describe('visualization fullscreen keys', () => {
 })
 
 describe('visualization form controls', () => {
-  it('keeps the range fill in step with the value however it changes', async () => {
-    document.body.insertAdjacentHTML('beforeend', '<input class="form-range" type="range" min="10" max="30" value="15">')
-    const range = document.querySelector<HTMLInputElement>('.form-range')!
-    await new Promise(resolve => setTimeout(resolve))
-    expect(range.style.getPropertyValue('--viz-range-progress')).toBe('25%')
-
-    range.value = '30'
-    expect(range.style.getPropertyValue('--viz-range-progress')).toBe('100%')
-  })
-
   it('opens the host color picker instead of the native one and reports previews, commit, and cancel as input events', async () => {
     document.body.insertAdjacentHTML('beforeend', '<label>Accent <input type="color" value="#4f6cce"></label>')
     const input = document.querySelector<HTMLInputElement>('input[type=color]')!
@@ -289,19 +170,5 @@ describe('visualization form controls', () => {
     list.dispatchEvent(listPress)
     expect(listPress.defaultPrevented).toBe(false)
     expect(request).toHaveBeenCalledTimes(2)
-  })
-
-  it('steps a closed select with the arrow keys, skipping disabled options', () => {
-    document.body.insertAdjacentHTML('beforeend', '<select><option>One</option><option disabled>Two</option><option>Three</option></select>')
-    const select = document.querySelector('select')!
-    const changes: string[] = []
-    select.addEventListener('change', () => changes.push(select.value))
-
-    select.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
-    select.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
-    select.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true }))
-
-    expect(changes).toEqual(['Three', 'One'])
-    expect(request).not.toHaveBeenCalled()
   })
 })

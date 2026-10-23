@@ -23,7 +23,11 @@ public sealed class SessionServiceDeferredInvocationSurfaceTests : IDisposable
         Directory.CreateDirectory(_tempDir);
     }
 
-    public void Dispose() => Directory.Delete(_tempDir, recursive: true);
+    public void Dispose()
+    {
+        try { Directory.Delete(_tempDir, recursive: true); }
+        catch { }
+    }
 
     [Theory]
     [InlineData(ModelProviderProtocols.OpenAIResponses, AppConfig.DeferredLoadingStrategy.Native, true)]

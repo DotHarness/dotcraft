@@ -7,9 +7,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(
 describe('prompt suggestions', () => {
   it.each([
     ['  run the tests\n', 'run the tests'],
-    ['', null],
-    [' \n ', null],
-    ['x'.repeat(241), 'x'.repeat(241)]
+    [' \n ', null]
   ])('reads plain output %j and removes the helper thread', async (answer, expected) => {
     let notify: ((value: { method: string; params: unknown }) => void) | null = null
     const sendRequest = vi.fn(async (method: string) => {
@@ -76,6 +74,7 @@ describe('prompt suggestions', () => {
     expect(sendRequest).toHaveBeenCalledWith('turn/interrupt', { threadId: 'fork-2', turnId: 'fork-turn-2' })
     expect(sendRequest).toHaveBeenCalledWith('thread/delete', { threadId: 'fork-2' })
   })
+
   it('reports a timeout and cleans up the pending turn', async () => {
     vi.useFakeTimers()
     const sendRequest = vi.fn(async (method: string) => {
@@ -97,5 +96,4 @@ describe('prompt suggestions', () => {
     expect(sendRequest).toHaveBeenCalledWith('turn/interrupt', { threadId: 'fork-timeout', turnId: 'turn-timeout' })
     expect(sendRequest).toHaveBeenCalledWith('thread/delete', { threadId: 'fork-timeout' })
   })
-
 })

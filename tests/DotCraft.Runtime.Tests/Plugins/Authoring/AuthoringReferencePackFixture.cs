@@ -9,8 +9,13 @@ namespace DotCraft.Tests.Runtime.Plugins.Authoring;
 
 public sealed class AuthoringReferencePackFixture : IDisposable
 {
+    private readonly Lazy<DotNetPluginReferenceSet> _references;
+    private readonly Lazy<DotNetPluginApiInspector> _inspector;
+
     public AuthoringReferencePackFixture()
     {
+        _references = new(() => DotNetPluginReferenceSet.Load(HostAssemblyPath));
+        _inspector = new(() => new DotNetPluginApiInspector(Load()));
         Root = Path.Combine(
             Path.GetTempPath(),
             "dotcraft-tests",
@@ -43,7 +48,9 @@ public sealed class AuthoringReferencePackFixture : IDisposable
 
     public string HostAssemblyPath { get; }
 
-    internal DotNetPluginReferenceSet Load() => DotNetPluginReferenceSet.Load(HostAssemblyPath);
+    internal DotNetPluginReferenceSet Load() => _references.Value;
+
+    internal DotNetPluginApiInspector Inspector => _inspector.Value;
 
     public void Dispose()
     {

@@ -100,7 +100,7 @@ public sealed class McpPreRegisteredOAuthIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ThreadConfiguration_ProjectsMaskedSecret_AndPreservesItOnUpdate()
+    public async Task ThreadConfiguration_MasksTheSecretAndPreservesItWhenOmittedOrWrittenBackMasked()
     {
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync();
@@ -115,42 +115,27 @@ public sealed class McpPreRegisteredOAuthIntegrationTests : IAsyncLifetime
         });
         Assert.DoesNotContain("secret-a", started.RootElement.ToString());
         var threadId = started.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
-        using var updated = await RpcAsync(harness, "thread/config/update", new
+
+        using (await RpcAsync(harness, "thread/config/update", new
         {
             threadId, config = new { mcpServers = new[] { new
             {
                 name = "thread-oauth", enabled = false, transport = "http", url = _server.McpUrl,
                 oauth = new { clientId = "client-a", callbackUrl = _callback }
             } } }
-        });
-        var thread = await harness.Service.GetThreadAsync(threadId);
-        Assert.Equal("secret-a", thread.Configuration!.McpServers!.Single().OAuth!.ClientSecret);
-    }
-
-    [Fact]
-    public async Task ThreadConfiguration_WritingBackTheReadProjection_PreservesSecret()
-    {
-        using var harness = new AppServerTestHarness();
-        await harness.InitializeAsync();
-        using var started = await RpcAsync(harness, "thread/start", new
+        }))
         {
-            identity = new { channelName = "appserver", userId = "oauth-test", workspacePath = harness.Identity.WorkspacePath },
-            config = new { mcpServers = new[] { new
-            {
-                name = "thread-oauth", enabled = false, transport = "http", url = _server.McpUrl,
-                oauth = new { clientId = "client-a", clientSecret = "secret-a", callbackUrl = _callback }
-            } } }
-        });
-        var threadId = started.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+        }
+        Assert.Equal("secret-a", (await harness.Service.GetThreadAsync(threadId)).Configuration!.McpServers!.Single().OAuth!.ClientSecret);
+
         using var read = await RpcAsync(harness, "thread/read", new { threadId });
         var config = JsonNode.Parse(read.RootElement.GetProperty("result").GetProperty("thread").GetProperty("configuration").GetRawText())!.AsObject();
         Assert.Equal("********", config["mcpServers"]![0]!["oauth"]!["clientSecret"]!.GetValue<string>());
         config["developerInstructions"] = "Answer briefly.";
-
-        using var updated = await RpcAsync(harness, "thread/config/update", new { threadId, config });
-
-        var thread = await harness.Service.GetThreadAsync(threadId);
-        Assert.Equal("secret-a", thread.Configuration!.McpServers!.Single().OAuth!.ClientSecret);
+        using (await RpcAsync(harness, "thread/config/update", new { threadId, config }))
+        {
+        }
+        Assert.Equal("secret-a", (await harness.Service.GetThreadAsync(threadId)).Configuration!.McpServers!.Single().OAuth!.ClientSecret);
     }
 
     [Fact]

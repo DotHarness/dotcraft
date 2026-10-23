@@ -5,27 +5,14 @@ namespace DotCraft.App.Tests.Acp;
 
 public sealed class AcpBridgeHandlerToolResultContentTests
 {
-    [Fact]
-    public void BuildToolResultContent_TodoSuccess_ReturnsNull()
+    [Theory]
+    [InlineData("TodoWrite", "Plan updated", true, null)]
+    [InlineData("TodoWrite", "Failed to update plan", false, "Failed to update plan")]
+    [InlineData("ReadFile", "file content", true, "file content")]
+    public void BuildToolResultContent_HidesOnlySuccessfulPlanUpdates(string tool, string result, bool success, string? expected)
     {
-        Assert.Null(AcpBridgeHandler.BuildToolResultContent("TodoWrite", "Plan updated", success: true));
-    }
+        var content = AcpBridgeHandler.BuildToolResultContent(tool, result, success);
 
-    [Fact]
-    public void BuildToolResultContent_TodoFailure_KeepsResultPreview()
-    {
-        var content = AcpBridgeHandler.BuildToolResultContent("TodoWrite", "Failed to update plan", success: false);
-
-        Assert.NotNull(content);
-        Assert.Equal("Failed to update plan", content![0].Text);
-    }
-
-    [Fact]
-    public void BuildToolResultContent_OtherToolSuccess_KeepsResultPreview()
-    {
-        var content = AcpBridgeHandler.BuildToolResultContent("ReadFile", "file content", success: true);
-
-        Assert.NotNull(content);
-        Assert.Equal("file content", content![0].Text);
+        Assert.Equal(expected, content?[0].Text);
     }
 }

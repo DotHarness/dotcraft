@@ -41,13 +41,11 @@ const sources = collectWebCitationSources([
 ])
 
 describe('collectWebCitationSources', () => {
-  it('keeps http(s) results with a ref id and labels them by domain', () => {
+  it('keeps http(s) results with a ref id, labels them by domain, and lets a later search redefine a ref id', () => {
     expect([...sources.keys()]).toEqual(['turn0search0', 'turn0search1', 'turn0search3'])
     expect(sources.get('turn0search0')).toEqual({ url: 'https://www.example.com/a', label: 'example.com' })
     expect(sources.get('turn0search1')).toEqual({ url: 'https://docs.example.org/b(1)', label: 'docs.example.org' })
-  })
 
-  it('lets a later search redefine a ref id', () => {
     const later = collectWebCitationSources([
       turn('t1', [searchItem('s1', [{ ref_id: 'turn0search0', url: 'https://old.test/' }])]),
       turn('t2', [searchItem('s2', [{ ref_id: 'turn0search0', url: 'https://new.test/' }])])
@@ -57,25 +55,19 @@ describe('collectWebCitationSources', () => {
 })
 
 describe('formatWebCitations', () => {
-  it('leaves text without markers untouched', () => {
+  it('renders a resolvable citation as a link to its first source and leaves plain text untouched', () => {
     const text = 'Plain [link](https://example.com) text.'
     expect(hasWebCitationMarkers(text)).toBe(false)
     expect(formatWebCitations(text, sources, 'display')).toBe(text)
-  })
-
-  it('renders a resolvable citation as a link to its first source', () => {
     expect(formatWebCitations(`Shipped in May ${cite('turn0search0')}.`, sources, 'display'))
       .toBe('Shipped in May [example.com](<https://www.example.com/a>).')
     expect(formatWebCitations(`A ${cite('turn0search0', 'turn0search1', 'turn0search0')}`, sources, 'display'))
       .toBe('A [example.com +1](<https://www.example.com/a>)')
   })
 
-  it('copies every resolvable source as a Markdown link', () => {
+  it('copies every resolvable source as a Markdown link with escaped labels', () => {
     expect(formatWebCitations(`A ${cite('turn0search0', 'missing', 'turn0search1')}.`, sources, 'copy'))
       .toBe('A ([example.com](<https://www.example.com/a>), [docs.example.org](<https://docs.example.org/b(1)>)).')
-  })
-
-  it('escapes link labels', () => {
     expect(formatWebCitations(cite('turn0search3'), sources, 'copy')).toBe('([x\\[y\\].test](<https://x.test/[a]>))')
   })
 
@@ -96,13 +88,10 @@ describe('formatWebCitations', () => {
       .toBe('[example.com](<https://www.example.com/a>) and ')
   })
 
-  it('never leaves stray marker characters in finished text', () => {
+  it('never leaves stray marker characters and strips every marker when no sources are known', () => {
     const formatted = formatWebCitations(`Broken ${START}cite${SEP}turn0search0 tail ${END} end`, sources, 'display')
     expect(formatted).not.toMatch(PUA)
     expect(stripWebCitations(`a${SEP}b${END}c`)).toBe('abc')
-  })
-
-  it('strips every marker when no sources are known', () => {
     expect(stripWebCitations(`Claim ${cite('turn0search0')}.`)).toBe('Claim .')
     expect(stripWebCitations(`Claim ${START}cite`, true)).toBe('Claim ')
   })

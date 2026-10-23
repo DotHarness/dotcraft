@@ -28,6 +28,7 @@ public sealed class SystemPromptSectionContributionTests : IDisposable
         var registry = CreateRegistry();
         // Straddle the built-in identity section, which is registered at order 100.
         registry.Add<ISystemPromptSection>(new MarkerSection("before", "MARKER-BEFORE"), new ContributionOptions(Order: 50));
+        registry.Add<ISystemPromptSection>(new MarkerSection("tie", "MARKER-TIE"), new ContributionOptions(Order: 50));
         registry.Add<ISystemPromptSection>(new MarkerSection("after", "MARKER-AFTER"), new ContributionOptions(Order: 150));
         registry.Add<ISystemPromptSection>(new MarkerSection("last", "MARKER-LAST"), new ContributionOptions(Order: 5000));
         registry.Add<ISystemPromptSection>(new MarkerSection("identity-swap", "MARKER-IDENTITY"),
@@ -35,23 +36,11 @@ public sealed class SystemPromptSectionContributionTests : IDisposable
 
         var prompt = CreateBuilder(registry).BuildSystemPrompt("thread-a");
 
-        AssertOrder(prompt, "MARKER-BEFORE", "MARKER-AFTER", "MARKER-IDENTITY", "MARKER-LAST");
+        AssertOrder(prompt, "MARKER-BEFORE", "MARKER-TIE", "MARKER-AFTER", "MARKER-IDENTITY", "MARKER-LAST");
     }
 
     [Fact]
-    public void Sections_WithEqualOrder_KeepRegistrationOrder()
-    {
-        var registry = CreateRegistry();
-        registry.Add<ISystemPromptSection>(new MarkerSection("one", "MARKER-ONE"), new ContributionOptions(Order: 50));
-        registry.Add<ISystemPromptSection>(new MarkerSection("two", "MARKER-TWO"), new ContributionOptions(Order: 50));
-
-        var prompt = CreateBuilder(registry).BuildSystemPrompt();
-
-        AssertOrder(prompt, "MARKER-ONE", "MARKER-TWO");
-    }
-
-    [Fact]
-    public void Replacement_ShadowsTheNamedDefaultAndRestoresItOnDispose()
+    public void Replacement_ShadowsOrSuppressesTheNamedDefaultAndRestoresItOnDispose()
     {
         var registry = CreateRegistry();
         var builder = CreateBuilder(registry);
@@ -68,24 +57,20 @@ public sealed class SystemPromptSectionContributionTests : IDisposable
         handle.Dispose();
 
         Assert.Equal(withDefault, builder.BuildSystemPrompt("thread-a"));
-    }
 
-    [Fact]
-    public void Replacement_ProducingNoContent_SuppressesTheTargetSection()
-    {
-        var registry = CreateRegistry();
-        var builder = CreateBuilder(registry);
-        var withDefault = builder.BuildSystemPrompt("thread-a");
+        var suppressingRegistry = CreateRegistry();
+        var suppressingBuilder = CreateBuilder(suppressingRegistry);
+        var suppressingDefault = suppressingBuilder.BuildSystemPrompt("thread-a");
 
-        registry.Add<ISystemPromptSection>(
+        suppressingRegistry.Add<ISystemPromptSection>(
             new MarkerSection("identity-suppressor", content: null),
             new ContributionOptions(Order: 100, ReplaceTarget: SystemPromptSectionNames.Identity));
 
-        var suppressed = builder.BuildSystemPrompt("thread-a");
+        var suppressed = suppressingBuilder.BuildSystemPrompt("thread-a");
 
         // Identity is the first section, so suppressing it leaves exactly the remaining tail.
-        Assert.True(suppressed.Length < withDefault.Length);
-        Assert.EndsWith(suppressed, withDefault, StringComparison.Ordinal);
+        Assert.True(suppressed.Length < suppressingDefault.Length);
+        Assert.EndsWith(suppressed, suppressingDefault, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -122,7 +107,7 @@ public sealed class SystemPromptSectionContributionTests : IDisposable
     }
 
     [Fact]
-    public void Assembler_ThreadScopedReplacementTakesOverThatThreadOnly()
+    public void Assembler_ThreadScopedReplacementTakesOverThatThreadOnlyAndAFailingOneFallsBack()
     {
         var registry = CreateRegistry();
         var builder = CreateBuilder(registry);
@@ -140,18 +125,14 @@ public sealed class SystemPromptSectionContributionTests : IDisposable
         handle.Dispose();
 
         Assert.StartsWith("WORKSPACE:", builder.BuildSystemPrompt("thread-a"), StringComparison.Ordinal);
-    }
 
-    [Fact]
-    public void FailingAssembler_FallsBackToTheDefaultAssembly()
-    {
-        var registry = CreateRegistry();
-        var builder = CreateBuilder(registry);
-        var withDefault = builder.BuildSystemPrompt("thread-a");
+        var failingRegistry = CreateRegistry();
+        var failingBuilder = CreateBuilder(failingRegistry);
+        var withDefault = failingBuilder.BuildSystemPrompt("thread-a");
 
-        registry.Add<ISystemPromptAssembler>(new ThrowingAssembler());
+        failingRegistry.Add<ISystemPromptAssembler>(new ThrowingAssembler());
 
-        Assert.Equal(withDefault, builder.BuildSystemPrompt("thread-a"));
+        Assert.Equal(withDefault, failingBuilder.BuildSystemPrompt("thread-a"));
     }
 
     private static ContributionRegistry CreateRegistry()

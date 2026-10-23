@@ -9,74 +9,39 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
 public sealed class McpElicitationConformanceTests
 {
-    [Theory]
-    [InlineData("decline")]
-    [InlineData("cancel")]
-    public async Task FormElicitation_PreservesTerminalClientAction(string clientAction)
-    {
-        await using var manager = new McpClientManager();
-        using var harness = new AppServerTestHarness(mcpClientManager: manager);
-        await harness.InitializeAsync();
-        harness.Transport.ApprovalHandler = (_, _) =>
-            InMemoryTransport.BuildClientResponse(1, new { action = clientAction });
-
-        var result = await manager.RequestElicitationAsync("reviews", FormRequest());
-
-        Assert.Equal(clientAction, result.Action);
-        Assert.Null(result.Content);
-    }
-
     [Fact]
-    public async Task FormElicitation_AcceptsSchemaValidContent()
+    public async Task FormElicitation_MapsClientAnswersAndDeclinesInvalidContentOrDisconnects()
     {
         await using var manager = new McpClientManager();
         using var harness = new AppServerTestHarness(mcpClientManager: manager);
         await harness.InitializeAsync();
+
+        foreach (var action in new[] { "decline", "cancel" })
+        {
+            harness.Transport.ApprovalHandler = (_, _) => InMemoryTransport.BuildClientResponse(1, new { action });
+            var terminal = await manager.RequestElicitationAsync("reviews", FormRequest());
+            Assert.Equal(action, terminal.Action);
+            Assert.Null(terminal.Content);
+        }
+
         harness.Transport.ApprovalHandler = (_, _) =>
-            InMemoryTransport.BuildClientResponse(1, new
-            {
-                action = "accept",
-                content = new { project = "dotcraft" }
-            });
+            InMemoryTransport.BuildClientResponse(1, new { action = "accept", content = new { project = "dotcraft" } });
+        var accepted = await manager.RequestElicitationAsync("reviews", FormRequest());
+        Assert.Equal("accept", accepted.Action);
+        Assert.Equal("dotcraft", ((JsonElement)accepted.Content!["project"]).GetString());
 
-        var result = await manager.RequestElicitationAsync("reviews", FormRequest());
-
-        Assert.Equal("accept", result.Action);
-        Assert.Equal("dotcraft", ((JsonElement)result.Content!["project"]).GetString());
-    }
-
-    [Fact]
-    public async Task FormElicitation_InvalidAcceptedContent_IsDeclined()
-    {
-        await using var manager = new McpClientManager();
-        using var harness = new AppServerTestHarness(mcpClientManager: manager);
-        await harness.InitializeAsync();
         harness.Transport.ApprovalHandler = (_, _) =>
-            InMemoryTransport.BuildClientResponse(1, new
-            {
-                action = "accept",
-                content = new { unexpected = true }
-            });
+            InMemoryTransport.BuildClientResponse(1, new { action = "accept", content = new { unexpected = true } });
+        var invalid = await manager.RequestElicitationAsync("reviews", FormRequest());
+        Assert.Equal("decline", invalid.Action);
+        Assert.Null(invalid.Content);
 
-        var result = await manager.RequestElicitationAsync("reviews", FormRequest());
-
-        Assert.Equal("decline", result.Action);
-        Assert.Null(result.Content);
-    }
-
-    [Fact]
-    public async Task FormElicitation_ClientDisconnect_IsDeclined()
-    {
-        await using var manager = new McpClientManager();
-        using var harness = new AppServerTestHarness(mcpClientManager: manager);
-        await harness.InitializeAsync();
+        harness.Transport.ApprovalHandler = null;
         harness.Transport.ApprovalHandlerAsync = (_, _) =>
             Task.FromException<AppServerIncomingMessage>(new IOException("client disconnected"));
-
-        var result = await manager.RequestElicitationAsync("reviews", FormRequest());
-
-        Assert.Equal("decline", result.Action);
-        Assert.Null(result.Content);
+        var disconnected = await manager.RequestElicitationAsync("reviews", FormRequest());
+        Assert.Equal("decline", disconnected.Action);
+        Assert.Null(disconnected.Content);
     }
 
     private static ElicitRequestParams FormRequest() => new()

@@ -74,13 +74,13 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
         await scenario.Hub.DisposeAsync();
         await SatelliteBridgeEndToEndTests.WaitUntilAsync(
             () => Task.FromResult(scenario.Runtime.Status == RemoteToolHostStatus.Offline));
-        await SatelliteBridgeEndToEndTests.WaitUntilAsync(() => Task.FromResult(
-            client.TryGetConnectionSnapshot("thread", out var state)
-            && state.Status == RemoteToolConnectionStatus.LeaseLost));
 
         await using var restarted = await SatelliteHubFixture.StartAsync(_userProfile, satellitePort);
         await SatelliteBridgeEndToEndTests.WaitUntilAsync(async () =>
             (await restarted.GetAsync<HubSatelliteResponse[]>("/v1/satellites")).Any(peer => peer.Online));
+        await SatelliteBridgeEndToEndTests.WaitUntilAsync(() => Task.FromResult(
+            client.TryGetConnectionSnapshot("thread", out var state)
+            && state.Status == RemoteToolConnectionStatus.LeaseLost));
 
         var peer = Assert.Single(await restarted.GetAsync<HubSatelliteResponse[]>("/v1/satellites"));
         Assert.Equal(scenario.PeerId, peer.PeerId);
@@ -201,7 +201,6 @@ public sealed class SatellitePairingLifecycleTests : IDisposable
     }
 }
 
-/// <summary>A Hub control endpoint that answers every handshake with HTTP 500.</summary>
 internal sealed class RefusingControlEndpoint : IDisposable
 {
     private readonly TcpListener _listener = new(IPAddress.Loopback, 0);

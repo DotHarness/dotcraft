@@ -20,7 +20,7 @@ afterEach(async () => {
 })
 
 describe('local SSH config inspection', () => {
-  it('parses concrete Host aliases and ignores wildcard patterns', () => {
+  it('parses concrete Host aliases ignoring wildcards and reports keys, identity files, and aliases from the SSH directory', async () => {
     const aliases = parseSshConfig(`
 Host prod prod-short
   HostName prod.example.com
@@ -39,9 +39,7 @@ Host *
       port: '2222',
       identityFiles: ['~/.ssh/prod_ed25519']
     })
-  })
 
-  it('reports existing default keys, config identity files, and aliases from the user SSH directory', async () => {
     const home = await makeHome()
     const sshDir = join(home, '.ssh')
     await mkdir(sshDir)

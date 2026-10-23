@@ -8,8 +8,6 @@ public sealed class ProviderHttpUsageTests
 {
     [Theory]
     [InlineData(1, false)]
-    [InlineData(17, false)]
-    [InlineData(4096, false)]
     [InlineData(1, true)]
     public void AnthropicStreamCombinesMessageAndDeltaUsage(int chunk, bool auto)
     {

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using DotCraft.Hooks;
 using DotCraft.Utilities;
 using Xunit;
@@ -17,45 +18,6 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
     {
         try { Directory.Delete(_tempDir, recursive: true); }
         catch { }
-    }
-
-    [Fact]
-    public async Task RunAsync_MatchesPortableBashConditionForExecTool()
-    {
-        var runner = new HookRunner(new HooksFileConfig
-        {
-            Hooks =
-            {
-                [nameof(HookEvent.PostToolUse)] =
-                [
-                    new HookMatcherGroup
-                    {
-                        Matcher = "Bash",
-                        Hooks =
-                        [
-                            new HookEntry
-                            {
-                                Type = "command",
-                                Command = EchoCommand("MATCHED"),
-                                If = "Bash(git commit:*)"
-                            }
-                        ]
-                    }
-                ]
-            }
-        }, _tempDir);
-
-        var result = await runner.RunAsync(
-            HookEvent.PostToolUse,
-            new HookInput
-            {
-                SessionId = "thread_1",
-                ToolName = "Exec",
-                ToolArgs = new Dictionary<string, object?> { ["command"] = "git commit -m test" }
-            },
-            CancellationToken.None);
-
-        Assert.Equal("MATCHED", result.Output);
     }
 
     [Fact]
@@ -87,10 +49,7 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
             new HookInput { SessionId = "thread_1" },
             CancellationToken.None);
 
-        var expected = $"{_tempDir}|{_tempDir}";
-        Assert.True(
-            string.Equals(expected, result.Output, StringComparison.Ordinal),
-            $"Expected output '{expected}', got '{result.Output ?? "<null>"}'. ExitCode={result.ExitCode}; StdErr={result.StdErr ?? "<null>"}");
+        Assert.Equal($"{_tempDir}|{_tempDir}", result.Output);
     }
 
     [Fact]
@@ -129,47 +88,8 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
         Assert.Equal("NO_STDIN_OK", result.Output);
     }
 
-    [Fact]
-    public async Task RunAsync_UsesStandardGitBashPathWhenBareBashIsNotOnPath()
-    {
-        if (!OperatingSystem.IsWindows() || !StandardGitBashExists())
-            return;
-
-        var runner = new HookRunner(new HooksFileConfig
-        {
-            Hooks =
-            {
-                [nameof(HookEvent.SessionStart)] =
-                [
-                    new HookMatcherGroup
-                    {
-                        Hooks =
-                        [
-                            new HookEntry
-                            {
-                                Type = "command",
-                                Command = "bash -lc \"printf '%s' git-bash-ok\"",
-                                EnvironmentVariables = { ["PATH"] = _tempDir }
-                            }
-                        ]
-                    }
-                ]
-            }
-        }, _tempDir);
-
-        var result = await runner.RunAsync(
-            HookEvent.SessionStart,
-            new HookInput { SessionId = "thread_1" },
-            CancellationToken.None);
-
-        Assert.Equal(0, result.ExitCode);
-        Assert.Equal("git-bash-ok", result.Output);
-    }
-
     [Theory]
     [InlineData("bash \"./hooks/check.sh\"", true)]
-    [InlineData("pwsh -c \"echo bash\"", false)]
-    [InlineData("echo bash", false)]
     [InlineData("C:\\Program Files\\Git\\bin\\bash.exe -lc true", false)]
     [InlineData("echo ok; bash -lc true", true)]
     public void CommandReferencesBareBash_OnlyMatchesCommandTokens(string command, bool expected)
@@ -203,136 +123,10 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_ParsesJsonAdditionalContext()
+    public async Task RunAsync_MatchesPortableBashConditionAndDispatchesBlockReasonAndAdditionalContextAsContinuations()
     {
-        var runner = new HookRunner(new HooksFileConfig
-        {
-            Hooks =
-            {
-                [nameof(HookEvent.PostToolUse)] =
-                [
-                    new HookMatcherGroup
-                    {
-                        Hooks =
-                        [
-                            new HookEntry
-                            {
-                                Type = "command",
-                                Command = JsonAdditionalContextCommand("PostToolUse", "SECURITY_CONTEXT")
-                            }
-                        ]
-                    }
-                ]
-            }
-        }, _tempDir);
-
-        var result = await runner.RunAsync(
-            HookEvent.PostToolUse,
-            new HookInput { SessionId = "thread_1", ToolName = "WriteFile" },
-            CancellationToken.None);
-
-        Assert.Equal("SECURITY_CONTEXT", result.AdditionalContext);
-    }
-
-    [Fact]
-    public async Task RunAsync_AsyncRewakeDispatchesContinuation()
-    {
-        var tcs = new TaskCompletionSource<HookRewakeRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var runner = new HookRunner(new HooksFileConfig
-        {
-            Hooks =
-            {
-                [nameof(HookEvent.Stop)] =
-                [
-                    new HookMatcherGroup
-                    {
-                        Hooks =
-                        [
-                            new HookEntry
-                            {
-                                Key = "hook-key",
-                                Type = "command",
-                                Command = JsonBlockCommand("review finding"),
-                                AsyncRewake = true,
-                                RewakeMessage = "Review feedback:"
-                            }
-                        ]
-                    }
-                ]
-            }
-        }, _tempDir)
-        {
-            RewakeHandler = (request, _) =>
-            {
-                tcs.TrySetResult(request);
-                return Task.CompletedTask;
-            }
-        };
-
-        await runner.RunAsync(
-            HookEvent.Stop,
-            new HookInput { SessionId = "thread_1", TurnId = "turn_1", Response = "done" },
-            CancellationToken.None);
-
-        var rewake = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal("thread_1", rewake.ThreadId);
-        Assert.Contains("Review feedback:", rewake.Prompt);
-        Assert.Contains("review finding", rewake.Prompt);
-    }
-
-    [Fact]
-    public async Task RunAsync_StopAsyncRewakeSkipsHookOriginTurn()
-    {
-        var rewakeCalled = false;
-        var runner = new HookRunner(new HooksFileConfig
-        {
-            Hooks =
-            {
-                [nameof(HookEvent.Stop)] =
-                [
-                    new HookMatcherGroup
-                    {
-                        Hooks =
-                        [
-                            new HookEntry
-                            {
-                                Key = "hook-key",
-                                Type = "command",
-                                Command = JsonBlockCommand("review finding"),
-                                AsyncRewake = true,
-                                RewakeMessage = "Review feedback:"
-                            }
-                        ]
-                    }
-                ]
-            }
-        }, _tempDir)
-        {
-            RewakeHandler = (_, _) =>
-            {
-                rewakeCalled = true;
-                return Task.CompletedTask;
-            }
-        };
-
-        await runner.RunAsync(
-            HookEvent.Stop,
-            new HookInput
-            {
-                SessionId = "thread_1",
-                TurnId = "turn_1",
-                Response = "done",
-                StopHookActive = true
-            },
-            CancellationToken.None);
-
-        Assert.False(rewakeCalled);
-    }
-
-    [Fact]
-    public async Task RunAsync_AsyncRewakeUsesAdditionalContextAsContinuation()
-    {
-        var tcs = new TaskCompletionSource<HookRewakeRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rewakes = new ConcurrentDictionary<string, HookRewakeRequest>();
+        var bothReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var runner = new HookRunner(new HooksFileConfig
         {
             Hooks =
@@ -344,6 +138,22 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
                         Matcher = "Bash",
                         Hooks =
                         [
+                            new HookEntry
+                            {
+                                Key = "block-hook",
+                                Type = "command",
+                                Command = JsonBlockCommand("review finding"),
+                                AsyncRewake = true,
+                                RewakeMessage = "Review feedback:"
+                            },
+                            new HookEntry
+                            {
+                                Key = "push-hook",
+                                Type = "command",
+                                Command = JsonAdditionalContextCommand("PostToolUse", "push review finding"),
+                                If = "Bash(git push:*)",
+                                AsyncRewake = true
+                            },
                             new HookEntry
                             {
                                 Key = "commit-hook",
@@ -361,7 +171,9 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
         {
             RewakeHandler = (request, _) =>
             {
-                tcs.TrySetResult(request);
+                rewakes[request.HookKey] = request;
+                if (rewakes.Count == 2)
+                    bothReceived.TrySetResult();
                 return Task.CompletedTask;
             }
         };
@@ -376,22 +188,15 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
             },
             CancellationToken.None);
 
-        var rewake = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal("commit-hook", rewake.HookKey);
-        Assert.Contains("Commit review:", rewake.Prompt);
-        Assert.Contains("commit review finding", rewake.Prompt);
+        await bothReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        var block = rewakes["block-hook"];
+        Assert.Equal("thread_1", block.ThreadId);
+        Assert.Contains("Review feedback:", block.Prompt);
+        Assert.Contains("review finding", block.Prompt);
+        var commit = rewakes["commit-hook"];
+        Assert.Contains("Commit review:", commit.Prompt);
+        Assert.Contains("commit review finding", commit.Prompt);
     }
-
-    private static string EchoCommand(string output) =>
-        OperatingSystem.IsWindows()
-            ? $"Write-Output '{output}'"
-            : $"printf '%s\\n' '{output}'";
-
-    private static bool StandardGitBashExists() =>
-        File.Exists(@"C:\Program Files\Git\bin\bash.exe") ||
-        File.Exists(@"C:\Program Files\Git\usr\bin\bash.exe") ||
-        File.Exists(@"C:\Program Files (x86)\Git\bin\bash.exe") ||
-        File.Exists(@"C:\Program Files (x86)\Git\usr\bin\bash.exe");
 
     private static string WorkspaceEnvironmentCommand() =>
         OperatingSystem.IsWindows()

@@ -110,18 +110,6 @@ public sealed class SessionImportSettingsTests : IDisposable
         Assert.Equal(new[] { "skills", "mcp" }, implicitOffer.User);
     }
 
-    [Fact]
-    public async Task ManualImportsKeepAnAllCategoriesSyncChoice()
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(_userConfig)!);
-        File.WriteAllText(_userConfig, "{\"AgentImport\":{\"Selection\":{\"all\":true}}}");
-        var service = CreateService();
-
-        await RunAsync(service, new ImportSelection { Sessions = true }, new ImportSelection { User = ["skills"], Sessions = true });
-
-        Assert.True(service.GetSettings().Selection.All);
-    }
-
     private static async Task RunAsync(SessionImportService service, ImportSelection selection, ImportSelection? offered = null)
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

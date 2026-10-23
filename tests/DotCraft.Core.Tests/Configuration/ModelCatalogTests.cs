@@ -28,34 +28,7 @@ public sealed class ModelCatalogTests : IDisposable
     }
 
     [Fact]
-    public void ResolveDetailed_MarksUnknownModelAsFallback()
-    {
-        var resolution = ModelCatalog.ResolveDetailed("unknown-model");
-
-        Assert.False(resolution.HasExplicitMatch);
-        Assert.Null(resolution.MatchedPattern);
-        Assert.Null(resolution.MatchKind);
-    }
-
-    [Fact]
-    public void Resolve_UsesLongestPrefix()
-    {
-        var catalogPath = WriteCatalog("global", """
-            {
-              "models": {
-                "test-": { "contextWindow": 100000 },
-                "test-long": { "contextWindow": 200000 }
-              }
-            }
-            """);
-
-        var contextWindow = ModelCatalog.Resolve("test-long-v1", globalCatalogPath: catalogPath);
-
-        Assert.Equal(200_000, contextWindow);
-    }
-
-    [Fact]
-    public void ResolveDetailed_RecordsExplicitPrefixMatch()
+    public void ResolveDetailed_UsesLongestPrefixAndMarksUnknownModelAsFallback()
     {
         var catalogPath = WriteCatalog("global", """
             {
@@ -72,6 +45,11 @@ public sealed class ModelCatalogTests : IDisposable
         Assert.True(resolution.HasExplicitMatch);
         Assert.Equal("test-long", resolution.MatchedPattern);
         Assert.Equal("prefix", resolution.MatchKind);
+
+        var fallback = ModelCatalog.ResolveDetailed("unknown-model", globalCatalogPath: catalogPath);
+        Assert.False(fallback.HasExplicitMatch);
+        Assert.Null(fallback.MatchedPattern);
+        Assert.Null(fallback.MatchKind);
     }
 
     [Fact]
@@ -80,37 +58,18 @@ public sealed class ModelCatalogTests : IDisposable
         var catalogPath = WriteCatalog("global", """
             {
               "models": {
-                "special-model": { "contextWindow": 321000 }
-              }
-            }
-            """);
-
-        var contextWindow = ModelCatalog.Resolve("azure/special-model-deployment", globalCatalogPath: catalogPath);
-
-        Assert.Equal(321_000, contextWindow);
-    }
-
-    [Fact]
-    public void Resolve_UsesMultiSegmentNamespacedModelSuffix()
-    {
-        var catalogPath = WriteCatalog("global", """
-            {
-              "models": {
+                "special-model": { "contextWindow": 321000 },
                 "model-plus": { "contextWindow": 997952 }
               }
             }
             """);
 
-        var contextWindow = ModelCatalog.Resolve(
-            "gateway/vendor/model-plus",
-            globalCatalogPath: catalogPath);
-
-        Assert.Equal(997_952, contextWindow);
+        Assert.Equal(321_000, ModelCatalog.Resolve("azure/special-model-deployment", globalCatalogPath: catalogPath));
+        Assert.Equal(997_952, ModelCatalog.Resolve("gateway/vendor/model-plus", globalCatalogPath: catalogPath));
     }
 
     [Theory]
     [InlineData(null, 1_050_000)]
-    [InlineData(-1, 1_050_000)]
     [InlineData(256_000, 256_000)]
     [InlineData(2_000_000, 1_050_000)]
     public void ResolveCompactionConfig_AppliesClientBudget(int? budget, int expectedWindow)

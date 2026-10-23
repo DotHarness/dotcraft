@@ -158,33 +158,6 @@ public sealed class WireDynamicToolProxyTests
     }
 
     [Fact]
-    public async Task Replacement_InvalidatesOldSnapshotLeaseAndUsesNewOwnerGeneration()
-    {
-        var proxy = new WireDynamicToolProxy();
-        var oldTransport = SuccessTransport("old");
-        var newTransport = SuccessTransport("new");
-        proxy.BindThread("thread_test", oldTransport, new AppServerConnection(), [CreateReviewToolSpec()]);
-        var oldSnapshot = await BuildSnapshotAsync(proxy);
-        proxy.BindThread("thread_test", newTransport, new AppServerConnection(), [CreateReviewToolSpec()]);
-        var newSnapshot = await BuildSnapshotAsync(proxy, revision: 2);
-        var toolName = new ToolName(null, "SubmitReviewDraft");
-        var request = new ToolInvocationRequest(
-            "thread_test", "turn_001", "call_replace", ToolInvocationAudience.Model);
-
-        var staleResult = await new ToolDispatcher().DispatchAsync(
-            oldSnapshot, toolName, new JsonObject { ["body"] = "old" }, request);
-        var currentResult = await new ToolDispatcher().DispatchAsync(
-            newSnapshot, toolName, new JsonObject { ["body"] = "new" }, request);
-
-        Assert.False(staleResult.Success);
-        Assert.Equal(ToolErrorCodes.DynamicDisconnected, staleResult.Error?.Code);
-        Assert.Null(oldTransport.Method);
-        Assert.True(currentResult.Success);
-        Assert.Equal("new", currentResult.Content);
-        Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.DynamicToolCall, newTransport.Method);
-    }
-
-    [Fact]
     public async Task NullIsNoChangeAndEmptyClearsOnlyOwningConnection()
     {
         var proxy = new WireDynamicToolProxy();

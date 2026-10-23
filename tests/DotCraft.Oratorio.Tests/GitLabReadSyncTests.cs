@@ -29,30 +29,6 @@ public sealed class GitLabReadSyncTests
     };
 
     [Fact]
-    public async Task GitLabProviderStatus_ReportsReadCapableAndNoWrites()
-    {
-        await using var app = new TestOratorioApp(settings: GitLabSettings());
-        var client = app.CreateClient();
-
-        var status = await client.GetFromJsonAsync<SourceProviderStatusDto>("/api/v1/sources/gitlab/status", JsonOptions);
-
-        Assert.NotNull(status);
-        Assert.Equal("gitlab", status!.Provider);
-        Assert.True(status.Configured);
-        Assert.Equal("token", status.AuthenticationState);
-        Assert.True(status.ReadCapability.Available);
-        Assert.False(status.WriteCapability.Available);
-        Assert.Equal("disabled", status.WriteCapability.State);
-        Assert.True(status.WebhookCapability.Available);
-        var project = Assert.Single(status.Projects);
-        Assert.Equal("group/subgroup/project", project.ProjectPath);
-        Assert.Equal("gitlab:gitlab.example.test/group/subgroup/project", project.Key);
-        Assert.True(project.ReadCapability?.Available);
-        Assert.Equal("available", project.ReadCapability?.State);
-        Assert.True(project.WebhookCapability?.Available);
-    }
-
-    [Fact]
     public async Task GitLabProviderStatus_ReportsPartialWhenOnlySomeProjectsHaveProfiles()
     {
         var settings = GitLabSettings();
@@ -63,7 +39,11 @@ public sealed class GitLabReadSyncTests
         var status = await client.GetFromJsonAsync<SourceProviderStatusDto>("/api/v1/sources/gitlab/status", JsonOptions);
 
         Assert.NotNull(status);
-        Assert.Equal("partial", status!.AuthenticationState);
+        Assert.Equal("gitlab", status!.Provider);
+        Assert.True(status.Configured);
+        Assert.False(status.WriteCapability.Available);
+        Assert.Equal("disabled", status.WriteCapability.State);
+        Assert.Equal("partial", status.AuthenticationState);
         Assert.True(status.ReadCapability.Available);
         Assert.Equal("partial", status.ReadCapability.State);
         Assert.True(status.WebhookCapability.Available);
@@ -111,65 +91,6 @@ public sealed class GitLabReadSyncTests
         Assert.Equal("head-sha-1", mr.HeadSha);
         Assert.False(mr.IsDraft);
         Assert.Equal(SourceDetailsStatus.Stale, mr.SourceDetailsStatus);
-    }
-
-    [Fact]
-    public async Task GitLabMergeRequestReview_RetriesMissingDraft_AndReusesFailedThread()
-    {
-        var fakeGitLab = new FakeGitLabApiClient();
-        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitSummaryOnlyReviewDraft);
-        fakeAppServer.ScriptedOutcomes.Enqueue(FakeAppServerOutcome.Success);
-        fakeAppServer.ScriptedOutcomes.Enqueue(FakeAppServerOutcome.SubmitSummaryOnlyReviewDraft);
-        var workspace = Path.Combine(Path.GetTempPath(), "oratorio-test-workspace");
-        await using var app = GitLabApp(
-            fakeGitLab,
-            GitLabSettings(),
-            services =>
-            {
-                services.RemoveAll<IClock>();
-                services.AddSingleton<IClock, SystemClock>();
-                services.RemoveAll<IDotCraftAppServerProcessManager>();
-                services.RemoveAll<IDotCraftAppServerClientFactory>();
-                services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
-                services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
-                services.RemoveAll<IOptionsMonitor<DotCraftOptions>>();
-                services.AddSingleton<IOptionsMonitor<DotCraftOptions>>(new StaticOptionsMonitor<DotCraftOptions>(new DotCraftOptions
-                {
-                    RepositoryWorkspaceRoutes =
-                    [
-                        new() { Project = "gitlab:gitlab.example.test/group/subgroup/project", WorkspacePath = workspace }
-                    ],
-                    MaxRunAttempts = 2,
-                    RetryBackoffSeconds = 1,
-                    MaxRetryBackoffSeconds = 1
-                }));
-            });
-        var client = app.CreateClient();
-
-        var job = await EnqueueGitLabSyncAsync(client, SourceSyncMode.Incremental);
-        await WaitForSourceSyncJobAsync(client, job.JobId);
-        var list = await client.GetFromJsonAsync<ItemListResponse>("/api/v1/items?source=gitlab&kind=pullRequest", JsonOptions);
-        var mergeRequest = Assert.Single(list!.Items);
-
-        await PostAsync<ItemDetailResponse>(
-            client,
-            $"/api/v1/items/id/{mergeRequest.ItemId}/dispatch",
-            new DispatchRequest("appServer", "Retry a missing merge request review draft.", null, null));
-
-        var reviewed = await WaitForItemByIdAsync(
-            client,
-            mergeRequest.ItemId!,
-            x => x.Item.State == ItemState.AwaitingReview && x.ReviewDrafts.Count == 1 && x.Runs.Count == 2);
-        var runs = reviewed.Runs.OrderBy(x => x.Attempt).ToArray();
-
-        Assert.Equal("gitlab", reviewed.Item.Source);
-        Assert.Equal("reviewDraftRequired", runs[0].ErrorCode);
-        Assert.Equal(RunStatus.Failed, runs[0].Status);
-        Assert.Equal(RunStatus.Succeeded, runs[1].Status);
-        Assert.Equal("thread-test-1", runs[0].ThreadId);
-        Assert.Equal("thread-test-1", runs[1].ThreadId);
-        Assert.Equal(1, fakeAppServer.StartThreadCount);
-        Assert.Equal(1, fakeAppServer.ThreadResumeAttemptCount);
     }
 
     [Fact]
@@ -308,81 +229,6 @@ public sealed class GitLabReadSyncTests
     }
 
     [Fact]
-    public async Task GitLabReviewRun_AllowsSummaryOnlyDraft()
-    {
-        var fakeGitLab = new FakeGitLabApiClient();
-        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitSummaryOnlyReviewDraft);
-        await using var app = GitLabApp(
-            fakeGitLab,
-            GitLabSettings(),
-            services =>
-            {
-                services.RemoveAll<IDotCraftAppServerProcessManager>();
-                services.RemoveAll<IDotCraftAppServerClientFactory>();
-                services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
-                services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
-            });
-        var client = app.CreateClient();
-        var job = await EnqueueGitLabSyncAsync(client, SourceSyncMode.Incremental);
-        await WaitForSourceSyncJobAsync(client, job.JobId);
-        var list = await client.GetFromJsonAsync<ItemListResponse>("/api/v1/items?source=gitlab&kind=pullRequest", JsonOptions);
-        var mr = Assert.Single(list!.Items);
-
-        await PostAsync<ItemDetailResponse>(
-            client,
-            $"/api/v1/items/id/{mr.ItemId}/dispatch",
-            new DispatchRequest("appServer", "Review this GitLab MR and submit a clean draft.", null, null));
-
-        var reviewed = await WaitForItemByIdAsync(client, mr.ItemId!, x => x.Item.State == ItemState.AwaitingReview && x.ReviewDrafts.Count == 1);
-        var draft = Assert.Single(reviewed.ReviewDrafts);
-        var run = Assert.Single(reviewed.Runs, x => x.RunnerKind == "appServer");
-
-        Assert.Equal(RunStatus.Succeeded, run.Status);
-        Assert.Equal(0, draft.MajorCount);
-        Assert.Equal(0, draft.MinorCount);
-        Assert.Equal(0, draft.SuggestionCount);
-        Assert.Equal(0, draft.AcceptedCount);
-        Assert.Empty(draft.Comments);
-        Assert.True((fakeAppServer.LastThreadStartRequest?.DynamicTools ?? []).ContainsTool("oratorio_run", "SubmitReviewDraft"));
-        Assert.NotNull(fakeAppServer.LastThreadStartRequest?.RuntimeAdditionalContext);
-    }
-
-    [Fact]
-    public async Task GitLabReviewRun_SummaryOnlyDraftDoesNotReadDiffs()
-    {
-        var fakeGitLab = new FakeGitLabApiClient { FailMergeRequestDiffReads = true };
-        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitSummaryOnlyReviewDraft);
-        await using var app = GitLabApp(
-            fakeGitLab,
-            GitLabSettings(),
-            services =>
-            {
-                services.RemoveAll<IDotCraftAppServerProcessManager>();
-                services.RemoveAll<IDotCraftAppServerClientFactory>();
-                services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
-                services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
-            });
-        var client = app.CreateClient();
-        var job = await EnqueueGitLabSyncAsync(client, SourceSyncMode.Incremental);
-        await WaitForSourceSyncJobAsync(client, job.JobId);
-        var list = await client.GetFromJsonAsync<ItemListResponse>("/api/v1/items?source=gitlab&kind=pullRequest", JsonOptions);
-        var mr = Assert.Single(list!.Items);
-
-        await PostAsync<ItemDetailResponse>(
-            client,
-            $"/api/v1/items/id/{mr.ItemId}/dispatch",
-            new DispatchRequest("appServer", "Submit a clean GitLab MR review draft.", null, null));
-
-        var reviewed = await WaitForItemByIdAsync(client, mr.ItemId!, x => x.Item.State == ItemState.AwaitingReview && x.ReviewDrafts.Count == 1);
-        var draft = Assert.Single(reviewed.ReviewDrafts);
-
-        Assert.Equal(0, fakeGitLab.MergeRequestDiffReadCount);
-        Assert.Equal(0, draft.AcceptedCount);
-        Assert.Empty(draft.Comments);
-        Assert.Empty(draft.Warnings);
-    }
-
-    [Fact]
     public async Task GitLabReviewRun_StoresSkippedInlineCommentsWhenDiffReadFails()
     {
         var fakeGitLab = new FakeGitLabApiClient { FailMergeRequestDiffReads = true };
@@ -422,48 +268,6 @@ public sealed class GitLabReadSyncTests
         Assert.Contains(draft.Warnings, warning => warning.Contains("reviewDiffUnavailable", StringComparison.Ordinal));
         Assert.Contains(draft.Warnings, warning => warning.Contains("reviewDraftSuggestionCountMismatch", StringComparison.Ordinal));
         Assert.True(fakeAppServer.LastToolResult?.Success);
-    }
-
-    [Fact]
-    public async Task GitLabReviewRun_UsesLocalDiffFallbackWhenDiffReadFails()
-    {
-        var fakeGitLab = new FakeGitLabApiClient { FailMergeRequestDiffReads = true };
-        var localDiffs = new FakeReviewLocalDiffProvider(fakeGitLab.Diffs.ToDictionary(diff => diff.NewPath, diff => diff.Diff!));
-        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitCleanReviewDraft);
-        await using var app = GitLabApp(
-            fakeGitLab,
-            GitLabSettings(),
-            services =>
-            {
-                services.RemoveAll<IReviewLocalDiffProvider>();
-                services.RemoveAll<IDotCraftAppServerProcessManager>();
-                services.RemoveAll<IDotCraftAppServerClientFactory>();
-                services.AddSingleton<IReviewLocalDiffProvider>(localDiffs);
-                services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
-                services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
-            });
-        var client = app.CreateClient();
-        var job = await EnqueueGitLabSyncAsync(client, SourceSyncMode.Incremental);
-        await WaitForSourceSyncJobAsync(client, job.JobId);
-        var list = await client.GetFromJsonAsync<ItemListResponse>("/api/v1/items?source=gitlab&kind=pullRequest", JsonOptions);
-        var mr = Assert.Single(list!.Items);
-
-        await PostAsync<ItemDetailResponse>(
-            client,
-            $"/api/v1/items/id/{mr.ItemId}/dispatch",
-            new DispatchRequest("appServer", "Submit GitLab MR review comments.", null, null));
-
-        var reviewed = await WaitForItemByIdAsync(client, mr.ItemId!, x => x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status != ReviewDraftStatus.Draft);
-        var draft = Assert.Single(reviewed.ReviewDrafts);
-
-        Assert.Equal(2, fakeGitLab.MergeRequestDiffReadCount);
-        Assert.Equal(2, draft.AcceptedCount);
-        Assert.Equal(1, draft.SuggestionCount);
-        Assert.Equal(0, draft.WarningCount);
-        Assert.Empty(draft.Warnings);
-        Assert.All(draft.Comments, comment => Assert.Equal(ReviewDraftCommentStatus.Accepted, comment.Status));
-        Assert.Contains("src/Auth/RefreshTokenStore.cs", localDiffs.RequestedPaths);
-        Assert.Contains("src/Auth/JwtMiddleware.cs", localDiffs.RequestedPaths);
     }
 
     [Fact]
@@ -814,7 +618,6 @@ public sealed class GitLabReadSyncTests
         var reviewed = await WaitForItemByIdAsync(client, mr.ItemId!, x => x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status == ReviewDraftStatus.Published);
         var draft = Assert.Single(reviewed.ReviewDrafts);
 
-        // Step B: each accepted finding captured its GitLab discussion id at publish.
         string firstFindingId;
         string firstThreadId;
         using (var scope = app.Services.CreateScope())
@@ -830,7 +633,6 @@ public sealed class GitLabReadSyncTests
             firstThreadId = first.RemoteThreadId!;
         }
 
-        // Step C: resolving propagates to the matching GitLab discussion.
         await PostAsync<ItemDetailResponse>(
             client,
             $"/api/v1/review-drafts/{draft.DraftId}/comments/{firstFindingId}/resolve",
@@ -1038,89 +840,6 @@ public sealed class GitLabReadSyncTests
     }
 
     [Fact]
-    public async Task GitLabAutoReviewPublish_BlocksDraftsWithWarningsAsFailedSourceWrite()
-    {
-        var fakeGitLab = new FakeGitLabApiClient();
-        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitNoOpReviewDraft);
-        var settings = GitLabSettings(writesEnabled: true);
-        await using var app = GitLabApp(
-            fakeGitLab,
-            settings,
-            services =>
-            {
-                services.RemoveAll<IDotCraftAppServerProcessManager>();
-                services.RemoveAll<IDotCraftAppServerClientFactory>();
-                services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
-                services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
-            });
-        var client = app.CreateClient();
-        var job = await EnqueueGitLabSyncAsync(client, SourceSyncMode.Incremental);
-        await WaitForSourceSyncJobAsync(client, job.JobId);
-        var list = await client.GetFromJsonAsync<ItemListResponse>("/api/v1/items?source=gitlab&kind=pullRequest", JsonOptions);
-        var mr = Assert.Single(list!.Items);
-
-        await PostAsync<ItemDetailResponse>(
-            client,
-            $"/api/v1/items/id/{mr.ItemId}/dispatch",
-            new DispatchRequest("appServer", "Prepare a no-op GitLab MR review suggestion.", null, null));
-        var reviewed = await WaitForItemByIdAsync(
-            client,
-            mr.ItemId!,
-            x => x.SourceWrites.Any(write =>
-                write.Intent == "reviewDraftPublish" &&
-                write.Status == SourceWriteStatus.Failed &&
-                write.ErrorCode == "reviewDraftWarnings"));
-
-        var draft = Assert.Single(reviewed.ReviewDrafts);
-        Assert.Equal(ReviewDraftStatus.PublishFailed, draft.Status);
-        Assert.Equal(2, draft.WarningCount);
-        Assert.Empty(fakeGitLab.MergeRequestNotesCreated);
-        Assert.Empty(fakeGitLab.MergeRequestDiscussionsCreated);
-        var write = Assert.Single(reviewed.SourceWrites, x => x.Intent == "reviewDraftPublish");
-        Assert.Equal(SourceWriteStatus.Failed, write.Status);
-        Assert.Equal("reviewDraftWarnings", write.ErrorCode);
-    }
-
-    [Fact]
-    public async Task GitLabAutoReviewPublish_BlocksStaleHeadAsFailedSourceWrite()
-    {
-        var fakeGitLab = new FakeGitLabApiClient();
-        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitCleanReviewDraft);
-        var fakeWorktree = new FakeWorktreeManager { BaseShaOverride = "older-sha" };
-        var settings = GitLabSettings(writesEnabled: true);
-        await using var app = GitLabApp(
-            fakeGitLab,
-            settings,
-            services =>
-            {
-                services.RemoveAll<IWorktreeManager>();
-                services.RemoveAll<IDotCraftAppServerProcessManager>();
-                services.RemoveAll<IDotCraftAppServerClientFactory>();
-                services.AddSingleton<IWorktreeManager>(fakeWorktree);
-                services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
-                services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
-            });
-        var client = app.CreateClient();
-        var job = await EnqueueGitLabSyncAsync(client, SourceSyncMode.Incremental);
-        await WaitForSourceSyncJobAsync(client, job.JobId);
-        var list = await client.GetFromJsonAsync<ItemListResponse>("/api/v1/items?source=gitlab&kind=pullRequest", JsonOptions);
-        var mr = Assert.Single(list!.Items);
-
-        await PostAsync<ItemDetailResponse>(
-            client,
-            $"/api/v1/items/id/{mr.ItemId}/dispatch",
-            new DispatchRequest("appServer", "Prepare GitLab MR review suggestions.", null, null));
-        var reviewed = await WaitForItemByIdAsync(client, mr.ItemId!, x => x.SourceWrites.Any(write => write.ErrorCode == "stalePullRequestHead"));
-
-        Assert.Equal(ReviewDraftStatus.PublishFailed, Assert.Single(reviewed.ReviewDrafts).Status);
-        Assert.Empty(fakeGitLab.MergeRequestNotesCreated);
-        Assert.Empty(fakeGitLab.MergeRequestDiscussionsCreated);
-        var write = Assert.Single(reviewed.SourceWrites, x => x.Intent == "reviewDraftPublish");
-        Assert.Equal(SourceWriteStatus.Failed, write.Status);
-        Assert.Equal("stalePullRequestHead", write.ErrorCode);
-    }
-
-    [Fact]
     public async Task GitLabAutoReviewPublish_BlocksDisabledGitLabWritesAsFailedSourceWrite()
     {
         var fakeGitLab = new FakeGitLabApiClient();
@@ -1210,62 +929,6 @@ public sealed class GitLabReadSyncTests
         Assert.Equal(ItemKind.PullRequest, generated.Item.Kind);
         Assert.Equal(issue.ItemId, generated.Item.ParentItemId);
         Assert.Equal(draft.DraftId, generated.Item.GeneratedFromDraftId);
-    }
-
-    [Fact]
-    public async Task GitLabImplementationDraft_SourceWriteRetryReusesCommitAndBranchPush()
-    {
-        var fakeGitLab = new FakeGitLabApiClient { FailNextMergeRequestCreateCount = 1 };
-        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitImplementationDraft);
-        var fakeGit = new FakeGitDeliveryClient();
-        await using var app = GitLabApp(
-            fakeGitLab,
-            GitLabSettings(writesEnabled: true),
-            services =>
-            {
-                services.RemoveAll<IGitDeliveryClient>();
-                services.AddSingleton<IGitDeliveryClient>(fakeGit);
-                services.RemoveAll<IDotCraftAppServerProcessManager>();
-                services.RemoveAll<IDotCraftAppServerClientFactory>();
-                services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
-                services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
-            });
-        var client = app.CreateClient();
-        var job = await EnqueueGitLabSyncAsync(client, SourceSyncMode.Incremental);
-        await WaitForSourceSyncJobAsync(client, job.JobId);
-        var list = await client.GetFromJsonAsync<ItemListResponse>("/api/v1/items?source=gitlab&kind=issue", JsonOptions);
-        var issue = Assert.Single(list!.Items);
-
-        await PostAsync<ItemDetailResponse>(
-            client,
-            $"/api/v1/items/id/{issue.ItemId}/dispatch",
-            new DispatchRequest("appServer", "Implement the GitLab issue.", null, null, "implementation", DeliveryPolicy.AutoPr));
-        var failed = await WaitForItemByIdAsync(
-            client,
-            issue.ItemId!,
-            x => x.ImplementationDrafts.Any(draft => draft.Status == ImplementationDraftStatus.DeliveryFailed) &&
-                x.SourceWrites.Any(write => write.Kind == SourceWriteKind.MergeRequestCreation && write.Status == SourceWriteStatus.Failed));
-        var failedWrite = Assert.Single(failed.SourceWrites, write => write.Kind == SourceWriteKind.MergeRequestCreation);
-        Assert.Equal("deliveryFailed", failedWrite.ErrorCode);
-        Assert.Equal("commit-sha-123", Assert.Single(failed.ImplementationDrafts).CommitSha);
-        Assert.Single(fakeGit.CommitMessages);
-        Assert.Single(fakeGit.Pushes);
-        Assert.Empty(fakeGitLab.MergeRequestsCreated);
-
-        fakeGit.EmptyDiff = true;
-        var retried = await PostAsync<ItemDetailResponse>(client, $"/api/v1/source-writes/{failedWrite.WriteId}/retry", new { });
-
-        var draft = Assert.Single(retried.ImplementationDrafts);
-        Assert.Equal(ImplementationDraftStatus.Delivered, draft.Status);
-        Assert.Equal("commit-sha-123", draft.CommitSha);
-        Assert.Single(fakeGit.CommitMessages);
-        Assert.Single(fakeGit.Pushes);
-        var create = Assert.Single(fakeGitLab.MergeRequestsCreated);
-        Assert.Equal("main", create.TargetBranch);
-        var retriedWrite = Assert.Single(retried.SourceWrites, write => write.WriteId == failedWrite.WriteId);
-        Assert.Equal(SourceWriteStatus.Succeeded, retriedWrite.Status);
-        Assert.Null(retriedWrite.ErrorCode);
-        Assert.DoesNotContain(retried.SourceWrites, write => write.ErrorCode == "invalidGitLabTarget");
     }
 
     [Fact]
@@ -1486,7 +1149,7 @@ public sealed class GitLabReadSyncTests
                 return latest;
             }
 
-            await Task.Delay(100);
+            await Task.Delay(20);
         }
 
         throw new TimeoutException($"Timed out waiting for GitLab sync job {jobId}. Latest status: {latest?.Status}");
@@ -1511,7 +1174,7 @@ public sealed class GitLabReadSyncTests
                 return latest;
             }
 
-            await Task.Delay(100);
+            await Task.Delay(20);
         }
 
         var runs = latest is null

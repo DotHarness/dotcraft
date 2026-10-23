@@ -38,7 +38,7 @@ async function settled(promise: Promise<void>): Promise<boolean> {
 
 afterEach(() => vi.useRealTimers())
 
-it('shows an activated cursor at rest, hides it on deactivation and forgets the position on reactivation', async () => {
+it('shows an activated cursor at rest, hides it on deactivation, forgets the position on reactivation and clears on release', async () => {
   const { cursors, win, cursorOf } = fixture()
   expect(cursorOf()).toBeUndefined()
   cursors.activate(win, 'tab')
@@ -50,11 +50,6 @@ it('shows an activated cursor at rest, hides it on deactivation and forgets the 
   expect(cursorOf()).toEqual({ visible: false, x: 120, y: 80 })
   cursors.activate(win, 'tab')
   expect(cursorOf()).toEqual({ visible: true })
-})
-
-it('clears the cursor state on release', async () => {
-  const { cursors, win, cursorOf } = fixture()
-  cursors.activate(win, 'tab')
   await cursors.move(win, 'tab', { x: 5, y: 6 }, { waitForArrival: false })
   cursors.release(win, 'tab')
   expect(cursorOf()).toBeUndefined()
@@ -87,27 +82,21 @@ it('assigns increasing sequences and waits for the matching arrival acknowledgem
   await second
 })
 
-it.each([
-  ['the window is not focused', (ctx: ReturnType<typeof fixture>) => { ctx.focus.value = false }],
-  ['the tab is not visible', (ctx: ReturnType<typeof fixture>) => ctx.add(ctx.win, 'tab', { visible: false, cursor: { visible: true } })],
-  ['the tab is presented on a capture surface', (ctx: ReturnType<typeof fixture>) => ctx.add(ctx.win, 'tab', { captureSurfaceSize: { width: 800, height: 2000 }, cursor: { visible: true } })]
-])('snaps without waiting when %s', async (_name, arrange) => {
-  vi.useFakeTimers()
-  const ctx = fixture()
-  ctx.cursors.activate(ctx.win, 'tab')
-  arrange(ctx)
-  await ctx.cursors.move(ctx.win, 'tab', { x: 10, y: 20 })
-  expect(vi.getTimerCount()).toBe(0)
-  expect(ctx.cursorOf()).toMatchObject({ visible: true, x: 10, y: 20, animate: false })
-})
-
-it('does not wait when waitForArrival is false', async () => {
-  vi.useFakeTimers()
-  const { cursors, win, cursorOf } = fixture()
-  cursors.activate(win, 'tab')
-  await cursors.move(win, 'tab', { x: 10, y: 20 }, { waitForArrival: false })
-  expect(vi.getTimerCount()).toBe(0)
-  expect(cursorOf()).toMatchObject({ animate: true })
+it('snaps without waiting when the window is unfocused, the tab is hidden, or it is on a capture surface', async () => {
+  const arrangements = [
+    (ctx: ReturnType<typeof fixture>) => { ctx.focus.value = false },
+    (ctx: ReturnType<typeof fixture>) => ctx.add(ctx.win, 'tab', { visible: false, cursor: { visible: true } }),
+    (ctx: ReturnType<typeof fixture>) => ctx.add(ctx.win, 'tab', { captureSurfaceSize: { width: 800, height: 2000 }, cursor: { visible: true } })
+  ]
+  for (const arrange of arrangements) {
+    vi.useFakeTimers()
+    const ctx = fixture()
+    ctx.cursors.activate(ctx.win, 'tab')
+    arrange(ctx)
+    await ctx.cursors.move(ctx.win, 'tab', { x: 10, y: 20 })
+    expect(vi.getTimerCount()).toBe(0)
+    expect(ctx.cursorOf()).toMatchObject({ visible: true, x: 10, y: 20, animate: false })
+  }
 })
 
 it('ignores a late acknowledgement for an older sequence', async () => {
@@ -155,16 +144,19 @@ it('resolves a move at the arrival bound without failing', async () => {
   expect(vi.getTimerCount()).toBe(0)
 })
 
-it.each([
-  ['deactivation', (ctx: ReturnType<typeof fixture>) => ctx.cursors.deactivate(ctx.win, 'tab')],
-  ['release', (ctx: ReturnType<typeof fixture>) => ctx.cursors.release(ctx.win, 'tab')],
-  ['removal of the tab', (ctx: ReturnType<typeof fixture>) => ctx.cursors.forget(ctx.win, 'tab')]
-])('releases pending waiters on %s', async (_name, end) => {
-  vi.useFakeTimers()
-  const ctx = fixture()
-  ctx.cursors.activate(ctx.win, 'tab')
-  const move = ctx.cursors.move(ctx.win, 'tab', { x: 10, y: 20 })
-  end(ctx)
-  await move
-  expect(vi.getTimerCount()).toBe(0)
+it('releases pending waiters on deactivation, release, or removal of the tab', async () => {
+  const endings = [
+    (ctx: ReturnType<typeof fixture>) => ctx.cursors.deactivate(ctx.win, 'tab'),
+    (ctx: ReturnType<typeof fixture>) => ctx.cursors.release(ctx.win, 'tab'),
+    (ctx: ReturnType<typeof fixture>) => ctx.cursors.forget(ctx.win, 'tab')
+  ]
+  for (const end of endings) {
+    vi.useFakeTimers()
+    const ctx = fixture()
+    ctx.cursors.activate(ctx.win, 'tab')
+    const move = ctx.cursors.move(ctx.win, 'tab', { x: 10, y: 20 })
+    end(ctx)
+    await move
+    expect(vi.getTimerCount()).toBe(0)
+  }
 })

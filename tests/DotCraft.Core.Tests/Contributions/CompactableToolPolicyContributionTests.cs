@@ -5,7 +5,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Contributions;
 
-/// <summary>Composition of the <see cref="ICompactableToolPolicy"/> contribution point, asserted through the pass that reads it.</summary>
 public sealed class CompactableToolPolicyContributionTests
 {
     private const string PluginTool = "acme__review";
@@ -17,30 +16,25 @@ public sealed class CompactableToolPolicyContributionTests
         Assert.True(CompactableToolPolicyCatalog.IsCompactable(null, null, "ReadFile"));
         Assert.True(CompactableToolPolicyCatalog.IsCompactable(null, null, "mcp__files__read"));
         Assert.False(CompactableToolPolicyCatalog.IsCompactable(null, null, PluginTool));
-    }
-
-    [Fact]
-    public void AnEmptyContributionPoint_FallsBackToTheBuiltInAllowList()
-    {
-        var registry = new ContributionRegistry();
-
-        Assert.True(CompactableToolPolicyCatalog.IsCompactable(registry, null, "ReadFile"));
-        Assert.False(CompactableToolPolicyCatalog.IsCompactable(registry, null, PluginTool));
+        Assert.True(CompactableToolPolicyCatalog.IsCompactable(new ContributionRegistry(), null, "ReadFile"));
+        Assert.False(CompactableToolPolicyCatalog.IsCompactable(new ContributionRegistry(), null, PluginTool));
     }
 
     [Fact]
     public void ContributedPolicy_MakesAPluginToolResultPrunable()
     {
         var registry = CreateRegistry();
+        registry.Add<ICompactableToolPolicy>(new FixedPolicy("scoped", "acme__other", true), ContributionOptions.ForThread(ThreadId));
         registry.Add<ICompactableToolPolicy>(new FixedPolicy("acme", PluginTool, true));
 
         Assert.True(CompactableToolPolicyCatalog.IsCompactable(registry, null, PluginTool));
-        // The built-in allow-list is untouched by an additive contribution.
+        Assert.True(CompactableToolPolicyCatalog.IsCompactable(registry, ThreadId, "acme__other"));
+        Assert.False(CompactableToolPolicyCatalog.IsCompactable(registry, "thread-b", "acme__other"));
         Assert.True(CompactableToolPolicyCatalog.IsCompactable(registry, null, "ReadFile"));
     }
 
     [Fact]
-    public void TheFirstOpinionWins_AndDeclinesDeferToTheNextPolicy()
+    public void TheFirstOpinionWins_DeclinesDeferAndADenialOverridesTheBuiltIn()
     {
         var registry = CreateRegistry();
         registry.Add<ICompactableToolPolicy>(
@@ -52,31 +46,12 @@ public sealed class CompactableToolPolicyContributionTests
         registry.Add<ICompactableToolPolicy>(
             new FixedPolicy("second", PluginTool, false),
             new ContributionOptions(Order: 30));
-
-        Assert.True(CompactableToolPolicyCatalog.IsCompactable(registry, null, PluginTool));
-    }
-
-    [Fact]
-    public void ContributedPolicy_MayDenyAToolTheBuiltInAllows()
-    {
-        var registry = CreateRegistry();
         registry.Add<ICompactableToolPolicy>(
             new FixedPolicy("deny", "ReadFile", false),
             new ContributionOptions(Order: 10));
 
+        Assert.True(CompactableToolPolicyCatalog.IsCompactable(registry, null, PluginTool));
         Assert.False(CompactableToolPolicyCatalog.IsCompactable(registry, null, "ReadFile"));
-    }
-
-    [Fact]
-    public void ThreadScopedPolicy_AppliesToThatThreadOnly()
-    {
-        var registry = CreateRegistry();
-        registry.Add<ICompactableToolPolicy>(
-            new FixedPolicy("scoped", PluginTool, true),
-            ContributionOptions.ForThread(ThreadId));
-
-        Assert.True(CompactableToolPolicyCatalog.IsCompactable(registry, ThreadId, PluginTool));
-        Assert.False(CompactableToolPolicyCatalog.IsCompactable(registry, "thread-b", PluginTool));
     }
 
     [Fact]
@@ -104,7 +79,6 @@ public sealed class CompactableToolPolicyContributionTests
 
         Assert.Equal(MicroCompactTrigger.None, Run(registry, messages).Trigger);
 
-        // Late registration is observed on the next pass; the contribution point is read per compaction.
         registry.Add<ICompactableToolPolicy>(new FixedPolicy("acme", PluginTool, true));
         var result = Run(registry, messages);
 

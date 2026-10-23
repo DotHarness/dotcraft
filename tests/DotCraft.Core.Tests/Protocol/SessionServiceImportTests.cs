@@ -36,7 +36,7 @@ public sealed partial class SessionServiceImportTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_tempDir, recursive: true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]

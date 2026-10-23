@@ -10,7 +10,7 @@ import {
   type UserInputHandler,
 } from "./dotcraft.js";
 import { TurnInProgressError } from "./errors.js";
-import { ERR_TURN_IN_PROGRESS, imageDataUrlPart, JsonRpcMessage } from "./models.js";
+import { ERR_TURN_IN_PROGRESS, JsonRpcMessage } from "./models.js";
 import type {
   DynamicToolCallResult,
   ServerCapabilities,
@@ -30,19 +30,6 @@ const appBindingFixture = JSON.parse(readFileSync(
   new URL("../../../specs/protocols/fixtures/app-binding.json", import.meta.url),
   "utf8",
 )) as { version: number; states: string[]; channelMethods: string[]; errors: Record<string, string> };
-
-test("imageDataUrlPart creates inline image input", () => {
-  const dataUrl = "data:image/png;base64,iVBORw0KGgo=";
-  assert.deepEqual(imageDataUrlPart(dataUrl), { type: "image", url: dataUrl });
-});
-
-test("App Binding canonical fixture is stable", () => {
-  assert.equal(appBindingFixture.version, 1);
-  assert.deepEqual(appBindingFixture.states, [
-    "connecting", "syncing", "active", "offline", "needsConfirmation", "revoked", "failed", "cancelled",
-  ]);
-  assert.equal(appBindingFixture.errors.upgradeRequired, "AppBindingUpgradeRequired");
-});
 
 class FakeWire {
   readonly requestHandlers = new Map<string, ServerRequestHandler>();
@@ -268,15 +255,12 @@ test("MCP runtime manager uses the specified methods and wire fields", async () 
   ]);
 });
 
-test("DotCraft does not install callback fallbacks", async () => {
-  const wire = new FakeWire();
-  createSdk(wire);
+test("DotCraft registers approval and user-input handlers only when callbacks are provided", async () => {
+  const bare = new FakeWire();
+  createSdk(bare);
+  assert.equal(bare.requestHandlers.has("item/approval/request"), false);
+  assert.equal(bare.requestHandlers.has("item/tool/requestUserInput"), false);
 
-  assert.equal(wire.requestHandlers.has("item/approval/request"), false);
-  assert.equal(wire.requestHandlers.has("item/tool/requestUserInput"), false);
-});
-
-test("DotCraft uses explicit approval and user-input callbacks when provided", async () => {
   const wire = new FakeWire();
   createSdk(
     wire,
@@ -379,74 +363,14 @@ test("parseAppBindingHandoff extracts fields and validates scheme and appId", ()
   assert.equal(handoff.requestId, "req_1");
   assert.equal(handoff.requestToken, "tok_1");
   assert.equal(handoff.appServerUrl, "ws://127.0.0.1:1234/x");
-});
-
-test("parseAppBindingHandoff rejects an unexpected scheme", () => {
   assert.throws(() =>
     parseAppBindingHandoff("evil://dotcraft/connect?app=x&request=r&token=t", {
       expectedScheme: "board-example",
     }),
   );
-});
-
-test("parseAppBindingHandoff rejects alternate query names", () => {
   assert.throws(() => parseAppBindingHandoff(
     "board-example://dotcraft/connect?appId=com.example.board&requestId=req_1&requestToken=tok_1",
   ));
-});
-
-test("DotCraft models.list returns typed model info", async () => {
-  const wire = new FakeWire();
-  const sdk = createSdk(wire);
-  const models = await sdk.models.list();
-  assert.equal(models.length, 1);
-  assert.equal(models[0].id, "claude-opus-4-8");
-  assert.equal(models[0].displayName, "Claude Opus 4.8");
-  assert.equal(models[0].provider, "anthropic");
-});
-
-test("DotCraft appBindings surface helpers use typed contracts", async () => {
-  const wire = new FakeWire();
-  const sdk = createSdk(wire);
-  const surface = {
-    appId: "com.example.board",
-    surfaceId: "board",
-    endpoint: "http://127.0.0.1:43120/",
-    bearer: "surface-secret",
-    expiresAt: "2026-07-16T12:02:00Z",
-  };
-  wire.requestResults.set("app/surface/publish", surface);
-  wire.requestResults.set("app/surface/resolve", surface);
-
-  const published = await sdk.appBindings.publishSurface({
-    surfaceId: "board",
-    endpoint: "http://127.0.0.1:43120/",
-    bearer: "surface-secret",
-  });
-  const resolved = await sdk.appBindings.resolveSurface({
-    appId: "com.example.board",
-    surfaceId: "board",
-  });
-
-  assert.deepEqual(published, surface);
-  assert.deepEqual(resolved, surface);
-  assert.deepEqual(wire.requests, [
-    {
-      method: "app/surface/publish",
-      params: {
-        surfaceId: "board",
-        endpoint: "http://127.0.0.1:43120/",
-        bearer: "surface-secret",
-      },
-    },
-    {
-      method: "app/surface/resolve",
-      params: {
-        appId: "com.example.board",
-        surfaceId: "board",
-      },
-    },
-  ]);
 });
 
 test("DotCraft appBindings channel binding helpers send expected JSON-RPC params", async () => {

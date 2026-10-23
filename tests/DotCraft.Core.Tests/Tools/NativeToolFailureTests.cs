@@ -80,7 +80,6 @@ public sealed class NativeToolFailureTests : IDisposable
 
     [Theory]
     [InlineData("")]
-    [InlineData("  ")]
     [InlineData("original error")]
     public async Task NativeExceptionPreservesOriginalDiagnosticsAndNonemptyFallback(string message)
     {

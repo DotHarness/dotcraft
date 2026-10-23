@@ -63,9 +63,12 @@ public sealed class DreamsToolProfileTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteMemoryFile_RemovesOnlyCandidateMemoryFiles()
+    public async Task ReadToolsReachBaselineAndWorkspace_ButDeleteRemovesOnlyCandidateMemoryFiles()
     {
+        DreamsTestWorkspace.WriteFile(_workspace.WorkspacePath, "README.md", "Workspace readme.");
         var snapshot = await CreateSnapshotAsync();
+        Assert.Contains("Deploy on Fridays.", await InvokeAsync(snapshot, "ReadFile", new() { ["path"] = Path.Combine(_baseline, "deploy.md") }), StringComparison.Ordinal);
+        Assert.Contains("Workspace readme.", await InvokeAsync(snapshot, "ReadFile", new() { ["path"] = Path.Combine(_workspace.WorkspacePath, "README.md") }), StringComparison.Ordinal);
 
         await InvokeAsync(snapshot, "DeleteMemoryFile", new() { ["name"] = "deploy.md" });
         await InvokeAsync(snapshot, "DeleteMemoryFile", new() { ["name"] = "MEMORY.md" }, success: false);
@@ -75,16 +78,6 @@ public sealed class DreamsToolProfileTests : IDisposable
         Assert.False(File.Exists(Path.Combine(_candidate, "deploy.md")));
         Assert.True(File.Exists(Path.Combine(_candidate, "MEMORY.md")));
         Assert.True(File.Exists(Path.Combine(_baseline, "deploy.md")));
-    }
-
-    [Fact]
-    public async Task ReadTools_ReachTheBaselineAndTheWorkspace()
-    {
-        DreamsTestWorkspace.WriteFile(_workspace.WorkspacePath, "README.md", "Workspace readme.");
-        var snapshot = await CreateSnapshotAsync();
-
-        Assert.Contains("Deploy on Fridays.", await InvokeAsync(snapshot, "ReadFile", new() { ["path"] = Path.Combine(_baseline, "deploy.md") }), StringComparison.Ordinal);
-        Assert.Contains("Workspace readme.", await InvokeAsync(snapshot, "ReadFile", new() { ["path"] = Path.Combine(_workspace.WorkspacePath, "README.md") }), StringComparison.Ordinal);
     }
 
     [Fact]

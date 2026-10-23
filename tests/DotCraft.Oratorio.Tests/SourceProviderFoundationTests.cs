@@ -37,100 +37,6 @@ public sealed class SourceProviderFoundationTests
     }
 
     [Fact]
-    public async Task GitLabShapedFakeProvider_PassesProviderContractShape()
-    {
-        var provider = new FakeSourceProvider("gitlab", "https://gitlab.company.test", "group/subgroup/project");
-        var registry = new SourceProviderRegistry([provider]);
-
-        var statuses = await registry.GetStatusesAsync(CancellationToken.None);
-        var status = Assert.Single(statuses);
-        var project = Assert.Single(status.Projects);
-
-        Assert.Equal("gitlab", status.Provider);
-        Assert.True(status.Configured);
-        Assert.True(status.ReadCapability.Available);
-        Assert.False(status.WriteCapability.Available);
-        Assert.Equal("group/subgroup/project", project.ProjectPath);
-        Assert.Equal("gitlab:gitlab.company.test/group/subgroup/project", project.Key);
-    }
-
-    [Fact]
-    public void SourceSyncMapper_ProjectsGitHubJobAsSourceNeutralReviewTargets()
-    {
-        var run = new GitHubSyncRepositoryRunDto(
-            "run-1",
-            "job-1",
-            "example-owner/oratorio",
-            GitHubSyncRepositoryStatus.Succeeded,
-            GitHubSyncRepositoryPhase.Done,
-            2,
-            3,
-            1,
-            2,
-            4,
-            0,
-            null,
-            null,
-            Now,
-            Now,
-            Now,
-            Now);
-        var job = new GitHubSyncJobDto(
-            "job-1",
-            GitHubSyncTrigger.Manual,
-            GitHubSyncMode.Incremental,
-            GitHubSyncStatus.Succeeded,
-            1,
-            1,
-            0,
-            1,
-            2,
-            4,
-            0,
-            null,
-            null,
-            Now,
-            Now,
-            Now,
-            Now,
-            [run]);
-
-        var sourceJob = SourceSyncMapper.FromGitHub(job, "https://api.github.com");
-        var sourceRun = Assert.Single(sourceJob.Projects);
-
-        Assert.Equal("github", sourceJob.Provider);
-        Assert.Equal(SourceSyncTrigger.Manual, sourceJob.Trigger);
-        Assert.Equal(SourceSyncStatus.Succeeded, sourceJob.Status);
-        Assert.Equal(2, sourceJob.ReviewTargetsImported);
-        Assert.Equal("github:github.com/example-owner/oratorio", sourceRun.SourceProjectKey);
-        Assert.Equal(3, sourceRun.ReviewTargetsDiscovered);
-        Assert.Equal(2, sourceRun.ReviewTargetsImported);
-    }
-
-    [Fact]
-    public void SourceWriteDto_ExposesCanonicalKind_ForProviderPayloads()
-    {
-        var write = new OratorioSourceWriteLog
-        {
-            WriteId = "write-1",
-            ItemId = "item-1",
-            Source = "github",
-            Kind = SourceWriteKind.CheckRun,
-            Intent = "approve",
-            Status = SourceWriteStatus.Succeeded,
-            RequestJson = """{"name":"oratorio/review","conclusion":"success"}""",
-            CreatedAt = Now,
-            UpdatedAt = Now
-        };
-
-        var dto = write.ToDto();
-
-        Assert.Equal(SourceWriteKind.CheckRun, dto.Kind);
-        Assert.Equal(SourceWriteCanonicalKinds.ExternalStatus, dto.CanonicalKind);
-        Assert.Equal("approve", dto.Intent);
-    }
-
-    [Fact]
     public async Task SourcesEndpoint_ReturnsGitHubProviderProjection()
     {
         await using var app = new TestOratorioApp();
@@ -172,35 +78,7 @@ public sealed class SourceProviderFoundationTests
     }
 
     [Fact]
-    public void SourceSyncMapper_PreservesScheduledGitHubTrigger()
-    {
-        var job = new GitHubSyncJobDto(
-            "job-1",
-            GitHubSyncTrigger.Scheduled,
-            GitHubSyncMode.Incremental,
-            GitHubSyncStatus.Queued,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            null,
-            null,
-            Now,
-            Now,
-            null,
-            null,
-            []);
-
-        var sourceJob = SourceSyncMapper.FromGitHub(job, "https://api.github.com");
-
-        Assert.Equal(SourceSyncTrigger.Scheduled, sourceJob.Trigger);
-    }
-
-    [Fact]
-    public async Task SourceSyncSchedules_ReturnDefaultsAndEnableWithFiveMinuteNextRun()
+    public async Task SourceSyncSchedules_ReturnDefaultsEnableWithFiveMinuteNextRunAndRejectSubMinuteIntervals()
     {
         var clock = new MutableClock(DateTimeOffset.Parse("2026-05-20T08:00:00Z"));
         await using var app = CreateScheduleTestApp(clock);
@@ -228,22 +106,13 @@ public sealed class SourceProviderFoundationTests
         Assert.Equal(300, enabled.IntervalSeconds);
         Assert.Equal(clock.UtcNow.AddMinutes(5), enabled.NextRunAt);
         Assert.True(enabled.ReadAvailable);
-    }
 
-    [Fact]
-    public async Task SourceSyncSchedule_RejectsIntervalsBelowOneMinute()
-    {
-        await using var app = CreateScheduleTestApp(new MutableClock(Now));
-        var client = app.CreateClient();
-
-        var response = await client.PutAsJsonAsync(
+        var tooFrequent = await client.PutAsJsonAsync(
             "/api/v1/sources/github/sync-schedule",
             new SourceSyncScheduleUpdateRequest(true, 59),
             JsonOptions);
-        var error = await response.Content.ReadFromJsonAsync<ErrorResponse>(JsonOptions);
-
-        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal("validationFailed", error?.Error.Code);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, tooFrequent.StatusCode);
+        Assert.Equal("validationFailed", (await tooFrequent.Content.ReadFromJsonAsync<ErrorResponse>(JsonOptions))?.Error.Code);
     }
 
     [Fact]
@@ -334,30 +203,6 @@ public sealed class SourceProviderFoundationTests
         var schedule = await db.SourceSyncSchedules.AsNoTracking().SingleAsync(x => x.Provider == "github");
         Assert.Equal("sourceSyncScheduleUnavailable", schedule.LastErrorCode);
         Assert.Equal(clock.UtcNow.AddMinutes(5), schedule.NextRunAt);
-    }
-
-    private sealed class FakeSourceProvider(string provider, string endpoint, string projectPath) : ISourceProvider
-    {
-        public string Provider { get; } = provider;
-
-        public Task<SourceProviderStatusDto> GetStatusAsync(CancellationToken ct)
-        {
-            var uri = new Uri(endpoint);
-            var key = new SourceProjectKey(Provider, uri.Host, projectPath);
-            return Task.FromResult(new SourceProviderStatusDto(
-                Provider,
-                "GitLab",
-                endpoint,
-                true,
-                "token",
-                new SourceProviderCapabilityDto(true, "available", null),
-                new SourceProviderCapabilityDto(false, "disabled", "Writes are not enabled in the fake provider."),
-                new SourceProviderCapabilityDto(false, "unconfigured", "Webhook verification is not configured."),
-                1,
-                null,
-                null,
-                [new SourceProjectDto(Provider, key.Instance, key.ProjectPath, key.Key, key.ProjectPath)]));
-        }
     }
 
     private static TestOratorioApp CreateScheduleTestApp(

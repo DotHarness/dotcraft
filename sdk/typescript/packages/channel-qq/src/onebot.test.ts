@@ -9,7 +9,7 @@ import {
   normalizeMessageSegments,
 } from "./index.js";
 
-test("OneBot helpers extract text, at, and image fields", () => {
+test("OneBot helpers extract segment fields and recognize successful actions", () => {
   const segments = normalizeMessageSegments([
     { type: "at", data: { qq: "123" } },
     { type: "text", data: { text: "hello" } },
@@ -19,9 +19,6 @@ test("OneBot helpers extract text, at, and image fields", () => {
   assert.equal(getAtQQ(segments[0]), "123");
   assert.equal(getPlainText(segments), "hello");
   assert.equal(getImageUrl(segments[2]), "https://example.test/a.png");
-});
-
-test("isActionOk accepts OneBot ok status and retcode zero", () => {
   assert.equal(isActionOk({ status: "ok" }), true);
   assert.equal(isActionOk({ retcode: 0 }), true);
   assert.equal(isActionOk({ status: "failed", retcode: 1400 }), false);

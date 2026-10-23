@@ -50,11 +50,13 @@ public sealed class AppServerFileSystemTests : IDisposable
     }
 
     [Fact]
-    public async Task BlacklistedPath_IsBlockedForEveryMethod()
+    public async Task BlacklistedPath_IsBlockedForEveryMethodIncludingEitherSideOfACopy()
     {
         var blocked = Path.Combine(_root, "secrets");
         Directory.CreateDirectory(blocked);
         File.WriteAllText(Path.Combine(blocked, "key.txt"), "secret");
+        var open = Path.Combine(_root, "open.txt");
+        File.WriteAllText(open, "public");
         _harness.Monitor.Current.Security.BlacklistedPaths.Add(blocked);
         await _harness.InitializeAsync();
 
@@ -65,29 +67,13 @@ public sealed class AppServerFileSystemTests : IDisposable
         var list = await SendForErrorAsync(Rpc.FsReadDirectory.Name, new { path = blocked });
         var remove = await SendForErrorAsync(Rpc.FsRemove.Name, new { path = Path.Combine(blocked, "key.txt") });
         var watch = await SendForErrorAsync(Rpc.FsWatch.Name, new { watchId = "w", path = blocked });
-
-        Assert.All([read, write, create, metadata, list, remove, watch], error => Assert.Equal("PathBlocked", DataCode(error)));
-        Assert.False(File.Exists(Path.Combine(blocked, "new.txt")));
-        Assert.False(Directory.Exists(Path.Combine(blocked, "sub")));
-        Assert.True(File.Exists(Path.Combine(blocked, "key.txt")));
-    }
-
-    [Fact]
-    public async Task Copy_ChecksBothPathsAgainstTheBlacklist()
-    {
-        var blocked = Path.Combine(_root, "secrets");
-        Directory.CreateDirectory(blocked);
-        File.WriteAllText(Path.Combine(blocked, "key.txt"), "secret");
-        var open = Path.Combine(_root, "open.txt");
-        File.WriteAllText(open, "public");
-        _harness.Monitor.Current.Security.BlacklistedPaths.Add(blocked);
-        await _harness.InitializeAsync();
-
         var fromBlocked = await SendForErrorAsync(Rpc.FsCopy.Name, new { sourcePath = Path.Combine(blocked, "key.txt"), destinationPath = Path.Combine(_root, "leak.txt") });
         var intoBlocked = await SendForErrorAsync(Rpc.FsCopy.Name, new { sourcePath = open, destinationPath = Path.Combine(blocked, "planted.txt") });
 
-        Assert.Equal("PathBlocked", DataCode(fromBlocked));
-        Assert.Equal("PathBlocked", DataCode(intoBlocked));
+        Assert.All([read, write, create, metadata, list, remove, watch, fromBlocked, intoBlocked], error => Assert.Equal("PathBlocked", DataCode(error)));
+        Assert.False(File.Exists(Path.Combine(blocked, "new.txt")));
+        Assert.False(Directory.Exists(Path.Combine(blocked, "sub")));
+        Assert.True(File.Exists(Path.Combine(blocked, "key.txt")));
         Assert.False(File.Exists(Path.Combine(_root, "leak.txt")));
         Assert.False(File.Exists(Path.Combine(blocked, "planted.txt")));
     }
@@ -117,30 +103,20 @@ public sealed class AppServerFileSystemTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadFile_ReportsMissingDirectoryAndOversizedTargets()
+    public async Task ReadWriteAndCreate_ReportMissingWrongKindAndOversizedTargets()
     {
         var large = Path.Combine(_root, "large.bin");
         using (var stream = File.Create(large))
             stream.SetLength(8L * 1024 * 1024 + 1);
+        var file = Path.Combine(_root, "existing.txt");
+        File.WriteAllText(file, "x");
         await _harness.InitializeAsync();
 
         Assert.Equal("FileNotFound", DataCode(await SendForErrorAsync(Rpc.FsReadFile.Name, new { path = Path.Combine(_root, "missing.txt") })));
         Assert.Equal("NotAFile", DataCode(await SendForErrorAsync(Rpc.FsReadFile.Name, new { path = _root })));
         Assert.Equal("FileTooLarge", DataCode(await SendForErrorAsync(Rpc.FsReadFile.Name, new { path = large })));
-    }
-
-    [Fact]
-    public async Task WriteAndCreate_RejectMissingParentAndExistingFile()
-    {
-        var file = Path.Combine(_root, "existing.txt");
-        File.WriteAllText(file, "x");
-        await _harness.InitializeAsync();
-
-        var write = await SendForErrorAsync(Rpc.FsWriteFile.Name, new { path = Path.Combine(_root, "missing", "a.txt"), dataBase64 = "AA==" });
-        var create = await SendForErrorAsync(Rpc.FsCreateDirectory.Name, new { path = file });
-
-        Assert.Equal("DirectoryNotFound", DataCode(write));
-        Assert.Equal("NotADirectory", DataCode(create));
+        Assert.Equal("DirectoryNotFound", DataCode(await SendForErrorAsync(Rpc.FsWriteFile.Name, new { path = Path.Combine(_root, "missing", "a.txt"), dataBase64 = "AA==" })));
+        Assert.Equal("NotADirectory", DataCode(await SendForErrorAsync(Rpc.FsCreateDirectory.Name, new { path = file })));
         Assert.False(Directory.Exists(Path.Combine(_root, "missing")));
     }
 
@@ -249,24 +225,10 @@ public sealed class AppServerFileSystemTests : IDisposable
     }
 
     [Fact]
-    public async Task Copy_DoesNotFollowDirectoryLinksInsideTheTree()
+    public async Task Copy_SkipsBlacklistedEntriesAndLinksInsideTheTree()
     {
-        var source = Path.Combine(_root, "src");
-        Directory.CreateDirectory(source);
-        File.WriteAllText(Path.Combine(source, "a.txt"), "a");
-        if (!TryCreateDirectoryLink(Path.Combine(source, "loop"), source))
-            return;
-        var copy = Path.Combine(_root, "copy");
-        await _harness.InitializeAsync();
-
-        await SendAsync(Rpc.FsCopy.Name, new { sourcePath = source, destinationPath = copy, recursive = true });
-
-        Assert.Equal("a", File.ReadAllText(Path.Combine(copy, "a.txt")));
-    }
-
-    [Fact]
-    public async Task Copy_SkipsBlacklistedEntriesInsideTheTree()
-    {
+        var outside = Path.Combine(_root, "outside.txt");
+        File.WriteAllText(outside, "outside");
         var source = Path.Combine(_root, "src");
         Directory.CreateDirectory(Path.Combine(source, "secrets"));
         File.WriteAllText(Path.Combine(source, "secrets", "key.txt"), "secret");
@@ -274,6 +236,17 @@ public sealed class AppServerFileSystemTests : IDisposable
         File.WriteAllText(Path.Combine(source, "a.txt"), "a");
         _harness.Monitor.Current.Security.BlacklistedPaths.Add(Path.Combine(source, "secrets"));
         _harness.Monitor.Current.Security.BlacklistedPaths.Add(Path.Combine(source, "token.txt"));
+        TryCreateDirectoryLink(Path.Combine(source, "loop"), source);
+        bool fileLink;
+        try
+        {
+            File.CreateSymbolicLink(Path.Combine(source, "link.txt"), outside);
+            fileLink = true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            fileLink = false;
+        }
         var copy = Path.Combine(_root, "copy");
         await _harness.InitializeAsync();
 
@@ -282,31 +255,8 @@ public sealed class AppServerFileSystemTests : IDisposable
         Assert.Equal("a", File.ReadAllText(Path.Combine(copy, "a.txt")));
         Assert.False(Directory.Exists(Path.Combine(copy, "secrets")));
         Assert.False(File.Exists(Path.Combine(copy, "token.txt")));
-    }
-
-    [Fact]
-    public async Task Copy_SkipsFileLinksInsideTheTree()
-    {
-        var outside = Path.Combine(_root, "outside.txt");
-        File.WriteAllText(outside, "outside");
-        var source = Path.Combine(_root, "src");
-        Directory.CreateDirectory(source);
-        File.WriteAllText(Path.Combine(source, "a.txt"), "a");
-        try
-        {
-            File.CreateSymbolicLink(Path.Combine(source, "link.txt"), outside);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
-        {
-            return;
-        }
-        var copy = Path.Combine(_root, "copy");
-        await _harness.InitializeAsync();
-
-        await SendAsync(Rpc.FsCopy.Name, new { sourcePath = source, destinationPath = copy, recursive = true });
-
-        Assert.Equal("a", File.ReadAllText(Path.Combine(copy, "a.txt")));
-        Assert.False(File.Exists(Path.Combine(copy, "link.txt")));
+        if (fileLink)
+            Assert.False(File.Exists(Path.Combine(copy, "link.txt")));
     }
 
     [Fact]

@@ -108,21 +108,16 @@ test("a direct message starts the device flow and reports the bound account", as
   assert.ok(cards[1]?.body.includes("Operator"));
 });
 
-test("the tool delivers the link to the requester rather than the current chat", async () => {
-  const { adapter, cards } = createAdapter({
+test("the tool delivers the link to the requester and starts no flow without a requester or with a bound account", async () => {
+  const requester = createAdapter({
     isConfigured: () => true,
     getBinding: () => null,
     requestAuthorization: async () => AUTHORIZATION,
     waitForAuthorization: async () => new Promise(() => {}),
   });
+  assert.equal((await requester.adapter.authorizeUserFromTool("ou_requester")).success, true);
+  assert.deepEqual(requester.cards.map((card) => card.target), ["dm:ou_requester"]);
 
-  const result = await adapter.authorizeUserFromTool("ou_requester");
-
-  assert.equal(result.success, true);
-  assert.deepEqual(cards.map((card) => card.target), ["dm:ou_requester"]);
-});
-
-test("the tool starts no device flow without a known requester or with an account already bound", async () => {
   let requested = 0;
   const identity = {
     isConfigured: () => true,

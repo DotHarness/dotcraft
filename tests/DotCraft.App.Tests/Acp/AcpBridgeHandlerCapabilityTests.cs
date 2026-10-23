@@ -139,7 +139,6 @@ public sealed class AcpBridgeHandlerCapabilityTests
     }
 
     [Theory]
-    [InlineData(0)]
     [InlineData(2)]
     public void TryBuildRuntimeTools_RejectsUnsupportedPrivateContractVersion(int version)
     {

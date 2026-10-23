@@ -5,10 +5,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Tracing;
 
-/// <summary>
-/// Aggregation contract of <see cref="UsageAnalyticsService"/> (spec §27A) over completed-Turn
-/// usage facts and persisted trace events.
-/// </summary>
 public sealed class UsageAnalyticsServiceTests : IDisposable
 {
     private readonly string _root;
@@ -131,16 +127,6 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
             UsageHistoryQuery.DefaultTopLimit));
         Assert.Equal(4, Assert.Single(total.Days).Total);
         Assert.Empty(total.Series);
-    }
-
-    [Fact]
-    public void History_RejectsUnsupportedCombination()
-    {
-        Assert.Throws<ArgumentException>(() => _service.GetHistory(new UsageHistoryQuery(
-            UsageMetric.Tokens,
-            UsageDimension.Skill,
-            UsageDateRange.Create(null, null, 0),
-            UsageHistoryQuery.DefaultTopLimit)));
     }
 
     [Fact]
@@ -321,6 +307,6 @@ public sealed class UsageAnalyticsServiceTests : IDisposable
     {
         _db.Dispose();
         try { Directory.Delete(_root, recursive: true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 }

@@ -40,46 +40,30 @@ public sealed class GenerativeUiStateTests : IDisposable
         Assert.Empty((await ReadAsync(table)).States);
     }
 
-    [Theory]
-    [InlineData("thread_missing", "turn_test", "item_agent", 0, "not_found")]
-    [InlineData("thread_test", "turn_test", "item_missing", 0, "not_found")]
-    [InlineData("thread_test", "turn_test", "item_user", 0, "not_found")]
-    [InlineData("thread_test", "turn_test", "item_agent", -1, "invalid_block")]
-    public async Task Update_RejectsUnknownBlocks(string threadId, string turnId, string itemId, int blockIndex, string code)
-    {
-        var table = await CreateTableAsync(CapableConnection());
-
-        var error = await Assert.ThrowsAsync<AppServerException>(() =>
-            UpdateAsync(table, new { threadId, turnId, itemId, blockIndex, state = new { tab = "a" } }));
-
-        Assert.Equal(code, Assert.IsType<AppServerErrorData>(error.ErrorData).Code);
-        Assert.Empty((await ReadAsync(table)).States);
-    }
-
     [Fact]
-    public async Task Update_RejectsOversizedState()
+    public async Task Methods_RejectUnknownTargetsAndOversizedStateWithoutStoringAnything()
     {
         var table = await CreateTableAsync(CapableConnection());
 
-        var error = await Assert.ThrowsAsync<AppServerException>(() => UpdateAsync(
-            table,
-            new { threadId = "thread_test", turnId = "turn_test", itemId = "item_agent", blockIndex = 0, state = new string('x', 16 * 1024) }));
-
-        Assert.Equal("state_too_large", Assert.IsType<AppServerErrorData>(error.ErrorData).Code);
+        foreach (var (parameters, code) in new (object Params, string Code)[]
+                 {
+                     (new { threadId = "thread_missing", turnId = "turn_test", itemId = "item_agent", blockIndex = 0, state = new { tab = "a" } }, "not_found"),
+                     (new { threadId = "thread_test", turnId = "turn_test", itemId = "item_missing", blockIndex = 0, state = new { tab = "a" } }, "not_found"),
+                     (new { threadId = "thread_test", turnId = "turn_test", itemId = "item_user", blockIndex = 0, state = new { tab = "a" } }, "not_found"),
+                     (new { threadId = "thread_test", turnId = "turn_test", itemId = "item_agent", blockIndex = -1, state = new { tab = "a" } }, "invalid_block"),
+                     (new { threadId = "thread_test", turnId = "turn_test", itemId = "item_agent", blockIndex = 0, state = new string('x', 16 * 1024) }, "state_too_large")
+                 })
+        {
+            var error = await Assert.ThrowsAsync<AppServerException>(() => UpdateAsync(table, parameters));
+            Assert.Equal(code, Assert.IsType<AppServerErrorData>(error.ErrorData).Code);
+        }
         Assert.Empty((await ReadAsync(table)).States);
-    }
 
-    [Fact]
-    public async Task Read_RejectsUnknownThread()
-    {
-        var table = await CreateTableAsync(CapableConnection());
         Assert.True(table.TryGet(Contract.AppServerMethodNames.GenerativeUiStateRead, out var read));
-
-        var error = await Assert.ThrowsAsync<AppServerException>(() => read(
+        var readError = await Assert.ThrowsAsync<AppServerException>(() => read(
             InMemoryTransport.BuildRequest(Contract.AppServerMethodNames.GenerativeUiStateRead, new { threadId = "thread_missing" }),
             CancellationToken.None));
-
-        Assert.Equal("not_found", Assert.IsType<AppServerErrorData>(error.ErrorData).Code);
+        Assert.Equal("not_found", Assert.IsType<AppServerErrorData>(readError.ErrorData).Code);
     }
 
     [Fact]

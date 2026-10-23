@@ -6,7 +6,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
-/// <summary>Wire conformance of <c>usage/history</c>, <c>usage/threads</c>, and <c>usage/thread</c> (spec Sections 27A.3–27A.5).</summary>
 public sealed class AppServerUsageHistoryTests : IDisposable
 {
     private readonly string _root;
@@ -22,24 +21,6 @@ public sealed class AppServerUsageHistoryTests : IDisposable
         _facts = new TokenUsageStore(_db);
         _traceStore = new TraceStore(_db, maxEventsPerSession: 5000, synchronousPersist: true);
         _analytics = new UsageAnalyticsService(_db);
-    }
-
-    [Theory]
-    [InlineData("credits", null, null)]
-    [InlineData("tokens", "skill", null)]
-    [InlineData("tokens", null, "2026/05/29")]
-    public async Task UsageHistory_ReturnsInvalidParams_ForBadRequests(string metric, string? groupBy, string? from)
-    {
-        using var h = new AppServerTestHarness(traceStore: _traceStore, usageAnalytics: _analytics);
-        await h.InitializeAsync();
-
-        var msg = h.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.UsageHistory,
-            new { metric, groupBy, from });
-        await h.ExecuteRequestAsync(msg);
-        var resp = h.Transport.TryReadSent()!;
-
-        AppServerTestHarness.AssertIsErrorResponse(resp, AppServerErrors.InvalidParamsCode);
     }
 
     [Fact]
@@ -77,6 +58,19 @@ public sealed class AppServerUsageHistoryTests : IDisposable
         var series = result.GetProperty("series");
         Assert.Equal("atlas-4", series[0].GetProperty("key").GetString());
         Assert.Equal(132, series[0].GetProperty("total").GetInt64());
+
+        foreach (var (metric, groupBy, from) in new (string, string?, string?)[]
+                 {
+                     ("credits", null, null),
+                     ("tokens", "skill", null),
+                     ("tokens", null, "2026/05/29")
+                 })
+        {
+            await h.ExecuteRequestAsync(h.BuildRequest(
+                DotCraft.Protocol.AppServer.AppServerMethodNames.UsageHistory,
+                new { metric, groupBy, from }));
+            AppServerTestHarness.AssertIsErrorResponse(h.Transport.TryReadSent()!, AppServerErrors.InvalidParamsCode);
+        }
     }
 
     [Fact]

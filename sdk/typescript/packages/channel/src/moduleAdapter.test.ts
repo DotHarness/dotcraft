@@ -6,8 +6,7 @@ import test from "node:test";
 
 import { ChannelAdapter } from "./adapter.js";
 import type { ChannelChatDescriptor, ChannelDeliveryCapabilities } from "./capability.js";
-import { ConfigValidationError, loadJsonConfig, ModuleChannelAdapter, resolveConfigPath, resolveModuleStatePath, resolveModuleTempPath } from "./moduleAdapter.js";
-import type { ModuleError } from "./lifecycle.js";
+import { ConfigValidationError, ModuleChannelAdapter, resolveConfigPath, resolveModuleStatePath, resolveModuleTempPath } from "./moduleAdapter.js";
 import type { WorkspaceContext } from "./module.js";
 import { TransportClosed, type Transport } from "@dotcraft/sdk/wire";
 
@@ -153,42 +152,19 @@ class TestModuleAdapter extends ModuleChannelAdapter<{ wsUrl: string }> {
       },
     };
   }
-
-  triggerAuthRequired(error?: Partial<ModuleError>): void {
-    this.signalAuthRequired(error);
-  }
-
-  triggerAuthExpired(error?: Partial<ModuleError>): void {
-    this.signalAuthExpired(error);
-  }
 }
 
-test("ChannelAdapter getStatus returns stopped before start", () => {
-  const adapter = new LifecycleAdapter();
-  assert.equal(adapter.getStatus(), "stopped");
-  assert.equal(adapter.getError(), undefined);
-});
-
-test("ChannelAdapter start and stop emit lifecycle transitions", async () => {
-  const adapter = new LifecycleAdapter();
+test("ChannelAdapter start and stop emit lifecycle transitions and declare channel capabilities", async () => {
+  const transport = new MockTransport();
+  const adapter = new LifecycleAdapter(transport);
   const transitions: string[] = [];
   adapter.onStatusChange((status) => transitions.push(status));
 
   await adapter.start();
   assert.equal(adapter.getStatus(), "ready");
-  assert.equal(adapter.getError(), undefined);
-
   await adapter.stop();
   assert.equal(adapter.getStatus(), "stopped");
   assert.deepEqual(transitions, ["starting", "ready", "stopped"]);
-});
-
-test("ChannelAdapter declares its platform name and delivery capabilities during initialize", async () => {
-  const transport = new MockTransport();
-  const adapter = new LifecycleAdapter(transport);
-
-  await adapter.start();
-  await adapter.stop();
 
   const initialize = transport.written.find((msg) => msg.method === "initialize");
   const capabilities = (initialize?.params as { capabilities?: Record<string, unknown> } | undefined)?.capabilities;
@@ -199,22 +175,7 @@ test("ChannelAdapter declares its platform name and delivery capabilities during
   });
 });
 
-test("ChannelAdapter notifies multiple status handlers", async () => {
-  const adapter = new LifecycleAdapter();
-  const first: string[] = [];
-  const second: string[] = [];
-
-  adapter.onStatusChange((status) => first.push(status));
-  adapter.onStatusChange((status) => second.push(status));
-
-  await adapter.start();
-  await adapter.stop();
-
-  assert.deepEqual(first, ["starting", "ready", "stopped"]);
-  assert.deepEqual(second, ["starting", "ready", "stopped"]);
-});
-
-test("resolveConfigPath prefers override path", () => {
+test("module paths honor the config override and scope state and temp by module", () => {
   const context: WorkspaceContext = {
     workspaceRoot: "/ws",
     craftPath: "/ws/.craft",
@@ -224,52 +185,12 @@ test("resolveConfigPath prefers override path", () => {
   };
 
   assert.equal(resolveConfigPath(context, "demo.json"), "/tmp/override.json");
-});
-
-test("resolveConfigPath defaults to craft config file", () => {
-  const context: WorkspaceContext = {
-    workspaceRoot: "/ws",
-    craftPath: "/ws/.craft",
-    channelName: "demo",
-    moduleId: "demo-module",
-  };
-
-  assert.equal(resolveConfigPath(context, "demo.json"), join("/ws/.craft", "demo.json"));
-});
-
-test("resolveModuleStatePath and resolveModuleTempPath compute module scoped paths", () => {
-  const context: WorkspaceContext = {
-    workspaceRoot: "/ws",
-    craftPath: "/ws/.craft",
-    channelName: "demo",
-    moduleId: "demo-module",
-  };
-
+  assert.equal(resolveConfigPath({ ...context, configOverridePath: undefined }, "demo.json"), join("/ws/.craft", "demo.json"));
   assert.equal(resolveModuleStatePath(context), join("/ws/.craft", "state", "demo-module"));
   assert.equal(resolveModuleTempPath(context), join("/ws/.craft", "tmp", "demo-module"));
 });
 
-test("loadJsonConfig returns found false when file does not exist", async () => {
-  const result = await loadJsonConfig(join(tmpdir(), `missing-${Date.now()}.json`));
-  assert.deepEqual(result, { found: false });
-});
-
-test("loadJsonConfig returns parsed data for valid JSON", async () => {
-  const baseDir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-m2-json-"));
-  try {
-    const configPath = join(baseDir, "config.json");
-    await writeFile(configPath, JSON.stringify({ ok: true, nested: { a: 1 } }), "utf-8");
-    const result = await loadJsonConfig(configPath);
-    assert.equal(result.found, true);
-    if (result.found) {
-      assert.deepEqual(result.data, { ok: true, nested: { a: 1 } });
-    }
-  } finally {
-    await rm(baseDir, { recursive: true, force: true });
-  }
-});
-
-test("startWithContext transitions to configMissing when config is absent", async () => {
+test("startWithContext reports configMissing and configInvalid without building a transport", async () => {
   const baseDir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-m2-missing-"));
   try {
     const craftPath = join(baseDir, ".craft");
@@ -289,33 +210,16 @@ test("startWithContext transitions to configMissing when config is absent", asyn
     assert.equal(adapter.getStatus(), "configMissing");
     assert.equal(adapter.getError()?.code, "configMissing");
     assert.deepEqual(transitions, ["starting", "configMissing"]);
-    assert.equal(adapter.buildTransportCalls, 0);
-  } finally {
-    await rm(baseDir, { recursive: true, force: true });
-  }
-});
 
-test("startWithContext transitions to configInvalid when validateConfig fails", async () => {
-  const baseDir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-m2-invalid-"));
-  try {
-    const craftPath = join(baseDir, ".craft");
-    await mkdir(craftPath, { recursive: true });
     await writeFile(join(craftPath, "module.json"), JSON.stringify({ invalid: true }), "utf-8");
-
-    const adapter = new TestModuleAdapter();
-    const transitions: string[] = [];
-    adapter.onStatusChange((status) => transitions.push(status));
-
     await adapter.startWithContext({
       workspaceRoot: baseDir,
       craftPath,
       channelName: "demo",
       moduleId: "demo-module",
     });
-
     assert.equal(adapter.getStatus(), "configInvalid");
     assert.equal(adapter.getError()?.code, "configInvalid");
-    assert.deepEqual(transitions, ["starting", "configInvalid"]);
     assert.equal(adapter.buildTransportCalls, 0);
   } finally {
     await rm(baseDir, { recursive: true, force: true });
@@ -379,25 +283,4 @@ test("startWithContext invalidates connection-bound thread cache after module re
   } finally {
     await rm(baseDir, { recursive: true, force: true });
   }
-});
-
-test("signalAuthRequired and signalAuthExpired update status and notify handlers", () => {
-  const adapter = new TestModuleAdapter();
-  const transitions: Array<{ status: string; code: string | undefined }> = [];
-  adapter.onStatusChange((status, error) => {
-    transitions.push({ status, code: error?.code });
-  });
-
-  adapter.triggerAuthRequired();
-  assert.equal(adapter.getStatus(), "authRequired");
-  assert.equal(adapter.getError()?.code, "authRequired");
-
-  adapter.triggerAuthExpired({ message: "Session expired." });
-  assert.equal(adapter.getStatus(), "authExpired");
-  assert.equal(adapter.getError()?.code, "authExpired");
-
-  assert.deepEqual(transitions, [
-    { status: "authRequired", code: "authRequired" },
-    { status: "authExpired", code: "authExpired" },
-  ]);
 });

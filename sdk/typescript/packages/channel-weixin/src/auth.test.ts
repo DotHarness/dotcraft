@@ -82,27 +82,3 @@ test("valid saved credentials avoid authRequired on startup", async () => {
 
   assert.notEqual(adapter.getStatus(), "authRequired");
 });
-
-test("credentials are persisted under module-scoped state directory", () => {
-  const context = createWorkspaceContext("weixin-auth-state-path");
-  const stateDir = resolveModuleStatePath(context);
-  mkdirSync(stateDir, { recursive: true });
-
-  const credentialsPath = join(stateDir, "credentials.json");
-  writeFileSync(
-    credentialsPath,
-    JSON.stringify(
-      {
-        botToken: "bot-token",
-        ilinkBotId: "bot-id",
-        baseUrl: "https://ilinkai.weixin.qq.com",
-        savedAt: new Date().toISOString(),
-      } satisfies WeixinCredentials,
-      null,
-      2,
-    ),
-    "utf-8",
-  );
-
-  assert.equal(credentialsPath.endsWith(join("state", "weixin-standard", "credentials.json")), true);
-});

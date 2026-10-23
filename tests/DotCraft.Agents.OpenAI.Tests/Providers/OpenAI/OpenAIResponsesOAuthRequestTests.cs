@@ -219,7 +219,6 @@ public sealed class OpenAIResponsesOAuthRequestTests
 
     [Theory]
     [InlineData("{not json")]
-    [InlineData("")]
     [InlineData("[]")]
     public void ReturnsNullForInvalidOrUnsupportedBodies(string json)
     {

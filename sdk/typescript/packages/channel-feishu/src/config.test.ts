@@ -6,96 +6,44 @@ import { ConfigValidationError } from "@dotcraft/channel";
 import { validateFeishuConfig } from "./feishu-adapter.js";
 import type { FeishuConfig } from "./feishu-types.js";
 
-function validConfig(): FeishuConfig {
+type LooseConfig = { dotcraft: Record<string, unknown>; feishu: Record<string, unknown> };
+
+function validConfig(): LooseConfig {
   return {
-    dotcraft: {
-      wsUrl: "ws://127.0.0.1:9100/ws",
-    },
-    feishu: {
-      appId: "cli_test",
-      appSecret: "test-secret",
-    },
+    dotcraft: { wsUrl: "ws://127.0.0.1:9100/ws" },
+    feishu: { appId: "cli_test", appSecret: "test-secret" },
   };
 }
 
-test("throws ConfigValidationError when feishu.appId is missing", () => {
-  const config = validConfig();
-  config.feishu.appId = "";
-  assert.throws(
-    () => validateFeishuConfig(config),
-    (error: unknown) =>
-      error instanceof ConfigValidationError &&
-      Array.isArray(error.fields) &&
-      error.fields.includes("feishu.appId"),
-  );
+function validate(config: LooseConfig): void {
+  validateFeishuConfig(config as unknown as FeishuConfig);
+}
+
+test("validateFeishuConfig accepts the minimal config and its optional settings", () => {
+  for (const extra of [{}, { brand: "lark" }, { cli: { enabled: true } }, { cardTitle: "Bot" }]) {
+    const config = validConfig();
+    Object.assign(config.feishu, extra);
+    assert.doesNotThrow(() => validate(config));
+  }
 });
 
-test("throws ConfigValidationError when feishu.appSecret is missing", () => {
-  const config = validConfig();
-  config.feishu.appSecret = "";
-  assert.throws(
-    () => validateFeishuConfig(config),
-    (error: unknown) =>
-      error instanceof ConfigValidationError &&
-      Array.isArray(error.fields) &&
-      error.fields.includes("feishu.appSecret"),
-  );
-});
-
-test("throws ConfigValidationError when dotcraft.wsUrl is missing or invalid", () => {
-  const missing = validConfig();
-  missing.dotcraft.wsUrl = "";
-  assert.throws(() => validateFeishuConfig(missing), ConfigValidationError);
-
-  const invalid = validConfig();
-  invalid.dotcraft.wsUrl = "http://127.0.0.1:9100/ws";
-  assert.throws(() => validateFeishuConfig(invalid), ConfigValidationError);
-});
-
-test("accepts minimal valid config", () => {
-  const config = validConfig();
-  assert.doesNotThrow(() => validateFeishuConfig(config));
-});
-
-test("accepts brand=lark", () => {
-  const config = validConfig();
-  config.feishu.brand = "lark";
-  assert.doesNotThrow(() => validateFeishuConfig(config));
-});
-
-test("accepts and validates the official CLI toggle", () => {
-  const config = validConfig();
-  config.feishu.cli = { enabled: true };
-  assert.doesNotThrow(() => validateFeishuConfig(config));
-
-  const invalid = validConfig() as unknown as {
-    dotcraft: Record<string, unknown>;
-    feishu: Record<string, unknown>;
-  };
-  invalid.feishu.cli = { enabled: "yes" };
-  assert.throws(() => validateFeishuConfig(invalid), ConfigValidationError);
-
-  invalid.feishu.cli = true;
-  assert.throws(() => validateFeishuConfig(invalid), ConfigValidationError);
-});
-
-test("accepts optional feishu.cardTitle", () => {
-  const config = validConfig();
-  config.feishu.cardTitle = "Bot";
-  assert.doesNotThrow(() => validateFeishuConfig(config));
-});
-
-test("throws ConfigValidationError when feishu.brand is invalid", () => {
-  const config = validConfig() as unknown as {
-    dotcraft: Record<string, unknown>;
-    feishu: Record<string, unknown>;
-  };
-  config.feishu.brand = "custom.example.com";
-  assert.throws(
-    () => validateFeishuConfig(config),
-    (error: unknown) =>
-      error instanceof ConfigValidationError &&
-      Array.isArray(error.fields) &&
-      error.fields.includes("feishu.brand"),
-  );
+test("validateFeishuConfig rejects missing credentials, bad endpoints, brands, and CLI toggles", () => {
+  const cases: Array<[string, (config: LooseConfig) => void, string | undefined]> = [
+    ["appId", (c) => { c.feishu.appId = ""; }, "feishu.appId"],
+    ["appSecret", (c) => { c.feishu.appSecret = ""; }, "feishu.appSecret"],
+    ["brand", (c) => { c.feishu.brand = "custom.example.com"; }, "feishu.brand"],
+    ["missing wsUrl", (c) => { c.dotcraft.wsUrl = ""; }, undefined],
+    ["http wsUrl", (c) => { c.dotcraft.wsUrl = "http://127.0.0.1:9100/ws"; }, undefined],
+    ["cli string", (c) => { c.feishu.cli = { enabled: "yes" }; }, undefined],
+    ["cli boolean", (c) => { c.feishu.cli = true; }, undefined],
+  ];
+  for (const [name, mutate, field] of cases) {
+    const config = validConfig();
+    mutate(config);
+    assert.throws(
+      () => validate(config),
+      (error: unknown) => error instanceof ConfigValidationError && (!field || error.fields?.includes(field) === true),
+      name,
+    );
+  }
 });

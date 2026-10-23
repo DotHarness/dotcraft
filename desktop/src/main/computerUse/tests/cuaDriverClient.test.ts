@@ -49,7 +49,7 @@ describe('CuaDriverClient', () => {
     const client = create()
     await client.start()
 
-    await expect(client.callTool('hang', {}, 200)).rejects.toThrow(/^timeout: hang/)
+    await expect(client.callTool('hang', {}, 30)).rejects.toThrow(/^timeout: hang/)
     expect(client.running).toBe(false)
   })
 

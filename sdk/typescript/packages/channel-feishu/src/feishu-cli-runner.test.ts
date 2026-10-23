@@ -178,8 +178,14 @@ test("returns plain-text help without requesting credentials or confirmation", a
   }]);
 });
 
-test("rejects raw API, managed commands, profiles, caller confirmation, and unknown shortcuts", async () => {
-  const { runner } = await createRunner();
+test("rejects raw API, managed commands, profiles, caller confirmation, bare shortcuts, outside paths, and unknown shortcuts", async () => {
+  const { runner, calls } = await createRunner();
+  await assert.rejects(() => runner.run("+fetch", ["--doc", "doc-token"]), errorCode("FeishuCliCommandRejected"));
+  assert.equal(calls.length, 0);
+  await assert.rejects(
+    () => runner.run("docs", ["+fetch", "--output", join("..", "outside.md")]),
+    errorCode("FeishuCliPathRejected"),
+  );
   await assert.rejects(() => runner.run("api", ["--method", "DELETE"]), errorCode("FeishuCliCommandRejected"));
   await assert.rejects(() => runner.run("auth", ["status"]), errorCode("FeishuCliCommandRejected"));
   await assert.rejects(() => runner.run("config", ["show"]), errorCode("FeishuCliCommandRejected"));
@@ -208,15 +214,6 @@ test("drops a redundant identity flag and rejects one that disagrees with the ch
     () => mismatched.runner.run("docs", ["+fetch", "--as", "user"]),
     errorCode("FeishuCliCommandRejected"),
   );
-});
-
-test("rejects a shortcut supplied as the command", async () => {
-  const { runner, calls } = await createRunner();
-  await assert.rejects(
-    () => runner.run("+fetch", ["--doc", "doc-token"]),
-    errorCode("FeishuCliCommandRejected"),
-  );
-  assert.equal(calls.length, 0);
 });
 
 test("logs only the classified operation and never positional resource values", async () => {
@@ -302,14 +299,6 @@ test("maps adapter token acquisition failures without exposing the source error"
       && !error.message.includes("secret upstream detail"),
   );
   assert.equal(calls.length, 0);
-});
-
-test("rejects file arguments outside the workspace", async () => {
-  const { runner } = await createRunner();
-  await assert.rejects(
-    () => runner.run("docs", ["+fetch", "--output", join("..", "outside.md")]),
-    errorCode("FeishuCliPathRejected"),
-  );
 });
 
 test("maps timeout, cancellation, output overflow, and invalid output to stable errors", async () => {

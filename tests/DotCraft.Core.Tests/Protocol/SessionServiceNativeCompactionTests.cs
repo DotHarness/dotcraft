@@ -332,7 +332,8 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
     public void Dispose()
     {
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        Directory.Delete(_workspace, recursive: true);
+        try { Directory.Delete(_workspace, recursive: true); }
+        catch { }
     }
 
     private sealed class NativeProvider : IModelProvider, IProviderNativeCompactorFactory,

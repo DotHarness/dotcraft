@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  applyWorkspaceThreadListRefreshFailure,
-  applyWorkspaceThreadListRefreshSuccess,
   applyWorkspaceThreadListRequestResult,
   applyWorkspaceThreadNotificationToCache,
   beginWorkspaceThreadListRequest,
@@ -51,7 +49,7 @@ describe('workspace thread cache notifications', () => {
     }
   })
 
-  it('removes an archived thread tree from the project cache', () => {
+  it('removes an archived thread tree, including one started with wire-cased Archived status', () => {
     const cache = [
       thread('parent'),
       subAgent('child', 'parent'),
@@ -59,46 +57,32 @@ describe('workspace thread cache notifications', () => {
       thread('sibling')
     ]
 
-    const result = applyWorkspaceThreadNotificationToCache(cache, 'thread/archived', {
-      threadId: 'parent'
-    })
-
-    expect(result.changed).toBe(true)
-    expect(result.refreshThreadList).toBe(false)
-    expect(ids(result.threads)).toEqual(['sibling'])
-  })
-
-  it('removes a started archived thread tree when status casing comes from the wire', () => {
-    const cache = [
-      thread('parent'),
-      subAgent('child', 'parent'),
-      thread('sibling')
-    ]
-
-    const result = applyWorkspaceThreadNotificationToCache(cache, 'thread/started', {
+    const archived = applyWorkspaceThreadNotificationToCache(cache, 'thread/archived', { threadId: 'parent' })
+    const started = applyWorkspaceThreadNotificationToCache(cache, 'thread/started', {
       thread: thread('parent', { status: 'Archived' })
     })
 
-    expect(result.changed).toBe(true)
-    expect(result.refreshThreadList).toBe(false)
-    expect(ids(result.threads)).toEqual(['sibling'])
+    for (const result of [archived, started]) {
+      expect(result).toMatchObject({ changed: true, refreshThreadList: false })
+      expect(ids(result.threads)).toEqual(['sibling'])
+    }
   })
 
-  it.each([
-    ['ephemeral', { ephemeral: true }],
-    ['internal metadata', { metadata: { 'dotcraft.internal': 'agent-builder' } }],
-    ['internal origin', { originChannel: 'dreams' }]
-  ])('keeps a started %s thread out of the project cache', (_kind, hidden) => {
-    const cache = [thread('visible'), thread('hidden')]
+  it('keeps started ephemeral and internal threads out of the project cache', () => {
+    for (const hidden of [
+      { ephemeral: true },
+      { metadata: { 'dotcraft.internal': 'agent-builder' } },
+      { originChannel: 'dreams' }
+    ]) {
+      const result = applyWorkspaceThreadNotificationToCache([thread('visible'), thread('hidden')], 'thread/started', {
+        thread: thread('hidden', hidden)
+      })
 
-    const result = applyWorkspaceThreadNotificationToCache(cache, 'thread/started', {
-      thread: thread('hidden', hidden)
-    })
-
-    expect(ids(result.threads)).toEqual(['visible'])
-    expect(ids(applyWorkspaceThreadNotificationToCache([], 'thread/started', {
-      thread: thread('fresh', hidden)
-    }).threads)).toEqual([])
+      expect(ids(result.threads)).toEqual(['visible'])
+      expect(ids(applyWorkspaceThreadNotificationToCache([], 'thread/started', {
+        thread: thread('fresh', hidden)
+      }).threads)).toEqual([])
+    }
   })
 
   it('removes a deleted thread tree from the project cache', () => {
@@ -125,28 +109,17 @@ describe('workspace thread cache notifications', () => {
     }
   })
 
-  it('requests a refresh when a previously archived thread is restored but missing from cache', () => {
+  it('updates a restored thread in place or requests a refresh when it is not cached', () => {
+    const cached = applyWorkspaceThreadNotificationToCache([thread('restored', { status: 'archived' })], 'thread/unarchived', {
+      threadId: 'restored'
+    })
+    expect(cached).toMatchObject({ changed: true, refreshThreadList: false })
+    expect((cached.threads[0] as { status: string }).status).toBe('active')
+
     const cache = [thread('other')]
-
-    const result = applyWorkspaceThreadNotificationToCache(cache, 'thread/unarchived', {
-      threadId: 'restored'
-    })
-
-    expect(result.changed).toBe(false)
-    expect(result.refreshThreadList).toBe(true)
-    expect(result.threads).toBe(cache)
-  })
-
-  it('updates an existing restored thread without forcing a refresh', () => {
-    const cache = [thread('restored', { status: 'archived' })]
-
-    const result = applyWorkspaceThreadNotificationToCache(cache, 'thread/unarchived', {
-      threadId: 'restored'
-    })
-
-    expect(result.changed).toBe(true)
-    expect(result.refreshThreadList).toBe(false)
-    expect((result.threads[0] as { status: string }).status).toBe('active')
+    const missing = applyWorkspaceThreadNotificationToCache(cache, 'thread/unarchived', { threadId: 'restored' })
+    expect(missing).toMatchObject({ changed: false, refreshThreadList: true })
+    expect(missing.threads).toBe(cache)
   })
 })
 
@@ -167,20 +140,9 @@ const workspaceListParams = {
 }
 
 describe('workspace thread list refresh cache', () => {
-  it('rejects a late foreground result after a newer foreground list completes', () => {
-    const entry = { workspacePath: '/workspace', threads: [], errorMessage: 'prior error' }
-    const older = beginWorkspaceThreadListRequest(entry, 'thread/list', workspaceListParams)
-    const newer = beginWorkspaceThreadListRequest(entry, 'thread/list', workspaceListParams)
-    const latestRows = [thread('existing'), thread('newly-loaded')]
-
-    expect(applyWorkspaceThreadListRequestResult(entry, 'thread/list', workspaceListParams, { data: latestRows }, newer)).toBe(true)
-    expect(applyWorkspaceThreadListRequestResult(entry, 'thread/list', workspaceListParams, { data: [thread('existing')] }, older)).toBe(false)
-    expect(entry.threads).toEqual(latestRows)
-    expect(entry.errorMessage).toBeUndefined()
-  })
-
-  it('rejects an older foreground completion while a newer foreground list is still pending', () => {
+  it('accepts only the newest captured foreground generation, whatever order results arrive in', () => {
     const entry = { workspacePath: '/workspace', threads: [thread('kept')], errorMessage: 'prior error' }
+    expect(applyWorkspaceThreadListRequestResult(entry, 'thread/list', workspaceListParams, { data: [] }, undefined)).toBe(false)
     const older = beginWorkspaceThreadListRequest(entry, 'thread/list', workspaceListParams)
     const newer = beginWorkspaceThreadListRequest(entry, 'thread/list', workspaceListParams)
 
@@ -188,6 +150,9 @@ describe('workspace thread list refresh cache', () => {
     expect(ids(entry.threads)).toEqual(['kept'])
     expect(entry.errorMessage).toBe('prior error')
     expect(applyWorkspaceThreadListRequestResult(entry, 'thread/list', workspaceListParams, { data: [thread('latest')] }, newer)).toBe(true)
+    expect(ids(entry.threads)).toEqual(['latest'])
+    expect(entry.errorMessage).toBeUndefined()
+    expect(applyWorkspaceThreadListRequestResult(entry, 'thread/list', workspaceListParams, { data: [thread('outdated')] }, older)).toBe(false)
     expect(ids(entry.threads)).toEqual(['latest'])
   })
 
@@ -223,54 +188,28 @@ describe('workspace thread list refresh cache', () => {
     expect(ids(entry.threads)).toEqual(['running'])
   })
 
-  it('requires a captured request-start generation before accepting a foreground result', () => {
-    const entry = { workspacePath: '/workspace', threads: [thread('kept')], errorMessage: 'prior error' }
+  it('ignores other list selections, unrelated methods, and incomplete results', () => {
+    const cases: Array<[string, unknown, unknown]> = [
+      ...[
+        { query: 'search' },
+        { cursor: 'next-page' },
+        { includeArchived: true },
+        { includeSubAgents: false },
+        { scope: 'identity' },
+        { identity: { workspacePath: '/other-project' } }
+      ].map((selection): [string, unknown, unknown] => ['thread/list', { ...workspaceListParams, ...selection }, { data: [] }]),
+      ['thread/read', workspaceListParams, { data: [] }],
+      ['thread/list', null, { data: [] }],
+      ['thread/list', workspaceListParams, {}],
+      ['thread/list', workspaceListParams, { data: [], nextCursor: 'more' }]
+    ]
+    for (const [method, params, result] of cases) {
+      const entry = { workspacePath: '/workspace', threads: [thread('running')], errorMessage: 'prior error' }
 
-    expect(applyWorkspaceThreadListRequestResult(entry, 'thread/list', workspaceListParams, { data: [] }, undefined)).toBe(false)
-    expect(ids(entry.threads)).toEqual(['kept'])
-    expect(entry.errorMessage).toBe('prior error')
-  })
-
-  it('keeps recovered running threads and clears the error when a foreground list becomes the background cache', () => {
-    const entry = { workspacePath: '/workspace', threads: [], errorMessage: 'thread/list timed out' }
-    const running = thread('running', { runtime: { state: 'running' } })
-
-    expect(completeWorkspaceList(entry, 'thread/list', workspaceListParams, { data: [running] })).toBe(true)
-    expect(entry.threads).toEqual([running])
-    expect(entry.errorMessage).toBeUndefined()
-  })
-
-  it.each([
-    { query: 'search' },
-    { limit: 20 },
-    { cursor: 'next-page' },
-    { channelName: 'cli' },
-    { includeArchived: true },
-    { includeInternal: true },
-    { includeSubAgents: false },
-    { scope: 'identity' },
-    { identity: { workspacePath: '/other-project' } }
-  ])('does not replace the sidebar cache with a different list selection: %j', (selection) => {
-    const entry = { workspacePath: '/workspace', threads: [thread('running')], errorMessage: 'prior error' }
-    const params = { ...workspaceListParams, ...selection }
-
-    expect(completeWorkspaceList(entry, 'thread/list', params, { data: [] })).toBe(false)
-    expect(ids(entry.threads)).toEqual(['running'])
-    expect(entry.errorMessage).toBe('prior error')
-  })
-
-  it.each([
-    ['thread/read', workspaceListParams, { data: [] }],
-    ['thread/list', null, { data: [] }],
-    ['thread/list', workspaceListParams, null],
-    ['thread/list', workspaceListParams, {}],
-    ['thread/list', workspaceListParams, { data: [], nextCursor: 'more' }]
-  ])('ignores unrelated or incomplete results (%s)', (method, params, result) => {
-    const entry = { workspacePath: '/workspace', threads: [thread('running')], errorMessage: 'prior error' }
-
-    expect(completeWorkspaceList(entry, method as string, params, result)).toBe(false)
-    expect(ids(entry.threads)).toEqual(['running'])
-    expect(entry.errorMessage).toBe('prior error')
+      expect(completeWorkspaceList(entry, method, params, result)).toBe(false)
+      expect(ids(entry.threads)).toEqual(['running'])
+      expect(entry.errorMessage).toBe('prior error')
+    }
   })
 
   it('accepts an empty complete list and equivalent Windows workspace paths', () => {
@@ -319,21 +258,6 @@ describe('workspace thread list refresh cache', () => {
     expect(await refreshWorkspaceThreadListCache(entry, async () => ({ data: [thread('fresh')] }))).toBe(true)
     expect(ids(entry.threads)).toEqual(['fresh'])
     expect(entry.errorMessage).toBeUndefined()
-  })
-
-  it('clears a prior refresh error after a later successful thread list load', () => {
-    const entry = {
-      threads: [thread('stale')],
-      errorMessage: 'thread/list failed'
-    }
-
-    applyWorkspaceThreadListRefreshFailure(entry, new Error('still failing'))
-    expect(entry.errorMessage).toBe('still failing')
-
-    applyWorkspaceThreadListRefreshSuccess(entry, [thread('fresh')])
-
-    expect(entry.errorMessage).toBeUndefined()
-    expect(ids(entry.threads)).toEqual(['fresh'])
   })
 })
 

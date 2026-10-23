@@ -230,21 +230,10 @@ public sealed class DotNetPluginDependencyRuntimeTests : IDisposable
     }
 
     [Fact]
-    public async Task Runtime_AcceptsAProviderAboveTheDeclaredMinimum()
+    public async Task Runtime_AcceptsProvidersWithinTheDeclaredCompatibilityLineOnly()
     {
         _harness.WriteNoop("minimum.provider", version: "1.4.2");
         _harness.WriteNoop("minimum.consumer", dependencies: new Dictionary<string, string> { ["minimum.provider"] = "1.0.0" });
-        await using var manager = _harness.CreateManager();
-
-        await manager.StartAsync(CancellationToken.None);
-
-        AssertState(Plugin(manager, "minimum.provider"), PluginDotnetRuntimeState.Active);
-        AssertState(Plugin(manager, "minimum.consumer"), PluginDotnetRuntimeState.Active);
-    }
-
-    [Fact]
-    public async Task Runtime_BlocksAProviderOutsideTheDeclaredCompatibilityLine()
-    {
         _harness.WriteNoop("major.provider", version: "2.0.0");
         _harness.WriteNoop(
             "major.consumer",
@@ -253,6 +242,8 @@ public sealed class DotNetPluginDependencyRuntimeTests : IDisposable
 
         await manager.StartAsync(CancellationToken.None);
 
+        AssertState(Plugin(manager, "minimum.provider"), PluginDotnetRuntimeState.Active);
+        AssertState(Plugin(manager, "minimum.consumer"), PluginDotnetRuntimeState.Active);
         AssertState(Plugin(manager, "major.provider"), PluginDotnetRuntimeState.Active);
         AssertBlocker(manager, "major.consumer", "PluginDependencyUnsatisfied", "versionUnsatisfied");
         AssertDependencyAvailability(

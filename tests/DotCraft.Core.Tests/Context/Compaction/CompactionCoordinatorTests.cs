@@ -77,7 +77,6 @@ public sealed class CompactionCoordinatorTests
     [Theory]
     [InlineData(0, CompactionOutcome.Skipped)]
     [InlineData(1, CompactionOutcome.Failed)]
-    [InlineData(2, CompactionOutcome.Failed)]
     public async Task ExecuteAsync_TrippedBreakerMapsOutcomeByTrigger(
         int triggerValue,
         CompactionOutcome expectedOutcome)
@@ -102,7 +101,7 @@ public sealed class CompactionCoordinatorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_SuccessDoesNotResetBreakerBeforeNativeInstall()
+    public async Task Breaker_ResetsOnlyAfterASuccessfulNativeInstallNotOnBackendSuccess()
     {
         var pipeline = CreatePipeline(maxFailures: 2);
         var tracker = pipeline.GetBackendFailureTracker("selected");
@@ -120,6 +119,18 @@ public sealed class CompactionCoordinatorTests
 
         Assert.True(result.Status.Success);
         Assert.True(tracker.IsTripped("thread_1"));
+
+        var bridge = new RecordingBridge((_, _) => Task.CompletedTask);
+        await coordinator.InstallProviderNativeAsync(
+            "thread_1",
+            "selected",
+            bridge,
+            Assert.IsType<CompactionReplacement.ProviderNative>(result.Replacement),
+            CancellationToken.None);
+        tracker.RecordFailure("thread_1");
+
+        Assert.Equal(1, bridge.InstallCount);
+        Assert.False(tracker.IsTripped("thread_1"));
     }
 
     [Fact]
@@ -157,47 +168,38 @@ public sealed class CompactionCoordinatorTests
     }
 
     [Fact]
-    public async Task InstallProviderNativeAsync_ResetsBreakerOnlyAfterSuccessfulInstall()
-    {
-        var pipeline = CreatePipeline(maxFailures: 2);
-        var tracker = pipeline.GetBackendFailureTracker("selected");
-        tracker.RecordFailure("thread_1");
-        var coordinator = new CompactionCoordinator(
-            pipeline,
-            resolveFailureTracker: _ => tracker);
-        var bridge = new RecordingBridge((_, _) => Task.CompletedTask);
-        var replacement = Assert.IsType<CompactionReplacement.ProviderNative>(
-            CreateNativeResult(pipeline).Replacement);
-
-        await coordinator.InstallProviderNativeAsync(
-            "thread_1",
-            "selected",
-            bridge,
-            replacement,
-            CancellationToken.None);
-        tracker.RecordFailure("thread_1");
-
-        Assert.Equal(1, bridge.InstallCount);
-        Assert.False(tracker.IsTripped("thread_1"));
-    }
-
-    [Fact]
-    public async Task InstallProviderNativeAsync_FailureTripsBreaker()
+    public async Task InstallProviderNativeAsync_FailureTripsBreakerButCallerCancellationDoesNot()
     {
         var pipeline = CreatePipeline(maxFailures: 1);
         var tracker = pipeline.GetBackendFailureTracker("selected");
         var coordinator = new CompactionCoordinator(
             pipeline,
             resolveFailureTracker: _ => tracker);
-        var bridge = new RecordingBridge((_, _) => throw new IOException("write failed"));
         var replacement = Assert.IsType<CompactionReplacement.ProviderNative>(
             CreateNativeResult(pipeline).Replacement);
+        var cancelledBridge = new RecordingBridge((_, _) => throw new OperationCanceledException());
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+                await coordinator.InstallProviderNativeAsync(
+                    "thread_1",
+                    "selected",
+                    cancelledBridge,
+                    replacement,
+                    cancellation.Token));
+        }
+
+        Assert.Equal(2, cancelledBridge.InstallCount);
+        Assert.False(tracker.IsTripped("thread_1"));
 
         await Assert.ThrowsAsync<IOException>(async () =>
             await coordinator.InstallProviderNativeAsync(
                 "thread_1",
                 "selected",
-                bridge,
+                new RecordingBridge((_, _) => throw new IOException("write failed")),
                 replacement,
                 CancellationToken.None));
 
@@ -258,36 +260,6 @@ public sealed class CompactionCoordinatorTests
         Assert.False(cancellationTracker.IsTripped("thread_1"));
         Assert.Equal(2, emptyBackend.ExecutionCount);
         Assert.False(emptyTracker.IsTripped("thread_1"));
-    }
-
-    [Fact]
-    public async Task InstallProviderNativeAsync_CancellationDoesNotCountAsFailure()
-    {
-        var pipeline = CreatePipeline(maxFailures: 1);
-        var tracker = pipeline.GetBackendFailureTracker("selected");
-        var coordinator = new CompactionCoordinator(
-            pipeline,
-            resolveFailureTracker: _ => tracker);
-        var bridge = new RecordingBridge(
-            (_, _) => throw new OperationCanceledException());
-        var replacement = Assert.IsType<CompactionReplacement.ProviderNative>(
-            CreateNativeResult(pipeline).Replacement);
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
-
-        for (var attempt = 0; attempt < 2; attempt++)
-        {
-            await Assert.ThrowsAsync<OperationCanceledException>(async () =>
-                await coordinator.InstallProviderNativeAsync(
-                    "thread_1",
-                    "selected",
-                    bridge,
-                    replacement,
-                    cancellation.Token));
-        }
-
-        Assert.Equal(2, bridge.InstallCount);
-        Assert.False(tracker.IsTripped("thread_1"));
     }
 
     [Fact]

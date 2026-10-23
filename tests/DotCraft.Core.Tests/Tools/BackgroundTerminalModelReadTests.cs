@@ -31,25 +31,6 @@ public sealed class BackgroundTerminalModelReadTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task InteractAsync_ReturnsOnlyOutputTheModelHasNotRead()
-    {
-        var started = await Service.StartAsync(Request(TwoPartCommand("first-part", "second-part")) with
-        {
-            RunInBackground = true,
-            YieldTimeMs = 200
-        });
-
-        var finished = await Service.InteractAsync(started.SessionId, string.Empty, 10000);
-        var again = await Service.InteractAsync(started.SessionId, string.Empty, 1000);
-
-        Assert.Equal(BackgroundTerminalStatus.Completed, finished.Status);
-        var combined = started.Output + "\n" + finished.Output;
-        Assert.Equal(1, Occurrences(combined, "first-part"));
-        Assert.Equal(1, Occurrences(combined, "second-part"));
-        Assert.Equal(string.Empty, again.Output);
-    }
-
-    [Fact]
     public async Task CompletionNotice_IsRaisedOnceAndLeavesItsOutputUnread()
     {
         var completed = WaitForEvent("completed");
@@ -73,20 +54,26 @@ public sealed class BackgroundTerminalModelReadTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CompletionNotice_IsNotRaisedWhenTheModelSawTheFinalStatus()
+    public async Task InteractAsync_ReturnsOnlyUnreadOutput_AndNoCompletionNoticeOnceTheModelSawTheFinalStatus()
     {
         var foreground = await Service.StartAsync(Request(EchoCommand("quick")) with { NotifyOnCompletion = true });
-        var background = await Service.StartAsync(Request(TwoPartCommand("a", "b")) with
+        var started = await Service.StartAsync(Request(TwoPartCommand("first-part", "second-part")) with
         {
             RunInBackground = true,
             YieldTimeMs = 200,
             NotifyOnCompletion = true
         });
-        var read = await Service.InteractAsync(background.SessionId, string.Empty, 10000);
+
+        var finished = await Service.InteractAsync(started.SessionId, string.Empty, 10000);
+        var again = await Service.InteractAsync(started.SessionId, string.Empty, 1000);
         await Task.Delay(300);
 
         Assert.Equal(BackgroundTerminalStatus.Completed, foreground.Status);
-        Assert.Equal(BackgroundTerminalStatus.Completed, read.Status);
+        Assert.Equal(BackgroundTerminalStatus.Completed, finished.Status);
+        var combined = started.Output + "\n" + finished.Output;
+        Assert.Equal(1, Occurrences(combined, "first-part"));
+        Assert.Equal(1, Occurrences(combined, "second-part"));
+        Assert.Equal(string.Empty, again.Output);
         Assert.Empty(Notices());
     }
 
@@ -162,8 +149,8 @@ public sealed class BackgroundTerminalModelReadTests : IAsyncLifetime
 
     private static string TwoPartCommand(string first, string second) =>
         OperatingSystem.IsWindows()
-            ? $"Write-Output '{first}'; Start-Sleep -Milliseconds 1200; Write-Output '{second}'"
-            : $"echo '{first}'; sleep 1.2; echo '{second}'";
+            ? $"Write-Output '{first}'; Start-Sleep -Milliseconds 600; Write-Output '{second}'"
+            : $"echo '{first}'; sleep 0.6; echo '{second}'";
 
     private static string LongCommand() =>
         OperatingSystem.IsWindows() ? "Write-Output waiting; Start-Sleep -Seconds 30" : "echo waiting; sleep 30";

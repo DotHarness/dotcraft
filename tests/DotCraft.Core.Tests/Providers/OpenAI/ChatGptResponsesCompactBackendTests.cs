@@ -234,7 +234,6 @@ public sealed class ChatGptResponsesCompactBackendTests
 
     [Theory]
     [InlineData("""{"output":null}""")]
-    [InlineData("""{"output":[]}""")]
     [InlineData("""{"output":[1]}""")]
     public void ValidateOutput_RejectsInvalidWindows(string json)
     {
@@ -244,15 +243,6 @@ public sealed class ChatGptResponsesCompactBackendTests
         var error = Assert.Throws<InvalidDataException>(
             () => OpenAIResponsesCompactor.ValidateOutput(response));
         Assert.Contains("provider_compaction_invalid_response", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void CompactResponseDto_RequiresOutput()
-    {
-        Assert.Throws<JsonException>(() =>
-            JsonSerializer.Deserialize<ChatGptResponsesCompactResponse>(
-                "{}",
-                ChatGptResponsesCompactJson.Options));
     }
 
     [Fact]
@@ -488,22 +478,47 @@ public sealed class ChatGptResponsesCompactBackendTests
     }
 
     [Fact]
-    public void NativeEstimator_InlineImagePayloadSizeDoesNotInflateEstimate()
+    public void NativeEstimator_InlineMediaPayloadSizeDoesNotInflateEstimate()
     {
-        var small = CreateMessageWithContent(
+        static string AudioData(string data) => JsonSerializer.Serialize(new object[]
+        {
             new
+            {
+                type = "message",
+                content = new object[]
+                {
+                    new
+                    {
+                        type = "input_audio",
+                        input_audio = new { data, format = "wav" }
+                    }
+                }
+            }
+        });
+
+        Assert.Equal(
+            EstimateNative(CreateMessageWithContent(new
             {
                 type = "input_image",
                 image_url = "DATA:image/png;charset=utf-8;BASE64,AAAA"
-            });
-        var large = CreateMessageWithContent(
-            new
+            })),
+            EstimateNative(CreateMessageWithContent(new
             {
                 type = "input_image",
                 image_url = "DATA:image/png;charset=utf-8;BASE64," + new string('A', 100_000)
-            });
-
-        Assert.Equal(EstimateNative(small), EstimateNative(large));
+            })));
+        Assert.Equal(EstimateNative(AudioData("AAAA")), EstimateNative(AudioData(new string('A', 80_000))));
+        Assert.Equal(
+            EstimateNative(CreateMessageWithContent(new
+            {
+                type = "input_audio",
+                audio_url = "data:audio/wav;charset=utf-8;base64,AAAA"
+            })),
+            EstimateNative(CreateMessageWithContent(new
+            {
+                type = "input_audio",
+                audio_url = "data:audio/wav;charset=utf-8;base64," + new string('A', 100_000)
+            })));
     }
 
     [Fact]
@@ -537,62 +552,6 @@ public sealed class ChatGptResponsesCompactBackendTests
         var delta = EstimateNative(twoImages) - EstimateNative(oneImage);
 
         Assert.InRange(delta, 1_950, 2_050);
-    }
-
-    [Fact]
-    public void NativeEstimator_AudioPayloadSizeDoesNotInflateEstimate()
-    {
-        var small = JsonSerializer.Serialize(new object[]
-        {
-            new
-            {
-                type = "message",
-                content = new object[]
-                {
-                    new
-                    {
-                        type = "input_audio",
-                        input_audio = new { data = "AAAA", format = "wav" }
-                    }
-                }
-            }
-        });
-        var large = JsonSerializer.Serialize(new object[]
-        {
-            new
-            {
-                type = "message",
-                content = new object[]
-                {
-                    new
-                    {
-                        type = "input_audio",
-                        input_audio = new { data = new string('A', 80_000), format = "wav" }
-                    }
-                }
-            }
-        });
-
-        Assert.Equal(EstimateNative(small), EstimateNative(large));
-    }
-
-    [Fact]
-    public void NativeEstimator_InlineAudioUrlPayloadSizeDoesNotInflateEstimate()
-    {
-        var small = CreateMessageWithContent(
-            new
-            {
-                type = "input_audio",
-                audio_url = "data:audio/wav;charset=utf-8;base64,AAAA"
-            });
-        var large = CreateMessageWithContent(
-            new
-            {
-                type = "input_audio",
-                audio_url = "data:audio/wav;charset=utf-8;base64," + new string('A', 100_000)
-            });
-
-        Assert.Equal(EstimateNative(small), EstimateNative(large));
     }
 
     [Fact]

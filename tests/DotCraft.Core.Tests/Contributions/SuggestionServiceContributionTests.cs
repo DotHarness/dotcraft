@@ -4,8 +4,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Contributions;
 
-/// <summary>The Tier-B auxiliary generator contribution points, and the late binding that makes a replacement
-/// visible to a consumer that captured the service before the plugin registered.</summary>
 public sealed class SuggestionServiceContributionTests
 {
     private static readonly CommitMessageSuggestionRequest CommitRequest = new()
@@ -15,39 +13,22 @@ public sealed class SuggestionServiceContributionTests
     };
 
     [Fact]
-    public async Task WithoutAnyRegistration_TheForwarderUsesTheBuiltIn()
-    {
-        var registry = new ContributionRegistry();
-        var builtIn = new StubCommitService("built-in");
-        var forwarder = new ContributedCommitMessageSuggestService(registry, builtIn);
-
-        var result = await forwarder.SuggestAsync(CommitRequest);
-
-        Assert.Equal("built-in", result.Message);
-    }
-
-    [Fact]
-    public async Task TheRegisteredBuiltIn_IsTheEffectiveGenerator()
-    {
-        var registry = new ContributionRegistry();
-        var builtIn = new StubCommitService("built-in");
-        SuggestionServiceCatalog.RegisterBuiltIns(registry, builtIn, welcomeSuggestions: null);
-        var forwarder = new ContributedCommitMessageSuggestService(registry, builtIn);
-
-        var result = await forwarder.SuggestAsync(CommitRequest);
-
-        Assert.Equal("built-in", result.Message);
-    }
-
-    [Fact]
     public async Task AReplacementRegisteredAfterCapture_IsObservedByTheCapturedForwarder()
     {
         var registry = new ContributionRegistry();
         var builtIn = new StubCommitService("built-in");
+        Assert.Equal(
+            "built-in",
+            (await new ContributedCommitMessageSuggestService(registry, builtIn).SuggestAsync(CommitRequest)).Message);
         SuggestionServiceCatalog.RegisterBuiltIns(registry, builtIn, welcomeSuggestions: null);
 
-        // A connection captures the forwarder here, before any plugin has activated.
         var captured = new ContributedCommitMessageSuggestService(registry, builtIn);
+        registry.Add<ICommitMessageSuggester>(
+            new StubCommitService("thread"),
+            new ContributionOptions(
+                ContributionScope.Thread,
+                ThreadId: "thread-1",
+                ReplaceTarget: SuggestionServiceNames.CommitMessageSuggest));
         Assert.Equal("built-in", (await captured.SuggestAsync(CommitRequest)).Message);
 
         var handle = registry.Add<ICommitMessageSuggester>(
@@ -57,24 +38,6 @@ public sealed class SuggestionServiceContributionTests
         Assert.Equal("plugin", (await captured.SuggestAsync(CommitRequest)).Message);
 
         handle.Dispose();
-        Assert.Equal("built-in", (await captured.SuggestAsync(CommitRequest)).Message);
-    }
-
-    [Fact]
-    public async Task AThreadScopedReplacement_IsNotHonored()
-    {
-        // Both generators are invoked without a thread in hand, so the contribution point is addressed at workspace scope.
-        var registry = new ContributionRegistry();
-        var builtIn = new StubCommitService("built-in");
-        SuggestionServiceCatalog.RegisterBuiltIns(registry, builtIn, welcomeSuggestions: null);
-        var captured = new ContributedCommitMessageSuggestService(registry, builtIn);
-        registry.Add<ICommitMessageSuggester>(
-            new StubCommitService("thread"),
-            new ContributionOptions(
-                ContributionScope.Thread,
-                ThreadId: "thread-1",
-                ReplaceTarget: SuggestionServiceNames.CommitMessageSuggest));
-
         Assert.Equal("built-in", (await captured.SuggestAsync(CommitRequest)).Message);
     }
 

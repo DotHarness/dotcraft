@@ -11,8 +11,9 @@ public sealed class TurnDiffTrackerTests
     private readonly TurnDiffTracker _tracker = new();
 
     [Fact]
-    public void AddThenUpdate_AccumulatesAsSingleAdd()
+    public void AddThenUpdateAccumulatesAsAdd_OverwriteBecomesUpdate_AndFilesAreOrderedByPath()
     {
+        _tracker.Track(Update("dup.txt", "before\n", "after\n"));
         _tracker.Track(Add("a.txt", "foo\n"));
         _tracker.Track(Update("a.txt", "foo\n", "foo\nbar\n"));
 
@@ -24,15 +25,7 @@ public sealed class TurnDiffTrackerTests
             "+++ b/a.txt",
             "@@ -0,0 +1,2 @@",
             "+foo",
-            "+bar"), TakeSnapshot());
-    }
-
-    [Fact]
-    public void OverwriteOfExistingFile_BecomesUpdate()
-    {
-        _tracker.Track(Update("dup.txt", "before\n", "after\n"));
-
-        Assert.Equal(Lines(
+            "+bar",
             "diff --git a/dup.txt b/dup.txt",
             $"index {GitBlobOid.Compute("before\n")}..{GitBlobOid.Compute("after\n")}",
             "--- a/dup.txt",
@@ -43,25 +36,7 @@ public sealed class TurnDiffTrackerTests
     }
 
     [Fact]
-    public void Invalidate_BeforeAnyEmittedDiff_SuppressesTheDiffAndEmitsNothing()
-    {
-        _tracker.Track(Add("a.txt", "foo\n"));
-
-        _tracker.Invalidate();
-
-        Assert.False(_tracker.TryTakeSnapshot(out _));
-    }
-
-    [Fact]
-    public void NoOpWrite_EmitsNothing()
-    {
-        _tracker.Track(Update("same.txt", "same\n", "same\n"));
-
-        Assert.False(_tracker.TryTakeSnapshot(out _));
-    }
-
-    [Fact]
-    public void UnchangedPaths_ReuseRenderedDiffs()
+    public void UnchangedPaths_ReuseRenderedDiffsAndUpdatesRerenderOnlyTheTouchedPath()
     {
         _tracker.Track(Add("a.txt", "one\n"));
         Assert.Equal(1, _tracker.RenderedDiffCount);
@@ -72,18 +47,11 @@ public sealed class TurnDiffTrackerTests
         TakeSnapshot();
         Assert.False(_tracker.TryTakeSnapshot(out _));
         Assert.Equal(2, _tracker.RenderedDiffCount);
-    }
 
-    [Fact]
-    public void RepeatedUpdates_OnlyRerenderTheTouchedPath()
-    {
-        _tracker.Track(Add("stable.txt", "stable\n"));
-        _tracker.Track(Add("hot.txt", "value 0\n"));
+        for (var value = 1; value <= 10; value++)
+            _tracker.Track(Update("b.txt", $"two {value - 1}\n", $"two {value}\n"));
 
-        for (var value = 1; value <= 40; value++)
-            _tracker.Track(Update("hot.txt", $"value {value - 1}\n", $"value {value}\n"));
-
-        Assert.Equal(42, _tracker.RenderedDiffCount);
+        Assert.Equal(12, _tracker.RenderedDiffCount);
     }
 
     [Fact]
@@ -98,8 +66,12 @@ public sealed class TurnDiffTrackerTests
     }
 
     [Fact]
-    public void Snapshots_AreTakenOnceAndIdenticalOnesAreSuppressed()
+    public void Snapshots_AreTakenOnceAndNoOpOrIdenticalOnesAreSuppressed()
     {
+        Assert.False(_tracker.TryTakeSnapshot(out _));
+        _tracker.Track(Update("same.txt", "same\n", "same\n"));
+        Assert.False(_tracker.TryTakeSnapshot(out _));
+
         _tracker.Track(Add("a.txt", "foo\n"));
         TakeSnapshot();
         Assert.False(_tracker.TryTakeSnapshot(out _));
@@ -110,14 +82,13 @@ public sealed class TurnDiffTrackerTests
     }
 
     [Fact]
-    public void UntouchedTracker_NeverSnapshots()
+    public void Invalidate_SuppressesAnUnemittedDiffButSnapshotsEmptyOnceAfterAnEmittedOne()
     {
-        Assert.False(_tracker.TryTakeSnapshot(out _));
-    }
+        var unemitted = new TurnDiffTracker();
+        unemitted.Track(Add("a.txt", "foo\n"));
+        unemitted.Invalidate();
+        Assert.False(unemitted.TryTakeSnapshot(out _));
 
-    [Fact]
-    public void Invalidate_AfterAnEmittedDiff_SnapshotsEmptyOnceAndIgnoresLaterEdits()
-    {
         _tracker.Track(Add("a.txt", "foo\n"));
         TakeSnapshot();
 
@@ -131,8 +102,15 @@ public sealed class TurnDiffTrackerTests
     }
 
     [Fact]
-    public void AggregateOverCap_Invalidates()
+    public void AggregateOrFileOverCap_Invalidates()
     {
+        var single = new TurnDiffTracker();
+        single.Track(Add("a.txt", "small\n"));
+        Assert.True(single.TryTakeSnapshot(out _));
+        single.Track(Add("big.txt", new string('x', UnifiedDiffLimits.Aggregate.MaxDiffChars + 1)));
+        Assert.True(single.TryTakeSnapshot(out var invalidated));
+        Assert.Equal("", invalidated);
+
         var half = string.Concat(Enumerable.Repeat(new string('x', 99) + "\n", 6_000));
         _tracker.Track(Add("a.txt", half));
         Assert.NotEqual("", TakeSnapshot());
@@ -142,29 +120,6 @@ public sealed class TurnDiffTrackerTests
         Assert.Equal("", TakeSnapshot());
         _tracker.Track(Update("a.txt", half, "small\n"));
         Assert.False(_tracker.TryTakeSnapshot(out _));
-    }
-
-    [Fact]
-    public void FileOverCap_Invalidates()
-    {
-        _tracker.Track(Add("a.txt", "small\n"));
-        Assert.NotEqual("", TakeSnapshot());
-
-        _tracker.Track(Add("big.txt", new string('x', UnifiedDiffLimits.Aggregate.MaxDiffChars + 1)));
-
-        Assert.Equal("", TakeSnapshot());
-    }
-
-    [Fact]
-    public void Files_AreOrderedByDisplayPath()
-    {
-        _tracker.Track(Add("b.txt", "b\n"));
-        _tracker.Track(Add("a.txt", "a\n"));
-
-        var diff = TakeSnapshot();
-
-        Assert.StartsWith("diff --git a/a.txt b/a.txt\n", diff, StringComparison.Ordinal);
-        Assert.True(diff.IndexOf("diff --git a/b.txt", StringComparison.Ordinal) > 0);
     }
 
     [Fact]

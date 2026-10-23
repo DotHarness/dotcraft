@@ -495,7 +495,6 @@ public sealed class ModelHistoryTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup; SQLite pooling can briefly retain the file on Windows.
         }
     }
 

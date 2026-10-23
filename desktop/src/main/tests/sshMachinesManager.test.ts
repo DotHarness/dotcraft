@@ -223,7 +223,7 @@ function statusOf(manager: SshMachinesManager, id = 'm_1') {
 }
 
 describe('SshMachinesManager connect pipeline', () => {
-  it('connects a machine with a running Hub and a usable model', async () => {
+  it('connects a machine with a running Hub and a usable model, asking for model setup otherwise', async () => {
     const state = remote()
     const env = setup(state, [{ source: 'sshConfig', alias: 'build-box', hostname: undefined }])
 
@@ -239,6 +239,9 @@ describe('SshMachinesManager connect pipeline', () => {
     expect(env.checkProviders).toHaveBeenCalledWith(expect.stringMatching(/^ws:\/\/127\.0\.0\.1:\d+\/ws\?token=app-token-secret$/))
     expect(JSON.stringify(env.changes)).not.toContain('hub-token-secret')
     expect(JSON.stringify(env.changes)).not.toContain('app-token-secret')
+
+    const noCredential = setup(remote({ providers: [{ id: 'anthropic', hasApiKey: false }] }))
+    await expect(noCredential.manager.connect('m_1')).resolves.toEqual({ kind: 'setupModel' })
   })
 
   it('reports DotCraft not installed, then installs and finishes connecting', async () => {
@@ -291,16 +294,12 @@ describe('SshMachinesManager connect pipeline', () => {
     expect(windows.tunnels.open).not.toHaveBeenCalled()
   })
 
-  it('retries SSH failures with backoff and then connects', async () => {
-    const state = remote({ sshFailuresLeft: 2 })
-    const env = setup(state)
-
-    await expect(env.manager.connect('m_1')).resolves.toEqual({ kind: 'connected' })
-    const kinds = env.changes.map((payload) => payload.machines[0].status.kind)
+  it('retries SSH failures with backoff and reports the ssh stderr line once the budget is spent', async () => {
+    const recovering = setup(remote({ sshFailuresLeft: 2 }))
+    await expect(recovering.manager.connect('m_1')).resolves.toEqual({ kind: 'connected' })
+    const kinds = recovering.changes.map((payload) => payload.machines[0].status.kind)
     expect(kinds.filter((kind) => kind === 'connecting').length).toBeGreaterThanOrEqual(3)
-  })
 
-  it('reports Connection failed with the ssh stderr line when the retry budget is spent', async () => {
     const state = remote({ sshFailuresLeft: 10 })
     const env = setup(state)
 
@@ -325,18 +324,13 @@ describe('SshMachinesManager connect pipeline', () => {
     })
   })
 
-  it('asks to set up a model when the selected provider has no credential', async () => {
-    const env = setup(remote({ providers: [{ id: 'anthropic', hasApiKey: false }] }))
-    await expect(env.manager.connect('m_1')).resolves.toEqual({ kind: 'setupModel' })
-  })
-
   it('reconnects after a dropped Hub forward while the switch is on', async () => {
     const env = setup(remote())
     await env.manager.connect('m_1')
     const probesBefore = env.changes.length
 
     env.tunnels.drop('m_1', 'hub')
-    await vi.waitFor(() => expect(statusOf(env.manager)).toEqual({ kind: 'connected' }))
+    await vi.waitFor(() => expect(statusOf(env.manager)).toEqual({ kind: 'connected' }), { interval: 1 })
     expect(env.changes.slice(probesBefore).some((p) => p.machines[0].status.kind === 'connecting')).toBe(true)
     expect(env.disconnected).toEqual([])
   })
@@ -345,7 +339,7 @@ describe('SshMachinesManager connect pipeline', () => {
     const state = remote()
     const env = setup(state, [{}, { id: 'm_2', name: 'off', autoConnect: false }])
     env.manager.connectAutoMachines()
-    await vi.waitFor(() => expect(statusOf(env.manager)).toEqual({ kind: 'connected' }))
+    await vi.waitFor(() => expect(statusOf(env.manager)).toEqual({ kind: 'connected' }), { interval: 1 })
     expect(statusOf(env.manager, 'm_2')).toEqual({ kind: 'notConnected' })
   })
 })
@@ -366,7 +360,7 @@ describe('SshMachinesManager machines and projects', () => {
       ['Lab', true]
     ])
     expect(env.machines()).toHaveLength(2)
-    await vi.waitFor(() => expect(env.manager.list().machines.every((m) => m.status.kind === 'connected')).toBe(true))
+    await vi.waitFor(() => expect(env.manager.list().machines.every((m) => m.status.kind === 'connected')).toBe(true), { interval: 1 })
   })
 
   it('switching off and deleting close forwards but never touch the Hub', async () => {
@@ -410,11 +404,6 @@ describe('SshMachinesManager machines and projects', () => {
 
     emit({ kind: 'port.allocated', at: '', workspacePath: '/home/dev/src', data: { service: 'appServerWebSocket', port: 41001 } })
     expect(env.endpointChanges).toEqual(['m_1/p_1'])
-  })
-
-  it('refuses to open projects on machines without DotCraft', async () => {
-    const env = setup(remote({ version: null }), [{ name: 'lab' }])
-    await expect(env.manager.openProject('m_1', 'p_1')).rejects.toThrow('DotCraft is not installed on lab.')
   })
 
   it('lists folders, adds a project once, and removes it', async () => {

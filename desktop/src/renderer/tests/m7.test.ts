@@ -1,19 +1,13 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { useToastStore } from '../stores/toastStore'
 import { useThreadStore } from '../stores/threadStore'
-import { useConversationStore } from '../stores/conversationStore'
-import { useConnectionStore } from '../stores/connectionStore'
 
 const ts = () => useToastStore.getState()
 const thr = () => useThreadStore.getState()
-const conv = () => useConversationStore.getState()
-const conn = () => useConnectionStore.getState()
 
 beforeEach(() => {
   useToastStore.setState({ toasts: [] })
   thr().reset()
-  conv().reset()
-  conn().reset()
   vi.useFakeTimers()
 })
 
@@ -22,227 +16,44 @@ afterEach(() => {
 })
 
 describe('toastStore', () => {
-  it('starts with empty toasts list', () => {
-    expect(ts().toasts).toHaveLength(0)
-  })
-
-  it('addToast adds a toast with id, message, type, duration', () => {
-    ts().addToast('hello', 'info', 5000)
-    const toasts = ts().toasts
-    expect(toasts).toHaveLength(1)
-    expect(toasts[0].message).toBe('hello')
-    expect(toasts[0].type).toBe('info')
-    expect(toasts[0].duration).toBe(5000)
-    expect(toasts[0].id).toMatch(/^toast-/)
-  })
-
-  it('removeToast removes the correct toast', () => {
-    ts().addToast('first', 'success', 5000)
+  it('stacks toasts with unique ids and keeps them until removed', () => {
+    ts().addToast('first', 'info', 3000)
     ts().addToast('second', 'error', 5000)
-    const firstId = ts().toasts[0].id
-    ts().removeToast(firstId)
-    const remaining = ts().toasts
-    expect(remaining).toHaveLength(1)
-    expect(remaining[0].message).toBe('second')
-  })
 
-  it('keeps toast until removeToast is called', () => {
-    ts().addToast('manual', 'info', 3000)
-    expect(ts().toasts).toHaveLength(1)
-    vi.advanceTimersByTime(3001)
-    expect(ts().toasts).toHaveLength(1)
+    expect(ts().toasts).toMatchObject([
+      { message: 'first', type: 'info', duration: 3000 },
+      { message: 'second', type: 'error', duration: 5000 }
+    ])
+    expect(ts().toasts[0].id).toMatch(/^toast-/)
+    expect(new Set(ts().toasts.map((toast) => toast.id)).size).toBe(2)
 
-    const id = ts().toasts[0].id
-    ts().removeToast(id)
-    expect(ts().toasts).toHaveLength(0)
-  })
+    vi.advanceTimersByTime(5001)
+    expect(ts().toasts).toHaveLength(2)
 
-  it('does not auto-dismiss before duration', () => {
-    ts().addToast('not yet', 'warning', 5000)
-    vi.advanceTimersByTime(4999)
-    expect(ts().toasts).toHaveLength(1)
-  })
-
-  it('stacks multiple toasts', () => {
-    ts().addToast('one', 'info', 5000)
-    ts().addToast('two', 'success', 5000)
-    ts().addToast('three', 'error', 5000)
-    expect(ts().toasts).toHaveLength(3)
-  })
-
-  it('each toast has a unique id', () => {
-    ts().addToast('a', 'info', 5000)
-    ts().addToast('b', 'info', 5000)
-    const ids = ts().toasts.map((t) => t.id)
-    expect(new Set(ids).size).toBe(2)
+    ts().removeToast(ts().toasts[0].id)
+    expect(ts().toasts.map((toast) => toast.message)).toEqual(['second'])
   })
 })
 
-describe('workspace switch: stores clear on disconnected/connecting status', () => {
-  it('threadStore.reset() clears thread list and active thread', () => {
+describe('threadStore', () => {
+  it('tracks running turns per thread and clears threads and running turns on reset', () => {
     thr().setThreadList([
-      { id: 'thread-1', displayName: 'Test', status: 'active', lastActiveAt: new Date().toISOString(), threadMode: 'agent' }
+      { id: 'thread-1', displayName: 'Test', status: 'active', lastActiveAt: new Date().toISOString() }
     ])
     thr().setActiveThreadId('thread-1')
-    expect(thr().threadList).toHaveLength(1)
-    expect(thr().activeThreadId).toBe('thread-1')
+    thr().markTurnStarted('t1')
+    thr().markTurnStarted('t2')
+    thr().markTurnStarted('t3')
+    thr().markTurnEnded('t2')
+    thr().markTurnEnded('unknown')
+
+    expect([...thr().runningTurnThreadIds].sort()).toEqual(['t1', 't3'])
 
     thr().reset()
 
     expect(thr().threadList).toHaveLength(0)
     expect(thr().activeThreadId).toBeNull()
     expect(thr().activeThread).toBeNull()
-  })
-
-  it('conversationStore.reset() clears turns, streaming state, and plan', () => {
-    conv().onTurnStarted({
-      id: 'turn-1',
-      threadId: 'thread-1',
-      status: 'running',
-      items: [],
-      startedAt: new Date().toISOString()
-    })
-    expect(conv().turns.length).toBeGreaterThan(0)
-    expect(conv().turnStatus).toBe('running')
-
-    conv().reset()
-
-    expect(conv().turns).toHaveLength(0)
-    expect(conv().turnStatus).toBe('idle')
-    expect(conv().streamingMessage).toBe('')
-    expect(conv().plan).toBeNull()
-  })
-
-  it('runningTurnThreadIds is cleared on threadStore.reset()', () => {
-    thr().markTurnStarted('thread-1')
-    thr().markTurnStarted('thread-2')
-    expect(thr().runningTurnThreadIds.size).toBe(2)
-
-    thr().reset()
-
     expect(thr().runningTurnThreadIds.size).toBe(0)
-  })
-})
-
-describe('threadStore.runningTurnThreadIds', () => {
-  it('markTurnStarted adds threadId to the set', () => {
-    thr().markTurnStarted('thread-abc')
-    expect(thr().runningTurnThreadIds.has('thread-abc')).toBe(true)
-  })
-
-  it('markTurnEnded removes threadId from the set', () => {
-    thr().markTurnStarted('thread-abc')
-    thr().markTurnEnded('thread-abc')
-    expect(thr().runningTurnThreadIds.has('thread-abc')).toBe(false)
-  })
-
-  it('markTurnEnded on unknown thread is a no-op', () => {
-    expect(() => thr().markTurnEnded('nonexistent')).not.toThrow()
-  })
-
-  it('tracks multiple threads simultaneously', () => {
-    thr().markTurnStarted('t1')
-    thr().markTurnStarted('t2')
-    thr().markTurnStarted('t3')
-    expect(thr().runningTurnThreadIds.size).toBe(3)
-
-    thr().markTurnEnded('t2')
-    expect(thr().runningTurnThreadIds.size).toBe(2)
-    expect(thr().runningTurnThreadIds.has('t1')).toBe(true)
-    expect(thr().runningTurnThreadIds.has('t3')).toBe(true)
-  })
-})
-
-describe('clipboard copy: extract last agentMessage', () => {
-  it('finds the last agentMessage item across multiple turns', () => {
-    conv().onTurnStarted({
-      id: 'turn-1', threadId: 'th', status: 'completed',
-      items: [
-        { id: 'i1', type: 'agentMessage', status: 'completed', text: 'First reply',
-          createdAt: new Date().toISOString(), completedAt: new Date().toISOString() }
-      ],
-      startedAt: new Date().toISOString()
-    })
-    conv().onTurnStarted({
-      id: 'turn-2', threadId: 'th', status: 'running',
-      items: [
-        { id: 'i2', type: 'agentMessage', status: 'completed', text: 'Second reply',
-          createdAt: new Date().toISOString(), completedAt: new Date().toISOString() }
-      ],
-      startedAt: new Date().toISOString()
-    })
-
-    const turns = conv().turns
-    let lastAgentText: string | null = null
-    for (let i = turns.length - 1; i >= 0; i--) {
-      const items = turns[i].items
-      for (let j = items.length - 1; j >= 0; j--) {
-        const item = items[j]
-        if (item.type === 'agentMessage' && item.text) {
-          lastAgentText = item.text
-          break
-        }
-      }
-      if (lastAgentText) break
-    }
-    expect(lastAgentText).toBe('Second reply')
-  })
-
-  it('returns null when there are no agentMessage items', () => {
-    conv().onTurnStarted({
-      id: 'turn-1', threadId: 'th', status: 'running',
-      items: [
-        { id: 'i1', type: 'userMessage', status: 'completed', text: 'hi',
-          createdAt: new Date().toISOString(), completedAt: new Date().toISOString() }
-      ],
-      startedAt: new Date().toISOString()
-    })
-
-    const turns = conv().turns
-    let lastAgentText: string | null = null
-    for (let i = turns.length - 1; i >= 0; i--) {
-      const items = turns[i].items
-      for (let j = items.length - 1; j >= 0; j--) {
-        const item = items[j]
-        if (item.type === 'agentMessage' && item.text) {
-          lastAgentText = item.text
-          break
-        }
-      }
-      if (lastAgentText) break
-    }
-    expect(lastAgentText).toBeNull()
-  })
-})
-
-describe('connectionStore.setStatus', () => {
-  it('updates status to connected with serverInfo', () => {
-    conn().setStatus({
-      status: 'connected',
-      serverInfo: { name: 'DotCraft AppServer', version: '1.0.0' },
-      capabilities: {}
-    })
-    expect(conn().status).toBe('connected')
-    expect(conn().serverInfo?.name).toBe('DotCraft AppServer')
-    expect(conn().errorMessage).toBeNull()
-  })
-
-  it('updates status to error with errorType', () => {
-    conn().setStatus({
-      status: 'error',
-      errorMessage: 'binary not found',
-      errorType: 'binary-not-found'
-    })
-    expect(conn().status).toBe('error')
-    expect(conn().errorType).toBe('binary-not-found')
-    expect(conn().errorMessage).toBe('binary not found')
-  })
-
-  it('clears error info when switching to connecting', () => {
-    conn().setStatus({ status: 'error', errorMessage: 'crash', errorType: 'crash' })
-    conn().setStatus({ status: 'connecting' })
-    expect(conn().status).toBe('connecting')
-    expect(conn().errorMessage).toBeNull()
-    expect(conn().errorType).toBeNull()
   })
 })

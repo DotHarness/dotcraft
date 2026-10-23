@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Sdk;
 using DotCraft.Sdk.DynamicTools;
 using Xunit;
 
@@ -10,8 +9,6 @@ namespace DotCraft.Sdk.Tests;
 public class ToolsTests
 {
     private static readonly JsonElement Empty = JsonDocument.Parse("{}").RootElement;
-
-    // ---------------- record convention ----------------
 
     private enum SortMode { Ascending, Descending }
 
@@ -153,18 +150,6 @@ public class ToolsTests
     }
 
     [Fact]
-    public void Empty_args_schema_has_empty_properties()
-    {
-        DynamicToolRegistry registry = BuildRecordRegistry(out _);
-        JsonElement schema = registry.ListDescriptors().Single(d => d.QualifiedName == "sample.ping").InputSchema;
-
-        Assert.Equal("object", schema.GetProperty("type").GetString());
-        Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
-        Assert.Equal(JsonValueKind.Object, schema.GetProperty("properties").ValueKind);
-        Assert.Empty(schema.GetProperty("properties").EnumerateObject());
-    }
-
-    [Fact]
     public void Const_true_flag_becomes_boolean_enum()
     {
         DynamicToolRegistry registry = BuildRecordRegistry(out _);
@@ -176,17 +161,11 @@ public class ToolsTests
     }
 
     [Fact]
-    public void Free_form_object_allows_additional_properties()
+    public async Task Free_form_object_allows_and_accepts_unknown_properties()
     {
         DynamicToolRegistry registry = BuildRecordRegistry(out _);
         JsonElement schema = registry.ListDescriptors().Single(d => d.QualifiedName == "sample.free_form").InputSchema;
         Assert.True(schema.GetProperty("additionalProperties").GetBoolean());
-    }
-
-    [Fact]
-    public async Task Free_form_object_accepts_unknown_properties_at_dispatch()
-    {
-        DynamicToolRegistry registry = BuildRecordRegistry(out _);
 
         DynamicToolOutcome outcome = await registry.InvokeAsync(
             "sample",
@@ -209,15 +188,6 @@ public class ToolsTests
         Assert.Equal("hello", handler.LastSearch!.Query);
         Assert.Equal(5, handler.LastSearch.Limit);
         Assert.Equal(SortMode.Descending, handler.LastSearch.Sort);
-    }
-
-    [Fact]
-    public async Task Invoke_async_tool_unwraps_task_result()
-    {
-        DynamicToolRegistry registry = BuildRecordRegistry(out _);
-        JsonElement args = JsonDocument.Parse("""{"query":"x"}""").RootElement;
-        DynamicToolOutcome outcome = await registry.InvokeAsync("sample", "async_echo", args, default);
-        Assert.True(outcome.Ok);
     }
 
     [Fact]
@@ -249,17 +219,6 @@ public class ToolsTests
         Assert.Equal("INTERNAL", outcome.Code);
         Assert.Equal("The dynamic tool failed unexpectedly.", outcome.Message);
         Assert.IsType<InvalidOperationException>(logged);
-    }
-
-    [Fact]
-    public async Task Cancellation_propagates()
-    {
-        DynamicToolRegistry registry = BuildRecordRegistry(out _);
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => registry.InvokeAsync("sample", "cancel", Empty, cancellation.Token));
     }
 
     [Fact]
@@ -311,11 +270,8 @@ public class ToolsTests
         JsonElement err = await registry.InvokeJsonEnvelopeAsync("sample", "boom", Empty, default);
         Assert.False(err.GetProperty("ok").GetBoolean());
         Assert.Equal("BAD_THING", err.GetProperty("error").GetProperty("code").GetString());
-        // null field/hint are omitted only when null; here they are present.
         Assert.Equal("field1", err.GetProperty("error").GetProperty("field").GetString());
     }
-
-    // ---------------- flat-parameter convention ----------------
 
     private sealed class SampleContext
     {

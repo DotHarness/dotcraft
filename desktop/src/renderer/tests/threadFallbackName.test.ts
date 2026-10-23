@@ -8,7 +8,7 @@ const fallbackNames = {
 } as const
 
 describe('getFallbackThreadName', () => {
-  it('prefers truncated visible text over attachment fallbacks', () => {
+  it('prefers truncated visible text, ignoring leading structured file refs', () => {
     expect(
       getFallbackThreadName({
         visibleText: 'A'.repeat(60),
@@ -17,9 +17,6 @@ describe('getFallbackThreadName', () => {
         ...fallbackNames
       })
     ).toBe(`${'A'.repeat(50)}...`)
-  })
-
-  it('ignores leading structured file refs when naming attachment messages', () => {
     expect(
       getFallbackThreadName({
         visibleText: '@C:\\temp\\notes.txt\n\nReview this change set',
@@ -30,7 +27,7 @@ describe('getFallbackThreadName', () => {
     ).toBe('Review this change set')
   })
 
-  it('uses the file fallback when structured file refs are the only visible text', () => {
+  it('falls back when only file refs or leaked system reminders are visible', () => {
     expect(
       getFallbackThreadName({
         visibleText: '@C:\\temp\\notes.txt\n@D:\\docs\\plan.md',
@@ -39,9 +36,6 @@ describe('getFallbackThreadName', () => {
         ...fallbackNames
       })
     ).toBe('File reference message')
-  })
-
-  it('does not use leaked system reminders as fallback names', () => {
     expect(
       getFallbackThreadName({
         visibleText: '<system-reminder>\n## Runtime Context\nCurrentMode: Plan\n</system-reminder>',

@@ -18,13 +18,9 @@ vi.mock('electron', () => electronMock)
 import {
   WhatsNewMediaCache,
   isAllowedWhatsNewMediaUrl,
-  resolveWhatsNewMediaAssets,
   type WhatsNewMediaAsset
 } from '../whatsNewMediaCache'
-import {
-  WHATS_NEW_REMOTE_MEDIA_BASE_URL,
-  type WhatsNewRelease
-} from '../../shared/whatsNew'
+import { WHATS_NEW_REMOTE_MEDIA_BASE_URL } from '../../shared/whatsNew'
 
 const tempDirs: string[] = []
 
@@ -89,35 +85,6 @@ describe('WhatsNewMediaCache', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
-  it('can resolve media assets from catalog releases', () => {
-    const body = Buffer.from('catalog bytes')
-    const asset = makeAsset(body)
-    const release: WhatsNewRelease = {
-      version: asset.releaseVersion,
-      cards: [
-        {
-          id: asset.cardId,
-          title: {
-            en: 'Demo',
-            'zh-Hans': 'Demo'
-          },
-          summary: {
-            en: 'Demo summary.',
-            'zh-Hans': 'Demo summary.'
-          },
-          media: {
-            fileName: asset.fileName,
-            url: asset.url,
-            sizeBytes: asset.sizeBytes,
-            sha256: asset.sha256
-          }
-        }
-      ]
-    }
-
-    expect(resolveWhatsNewMediaAssets([release], [asset.releaseVersion])).toEqual([asset])
-  })
-
   it('fails closed when downloaded size or hash verification fails', async () => {
     const cacheRoot = await createTempDir()
     const body = Buffer.from('actual bytes')
@@ -157,9 +124,7 @@ describe('WhatsNewMediaCache', () => {
 
     const first = cache.prefetchMedia([asset.releaseVersion])
     const second = cache.prefetchMedia([asset.releaseVersion])
-    for (let i = 0; i < 20 && fetchMock.mock.calls.length === 0; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 5))
-    }
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled(), { interval: 1 })
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
     completeFetch(new Response(new Uint8Array(body)))

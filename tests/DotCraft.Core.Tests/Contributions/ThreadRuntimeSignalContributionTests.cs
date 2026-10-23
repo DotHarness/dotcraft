@@ -5,15 +5,12 @@ using Xunit;
 
 namespace DotCraft.Tests.Contributions;
 
-/// <summary>The additive thread runtime signal contribution point: ordered fan-out off the raising thread, thread-scope
-/// resolution, containment of a throwing contributor, and the bounded hand-off that keeps a stalled
-/// contributor off the turn path.</summary>
 public sealed class ThreadRuntimeSignalContributionTests
 {
     private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(5);
 
     [Fact]
-    public void ContributedObservers_SeeEverySignal_InOrder()
+    public void ContributedObservers_SeeEverySignalInOrder_AndAThreadScopedOneOnlyItsThread()
     {
         var registry = new ContributionRegistry();
         using var dispatcher = new ThreadRuntimeSignalDispatcher(registry);
@@ -21,10 +18,13 @@ public sealed class ThreadRuntimeSignalContributionTests
         var second = new RecordingContributor();
         registry.Add<IThreadRuntimeSignalContributor>(first, new ContributionOptions(Order: 100));
         registry.Add<IThreadRuntimeSignalContributor>(second, new ContributionOptions(Order: 200));
+        var scoped = new RecordingContributor();
+        registry.Add<IThreadRuntimeSignalContributor>(scoped, ContributionOptions.ForThread("thread-2"));
 
         dispatcher.Publish("thread-1", SessionThreadRuntimeSignal.TurnStarted);
         dispatcher.Publish("thread-1", SessionThreadRuntimeSignal.ApprovalRequested);
         dispatcher.Publish("thread-1", SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation);
+        dispatcher.Publish("thread-2", SessionThreadRuntimeSignal.TurnCompleted);
 
         Assert.True(dispatcher.WaitForPendingSignals(DrainTimeout));
         var expected = new[]
@@ -33,32 +33,10 @@ public sealed class ThreadRuntimeSignalContributionTests
             SessionThreadRuntimeSignal.ApprovalRequested,
             SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation
         };
-        Assert.Equal(expected, first.Signals);
-        Assert.Equal(expected, second.Signals);
-        Assert.All(first.Threads, threadId => Assert.Equal("thread-1", threadId));
-    }
-
-    [Fact]
-    public void SignalsCarryTheStatesNoSessionEventExpresses()
-    {
-        // These five never reach the SessionEvent stream a plugin can already subscribe to.
-        var registry = new ContributionRegistry();
-        using var dispatcher = new ThreadRuntimeSignalDispatcher(registry);
-        var contributor = new RecordingContributor();
-        registry.Add<IThreadRuntimeSignalContributor>(contributor);
-
-        SessionThreadRuntimeSignal[] signalOnly =
-        [
-            SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation,
-            SessionThreadRuntimeSignal.ContextCompacted,
-            SessionThreadRuntimeSignal.MaintenanceCompactingStarted,
-            SessionThreadRuntimeSignal.MaintenanceCompleted
-        ];
-        foreach (var signal in signalOnly)
-            dispatcher.Publish("thread-1", signal);
-
-        Assert.True(dispatcher.WaitForPendingSignals(DrainTimeout));
-        Assert.Equal(signalOnly, contributor.Signals);
+        Assert.Equal(expected.Append(SessionThreadRuntimeSignal.TurnCompleted), first.Signals);
+        Assert.Equal(expected.Append(SessionThreadRuntimeSignal.TurnCompleted), second.Signals);
+        Assert.Equal(["thread-1", "thread-1", "thread-1", "thread-2"], first.Threads);
+        Assert.Equal(["thread-2"], scoped.Threads);
     }
 
     [Fact]
@@ -98,8 +76,6 @@ public sealed class ThreadRuntimeSignalContributionTests
             dispatcher.Publish("thread-1", SessionThreadRuntimeSignal.TurnCompleted);
         clock.Stop();
 
-        // The contributor is still parked on the first signal; publishing never waited on it, and the
-        // overflow past QueueCapacity was dropped rather than queued without bound.
         Assert.Equal(1, stalled.Entries);
         Assert.True(clock.Elapsed < TimeSpan.FromSeconds(2), $"Publishing took {clock.Elapsed}.");
 
@@ -111,53 +87,21 @@ public sealed class ThreadRuntimeSignalContributionTests
     }
 
     [Fact]
-    public void AThreadScopedContributor_SeesOnlyItsOwnThread()
-    {
-        var registry = new ContributionRegistry();
-        using var dispatcher = new ThreadRuntimeSignalDispatcher(registry);
-        var scoped = new RecordingContributor();
-        var workspace = new RecordingContributor();
-        registry.Add<IThreadRuntimeSignalContributor>(scoped, ContributionOptions.ForThread("thread-1"));
-        registry.Add<IThreadRuntimeSignalContributor>(workspace);
-
-        dispatcher.Publish("thread-1", SessionThreadRuntimeSignal.TurnStarted);
-        dispatcher.Publish("thread-2", SessionThreadRuntimeSignal.TurnCompleted);
-
-        Assert.True(dispatcher.WaitForPendingSignals(DrainTimeout));
-        Assert.Equal(["thread-1"], scoped.Threads);
-        Assert.Equal(["thread-1", "thread-2"], workspace.Threads);
-    }
-
-    [Fact]
-    public void ALateRegisteredContributor_ObservesTheNextSignal()
+    public void ALateRegisteredContributor_ObservesTheNextSignalUntilRevoked()
     {
         var registry = new ContributionRegistry();
         using var dispatcher = new ThreadRuntimeSignalDispatcher(registry);
 
         dispatcher.Publish("thread-1", SessionThreadRuntimeSignal.TurnStarted);
         var contributor = new RecordingContributor();
-        registry.Add<IThreadRuntimeSignalContributor>(contributor);
+        var handle = registry.Add<IThreadRuntimeSignalContributor>(contributor);
         dispatcher.Publish("thread-1", SessionThreadRuntimeSignal.TurnCompleted);
+        Assert.True(dispatcher.WaitForPendingSignals(DrainTimeout));
+        handle.Dispose();
+        dispatcher.Publish("thread-1", SessionThreadRuntimeSignal.ContextCompacted);
 
         Assert.True(dispatcher.WaitForPendingSignals(DrainTimeout));
         Assert.Equal([SessionThreadRuntimeSignal.TurnCompleted], contributor.Signals);
-    }
-
-    [Fact]
-    public void RevokingAContributor_StopsItsDelivery()
-    {
-        var registry = new ContributionRegistry();
-        using var dispatcher = new ThreadRuntimeSignalDispatcher(registry);
-        var contributor = new RecordingContributor();
-        var handle = registry.Add<IThreadRuntimeSignalContributor>(contributor);
-
-        dispatcher.Publish("thread-1", SessionThreadRuntimeSignal.TurnStarted);
-        Assert.True(dispatcher.WaitForPendingSignals(DrainTimeout));
-        handle.Dispose();
-        dispatcher.Publish("thread-1", SessionThreadRuntimeSignal.TurnCompleted);
-
-        Assert.True(dispatcher.WaitForPendingSignals(DrainTimeout));
-        Assert.Equal([SessionThreadRuntimeSignal.TurnStarted], contributor.Signals);
     }
 
     [Fact]

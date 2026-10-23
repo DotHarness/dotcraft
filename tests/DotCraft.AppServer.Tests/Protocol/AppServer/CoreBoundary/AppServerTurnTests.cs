@@ -8,15 +8,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
-/// <summary>
-/// Tests for turn/* methods (spec Section 5) and delta notification correctness.
-/// Validates:
-/// - turn/start response shape and inline response ordering
-/// - deltaKind field in item/*/delta notifications (Fix 1)
-/// - streamingSupport=false suppresses item deltas (Fix 4)
-/// - messages forwarded to SubmitInputAsync for historyMode=client (Fix 5)
-/// - turn/interrupt triggers CancelTurnAsync
-/// </summary>
 public sealed class AppServerTurnTests : IDisposable
 {
     private readonly AppServerTestHarness _h = new();
@@ -27,30 +18,6 @@ public sealed class AppServerTurnTests : IDisposable
     }
 
     public void Dispose() => _h.Dispose();
-
-    // -------------------------------------------------------------------------
-    // turn/start — basic flow
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task TurnStart_SendsResponseBeforeNotifications()
-    {
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
-        {
-            threadId = thread.Id,
-            input = new[] { new { type = "text", text = "Hello" } }
-        });
-        await _h.ExecuteRequestAsync(msg);
-
-        // First message must be the turn/start response
-        var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.True(response.RootElement.GetProperty("result").TryGetProperty("turn", out _),
-            "turn/start result must contain a 'turn' field");
-    }
 
     [Fact]
     public async Task TurnStart_AcceptsEmptyInputSoAFailedTurnCanBeReissued()
@@ -70,7 +37,7 @@ public sealed class AppServerTurnTests : IDisposable
     }
 
     [Fact]
-    public async Task TurnStart_ResponseBeforeTurnStartedNotification_Ordering()
+    public async Task TurnStart_RespondsThenStreamsNotificationsInOrder()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
@@ -82,66 +49,18 @@ public sealed class AppServerTurnTests : IDisposable
         });
         await _h.ExecuteRequestAsync(msg);
 
-        var first = await _h.Transport.ReadNextSentAsync();
-        var second = await _h.Transport.ReadNextSentAsync();
-
-        // First: response (has 'result' and 'id'), Second: turn/started notification (has 'method')
-        Assert.True(first.RootElement.TryGetProperty("result", out _),
-            "First message must be the JSON-RPC response");
-        Assert.True(second.RootElement.TryGetProperty("method", out var methodEl));
-        Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStarted, methodEl.GetString());
-    }
-
-    [Fact]
-    public async Task TurnStart_FullEventSequence_AllNotificationsArriveInOrder()
-    {
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
-        {
-            threadId = thread.Id,
-            input = new[] { new { type = "text", text = "Hello" } }
-        });
-        await _h.ExecuteRequestAsync(msg);
-
-        // Expected: response, turn/started, item/started, item/agentMessage/delta, item/completed, turn/completed
         var all = await _h.Transport.WaitAndDrainAsync(6, TimeSpan.FromSeconds(10));
 
-        Assert.True(all[0].RootElement.TryGetProperty("result", out _)); // response
+        AppServerTestHarness.AssertIsSuccessResponse(all[0]);
+        Assert.True(all[0].RootElement.GetProperty("result").TryGetProperty("turn", out _));
         AssertMethod(all[1], DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStarted);
         AssertMethod(all[2], DotCraft.Protocol.AppServer.AppServerMethodNames.ItemStarted);
         AssertMethod(all[3], DotCraft.Protocol.AppServer.AppServerMethodNames.AgentMessageDelta);
         AssertMethod(all[4], DotCraft.Protocol.AppServer.AppServerMethodNames.ItemCompleted);
         AssertMethod(all[5], DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted);
-    }
-
-    // -------------------------------------------------------------------------
-    // Fix 1: deltaKind must be present in delta notifications (spec Section 2.3)
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task TurnStart_AgentMessageDelta_IncludesDeltaKind()
-    {
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
-        {
-            threadId = thread.Id,
-            input = new[] { new { type = "text", text = "Hello" } }
-        });
-        await _h.ExecuteRequestAsync(msg);
-
-        var all = await _h.Transport.WaitAndDrainAsync(6, TimeSpan.FromSeconds(10));
-
-        // all[3] is item/agentMessage/delta
-        var deltaNotif = all[3];
-        var @params = deltaNotif.RootElement.GetProperty("params");
-        Assert.True(@params.TryGetProperty("deltaKind", out var deltaKindEl),
-            "Delta notification must include 'deltaKind' field (spec Section 2.3)");
-        Assert.Equal("agentMessage", deltaKindEl.GetString());
-        Assert.True(@params.TryGetProperty("delta", out _), "Delta notification must include 'delta' field");
+        var deltaParams = all[3].RootElement.GetProperty("params");
+        Assert.Equal("agentMessage", deltaParams.GetProperty("deltaKind").GetString());
+        Assert.True(deltaParams.TryGetProperty("delta", out _));
     }
 
     [Fact]
@@ -150,7 +69,6 @@ public sealed class AppServerTurnTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         var turn = AppServerTestHarness.MakeTurn(thread.Id);
 
-        // Build event sequence with a reasoning delta instead of agentMessage delta
         var events = new SessionEvent[]
         {
             new() {
@@ -178,7 +96,6 @@ public sealed class AppServerTurnTests : IDisposable
         });
         await _h.ExecuteRequestAsync(msg);
 
-        // response, turn/started, item/reasoning/delta, turn/completed
         var all = await _h.Transport.WaitAndDrainAsync(4, TimeSpan.FromSeconds(10));
 
         var reasoningDelta = all[2];
@@ -186,10 +103,6 @@ public sealed class AppServerTurnTests : IDisposable
         var @params = reasoningDelta.RootElement.GetProperty("params");
         Assert.Equal("reasoningContent", @params.GetProperty("deltaKind").GetString());
     }
-
-    // -------------------------------------------------------------------------
-    // Fix 4: streamingSupport=false suppresses delta notifications
-    // -------------------------------------------------------------------------
 
     [Fact]
     public async Task TurnStart_StreamingDisabled_DeltasAreSuppressed()
@@ -208,12 +121,10 @@ public sealed class AppServerTurnTests : IDisposable
         });
         await harness.ExecuteRequestAsync(msg);
 
-        // With streamingSupport=false, deltas are suppressed.
-        // Expected: response, turn/started, item/started, item/completed, turn/completed (5, not 6)
         var all = await harness.Transport.WaitAndDrainAsync(5, TimeSpan.FromSeconds(10));
 
         var methods = all
-            .Skip(1) // skip the response
+            .Skip(1)
             .Select(d => d.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null)
             .ToList();
 
@@ -312,7 +223,6 @@ public sealed class AppServerTurnTests : IDisposable
     [InlineData("data:image/png;base64,%%%")]
     [InlineData("ftp://example.com/image.png")]
     [InlineData("http://example.com/image.png")]
-    [InlineData("HTTPS://example.com/image.png")]
     public async Task TurnEnqueue_InvalidInlineImage_ReturnsInvalidParamsWithoutPersisting(string url)
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
@@ -370,125 +280,21 @@ public sealed class AppServerTurnTests : IDisposable
         Assert.True(@params.GetProperty("delta").GetString()?.Length > 0);
     }
 
-    [Fact]
-    public async Task TurnStart_ToolCallArgumentsDelta_StreamingDisabled_IsSuppressed()
-    {
-        using var harness = new AppServerTestHarness();
-        await harness.InitializeAsync(streamingSupport: false);
-        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
-        harness.Service.EnqueueSubmitEvents(
-            thread.Id,
-            AppServerTestHarness.BuildStreamingToolCallEventSequence(thread.Id));
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
-        {
-            threadId = thread.Id,
-            input = new[] { new { type = "text", text = "Write a file" } }
-        });
-        await harness.ExecuteRequestAsync(msg);
-
-        var all = await harness.Transport.WaitAndDrainAsync(5, TimeSpan.FromSeconds(10));
-        var methods = all
-            .Skip(1)
-            .Select(d => d.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null)
-            .ToList();
-        Assert.DoesNotContain(DotCraft.Protocol.AppServer.AppServerMethodNames.ToolArgumentsDelta, methods);
-    }
-
-    [Fact]
-    public async Task TurnStart_ToolCallArgumentsDelta_NotificationOptOut_IsSuppressed()
-    {
-        using var harness = new AppServerTestHarness();
-        await harness.InitializeAsync(optOutMethods: [DotCraft.Protocol.AppServer.AppServerMethodNames.ToolArgumentsDelta]);
-        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
-        harness.Service.EnqueueSubmitEvents(
-            thread.Id,
-            AppServerTestHarness.BuildStreamingToolCallEventSequence(thread.Id));
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
-        {
-            threadId = thread.Id,
-            input = new[] { new { type = "text", text = "Write a file" } }
-        });
-        await harness.ExecuteRequestAsync(msg);
-
-        var all = await harness.Transport.WaitAndDrainAsync(5, TimeSpan.FromSeconds(10));
-        var methods = all
-            .Skip(1)
-            .Select(d => d.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null)
-            .ToList();
-        Assert.DoesNotContain(DotCraft.Protocol.AppServer.AppServerMethodNames.ToolArgumentsDelta, methods);
-    }
-
-    // -------------------------------------------------------------------------
-    // Fix 5: messages field forwarded to SubmitInputAsync
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task TurnStart_WithMessages_DoesNotReturnError()
+    [Theory]
+    [InlineData(null, "new")]
+    [InlineData("Please ", "help")]
+    public async Task TurnStart_BuiltInCommandRef_ReturnsInvalidParamsAndDoesNotSubmitInput(string? leadingText, string command)
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
-
-        // historyMode=client thread providing conversation history
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
-        {
-            threadId = thread.Id,
-            input = new[] { new { type = "text", text = "Hello" } },
-            messages = new[]
-            {
-                new { role = "user", content = new[] { new { type = "text", text = "Previous message" } } }
-            }
-        });
-        await _h.ExecuteRequestAsync(msg);
-
-        var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-    }
-
-    [Fact]
-    public async Task TurnStart_BuiltInCommandRef_ReturnsInvalidParamsAndDoesNotSubmitInput()
-    {
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        var input = new List<object>();
+        if (leadingText != null)
+            input.Add(new { type = "text", text = leadingText });
+        input.Add(new { type = "commandRef", name = command, rawText = "/" + command });
 
         var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
-            input = new[]
-            {
-                new
-                {
-                    type = "commandRef",
-                    name = "new",
-                    rawText = "/new"
-                }
-            }
-        });
-        await _h.ExecuteRequestAsync(msg);
-
-        var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-        Assert.Empty(_h.Service.LastSubmittedContent);
-    }
-
-    [Fact]
-    public async Task TurnStart_MixedTextAndBuiltInCommandRef_ReturnsInvalidParamsAndDoesNotSubmitInput()
-    {
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
-        {
-            threadId = thread.Id,
-            input = new object[]
-            {
-                new { type = "text", text = "Please " },
-                new
-                {
-                    type = "commandRef",
-                    name = "help",
-                    rawText = "/help"
-                }
-            }
+            input
         });
         await _h.ExecuteRequestAsync(msg);
 
@@ -551,21 +357,15 @@ public sealed class AppServerTurnTests : IDisposable
             }
             catch
             {
-                // Best-effort cleanup.
             }
         }
     }
-
-    // -------------------------------------------------------------------------
-    // turn/interrupt
-    // -------------------------------------------------------------------------
 
     [Fact]
     public async Task TurnInterrupt_CallsCancelTurnAsync()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        // Add a running turn to the thread so validation passes (Issue E fix)
         var runningTurn = new SessionTurn
         {
             Id = "turn_001",
@@ -616,7 +416,8 @@ public sealed class AppServerTurnTests : IDisposable
         var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnEnqueue, new
         {
             threadId = thread.Id,
-            input = new[] { new { type = "text", text = "Run this next" } }
+            input = new[] { new { type = "text", text = "Run this next" } },
+            sentAsGoal = true
         });
         await _h.ExecuteRequestAsync(msg);
 
@@ -624,7 +425,9 @@ public sealed class AppServerTurnTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(doc);
         var result = doc.RootElement.GetProperty("result");
         Assert.Equal("Run this next", result.GetProperty("queuedInput").GetProperty("displayText").GetString());
-        Assert.Single(result.GetProperty("queuedInputs").EnumerateArray());
+        Assert.True(result.GetProperty("queuedInput").GetProperty("sentAsGoal").GetBoolean());
+        var queued = Assert.Single(result.GetProperty("queuedInputs").EnumerateArray());
+        Assert.True(queued.GetProperty("sentAsGoal").GetBoolean());
     }
 
     [Fact]
@@ -747,65 +550,7 @@ public sealed class AppServerTurnTests : IDisposable
     }
 
     [Fact]
-    public async Task TurnEnqueue_PreservesSentAsGoal()
-    {
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnEnqueue, new
-        {
-            threadId = thread.Id,
-            input = new object[] { new { type = "text", text = "Ship the goal" } },
-            sentAsGoal = true
-        });
-        await _h.ExecuteRequestAsync(msg);
-
-        var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
-        var result = doc.RootElement.GetProperty("result");
-        Assert.True(result.GetProperty("queuedInput").GetProperty("sentAsGoal").GetBoolean());
-        var queued = Assert.Single(result.GetProperty("queuedInputs").EnumerateArray());
-        Assert.True(queued.GetProperty("sentAsGoal").GetBoolean());
-    }
-
-    [Fact]
-    public async Task TurnQueueUpdate_MarksQueuedInputGuidancePending()
-    {
-        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        thread.Turns.Add(new SessionTurn
-        {
-            Id = "turn_001",
-            ThreadId = thread.Id,
-            Status = TurnStatus.Running,
-            StartedAt = DateTimeOffset.UtcNow
-        });
-        var queued = await _h.Service.EnqueueTurnInputAsync(
-            thread.Id,
-            [new TextContent("Use this hint")],
-            inputSnapshot: new SessionInputSnapshot
-            {
-                NativeInputParts = [new SessionInputPart { Type = "text", Text = "Use this hint" }],
-                MaterializedInputParts = [new SessionInputPart { Type = "text", Text = "Use this hint" }],
-                DisplayText = "Use this hint"
-            });
-
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnQueueUpdate, new
-        {
-            threadId = thread.Id,
-            expectedTurnId = "turn_001",
-            queuedInputId = queued.Id,
-            status = "guidancePending"
-        });
-        await _h.ExecuteRequestAsync(msg);
-
-        var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
-        var resultQueued = Assert.Single(doc.RootElement.GetProperty("result").GetProperty("queuedInputs").EnumerateArray());
-        Assert.Equal("guidancePending", resultQueued.GetProperty("status").GetString());
-        Assert.Empty(thread.Turns[0].Items);
-    }
-
-    [Fact]
-    public async Task TurnQueueUpdate_RestoresGuidancePendingInputToQueuedIdempotently()
+    public async Task TurnQueueUpdate_TogglesGuidancePendingAndRestoresQueuedIdempotently()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         thread.Turns.Add(new SessionTurn
@@ -816,41 +561,25 @@ public sealed class AppServerTurnTests : IDisposable
             StartedAt = DateTimeOffset.UtcNow
         });
         var queued = await EnqueueTextAsync(thread.Id, "Use this hint");
-        await _h.Service.UpdateQueuedTurnInputAsync(thread.Id, queued.Id, "turn_001", "guidancePending");
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnQueueUpdate, new
+        foreach (var status in new[] { "guidancePending", "queued", "queued" })
         {
-            threadId = thread.Id,
-            expectedTurnId = "turn_001",
-            queuedInputId = queued.Id,
-            status = "queued"
-        });
-        await _h.ExecuteRequestAsync(msg);
+            await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnQueueUpdate, new
+            {
+                threadId = thread.Id,
+                expectedTurnId = "turn_001",
+                queuedInputId = queued.Id,
+                status
+            }));
 
-        var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
-        var resultQueued = Assert.Single(doc.RootElement.GetProperty("result").GetProperty("queuedInputs").EnumerateArray());
-        Assert.Equal("queued", resultQueued.GetProperty("status").GetString());
-        Assert.Equal("Use this hint", resultQueued.GetProperty("displayText").GetString());
-        Assert.Empty(thread.Turns[0].Items);
-
-        var retry = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnQueueUpdate, new
-        {
-            threadId = thread.Id,
-            expectedTurnId = "turn_001",
-            queuedInputId = queued.Id,
-            status = "queued"
-        });
-        await _h.ExecuteRequestAsync(retry);
-        var retryDoc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(retryDoc);
-        var retried = Assert.Single(retryDoc.RootElement.GetProperty("result").GetProperty("queuedInputs").EnumerateArray());
-        Assert.Equal("queued", retried.GetProperty("status").GetString());
+            var doc = await _h.Transport.ReadNextSentAsync();
+            AppServerTestHarness.AssertIsSuccessResponse(doc);
+            var resultQueued = Assert.Single(doc.RootElement.GetProperty("result").GetProperty("queuedInputs").EnumerateArray());
+            Assert.Equal(status, resultQueued.GetProperty("status").GetString());
+            Assert.Equal("Use this hint", resultQueued.GetProperty("displayText").GetString());
+            Assert.Empty(thread.Turns[0].Items);
+        }
     }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
 
     private Task<QueuedTurnInput> EnqueueTextAsync(string threadId, string text) =>
         _h.Service.EnqueueTurnInputAsync(

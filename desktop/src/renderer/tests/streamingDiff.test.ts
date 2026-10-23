@@ -7,33 +7,19 @@ describe('streamingDiff', () => {
     expect(extractStreamingFilePath('{"content":"abc"}')).toBeNull()
   })
 
-  it('builds WriteFile streaming diff against empty baseline', () => {
-    const diff = computeStreamingFileDiff({
+  it('builds WriteFile streaming diffs against an empty or disk baseline', () => {
+    expect(computeStreamingFileDiff({
       kind: 'write',
       argumentsPreview: '{"path":"src/new.ts","content":"line 1\\nline 2"}',
       filePath: null
-    })
+    })).toMatchObject({ filePath: 'src/new.ts', isNewFile: true, additions: 2, deletions: 0 })
 
-    expect(diff).not.toBeNull()
-    expect(diff!.filePath).toBe('src/new.ts')
-    expect(diff!.isNewFile).toBe(true)
-    expect(diff!.deletions).toBe(0)
-    expect(diff!.additions).toBe(2)
-  })
-
-  it('builds WriteFile streaming diff against disk baseline', () => {
-    const diff = computeStreamingFileDiff({
+    expect(computeStreamingFileDiff({
       kind: 'write',
       argumentsPreview: '{"path":"src/app.ts","content":"line1\\nline2\\nline3\\n"}',
       filePath: 'src/app.ts',
       baselineContent: 'line1\nline2\n'
-    })
-
-    expect(diff).not.toBeNull()
-    expect(diff!.isNewFile).toBe(false)
-    expect(diff!.additions).toBe(1)
-    expect(diff!.deletions).toBe(0)
-    expect(diff!.currentContent).toBe('line1\nline2\nline3\n')
+    })).toMatchObject({ isNewFile: false, additions: 1, deletions: 0, currentContent: 'line1\nline2\nline3\n' })
   })
 
   it('builds EditFile streaming diff from baseline in oldText/newText mode', () => {

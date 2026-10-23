@@ -1,145 +1,58 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useConnectionStore } from '../stores/connectionStore'
 
+const state = () => useConnectionStore.getState()
+
 describe('connectionStore', () => {
   beforeEach(() => {
-    useConnectionStore.getState().reset()
+    state().reset()
   })
 
-  it('starts in "connecting" state', () => {
-    const state = useConnectionStore.getState()
-    expect(state.status).toBe('connecting')
-    expect(state.serverInfo).toBeNull()
-    expect(state.capabilities).toBeNull()
-    expect(state.errorMessage).toBeNull()
-    expect(state.dashboardUrl).toBeNull()
-    expect(state.connectionEpoch).toBe(0)
-  })
-
-  it('transitions to "connected" with serverInfo and capabilities', () => {
-    useConnectionStore.getState().setStatus({
+  it('stores connected server details and bumps the epoch for every status event', () => {
+    state().setStatus({
       status: 'connected',
       serverInfo: { name: 'dotcraft', version: '0.2.0' },
-      capabilities: { threadManagement: true, approvalFlow: true }
-    })
-
-    const state = useConnectionStore.getState()
-    expect(state.status).toBe('connected')
-    expect(state.serverInfo?.name).toBe('dotcraft')
-    expect(state.serverInfo?.version).toBe('0.2.0')
-    expect(state.capabilities?.threadManagement).toBe(true)
-    expect(state.dashboardUrl).toBeNull()
-    expect(state.connectionEpoch).toBe(1)
-  })
-
-  it('increments connectionEpoch for repeated status events', () => {
-    const store = useConnectionStore.getState()
-
-    store.setStatus({ status: 'connected' })
-    store.setStatus({ status: 'connected' })
-
-    expect(useConnectionStore.getState().connectionEpoch).toBe(2)
-  })
-
-  it('stores dashboardUrl when connected and payload includes it', () => {
-    useConnectionStore.getState().setStatus({
-      status: 'connected',
-      serverInfo: { name: 'dotcraft', version: '0.2.0' },
-      capabilities: {},
+      capabilities: { threadManagement: true, approvalFlow: true },
       dashboardUrl: 'http://127.0.0.1:8080/dashboard'
     })
-    expect(useConnectionStore.getState().dashboardUrl).toBe('http://127.0.0.1:8080/dashboard')
-  })
 
-  it('transitions to "disconnected" with reconnect message', () => {
-    useConnectionStore.getState().setStatus({
-      status: 'connected',
-      serverInfo: { name: 'dotcraft', version: '0.2.0' }
-    })
-
-    useConnectionStore.getState().setStatus({
-      status: 'disconnected',
-      errorMessage: 'Connection lost. Reconnecting...'
-    })
-
-    const state = useConnectionStore.getState()
-    expect(state.status).toBe('disconnected')
-    expect(state.errorMessage).toBe('Connection lost. Reconnecting...')
-    expect(state.serverInfo).toBeNull()
-    expect(state.dashboardUrl).toBeNull()
-  })
-
-  it('transitions to "error" with binary-not-found errorType', () => {
-    useConnectionStore.getState().setStatus({
-      status: 'error',
-      errorMessage: 'DotCraft AppServer binary not found.',
-      errorType: 'binary-not-found'
-    })
-
-    const state = useConnectionStore.getState()
-    expect(state.status).toBe('error')
-    expect(state.errorType).toBe('binary-not-found')
-    expect(state.errorMessage).toBeTruthy()
-  })
-
-  it('transitions to "error" with handshake-timeout errorType', () => {
-    useConnectionStore.getState().setStatus({
-      status: 'error',
-      errorMessage: 'AppServer is not responding. Restart?',
-      errorType: 'handshake-timeout'
-    })
-
-    const state = useConnectionStore.getState()
-    expect(state.status).toBe('error')
-    expect(state.errorType).toBe('handshake-timeout')
-  })
-
-  it('clears serverInfo and capabilities on non-connected status', () => {
-    useConnectionStore.getState().setStatus({
+    expect(state()).toMatchObject({
       status: 'connected',
       serverInfo: { name: 'dotcraft', version: '0.2.0' },
-      capabilities: { approvalFlow: true }
+      capabilities: { threadManagement: true },
+      dashboardUrl: 'http://127.0.0.1:8080/dashboard',
+      connectionEpoch: 1
     })
 
-    useConnectionStore.getState().setStatus({ status: 'disconnected' })
-
-    const state = useConnectionStore.getState()
-    expect(state.serverInfo).toBeNull()
-    expect(state.capabilities).toBeNull()
-    expect(state.dashboardUrl).toBeNull()
+    state().setStatus({ status: 'connected' })
+    expect(state().connectionEpoch).toBe(2)
+    expect(state().dashboardUrl).toBeNull()
   })
 
-  it('resets to initial state', () => {
-    useConnectionStore.getState().setStatus({
+  it('clears server details when the connection drops or fails', () => {
+    state().setStatus({
       status: 'connected',
-      serverInfo: { name: 'dotcraft', version: '0.2.0' }
+      serverInfo: { name: 'dotcraft', version: '0.2.0' },
+      capabilities: { approvalFlow: true },
+      dashboardUrl: 'http://127.0.0.1:8080/dashboard'
     })
 
-    useConnectionStore.getState().reset()
-
-    const state = useConnectionStore.getState()
-    expect(state.status).toBe('connecting')
-    expect(state.serverInfo).toBeNull()
-    expect(state.errorMessage).toBeNull()
-  })
-
-  it('full lifecycle: connecting -> connected -> disconnected -> error', () => {
-    const store = useConnectionStore.getState()
-
-    store.setStatus({ status: 'connecting' })
-    expect(useConnectionStore.getState().status).toBe('connecting')
-
-    store.setStatus({
-      status: 'connected',
-      serverInfo: { name: 'dotcraft', version: '0.2.0' }
+    state().setStatus({ status: 'disconnected', errorMessage: 'Connection lost. Reconnecting...' })
+    expect(state()).toMatchObject({
+      status: 'disconnected',
+      errorMessage: 'Connection lost. Reconnecting...',
+      serverInfo: null,
+      capabilities: null,
+      dashboardUrl: null
     })
-    expect(useConnectionStore.getState().status).toBe('connected')
 
-    store.setStatus({ status: 'disconnected' })
-    expect(useConnectionStore.getState().status).toBe('disconnected')
+    state().setStatus({ status: 'error', errorMessage: 'AppServer is not responding. Restart?', errorType: 'handshake-timeout' })
+    expect(state()).toMatchObject({ status: 'error', errorType: 'handshake-timeout' })
 
-    store.setStatus({ status: 'error', errorMessage: 'Fatal', errorType: 'binary-not-found' })
-    expect(useConnectionStore.getState().status).toBe('error')
-    expect(useConnectionStore.getState().errorType).toBe('binary-not-found')
+    state().setStatus({ status: 'connecting' })
+    expect(state()).toMatchObject({ status: 'connecting', errorMessage: null, errorType: null })
+
+    state().reset()
+    expect(state()).toMatchObject({ status: 'connecting', serverInfo: null, errorMessage: null, connectionEpoch: 0 })
   })
 })

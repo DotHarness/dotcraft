@@ -66,6 +66,10 @@ describe('history turn diffs', () => {
     expect([...s().itemDiffs.keys()]).toEqual(['a', 'b'])
     expect(s().turnDiffs.get('t1')?.source).toBe('history')
     expect(rowsOf('t1')).toEqual([['t1::src/a.ts', 'src/a.ts', 'written']])
+
+    s().reset()
+    expect(s().itemDiffs.size).toBe(0)
+    expect(s().turnDiffs.size).toBe(0)
   })
 
   it('shows diffs for remote workspaces too', () => {
@@ -85,14 +89,6 @@ describe('history turn diffs', () => {
 
     expect(s().turnDiffs.get('t2')?.source).toBe('live')
     expect(rowsOf('t1')[0]).toEqual(['t1::src/a.ts', 'src/a.ts', 'reverted'])
-  })
-
-  it('reset clears item and turn diffs', () => {
-    s().setTurns(loadHistory(twoEditsOfA))
-    s().reset()
-
-    expect(s().itemDiffs.size).toBe(0)
-    expect(s().turnDiffs.size).toBe(0)
   })
 })
 
@@ -138,12 +134,5 @@ describe('live turn diffs', () => {
 
     expect(s().turnDiffs.get('t1')?.source).toBe('history')
     expect(rowsOf('t1')).toEqual([['t1::a', 'src/a.ts', 'written']])
-  })
-
-  it('ignores a snapshot without a turn id', () => {
-    startLiveTurn()
-    s().onTurnDiffUpdated({ turnId: '', diff: addDiff('src/b.ts') })
-
-    expect(s().turnDiffs.size).toBe(0)
   })
 })

@@ -52,75 +52,26 @@ public sealed class HubTurnNotificationPolicyTests
         Assert.Null(decision.ThreadId);
     }
 
-    [Fact]
-    public async Task ResolveDecision_ForInternalMetadataThread_SuppressesNotification()
+    [Theory]
+    [InlineData("metadata")]
+    [InlineData("ephemeral")]
+    [InlineData("internalOrigin")]
+    [InlineData("subAgent")]
+    public async Task ResolveDecision_ForHiddenThreads_SuppressesNotification(string hiddenBy)
     {
         var thread = new SessionThread
         {
-            Id = "thread_internal",
-            OriginChannel = "dotcraft-desktop",
-            DisplayName = "[internal] Future helper"
+            Id = "thread_hidden",
+            OriginChannel = hiddenBy == "internalOrigin" ? WelcomeSuggestionConstants.ChannelName : "dotcraft-desktop",
+            DisplayName = "Helper",
+            Ephemeral = hiddenBy == "ephemeral"
         };
-        thread.Metadata[ThreadVisibility.InternalMetadataKey] = "future-helper";
-        var service = new FakeSessionService(thread);
+        if (hiddenBy == "metadata")
+            thread.Metadata[ThreadVisibility.InternalMetadataKey] = "future-helper";
+        if (hiddenBy == "subAgent")
+            thread.Source = ThreadSource.ForSubAgent(new SubAgentThreadSource { ParentThreadId = "thread_parent" });
 
-        var decision = await HubTurnNotificationPolicy.ResolveDecisionAsync(service, "thread_internal");
-
-        Assert.False(decision.ShouldNotify);
-        Assert.False(decision.OpenDesktopOnClick);
-        Assert.Null(decision.ThreadId);
-    }
-
-    [Fact]
-    public async Task ResolveDecision_ForEphemeralThread_SuppressesNotification()
-    {
-        var thread = new SessionThread
-        {
-            Id = "thread_ephemeral",
-            OriginChannel = "dotcraft-desktop",
-            DisplayName = "Plugin helper",
-            Ephemeral = true
-        };
-        var service = new FakeSessionService(thread);
-
-        var decision = await HubTurnNotificationPolicy.ResolveDecisionAsync(service, "thread_ephemeral");
-
-        Assert.False(decision.ShouldNotify);
-    }
-
-    [Fact]
-    public async Task ResolveDecision_ForKnownInternalOriginThread_SuppressesNotification()
-    {
-        var service = new FakeSessionService(new SessionThread
-        {
-            Id = "thread_welcome",
-            OriginChannel = WelcomeSuggestionConstants.ChannelName,
-            DisplayName = "[internal] Welcome suggestions"
-        });
-
-        var decision = await HubTurnNotificationPolicy.ResolveDecisionAsync(service, "thread_welcome");
-
-        Assert.False(decision.ShouldNotify);
-        Assert.False(decision.OpenDesktopOnClick);
-        Assert.Null(decision.ThreadId);
-    }
-
-    [Fact]
-    public async Task ResolveDecision_ForSubAgentSourceThread_SuppressesNotification()
-    {
-        var service = new FakeSessionService(new SessionThread
-        {
-            Id = "thread_child",
-            OriginChannel = "dotcraft-desktop",
-            ChannelContext = "thread_parent",
-            DisplayName = "Child agent",
-            Source = ThreadSource.ForSubAgent(new SubAgentThreadSource
-            {
-                ParentThreadId = "thread_parent"
-            })
-        });
-
-        var decision = await HubTurnNotificationPolicy.ResolveDecisionAsync(service, "thread_child");
+        var decision = await HubTurnNotificationPolicy.ResolveDecisionAsync(new FakeSessionService(thread), thread.Id);
 
         Assert.False(decision.ShouldNotify);
         Assert.False(decision.OpenDesktopOnClick);

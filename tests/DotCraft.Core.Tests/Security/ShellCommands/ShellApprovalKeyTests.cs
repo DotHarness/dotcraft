@@ -24,25 +24,14 @@ public sealed class ShellApprovalKeyTests
     }
 
     [Fact]
-    public void Create_DifferentShellExecutable_ProducesADifferentKey()
+    public void Create_DifferentShellWorkingDirectoryOrPolicy_ProducesADifferentKey()
     {
-        var first = Key();
-        var second = Key(shellPath: OtherShellPath);
+        var key = Key();
 
-        Assert.NotEqual(first, second);
-        Assert.NotEqual(first.Hash, second.Hash);
-    }
-
-    [Fact]
-    public void Create_DifferentWorkingDirectory_ProducesADifferentKey()
-    {
-        Assert.NotEqual(Key().Hash, Key(workingDirectory: OtherWorkingDirectory).Hash);
-    }
-
-    [Fact]
-    public void Create_DifferentPolicyFingerprint_ProducesADifferentKey()
-    {
-        Assert.NotEqual(Key().Hash, Key(fingerprint: "another-fingerprint").Hash);
+        Assert.NotEqual(key, Key(shellPath: OtherShellPath));
+        Assert.NotEqual(key.Hash, Key(shellPath: OtherShellPath).Hash);
+        Assert.NotEqual(key.Hash, Key(workingDirectory: OtherWorkingDirectory).Hash);
+        Assert.NotEqual(key.Hash, Key(fingerprint: "another-fingerprint").Hash);
     }
 
     [Fact]

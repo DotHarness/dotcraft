@@ -2,7 +2,6 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
-using DotCraft.Hooks;
 using System.Collections.Concurrent;
 using System.ClientModel.Primitives;
 using System.Text.Json;
@@ -41,7 +40,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_DrainsGuidanceBeforeNextModelRequest()
+    public async Task GetStreamingResponseAsync_DrainsRunningInputAtTurnStartAndAfterTools()
     {
         var inner = new RoundTripFakeChatClient();
         var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
@@ -49,7 +48,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         {
             AdditionalTools = [tool]
         };
-        var drained = false;
+        var drained = new HashSet<StreamingGuidanceBoundary>();
 
         using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
         {
@@ -57,31 +56,42 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             TurnId = "turn_1",
             DrainAsync = (boundary, _) =>
             {
-                if (drained || boundary != StreamingGuidanceBoundary.AfterTools)
+                if (!drained.Add(boundary))
                     return NoRunningInput();
-                drained = true;
-                return RunningInput(new ChatMessage(ChatRole.User, "guidance text"));
+                return boundary switch
+                {
+                    StreamingGuidanceBoundary.TurnStart => RunningInput(new ChatMessage(ChatRole.User, "mailbox text")),
+                    StreamingGuidanceBoundary.AfterTools => RunningInput(new ChatMessage(ChatRole.User, "guidance text")),
+                    _ => NoRunningInput()
+                };
             }
         });
 
-        var updates = new List<ChatResponseUpdate>();
-        await foreach (var update in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
-            updates.Add(update);
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
 
-        Assert.True(drained);
         Assert.Equal(2, inner.Calls.Count);
+        Assert.Contains(inner.Calls[0], message => message.Role == ChatRole.User && message.Text == "mailbox text");
+        Assert.DoesNotContain(inner.Calls[0], message => message.Text == "guidance text");
         Assert.Contains(inner.Calls[1], message => message.Role == ChatRole.User && message.Text == "guidance text");
         Assert.Contains(updates, update => update.Contents.OfType<FunctionResultContent>().Any());
     }
 
-    [Fact]
-    public async Task GetStreamingResponseAsync_AddsPostToolUseAdditionalContextToNextModelRequestOnly()
+    [Theory]
+    [InlineData("PostToolUse", false, false, "PostToolUse additionalContext")]
+    [InlineData("PostToolUse", true, false, "PostToolUse exit-code-2 feedback")]
+    [InlineData("PostToolUseFailure", false, true, "PostToolUseFailure additionalContext")]
+    public async Task GetStreamingResponseAsync_AddsToolFeedbackToNextModelRequestOnly(
+        string eventName,
+        bool blocking,
+        bool fail,
+        string expectedLabel)
     {
-        using var workspace = new TempDirectory("HookFeedback_");
         var inner = new RoundTripFakeChatClient();
-        var tool = new HookWrappedFunction(
-            AIFunctionFactory.Create(() => "tool ok", name: "GetStatus"),
-            CreateHookRunner(workspace.Root, HookEvent.PostToolUse, JsonAdditionalContextCommand("PostToolUse", "SECURITY_CONTEXT")));
+        var tool = AIFunctionFactory.Create(() =>
+        {
+            StreamingToolFeedbackRuntimeScope.Report(eventName, "HOOK_CONTEXT", blocking);
+            return fail ? throw new InvalidOperationException("boom") : "tool ok";
+        }, name: "GetStatus");
         var client = new StreamingFunctionInvokingChatClient(inner)
         {
             AdditionalTools = [tool]
@@ -93,98 +103,14 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var reminder = Assert.Single(inner.Calls[1], message =>
             message.Role == ChatRole.User &&
             message.Text.Contains("Lifecycle Hook Feedback", StringComparison.Ordinal));
-        Assert.Contains("PostToolUse additionalContext", reminder.Text, StringComparison.Ordinal);
-        Assert.Contains("SECURITY_CONTEXT", reminder.Text, StringComparison.Ordinal);
+        Assert.Contains(expectedLabel, reminder.Text, StringComparison.Ordinal);
+        Assert.Contains("HOOK_CONTEXT", reminder.Text, StringComparison.Ordinal);
 
         var toolResult = Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionResultContent>());
-        Assert.Equal("tool ok", toolResult.Result?.ToString());
-        Assert.DoesNotContain("SECURITY_CONTEXT", toolResult.Result?.ToString(), StringComparison.Ordinal);
+        Assert.Equal(fail ? "Error: Function failed." : "tool ok", toolResult.Result?.ToString());
         Assert.DoesNotContain(updates, update =>
             update.Contents.OfType<TextContent>().Any(text =>
-                text.Text.Contains("SECURITY_CONTEXT", StringComparison.Ordinal)));
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_DoesNotAddHookFeedbackMessageWithoutAdditionalContext()
-    {
-        using var workspace = new TempDirectory("HookFeedback_");
-        var inner = new RoundTripFakeChatClient();
-        var tool = new HookWrappedFunction(
-            AIFunctionFactory.Create(() => "tool ok", name: "GetStatus"),
-            CreateHookRunner(workspace.Root, HookEvent.PostToolUse, JsonNoAdditionalContextCommand()));
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
-            AdditionalTools = [tool]
-        };
-
-        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
-
-        Assert.Equal(2, inner.Calls.Count);
-        Assert.DoesNotContain(inner.Calls[1], message =>
-            message.Role == ChatRole.User &&
-            message.Text.Contains("Lifecycle Hook Feedback", StringComparison.Ordinal));
-        var toolResult = Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionResultContent>());
-        Assert.Equal("tool ok", toolResult.Result?.ToString());
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_AddsPostToolUseExitCodeTwoFeedbackToNextModelRequestOnly()
-    {
-        using var workspace = new TempDirectory("HookFeedback_");
-        var inner = new RoundTripFakeChatClient();
-        var tool = new HookWrappedFunction(
-            AIFunctionFactory.Create(() => "tool ok", name: "GetStatus"),
-            CreateHookRunner(workspace.Root, HookEvent.PostToolUse, JsonBlockCommand("BLOCK_REASON")));
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
-            AdditionalTools = [tool]
-        };
-
-        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
-
-        Assert.Equal(2, inner.Calls.Count);
-        var reminder = Assert.Single(inner.Calls[1], message =>
-            message.Role == ChatRole.User &&
-            message.Text.Contains("Lifecycle Hook Feedback", StringComparison.Ordinal));
-        Assert.Contains("PostToolUse exit-code-2 feedback", reminder.Text, StringComparison.Ordinal);
-        Assert.Contains("BLOCK_REASON", reminder.Text, StringComparison.Ordinal);
-
-        var toolResult = Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionResultContent>());
-        Assert.Equal("tool ok", toolResult.Result?.ToString());
-        Assert.DoesNotContain("BLOCK_REASON", toolResult.Result?.ToString(), StringComparison.Ordinal);
-        Assert.DoesNotContain(updates, update =>
-            update.Contents.OfType<TextContent>().Any(text =>
-                text.Text.Contains("BLOCK_REASON", StringComparison.Ordinal)));
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_AddsPostToolUseFailureAdditionalContextToNextModelRequestOnly()
-    {
-        using var workspace = new TempDirectory("HookFeedback_");
-        var inner = new FailingToolFakeChatClient();
-        var tool = new HookWrappedFunction(
-            AIFunctionFactory.Create(ThrowBoom, name: "Fail"),
-            CreateHookRunner(workspace.Root, HookEvent.PostToolUseFailure, JsonAdditionalContextCommand("PostToolUseFailure", "FAILURE_CONTEXT")));
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
-            AdditionalTools = [tool]
-        };
-
-        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
-
-        Assert.Equal(2, inner.Calls.Count);
-        var reminder = Assert.Single(inner.Calls[1], message =>
-            message.Role == ChatRole.User &&
-            message.Text.Contains("Lifecycle Hook Feedback", StringComparison.Ordinal));
-        Assert.Contains("PostToolUseFailure additionalContext", reminder.Text, StringComparison.Ordinal);
-        Assert.Contains("FAILURE_CONTEXT", reminder.Text, StringComparison.Ordinal);
-
-        var toolResult = Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionResultContent>());
-        Assert.Contains("Function failed", toolResult.Result?.ToString(), StringComparison.Ordinal);
-        Assert.DoesNotContain("FAILURE_CONTEXT", toolResult.Result?.ToString(), StringComparison.Ordinal);
-        Assert.DoesNotContain(updates, update =>
-            update.Contents.OfType<TextContent>().Any(text =>
-                text.Text.Contains("FAILURE_CONTEXT", StringComparison.Ordinal)));
+                text.Text.Contains("HOOK_CONTEXT", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -218,41 +144,15 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_DoesNotNotifyToolHandlerFinishedForPolicyDeniedOrMissingTool()
+    public async Task GetStreamingResponseAsync_DoesNotNotifyToolHandlerFinishedForDeniedMissingOrCancelledTool()
     {
-        var deniedInner = new RoundTripFakeChatClient();
-        var deniedClient = new StreamingFunctionInvokingChatClient(deniedInner)
+        var deniedClient = new StreamingFunctionInvokingChatClient(new RoundTripFakeChatClient())
         {
             AdditionalTools = [AIFunctionFactory.Create(() => "tool ok", name: "GetStatus")],
             ToolCallPolicy = _ => ModeToolPolicyDecision.DenyRecoverable("TOOL_POLICY_DENIED")
         };
-        var missingInner = new UnknownToolFakeChatClient();
-        var missingClient = new StreamingFunctionInvokingChatClient(missingInner);
-        var callbacks = 0;
-
-        using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
-        {
-            ThreadId = "thread_1",
-            TurnId = "turn_1",
-            DrainAsync = (_, _) => NoRunningInput(),
-            OnToolHandlerFinishedAsync = (_, _, _) =>
-            {
-                callbacks++;
-                return Task.CompletedTask;
-            }
-        });
-
-        await CollectAsync(deniedClient.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
-        await CollectAsync(missingClient.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
-
-        Assert.Equal(0, callbacks);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_DoesNotNotifyToolHandlerFinishedForCancelledHandler()
-    {
-        var inner = new RoundTripFakeChatClient();
-        var client = new StreamingFunctionInvokingChatClient(inner)
+        var missingClient = new StreamingFunctionInvokingChatClient(new UnknownToolFakeChatClient());
+        var cancelledClient = new StreamingFunctionInvokingChatClient(new RoundTripFakeChatClient())
         {
             AdditionalTools = [AIFunctionFactory.Create(() => "tool ok", name: "GetStatus")],
             FunctionInvoker = (_, _) => throw new OperationCanceledException("cancelled")
@@ -271,50 +171,12 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             }
         });
 
+        await CollectAsync(deniedClient.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+        await CollectAsync(missingClient.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
         await Assert.ThrowsAsync<OperationCanceledException>(async () =>
-            await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
+            await CollectAsync(cancelledClient.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
 
         Assert.Equal(0, callbacks);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_DrainsMailboxAsUserBeforeInitialSampling()
-    {
-        var inner = new RoundTripFakeChatClient();
-        var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
-            AdditionalTools = [tool]
-        };
-        var drained = false;
-        const string notification = """
-            Message Type: MESSAGE
-            Task name: /root
-            Sender: /root/worker
-            Payload:
-            The review is done.
-            """;
-
-        using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
-        {
-            ThreadId = "thread_1",
-            TurnId = "turn_1",
-            DrainAsync = (boundary, _) =>
-            {
-                if (drained || boundary != StreamingGuidanceBoundary.TurnStart)
-                    return NoRunningInput();
-                drained = true;
-                return RunningInput(new ChatMessage(ChatRole.User, notification));
-            }
-        });
-
-        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
-        {
-        }
-
-        Assert.True(drained);
-        Assert.Equal(2, inner.Calls.Count);
-        Assert.Contains(inner.Calls[0], message => message.Role == ChatRole.User && message.Text == notification);
     }
 
     [Fact]
@@ -488,7 +350,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_CapturesPromptRequestSnapshotAfterPreSamplingCompaction()
+    public async Task GetStreamingResponseAsync_CompactsWithPreRequestSnapshotAndCapturesCompactedRequest()
     {
         var inner = new SingleReplyFakeChatClient();
         var client = new StreamingFunctionInvokingChatClient(inner);
@@ -498,6 +360,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             new(ChatRole.Assistant, "compacted summary"),
             new(ChatRole.User, "latest user")
         };
+        PromptRequestSnapshot? compactionSnapshot = null;
         PromptRequestSnapshot? snapshot = null;
 
         using var scope = PreSamplingCompactionRuntimeScope.Set(new PreSamplingCompactionRuntimeContext
@@ -505,7 +368,12 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             ThreadId = "thread_1",
             TurnId = "turn_1",
             Mode = "agent",
-            TryCompactAsync = (_, _, _) => NeutralCompactionResult(replacement),
+            TryCompactWithSnapshotAsync = (_, value, _, _) =>
+            {
+                compactionSnapshot = value;
+                return NeutralCompactionResult(replacement);
+            },
+            TryCompactAsync = (_, _, _) => throw new InvalidOperationException("legacy callback should not run"),
             CaptureSnapshotAsync = (value, _) =>
             {
                 snapshot = value;
@@ -525,6 +393,10 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         {
         }
 
+        var before = Assert.IsType<PromptRequestSnapshot>(compactionSnapshot);
+        Assert.Equal(["user:start"], before.Messages.Select(m => $"{m.Role}:{m.Text}"));
+        Assert.Equal("ReadFile", Assert.Single(before.Tools).Name);
+
         var captured = Assert.IsType<PromptRequestSnapshot>(snapshot);
         Assert.Equal("thread_1", captured.ThreadId);
         Assert.Equal("turn_1", captured.TurnId);
@@ -535,57 +407,8 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             PromptRequestFingerprints.ComputeTextFingerprint("stable base instructions"),
             captured.BaseInstructionsFingerprint);
         Assert.Equal(["assistant:compacted summary", "user:latest user"], captured.Messages.Select(m => $"{m.Role}:{m.Text}"));
-        var capturedTool = Assert.Single(captured.Tools);
-        Assert.Equal("ReadFile", capturedTool.Name);
         Assert.Equal(PromptRequestFingerprints.ComputeToolFingerprint([tool]), captured.ToolFingerprint);
         Assert.False(captured.AllowMultipleToolCalls);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_PassesPromptRequestSnapshotToPreSamplingCompaction()
-    {
-        var inner = new SingleReplyFakeChatClient();
-        var client = new StreamingFunctionInvokingChatClient(inner);
-        var tool = AIFunctionFactory.Create(() => "ok", name: "ReadFile", description: "Read a file.");
-        PromptRequestSnapshot? compactionSnapshot = null;
-        var replacement = new List<ChatMessage>
-        {
-            new(ChatRole.Assistant, "compacted summary"),
-            new(ChatRole.User, "latest user")
-        };
-
-        using var scope = PreSamplingCompactionRuntimeScope.Set(new PreSamplingCompactionRuntimeContext
-        {
-            ThreadId = "thread_1",
-            TurnId = "turn_1",
-            Mode = "agent",
-            TryCompactWithSnapshotAsync = (_, snapshot, _, _) =>
-            {
-                compactionSnapshot = snapshot;
-                return NeutralCompactionResult(replacement);
-            },
-            TryCompactAsync = (_, _, _) => throw new InvalidOperationException("legacy callback should not run")
-        });
-
-        await foreach (var _ in client.GetStreamingResponseAsync(
-            [new ChatMessage(ChatRole.User, "start")],
-            new ChatOptions
-            {
-                Instructions = "stable base instructions",
-                ModelId = "gpt-test",
-                Tools = [tool]
-            }))
-        {
-        }
-
-        var captured = Assert.IsType<PromptRequestSnapshot>(compactionSnapshot);
-        Assert.Equal("thread_1", captured.ThreadId);
-        Assert.Equal("turn_1", captured.TurnId);
-        Assert.Equal("agent", captured.Mode);
-        Assert.Equal("stable base instructions", captured.BaseInstructions);
-        Assert.Equal("gpt-test", captured.ModelId);
-        Assert.Equal(["user:start"], captured.Messages.Select(m => $"{m.Role}:{m.Text}"));
-        Assert.Equal("ReadFile", Assert.Single(captured.Tools).Name);
         Assert.Equal(["assistant:compacted summary", "user:latest user"], inner.Calls.Single().Select(m => $"{m.Role}:{m.Text}"));
     }
 
@@ -819,17 +642,15 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_HidesToolErrorDetailsByDefault()
+    public async Task GetStreamingResponseAsync_HidesToolErrorDetailsUnlessEnabledAndRedactsThem()
     {
         var genericInner = new FailingToolFakeChatClient();
         var genericClient = new StreamingFunctionInvokingChatClient(genericInner)
         {
-            AdditionalTools = [AIFunctionFactory.Create(ThrowBoom, name: "Fail")]
+            AdditionalTools = [AIFunctionFactory.Create(ThrowSensitiveError, name: "Fail")]
         };
 
-        await foreach (var _ in genericClient.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
-        {
-        }
+        await CollectAsync(genericClient.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
 
         var genericResult = Assert.Single(genericInner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
         Assert.Equal("Error: Function failed.", genericResult.Result);
@@ -837,35 +658,16 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var detailedInner = new FailingToolFakeChatClient();
         var detailedClient = new StreamingFunctionInvokingChatClient(detailedInner)
         {
-            AdditionalTools = [AIFunctionFactory.Create(ThrowBoom, name: "Fail")],
-            IncludeDetailedErrors = true
-        };
-
-        await foreach (var _ in detailedClient.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
-        {
-        }
-
-        var detailedResult = Assert.Single(detailedInner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
-        Assert.Contains("InvalidOperationException", detailedResult.Result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("boom", detailedResult.Result?.ToString(), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_RedactsSensitiveToolErrorText()
-    {
-        var inner = new FailingToolFakeChatClient();
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
             AdditionalTools = [AIFunctionFactory.Create(ThrowSensitiveError, name: "Fail")],
             IncludeDetailedErrors = true
         };
 
-        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
-        {
-        }
+        await CollectAsync(detailedClient.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
 
-        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
-        var text = Assert.IsType<string>(result.Result);
+        var detailedResult = Assert.Single(detailedInner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
+        var text = Assert.IsType<string>(detailedResult.Result);
+        Assert.Contains("InvalidOperationException", text, StringComparison.Ordinal);
+        Assert.Contains("Request failed.", text, StringComparison.Ordinal);
         Assert.Contains("Bearer ***", text, StringComparison.Ordinal);
         Assert.Contains("token=***", text, StringComparison.Ordinal);
         Assert.DoesNotContain("secret-token", text, StringComparison.Ordinal);
@@ -970,48 +772,27 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         Assert.Null(StreamingFunctionInvokingChatClient.CurrentContext);
     }
 
-    [Fact]
-    public async Task GetStreamingResponseAsync_ThrowsEmptyResponse_WhenProviderEmitsOnlyEmptyUpdate()
+    [Theory]
+    [InlineData("empty", "empty streaming response")]
+    [InlineData("usage", "assistant content")]
+    [InlineData("error", "provider returned an empty error response")]
+    public async Task GetStreamingResponseAsync_ThrowsEmptyResponse_WhenProviderEmitsNoAssistantContent(
+        string kind,
+        string expectedMessage)
     {
+        AIContent[] contents = kind switch
+        {
+            "usage" => [new UsageContent(new UsageDetails { InputTokenCount = 10, OutputTokenCount = 0 })],
+            "error" => [new ErrorContent("provider returned an empty error response")],
+            _ => []
+        };
         var client = new StreamingFunctionInvokingChatClient(
-            new FixedUpdatesFakeChatClient(new ChatResponseUpdate(ChatRole.Assistant, [])));
+            new FixedUpdatesFakeChatClient(new ChatResponseUpdate(ChatRole.Assistant, contents)));
 
         var ex = await Assert.ThrowsAsync<EmptyProviderResponseException>(() =>
             CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
 
-        Assert.Contains("empty streaming response", ex.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_ThrowsEmptyResponse_WhenProviderEmitsOnlyUsage()
-    {
-        var client = new StreamingFunctionInvokingChatClient(
-            new FixedUpdatesFakeChatClient(new ChatResponseUpdate(ChatRole.Assistant, [
-                new UsageContent(new UsageDetails
-                {
-                    InputTokenCount = 10,
-                    OutputTokenCount = 0
-                })
-            ])));
-
-        var ex = await Assert.ThrowsAsync<EmptyProviderResponseException>(() =>
-            CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
-
-        Assert.Contains("assistant content", ex.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_ThrowsEmptyResponse_WhenProviderEmitsOnlyErrorContent()
-    {
-        var client = new StreamingFunctionInvokingChatClient(
-            new FixedUpdatesFakeChatClient(new ChatResponseUpdate(ChatRole.Assistant, [
-                new ErrorContent("provider returned an empty error response")
-            ])));
-
-        var ex = await Assert.ThrowsAsync<EmptyProviderResponseException>(() =>
-            CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
-
-        Assert.Contains("provider returned an empty error response", ex.Message, StringComparison.Ordinal);
+        Assert.Contains(expectedMessage, ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -1131,8 +912,6 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         Assert.Empty(functionCall.Arguments);
     }
 
-    private static string ThrowBoom() => throw new InvalidOperationException("boom");
-
     private static Task<CompactionExecutionResult?> NeutralCompactionResult(
         IReadOnlyList<ChatMessage>? messages)
     {
@@ -1202,81 +981,6 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         await foreach (var update in updates)
             result.Add(update);
         return result;
-    }
-
-    private static void AssertToolChoiceNone(ChatOptions? options)
-    {
-        Assert.NotNull(options);
-        var factory = options.RawRepresentationFactory;
-        Assert.NotNull(factory);
-        var raw = Assert.IsType<OpenAI.Chat.ChatCompletionOptions>(factory.Invoke(null!));
-        using var document = JsonDocument.Parse(ModelReaderWriter.Write(raw).ToString());
-        Assert.Equal("none", document.RootElement.GetProperty("tool_choice").GetString());
-    }
-
-    private static HookRunner CreateHookRunner(string workspacePath, HookEvent evt, string command) =>
-        new(new HooksFileConfig
-        {
-            Hooks =
-            {
-                [evt.ToString()] =
-                [
-                    new HookMatcherGroup
-                    {
-                        Hooks =
-                        [
-                            new HookEntry
-                            {
-                                Type = "command",
-                                Command = command
-                            }
-                        ]
-                    }
-                ]
-            }
-        }, workspacePath);
-
-    private static string JsonAdditionalContextCommand(string eventName, string output)
-    {
-        var json = "{\"hookSpecificOutput\":{\"hookEventName\":\"" + eventName + "\",\"additionalContext\":\"" + output + "\"}}";
-        return OperatingSystem.IsWindows()
-            ? $"Write-Output '{json}'"
-            : $"printf '%s\\n' '{json}'";
-    }
-
-    private static string JsonNoAdditionalContextCommand()
-    {
-        const string json = "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\"}}";
-        return OperatingSystem.IsWindows()
-            ? $"Write-Output '{json}'"
-            : $"printf '%s\\n' '{json}'";
-    }
-
-    private static string JsonBlockCommand(string reason)
-    {
-        var json = "{\"decision\":\"block\",\"reason\":\"" + reason + "\"}";
-        return OperatingSystem.IsWindows()
-            ? $"Write-Output '{json}'; exit 2"
-            : $"printf '%s\\n' '{json}'; exit 2";
-    }
-
-    private sealed class TempDirectory : IDisposable
-    {
-        public TempDirectory(string prefix)
-        {
-            Root = System.IO.Path.Combine(
-                System.IO.Path.GetTempPath(),
-                prefix + Guid.NewGuid().ToString("N")[..8]);
-            Directory.CreateDirectory(Root);
-        }
-
-        public string Root { get; }
-
-        public void Dispose()
-        {
-            try { Directory.Delete(Root, recursive: true); }
-            catch { }
-        }
     }
 
     private sealed class RoundTripFakeChatClient : IChatClient
@@ -1737,43 +1441,6 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
                 yield return new ChatResponseUpdate { Role = ChatRole.Assistant };
                 yield return new ChatResponseUpdate(ChatRole.Assistant, [
                     new FunctionCallContent("call-1", "GetStatus", new Dictionary<string, object?>())
-                ]);
-            }
-            else
-            {
-                yield return new ChatResponseUpdate(ChatRole.Assistant, "done");
-            }
-
-            await Task.CompletedTask;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class ToolCallFakeChatClient(string toolName, IDictionary<string, object?> arguments) : IChatClient
-    {
-        public List<List<ChatMessage>> Calls { get; } = [];
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, "ok")]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            Calls.Add(chatMessages.ToList());
-            if (Calls.Count == 1)
-            {
-                yield return new ChatResponseUpdate(ChatRole.Assistant, [
-                    new FunctionCallContent("call-1", toolName, new Dictionary<string, object?>(arguments))
                 ]);
             }
             else

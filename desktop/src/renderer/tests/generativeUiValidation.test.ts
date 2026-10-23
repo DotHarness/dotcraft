@@ -11,15 +11,18 @@ describe('generative UI snapshot validation', () => {
     expect(validateGenerativeUiTree(tree)).toEqual({ ok: true, tree })
   })
 
-  it.each([
-    ['a tree that is not a list', { type: 'Card' }],
-    ['a node with extra fields', [{ ...node('Card'), style: 'color:red' }]],
-    ['a lowercase element name', [node('div')]],
-    ['non-JSON props', [node('Text', { value: new Date(0) })]],
-    ['non-finite numbers', [node('Slider', { value: Number.NaN, min: 0, max: 1 })]],
-    ['a non-list children field', [{ type: 'Card', props: {}, children: 'text' }]]
-  ])('rejects %s as invalid payload', (_label, tree) => {
-    expect(validateGenerativeUiTree(tree)).toMatchObject({ ok: false, stage: 'invalid_payload' })
+  it('rejects malformed trees as invalid payload', () => {
+    const invalid: Array<[string, unknown]> = [
+      ['a tree that is not a list', { type: 'Card' }],
+      ['a node with extra fields', [{ ...node('Card'), style: 'color:red' }]],
+      ['a lowercase element name', [node('div')]],
+      ['non-JSON props', [node('Text', { value: new Date(0) })]],
+      ['non-finite numbers', [node('Slider', { value: Number.NaN, min: 0, max: 1 })]],
+      ['a non-list children field', [{ type: 'Card', props: {}, children: 'text' }]]
+    ]
+    for (const [label, tree] of invalid) {
+      expect(validateGenerativeUiTree(tree), label).toMatchObject({ ok: false, stage: 'invalid_payload' })
+    }
   })
 
   it('rejects trees past the depth and size limits', () => {
@@ -45,12 +48,9 @@ describe('generative UI component props', () => {
     expect(readGenerativeUiProps('Chart', { type: 'radar', data: [{ x: 1 }], xKey: 'x', series: [{ key: 'x' }] })).toMatchObject({ ok: false })
   })
 
-  it('accepts valid props and drops unknown ones', () => {
+  it('accepts valid props, dropping unknown ones and treating null as unset', () => {
     expect(readGenerativeUiProps('Image', { src: 'data:image/png;base64,iVBORw0KGgo=', alt: 'Chart' })).toMatchObject({ ok: true })
     expect(readGenerativeUiProps('Text', { value: 'Hi', tone: 'secondary', style: { color: 'red' } })).toEqual({ ok: true, props: { value: 'Hi', tone: 'secondary' } })
-  })
-
-  it('treats null props as unset', () => {
     expect(readGenerativeUiProps('Input', { label: 'Usage', value: '30', error: null })).toEqual({ ok: true, props: { label: 'Usage', value: '30' } })
   })
 })

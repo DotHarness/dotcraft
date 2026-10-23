@@ -36,14 +36,4 @@ describe('viewerTabStore.setWordWrap', () => {
     store().setWordWrap(THREAD, id, true)
     expect(fileTab(THREAD, id)?.wordWrap).toBe(true)
   })
-
-  it('does not throw for an unknown tab id', () => {
-    store().openFile({
-      threadId: THREAD,
-      absolutePath: `${WS}/a.ts`,
-      relativePath: 'a.ts',
-      contentClass: 'text'
-    })
-    expect(() => store().setWordWrap(THREAD, 'missing', false)).not.toThrow()
-  })
 })

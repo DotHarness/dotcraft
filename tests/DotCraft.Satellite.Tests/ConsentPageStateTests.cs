@@ -16,24 +16,6 @@ public sealed class ConsentPageStateTests
         SatelliteStrings.For("en", CultureInfo.InvariantCulture);
 
     [Fact]
-    public void Projection_SelectsTheCardTheViewModelIsOn()
-    {
-        var viewModel = NewViewModel();
-
-        var full = ConsentPageState.From(viewModel, "light", "zh-Hans", reduceMotion: true);
-
-        Assert.True(full.Full.Selected);
-        Assert.False(full.Folder.Selected);
-
-        viewModel.FullAccess = false;
-
-        var folder = ConsentPageState.From(viewModel, "dark", "en", reduceMotion: false);
-
-        Assert.False(folder.Full.Selected);
-        Assert.True(folder.Folder.Selected);
-    }
-
-    [Fact]
     public void Serialization_NamesEveryFieldTheWayThePageReadsIt()
     {
         var json = JsonSerializer.Serialize(

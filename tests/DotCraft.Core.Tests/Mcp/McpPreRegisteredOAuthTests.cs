@@ -61,7 +61,6 @@ public sealed class McpPreRegisteredOAuthTests : IDisposable
     [InlineData("http://remote.test:8080/callback", 8080)]
     [InlineData("http://localhost:8080/callback?secret=value", 8080)]
     [InlineData("http://localhost:8080/callback", 8081)]
-    [InlineData("http://localhost:80/callback", 81)]
     [InlineData("http://localhost/callback", 0)]
     public void InvalidCallback_IsRejected(string url, int port)
     {

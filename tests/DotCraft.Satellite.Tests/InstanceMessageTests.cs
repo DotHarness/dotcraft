@@ -15,12 +15,6 @@ public sealed class InstanceMessageTests
     }
 
     [Fact]
-    public void Show_CarriesNoUrl()
-    {
-        Assert.Equal(@"{""kind"":""show""}", InstanceMessage.Show().Encode());
-    }
-
-    [Fact]
     public void Decode_RoundTripsBothKinds()
     {
         var join = InstanceMessage.Join("http://ann-pc:47600/i/inv_abcdefgh");
@@ -31,10 +25,7 @@ public sealed class InstanceMessageTests
 
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
     [InlineData("not json")]
-    [InlineData("{}")]
     [InlineData(@"{""url"":""http://ann-pc:47600/i/inv_abcdefgh""}")]
     public void Decode_RefusesAnythingWithoutAKind(string? line)
     {

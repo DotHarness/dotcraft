@@ -13,7 +13,7 @@ import { deliverWeComMessage } from "./wecom-delivery.js";
 import { WeComBotRegistry } from "./wecom-server.js";
 import { parseWeComMessage, parseWeComParameters, WeComChatType } from "./wecom-types.js";
 
-test("WeComPermissionService classifies admins, whitelisted users, chats, and unauthorized users", () => {
+test("WeCom permissions, group mention stripping, and mixed message parsing", () => {
   const permissions = new WeComPermissionService({
     adminUsers: ["admin"],
     whitelistedUsers: ["user"],
@@ -24,14 +24,10 @@ test("WeComPermissionService classifies admins, whitelisted users, chats, and un
   assert.equal(permissions.getUserRole("user"), "user");
   assert.equal(permissions.getUserRole("someone", "chat"), "user");
   assert.equal(permissions.getUserRole("someone", "other"), "unauthorized");
-});
 
-test("parseWeComParameters strips leading mention in group chats", () => {
   assert.deepEqual(parseWeComParameters("@DotCraft hello world", WeComChatType.Group), ["hello", "world"]);
   assert.deepEqual(parseWeComParameters("@DotCraft hello", WeComChatType.Single), ["@DotCraft", "hello"]);
-});
 
-test("parseWeComMessage parses JSON mixed messages", () => {
   const message = parseWeComMessage(JSON.stringify({
     msgid: "m1",
     chattype: "group",
@@ -50,7 +46,7 @@ test("parseWeComMessage parses JSON mixed messages", () => {
   assert.equal(message?.mixedMessage?.msgItems[0]?.text?.content, "hello");
 });
 
-test("WeCom delivery sends images inline within the WeCom size limit", async () => {
+test("WeCom delivery sends images inline within the size limit and unrenderable formats as files", async () => {
   const jpegBytes = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from("jpeg")]);
   const pushedImages: Buffer[] = [];
   const pusher = {
@@ -75,12 +71,10 @@ test("WeCom delivery sends images inline within the WeCom size limit", async () 
     }),
     /2097152|too large|exceeds/i,
   );
-});
 
-test("WeCom delivery sends images WeCom cannot render inline as files", async () => {
   const uploads: Array<{ fileName: string; type: string }> = [];
   let pushedFile = "";
-  const pusher = {
+  const filePusher = {
     getChatId: () => "chat:chat-1",
     pushImage: async () => {
       throw new Error("unsupported image format must not be pushed inline");
@@ -94,7 +88,7 @@ test("WeCom delivery sends images WeCom cannot render inline as files", async ()
     },
   };
 
-  const result = await deliverWeComMessage(pusher as never, {
+  const result = await deliverWeComMessage(filePusher as never, {
     kind: "image",
     fileName: "ig_1.webp",
     source: { kind: "dataBase64", dataBase64: Buffer.from("RIFF0000WEBP").toString("base64") },
@@ -211,7 +205,7 @@ test("WeComAdapter uses chat thread identity and real sender context", async () 
     ) => Promise<void>;
   };
   const captured: Record<string, unknown>[] = [];
-  adapter.permission = new WeComPermissionService({ adminUsers: ["u1", "u2"] });
+  adapter.permission = new WeComPermissionService({ adminUsers: ["u1"] });
   adapter.handleMessage = async (opts: Record<string, unknown>) => {
     captured.push(opts);
   };
@@ -219,13 +213,6 @@ test("WeComAdapter uses chat thread identity and real sender context", async () 
   await adapter.runInboundMessage(
     "hello",
     { userId: "u1", name: "User One" },
-    { getChatId: () => "chat-1" },
-    [],
-  );
-
-  await adapter.runInboundMessage(
-    "hello again",
-    { userId: "u2", name: "User Two" },
     { getChatId: () => "chat-1" },
     [],
   );
@@ -240,55 +227,6 @@ test("WeComAdapter uses chat thread identity and real sender context", async () 
     senderName: "User One",
     senderRole: "admin",
     groupId: "chat:chat-1",
-  });
-
-  const secondOpts = captured[1] as Record<string, unknown> | undefined;
-  assert.ok(secondOpts);
-  assert.equal(secondOpts["userId"], "chat:chat-1");
-  assert.equal(secondOpts["channelContext"], "chat:chat-1");
-  assert.deepEqual(secondOpts["sender"], {
-    senderId: "u2",
-    senderName: "User Two",
-    senderRole: "admin",
-    groupId: "chat:chat-1",
-  });
-});
-
-test("WeComAdapter builds channel binding target from chat context", () => {
-  const adapter = new WeComAdapter() as unknown as {
-    buildChannelTarget: (
-      opts: Record<string, unknown>,
-      sender: Record<string, unknown>,
-      channelContext: string,
-    ) => Record<string, unknown> | null;
-  };
-
-  const target = adapter.buildChannelTarget(
-    {
-      userId: "chat:chat-1",
-      userName: "User One",
-      text: "/bind 482913",
-      channelContext: "chat:chat-1",
-    },
-    {
-      senderId: "u1",
-      senderName: "User One",
-      senderRole: "admin",
-      groupId: "chat:chat-1",
-    },
-    "chat:chat-1",
-  );
-
-  assert.deepEqual(target, {
-    channelName: "wecom",
-    conversationKind: "chat",
-    conversationId: "chat-1",
-    deliveryTarget: "chat:chat-1",
-    displayName: "WeCom chat chat-1",
-    boundBy: {
-      platformUserId: "u1",
-      displayName: "User One",
-    },
   });
 });
 

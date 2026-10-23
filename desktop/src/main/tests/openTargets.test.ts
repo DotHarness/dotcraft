@@ -1,6 +1,8 @@
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises'
+import { EventEmitter } from 'events'
+import { access, mkdir, mkdtemp, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import * as path from 'path'
+import { PassThrough } from 'stream'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readCustomOpenTargets } from '../openTargets/customTargets'
 import {
@@ -10,6 +12,13 @@ import {
   type DetectionHost
 } from '../openTargets/detection'
 import { composeBuiltInLaunch, composeCustomLaunch, runLaunchCommand } from '../openTargets/launch'
+
+const { spawnMock } = vi.hoisted(() => ({ spawnMock: vi.fn() }))
+
+vi.mock('child_process', async (importOriginal) => ({
+  ...await importOriginal<typeof import('child_process')>(),
+  spawn: spawnMock
+}))
 
 const LOCAL = 'C:\\Users\\dev\\AppData\\Local'
 const PF = 'C:\\Program Files'
@@ -225,31 +234,34 @@ describe('PATH command lookup', () => {
 })
 
 describe('custom handler process input', () => {
-  let directory: string | null = null
-
-  afterEach(async () => {
-    if (directory) await rm(directory, { recursive: true, force: true })
-    directory = null
-  })
-
-  it('writes the JSON payload to the handler standard input', async () => {
-    directory = await mkdtemp(path.join(tmpdir(), 'dotcraft-open-target-'))
-    const output = path.join(directory, 'stdin.json')
-    const script = `let d='';process.stdin.on('data',c=>d+=c).on('end',()=>require('fs').writeFileSync(${JSON.stringify(output)},d))`
+  it('writes the JSON payload to the handler standard input once it spawns', async () => {
+    const stdin = new PassThrough()
+    const child = Object.assign(new EventEmitter(), { stdin, unref: vi.fn() })
+    spawnMock.mockReturnValueOnce(child)
     const launch = composeCustomLaunch(
-      { id: 'custom:capture', label: 'Capture', command: process.execPath, args: ['-e', script], input: 'jsonStdin' },
-      { path: output, directory, isDirectory: false },
+      { id: 'custom:capture', label: 'Capture', command: '/opt/capture', args: ['--read'], input: 'jsonStdin' },
+      { path: '/repo/app.ts', directory: '/repo', isDirectory: false },
       { line: 3, column: 1 }
     )
+    const written = new Promise<string>((resolve) => {
+      let data = ''
+      stdin.on('data', (chunk) => { data += chunk }).on('end', () => resolve(data))
+    })
 
-    await runLaunchCommand(launch, directory)
+    const running = runLaunchCommand(launch, '/repo')
+    child.emit('spawn')
+    await running
 
-    await vi.waitFor(async () => {
-      expect(JSON.parse(await readFile(output, 'utf8'))).toEqual({
-        target: 'custom:capture',
-        path: output,
-        location: { line: 3, column: 1 }
-      })
-    }, { timeout: 10_000, interval: 100 })
+    expect(spawnMock).toHaveBeenCalledWith('/opt/capture', ['--read'], expect.objectContaining({
+      cwd: '/repo',
+      detached: true,
+      stdio: ['pipe', 'ignore', 'ignore']
+    }))
+    expect(JSON.parse(await written)).toEqual({
+      target: 'custom:capture',
+      path: '/repo/app.ts',
+      location: { line: 3, column: 1 }
+    })
+    expect(child.unref).toHaveBeenCalled()
   })
 })

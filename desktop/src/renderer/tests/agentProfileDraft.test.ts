@@ -20,10 +20,8 @@ describe('agent profile draft avatar metadata', () => {
 
     expect(markdown).not.toContain('avatar:')
     expect(parsed).not.toHaveProperty('avatar')
-  })
 
-  it('leaves profiles without avatar metadata unset', () => {
-    const parsed = parseProfile(`---
+    const inherited = parseProfile(`---
 name: inherited-bot
 description: Inherited profile
 ---
@@ -31,8 +29,8 @@ description: Inherited profile
 Inherited body.
 `)
 
-    expect(parsed).not.toHaveProperty('avatar')
-    expect(parsed.providerPreference).toBeNull()
+    expect(inherited).not.toHaveProperty('avatar')
+    expect(inherited.providerPreference).toBeNull()
   })
 
   it('round-trips a provider model preset', () => {
@@ -49,19 +47,14 @@ Inherited body.
     expect(parseProfile(markdown).providerPreference).toEqual(draft.providerPreference)
   })
 
-  it('does not interpret the removed model and reasoning fields', () => {
-    const parsed = parseProfile(`---
+  it('rejects removed, partial, mode-based and removed-output provider preferences', () => {
+    const removedFields = parseProfile(`---
 name: old-shape
 model: gpt-old
 reasoning:
   effort: high
 ---
 `)
-
-    expect(parsed.providerPreference).toBeNull()
-  })
-
-  it('does not accept a partial or mode-based provider preference', () => {
     const partial = parseProfile(`---
 name: partial
 providerPreference:
@@ -79,12 +72,7 @@ providerPreference:
 ---
 `)
 
-    expect(partial.providerPreference).toBeNull()
-    expect(modeBased.providerPreference).toBeNull()
-  })
-
-  it('rejects the removed reasoning output field', () => {
-    const parsed = parseProfile(`---
+    const removedOutput = parseProfile(`---
 name: removed-output
 providerPreference:
   providerId: openai
@@ -97,7 +85,10 @@ providerPreference:
 ---
 `)
 
-    expect(parsed.providerPreference).toBeNull()
+    expect(removedFields.providerPreference).toBeNull()
+    expect(partial.providerPreference).toBeNull()
+    expect(modeBased.providerPreference).toBeNull()
+    expect(removedOutput.providerPreference).toBeNull()
   })
 
   it.each([
@@ -190,18 +181,14 @@ function createDraftWithProviderPreference(): ProfileDraft {
 }
 
 describe('canonical profile names', () => {
-  it.each(['Night Shift', '夜班助手', '报告: "本周" / #1', 'true', "Agent's notes"])(
-    'round-trips %s through YAML', (name) => {
-      const draft = parseProfile(`---\nname: ${JSON.stringify(name)}\ndescription: Test\n---\nBody`)
-      expect(parseProfile(toMarkdown(draft)).name).toBe(name)
+  it('round-trips names that need YAML quoting and normalizes them without changing case', () => {
+    for (const name of ['Night Shift', '夜班助手', '报告: "本周" / #1', 'true', "Agent's notes"]) {
+      const quoted = parseProfile(`---\nname: ${JSON.stringify(name)}\ndescription: Test\n---\nBody`)
+      expect(parseProfile(toMarkdown(quoted)).name).toBe(name)
     }
-  )
-  it('normalizes names before saving without changing case', () => {
+
     const draft = parseProfile('---\nname: " Cafe\u0301 "\ndescription: Test\n---\nBody')
     expect(parseProfile(toMarkdown(draft)).name).toBe('Café')
-  })
-  it('keeps malformed scalar text editable', () => {
-    expect(() => parseProfile('---\nname: "unfinished\ndescription: Test\n---\nBody')).not.toThrow()
   })
 })
 

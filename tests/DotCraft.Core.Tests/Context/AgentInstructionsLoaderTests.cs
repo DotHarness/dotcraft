@@ -129,36 +129,24 @@ public sealed class AgentInstructionsLoaderTests : IDisposable
     }
 
     [Fact]
-    public void Load_ZeroBudgetDisablesOnlyProjectFiles()
-    {
-        var userRoot = Directory.CreateDirectory(Path.Combine(_root, "home", ".craft")).FullName;
-        File.WriteAllText(Path.Combine(userRoot, "AGENTS.md"), "user rules");
-        var repo = Directory.CreateDirectory(Path.Combine(_root, "repo")).FullName;
-        Directory.CreateDirectory(Path.Combine(repo, ".git"));
-        File.WriteAllText(Path.Combine(repo, "AGENTS.md"), "project rules");
-
-        var result = Load(repo, userRoot, projectDocMaxBytes: 0);
-
-        Assert.Equal([Path.Combine(userRoot, "AGENTS.md")], result.Sources);
-        Assert.Contains("user rules", result.Content);
-        Assert.DoesNotContain("project rules", result.Content);
-    }
-
-    [Fact]
-    public void Load_UserFileIsNotLimitedByProjectBudget()
+    public void Load_ProjectBudgetNeverLimitsUserRulesAndZeroDisablesProjectFiles()
     {
         var userRoot = Directory.CreateDirectory(Path.Combine(_root, "home", ".craft")).FullName;
         var userRules = new string('u', 128);
         File.WriteAllText(Path.Combine(userRoot, "AGENTS.md"), userRules);
         var repo = Directory.CreateDirectory(Path.Combine(_root, "repo")).FullName;
         Directory.CreateDirectory(Path.Combine(repo, ".git"));
-        File.WriteAllText(Path.Combine(repo, "AGENTS.md"), "project");
+        File.WriteAllText(Path.Combine(repo, "AGENTS.md"), "project rules");
 
-        var result = Load(repo, userRoot, projectDocMaxBytes: 1);
+        var disabled = Load(repo, userRoot, projectDocMaxBytes: 0);
+        var tiny = Load(repo, userRoot, projectDocMaxBytes: 1);
 
-        Assert.Contains(userRules, result.Content);
-        Assert.Contains("p", result.Content);
-        Assert.Equal(2, result.Sources.Count);
+        Assert.Equal([Path.Combine(userRoot, "AGENTS.md")], disabled.Sources);
+        Assert.Contains(userRules, disabled.Content);
+        Assert.DoesNotContain("project", disabled.Content);
+        Assert.Contains(userRules, tiny.Content);
+        Assert.Contains("p", tiny.Content);
+        Assert.Equal(2, tiny.Sources.Count);
     }
 
     [Fact]
@@ -219,13 +207,7 @@ public sealed class AgentInstructionsLoaderTests : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-        catch
-        {
-            // Best-effort cleanup for test-only files.
-        }
+        try { Directory.Delete(_root, recursive: true); }
+        catch { }
     }
 }

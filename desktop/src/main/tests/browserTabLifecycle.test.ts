@@ -16,16 +16,17 @@ function fixture() {
 }
 
 describe('browser turn lifecycle', () => {
-  it.each(['completed', 'failed', 'cancelled'])('reads the actual %s turn envelope', (status) => {
-    expect(readBrowserTurnNotification(`turn/${status}`, { threadId: 'thread', turn: { id: 'turn' } }))
-      .toEqual({ threadId: 'thread', turnId: 'turn', terminal: true })
-    expect(readBrowserTurnNotification(`turn/${status}`, { threadId: 'thread', turnId: 'turn' }))
-      .toEqual({ threadId: 'thread', turnId: 'turn', terminal: true })
-    expect(readBrowserTurnNotification(`turn/${status}`, { turn: { id: 'turn', threadId: 'thread' } }))
-      .toEqual({ threadId: 'thread', turnId: 'turn', terminal: true })
-  })
-
-  it('ignores evaluations and notifications without real turn identity', () => {
+  it('reads terminal turn envelopes and ignores notifications without real turn identity', () => {
+    for (const status of ['completed', 'failed', 'cancelled']) {
+      for (const params of [
+        { threadId: 'thread', turn: { id: 'turn' } },
+        { threadId: 'thread', turnId: 'turn' },
+        { turn: { id: 'turn', threadId: 'thread' } }
+      ]) {
+        expect(readBrowserTurnNotification(`turn/${status}`, params))
+          .toEqual({ threadId: 'thread', turnId: 'turn', terminal: true })
+      }
+    }
     expect(readBrowserTurnNotification('item/completed', { threadId: 'thread', turnId: 'turn' })).toBeUndefined()
     expect(readBrowserTurnNotification('turn/completed', { threadId: 'thread' })).toBeUndefined()
   })

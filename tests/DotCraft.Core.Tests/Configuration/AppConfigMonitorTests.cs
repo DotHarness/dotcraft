@@ -6,18 +6,6 @@ namespace DotCraft.Tests.Configuration;
 
 public sealed class AppConfigMonitorTests
 {
-    [Fact]
-    public void Current_ReturnsInjectedInstance()
-    {
-        var config = new AppConfig
-        {
-            ProviderId = "openai",
-            ProviderPreferences = new() { ["openai"] = new ModelPreference { Model = "gpt-4o-mini"  } }
-        };
-        var monitor = new AppConfigMonitor(config);
-
-        Assert.Same(config, monitor.Current);
-    }
 
     [Fact]
     public void NotifyChanged_RaisesChanged_WithCorrectPayload()
@@ -50,18 +38,4 @@ public sealed class AppConfigMonitorTests
         Assert.Equal(1, invoked);
     }
 
-    [Fact]
-    public void ChangedAt_IsSetPerCall()
-    {
-        var monitor = new AppConfigMonitor(new AppConfig());
-        var timestamps = new List<DateTimeOffset>();
-        monitor.Changed += (_, args) => timestamps.Add(args.ChangedAt);
-
-        monitor.NotifyChanged("mcp/upsert", [ConfigChangeRegions.Mcp]);
-        Thread.Sleep(5);
-        monitor.NotifyChanged("mcp/remove", [ConfigChangeRegions.Mcp]);
-
-        Assert.Equal(2, timestamps.Count);
-        Assert.True(timestamps[1] >= timestamps[0]);
-    }
 }

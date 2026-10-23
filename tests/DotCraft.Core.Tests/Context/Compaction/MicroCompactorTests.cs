@@ -33,23 +33,8 @@ public sealed class MicroCompactorTests
     }
 
     [Fact]
-    public void Run_NoTrigger_ReturnsUnchanged()
+    public void Run_WithoutAnIdleGapOrWhenDisabled_ReturnsUnchanged()
     {
-        var micro = new MicroCompactor(Config());
-        var messages = new List<ChatMessage> { AssistantCall("c1"), ToolResult("c1") };
-        var result = micro.Run(messages);
-
-        Assert.Equal(MicroCompactTrigger.None, result.Trigger);
-        Assert.Equal(0, result.ClearedCount);
-        Assert.Same(messages, result.Messages);
-    }
-
-    [Fact]
-    public void Run_CountOnly_DoesNotTrigger()
-    {
-        var cfg = Config(keepRecent: 2, gapMinutes: 0);
-        var micro = new MicroCompactor(cfg);
-
         var messages = new List<ChatMessage>();
         for (var i = 0; i < 4; i++)
         {
@@ -58,48 +43,19 @@ public sealed class MicroCompactorTests
             messages.Add(ToolResult(id, payload: $"body-{i}"));
         }
 
-        var result = micro.Run(messages);
-        Assert.Equal(MicroCompactTrigger.None, result.Trigger);
-        Assert.Equal(0, result.ClearedCount);
-        Assert.Same(messages, result.Messages);
+        var countOnly = new MicroCompactor(Config(keepRecent: 2, gapMinutes: 0)).Run(messages);
+        var disabled = new MicroCompactor(Config(keepRecent: 0, enabled: false)).Run(messages);
+
+        Assert.Equal(MicroCompactTrigger.None, countOnly.Trigger);
+        Assert.Equal(0, countOnly.ClearedCount);
+        Assert.Same(messages, countOnly.Messages);
+        Assert.Equal(MicroCompactTrigger.None, disabled.Trigger);
     }
 
     [Fact]
-    public void Run_NonCompactableToolNotCleared()
+    public void Run_TimeTrigger_ClearsCompactableResultsOverKeepRecentOnly()
     {
-        var cfg = Config(keepRecent: 1, gapMinutes: 5);
-        var micro = new MicroCompactor(cfg);
-
-        var messages = new List<ChatMessage>
-        {
-            AssistantCall("c1", "ReadFile"),
-            ToolResult("c1"),
-            AssistantCall("c2", "ReadFile"),
-            ToolResult("c2"),
-            // Non-compactable tool
-            AssistantCall("c3", "SomeUnknownTool"),
-            ToolResult("c3", "keep-me"),
-        };
-
-        var result = micro.Run(messages, DateTimeOffset.UtcNow.AddMinutes(-10));
-        Assert.Equal(MicroCompactTrigger.TimeBased, result.Trigger);
-
-        var unknownResult = (FunctionResultContent)result.Messages[5].Contents[0];
-        Assert.Equal("keep-me", unknownResult.Result as string);
-    }
-
-    [Fact]
-    public void Run_McpToolTreatedAsCompactable()
-    {
-        Assert.True(CompactableToolNames.IsCompactable("mcp__svr__tool"));
-    }
-
-    [Fact]
-    public void Run_TimeTrigger_FiresWhenIdleAndOverKeepRecent()
-    {
-        var cfg = Config(keepRecent: 2, gapMinutes: 5);
-        var micro = new MicroCompactor(cfg);
-
+        var micro = new MicroCompactor(Config(keepRecent: 2, gapMinutes: 5));
         var messages = new List<ChatMessage>();
         for (var i = 0; i < 4; i++)
         {
@@ -107,18 +63,21 @@ public sealed class MicroCompactorTests
             messages.Add(AssistantCall(id));
             messages.Add(ToolResult(id));
         }
+        messages.Add(AssistantCall("unknown", "SomeUnknownTool"));
+        messages.Add(ToolResult("unknown", "keep-me"));
 
-        // lastAssistantTimestampUtc 10 minutes ago → gap > 5 → time trigger.
         var result = micro.Run(messages, DateTimeOffset.UtcNow.AddMinutes(-10));
+
         Assert.Equal(MicroCompactTrigger.TimeBased, result.Trigger);
         Assert.Equal(2, result.ClearedCount);
+        Assert.Equal("keep-me", ((FunctionResultContent)result.Messages[^1].Contents[0]).Result as string);
+        Assert.True(CompactableToolNames.IsCompactable("mcp__svr__tool"));
     }
 
     [Fact]
     public void Run_AlreadyClearedResultsDoNotRetrigger()
     {
-        var cfg = Config(keepRecent: 1, gapMinutes: 5);
-        var micro = new MicroCompactor(cfg);
+        var micro = new MicroCompactor(Config(keepRecent: 1, gapMinutes: 5));
         var messages = new List<ChatMessage>
         {
             AssistantCall("c1"),
@@ -132,16 +91,5 @@ public sealed class MicroCompactorTests
         Assert.Equal(MicroCompactTrigger.None, result.Trigger);
         Assert.Equal(0, result.ClearedCount);
         Assert.Same(messages, result.Messages);
-    }
-
-    [Fact]
-    public void Run_Disabled_NoOp()
-    {
-        var cfg = Config(keepRecent: 0, enabled: false);
-        var micro = new MicroCompactor(cfg);
-        var messages = new List<ChatMessage> { AssistantCall("c1"), ToolResult("c1") };
-        var result = micro.Run(messages);
-
-        Assert.Equal(MicroCompactTrigger.None, result.Trigger);
     }
 }

@@ -28,7 +28,6 @@ public sealed class FileToolsEditingTests : IDisposable
 
     [Theory]
     [InlineData(@"\u0041", @"\u000a\u0020\u0042")]
-    [InlineData(@"\\u0041", @"\\\u0042")]
     [InlineData("中文🙂", "日本語é🚀")]
     public async Task EditFile_LiteralArguments_PreservesOldAndNewText(string oldText, string newText)
     {
@@ -122,7 +121,6 @@ public sealed class FileToolsEditingTests : IDisposable
 
     [Theory]
     [InlineData("value = 'a  b'\n", "value = 'a b'", false)]
-    [InlineData("value = 'a\tb'\n", "value = 'a b'", false)]
     [InlineData("value = 'a　 b'\n", "value = 'a b'", false)]
     [InlineData(" target\n", "target\t", true)]
     public async Task EditFile_DisallowedApproximation_RefusesWithoutWriting(

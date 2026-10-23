@@ -31,21 +31,16 @@ describe('ThroughputMeter', () => {
     expect(meter.firstTokenLatencyMs()).toBe(2_000)
   })
 
-  it('drops samples shorter than the minimum generation window', () => {
-    const meter = new ThroughputMeter()
-    meter.startTurn()
-    meter.usage({ llmCall: 1, outputTokens: 100, timing: { firstOutputLatencyMs: 500, generationMs: 2_000 } })
-    meter.usage({ llmCall: 2, outputTokens: 900, timing: { firstOutputLatencyMs: 500, generationMs: 20 } })
-
-    expect(meter.tokensPerSecond()).toBe(50)
-  })
-
-  it('reports nothing for usage without host timing', () => {
+  it('reports nothing without host timing and drops samples shorter than the minimum generation window', () => {
     const meter = new ThroughputMeter()
     meter.startTurn()
     meter.usage({ llmCall: 1, outputTokens: 100, timing: null })
-
     expect(meter.tokensPerSecond()).toBeNull()
     expect(meter.firstTokenLatencyMs()).toBeNull()
+
+    meter.startTurn()
+    meter.usage({ llmCall: 1, outputTokens: 100, timing: { firstOutputLatencyMs: 500, generationMs: 2_000 } })
+    meter.usage({ llmCall: 2, outputTokens: 900, timing: { firstOutputLatencyMs: 500, generationMs: 20 } })
+    expect(meter.tokensPerSecond()).toBe(50)
   })
 })

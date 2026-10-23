@@ -9,24 +9,29 @@ public sealed class PowerShellScriptLowererTests
 {
     private static readonly IReadOnlyList<LoweringCase> Cases = LoadCases();
 
-    public static TheoryData<int> CaseIndexes()
+    [Fact]
+    public void LowersEveryFixtureScript()
     {
-        var data = new TheoryData<int>();
-        for (var index = 0; index < Cases.Count; index++)
+        Assert.NotEmpty(Cases);
+        var failures = new List<string>();
+        foreach (var fixture in Cases)
         {
-            data.Add(index);
+            try
+            {
+                AssertLowering(fixture);
+            }
+            catch (Exception exception) when (exception is Xunit.Sdk.XunitException)
+            {
+                failures.Add($"script: {JsonSerializer.Serialize(fixture.Script)}{Environment.NewLine}{exception.Message}");
+            }
         }
 
-        return data;
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine + Environment.NewLine, failures));
     }
 
-    [Theory]
-    [MemberData(nameof(CaseIndexes))]
-    public void LowersFixtureScript(int index)
+    private static void AssertLowering(LoweringCase fixture)
     {
-        var fixture = Cases[index];
         var lowered = new PowerShellScriptLowerer().Lower(fixture.Script);
-        var detail = $"script: {JsonSerializer.Serialize(fixture.Script)}";
 
         Assert.Equal(ShellFamily.PowerShell, lowered.Family);
 
@@ -37,12 +42,12 @@ public sealed class PowerShellScriptLowererTests
 
         if (fixture.Expected is null)
         {
-            Assert.True(lowered.PlainCommands is null, $"{detail} lowered plainly but was expected to be opaque.");
-            Assert.False(string.IsNullOrWhiteSpace(lowered.PlainRejectReason), $"{detail} is opaque without a reason.");
+            Assert.True(lowered.PlainCommands is null, "lowered plainly but was expected to be opaque.");
+            Assert.False(string.IsNullOrWhiteSpace(lowered.PlainRejectReason), "opaque without a reason.");
             return;
         }
 
-        Assert.True(lowered.IsPlain, $"{detail} was opaque: {lowered.PlainRejectReason}");
+        Assert.True(lowered.IsPlain, $"was opaque: {lowered.PlainRejectReason}");
         Assert.Null(lowered.PlainRejectReason);
         Assert.Equal(fixture.Expected, Flatten(lowered.PlainCommands!));
         Assert.Equal(fixture.Expected, Flatten(lowered.LiteralCommands));

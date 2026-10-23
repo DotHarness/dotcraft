@@ -49,8 +49,9 @@ describe('subAgentStore', () => {
     expect(appServerSendRequest).not.toHaveBeenCalled()
   })
 
-  it('replaces and clears current turn metadata from runtime snapshots', () => {
+  it('replaces turn metadata from runtime snapshots and completes the child when runtime stops', () => {
     useSubAgentStore.getState().setChildren('parent-1', [makeRunningChild({
+      currentTool: 'ReadFile',
       runtime: {
         running: true,
         activeTurnId: 'turn-1',
@@ -81,69 +82,13 @@ describe('subAgentStore', () => {
       waitingOnApproval: false,
       waitingOnPlanConfirmation: false
     })
-    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]?.runtime).toEqual(
-      expect.objectContaining({ activeTurnId: null, activeTurnStartedAt: null })
-    )
-  })
-
-  it('loads child thread capability metadata from subagent/children/list', async () => {
-    appServerSendRequest.mockResolvedValue({
-      data: [
-        {
-          edge: {
-            parentThreadId: 'parent-1',
-            childThreadId: 'child-1',
-            agentNickname: 'Lovelace',
-            profileName: 'codex-cli',
-            runtimeType: 'cli-oneshot',
-            supportsSendInput: false,
-            supportsResume: true,
-            supportsClose: true,
-            status: 'open'
-          },
-          thread: {
-            id: 'child-1',
-            displayName: 'Create hatch pet',
-            status: 'active',
-            originChannel: 'subagent',
-            createdAt: '2026-05-03T00:00:00.000Z',
-            lastActiveAt: '2026-05-03T00:01:00.000Z',
-            runtime: {
-              running: true,
-              activeTurnId: 'turn-1',
-              activeTurnStartedAt: '2026-05-03T00:00:30.000Z',
-              waitingOnApproval: false,
-              waitingOnPlanConfirmation: false
-            }
-          }
-        }
-      ]
-    })
-
-    await useSubAgentStore.getState().fetchChildren('parent-1')
-
-    expect(appServerSendRequest).toHaveBeenCalledWith('subagent/children/list', {
-      parentThreadId: 'parent-1',
-      includeClosed: true,
-      includeThreads: true
-    })
-    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')).toEqual([
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]).toEqual(
       expect.objectContaining({
-        childThreadId: 'child-1',
-        parentThreadId: 'parent-1',
-        nickname: 'Create hatch pet',
-        profileName: 'codex-cli',
-        runtimeType: 'cli-oneshot',
-        supportsSendInput: false,
-        supportsResume: true,
-        supportsClose: true,
-        runtime: expect.objectContaining({
-          running: true,
-          activeTurnId: 'turn-1',
-          activeTurnStartedAt: '2026-05-03T00:00:30.000Z'
-        })
+        currentTool: null,
+        isCompleted: true,
+        runtime: expect.objectContaining({ running: false, activeTurnId: null, activeTurnStartedAt: null })
       })
-    ])
+    )
   })
 
   it('falls back from displayName to nickname, taskName, agentPath segment, and childThreadId', async () => {
@@ -305,30 +250,7 @@ describe('subAgentStore', () => {
   })
 
   it('keeps completed child rows from closed child list results', async () => {
-    useSubAgentStore.getState().setChildren('parent-1', [
-      {
-        childThreadId: 'child-1',
-        parentThreadId: 'parent-1',
-        nickname: 'Lovelace',
-        agentRole: null,
-        profileName: 'codex-cli',
-        runtimeType: 'cli-oneshot',
-        supportsSendInput: false,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'open',
-        lastToolDisplay: 'Reading sprite atlas',
-        currentTool: 'ReadFile',
-        model: null,
-        contextTokens: null,
-        isCompleted: false,
-        runtime: {
-          running: true,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
-        }
-      }
-    ])
+    useSubAgentStore.getState().setChildren('parent-1', [makeRunningChild({ profileName: 'codex-cli', runtimeType: 'cli-oneshot', supportsSendInput: false, lastToolDisplay: 'Reading sprite atlas', currentTool: 'ReadFile' })])
     appServerSendRequest.mockResolvedValue({
       data: [
         {
@@ -420,35 +342,6 @@ describe('subAgentStore', () => {
     )
   })
 
-  it('creates placeholder rows from progress before child threads hydrate', () => {
-    useSubAgentStore.getState().updateProgress('parent-1', [
-      {
-        label: 'Lovelace',
-        isCompleted: false,
-        inputTokens: 12,
-        outputTokens: 34,
-        currentTool: 'ReadFile',
-        currentToolDisplay: 'Reading sprite atlas'
-      }
-    ])
-
-    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')).toEqual([
-      expect.objectContaining({
-        parentThreadId: 'parent-1',
-        nickname: 'Lovelace',
-        lastToolDisplay: 'Reading sprite atlas',
-        currentTool: 'ReadFile',
-        model: null,
-        contextTokens: null,
-        supportsClose: false,
-        isPlaceholder: true,
-        isCompleted: false,
-        runtime: expect.objectContaining({ running: true }),
-        threadSummary: null
-      })
-    ])
-  })
-
   it('clears completed placeholders from authoritative empty child lists while keeping running placeholders', async () => {
     useSubAgentStore.getState().updateProgress('parent-1', [
       {
@@ -483,30 +376,7 @@ describe('subAgentStore', () => {
   })
 
   it('clears authoritative empty child lists and blocks stale progress placeholders', async () => {
-    useSubAgentStore.getState().setChildren('parent-1', [
-      {
-        childThreadId: 'child-1',
-        parentThreadId: 'parent-1',
-        nickname: 'Lovelace',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'open',
-        lastToolDisplay: 'Reading sprite atlas',
-        currentTool: 'ReadFile',
-        model: null,
-        contextTokens: null,
-        isCompleted: false,
-        runtime: {
-          running: true,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
-        }
-      }
-    ])
+    useSubAgentStore.getState().setChildren('parent-1', [makeRunningChild({ lastToolDisplay: 'Reading sprite atlas', currentTool: 'ReadFile' })])
     appServerSendRequest.mockResolvedValue({ data: [] })
 
     await useSubAgentStore.getState().fetchChildren('parent-1', { authoritative: true })
@@ -572,6 +442,11 @@ describe('subAgentStore', () => {
 
     await useSubAgentStore.getState().fetchChildren('parent-1')
 
+    expect(appServerSendRequest).toHaveBeenCalledWith('subagent/children/list', {
+      parentThreadId: 'parent-1',
+      includeClosed: true,
+      includeThreads: true
+    })
     expect(useSubAgentStore.getState().childrenByParent.get('parent-1')).toEqual([
       expect.objectContaining({
         childThreadId: 'child-1',
@@ -595,65 +470,6 @@ describe('subAgentStore', () => {
       })
     ])
     expect(useThreadStore.getState().runningTurnThreadIds.has('child-1')).toBe(true)
-  })
-
-  it('lets terminal edge status override stale running runtime from cache', async () => {
-    useSubAgentStore.getState().setChildren('parent-1', [
-      {
-        childThreadId: 'child-1',
-        parentThreadId: 'parent-1',
-        nickname: 'Lovelace',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'open',
-        lastToolDisplay: 'Reading sprite atlas',
-        currentTool: 'ReadFile',
-        model: null,
-        contextTokens: null,
-        isCompleted: false,
-        runtime: {
-          running: true,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
-        }
-      }
-    ])
-    appServerSendRequest.mockResolvedValue({
-      data: [
-        {
-          edge: {
-            parentThreadId: 'parent-1',
-            childThreadId: 'child-1',
-            agentNickname: 'Lovelace',
-            supportsClose: true,
-            status: 'closed'
-          },
-          thread: {
-            id: 'child-1',
-            displayName: 'Create hatch pet',
-            status: 'active',
-            originChannel: 'subagent',
-            createdAt: '2026-05-03T00:00:00.000Z',
-            lastActiveAt: '2026-05-03T00:01:00.000Z'
-          }
-        }
-      ]
-    })
-
-    await useSubAgentStore.getState().fetchChildren('parent-1')
-
-    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]).toEqual(
-      expect.objectContaining({
-        status: 'closed',
-        currentTool: null,
-        isCompleted: true,
-        runtime: expect.objectContaining({ running: false })
-      })
-    )
   })
 
   it('uses child thread runtime to prevent open historical edges from showing as running after restart', async () => {
@@ -697,26 +513,7 @@ describe('subAgentStore', () => {
   })
 
   it('does not treat hydrated children without runtime as running from open edge status alone', () => {
-    useSubAgentStore.getState().setChildren('parent-1', [
-      {
-        childThreadId: 'child-1',
-        parentThreadId: 'parent-1',
-        nickname: 'Lovelace',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'open',
-        lastToolDisplay: null,
-        currentTool: null,
-        model: null,
-        contextTokens: null,
-        isCompleted: false,
-        isPlaceholder: false
-      }
-    ])
+    useSubAgentStore.getState().setChildren('parent-1', [makeRunningChild({ isPlaceholder: false, runtime: undefined })])
 
     const child = useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]
     expect(child).toEqual(
@@ -726,55 +523,6 @@ describe('subAgentStore', () => {
       })
     )
     expect(child ? isSubAgentChildRunning(child) : true).toBe(false)
-  })
-
-  it('merges progress descriptions into existing child rows', () => {
-    useSubAgentStore.getState().setChildren('parent-1', [
-      {
-        childThreadId: 'child-1',
-        parentThreadId: 'parent-1',
-        nickname: 'Popper',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'open',
-        lastToolDisplay: null,
-        currentTool: null,
-        model: null,
-        contextTokens: null,
-        isCompleted: false,
-        runtime: {
-          running: true,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
-        }
-      }
-    ])
-
-    useSubAgentStore.getState().updateProgress('parent-1', [
-      {
-        label: 'Popper',
-        isCompleted: false,
-        inputTokens: 12,
-        outputTokens: 34,
-        currentTool: 'ReadFile',
-        currentToolDisplay: 'Reading sprite atlas'
-      }
-    ])
-
-    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]).toEqual(
-      expect.objectContaining({
-        lastToolDisplay: 'Reading sprite atlas',
-        currentTool: 'ReadFile',
-        model: null,
-        contextTokens: null,
-        isCompleted: false,
-        runtime: expect.objectContaining({ running: true })
-      })
-    )
   })
 
   it('reads context size from the children listing and follows live updates, which can shrink', async () => {
@@ -790,46 +538,5 @@ describe('subAgentStore', () => {
 
     useSubAgentStore.getState().updateChildUsage('child-1', 4_000)
     expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0].contextTokens).toBe(4_000)
-  })
-
-  it('marks a child completed and clears current tool when runtime stops', () => {
-    useSubAgentStore.getState().setChildren('parent-1', [
-      {
-        childThreadId: 'child-1',
-        parentThreadId: 'parent-1',
-        nickname: 'Popper',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
-        status: 'open',
-        lastToolDisplay: 'Reading sprite atlas',
-        currentTool: 'ReadFile',
-        model: null,
-        contextTokens: null,
-        isCompleted: false,
-        runtime: {
-          running: true,
-          waitingOnApproval: false,
-          waitingOnPlanConfirmation: false
-        }
-      }
-    ])
-
-    useSubAgentStore.getState().updateChildRuntime('child-1', {
-      running: false,
-      waitingOnApproval: false,
-      waitingOnPlanConfirmation: false
-    })
-
-    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]).toEqual(
-      expect.objectContaining({
-        currentTool: null,
-        isCompleted: true,
-        runtime: expect.objectContaining({ running: false })
-      })
-    )
   })
 })

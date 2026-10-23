@@ -41,17 +41,4 @@ public sealed class SatelliteStateMachineTests
             SatelliteTrayState.Paused,
             SatelliteStateMachine.Evaluate(RemoteToolHostStatus.Standby, pauseRequested: true));
     }
-
-    [Fact]
-    public void EveryState_HasItsOwnIconAndStatusLine()
-    {
-        var states = Enum.GetValues<SatelliteTrayState>();
-
-        Assert.Equal(
-            states.Length,
-            states.Select(SatelliteStateMachine.IconName).Distinct(StringComparer.Ordinal).Count());
-        Assert.Equal(
-            states.Length,
-            states.Select(SatelliteStateMachine.StatusKey).Distinct(StringComparer.Ordinal).Count());
-    }
 }

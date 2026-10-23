@@ -24,18 +24,13 @@ public sealed class DotNetPluginCompilerTests :
         _compiler = new DotNetPluginCompiler(fixture.Load());
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Prepare_CompilesAStandardStagedBundleDeterministically(bool includeSecondSource)
+    [Fact]
+    public void Prepare_CompilesAStandardStagedBundleDeterministically()
     {
         var sources = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["Plugin.cs"] = ValidPluginSource
-        };
-        if (includeSecondSource)
-        {
-            sources["Text.cs"] = """
+            ["Plugin.cs"] = ValidPluginSource,
+            ["Text.cs"] = """
                 namespace Acme;
                 internal static class Text
                 {
@@ -50,8 +45,8 @@ public sealed class DotNetPluginCompilerTests :
                         set => field = value.Trim();
                     } = string.Empty;
                 }
-                """;
-        }
+                """
+        };
 
         var project = CreateProject(sources);
         var originalFingerprint = PluginBundleFingerprint.Compute(project.PluginRoot);
@@ -87,7 +82,7 @@ public sealed class DotNetPluginCompilerTests :
     }
 
     [Fact]
-    public void Prepare_ReportsRelativeRoslynDiagnosticsWithoutChangingTheBundle()
+    public void Prepare_ReportsRelativeInvariantRoslynDiagnosticsWithoutChangingTheBundle()
     {
         var project = CreateProject(
             new Dictionary<string, string>(StringComparer.Ordinal)
@@ -102,55 +97,34 @@ public sealed class DotNetPluginCompilerTests :
                     """
             });
         var originalFingerprint = PluginBundleFingerprint.Compute(project.PluginRoot);
-
-        using var preparation = _compiler.Prepare(_dataRoot, PluginId);
-
-        Assert.False(preparation.Succeeded);
-        Assert.Contains(
-            preparation.Diagnostics,
-            static diagnostic => diagnostic.Code.StartsWith("CS", StringComparison.Ordinal)
-                && diagnostic.Path == "src/Broken.cs"
-                && diagnostic.Parameters["phase"].GetString() == "compile"
-                && diagnostic.Parameters.ContainsKey("line")
-                && diagnostic.Parameters.ContainsKey("column"));
-        AssertDiagnosticsAreSanitized(preparation.Diagnostics);
-        Assert.Equal(
-            "keep",
-            File.ReadAllText(Path.Combine(project.PluginRoot, "lib", "stale.txt")));
-        Assert.Equal(originalFingerprint, PluginBundleFingerprint.Compute(project.PluginRoot));
-    }
-
-    [Fact]
-    public void Prepare_UsesInvariantRoslynMessages()
-    {
-        CreateProject(
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["Broken.cs"] = """
-                    namespace Acme;
-                    public sealed class Broken
-                    {
-                        this is not valid C#
-                    }
-                    """
-            });
         var previousCulture = CultureInfo.CurrentUICulture;
-
+        CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("zh-CN");
         try
         {
-            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("zh-CN");
             using var preparation = _compiler.Prepare(_dataRoot, PluginId);
 
             Assert.False(preparation.Succeeded);
             Assert.Contains(
                 preparation.Diagnostics,
+                static diagnostic => diagnostic.Code.StartsWith("CS", StringComparison.Ordinal)
+                    && diagnostic.Path == "src/Broken.cs"
+                    && diagnostic.Parameters["phase"].GetString() == "compile"
+                    && diagnostic.Parameters.ContainsKey("line")
+                    && diagnostic.Parameters.ContainsKey("column"));
+            Assert.Contains(
+                preparation.Diagnostics,
                 static diagnostic => diagnostic.Code == "CS1519"
                     && diagnostic.Message.Contains("Invalid token", StringComparison.Ordinal));
+            AssertDiagnosticsAreSanitized(preparation.Diagnostics);
         }
         finally
         {
             CultureInfo.CurrentUICulture = previousCulture;
         }
+        Assert.Equal(
+            "keep",
+            File.ReadAllText(Path.Combine(project.PluginRoot, "lib", "stale.txt")));
+        Assert.Equal(originalFingerprint, PluginBundleFingerprint.Compute(project.PluginRoot));
     }
 
     [Fact]

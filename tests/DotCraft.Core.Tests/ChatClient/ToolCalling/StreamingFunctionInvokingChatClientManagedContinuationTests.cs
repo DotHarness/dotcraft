@@ -22,43 +22,24 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             updates.SelectMany(update => update.Contents).OfType<TextContent>().Select(content => content.Text));
     }
 
-    [Fact]
-    public async Task GetStreamingResponseAsync_ProviderManagedContinuation_ThrowsAtLimit()
+    [Theory]
+    [InlineData(3, 2, "provider_continuation_limit:", 3)]
+    [InlineData(1, 0, "provider_continuation_limit:", 1)]
+    [InlineData(1, -1, "provider_continuation_policy_invalid:", 0)]
+    public async Task GetStreamingResponseAsync_ProviderManagedContinuation_EnforcesPolicyLimit(
+        int pauseCount,
+        int maximumContinuations,
+        string expectedError,
+        int expectedCalls)
     {
-        var inner = new ManagedContinuationFakeChatClient(pauseCount: 3, maximumContinuations: 2);
+        var inner = new ManagedContinuationFakeChatClient(pauseCount, maximumContinuations);
         var client = new StreamingFunctionInvokingChatClient(inner);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => CollectAsync(
             client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
 
-        Assert.StartsWith("provider_continuation_limit:", exception.Message, StringComparison.Ordinal);
-        Assert.Equal(3, inner.Calls.Count);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_ProviderManagedContinuation_ZeroRejectsFirstContinuation()
-    {
-        var inner = new ManagedContinuationFakeChatClient(pauseCount: 1, maximumContinuations: 0);
-        var client = new StreamingFunctionInvokingChatClient(inner);
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => CollectAsync(
-            client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
-
-        Assert.StartsWith("provider_continuation_limit:", exception.Message, StringComparison.Ordinal);
-        Assert.Single(inner.Calls);
-    }
-
-    [Fact]
-    public async Task GetStreamingResponseAsync_ProviderManagedContinuation_RejectsNegativePolicyBeforeSampling()
-    {
-        var inner = new ManagedContinuationFakeChatClient(pauseCount: 1, maximumContinuations: -1);
-        var client = new StreamingFunctionInvokingChatClient(inner);
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => CollectAsync(
-            client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
-
-        Assert.StartsWith("provider_continuation_policy_invalid:", exception.Message, StringComparison.Ordinal);
-        Assert.Empty(inner.Calls);
+        Assert.StartsWith(expectedError, exception.Message, StringComparison.Ordinal);
+        Assert.Equal(expectedCalls, inner.Calls.Count);
     }
 
     private sealed class ManagedContinuationFakeChatClient(

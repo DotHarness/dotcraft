@@ -9,24 +9,15 @@ import {
 } from '../components/conversation/imagePreview/imageZoom'
 
 describe('image zoom math', () => {
-  it('zooms exponentially with the wheel and stays within 10–400%', () => {
+  it('zooms by wheel and pinch within 10–400%, gates backdrop clicks at 5px and stops gallery steps at both ends', () => {
     expect(wheelImageZoom(100, -100)).toBe(272)
     expect(wheelImageZoom(100, 100)).toBe(37)
     expect(wheelImageZoom(390, -100)).toBe(400)
     expect(wheelImageZoom(12, 500)).toBe(10)
-  })
-
-  it('scales pinch zoom with finger distance', () => {
     expect(pinchImageZoom(100, 80, 150)).toBe(120)
     expect(pinchImageZoom(100, 300, 1000)).toBe(400)
-  })
-
-  it('treats a press as a backdrop click only within 5px', () => {
     expect(movedBeyondClickSlop({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(false)
     expect(movedBeyondClickSlop({ x: 0, y: 0 }, { x: 4, y: 4 })).toBe(true)
-  })
-
-  it('stops gallery navigation at both ends', () => {
     expect(stepGalleryIndex(0, -1, 3)).toBeNull()
     expect(stepGalleryIndex(1, 1, 3)).toBe(2)
     expect(stepGalleryIndex(2, 1, 3)).toBeNull()

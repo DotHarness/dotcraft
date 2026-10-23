@@ -24,7 +24,7 @@ public sealed class SessionServiceApprovalPolicyResolutionTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_tempDir, recursive: true); }
-        catch { /* best-effort cleanup */ }
+        catch { }
     }
 
     [Fact]

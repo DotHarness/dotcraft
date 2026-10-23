@@ -40,20 +40,23 @@ describe('Oratorio IPC validation', () => {
     expect(validateRequest({ method: 'PUT', path: '/api/v1/sources/github/sync-schedule', body: { enabled: true, intervalSeconds: 900 } })).toBeTruthy()
   })
 
-  it.each([
-    null,
-    { method: 'DELETE', path: '/v1/board' },
-    { method: 'GET', path: 'http://example.test/token' },
-    { method: 'POST', path: '/api/v1/tasks' },
-    { method: 'GET', path: '/api/v1/settings/diagnostics' },
-    { method: 'GET', path: '/api/v1/dotcraft/status' },
-    { method: 'GET', path: '/api/v1/runs/run-1' },
-    { method: 'GET', path: '/api/v1/sources/sync-jobs/job-1' },
-    { method: 'GET', path: '/api/v1/sources/sync-jobs/active?provider=github' },
-    { method: 'POST', path: '/api/v1/sources/unknown/sync-jobs', body: {} },
-    { method: 'GET', path: '/api/v1/tasks', body: [] }
-  ])('rejects invalid request %j', (request) => {
-    expect(() => validateRequest(request)).toThrow(/^oratorio\./)
+  it('rejects unbounded methods, paths, and bodies', () => {
+    const invalid = [
+      null,
+      { method: 'DELETE', path: '/v1/board' },
+      { method: 'GET', path: 'http://example.test/token' },
+      { method: 'POST', path: '/api/v1/tasks' },
+      { method: 'GET', path: '/api/v1/settings/diagnostics' },
+      { method: 'GET', path: '/api/v1/dotcraft/status' },
+      { method: 'GET', path: '/api/v1/runs/run-1' },
+      { method: 'GET', path: '/api/v1/sources/sync-jobs/job-1' },
+      { method: 'GET', path: '/api/v1/sources/sync-jobs/active?provider=github' },
+      { method: 'POST', path: '/api/v1/sources/unknown/sync-jobs', body: {} },
+      { method: 'GET', path: '/api/v1/tasks', body: [] }
+    ]
+    for (const request of invalid) {
+      expect(() => validateRequest(request), JSON.stringify(request)).toThrow(/^oratorio\./)
+    }
   })
 })
 

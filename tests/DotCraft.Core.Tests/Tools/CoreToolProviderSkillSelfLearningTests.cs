@@ -11,28 +11,23 @@ public sealed class CoreToolProviderSkillSelfLearningTests : IDisposable
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "dotcraft-coretoolprovider-tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task CreateTools_SelfLearningDisabled_DoesNotExposeSkillMutationTools()
+    public async Task CreateTools_ExposesSkillManageOnlyWhenSelfLearningIsEnabled()
     {
-        var tools = await CreateToolsAsync(new AppConfig.SelfLearningConfig { Enabled = false });
+        var disabled = await CreateToolsAsync(new AppConfig.SelfLearningConfig { Enabled = false });
+        var enabled = await CreateToolsAsync(new AppConfig.SelfLearningConfig { Enabled = true });
 
-        Assert.DoesNotContain(tools, tool => string.Equals(tool.Name.Name, "SkillManage", StringComparison.Ordinal));
-        Assert.Contains(tools, tool => string.Equals(tool.Name.Name, "SkillView", StringComparison.Ordinal));
-    }
+        Assert.Equal(["SkillView"], SkillTools(disabled));
+        Assert.Equal(["SkillManage", "SkillView"], SkillTools(enabled));
 
-    [Fact]
-    public async Task CreateTools_SelfLearningEnabled_ExposesSkillViewAndSkillManageTools()
-    {
-        var tools = await CreateToolsAsync(new AppConfig.SelfLearningConfig { Enabled = true });
-        var skillTools = tools
+        static string[] SkillTools(List<ToolDefinition> tools) => tools
             .Where(tool => tool.Name.Name.StartsWith("Skill", StringComparison.Ordinal))
             .Select(tool => tool.Name.Name)
+            .Order(StringComparer.Ordinal)
             .ToArray();
-
-        Assert.Equal(["SkillManage", "SkillView"], skillTools);
     }
 
     [Fact]
-    public async Task CreateTools_SubAgentChild_PreservesSubAgentControlSchema()
+    public async Task CreateTools_RootAndSubAgentChild_ExposeTheSameSubAgentControlTools()
     {
         var rootTools = await CreateToolsAsync(new AppConfig.SelfLearningConfig { Enabled = false });
         var childTools = await CreateToolsAsync(
@@ -45,15 +40,6 @@ public sealed class CoreToolProviderSkillSelfLearningTests : IDisposable
         Assert.All(AgentControlToolPolicy.AllToolNames, toolName => Assert.Contains(toolName, childNames));
     }
 
-    [Fact]
-    public async Task CreateTools_MainThread_ExposesSubAgentControlTools()
-    {
-        var tools = await CreateToolsAsync(new AppConfig.SelfLearningConfig { Enabled = false });
-        var toolNames = tools.Select(tool => tool.Name.Name).ToHashSet(StringComparer.Ordinal);
-
-        Assert.All(AgentControlToolPolicy.AllToolNames, toolName => Assert.Contains(toolName, toolNames));
-    }
-
     public void Dispose()
     {
         try
@@ -63,7 +49,6 @@ public sealed class CoreToolProviderSkillSelfLearningTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup for temp test directories.
         }
     }
 

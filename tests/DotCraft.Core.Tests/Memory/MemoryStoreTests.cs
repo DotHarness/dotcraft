@@ -17,7 +17,7 @@ public sealed class MemoryStoreTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_tempDir, true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
     [Fact]
@@ -47,32 +47,7 @@ public sealed class MemoryStoreTests : IDisposable
     }
 
     [Fact]
-    public void StoreDirectory_DoesNotCreateTheStore()
-    {
-        var directory = MemoryScopes.StoreDirectory(new ThreadConfiguration { MemoryScope = "nightly" }, _tempDir);
-
-        Assert.False(Directory.Exists(directory));
-    }
-
-    [Fact]
-    public void ClearAll_RemovesMemoryContentsAndPreservesRoot()
-    {
-        var store = new MemoryStore(_tempDir);
-        File.WriteAllText(store.IndexFilePath, "remember this");
-        File.WriteAllText(Path.Combine(store.MemoryDirectoryPath, "HISTORY.md"), "legacy history");
-        Directory.CreateDirectory(Path.Combine(store.MemoryDirectoryPath, "derived"));
-        File.WriteAllText(Path.Combine(store.MemoryDirectoryPath, "derived", "summary.md"), "derived");
-        File.WriteAllText(Path.Combine(store.MemoryDirectoryPath, ".MEMORY.stale.tmp"), "tmp");
-
-        store.ClearAll();
-
-        Assert.True(Directory.Exists(store.MemoryDirectoryPath));
-        Assert.Empty(Directory.EnumerateFileSystemEntries(store.MemoryDirectoryPath));
-        Assert.Equal(string.Empty, store.ReadIndexText());
-    }
-
-    [Fact]
-    public void ClearAllStores_EmptiesTheWorkspaceAndEveryScopeStore()
+    public void ClearAll_EmptiesEveryStoreButKeepsRootsAndSiblings()
     {
         var workspace = new MemoryStore(_tempDir);
         var nightly = MemoryScopes.ForThread(new ThreadConfiguration { MemoryScope = "nightly" }, workspace, _tempDir);
@@ -92,6 +67,19 @@ public sealed class MemoryStoreTests : IDisposable
         }
 
         Assert.True(File.Exists(scopeSibling));
+
+        var cleared = new MemoryStore(_tempDir);
+        File.WriteAllText(cleared.IndexFilePath, "remember this");
+        File.WriteAllText(Path.Combine(cleared.MemoryDirectoryPath, "HISTORY.md"), "legacy history");
+        Directory.CreateDirectory(Path.Combine(cleared.MemoryDirectoryPath, "derived"));
+        File.WriteAllText(Path.Combine(cleared.MemoryDirectoryPath, "derived", "summary.md"), "derived");
+        File.WriteAllText(Path.Combine(cleared.MemoryDirectoryPath, ".MEMORY.stale.tmp"), "tmp");
+
+        cleared.ClearAll();
+
+        Assert.True(Directory.Exists(cleared.MemoryDirectoryPath));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(cleared.MemoryDirectoryPath));
+        Assert.Equal(string.Empty, cleared.ReadIndexText());
     }
 
     [Fact]

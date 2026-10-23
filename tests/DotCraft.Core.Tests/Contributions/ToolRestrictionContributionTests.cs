@@ -7,7 +7,6 @@ using Xunit;
 
 namespace DotCraft.Tests.Contributions;
 
-/// <summary>Composition of the <see cref="IToolRestriction"/> contribution point, asserted through the snapshot it edits.</summary>
 public sealed class ToolRestrictionContributionTests : IDisposable
 {
     private const string ThreadId = "thread-a";
@@ -15,23 +14,20 @@ public sealed class ToolRestrictionContributionTests : IDisposable
     private readonly ContributionAgentHost _host = new("ToolRestrictionContribution");
 
     [Fact]
-    public async Task WithoutContributions_TheSnapshotIsUnchanged()
-    {
-        var registry = new ContributionRegistry();
-        var snapshot = await BuildAsync(registry, Source("read", "write"));
-
-        Assert.Equal(2, snapshot.Registrations.Count);
-        Assert.Equal(2, snapshot.ModelVisibleDefinitions.Count);
-    }
-
-    [Fact]
-    public async Task MaskingRemovesTheRegistration_SoEveryAudienceGetsNotFound()
+    public async Task MaskingRemovesTheRegistrationForEveryAudience_ButNotARuntimeManagedOne()
     {
         var registry = new ContributionRegistry();
         registry.Add<IToolRestriction>(new MaskRestriction("write"));
-        var source = Source("read", "write");
-        var snapshot = await BuildAsync(registry, source);
+        registry.Add<IToolRestriction>(new MaskRestriction("owned"));
+        var snapshot = await BuildAsync(
+            registry,
+            new StubToolSource("stub", [
+                Registration("read"),
+                Registration("write"),
+                Registration("owned", policyScope: ToolPolicyScope.RuntimeManaged)
+            ]));
         var masked = new ToolName(null, "write");
+        Assert.Contains(new ToolName(null, "owned"), snapshot.Registrations.Keys);
 
         Assert.DoesNotContain(masked, snapshot.Registrations.Keys);
         Assert.DoesNotContain(masked, snapshot.ProviderFlatNames.Keys);
@@ -56,19 +52,23 @@ public sealed class ToolRestrictionContributionTests : IDisposable
     }
 
     [Fact]
-    public async Task RewritingDescriptionAndSchema_ReachesTheModelVisibleDefinition()
+    public async Task RewritingDescriptionAndSchema_ReachesTheModelVisibleDefinitionByteIdenticallyAcrossBuilds()
     {
         var registry = new ContributionRegistry();
         registry.Add<IToolRestriction>(new RewriteRestriction(
             "read",
             "Read, but only inside the sandbox.",
             Json("""{"type":"object","properties":{"path":{"type":"string"}}}""")));
+        registry.Add<IToolRestriction>(new MaskRestriction("write"));
+        var factory = CreateFactory(registry);
 
-        var snapshot = await BuildAsync(registry, Source("read"));
+        var snapshot = await BuildAsync(factory, Source("read", "write"), ThreadId);
+        var second = await BuildAsync(factory, Source("read", "write"), ThreadId);
 
         var definition = Assert.Single(snapshot.ModelVisibleDefinitions);
         Assert.Equal("Read, but only inside the sandbox.", definition.Description);
         Assert.Contains("path", definition.InputSchema.GetRawText(), StringComparison.Ordinal);
+        Assert.Equal(PromptSurface(snapshot), PromptSurface(second));
     }
 
     [Fact]
@@ -83,25 +83,7 @@ public sealed class ToolRestrictionContributionTests : IDisposable
             new StubToolSource("stub", [Registration("read"), Registration("hidden", ToolExposure.Hidden)]));
 
         Assert.Empty(snapshot.ModelVisibleDefinitions);
-        // The tool stays dispatchable: narrowing exposure is not masking.
         Assert.Equal(2, snapshot.Registrations.Count);
-    }
-
-    [Fact]
-    public async Task RuntimeManagedRegistrations_AreExemptFromRestrictions()
-    {
-        var registry = new ContributionRegistry();
-        registry.Add<IToolRestriction>(new MaskRestriction("owned"));
-
-        var snapshot = await BuildAsync(
-            registry,
-            new StubToolSource("stub", [
-                Registration("owned", policyScope: ToolPolicyScope.RuntimeManaged),
-                Registration("ordinary")
-            ]));
-
-        Assert.Contains(new ToolName(null, "owned"), snapshot.Registrations.Keys);
-        Assert.Contains(new ToolName(null, "ordinary"), snapshot.Registrations.Keys);
     }
 
     [Fact]
@@ -112,7 +94,6 @@ public sealed class ToolRestrictionContributionTests : IDisposable
 
         var snapshot = await BuildAsync(registry, Source("read", "write"));
 
-        // Masking everything is discarded rather than turned into a turn-fatal empty projection.
         Assert.Equal(2, snapshot.Registrations.Count);
     }
 
@@ -133,20 +114,6 @@ public sealed class ToolRestrictionContributionTests : IDisposable
     }
 
     [Fact]
-    public async Task ThreadScopedRestriction_AppliesToThatThreadOnly()
-    {
-        var registry = new ContributionRegistry();
-        registry.Add<IToolRestriction>(new MaskRestriction("write"), ContributionOptions.ForThread(ThreadId));
-        var factory = CreateFactory(registry);
-
-        var restricted = await BuildAsync(factory, Source("read", "write"), ThreadId);
-        var unrestricted = await BuildAsync(factory, Source("read", "write"), "thread-b");
-
-        Assert.DoesNotContain(new ToolName(null, "write"), restricted.Registrations.Keys);
-        Assert.Contains(new ToolName(null, "write"), unrestricted.Registrations.Keys);
-    }
-
-    [Fact]
     public async Task LateRegistrationAndRevocation_ReachTheNextBuild()
     {
         var registry = new ContributionRegistry();
@@ -154,27 +121,14 @@ public sealed class ToolRestrictionContributionTests : IDisposable
         Assert.Equal(2, (await BuildAsync(factory, Source("read", "write"), ThreadId)).Registrations.Count);
 
         var handle = registry.Add<IToolRestriction>(new MaskRestriction("write"));
+        registry.Add<IToolRestriction>(new MaskRestriction("read"), ContributionOptions.ForThread("thread-b"));
         Assert.Single((await BuildAsync(factory, Source("read", "write"), ThreadId)).Registrations);
+        Assert.Equal(
+            new ToolName(null, "edit"),
+            Assert.Single((await BuildAsync(factory, Source("read", "write", "edit"), "thread-b")).Registrations.Keys));
 
         handle.Dispose();
         Assert.Equal(2, (await BuildAsync(factory, Source("read", "write"), ThreadId)).Registrations.Count);
-    }
-
-    [Fact]
-    public async Task AnUnchangedRestriction_ProducesAByteIdenticalPromptSurface()
-    {
-        var registry = new ContributionRegistry();
-        registry.Add<IToolRestriction>(new RewriteRestriction(
-            "read",
-            "Restricted read.",
-            Json("""{"type":"object","properties":{"path":{"type":"string"}}}""")));
-        registry.Add<IToolRestriction>(new MaskRestriction("write"));
-        var factory = CreateFactory(registry);
-
-        var first = await BuildAsync(factory, Source("read", "write"), ThreadId);
-        var second = await BuildAsync(factory, Source("read", "write"), ThreadId);
-
-        Assert.Equal(PromptSurface(first), PromptSurface(second));
     }
 
     private static string PromptSurface(EffectiveToolSnapshot snapshot) =>

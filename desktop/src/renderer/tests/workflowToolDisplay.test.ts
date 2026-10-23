@@ -8,10 +8,14 @@ import { useViewerTabStore } from '../stores/viewerTabStore'
 const WORKFLOW = { toolName: 'Workflow' }
 
 describe('parseWorkflowRunId', () => {
-  it('recognizes only a successful Workflow tool result', () => {
+  it('recognizes only a successful Workflow tool result and only a running launch for auto-open', () => {
     expect(parseWorkflowRunId('Workflow', '{"runId":"run_001","status":"running"}')).toBe('run_001')
     expect(parseWorkflowRunId('shell', '{"runId":"run_001"}')).toBeNull()
     expect(parseWorkflowRunId('Workflow', 'not json')).toBeNull()
+    expect(parseWorkflowLaunch('Workflow', '{"runId":"run_001","name":"review","status":"running"}'))
+      .toEqual({ runId: 'run_001', name: 'review' })
+    expect(parseWorkflowLaunch('Workflow', '{"runId":"run_001","name":"review","status":"failed"}')).toBeNull()
+    expect(parseWorkflowLaunch('Workflow', '{"error":"invalid"}')).toBeNull()
   })
 
   it('uses dedicated Workflow lifecycle labels', () => {
@@ -26,13 +30,6 @@ describe('parseWorkflowRunId', () => {
     const longName = 'release-review-with-complete-desktop-tool-title-geometry-validation'
     expect(getStreamingToolDisplay(WORKFLOW, `{"name":"${longName}`, 'en').label)
       .toContain(longName)
-  })
-
-  it('parses only a successful running launch for auto-open', () => {
-    expect(parseWorkflowLaunch('Workflow', '{"runId":"run_001","name":"review","status":"running"}'))
-      .toEqual({ runId: 'run_001', name: 'review' })
-    expect(parseWorkflowLaunch('Workflow', '{"runId":"run_001","name":"review","status":"failed"}')).toBeNull()
-    expect(parseWorkflowLaunch('Workflow', '{"error":"invalid"}')).toBeNull()
   })
 
   it('auto-opens each successful run only once', () => {

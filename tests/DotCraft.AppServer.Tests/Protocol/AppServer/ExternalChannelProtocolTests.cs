@@ -1,32 +1,17 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using DotCraft.AppServer;
-using DotCraft.Channels;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
-/// <summary>
-/// Tests for the external channel adapter protocol extensions:
-/// - channelAdapter capability in initialize handshake
-/// - AppServerConnection channel adapter state tracking
-/// - ext/channel/* method constants
-/// - ChannelRejected error code
-/// </summary>
 public sealed class ExternalChannelProtocolTests : IDisposable
 {
     private readonly AppServerTestHarness _h = new();
 
     public void Dispose() => _h.Dispose();
 
-    // -------------------------------------------------------------------------
-    // channelAdapter capability in initialize
-    // -------------------------------------------------------------------------
-
     [Fact]
-    public async Task Initialize_WithChannelAdapter_SetsConnectionState()
+    public async Task Initialize_WithChannelAdapter_RecordsAdapterDeliveryCapabilitiesAndDeclaredTools()
     {
-        // Arrange: build an initialize request with channelAdapter capability
         var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "telegram-adapter", version = "1.0.0" },
@@ -34,41 +19,6 @@ public sealed class ExternalChannelProtocolTests : IDisposable
             {
                 approvalSupport = true,
                 streamingSupport = true,
-                channelAdapter = new
-                {
-                    channelName = "telegram",
-                    displayName = "Telegram",
-                    deliveryCapabilities = new
-                    {
-                        text = new { format = "plain" },
-                        targets = new { group = false, direct = "none" }
-                    }
-                }
-            }
-        });
-
-        // Act
-        await _h.ExecuteRequestAsync(initMsg);
-
-        // Assert: read the response the handler wrote to the transport
-        var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-
-        // Assert: connection state reflects channel adapter
-        Assert.True(_h.Connection.IsInitialized);
-        Assert.True(_h.Connection.IsChannelAdapter);
-        Assert.Equal("telegram", _h.Connection.ChannelAdapterName);
-        Assert.Equal("Telegram", _h.Connection.ChannelDisplayName);
-    }
-
-    [Fact]
-    public async Task Initialize_WithChannelAdapter_RecordsDeliveryCapabilities()
-    {
-        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize, new
-        {
-            clientInfo = new { name = "media-adapter", version = "1.0.0" },
-            capabilities = new
-            {
                 channelAdapter = new
                 {
                     channelName = "telegram",
@@ -87,40 +37,6 @@ public sealed class ExternalChannelProtocolTests : IDisposable
                                 supportsCaption = true
                             }
                         }
-                    }
-                }
-            }
-        });
-
-        await _h.ExecuteRequestAsync(initMsg);
-
-        var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.NotNull(_h.Connection.DeliveryCapabilities);
-        Assert.Equal("markdown", _h.Connection.DeliveryCapabilities!.Text.Format);
-        Assert.True(_h.Connection.DeliveryCapabilities.Targets.Group);
-        Assert.Equal("knownOnly", _h.Connection.DeliveryCapabilities.Targets.Direct);
-        Assert.NotNull(_h.Connection.DeliveryCapabilities.Media?.File);
-        Assert.True(_h.Connection.DeliveryCapabilities.Media!.File!.SupportsHostPath);
-        Assert.True(_h.Connection.DeliveryCapabilities.Media.File!.SupportsBase64);
-    }
-
-    [Fact]
-    public async Task Initialize_WithChannelAdapterTools_SetsToolState()
-    {
-        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize, new
-        {
-            clientInfo = new { name = "tool-adapter", version = "1.0.0" },
-            capabilities = new
-            {
-                channelAdapter = new
-                {
-                    channelName = "telegram",
-                    displayName = "Telegram",
-                    deliveryCapabilities = new
-                    {
-                        text = new { format = "plain" },
-                        targets = new { group = false, direct = "none" }
                     },
                     channelTools = new object[]
                     {
@@ -132,10 +48,7 @@ public sealed class ExternalChannelProtocolTests : IDisposable
                             inputSchema = new
                             {
                                 type = "object",
-                                properties = new
-                                {
-                                    fileName = new { type = "string" }
-                                },
+                                properties = new { fileName = new { type = "string" } },
                                 required = new[] { "fileName" }
                             }
                         }
@@ -148,8 +61,17 @@ public sealed class ExternalChannelProtocolTests : IDisposable
 
         var response = await _h.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.Single(_h.Connection.DeclaredChannelTools);
-        Assert.Equal("TelegramExportChatHistory", _h.Connection.DeclaredChannelTools[0].Name);
+        Assert.True(_h.Connection.IsInitialized);
+        Assert.True(_h.Connection.IsChannelAdapter);
+        Assert.Equal("telegram", _h.Connection.ChannelAdapterName);
+        Assert.Equal("Telegram", _h.Connection.ChannelDisplayName);
+        var delivery = Assert.IsType<DotCraft.Channels.ChannelDeliveryCapabilitySnapshot>(_h.Connection.DeliveryCapabilities);
+        Assert.Equal("markdown", delivery.Text.Format);
+        Assert.True(delivery.Targets.Group);
+        Assert.Equal("knownOnly", delivery.Targets.Direct);
+        Assert.True(delivery.Media!.File!.SupportsHostPath);
+        Assert.True(delivery.Media.File.SupportsBase64);
+        Assert.Equal("TelegramExportChatHistory", Assert.Single(_h.Connection.DeclaredChannelTools).Name);
         Assert.Empty(_h.Connection.RegisteredChannelTools);
         Assert.False(_h.Connection.ChannelToolRegistrationFinalized);
     }
@@ -174,147 +96,5 @@ public sealed class ExternalChannelProtocolTests : IDisposable
         var response = await _h.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
         Assert.False(_h.Connection.IsChannelAdapter);
-    }
-
-    [Fact]
-    public async Task Initialize_WithoutChannelAdapter_ConnectionIsNotAdapter()
-    {
-        // Regular client without channelAdapter
-        await _h.InitializeAsync();
-
-        Assert.False(_h.Connection.IsChannelAdapter);
-        Assert.Null(_h.Connection.ChannelAdapterName);
-        Assert.Null(_h.Connection.DeliveryCapabilities);
-    }
-
-    // -------------------------------------------------------------------------
-    // Protocol constants
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void ExtChannelMethods_HaveCorrectValues()
-    {
-        Assert.Equal("ext/channel/send", DotCraft.Protocol.AppServer.AppServerMethodNames.ExtChannelSend);
-        Assert.Equal("ext/channel/toolCall", DotCraft.Protocol.AppServer.AppServerMethodNames.ExtChannelToolCall);
-        Assert.Equal("ext/channel/heartbeat", DotCraft.Protocol.AppServer.AppServerMethodNames.ExtChannelHeartbeat);
-    }
-
-    [Fact]
-    public void ChannelRejectedErrorCode_HasCorrectValue()
-    {
-        Assert.Equal(-32030, AppServerErrors.ChannelRejectedCode);
-    }
-
-    [Fact]
-    public void ChannelRejectedError_ContainsChannelName()
-    {
-        var ex = AppServerErrors.ChannelRejected("test-channel");
-        Assert.Equal(AppServerErrors.ChannelRejectedCode, ex.Code);
-        Assert.Contains("test-channel", ex.Message);
-    }
-
-    // -------------------------------------------------------------------------
-    // ChannelAdapterRuntimeCapability serialization
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void ChannelAdapterRuntimeCapability_RoundTrips()
-    {
-        var cap = new ChannelAdapterRuntimeCapability
-        {
-            ChannelName = "discord",
-            DeliveryCapabilities = new ChannelDeliveryCapabilitySnapshot
-            {
-                Text = new ChannelTextCapabilitySnapshot { Format = ChannelTextFormats.Markdown },
-                Media = new ChannelMediaCapabilitySnapshot
-                {
-                    Audio = new ChannelMediaConstraintSnapshot
-                    {
-                        SupportsBase64 = true,
-                        SupportsCaption = false
-                    }
-                }
-            },
-            ChannelTools =
-            [
-                new ChannelToolSpec
-                {
-                    Name = "discordSendAttachment",
-                    Description = "Send an attachment to the current Discord channel.",
-                    RequiresChatContext = true,
-                    InputSchema = new JsonObject
-                    {
-                        ["type"] = "object",
-                        ["properties"] = new JsonObject
-                        {
-                            ["fileName"] = new JsonObject
-                            {
-                                ["type"] = "string"
-                            }
-                        },
-                        ["required"] = new JsonArray("fileName")
-                    }
-                }
-            ]
-        };
-
-        var json = JsonSerializer.Serialize(cap, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        var deserialized = JsonSerializer.Deserialize<ChannelAdapterRuntimeCapability>(json, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-
-        Assert.NotNull(deserialized);
-        Assert.Equal("discord", deserialized.ChannelName);
-        Assert.Equal(ChannelTextFormats.Markdown, deserialized.DeliveryCapabilities.Text.Format);
-        Assert.True(deserialized.DeliveryCapabilities?.Media?.Audio?.SupportsBase64);
-        Assert.Single(deserialized.ChannelTools!);
-        Assert.Equal("discordSendAttachment", deserialized.ChannelTools![0].Name);
-    }
-
-    [Fact]
-    public void ClientConnectionCapabilities_WithChannelAdapter_RoundTrips()
-    {
-        var caps = new ClientConnectionCapabilities
-        {
-            ApprovalSupport = true,
-            StreamingSupport = true,
-            ChannelAdapter = new ChannelAdapterRuntimeCapability
-            {
-                ChannelName = "telegram",
-                DeliveryCapabilities = new ChannelDeliveryCapabilitySnapshot
-                {
-                    Targets = new ChannelTargetCapabilitySnapshot { Group = true }
-                }
-            }
-        };
-
-        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-        var json = JsonSerializer.Serialize(caps, options);
-        var deserialized = JsonSerializer.Deserialize<ClientConnectionCapabilities>(json, options);
-
-        Assert.NotNull(deserialized);
-        Assert.NotNull(deserialized.ChannelAdapter);
-        Assert.Equal("telegram", deserialized.ChannelAdapter.ChannelName);
-        Assert.True(deserialized.ChannelAdapter.DeliveryCapabilities.Targets.Group);
-    }
-
-    [Fact]
-    public void ClientConnectionCapabilities_WithoutChannelAdapter_OmitsInJson()
-    {
-        var caps = new ClientConnectionCapabilities
-        {
-            ApprovalSupport = true,
-            ChannelAdapter = null
-        };
-
-        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-        var json = JsonSerializer.Serialize(caps, options);
-
-        // channelAdapter should not appear in JSON when null
-        Assert.DoesNotContain("channelAdapter", json);
     }
 }

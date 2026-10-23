@@ -30,7 +30,18 @@ public sealed partial class AppServerThreadLifecycleTests
         using (var response = await harness.Transport.ReadNextSentAsync())
         {
             CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-            threadId = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+            var result = response.RootElement.GetProperty("result");
+            var thread = result.GetProperty("thread");
+            var worktree = result.GetProperty("worktree");
+            threadId = thread.GetProperty("id").GetString()!;
+            Assert.Equal(worktree.GetProperty("path").GetString(), thread.GetProperty("effectiveWorkspacePath").GetString());
+            Assert.Equal("dotcraft/profile-start", worktree.GetProperty("branchName").GetString());
+        }
+
+        using (var notification = await harness.Transport.ReadNextSentAsync())
+        {
+            CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
+            Assert.Equal(threadId, notification.RootElement.GetProperty("params").GetProperty("thread").GetProperty("id").GetString());
         }
 
         var configuration = (await harness.Service.GetThreadAsync(threadId)).Configuration!;

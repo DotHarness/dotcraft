@@ -28,33 +28,24 @@ describe('chrome plugin root resolution', () => {
     mockReadFileSync.mockReturnValue('{"extensionId":"pekajfcokkicggfjmickmkngmmoojlda"}')
   })
 
-  it('prefers an installed workspace chrome plugin', () => {
+  it('prefers an installed workspace chrome plugin and falls back to the desktop-bundled root', () => {
     const workspace = path.join('C:', 'workspace')
     const installed = path.join(workspace, '.craft', 'plugins', 'chrome')
-    mockExistsSync.mockImplementation((candidate: string) => candidate === installed)
-
-    expect(resolveChromePluginRoot(workspace)).toBe(installed)
-  })
-
-  it('falls back to the desktop-bundled chrome plugin root', () => {
-    const workspace = path.join('C:', 'workspace')
     const bundled = resolveBundledChromePluginRoot()
-    mockExistsSync.mockImplementation((candidate: string) => candidate === bundled)
 
+    mockExistsSync.mockImplementation((candidate: string) => candidate === installed || candidate === bundled)
+    expect(resolveChromePluginRoot(workspace)).toBe(installed)
+    mockExistsSync.mockImplementation((candidate: string) => candidate === bundled)
     expect(resolveChromePluginRoot(workspace)).toBe(bundled)
   })
 
-  it('builds the Chrome extension detail URL from bundled metadata', () => {
+  it('builds the Chrome extension detail URL from bundled metadata, else the extensions page', () => {
     mockExistsSync.mockReturnValue(false)
-
     expect(resolveChromeExtensionManagementUrl()).toBe('chrome://extensions/?id=pekajfcokkicggfjmickmkngmmoojlda')
-  })
 
-  it('falls back to the Chrome extensions page when metadata cannot be read', () => {
     mockReadFileSync.mockImplementation(() => {
       throw new Error('missing metadata')
     })
-
     expect(resolveChromeExtensionManagementUrl()).toBe('chrome://extensions')
   })
 })

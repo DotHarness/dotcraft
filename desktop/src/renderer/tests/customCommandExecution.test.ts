@@ -27,11 +27,10 @@ describe('resolveCustomCommandExecution', () => {
     expect(sendRequest).not.toHaveBeenCalled()
   })
 
-  it('expands matching custom commands', async () => {
-    const sendRequest = vi.fn().mockResolvedValue({
-      handled: true,
-      expandedPrompt: 'Please review the recent diff'
-    })
+  it('expands custom commands matched by name or alias', async () => {
+    const sendRequest = vi.fn()
+      .mockResolvedValueOnce({ handled: true, expandedPrompt: 'Please review the recent diff' })
+      .mockResolvedValueOnce({ handled: true, expandedPrompt: 'Alias expansion text' })
     const result = await resolveCustomCommandExecution({
       text: '/code-review fast',
       threadId: 'thread-1',
@@ -46,14 +45,8 @@ describe('resolveCustomCommandExecution', () => {
     expect(result.matchedCustomCommand).toBe(true)
     expect(result.shouldSendTurn).toBe(true)
     expect(result.textForTurn).toBe('Please review the recent diff')
-  })
 
-  it('supports alias matching', async () => {
-    const sendRequest = vi.fn().mockResolvedValue({
-      handled: true,
-      expandedPrompt: 'Alias expansion text'
-    })
-    const result = await resolveCustomCommandExecution({
+    const alias = await resolveCustomCommandExecution({
       text: '/cr',
       threadId: 'thread-1',
       commands: CUSTOM_COMMANDS,
@@ -64,8 +57,8 @@ describe('resolveCustomCommandExecution', () => {
       command: '/cr',
       arguments: []
     })
-    expect(result.shouldSendTurn).toBe(true)
-    expect(result.textForTurn).toBe('Alias expansion text')
+    expect(alias.shouldSendTurn).toBe(true)
+    expect(alias.textForTurn).toBe('Alias expansion text')
   })
 
   it('returns message-only outcome without follow-up turn', async () => {

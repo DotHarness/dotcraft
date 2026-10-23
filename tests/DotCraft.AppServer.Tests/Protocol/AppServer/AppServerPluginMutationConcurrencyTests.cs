@@ -289,7 +289,6 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup.
         }
     }
 
@@ -335,7 +334,6 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
                 result.GetProperty("plugin").GetProperty("dotnetRuntime").GetProperty("generationId").GetString());
             var responseRevision = result.GetProperty("snapshotRevision").GetInt64();
 
-            // The initiating connection observes its response before its invalidation.
             using var firstNotification = await first.Transport.ReadNextSentAsync();
             var firstRevision = AssertSnapshotNotification(firstNotification, "browser");
             using var secondNotification = await second.Transport.ReadNextSentAsync();

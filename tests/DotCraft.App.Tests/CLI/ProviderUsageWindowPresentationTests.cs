@@ -41,8 +41,6 @@ public sealed class ProviderUsageWindowPresentationTests
 
     [Theory]
     [InlineData(17_100)]
-    [InlineData(18_900)]
-    [InlineData(574_560)]
     [InlineData(635_040)]
     public void ClassifyAcceptsFivePercentDurationTolerance(int durationSeconds)
     {

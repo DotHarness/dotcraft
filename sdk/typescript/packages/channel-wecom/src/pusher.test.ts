@@ -3,19 +3,15 @@ import test from "node:test";
 
 import { WeComPusher } from "./wecom-pusher.js";
 
-test("WeComPusher builds upload_media URL from webhook key", () => {
+test("WeComPusher builds upload_media URLs from the webhook key and requires one", () => {
   const pusher = new WeComPusher("chat1", "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=abc123");
   assert.equal(
     pusher.buildUploadUrl("file"),
     "https://qyapi.weixin.qq.com/cgi-bin/webhook/upload_media?key=abc123&type=file",
   );
+  const keyless = new WeComPusher("chat1", "https://qyapi.weixin.qq.com/cgi-bin/webhook/send");
+  assert.throws(() => keyless.buildUploadUrl("file"), /key/);
 });
-
-test("WeComPusher rejects upload URL without key", () => {
-  const pusher = new WeComPusher("chat1", "https://qyapi.weixin.qq.com/cgi-bin/webhook/send");
-  assert.throws(() => pusher.buildUploadUrl("file"), /key/);
-});
-
 
 test("WeComPusher rejects webhook responses with a nonzero errcode", async () => {
   const originalFetch = globalThis.fetch;

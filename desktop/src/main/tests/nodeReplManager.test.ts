@@ -1,8 +1,7 @@
 import nodeProcess from 'node:process'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 import { createFakeBrowserManager } from './helpers/replBrowserFixture'
 import { createReplWorkerFixture } from './helpers/replWorkerFixture'
-import { afterAll } from 'vitest'
 import { NodeReplManager } from '../nodeReplManager'
 
 const { mockedAppPath } = vi.hoisted(() => ({
@@ -17,15 +16,21 @@ vi.mock('electron', () => ({
 const workerFixture = createReplWorkerFixture()
 afterAll(() => workerFixture.dispose())
 
+const browserSetup = `
+  const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
+  const agent = await setupBrowserRuntime({ backend: "iab" })
+`
+
 describe('NodeReplManager', () => {
   const initialCwd = nodeProcess.cwd()
+  const owner = {} as Electron.BrowserWindow
   const managers: NodeReplManager[] = []
   const browserManagers: Array<ReturnType<typeof createFakeBrowserManager>> = []
-  const createManager = (browserManager: ReturnType<typeof createFakeBrowserManager>) => {
-    const manager = new NodeReplManager(browserManager as never, workerFixture.fork)
+  const createManager = (browserManager = createFakeBrowserManager(), computerUse?: unknown) => {
+    const manager = new NodeReplManager(browserManager as never, workerFixture.fork, computerUse as never)
     managers.push(manager)
     browserManagers.push(browserManager)
-    return manager
+    return { manager, browserManager }
   }
 
   afterEach(async () => {
@@ -36,10 +41,8 @@ describe('NodeReplManager', () => {
     browserManagers.length = 0
   })
 
-  it('serializes concurrent evaluations for the same thread', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
+  it('serializes evaluations for the same thread and cancels queued ones before they start', async () => {
+    const { manager, browserManager } = createManager()
 
     const first = manager.evaluate(owner, {
       threadId: 'thread-queue',
@@ -50,6 +53,7 @@ describe('NodeReplManager', () => {
         "first"
       `
     })
+    const cancelled = manager.evaluate(owner, { threadId: 'thread-queue', evaluationId: 'eval-cancelled', code: '"cancelled"' })
     const second = manager.evaluate(owner, {
       threadId: 'thread-queue',
       evaluationId: 'eval-second',
@@ -58,68 +62,19 @@ describe('NodeReplManager', () => {
         JSON.stringify(globalThis.queueOrder)
       `
     })
+    const cancel = manager.cancel('thread-queue', 'eval-cancelled')
 
-    const [firstResult, secondResult] = await Promise.all([first, second])
-
-    expect(firstResult.error).toBeUndefined()
-    expect(firstResult.resultText).toBe('first')
-    expect(secondResult.error).toBeUndefined()
-    expect(JSON.parse(secondResult.resultText ?? '[]')).toEqual(['first', 'second'])
-    manager.reset('thread-queue')
-  })
-
-  it('cancels a queued evaluation before it starts', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const first = manager.evaluate(owner, {
-      threadId: 'thread-queue-cancel',
-      evaluationId: 'eval-first',
-      code: `
-        await new Promise((resolve) => setTimeout(resolve, 25))
-        "first"
-      `
-    })
-    const second = manager.evaluate(owner, {
-      threadId: 'thread-queue-cancel',
-      evaluationId: 'eval-second',
-      code: '"second"'
-    })
-    const cancel = manager.cancel('thread-queue-cancel', 'eval-second')
-
-    const [firstResult, secondResult] = await Promise.all([first, second])
+    const [firstResult, cancelledResult, secondResult] = await Promise.all([first, cancelled, second])
 
     expect(cancel).toEqual({ ok: true })
-    expect(firstResult.error).toBeUndefined()
     expect(firstResult.resultText).toBe('first')
-    expect(secondResult.error).toContain('cancelled before it started')
-    expect(browserManager.abortEvaluation).not.toHaveBeenCalledWith('thread-queue-cancel', 'eval-second')
-    manager.reset('thread-queue-cancel')
-  })
-
-  it('returns console logs and displayed images', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      code: `
-        console.log("hello", 42)
-        await display({ mediaType: "image/png", dataBase64: "AQID" })
-        "done"
-      `
-    })
-
-    expect(result.resultText).toBe('done')
-    expect(result.logs).toEqual(['hello 42'])
-    expect(result.images).toEqual([{ mediaType: 'image/png', dataBase64: 'AQID' }])
-    manager.reset('thread-1')
+    expect(cancelledResult.error).toContain('cancelled before it started')
+    expect(secondResult.error).toBeUndefined()
+    expect(JSON.parse(secondResult.resultText ?? '[]')).toEqual(['first', 'second'])
+    expect(browserManager.abortEvaluation).not.toHaveBeenCalledWith('thread-queue', 'eval-cancelled')
   })
 
   it.runIf(process.platform === 'win32')('routes dotcraft.computer calls with approval and a paused deadline', async () => {
-    const browserManager = createFakeBrowserManager()
     const computerUse = {
       handleHostCall: vi.fn(async (method: string, args: unknown, context: {
         turnId?: string
@@ -128,19 +83,17 @@ describe('NodeReplManager', () => {
         emitImage(image: { mediaType: string; dataBase64: string }): Promise<void>
       }) => {
         const resume = context.pauseTimeout()
-        await new Promise((resolve) => setTimeout(resolve, 1500))
+        await new Promise((resolve) => setTimeout(resolve, 1100))
         resume()
         const approved = await context.requestApproval({ id: 'C:\\Apps\\App.exe', displayName: 'App' })
         await context.emitImage({ mediaType: 'image/png', dataBase64: 'AQID' })
         return { method, args, approved, turnId: context.turnId }
       })
     }
-    const manager = new NodeReplManager(browserManager as never, workerFixture.fork, computerUse as never)
-    managers.push(manager)
-    browserManagers.push(browserManager)
+    const { manager } = createManager(undefined, computerUse)
     const requestApproval = vi.fn(async () => true)
 
-    const result = await manager.evaluate({} as Electron.BrowserWindow, {
+    const result = await manager.evaluate(owner, {
       threadId: 'thread-computer',
       turnId: 'turn-computer',
       evaluationId: 'eval-computer',
@@ -161,227 +114,40 @@ describe('NodeReplManager', () => {
       targetLabel: 'App'
     })
     expect(result.images).toEqual([{ mediaType: 'image/png', dataBase64: 'AQID' }])
-    manager.reset('thread-computer')
   })
 
-  it('does not expose browser agent globals before browser-client setup', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
+  it('exposes DotCraft host globals, logs, images, and per-evaluation browser session metadata', async () => {
+    const { manager, browserManager } = createManager()
 
     const result = await manager.evaluate(owner, {
-      threadId: 'thread-fresh-browser-client',
-      code: `
-        JSON.stringify({
-          agentType: typeof agent,
-          browserClientPath: typeof dotcraft.browserClientPath,
-          browserSession: typeof dotcraft.browserSession,
-          nativePipe: typeof nodeRepl.nativePipe.createConnection,
-          emitImage: typeof nodeRepl.emitImage
-        })
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    const payload = JSON.parse(result.resultText ?? '{}')
-    expect(payload).toEqual({
-      agentType: 'undefined',
-      browserClientPath: 'string',
-      browserSession: 'object',
-      nativePipe: 'function',
-      emitImage: 'function'
-    })
-    manager.reset('thread-fresh-browser-client')
-  })
-
-  it('exposes DotCraft paths and native Node process capabilities', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      workspacePath: nodeProcess.cwd(),
-      code: `JSON.stringify({
-        workspacePath: dotcraft.workspacePath,
-        chromePluginRoot: dotcraft.chromePluginRoot,
-        chromeScriptsPath: dotcraft.chromeScriptsPath,
-        hasCheckSetup: typeof dotcraft.chrome.checkSetup,
-        requireType: typeof require,
-        processType: typeof process
-      })`
-    })
-
-    expect(result.error).toBeUndefined()
-    const payload = JSON.parse(result.resultText ?? '{}')
-    expect(payload.workspacePath).toBe(nodeProcess.cwd())
-    expect(payload.chromePluginRoot).toContain('chrome')
-    expect(payload.chromeScriptsPath).toContain('scripts')
-    expect(payload.hasCheckSetup).toBe('function')
-    expect(payload.requireType).toBe('function')
-    expect(payload.processType).toBe('object')
-    manager.reset('thread-1')
-  })
-
-  it('exposes browser-use compatible nodeRepl host fields', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      code: `JSON.stringify({
-        availableBackends: nodeRepl.env.BROWSER_USE_AVAILABLE_BACKENDS,
-        ambientNetworkDisabled: nodeRepl.env.BROWSER_USE_DISABLE_AMBIENT_NETWORK,
-        securityMode: nodeRepl.env.BROWSER_USE_SECURITY_MODE,
-        createConnection: typeof nodeRepl.nativePipe.createConnection,
-        createElicitation: typeof nodeRepl.createElicitation,
-        fetch: typeof nodeRepl.fetch,
-        requestMeta: nodeRepl.requestMeta["x-dotcraft-turn-metadata"].session_id,
-        requestMetaKeys: Object.keys(nodeRepl.requestMeta),
-        tmpDir: typeof nodeRepl.tmpDir
-      })`
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
-      availableBackends: 'iab',
-      ambientNetworkDisabled: '1',
-      securityMode: 'disabled-for-local-testing',
-      createConnection: 'function',
-      createElicitation: 'function',
-      fetch: 'function',
-      requestMeta: 'thread-1',
-      requestMetaKeys: ['x-dotcraft-turn-metadata'],
-      tmpDir: 'string'
-    })
-    manager.reset('thread-1')
-  })
-
-  it('routes Browser Use file-transfer elicitation through the browser manager', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      code: `JSON.stringify(await nodeRepl.createElicitation({
-        message: "Allow download?",
-        meta: { file_transfer: "download", origin: "http://localhost:5173" }
-      }))`
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText ?? '{}')).toMatchObject({ action: 'accept' })
-    expect(browserManager.handleBrowserUseElicitation).toHaveBeenCalledWith('thread-1', expect.objectContaining({
-      meta: expect.objectContaining({ file_transfer: 'download' })
-    }))
-    manager.reset('thread-1')
-  })
-
-  it('rejects native pipe connections outside the DotCraft browser-use namespace', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      code: `
-        let failure
-        try {
-          await nodeRepl.nativePipe.createConnection("not-a-dotcraft-browser-use-pipe")
-          "connected"
-        } catch (error) {
-          failure = error.message
-        }
-        failure
-      `
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(result.resultText).toContain('Refusing to connect to a non-DotCraft browser-use native pipe.')
-    manager.reset('thread-1')
-  })
-
-  it('resets the REPL and browser runtime for a thread', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    await manager.evaluate(owner, { threadId: 'thread-1', code: 'globalThis.count = 1' })
-    const reset = manager.reset('thread-1')
-    const result = await manager.evaluate(owner, { threadId: 'thread-1', code: 'typeof globalThis.count' })
-
-    expect(reset.ok).toBe(true)
-    expect(browserManager.reset).toHaveBeenCalledWith('thread-1')
-    expect(result.resultText).toBe('undefined')
-    manager.reset('thread-1')
-  })
-
-  it('returns JavaScript runtime errors instead of waiting for tool timeout', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const thrown = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      code: 'throw new Error("boom")',
-      timeoutMs: 5_000
-    })
-    const rejected = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      code: 'await Promise.reject(new Error("nope"))',
-      timeoutMs: 5_000
-    })
-    const typeError = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      code: 'await globalThis.missing.url()',
-      timeoutMs: 5_000
-    })
-
-    expect(thrown.error).toContain('Error: boom')
-    expect(rejected.error).toContain('Error: nope')
-    expect(typeError.error).toContain('TypeError')
-    manager.reset('thread-1')
-  })
-
-  it('passes evaluation id and abort signal into the browser runtime', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const result = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      evaluationId: 'eval-1',
-      code: '1 + 1'
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(browserManager.prepareNodeRepl).toHaveBeenCalledWith(owner, expect.objectContaining({
-      threadId: 'thread-1',
-      evaluationId: 'eval-1',
-      browserSession: expect.objectContaining({
-        protocolVersion: 1,
-        sessionId: 'thread-1',
-        threadId: 'thread-1',
-        turnId: 'eval-1',
-        evaluationId: 'eval-1'
-      }),
-      signal: expect.any(AbortSignal)
-    }))
-    manager.reset('thread-1')
-  })
-
-  it('injects browser session metadata into dotcraft globals', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
-
-    const first = await manager.evaluate(owner, {
       threadId: 'thread-1',
       turnId: 'turn-1',
       evaluationId: 'eval-1',
-      code: 'JSON.stringify(dotcraft.browserSession)'
+      workspacePath: nodeProcess.cwd(),
+      code: `
+        console.log("hello", 42)
+        await display({ mediaType: "image/png", dataBase64: "AQID" })
+        JSON.stringify({
+          agentType: typeof agent,
+          browserClientPath: typeof dotcraft.browserClientPath,
+          browserSession: dotcraft.browserSession,
+          workspacePath: dotcraft.workspacePath,
+          chromePluginRoot: dotcraft.chromePluginRoot,
+          chromeScriptsPath: dotcraft.chromeScriptsPath,
+          hasCheckSetup: typeof dotcraft.chrome.checkSetup,
+          requireType: typeof require,
+          processType: typeof process,
+          availableBackends: nodeRepl.env.BROWSER_USE_AVAILABLE_BACKENDS,
+          ambientNetworkDisabled: nodeRepl.env.BROWSER_USE_DISABLE_AMBIENT_NETWORK,
+          securityMode: nodeRepl.env.BROWSER_USE_SECURITY_MODE,
+          createConnection: typeof nodeRepl.nativePipe.createConnection,
+          createElicitation: typeof nodeRepl.createElicitation,
+          emitImage: typeof nodeRepl.emitImage,
+          fetch: typeof nodeRepl.fetch,
+          requestMeta: nodeRepl.requestMeta,
+          tmpDir: typeof nodeRepl.tmpDir
+        })
+      `
     })
     const second = await manager.evaluate(owner, {
       threadId: 'thread-1',
@@ -390,52 +156,96 @@ describe('NodeReplManager', () => {
       code: 'JSON.stringify(dotcraft.browserSession)'
     })
 
-    expect(JSON.parse(first.resultText ?? '{}')).toMatchObject({
-      protocolVersion: 1,
-      sessionId: 'thread-1',
+    expect(result.error).toBeUndefined()
+    expect(result.logs).toEqual(['hello 42'])
+    expect(result.images).toEqual([{ mediaType: 'image/png', dataBase64: 'AQID' }])
+    const payload = JSON.parse(result.resultText ?? '{}')
+    expect(payload).toMatchObject({
+      agentType: 'undefined',
+      browserClientPath: 'string',
+      browserSession: { protocolVersion: 1, sessionId: 'thread-1', threadId: 'thread-1', turnId: 'turn-1', evaluationId: 'eval-1' },
+      workspacePath: nodeProcess.cwd(),
+      hasCheckSetup: 'function',
+      requireType: 'function',
+      processType: 'object',
+      availableBackends: 'iab',
+      ambientNetworkDisabled: '1',
+      securityMode: 'disabled-for-local-testing',
+      createConnection: 'function',
+      createElicitation: 'function',
+      emitImage: 'function',
+      fetch: 'function',
+      tmpDir: 'string'
+    })
+    expect(payload.chromePluginRoot).toContain('chrome')
+    expect(payload.chromeScriptsPath).toContain('scripts')
+    expect(Object.keys(payload.requestMeta)).toEqual(['x-dotcraft-turn-metadata'])
+    expect(payload.requestMeta['x-dotcraft-turn-metadata'].session_id).toBe('thread-1')
+    expect(JSON.parse(second.resultText ?? '{}')).toMatchObject({ sessionId: 'thread-1', turnId: 'turn-1', evaluationId: 'eval-2' })
+    expect(browserManager.prepareNodeRepl).toHaveBeenCalledWith(owner, expect.objectContaining({
       threadId: 'thread-1',
-      turnId: 'turn-1',
-      evaluationId: 'eval-1'
-    })
-    expect(JSON.parse(second.resultText ?? '{}')).toMatchObject({
-      sessionId: 'thread-1',
-      turnId: 'turn-1',
-      evaluationId: 'eval-2'
-    })
-    manager.reset('thread-1')
+      evaluationId: 'eval-1',
+      browserSession: expect.objectContaining({ sessionId: 'thread-1', evaluationId: 'eval-1' }),
+      signal: expect.any(AbortSignal)
+    }))
   })
 
-  it('resets the REPL runtime after timeout so the next evaluation is fresh', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
+  it('routes file-transfer elicitation through the browser manager and refuses foreign native pipes', async () => {
+    const { manager, browserManager } = createManager()
 
-    await manager.evaluate(owner, { threadId: 'thread-1', code: 'globalThis.count = 1' })
-    const pending = manager.evaluate(owner, {
+    const result = await manager.evaluate(owner, {
       threadId: 'thread-1',
       code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
-        await new Promise(() => {})
-      `,
-      timeoutMs: 1
+        let pipeFailure
+        try {
+          await nodeRepl.nativePipe.createConnection("not-a-dotcraft-browser-use-pipe")
+        } catch (error) {
+          pipeFailure = error.message
+        }
+        JSON.stringify({
+          elicitation: await nodeRepl.createElicitation({
+            message: "Allow download?",
+            meta: { file_transfer: "download", origin: "http://localhost:5173" }
+          }),
+          pipeFailure
+        })
+      `
     })
-    const timedOut = await pending
 
-    expect(timedOut.error).toContain('timed out')
-    expect(timedOut.logs.join('\n')).toContain('Recent browser operations')
-    expect(browserManager.abortEvaluation).toHaveBeenCalledWith('thread-1', expect.stringMatching(/^node-repl-/))
-    const result = await manager.evaluate(owner, { threadId: 'thread-1', code: 'typeof globalThis.count' })
     expect(result.error).toBeUndefined()
-    expect(result.resultText).toBe('undefined')
-    manager.reset('thread-1')
+    const payload = JSON.parse(result.resultText ?? '{}')
+    expect(payload.elicitation).toMatchObject({ action: 'accept' })
+    expect(payload.pipeFailure).toContain('Refusing to connect to a non-DotCraft browser-use native pipe.')
+    expect(browserManager.handleBrowserUseElicitation).toHaveBeenCalledWith('thread-1', expect.objectContaining({
+      meta: expect.objectContaining({ file_transfer: 'download' })
+    }))
   })
 
-  it('calls the Chrome cancel hook before resetting after an outer timeout', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
+  it('resets the REPL and browser runtime for a thread', async () => {
+    const { manager, browserManager } = createManager()
 
+    await manager.evaluate(owner, { threadId: 'thread-1', code: 'globalThis.count = 1' })
+    const reset = manager.reset('thread-1')
+    const result = await manager.evaluate(owner, { threadId: 'thread-1', code: 'typeof globalThis.count' })
+
+    expect(reset.ok).toBe(true)
+    expect(browserManager.reset).toHaveBeenCalledWith('thread-1')
+    expect(result.resultText).toBe('undefined')
+  })
+
+  it('returns JavaScript runtime errors instead of waiting for tool timeout', async () => {
+    const { manager } = createManager()
+    const evaluate = (code: string) => manager.evaluate(owner, { threadId: 'thread-1', code, timeoutMs: 5_000 })
+
+    expect((await evaluate('throw new Error("boom")')).error).toContain('Error: boom')
+    expect((await evaluate('await Promise.reject(new Error("nope"))')).error).toContain('Error: nope')
+    expect((await evaluate('await globalThis.missing.url()')).error).toContain('TypeError')
+  })
+
+  it('calls the Chrome cancel hook and resets the runtime after an outer timeout', async () => {
+    const { manager, browserManager } = createManager()
+
+    await manager.evaluate(owner, { threadId: 'thread-1', code: 'globalThis.count = 1' })
     const timedOut = await manager.evaluate(owner, {
       threadId: 'thread-1',
       evaluationId: 'eval-timeout',
@@ -443,34 +253,28 @@ describe('NodeReplManager', () => {
         __dotcraftSetChromeCancelHook(async (evaluationId, reason) => {
           console.warn("chrome-cancel", evaluationId, reason.includes("timed out"))
         })
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
+        ${browserSetup}
         await new Promise(() => {})
       `,
       timeoutMs: 1
     })
 
     expect(timedOut.error).toContain('timed out')
+    expect(timedOut.logs.join('\n')).toContain('Recent browser operations')
     expect(browserManager.abortEvaluation).toHaveBeenCalledWith('thread-1', 'eval-timeout')
-    const next = await manager.evaluate(owner, {
-      threadId: 'thread-1',
-      code: 'typeof globalThis.count'
-    })
+    const next = await manager.evaluate(owner, { threadId: 'thread-1', code: 'typeof globalThis.count' })
+    expect(next.error).toBeUndefined()
     expect(next.resultText).toBe('undefined')
-    manager.reset('thread-1')
   })
 
   it('keeps REPL globals after a browser command timeout', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
+    const { manager, browserManager } = createManager()
 
     await manager.evaluate(owner, { threadId: 'thread-1', code: 'globalThis.count = 1' })
     const failed = await manager.evaluate(owner, {
       threadId: 'thread-1',
       code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
+        ${browserSetup}
         const browser = await agent.browsers.get("iab")
         const tab = await browser.tabs.new()
         await tab.playwright.evaluate(() => window.__dotcraftChromeCommandTimeoutSentinel, undefined, { timeoutMs: 1000 })
@@ -483,20 +287,16 @@ describe('NodeReplManager', () => {
     expect(browserManager.abortEvaluation).not.toHaveBeenCalled()
     expect(result.error).toBeUndefined()
     expect(result.resultText).toBe('1')
-    manager.reset('thread-1')
   })
 
   it('cancels an active evaluation and allows a later evaluation to run', async () => {
-    const browserManager = createFakeBrowserManager()
-    const manager = createManager(browserManager)
-    const owner = {} as Electron.BrowserWindow
+    const { manager, browserManager } = createManager()
 
     const pending = manager.evaluate(owner, {
       threadId: 'thread-1',
       evaluationId: 'eval-1',
       code: `
-        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
-        const agent = await setupBrowserRuntime({ backend: "iab" })
+        ${browserSetup}
         await new Promise(() => {})
       `,
       timeoutMs: 120_000
@@ -511,7 +311,5 @@ describe('NodeReplManager', () => {
     const result = await manager.evaluate(owner, { threadId: 'thread-1', code: '1 + 1' })
     expect(result.error).toBeUndefined()
     expect(result.resultText).toBe('2')
-    manager.reset('thread-1')
   })
-
 })

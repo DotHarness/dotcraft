@@ -56,47 +56,31 @@ describe('ChatGptVoiceTranscriber', () => {
       .toEqual(['Bearer stale-token', 'Bearer fresh-token'])
   })
 
-  it('fails with auth-required after a second 401', async () => {
+  it('fails with auth-required after a second 401 or without a token', async () => {
     const fetchImpl = fakeFetch(() => jsonResponse(401, {}), () => jsonResponse(401, {}))
     const transcriber = new ChatGptVoiceTranscriber(async () => auth('token-a'), fetchImpl)
 
     await expect(transcriber.transcribe('session-a', await wavFile())).rejects.toMatchObject({ code: 'auth-required' })
     expect(fetchImpl).toHaveBeenCalledTimes(2)
+
+    const unused = fakeFetch()
+    await expect(new ChatGptVoiceTranscriber(async () => null, unused).transcribe('session-a', await wavFile()))
+      .rejects.toMatchObject({ code: 'auth-required' })
+    expect(unused).not.toHaveBeenCalled()
   })
 
-  it('fails with auth-required when no token is available', async () => {
-    const fetchImpl = fakeFetch()
-    const transcriber = new ChatGptVoiceTranscriber(async () => null, fetchImpl)
-
-    await expect(transcriber.transcribe('session-a', await wavFile())).rejects.toMatchObject({ code: 'auth-required' })
-    expect(fetchImpl).not.toHaveBeenCalled()
-  })
-
-  it('fails with usage-limit when ChatGPT rejects with 429', async () => {
-    const transcriber = new ChatGptVoiceTranscriber(async () => auth('token-a'), fakeFetch(() => jsonResponse(429, {})))
-
-    await expect(transcriber.transcribe('session-a', await wavFile())).rejects.toMatchObject({ code: 'usage-limit' })
-  })
-
-  it('fails with network-error when the connection fails', async () => {
-    const transcriber = new ChatGptVoiceTranscriber(
-      async () => auth('token-a'),
-      fakeFetch(() => Promise.reject(new TypeError('fetch failed')))
-    )
-
-    await expect(transcriber.transcribe('session-a', await wavFile())).rejects.toMatchObject({ code: 'network-error' })
-  })
-
-  it('fails with transcription-failed for other statuses and unreadable bodies', async () => {
+  it('maps rate limits, connection failures, other statuses, and unreadable bodies to error codes', async () => {
     const wavPath = await wavFile()
-    const responses = [
-      jsonResponse(500, { text: 'ignored' }),
-      new Response('not json', { status: 200 }),
-      jsonResponse(200, { transcript: 'wrong field' })
+    const cases: Array<[() => Response | Promise<Response>, string]> = [
+      [() => jsonResponse(429, {}), 'usage-limit'],
+      [() => Promise.reject(new TypeError('fetch failed')), 'network-error'],
+      [() => jsonResponse(500, { text: 'ignored' }), 'transcription-failed'],
+      [() => new Response('not json', { status: 200 }), 'transcription-failed'],
+      [() => jsonResponse(200, { transcript: 'wrong field' }), 'transcription-failed']
     ]
-    for (const response of responses) {
-      const transcriber = new ChatGptVoiceTranscriber(async () => auth('token-a'), fakeFetch(() => response))
-      await expect(transcriber.transcribe('session-a', wavPath)).rejects.toMatchObject({ code: 'transcription-failed' })
+    for (const [respond, code] of cases) {
+      const transcriber = new ChatGptVoiceTranscriber(async () => auth('token-a'), fakeFetch(respond))
+      await expect(transcriber.transcribe('session-a', wavPath)).rejects.toMatchObject({ code })
     }
   })
 
@@ -106,7 +90,7 @@ describe('ChatGptVoiceTranscriber', () => {
     }))
     const transcriber = new ChatGptVoiceTranscriber(async () => auth('token-a'), fetchImpl)
     const transcription = transcriber.transcribe('session-a', await wavFile())
-    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalled())
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalled(), { interval: 1 })
 
     await transcriber.cancel('session-a')
 
@@ -119,7 +103,7 @@ describe('ChatGptVoiceTranscriber', () => {
     const fetchImpl = fakeFetch(() => new Promise<Response>((resolve) => { respond = resolve }))
     const transcriber = new ChatGptVoiceTranscriber(async () => auth('token-a'), fetchImpl)
     const transcription = transcriber.transcribe('session-a', await wavFile())
-    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalled())
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalled(), { interval: 1 })
 
     await transcriber.shutdown()
     respond(jsonResponse(200, { text: 'late' }))
@@ -143,19 +127,16 @@ describe('readAppServerChatGptAuth', () => {
     }
   }
 
-  it('reads nothing from an AppServer without provider management', async () => {
+  it('reads nothing without provider management or a ChatGPT provider', async () => {
     const client = appServer({ isAuthenticated: true, authToken: 'token-a' })
 
     await expect(readAppServerChatGptAuth(client, {}, false)).resolves.toBeNull()
     await expect(readAppServerChatGptAuth(null, capabilities, false)).resolves.toBeNull()
     expect(client.sendRequest).not.toHaveBeenCalled()
-  })
 
-  it('reads nothing when no provider signs in with ChatGPT', async () => {
-    const client = appServer({ isAuthenticated: true, authToken: 'token-a' }, { providers: [{ id: 'anthropic', authMethod: 'apiKey' }] })
-
-    await expect(readAppServerChatGptAuth(client, capabilities, false)).resolves.toBeNull()
-    expect(client.sendRequest.mock.calls.map(([method]) => method)).toEqual(['provider/list'])
+    const noChatGpt = appServer({ isAuthenticated: true, authToken: 'token-a' }, { providers: [{ id: 'anthropic', authMethod: 'apiKey' }] })
+    await expect(readAppServerChatGptAuth(noChatGpt, capabilities, false)).resolves.toBeNull()
+    expect(noChatGpt.sendRequest.mock.calls.map(([method]) => method)).toEqual(['provider/list'])
   })
 
   it('returns the token and account of the ChatGPT provider and forwards a refresh request', async () => {

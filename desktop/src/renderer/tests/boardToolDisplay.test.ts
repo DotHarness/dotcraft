@@ -49,7 +49,7 @@ describe('board tool display', () => {
     expect(call.posts[0].topic).toBe(true)
   })
 
-  it('treats a board error result as a failed call', () => {
+  it('treats a board error result as a failed call and failed tool', () => {
     const call = parseBoardCall({
       operation: 'readPost',
       args: { messageId: 'missing' },
@@ -60,18 +60,15 @@ describe('board tool display', () => {
     expect(call.phase).toBe('failed')
     expect(call.errorMessage).toBe('Not found in this team.')
     expect(call.post).toBeNull()
+
+    const failed = boardItem('failed', 'readThread', { error: { code: 'board_not_found', message: 'Not found in this team.' } })
+    expect(isToolExecutionFailure(failed)).toBe(true)
+    expect(isToolExecutionFailure(boardItem('read', 'readThread'))).toBe(false)
   })
 
   it('counts only the returned slice as shown when a post is read from an offset', () => {
     expect(readSlice('efgh', 8)?.hiddenChars).toBe(6)
     expect(readSlice('ij', 10)?.hiddenChars).toBe(8)
-  })
-
-  it('reports a board error result as a failed tool so a folded read group shows it', () => {
-    const failed = boardItem('failed', 'readThread', { error: { code: 'board_not_found', message: 'Not found in this team.' } })
-
-    expect(isToolExecutionFailure(failed)).toBe(true)
-    expect(isToolExecutionFailure(boardItem('read', 'readThread'))).toBe(false)
   })
 
   it('folds board reads, posts, and subscriptions into one group', () => {

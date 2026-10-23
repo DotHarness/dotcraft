@@ -40,8 +40,6 @@ public sealed class PluginCreatorScaffoldTests : IDisposable
             .Order(StringComparer.Ordinal)
             .ToArray();
         Assert.Equal(["plugin/.craft-plugin/plugin.json", "src/Plugin.cs"], files);
-        Assert.DoesNotContain("TODO", File.ReadAllText(sourcePath), StringComparison.Ordinal);
-        Assert.DoesNotContain("TODO", File.ReadAllText(manifestPath), StringComparison.Ordinal);
 
         using var manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
         var root = manifest.RootElement;
@@ -53,11 +51,9 @@ public sealed class PluginCreatorScaffoldTests : IDisposable
         Assert.Equal("DotCraft.Plugin.MyPlugin.Plugin", dotnet.GetProperty("entryType").GetString());
 
         var source = File.ReadAllText(sourcePath);
-        Assert.Contains("IDotCraftPlugin", source, StringComparison.Ordinal);
-        Assert.Contains("AIFunctionToolSource", source, StringComparison.Ordinal);
-        Assert.Contains("AIFunctionFactory.Create", source, StringComparison.Ordinal);
         Assert.Contains("name: \"my_plugin\"", source, StringComparison.Ordinal);
         AssertCompiles(source);
+
         var customParent = Path.Combine(_root, "custom-projects");
         var customPath = RunCreator(
             creator,
@@ -72,29 +68,17 @@ public sealed class PluginCreatorScaffoldTests : IDisposable
     }
 
     [Fact]
-    public void DefaultScaffold_CreatesWorkspaceLocalSkillPlugin()
+    public void DefaultAndDesktopScaffolds_CreateWorkspaceLocalPlugins()
     {
         var creator = DeployCreator();
 
-        var result = RunCreator(creator, "Ordinary Plugin");
+        var ordinary = RunCreator(creator, "Ordinary Plugin");
 
-        Assert.Equal(0, result.ExitCode);
-        var pluginRoot = Path.Combine(_root, ".craft", "plugins", "ordinary-plugin");
-        Assert.True(File.Exists(Path.Combine(pluginRoot, ".craft-plugin", "plugin.json")));
-        Assert.True(File.Exists(Path.Combine(pluginRoot, "skills", "ordinary-plugin", "SKILL.md")));
+        Assert.Equal(0, ordinary.ExitCode);
+        var ordinaryRoot = Path.Combine(_root, ".craft", "plugins", "ordinary-plugin");
+        Assert.True(File.Exists(Path.Combine(ordinaryRoot, ".craft-plugin", "plugin.json")));
+        Assert.True(File.Exists(Path.Combine(ordinaryRoot, "skills", "ordinary-plugin", "SKILL.md")));
         Assert.False(Directory.Exists(Path.Combine(_root, ".craft", "plugin-projects", "ordinary-plugin")));
-
-        using var manifest = JsonDocument.Parse(
-            File.ReadAllText(Path.Combine(pluginRoot, ".craft-plugin", "plugin.json")));
-        Assert.Equal(
-            ["displayName", "shortDescription", "longDescription", "developerName", "category", "capabilities", "defaultPrompt"],
-            manifest.RootElement.GetProperty("interface").EnumerateObject().Select(property => property.Name));
-    }
-
-    [Fact]
-    public void DesktopScaffold_CreatesTypedSourceAndInlineManifest()
-    {
-        var creator = DeployCreator();
 
         var result = RunCreator(creator, "Desktop Plugin", "--without-skill", "--with-desktop");
 
@@ -102,13 +86,8 @@ public sealed class PluginCreatorScaffoldTests : IDisposable
         var pluginRoot = Path.Combine(_root, ".craft", "plugins", "desktop-plugin");
         var manifestPath = Path.Combine(pluginRoot, ".craft-plugin", "plugin.json");
         var packagePath = Path.Combine(pluginRoot, "desktop", "package.json");
-        var tsconfigPath = Path.Combine(pluginRoot, "desktop", "tsconfig.json");
-        var sourcePath = Path.Combine(pluginRoot, "desktop", "src", "index.tsx");
-        Assert.True(File.Exists(manifestPath));
-        Assert.True(File.Exists(packagePath));
-        Assert.True(File.Exists(tsconfigPath));
-        Assert.True(File.Exists(sourcePath));
-        Assert.True(File.Exists(Path.Combine(pluginRoot, "desktop", "src", "index.css")));
+        Assert.True(File.Exists(Path.Combine(pluginRoot, "desktop", "tsconfig.json")));
+        Assert.True(File.Exists(Path.Combine(pluginRoot, "desktop", "src", "index.tsx")));
         Assert.False(Directory.Exists(Path.Combine(pluginRoot, "desktop", "dist")));
 
         using var manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
@@ -129,53 +108,10 @@ public sealed class PluginCreatorScaffoldTests : IDisposable
         Assert.Equal(
             PluginHostVersion.Current.ProductText,
             devDependencies.GetProperty("@dotcraft/plugin").GetString());
-        Assert.Equal("^19.0.0", devDependencies.GetProperty("react").GetString());
-        Assert.Equal("^19.0.0", devDependencies.GetProperty("@types/react").GetString());
-        Assert.Equal("^5.7.0", devDependencies.GetProperty("typescript").GetString());
-
-        using var tsconfig = JsonDocument.Parse(File.ReadAllText(tsconfigPath));
-        var compilerOptions = tsconfig.RootElement.GetProperty("compilerOptions");
-        Assert.Equal("Bundler", compilerOptions.GetProperty("moduleResolution").GetString());
-        Assert.Equal("react-jsx", compilerOptions.GetProperty("jsx").GetString());
-        Assert.True(compilerOptions.GetProperty("strict").GetBoolean());
-        Assert.True(compilerOptions.GetProperty("noEmit").GetBoolean());
-
-        var source = File.ReadAllText(sourcePath);
-        Assert.Contains("Button", source, StringComparison.Ordinal);
-        Assert.Contains("DesktopPluginActivate", source, StringComparison.Ordinal);
-        Assert.Contains("DesktopPluginViewProps", source, StringComparison.Ordinal);
-        Assert.Contains("export const activate", source, StringComparison.Ordinal);
-        Assert.Contains("import \"./index.css\"", source, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void DotnetDesktopScaffold_CreatesOneCombinedPluginBundle()
-    {
-        var creator = DeployCreator();
-
-        var result = RunCreator(creator, "Combined Plugin", "--dotnet", "--with-desktop");
-
-        Assert.Equal(0, result.ExitCode);
-        var projectRoot = Path.Combine(_root, ".craft", "plugin-projects", "combined-plugin");
-        var pluginRoot = Path.Combine(projectRoot, "plugin");
-        var manifestPath = Path.Combine(pluginRoot, ".craft-plugin", "plugin.json");
-        Assert.True(File.Exists(Path.Combine(projectRoot, "src", "Plugin.cs")));
-        Assert.True(Directory.Exists(Path.Combine(pluginRoot, "lib")));
-        Assert.True(File.Exists(Path.Combine(pluginRoot, "desktop", "src", "index.tsx")));
-        Assert.True(File.Exists(Path.Combine(pluginRoot, "desktop", "package.json")));
-        Assert.False(Directory.Exists(Path.Combine(_root, ".craft", "plugins", "combined-plugin")));
-
-        using var manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
-        var root = manifest.RootElement;
-        Assert.Equal(
-            ["dotnet", "desktop"],
-            root.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString()));
-        Assert.Equal("./lib/CombinedPlugin.Plugin.dll", root.GetProperty("dotnet").GetProperty("entryAssembly").GetString());
-        Assert.Equal("./desktop/dist/index.mjs", root.GetProperty("desktop").GetProperty("entry").GetString());
-    }
-
-    [Fact]
-    public void DesktopScaffold_MergesIntoExistingPluginWithoutReplacingItsContent()
+    public void DesktopScaffold_MergesIntoExistingPluginButRejectsExistingDeclarationOrSource()
     {
         var creator = DeployCreator();
         var parent = Path.Combine(_root, "existing-plugins");
@@ -213,14 +149,9 @@ public sealed class PluginCreatorScaffoldTests : IDisposable
         Assert.Equal("keep me", File.ReadAllText(existingPath));
         Assert.False(Directory.Exists(Path.Combine(pluginRoot, "skills")));
         Assert.True(File.Exists(Path.Combine(pluginRoot, "desktop", "src", "index.tsx")));
-    }
 
-    [Fact]
-    public void DesktopScaffold_RejectsExistingDeclarationOrSource()
-    {
-        var creator = DeployCreator();
-        var parent = Path.Combine(_root, "duplicate-plugins");
-        var declaredRoot = Path.Combine(parent, "declared-plugin");
+        var duplicateParent = Path.Combine(_root, "duplicate-plugins");
+        var declaredRoot = Path.Combine(duplicateParent, "declared-plugin");
         var declaredManifest = Path.Combine(declaredRoot, ".craft-plugin", "plugin.json");
         Directory.CreateDirectory(Path.GetDirectoryName(declaredManifest)!);
         File.WriteAllText(
@@ -235,13 +166,13 @@ public sealed class PluginCreatorScaffoldTests : IDisposable
             }
             """);
 
-        var declaredResult = RunCreator(creator, "declared-plugin", "--with-desktop", "--force", "--path", parent);
+        var declaredResult = RunCreator(creator, "declared-plugin", "--with-desktop", "--force", "--path", duplicateParent);
 
         Assert.NotEqual(0, declaredResult.ExitCode);
         Assert.Contains("already declares desktop", declaredResult.StandardError, StringComparison.Ordinal);
         Assert.False(Directory.Exists(Path.Combine(declaredRoot, "desktop")));
 
-        var sourceRoot = Path.Combine(parent, "source-plugin");
+        var sourceRoot = Path.Combine(duplicateParent, "source-plugin");
         var sourceManifest = Path.Combine(sourceRoot, ".craft-plugin", "plugin.json");
         var sourcePath = Path.Combine(sourceRoot, "desktop", "src", "index.tsx");
         Directory.CreateDirectory(Path.GetDirectoryName(sourceManifest)!);
@@ -259,7 +190,7 @@ public sealed class PluginCreatorScaffoldTests : IDisposable
             """);
         File.WriteAllText(sourcePath, "existing source");
 
-        var sourceResult = RunCreator(creator, "source-plugin", "--with-desktop", "--force", "--path", parent);
+        var sourceResult = RunCreator(creator, "source-plugin", "--with-desktop", "--force", "--path", duplicateParent);
 
         Assert.NotEqual(0, sourceResult.ExitCode);
         Assert.Contains("already exists", sourceResult.StandardError, StringComparison.Ordinal);

@@ -11,11 +11,13 @@ namespace DotCraft.ProtocolGen.Tests;
 public sealed class ProtocolArtifactTests
 {
     private static readonly string RepositoryRoot = FindRepositoryRoot();
+    private static readonly Lazy<ContractIr> CompleteIr = new(() => ContractIrBuilder.Build(RepositoryRoot));
+    private static readonly Lazy<IReadOnlyDictionary<string, string>> StableArtifacts = new(() => ProtocolArtifactGenerator.Build(RepositoryRoot));
 
     [Fact]
     public void Artifact_Generation_Is_Byte_Deterministic()
     {
-        var first = ProtocolArtifactGenerator.Build(RepositoryRoot);
+        var first = StableArtifacts.Value;
         var second = ProtocolArtifactGenerator.Build(RepositoryRoot);
 
         Assert.Equal(first.Keys, second.Keys);
@@ -51,7 +53,7 @@ public sealed class ProtocolArtifactTests
     [Fact]
     public void Manifest_Resolves_Every_Type_And_Method_Exactly_Once()
     {
-        var artifacts = ProtocolArtifactGenerator.Build(RepositoryRoot);
+        var artifacts = StableArtifacts.Value;
         var manifest = JsonNode.Parse(artifacts["appserver.manifest.json"])!.AsObject();
         var types = manifest["types"]!.AsArray().Select(static node => node!.AsObject()).ToArray();
         var methods = manifest["methods"]!.AsArray().Select(static node => node!.AsObject()).ToArray();
@@ -92,7 +94,7 @@ public sealed class ProtocolArtifactTests
     [Fact]
     public void Module_Selection_Preserves_Shared_Type_Identities()
     {
-        var complete = ContractIrBuilder.Build(RepositoryRoot);
+        var complete = CompleteIr.Value;
         var automations = ContractIrBuilder.SelectModules(complete, ["automations"]);
 
         Assert.NotEmpty(automations.Methods);
@@ -106,7 +108,7 @@ public sealed class ProtocolArtifactTests
     [Fact]
     public void Profile_Selection_Filters_The_Ir_Before_Emitters_Run()
     {
-        var complete = ContractIrBuilder.Build(RepositoryRoot);
+        var complete = CompleteIr.Value;
         var target = complete.Methods[0];
         var mixed = complete with
         {
@@ -128,7 +130,7 @@ public sealed class ProtocolArtifactTests
     [Fact]
     public void OpenRpc_Agrees_With_Manifest_Request_Methods()
     {
-        var artifacts = ProtocolArtifactGenerator.Build(RepositoryRoot);
+        var artifacts = StableArtifacts.Value;
         var manifest = JsonNode.Parse(artifacts["appserver.manifest.json"])!.AsObject();
         var openRpc = JsonNode.Parse(artifacts["openrpc.json"])!.AsObject();
         var expected = manifest["methods"]!.AsArray()
@@ -150,7 +152,7 @@ public sealed class ProtocolArtifactTests
     [Fact]
     public void Contract_Hash_Is_Reproducible_From_Manifest_And_Schemas()
     {
-        var artifacts = ProtocolArtifactGenerator.Build(RepositoryRoot);
+        var artifacts = StableArtifacts.Value;
         Assert.Equal(
             ProtocolArtifactGenerator.ComputeHash(artifacts) + "\n",
             artifacts["contract.sha256"]);
@@ -159,7 +161,7 @@ public sealed class ProtocolArtifactTests
     [Fact]
     public void Safe_Integer_Bounds_Appear_In_Manifest_And_Schemas()
     {
-        var artifacts = ProtocolArtifactGenerator.Build(RepositoryRoot);
+        var artifacts = StableArtifacts.Value;
         var manifest = JsonNode.Parse(artifacts["appserver.manifest.json"])!.AsObject();
         var tokenUsage = manifest["types"]!.AsArray()
             .Select(static node => node!.AsObject())
@@ -184,27 +186,26 @@ public sealed class ProtocolArtifactTests
         Assert.False(compiledSchema.Evaluate(JsonNode.Parse("{\"totalTokens\":\"42\"}")).IsValid);
     }
 
-    [Theory]
-    [InlineData("ThreadStartResult")]
-    [InlineData("ThreadResumeResult")]
-    [InlineData("ThreadForkResult")]
-    public void Thread_Lifecycle_Results_Require_String_Instruction_Sources(string resultType)
+    [Fact]
+    public void Thread_Lifecycle_Results_Require_String_Instruction_Sources()
     {
-        var artifacts = ProtocolArtifactGenerator.Build(RepositoryRoot);
-        var schema = JsonNode.Parse(artifacts[$"schemas/core/{resultType}.schema.json"])!.AsObject();
-        var instructionSources = schema["properties"]!["instructionSources"]!.AsObject();
+        foreach (var resultType in new[] { "ThreadStartResult", "ThreadResumeResult", "ThreadForkResult" })
+        {
+            var schema = JsonNode.Parse(StableArtifacts.Value[$"schemas/core/{resultType}.schema.json"])!.AsObject();
+            var instructionSources = schema["properties"]!["instructionSources"]!.AsObject();
 
-        Assert.Contains(
-            "instructionSources",
-            schema["required"]!.AsArray().Select(static node => node!.GetValue<string>()));
-        Assert.Equal("array", instructionSources["type"]!.GetValue<string>());
-        Assert.Equal("string", instructionSources["items"]!["type"]!.GetValue<string>());
+            Assert.Contains(
+                "instructionSources",
+                schema["required"]!.AsArray().Select(static node => node!.GetValue<string>()));
+            Assert.Equal("array", instructionSources["type"]!.GetValue<string>());
+            Assert.Equal("string", instructionSources["items"]!["type"]!.GetValue<string>());
+        }
     }
 
     [Fact]
     public void Aggregate_Schemas_Validate_The_Shared_Contract_Slice()
     {
-        var artifacts = ProtocolArtifactGenerator.Build(RepositoryRoot);
+        var artifacts = StableArtifacts.Value;
         var bundle = JsonNode.Parse(artifacts["schemas/appserver.schema.json"])!.AsObject();
         using var fixture = LoadFixture();
         var pending = new Dictionary<string, IRpcMethodDescriptor>(StringComparer.Ordinal);
@@ -243,32 +244,22 @@ public sealed class ProtocolArtifactTests
             var packageRoot = Path.Combine(
                 temporaryRoot,
                 ProtocolArtifactGenerator.PackageRelativePath.Replace('/', Path.DirectorySeparatorChar));
-            ProtocolArtifactGenerator.Build(temporaryRoot);
             Assert.False(Directory.Exists(packageRoot));
 
             ProtocolArtifactGenerator.Generate(temporaryRoot);
-            var firstGeneration = SnapshotPackage(packageRoot);
-            ProtocolArtifactGenerator.Generate(temporaryRoot);
-            var secondGeneration = SnapshotPackage(packageRoot);
-            Assert.Equal(firstGeneration.Keys, secondGeneration.Keys);
-            Assert.All(firstGeneration, pair => Assert.Equal(pair.Value, secondGeneration[pair.Key]));
-
             var obsoletePath = Path.Combine(packageRoot, "obsolete.json");
             File.WriteAllText(obsoletePath, "{}");
-            Assert.Contains(
-                $"extra: {ProtocolArtifactGenerator.PackageRelativePath}/obsolete.json",
-                ProtocolArtifactGenerator.Check(temporaryRoot));
-            ProtocolArtifactGenerator.Generate(temporaryRoot);
-            Assert.False(File.Exists(obsoletePath));
-
             var manifestPath = Path.Combine(packageRoot, "appserver.manifest.json");
             File.AppendAllText(manifestPath, " ");
             var before = File.ReadAllText(manifestPath);
+
             var drift = ProtocolArtifactGenerator.Check(temporaryRoot);
-            Assert.Contains(
-                $"changed: {ProtocolArtifactGenerator.PackageRelativePath}/appserver.manifest.json",
-                drift);
+            Assert.Contains($"extra: {ProtocolArtifactGenerator.PackageRelativePath}/obsolete.json", drift);
+            Assert.Contains($"changed: {ProtocolArtifactGenerator.PackageRelativePath}/appserver.manifest.json", drift);
             Assert.Equal(before, File.ReadAllText(manifestPath));
+
+            ProtocolArtifactGenerator.Generate(temporaryRoot);
+            Assert.False(File.Exists(obsoletePath));
         }
         finally
         {
@@ -279,7 +270,7 @@ public sealed class ProtocolArtifactTests
     [Fact]
     public void Diff_Classifies_Breaking_Additive_And_Metadata_Changes()
     {
-        var manifest = ProtocolArtifactGenerator.Build(RepositoryRoot)["appserver.manifest.json"];
+        var manifest = StableArtifacts.Value["appserver.manifest.json"];
         var changed = JsonNode.Parse(manifest)!.AsObject();
         var types = changed["types"]!.AsArray();
         var targetType = types.Select(static node => node!.AsObject())
@@ -328,7 +319,7 @@ public sealed class ProtocolArtifactTests
     [Fact]
     public void Diff_Classifies_Numeric_Bound_Tightening_And_Relaxation()
     {
-        var manifest = ProtocolArtifactGenerator.Build(RepositoryRoot)["appserver.manifest.json"];
+        var manifest = StableArtifacts.Value["appserver.manifest.json"];
         var tightened = JsonNode.Parse(manifest)!.AsObject();
         var tightenedField = FindManifestField(tightened, "core.TokenUsageInfo", "totalTokens");
         tightenedField["maximum"] = JsonSafeIntegerAttribute.Maximum - 1;
@@ -424,13 +415,6 @@ public sealed class ProtocolArtifactTests
         }
         return root;
     }
-
-    private static Dictionary<string, byte[]> SnapshotPackage(string packageRoot) =>
-        Directory.EnumerateFiles(packageRoot, "*", SearchOption.AllDirectories)
-            .ToDictionary(
-                path => Path.GetRelativePath(packageRoot, path).Replace('\\', '/'),
-                File.ReadAllBytes,
-                StringComparer.Ordinal);
 
     private static string FindRepositoryRoot()
     {

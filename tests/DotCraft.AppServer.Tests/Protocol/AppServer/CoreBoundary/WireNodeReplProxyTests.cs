@@ -75,36 +75,6 @@ public sealed class WireNodeReplProxyTests
     }
 
     [Fact]
-    public void BindThread_UnbindTransport_ControlsAvailability()
-    {
-        var prev = TracingChatClient.CurrentSessionKey;
-        try
-        {
-            var proxy = new WireNodeReplProxy();
-            var transport = new StubTransport();
-            var connection = new AppServerConnection();
-            Assert.True(connection.TryMarkInitialized(
-                new ClientConnectionInfo { Name = "desktop", Version = "1" },
-                new ClientConnectionCapabilities
-                {
-                    NodeRepl = new NodeReplClientCapability { Backend = "desktop-node" },
-                    BrowserUse = new BrowserUseClientCapability { Backend = "desktop-iab", ProtocolVersion = 2 }
-                }));
-
-            proxy.BindThread("thread-a", transport, connection);
-            TracingChatClient.CurrentSessionKey = "thread-a";
-            Assert.True(proxy.IsAvailable);
-
-            proxy.UnbindTransport(transport);
-            Assert.False(proxy.IsAvailable);
-        }
-        finally
-        {
-            TracingChatClient.CurrentSessionKey = prev;
-        }
-    }
-
-    [Fact]
     public async Task ForkThreadBinding_UsesChildIdentityAndDisconnectsWithParentTransport()
     {
         var prev = TracingChatClient.CurrentSessionKey;
@@ -121,7 +91,12 @@ public sealed class WireNodeReplProxyTests
                     BrowserUse = new BrowserUseClientCapability { Backend = "desktop-iab", ProtocolVersion = 2 }
                 }));
 
+            Assert.False(((IThreadForkToolBindingSource)proxy).TryForkThreadBinding(
+                "thread-parent",
+                "thread-child"));
             proxy.BindThread("thread-parent", transport, connection);
+            TracingChatClient.CurrentSessionKey = "thread-parent";
+            Assert.True(proxy.IsAvailable);
             Assert.True(((IThreadForkToolBindingSource)proxy).TryForkThreadBinding(
                 "thread-parent",
                 "thread-child"));
@@ -151,16 +126,6 @@ public sealed class WireNodeReplProxyTests
         {
             TracingChatClient.CurrentSessionKey = prev;
         }
-    }
-
-    [Fact]
-    public void ForkThreadBinding_WithoutLiveParent_DoesNotCreateChildBinding()
-    {
-        var proxy = new WireNodeReplProxy();
-
-        Assert.False(((IThreadForkToolBindingSource)proxy).TryForkThreadBinding(
-            "thread-missing",
-            "thread-child"));
     }
 
     [Fact]
@@ -274,14 +239,13 @@ public sealed class WireNodeReplProxyTests
     [Fact]
     public async Task PausableDeadline_DoesNotExpireWhilePaused()
     {
-        using var deadline = new PausableDeadline(TimeSpan.FromMilliseconds(150), CancellationToken.None);
+        using var deadline = new PausableDeadline(TimeSpan.FromMilliseconds(100), CancellationToken.None);
         deadline.Pause();
-        await Task.Delay(400);
+        await Task.Delay(250);
         Assert.False(deadline.Token.IsCancellationRequested);
 
         deadline.Resume();
-        await Task.Delay(600);
-        Assert.True(deadline.Token.IsCancellationRequested);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Task.Delay(TimeSpan.FromSeconds(5), deadline.Token));
     }
 
     private sealed class RecordingApprovalService(bool approve) : IApprovalService

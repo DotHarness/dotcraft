@@ -99,7 +99,7 @@ function setup(options: { alwaysAllowed?: AppRef[] } = {}) {
 }
 
 describe('ComputerUseManager', () => {
-  it('asks once per turn for an unknown app, pausing the evaluation deadline while waiting', async () => {
+  it('asks once per turn for an unknown app, pausing the deadline, and fails when the user declines', async () => {
     const { manager, context } = setup()
     const resume = vi.fn()
     const ctx = context({ pauseTimeout: vi.fn(() => resume) })
@@ -111,15 +111,11 @@ describe('ComputerUseManager', () => {
     expect(ctx.requestApproval).toHaveBeenCalledWith({ id: NOTEPAD.id, displayName: 'Notepad' })
     expect(ctx.pauseTimeout).toHaveBeenCalledTimes(1)
     expect(resume).toHaveBeenCalledTimes(1)
-  })
 
-  it('fails with app_not_approved when the user declines', async () => {
-    const { manager, drivers, context } = setup()
-    const ctx = context({ requestApproval: vi.fn(async () => false) })
-
-    await expect(manager.handleHostCall('type_text', { window: { id: 101 }, text: 'hi' }, ctx))
-      .rejects.toThrow(/^app_not_approved/)
-    expect(drivers[0].calls.some((call) => call.tool === 'type_text')).toBe(false)
+    const declined = setup()
+    await expect(declined.manager.handleHostCall('type_text', { window: { id: 101 }, text: 'hi' },
+      declined.context({ requestApproval: vi.fn(async () => false) }))).rejects.toThrow(/^app_not_approved/)
+    expect(declined.drivers[0].calls.some((call) => call.tool === 'type_text')).toBe(false)
   })
 
   it('does not ask for always-allowed apps and refuses blocked apps without asking', async () => {
@@ -163,11 +159,11 @@ describe('ComputerUseManager', () => {
     const { manager, drivers, context } = setup()
     let release!: () => void
     const first = manager.handleHostCall('list_windows', {}, context())
-    await vi.waitFor(() => expect(drivers).toHaveLength(1))
+    await vi.waitFor(() => expect(drivers).toHaveLength(1), { interval: 1 })
     drivers[0].block = new Promise((resolve) => { release = resolve })
     await first
     const blocked = manager.handleHostCall('list_windows', {}, context())
-    await vi.waitFor(() => expect(drivers[0].calls.length).toBeGreaterThan(1))
+    await vi.waitFor(() => expect(drivers[0].calls.length).toBeGreaterThan(1), { interval: 1 })
 
     await expect(manager.handleHostCall('list_windows', {}, context({ threadId: 'thread-2' })))
       .rejects.toThrow(/^computer_use_busy/)
@@ -196,7 +192,7 @@ describe('ComputerUseManager', () => {
 
     manager.handleTurnEnded('thread-1', 'turn-1')
 
-    await vi.waitFor(() => expect(drivers[0].closed).toBe(1))
+    await vi.waitFor(() => expect(drivers[0].closed).toBe(1), { interval: 1 })
     expect(manager.hasActiveTurn('thread-1', 'turn-1')).toBe(false)
   })
 

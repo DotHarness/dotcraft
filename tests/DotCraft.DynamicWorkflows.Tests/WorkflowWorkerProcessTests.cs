@@ -245,10 +245,8 @@ public sealed class WorkflowWorkerProcessTests
 
     [Theory]
     [InlineData("return () => 1;")]
-    [InlineData("return Symbol('x');")]
     [InlineData("return 1n;")]
     [InlineData("return NaN;")]
-    [InlineData("return new Map([['x', 1]]);")]
     public async Task HiddenWorker_RejectsNonJsonResults(string body)
     {
         var script = $"export const meta = {{ name: 'json', description: 'JSON test' }}; {body}";

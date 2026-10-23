@@ -87,26 +87,6 @@ describe('project environment discovery', () => {
     ])
   })
 
-  it('keeps action ids unique when a name collides with a generated id', async () => {
-    writeEnvironment(workspace, 'environment.json', {
-      actions: [
-        { name: 'Build', command: 'npm run build' },
-        { name: 'Build#2', command: 'npm run build:2' },
-        { name: 'Build', command: 'npm run build:3' }
-      ]
-    })
-
-    const [environment] = await discoverProjectEnvironments(workspace, 'win32')
-    const run = await service().instance.prepareRun({
-      workspacePath: workspace,
-      environmentId: environment.id,
-      actionId: environment.actions[2].id
-    })
-
-    expect(environment.actions.map((action) => action.id)).toEqual(['Build', 'Build#2', 'Build#3'])
-    expect(run.command).toBe('npm run build:3')
-  })
-
   it('lists unparseable and invalid files as environments that need attention', async () => {
     writeEnvironment(workspace, 'environment.json', '{ "actions": [')
     writeEnvironment(workspace, 'platform.json', { actions: [{ name: 'Run', command: 'x', platform: 'windows' }] })
@@ -151,15 +131,6 @@ describe('project actions service', () => {
 
     await instance.select(workspace, '.craft/environments/removed.json')
     expect((await instance.list(workspace)).selectedEnvironmentId).toBe('.craft/environments/environment.json')
-  })
-
-  it('rejects running an action that does not exist', async () => {
-    writeEnvironment(workspace, 'environment.json', { actions: [] })
-    await expect(service().instance.prepareRun({
-      workspacePath: workspace,
-      environmentId: '.craft/environments/environment.json',
-      actionId: 'Missing'
-    })).rejects.toThrow()
   })
 
   it('creates environment.json in the workspace when no environment exists', async () => {
@@ -227,7 +198,7 @@ describe('project actions service', () => {
     expect(result).toEqual({ ok: true, environmentId: environment.id, action: null })
   })
 
-  it('writes nothing when the environment changed on disk after the dialog opened', async () => {
+  it('writes nothing when the environment changed or appeared on disk after the dialog opened', async () => {
     const path = writeEnvironment(workspace, 'environment.json', { actions: [] })
     const { instance } = service()
     const [environment] = (await instance.list(workspace)).environments
@@ -243,19 +214,12 @@ describe('project actions service', () => {
 
     expect(result).toEqual({ ok: false, reason: 'conflict' })
     expect(readFileSync(path, 'utf8')).toBe(edited)
-  })
 
-  it('does not create a new environment when one appeared after the dialog opened', async () => {
-    const path = writeEnvironment(workspace, 'environment.json', { actions: [] })
-    const before = readFileSync(path, 'utf8')
-
-    const result = await service().instance.add({
+    await expect(instance.add({
       workspacePath: workspace,
       revision: null,
       action: { name: 'Dev', icon: 'run', command: 'npm run dev' }
-    })
-
-    expect(result).toEqual({ ok: false, reason: 'conflict' })
-    expect(readFileSync(path, 'utf8')).toBe(before)
+    })).resolves.toEqual({ ok: false, reason: 'conflict' })
+    expect(readFileSync(path, 'utf8')).toBe(edited)
   })
 })

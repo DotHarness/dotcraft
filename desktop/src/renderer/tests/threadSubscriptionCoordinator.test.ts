@@ -28,7 +28,7 @@ async function flushPromises(): Promise<void> {
 }
 
 describe('thread subscription coordinator', () => {
-  it('resolves a target only from the authoritative foreground workspace list', () => {
+  it('resolves a target only from the authoritative foreground workspace list and matches connections by identity and epoch', () => {
     const base = {
       connected: true,
       activeThreadId: 'thread-a',
@@ -56,20 +56,11 @@ describe('thread subscription coordinator', () => {
       ...base,
       threadIds: []
     })).toBeNull()
-  })
 
-  it('matches a subscription connection by workspace identity and epoch', () => {
-    const target = {
-      threadId: 'thread-a',
-      workspaceIdentity: 'workspace-a\u0000workspace-a',
-      workspaceKey: 'workspace-a',
-      connectionEpoch: 3
-    }
-
-    expect(isThreadSubscriptionConnectionCurrent(target, target)).toBe(true)
-    expect(isThreadSubscriptionConnectionCurrent(target, { ...target, connectionEpoch: 4 })).toBe(false)
-    expect(isThreadSubscriptionConnectionCurrent(target, {
-      ...target,
+    expect(isThreadSubscriptionConnectionCurrent(target!, target!)).toBe(true)
+    expect(isThreadSubscriptionConnectionCurrent(target!, { ...target!, connectionEpoch: 4 })).toBe(false)
+    expect(isThreadSubscriptionConnectionCurrent(target!, {
+      ...target!,
       workspaceIdentity: 'workspace-b\u0000workspace-b',
       workspaceKey: 'workspace-b'
     })).toBe(false)

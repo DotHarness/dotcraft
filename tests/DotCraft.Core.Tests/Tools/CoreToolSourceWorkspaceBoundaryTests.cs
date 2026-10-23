@@ -129,7 +129,6 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
         }
         catch
         {
-            // Best-effort cleanup for temp test directories.
         }
     }
 

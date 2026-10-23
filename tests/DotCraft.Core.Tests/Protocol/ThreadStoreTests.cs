@@ -26,13 +26,11 @@ using ToolPresentationPayload = DotCraft.Sessions.ToolPresentationPayload;
 using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;
 using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 using Xunit;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
-/// <summary>
-/// Unit tests for ThreadStore persistence and thread discovery.
-/// Uses a temp directory so tests are hermetic.
-/// </summary>
 public sealed class ThreadStoreTests : IDisposable
 {
     private readonly string _root;
@@ -48,27 +46,78 @@ public sealed class ThreadStoreTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); }
-        catch { /* best-effort */ }
+        catch { }
     }
 
-    // -------------------------------------------------------------------------
-    // Thread save / load
-    // -------------------------------------------------------------------------
-
     [Fact]
-    public async Task SaveThread_ThenLoadThread_RoundTrip()
+    public async Task SaveThread_ThenLoadThread_RoundTripsAndAppendsOneRecordPerRename()
     {
+        Assert.Null(await _store.LoadThreadAsync("nonexistent_id"));
         var thread = CreateThread();
+        thread.DisplayName = "First title";
+        thread.Metadata["customKey"] = "test-value";
+        await _store.SaveThreadAsync(thread);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        var initialLineCount = File.ReadAllLines(path).Length;
+
+        thread.DisplayName = "Updated title";
         await _store.SaveThreadAsync(thread);
 
         var loaded = await _store.LoadThreadAsync(thread.Id);
-
         Assert.NotNull(loaded);
         Assert.Equal(thread.Id, loaded.Id);
         Assert.Equal(thread.UserId, loaded.UserId);
         Assert.Equal(thread.OriginChannel, loaded.OriginChannel);
         Assert.Equal(thread.Status, loaded.Status);
         Assert.Equal(thread.HistoryMode, loaded.HistoryMode);
+        Assert.Equal("Updated title", loaded.DisplayName);
+        Assert.Equal("test-value", loaded.Metadata["customKey"]);
+        Assert.Equal(initialLineCount + 1, File.ReadAllLines(path).Length);
+    }
+
+    [Fact]
+    public async Task SaveThread_PersistsConfigurationAndChannelIdentityAndClearsRemovedMcpServers()
+    {
+        var attachments = new List<DotCraft.Memory.MemoryStoreAttachment>
+        {
+            new("org", "Organization", "What every Agent of the organization should know.", DotCraft.Memory.MemoryStoreAccess.ReadWrite),
+            new("policy", "Policy", "Rules maintained by administrators.", DotCraft.Memory.MemoryStoreAccess.Read)
+        };
+        var thread = CreateThread();
+        thread.HistoryMode = HistoryMode.Client;
+        thread.ChannelContext = "group:42";
+        thread.Configuration = new ThreadConfiguration
+        {
+            Mode = "plan",
+            AgentProfileId = "reviewer",
+            AgentProfileSource = "workspace",
+            AgentProfileFingerprint = "sha256:abc",
+            ToolPolicy = new ThreadToolPolicy { Allow = ["ReadFile"], Deny = ["WriteFile"] },
+            McpServers = [new McpServerConfig { Name = "srv1", Transport = "http", Url = "http://localhost:3000" }],
+            MemoryStores = attachments
+        };
+        await _store.SaveThreadAsync(thread);
+
+        var loaded = Assert.IsType<SessionThread>(await new ThreadStore(_root).LoadThreadAsync(thread.Id));
+        Assert.Equal(HistoryMode.Client, loaded.HistoryMode);
+        Assert.Equal("group:42", loaded.ChannelContext);
+        var config = Assert.IsType<ThreadConfiguration>(loaded.Configuration);
+        Assert.Equal("plan", config.Mode);
+        Assert.Equal("reviewer", config.AgentProfileId);
+        Assert.Equal("workspace", config.AgentProfileSource);
+        Assert.Equal("sha256:abc", config.AgentProfileFingerprint);
+        Assert.Equal(["ReadFile"], config.ToolPolicy!.Allow!);
+        Assert.Equal(["WriteFile"], config.ToolPolicy.Deny!);
+        Assert.Equal("srv1", Assert.Single(config.McpServers!).Name);
+        Assert.Equal(attachments, config.MemoryStores);
+
+        thread.Configuration = new ThreadConfiguration { Mode = "agent", McpServers = null };
+        thread.LastActiveAt = thread.LastActiveAt.AddMinutes(1);
+        await _store.SaveThreadAsync(thread);
+
+        var updated = await new ThreadStore(_root).LoadThreadAsync(thread.Id);
+        Assert.Equal("agent", updated?.Configuration?.Mode);
+        Assert.Null(updated?.Configuration?.McpServers);
     }
 
     [Fact]
@@ -128,20 +177,6 @@ public sealed class ThreadStoreTests : IDisposable
         Assert.Equal(
             JsonSerializer.Serialize(thread.Source, SessionJsonOptions.Default),
             JsonSerializer.Serialize(summary.Source, SessionJsonOptions.Default));
-    }
-
-    [Fact]
-    public async Task SaveThread_SpawnedUserSource_RoundTrips()
-    {
-        var thread = CreateThread();
-        thread.Source = ThreadSource.SpawnedFromThread("thread_parent");
-
-        await _store.SaveThreadAsync(thread);
-
-        var loaded = Assert.IsType<SessionThread>(await _store.LoadThreadAsync(thread.Id));
-        Assert.Equal(ThreadSourceKinds.User, loaded.Source.Kind);
-        Assert.Equal("thread_parent", loaded.Source.SpawnedFromThreadId);
-        Assert.Null(loaded.Source.SubAgent);
     }
 
     [Fact]
@@ -294,27 +329,6 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task LoadThread_NonExistent_ReturnsNull()
-    {
-        var loaded = await _store.LoadThreadAsync("nonexistent_id");
-        Assert.Null(loaded);
-    }
-
-    [Fact]
-    public async Task SaveThread_Overwrites_PreviousVersion()
-    {
-        var thread = CreateThread();
-        await _store.SaveThreadAsync(thread);
-
-        thread.DisplayName = "Renamed";
-        await _store.SaveThreadAsync(thread);
-
-        var loaded = await _store.LoadThreadAsync(thread.Id);
-        Assert.NotNull(loaded);
-        Assert.Equal("Renamed", loaded.DisplayName);
-    }
-
-    [Fact]
     public async Task LoadThread_SkipsCorruptRolloutLines()
     {
         var thread = CreateThread();
@@ -369,19 +383,6 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveThread_PreservesMetadata()
-    {
-        var thread = CreateThread();
-        thread.Metadata["customKey"] = "test-value";
-        await _store.SaveThreadAsync(thread);
-
-        var loaded = await _store.LoadThreadAsync(thread.Id);
-        Assert.NotNull(loaded);
-        Assert.True(loaded.Metadata.TryGetValue("customKey", out var v));
-        Assert.Equal("test-value", v);
-    }
-
-    [Fact]
     public async Task ContextUsageAnchor_RoundTripsAndFallsBackToTokenOnly()
     {
         var thread = CreateThread();
@@ -424,16 +425,6 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveThread_WritesCanonicalJsonlUnderThreadsActive()
-    {
-        var thread = CreateThread();
-
-        await _store.SaveThreadAsync(thread);
-
-        Assert.True(File.Exists(GetCanonicalPath(thread.Id, archived: false)));
-    }
-
-    [Fact]
     public async Task SaveThread_ArchiveAndUnarchive_MovesCanonicalJsonlBetweenDirectories()
     {
         var thread = CreateThread();
@@ -456,24 +447,6 @@ public sealed class ThreadStoreTests : IDisposable
 
         Assert.True(File.Exists(activePath));
         Assert.False(File.Exists(archivedPath));
-    }
-
-    [Fact]
-    public async Task SaveThread_UsesCachedSnapshot_ForIncrementalAppendOnRepeatedSaves()
-    {
-        var thread = CreateThread();
-        thread.DisplayName = "First title";
-        await _store.SaveThreadAsync(thread);
-        var path = GetCanonicalPath(thread.Id, archived: false);
-        var initialLineCount = File.ReadAllLines(path).Length;
-
-        thread.DisplayName = "Updated title";
-        await _store.SaveThreadAsync(thread);
-
-        var loaded = await _store.LoadThreadAsync(thread.Id);
-        Assert.NotNull(loaded);
-        Assert.Equal("Updated title", loaded.DisplayName);
-        Assert.Equal(initialLineCount + 1, File.ReadAllLines(path).Length);
     }
 
     [Fact]
@@ -579,7 +552,7 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task ContextUsageTokens_SaveLoadAndUpdate_RoundTrips()
+    public async Task ContextUsageTokens_SaveUpdateAndDeleteWithThread()
     {
         var thread = CreateThread();
         await _store.SaveThreadAsync(thread);
@@ -591,17 +564,8 @@ public sealed class ThreadStoreTests : IDisposable
 
         await _store.SaveContextUsageTokensAsync(thread.Id, 17_500);
         Assert.Equal(17_500, _store.LoadContextUsageTokens(thread.Id));
-    }
-
-    [Fact]
-    public async Task ContextUsageTokens_DeleteThread_RemovesPersistedUsage()
-    {
-        var thread = CreateThread();
-        await _store.SaveThreadAsync(thread);
-        await _store.SaveContextUsageTokensAsync(thread.Id, 42_000);
 
         _store.DeleteThread(thread.Id);
-
         Assert.Null(_store.LoadContextUsageTokens(thread.Id));
     }
 
@@ -770,10 +734,15 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task QueuedInputStatusUpdate_IsPersistedAppendOnly()
+    public async Task QueuedInputStatusAndTriggerMetadata_ArePersisted()
     {
         var thread = CreateThread();
-        var queued = CreateQueuedInput(thread.Id, "guide me");
+        var queued = CreateQueuedInput(thread.Id, "guide me") with
+        {
+            TriggerKind = "workflow",
+            TriggerLabel = "Workflow run",
+            TriggerRefId = "run-7"
+        };
         thread.QueuedInputs.Add(queued);
         await _store.SaveThreadAsync(thread);
 
@@ -785,33 +754,12 @@ public sealed class ThreadStoreTests : IDisposable
         thread.LastActiveAt = DateTimeOffset.UtcNow.AddMinutes(1);
         await _store.SaveThreadAsync(thread);
 
-        var secondStore = new ThreadStore(_root);
-        var loaded = await secondStore.LoadThreadAsync(thread.Id);
+        var loaded = await new ThreadStore(_root).LoadThreadAsync(thread.Id);
 
         Assert.NotNull(loaded);
         var reloaded = Assert.Single(loaded.QueuedInputs);
         Assert.Equal("guidancePending", reloaded.Status);
         Assert.Equal("turn_active", reloaded.ReadyAfterTurnId);
-    }
-
-    [Fact]
-    public async Task QueuedInputTriggerMetadata_IsPersisted()
-    {
-        var thread = CreateThread();
-        var queued = CreateQueuedInput(thread.Id, "app work") with
-        {
-            TriggerKind = "workflow",
-            TriggerLabel = "Workflow run",
-            TriggerRefId = "run-7"
-        };
-        thread.QueuedInputs.Add(queued);
-        await _store.SaveThreadAsync(thread);
-
-        var secondStore = new ThreadStore(_root);
-        var loaded = await secondStore.LoadThreadAsync(thread.Id);
-
-        Assert.NotNull(loaded);
-        var reloaded = Assert.Single(loaded.QueuedInputs);
         Assert.Equal("workflow", reloaded.TriggerKind);
         Assert.Equal("Workflow run", reloaded.TriggerLabel);
         Assert.Equal("run-7", reloaded.TriggerRefId);
@@ -1577,58 +1525,23 @@ public sealed class ThreadStoreTests : IDisposable
             FormatHistoryWithContents(session));
     }
 
-    // -------------------------------------------------------------------------
-    // Thread discovery (LoadIndexAsync reads persisted SQLite metadata)
-    // -------------------------------------------------------------------------
-
     [Fact]
-    public async Task LoadIndex_EmptyDirectory_ReturnsEmptyList()
+    public async Task LoadIndex_ListsSavedThreadsWithMetadataAndExcludesDeleted()
     {
-        var index = await _store.LoadIndexAsync();
-        Assert.Empty(index);
-    }
+        Assert.Empty(await _store.LoadIndexAsync());
+        var deleted = CreateThread();
+        var kept = CreateThread();
+        kept.Metadata[ThreadVisibility.InternalMetadataKey] = "background-helper";
+        await _store.SaveThreadAsync(deleted);
+        await _store.SaveThreadAsync(kept);
+        Assert.Equal(2, (await _store.LoadIndexAsync()).Count);
 
-    [Fact]
-    public async Task LoadIndex_AfterSavingThreads_ReturnsSummaries()
-    {
-        var t1 = CreateThread();
-        var t2 = CreateThread();
-        await _store.SaveThreadAsync(t1);
-        await _store.SaveThreadAsync(t2);
+        _store.DeleteThread(deleted.Id);
 
-        var index = await _store.LoadIndexAsync();
-        Assert.Equal(2, index.Count);
-        Assert.Contains(index, s => s.Id == t1.Id);
-        Assert.Contains(index, s => s.Id == t2.Id);
-    }
-
-    [Fact]
-    public async Task LoadIndex_PreservesThreadMetadata()
-    {
-        var thread = CreateThread();
-        thread.Metadata[ThreadVisibility.InternalMetadataKey] = "background-helper";
-        await _store.SaveThreadAsync(thread);
-
-        var index = await _store.LoadIndexAsync();
-        var summary = Assert.Single(index);
-
+        var summary = Assert.Single(await _store.LoadIndexAsync());
+        Assert.Equal(kept.Id, summary.Id);
         Assert.True(ThreadVisibility.IsInternal(summary));
         Assert.Equal("background-helper", summary.Metadata[ThreadVisibility.InternalMetadataKey]);
-    }
-
-    [Fact]
-    public async Task LoadIndex_AfterDeletingThread_ExcludesDeleted()
-    {
-        var t1 = CreateThread();
-        var t2 = CreateThread();
-        await _store.SaveThreadAsync(t1);
-        await _store.SaveThreadAsync(t2);
-
-        _store.DeleteThread(t1.Id);
-
-        var index = await _store.LoadIndexAsync();
-        Assert.Single(index);
-        Assert.Equal(t2.Id, index[0].Id);
     }
 
     [Fact]
@@ -2303,64 +2216,29 @@ public sealed class ThreadStoreTests : IDisposable
             await ExtractHistoryAsync(CreateAgent(), session));
     }
 
-    [Fact]
-    public async Task AccountThreadGoalUsageAsync_ActiveOnly_SkipsStoppedAndCompleteGoals()
+    [Theory]
+    [InlineData(ThreadGoalStatus.Paused, GoalAccountingMode.ActiveOnly, false)]
+    [InlineData(ThreadGoalStatus.Blocked, GoalAccountingMode.ActiveOnly, false)]
+    [InlineData(ThreadGoalStatus.UsageLimited, GoalAccountingMode.ActiveOnly, false)]
+    [InlineData(ThreadGoalStatus.Complete, GoalAccountingMode.ActiveOnly, false)]
+    [InlineData(ThreadGoalStatus.Complete, GoalAccountingMode.ActiveOrComplete, true)]
+    [InlineData(ThreadGoalStatus.Blocked, GoalAccountingMode.ActiveOrStopped, true)]
+    public async Task AccountThreadGoalUsageAsync_HonorsTheAccountingMode(
+        ThreadGoalStatus status,
+        GoalAccountingMode mode,
+        bool expectUpdated)
     {
-        foreach (var status in new[]
-                 {
-                     ThreadGoalStatus.Paused,
-                     ThreadGoalStatus.Blocked,
-                     ThreadGoalStatus.UsageLimited,
-                     ThreadGoalStatus.Complete
-                 })
-        {
-            var goal = NewGoal(status);
-            await _store.SaveThreadAsync(CreateThread(goal.ThreadId));
-            await _store.UpsertThreadGoalAsync(goal);
+        var goal = NewGoal(status);
+        await _store.SaveThreadAsync(CreateThread(goal.ThreadId));
+        await _store.UpsertThreadGoalAsync(goal);
 
-            var outcome = await _store.AccountThreadGoalUsageAsync(
-                goal.ThreadId,
-                goal.GoalId,
-                Usage(7),
-                3,
-                GoalAccountingMode.ActiveOnly);
+        var outcome = await _store.AccountThreadGoalUsageAsync(goal.ThreadId, goal.GoalId, Usage(7), 3, mode);
 
-            var loaded = await _store.GetThreadGoalAsync(goal.ThreadId);
-            Assert.False(outcome.Updated);
-            Assert.NotNull(loaded);
-            Assert.Equal(0, loaded.TokensUsed.TotalTokens);
-            Assert.Equal(status, loaded.Status);
-        }
-    }
-
-    [Fact]
-    public async Task AccountThreadGoalUsageAsync_ModePredicates_IncludeCompleteAndStoppedWhenRequested()
-    {
-        var complete = NewGoal(ThreadGoalStatus.Complete);
-        await _store.SaveThreadAsync(CreateThread(complete.ThreadId));
-        await _store.UpsertThreadGoalAsync(complete);
-        var completeOutcome = await _store.AccountThreadGoalUsageAsync(
-            complete.ThreadId,
-            complete.GoalId,
-            Usage(11),
-            4,
-            GoalAccountingMode.ActiveOrComplete);
-        Assert.True(completeOutcome.Updated);
-        Assert.Equal(11, completeOutcome.Goal?.TokensUsed.TotalTokens);
-        Assert.Equal(ThreadGoalStatus.Complete, completeOutcome.Goal?.Status);
-
-        var blocked = NewGoal(ThreadGoalStatus.Blocked);
-        await _store.SaveThreadAsync(CreateThread(blocked.ThreadId));
-        await _store.UpsertThreadGoalAsync(blocked);
-        var blockedOutcome = await _store.AccountThreadGoalUsageAsync(
-            blocked.ThreadId,
-            blocked.GoalId,
-            Usage(13),
-            5,
-            GoalAccountingMode.ActiveOrStopped);
-        Assert.True(blockedOutcome.Updated);
-        Assert.Equal(13, blockedOutcome.Goal?.TokensUsed.TotalTokens);
-        Assert.Equal(ThreadGoalStatus.Blocked, blockedOutcome.Goal?.Status);
+        var loaded = await _store.GetThreadGoalAsync(goal.ThreadId);
+        Assert.Equal(expectUpdated, outcome.Updated);
+        Assert.NotNull(loaded);
+        Assert.Equal(expectUpdated ? 7 : 0, loaded.TokensUsed.TotalTokens);
+        Assert.Equal(status, loaded.Status);
     }
 
     [Fact]
@@ -2403,10 +2281,6 @@ public sealed class ThreadStoreTests : IDisposable
         Assert.Equal(6, outcome.Goal?.TimeUsedSeconds);
         Assert.Equal(ThreadGoalStatus.BudgetLimited, outcome.Goal?.Status);
     }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
 
     private static SessionThread CreateThread(string? id = null) => new()
     {

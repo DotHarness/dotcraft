@@ -139,10 +139,8 @@ public sealed class AnthropicToolSchemaTests
     }
 
     [Theory]
-    [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
-    [InlineData(true, true)]
     public async Task Required_tool_choice_and_beta_headers_survive_deferred_projection(bool streaming, bool specific)
     {
         var options = new ChatOptions

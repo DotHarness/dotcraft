@@ -1,7 +1,3 @@
-/**
- * A construct that spans lines must keep its coloring past the first line, which
- * running the highlighter once per line cannot do.
- */
 import { describe, expect, it } from 'vitest'
 import { createHighlighter, installGrammars } from '../highlight/core'
 import { buildDiffSides } from '../highlight/diffSides'
@@ -16,7 +12,6 @@ import type {
 } from '../highlight/types'
 import type { FileDiff } from '../types/toolCall'
 
-/** The full path a request takes: resolve grammars, install them, tokenize. */
 async function highlightFile(request: FileHighlightRequest): Promise<FileHighlightResult> {
   const highlighter = createHighlighter()
   const prepared = await prepareFile(request)
@@ -35,7 +30,6 @@ function text(line: HighlightedLine | undefined): string {
   return (line ?? []).map((span) => span.text).join('')
 }
 
-/** The light-theme color assigned to every run of a line, deduplicated. */
 function colors(line: HighlightedLine | undefined): string[] {
   return [...new Set((line ?? [])
     .filter((span) => span.text.trim().length > 0)
@@ -50,17 +44,12 @@ describe('diff tokenization', () => {
     })
 
     expect(result.highlighted).toBe(true)
-    // All three comment lines share one color; a per-line pass would give the second
-    // and third whatever the grammar's initial state produced instead.
     const commentColors = [0, 1, 2].flatMap((index) => colors(result.lines[index]))
     expect(new Set(commentColors).size).toBe(1)
     expect(colors(result.lines[3])).not.toEqual(commentColors.slice(0, 1))
   })
 
   it('colors both versions of a changed multi-line construct', async () => {
-    // The comment's opener is on a removed line and its closer on a shared
-    // context line. Tokenizing the hunk's rows in display order would splice the
-    // added line into the middle of the comment.
     const original = 'var a = 1;\n/* note\n   about a\n*/\nvar b = 2;\n'
     const current = 'var a = 1;\n/* remark\n   about a\n*/\nvar b = 2;\n'
     const diff: FileDiff = {
@@ -97,7 +86,6 @@ describe('diff tokenization', () => {
     expect(result.highlighted).toBe(true)
     expect(text(result.deletion[1])).toBe('/* note')
     expect(text(result.addition[1])).toBe('/* remark')
-    // The comment body and terminator are inside the comment on both sides.
     for (const side of [result.deletion, result.addition]) {
       expect(colors(side[1])).toEqual(colors(side[2]))
       expect(colors(side[2])).toEqual(colors(side[3]))
@@ -113,7 +101,6 @@ describe('diff tokenization', () => {
       addition: [{ text: '{"a": 2}', lineIndices: [0] }]
     })
 
-    // .txt has no grammar, so the old side stays plain; the new side is JSON.
     expect(colors(result.deletion[0])).toEqual([''])
     expect(colors(result.addition[0]).some((color) => color.length > 0)).toBe(true)
   })
@@ -127,5 +114,4 @@ describe('diff tokenization', () => {
     expect(result.highlighted).toBe(false)
     expect(result.lines.map(text)).toEqual(['first', 'second', ''])
   })
-
 })

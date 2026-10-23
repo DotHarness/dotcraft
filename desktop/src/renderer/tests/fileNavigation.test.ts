@@ -18,13 +18,13 @@ describe('file navigation positions', () => {
       line: 4, endLine: 4, anchor: state.doc.length
     })
   })
-  it.each([0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])('ignores invalid start line %s', (line) => {
-    expect(fileNavigationRange(state, { line })).toBeUndefined()
-  })
-  it('uses a single line and first column for invalid optional bounds', () => {
+  it('ignores invalid start lines and falls back for invalid optional bounds', () => {
+    for (const line of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(fileNavigationRange(state, { line }), String(line)).toBeUndefined()
+    }
+    expect(fileNavigationRange(state, undefined)).toBeUndefined()
     expect(fileNavigationRange(state, { line: 3, endLine: 2, column: -1 })).toEqual({
       line: 3, endLine: 3, anchor: state.doc.line(3).from
     })
-    expect(fileNavigationRange(state, undefined)).toBeUndefined()
   })
 })

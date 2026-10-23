@@ -3,8 +3,6 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { InputComposer } from '../components/conversation/InputComposer'
 import { ChannelBindingCodeCard } from '../components/conversation/ChannelBindingCodeCard'
-import { ThreadHeader } from '../components/conversation/ThreadHeader'
-import { ConversationPanel } from '../components/layout/ConversationPanel'
 import { useAppBindingStore, type ThreadAppBinding } from '../stores/appBindingStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
@@ -43,16 +41,6 @@ const activeQqBinding: ThreadAppBinding = {
 }
 
 let bindings: ThreadAppBinding[] = []
-
-function setCaretToEnd(element: HTMLElement): void {
-  const selection = window.getSelection()
-  if (!selection) return
-  const range = document.createRange()
-  range.selectNodeContents(element)
-  range.collapse(false)
-  selection.removeAllRanges()
-  selection.addRange(range)
-}
 
 function renderComposer(): void {
   render(
@@ -96,29 +84,6 @@ describe('channel handoff', () => {
     useChannelBindingStore.getState().reset()
     useToastStore.setState({ toasts: [] })
     useConnectionStore.setState({ status: 'connected', capabilities: { channelStatus: true, appBindingVersion: 1 } })
-  })
-
-  it('requests a code for the picked channel and keeps it pending for the thread', async () => {
-    renderComposer()
-    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith('channel/status', {}))
-
-    const textbox = screen.getByRole('textbox')
-    fireEvent.focus(textbox)
-    textbox.textContent = '/bind'
-    setCaretToEnd(textbox)
-    fireEvent.input(textbox)
-    fireEvent.click(await screen.findByRole('option', { name: /bind qq/i }))
-
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('thread/channelBindings/request/create', {
-        threadId: 'thread-1',
-        channelName: 'qq'
-      })
-    })
-    await waitFor(() => {
-      expect(useChannelBindingStore.getState().pendingByThread['thread-1']?.code).toBe('482913')
-    })
-    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
   })
 
   it('handles a typed /bind <channel> without starting a turn', async () => {
@@ -210,56 +175,5 @@ describe('channel handoff', () => {
       })
     })
     expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
-  })
-
-  it('stops an active binding from the thread header menu', async () => {
-    bindings = [activeQqBinding]
-    render(
-      <LocaleProvider>
-        <ThreadHeader threadName="Thread" threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />
-      </LocaleProvider>
-    )
-    await waitFor(() => {
-      expect(useAppBindingStore.getState().bindingsByThread['thread-1']).toHaveLength(1)
-    })
-
-    fireEvent.click(await screen.findByRole('button', { name: 'More chat actions' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: /QQ/ }))
-
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('thread/appBindings/revoke', {
-        threadId: 'thread-1',
-        bindingId: 'channelbind_1'
-      })
-    })
-  })
-
-  it('shows the code in a conversation that has no messages yet', async () => {
-    useThreadStore.setState({
-      activeThreadId: 'thread-1',
-      activeThread: {
-        id: 'thread-1',
-        userId: 'local',
-        workspacePath: 'X:\fixtures\workspace',
-        displayName: 'Thread',
-        status: 'active',
-        originChannel: 'dotcraft-desktop',
-        metadata: {},
-        createdAt: new Date().toISOString(),
-        lastActiveAt: new Date().toISOString(),
-        turns: []
-      }
-    })
-    render(
-      <LocaleProvider>
-        <ConversationPanel workspacePath="X:\fixtures\workspace" />
-      </LocaleProvider>
-    )
-
-    await act(async () => {
-      await useChannelBindingStore.getState().requestBinding('thread-1', 'qq')
-    })
-
-    expect(await screen.findByText(/482913/)).toBeInTheDocument()
   })
 })

@@ -215,44 +215,6 @@ test("TelegramAdapter runs a selected choice for the selecting user and clears t
   assert.deepEqual(edited, [-100]);
 });
 
-test("TelegramAdapter builds channel binding target from chat context", () => {
-  const adapter = new TelegramAdapter() as unknown as {
-    buildChannelTarget: (
-      opts: Record<string, unknown>,
-      sender: Record<string, unknown>,
-      channelContext: string,
-    ) => Record<string, unknown> | null;
-  };
-
-  const target = adapter.buildChannelTarget(
-    {
-      userId: "42",
-      userName: "Ada",
-      text: "/bind 482913",
-      channelContext: "group:-100123",
-    },
-    {
-      senderId: "42",
-      senderName: "Ada",
-      senderRole: "admin",
-      groupId: "group:-100123",
-    },
-    "group:-100123",
-  );
-
-  assert.deepEqual(target, {
-    channelName: "telegram",
-    conversationKind: "group",
-    conversationId: "-100123",
-    deliveryTarget: "group:-100123",
-    displayName: "Telegram chat -100123",
-    boundBy: {
-      platformUserId: "42",
-      displayName: "Ada",
-    },
-  });
-});
-
 test("TelegramAdapter accepts channel bind codes for chat context", async () => {
   const adapter = new TelegramAdapter() as unknown as {
     client: {

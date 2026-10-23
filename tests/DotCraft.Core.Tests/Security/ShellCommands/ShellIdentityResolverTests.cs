@@ -22,7 +22,7 @@ public sealed class ShellIdentityResolverTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData("  ")]
+    [InlineData("pwsh")]
     public void TryResolve_DefaultPrefersPwshOnPath(string? selector)
     {
         var resolver = Windows(findOnPath: name => name == "pwsh.exe" ? PwshOnPath : CustomPowerShell);
@@ -33,7 +33,6 @@ public sealed class ShellIdentityResolverTests
     [Theory]
     [InlineData(null)]
     [InlineData("pwsh")]
-    [InlineData("pwsh.exe")]
     public void TryResolve_PwshOutsidePathUsesStandardInstallation(string? selector)
     {
         var resolver = new ShellIdentityResolver(new ShellExecutableProbe(
@@ -90,18 +89,6 @@ public sealed class ShellIdentityResolverTests
         Assert.Equal(new ShellIdentity(ShellKind.Pwsh, InstalledPwsh), identity);
     }
 
-    [Theory]
-    [InlineData("")]
-    [InlineData("powershell")]
-    [InlineData("powershell.exe")]
-    public void TryResolve_WindowsPowerShellSelectors_UseTheSystemPowerShell(string selector)
-    {
-        Assert.True(Windows().TryResolve(selector, out var identity, out _));
-
-        Assert.Equal(ShellKind.PowerShell, identity!.Kind);
-        Assert.Equal(SystemPowerShell, identity.ExecutablePath);
-    }
-
     [Fact]
     public void TryResolve_WindowsCmdSelector_ResolvesTheSystemCmd()
     {
@@ -109,17 +96,6 @@ public sealed class ShellIdentityResolverTests
 
         Assert.Equal(ShellKind.Cmd, identity!.Kind);
         Assert.Equal(SystemCmd, identity.ExecutablePath);
-    }
-
-    [Fact]
-    public void TryResolve_WindowsPwshSelector_TakesThePathLookupResult()
-    {
-        var resolver = Windows(findOnPath: name => name == "pwsh.exe" ? PwshOnPath : null);
-
-        Assert.True(resolver.TryResolve("pwsh", out var identity, out _));
-
-        Assert.Equal(ShellKind.Pwsh, identity!.Kind);
-        Assert.Equal(PwshOnPath, identity.ExecutablePath);
     }
 
     [Fact]

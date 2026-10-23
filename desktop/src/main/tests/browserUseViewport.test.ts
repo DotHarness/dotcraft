@@ -16,13 +16,10 @@ import { BrowserUseViewports, normalizeViewportSize } from '../browserUseViewpor
 const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0))
 
 describe('normalizeViewportSize', () => {
-  it('rounds each dimension and clamps it to its range', () => {
+  it('rounds each dimension, clamps it to its range, and rejects non-numbers', () => {
     expect(normalizeViewportSize(100.4, 99999)).toEqual({ width: 240, height: 4096 })
     expect(normalizeViewportSize(5000, 120)).toEqual({ width: 4096, height: 160 })
     expect(normalizeViewportSize(1024.6, 768.4)).toEqual({ width: 1025, height: 768 })
-  })
-
-  it('rejects sizes that are not numbers', () => {
     expect(() => normalizeViewportSize(undefined, 600)).toThrow('InvalidArgument')
     expect(() => normalizeViewportSize(800, Number.NaN)).toThrow('InvalidArgument')
   })
@@ -253,22 +250,16 @@ describe('BrowserUseManager viewport', () => {
     expect(h.host.setViewport).toHaveBeenCalledTimes(1)
   })
 
-  it('lets a held reset cancel a held set', async () => {
-    const h = createHarness()
-    const { command, createTab } = await h.start()
-    await command('browser_viewport_set', { width: 900, height: 640 })
-    await command('browser_viewport_reset')
-    await createTab()
-    expect(h.emulation()).toEqual([])
-  })
-
-  it('discards a held request when the turn ends', async () => {
-    const h = createHarness()
-    const { command, createTab, endTurn } = await h.start()
-    await command('browser_viewport_set', { width: 900, height: 640 })
-    endTurn()
-    await createTab()
-    expect(h.emulation()).toEqual([])
+  it('drops a held request on reset or when the turn ends', async () => {
+    for (const trigger of ['reset', 'turn end']) {
+      const h = createHarness()
+      const { command, createTab, endTurn } = await h.start()
+      await command('browser_viewport_set', { width: 900, height: 640 })
+      if (trigger === 'reset') await command('browser_viewport_reset')
+      else endTurn()
+      await createTab()
+      expect(h.emulation()).toEqual([])
+    }
   })
 
   it('applies a held request to a claimed user tab and clears it when the tab is released', async () => {
