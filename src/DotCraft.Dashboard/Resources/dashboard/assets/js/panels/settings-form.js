@@ -66,7 +66,7 @@ function objectItem(section, sectionIdx, item, itemIdx) {
     const id = itemFieldId(sectionIdx, itemIdx, field.key);
     return `<div class="dash-object-field"${attrs({ 'data-groups': fieldGroups(field.key).join(' ') || undefined, hidden: !isGroupVisible(fieldGroups(field.key), transport) })}>
       <label class="dash-object-field__label" for="${id}">${esc(displayName(field))}</label>
-      ${fieldControl({ id, field, value: ciGet(item, field.key), required: true, change: field.key === 'Transport' ? 'transport-change' : undefined })}
+      ${fieldControl({ id, field, value: ciGet(item, field.key), required: field.type !== 'select' || field.key === 'Transport', change: field.key === 'Transport' ? 'transport-change' : undefined })}
     </div>`;
   }).join('');
   return `<div class="dc-settings-row" data-orientation="block" data-search-row="${esc(String(ciGet(item, 'Name') ?? '').toLowerCase())}">

@@ -31,7 +31,7 @@ const MORE_FILTERS = [
   { value: 'Provider', label: 'Provider' }
 ];
 
-const view = { thread: null, events: [], entries: [], oldestCursor: null, hasMore: false, loadingOlder: false, filter: 'all', query: '', selected: null, range: null, follow: true, nearBottom: true, unseen: 0 };
+const view = { thread: null, raw: [], operations: [], events: [], entries: [], oldestCursor: null, hasMore: false, loadingOlder: false, filter: 'all', query: '', selected: null, range: null, follow: true, nearBottom: true, unseen: 0 };
 
 const panel = () => panelElement('sessions');
 const scroller = () => panel().querySelector('.dash-trace-scroll');
@@ -46,7 +46,13 @@ function threadLabel(entry) {
   return session ? sessionTitle(session) : key;
 }
 
+function compose() {
+  view.events = rollbackEvents(view.raw, view.operations, view.thread)
+    .filter(event => isVisibleEvent(event) && matchesFilter(event, view.filter));
+}
+
 function rebuild() {
+  compose();
   view.entries = buildEntries(view.events, { turns: !allThreads() && view.filter === 'all' });
 }
 
@@ -249,9 +255,8 @@ export async function loadThread() {
     state.sessions.length ? null : loadSessions()
   ]);
   if (view.thread !== thread) return;
-  const events = Array.isArray(page?.events) ? page.events : [];
-  view.events = rollbackEvents(events, Array.isArray(operations) ? operations : [], thread)
-    .filter(event => isVisibleEvent(event) && matchesFilter(event, view.filter));
+  view.raw = Array.isArray(page?.events) ? page.events : [];
+  view.operations = Array.isArray(operations) ? operations : [];
   view.oldestCursor = page?.oldestCursor ?? null;
   view.hasMore = page?.hasMore === true;
   view.unseen = 0;
@@ -266,14 +271,13 @@ async function loadOlder() {
   const thread = view.thread;
   panel().querySelector('.dash-trace-older').outerHTML = olderRow();
   const page = await fetchPage(view.oldestCursor);
+  view.loadingOlder = false;
   if (view.thread !== thread) return;
-  const known = new Set(view.events.map(eventKey));
-  const older = (Array.isArray(page?.events) ? page.events : [])
-    .filter(event => !known.has(eventKey(event)) && isVisibleEvent(event) && matchesFilter(event, view.filter));
+  const known = new Set(view.raw.map(eventKey));
+  const older = (Array.isArray(page?.events) ? page.events : []).filter(event => !known.has(eventKey(event)));
   view.oldestCursor = page?.oldestCursor ?? view.oldestCursor;
   view.hasMore = page?.hasMore === true;
-  view.loadingOlder = false;
-  view.events = [...older, ...view.events];
+  view.raw = [...older, ...view.raw];
   rebuild();
   renderLedger({ keepScroll: true });
 }
@@ -282,11 +286,12 @@ export function handleLiveTraceEvent(event) {
   if (state.panel !== 'sessions' || !view.thread) return;
   if (!allThreads() && event.sessionKey !== view.thread) return;
   if (!isVisibleEvent(event) || !matchesFilter(event, view.filter)) return;
-  if (view.events.some(existing => eventKey(existing) === eventKey(event))) return;
-  view.events.push(event);
+  if (view.raw.some(existing => eventKey(existing) === eventKey(event))) return;
+  view.raw.push(event);
   rebuild();
   if (!(view.follow && view.nearBottom)) view.unseen += 1;
   renderLedger();
+  if (view.selected) renderInspector();
 }
 
 export function openThread(thread) {
@@ -295,7 +300,10 @@ export function openThread(thread) {
   view.query = '';
   view.selected = null;
   view.range = null;
+  view.raw = [];
+  view.operations = [];
   view.events = [];
+  view.loadingOlder = false;
   inspectorState.full.clear();
   inspectorState.metadata.clear();
   if (state.panel === 'sessions') loadThread();
@@ -304,6 +312,11 @@ export function openThread(thread) {
 
 export function closeThread() {
   view.thread = null;
+}
+
+function renderInspector() {
+  const slot = panel().querySelector('.dash-trace-inspector-slot');
+  if (slot) slot.innerHTML = inspector(selectedEntry());
 }
 
 function select(key) {
@@ -315,16 +328,14 @@ function select(key) {
     if (element.dataset.key === view.selected) element.setAttribute('aria-current', 'true');
     else element.removeAttribute('aria-current');
   });
-  const slot = panel().querySelector('.dash-trace-inspector-slot');
-  if (slot) slot.innerHTML = inspector(selectedEntry());
+  renderInspector();
   panel().querySelector(`.dash-ledger-row[data-key="${CSS.escape(key)}"]`)?.scrollIntoView({ block: 'nearest' });
 }
 
 function rerenderInspector(set, id) {
   if (set.has(id)) set.delete(id);
   else set.add(id);
-  const slot = panel().querySelector('.dash-trace-inspector-slot');
-  if (slot) slot.innerHTML = inspector(selectedEntry());
+  renderInspector();
 }
 
 function jumpToLatest() {

@@ -5,6 +5,8 @@ WORKDIR /src
 
 COPY dotcraft.sln ./
 COPY src ./src
+COPY desktop/src/renderer/styles/foundations/tokens.css desktop/src/renderer/styles/foundations/themes.css ./desktop/src/renderer/styles/foundations/
+COPY desktop/resources/dotcraft.svg ./desktop/resources/
 COPY docker/dotcraft ./docker/dotcraft
 RUN dotnet restore src/DotCraft.App/DotCraft.App.csproj
 RUN dotnet publish src/DotCraft.App/DotCraft.App.csproj \

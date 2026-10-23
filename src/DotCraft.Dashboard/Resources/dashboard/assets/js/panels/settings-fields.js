@@ -44,7 +44,6 @@ function selectOptions(field, value) {
   return values.map(option => ({ value: option, label: option }));
 }
 
-// `required` controls (object-list items) always hold a value, so they offer no Inherit choice.
 export function fieldControl({ id, field, value, inherited, required = false, change }) {
   const placeholder = placeholderFor(field, inherited);
   const dynamicModel = isDynamicModelField(field) && settings.modelOptions.length;
