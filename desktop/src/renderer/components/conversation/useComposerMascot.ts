@@ -8,6 +8,7 @@ import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
 import { reissueFailedTurn, startTurnWithOptimisticUI } from '../../utils/startTurn'
+import { hasRunningBackgroundWork } from '../../utils/threadBackgroundWork'
 import type { ContextMenuItem } from '../ui/ContextMenu'
 import type { ComposerMascotInteraction } from './ComposerShell'
 import type { InputPart } from '../../types/conversation'
@@ -20,7 +21,7 @@ import type { ThreadSummary } from '../../types/thread'
  */
 
 const DOTCRAFT_PLUGIN_ID = 'dotcraft'
-const SUCCESS_BUBBLE_MS = 3200
+const SUCCESS_MS = 3200
 
 type LocalBubble =
   | { kind: 'error'; turnId: string }
@@ -105,7 +106,8 @@ export function useComposerMascot({
       const key = `${lastTurnId}:${lastTurnStatus}`
       if (handledRef.current !== key) {
         handledRef.current = key
-        setLocal({ kind: lastTurnStatus === 'failed' ? 'error' : 'success', turnId: lastTurnId })
+        if (lastTurnStatus === 'failed') setLocal({ kind: 'error', turnId: lastTurnId })
+        else if (!hasRunningBackgroundWork(threadId, useConversationStore.getState().turns)) setLocal({ kind: 'success', turnId: lastTurnId })
       }
     }
   }, [turnStatus, lastTurnId, lastTurnStatus, approvalItemId, local?.kind, threadId])
@@ -114,7 +116,7 @@ export function useComposerMascot({
     if (local?.kind !== 'success') return
     const timer = setTimeout(() => {
       setLocal((prev) => (prev?.kind === 'success' ? null : prev))
-    }, SUCCESS_BUBBLE_MS)
+    }, SUCCESS_MS)
     return () => clearTimeout(timer)
   }, [local])
 
@@ -295,12 +297,6 @@ export function useComposerMascot({
       case 'success':
         expression = 'happy'
         light = 'success'
-        bubble = {
-          tone: 'success',
-          title: t('mascot.success.title'),
-          body: t('mascot.success.body'),
-          actions: [{ label: t('mascot.action.ok'), onClick: dismiss }]
-        }
         break
       case 'approval':
         expression = 'operator'

@@ -8,7 +8,7 @@ import { Button } from '../ui/Button'
  * Presentational only — the caller positions the bubble and owns all copy.
  */
 
-export type MascotBubbleTone = 'info' | 'success' | 'warning' | 'error'
+export type MascotBubbleTone = 'info' | 'warning' | 'error'
 
 export interface MascotBubbleAction {
   label: string
@@ -25,8 +25,6 @@ interface MascotBubbleProps {
 
 function toneColor(tone: MascotBubbleTone): string {
   switch (tone) {
-    case 'success':
-      return 'var(--success)'
     case 'warning':
       return 'var(--warning)'
     case 'error':

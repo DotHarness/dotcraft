@@ -7,6 +7,9 @@ import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import { withTestCorePresentation } from './testToolPresentation'
+import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
+import type { ConversationItem, ConversationTurn } from '../types/conversation'
 
 const THREAD_ID = 'thread-mascot'
 const pluginActions = {
@@ -50,7 +53,7 @@ function MascotHarness(): JSX.Element {
   const interaction = useComposerMascot({ threadId: THREAD_ID, workspacePath: '<workspace>' })
   const bubble = interaction?.bubble
   return (
-    <div>
+    <div data-testid="mascot" data-light={interaction?.light ?? 'default'}>
       {bubble && (
         <section aria-label="mascot bubble">
           <h1>{bubble.title}</h1>
@@ -244,5 +247,51 @@ describe('useComposerMascot approval nudge', () => {
       })
     })
     expect(installPlugin).not.toHaveBeenCalled()
+  })
+})
+
+describe('useComposerMascot turn completion', () => {
+  beforeEach(() => {
+    installDesktopApiMock({
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) }
+    })
+    useConversationStore.getState().reset()
+  })
+
+  function turn(status: ConversationTurn['status'], items: ConversationItem[] = []): ConversationTurn {
+    return { id: 'turn-done', threadId: THREAD_ID, status, items, startedAt: '2026-08-27T00:00:00.000Z' }
+  }
+
+  function finishTurn(items: ConversationItem[]): void {
+    useConversationStore.setState({ turnStatus: 'running', turns: [turn('inProgress', items)] })
+    renderHarness()
+    act(() => {
+      useConversationStore.setState({ turnStatus: 'idle', turns: [turn('completed', items)] })
+    })
+  }
+
+  it('celebrates without a bubble when nothing keeps running', () => {
+    finishTurn([])
+
+    expect(screen.getByTestId('mascot')).toHaveAttribute('data-light', 'success')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument()
+  })
+
+  it('returns to idle when a background terminal is still running', () => {
+    const terminal = withTestCorePresentation({
+      id: 'shell-1',
+      type: 'toolCall',
+      status: 'completed',
+      toolName: 'Exec',
+      toolCallId: 'shell-1',
+      createdAt: '2026-08-27T00:00:00.000Z',
+      executionStatus: 'inProgress',
+      terminalRunning: true
+    }, CORE_TOOL_PRESENTATION_IDS.shell)
+
+    finishTurn([terminal])
+
+    expect(screen.getByTestId('mascot')).toHaveAttribute('data-light', 'default')
   })
 })
