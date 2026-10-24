@@ -970,6 +970,8 @@ public enum FakeAppServerOutcome
     SubmitSummaryOnlyReviewDraftTwice,
     SubmitReviewDraftAfterBackgroundWork,
     CompleteTurnWithoutDraftStreamOpen,
+    HoldWakeTurnAfterBackgroundWork,
+    HoldBackgroundWork,
     SubmitImplementationDraft,
     SubmitFollowUpDraft,
     SubmitDiscussionReply,
@@ -1195,6 +1197,7 @@ internal sealed class FakeAppServerClient(
     private FakeAppServerThreadResumeRequest? _lastResumeRequest;
     private bool _interrupted;
     private volatile bool _backgroundWork;
+    private int _backgroundWorkChecks;
 
     public bool SupportsDynamicToolRebind => true;
     public bool SupportsRuntimeAdditionalContext => supportsRuntimeAdditionalContext();
@@ -1510,6 +1513,22 @@ internal sealed class FakeAppServerClient(
         {
             _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId, summary = "DotCraft analysis complete." }));
         }
+        else if (outcome == FakeAppServerOutcome.HoldWakeTurnAfterBackgroundWork)
+        {
+            _backgroundWork = true;
+            _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId, summary = "Waiting for the background reviewer." }));
+            _ = Task.Run(async () =>
+            {
+                await _backgroundWorkObserved.Task;
+                _backgroundWork = false;
+                _notifications.Writer.TryWrite(Notification("turn/started", new { threadId, turnId = "turn-wake-1" }));
+            });
+        }
+        else if (outcome == FakeAppServerOutcome.HoldBackgroundWork)
+        {
+            _backgroundWork = true;
+            _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId, summary = "Waiting for the background reviewer." }));
+        }
         else if (outcome == FakeAppServerOutcome.SubmitReviewDraftAfterBackgroundWork)
         {
             _backgroundWork = true;
@@ -1660,15 +1679,20 @@ internal sealed class FakeAppServerClient(
     public Task<IReadOnlyList<ModelInfoDto>> ListModelsAsync(CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<ModelInfoDto>>([new("fake-model", "Fake Model", "test")]);
 
-    public Task<bool> HasBackgroundWorkAsync(string threadId, CancellationToken ct)
+    public async Task<bool> HasBackgroundWorkAsync(string threadId, CancellationToken ct)
     {
+        if (outcome == FakeAppServerOutcome.HoldBackgroundWork && Interlocked.Increment(ref _backgroundWorkChecks) > 1)
+        {
+            await Task.Delay(Timeout.Infinite, ct);
+        }
+
         var running = _backgroundWork;
         if (running)
         {
             _backgroundWorkObserved.TrySetResult();
         }
 
-        return Task.FromResult(running);
+        return running;
     }
 
     private async Task SubmitSummaryOnlyDraftAsync(string threadId, string turnId, string callId, string body)

@@ -68,16 +68,59 @@ public sealed class ReviewDraftApiTests
         Assert.Empty(failed.ReviewDrafts);
     }
 
-    private static TestOratorioApp CreateReviewApp(FakeGitHubApiClient fakeGitHub, FakeAppServerClientFactory fakeAppServer) =>
-        new(services =>
-        {
-            services.RemoveAll<IGitHubApiClient>();
-            services.AddSingleton<IGitHubApiClient>(fakeGitHub);
-            services.RemoveAll<IDotCraftAppServerProcessManager>();
-            services.RemoveAll<IDotCraftAppServerClientFactory>();
-            services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
-            services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
-        });
+    [Fact]
+    public async Task AppServerReviewRun_StallDuringWakeTurn_InterruptsWakeTurn()
+    {
+        var clock = new MutableClock(DateTimeOffset.Parse("2026-09-16T09:00:00Z"));
+        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.HoldWakeTurnAfterBackgroundWork);
+        await using var app = CreateReviewApp(new FakeGitHubApiClient(), fakeAppServer, clock);
+        var client = app.CreateClient();
+        var pr = await DispatchReviewAsync(client);
+
+        await WaitForItemByIdAsync(client, pr.ItemId!, x => x.Runs.Any(run => run.TurnId == "turn-wake-1"));
+        clock.Advance(TimeSpan.FromSeconds(6));
+
+        var failed = await WaitForItemByIdAsync(client, pr.ItemId!, x => x.Item.State == ItemState.Failed);
+        var run = Assert.Single(failed.Runs, x => x.RunnerKind == "appServer");
+        Assert.Equal("appServerStalled", run.ErrorCode);
+        Assert.Equal([("thread-test-1", "turn-wake-1")], fakeAppServer.InterruptedTurns);
+    }
+
+    [Fact]
+    public async Task AppServerReviewRun_StallWhileWaitingForBackgroundWork_ConfirmsTermination()
+    {
+        var clock = new MutableClock(DateTimeOffset.Parse("2026-09-16T09:00:00Z"));
+        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.HoldBackgroundWork);
+        await using var app = CreateReviewApp(new FakeGitHubApiClient(), fakeAppServer, clock);
+        var client = app.CreateClient();
+        var pr = await DispatchReviewAsync(client);
+
+        await WaitForItemByIdAsync(client, pr.ItemId!, x => x.Runs.Any(run => run.StatusMessage == "Waiting for background tasks to finish."));
+        clock.Advance(TimeSpan.FromSeconds(6));
+
+        var failed = await WaitForItemByIdAsync(client, pr.ItemId!, x => x.Item.State == ItemState.Failed);
+        var run = Assert.Single(failed.Runs, x => x.RunnerKind == "appServer");
+        Assert.Equal("appServerStalled", run.ErrorCode);
+        Assert.Empty(fakeAppServer.InterruptedTurns);
+    }
+
+    private static TestOratorioApp CreateReviewApp(FakeGitHubApiClient fakeGitHub, FakeAppServerClientFactory fakeAppServer, MutableClock? clock = null) =>
+        new(
+            services =>
+            {
+                services.RemoveAll<IGitHubApiClient>();
+                services.AddSingleton<IGitHubApiClient>(fakeGitHub);
+                services.RemoveAll<IDotCraftAppServerProcessManager>();
+                services.RemoveAll<IDotCraftAppServerClientFactory>();
+                services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
+                services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
+                if (clock is not null)
+                {
+                    services.RemoveAll<IClock>();
+                    services.AddSingleton<IClock>(clock);
+                }
+            },
+            clock is null ? null : new Dictionary<string, string?> { ["Oratorio:DotCraft:StallTimeoutSeconds"] = "5", ["Oratorio:DotCraft:MaxRunAttempts"] = "1" });
 
     private static async Task<ItemSummaryDto> DispatchReviewAsync(HttpClient client)
     {
