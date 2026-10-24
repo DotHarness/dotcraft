@@ -97,8 +97,13 @@ public sealed class AutoReviewDispatchService(
     private async Task ScanRepositoryAsync(AutoReviewProject repository, DateTimeOffset now, CancellationToken ct)
     {
         var items = await QueryRepositoryPullRequests(repository)
+            .Where(x =>
+                x.SourceState == SourceState.Open &&
+                !x.IsDraft &&
+                x.State != ItemState.Archived &&
+                x.State != ItemState.Rejected &&
+                !db.AutoReviewItemStates.Any(state => state.ItemId == x.ItemId && state.LastQueuedHeadSha == x.HeadSha))
             .OrderBy(x => x.UpdatedAt)
-            .Take(200)
             .ToListAsync(ct);
 
         foreach (var item in items)
@@ -113,12 +118,6 @@ public sealed class AutoReviewDispatchService(
     {
         var headSha = NullIfWhiteSpace(item.HeadSha);
         var state = UpsertItemState(item.ItemId, repository.ConfigKey, headSha, null, null, null, null, null, now);
-
-        if (!IsEligiblePullRequest(item))
-        {
-            return;
-        }
-
         if (string.IsNullOrWhiteSpace(headSha))
         {
             RecordItemError(state, item, "headShaRequired", $"Auto Review requires the current {ReviewTargetName(repository.Source)} head SHA.", now);
@@ -217,13 +216,6 @@ public sealed class AutoReviewDispatchService(
                 x.Repository != null &&
                 x.Repository.ToLower() == normalized);
     }
-
-    private static bool IsEligiblePullRequest(OratorioItem item) =>
-        (item.Source == "github" || item.Source == "gitlab") &&
-        item.Kind == ItemKind.PullRequest &&
-        !item.IsDraft &&
-        item.SourceState == SourceState.Open &&
-        item.State is not (ItemState.Archived or ItemState.Rejected);
 
     private async Task<bool> HasActiveReviewRunAsync(string itemId, CancellationToken ct) =>
         await db.Runs.AsNoTracking().AnyAsync(x =>

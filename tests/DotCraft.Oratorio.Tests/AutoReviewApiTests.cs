@@ -91,6 +91,66 @@ public sealed class AutoReviewApiTests
     }
 
     [Fact]
+    public async Task AutoReview_QueuesNewPullRequestBehindManyMergedPullRequests()
+    {
+        const string configuredRepository = "github:github.com/example-owner/oratorio";
+        var fakeGitHub = new FakeGitHubApiClient();
+        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitSummaryOnlyReviewDraft);
+        var automation = new MutableOptionsMonitor<OratorioAutomationOptions>(
+            new OratorioAutomationOptions { AutoReviewRepositories = [configuredRepository] });
+        await using var app = new TestOratorioApp(services =>
+        {
+            services.RemoveAll<IGitHubApiClient>();
+            services.AddSingleton<IGitHubApiClient>(fakeGitHub);
+            services.RemoveAll<IDotCraftAppServerProcessManager>();
+            services.RemoveAll<IDotCraftAppServerClientFactory>();
+            services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
+            services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
+            services.RemoveAll<IOptionsMonitor<OratorioAutomationOptions>>();
+            services.AddSingleton<IOptionsMonitor<OratorioAutomationOptions>>(automation);
+        });
+        var client = app.CreateClient();
+
+        await DispatchAutoReviewAsync(app);
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+            var mergedAt = DateTimeOffset.Parse("2026-01-01T00:00:00Z");
+            for (var number = 1; number <= 201; number++)
+            {
+                db.Items.Add(new OratorioItem
+                {
+                    Source = "github",
+                    ExternalId = $"example-owner/oratorio#{number}",
+                    Kind = ItemKind.PullRequest,
+                    Title = $"Merged change {number}",
+                    Repository = "example-owner/oratorio",
+                    HeadSha = $"merged{number}",
+                    SourceState = SourceState.Merged,
+                    State = ItemState.Archived,
+                    CreatedAt = mergedAt,
+                    UpdatedAt = mergedAt.AddMinutes(number)
+                });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        await PostAsync<GitHubSyncResponse>(client, "/api/v1/sources/github/sync", new { });
+        string prItemId;
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+            prItemId = await db.Items.Where(x => x.Kind == ItemKind.PullRequest && x.SourceState == SourceState.Open).Select(x => x.ItemId).SingleAsync();
+        }
+
+        await DispatchAutoReviewAsync(app);
+
+        var reviewed = await WaitForItemByIdAsync(client, prItemId, x => x.Runs.Any(run => run.RunnerKind == "appServer"));
+        Assert.Equal(RunDispatchTrigger.AutoReview, Assert.Single(reviewed.Runs, x => x.RunnerKind == "appServer").DispatchTrigger);
+    }
+
+    [Fact]
     public async Task AutoReview_StopsAfterReviewRetryAttemptsAreExhaustedForSameHead()
     {
         var fakeGitHub = new FakeGitHubApiClient();
