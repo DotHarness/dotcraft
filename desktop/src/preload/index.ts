@@ -1598,6 +1598,7 @@ const api = {
       projectSort?: SidebarThreadSortMode
       projectOrder?: string[]
       collapsedProjectIds?: string[]
+      sidebarDestinationPins?: Record<string, boolean>
       showInMenuBar?: boolean
       openTargetPreferences?: OpenTargetPreferences
       lastSeenWhatsNewVersion?: string
@@ -1686,6 +1687,7 @@ const api = {
       projectSort?: SidebarThreadSortMode
       projectOrder?: string[]
       collapsedProjectIds?: string[]
+      sidebarDestinationPins?: Record<string, boolean>
       showInMenuBar?: boolean
       openTargetPreferences?: OpenTargetPreferences
       lastSeenWhatsNewVersion?: string

@@ -31,6 +31,7 @@ import {
   normalizeThreadOrderByProject,
   type SidebarThreadOrderSettings
 } from '../shared/sidebarThreadOrder'
+import { normalizeSidebarDestinationPins, type SidebarDestinationPins } from '../shared/sidebarDestinations'
 import type {
   BinarySource,
   BrowserUseApprovalMode,
@@ -104,6 +105,7 @@ export interface VoiceSettings {
 }
 
 export interface AppSettings extends SidebarThreadOrderSettings {
+  sidebarDestinationPins?: SidebarDestinationPins
   remoteDesktopPluginGrants?: string[]
   followUpQueueMode?: FollowUpQueueMode
   lastWorkspacePath?: string
@@ -606,6 +608,7 @@ export function loadSettings(): AppSettings {
       raw.chatsFolder = normalizeChatsFolderSetting(raw.chatsFolder)
       raw.chatsFolderHistory = rememberChatsFolder(raw.chatsFolderHistory, raw.chatsFolder)
       normalizeSidebarThreadOrderSettings(raw)
+      raw.sidebarDestinationPins = normalizeSidebarDestinationPins(raw.sidebarDestinationPins)
       raw.showInMenuBar = normalizeShowInMenuBar(raw)
       raw.theme = normalizeUiTheme(raw)
       raw.accent = normalizeAccentSetting(raw)
@@ -670,6 +673,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.chatsFolder = normalizeChatsFolderSetting(settings.chatsFolder)
     settings.chatsFolderHistory = rememberChatsFolder(settings.chatsFolderHistory, settings.chatsFolder)
     normalizeSidebarThreadOrderSettings(settings)
+    settings.sidebarDestinationPins = normalizeSidebarDestinationPins(settings.sidebarDestinationPins)
     settings.showInMenuBar = normalizeShowInMenuBar(settings)
     settings.theme = normalizeUiTheme(settings)
     settings.accent = normalizeAccentSetting(settings)

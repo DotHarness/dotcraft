@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import { useConnectionStore } from '../../stores/connectionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { ShortcutBadge } from '../ui/ShortcutBadge'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
@@ -15,37 +14,25 @@ import {
 /** The matching Ctrl+N shortcut is registered globally in App.tsx. */
 export function NewThreadButton(): JSX.Element {
   const t = useT()
-  const status = useConnectionStore((s) => s.status)
   const goToNewChat = useUIStore((s) => s.goToNewChat)
   const [active, setActive] = useState(false)
-
-  const isConnected = status === 'connected'
-  const showShortcut = isConnected && active
-
-  function handleClick(): void {
-    if (!isConnected) return
-    goToNewChat()
-  }
 
   return (
     <div style={{ padding: '8px 0 0', flexShrink: 0 }}>
       <button
         className="dotcraft-sidebar-row-radius"
         data-nav-icon-host=""
-        onClick={handleClick}
-        disabled={!isConnected}
+        onClick={() => goToNewChat()}
         aria-label={t('sidebar.newThread')}
         onFocus={() => setActive(true)}
         onBlur={() => setActive(false)}
         style={{
           ...SIDEBAR_NAV_ROW_OUTER,
           ...SIDEBAR_NAV_BORDER_INACTIVE,
-          backgroundColor: active && isConnected ? 'var(--sidebar-control-hover)' : 'transparent',
-          color: !isConnected
-            ? 'var(--text-tertiary)'
-            : 'var(--text-primary)',
+          backgroundColor: active ? 'var(--sidebar-control-hover)' : 'transparent',
+          color: 'var(--text-primary)',
           borderRadius: 'var(--sidebar-row-radius)',
-          cursor: isConnected ? 'pointer' : 'default',
+          cursor: 'pointer',
           justifyContent: 'space-between',
           transition: 'background-color 120ms ease, color 120ms ease'
         }}
@@ -64,7 +51,7 @@ export function NewThreadButton(): JSX.Element {
             {t('sidebar.newThreadLabel')}
           </span>
         </span>
-        {showShortcut && (
+        {active && (
           <ShortcutBadge
             shortcut={ACTION_SHORTCUTS.newThread}
           />

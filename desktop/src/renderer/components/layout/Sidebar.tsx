@@ -1,5 +1,5 @@
-import { useLocale, useT } from '../../contexts/LocaleContext'
-import type { DesktopPluginContributionIcon } from '@dotcraft/plugin'
+import type { MouseEvent as ReactMouseEvent } from 'react'
+import { useT } from '../../contexts/LocaleContext'
 import { connectionStatusLabel } from '../../utils/connectionStatusLabel'
 import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -7,7 +7,6 @@ import { useThreadStore } from '../../stores/threadStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { useSshMachinesStore } from '../../stores/sshMachinesStore'
 import { addToast } from '../../stores/toastStore'
-import { resolveDesktopPluginLabel, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { NewThreadButton } from '../sidebar/NewThreadButton'
 import { ThreadSearch } from '../sidebar/ThreadSearch'
@@ -27,9 +26,10 @@ import {
   SIDEBAR_NAV_ROW_OUTER
 } from '../sidebar/sidebarNavRowStyles'
 import { SidebarNavIcon } from '../sidebar/SidebarNavIcon'
+import { SidebarMoreMenu } from '../sidebar/SidebarMoreMenu'
+import { useSidebarDestinations, useUnpinContextMenu } from '../sidebar/sidebarDestinations'
 import { prefetchCoreMainView } from '../../core/coreMainViewRoutes'
 import { MessageSquare } from 'lucide-react'
-import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
@@ -49,14 +49,10 @@ export function Sidebar({
   remoteWorkspace = false,
   workspaceOpening = false
 }: SidebarProps): JSX.Element {
-  const t = useT()
-  const locale = useLocale()
-  const { sidebarCollapsed, activeMainView, setActiveMainView } = useUIStore()
-  const capabilities = useConnectionStore((s) => s.capabilities)
-  const desktopMainViews = useDesktopPluginRegistry((state) => state.mainViews)
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
+  const { pinned, more } = useSidebarDestinations()
+  const unpinMenu = useUnpinContextMenu()
 
-  const automationsAvailable =
-    capabilities?.automations === true
   if (sidebarCollapsed) {
     return <CollapsedSidebar />
   }
@@ -83,50 +79,20 @@ export function Sidebar({
           flexShrink: 0
         }}
       >
-        <SidebarNavRow
-          label={t('sidebar.channels')}
-          active={activeMainView === 'channels'}
-          onClick={() => setActiveMainView('channels')}
-          onPrefetch={() => prefetchCoreMainView('channels')}
-          icon={<SidebarNavIcon name="channels" />}
-          testId="nav-channels"
-        />
-        {desktopMainViews.map((entry) => (
+        {pinned.map((destination) => (
           <SidebarNavRow
-            key={entry.viewKey}
-            label={resolveDesktopPluginLabel(entry.label, locale)}
-            active={activeMainView === entry.viewKey}
-            onClick={() => setActiveMainView(entry.viewKey)}
-            icon={<DesktopPluginIcon icon={entry.icon} />}
-            testId={`nav-desktop-plugin-${entry.pluginId}-${entry.id}`}
+            key={destination.id}
+            label={destination.label}
+            active={destination.active}
+            onClick={destination.select}
+            onPrefetch={destination.prefetch}
+            onContextMenu={(event) => unpinMenu.open(event, destination.id)}
+            icon={destination.icon}
+            testId={destination.testId}
           />
         ))}
-        <SidebarNavRow
-          label={t('sidebar.agents')}
-          active={activeMainView === 'agents'}
-          onClick={() => setActiveMainView('agents')}
-          onPrefetch={() => prefetchCoreMainView('agents')}
-          icon={<SidebarNavIcon name="agents" />}
-          testId="nav-agents"
-        />
-        {automationsAvailable && (
-          <SidebarNavRow
-            label={t('sidebar.automations')}
-            active={activeMainView === 'automations'}
-            onClick={() => setActiveMainView('automations')}
-            onPrefetch={() => prefetchCoreMainView('automations')}
-            icon={<SidebarNavIcon name="automations" />}
-            testId="nav-automations"
-          />
-        )}
-        <SidebarNavRow
-          label={t('sidebar.skills')}
-          active={activeMainView === 'skills'}
-          onClick={() => setActiveMainView('skills')}
-          onPrefetch={() => prefetchCoreMainView('skills')}
-          icon={<SidebarNavIcon name="skills" />}
-          testId="nav-skills"
-        />
+        <SidebarMoreMenu destinations={more} variant="row" />
+        {unpinMenu.menu}
       </div>
 
       <ThreadList
@@ -147,6 +113,7 @@ interface SidebarNavRowProps {
   active: boolean
   onClick: () => void
   onPrefetch?: () => void
+  onContextMenu?: (event: ReactMouseEvent) => void
   icon: JSX.Element
   disabled?: boolean
   title?: string
@@ -158,6 +125,7 @@ function SidebarNavRow({
   active,
   onClick,
   onPrefetch,
+  onContextMenu,
   icon,
   disabled,
   title,
@@ -170,6 +138,7 @@ function SidebarNavRow({
       data-testid={testId}
       data-nav-icon-host=""
       onClick={disabled ? undefined : onClick}
+      onContextMenu={onContextMenu}
       onPointerEnter={disabled || active ? undefined : onPrefetch}
       onFocus={disabled || active ? undefined : onPrefetch}
       disabled={disabled}
@@ -197,24 +166,17 @@ function SidebarNavRow({
   )
 }
 
-function DesktopPluginIcon({ icon }: { icon?: DesktopPluginContributionIcon | null }): JSX.Element {
-  const Glyph = resolveDesktopPluginIcon(icon)
-  return <Glyph size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-}
-
 function CollapsedSidebar(): JSX.Element {
   const t = useT()
-  const locale = useLocale()
-  const { status, errorMessage, capabilities: collapsedCaps } = useConnectionStore()
+  const { status, errorMessage } = useConnectionStore()
   const { threadList, setActiveThreadId } = useThreadStore()
   const { activeMainView, setActiveMainView, goToNewChat } = useUIStore()
-  const desktopMainViews = useDesktopPluginRegistry((state) => state.mainViews)
+  const { pinned, more } = useSidebarDestinations()
+  const unpinMenu = useUnpinContextMenu()
   const projects = useWorkspaceProjectsStore((s) => s.projects)
   const chat = useWorkspaceProjectsStore((s) => s.chat)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
-  const collapsedAutomationsAvailable =
-    collapsedCaps?.automations === true
 
   const colorMap: Record<string, string> = {
     connecting: 'var(--warning)',
@@ -228,11 +190,6 @@ function CollapsedSidebar(): JSX.Element {
   const showProjects = projects.length > 0
   const showWorkspaceRail = showProjects || chat != null
   const recentThreads = threadList.slice(0, 5)
-
-  function handleNewThread(): void {
-    if (status !== 'connected') return
-    goToNewChat()
-  }
 
   async function handleProjectClick(
     project: WorkspaceProjectSummary,
@@ -288,98 +245,35 @@ function CollapsedSidebar(): JSX.Element {
         icon={<SidebarNavIcon name="new-chat" />}
         label={t('sidebar.newThreadLabel')}
         tooltipLabel={t('sidebar.newThreadLabel')}
-        shortcut={status === 'connected' ? ACTION_SHORTCUTS.newThread : undefined}
+        shortcut={ACTION_SHORTCUTS.newThread}
         tooltipPlacement="right"
-        disabledReason={
-          status !== 'connected'
-            ? t('connection.statusTitle', {
-              status: connectionStatusLabel(status, errorMessage, t)
-            })
-            : undefined
-        }
         size={32}
         radius={8}
         className="dc-sidebar-icon-button"
-        onClick={handleNewThread}
-        disabled={status !== 'connected'}
+        onClick={() => goToNewChat()}
       />
 
-      <IconButton
-        data-nav-icon-host=""
-        icon={<SidebarNavIcon name="channels" />}
-        label={t('sidebar.channels')}
-        tooltipLabel={t('sidebar.channels')}
-        tooltipPlacement="right"
-        size={32}
-        radius={8}
-        className="dc-sidebar-icon-button"
-        active={activeMainView === 'channels'}
-        onClick={() => setActiveMainView('channels')}
-        onPointerEnter={() => prefetchCoreMainView('channels')}
-        onFocus={() => prefetchCoreMainView('channels')}
-      />
-      {desktopMainViews.map((entry) => {
-        const label = resolveDesktopPluginLabel(entry.label, locale)
-        return (
+      {pinned.map((destination) => (
         <IconButton
-          key={entry.viewKey}
+          key={destination.id}
           data-nav-icon-host=""
-          icon={<DesktopPluginIcon icon={entry.icon} />}
-          label={label}
-          tooltipLabel={label}
+          data-testid={destination.testId}
+          icon={destination.icon}
+          label={destination.label}
+          tooltipLabel={destination.label}
           tooltipPlacement="right"
           size={32}
           radius={8}
           className="dc-sidebar-icon-button"
-          active={activeMainView === entry.viewKey}
-          onClick={() => setActiveMainView(entry.viewKey)}
+          active={destination.active}
+          onClick={destination.select}
+          onContextMenu={(event) => unpinMenu.open(event, destination.id)}
+          onPointerEnter={destination.prefetch}
+          onFocus={destination.prefetch}
         />
-        )
-      })}
-      <IconButton
-        data-nav-icon-host=""
-        icon={<SidebarNavIcon name="agents" />}
-        label={t('sidebar.agents')}
-        tooltipLabel={t('sidebar.agents')}
-        tooltipPlacement="right"
-        size={32}
-        radius={8}
-        className="dc-sidebar-icon-button"
-        active={activeMainView === 'agents'}
-        onClick={() => setActiveMainView('agents')}
-        onPointerEnter={() => prefetchCoreMainView('agents')}
-        onFocus={() => prefetchCoreMainView('agents')}
-      />
-      {collapsedAutomationsAvailable && (
-        <IconButton
-          data-nav-icon-host=""
-          icon={<SidebarNavIcon name="automations" />}
-          label={t('sidebar.automations')}
-          tooltipLabel={t('sidebar.automations')}
-          tooltipPlacement="right"
-          size={32}
-          radius={8}
-          className="dc-sidebar-icon-button"
-          active={activeMainView === 'automations'}
-          onClick={() => setActiveMainView('automations')}
-          onPointerEnter={() => prefetchCoreMainView('automations')}
-          onFocus={() => prefetchCoreMainView('automations')}
-        />
-      )}
-      <IconButton
-        data-nav-icon-host=""
-        icon={<SidebarNavIcon name="skills" />}
-        label={t('sidebar.skills')}
-        tooltipLabel={t('sidebar.skills')}
-        tooltipPlacement="right"
-        size={32}
-        radius={8}
-        className="dc-sidebar-icon-button"
-        active={activeMainView === 'skills'}
-        onClick={() => setActiveMainView('skills')}
-        onPointerEnter={() => prefetchCoreMainView('skills')}
-        onFocus={() => prefetchCoreMainView('skills')}
-      />
+      ))}
+      <SidebarMoreMenu destinations={more} variant="icon" />
+      {unpinMenu.menu}
 
       <div
         style={{

@@ -14,6 +14,7 @@ import {
 import { useUIStore } from './stores/uiStore'
 import { useComposerPreferencesStore } from './stores/composerPreferencesStore'
 import { useSidebarThreadOrderStore } from './stores/sidebarThreadOrderStore'
+import { useSidebarDestinationsStore } from './stores/sidebarDestinationsStore'
 import { hydrateSummaryPinned } from './components/conversation/summary/view'
 import { PET_CLOCK_MS, usePetStore } from './pet/petStore'
 import { showFindToast } from './pet/findToast'
@@ -1300,6 +1301,7 @@ export function App(): JSX.Element {
         useComposerPreferencesStore.getState().hydrate(s)
         usePetStore.getState().hydrate(s)
         useSidebarThreadOrderStore.getState().hydrate(s)
+        useSidebarDestinationsStore.getState().hydrate(s)
         hydrateSummaryPinned(s.summaryHidden !== true)
         useUIStore.setState({
           projectsSectionCollapsed: s.projectsSectionCollapsed === true,
@@ -2441,7 +2443,6 @@ export function App(): JSX.Element {
 
       if (ctrl && e.key === 'n') {
         e.preventDefault()
-        if (useConnectionStore.getState().status !== 'connected') return
         useUIStore.getState().goToNewChat()
       }
 
