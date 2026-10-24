@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type JSX, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useState, type JSX, type ReactNode } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { isSubAgentChildClosed, isTerminalSubAgentStatus, type SubAgentChild, type SubAgentDiscovery } from '../../stores/subAgentStore'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
@@ -14,6 +14,9 @@ import { resolveDesktopPluginToolRenderer } from '../../plugins/desktopPluginReg
 import { isToolExecutionFailure, parseToolResultObject } from '../../utils/toolCallDisplay'
 
 const VISIBLE_CHIPS = 3
+const COLLAPSED_NAMES = 2
+const NAMES_SLOT = '{{names}}'
+const MORE_TOKEN = '__dotcraft_subagent_more__'
 
 export interface SubAgentChipDisplay {
   id: string
@@ -51,7 +54,8 @@ export function SubAgentChips({
   )
   const revealNonce = useToolCallRevealTarget((target) =>
     target.threadId === parentThreadId
-      && parsedDisplays.slice(VISIBLE_CHIPS).some((display) => display.callId === target.callId)
+      && parsedDisplays.length > VISIBLE_CHIPS
+      && parsedDisplays.slice(COLLAPSED_NAMES).some((display) => display.callId === target.callId)
       ? target.nonce
       : null)
   useEffect(() => {
@@ -69,8 +73,23 @@ export function SubAgentChips({
   const anyFailed = states.includes('failed')
   const allDone = states.every((state) => state === 'done')
   const anyRunning = states.includes('running')
-  const visible = showAll ? resolved : resolved.slice(0, VISIBLE_CHIPS)
+  const visible = !showAll && resolved.length > VISIBLE_CHIPS ? resolved.slice(0, COLLAPSED_NAMES) : resolved
   const hidden = resolved.length - visible.length
+  const more = hidden > 0 && (
+    <button
+      type="button"
+      className="dc-subagent-chips-more"
+      onClick={() => setShowAll(true)}
+    >
+      {t('subAgentChips.more', { count: hidden })}
+    </button>
+  )
+  const names = joinNames(locale, visible, more, (display) => {
+    openSubAgent(parentThreadId, display.child?.childThreadId)
+  })
+  const statusKey = statusMessageKey({ anyFailed, allDone, anyRunning }, resolved.length)
+  const [before = '', after = ''] = statusKey ? t(statusKey).split(NAMES_SLOT) : []
+  const shimmer = !anyFailed && anyRunning
 
   return (
     <div className="dc-subagent-chips" data-testid="subagent-chips">
@@ -81,26 +100,26 @@ export function SubAgentChips({
           </span>
         ))}
       </span>
-      {joinNames(locale, visible, (display) => {
-        openSubAgent(parentThreadId, display.child?.childThreadId)
-      })}
-      {hidden > 0 && (
-        <>
-          {' '}
-          <button
-            type="button"
-            className="dc-subagent-chips-more"
-            onClick={() => setShowAll(true)}
-          >
-            {t('subAgentChips.more', { count: hidden })}
-          </button>
-        </>
-      )}
-      {' '}
-      <RunningShimmer active={!anyFailed && anyRunning} className="dc-subagent-chips-status" aria-live="polite">
-        {statusLabel(t, { anyFailed, allDone, anyRunning })}
-      </RunningShimmer>
+      <span aria-live="polite">
+        <StatusText text={before} active={shimmer} />
+        {names}
+        <StatusText text={after} active={shimmer} />
+      </span>
     </div>
+  )
+}
+
+/** The shimmer root is inline-block, which would swallow the space between a name and the status words. */
+function StatusText({ text, active }: { text: string; active: boolean }): JSX.Element | null {
+  const words = text.trim()
+  if (!words) return text ? <>{text}</> : null
+  const start = text.indexOf(words)
+  return (
+    <>
+      {text.slice(0, start)}
+      <RunningShimmer active={active} className="dc-subagent-chips-status">{words}</RunningShimmer>
+      {text.slice(start + words.length)}
+    </>
   )
 }
 
@@ -130,22 +149,29 @@ function isFailureStatus(status: string | null): boolean {
 }
 
 /** A failed spawn has no verb of its own, so it reads as interrupted. */
-function statusLabel(
-  t: (key: string) => string,
-  state: { anyFailed: boolean; allDone: boolean; anyRunning: boolean }
-): string {
-  if (state.anyFailed) return t('subAgentChips.interrupted')
-  if (state.anyRunning) return t('subAgentChips.startedWorking')
-  return state.allDone ? t('subAgentChips.finished') : ''
+function statusMessageKey(
+  state: { anyFailed: boolean; allDone: boolean; anyRunning: boolean },
+  count: number
+): string | null {
+  const form = count === 1 ? 'one' : 'other'
+  if (state.anyFailed) return `subAgentChips.interrupted.${form}`
+  if (state.anyRunning) return `subAgentChips.startedWorking.${form}`
+  return state.allDone ? `subAgentChips.finished.${form}` : null
 }
 
 /** Names read as one sentence, so the separators come from the locale rather than a hardcoded comma. */
-function joinNames(locale: string, displays: ResolvedSubAgentChip[], open: (display: ResolvedSubAgentChip) => void): ReactNode {
+function joinNames(
+  locale: string,
+  displays: ResolvedSubAgentChip[],
+  more: ReactNode,
+  open: (display: ResolvedSubAgentChip) => void
+): ReactNode {
   const parts = new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' })
-    .formatToParts(displays.map((entry) => entry.name))
+    .formatToParts([...displays.map((entry) => entry.name), ...(more ? [MORE_TOKEN] : [])])
   let index = -1
   return parts.map((part, position) => {
     if (part.type !== 'element') return <span key={`sep-${position}`}>{part.value}</span>
+    if (part.value === MORE_TOKEN) return <Fragment key="more">{more}</Fragment>
     index += 1
     const display = displays[index]
     return <SubAgentName key={display.id} display={display} open={() => open(display)} />
