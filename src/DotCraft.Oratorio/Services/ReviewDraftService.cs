@@ -80,6 +80,15 @@ public sealed class ReviewDraftService(
             UpdatedAt = now,
             Comments = validation.Comments.ToList()
         };
+        var replaced = await db.ReviewDrafts
+            .Where(x => x.RunId == run.RunId && x.Status == ReviewDraftStatus.Draft)
+            .ToListAsync(ct);
+        foreach (var previous in replaced)
+        {
+            previous.Status = ReviewDraftStatus.Discarded;
+            previous.UpdatedAt = now;
+        }
+
         db.ReviewDrafts.Add(draft);
         AddTimeline(run.Item, run.Round, run, TimelineEventKind.CommentAdded, "Review draft submitted", $"{validation.AcceptedCount} inline comment(s) accepted; {warnings.Count} warning(s).", now);
         await db.SaveChangesAsync(ct);
@@ -113,7 +122,7 @@ public sealed class ReviewDraftService(
         return await items.GetItemDetailByIdAsync(draft.ItemId, ct);
     }
 
-    public async Task<int> AutoPublishRunDraftsAsync(string runId, CancellationToken ct)
+    public async Task AutoPublishRunDraftAsync(string runId, CancellationToken ct)
     {
         var run = await db.Runs
             .Include(x => x.Item)
@@ -125,25 +134,24 @@ public sealed class ReviewDraftService(
             run.Item.Source is not ("github" or "gitlab") ||
             run.Item.Kind != ItemKind.PullRequest)
         {
-            return 0;
+            return;
         }
 
-        var drafts = await db.ReviewDrafts
+        var draft = await db.ReviewDrafts
             .Include(x => x.Item)
             .Include(x => x.Round)
             .Include(x => x.Run)
             .Include(x => x.Comments)
             .Where(x => x.RunId == runId && x.Status == ReviewDraftStatus.Draft)
-            .OrderBy(x => x.CreatedAt)
-            .ToListAsync(ct);
-
-        foreach (var draft in drafts)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+        if (draft is null)
         {
-            await PublishLoadedDraftAsync(draft, enforceAutoPublishGates: true, ct);
+            return;
         }
 
+        await PublishLoadedDraftAsync(draft, enforceAutoPublishGates: true, ct);
         await db.SaveChangesAsync(ct);
-        return drafts.Count;
     }
 
     private async Task PublishLoadedDraftAsync(OratorioReviewDraft draft, bool enforceAutoPublishGates, CancellationToken ct)

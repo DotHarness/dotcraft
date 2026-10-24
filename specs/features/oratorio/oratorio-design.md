@@ -2,9 +2,9 @@
 
 | Field | Value  |
 | ----- | ------ |
-| Version      | 0.9.1    |
+| Version      | 0.9.3    |
 | Status       | Living |
-| Date         | 2026-10-19        |
+| Date         | 2026-10-24        |
 | Parent Specs | [Automations Lifecycle](../automations-lifecycle.md) |
 
 Oratorio is DotCraft's built-in agent project management product. It runs as
@@ -467,6 +467,21 @@ submit a draft before it can succeed; a clean review submits a summary-only
 draft. A review run that finishes without a draft fails, and Oratorio never
 writes the draft on the agent's behalf.
 
+A run holds at most one unpublished draft: a later successful submission in the
+same run replaces its earlier unpublished draft. A run that is no longer active
+rejects submissions with a stable reason, so a late turn on an old thread can
+never add a draft, and publication sends only the run's current draft.
+
+A run finishes when a turn on its thread ends with a stored draft, or when a
+turn ends without one and the thread has no background work left. Background
+work is a SubAgent child that is still running, a running background terminal,
+or a running workflow on the thread. While it remains, Oratorio keeps the run's
+connection and tools bound, follows the turns that task notifications start on
+the thread, and keeps the run's heartbeat fresh; the run timeout still bounds
+the whole run. When no background work remains, Oratorio waits a short settle
+period for a notification turn before it treats the run as finished without a
+draft.
+
 A missing draft, an AppServer turn failure and a cancellation not made by the
 operator are recoverable review failures: they schedule another attempt in the
 same round under the bounded retry policy. The failed thread may be resumed
@@ -748,7 +763,9 @@ Oratorio uses DotCraft AppServer as the runtime boundary. It:
   requests;
 - attaches external MCP tools only for reusable services that never submit
   back into a specific run;
-- submits the rendered prompt as a turn and follows thread and turn events;
+- submits the rendered prompt as a turn and follows thread and turn events,
+  including the turns task notifications start while the run's background work
+  remains (§6.1);
 - maps completion, failure, cancellation, timeout and disconnection to run
   status;
 - treats an SDK disconnect as a disconnection failure and recovers through the

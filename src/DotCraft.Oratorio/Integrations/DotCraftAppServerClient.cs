@@ -33,6 +33,7 @@ public interface IDotCraftAppServerClient : IAsyncDisposable
     Task InterruptTurnAsync(string threadId, string turnId, CancellationToken ct);
     Task<AppServerThreadReadResult> ReadThreadAsync(string threadId, CancellationToken ct);
     Task<IReadOnlyList<ModelInfoDto>> ListModelsAsync(CancellationToken ct);
+    Task<bool> HasBackgroundWorkAsync(string threadId, CancellationToken ct);
     IAsyncEnumerable<DotCraftRunEvent> ReadEventsAsync(CancellationToken ct);
 }
 
@@ -208,6 +209,38 @@ public sealed class DotCraftAppServerClient(SdkClient client) : IDotCraftAppServ
         {
             return [];
         }
+    }
+
+    public async Task<bool> HasBackgroundWorkAsync(string threadId, CancellationToken ct)
+    {
+        var children = await client.Wire.RequestAsync(AppServerRpc.SubAgentChildrenList, new SubAgentChildrenListParams
+        {
+            ParentThreadId = threadId,
+            IncludeThreads = true
+        }, ct);
+        var childRunning = children.Data.IsSet && children.Data.Value?.Any(child =>
+            child.Thread.IsSet && child.Thread.Value?.Runtime?.Running is { IsSet: true, Value: true }) == true;
+        if (childRunning)
+        {
+            return true;
+        }
+
+        if (client.Capabilities.BackgroundTerminals)
+        {
+            var terminals = await client.Wire.RequestAsync(AppServerRpc.TerminalList, new TerminalListParams { ThreadId = threadId }, ct);
+            if (terminals.Terminals.IsSet && terminals.Terminals.Value?.Any(terminal => terminal.Status is { IsSet: true, Value: "running" }) == true)
+            {
+                return true;
+            }
+        }
+
+        if (client.Capabilities.Extensions?.DynamicWorkflows?.List == true)
+        {
+            var workflows = await client.Wire.RequestAsync(AppServerRpc.WorkflowRunList, new WorkflowRunListParams { ThreadId = threadId }, ct);
+            return workflows.Runs.Any(run => run.Status == "running");
+        }
+
+        return false;
     }
 
     public async IAsyncEnumerable<DotCraftRunEvent> ReadEventsAsync(

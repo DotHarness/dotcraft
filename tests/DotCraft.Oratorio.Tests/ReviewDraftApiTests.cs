@@ -17,6 +17,81 @@ namespace DotCraft.Oratorio.Tests;
 public sealed class ReviewDraftApiTests
 {
     [Fact]
+    public async Task AppServerReviewDraftTool_KeepsOnlyLatestDraftPerRun()
+    {
+        var fakeGitHub = new FakeGitHubApiClient();
+        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitSummaryOnlyReviewDraftTwice);
+        await using var app = CreateReviewApp(fakeGitHub, fakeAppServer);
+        var client = app.CreateClient();
+        var pr = await DispatchReviewAsync(client);
+
+        var reviewed = await WaitForItemByIdAsync(client, pr.ItemId!, x => x.Item.State == ItemState.AwaitingReview && x.ReviewDrafts.Any(d => d.Status == ReviewDraftStatus.Published));
+        var run = Assert.Single(reviewed.Runs, x => x.RunnerKind == "appServer");
+        Assert.Equal(RunStatus.Succeeded, run.Status);
+        Assert.Equal(2, fakeAppServer.ToolResults.Count(x => x.Success));
+        Assert.Single(reviewed.ReviewDrafts, x => x.Status == ReviewDraftStatus.Published);
+        Assert.Single(reviewed.ReviewDrafts, x => x.Status == ReviewDraftStatus.Discarded);
+        Assert.Single(fakeGitHub.PullRequestReviews);
+    }
+
+    [Fact]
+    public async Task AppServerReviewRun_WaitsForBackgroundWork_BeforeRequiringDraft()
+    {
+        var fakeGitHub = new FakeGitHubApiClient();
+        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.SubmitReviewDraftAfterBackgroundWork);
+        await using var app = CreateReviewApp(fakeGitHub, fakeAppServer);
+        var client = app.CreateClient();
+        ItemSummaryDto? pr = null;
+        fakeAppServer.WakeTurnStarted = turnId => WaitForItemByIdAsync(client, pr!.ItemId!, x => x.Runs.Any(r => r.TurnId == turnId));
+        pr = await DispatchReviewAsync(client);
+
+        var reviewed = await WaitForItemByIdAsync(client, pr.ItemId!, x => x.Item.State == ItemState.AwaitingReview && x.ReviewDrafts.Any(d => d.Status == ReviewDraftStatus.Published));
+        var run = Assert.Single(reviewed.Runs, x => x.RunnerKind == "appServer");
+        Assert.Equal(RunStatus.Succeeded, run.Status);
+        Assert.Equal("turn-wake-1", run.TurnId);
+        Assert.Equal(["thread-test-1"], fakeAppServer.TurnThreadIds);
+        Assert.Single(reviewed.ReviewDrafts);
+        Assert.Single(fakeGitHub.PullRequestReviews);
+    }
+
+    [Fact]
+    public async Task AppServerReviewRun_RequiresDraftAfterTurnEndsWithoutBackgroundWork()
+    {
+        var fakeGitHub = new FakeGitHubApiClient();
+        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.CompleteTurnWithoutDraftStreamOpen);
+        await using var app = CreateReviewApp(fakeGitHub, fakeAppServer);
+        var client = app.CreateClient();
+        var pr = await DispatchReviewAsync(client);
+
+        var failed = await WaitForItemByIdAsync(client, pr.ItemId!, x => x.Item.State == ItemState.Failed);
+        Assert.All(failed.Runs.Where(x => x.RunnerKind == "appServer"), x => Assert.Equal("reviewDraftRequired", x.ErrorCode));
+        Assert.Empty(failed.ReviewDrafts);
+    }
+
+    private static TestOratorioApp CreateReviewApp(FakeGitHubApiClient fakeGitHub, FakeAppServerClientFactory fakeAppServer) =>
+        new(services =>
+        {
+            services.RemoveAll<IGitHubApiClient>();
+            services.AddSingleton<IGitHubApiClient>(fakeGitHub);
+            services.RemoveAll<IDotCraftAppServerProcessManager>();
+            services.RemoveAll<IDotCraftAppServerClientFactory>();
+            services.AddSingleton<IDotCraftAppServerProcessManager, FakeDotCraftProcessManager>();
+            services.AddSingleton<IDotCraftAppServerClientFactory>(fakeAppServer);
+        });
+
+    private static async Task<ItemSummaryDto> DispatchReviewAsync(HttpClient client)
+    {
+        await PostAsync<GitHubSyncResponse>(client, "/api/v1/sources/github/sync", new { });
+        var list = await client.GetFromJsonAsync<ItemListResponse>("/api/v1/items?source=github", JsonOptions);
+        var pr = Assert.Single(list!.Items, x => x.Kind == ItemKind.PullRequest);
+        await PostAsync<ItemDetailResponse>(
+            client,
+            $"/api/v1/items/id/{pr.ItemId}/dispatch",
+            new DispatchRequest("appServer", "Prepare structured PR review suggestions.", null, null));
+        return pr;
+    }
+
+    [Fact]
     public async Task AppServerReviewDraftTool_RejectsMismatchedReusedThreadBinding()
     {
         var fakeGitHub = new FakeGitHubApiClient();

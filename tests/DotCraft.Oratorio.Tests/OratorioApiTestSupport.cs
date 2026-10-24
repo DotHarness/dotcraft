@@ -967,6 +967,9 @@ public enum FakeAppServerOutcome
     SubmitMultiLineReviewDraft,
     SubmitContextLineReviewDraft,
     SubmitNoOpReviewDraft,
+    SubmitSummaryOnlyReviewDraftTwice,
+    SubmitReviewDraftAfterBackgroundWork,
+    CompleteTurnWithoutDraftStreamOpen,
     SubmitImplementationDraft,
     SubmitFollowUpDraft,
     SubmitDiscussionReply,
@@ -1119,6 +1122,7 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
     public List<string> TurnPrompts { get; } = [];
     public List<(string ThreadId, string TurnId)> InterruptedTurns { get; } = [];
     public bool UseMismatchedToolThreadId { get; set; }
+    public Func<string, Task>? WakeTurnStarted { get; set; }
     public bool FailThreadResume { get; set; }
     public bool SupportsRuntimeAdditionalContext { get; set; } = true;
     public DynamicToolResult? LastToolResult { get; set; }
@@ -1166,7 +1170,8 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
             {
                 LastToolResult = result;
                 ToolResults.Add(result);
-            }));
+            },
+            turnId => WakeTurnStarted?.Invoke(turnId) ?? Task.CompletedTask));
     }
 }
 
@@ -1181,12 +1186,15 @@ internal sealed class FakeAppServerClient(
     Func<bool> useMismatchedToolThreadId,
     Func<string?> getFollowUpDraftRepository,
     Func<string?> getFollowUpDraftBranch,
-    Action<DynamicToolResult> captureToolResult) : IDotCraftAppServerClient
+    Action<DynamicToolResult> captureToolResult,
+    Func<string, Task> wakeTurnStarted) : IDotCraftAppServerClient
 {
     private readonly Channel<DotCraftRunEvent> _notifications = Channel.CreateUnbounded<DotCraftRunEvent>();
     private Func<DynamicToolCall, CancellationToken, Task<DynamicToolResult>>? _dynamicToolHandler;
+    private readonly TaskCompletionSource _backgroundWorkObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private FakeAppServerThreadResumeRequest? _lastResumeRequest;
     private bool _interrupted;
+    private volatile bool _backgroundWork;
 
     public bool SupportsDynamicToolRebind => true;
     public bool SupportsRuntimeAdditionalContext => supportsRuntimeAdditionalContext();
@@ -1488,6 +1496,37 @@ internal sealed class FakeAppServerClient(
                 _notifications.Writer.TryComplete();
             });
         }
+        else if (outcome == FakeAppServerOutcome.SubmitSummaryOnlyReviewDraftTwice)
+        {
+            _ = Task.Run(async () =>
+            {
+                await SubmitSummaryOnlyDraftAsync(threadId, turnId, "call-review-1", "First review summary from DotCraft.");
+                await SubmitSummaryOnlyDraftAsync(threadId, turnId, "call-review-2", "Second review summary from DotCraft.");
+                _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId, summary = "DotCraft review draft submitted." }));
+                _notifications.Writer.TryComplete();
+            });
+        }
+        else if (outcome == FakeAppServerOutcome.CompleteTurnWithoutDraftStreamOpen)
+        {
+            _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId, summary = "DotCraft analysis complete." }));
+        }
+        else if (outcome == FakeAppServerOutcome.SubmitReviewDraftAfterBackgroundWork)
+        {
+            _backgroundWork = true;
+            _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId, summary = "Waiting for the background reviewer." }));
+            _ = Task.Run(async () =>
+            {
+                await _backgroundWorkObserved.Task;
+                _backgroundWork = false;
+                const string wakeTurnId = "turn-wake-1";
+                _notifications.Writer.TryWrite(Notification("turn/started", new { threadId, turnId = wakeTurnId }));
+                await wakeTurnStarted(wakeTurnId);
+                await SubmitSummaryOnlyDraftAsync(threadId, wakeTurnId, "call-review-1", "Review summary after background work.");
+                _notifications.Writer.TryWrite(Notification("item/agentMessage/delta", new { delta = "DotCraft review draft submitted. " }));
+                _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId = wakeTurnId, summary = "DotCraft review draft submitted." }));
+                _notifications.Writer.TryComplete();
+            });
+        }
         else if (outcome == FakeAppServerOutcome.SubmitImplementationDraft)
         {
             _ = Task.Run(async () =>
@@ -1620,6 +1659,27 @@ internal sealed class FakeAppServerClient(
 
     public Task<IReadOnlyList<ModelInfoDto>> ListModelsAsync(CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<ModelInfoDto>>([new("fake-model", "Fake Model", "test")]);
+
+    public Task<bool> HasBackgroundWorkAsync(string threadId, CancellationToken ct)
+    {
+        var running = _backgroundWork;
+        if (running)
+        {
+            _backgroundWorkObserved.TrySetResult();
+        }
+
+        return Task.FromResult(running);
+    }
+
+    private async Task SubmitSummaryOnlyDraftAsync(string threadId, string turnId, string callId, string body)
+    {
+        var arguments = JsonSerializer.SerializeToElement(new
+        {
+            summary = new { majorCount = 0, minorCount = 0, suggestionCount = 0, body },
+            comments = Array.Empty<object>()
+        }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        captureToolResult(await _dynamicToolHandler!(CreateCall(threadId, turnId, callId, "oratorio_run", "SubmitReviewDraft", arguments), CancellationToken.None));
+    }
 
     public IAsyncEnumerable<DotCraftRunEvent> ReadEventsAsync(CancellationToken ct) =>
         outcome is FakeAppServerOutcome.TimeoutAfterTurnStarted or FakeAppServerOutcome.TimeoutAfterTurnStartedWithoutTerminal ||

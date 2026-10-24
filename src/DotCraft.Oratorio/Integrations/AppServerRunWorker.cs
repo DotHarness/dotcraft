@@ -33,6 +33,7 @@ public sealed partial class AppServerRunWorker(
     ILogger<AppServerRunWorker> logger) : BackgroundService
 {
     private static readonly RunStatus[] ActiveWorkerStatuses = [RunStatus.Dispatching, RunStatus.Running];
+    private static readonly TimeSpan BackgroundSettlePeriod = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan TimeoutInterruptWait = TimeSpan.FromSeconds(30);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -1065,7 +1066,7 @@ public sealed partial class AppServerRunWorker(
         if (run.Purpose == RunPurpose.ReviewAnalysis)
         {
             var drafts = scope.ServiceProvider.GetRequiredService<ReviewDraftService>();
-            await drafts.AutoPublishRunDraftsAsync(run.RunId, ct);
+            await drafts.AutoPublishRunDraftAsync(run.RunId, ct);
         }
     }
 
@@ -1273,8 +1274,42 @@ public sealed partial class AppServerRunWorker(
     private async Task ConsumeNotificationsAsync(string runId, IDotCraftAppServerClient client, string threadId, CancellationToken ct)
     {
         var summary = new StringBuilder();
-        await foreach (var runEvent in client.ReadEventsAsync(ct))
+        string? waitingText = null;
+        Task? waitTimer = null;
+        var settling = false;
+        using var readCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        await using var events = client.ReadEventsAsync(readCts.Token).GetAsyncEnumerator(readCts.Token);
+        Task<bool>? nextEvent = null;
+        while (true)
         {
+            nextEvent ??= events.MoveNextAsync().AsTask();
+            if (waitTimer is not null && await Task.WhenAny(nextEvent, waitTimer) == waitTimer)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (settling)
+                {
+                    await StopReadingAsync(nextEvent);
+                    await FinishTurnAsync(waitingText);
+                    return;
+                }
+
+                await WaitForBackgroundWorkAsync();
+                continue;
+            }
+
+            if (!await nextEvent)
+            {
+                if (waitTimer is not null)
+                {
+                    await FinishTurnAsync(waitingText);
+                    return;
+                }
+
+                break;
+            }
+
+            nextEvent = null;
+            var runEvent = events.Current;
             if (runEvent.Type is "initialized" or "thread/started")
             {
                 continue;
@@ -1282,6 +1317,8 @@ public sealed partial class AppServerRunWorker(
 
             if (runEvent is DotCraftRunEvent<TurnNotification> { Type: "turn/started" } startedTurn)
             {
+                waitTimer = null;
+                settling = false;
                 var turnId = startedTurn.Params.Turn.Id;
                 runCoordinator.UpdateRunStatus(runId, turnId, "running");
                 PublishRunStatus(runId, "running", turnId, null, null, 45, "DotCraft turn started.");
@@ -1328,8 +1365,6 @@ public sealed partial class AppServerRunWorker(
 
             if (runEvent.Type == "turn/completed")
             {
-                runCoordinator.UpdateRunStatus(runId, null, "completed");
-                PublishRunStatus(runId, "completed", null, null, null, 100, "DotCraft turn completed.");
                 var text = summary.ToString().Trim();
                 if (string.IsNullOrWhiteSpace(text))
                 {
@@ -1338,13 +1373,23 @@ public sealed partial class AppServerRunWorker(
                         : null;
                 }
 
+                if (await AwaitsReviewDraftAsync(runId, ct))
+                {
+                    waitingText = string.IsNullOrWhiteSpace(text) ? waitingText : text;
+                    summary.Clear();
+                    await WaitForBackgroundWorkAsync();
+                    continue;
+                }
+
+                runCoordinator.UpdateRunStatus(runId, null, "completed");
+                PublishRunStatus(runId, "completed", null, null, null, 100, "DotCraft turn completed.");
                 if (await TryContinueImplementationRunAsync(runId, client, threadId, ct))
                 {
                     summary.Clear();
                     continue;
                 }
 
-                await SucceedRunAsync(runId, string.IsNullOrWhiteSpace(text) ? "DotCraft analysis completed." : text.Trim(), ct);
+                await SucceedRunAsync(runId, string.IsNullOrWhiteSpace(text) ? waitingText ?? "DotCraft analysis completed." : text.Trim(), ct);
                 return;
             }
 
@@ -1388,6 +1433,55 @@ public sealed partial class AppServerRunWorker(
         }
 
         await FailRunAsync(runId, RunStatus.Failed, "appServerDisconnected", "DotCraft AppServer disconnected before the run completed.", allowRetry: true, ct);
+
+        async Task WaitForBackgroundWorkAsync()
+        {
+            if (!await client.HasBackgroundWorkAsync(threadId, ct))
+            {
+                settling = true;
+                waitTimer = Task.Delay(BackgroundSettlePeriod, ct);
+                return;
+            }
+
+            const string message = "Waiting for background tasks to finish.";
+            runCoordinator.UpdateRunStatus(runId, null, "running");
+            PublishRunStatus(runId, "running", null, null, null, 90, message);
+            await UpdateRunHeartbeatAsync(runId, 90, message, null, ct);
+            waitTimer = Task.Delay(BackgroundPollInterval, ct);
+        }
+
+        async Task StopReadingAsync(Task<bool> pending)
+        {
+            await readCts.CancelAsync();
+            try
+            {
+                await pending;
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+            }
+        }
+
+        async Task FinishTurnAsync(string? text)
+        {
+            runCoordinator.UpdateRunStatus(runId, null, "completed");
+            PublishRunStatus(runId, "completed", null, null, null, 100, "DotCraft turn completed.");
+            await SucceedRunAsync(runId, string.IsNullOrWhiteSpace(text) ? "DotCraft analysis completed." : text.Trim(), ct);
+        }
+    }
+
+    private TimeSpan BackgroundPollInterval =>
+        TimeSpan.FromTicks(Math.Min(TimeSpan.FromSeconds(30).Ticks, options.CurrentValue.StallTimeout.Ticks / 3));
+
+    private async Task<bool> AwaitsReviewDraftAsync(string runId, CancellationToken ct)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+        var run = await db.Runs.Include(x => x.Item).FirstOrDefaultAsync(x => x.RunId == runId, ct);
+        return run is not null &&
+            !IsTerminal(run.Status) &&
+            RequiresReviewDraft(run) &&
+            !await scope.ServiceProvider.GetRequiredService<ReviewDraftService>().RunHasDraftAsync(runId, ct);
     }
 
     private void PublishItemSnapshot(string runId, string eventType, ItemNotification parameters, bool streaming)
