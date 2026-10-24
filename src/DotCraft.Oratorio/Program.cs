@@ -107,6 +107,7 @@ builder.Services.AddScoped<TaskBoardPlacementService>();
 builder.Services.AddScoped<AppServerPromptBuilder>();
 builder.Services.AddSingleton<OratorioDynamicToolCatalog>();
 builder.Services.AddScoped<AutoReviewDispatchService>();
+builder.Services.AddScoped<ImplementationAutoDispatchService>();
 builder.Services.AddScoped<ImplementationFollowUpDispatchService>();
 builder.Services.AddSingleton<OratorioAppBindingService>();
 builder.Services.AddSingleton<OratorioBindingMcpRuntime>();
