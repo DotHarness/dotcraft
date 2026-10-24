@@ -772,7 +772,7 @@ internal sealed class FakeGitHubApiClient : IGitHubApiClient
 
         var items = (source.TryGetValue(repository.FullName, out var comments) ? comments : [])
             .Where(x => updatedAt(x) >= since)
-            .OrderBy(updatedAt)
+            .OrderByDescending(updatedAt)
             .ToArray();
         var currentETag = $"\"{string.Join(",", items.Select(x => $"{id(x)}:{updatedAt(x).ToUnixTimeMilliseconds()}"))}\"";
         var notModified = string.Equals(etag, currentETag, StringComparison.Ordinal);
@@ -1141,6 +1141,7 @@ public enum FakeAppServerOutcome
     SubmitReviewDraftAfterSteer,
     SubmitReviewDraftOnSteer,
     ReplyOnResumeAfterBackgroundWork,
+    HoldBackgroundWorkOnResume,
     Disconnect
 }
 
@@ -1292,6 +1293,7 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
     public List<FakeAppServerSteer> SteerRequests { get; } = [];
     public bool UseMismatchedToolThreadId { get; set; }
     public Func<string, Task>? WakeTurnStarted { get; set; }
+    public Task SteeredRunRelease { get; set; } = Task.CompletedTask;
     public bool FailThreadResume { get; set; }
     public int RejectTurnStarts { get; set; }
     public bool SupportsRuntimeAdditionalContext { get; set; } = true;
@@ -1350,7 +1352,8 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
             turnId => WakeTurnStarted?.Invoke(turnId) ?? Task.CompletedTask,
             steer => SteerRequests.Add(steer))
         {
-            LastSteeredPrompt = () => SteerRequests.LastOrDefault()?.Prompt
+            LastSteeredPrompt = () => SteerRequests.LastOrDefault()?.Prompt,
+            SteeredRunRelease = () => SteeredRunRelease
         });
     }
 }
@@ -1382,6 +1385,7 @@ internal sealed class FakeAppServerClient(
     private int _backgroundWorkChecks;
 
     public Func<string?> LastSteeredPrompt { get; init; } = () => null;
+    public Func<Task> SteeredRunRelease { get; init; } = () => Task.CompletedTask;
 
     public bool SupportsDynamicToolRebind => true;
     public bool SupportsRuntimeAdditionalContext => supportsRuntimeAdditionalContext();
@@ -1407,7 +1411,11 @@ internal sealed class FakeAppServerClient(
         _lastResumeRequest = new FakeAppServerThreadResumeRequest(threadId, dynamicTools, runtimeAdditionalContext);
         resumeThread(_lastResumeRequest);
         _notifications.Writer.TryWrite(Notification("thread/resumed", new { threadId }));
-        if (outcome == FakeAppServerOutcome.ReplyOnResumeAfterBackgroundWork)
+        if (outcome == FakeAppServerOutcome.HoldBackgroundWorkOnResume)
+        {
+            _backgroundWork = true;
+        }
+        else if (outcome == FakeAppServerOutcome.ReplyOnResumeAfterBackgroundWork)
         {
             _backgroundWork = true;
             _ = Task.Run(async () =>
@@ -1870,6 +1878,7 @@ internal sealed class FakeAppServerClient(
             _ = Task.Run(async () =>
             {
                 await _steered.Task;
+                await SteeredRunRelease();
                 await SubmitSummaryOnlyDraftAsync(threadId, turnId, "call-review-1", "Review summary before the question is answered.");
                 _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId }));
                 _notifications.Writer.TryComplete();

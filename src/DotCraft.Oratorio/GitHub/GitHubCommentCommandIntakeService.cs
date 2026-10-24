@@ -100,6 +100,7 @@ public sealed class GitHubCommentCommandIntakeService(
             CommentKind = candidate.Kind,
             CommentId = candidate.CommentId,
             CommentUrl = candidate.HtmlUrl,
+            CommentCreatedAt = candidate.CreatedAt,
             ThreadRootCommentId = candidate.Kind == GitHubCommentKind.ReviewComment
                 ? candidate.InReplyToId ?? candidate.CommentId
                 : null,

@@ -141,6 +141,7 @@ public sealed class OratorioGitHubCommentCommand
     public GitHubCommentKind CommentKind { get; set; } = GitHubCommentKind.Conversation;
     public long CommentId { get; set; }
     public string? CommentUrl { get; set; }
+    public DateTimeOffset CommentCreatedAt { get; set; }
     public long? ThreadRootCommentId { get; set; }
     public string? Path { get; set; }
     public int? Line { get; set; }

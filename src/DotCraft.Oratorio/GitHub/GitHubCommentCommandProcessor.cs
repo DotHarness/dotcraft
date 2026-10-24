@@ -33,7 +33,8 @@ public sealed class GitHubCommentCommandProcessor(
             .Where(x =>
                 x.Status == GitHubCommentCommandStatus.Queued &&
                 (x.NextAttemptAt == null || x.NextAttemptAt <= now))
-            .OrderBy(x => x.CreatedAt)
+            .OrderBy(x => x.CommentCreatedAt)
+            .ThenBy(x => x.CommentId)
             .FirstOrDefaultAsync(ct);
         if (command is null)
         {
@@ -116,7 +117,8 @@ public sealed class GitHubCommentCommandProcessor(
             x.Status == GitHubCommentCommandStatus.Queued &&
             x.Repository == command.Repository &&
             x.PullRequestNumber == command.PullRequestNumber &&
-            x.CreatedAt < command.CreatedAt,
+            (x.CommentCreatedAt < command.CommentCreatedAt ||
+                x.CommentCreatedAt == command.CommentCreatedAt && x.CommentId < command.CommentId),
             ct);
         if (earlierQuestionQueued || !GitHubRepositoryRef.TryParse(command.Repository, out var repository))
         {

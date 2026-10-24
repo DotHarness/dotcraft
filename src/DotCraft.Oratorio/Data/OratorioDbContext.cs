@@ -230,6 +230,7 @@ public sealed class OratorioDbContext(DbContextOptions<OratorioDbContext> option
         entity.Property(x => x.CommentKind).HasColumnName("comment_kind").HasConversion<string>().IsRequired();
         entity.Property(x => x.CommentId).HasColumnName("comment_id");
         entity.Property(x => x.CommentUrl).HasColumnName("comment_url");
+        entity.Property(x => x.CommentCreatedAt).HasColumnName("comment_created_at").HasConversion(DateTimeOffsetConverter);
         entity.Property(x => x.ThreadRootCommentId).HasColumnName("thread_root_comment_id");
         entity.Property(x => x.Path).HasColumnName("path");
         entity.Property(x => x.Line).HasColumnName("line");

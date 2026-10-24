@@ -51,6 +51,29 @@ public sealed class GitHubMentionScanTests
     }
 
     [Fact]
+    public async Task ScannedQuestionsOnOnePullRequest_DispatchInCommentOrder()
+    {
+        var harness = new ScanHarness();
+        await using var app = harness.App;
+        await harness.ScanAsync();
+
+        harness.Clock.Advance(TimeSpan.FromMinutes(1));
+        harness.AddConversationComment(9611, "@dotcraft-ai Why does refresh keep the old token?");
+        harness.Clock.Advance(TimeSpan.FromSeconds(10));
+        harness.AddConversationComment(9612, "@dotcraft-ai And does the same happen on logout?");
+        await harness.ScanAsync();
+        await harness.ProcessAllAsync();
+
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+        var commands = await db.GitHubCommentCommands.AsNoTracking().ToDictionaryAsync(x => x.CommentId);
+        Assert.Equal(GitHubCommentCommandStatus.Dispatched, commands[9611].Status);
+        Assert.Equal(GitHubCommentCommandStatus.Queued, commands[9612].Status);
+        var turn = await db.DiscussionTurns.AsNoTracking().SingleAsync();
+        Assert.Equal(commands[9611].DiscussionTurnId, turn.DiscussionTurnId);
+    }
+
+    [Fact]
     public async Task ScannedInlineReviewCommand_ReactsOnReviewComment()
     {
         var harness = new ScanHarness();

@@ -151,7 +151,7 @@ public sealed class DiscussionTurnDelivery(
 
         if (sessions.Find(turn.ThreadId) is { } existing)
         {
-            existing.Waiting[turn.DiscussionTurnId] = clock.UtcNow;
+            existing.Waiting[turn.DiscussionTurnId] = turn.StartedAt ?? turn.CreatedAt;
             await ReleaseFromRunAsync(turn, ct);
             return;
         }
@@ -168,7 +168,7 @@ public sealed class DiscussionTurnDelivery(
             await client.ResumeThreadAsync(threadId, toolSet.Declarations, guidance, ct);
             await client.SubscribeThreadAsync(threadId, ct);
             var session = new DiscussionThreadSession(client, threadId);
-            session.Waiting[turn.DiscussionTurnId] = clock.UtcNow;
+            session.Waiting[turn.DiscussionTurnId] = turn.StartedAt ?? turn.CreatedAt;
             await ReleaseFromRunAsync(turn, ct);
             sessions.Add(session);
             sessionRunner.Start(session, awaitBackgroundWork: true);

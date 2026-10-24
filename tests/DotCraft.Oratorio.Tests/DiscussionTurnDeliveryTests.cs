@@ -6,6 +6,7 @@ using DotCraft.Oratorio.Api;
 using DotCraft.Oratorio.Domain;
 using DotCraft.Oratorio.GitHub;
 using DotCraft.Oratorio.Integrations;
+using DotCraft.Oratorio.Services;
 using static DotCraft.Oratorio.Tests.OratorioApiTestSupport;
 
 namespace DotCraft.Oratorio.Tests;
@@ -159,6 +160,41 @@ public sealed class DiscussionTurnDeliveryTests
     }
 
     [Fact]
+    public async Task AdoptedQuestion_KeepsItsOriginalDeadline()
+    {
+        var clock = new MutableClock(DateTimeOffset.UtcNow);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.HoldBackgroundWorkOnResume)
+        {
+            SteeredRunRelease = release.Task
+        };
+        fakeAppServer.ScriptedOutcomes.Enqueue(FakeAppServerOutcome.SubmitReviewDraftOnSteer);
+        await using var app = CreateApp(fakeAppServer, clock: clock);
+        var client = app.CreateClient();
+        await PostAsync<GitHubSyncResponse>(client, "/api/v1/sources/github/sync", new { });
+        var list = await client.GetFromJsonAsync<ItemListResponse>("/api/v1/items?source=github", JsonOptions);
+        var itemId = Assert.Single(list!.Items, x => x.Kind == ItemKind.PullRequest).ItemId!;
+        await PostAsync<ItemDetailResponse>(
+            client,
+            $"/api/v1/items/id/{itemId}/dispatch",
+            new DispatchRequest("appServer", "First pass.", null, null));
+        await WaitForItemByIdAsync(client, itemId, x => x.Runs.Any(run => run.Status == RunStatus.Running && run.TurnId != null));
+        await PostAsync<ItemDetailResponse>(
+            client,
+            $"/api/v1/items/id/{itemId}/discussion-turns",
+            new DiscussionTurnRequest("Can a sub-agent check the migration?", null, null));
+        await WaitUntilAsync(() => Task.FromResult(fakeAppServer.SteerRequests.Count == 1));
+
+        clock.Advance(TimeSpan.FromMinutes(4));
+        release.SetResult();
+        await WaitForItemByIdAsync(client, itemId, x => x.DiscussionTurns.Any(turn => turn.Status == DiscussionTurnStatus.Running && turn.RunId == null));
+        clock.Advance(TimeSpan.FromMinutes(27));
+        var expired = await WaitForItemByIdAsync(client, itemId, x => x.DiscussionTurns.Any(turn => turn.Status == DiscussionTurnStatus.Failed));
+
+        Assert.Equal("discussionTurnTimedOut", Assert.Single(expired.DiscussionTurns).ErrorCode);
+    }
+
+    [Fact]
     public async Task QuestionOnArchivedItem_IsRejected()
     {
         var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.Success);
@@ -182,9 +218,15 @@ public sealed class DiscussionTurnDeliveryTests
         Assert.Equal("discussionTurnNotAllowed", error?.Error.Code);
     }
 
-    private static TestOratorioApp CreateApp(FakeAppServerClientFactory fakeAppServer, FakeGitHubApiClient? fakeGitHub = null) =>
+    private static TestOratorioApp CreateApp(FakeAppServerClientFactory fakeAppServer, FakeGitHubApiClient? fakeGitHub = null, IClock? clock = null) =>
         new(services =>
         {
+            if (clock is not null)
+            {
+                services.RemoveAll<IClock>();
+                services.AddSingleton(clock);
+            }
+
             services.RemoveAll<IGitHubApiClient>();
             services.AddSingleton<IGitHubApiClient>(fakeGitHub ?? new FakeGitHubApiClient());
             services.RemoveAll<IDotCraftAppServerProcessManager>();
