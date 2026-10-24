@@ -37,13 +37,13 @@ internal sealed class WorkspaceUpgrade_0_9_3 : IWorkspaceUpgrade
             foreach (var path in Directory.EnumerateFiles(directory, "*.jsonl", SearchOption.TopDirectoryOnly))
             {
                 ct.ThrowIfCancellationRequested();
-                if (!HasWorkspacePathHeader(path))
-                    continue;
                 try
                 {
+                    if (!HasWorkspacePathHeader(path))
+                        continue;
                     await threadStore.WithExclusiveRolloutAsync(
                         Path.GetFileNameWithoutExtension(path),
-                        rolloutPath => CompactLegacyRollout(threadStore, rolloutPath),
+                        rolloutPath => CompactLegacyRollout(threadStore, rolloutPath, ct),
                         ct);
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException)
@@ -55,7 +55,7 @@ internal sealed class WorkspaceUpgrade_0_9_3 : IWorkspaceUpgrade
         }
     }
 
-    private static void CompactLegacyRollout(ThreadStore threadStore, string path)
+    private static void CompactLegacyRollout(ThreadStore threadStore, string path, CancellationToken ct)
     {
         if (!HasWorkspacePathHeader(path))
             return;
@@ -69,14 +69,12 @@ internal sealed class WorkspaceUpgrade_0_9_3 : IWorkspaceUpgrade
             transaction.Commit();
         }
 
-        CompactRollout(path);
+        CompactRollout(path, ct);
     }
 
     internal static bool HasWorkspacePathHeader(string path)
     {
-        string? firstLine;
-        using (var reader = new StreamReader(path, Encoding.UTF8))
-            firstLine = reader.ReadLine();
+        var firstLine = ReadLines(path).FirstOrDefault();
         if (string.IsNullOrWhiteSpace(firstLine))
             return false;
 
@@ -98,7 +96,7 @@ internal sealed class WorkspaceUpgrade_0_9_3 : IWorkspaceUpgrade
         }
     }
 
-    internal static void CompactRollout(string path)
+    internal static void CompactRollout(string path, CancellationToken ct = default)
     {
         var turnIds = new Dictionary<string, int>(StringComparer.Ordinal);
         var firstRecord = new List<long>();
@@ -107,8 +105,9 @@ internal sealed class WorkspaceUpgrade_0_9_3 : IWorkspaceUpgrade
         var lineTurns = new List<int>();
 
         long index = 0;
-        foreach (var line in File.ReadLines(path, Encoding.UTF8))
+        foreach (var line in ReadLines(path))
         {
+            ct.ThrowIfCancellationRequested();
             var (kind, turnId) = Describe(line);
             if (kind == RolloutKinds.ThreadRolledBack)
                 rollbacks.Add(index);
@@ -142,33 +141,35 @@ internal sealed class WorkspaceUpgrade_0_9_3 : IWorkspaceUpgrade
         }
 
         var temporaryPath = path + ".upgrade";
-        using (var writer = new StreamWriter(temporaryPath, append: false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
-        {
-            index = 0;
-            foreach (var line in File.ReadLines(path, Encoding.UTF8))
-            {
-                var turn = lineTurns[(int)index];
-                var current = index++;
-                if (turn >= 0 && current < supersededBefore[turn])
-                    continue;
-
-                if (turn == ThreadOpenedLine
-                    && JsonNode.Parse(line) is JsonObject record
-                    && record["threadOpened"] is JsonObject header
-                    && header.Remove("workspacePath"))
-                {
-                    writer.Write(record.ToJsonString());
-                }
-                else
-                {
-                    writer.Write(line);
-                }
-                writer.Write('\n');
-            }
-        }
-
         try
         {
+            using (var writer = new StreamWriter(temporaryPath, append: false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+            {
+                index = 0;
+                foreach (var line in ReadLines(path))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var turn = lineTurns[(int)index];
+                    var current = index++;
+                    if (turn >= 0 && current < supersededBefore[turn])
+                        continue;
+
+                    if (turn == ThreadOpenedLine
+                        && JsonNode.Parse(line) is JsonObject record
+                        && record["threadOpened"] is JsonObject header
+                        && header.Remove("workspacePath"))
+                    {
+                        writer.Write(record.ToJsonString());
+                    }
+                    else
+                    {
+                        writer.Write(line);
+                    }
+                    writer.Write('\n');
+                }
+            }
+
+            ct.ThrowIfCancellationRequested();
             File.Move(temporaryPath, path, overwrite: true);
         }
         catch
@@ -176,6 +177,14 @@ internal sealed class WorkspaceUpgrade_0_9_3 : IWorkspaceUpgrade
             File.Delete(temporaryPath);
             throw;
         }
+    }
+
+    private static IEnumerable<string> ReadLines(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        while (reader.ReadLine() is { } line)
+            yield return line;
     }
 
     private static (string? Kind, string? TurnId) Describe(string line)
