@@ -77,7 +77,7 @@ public static class WorktreeToolRuntimeScope
 
 internal sealed class WorktreeToolMethods
 {
-    private const string Unavailable = "Error: Worktree tools are only available inside a conversation turn.";
+    private const string Unavailable = "Error: Worktree tools are only available inside a top-level conversation turn.";
 
     [GeneratedTool]
     [Description("Move this conversation into an isolated Git worktree on a new branch, so its changes stay out of the user's checkout. Use it only when the user or project instructions ask for a worktree; for other branch work, use git. The worktree starts from the current HEAD without uncommitted changes. Your later tool calls run in the worktree.")]

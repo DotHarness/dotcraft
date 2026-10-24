@@ -199,6 +199,9 @@ public sealed partial class SessionService(
         if (forkHistory.Count == 0)
             return false;
 
+        childThread.Metadata[ToolPlanningThreadClassifier.InheritedToolSurfaceKey] =
+            ToolPlanningThreadClassifier.ClassifyToolSurface(parentThread).ToString();
+
         NativeSubAgentGuidance.Reconcile(
             childThread,
             forkHistory,
@@ -257,27 +260,14 @@ public sealed partial class SessionService(
     }
 
     /// <summary>
-    /// Copies the leading stable items of a parent request and drops its transient work. Assistant
-    /// commentary, reasoning, and tool traffic belong to the parent's own loop, so the child keeps
-    /// only the ordered system, developer, and user items it can legitimately inherit.
+    /// Copies every parent item unchanged so the child's first request extends the parent's cached
+    /// prefix. Calls left without a result in a fallback history receive the fixed repair result.
     /// </summary>
     internal static List<ChatMessage> BuildNativeSubAgentForkHistory(
-        IReadOnlyList<ChatMessage> parentModelHistory)
-    {
-        var developerRole = new ChatRole("developer");
-        var result = new List<ChatMessage>(parentModelHistory.Count);
-        foreach (var message in parentModelHistory)
-        {
-            if (message.Role == ChatRole.System
-                || message.Role == developerRole
-                || message.Role == ChatRole.User)
-            {
-                result.Add(message.Clone());
-            }
-        }
-
-        return result;
-    }
+        IReadOnlyList<ChatMessage> parentModelHistory) =>
+        ModelRequestHistorySanitizer.Sanitize(parentModelHistory)
+            .Select(static message => message.Clone())
+            .ToList();
 
     private WorktreeCoordinator Worktrees => _worktreeCoordinator ??= new WorktreeCoordinator(this);
 

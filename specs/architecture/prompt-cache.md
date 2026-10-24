@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.9.3 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-10-24 |
 | **Parent Specs** | [Session Core](session-core.md), [Prompt Composition](prompt-composition.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
@@ -168,7 +168,7 @@ The names-only inventory is part of the Anthropic message prefix rather than the
 
 ### 2.5 Trace diagnostics
 
-For `openai-responses`, each provider request records a `PromptCacheRequestShape` trace event before transport. The event records SHA-256 hashes and counts for provider-visible byte shapes: instructions, tools, reasoning configuration, the full input array, and each ordered input item. It also records the serialized input byte count, the one-based stream attempt number, and aggregate response-item ID coverage (eligible, present, generated, missing, and invalid-source counts) without storing request content.
+For `openai-responses`, each provider request records a `PromptCacheRequestShape` trace event before transport. The event records SHA-256 hashes and counts for provider-visible byte shapes: instructions, tools, reasoning configuration, the full input array, and each ordered input item. Item hashes exclude the item's `id`, which is thread-scoped and not part of the cached token prefix, so equal content hashes equally across threads. It also records the serialized input byte count, the one-based stream attempt number, and aggregate response-item ID coverage (eligible, present, generated, missing, and invalid-source counts) without storing request content.
 
 Adjacent `PromptCacheRequestShape` events are compared by `inputItemHashes` from the start of the array: a long common prefix with only appended tail items means the provider-visible prefix stayed stable, and an early mismatch locates the change. Retries share the request index and increment `attemptNumber`. A changed `promptCacheKeyHash` with stable item hashes means the cache identity changed; when both are stable but cached reads drop, the evidence points to provider cache routing rather than a DotCraft prefix mutation.
 
@@ -176,15 +176,14 @@ When a full-history native SubAgent session is bound to its direct parent, traci
 
 | Status | Meaning |
 |--------|---------|
-| `compatible` | The static prefix matches — protocol, model, prompt-cache key, instructions, tools, and reasoning hashes are all equal — and the child retains a non-empty ordered input prefix from the parent. |
-| `staticShared` | The static prefix matches but the full-history child retained no ordered parent input, indicating that shared history was not materialized as expected. |
+| `compatible` | The static prefix matches — protocol, model, prompt-cache key, instructions, tools, and reasoning hashes are all equal — and the child's input begins with the anchor's complete input. |
+| `staticShared` | The static prefix matches but the child's input does not begin with the anchor's complete input, so inherited history was not copied intact. |
 | `diverged` | A leading request component changed, so the static prefix is broken. A defect when the child is required to inherit that prefix. |
 
 A missing parent shape is `unavailable`.
 
-A reused history snapshot must preserve its inherited static prefix. Diagnostics distinguish
-static-prefix compatibility from the length of inherited input; a short inherited input prefix
-is not by itself a cache defect.
+A full-history child inherits the anchor request's complete input ([SubAgents §5](../features/subagents.md#5-context-and-fork-modes)),
+so any shorter matched prefix is a defect.
 
 The event records only component hashes, request/attempt indexes, item counts, the matched prefix length, whether the complete parent input remains a prefix, whether a shared input prefix was expected for this spawn, the first divergence index, and changed-field names. It never records request content or compares the complete `inputHash`.
 

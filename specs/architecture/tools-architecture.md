@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.2 |
+| Version | 0.9.3 |
 | Status | Living |
-| Date | 2026-10-22 |
+| Date | 2026-10-24 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 
 ## 1. Purpose
@@ -249,7 +249,7 @@ A definition MAY declare a freeform input: a raw string constrained by a grammar
 | `EffectiveToolSnapshot` | Per-Turn registration set plus canonical, composite-provider, and flat-alias indexes. |
 | `ToolPresentationDescriptor` | Trusted `PresentationId` plus bounded renderer options; no free-form renderer selector. |
 
-`ToolPlanningThreadKind` is a trusted Session-derived classification (`UserTopLevel`, `SubAgentChild`, `Unattended`, `Internal`, `Unknown`), derived once from persisted thread origin, source, visibility, and configuration. Sources treat `Unknown` as ineligible for privileged entrypoint tools and do not replace this classification with channel-name denylists.
+`ToolPlanningThreadKind` is a trusted Session-derived classification (`UserTopLevel`, `SubAgentChild`, `Unattended`, `Internal`, `Unknown`), derived once from persisted thread origin, source, visibility, and configuration. Sources treat `Unknown` as ineligible for privileged entrypoint tools and do not replace this classification with channel-name denylists. A native full-history SubAgent plans its model-visible tools with its parent's classification, so its schema matches the parent's, while execution authority stays `SubAgentChild`.
 
 Modules contribute tools only through tool sources and the typed contracts above.
 
@@ -299,7 +299,7 @@ A stall watchdog checks running terminals every 5 seconds. A terminal stalls whe
 
 ### 7.5 Worktree tools
 
-`EnterWorktree` and `ExitWorktree` let the agent move its own thread into and out of a managed worktree ([Session Core §4.1.1.2](session-core.md#41112-worktrees)). They are exposed to top-level threads whose state workspace is a local Git repository, so their presence does not change with mode or worktree state; Plan mode rejects them at execution time.
+`EnterWorktree` and `ExitWorktree` let the agent move its own thread into and out of a managed worktree ([Session Core §4.1.1.2](session-core.md#41112-worktrees)). They are exposed to top-level threads whose state workspace is a local Git repository, so their presence does not change with mode or worktree state; Plan mode rejects them at execution time. A native full-history SubAgent inherits them with its parent's schema and has its calls rejected.
 
 - `EnterWorktree` takes an optional `name` or an optional `path`. Without `path` it creates a worktree on a new branch from the current `HEAD`, named from `name` when given; uncommitted changes are not copied. `path` re-enters a managed worktree of this workspace that no other thread is bound to. It fails when the thread is already in a worktree.
 - `ExitWorktree` takes `action` (`keep` or `remove`) and optional `discardChanges`. `keep` leaves the worktree and its branch on disk; `remove` deletes both and is refused, listing what would be lost, when the worktree has uncommitted changes or commits beyond its base unless `discardChanges` is true. Neither moves changes into the local checkout. `remove` is refused while a background terminal started in the worktree is running.

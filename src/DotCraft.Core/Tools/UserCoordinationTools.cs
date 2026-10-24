@@ -18,11 +18,11 @@ public sealed class UserCoordinationTools
         if (string.IsNullOrWhiteSpace(message))
             return Serialize(new { error = "SendUserMessageAsync.message must not be empty." });
 
-        var context = UserCoordinationRuntimeScope.Current;
-        if (context is null)
-            return Serialize(new { error = "SendUserMessageAsync is only available inside an eligible Session Core turn." });
+        var send = UserCoordinationRuntimeScope.Current?.SendUserMessageAsync;
+        if (send is null)
+            return Serialize(new { error = "SendUserMessageAsync is only available inside a top-level Session Core turn." });
 
-        await context.SendUserMessageAsync(message.Trim(), cancellationToken).ConfigureAwait(false);
+        await send(message.Trim(), cancellationToken).ConfigureAwait(false);
         return Serialize(new { accepted = true });
     }
 
@@ -61,7 +61,7 @@ public sealed record UserCoordinationSleepResult(
 
 /// <summary>Runtime callbacks used by user-coordination tools.</summary>
 public sealed record UserCoordinationRuntimeContext(
-    Func<string, CancellationToken, Task> SendUserMessageAsync,
+    Func<string, CancellationToken, Task>? SendUserMessageAsync,
     Func<int, CancellationToken, Task<UserCoordinationSleepResult>> SleepAsync);
 
 /// <summary>Async-local scope for user coordination in an active Session Core turn.</summary>

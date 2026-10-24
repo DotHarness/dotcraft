@@ -27,6 +27,18 @@ public sealed class UserCoordinationToolsTests
     }
 
     [Fact]
+    public async Task SendUserMessageAsync_RejectsTurnsWithoutUserDelivery()
+    {
+        using var scope = UserCoordinationRuntimeScope.Set(new UserCoordinationRuntimeContext(
+            null,
+            (_, _) => Task.FromResult(new UserCoordinationSleepResult(1, "completed"))));
+
+        var result = JsonDocument.Parse(await new UserCoordinationTools().SendUserMessageAsync("Ask now")).RootElement;
+
+        Assert.True(result.TryGetProperty("error", out _));
+    }
+
+    [Fact]
     public async Task Sleep_ValidatesBoundsAndReturnsRuntimeResult()
     {
         var capturedDuration = 0;

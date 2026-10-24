@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.2 |
+| **Version** | 0.9.3 |
 | **Status** | Living |
-| **Date** | 2026-10-22 |
+| **Date** | 2026-10-24 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -974,7 +974,7 @@ The adapter only presents the request and returns the decision. Approval UX is c
 
 ### 10.3 Model-Initiated User Input
 
-`RequestUserInput` lets the agent ask one to three short structured questions before continuing. It is exposed only to main user threads, not SubAgents, and keeps the same schema in Agent and Plan modes.
+`RequestUserInput` lets the agent ask one to three short structured questions before continuing. It is exposed to main user threads and declared to native full-history SubAgents, which keep their parent's tool schema ([SubAgents §5](../features/subagents.md#5-context-and-fork-modes)) and have their calls rejected. It keeps the same schema in Agent and Plan modes.
 
 Each `UserInputRequest` carries `isBlocking`, set by Session Core from the active mode: `true` in Plan mode, `false` in Agent mode. It is client-facing metadata, not a tool argument, and does not change the server-side wait: both modes pause until resolution or Turn end.
 
@@ -984,7 +984,7 @@ Interactive adapters present the request natively. A client may auto-resolve a n
 
 ### 10.4 Asynchronous User Coordination
 
-`SendUserMessageAsync` is exposed by default to top-level Agent and Plan threads (not Internal or SubAgent threads). It validates a non-empty message, persists and broadcasts an `AgentMessage` with `deliveryMode = "async"`, returns `{ "accepted": true }`, and lets the loop continue.
+`SendUserMessageAsync` is exposed by default to top-level Agent and Plan threads (not Internal or SubAgent threads). Native full-history SubAgents keep it declared and have their calls rejected. It validates a non-empty message, persists and broadcasts an `AgentMessage` with `deliveryMode = "async"`, returns `{ "accepted": true }`, and lets the loop continue.
 
 The `clock` namespace is exposed by default to ordinary agent threads, including native SubAgents but not Internal threads. `clock/CurrentTime` returns the current UTC time. `clock/Sleep` accepts `durationMs` from 1 ms to 12 hours and records a `Sleep` Item for the wait. It returns after the duration, Turn cancellation, or an active-Turn steer, mailbox, or task notification signal; the runtime subscribes before rechecking pending input so a signal at the boundary is not lost. The next drain then admits that input before the next sample.
 

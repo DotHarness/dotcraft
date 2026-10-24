@@ -541,6 +541,29 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
+    public void CreateResponseRequestShape_ItemHashesIgnoreThreadScopedItemIds()
+    {
+        static ChatMessage Assistant(string itemId) => new(ChatRole.Assistant, "same answer")
+        {
+            AdditionalProperties = new AdditionalPropertiesDictionary
+            {
+                ["openai.responses.item_id"] = itemId
+            }
+        };
+        var parent = ResponsesToolSearchMapper.CreateResponseRequest(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "task"), Assistant("msg_parent")],
+            new ChatOptions()).Shape;
+        var child = ResponsesToolSearchMapper.CreateResponseRequest(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "task"), Assistant("msg_child")],
+            new ChatOptions()).Shape;
+
+        Assert.Equal(parent.InputItemHashes, child.InputItemHashes);
+        Assert.NotEqual(parent.InputHash, child.InputHash);
+    }
+
+    [Fact]
     public void CreateResponseRequestShape_RecordsOrderedByteHashesForPrefixComparison()
     {
         var options = new ChatOptions

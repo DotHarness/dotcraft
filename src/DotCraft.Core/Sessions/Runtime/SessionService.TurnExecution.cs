@@ -1277,7 +1277,7 @@ public sealed partial class SessionService
                         : null;
                 using var userCoordinationScope = ToolPlanningThreadClassifier.Classify(thread) != ToolPlanningThreadKind.Internal
                     ? UserCoordinationRuntimeScope.Set(new UserCoordinationRuntimeContext(
-                        SendUserMessageAsync,
+                        thread.Source.SubAgent == null ? SendUserMessageAsync : null,
                         SleepAsync))
                     : null;
                 using var subAgentSessionScope = SubAgentSessionScope.Set(new SubAgentSessionContext
