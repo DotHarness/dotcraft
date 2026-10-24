@@ -7,15 +7,15 @@ using Xunit;
 
 namespace DotCraft.Tests.Persistence;
 
-public sealed class WorkspaceUpgrade_0_9_2Tests : IDisposable
+public sealed class WorkspaceUpgrade_0_9_3Tests : IDisposable
 {
     private readonly string _workspace = Path.Combine(
         Path.GetTempPath(),
-        "dotcraft-upgrade-0-9-2-tests",
+        "dotcraft-upgrade-0-9-3-tests",
         Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task Upgrade_drops_the_workspace_path_and_superseded_turn_records()
+    public async Task Upgrade_drops_the_workspace_path_and_later_compacts_superseded_turn_records()
     {
         var craft = Path.Combine(_workspace, ".craft");
         var thread = CreateThread();
@@ -31,6 +31,11 @@ public sealed class WorkspaceUpgrade_0_9_2Tests : IDisposable
         {
             var summary = Assert.Single(await store.LoadIndexAsync());
             Assert.Equal(Path.GetFullPath(_workspace), summary.WorkspacePath);
+            Assert.Contains(RolloutKinds.ItemAppended, File.ReadAllText(rolloutPath));
+
+            await WorkspaceUpgrades.ApplyInBackgroundAsync(store, CancellationToken.None);
+
+            Assert.Single(await store.LoadIndexAsync());
             var loaded = await store.LoadThreadAsync(thread.Id);
             Assert.Equal(expectedTurns, JsonSerializer.Serialize(loaded!.Turns));
         }
@@ -44,7 +49,7 @@ public sealed class WorkspaceUpgrade_0_9_2Tests : IDisposable
         using var connection = OpenDatabase(craft);
         Assert.Equal(Path.Combine("threads", "active", $"{thread.Id}.jsonl"), Scalar(connection, "SELECT rollout_path FROM threads"));
         Assert.Equal(0L, Scalar(connection, "SELECT COUNT(*) FROM pragma_table_info('threads') WHERE name = 'workspace_path'"));
-        Assert.Equal("0.9.2", Scalar(connection, "SELECT value FROM workspace_meta WHERE key = 'data_version'"));
+        Assert.Equal("0.9.3", Scalar(connection, "SELECT value FROM workspace_meta WHERE key = 'data_version'"));
     }
 
     private SessionThread CreateThread()
@@ -124,7 +129,9 @@ public sealed class WorkspaceUpgrade_0_9_2Tests : IDisposable
             "{\"kind\":\"thread_rolled_back\","
         ]);
 
-        Assert.True(WorkspaceUpgrade_0_9_2.CompactRollout(rolloutPath));
+        Assert.True(WorkspaceUpgrade_0_9_3.HasWorkspacePathHeader(rolloutPath));
+        WorkspaceUpgrade_0_9_3.CompactRollout(rolloutPath);
+        Assert.False(WorkspaceUpgrade_0_9_3.HasWorkspacePathHeader(rolloutPath));
 
         var lines = File.ReadAllLines(rolloutPath);
         Assert.DoesNotContain("workspacePath", lines[0]);

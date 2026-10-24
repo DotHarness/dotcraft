@@ -44,7 +44,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         IReadOnlyList<ConfigSchemaSection> configSchema,
         IContextPageManager contextPageManager,
         ConfigurationService configuration,
-        IAsyncDisposable? idleThreadUnloading)
+        IAsyncDisposable? idleThreadUnloading,
+        IAsyncDisposable backgroundUpgrade)
     {
         public AgentFactory AgentFactory { get; } = agentFactory;
 
@@ -64,6 +65,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         public DreamsService DreamsService { get; } = dreamsService;
 
         public IAsyncDisposable? IdleThreadUnloading { get; } = idleThreadUnloading;
+
+        public IAsyncDisposable BackgroundUpgrade { get; } = backgroundUpgrade;
 
         public DotNetPluginRuntimeManager PluginRuntime { get; } = pluginRuntime;
 
@@ -426,7 +429,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     configSchema,
                     contextPageManager,
                     configuration,
-                    (sessionService as SessionService)?.StartIdleThreadUnloading());
+                    (sessionService as SessionService)?.StartIdleThreadUnloading(),
+                    Services.GetRequiredService<ThreadStore>().StartBackgroundUpgrade());
 
                 _appConfigMonitor.Changed += OnAppConfigChanged;
                 McpClientManager.StatusChanged += OnMcpStatusChanged;
@@ -538,6 +542,15 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             {
                 if (started.IdleThreadUnloading != null)
                     await started.IdleThreadUnloading.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                (errors ??= []).Add(ex);
+            }
+
+            try
+            {
+                await started.BackgroundUpgrade.DisposeAsync();
             }
             catch (Exception ex)
             {
