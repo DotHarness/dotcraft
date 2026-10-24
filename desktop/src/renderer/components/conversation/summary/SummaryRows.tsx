@@ -33,11 +33,13 @@ export function Row({
   )
   const trailingSlot = trailing ? <span className="conversation-summary-row__trailing">{trailing}</span> : null
   if (!onClick) {
-    return (
-      <li className="conversation-summary-row" title={trailing ? undefined : title}>
-        {content}
+    return trailing ? (
+      <li className="conversation-summary-row-item">
+        <div className="conversation-summary-row">{content}</div>
         {trailingSlot}
       </li>
+    ) : (
+      <li className="conversation-summary-row" title={title}>{content}</li>
     )
   }
   return (

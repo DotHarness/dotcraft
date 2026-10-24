@@ -87,8 +87,7 @@ export function BackgroundTasksSection({ services, threadId, terminals, workflow
           key={workflow.runId}
           leading={<Workflow {...GLYPH} />}
           label={workflow.name}
-          inline={workflow.paused ? t('summary.paused') : undefined}
-          meta={workflow.paused ? undefined : elapsed(workflow.startedAt, now)}
+          meta={workflow.paused ? t('summary.paused') : elapsed(workflow.startedAt, now)}
           title={workflow.name}
           onClick={reveal(workflowCalls.get(workflow.runId))}
           trailing={(

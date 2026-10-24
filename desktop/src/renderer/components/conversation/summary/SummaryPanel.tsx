@@ -50,7 +50,7 @@ function SubagentsRow({ services, state }: {
           {overflow > 0 ? <span className="conversation-summary-avatars__more">+{overflow}</span> : null}
         </span>
         <span className="conversation-summary-row__label">{label}</span>
-        {meta ? <span className="conversation-summary-row__inline">{meta}</span> : null}
+        {meta ? <span className="conversation-summary-row__meta">{meta}</span> : null}
       </button>
     </li>
   )
