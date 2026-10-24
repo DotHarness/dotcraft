@@ -16,17 +16,19 @@ public sealed class RequestUserInputTools
     [Description("Request user input for one to three short questions and wait for the response.")]
     public async Task<string> RequestUserInput(
         [Description("Questions to show the user. Prefer 1 and do not exceed 3. Each question has id, header, question, and 2-3 mutually exclusive options with label and description. Put the recommended option first and suffix its label with \"(Recommended)\". Do not include an \"Other\" option.")]
-        List<RequestUserInputQuestion> questions)
+        List<RequestUserInputQuestion> questions,
+        ToolInvocationContext context)
     {
-        var context = RequestUserInputRuntimeScope.Current;
-        if (context is null)
+        if (context.TurnServices is { IsTopLevelThread: false })
+            return Serialize(new { error = "RequestUserInput can only be used by a top-level thread." });
+        if (context.TurnServices?.RequestUserInput is not { } requestUserInput)
             return Serialize(new { error = "RequestUserInput is only available inside a root Session Core turn." });
 
         var validationError = Validate(questions);
         if (validationError != null)
             return Serialize(new { error = validationError });
 
-        var response = await context.RequestAsync(questions);
+        var response = await requestUserInput.RequestAsync(questions);
         return Serialize(response);
     }
 

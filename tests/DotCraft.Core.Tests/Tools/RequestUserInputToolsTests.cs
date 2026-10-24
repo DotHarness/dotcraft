@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Core.Tests.Tools;
 using DotCraft.Tools;
 using DotCraft.Sessions;
 using Xunit;
@@ -8,11 +9,11 @@ namespace DotCraft.Tests.Tools;
 public sealed class RequestUserInputToolsTests
 {
     [Fact]
-    public async Task RequestUserInput_WithoutRuntimeScope_ReturnsError()
+    public async Task RequestUserInput_WithoutTurnServices_ReturnsError()
     {
         var tool = new RequestUserInputTools();
 
-        var result = await tool.RequestUserInput([ValidQuestion()]);
+        var result = await tool.RequestUserInput([ValidQuestion()], TurnToolInvocation.For(null));
 
         using var doc = JsonDocument.Parse(result);
         var error = doc.RootElement.GetProperty("error").GetString();
@@ -24,24 +25,23 @@ public sealed class RequestUserInputToolsTests
     public async Task RequestUserInput_RejectsInvalidQuestions()
     {
         var tool = new RequestUserInputTools();
-        using var scope = RequestUserInputRuntimeScope.Set(new RequestUserInputRuntimeContext(
-            _ => Task.FromResult(new RequestUserInputResponse())));
+        var invocation = Invocation(_ => Task.FromResult(new RequestUserInputResponse()));
 
         var question = ValidQuestion();
         question.Options = [new RequestUserInputQuestionOption { Label = "Only one" }];
 
-        var result = await tool.RequestUserInput([question]);
+        var result = await tool.RequestUserInput([question], invocation);
 
         using var doc = JsonDocument.Parse(result);
         Assert.Contains("2 to 3 options", doc.RootElement.GetProperty("error").GetString());
     }
 
     [Fact]
-    public async Task RequestUserInput_WithRuntimeScope_ReturnsAnswers()
+    public async Task RequestUserInput_FromTopLevelThread_ReturnsAnswers()
     {
         var tool = new RequestUserInputTools();
         IReadOnlyList<RequestUserInputQuestion>? captured = null;
-        using var scope = RequestUserInputRuntimeScope.Set(new RequestUserInputRuntimeContext(questions =>
+        var invocation = Invocation(questions =>
         {
             captured = questions;
             return Task.FromResult(new RequestUserInputResponse
@@ -54,9 +54,9 @@ public sealed class RequestUserInputToolsTests
                     }
                 }
             });
-        }));
+        });
 
-        var result = await tool.RequestUserInput([ValidQuestion()]);
+        var result = await tool.RequestUserInput([ValidQuestion()], invocation);
 
         Assert.NotNull(captured);
         Assert.Equal("provider_id_handling", Assert.Single(captured!).Id);
@@ -68,6 +68,14 @@ public sealed class RequestUserInputToolsTests
             .GetString();
         Assert.Equal("Auto-generate (Recommended)", answer);
     }
+
+    private static ToolInvocationContext Invocation(
+        Func<IReadOnlyList<RequestUserInputQuestion>, Task<RequestUserInputResponse>> request) =>
+        TurnToolInvocation.For(new TurnToolServices
+        {
+            IsTopLevelThread = true,
+            RequestUserInput = new RequestUserInputRuntimeContext(request)
+        });
 
     private static RequestUserInputQuestion ValidQuestion() => new()
     {

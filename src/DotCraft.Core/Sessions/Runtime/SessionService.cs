@@ -201,6 +201,16 @@ public sealed partial class SessionService(
 
         childThread.Metadata[ToolPlanningThreadClassifier.InheritedToolSurfaceKey] =
             ToolPlanningThreadClassifier.ClassifyToolSurface(parentThread).ToString();
+        if (childThread.Source.SubAgent is { } source)
+        {
+            traceCollector?.BindChildSession(
+                childThread.Id,
+                string.IsNullOrWhiteSpace(source.RootThreadId) ? parentThread.Id : source.RootThreadId,
+                parentThread.Id,
+                expectsSharedInputPrefix: true,
+                comparePromptPrefix: true,
+                forkMode: source.ForkTurns);
+        }
 
         NativeSubAgentGuidance.Reconcile(
             childThread,

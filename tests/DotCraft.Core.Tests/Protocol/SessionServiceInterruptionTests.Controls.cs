@@ -21,7 +21,7 @@ public sealed partial class SessionServiceInterruptionTests
                 await new SessionScopedApprovalService(new AutoApproveApprovalService())
                     .RequestShellApprovalAsync(ShellApprovalRequests.For("test", root));
             else
-                await RequestUserInputRuntimeScope.Current!.RequestAsync(
+                await ToolExecutionRuntimeScope.Current!.TurnServices!.RequestUserInput!.RequestAsync(
                     [new RequestUserInputQuestion { Id = "choice", Header = "Choice", Question = "Choose" }]);
         };
         await using var factory = Factory(client: client);

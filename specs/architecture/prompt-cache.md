@@ -172,7 +172,7 @@ For `openai-responses`, each provider request records a `PromptCacheRequestShape
 
 Adjacent `PromptCacheRequestShape` events are compared by `inputItemHashes` from the start of the array: a long common prefix with only appended tail items means the provider-visible prefix stayed stable, and an early mismatch locates the change. Retries share the request index and increment `attemptNumber`. A changed `promptCacheKeyHash` with stable item hashes means the cache identity changed; when both are stable but cached reads drop, the evidence points to provider cache routing rather than a DotCraft prefix mutation.
 
-When a full-history native SubAgent session is bound to its direct parent, tracing captures the parent's latest `PromptCacheRequestShape` as an immutable fork anchor. The child's first request shape produces exactly one `SubAgentPrefixDiagnostic` with one of three statuses:
+When a full-history native SubAgent fork is materialized, tracing captures the parent's latest `PromptCacheRequestShape` as an immutable fork anchor. The parent is still inside the spawning tool call at that point, so the anchor is the request that issued the spawn rather than a later parent request. The child's first request shape produces exactly one `SubAgentPrefixDiagnostic` with one of three statuses:
 
 | Status | Meaning |
 |--------|---------|

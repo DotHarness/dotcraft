@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using DotCraft.Agents;
+using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
 
@@ -20,6 +21,8 @@ public sealed class ToolExecutionRuntimeContext
     public required Action<SessionItem> EmitItemCompleted { get; init; }
 
     public required bool SupportsToolExecutionLifecycle { get; init; }
+
+    public TurnToolServices? TurnServices { get; init; }
 
     private readonly ConcurrentDictionary<string, PendingToolExecutionRegistration> _pending =
         new(StringComparer.Ordinal);
