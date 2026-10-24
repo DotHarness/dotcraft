@@ -1724,8 +1724,9 @@ Content beside the conversation stays quieter than the conversation itself.
   shared code typography inside code. Syntax markers stay hidden except where the
   focused selection touches them; lists keep their markers; tables keep their cell
   layout; closed code fences keep their rendered boundary and language label. The
-  header switches between source and preview, and each mode keeps its own
-  selection and scroll.
+  header switches between source and preview with one icon button that shows the
+  mode it switches to (code for source, eye for preview) rather than a pressed
+  state, and each mode keeps its own selection and scroll.
 - File-link navigation marks the target with a restrained full-line background and
   gutter marker from `--bg-navigation` and `--border-navigation`, distinct from
   selection, the active line, and search matches, preserving syntax colours. It

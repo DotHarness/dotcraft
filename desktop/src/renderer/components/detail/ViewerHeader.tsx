@@ -3,7 +3,7 @@
  * chrome and never render this header.
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { ChevronRight, Folder, FolderOpen } from 'lucide-react'
+import { ChevronRight, Code2, Eye, Folder, FolderOpen } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -12,7 +12,6 @@ import { OpenTargetButton } from '../conversation/OpenTargetButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ViewerActionsMenu } from './ViewerActionsMenu'
 import { IconButton } from '../ui/IconButton'
-import { Button } from '../ui/Button'
 import type { FileEditorMode } from '../../stores/fileEditorStore'
 import { PathCrumbMenu } from './PathCrumbMenu'
 
@@ -117,9 +116,16 @@ export function ViewerHeader({
 
       <div style={actionsStyle}>
         {markdownMode && onToggleMarkdownMode && (
-          <Button size="toolbar" variant="ghost" onClick={onToggleMarkdownMode}>
-            {markdownMode === 'preview' ? t('viewer.viewSource') : t('viewer.viewPreview')}
-          </Button>
+          <IconButton
+            size={28}
+            label={markdownMode === 'preview' ? t('viewer.viewSource') : t('viewer.viewPreview')}
+            tooltipLabel={markdownMode === 'preview' ? t('viewer.viewSource') : t('viewer.viewPreview')}
+            tooltipPlacement="bottom"
+            onClick={onToggleMarkdownMode}
+            icon={markdownMode === 'preview'
+              ? <Code2 size={16} aria-hidden style={{ display: 'block' }} />
+              : <Eye size={16} aria-hidden style={{ display: 'block' }} />}
+          />
         )}
 
         <ViewerActionsMenu
