@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Sessions;
+using DotCraft.Tools;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
@@ -194,6 +195,76 @@ public sealed class SessionServiceWorktreeEnvironmentTests : SessionServiceWorkt
     }
 
     [Fact]
+    public async Task CreateWorktreeAndStartAsync_FailsSetupWhenTheEnvironmentRootIsMissingFromTheWorktree()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var project = Path.Combine(_tempDir, "app");
+        var environmentPath = WriteEnvironment(new { setup = new { script = WriteMarker("ran") } }, project);
+
+        var result = await service.CreateWorktreeAndStartAsync(new WorktreeCreateAndStartOptions
+        {
+            Identity = MakeIdentity() with { WorkspacePath = project },
+            BranchName = "dotcraft/env-missing-root",
+            CopyDirtyChanges = false,
+            EnvironmentPath = environmentPath
+        });
+
+        Assert.Equal(WorktreeSetupStatuses.Failed, result.Setup?.Status);
+        Assert.False(File.Exists(Path.Combine(result.Worktree.Path, "marker.txt")));
+    }
+
+    [Fact]
+    public async Task CancelWorktreeOperation_WhileTheThreadIsCreatedRollsTheCreationBack()
+    {
+        var blocker = new BlockingWorktreeToolSource();
+        await using var agentFactory = CreateAgentFactory([blocker]);
+        var service = CreateService(agentFactory);
+
+        var creation = service.CreateWorktreeAndStartAsync(new WorktreeCreateAndStartOptions
+        {
+            Identity = MakeIdentity(),
+            BranchName = "dotcraft/env-cancel-thread",
+            CopyDirtyChanges = false,
+            OperationId = "op-cancel-thread"
+        });
+        await blocker.Reached.Task.WaitAsync(TimeSpan.FromSeconds(60));
+        service.CancelWorktreeOperation("op-cancel-thread");
+
+        var ex = await Assert.ThrowsAsync<WorktreeEnvironmentException>(() => creation.WaitAsync(TimeSpan.FromSeconds(60)));
+        Assert.Equal(WorktreeEnvironmentErrorCodes.CreationCancelled, ex.Code);
+        AssertNothingCreated("dotcraft/env-cancel-thread");
+        Assert.Empty(await _store.LoadIndexAsync());
+    }
+
+    [Fact]
+    public async Task RemoveWorktreeAsync_RunsCleanupForAWorktreeKeptAfterItsThreadWasDeleted()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var marker = Path.Combine(_tempDir, ".craft", "cleanup-ran.txt");
+        var environmentPath = WriteEnvironment(new
+        {
+            cleanup = new
+            {
+                script = IsWindows
+                    ? $"Set-Content -NoNewline -Path '{marker}' -Value 'ran'"
+                    : $"printf ran > '{marker}'"
+            }
+        });
+        var result = await CreateWithEnvironmentAsync(service, "dotcraft/env-orphan", environmentPath);
+        File.WriteAllText(Path.Combine(result.Worktree.Path, "unsaved.txt"), "keeps the worktree on delete");
+        await service.DeleteThreadPermanentlyAsync(result.Thread.Id);
+        Assert.True(Directory.Exists(result.Worktree.Path));
+        Assert.False(File.Exists(marker));
+
+        await service.RemoveWorktreeAsync(result.Worktree.Path, discardChanges: true);
+
+        Assert.True(File.Exists(marker));
+        Assert.False(Directory.Exists(result.Worktree.Path));
+    }
+
+    [Fact]
     public async Task RunWorktreeSetupAsync_RunsTheRecordedEnvironmentAsItIsOnDisk()
     {
         await using var agentFactory = CreateAgentFactory();
@@ -352,9 +423,9 @@ public sealed class SessionServiceWorktreeEnvironmentTests : SessionServiceWorkt
             EnvironmentPath = environmentPath
         });
 
-    private string WriteEnvironment(object document)
+    private string WriteEnvironment(object document, string? project = null)
     {
-        var directory = Path.Combine(_tempDir, ".craft", "environments");
+        var directory = Path.Combine(project ?? _tempDir, ".craft", "environments");
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, "environment.json");
         File.WriteAllText(path, JsonSerializer.Serialize(document));
@@ -377,4 +448,24 @@ public sealed class SessionServiceWorktreeEnvironmentTests : SessionServiceWorkt
             Path.TrimEndingDirectorySeparator(Path.GetFullPath(expected)),
             Path.TrimEndingDirectorySeparator(Path.GetFullPath(actual.Trim())),
             ignoreCase: IsWindows);
+
+    private sealed class BlockingWorktreeToolSource : IToolSource
+    {
+        public string SourceId => "blocking-worktree";
+
+        public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+            ToolPlanningContext context,
+            CancellationToken cancellationToken = default)
+        {
+            if (context.WorkspacePath.Contains("worktrees", StringComparison.OrdinalIgnoreCase))
+            {
+                Reached.TrySetResult();
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+
+            return [];
+        }
+    }
 }

@@ -45,7 +45,10 @@ export async function runThreadFork({
     ...(forkPoint ? { forkPoint: { ...forkPoint } } : {})
   }
   try {
-    const { workspacePath, remoteWorkspaceActive } = useConversationStore.getState()
+    const { workspacePath: activeWorkspacePath, remoteWorkspaceActive } = useConversationStore.getState()
+    const { activeThread, threadList } = useThreadStore.getState()
+    const source = activeThread?.id === threadId ? activeThread : threadList.find((candidate) => candidate.id === threadId)
+    const workspacePath = source?.workspacePath || activeWorkspacePath
     if (mode === 'worktree' && useThreadStore.getState().activeThreadId !== threadId) {
       useThreadStore.getState().setActiveThreadId(threadId)
       useUIStore.getState().setActiveMainView('conversation')

@@ -299,7 +299,8 @@ public sealed partial class SessionService
                     SourceWorkspacePath = StateWorkspacePath,
                     Path = path,
                     BranchName = branchName,
-                    CreatedAt = Directory.GetCreationTimeUtc(path)
+                    CreatedAt = Directory.GetCreationTimeUtc(path),
+                    EnvironmentPath = await WorktreeGitOperations.ReadEnvironmentPathAsync(path, ct, owner.Logger)
                 };
                 statuses.Add(await ThreadWorktreeManager.GetStatusAsync(null, unbound, ct, owner.Logger));
             }

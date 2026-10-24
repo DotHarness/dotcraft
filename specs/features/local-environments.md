@@ -117,7 +117,7 @@ The current worktree settings (branch prefix and the worktree list with removal)
   - Actions: **Add action** appends a card with icon picker, name, multi-line command, platform choice (All platforms / Windows / macOS / Linux), and **Delete**. A card with only one of name or command marks the missing field.
   - **Save** is disabled, with the reason as its tooltip, while saving, while the file cannot be read, without a name, with an incomplete action, or with no changes. A new or invalid file always counts as changed.
   - A conflict keeps the edits, says the file changed on disk, and turns Save into **Discard edits**, which reloads the file. Another failure turns Save into **Retry save**. Success returns to the view and confirms with a toast. The first environment saved in a project becomes its conversation environment.
-  - Leaving with unsaved edits asks to discard them.
+  - Leaving through the breadcrumb or **Back** with unsaved edits asks to discard them. Leaving Settings or switching to another Settings page does not ask.
 
 ## 7. Conversation Environment section
 
@@ -148,7 +148,9 @@ Desktop shows creation under the held message as a quiet title line ("Preparing 
 ### 8.3 How it runs
 
 - Core accepts only a `.json` file in a `.craft/environments` folder of the source workspace or a parent up to the repository root. Otherwise the request fails before anything is created.
-- The script for the host platform (§4.2) runs in the environment root inside the worktree, in the host's shell, stopping at the first failing command: bash with `set -eo pipefail` on macOS and Linux, PowerShell on Windows (else `cmd`).
+- The script for the host platform (§4.2) runs in the environment root inside the worktree, in the host's shell. If the root does not exist in the worktree, the script fails without running.
+  - macOS and Linux: bash with `set -eo pipefail`, stopping at the first failing command.
+  - Windows: PowerShell 7 (`pwsh`) when installed, stopping at the first failing command or cmdlet; otherwise Windows PowerShell, which stops at the first failing cmdlet, while a failing native command only fails the script through the final exit code; otherwise `cmd`.
 - Variables: `DOTCRAFT_SOURCE_TREE_PATH` is the source workspace; `DOTCRAFT_WORKTREE_PATH` is the new worktree's workspace path.
 - An empty script for the platform is reported as skipped.
 - A non-zero exit fails setup. There is no timeout; the client can cancel.
@@ -157,11 +159,11 @@ Desktop shows creation under the held message as a quiet title line ("Preparing 
 
 - **Success.** The thread is created and the first message is sent.
 - **Failure.** The worktree and thread are kept; the result carries the failure and the end of the output. Desktop holds the first message and offers **Retry** (runs setup again in the same worktree), **Continue anyway** (sends the message), **Edit environment** (opens it in Settings and returns), and **Fix with agent** (§10.2).
-- **Cancel.** While creation runs, Desktop offers **Cancel** (back to the composer with the draft) and **Don't use worktree** (start the thread locally). Cancelling stops the script and leaves no worktree, branch, or thread.
+- **Cancel.** While creation runs, Desktop offers **Cancel** (back to the composer with the draft) and **Don't use worktree** (start the thread locally). Cancelling stops the script and leaves no worktree, branch, or thread; it works until the thread is saved, and a later cancel lets creation finish.
 
 ### 8.5 Recording
 
-The worktree records the environment file it was created with (`ThreadWorktreeInfo.environmentPath`). Changing the environment from a worktree thread's Environment section updates that record. Retry and cleanup read the recorded file as it is on disk then.
+The worktree records the environment file it was created with (`ThreadWorktreeInfo.environmentPath`). The record is kept with the worktree itself, so a worktree left on disk after its thread is deleted still runs cleanup when it is removed later. Changing the environment from a worktree thread's Environment section updates that record. Retry and cleanup read the recorded file as it is on disk then.
 
 ## 9. Cleanup
 

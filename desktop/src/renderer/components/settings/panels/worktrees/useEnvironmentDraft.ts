@@ -35,6 +35,8 @@ export function useEnvironmentDraft(projectPath: string, path: string, fallbackN
   const [draft, setDraft] = useState<EnvironmentDraft>(EMPTY_DRAFT)
   const [saveState, setSaveState] = useState<EnvironmentSaveState>('idle')
   const request = useRef(0)
+  const fallbackNameRef = useRef(fallbackName)
+  fallbackNameRef.current = fallbackName
 
   const reload = useCallback(async (): Promise<void> => {
     const id = ++request.current
@@ -53,11 +55,11 @@ export function useEnvironmentDraft(projectPath: string, path: string, fallbackN
       setDraft(EMPTY_DRAFT)
       return
     }
-    const loaded = draftFromDocument(result.document, fallbackName)
+    const loaded = draftFromDocument(result.document, fallbackNameRef.current)
     setBaseline(loaded)
     setDraft(loaded)
     setLoad({ status: 'ready', revision: result.revision, ...(result.error ? { error: result.error } : {}) })
-  }, [fallbackName, path, projectPath])
+  }, [path, projectPath])
 
   useEffect(() => {
     void reload()

@@ -19,6 +19,7 @@ public sealed partial class SessionService
             ThrowIfWorktreeIdentityMovesStateWorkspace(source, options.Identity);
 
             var sourceExecutionWorkspace = ThreadWorkspaceResolver.Resolve(source).Cwd;
+            using var operation = owner.WorktreeEnvironments.Begin(options.OperationId, ct);
             var (worktree, setup) = await CreateWorktreeAsync(
                 source,
                 sourceExecutionWorkspace,
@@ -33,9 +34,8 @@ public sealed partial class SessionService
                     options.Progress,
                     ReportCopyStep: true),
                 options.EnvironmentPath,
-                options.OperationId,
-                options.SetupOutput,
-                ct);
+                operation,
+                options.SetupOutput);
             if (source.Worktree is { } boundWorktree)
                 worktree = worktree with { SourceWorkspacePath = boundWorktree.SourceWorkspacePath };
 
@@ -53,6 +53,7 @@ public sealed partial class SessionService
             SessionThread thread;
             try
             {
+                operation.Token.ThrowIfCancellationRequested();
                 thread = await owner.ForkThreadAsync(
                     source.Id,
                     new ThreadForkOptions
@@ -68,6 +69,8 @@ public sealed partial class SessionService
             catch
             {
                 await owner.Worktrees.DiscardAsync(worktree);
+                if (operation.IsCancelled)
+                    throw CreationCancelled();
                 throw;
             }
 
@@ -111,6 +114,7 @@ public sealed partial class SessionService
                 thread.Metadata["channelContext"] = identity.ChannelContext;
 
             var sourceExecutionWorkspace = ThreadWorkspaceResolver.ResolveOrdinaryCwd(thread);
+            using var operation = owner.WorktreeEnvironments.Begin(options.OperationId, ct);
             var (worktree, setup) = await CreateWorktreeAsync(
                 thread,
                 sourceExecutionWorkspace,
@@ -125,9 +129,8 @@ public sealed partial class SessionService
                     options.Progress,
                     ReportCopyStep: true),
                 options.EnvironmentPath,
-                options.OperationId,
-                options.SetupOutput,
-                ct);
+                operation,
+                options.SetupOutput);
 
             capturedConfig.ExecutionWorkspaceOverride = worktree.Path;
             thread.Worktree = worktree;
@@ -138,9 +141,10 @@ public sealed partial class SessionService
 
             try
             {
-                using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
-                    owner.SetThreadAgent(thread.Id, await owner.BuildAgentForThreadAsync(thread, ct));
+                using (await owner.AcquireThreadAgentLockAsync(thread.Id, operation.Token))
+                    owner.SetThreadAgent(thread.Id, await owner.BuildAgentForThreadAsync(thread, operation.Token));
 
+                operation.Token.ThrowIfCancellationRequested();
                 await owner.PersistThreadWithMaterializationAsync(thread, ct);
             }
             catch
@@ -148,6 +152,8 @@ public sealed partial class SessionService
                 if (owner._runtimeRegistry.TryRemove(thread.Id, out var removed))
                     await removed.DisposeAsync();
                 await owner.Worktrees.DiscardAsync(worktree);
+                if (operation.IsCancelled)
+                    throw CreationCancelled();
                 throw;
             }
 
@@ -170,14 +176,12 @@ public sealed partial class SessionService
             string environmentWorkspace,
             WorktreeCreateRequest request,
             string? environmentPath,
-            string? operationId,
-            Action<string>? setupOutput,
-            CancellationToken ct)
+            WorktreeEnvironmentCoordinator.Operation operation,
+            Action<string>? setupOutput)
         {
             var environment = string.IsNullOrWhiteSpace(environmentPath)
                 ? null
                 : WorktreeEnvironment.Require(environmentPath, environmentWorkspace);
-            using var operation = owner.WorktreeEnvironments.Begin(operationId, ct);
 
             ThreadWorktreeInfo worktree;
             try
@@ -198,6 +202,8 @@ public sealed partial class SessionService
             worktree = worktree with { EnvironmentPath = environment?.FilePath };
             try
             {
+                if (environment != null)
+                    await WorktreeGitOperations.WriteEnvironmentPathAsync(worktree.Path, environment.FilePath, operation.Token, owner.Logger);
                 var setup = await owner.WorktreeEnvironments.SetUpAsync(
                     environment,
                     worktree,

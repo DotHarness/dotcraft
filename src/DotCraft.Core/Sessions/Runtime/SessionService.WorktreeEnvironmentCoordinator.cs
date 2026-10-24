@@ -133,6 +133,7 @@ public sealed partial class SessionService
                 if (string.Equals(worktree.EnvironmentPath, environmentPath, StringComparison.Ordinal))
                     return worktree;
 
+                await WorktreeGitOperations.WriteEnvironmentPathAsync(worktree.Path, environmentPath, ct, owner.Logger);
                 var updated = worktree with { EnvironmentPath = environmentPath };
                 thread.Worktree = updated;
                 await owner.PersistThreadWithMaterializationAsync(thread, ct);

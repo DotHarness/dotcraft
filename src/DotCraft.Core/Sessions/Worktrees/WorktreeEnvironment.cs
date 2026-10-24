@@ -59,22 +59,8 @@ internal sealed record WorktreeEnvironment(
         return new WorktreeEnvironment(filePath, RepositoryRootOf(folders), root, setup, cleanup);
     }
 
-    public string RootIn(string worktreePath)
-    {
-        var relative = Path.GetRelativePath(RepositoryRoot, Root);
-        if (relative == ".")
-            return worktreePath;
-        if (Path.IsPathRooted(relative)
-            || relative == ".."
-            || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
-            || relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal))
-        {
-            return worktreePath;
-        }
-
-        var candidate = Path.GetFullPath(Path.Combine(worktreePath, relative));
-        return Directory.Exists(candidate) ? candidate : worktreePath;
-    }
+    public string RootIn(string worktreePath) =>
+        Path.GetFullPath(Path.Combine(worktreePath, Path.GetRelativePath(RepositoryRoot, Root)));
 
     private static (string Setup, string Cleanup) Parse(string content)
     {
