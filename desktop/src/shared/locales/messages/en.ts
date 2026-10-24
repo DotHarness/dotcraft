@@ -1943,7 +1943,6 @@ export const MESSAGES_EN = {
   'setupInterstitial.title': "This workspace hasn't finished DotCraft setup",
   'setupInterstitial.description':
     'DotCraft needs a short wizard to configure the model provider and basic preferences for this workspace.',
-  'setupInterstitial.workspaceLabel': 'Current workspace',
   'setupInterstitial.start': 'Start workspace setup',
   'setupInterstitial.chooseDifferent': 'Choose another folder',
   'setupWizard.kicker': 'New workspace',

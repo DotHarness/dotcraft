@@ -1913,7 +1913,6 @@ export const MESSAGES_ZH_HANS = {
   'setupInterstitial.title': '该工作区还没有完成 DotCraft 设置',
   'setupInterstitial.description':
     'DotCraft 需要通过一个简短向导，配置模型提供商和基础偏好。',
-  'setupInterstitial.workspaceLabel': '当前工作区',
   'setupInterstitial.start': '开始配置工作区',
   'setupInterstitial.chooseDifferent': '选择其他文件夹',
   'setupWizard.kicker': '新工作区',

@@ -3221,7 +3221,6 @@ export const MESSAGES_JA = {
   'channels.feishu.title': 'フェイシュ',
   'setupInterstitial.title': 'このワークスペースは DotCraft のセットアップを完了していません',
   'setupInterstitial.description': 'DotCraft には、このワークスペースのモデル プロバイダーと基本設定を構成するための短いウィザードが必要です。',
-  'setupInterstitial.workspaceLabel': '現在のワークスペース',
   'setupInterstitial.start': 'ワークスペースのセットアップを開始する',
   'setupInterstitial.chooseDifferent': '別のフォルダーを選択してください',
   'setupWizard.import.warningToast': 'ワークスペースのセットアップは完了しましたが、DotCraft は選択したエージェント構成をインポートできませんでした。',

@@ -3,6 +3,8 @@ import { useT } from '../contexts/LocaleContext'
 import { ArrowRight, Folder } from 'lucide-react'
 import { DotCraftFullLogo } from './ui/DotCraftLogo'
 import { Button } from './ui/Button'
+import { ActionTooltip } from './ui/ActionTooltip'
+import { ChangePath } from './detail/changes/ChangePath'
 
 interface WorkspaceSetupInterstitialProps {
   workspacePath: string
@@ -51,14 +53,15 @@ export function WorkspaceSetupInterstitial({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          width: '100%'
+          width: '100%',
+          maxWidth: '400px'
         }}
       >
         <h1
           style={{
-            margin: '0 0 10px',
-            fontSize: 'var(--type-title-size)',
-            lineHeight: 'var(--type-title-line-height)',
+            margin: '0 0 8px',
+            fontSize: 'var(--type-detail-title-size)',
+            lineHeight: 'var(--type-detail-title-line-height)',
             fontWeight: 'var(--type-title-weight)',
             letterSpacing: 0,
             textAlign: 'center'
@@ -68,8 +71,7 @@ export function WorkspaceSetupInterstitial({
         </h1>
         <p
           style={{
-            maxWidth: '620px',
-            margin: '0 0 18px',
+            margin: '0 0 16px',
             fontSize: 'var(--type-body-size)',
             lineHeight: 'var(--type-body-line-height)',
             color: 'var(--text-secondary)',
@@ -78,65 +80,47 @@ export function WorkspaceSetupInterstitial({
         >
           {t('setupInterstitial.description')}
         </p>
-        <div
-          style={{
-            maxWidth: '640px',
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '14px 16px',
-            borderRadius: '10px',
-            border: '1px solid var(--border-default)',
-            background: 'var(--bg-secondary)',
-            color: 'var(--text-secondary)',
-            marginBottom: '22px',
-            boxSizing: 'border-box'
-          }}
+        <ActionTooltip
+          label={workspacePath}
+          multiline
+          wrapperStyle={{ display: 'flex', maxWidth: '100%', marginBottom: '24px' }}
         >
-          <Folder size={22} strokeWidth={1.8} aria-hidden="true" style={{ color: 'var(--accent)', flexShrink: 0 }} />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '5px' }}>
-              {t('setupInterstitial.workspaceLabel')}
-            </div>
-            <div
-              style={{
-                fontSize: 'var(--type-secondary-size)',
-                lineHeight: 'var(--type-secondary-line-height)',
-                fontFamily: 'var(--font-mono)',
-                wordBreak: 'break-all'
-              }}
-            >
-              {workspacePath}
-            </div>
+          <div
+            tabIndex={0}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              minWidth: 0,
+              color: 'var(--text-secondary)',
+              fontSize: 'var(--type-secondary-size)',
+              lineHeight: 'var(--type-secondary-line-height)',
+              fontFamily: 'var(--font-mono)'
+            }}
+          >
+            <Folder size={14} strokeWidth={1.8} aria-hidden="true" style={{ flexShrink: 0 }} />
+            <ChangePath path={workspacePath} />
           </div>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px',
-            alignItems: 'stretch',
-            width: 'min(300px, 100%)'
-          }}
-        >
+        </ActionTooltip>
+        <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+          <Button
+            size="prominent"
+            variant="secondary"
+            onClick={onChooseDifferentWorkspace}
+            disabled={isOpening}
+            style={{ flex: 1 }}
+          >
+            {t('setupInterstitial.chooseDifferent')}
+          </Button>
           <Button
             size="prominent"
             variant="primary"
             onClick={onStart}
             loading={isOpening}
-            style={{ width: '100%' }}
+            style={{ flex: 1 }}
           >
             {t('setupInterstitial.start')}
-            <ArrowRight size={18} strokeWidth={2.2} aria-hidden="true" />
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={onChooseDifferentWorkspace}
-            disabled={isOpening}
-            style={{ width: '100%' }}
-          >
-            {t('setupInterstitial.chooseDifferent')}
+            <ArrowRight size={16} strokeWidth={2.2} aria-hidden="true" />
           </Button>
         </div>
       </div>

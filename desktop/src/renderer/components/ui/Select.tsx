@@ -47,6 +47,8 @@ export interface SelectProps<T extends string = string> {
   appearance?: SelectAppearance
   /** Text-only field selects expand to reveal their longest option by default. */
   adaptiveWidth?: boolean
+  menuAlign?: 'start' | 'end'
+  triggerIcon?: ReactNode
 }
 
 interface MenuPosition {
@@ -83,7 +85,9 @@ export function Select<T extends string = string>({
   menuMaxHeight = 280,
   menuMinWidth = MENU_MIN_WIDTH,
   appearance = 'field',
-  adaptiveWidth
+  adaptiveWidth,
+  menuAlign = 'start',
+  triggerIcon
 }: SelectProps<T>): JSX.Element {
   const reactId = useId()
   const listboxId = `${id ?? reactId}-listbox`
@@ -196,7 +200,7 @@ export function Select<T extends string = string>({
     const width = adaptive && adaptiveTargetRef.current != null
       ? adaptiveTargetRef.current
       : Math.min(Math.max(rect.width, menuMinWidth), window.innerWidth - VIEWPORT_INSET * 2)
-    const alignedLeft = width > rect.width && resolveAdaptiveAnchor(trigger) === 'right'
+    const alignedLeft = width > rect.width && (menuAlign === 'end' || resolveAdaptiveAnchor(trigger) === 'right')
       ? rect.right - width
       : rect.left
     const left = adaptive && adaptiveEdgeRef.current != null
@@ -229,7 +233,7 @@ export function Select<T extends string = string>({
       }
       return nextPosition
     })
-  }, [adaptive, menuMaxHeight, menuMinWidth])
+  }, [adaptive, menuAlign, menuMaxHeight, menuMinWidth])
 
   useLayoutEffect(() => {
     if (!adaptive) {
@@ -535,8 +539,8 @@ export function Select<T extends string = string>({
       onKeyDown={handleKeyDown}
       style={triggerStyle}
     >
-      {selectedOption?.icon && (
-        <span className="dc-settings-select__icon" aria-hidden="true">{selectedOption.icon}</span>
+      {(triggerIcon ?? selectedOption?.icon) && (
+        <span className="dc-settings-select__icon" aria-hidden="true">{triggerIcon ?? selectedOption?.icon}</span>
       )}
       <span className="dc-settings-select__value" {...valueProps}>
         {selectedOption?.label ?? value}

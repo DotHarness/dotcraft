@@ -83,14 +83,6 @@
   opacity: 0.68;
 }
 
-.welcome-open-workspace-row {
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
-}
-
-.welcome-open-workspace-row:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 13%, var(--bg-secondary));
-}
-
 .welcome-workspace-row-icon {
   display: inline-flex;
   align-items: center;
@@ -98,8 +90,8 @@
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
   flex-shrink: 0;
 }
 
@@ -143,6 +135,6 @@
 }
 
 .welcome-open-workspace-row:hover:not(:disabled) .welcome-workspace-row-action {
-  color: var(--accent);
+  color: var(--text-secondary);
   transform: translateX(2px);
 }

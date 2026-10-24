@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useRef, type CSSProperties } from 'react'
 import { isWorkspaceLockedSwitchError } from '../../shared/workspaceSwitchErrors'
-import type { AppLocale } from '../../shared/locales'
+import { SUPPORTED_LOCALES, type AppLocale } from '../../shared/locales'
 import { useLocale, useSetUiLocale, useT } from '../contexts/LocaleContext'
 import { ActionTooltip } from './ui/ActionTooltip'
-import { SegmentedControl } from './settings/ui/SegmentedControl'
+import { SettingsSelect } from './settings/ui/SettingsSelect'
 import { DotCraftFullLogo } from './ui/DotCraftLogo'
 import { elementToLaunchLogoRect, type LaunchLogoRect } from './WorkspaceLaunchTransition'
-import { ChevronRight, FolderOpen, MessageCircle } from 'lucide-react'
+import { ChevronRight, FolderOpen, Languages, MessageCircle } from 'lucide-react'
 import { localProjectsByLastOpened, useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 
 function isLockError(err: unknown): boolean {
@@ -108,7 +108,7 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    height: '100vh',
+    height: '100%',
     background: 'var(--welcome-surface)',
     color: 'var(--text-primary)',
     padding: '48px',
@@ -127,28 +127,20 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
         style={{
           position: 'absolute',
           top: `${languageSwitcherTop}px`,
-          right: '20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
+          right: '20px'
         }}
       >
-        <span style={{
-          fontSize: 'var(--type-secondary-size)',
-          lineHeight: 'var(--type-secondary-line-height)',
-          color: 'var(--text-dimmed)'
-        }}>{t('welcome.language')}</span>
-        <SegmentedControl<'en' | 'zh-Hans'>
-          value={locale === 'zh-Hans' ? 'zh-Hans' : 'en'}
-          options={[
-            { value: 'en', label: 'EN' },
-            { value: 'zh-Hans', label: '中文' }
-          ]}
-          onChange={(value) => {
+        <SettingsSelect<AppLocale>
+          value={locale}
+          onValueChange={(value) => {
             void handleLocaleSwitch(value)
           }}
           disabled={switchingLocale || loading}
           ariaLabel={t('welcome.language')}
+          appearance="frameless"
+          menuAlign="end"
+          triggerIcon={<Languages size={14} strokeWidth={1.8} />}
+          options={SUPPORTED_LOCALES.map((item) => ({ value: item.value, label: item.nativeName }))}
         />
       </div>
 

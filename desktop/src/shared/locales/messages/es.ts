@@ -3221,7 +3221,6 @@ export const MESSAGES_ES = {
   'channels.feishu.title': 'Feishu',
   'setupInterstitial.title': 'Este espacio de trabajo no ha finalizado la configuración de DotCraft',
   'setupInterstitial.description': 'DotCraft necesita un breve asistente para configurar el proveedor del modelo y las preferencias básicas para este espacio de trabajo.',
-  'setupInterstitial.workspaceLabel': 'Espacio de trabajo actual',
   'setupInterstitial.start': 'Iniciar la configuración del espacio de trabajo',
   'setupInterstitial.chooseDifferent': 'Elige otra carpeta',
   'setupWizard.import.warningToast': 'La configuración del espacio de trabajo finalizó, pero DotCraft no pudo importar la configuración del agente seleccionado.',

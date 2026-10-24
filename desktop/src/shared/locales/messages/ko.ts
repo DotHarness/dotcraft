@@ -3221,7 +3221,6 @@ export const MESSAGES_KO = {
   'channels.feishu.title': '페이슈',
   'setupInterstitial.title': '이 작업공간은 DotCraft 설정이 완료되지 않았습니다.',
   'setupInterstitial.description': 'DotCraft에서는 이 작업 공간에 대한 모델 공급자와 기본 설정을 구성하기 위해 간단한 마법사가 필요합니다.',
-  'setupInterstitial.workspaceLabel': '현재 작업공간',
   'setupInterstitial.start': '작업공간 설정 시작',
   'setupInterstitial.chooseDifferent': '다른 폴더 선택',
   'setupWizard.import.warningToast': '작업공간 설정이 완료되었지만 DotCraft가 선택한 에이전트 구성을 가져올 수 없습니다.',
