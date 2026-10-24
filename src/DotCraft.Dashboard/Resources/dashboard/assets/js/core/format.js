@@ -72,14 +72,6 @@ export function shortHash(value) {
   return value ? String(value).replace(/^sha256:/, '').slice(0, 12) : DASH;
 }
 
-export function truncateMiddle(text, max = 32) {
-  const value = String(text || '');
-  if (value.length <= max) return value;
-  const head = Math.ceil((max - 1) / 2);
-  const tail = Math.floor((max - 1) / 2);
-  return `${value.slice(0, head)}…${value.slice(value.length - tail)}`;
-}
-
 export function parseMetadata(json) {
   if (!json) return {};
   try {
