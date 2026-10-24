@@ -8,7 +8,7 @@ public sealed partial class AppServerRunWorker
 {
     private async Task<string> PrepareExecutionWorkspaceAsync(string runId, string baseWorkspacePath, CancellationToken ct)
     {
-        if (!options.CurrentValue.ManagedWorktreesEnabled)
+        if (!threadStarter.UsesManagedWorktrees)
         {
             await MarkWorktreeNotRequiredAsync(runId, baseWorkspacePath, ct);
             return baseWorkspacePath;
@@ -60,20 +60,10 @@ public sealed partial class AppServerRunWorker
                     }
                 }
 
-                request = new WorktreePrepareRequest(
-                    run.RunId,
-                    item.ItemId,
-                    item.Source,
-                    item.ExternalId,
-                    item.Repository,
-                    item.Branch,
-                    headSha,
-                    baseWorkspacePath,
-                    stackOntoBranch,
-                    stackOntoSha);
+                request = ConversationThreadStarter.CreateWorktreeRequest(run.RunId, item, headSha, baseWorkspacePath, stackOntoBranch, stackOntoSha);
             }
 
-            var result = await worktreeManager.PrepareAsync(request, ct);
+            var result = await threadStarter.PrepareWorktreeAsync(request, ct);
             await MarkWorktreeReadyAsync(runId, result, ct);
             return result.WorktreePath;
         }

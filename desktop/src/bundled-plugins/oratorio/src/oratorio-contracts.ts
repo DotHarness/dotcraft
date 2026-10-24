@@ -83,9 +83,12 @@ export interface RunDto {
   purpose: 'reviewAnalysis' | 'implementation'; dispatchTrigger: string; deliveryPolicy: 'manualDelivery' | 'autoPr'; implementationTurnCount: number
 }
 
+export interface DiscussionTurnOriginDto { provider: string; authorLogin: string; url: string | null }
+
 export interface DiscussionTurnDto {
   discussionTurnId: string; itemId: string; roundId: string | null; questionCommentId: string; replyCommentId: string | null
-  baseRunId: string; threadId: string; turnId: string | null; status: 'pending' | 'running' | 'succeeded' | 'failed'
+  replySourceWriteId: string | null; origin: DiscussionTurnOriginDto | null; runId: string | null
+  threadId: string | null; turnId: string | null; status: 'pending' | 'running' | 'succeeded' | 'failed'
   errorCode: string | null; errorMessage: string | null; createdAt: string; updatedAt: string; startedAt: string | null; completedAt: string | null
 }
 

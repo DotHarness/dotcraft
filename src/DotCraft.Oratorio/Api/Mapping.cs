@@ -148,7 +148,11 @@ public static class Mapping
             turn.RoundId,
             turn.QuestionCommentId,
             turn.ReplyCommentId,
-            turn.BaseRunId,
+            turn.ReplySourceWriteId,
+            turn.OriginProvider is null
+                ? null
+                : new DiscussionTurnOriginDto(turn.OriginProvider, turn.OriginAuthorLogin ?? "", turn.OriginUrl),
+            turn.RunId,
             turn.ThreadId,
             turn.TurnId,
             turn.Status,

@@ -264,13 +264,17 @@ function Activity(props: PartProps) {
   const decisionComments = new Set(decisions.map((decision) => decision.commentId).filter(Boolean))
   const comments = detail.comments ?? []
   const latestRun = detail.runs.at(-1)
-  const discussionBusy = Boolean(detail.discussionTurns?.some((turn) => turn.status === 'pending' || turn.status === 'running'))
+  const discussionBusy = Boolean(detail.discussionTurns?.some((turn) => turn.status === 'pending'))
+  const replyLinks = new Map((detail.discussionTurns ?? []).flatMap((turn) => {
+    const write = (detail.sourceWrites ?? []).find((entry) => entry.writeId === turn.replySourceWriteId)
+    return turn.replyCommentId && write?.externalUrl ? [[turn.replyCommentId, { url: write.externalUrl, provider: write.source }] as const] : []
+  }))
   const entries: TimelineEntry[] = [
     ...detail.runs.map((run) => ({ key: `run-${run.runId}`, at: runTime(detail, run), node: <RunEvent task={task} run={run} latest={run === latestRun} /> })),
     ...(detail.reviewDrafts ?? []).filter((draft) => draft.status !== 'discarded').map((draft) => ({ key: `review-${draft.draftId}`, at: timeOf(draft.createdAt), node: <ReviewDraftCard draft={draft} write={(detail.sourceWrites ?? []).find((write) => write.writeId === draft.sourceWriteId)} busy={busy} mutate={mutate} /> })),
     ...(detail.implementationDrafts ?? []).map((draft) => ({ key: `impl-${draft.draftId}`, at: timeOf(draft.createdAt), node: <ImplementationCard draft={draft} busy={busy} mutate={mutate} /> })),
     ...(detail.followUpDrafts ?? []).filter((draft) => draft.status !== 'discarded').map((draft) => ({ key: `follow-${draft.draftId}`, at: timeOf(draft.createdAt), node: <FollowUpCard draft={draft} busy={busy} mutate={mutate} /> })),
-    ...comments.filter((entry) => !decisionComments.has(entry.commentId)).map((entry) => ({ key: `comment-${entry.commentId}`, at: timeOf(entry.createdAt), node: <CommentEvent comment={entry} /> })),
+    ...comments.filter((entry) => !decisionComments.has(entry.commentId)).map((entry) => ({ key: `comment-${entry.commentId}`, at: timeOf(entry.createdAt), node: <CommentEvent comment={entry} link={replyLinks.get(entry.commentId) ?? questionLink(entry)} /> })),
     ...decisions.map((decision) => ({ key: `decision-${decision.decisionId}`, at: timeOf(decision.createdAt), node: <DecisionEvent decision={decision} comment={comments.find((entry) => entry.commentId === decision.commentId)} /> })),
     ...(detail.sourceWrites ?? []).filter((write) => write.status === 'failed' && !(detail.reviewDrafts ?? []).some((draft) => draft.sourceWriteId === write.writeId)).map((write) => ({ key: `write-${write.writeId}`, at: timeOf(write.updatedAt), node: <WriteFailedEvent write={write} busy={busy} mutate={mutate} /> })),
     ...(detail.discussionTurns ?? []).filter((turn) => turn.status === 'pending' || turn.status === 'running').map((turn) => ({ key: `turn-${turn.discussionTurnId}`, at: timeOf(turn.startedAt ?? turn.createdAt), node: <ReplyingEvent turn={turn} /> })),
@@ -350,12 +354,20 @@ function ReplyingEvent({ turn }: { turn: DiscussionTurnDto }) {
   return <Event icon={<Spinner size={14} label={t('oratorioReplying')} />} time={turn.startedAt ?? turn.createdAt}>{t('oratorioReplying')}</Event>
 }
 
-function CommentEvent({ comment }: { comment: CommentDto }) {
+interface CommentLink { url: string; provider: string }
+
+function questionLink(comment: CommentDto): CommentLink | undefined {
+  return comment.purpose === 'discussionQuestion' && comment.source && comment.externalUrl ? { url: comment.externalUrl, provider: comment.source } : undefined
+}
+
+function CommentEvent({ comment, link }: { comment: CommentDto; link?: CommentLink }) {
   const { t } = useOratorioI18n()
   const agent = comment.authorKind.toLowerCase() === 'agent'
   const author = agent ? t('oratorio') : comment.source ? comment.authorName || comment.authorKind : t('you')
   const avatar = agent ? <img src={oratorioIcon} alt="" /> : comment.source ? author.slice(0, 1).toLocaleUpperCase() : <UserAvatar size={24} />
-  return <Event icon={<span className="ora-avatar" data-role={agent ? 'agent' : 'operator'}>{avatar}</span>} time={comment.createdAt} body={<Markdown content={comment.body} />}>{author}</Event>
+  const linkLabel = link ? t('openOnProvider', { provider: providerName(link.provider) }) : ''
+  const action = link ? <IconButton icon={<ExternalLink size={14} />} label={linkLabel} tooltipLabel={linkLabel} onClick={() => void oratorioHost().navigation.openExternal(link.url)} /> : undefined
+  return <Event icon={<span className="ora-avatar" data-role={agent ? 'agent' : 'operator'}>{avatar}</span>} time={comment.createdAt} action={action} body={<Markdown content={comment.body} />}>{author}</Event>
 }
 
 function Card({ title, meta, status, actions, children }: { title: ReactNode; meta?: string; status?: ReactNode; actions?: ReactNode; children: ReactNode }) {

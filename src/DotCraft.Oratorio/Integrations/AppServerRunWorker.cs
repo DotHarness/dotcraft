@@ -23,17 +23,17 @@ public sealed partial class AppServerRunWorker(
     IDotCraftAppServerClientFactory clientFactory,
     IDotCraftAppServerEndpointResolver endpointResolver,
     IDotCraftWorkspaceResolver workspaceResolver,
-    IWorktreeManager worktreeManager,
     IOptionsMonitor<DotCraftOptions> options,
     IOptionsMonitor<OratorioAutomationOptions> automationOptions,
     DrawerStateService drawerState,
     BoardEventHub boardEvents,
     IAppServerRunCoordinator runCoordinator,
     OratorioDynamicToolCatalog dynamicToolCatalog,
+    ConversationThreadStarter threadStarter,
+    DiscussionThreadSessions discussionSessions,
     ILogger<AppServerRunWorker> logger) : BackgroundService
 {
     private static readonly RunStatus[] ActiveWorkerStatuses = [RunStatus.Dispatching, RunStatus.Running];
-    private static readonly TimeSpan BackgroundSettlePeriod = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan TimeoutInterruptWait = TimeSpan.FromSeconds(30);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -390,7 +390,6 @@ public sealed partial class AppServerRunWorker(
 
     private async Task RunAppServerTurnAsync(string runId, ActiveRunExecution execution, CancellationToken stoppingToken)
     {
-        var value = options.CurrentValue;
         var runToken = execution.Token;
         var registered = false;
         IDotCraftAppServerClient? client = null;
@@ -432,7 +431,7 @@ public sealed partial class AppServerRunWorker(
                 reusableThread = null;
                 threadCreationReason = "A compatible compact AppServer thread was found, but the AppServer does not support dynamic tool rebind.";
             }
-            var prompt = await BuildPromptAsync(runId, executionWorkspacePath, requiredDynamicTools, reusableThread is not null, runToken);
+            var prompt = await BuildPromptAsync(runId, executionWorkspacePath, requiredDynamicTools, reusableThread?.ThreadId, runToken);
 
             string? boundThreadId = null;
             client.SetDynamicToolHandler(async (call, handlerCt) =>
@@ -451,14 +450,7 @@ public sealed partial class AppServerRunWorker(
             });
             if (reusableThread is null)
             {
-                threadId = await client.StartThreadAsync(new AppServerThreadStartRequest(
-                    DisplayName: prompt.DisplayName,
-                    BaseWorkspacePath: baseWorkspacePath,
-                    ExecutionWorkspacePath: executionWorkspacePath,
-                    ApprovalPolicy: DotCraftApprovalPolicy.Normalize(value.ApprovalPolicy),
-                    AgentInstructions: "You are connected through Oratorio. Follow the prompt exactly and use Oratorio dynamic tools when instructed.",
-                    DynamicTools: dynamicTools.Declarations,
-                    RuntimeAdditionalContext: prompt.RuntimeAdditionalContext), runToken);
+                threadId = await threadStarter.StartThreadAsync(client, prompt.DisplayName, baseWorkspacePath, executionWorkspacePath, dynamicTools, prompt.RuntimeAdditionalContext, runToken);
                 boundThreadId = threadId;
                 await MarkThreadCreatedAsync(runId, threadId, prompt.ContextJson, endpoint.Url, appServerIdentity, threadCreationReason, runToken);
             }
@@ -477,15 +469,8 @@ public sealed partial class AppServerRunWorker(
                     threadCreationReason = $"Compatible thread {threadId} could not be resumed: {ex.Message}";
                     reusableThread = null;
                     boundThreadId = null;
-                    prompt = await BuildPromptAsync(runId, executionWorkspacePath, requiredDynamicTools, incremental: false, runToken);
-                    threadId = await client.StartThreadAsync(new AppServerThreadStartRequest(
-                        DisplayName: prompt.DisplayName,
-                        BaseWorkspacePath: baseWorkspacePath,
-                        ExecutionWorkspacePath: executionWorkspacePath,
-                        ApprovalPolicy: DotCraftApprovalPolicy.Normalize(value.ApprovalPolicy),
-                        AgentInstructions: "You are connected through Oratorio. Follow the prompt exactly and use Oratorio dynamic tools when instructed.",
-                        DynamicTools: dynamicTools.Declarations,
-                        RuntimeAdditionalContext: prompt.RuntimeAdditionalContext), runToken);
+                    prompt = await BuildPromptAsync(runId, executionWorkspacePath, requiredDynamicTools, reusedThreadId: null, runToken);
+                    threadId = await threadStarter.StartThreadAsync(client, prompt.DisplayName, baseWorkspacePath, executionWorkspacePath, dynamicTools, prompt.RuntimeAdditionalContext, runToken);
                     boundThreadId = threadId;
                     await MarkThreadCreatedAsync(runId, threadId, prompt.ContextJson, endpoint.Url, appServerIdentity, threadCreationReason, runToken);
                 }
@@ -496,9 +481,16 @@ public sealed partial class AppServerRunWorker(
             await client.SubscribeThreadAsync(threadId, runToken);
             runCoordinator.RegisterRun(runId, client, threadId, null);
             registered = true;
+            await discussionSessions.WaitForIdleTurnAsync(threadId, runToken);
             turn.Id = await client.StartTurnAsync(threadId, prompt.Prompt, runToken);
+            if (!string.IsNullOrWhiteSpace(turn.Id))
+            {
+                await RecordThreadStateAsync(threadId, prompt.ThreadState, runToken);
+            }
+
             turn.Running = true;
             runCoordinator.UpdateRunStatus(runId, turn.Id, "running");
+            runCoordinator.SetActiveTurn(runId, turn.Id);
             await MarkRunningAsync(runId, threadId, turn.Id, runToken);
 
             await ConsumeNotificationsAsync(runId, client, threadId, turn, runToken);
@@ -742,11 +734,11 @@ public sealed partial class AppServerRunWorker(
         return workspaceResolver.ResolveWorkspacePath(repository);
     }
 
-    private async Task<(string DisplayName, string ContextJson, string Prompt, IReadOnlyDictionary<string, AppServerRuntimeAdditionalContextEntry> RuntimeAdditionalContext)> BuildPromptAsync(
+    private async Task<(string DisplayName, string ContextJson, string Prompt, IReadOnlyDictionary<string, AppServerRuntimeAdditionalContextEntry> RuntimeAdditionalContext, ItemThreadState ThreadState)> BuildPromptAsync(
         string runId,
         string workspacePath,
         IReadOnlyList<string> requiredDynamicTools,
-        bool incremental,
+        string? reusedThreadId,
         CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
@@ -759,8 +751,14 @@ public sealed partial class AppServerRunWorker(
             .Where(x => x.RunId == runId && x.Kind == TimelineEventKind.RunQueued)
             .OrderByDescending(x => x.CreatedAt)
             .FirstOrDefaultAsync(ct);
-        var prompt = await builder.BuildAsync(run, latestQueueEvent?.Body, workspacePath, requiredDynamicTools, incremental, ct);
-        return (run.Item?.Title ?? "Oratorio run", prompt.ContextJson, prompt.Prompt, prompt.RuntimeAdditionalContext);
+        var prompt = await builder.BuildAsync(run, latestQueueEvent?.Body, workspacePath, requiredDynamicTools, reusedThreadId, ct);
+        return (run.Item?.Title ?? "Oratorio run", prompt.ContextJson, prompt.Prompt, prompt.RuntimeAdditionalContext, prompt.ThreadState);
+    }
+
+    private async Task RecordThreadStateAsync(string threadId, ItemThreadState state, CancellationToken ct)
+    {
+        using var scope = scopeFactory.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<ThreadStateTracker>().RecordAsync(threadId, state, ct);
     }
 
     private async Task<AppServerThreadReuseCandidate?> FindCompatibleThreadAsync(
@@ -787,93 +785,24 @@ public sealed partial class AppServerRunWorker(
             if (previousAttempt is not null &&
                 IsReviewThreadRecoveryError(previousAttempt.ErrorCode) &&
                 SameHead(previousAttempt.TargetHeadSha, run.TargetHeadSha) &&
-                IsCompatiblePromptContext(
+                ConversationThreadContext.IsReusable(
                     previousAttempt.PromptContextJson!,
                     baseWorkspacePath,
                     executionWorkspacePath,
                     requiredDynamicTools))
             {
-                return new AppServerThreadReuseCandidate(previousAttempt.ThreadId!, previousAttempt.RunId, IsRetryRecovery: true);
+                return new AppServerThreadReuseCandidate(previousAttempt.ThreadId!, $"failed attempt {ShortId(previousAttempt.RunId)}", IsRetryRecovery: true);
             }
 
             return null;
         }
 
-        var candidates = await db.Runs.AsNoTracking()
-            .Where(x =>
-                x.ItemId == run.ItemId &&
-                x.RunId != runId &&
-                x.RunnerKind == "appServer" &&
-                x.Status == RunStatus.Succeeded &&
-                x.ThreadId != null &&
-                x.PromptContextJson != null)
-            .OrderByDescending(x => x.CompletedAt ?? x.StartedAt ?? DateTimeOffset.MinValue)
-            .Take(10)
-            .ToListAsync(ct);
-
-        foreach (var candidate in candidates)
-        {
-            if (IsCompatiblePromptContext(
-                candidate.PromptContextJson!,
-                baseWorkspacePath,
-                executionWorkspacePath,
-                requiredDynamicTools))
-            {
-                return new AppServerThreadReuseCandidate(candidate.ThreadId!, candidate.RunId, IsRetryRecovery: false);
-            }
-        }
-
-        return null;
-    }
-
-    private static bool IsCompatiblePromptContext(
-        string contextJson,
-        string baseWorkspacePath,
-        string executionWorkspacePath,
-        IReadOnlyList<string> requiredDynamicTools)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(contextJson);
-            var root = document.RootElement;
-            if (!TryGetProperty(root, "promptMode", "PromptMode", out var promptMode) ||
-                !string.Equals(promptMode.GetString(), "compact", StringComparison.Ordinal))
-            {
-                return false;
-            }
-
-            if (!TryGetProperty(root, "runtimeContextVersion", "RuntimeContextVersion", out var runtimeContextVersion) ||
-                runtimeContextVersion.ValueKind != JsonValueKind.String ||
-                !string.Equals(runtimeContextVersion.GetString(), AppServerPromptBuilder.RuntimeContextVersion, StringComparison.Ordinal))
-            {
-                return false;
-            }
-
-            if (!TryGetProperty(root, "threadStateWorkspaceMode", "ThreadStateWorkspaceMode", out var workspaceMode) ||
-                !string.Equals(workspaceMode.GetString(), AppServerPromptBuilder.ThreadStateWorkspaceMode, StringComparison.Ordinal))
-            {
-                return false;
-            }
-
-            var path = ExtractNestedString(root, "workspace", "path")
-                ?? ExtractNestedString(root, "Workspace", "Path");
-            var basePath = ExtractNestedString(root, "workspace", "basePath")
-                ?? ExtractNestedString(root, "Workspace", "BasePath");
-            if (!SamePath(path, executionWorkspacePath) || !SamePath(basePath, baseWorkspacePath))
-            {
-                return false;
-            }
-
-            var previousTools = TryGetProperty(root, "requiredDynamicTools", "RequiredDynamicTools", out var toolsElement) && toolsElement.ValueKind == JsonValueKind.Array
-                ? toolsElement.EnumerateArray().Select(x => x.GetString()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).Order(StringComparer.Ordinal).ToArray()
-                : [];
-            var currentTools = requiredDynamicTools.Order(StringComparer.Ordinal).ToArray();
-            return previousTools.SequenceEqual(currentTools, StringComparer.Ordinal);
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
+        var candidates = await scope.ServiceProvider.GetRequiredService<ConversationThreadLocator>()
+            .ListAsync(run.ItemId, excludeRunId: runId, ct);
+        return candidates
+            .Where(x => ConversationThreadContext.IsReusable(x.ContextJson, baseWorkspacePath, executionWorkspacePath, requiredDynamicTools))
+            .Select(x => new AppServerThreadReuseCandidate(x.ThreadId, x.Origin, IsRetryRecovery: false))
+            .FirstOrDefault();
     }
 
     private async Task MarkDispatchingAsync(string runId, string endpoint, string appServerIdentity, CancellationToken ct)
@@ -944,8 +873,8 @@ public sealed partial class AppServerRunWorker(
         run.StatusMessage = "DotCraft thread reused.";
         run.LastHeartbeatAt = now;
         var reason = candidate.IsRetryRecovery
-            ? $"{candidate.ThreadId} resumed from failed attempt {ShortId(candidate.RunId)} with matching target, workspace, and dynamic tools."
-            : $"{candidate.ThreadId} reused from run {ShortId(candidate.RunId)} with matching workspace and dynamic tools.";
+            ? $"{candidate.ThreadId} resumed from {candidate.Origin} with matching target, workspace, and dynamic tools."
+            : $"{candidate.ThreadId} reused from {candidate.Origin} with matching workspace and dynamic tools.";
         AddTimeline(run, TimelineEventKind.RunStarted, ActorKind.Agent, "DotCraft", "DotCraft thread reused", reason, now);
         await db.SaveChangesAsync(ct);
     }
@@ -1295,8 +1224,7 @@ public sealed partial class AppServerRunWorker(
     {
         var summary = new StringBuilder();
         string? waitingText = null;
-        Task? waitTimer = null;
-        var settling = false;
+        var wait = new BackgroundWorkWait(BackgroundWorkWait.PollInterval(options.CurrentValue));
         using var readCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         await using var events = client.ReadEventsAsync(readCts.Token).GetAsyncEnumerator(readCts.Token);
         Task<bool>? nextEvent = null;
@@ -1305,10 +1233,10 @@ public sealed partial class AppServerRunWorker(
             while (true)
             {
                 nextEvent ??= events.MoveNextAsync().AsTask();
-                if (waitTimer is not null && await Task.WhenAny(nextEvent, waitTimer) == waitTimer)
+                if (wait.Timer is { } waitTimer && await Task.WhenAny(nextEvent, waitTimer) == waitTimer)
                 {
                     ct.ThrowIfCancellationRequested();
-                    if (settling)
+                    if (wait.Settling)
                     {
                         await FinishTurnAsync(waitingText);
                         return;
@@ -1320,7 +1248,7 @@ public sealed partial class AppServerRunWorker(
 
                 if (!await nextEvent)
                 {
-                    if (waitTimer is not null)
+                    if (wait.Timer is not null)
                     {
                         await FinishTurnAsync(waitingText);
                         return;
@@ -1338,12 +1266,12 @@ public sealed partial class AppServerRunWorker(
 
                 if (runEvent is DotCraftRunEvent<TurnNotification> { Type: "turn/started" } startedTurn)
                 {
-                    waitTimer = null;
-                    settling = false;
+                    wait.Reset();
                     var turnId = startedTurn.Params.Turn.Id;
                     turn.Id = turnId;
                     turn.Running = true;
                     runCoordinator.UpdateRunStatus(runId, turnId, "running");
+                    runCoordinator.SetActiveTurn(runId, turnId);
                     PublishRunStatus(runId, "running", turnId, null, null, 45, "DotCraft turn started.");
                     await UpdateRunHeartbeatAsync(runId, 45, "DotCraft turn started.", turnId, ct);
                     continue;
@@ -1389,6 +1317,7 @@ public sealed partial class AppServerRunWorker(
                 if (runEvent.Type == "turn/completed")
                 {
                     turn.Running = false;
+                    runCoordinator.SetActiveTurn(runId, null);
                     var text = summary.ToString().Trim();
                     if (string.IsNullOrWhiteSpace(text))
                     {
@@ -1465,10 +1394,8 @@ public sealed partial class AppServerRunWorker(
 
         async Task WaitForBackgroundWorkAsync()
         {
-            if (!await client.HasBackgroundWorkAsync(threadId, ct))
+            if (!await wait.ScheduleAsync(client, threadId, ct))
             {
-                settling = true;
-                waitTimer = Task.Delay(BackgroundSettlePeriod, ct);
                 return;
             }
 
@@ -1476,7 +1403,6 @@ public sealed partial class AppServerRunWorker(
             runCoordinator.UpdateRunStatus(runId, null, "running");
             PublishRunStatus(runId, "running", null, null, null, 90, message);
             await UpdateRunHeartbeatAsync(runId, 90, message, null, ct);
-            waitTimer = Task.Delay(BackgroundPollInterval, ct);
         }
 
         async Task StopReadingAsync()
@@ -1503,9 +1429,6 @@ public sealed partial class AppServerRunWorker(
             await SucceedRunAsync(runId, string.IsNullOrWhiteSpace(text) ? "DotCraft analysis completed." : text.Trim(), ct);
         }
     }
-
-    private TimeSpan BackgroundPollInterval =>
-        TimeSpan.FromTicks(Math.Min(TimeSpan.FromSeconds(30).Ticks, options.CurrentValue.StallTimeout.Ticks / 3));
 
     private async Task<bool> AwaitsReviewDraftAsync(string runId, CancellationToken ct)
     {
@@ -1733,6 +1656,7 @@ public sealed partial class AppServerRunWorker(
         turn.Id = await client.StartTurnAsync(threadId, prompt, ct);
         turn.Running = true;
         runCoordinator.UpdateRunStatus(runId, turn.Id, "running");
+        runCoordinator.SetActiveTurn(runId, turn.Id);
         await MarkRunningAsync(runId, threadId, turn.Id, ct);
         return true;
     }
@@ -1780,56 +1704,6 @@ public sealed partial class AppServerRunWorker(
     private static bool IsTerminal(RunStatus status) =>
         status is RunStatus.Succeeded or RunStatus.Failed or RunStatus.Cancelled or RunStatus.TimedOut;
 
-    private static bool SamePath(string? left, string? right)
-    {
-        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
-        {
-            return false;
-        }
-
-        try
-        {
-            left = Path.GetFullPath(left);
-            right = Path.GetFullPath(right);
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            return false;
-        }
-
-        return string.Equals(left.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), right.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool TryGetProperty(JsonElement element, string camelName, string pascalName, out JsonElement property)
-    {
-        if (element.TryGetProperty(camelName, out property))
-        {
-            return true;
-        }
-
-        return element.TryGetProperty(pascalName, out property);
-    }
-
-    private static string? ExtractString(JsonElement element, string propertyName)
-    {
-        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var property))
-        {
-            return null;
-        }
-
-        return property.ValueKind == JsonValueKind.String ? property.GetString() : property.ToString();
-    }
-
-    private static string? ExtractNestedString(JsonElement element, string container, string propertyName)
-    {
-        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(container, out var nested))
-        {
-            return null;
-        }
-
-        return ExtractString(nested, propertyName);
-    }
-
     private static string? ShortId(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -1841,6 +1715,6 @@ public sealed partial class AppServerRunWorker(
     }
 }
 
-internal sealed record AppServerThreadReuseCandidate(string ThreadId, string RunId, bool IsRetryRecovery);
+internal sealed record AppServerThreadReuseCandidate(string ThreadId, string Origin, bool IsRetryRecovery);
 
 internal sealed record InterruptedRun(string RunId, string? AppServerEndpoint, string? ThreadId, string? TurnId);

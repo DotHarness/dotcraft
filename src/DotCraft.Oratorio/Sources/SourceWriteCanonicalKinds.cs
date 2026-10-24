@@ -32,6 +32,7 @@ public static class SourceWriteCanonicalKinds
             SourceWriteKind.CommitStatus => ExternalStatus,
             SourceWriteKind.MergeRequestCreation => ReviewTargetCreation,
             SourceWriteKind.ResolveReviewThread => ResolveReviewThread,
+            SourceWriteKind.PullRequestReviewCommentReply => InlineReviewDiscussion,
             _ => kind.ToString()
         };
 

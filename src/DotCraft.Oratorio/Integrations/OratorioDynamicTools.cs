@@ -207,14 +207,15 @@ public sealed class OratorioDynamicToolCatalog
             {
                 return Failure("InvalidRunBinding", "The tool call thread does not match this Oratorio run.");
             }
-            if (!string.IsNullOrWhiteSpace(run.TurnId) &&
+            if (context.Call.Tool != SubmitDiscussionReplyName &&
+                !string.IsNullOrWhiteSpace(run.TurnId) &&
                 !string.Equals(run.TurnId, context.Call.TurnId, StringComparison.Ordinal))
             {
                 return Failure("InvalidRunBinding", "The tool call turn does not match this Oratorio run.");
             }
         }
 
-        if (context.ExpectedDiscussionTurnId is not null)
+        if (context.ExpectedDiscussionTurnId is not null && context.Call.Tool != SubmitDiscussionReplyName)
         {
             var db = context.Services.GetRequiredService<OratorioDbContext>();
             var turn = await db.DiscussionTurns.AsNoTracking()
@@ -278,7 +279,7 @@ internal sealed class OratorioDynamicToolFacade
 {
     [DynamicTool(
         OratorioDynamicToolCatalog.SubmitDiscussionReplyName,
-        "Submit the answer for the current Oratorio Agent Discussion Turn. Oratorio stores the reply as an internal discussion comment.",
+        "Submit the answer for the current Oratorio Agent Discussion Turn. Oratorio records the reply in the task discussion and publishes it to the pull request when the question came from there.",
         Order = 10)]
     public Task<DynamicToolCallResult> SubmitDiscussionReplyAsync(
         SubmitDiscussionReplyToolArgs args,
@@ -288,7 +289,6 @@ internal sealed class OratorioDynamicToolFacade
         {
             var service = context.Services.GetRequiredService<DiscussionTurnService>();
             return await service.SubmitReplyForToolAsync(
-                context.ExpectedDiscussionTurnId,
                 new SubmitDiscussionReplyRequest(args.DiscussionTurnId, args.Body),
                 context.Call,
                 ct);
@@ -652,7 +652,7 @@ public sealed class SubmitDiscussionReplyToolArgs
     [Description("The active Agent Discussion Turn id.")]
     public required string DiscussionTurnId { get; init; }
 
-    [Description("The answer to record as an internal discussion comment.")]
+    [Description("The answer, in Markdown.")]
     public required string Body { get; init; }
 }
 

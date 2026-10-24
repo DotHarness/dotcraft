@@ -6,7 +6,6 @@ public enum GitHubCommentCommandParseStatus
 {
     NotCommand,
     Invalid,
-    Unsupported,
     Parsed
 }
 
@@ -14,7 +13,7 @@ public sealed record GitHubCommentCommandParseResult(
     GitHubCommentCommandParseStatus Status,
     GitHubCommentCommandKind? CommandKind = null,
     string? Focus = null,
-    string? UnsupportedVerb = null,
+    string? Question = null,
     string? ErrorCode = null)
 {
     public static GitHubCommentCommandParseResult NotCommand() =>
@@ -23,19 +22,20 @@ public sealed record GitHubCommentCommandParseResult(
     public static GitHubCommentCommandParseResult Invalid(string errorCode) =>
         new(GitHubCommentCommandParseStatus.Invalid, ErrorCode: errorCode);
 
-    public static GitHubCommentCommandParseResult Unsupported(string verb) =>
-        new(GitHubCommentCommandParseStatus.Unsupported, UnsupportedVerb: verb);
-
     public static GitHubCommentCommandParseResult Review(string? focus) =>
-        new(GitHubCommentCommandParseStatus.Parsed, GitHubCommentCommandKind.Review, focus);
+        new(GitHubCommentCommandParseStatus.Parsed, GitHubCommentCommandKind.Review, Focus: focus);
+
+    public static GitHubCommentCommandParseResult Ask(string question) =>
+        new(GitHubCommentCommandParseStatus.Parsed, GitHubCommentCommandKind.Question, Question: question);
 }
 
 public sealed class GitHubCommentCommandParser
 {
     private const string Mention = "@dotcraft-ai";
-    private const string ReviewVerb = "review";
-    private const string FocusKeyword = "for";
+    private const string ReviewCommand = "/review";
+    private const string BareReviewCommand = "review";
     private const int MaxFocusCharacters = 500;
+    private const int MaxQuestionCharacters = 8000;
 
     public GitHubCommentCommandParseResult Parse(string? body)
     {
@@ -50,46 +50,59 @@ public sealed class GitHubCommentCommandParser
             return GitHubCommentCommandParseResult.NotCommand();
         }
 
-        if (command.Contains('\r') || command.Contains('\n'))
-        {
-            return GitHubCommentCommandParseResult.Invalid("githubCommentCommandMultiline");
-        }
-
         var remainder = command[Mention.Length..].TrimStart();
         if (remainder.Length == 0)
         {
-            return GitHubCommentCommandParseResult.Invalid("githubCommentCommandVerbRequired");
+            return GitHubCommentCommandParseResult.Invalid("githubCommentCommandTextRequired");
         }
 
-        var (verb, arguments) = ReadToken(remainder);
-        if (!string.Equals(verb, ReviewVerb, StringComparison.OrdinalIgnoreCase))
-        {
-            return GitHubCommentCommandParseResult.Unsupported(verb);
-        }
-
-        if (arguments.Length == 0)
+        if (string.Equals(remainder, BareReviewCommand, StringComparison.OrdinalIgnoreCase))
         {
             return GitHubCommentCommandParseResult.Review(null);
         }
 
-        var (keyword, focus) = ReadToken(arguments);
-        if (!string.Equals(keyword, FocusKeyword, StringComparison.OrdinalIgnoreCase))
+        var token = ReadToken(remainder);
+        if (IsSlashCommand(token))
         {
-            return GitHubCommentCommandParseResult.Invalid("githubCommentCommandArgumentsInvalid");
+            return ParseCommand(token, remainder[token.Length..]);
         }
 
-        if (focus.Length == 0)
+        if (CountCharacters(remainder, MaxQuestionCharacters) > MaxQuestionCharacters)
         {
-            return GitHubCommentCommandParseResult.Invalid("githubCommentCommandFocusRequired");
+            return GitHubCommentCommandParseResult.Invalid("githubCommentCommandQuestionTooLong");
         }
 
-        if (focus.EnumerateRunes().Take(MaxFocusCharacters + 1).Count() > MaxFocusCharacters)
+        return GitHubCommentCommandParseResult.Ask(remainder);
+    }
+
+    private static GitHubCommentCommandParseResult ParseCommand(string token, string arguments)
+    {
+        if (!string.Equals(token, ReviewCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            return GitHubCommentCommandParseResult.Invalid("githubCommentCommandUnknown");
+        }
+
+        if (arguments.IndexOfAny(['\r', '\n']) >= 0)
+        {
+            return GitHubCommentCommandParseResult.Invalid("githubCommentCommandMultiline");
+        }
+
+        var focus = arguments.Trim();
+        if (CountCharacters(focus, MaxFocusCharacters) > MaxFocusCharacters)
         {
             return GitHubCommentCommandParseResult.Invalid("githubCommentCommandFocusTooLong");
         }
 
-        return GitHubCommentCommandParseResult.Review(focus);
+        return GitHubCommentCommandParseResult.Review(focus.Length == 0 ? null : focus);
     }
+
+    private static bool IsSlashCommand(string token) =>
+        token.Length > 1 &&
+        token[0] == '/' &&
+        token[1..].All(c => char.IsAsciiLetter(c) || c == '-');
+
+    private static int CountCharacters(string value, int limit) =>
+        value.EnumerateRunes().Take(limit + 1).Count();
 
     private static bool StartsWithMention(string value)
     {
@@ -101,16 +114,14 @@ public sealed class GitHubCommentCommandParser
         return value.Length == Mention.Length || char.IsWhiteSpace(value[Mention.Length]);
     }
 
-    private static (string Token, string Remainder) ReadToken(string value)
+    private static string ReadToken(string value)
     {
-        var separator = 0;
-        while (separator < value.Length && !char.IsWhiteSpace(value[separator]))
+        var end = 0;
+        while (end < value.Length && !char.IsWhiteSpace(value[end]))
         {
-            separator++;
+            end++;
         }
 
-        return separator == value.Length
-            ? (value, "")
-            : (value[..separator], value[separator..].Trim());
+        return value[..end];
     }
 }

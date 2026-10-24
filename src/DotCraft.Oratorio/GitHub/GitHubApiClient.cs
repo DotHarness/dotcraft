@@ -1,6 +1,8 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using DotCraft.Oratorio.Services;
 
 namespace DotCraft.Oratorio.GitHub;
 
@@ -12,9 +14,14 @@ public interface IGitHubApiClient
     Task<IReadOnlyList<GitHubComment>> ListIssueCommentsAsync(GitHubRepositoryRef repository, int number, CancellationToken ct);
     Task<IReadOnlyList<GitHubReview>> ListPullRequestReviewsAsync(GitHubRepositoryRef repository, int number, CancellationToken ct);
     Task<IReadOnlyList<GitHubReviewComment>> ListPullRequestReviewCommentsAsync(GitHubRepositoryRef repository, int number, CancellationToken ct);
+    Task<GitHubConditionalList<GitHubComment>> ListRepositoryIssueCommentsAsync(GitHubRepositoryRef repository, DateTimeOffset since, string? etag, CancellationToken ct);
+    Task<GitHubConditionalList<GitHubReviewComment>> ListRepositoryReviewCommentsAsync(GitHubRepositoryRef repository, DateTimeOffset since, string? etag, CancellationToken ct);
+    Task CreateIssueCommentReactionAsync(GitHubRepositoryRef repository, long commentId, string content, CancellationToken ct);
+    Task CreateReviewCommentReactionAsync(GitHubRepositoryRef repository, long commentId, string content, CancellationToken ct);
     Task<IReadOnlyList<GitHubChangedFile>> ListPullRequestFilesAsync(GitHubRepositoryRef repository, int number, CancellationToken ct);
     Task<string> GetPullRequestDiffAsync(GitHubRepositoryRef repository, int number, CancellationToken ct);
     Task<GitHubWriteResponse> CreateIssueCommentAsync(GitHubRepositoryRef repository, int number, string body, CancellationToken ct);
+    Task<GitHubWriteResponse> CreatePullRequestReviewCommentReplyAsync(GitHubRepositoryRef repository, int number, long commentId, string body, CancellationToken ct);
     Task<GitHubWriteResponse> CreatePullRequestReviewAsync(GitHubRepositoryRef repository, int number, string @event, string body, string? commitId, CancellationToken ct);
     Task<GitHubWriteResponse> CreatePullRequestReviewAsync(GitHubRepositoryRef repository, int number, string @event, string body, string? commitId, IReadOnlyList<GitHubPullRequestReviewCommentWrite> comments, CancellationToken ct);
     Task<GitHubWriteResponse> CreatePullRequestReviewThreadReplyAsync(GitHubRepositoryRef repository, string threadId, string body, CancellationToken ct);
@@ -38,12 +45,15 @@ public interface IGitHubApiClient
     Task<GitHubPullRequestCreateResponse> CreatePullRequestAsync(GitHubRepositoryRef repository, string title, string head, string @base, string body, bool draft, CancellationToken ct);
     Task<IReadOnlyList<GitHubReviewThread>> ListPullRequestReviewThreadsAsync(GitHubRepositoryRef repository, int number, CancellationToken ct);
     Task<GitHubWriteResponse> ResolveReviewThreadAsync(GitHubRepositoryRef repository, string threadId, bool resolved, CancellationToken ct);
+    Task<string> GetAuthenticatedAppSlugAsync(CancellationToken ct);
 }
 
 public sealed class GitHubApiClient(
     IHttpClientFactory httpClientFactory,
     IOptionsMonitor<GitHubOptions> options,
-    IGitHubTokenProvider tokenProvider)
+    IGitHubTokenProvider tokenProvider,
+    IGitHubCredentialResolver credentials,
+    IClock clock)
     : IGitHubApiClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -84,6 +94,28 @@ public sealed class GitHubApiClient(
     public Task<IReadOnlyList<GitHubReviewComment>> ListPullRequestReviewCommentsAsync(GitHubRepositoryRef repository, int number, CancellationToken ct) =>
         GetPagesAsync<GitHubReviewComment>(repository, $"/repos/{repository.Owner}/{repository.Name}/pulls/{number}/comments?per_page=100", ct);
 
+    public Task<GitHubConditionalList<GitHubComment>> ListRepositoryIssueCommentsAsync(GitHubRepositoryRef repository, DateTimeOffset since, string? etag, CancellationToken ct) =>
+        GetConditionalPagesAsync<GitHubComment>(repository, $"/repos/{repository.Owner}/{repository.Name}/issues/comments?{RepositoryCommentQuery(since)}", etag, ct);
+
+    public Task<GitHubConditionalList<GitHubReviewComment>> ListRepositoryReviewCommentsAsync(GitHubRepositoryRef repository, DateTimeOffset since, string? etag, CancellationToken ct) =>
+        GetConditionalPagesAsync<GitHubReviewComment>(repository, $"/repos/{repository.Owner}/{repository.Name}/pulls/comments?{RepositoryCommentQuery(since)}", etag, ct);
+
+    public Task CreateIssueCommentReactionAsync(GitHubRepositoryRef repository, long commentId, string content, CancellationToken ct) =>
+        SendJsonAsync(
+            HttpMethod.Post,
+            $"/repos/{repository.Owner}/{repository.Name}/issues/comments/{commentId}/reactions",
+            new Dictionary<string, object?> { ["content"] = content },
+            repository,
+            ct);
+
+    public Task CreateReviewCommentReactionAsync(GitHubRepositoryRef repository, long commentId, string content, CancellationToken ct) =>
+        SendJsonAsync(
+            HttpMethod.Post,
+            $"/repos/{repository.Owner}/{repository.Name}/pulls/comments/{commentId}/reactions",
+            new Dictionary<string, object?> { ["content"] = content },
+            repository,
+            ct);
+
     public Task<IReadOnlyList<GitHubChangedFile>> ListPullRequestFilesAsync(GitHubRepositoryRef repository, int number, CancellationToken ct) =>
         GetPagesAsync<GitHubChangedFile>(repository, $"/repos/{repository.Owner}/{repository.Name}/pulls/{number}/files?per_page=100", ct, maxPages: 30);
 
@@ -105,6 +137,30 @@ public sealed class GitHubApiClient(
             new Dictionary<string, object?> { ["body"] = body },
             repository,
             ct);
+
+    public Task<GitHubWriteResponse> CreatePullRequestReviewCommentReplyAsync(GitHubRepositoryRef repository, int number, long commentId, string body, CancellationToken ct) =>
+        SendJsonAsync(
+            HttpMethod.Post,
+            $"/repos/{repository.Owner}/{repository.Name}/pulls/{number}/comments/{commentId}/replies",
+            new Dictionary<string, object?> { ["body"] = body },
+            repository,
+            ct);
+
+    public async Task<string> GetAuthenticatedAppSlugAsync(CancellationToken ct)
+    {
+        var current = options.CurrentValue;
+        using var request = new HttpRequestMessage(HttpMethod.Get, GitHubAppJwtFactory.BuildUri(current, "/app"));
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        request.Headers.UserAgent.ParseAdd("Oratorio-GitHubSource");
+        request.Headers.TryAddWithoutValidation("X-GitHub-Api-Version", "2022-11-28");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", GitHubAppJwtFactory.CreateAppJwt(current, clock.UtcNow, credentials));
+        using var response = await httpClientFactory.CreateClient("GitHub").SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        return document.RootElement.TryGetProperty("slug", out var slug) && slug.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(slug.GetString())
+            ? slug.GetString()!
+            : throw new InvalidOperationException("GitHub did not return the App slug.");
+    }
 
     public Task<GitHubWriteResponse> CreatePullRequestReviewAsync(GitHubRepositoryRef repository, int number, string @event, string body, string? commitId, CancellationToken ct)
     {
@@ -381,6 +437,44 @@ public sealed class GitHubApiClient(
 
         return results;
     }
+
+    private async Task<GitHubConditionalList<T>> GetConditionalPagesAsync<T>(GitHubRepositoryRef repository, string pathAndQuery, string? etag, CancellationToken ct, int maxPages = 10)
+    {
+        var results = new List<T>();
+        string? firstPageETag = null;
+        for (var page = 1; page <= maxPages; page++)
+        {
+            using var request = await CreateRequestAsync(HttpMethod.Get, $"{pathAndQuery}&page={page}", repository, ct);
+            if (page == 1 && !string.IsNullOrWhiteSpace(etag))
+            {
+                request.Headers.TryAddWithoutValidation("If-None-Match", etag);
+            }
+
+            using var response = await httpClientFactory.CreateClient("GitHub").SendAsync(request, ct);
+            if (page == 1 && response.StatusCode == HttpStatusCode.NotModified)
+            {
+                return new GitHubConditionalList<T>(true, etag, []);
+            }
+
+            response.EnsureSuccessStatusCode();
+            if (page == 1)
+            {
+                firstPageETag = response.Headers.ETag?.ToString();
+            }
+
+            var pageItems = await response.Content.ReadFromJsonAsync<IReadOnlyList<T>>(JsonOptions, ct) ?? [];
+            results.AddRange(pageItems);
+            if (pageItems.Count < 100)
+            {
+                break;
+            }
+        }
+
+        return new GitHubConditionalList<T>(false, firstPageETag, results);
+    }
+
+    private static string RepositoryCommentQuery(DateTimeOffset since) =>
+        $"sort=updated&direction=asc&since={Uri.EscapeDataString(since.UtcDateTime.ToString("O"))}&per_page=100";
 
     private static string StateQueryValue(GitHubListState state) =>
         state switch

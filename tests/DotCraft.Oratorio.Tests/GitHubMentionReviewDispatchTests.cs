@@ -25,7 +25,7 @@ public sealed class GitHubMentionReviewDispatchTests
             ReplaceGitHub(services, fakeGitHub);
         });
         var client = app.CreateClient();
-        await PostReviewCommandAsync(client, 9101, "@dotcraft-ai review for security regressions");
+        await PostReviewCommandAsync(client, 9101, "@dotcraft-ai /review security regressions");
 
         using var scope = app.Services.CreateScope();
         var processor = scope.ServiceProvider.GetRequiredService<GitHubCommentCommandProcessor>();
@@ -49,6 +49,9 @@ public sealed class GitHubMentionReviewDispatchTests
         Assert.Equal("abc123", item.HeadSha);
         Assert.Contains("Review focus: security regressions", queuedEvent.Body);
         Assert.Equal(1, fakeGitHub.GetPullRequestCallCount);
+        var reaction = Assert.Single(fakeGitHub.Reactions);
+        Assert.Equal(9101, reaction.CommentId);
+        Assert.Equal("eyes", reaction.Content);
         Assert.Empty(fakeGitHub.IssueStateArguments);
         Assert.Empty(fakeGitHub.PullRequestStateArguments);
     }
@@ -71,7 +74,7 @@ public sealed class GitHubMentionReviewDispatchTests
             Assert.True(await processor.ProcessNextAsync(CancellationToken.None));
         }
 
-        await PostReviewCommandAsync(client, 9202, "@dotcraft-ai review for authentication");
+        await PostReviewCommandAsync(client, 9202, "@dotcraft-ai /review authentication");
         using (var secondScope = app.Services.CreateScope())
         {
             var processor = secondScope.ServiceProvider.GetRequiredService<GitHubCommentCommandProcessor>();
@@ -142,6 +145,7 @@ public sealed class GitHubMentionReviewDispatchTests
         Assert.NotNull(command.CompletedAt);
         Assert.Equal(3, fakeGitHub.GetPullRequestCallCount);
         Assert.Empty(await db.Runs.AsNoTracking().ToListAsync());
+        Assert.Empty(fakeGitHub.Reactions);
     }
 
     [Fact]

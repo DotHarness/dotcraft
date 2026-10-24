@@ -43,7 +43,9 @@ internal static class OratorioApiTestSupport
         new(
             new StaticHttpClientFactory(new HttpClient(handler)),
             new StaticOptionsMonitor<GitHubOptions>(new GitHubOptions { Endpoint = "https://api.github.test" }),
-            new StaticGitHubTokenProvider());
+            new StaticGitHubTokenProvider(),
+            new GitHubCredentialResolver(new PassthroughConfigurationSecretProtector()),
+            new FixedClock(DateTimeOffset.Parse("2026-05-03T00:00:00Z")));
 
     internal static async Task CreateItemAsync(HttpClient client, string externalId)
     {
@@ -480,6 +482,12 @@ internal sealed class FakeGitHubApiClient : IGitHubApiClient
         new("src/Auth/RefreshTokenStore.cs", "modified", 4, 1, 5, RefreshTokenStorePatch),
         new("src/Auth/JwtMiddleware.cs", "modified", 2, 0, 2, JwtMiddlewarePatch)
     ];
+    public Dictionary<string, List<GitHubComment>> RepositoryIssueComments { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, List<GitHubReviewComment>> RepositoryReviewComments { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public HashSet<string> FailingCommentScanRepositories { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public List<GitHubCommentScanRequest> CommentScanRequests { get; } = [];
+    public List<GitHubReactionWrite> Reactions { get; } = [];
+    public int FailNextReactionCount { get; set; }
     public int FailNextWriteCount { get; set; }
     public int FailNextPullRequestReviewCount { get; set; }
     public int IssueCommentCallCount { get; private set; }
@@ -608,7 +616,17 @@ internal sealed class FakeGitHubApiClient : IGitHubApiClient
             throw new HttpRequestException("Synthetic GitHub detail failure.");
         }
 
-        return Task.FromResult<IReadOnlyList<GitHubComment>>(number == 184 ? PullRequestIssueComments : IssueSourceComments);
+        var written = IssueComments
+            .Select((comment, index) => (comment, index))
+            .Where(x => x.comment.Number == number)
+            .Select(x => new GitHubComment(
+                100 + x.index,
+                x.comment.Body,
+                $"https://github.example.test/{repository.FullName}/pull/{number}#issuecomment-{100 + x.index}",
+                new GitHubUser(OwnBotLogin, "Bot"),
+                DateTimeOffset.Parse("2026-05-03T00:00:00Z"),
+                DateTimeOffset.Parse("2026-05-03T00:00:00Z")));
+        return Task.FromResult<IReadOnlyList<GitHubComment>>((number == 184 ? PullRequestIssueComments : IssueSourceComments).Concat(written).ToArray());
     }
 
     public Task<IReadOnlyList<GitHubReview>> ListPullRequestReviewsAsync(GitHubRepositoryRef repository, int number, CancellationToken ct)
@@ -630,7 +648,138 @@ internal sealed class FakeGitHubApiClient : IGitHubApiClient
             throw new HttpRequestException("Synthetic GitHub detail failure.");
         }
 
-        return Task.FromResult<IReadOnlyList<GitHubReviewComment>>(SourceReviewComments);
+        return Task.FromResult<IReadOnlyList<GitHubReviewComment>>(SourceReviewComments
+            .Concat(PublishedReviewThreads(number).Select(thread => thread.Root))
+            .Concat(ReviewCommentReplies.Where(reply => reply.Number == number).Select(ToReviewComment))
+            .ToArray());
+    }
+
+    public const string OwnAppSlug = "oratorio-app";
+    public const string OwnBotLogin = $"{OwnAppSlug}[bot]";
+
+    public Task<string> GetAuthenticatedAppSlugAsync(CancellationToken ct) => Task.FromResult(OwnAppSlug);
+
+    public List<GitHubReviewCommentReplyWrite> ReviewCommentReplies { get; } = [];
+    public int LoseNextReviewCommentReplyResponseCount { get; set; }
+
+    public Task<GitHubWriteResponse> CreatePullRequestReviewCommentReplyAsync(GitHubRepositoryRef repository, int number, long commentId, string body, CancellationToken ct)
+    {
+        MaybeFailWrite();
+        var reply = new GitHubReviewCommentReplyWrite(repository, number, commentId, body, 7500 + ReviewCommentReplies.Count);
+        ReviewCommentReplies.Add(reply);
+        if (LoseNextReviewCommentReplyResponseCount > 0)
+        {
+            LoseNextReviewCommentReplyResponseCount--;
+            throw new HttpRequestException("Synthetic lost GitHub review comment reply response.");
+        }
+
+        return Task.FromResult(new GitHubWriteResponse(
+            reply.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            $"https://github.example.test/{repository.FullName}/pull/{number}#discussion_r{reply.Id}",
+            $$"""{"id":{{reply.Id}}}"""));
+    }
+
+    private IReadOnlyList<(string ThreadId, GitHubReviewComment Root)> PublishedReviewThreads(int number)
+    {
+        var threads = new List<(string, GitHubReviewComment)>();
+        var index = 0;
+        foreach (var review in PullRequestReviews.Where(r => r.Number == number))
+        {
+            foreach (var comment in review.Comments)
+            {
+                threads.Add(($"thread-{number}-{index}", new GitHubReviewComment(
+                    7000 + index,
+                    comment.Body,
+                    $"https://github.example.test/example-owner/oratorio/pull/{number}#discussion_r{7000 + index}",
+                    comment.Path,
+                    comment.Line,
+                    comment.Line,
+                    new GitHubUser(OwnBotLogin, "Bot"),
+                    DateTimeOffset.Parse("2026-05-03T00:00:00Z"),
+                    DateTimeOffset.Parse("2026-05-03T00:00:00Z"))));
+                index++;
+            }
+        }
+
+        return threads;
+    }
+
+    private static GitHubReviewComment ToReviewComment(GitHubReviewCommentReplyWrite reply) =>
+        new(
+            reply.Id,
+            reply.Body,
+            $"https://github.example.test/{reply.Repository.FullName}/pull/{reply.Number}#discussion_r{reply.Id}",
+            "",
+            null,
+            null,
+            new GitHubUser(OwnBotLogin, "Bot"),
+            DateTimeOffset.Parse("2026-05-03T00:00:00Z"),
+            DateTimeOffset.Parse("2026-05-03T00:00:00Z"),
+            InReplyToId: reply.InReplyToId);
+
+    public Task<GitHubConditionalList<GitHubComment>> ListRepositoryIssueCommentsAsync(GitHubRepositoryRef repository, DateTimeOffset since, string? etag, CancellationToken ct) =>
+        Task.FromResult(ListRepositoryComments(
+            repository,
+            "issue-comments",
+            since,
+            etag,
+            RepositoryIssueComments,
+            x => x.Id,
+            x => x.UpdatedAt));
+
+    public Task<GitHubConditionalList<GitHubReviewComment>> ListRepositoryReviewCommentsAsync(GitHubRepositoryRef repository, DateTimeOffset since, string? etag, CancellationToken ct) =>
+        Task.FromResult(ListRepositoryComments(
+            repository,
+            "review-comments",
+            since,
+            etag,
+            RepositoryReviewComments,
+            x => x.Id,
+            x => x.UpdatedAt));
+
+    public Task CreateIssueCommentReactionAsync(GitHubRepositoryRef repository, long commentId, string content, CancellationToken ct) =>
+        AddReactionAsync(new GitHubReactionWrite(repository, GitHubCommentKind.Conversation, commentId, content));
+
+    public Task CreateReviewCommentReactionAsync(GitHubRepositoryRef repository, long commentId, string content, CancellationToken ct) =>
+        AddReactionAsync(new GitHubReactionWrite(repository, GitHubCommentKind.ReviewComment, commentId, content));
+
+    private Task AddReactionAsync(GitHubReactionWrite reaction)
+    {
+        if (FailNextReactionCount > 0)
+        {
+            FailNextReactionCount--;
+            throw new HttpRequestException("Synthetic GitHub reaction failure.", null, HttpStatusCode.InternalServerError);
+        }
+
+        Reactions.Add(reaction);
+        return Task.CompletedTask;
+    }
+
+    private GitHubConditionalList<T> ListRepositoryComments<T>(
+        GitHubRepositoryRef repository,
+        string stream,
+        DateTimeOffset since,
+        string? etag,
+        Dictionary<string, List<T>> source,
+        Func<T, long> id,
+        Func<T, DateTimeOffset> updatedAt)
+    {
+        if (FailingCommentScanRepositories.Contains(repository.FullName))
+        {
+            CommentScanRequests.Add(new GitHubCommentScanRequest(repository.FullName, stream, since, etag, false));
+            throw new HttpRequestException("Synthetic GitHub comment scan failure.", null, HttpStatusCode.BadGateway);
+        }
+
+        var items = (source.TryGetValue(repository.FullName, out var comments) ? comments : [])
+            .Where(x => updatedAt(x) >= since)
+            .OrderBy(updatedAt)
+            .ToArray();
+        var currentETag = $"\"{string.Join(",", items.Select(x => $"{id(x)}:{updatedAt(x).ToUnixTimeMilliseconds()}"))}\"";
+        var notModified = string.Equals(etag, currentETag, StringComparison.Ordinal);
+        CommentScanRequests.Add(new GitHubCommentScanRequest(repository.FullName, stream, since, etag, notModified));
+        return notModified
+            ? new GitHubConditionalList<T>(true, etag, [])
+            : new GitHubConditionalList<T>(false, currentETag, items);
     }
 
     public Task<IReadOnlyList<GitHubChangedFile>> ListPullRequestFilesAsync(GitHubRepositoryRef repository, int number, CancellationToken ct)
@@ -688,10 +837,18 @@ index 3333333..4444444 100644
 """);
     }
 
+    public int LoseNextIssueCommentResponseCount { get; set; }
+
     public Task<GitHubWriteResponse> CreateIssueCommentAsync(GitHubRepositoryRef repository, int number, string body, CancellationToken ct)
     {
         MaybeFailWrite();
         IssueComments.Add(new GitHubIssueCommentWrite(repository, number, body));
+        if (LoseNextIssueCommentResponseCount > 0)
+        {
+            LoseNextIssueCommentResponseCount--;
+            throw new HttpRequestException("Synthetic lost GitHub comment response.");
+        }
+
         return Task.FromResult(new GitHubWriteResponse("issue-comment:100", $"https://github.example.test/{repository.FullName}/issues/{number}#issuecomment-100", """{"id":100}"""));
     }
 
@@ -757,16 +914,12 @@ index 3333333..4444444 100644
     public Task<IReadOnlyList<GitHubReviewThread>> ListPullRequestReviewThreadsAsync(GitHubRepositoryRef repository, int number, CancellationToken ct)
     {
         var threads = new List<GitHubReviewThread>();
-        var index = 0;
-        foreach (var review in PullRequestReviews.Where(r => r.Number == number))
+        foreach (var (threadId, root) in PublishedReviewThreads(number))
         {
-            foreach (var comment in review.Comments)
-            {
-                var threadId = $"thread-{number}-{index++}";
-                var bodies = new List<string> { comment.Body };
-                bodies.AddRange(ReviewThreadReplies.Where(reply => reply.ThreadId == threadId).Select(reply => reply.Body));
-                threads.Add(new GitHubReviewThread(threadId, false, bodies));
-            }
+            var bodies = new List<string> { root.Body };
+            bodies.AddRange(ReviewThreadReplies.Where(reply => reply.ThreadId == threadId).Select(reply => reply.Body));
+            bodies.AddRange(ReviewCommentReplies.Where(reply => reply.Number == number && reply.InReplyToId == root.Id).Select(reply => reply.Body));
+            threads.Add(new GitHubReviewThread(threadId, false, bodies));
         }
 
         return Task.FromResult<IReadOnlyList<GitHubReviewThread>>(threads);
@@ -816,9 +969,15 @@ index 3333333..4444444 100644
 
 internal sealed record GitHubIssueCommentWrite(GitHubRepositoryRef Repository, int Number, string Body);
 
+internal sealed record GitHubCommentScanRequest(string Repository, string Stream, DateTimeOffset Since, string? ETag, bool NotModified);
+
+internal sealed record GitHubReactionWrite(GitHubRepositoryRef Repository, GitHubCommentKind Kind, long CommentId, string Content);
+
 internal sealed record GitHubPullRequestReviewWrite(GitHubRepositoryRef Repository, int Number, string Event, string Body, string? CommitId, IReadOnlyList<GitHubPullRequestReviewCommentWrite> Comments);
 
 internal sealed record GitHubReviewThreadReplyWrite(GitHubRepositoryRef Repository, string ThreadId, string Body);
+
+internal sealed record GitHubReviewCommentReplyWrite(GitHubRepositoryRef Repository, int Number, long InReplyToId, string Body, long Id);
 
 internal sealed class GitHubCheckRunWrite(
     GitHubRepositoryRef repository,
@@ -975,6 +1134,11 @@ public enum FakeAppServerOutcome
     SubmitImplementationDraft,
     SubmitFollowUpDraft,
     SubmitDiscussionReply,
+    DismissFindingThenReply,
+    SubmitDiscussionReplyTwice,
+    ReplyAfterBackgroundWork,
+    ReplyOnSteer,
+    SubmitReviewDraftAfterSteer,
     Disconnect
 }
 
@@ -1123,9 +1287,11 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
     public List<string> TurnThreadIds { get; } = [];
     public List<string> TurnPrompts { get; } = [];
     public List<(string ThreadId, string TurnId)> InterruptedTurns { get; } = [];
+    public List<FakeAppServerSteer> SteerRequests { get; } = [];
     public bool UseMismatchedToolThreadId { get; set; }
     public Func<string, Task>? WakeTurnStarted { get; set; }
     public bool FailThreadResume { get; set; }
+    public int RejectTurnStarts { get; set; }
     public bool SupportsRuntimeAdditionalContext { get; set; } = true;
     public DynamicToolResult? LastToolResult { get; set; }
     public List<DynamicToolResult> ToolResults { get; } = [];
@@ -1158,6 +1324,12 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
             },
             threadId =>
             {
+                if (RejectTurnStarts > 0)
+                {
+                    RejectTurnStarts--;
+                    throw new InvalidOperationException("Synthetic turn start rejection.");
+                }
+
                 TurnThreadIds.Add(threadId);
                 _turnCount++;
                 return $"turn-test-{_turnCount}";
@@ -1173,9 +1345,12 @@ internal sealed class FakeAppServerClientFactory(FakeAppServerOutcome outcome) :
                 LastToolResult = result;
                 ToolResults.Add(result);
             },
-            turnId => WakeTurnStarted?.Invoke(turnId) ?? Task.CompletedTask));
+            turnId => WakeTurnStarted?.Invoke(turnId) ?? Task.CompletedTask,
+            steer => SteerRequests.Add(steer)));
     }
 }
+
+internal sealed record FakeAppServerSteer(string ThreadId, string ExpectedTurnId, string Prompt);
 
 internal sealed class FakeAppServerClient(
     FakeAppServerOutcome outcome,
@@ -1189,8 +1364,10 @@ internal sealed class FakeAppServerClient(
     Func<string?> getFollowUpDraftRepository,
     Func<string?> getFollowUpDraftBranch,
     Action<DynamicToolResult> captureToolResult,
-    Func<string, Task> wakeTurnStarted) : IDotCraftAppServerClient
+    Func<string, Task> wakeTurnStarted,
+    Action<FakeAppServerSteer> captureSteer) : IDotCraftAppServerClient
 {
+    private readonly TaskCompletionSource<string> _steered = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Channel<DotCraftRunEvent> _notifications = Channel.CreateUnbounded<DotCraftRunEvent>();
     private Func<DynamicToolCall, CancellationToken, Task<DynamicToolResult>>? _dynamicToolHandler;
     private readonly TaskCompletionSource _backgroundWorkObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1622,6 +1799,68 @@ internal sealed class FakeAppServerClient(
         {
             return ReplyBeforeTurnStartReturnsAsync(threadId, turnId, prompt);
         }
+        else if (outcome == FakeAppServerOutcome.DismissFindingThenReply)
+        {
+            _ = Task.Run(async () =>
+            {
+                var findingId = ExtractTickedValue(prompt, "findingId `");
+                if (findingId is not null)
+                {
+                    var arguments = JsonSerializer.SerializeToElement(new
+                    {
+                        findingId,
+                        resolutionKind = "dismissed"
+                    }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                    captureToolResult(await _dynamicToolHandler!(CreateCall(threadId, turnId, "call-resolve-1", "oratorio_run", "ResolveReviewFinding", arguments), CancellationToken.None));
+                }
+
+                await SubmitDiscussionReplyAsync(threadId, turnId, "call-discussion-1", ExtractDiscussionTurnId(prompt, _lastResumeRequest?.RuntimeAdditionalContext));
+                _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId }));
+                _notifications.Writer.TryComplete();
+            });
+        }
+        else if (outcome == FakeAppServerOutcome.SubmitDiscussionReplyTwice)
+        {
+            _ = Task.Run(async () =>
+            {
+                var discussionTurnId = ExtractDiscussionTurnId(prompt, null);
+                await SubmitDiscussionReplyAsync(threadId, turnId, "call-discussion-1", discussionTurnId);
+                await SubmitDiscussionReplyAsync(threadId, turnId, "call-discussion-2", discussionTurnId);
+                _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId }));
+                _notifications.Writer.TryComplete();
+            });
+        }
+        else if (outcome == FakeAppServerOutcome.ReplyAfterBackgroundWork)
+        {
+            _backgroundWork = true;
+            _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId }));
+            _ = Task.Run(async () =>
+            {
+                await _backgroundWorkObserved.Task;
+                _backgroundWork = false;
+                const string wakeTurnId = "turn-wake-1";
+                _notifications.Writer.TryWrite(Notification("turn/started", new { threadId, turnId = wakeTurnId }));
+                await SubmitDiscussionReplyAsync(threadId, wakeTurnId, "call-discussion-1", ExtractDiscussionTurnId(prompt, null));
+                _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId = wakeTurnId }));
+                _notifications.Writer.TryComplete();
+            });
+        }
+        else if (outcome is FakeAppServerOutcome.ReplyOnSteer or FakeAppServerOutcome.SubmitReviewDraftAfterSteer)
+        {
+            _ = Task.Run(async () =>
+            {
+                var steeredPrompt = await _steered.Task;
+                await SubmitDiscussionReplyAsync(threadId, turnId, "call-discussion-1", ExtractDiscussionTurnId(steeredPrompt, null));
+                if (outcome == FakeAppServerOutcome.SubmitReviewDraftAfterSteer)
+                {
+                    await SubmitSummaryOnlyDraftAsync(threadId, turnId, "call-review-1", "Review summary after answering a question.");
+                }
+
+                _notifications.Writer.TryWrite(Notification("item/agentMessage/delta", new { delta = "DotCraft analysis complete. " }));
+                _notifications.Writer.TryWrite(Notification("turn/completed", new { threadId, turnId }));
+                _notifications.Writer.TryComplete();
+            });
+        }
         else if (outcome == FakeAppServerOutcome.Fail)
         {
             _notifications.Writer.TryWrite(Notification("turn/failed", new { threadId, turnId, error = new { message = "Synthetic DotCraft failure." } }));
@@ -1660,6 +1899,24 @@ internal sealed class FakeAppServerClient(
 
     public Task<string?> EnqueueTurnAsync(string threadId, IReadOnlyList<TurnInputPartDto> input, CancellationToken ct) =>
         Task.FromResult<string?>("queued-test-1");
+
+    public Task SteerTurnAsync(string threadId, string expectedTurnId, IReadOnlyList<TurnInputPartDto> input, CancellationToken ct)
+    {
+        var prompt = input.FirstOrDefault()?.Text ?? "";
+        captureSteer(new FakeAppServerSteer(threadId, expectedTurnId, prompt));
+        _steered.TrySetResult(prompt);
+        return Task.CompletedTask;
+    }
+
+    private async Task SubmitDiscussionReplyAsync(string threadId, string turnId, string callId, string discussionTurnId)
+    {
+        var arguments = JsonSerializer.SerializeToElement(new
+        {
+            discussionTurnId,
+            body = "Agent answer from DotCraft."
+        }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        captureToolResult(await _dynamicToolHandler!(CreateCall(threadId, turnId, callId, "oratorio_run", "SubmitDiscussionReply", arguments), CancellationToken.None));
+    }
 
     public Task InterruptTurnAsync(string threadId, string turnId, CancellationToken ct)
     {
@@ -1782,6 +2039,19 @@ internal sealed class FakeAppServerClient(
 
         await Task.Yield();
         throw new OperationCanceledException(ct);
+    }
+
+    private static string? ExtractTickedValue(string source, string marker)
+    {
+        var start = source.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0)
+        {
+            return null;
+        }
+
+        start += marker.Length;
+        var end = source.IndexOf('`', start);
+        return end > start ? source[start..end] : null;
     }
 
     private static string ExtractDiscussionTurnId(

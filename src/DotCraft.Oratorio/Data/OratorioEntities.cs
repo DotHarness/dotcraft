@@ -138,23 +138,50 @@ public sealed class OratorioGitHubCommentCommand
     public string CommandId { get; set; } = Guid.NewGuid().ToString("n");
     public string? DeliveryId { get; set; }
     public string SourceCommentId { get; set; } = "";
+    public GitHubCommentKind CommentKind { get; set; } = GitHubCommentKind.Conversation;
+    public long CommentId { get; set; }
+    public string? CommentUrl { get; set; }
+    public long? ThreadRootCommentId { get; set; }
+    public string? Path { get; set; }
+    public int? Line { get; set; }
     public string Repository { get; set; } = "";
     public int PullRequestNumber { get; set; }
     public string ActorLogin { get; set; } = "";
     public string AuthorAssociation { get; set; } = "";
     public GitHubCommentCommandKind CommandKind { get; set; } = GitHubCommentCommandKind.Review;
     public string? Focus { get; set; }
+    public string? Question { get; set; }
     public GitHubCommentCommandStatus Status { get; set; } = GitHubCommentCommandStatus.Queued;
     public int AttemptCount { get; set; }
     public DateTimeOffset? NextAttemptAt { get; set; }
     public string? RunId { get; set; }
+    public string? DiscussionTurnId { get; set; }
     public string? ErrorCode { get; set; }
     public string? ErrorMessage { get; set; }
+    public DateTimeOffset? AcknowledgedAt { get; set; }
+    public string? AcknowledgementErrorCode { get; set; }
+    public string? AcknowledgementErrorMessage { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
 
     public OratorioRun? Run { get; set; }
+}
+
+public sealed class OratorioGitHubCommentScanCursor
+{
+    public string Repository { get; set; } = "";
+    public DateTimeOffset BaselineAt { get; set; }
+    public DateTimeOffset? IssueCommentsHighWaterAt { get; set; }
+    public string? IssueCommentsETag { get; set; }
+    public DateTimeOffset? ReviewCommentsHighWaterAt { get; set; }
+    public string? ReviewCommentsETag { get; set; }
+    public DateTimeOffset? LastScannedAt { get; set; }
+    public string? LastErrorCode { get; set; }
+    public string? LastErrorMessage { get; set; }
+    public DateTimeOffset? LastErrorAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 public sealed class OratorioAutoReviewItemState
@@ -223,13 +250,28 @@ public sealed class OratorioDiscussionTurn
     public string? RoundId { get; set; }
     public string QuestionCommentId { get; set; } = "";
     public string? ReplyCommentId { get; set; }
-    public string BaseRunId { get; set; } = "";
-    public string ThreadId { get; set; } = "";
+    public string? ReplySourceWriteId { get; set; }
+    public string? OriginProvider { get; set; }
+    public string? OriginAuthorLogin { get; set; }
+    public string? OriginUrl { get; set; }
+    public string? OriginCommandId { get; set; }
+    public GitHubCommentKind? OriginCommentKind { get; set; }
+    public long? OriginCommentId { get; set; }
+    public long? OriginThreadRootCommentId { get; set; }
+    public string? OriginPath { get; set; }
+    public int? OriginLine { get; set; }
+    public string? RunId { get; set; }
+    public string? ThreadId { get; set; }
     public string? TurnId { get; set; }
     public string? ModelId { get; set; }
     public string? AppServerEndpoint { get; set; }
     public DiscussionTurnStatus Status { get; set; } = DiscussionTurnStatus.Pending;
+    public string? ThreadContextJson { get; set; }
     public string? PromptContextJson { get; set; }
+    public string? BaseWorkspacePath { get; set; }
+    public string? WorktreePath { get; set; }
+    public WorktreeStatus WorktreeStatus { get; set; } = WorktreeStatus.NotRequired;
+    public DateTimeOffset? WorktreeCleanupAfterAt { get; set; }
     public string? ErrorCode { get; set; }
     public string? ErrorMessage { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -241,7 +283,20 @@ public sealed class OratorioDiscussionTurn
     public OratorioRound? Round { get; set; }
     public OratorioComment? QuestionComment { get; set; }
     public OratorioComment? ReplyComment { get; set; }
-    public OratorioRun? BaseRun { get; set; }
+}
+
+public sealed class OratorioThreadState
+{
+    public string ThreadId { get; set; } = "";
+    public string ItemId { get; set; } = "";
+    public string? HeadSha { get; set; }
+    public string? BaseSha { get; set; }
+    public SourceState? SourceState { get; set; }
+    public bool? IsDraft { get; set; }
+    public string OpenFindingsJson { get; set; } = "[]";
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    public OratorioItem? Item { get; set; }
 }
 
 public sealed class OratorioSourceSnapshot
@@ -338,6 +393,7 @@ public sealed class OratorioReviewDraftComment
     public string? ResolvedInRunId { get; set; }
     public string? ResolvedViaDiscussionTurnId { get; set; }
     public string? RemoteThreadId { get; set; }
+    public long? RemoteRootCommentId { get; set; }
     public string? RemoteResolveWriteId { get; set; }
 
     public OratorioReviewDraft? Draft { get; set; }

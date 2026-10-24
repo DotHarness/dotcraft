@@ -7,6 +7,7 @@ namespace DotCraft.Oratorio.GitLab;
 public interface IGitLabApiClient
 {
     Task<GitLabProject> GetProjectAsync(GitLabProjectRef project, CancellationToken ct);
+    Task<GitLabUser> GetTokenUserAsync(GitLabProjectRef project, CancellationToken ct);
     Task<IReadOnlyList<GitLabIssue>> ListIssuesAsync(GitLabProjectRef project, GitLabListState state, DateTimeOffset? updatedAfter, CancellationToken ct);
     Task<IReadOnlyList<GitLabMergeRequest>> ListMergeRequestsAsync(GitLabProjectRef project, GitLabListState state, DateTimeOffset? updatedAfter, CancellationToken ct);
     Task<GitLabMergeRequest> GetMergeRequestAsync(GitLabProjectRef project, int iid, CancellationToken ct);
@@ -41,6 +42,15 @@ public sealed class GitLabApiClient(
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<GitLabProject>(JsonOptions, ct)
             ?? throw new InvalidOperationException("GitLab project response was empty.");
+    }
+
+    public async Task<GitLabUser> GetTokenUserAsync(GitLabProjectRef project, CancellationToken ct)
+    {
+        using var request = CreateRequest(HttpMethod.Get, "/user", project);
+        using var response = await httpClientFactory.CreateClient("GitLab").SendAsync(request, ct);
+        EnsureGitLabSuccess(response);
+        return await response.Content.ReadFromJsonAsync<GitLabUser>(JsonOptions, ct)
+            ?? throw new InvalidOperationException("GitLab user response was empty.");
     }
 
     public Task<IReadOnlyList<GitLabIssue>> ListIssuesAsync(

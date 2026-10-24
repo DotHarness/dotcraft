@@ -75,7 +75,7 @@ public sealed class AppServerReviewPreparationTests
             Assert.Equal("def456", (await db.Items.SingleAsync(x => x.ItemId == itemId)).HeadSha);
             var storedRun = await db.Runs.SingleAsync(x => x.RunId == run.RunId);
             var incremental = await scope.ServiceProvider.GetRequiredService<AppServerPromptBuilder>()
-                .BuildAsync(storedRun, null, run.WorktreePath!, [], incremental: true, CancellationToken.None);
+                .BuildAsync(storedRun, null, run.WorktreePath!, [], run.ThreadId, CancellationToken.None);
             foreach (var (prompt, contextJson) in new[]
                      {
                          (Assert.Single(appServer.TurnPrompts), storedRun.PromptContextJson!),

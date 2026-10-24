@@ -30,6 +30,7 @@ public interface IDotCraftAppServerClient : IAsyncDisposable
     Task<string?> StartTurnAsync(string threadId, string prompt, CancellationToken ct);
     Task<string?> StartTurnAsync(string threadId, IReadOnlyList<TurnInputPartDto> input, string? modelId, CancellationToken ct);
     Task<string?> EnqueueTurnAsync(string threadId, IReadOnlyList<TurnInputPartDto> input, CancellationToken ct);
+    Task SteerTurnAsync(string threadId, string expectedTurnId, IReadOnlyList<TurnInputPartDto> input, CancellationToken ct);
     Task InterruptTurnAsync(string threadId, string turnId, CancellationToken ct);
     Task<AppServerThreadReadResult> ReadThreadAsync(string threadId, CancellationToken ct);
     Task<IReadOnlyList<ModelInfoDto>> ListModelsAsync(CancellationToken ct);
@@ -174,6 +175,14 @@ public sealed class DotCraftAppServerClient(SdkClient client) : IDotCraftAppServ
         var result = await client.Turns.EnqueueAsync(threadId, NormalizeInput(input), cancellationToken: ct);
         return result.QueuedInput.Id;
     }
+
+    public Task SteerTurnAsync(string threadId, string expectedTurnId, IReadOnlyList<TurnInputPartDto> input, CancellationToken ct) =>
+        client.Wire.RequestAsync(AppServerRpc.TurnSteer, new TurnSteerParams
+        {
+            ThreadId = threadId,
+            ExpectedTurnId = expectedTurnId,
+            Input = NormalizeInput(input)
+        }, ct);
 
     public Task InterruptTurnAsync(string threadId, string turnId, CancellationToken ct) =>
         client.Turns.InterruptAsync(threadId, turnId, ct);

@@ -190,8 +190,10 @@ public sealed record DiscussionTurnDto(
     string? RoundId,
     string QuestionCommentId,
     string? ReplyCommentId,
-    string BaseRunId,
-    string ThreadId,
+    string? ReplySourceWriteId,
+    DiscussionTurnOriginDto? Origin,
+    string? RunId,
+    string? ThreadId,
     string? TurnId,
     DiscussionTurnStatus Status,
     string? ErrorCode,
@@ -200,6 +202,11 @@ public sealed record DiscussionTurnDto(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? StartedAt,
     DateTimeOffset? CompletedAt);
+
+public sealed record DiscussionTurnOriginDto(
+    string Provider,
+    string AuthorLogin,
+    string? Url);
 
 public sealed record DecisionDto(
     string DecisionId,

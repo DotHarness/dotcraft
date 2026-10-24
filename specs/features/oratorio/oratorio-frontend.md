@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.9.1 |
+| Version | 0.9.3 |
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-10-24 |
 | Parent Spec | [Oratorio Design](./oratorio-design.md) |
 
 This document is the canonical frontend contract for the Oratorio surfaces in
@@ -215,10 +215,13 @@ streams, never stored, and cleared when the run ends.
 
 The Discussion composer closes Activity with separate `Add comment` and `Ask
 Oratorio` actions. `Add comment` records internal operator feedback. `Ask
-Oratorio` starts an Agent Discussion Turn only when the backend reports an
-eligible completed thread and no active Discussion Turn. Agent replies are
-signed `Oratorio`, the operator's own comments carry their Profile avatar, and
-comments imported from the provider keep their author. The composer follows
+Oratorio` starts an Agent Discussion Turn only when the backend reports a
+conversation thread for the task and no Discussion Turn waiting to be
+delivered; it stays available while a run is active. Agent replies are signed
+`Oratorio`, the operator's own comments carry their Profile avatar, and
+comments imported from the provider keep their author. Questions asked from the
+provider show their provider author, and their replies link to the published
+provider comment. The composer follows
 Desktop's line comment card. Enter adds a comment and Shift+Enter starts a new
 line; `Ask Oratorio` is only ever a button.
 

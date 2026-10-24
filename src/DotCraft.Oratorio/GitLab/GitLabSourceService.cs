@@ -18,6 +18,7 @@ public sealed class GitLabSourceService(
     IGitLabCredentialResolver credentials,
     GitLabSyncCoordinator syncCoordinator,
     TaskBoardPlacementService taskBoardPlacement,
+    GitLabTokenIdentity tokenIdentity,
     IClock clock)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -180,6 +181,7 @@ public sealed class GitLabSourceService(
         var now = clock.UtcNow;
         try
         {
+            var ownUserId = await tokenIdentity.GetUserIdAsync(project, ct);
             var issueNotes = item.Kind == ItemKind.Issue
                 ? await client.ListIssueNotesAsync(project, iid, ct)
                 : [];
@@ -194,6 +196,12 @@ public sealed class GitLabSourceService(
             }
 
             var projectKey = SourceProjectKey.FromGitLabProject(project.ProjectPath, options.CurrentValue.Endpoint).Key;
+            issueNotes = issueNotes.Where(note => !GitLabTokenIdentity.IsAuthoredBy(note.Author, ownUserId)).ToArray();
+            mergeRequestNotes = mergeRequestNotes.Where(note => !GitLabTokenIdentity.IsAuthoredBy(note.Author, ownUserId)).ToArray();
+            discussions = discussions
+                .Select(discussion => discussion with { Notes = discussion.Notes.Where(note => !GitLabTokenIdentity.IsAuthoredBy(note.Author, ownUserId)).ToArray() })
+                .Where(discussion => discussion.Notes.Count > 0)
+                .ToArray();
             var importedComments = issueNotes.Select(note => ToImportedIssueNote(projectKey, iid, note))
                 .Concat(mergeRequestNotes.Select(note => ToImportedMergeRequestNote(projectKey, iid, note)))
                 .Concat(discussions.SelectMany(discussion => discussion.Notes.Select(note => ToImportedDiscussionNote(projectKey, iid, discussion, note))))

@@ -192,7 +192,8 @@ public enum SourceWriteKind
     CommitStatus,
     MergeRequestCreation,
     PullRequestUpdate,
-    ResolveReviewThread
+    ResolveReviewThread,
+    PullRequestReviewCommentReply
 }
 
 public enum SourceWriteStatus
@@ -312,7 +313,14 @@ public enum GitHubSyncTrigger
 
 public enum GitHubCommentCommandKind
 {
-    Review
+    Review,
+    Question
+}
+
+public enum GitHubCommentKind
+{
+    Conversation,
+    ReviewComment
 }
 
 public enum GitHubCommentCommandStatus

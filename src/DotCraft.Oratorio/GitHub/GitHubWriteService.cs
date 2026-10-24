@@ -8,7 +8,7 @@ using DotCraft.Oratorio.Services;
 
 namespace DotCraft.Oratorio.GitHub;
 
-public sealed class GitHubWriteService(
+public sealed partial class GitHubWriteService(
     OratorioDbContext db,
     IGitHubApiClient client,
     IOptionsMonitor<GitHubOptions> options,
@@ -468,10 +468,11 @@ public sealed class GitHubWriteService(
         {
             var response = write.Kind switch
             {
-                SourceWriteKind.IssueComment => await client.CreateIssueCommentAsync(repository, write.Number.Value, ReadString(write.RequestJson, "body"), ct),
+                SourceWriteKind.IssueComment => await CreateIssueCommentAsync(repository, write, ct),
                 SourceWriteKind.PullRequestReview => await CreatePullRequestReviewAsync(repository, write, ct),
                 SourceWriteKind.CheckRun => await ExecuteCheckRunAsync(repository, write, ct),
                 SourceWriteKind.ResolveReviewThread => await ExecuteReviewThreadResolutionAsync(repository, write, ct),
+                SourceWriteKind.PullRequestReviewCommentReply => await CreateReviewCommentReplyAsync(repository, write, ct),
                 _ => throw new InvalidOperationException($"Unsupported source write kind: {write.Kind}")
             };
 
@@ -493,57 +494,6 @@ public sealed class GitHubWriteService(
         if (write.Status == SourceWriteStatus.Succeeded)
         {
             await TryCaptureReviewThreadMappingAsync(write, repository, ct);
-        }
-    }
-
-    private async Task TryCaptureReviewThreadMappingAsync(OratorioSourceWriteLog write, GitHubRepositoryRef repository, CancellationToken ct)
-    {
-        if (write.Intent != "reviewDraftPublish" || write.Kind != SourceWriteKind.PullRequestReview || write.Number is null)
-        {
-            return;
-        }
-
-        try
-        {
-            var draftId = db.ChangeTracker.Entries<OratorioReviewDraft>()
-                .Select(entry => entry.Entity)
-                .FirstOrDefault(draft => draft.SourceWriteId == write.WriteId)?.DraftId
-                ?? await db.ReviewDrafts.Where(draft => draft.SourceWriteId == write.WriteId).Select(draft => draft.DraftId).FirstOrDefaultAsync(ct);
-            if (string.IsNullOrWhiteSpace(draftId))
-            {
-                return;
-            }
-
-            var comments = await db.ReviewDraftComments
-                .Where(c => c.DraftId == draftId && c.Status == ReviewDraftCommentStatus.Accepted)
-                .ToListAsync(ct);
-            if (comments.Count == 0)
-            {
-                return;
-            }
-
-            var threads = await client.ListPullRequestReviewThreadsAsync(repository, write.Number.Value, ct);
-            foreach (var thread in threads)
-            {
-                foreach (var body in thread.CommentBodies)
-                {
-                    var findingId = ReviewFindingMarker.Extract(body);
-                    if (findingId is null)
-                    {
-                        continue;
-                    }
-
-                    var match = comments.FirstOrDefault(c => c.DraftCommentId == findingId);
-                    if (match is not null)
-                    {
-                        match.RemoteThreadId = thread.Id;
-                    }
-                }
-            }
-        }
-        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
-        {
-            // Mapping is best-effort; without it, resolution stays internal-only per spec §5.7.
         }
     }
 
@@ -686,7 +636,7 @@ public sealed class GitHubWriteService(
         });
     }
 
-    private static bool TryResolveGitHubTarget(OratorioItem item, out GitHubRepositoryRef repository, out int number)
+    internal static bool TryResolveGitHubTarget(OratorioItem item, out GitHubRepositoryRef repository, out int number)
     {
         repository = new GitHubRepositoryRef("", "");
         number = 0;

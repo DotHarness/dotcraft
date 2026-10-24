@@ -17,6 +17,7 @@ public sealed class OratorioDbContext(DbContextOptions<OratorioDbContext> option
     public DbSet<OratorioAutoReviewRepositoryState> AutoReviewRepositoryStates => Set<OratorioAutoReviewRepositoryState>();
     public DbSet<OratorioAutoReviewItemState> AutoReviewItemStates => Set<OratorioAutoReviewItemState>();
     public DbSet<OratorioGitHubCommentCommand> GitHubCommentCommands => Set<OratorioGitHubCommentCommand>();
+    public DbSet<OratorioGitHubCommentScanCursor> GitHubCommentScanCursors => Set<OratorioGitHubCommentScanCursor>();
     public DbSet<OratorioImplementationFollowUpItemState> ImplementationFollowUpItemStates => Set<OratorioImplementationFollowUpItemState>();
     public DbSet<OratorioComment> Comments => Set<OratorioComment>();
     public DbSet<OratorioDecision> Decisions => Set<OratorioDecision>();
@@ -28,6 +29,7 @@ public sealed class OratorioDbContext(DbContextOptions<OratorioDbContext> option
     public DbSet<OratorioImplementationDraft> ImplementationDrafts => Set<OratorioImplementationDraft>();
     public DbSet<OratorioFollowUpDraft> FollowUpDrafts => Set<OratorioFollowUpDraft>();
     public DbSet<OratorioDiscussionTurn> DiscussionTurns => Set<OratorioDiscussionTurn>();
+    public DbSet<OratorioThreadState> ThreadStates => Set<OratorioThreadState>();
     public DbSet<OratorioConfigurationChange> ConfigurationChanges => Set<OratorioConfigurationChange>();
     public DbSet<OratorioTaskShortIdCounter> TaskShortIdCounters => Set<OratorioTaskShortIdCounter>();
     public DbSet<OratorioGitHubSyncJob> GitHubSyncJobs => Set<OratorioGitHubSyncJob>();
@@ -44,6 +46,7 @@ public sealed class OratorioDbContext(DbContextOptions<OratorioDbContext> option
         ConfigureAutoReviewRepositoryStates(modelBuilder);
         ConfigureAutoReviewItemStates(modelBuilder);
         ConfigureGitHubCommentCommands(modelBuilder);
+        ConfigureGitHubCommentScanCursors(modelBuilder);
         ConfigureImplementationFollowUpItemStates(modelBuilder);
         ConfigureComments(modelBuilder);
         ConfigureDecisions(modelBuilder);
@@ -55,6 +58,7 @@ public sealed class OratorioDbContext(DbContextOptions<OratorioDbContext> option
         ConfigureImplementationDrafts(modelBuilder);
         ConfigureFollowUpDrafts(modelBuilder);
         ConfigureDiscussionTurns(modelBuilder);
+        ConfigureThreadStates(modelBuilder);
         ConfigureConfigurationChanges(modelBuilder);
         ConfigureTaskShortIdCounters(modelBuilder);
         ConfigureGitHubSyncJobs(modelBuilder);
@@ -223,18 +227,29 @@ public sealed class OratorioDbContext(DbContextOptions<OratorioDbContext> option
         entity.Property(x => x.CommandId).HasColumnName("command_id");
         entity.Property(x => x.DeliveryId).HasColumnName("delivery_id");
         entity.Property(x => x.SourceCommentId).HasColumnName("source_comment_id").IsRequired();
+        entity.Property(x => x.CommentKind).HasColumnName("comment_kind").HasConversion<string>().IsRequired();
+        entity.Property(x => x.CommentId).HasColumnName("comment_id");
+        entity.Property(x => x.CommentUrl).HasColumnName("comment_url");
+        entity.Property(x => x.ThreadRootCommentId).HasColumnName("thread_root_comment_id");
+        entity.Property(x => x.Path).HasColumnName("path");
+        entity.Property(x => x.Line).HasColumnName("line");
         entity.Property(x => x.Repository).HasColumnName("repository").IsRequired();
         entity.Property(x => x.PullRequestNumber).HasColumnName("pull_request_number");
         entity.Property(x => x.ActorLogin).HasColumnName("actor_login").IsRequired();
         entity.Property(x => x.AuthorAssociation).HasColumnName("author_association").IsRequired();
         entity.Property(x => x.CommandKind).HasColumnName("command_kind").HasConversion<string>().IsRequired();
         entity.Property(x => x.Focus).HasColumnName("focus");
+        entity.Property(x => x.Question).HasColumnName("question");
         entity.Property(x => x.Status).HasColumnName("status").HasConversion<string>().IsRequired();
         entity.Property(x => x.AttemptCount).HasColumnName("attempt_count");
         entity.Property(x => x.NextAttemptAt).HasColumnName("next_attempt_at").HasConversion(NullableDateTimeOffsetConverter);
         entity.Property(x => x.RunId).HasColumnName("run_id");
+        entity.Property(x => x.DiscussionTurnId).HasColumnName("discussion_turn_id");
         entity.Property(x => x.ErrorCode).HasColumnName("error_code");
         entity.Property(x => x.ErrorMessage).HasColumnName("error_message");
+        entity.Property(x => x.AcknowledgedAt).HasColumnName("acknowledged_at").HasConversion(NullableDateTimeOffsetConverter);
+        entity.Property(x => x.AcknowledgementErrorCode).HasColumnName("acknowledgement_error_code");
+        entity.Property(x => x.AcknowledgementErrorMessage).HasColumnName("acknowledgement_error_message");
         entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasConversion(DateTimeOffsetConverter);
         entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(DateTimeOffsetConverter);
         entity.Property(x => x.CompletedAt).HasColumnName("completed_at").HasConversion(NullableDateTimeOffsetConverter);
@@ -242,6 +257,25 @@ public sealed class OratorioDbContext(DbContextOptions<OratorioDbContext> option
         entity.HasIndex(x => new { x.Status, x.NextAttemptAt, x.CreatedAt });
         entity.HasIndex(x => x.RunId);
         entity.HasOne(x => x.Run).WithMany().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.SetNull);
+    }
+
+    private static void ConfigureGitHubCommentScanCursors(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<OratorioGitHubCommentScanCursor>();
+        entity.ToTable("github_comment_scan_cursors");
+        entity.HasKey(x => x.Repository);
+        entity.Property(x => x.Repository).HasColumnName("repository").IsRequired();
+        entity.Property(x => x.BaselineAt).HasColumnName("baseline_at").HasConversion(DateTimeOffsetConverter);
+        entity.Property(x => x.IssueCommentsHighWaterAt).HasColumnName("issue_comments_high_water_at").HasConversion(NullableDateTimeOffsetConverter);
+        entity.Property(x => x.IssueCommentsETag).HasColumnName("issue_comments_etag");
+        entity.Property(x => x.ReviewCommentsHighWaterAt).HasColumnName("review_comments_high_water_at").HasConversion(NullableDateTimeOffsetConverter);
+        entity.Property(x => x.ReviewCommentsETag).HasColumnName("review_comments_etag");
+        entity.Property(x => x.LastScannedAt).HasColumnName("last_scanned_at").HasConversion(NullableDateTimeOffsetConverter);
+        entity.Property(x => x.LastErrorCode).HasColumnName("last_error_code");
+        entity.Property(x => x.LastErrorMessage).HasColumnName("last_error_message");
+        entity.Property(x => x.LastErrorAt).HasColumnName("last_error_at").HasConversion(NullableDateTimeOffsetConverter);
+        entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasConversion(DateTimeOffsetConverter);
+        entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(DateTimeOffsetConverter);
     }
 
     private static void ConfigureImplementationFollowUpItemStates(ModelBuilder modelBuilder)
@@ -303,13 +337,28 @@ public sealed class OratorioDbContext(DbContextOptions<OratorioDbContext> option
         entity.Property(x => x.RoundId).HasColumnName("round_id");
         entity.Property(x => x.QuestionCommentId).HasColumnName("question_comment_id").IsRequired();
         entity.Property(x => x.ReplyCommentId).HasColumnName("reply_comment_id");
-        entity.Property(x => x.BaseRunId).HasColumnName("base_run_id").IsRequired();
-        entity.Property(x => x.ThreadId).HasColumnName("thread_id").IsRequired();
+        entity.Property(x => x.ReplySourceWriteId).HasColumnName("reply_source_write_id");
+        entity.Property(x => x.OriginProvider).HasColumnName("origin_provider");
+        entity.Property(x => x.OriginAuthorLogin).HasColumnName("origin_author_login");
+        entity.Property(x => x.OriginUrl).HasColumnName("origin_url");
+        entity.Property(x => x.OriginCommandId).HasColumnName("origin_command_id");
+        entity.Property(x => x.OriginCommentKind).HasColumnName("origin_comment_kind").HasConversion<string>();
+        entity.Property(x => x.OriginCommentId).HasColumnName("origin_comment_id");
+        entity.Property(x => x.OriginThreadRootCommentId).HasColumnName("origin_thread_root_comment_id");
+        entity.Property(x => x.OriginPath).HasColumnName("origin_path");
+        entity.Property(x => x.OriginLine).HasColumnName("origin_line");
+        entity.Property(x => x.RunId).HasColumnName("run_id");
+        entity.Property(x => x.ThreadId).HasColumnName("thread_id");
         entity.Property(x => x.TurnId).HasColumnName("turn_id");
         entity.Property(x => x.ModelId).HasColumnName("model_id");
         entity.Property(x => x.AppServerEndpoint).HasColumnName("app_server_endpoint");
         entity.Property(x => x.Status).HasColumnName("status").HasConversion<string>().IsRequired();
+        entity.Property(x => x.ThreadContextJson).HasColumnName("thread_context_json");
         entity.Property(x => x.PromptContextJson).HasColumnName("prompt_context_json");
+        entity.Property(x => x.BaseWorkspacePath).HasColumnName("base_workspace_path");
+        entity.Property(x => x.WorktreePath).HasColumnName("worktree_path");
+        entity.Property(x => x.WorktreeStatus).HasColumnName("worktree_status").HasConversion<string>().IsRequired();
+        entity.Property(x => x.WorktreeCleanupAfterAt).HasColumnName("worktree_cleanup_after_at").HasConversion(NullableDateTimeOffsetConverter);
         entity.Property(x => x.ErrorCode).HasColumnName("error_code");
         entity.Property(x => x.ErrorMessage).HasColumnName("error_message");
         entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasConversion(DateTimeOffsetConverter);
@@ -317,12 +366,11 @@ public sealed class OratorioDbContext(DbContextOptions<OratorioDbContext> option
         entity.Property(x => x.StartedAt).HasColumnName("started_at").HasConversion(NullableDateTimeOffsetConverter);
         entity.Property(x => x.CompletedAt).HasColumnName("completed_at").HasConversion(NullableDateTimeOffsetConverter);
         entity.HasIndex(x => new { x.ItemId, x.Status });
-        entity.HasIndex(x => x.BaseRunId);
+        entity.HasIndex(x => x.ThreadId);
         entity.HasOne(x => x.Item).WithMany(x => x.DiscussionTurns).HasForeignKey(x => x.ItemId);
         entity.HasOne(x => x.Round).WithMany().HasForeignKey(x => x.RoundId).OnDelete(DeleteBehavior.Restrict);
         entity.HasOne(x => x.QuestionComment).WithMany().HasForeignKey(x => x.QuestionCommentId).OnDelete(DeleteBehavior.Restrict);
         entity.HasOne(x => x.ReplyComment).WithMany().HasForeignKey(x => x.ReplyCommentId).OnDelete(DeleteBehavior.Restrict);
-        entity.HasOne(x => x.BaseRun).WithMany().HasForeignKey(x => x.BaseRunId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureDecisions(ModelBuilder modelBuilder)
@@ -473,6 +521,7 @@ public sealed class OratorioDbContext(DbContextOptions<OratorioDbContext> option
         entity.Property(x => x.ResolvedInRunId).HasColumnName("resolved_in_run_id");
         entity.Property(x => x.ResolvedViaDiscussionTurnId).HasColumnName("resolved_via_discussion_turn_id");
         entity.Property(x => x.RemoteThreadId).HasColumnName("remote_thread_id");
+        entity.Property(x => x.RemoteRootCommentId).HasColumnName("remote_root_comment_id");
         entity.Property(x => x.RemoteResolveWriteId).HasColumnName("remote_resolve_write_id");
         entity.HasIndex(x => x.DraftId);
         entity.HasOne(x => x.Draft).WithMany(x => x.Comments).HasForeignKey(x => x.DraftId);
@@ -677,6 +726,23 @@ public sealed class OratorioDbContext(DbContextOptions<OratorioDbContext> option
         entity.HasIndex(x => new { x.JobId, x.ProjectPath }).IsUnique();
         entity.HasIndex(x => new { x.ProjectPath, x.Status, x.CompletedAt });
         entity.HasOne(x => x.Job).WithMany(x => x.ProjectRuns).HasForeignKey(x => x.JobId).OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void ConfigureThreadStates(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<OratorioThreadState>();
+        entity.ToTable("thread_states");
+        entity.HasKey(x => x.ThreadId);
+        entity.Property(x => x.ThreadId).HasColumnName("thread_id");
+        entity.Property(x => x.ItemId).HasColumnName("item_id").IsRequired();
+        entity.Property(x => x.HeadSha).HasColumnName("head_sha");
+        entity.Property(x => x.BaseSha).HasColumnName("base_sha");
+        entity.Property(x => x.SourceState).HasColumnName("source_state").HasConversion<string>();
+        entity.Property(x => x.IsDraft).HasColumnName("is_draft");
+        entity.Property(x => x.OpenFindingsJson).HasColumnName("open_findings_json").IsRequired();
+        entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasConversion(DateTimeOffsetConverter);
+        entity.HasIndex(x => x.ItemId);
+        entity.HasOne(x => x.Item).WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Cascade);
     }
 
     private static void ConfigureSourceSyncSchedules(ModelBuilder modelBuilder)

@@ -13,6 +13,7 @@
 | **导入 issue 与 pull request** | Issues 与 pull requests：read |
 | **读取文件与讨论** | Pull requests：read，Contents：read |
 | **发布评论与审阅** | Issues 与 pull requests：write |
+| **回应 `@dotcraft-ai` 评论** | Issues 与 pull requests：write |
 | **发布审阅检查** | Checks：write |
 | **交付 pull request** | Contents 与 pull requests：write |
 
@@ -29,9 +30,33 @@
 
 要接入更多仓库，再走一遍这个流程即可。私有仓库不需要额外设置。Oratorio 用 App installation 凭据把审阅目标取回映射的 checkout，这个 checkout 本身不必保存 Git 凭据。
 
+## 在 pull request 里找 Oratorio
+
+已接入仓库的 owner、成员和协作者可以在任何开放的 pull request 上找 Oratorio。在 pull request 评论、行内审阅评论或审阅讨论串的回复开头写上 `@dotcraft-ai` 即可。
+
+要审阅当前 head，发送：
+
+```text
+@dotcraft-ai review
+```
+
+想让这次审阅盯住某个方面，就用 `/review`，并在同一行写上关注点，例如 `@dotcraft-ai /review security regressions`。
+
+提及之后写别的内容，就是向 Oratorio 提问：
+
+```text
+@dotcraft-ai Why does the refresh path keep the old token?
+```
+
+Oratorio 接下评论后会加一个 👀 表情，然后在你提问的地方回答：pull request 对话里的提问就回复在对话里，行内评论就回复在对应的审阅讨论串里。提问不会发起审阅，也不会改变任务状态。
+
+对 Oratorio 的某条审阅意见有异议时，在这条意见的讨论串里回复 `@dotcraft-ai`。如果讨论下来这条意见不成立或者已经处理，Oratorio 会把它标记为忽略并解决这个讨论串，同时照常回复你。
+
+不需要 Webhook。Oratorio 会在约 30 秒内发现新评论，接入仓库之前的评论不会被处理。打开写回后，表情和回复才会出现在 GitHub 上。
+
 ## 启用 Webhook
 
-同步不依赖 Webhook，但 GitHub 上的评论命令需要它。本地 Desktop 通常收不到 GitHub 云端的 Webhook，手动同步和定时同步照常可用。
+Webhook 是可选的。同步和 `@dotcraft-ai` 评论都不依赖它，Webhook 只是让事件更快到达 Oratorio。本地 Desktop 通常收不到 GitHub 云端的 Webhook。
 
 如果你运行的是远程 [DotCraft Stack](../../self-hosting/server-deployment)，只公开受限的 Webhook endpoint：
 
@@ -42,14 +67,6 @@ dotcraft stack webhook enable \
 ```
 
 把命令输出的 endpoint 填成 GitHub App 的 Webhook URL，把生成的 secret 填进 App，保持 SSL verification 开启，然后订阅工作流用到的 issue comment、issue、pull request、review 和 review comment 事件。
-
-配置好之后，有仓库协作权限的人可以在已接入且仍然开放的 pull request 下单独发一条评论来请求审阅：
-
-```text
-@dotcraft-ai review
-```
-
-想让这次审阅盯住某个方面，就在命令后面接一句说明，例如 `@dotcraft-ai review for security regressions`。
 
 ## 相关文档
 

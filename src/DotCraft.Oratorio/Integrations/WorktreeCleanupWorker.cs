@@ -64,6 +64,39 @@ public sealed class WorktreeCleanupWorker(
         {
             await CleanupRunWorktreeAsync(runId, ct);
         }
+
+        await CleanupDiscussionWorktreesAsync(ct);
+    }
+
+    private async Task CleanupDiscussionWorktreesAsync(CancellationToken ct)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+        var now = clock.UtcNow;
+        var turns = await db.DiscussionTurns
+            .Where(x =>
+                x.WorktreePath != null &&
+                x.WorktreeStatus == WorktreeStatus.CleanupPending &&
+                x.WorktreeCleanupAfterAt != null &&
+                x.WorktreeCleanupAfterAt <= now)
+            .OrderBy(x => x.WorktreeCleanupAfterAt)
+            .Take(10)
+            .ToListAsync(ct);
+        foreach (var turn in turns)
+        {
+            try
+            {
+                await worktreeManager.CleanupAsync(new WorktreeCleanupRequest(turn.DiscussionTurnId, turn.BaseWorkspacePath, turn.WorktreePath), ct);
+                turn.WorktreeStatus = WorktreeStatus.Cleaned;
+            }
+            catch (WorktreeException ex)
+            {
+                logger.LogWarning(ex, "Managed worktree cleanup failed for Agent Discussion Turn {DiscussionTurnId}.", turn.DiscussionTurnId);
+                turn.WorktreeStatus = WorktreeStatus.Failed;
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
     }
 
     private async Task CleanupRunWorktreeAsync(string runId, CancellationToken ct)

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using DotCraft.Oratorio.Api;
 using DotCraft.Oratorio.Data;
 using DotCraft.Oratorio.Domain;
@@ -12,12 +13,18 @@ public sealed class GitHubCommentCommandProcessor(
     OratorioDbContext db,
     GitHubSourceService gitHubSource,
     OratorioService oratorio,
+    DiscussionTurnService discussionTurns,
+    IGitHubApiClient client,
+    IOptionsMonitor<GitHubOptions> options,
+    IGitHubCredentialResolver credentials,
     IClock clock,
     ILogger<GitHubCommentCommandProcessor> logger)
 {
+    private const string AcknowledgementReaction = "eyes";
     private const int MaxAttempts = 3;
     private static readonly TimeSpan FirstRetryDelay = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan SecondRetryDelay = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan QuestionWaitDelay = TimeSpan.FromSeconds(1);
 
     public async Task<bool> ProcessNextAsync(CancellationToken ct)
     {
@@ -33,6 +40,12 @@ public sealed class GitHubCommentCommandProcessor(
             return false;
         }
 
+        if (command.CommandKind == GitHubCommentCommandKind.Question && await QuestionMustWaitAsync(command, ct))
+        {
+            await DeferQuestionAsync(command, ct);
+            return true;
+        }
+
         command.AttemptCount++;
         command.NextAttemptAt = null;
         command.UpdatedAt = now;
@@ -44,16 +57,41 @@ public sealed class GitHubCommentCommandProcessor(
             {
                 throw OratorioApiException.Conflict(
                     "githubCommentCommandRepositoryInvalid",
-                    $"GitHub review command repository '{command.Repository}' is invalid.");
+                    $"GitHub comment command repository '{command.Repository}' is invalid.");
             }
 
             var item = await gitHubSource.SyncPullRequestAsync(
                 repository,
                 command.PullRequestNumber,
                 ct);
-            await oratorio.DispatchGitHubCommentCommandAsync(command.CommandId, item.ItemId, ct);
+            if (item.SourceState != SourceState.Open)
+            {
+                await RejectAsync(
+                    command,
+                    "githubCommentCommandPullRequestNotOpen",
+                    $"Pull request {command.Repository}#{command.PullRequestNumber} is not open.",
+                    ct);
+                return true;
+            }
+
+            await AcknowledgeAsync(command, repository, ct);
+            if (command.CommandKind == GitHubCommentCommandKind.Question)
+            {
+                if (!await discussionTurns.CreateFromGitHubQuestionAsync(command, item, ct))
+                {
+                    command.AttemptCount--;
+                    await DeferQuestionAsync(command, ct);
+                    return true;
+                }
+            }
+            else
+            {
+                await oratorio.DispatchGitHubCommentCommandAsync(command.CommandId, item.ItemId, ct);
+            }
+
             logger.LogInformation(
-                "Dispatched GitHub review command {CommandId} for {Repository}#{PullRequestNumber}.",
+                "Dispatched GitHub {CommandKind} command {CommandId} for {Repository}#{PullRequestNumber}.",
+                command.CommandKind,
                 command.CommandId,
                 command.Repository,
                 command.PullRequestNumber);
@@ -68,6 +106,98 @@ public sealed class GitHubCommentCommandProcessor(
         }
 
         return true;
+    }
+
+    private async Task<bool> QuestionMustWaitAsync(OratorioGitHubCommentCommand command, CancellationToken ct)
+    {
+        var earlierQuestionQueued = await db.GitHubCommentCommands.AnyAsync(x =>
+            x.CommandId != command.CommandId &&
+            x.CommandKind == GitHubCommentCommandKind.Question &&
+            x.Status == GitHubCommentCommandStatus.Queued &&
+            x.Repository == command.Repository &&
+            x.PullRequestNumber == command.PullRequestNumber &&
+            x.CreatedAt < command.CreatedAt,
+            ct);
+        if (earlierQuestionQueued || !GitHubRepositoryRef.TryParse(command.Repository, out var repository))
+        {
+            return earlierQuestionQueued;
+        }
+
+        var externalId = GitHubSourceService.PullRequestExternalId(repository, command.PullRequestNumber);
+        return await db.DiscussionTurns.AnyAsync(x =>
+            x.Status == DiscussionTurnStatus.Pending &&
+            x.Item!.Source == "github" &&
+            x.Item.ExternalId == externalId,
+            ct);
+    }
+
+    private async Task DeferQuestionAsync(OratorioGitHubCommentCommand command, CancellationToken ct)
+    {
+        var now = clock.UtcNow;
+        command.NextAttemptAt = now + QuestionWaitDelay;
+        command.UpdatedAt = now;
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task RejectAsync(
+        OratorioGitHubCommentCommand command,
+        string code,
+        string message,
+        CancellationToken ct)
+    {
+        var now = clock.UtcNow;
+        command.Status = GitHubCommentCommandStatus.Rejected;
+        command.ErrorCode = code;
+        command.ErrorMessage = message;
+        command.NextAttemptAt = null;
+        command.UpdatedAt = now;
+        command.CompletedAt = now;
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task AcknowledgeAsync(
+        OratorioGitHubCommentCommand command,
+        GitHubRepositoryRef repository,
+        CancellationToken ct)
+    {
+        if (command.AcknowledgedAt is not null || !credentials.Resolve(options.CurrentValue).CanWrite)
+        {
+            return;
+        }
+
+        try
+        {
+            if (command.CommentKind == GitHubCommentKind.ReviewComment)
+            {
+                await client.CreateReviewCommentReactionAsync(repository, command.CommentId, AcknowledgementReaction, ct);
+            }
+            else
+            {
+                await client.CreateIssueCommentReactionAsync(repository, command.CommentId, AcknowledgementReaction, ct);
+            }
+
+            command.AcknowledgedAt = clock.UtcNow;
+            command.AcknowledgementErrorCode = null;
+            command.AcknowledgementErrorMessage = null;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            command.AcknowledgementErrorCode = ex is GitHubAppAuthenticationRequiredException auth
+                ? auth.ErrorCode
+                : "githubCommentCommandReactionFailed";
+            command.AcknowledgementErrorMessage = ex.Message;
+            logger.LogWarning(
+                ex,
+                "GitHub comment command {CommandId} could not add its acknowledgement reaction.",
+                command.CommandId);
+        }
+
+        command.UpdatedAt = clock.UtcNow;
+        await db.SaveChangesAsync(ct);
     }
 
     private async Task RecordFailureAsync(
@@ -88,7 +218,7 @@ public sealed class GitHubCommentCommandProcessor(
             command.CompletedAt = null;
             logger.LogWarning(
                 exception,
-                "GitHub review command {CommandId} attempt {Attempt} failed transiently; retry scheduled for {NextAttemptAt}.",
+                "GitHub comment command {CommandId} attempt {Attempt} failed transiently; retry scheduled for {NextAttemptAt}.",
                 command.CommandId,
                 command.AttemptCount,
                 command.NextAttemptAt);
@@ -100,7 +230,7 @@ public sealed class GitHubCommentCommandProcessor(
             command.CompletedAt = now;
             logger.LogWarning(
                 exception,
-                "GitHub review command {CommandId} failed permanently after {AttemptCount} attempt(s).",
+                "GitHub comment command {CommandId} failed permanently after {AttemptCount} attempt(s).",
                 command.CommandId,
                 command.AttemptCount);
         }

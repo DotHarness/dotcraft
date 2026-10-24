@@ -687,7 +687,7 @@ public sealed class AppServerRunApiTests
         var turn = Assert.Single(answered.DiscussionTurns);
 
         Assert.Equal(DiscussionTurnStatus.Succeeded, turn.Status);
-        Assert.Equal(baseRun.RunId, turn.BaseRunId);
+        Assert.Null(turn.RunId);
         Assert.Equal(baseRun.ThreadId, turn.ThreadId);
         Assert.Equal("turn-test-2", turn.TurnId);
         Assert.NotNull(turn.ReplyCommentId);
@@ -724,7 +724,7 @@ public sealed class AppServerRunApiTests
     }
 
     [Fact]
-    public async Task AgentDiscussionTurn_RejectsSecondActiveQuestion()
+    public async Task AgentDiscussionTurn_SteersSecondQuestionIntoRunningDiscussionTurn()
     {
         var fakeAppServer = new FakeAppServerClientFactory(FakeAppServerOutcome.Success);
         await using var app = new TestOratorioApp(services =>
@@ -736,27 +736,33 @@ public sealed class AppServerRunApiTests
         });
         var client = app.CreateClient();
 
-        var task = await CreateLocalTaskAsync(client, "One question at a time", repository: "example-owner/oratorio");
+        var task = await CreateLocalTaskAsync(client, "Questions share a running turn", repository: "example-owner/oratorio");
         await PostAsync<ItemDetailResponse>(
             client,
             $"/api/v1/items/id/{task.Item.ItemId}/dispatch",
             new DispatchRequest("appServer", "Initial DotCraft analysis.", null, null));
         var reviewed = await WaitForItemByIdAsync(client, task.Item.ItemId, x => x.Item.State == ItemState.AwaitingReview);
 
-        fakeAppServer.Outcome = FakeAppServerOutcome.Hold;
+        fakeAppServer.Outcome = FakeAppServerOutcome.ReplyOnSteer;
         await PostAsync<ItemDetailResponse>(
             client,
             $"/api/v1/items/id/{task.Item.ItemId}/discussion-turns",
             new DiscussionTurnRequest("First question?", reviewed.Item.CurrentRound, null));
+        var first = await WaitForItemByIdAsync(client, task.Item.ItemId, x => x.DiscussionTurns.Any(turn => turn.Status == DiscussionTurnStatus.Running && turn.TurnId != null));
+        var firstTurn = Assert.Single(first.DiscussionTurns);
 
-        var response = await client.PostAsJsonAsync(
+        await PostAsync<ItemDetailResponse>(
+            client,
             $"/api/v1/items/id/{task.Item.ItemId}/discussion-turns",
-            new DiscussionTurnRequest("Second question?", reviewed.Item.CurrentRound, null),
-            JsonOptions);
+            new DiscussionTurnRequest("Second question?", reviewed.Item.CurrentRound, null));
+        var answered = await WaitForItemByIdAsync(client, task.Item.ItemId, x => x.DiscussionTurns.Any(turn => turn.Status == DiscussionTurnStatus.Succeeded));
 
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        var error = await response.Content.ReadFromJsonAsync<ErrorResponse>(JsonOptions);
-        Assert.Equal("activeDiscussionTurnExists", error?.Error.Code);
+        var steer = Assert.Single(fakeAppServer.SteerRequests);
+        Assert.Equal(firstTurn.TurnId, steer.ExpectedTurnId);
+        var second = Assert.Single(answered.DiscussionTurns, turn => turn.DiscussionTurnId != firstTurn.DiscussionTurnId);
+        Assert.Equal(DiscussionTurnStatus.Succeeded, second.Status);
+        Assert.Equal(firstTurn.TurnId, second.TurnId);
+        Assert.Single(fakeAppServer.ThreadResumeRequests);
     }
 
     [Fact]

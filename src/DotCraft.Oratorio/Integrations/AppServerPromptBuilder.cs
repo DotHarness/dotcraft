@@ -7,7 +7,7 @@ using DotCraft.Oratorio.Domain;
 
 namespace DotCraft.Oratorio.Integrations;
 
-public sealed class AppServerPromptBuilder(OratorioDbContext db)
+public sealed class AppServerPromptBuilder(OratorioDbContext db, ThreadStateTracker threadState)
 {
     public const string RuntimeContextVersion = "oratorio-runtime-context-v2";
     public const string ThreadStateWorkspaceMode = "base";
@@ -73,9 +73,10 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
         string? operatorNote,
         string workspacePath,
         IReadOnlyList<string> requiredDynamicTools,
-        bool incremental,
+        string? reusedThreadId,
         CancellationToken ct)
     {
+        var incremental = reusedThreadId is not null;
         var item = await db.Items.AsNoTracking().FirstAsync(x => x.ItemId == run.ItemId, ct);
         var round = await db.Rounds.AsNoTracking().FirstAsync(x => x.RoundId == run.RoundId, ct);
         var comments = await db.Comments.AsNoTracking()
@@ -115,19 +116,8 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
             : null;
         var isPullRequestReview = run.Purpose == RunPurpose.ReviewAnalysis && item.Source is "github" or "gitlab" && item.Kind == ItemKind.PullRequest;
         var headSha = isPullRequestReview ? run.TargetHeadSha : item.HeadSha;
-        var priorOpenFindings = isPullRequestReview
-            ? await db.ReviewDraftComments.AsNoTracking()
-                .Where(c =>
-                    c.Draft!.ItemId == item.ItemId &&
-                    c.Draft.Status == ReviewDraftStatus.Published &&
-                    c.Status == ReviewDraftCommentStatus.Accepted &&
-                    c.ResolutionState == ReviewFindingResolutionState.Open)
-                .OrderBy(c => c.Draft!.CreatedAt)
-                .ThenBy(c => c.Path)
-                .ThenBy(c => c.Line)
-                .Select(c => new PromptFinding(c.DraftCommentId, c.Severity, c.Title, c.Path, c.Line))
-                .ToListAsync(ct)
-            : [];
+        var stateInput = await threadState.DescribeAsync(item, headSha, reusedThreadId, ct);
+        var priorOpenFindings = isPullRequestReview ? stateInput.State.OpenFindings : [];
         var isImplementationRun = run.Purpose == RunPurpose.Implementation &&
             item.Kind is ItemKind.Issue or ItemKind.LocalTask;
         var generatedPr = isImplementationRun
@@ -345,40 +335,32 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
         {
             prompt.AppendLine("You are running an Oratorio read-only review analysis round through DotCraft AppServer.");
         }
-        prompt.AppendLine();
-        prompt.AppendLine(incremental ? "Review target reminder:" : "Review target:");
-        prompt.AppendLine($"- Title: {item.Title}");
-        prompt.AppendLine($"- Source: {item.Source} {item.ExternalId}");
-        prompt.AppendLine($"- Kind: {item.Kind}");
-        prompt.AppendLine($"- Repository: {item.Repository ?? "none"}");
-        prompt.AppendLine($"- Branch: {item.Branch ?? "none"}");
-        prompt.AppendLine($"- Head SHA: {headSha ?? "none"}");
-        prompt.AppendLine($"- Target head SHA: {run.TargetHeadSha ?? headSha ?? "none"}");
-        if (reviewDiff is not null)
-        {
-            prompt.AppendLine($"- Review diff base: {reviewDiff.BaseRef} / {reviewDiff.BaseSha}");
-            prompt.AppendLine($"- Review diff head: {reviewDiff.HeadRef} / {reviewDiff.HeadSha}");
-            prompt.AppendLine($"- Review diff range: {reviewDiff.BaseSha}...{reviewDiff.HeadSha}");
-        }
         if (!incremental)
         {
-            prompt.AppendLine($"- Review target head SHA: {headSha ?? run.BaseSha ?? "none"}");
-            prompt.AppendLine($"- Head ref/SHA: {item.Branch ?? "none"} / {headSha ?? "none"}");
-            prompt.AppendLine($"- Workspace checkout ref/SHA: {run.BaseRef ?? "none"} / {run.BaseSha ?? "none"}");
-            prompt.AppendLine($"- URL: {item.ExternalUrl ?? "none"}");
-            prompt.AppendLine($"- Workspace: {workspacePath}");
-            if (!string.IsNullOrWhiteSpace(run.BaseWorkspacePath) && !SamePath(run.BaseWorkspacePath, workspacePath))
-            {
-                prompt.AppendLine($"- Base workspace: {run.BaseWorkspacePath}");
-                prompt.AppendLine($"- Managed worktree branch: {run.WorktreeBranch ?? "none"}");
-                prompt.AppendLine($"- Managed worktree checkout: {run.BaseSha ?? run.BaseRef ?? "none"}");
-            }
+            prompt.AppendLine();
+            AppendReviewTarget(
+                prompt,
+                item,
+                headSha,
+                run.TargetHeadSha,
+                reviewDiff,
+                new ReviewTargetWorkspace(workspacePath, run.BaseWorkspacePath, run.WorktreeBranch, run.BaseRef, run.BaseSha));
         }
-        if (!incremental && !string.IsNullOrWhiteSpace(item.Description))
+        else if (run.Purpose == RunPurpose.ReviewAnalysis)
         {
             prompt.AppendLine();
-            prompt.AppendLine("Source description:");
-            prompt.AppendLine(item.Description.Trim());
+            prompt.AppendLine("Review target:");
+            prompt.AppendLine($"- Target head SHA: {run.TargetHeadSha ?? headSha ?? "none"}");
+            if (reviewDiff is not null)
+            {
+                prompt.AppendLine($"- Review diff range: {reviewDiff.BaseSha}...{reviewDiff.HeadSha}");
+            }
+        }
+
+        if (stateInput.Section is not null)
+        {
+            prompt.AppendLine();
+            prompt.Append(stateInput.Section);
         }
 
         prompt.AppendLine();
@@ -436,6 +418,10 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
         {
             prompt.AppendLine("- Inspect the current source state in the workspace and produce a concise review summary for the Oratorio operator.");
             prompt.AppendLine("- Mention blockers, missing information, and suggested next operator actions.");
+            if (priorOpenFindings.Count > 0)
+            {
+                prompt.AppendLine($"- For each open published finding that the current head now addresses, call {OratorioDynamicToolCatalog.ResolveReviewFindingId} with its findingId and resolutionKind `fixed`. Leave still-present findings open and do not re-report them as new comments.");
+            }
         }
 
         if (isImplementationRun && generatedPr is not null && (followUpFindings.Count > 0 || followUpComments.Count > 0))
@@ -477,21 +463,60 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
             }
         }
 
-        if (run.Purpose == RunPurpose.ReviewAnalysis && item.Source is "github" or "gitlab" && item.Kind == ItemKind.PullRequest)
-        {
-            if (priorOpenFindings.Count > 0)
-            {
-                prompt.AppendLine();
-                prompt.AppendLine("Open findings from earlier published review rounds:");
-                foreach (var finding in priorOpenFindings)
-                {
-                    prompt.AppendLine($"- [{finding.FindingId}] {finding.Severity} {finding.Title} ({finding.Path}:{finding.Line})");
-                }
+        return new AppServerPrompt(contextJson, prompt.ToString(), runtimeAdditionalContext, stateInput.State);
+    }
 
-                prompt.AppendLine($"- For each open finding above that the current head now addresses, call {OratorioDynamicToolCatalog.ResolveReviewFindingId} with its findingId and resolutionKind `fixed`. Leave still-present findings open and do not re-report them as new comments.");
-            }
+    public async Task<string> BuildReviewTargetAsync(OratorioItem item, string? headSha, ReviewTargetWorkspace workspace, CancellationToken ct)
+    {
+        var snapshots = await db.SourceSnapshots.AsNoTracking()
+            .Where(x => x.ItemId == item.ItemId && x.HeadSha == headSha)
+            .OrderByDescending(x => x.SyncedAt)
+            .Take(20)
+            .ToListAsync(ct);
+        var prompt = new StringBuilder();
+        AppendReviewTarget(prompt, item, headSha, headSha, ResolveReviewDiffTarget(item, headSha, snapshots), workspace);
+        return prompt.ToString();
+    }
+
+    private static void AppendReviewTarget(
+        StringBuilder prompt,
+        OratorioItem item,
+        string? headSha,
+        string? targetHeadSha,
+        ReviewDiffTarget? reviewDiff,
+        ReviewTargetWorkspace workspace)
+    {
+        prompt.AppendLine("Review target:");
+        prompt.AppendLine($"- Title: {item.Title}");
+        prompt.AppendLine($"- Source: {item.Source} {item.ExternalId}");
+        prompt.AppendLine($"- Kind: {item.Kind}");
+        prompt.AppendLine($"- Repository: {item.Repository ?? "none"}");
+        prompt.AppendLine($"- Branch: {item.Branch ?? "none"}");
+        prompt.AppendLine($"- Head SHA: {headSha ?? "none"}");
+        prompt.AppendLine($"- Target head SHA: {targetHeadSha ?? headSha ?? "none"}");
+        if (reviewDiff is not null)
+        {
+            prompt.AppendLine($"- Review diff base: {reviewDiff.BaseRef} / {reviewDiff.BaseSha}");
+            prompt.AppendLine($"- Review diff head: {reviewDiff.HeadRef} / {reviewDiff.HeadSha}");
+            prompt.AppendLine($"- Review diff range: {reviewDiff.BaseSha}...{reviewDiff.HeadSha}");
         }
-        return new AppServerPrompt(contextJson, prompt.ToString(), runtimeAdditionalContext);
+        prompt.AppendLine($"- Review target head SHA: {headSha ?? workspace.BaseSha ?? "none"}");
+        prompt.AppendLine($"- Head ref/SHA: {item.Branch ?? "none"} / {headSha ?? "none"}");
+        prompt.AppendLine($"- Workspace checkout ref/SHA: {workspace.BaseRef ?? "none"} / {workspace.BaseSha ?? "none"}");
+        prompt.AppendLine($"- URL: {item.ExternalUrl ?? "none"}");
+        prompt.AppendLine($"- Workspace: {workspace.Path}");
+        if (!string.IsNullOrWhiteSpace(workspace.BasePath) && !SamePath(workspace.BasePath, workspace.Path))
+        {
+            prompt.AppendLine($"- Base workspace: {workspace.BasePath}");
+            prompt.AppendLine($"- Managed worktree branch: {workspace.WorktreeBranch ?? "none"}");
+            prompt.AppendLine($"- Managed worktree checkout: {workspace.BaseSha ?? workspace.BaseRef ?? "none"}");
+        }
+        if (!string.IsNullOrWhiteSpace(item.Description))
+        {
+            prompt.AppendLine();
+            prompt.AppendLine("Source description:");
+            prompt.AppendLine(item.Description.Trim());
+        }
     }
 
     /// <summary>
@@ -550,7 +575,7 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
         !string.IsNullOrWhiteSpace(comment.SourceCommentId) ||
         !string.IsNullOrWhiteSpace(comment.ExternalUrl);
 
-    private static ReviewDiffTarget? ResolveReviewDiffTarget(
+    internal static ReviewDiffTarget? ResolveReviewDiffTarget(
         OratorioItem item, string? headSha, IReadOnlyList<OratorioSourceSnapshot> sourceSnapshots)
     {
         if (item.Kind != ItemKind.PullRequest ||
@@ -721,16 +746,22 @@ public sealed class AppServerPromptBuilder(OratorioDbContext db)
 
     private sealed record PromptFeedback(string Kind, string? DecisionId, string? CommentId, string Body, DateTimeOffset CreatedAt);
 
-    private sealed record PromptFinding(string FindingId, string Severity, string Title, string Path, int Line);
-
     private sealed record PromptFollowUpFinding(string Severity, string Title, string Body, string Path, int? Line, string? SuggestionReplacement);
 
     private sealed record PromptFollowUpComment(string AuthorName, string Body);
 
-    private sealed record ReviewDiffTarget(string BaseRef, string BaseSha, string HeadRef, string HeadSha);
+    internal sealed record ReviewDiffTarget(string BaseRef, string BaseSha, string HeadRef, string HeadSha);
 }
+
+public sealed record ReviewTargetWorkspace(
+    string Path,
+    string? BasePath,
+    string? WorktreeBranch,
+    string? BaseRef,
+    string? BaseSha);
 
 public sealed record AppServerPrompt(
     string ContextJson,
     string Prompt,
-    IReadOnlyDictionary<string, AppServerRuntimeAdditionalContextEntry> RuntimeAdditionalContext);
+    IReadOnlyDictionary<string, AppServerRuntimeAdditionalContextEntry> RuntimeAdditionalContext,
+    ItemThreadState ThreadState);

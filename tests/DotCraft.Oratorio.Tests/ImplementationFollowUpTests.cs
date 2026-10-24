@@ -133,7 +133,7 @@ public sealed class ImplementationFollowUpTests
         var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
         var builder = scope.ServiceProvider.GetRequiredService<AppServerPromptBuilder>();
         var run = await db.Runs.FirstAsync(x => x.RunId == runId);
-        var prompt = await builder.BuildAsync(run, "Address the review feedback.", "/workspace/sample", ["oratorio_run.SubmitImplementationDraft"], incremental: false, CancellationToken.None);
+        var prompt = await builder.BuildAsync(run, "Address the review feedback.", "/workspace/sample", ["oratorio_run.SubmitImplementationDraft"], reusedThreadId: null, CancellationToken.None);
 
         Assert.Contains("Guard against null token", prompt.Prompt);
         Assert.Contains("return token ?? throw new InvalidOperationException();", prompt.Prompt);

@@ -66,7 +66,9 @@ public sealed record GitHubComment(
     string HtmlUrl,
     GitHubUser? User,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? AuthorAssociation = null,
+    string? IssueUrl = null);
 
 public sealed record GitHubReview(
     long Id,
@@ -85,9 +87,12 @@ public sealed record GitHubReviewComment(
     int? OriginalLine,
     GitHubUser? User,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? AuthorAssociation = null,
+    string? PullRequestUrl = null,
+    long? InReplyToId = null);
 
-public sealed record GitHubUser(string Login);
+public sealed record GitHubUser(string Login, string? Type = null);
 
 public sealed record GitHubLabel(string Name);
 
@@ -98,6 +103,8 @@ public sealed record GitHubBranchRef(string Ref, string Sha);
 public sealed record GitHubInstallationTokenResponse(string Token, DateTimeOffset ExpiresAt);
 
 public sealed record GitHubWriteResponse(string ExternalId, string? ExternalUrl, string ResponseJson);
+
+public sealed record GitHubConditionalList<T>(bool NotModified, string? ETag, IReadOnlyList<T> Items);
 
 public sealed record GitHubReviewThread(string Id, bool IsResolved, IReadOnlyList<string> CommentBodies);
 
