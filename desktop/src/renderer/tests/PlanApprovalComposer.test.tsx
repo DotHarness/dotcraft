@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { PlanApprovalComposer } from '../components/conversation/PlanApprovalComposer'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -7,11 +7,17 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import { useActiveThreadModeSync } from '../hooks/useActiveThreadModeSync'
 
 const appServerSendRequest = vi.fn()
 
+function ModeSync(): null {
+  useActiveThreadModeSync('fixture-workspace')
+  return null
+}
+
 function renderWithLocale(node: JSX.Element): void {
-  render(<LocaleProvider>{node}</LocaleProvider>)
+  render(<LocaleProvider><ModeSync />{node}</LocaleProvider>)
 }
 
 describe('PlanApprovalComposer', () => {
@@ -23,6 +29,7 @@ describe('PlanApprovalComposer', () => {
     useUIStore.setState({ planApprovalDismissed: {} })
     useConversationStore.setState({ threadMode: 'plan', turnStatus: 'idle' })
     useThreadStore.setState({
+      activeThreadId: 'thread-1',
       threadList: [{
         id: 'thread-1',
         displayName: null,
@@ -79,6 +86,54 @@ describe('PlanApprovalComposer', () => {
     ])
   })
 
+  it('does not start implementation or dismiss confirmation when switching mode fails', async () => {
+    appServerSendRequest.mockRejectedValueOnce(new Error('mode failed'))
+    renderWithLocale(
+      <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-1" />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Yes, implement this plan/ }))
+    await waitFor(() => expect(useConversationStore.getState().threadMode).toBe('plan'))
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
+    expect(useUIStore.getState().planApprovalDismissed['turn-1']).not.toBe(true)
+  })
+
+  it('does not start an old plan after the selected thread changes during mode switching', async () => {
+    let resolveMode!: (value: unknown) => void
+    appServerSendRequest.mockImplementationOnce(() => new Promise((resolve) => { resolveMode = resolve }))
+    renderWithLocale(
+      <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-1" />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Yes, implement this plan/ }))
+    act(() => useThreadStore.getState().setActiveThreadId('thread-2'))
+    await act(async () => { resolveMode({}) })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
+    expect(useUIStore.getState().planApprovalDismissed['turn-1']).not.toBe(true)
+  })
+
+  it('does not implement a plan when a newer external mode supersedes acceptance', async () => {
+    const activeThread = {
+      ...useThreadStore.getState().threadList[0],
+      workspacePath: '/fixture', configuration: { mode: 'plan' }, turns: []
+    }
+    useThreadStore.getState().setActiveThread(activeThread)
+    let resolveMode!: (value: unknown) => void
+    appServerSendRequest.mockImplementationOnce(() => new Promise((resolve) => { resolveMode = resolve }))
+    renderWithLocale(
+      <PlanApprovalComposer threadId="thread-1" workspacePath="/fixture" turnId="turn-1" />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Yes, implement this plan/ }))
+    act(() => {
+      useThreadStore.getState().setActiveThread({ ...activeThread, configuration: { mode: 'agent' } })
+      useThreadStore.getState().setActiveThread({ ...activeThread, configuration: { mode: 'plan' } })
+    })
+
+    await act(async () => { resolveMode({}) })
+
+    expect(useConversationStore.getState().threadMode).toBe('plan')
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
+    expect(useUIStore.getState().planApprovalDismissed['turn-1']).not.toBe(true)
+  })
+
   it('reject path keeps plan mode and sends typed text', async () => {
     renderWithLocale(
       <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-2" />
@@ -120,6 +175,7 @@ describe('PlanApprovalComposer', () => {
       </LocaleProvider>
     )
 
+    act(() => useThreadStore.getState().setActiveThreadId(nextThreadId))
     rerender(
       <LocaleProvider>
         <PlanApprovalComposer

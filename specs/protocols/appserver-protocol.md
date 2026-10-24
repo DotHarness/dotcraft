@@ -475,7 +475,7 @@ Deletion succeeds only after the persisted record and bound tracing data are rem
 
 ### 4.11 `thread/mode/set`
 
-Set the agent mode (for example `"plan"`, `"agent"`). Params `threadId`, `mode`; result `{}`. The server recreates the thread's execution context with the mode's tool set.
+Set the agent mode (for example `"plan"`, `"agent"`). Params `threadId`, `mode`; result `{}`. The server recreates the thread's execution context with the mode's tool set. After successfully persisting, it broadcasts `thread/updated` with the current configuration to eligible connections, including the caller, under the normal visibility and opt-out rules. A running Turn keeps the configuration and tool snapshot captured at its start; the new mode applies to queued and future Turns.
 
 ### 4.12 `thread/rename`
 

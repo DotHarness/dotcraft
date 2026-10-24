@@ -13,6 +13,7 @@ import { addToast } from '../../stores/toastStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
+import { requestThreadModeChange } from '../../hooks/useActiveThreadModeSync'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { useThreadStore } from '../../stores/threadStore'
 import {
@@ -1536,15 +1537,9 @@ function InputComposerCore({
     const previousMode = useConversationStore.getState().threadMode
     if (previousMode === nextMode) return true
 
-    setThreadMode(nextMode)
-    const request = window.api.appServer
-      .sendRequest('thread/mode/set', {
-        threadId,
-        mode: nextMode
-      })
+    const request = requestThreadModeChange(threadId, nextMode)
       .catch((err) => {
         console.error('thread/mode/set failed:', err)
-        setThreadMode(previousMode)
         addToast(
           t('composer.modeSwitchFailed', {
             error: err instanceof Error ? err.message : String(err)
@@ -1687,12 +1682,10 @@ function InputComposerCore({
   const applyProfile = useCallback(async (profileId: string): Promise<void> => {
     setProfilePickerOpen(false)
     try {
-      // refreshThread resolves and applies the profile's compiled configuration (tools/mcp/skills/model).
       const res = await window.api.appServer.sendRequest('agent/profiles/refreshThread', { threadId, profileId }) as { config?: Record<string, unknown> }
-      // A profile-backed thread has no operational mode; reset the optimistic local mode to agent.
-      setThreadMode('agent')
       const active = useThreadStore.getState().activeThread
-      if (active && active.id === threadId) {
+      if (active && active.id === threadId && useThreadStore.getState().activeThreadId === threadId) {
+        setThreadMode('agent')
         const nextConfig = res.config && typeof res.config === 'object'
           ? res.config
           : { ...(active.configuration ?? {}), agentProfileId: profileId }

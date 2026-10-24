@@ -110,6 +110,33 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.NotSame(innerDefaultPlan, innerAfterModeSwitch);
     }
 
+    [Theory]
+    [InlineData("agent", "plan")]
+    [InlineData("plan", "agent")]
+    public async Task SetThreadModeAsync_BroadcastsPersistedMode(string initialMode, string nextMode)
+    {
+        var store = new ThreadStore(_tempDir);
+        await using var agentFactory = CreateAgentFactory();
+        var svc = new SessionService(
+            agentFactory,
+            agentFactory.CreateAgentForMode(AgentMode.Agent),
+            new SessionPersistenceService(store),
+            new SessionGate());
+        var thread = await svc.CreateThreadAsync(
+            new SessionIdentity { ChannelName = "test", UserId = "u", WorkspacePath = _tempDir },
+            new ThreadConfiguration { Mode = initialMode });
+        var notifications = new List<(string ThreadId, string? Mode, Task<SessionThread?> Persisted)>();
+        svc.ThreadUpdatedForBroadcast += updated =>
+            notifications.Add((updated.Id, updated.Configuration?.Mode, store.LoadThreadAsync(updated.Id)));
+
+        await svc.SetThreadModeAsync(thread.Id, nextMode);
+
+        var notification = Assert.Single(notifications);
+        Assert.Equal(thread.Id, notification.ThreadId);
+        Assert.Equal(nextMode, notification.Mode);
+        Assert.Equal(nextMode, (await notification.Persisted)?.Configuration?.Mode);
+    }
+
     [Fact]
     public async Task SubmitInputAsync_OrdersExecutionResourceCaptureBehindInFlightPublication()
     {
@@ -177,8 +204,17 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         var events = svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]);
         var drainTask = DrainAsync(events);
         await activeClient.StreamingStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var notifications = new List<(string? Mode, string? ActiveMode)>();
+        svc.ThreadUpdatedForBroadcast += updated =>
+            notifications.Add((updated.Configuration?.Mode,
+                Assert.Single(svc.DebugGetRuntime(thread.Id)!.Turns.Values).Context?.Configuration.Mode));
 
         await svc.SetThreadModeAsync(thread.Id, "plan");
+
+        var notification = Assert.Single(notifications);
+        Assert.Equal("plan", notification.Mode);
+        Assert.Equal("agent", notification.ActiveMode);
+        Assert.Equal("plan", (await store.LoadThreadAsync(thread.Id))?.Configuration?.Mode);
 
         var runtime = svc.DebugGetRuntime(thread.Id);
         Assert.NotNull(runtime);

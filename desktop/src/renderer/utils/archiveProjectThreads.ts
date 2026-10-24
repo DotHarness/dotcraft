@@ -3,7 +3,8 @@ import { useThreadStore } from '../stores/threadStore'
 import { addToast } from '../stores/toastStore'
 import type { ThreadSummary } from '../types/thread'
 import { stopBeforeArchive } from '../../shared/stopBeforeArchive'
-import { needsArchiveConfirmation } from './confirmThreadArchive'
+import { needsThreadTreeArchiveConfirmation } from './confirmThreadArchive'
+import { getWorkspaceArchiveThreads } from './archiveWorkspaceThread'
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
 
@@ -22,8 +23,14 @@ export async function archiveProjectThreads({
 }): Promise<void> {
   const count = threads.length
   if (count === 0) return
-  const { runningTurnThreadIds } = useThreadStore.getState()
-  const running = threads.some((thread) => needsArchiveConfirmation(thread) || runningTurnThreadIds.has(thread.id))
+  const { threadList, runningTurnThreadIds } = useThreadStore.getState()
+  const listedIds = new Set(threadList.map(thread => thread.id))
+  const currentThreads = live
+    ? [...threadList, ...threads.filter(thread => !listedIds.has(thread.id))]
+    : getWorkspaceArchiveThreads(workspacePath, threads)
+  const running = threads.some(thread => needsThreadTreeArchiveConfirmation(
+    thread.id, currentThreads, live ? runningTurnThreadIds : undefined
+  ))
   const one = count === 1
   const confirmed = await requestConfirmDialog({
     title: running

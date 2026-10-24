@@ -139,6 +139,8 @@ describe('threadStore.setThreadList', () => {
     expect([...state.runningTurnThreadIds].sort()).toEqual(['approval', 'external', 'input', 'running'])
     expect(state.runtimeSnapshots.get('running')).toEqual({
       running: true,
+      activeTurnId: null,
+      activeTurnStartedAt: null,
       busy: false,
       waitingOnApproval: false,
       waitingOnInput: false,

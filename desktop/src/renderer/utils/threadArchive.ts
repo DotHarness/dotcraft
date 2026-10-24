@@ -2,7 +2,7 @@ import { collectThreadTreeIds, useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { addToast, showToast } from '../stores/toastStore'
 import type { ThreadSummary } from '../types/thread'
-import { confirmThreadArchive, needsArchiveConfirmation } from './confirmThreadArchive'
+import { confirmThreadArchive, needsThreadTreeArchiveConfirmation } from './confirmThreadArchive'
 import { stopBeforeArchive } from '../../shared/stopBeforeArchive'
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
@@ -14,9 +14,7 @@ export interface ArchiveThreadOptions {
 
 export async function archiveThreadWithUndo({ threadId, t }: ArchiveThreadOptions): Promise<boolean> {
   const state = useThreadStore.getState()
-  const ids = collectThreadTreeIds(state.threadList, threadId)
-  const running = state.threadList.some(thread => ids.has(thread.id) && needsArchiveConfirmation(thread))
-    || [...ids].some(id => state.runningTurnThreadIds.has(id))
+  const running = needsThreadTreeArchiveConfirmation(threadId, state.threadList, state.runningTurnThreadIds)
   return confirmThreadArchive(`foreground:${threadId}`, running, t, () => performArchive(threadId, t))
 }
 
