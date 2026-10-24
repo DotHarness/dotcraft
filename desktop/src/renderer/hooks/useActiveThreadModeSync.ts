@@ -3,12 +3,16 @@ import { useConversationStore } from '../stores/conversationStore'
 import type { ThreadMode } from '../types/conversation'
 import { useThreadStore } from '../stores/threadStore'
 
+interface PendingModeChange {
+  observedMode: ThreadMode | null
+}
+
 interface ModeScope {
   workspaceKey: string
   threadId: string | null
   confirmedMode: ThreadMode | null
   metadataMode: ThreadMode | null
-  pending: symbol | null
+  pending: PendingModeChange | null
 }
 
 let workspaceKey = ''
@@ -31,7 +35,8 @@ function synchronizeMode(): ModeScope {
   if (mode != null && mode !== scope.metadataMode) {
     scope.metadataMode = mode
     scope.confirmedMode = mode
-    if (!scope.pending) useConversationStore.getState().setThreadMode(mode)
+    if (scope.pending) scope.pending.observedMode = mode
+    else useConversationStore.getState().setThreadMode(mode)
   }
   return scope
 }
@@ -47,14 +52,16 @@ export async function requestThreadModeChange(threadId: string, mode: ThreadMode
   const target = synchronizeMode()
   if (target.pending) return false
   target.confirmedMode ??= useConversationStore.getState().threadMode
-  const token = Symbol()
+  const token: PendingModeChange = { observedMode: null }
   target.pending = token
   useConversationStore.getState().setThreadMode(mode)
   try {
     await window.api.appServer.sendRequest('thread/mode/set', { threadId, mode })
     if (!isSelected(target) || target.pending !== token) return false
-    target.confirmedMode = mode
-    return true
+    const confirmedMode = token.observedMode ?? mode
+    target.confirmedMode = confirmedMode
+    useConversationStore.getState().setThreadMode(confirmedMode)
+    return confirmedMode === mode
   } catch (error) {
     if (isSelected(target) && target.pending === token && target.confirmedMode != null) {
       useConversationStore.getState().setThreadMode(target.confirmedMode)

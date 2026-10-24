@@ -110,6 +110,30 @@ describe('PlanApprovalComposer', () => {
     expect(useUIStore.getState().planApprovalDismissed['turn-1']).not.toBe(true)
   })
 
+  it('does not implement a plan when a newer external mode supersedes acceptance', async () => {
+    const activeThread = {
+      ...useThreadStore.getState().threadList[0],
+      workspacePath: '/fixture', configuration: { mode: 'plan' }, turns: []
+    }
+    useThreadStore.getState().setActiveThread(activeThread)
+    let resolveMode!: (value: unknown) => void
+    appServerSendRequest.mockImplementationOnce(() => new Promise((resolve) => { resolveMode = resolve }))
+    renderWithLocale(
+      <PlanApprovalComposer threadId="thread-1" workspacePath="/fixture" turnId="turn-1" />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Yes, implement this plan/ }))
+    act(() => {
+      useThreadStore.getState().setActiveThread({ ...activeThread, configuration: { mode: 'agent' } })
+      useThreadStore.getState().setActiveThread({ ...activeThread, configuration: { mode: 'plan' } })
+    })
+
+    await act(async () => { resolveMode({}) })
+
+    expect(useConversationStore.getState().threadMode).toBe('plan')
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
+    expect(useUIStore.getState().planApprovalDismissed['turn-1']).not.toBe(true)
+  })
+
   it('reject path keeps plan mode and sends typed text', async () => {
     renderWithLocale(
       <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-2" />

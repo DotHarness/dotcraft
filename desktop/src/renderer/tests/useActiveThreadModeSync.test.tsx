@@ -137,6 +137,37 @@ describe('active thread mode synchronization', () => {
     expect(useConversationStore.getState().threadMode).toBe('agent')
   })
 
+  it('reconciles newer external metadata when a pending request succeeds', async () => {
+    selectThread('plan')
+    const response = deferred()
+    sendRequest.mockReturnValue(response.promise)
+    renderHook(() => useActiveThreadModeSync('workspace-1'))
+    let request!: Promise<boolean>
+    act(() => { request = requestThreadModeChange('thread-1', 'agent') })
+    act(() => useThreadStore.getState().setActiveThread(thread('agent')))
+    act(() => useThreadStore.getState().setActiveThread(thread('plan')))
+
+    await act(async () => { response.resolve({}); expect(await request).toBe(false) })
+
+    expect(useConversationStore.getState().threadMode).toBe('plan')
+    act(() => useThreadStore.getState().setActiveThread(thread('plan')))
+    expect(useConversationStore.getState().threadMode).toBe('plan')
+  })
+
+  it('confirms a successful optimistic change despite unchanged pre-request metadata', async () => {
+    selectThread('plan')
+    const response = deferred()
+    sendRequest.mockReturnValue(response.promise)
+    renderHook(() => useActiveThreadModeSync('workspace-1'))
+    let request!: Promise<boolean>
+    act(() => { request = requestThreadModeChange('thread-1', 'agent') })
+    act(() => useThreadStore.getState().setActiveThread(thread('plan')))
+
+    await act(async () => { response.resolve({}); expect(await request).toBe(true) })
+
+    expect(useConversationStore.getState().threadMode).toBe('agent')
+  })
+
   it('recovers the latest confirmed metadata rather than the mode at request start', async () => {
     const response = deferred()
     sendRequest.mockReturnValue(response.promise)
