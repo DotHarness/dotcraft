@@ -198,6 +198,7 @@
   flex: none;
   gap: 4px;
   margin-left: auto;
+  color: var(--text-dimmed);
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-line-height);
   font-variant-numeric: tabular-nums;

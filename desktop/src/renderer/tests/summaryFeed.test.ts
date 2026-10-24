@@ -170,8 +170,8 @@ describe('Summary feed', () => {
       'workflow/run/list': () => ({
         runs: [
           { runId: 'run_c', threadId: 'thread-1', name: 'done', status: 'succeeded' },
-          { runId: 'run_b', threadId: 'thread-1', name: 'review', status: 'running' },
-          { runId: 'run_a', threadId: 'thread-1', name: 'audit', status: 'paused' }
+          { runId: 'run_b', threadId: 'thread-1', name: 'review', status: 'running', createdAt: '2026-10-01T10:00:00Z', startedAt: '2026-10-01T10:00:05Z' },
+          { runId: 'run_a', threadId: 'thread-1', name: 'audit', status: 'paused', createdAt: '2026-10-01T09:00:00Z' }
         ]
       }),
       'workflow/run/read': ({ runId }: { runId: string }) => ({ run: { runId, threadId: 'thread-1', name: 'review', ...runs[runId] } })
@@ -181,8 +181,8 @@ describe('Summary feed', () => {
     await settle()
 
     expect(state!.workflows).toEqual([
-      { runId: 'run_a', name: 'audit', paused: true },
-      { runId: 'run_b', name: 'review', paused: false }
+      { runId: 'run_a', name: 'audit', paused: true, startedAt: '2026-10-01T09:00:00Z' },
+      { runId: 'run_b', name: 'review', paused: false, startedAt: '2026-10-01T10:00:05Z' }
     ])
 
     runs.run_b = { status: 'succeeded' }
@@ -216,7 +216,7 @@ describe('Summary feed', () => {
     })
     let state: SummaryState | null = null
     const stop = startSummaryFeed(services, 'thread-1', (next) => { state = next })
-    const running = { sessionId: 'x', threadId: 'thread-1', turnId: 't1', callId: 'call-dev', command: 'npm run dev', status: 'running' }
+    const running = { sessionId: 'x', threadId: 'thread-1', turnId: 't1', callId: 'call-dev', command: 'npm run dev', status: 'running', startedAt: '2026-10-01T10:00:00Z' }
 
     notify('terminal/completed', { terminal: { ...running, status: 'killed' } })
     releaseList({ terminals: [running] })
@@ -225,7 +225,7 @@ describe('Summary feed', () => {
 
     notify('terminal/started', { terminal: { ...running, sessionId: 'y' } })
     notify('terminal/started', { terminal: { ...running, sessionId: 'z', threadId: 'thread-2' } })
-    expect(state!.terminals).toEqual([{ sessionId: 'y', command: 'npm run dev', callId: 'call-dev' }])
+    expect(state!.terminals).toEqual([{ sessionId: 'y', command: 'npm run dev', callId: 'call-dev', startedAt: '2026-10-01T10:00:00Z' }])
 
     notify('terminal/completed', { terminal: { ...running, sessionId: 'y', status: 'completed' } })
     expect(state!.terminals).toEqual([])

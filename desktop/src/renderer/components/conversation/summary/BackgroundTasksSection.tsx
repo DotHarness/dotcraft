@@ -1,8 +1,9 @@
 import { Square, SquareTerminal, Workflow } from 'lucide-react'
-import { useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
 import { IconButton } from '../../ui/IconButton'
 import { Spinner } from '../../ui/Spinner'
+import { formatDurationShort } from '../../../utils/formatDurationShort'
 import type { SummaryTerminal, SummaryWorkflow } from './feed'
 import type { SummaryServices } from './summaryServices'
 import { GLYPH, Row, Section } from './SummaryRows'
@@ -28,6 +29,22 @@ function StopButton({ label, busy, disabled, onClick }: {
   )
 }
 
+function useNow(ticking: boolean): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!ticking) return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [ticking])
+  return now
+}
+
+function elapsed(startedAt: string | null, now: number): string | undefined {
+  const start = Date.parse(startedAt ?? '')
+  return Number.isFinite(start) ? formatDurationShort(now - start) : undefined
+}
+
 export function BackgroundTasksSection({ services, threadId, terminals, workflows, workflowCalls }: {
   services: SummaryServices
   threadId: string
@@ -37,6 +54,7 @@ export function BackgroundTasksSection({ services, threadId, terminals, workflow
 }): JSX.Element | null {
   const t = useT()
   const [stopping, setStopping] = useState<string | null>(null)
+  const now = useNow(terminals.length > 0 || workflows.length > 0)
   if (terminals.length === 0 && workflows.length === 0) return null
 
   const settle = (id: string, work: Promise<unknown>, failure: string): void => {
@@ -70,6 +88,7 @@ export function BackgroundTasksSection({ services, threadId, terminals, workflow
           leading={<Workflow {...GLYPH} />}
           label={workflow.name}
           inline={workflow.paused ? t('summary.paused') : undefined}
+          meta={workflow.paused ? undefined : elapsed(workflow.startedAt, now)}
           title={workflow.name}
           onClick={reveal(workflowCalls.get(workflow.runId))}
           trailing={(
@@ -90,6 +109,7 @@ export function BackgroundTasksSection({ services, threadId, terminals, workflow
             leading={<SquareTerminal {...GLYPH} />}
             label={firstLine || t('summary.backgroundTerminal')}
             title={terminal.command || undefined}
+            meta={elapsed(terminal.startedAt, now)}
             onClick={reveal(terminal.callId)}
             trailing={(
               <StopButton

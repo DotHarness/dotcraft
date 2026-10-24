@@ -19,12 +19,14 @@ export interface SummaryTerminal {
   readonly sessionId: string
   readonly command: string
   readonly callId: string | null
+  readonly startedAt: string | null
 }
 
 export interface SummaryWorkflow {
   readonly runId: string
   readonly name: string
   readonly paused: boolean
+  readonly startedAt: string | null
 }
 
 export interface SummaryState {
@@ -45,6 +47,7 @@ interface TerminalSnapshot {
   readonly callId?: string | null
   readonly command?: string
   readonly status?: string
+  readonly startedAt?: string
 }
 
 interface WorkflowRunSnapshot {
@@ -52,6 +55,8 @@ interface WorkflowRunSnapshot {
   readonly threadId: string
   readonly name: string
   readonly status: string
+  readonly createdAt?: string
+  readonly startedAt?: string
 }
 
 const ITEM_PAGE_LIMIT = 500
@@ -68,7 +73,7 @@ export function startSummaryFeed(
   const pendingItems: SummaryItem[] = []
   let reconcileInFlight = false
   let reconcileQueued = false
-  const runningTerminals = new Map<string, { command: string; turnId: string | null; callId: string | null }>()
+  const runningTerminals = new Map<string, { command: string; turnId: string | null; callId: string | null; startedAt: string | null }>()
   const returnedCalls = new Set<string>()
   let pendingLoads = 5
   const endedTerminals = new Set<string>()
@@ -122,7 +127,7 @@ export function startSummaryFeed(
       .filter(([, terminal]) => !activeTurnId
         || terminal.turnId !== activeTurnId
         || (terminal.callId !== null && returnedCalls.has(terminal.callId)))
-      .map(([sessionId, terminal]) => ({ sessionId, command: terminal.command, callId: terminal.callId }))
+      .map(([sessionId, terminal]) => ({ sessionId, command: terminal.command, callId: terminal.callId, startedAt: terminal.startedAt }))
   })
 
   const trackTerminal = (terminal: TerminalSnapshot | undefined, ended = false): boolean => {
@@ -132,7 +137,8 @@ export function startSummaryFeed(
       runningTerminals.set(sessionId, {
         command: terminal.command ?? '',
         turnId: terminal.turnId ?? null,
-        callId: terminal.callId ?? null
+        callId: terminal.callId ?? null,
+        startedAt: terminal.startedAt ?? null
       })
     } else {
       endedTerminals.add(sessionId)
@@ -154,7 +160,12 @@ export function startSummaryFeed(
     }
     const index = state.workflows.findIndex((workflow) => workflow.runId === run.runId)
     const next = [...others]
-    next.splice(index < 0 ? next.length : index, 0, { runId: run.runId, name: run.name, paused: run.status === 'paused' })
+    next.splice(index < 0 ? next.length : index, 0, {
+      runId: run.runId,
+      name: run.name,
+      paused: run.status === 'paused',
+      startedAt: run.startedAt ?? run.createdAt ?? null
+    })
     publish({ workflows: next })
   }
 
