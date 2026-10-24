@@ -24,6 +24,9 @@ internal sealed class WorktreeRequestHandler(
         table.Map(Protocol.AppServer.AppServerRpc.WorktreeList, HandleWorktreeListAsync);
         table.Map(Protocol.AppServer.AppServerRpc.WorktreeStatus, HandleWorktreeStatusAsync);
         table.Map(Protocol.AppServer.AppServerRpc.WorktreeRemove, HandleWorktreeRemoveAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.WorktreeCancelCreate, HandleWorktreeCancelCreateAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.WorktreeRunSetup, HandleWorktreeRunSetupAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.WorktreeSetEnvironment, HandleWorktreeSetEnvironmentAsync);
     }
 
     private async Task<object?> HandleWorktreeCreateAndForkAsync(
@@ -43,20 +46,34 @@ internal sealed class WorktreeRequestHandler(
 
         var identity = WorktreeContractMapper.ToDomain(ValueOrDefault(p.Identity));
         identity = identity == null ? null : NormalizeIdentityWorkspace(identity);
-        var result = await sessionService.CreateWorktreeAndForkAsync(
-            new WorktreeCreateAndForkOptions
-            {
-                SourceThreadId = ValueOrDefault(p.SourceThreadId) ?? string.Empty,
-                ForkPoint = WorktreeContractMapper.ToDomain(ValueOrDefault(p.ForkPoint)),
-                Identity = identity,
-                Config = config,
-                DisplayName = ValueOrDefault(p.DisplayName),
-                BranchName = ValueOrDefault(p.BranchName),
-                BaseRef = ValueOrDefault(p.BaseRef),
-                Path = ValueOrDefault(p.Path),
-                CopyDirtyChanges = ValueOrDefault(p.CopyDirtyChanges) ?? true
-            },
-            ct);
+        var operationId = ValueOrDefault(p.OperationId);
+        var notifier = new WorktreeOperationNotifier(responseWriter, operationId);
+        WorktreeCreateAndForkResult result;
+        try
+        {
+            result = await sessionService.CreateWorktreeAndForkAsync(
+                new WorktreeCreateAndForkOptions
+                {
+                    SourceThreadId = ValueOrDefault(p.SourceThreadId) ?? string.Empty,
+                    ForkPoint = WorktreeContractMapper.ToDomain(ValueOrDefault(p.ForkPoint)),
+                    Identity = identity,
+                    Config = config,
+                    DisplayName = ValueOrDefault(p.DisplayName),
+                    BranchName = ValueOrDefault(p.BranchName),
+                    BaseRef = ValueOrDefault(p.BaseRef),
+                    Path = ValueOrDefault(p.Path),
+                    CopyDirtyChanges = ValueOrDefault(p.CopyDirtyChanges) ?? true,
+                    EnvironmentPath = ValueOrDefault(p.EnvironmentPath),
+                    OperationId = operationId,
+                    Progress = notifier.Progress,
+                    SetupOutput = notifier.Output
+                },
+                ct);
+        }
+        finally
+        {
+            await notifier.DrainAsync();
+        }
 
         var thread = result.Thread;
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
@@ -69,7 +86,8 @@ internal sealed class WorktreeRequestHandler(
             new Contract.WorktreeCreateAndForkResult
             {
                 Thread = AppServerContractMapper.ToContract(responseWire),
-                Worktree = WorktreeContractMapper.ToContract(result.Worktree)
+                Worktree = WorktreeContractMapper.ToContract(result.Worktree),
+                Setup = ToContract(result.Setup)
             },
             Contract.AppServerRpc.ThreadStarted,
             new Contract.ThreadNotification { Thread = AppServerContractMapper.ToContract(notificationWire) },
@@ -94,19 +112,33 @@ internal sealed class WorktreeRequestHandler(
         config = profileResolver.Resolve(config, request.Message);
         ValidateRuntimeConfiguration(config);
 
-        var result = await sessionService.CreateWorktreeAndStartAsync(
-            new WorktreeCreateAndStartOptions
-            {
-                Identity = NormalizeIdentityWorkspace(identity),
-                Config = config,
-                HistoryMode = ParseHistoryMode(ValueOrDefault(p.HistoryMode)),
-                DisplayName = ValueOrDefault(p.DisplayName),
-                BranchName = ValueOrDefault(p.BranchName),
-                BaseRef = ValueOrDefault(p.BaseRef),
-                Path = ValueOrDefault(p.Path),
-                CopyDirtyChanges = ValueOrDefault(p.CopyDirtyChanges) ?? true
-            },
-            ct);
+        var operationId = ValueOrDefault(p.OperationId);
+        var notifier = new WorktreeOperationNotifier(responseWriter, operationId);
+        WorktreeCreateAndStartResult result;
+        try
+        {
+            result = await sessionService.CreateWorktreeAndStartAsync(
+                new WorktreeCreateAndStartOptions
+                {
+                    Identity = NormalizeIdentityWorkspace(identity),
+                    Config = config,
+                    HistoryMode = ParseHistoryMode(ValueOrDefault(p.HistoryMode)),
+                    DisplayName = ValueOrDefault(p.DisplayName),
+                    BranchName = ValueOrDefault(p.BranchName),
+                    BaseRef = ValueOrDefault(p.BaseRef),
+                    Path = ValueOrDefault(p.Path),
+                    CopyDirtyChanges = ValueOrDefault(p.CopyDirtyChanges) ?? true,
+                    EnvironmentPath = ValueOrDefault(p.EnvironmentPath),
+                    OperationId = operationId,
+                    Progress = notifier.Progress,
+                    SetupOutput = notifier.Output
+                },
+                ct);
+        }
+        finally
+        {
+            await notifier.DrainAsync();
+        }
 
         var thread = result.Thread;
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
@@ -117,7 +149,8 @@ internal sealed class WorktreeRequestHandler(
             new Contract.WorktreeCreateAndStartResult
             {
                 Thread = AppServerContractMapper.ToContract(startedWire),
-                Worktree = WorktreeContractMapper.ToContract(result.Worktree)
+                Worktree = WorktreeContractMapper.ToContract(result.Worktree),
+                Setup = ToContract(result.Setup)
             },
             Contract.AppServerRpc.ThreadStarted,
             new Contract.ThreadNotification { Thread = AppServerContractMapper.ToContract(startedWire) },
@@ -227,9 +260,64 @@ internal sealed class WorktreeRequestHandler(
         if (string.IsNullOrWhiteSpace(path))
             throw AppServerErrors.InvalidParams("'path' is required.");
 
-        await sessionService.RemoveWorktreeAsync(path, ValueOrDefault(p.DiscardChanges), ct);
+        await sessionService.RemoveWorktreeAsync(path, ValueOrDefault(p.DiscardChanges), ValueOrDefault(p.SkipCleanup), ct);
         return new Contract.WorktreeRemoveResult();
     }
+
+    private Task<object?> HandleWorktreeCancelCreateAsync(
+        AppServerTypedRequest<Contract.WorktreeCancelCreateParams> request,
+        CancellationToken ct)
+    {
+        sessionService.CancelWorktreeOperation(request.Params.OperationId);
+        return Task.FromResult<object?>(new Protocol.RpcEmpty());
+    }
+
+    private async Task<object?> HandleWorktreeRunSetupAsync(
+        AppServerTypedRequest<Contract.WorktreeRunSetupParams> request,
+        CancellationToken ct)
+    {
+        var p = request.Params;
+        if (string.IsNullOrWhiteSpace(p.ThreadId))
+            throw AppServerErrors.InvalidParams("'threadId' is required.");
+
+        var operationId = ValueOrDefault(p.OperationId);
+        var notifier = new WorktreeOperationNotifier(responseWriter, operationId);
+        WorktreeSetupResult setup;
+        try
+        {
+            setup = await sessionService.RunWorktreeSetupAsync(
+                new WorktreeRunSetupOptions
+                {
+                    ThreadId = p.ThreadId,
+                    OperationId = operationId,
+                    Output = notifier.Output
+                },
+                ct);
+        }
+        finally
+        {
+            await notifier.DrainAsync();
+        }
+
+        return new Contract.WorktreeRunSetupResult { Setup = WorktreeContractMapper.ToContract(setup) };
+    }
+
+    private async Task<object?> HandleWorktreeSetEnvironmentAsync(
+        AppServerTypedRequest<Contract.WorktreeSetEnvironmentParams> request,
+        CancellationToken ct)
+    {
+        var p = request.Params;
+        if (string.IsNullOrWhiteSpace(p.Path))
+            throw AppServerErrors.InvalidParams("'path' is required.");
+
+        var worktree = await sessionService.SetWorktreeEnvironmentAsync(
+            new WorktreeSetEnvironmentOptions { Path = p.Path, EnvironmentPath = p.EnvironmentPath },
+            ct);
+        return new Contract.WorktreeSetEnvironmentResult { Worktree = WorktreeContractMapper.ToContract(worktree) };
+    }
+
+    private static Protocol.Optional<Contract.WorktreeSetupResult> ToContract(WorktreeSetupResult? setup) =>
+        setup is null ? default : new Protocol.Optional<Contract.WorktreeSetupResult>(WorktreeContractMapper.ToContract(setup));
 
     private void ValidateRuntimeConfiguration(ThreadConfiguration? config)
     {

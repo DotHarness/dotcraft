@@ -6,6 +6,7 @@ import {
   Cable,
   Cpu,
   Download,
+  FolderGit2,
   GitBranch,
   Globe2,
   Monitor,
@@ -91,6 +92,7 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
   if (options.sourceControlEnabled) {
     tabs.push({ id: 'sourceControl', label: t('settings.tab.sourceControl'), icon: GitBranch, group: 'coding' })
   }
+  tabs.push({ id: 'worktrees', label: t('settings.tab.worktrees'), icon: FolderGit2, group: 'coding' })
   if (options.subAgentEnabled) {
     tabs.push({ id: 'subAgents', label: t('settings.tab.subAgents'), icon: Bot, group: 'coding' })
   }

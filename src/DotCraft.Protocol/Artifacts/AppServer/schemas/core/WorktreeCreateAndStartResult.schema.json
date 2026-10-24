@@ -4,6 +4,9 @@
   "title": "WorktreeCreateAndStartResult",
   "type": "object",
   "properties": {
+    "setup": {
+      "$ref": "./WorktreeSetupResult.schema.json"
+    },
     "thread": {
       "$ref": "./SessionThread.schema.json"
     },

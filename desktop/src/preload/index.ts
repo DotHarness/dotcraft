@@ -182,7 +182,14 @@ import type {
   AddProjectActionResult,
   ProjectActionRun,
   ProjectActionRunRequest,
-  ProjectEnvironmentsResult
+  ProjectEnvironmentList,
+  ProjectEnvironmentsResult,
+  ProjectSetupRun,
+  ProjectSetupRunRequest,
+  ReadEnvironmentResult,
+  WorktreeEnvironmentsResult,
+  WriteEnvironmentRequest,
+  WriteEnvironmentResult
 } from '../shared/projectActions'
 export type * from '../shared/projectActions'
 import type { ChromeSetupStatus } from '../shared/chromeSetup'
@@ -246,7 +253,6 @@ const initialWorkspaceStatus = readInitialWorkspaceStatusFromArgv(process.argv) 
 function applyInitialDocumentState(): void {
   const root = document.documentElement
   if (!root) return
-  // Main's resolved theme prevents a flash when the preference is `system`.
   root.setAttribute('data-theme', initialAppliedTheme)
   const seed = {
     accent: initialAppearance.accent ?? undefined,
@@ -297,8 +303,7 @@ const notificationDispatcher = new TokenMulticastDispatcher<KnownNotificationPay
 const rawNotificationDispatcher = new TokenMulticastDispatcher<RawNotificationPayload>((error) => {
   console.error('appserver:raw-notification subscriber failed:', error)
 })
-// The raw channel is the superset: known notifications reach it too, so a subscriber that
-// filters by method name sees every notification. Typed subscribers run first, so Core state
+// Known notifications reach the raw channel too. Typed subscribers run first so Core state
 // is settled before plugins observe the same notification.
 ipcRenderer.on(
   'appserver:notification',
@@ -523,7 +528,7 @@ const api = {
   } satisfies OratorioApi,
 
   appServer: {
-    /** Rejects with an `AppServerRequestError` carrying the JSON-RPC `code` and `data`. */
+    /** Rejects with an `AppServerRejection` carrying the JSON-RPC `code` and `data`. */
     async sendRequest<M extends keyof ClientRequestMethods>(
       method: M,
       params: ClientRequestMethods[M]['params'],
@@ -559,7 +564,6 @@ const api = {
       return ipcRenderer.invoke('appserver:model-list', providerId)
     },
 
-    /** Snapshot read so the renderer does not miss status events fired during bootstrap. */
     getConnectionStatus(): Promise<ConnectionStatusPayload> {
       return ipcRenderer.invoke('appserver:get-connection-status')
     },
@@ -1341,6 +1345,7 @@ const api = {
           cols: number
           rows: number
           command: string
+          env?: Record<string, string>
         }): Promise<{ tabId: string; pid: number; shell: string; cwd: string }> {
           return ipcRenderer.invoke('viewer:terminal:restart', params)
         },
@@ -1512,14 +1517,32 @@ const api = {
         void ipcRenderer.invoke('project-actions:unsubscribe', workspacePath).catch(() => {})
       }
     },
-    select(params: { workspacePath: string; environmentId: string }): Promise<void> {
+    select(params: { workspacePath: string; environmentId: string | null }): Promise<void> {
       return ipcRenderer.invoke('project-actions:select', params)
+    },
+    listWorktreeEnvironments(workspacePath: string): Promise<WorktreeEnvironmentsResult> {
+      return ipcRenderer.invoke('project-actions:list-worktree-environments', workspacePath)
+    },
+    selectWorktreeEnvironment(params: { workspacePath: string; environmentId: string | null }): Promise<void> {
+      return ipcRenderer.invoke('project-actions:select-worktree-environment', params)
     },
     prepareRun(request: ProjectActionRunRequest): Promise<ProjectActionRun> {
       return ipcRenderer.invoke('project-actions:prepare-run', request)
     },
+    prepareSetup(request: ProjectSetupRunRequest): Promise<ProjectSetupRun | null> {
+      return ipcRenderer.invoke('project-actions:prepare-setup', request)
+    },
     add(request: AddProjectActionRequest): Promise<AddProjectActionResult> {
       return ipcRenderer.invoke('project-actions:add', request)
+    },
+    listProjectEnvironments(projectPath: string): Promise<ProjectEnvironmentList> {
+      return ipcRenderer.invoke('project-actions:list-project-environments', projectPath)
+    },
+    readEnvironment(params: { projectPath: string; path: string }): Promise<ReadEnvironmentResult> {
+      return ipcRenderer.invoke('project-actions:read-environment', params)
+    },
+    writeEnvironment(request: WriteEnvironmentRequest): Promise<WriteEnvironmentResult> {
+      return ipcRenderer.invoke('project-actions:write-environment', request)
     }
   },
 
@@ -1563,6 +1586,7 @@ const api = {
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
       summaryHidden?: boolean
+      environmentSetupTipDismissed?: boolean
       chatsFolder?: string
       recentsThreadSort?: SidebarThreadSortMode
       projectsThreadSort?: SidebarThreadSortMode
@@ -1649,6 +1673,7 @@ const api = {
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
       summaryHidden?: boolean
+      environmentSetupTipDismissed?: boolean
       chatsFolder?: string
       recentsThreadSort?: SidebarThreadSortMode
       projectsThreadSort?: SidebarThreadSortMode

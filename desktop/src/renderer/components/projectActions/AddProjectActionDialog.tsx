@@ -1,15 +1,15 @@
 import { useEffect, useId, useRef, useState, type JSX } from 'react'
-import { createPortal } from 'react-dom'
 import { Bug, FlaskConical, Play, SquareTerminal, Wrench, type LucideIcon } from 'lucide-react'
 import type {
   AddProjectActionResult,
   ProjectActionIcon,
   ProjectActionPlatform
 } from '../../../shared/projectActions'
-import { LayerBoundary } from '../../contexts/LayerContext'
 import { useT } from '../../contexts/LocaleContext'
+import { openEnvironmentSettings } from '../../stores/appNavigationStore'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
+import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
 import { ModalHeader } from '../ui/ModalHeader'
 import { Select, type SelectOption } from '../ui/Select'
 import styles from './AddProjectActionDialog.module.css'
@@ -114,17 +114,14 @@ function AddProjectActionDialog({
     ...PLATFORMS
   ]
 
-  const dialog = (
-    <div
-      className={styles.scrim}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy) onFinish(null)
-      }}
-    >
-      <div className={styles.dialog} onMouseDown={(event) => event.stopPropagation()}>
+  return (
+    <ModalDialog
+      titleId={titleId}
+      width={440}
+      onDismiss={busy ? undefined : () => onFinish(null)}
+      onSubmit={() => void save()}
+      bodyClassName={styles.body}
+      header={(
         <ModalHeader
           icon={<SquareTerminal size={18} aria-hidden />}
           title={t('projectActions.add.title')}
@@ -133,69 +130,78 @@ function AddProjectActionDialog({
           onClose={busy ? undefined : () => onFinish(null)}
           closeLabel={t('common.cancel')}
         />
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            void save()
-          }}
+      )}
+      error={error}
+      footer={(
+        <ModalFooter
+          leading={(
+            <button
+              type="button"
+              className={styles.settingsLink}
+              disabled={busy}
+              onClick={() => {
+                onFinish(null)
+                openEnvironmentSettings({
+                  projectPath: target.workspacePath,
+                  ...(target.environmentId ? { environmentId: target.environmentId } : {})
+                })
+              }}
+            >
+              {t('projectActions.add.environmentSettings')}
+            </button>
+          )}
         >
-          <div className={styles.body}>
-            <div className={styles.row}>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor={nameId}>{t('projectActions.add.name')}</label>
-                <Input
-                  ref={nameRef}
-                  id={nameId}
-                  value={name}
-                  disabled={busy}
-                  placeholder={t('projectActions.add.namePlaceholder')}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor={iconId}>{t('projectActions.add.icon')}</label>
-                <Select id={iconId} value={icon} options={iconOptions} disabled={busy} onValueChange={setIcon} adaptiveWidth={false} />
-              </div>
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor={commandId}>{t('projectActions.add.command')}</label>
-              <Input
-                id={commandId}
-                mono
-                spellCheck={false}
-                value={command}
-                disabled={busy}
-                placeholder={t('projectActions.add.commandPlaceholder')}
-                onChange={(event) => setCommand(event.target.value)}
-              />
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor={platformId}>{t('projectActions.add.platform')}</label>
-              <Select
-                id={platformId}
-                value={platform}
-                options={platformOptions}
-                disabled={busy}
-                onValueChange={setPlatform}
-                adaptiveWidth={false}
-              />
-            </div>
-          </div>
-          {error && <p className={styles.error} role="alert">{error}</p>}
-          <div className={styles.footer}>
-            <Button variant="secondary" disabled={busy} onClick={() => onFinish(null)}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" variant="primary" loading={busy} disabled={!canSave}>
-              {t('projectActions.add.save')}
-            </Button>
-          </div>
-        </form>
+          <Button variant="secondary" disabled={busy} onClick={() => onFinish(null)}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" variant="primary" loading={busy} disabled={!canSave}>
+            {t('projectActions.add.save')}
+          </Button>
+        </ModalFooter>
+      )}
+    >
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={nameId}>{t('projectActions.add.name')}</label>
+          <Input
+            ref={nameRef}
+            id={nameId}
+            value={name}
+            disabled={busy}
+            placeholder={t('projectActions.add.namePlaceholder')}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={iconId}>{t('projectActions.add.icon')}</label>
+          <Select id={iconId} value={icon} options={iconOptions} disabled={busy} onValueChange={setIcon} adaptiveWidth={false} />
+        </div>
       </div>
-    </div>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={commandId}>{t('projectActions.add.command')}</label>
+        <Input
+          id={commandId}
+          mono
+          spellCheck={false}
+          value={command}
+          disabled={busy}
+          placeholder={t('projectActions.add.commandPlaceholder')}
+          onChange={(event) => setCommand(event.target.value)}
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={platformId}>{t('projectActions.add.platform')}</label>
+        <Select
+          id={platformId}
+          value={platform}
+          options={platformOptions}
+          disabled={busy}
+          onValueChange={setPlatform}
+          adaptiveWidth={false}
+        />
+      </div>
+    </ModalDialog>
   )
-
-  return createPortal(<LayerBoundary>{dialog}</LayerBoundary>, document.body) as JSX.Element
 }
 
 export function AddProjectActionDialogHost(): JSX.Element | null {

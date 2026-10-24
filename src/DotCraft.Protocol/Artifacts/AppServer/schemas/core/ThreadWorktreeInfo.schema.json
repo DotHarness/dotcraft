@@ -27,6 +27,16 @@
         }
       ]
     },
+    "environmentPath": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "head": {
       "type": "string"
     },

@@ -52,7 +52,8 @@ interface SatellitesStore extends SatellitesState {
 const ACTIVITY_LIMIT = 20
 
 function messageOf(error: unknown): string | null {
-  return error instanceof Error && error.message.trim() !== '' ? error.message : null
+  const message = (error as { message?: unknown } | null)?.message
+  return typeof message === 'string' && message.trim() !== '' ? message : null
 }
 
 function prependActivity(

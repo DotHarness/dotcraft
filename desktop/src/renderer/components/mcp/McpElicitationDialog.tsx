@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { translate } from '../../../shared/locales'
 import { useLocale } from '../../contexts/LocaleContext'
 import { Button, ButtonLabel } from '../ui/Button'
 import { Checkbox } from '../ui/Checkbox'
 import { Input } from '../ui/Input'
+import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
 import { Select } from '../ui/Select'
+import styles from './McpElicitationDialog.module.css'
 
 export interface McpElicitationRequest {
   bridgeId: string
@@ -66,96 +67,22 @@ export function McpElicitationDialog({ request, onRespond }: Props): JSX.Element
     ? safeUrl != null
     : fields != null && validateValues(fields, values)
 
-  const dialog = (
-    <div role="dialog" aria-modal="true" aria-labelledby="mcp-elicitation-title" style={backdropStyle}>
-      <div style={dialogStyle}>
-        <h2 id="mcp-elicitation-title" style={titleStyle}>
+  const unsupported = request.mode === 'url' ? safeUrl == null : fields == null
+
+  return (
+    <ModalDialog
+      titleId="mcp-elicitation-title"
+      width={440}
+      scrimStyle={{ zIndex: 10020 }}
+      bodyClassName={styles.body}
+      header={(
+        <h2 id="mcp-elicitation-title" className={styles.title}>
           {translate(locale, 'mcp.elicitation.title')}
         </h2>
-        <p style={messageStyle}>
-          {request.message || translate(locale, 'mcp.elicitation.message', { server: request.serverName })}
-        </p>
-
-        {request.mode === 'url' ? (
-          safeUrl == null ? (
-            <p role="alert" style={errorStyle}>{translate(locale, 'mcp.elicitation.unsupported')}</p>
-          ) : (
-            <Button
-              variant="outline"
-              style={{ width: '100%', justifyContent: 'flex-start', overflow: 'hidden' }}
-              onClick={() => void window.api.shell.openExternal(safeUrl)}
-            >
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                <ButtonLabel>{translate(locale, 'mcp.elicitation.openUrl')}</ButtonLabel>
-              </span>
-            </Button>
-          )
-        ) : fields == null ? (
-          <p role="alert" style={errorStyle}>{translate(locale, 'mcp.elicitation.unsupported')}</p>
-        ) : (
-          <div style={{ display: 'grid', gap: 12 }}>
-            {fields.map((field) => (
-              <div key={field.name} style={{ display: 'grid', gap: 5, color: 'var(--text-primary)', fontSize: 12 }}>
-                <span>{field.title}{field.required ? ' *' : ''}</span>
-                {field.type === 'boolean' ? (
-                  <Checkbox
-                    checked={Boolean(values[field.name])}
-                    ariaLabel={field.title}
-                    onChange={(checked) => setValues((current) => ({ ...current, [field.name]: checked }))}
-                  />
-                ) : field.type === 'array' && field.options ? (
-                  <span style={{ display: 'grid', gap: 8 }}>
-                    {field.options.map((option) => {
-                      const selected = Array.isArray(values[field.name]) ? values[field.name] as string[] : []
-                      return (
-                        <Checkbox
-                          key={option.value}
-                          checked={selected.includes(option.value)}
-                          label={option.label}
-                          onChange={(checked) => setValues((current) => ({
-                            ...current,
-                            [field.name]: checked
-                              ? [...selected, option.value]
-                              : selected.filter((value) => value !== option.value)
-                          }))}
-                        />
-                      )
-                    })}
-                  </span>
-                ) : field.options ? (
-                  <Select
-                    value={String(values[field.name] ?? '')}
-                    ariaLabel={field.title}
-                    onValueChange={(nextValue) => setValues((current) => ({
-                      ...current,
-                      [field.name]: coerceValue(field, nextValue)
-                    }))}
-                    options={[
-                      ...(!field.required ? [{ value: '', label: '' }] : []),
-                      ...field.options
-                    ]}
-                  />
-                ) : (
-                  <Input
-                    type={field.type === 'string' ? 'text' : 'number'}
-                    className={field.type === 'string' ? undefined : 'dc-plain-number'}
-                    aria-label={field.title}
-                    value={String(values[field.name] ?? '')}
-                    minLength={field.minLength}
-                    maxLength={field.maxLength}
-                    min={field.minimum}
-                    max={field.maximum}
-                    required={field.required}
-                    onChange={(event) => setValues((current) => ({ ...current, [field.name]: coerceValue(field, event.target.value) }))}
-                  />
-                )}
-                {field.description && <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{field.description}</span>}
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
+      )}
+      error={unsupported && translate(locale, 'mcp.elicitation.unsupported')}
+      footer={(
+        <ModalFooter>
           <Button ref={cancelRef} variant="ghost" onClick={() => onRespond({ action: 'cancel' })}>
             {translate(locale, 'mcp.elicitation.cancel')}
           </Button>
@@ -172,12 +99,86 @@ export function McpElicitationDialog({ request, onRespond }: Props): JSX.Element
           >
             {translate(locale, 'mcp.elicitation.accept')}
           </Button>
+        </ModalFooter>
+      )}
+    >
+      <p className={styles.message}>
+        {request.message || translate(locale, 'mcp.elicitation.message', { server: request.serverName })}
+      </p>
+      {safeUrl != null ? (
+        <Button
+          variant="outline"
+          className={styles.urlButton}
+          onClick={() => void window.api.shell.openExternal(safeUrl)}
+        >
+          <span className={styles.urlLabel}>
+            <ButtonLabel>{translate(locale, 'mcp.elicitation.openUrl')}</ButtonLabel>
+          </span>
+        </Button>
+      ) : request.mode === 'form' && fields != null && (
+        <div className={styles.fields}>
+          {fields.map((field) => (
+            <div key={field.name} className={styles.field}>
+              <span>{field.title}{field.required ? ' *' : ''}</span>
+              {field.type === 'boolean' ? (
+                <Checkbox
+                  checked={Boolean(values[field.name])}
+                  ariaLabel={field.title}
+                  onChange={(checked) => setValues((current) => ({ ...current, [field.name]: checked }))}
+                />
+              ) : field.type === 'array' && field.options ? (
+                <span className={styles.options}>
+                  {field.options.map((option) => {
+                    const selected = Array.isArray(values[field.name]) ? values[field.name] as string[] : []
+                    return (
+                      <Checkbox
+                        key={option.value}
+                        checked={selected.includes(option.value)}
+                        label={option.label}
+                        onChange={(checked) => setValues((current) => ({
+                          ...current,
+                          [field.name]: checked
+                            ? [...selected, option.value]
+                            : selected.filter((value) => value !== option.value)
+                        }))}
+                      />
+                    )
+                  })}
+                </span>
+              ) : field.options ? (
+                <Select
+                  value={String(values[field.name] ?? '')}
+                  ariaLabel={field.title}
+                  onValueChange={(nextValue) => setValues((current) => ({
+                    ...current,
+                    [field.name]: coerceValue(field, nextValue)
+                  }))}
+                  options={[
+                    ...(!field.required ? [{ value: '', label: '' }] : []),
+                    ...field.options
+                  ]}
+                />
+              ) : (
+                <Input
+                  type={field.type === 'string' ? 'text' : 'number'}
+                  className={field.type === 'string' ? undefined : 'dc-plain-number'}
+                  aria-label={field.title}
+                  value={String(values[field.name] ?? '')}
+                  minLength={field.minLength}
+                  maxLength={field.maxLength}
+                  min={field.minimum}
+                  max={field.maximum}
+                  required={field.required}
+                  onChange={(event) => setValues((current) => ({ ...current, [field.name]: coerceValue(field, event.target.value) }))}
+                />
+              )}
+              {field.description && <span className={styles.description}>{field.description}</span>}
+            </div>
+          ))}
         </div>
-      </div>
-    </div>
+      )}
+    </ModalDialog>
   )
-
-  return createPortal(dialog, document.body) as JSX.Element
 }
 
 function parseSchema(value: unknown): FormField[] | null {
@@ -365,9 +366,3 @@ function isFormValue(value: unknown): value is FormValue {
   return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
     || Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
-
-const backdropStyle = { position: 'fixed', inset: 0, zIndex: 10020, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--overlay-scrim)' } as const
-const dialogStyle = { width: 440, maxWidth: 'calc(100vw - 40px)', maxHeight: 'calc(100vh - 40px)', overflow: 'auto', padding: 22, borderRadius: 10, border: '1px solid var(--border-default)', background: 'var(--bg-secondary)', boxShadow: 'var(--shadow-level-3)' } as const
-const titleStyle = { margin: 0, color: 'var(--text-primary)', fontSize: 15, fontWeight: 600 } as const
-const messageStyle = { margin: '8px 0 18px', color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' } as const
-const errorStyle = { color: 'var(--error)', fontSize: 12 } as const

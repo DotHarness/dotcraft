@@ -13,9 +13,6 @@ import { SettingsSelect } from '../ui/SettingsSelect'
 import { PillSwitch } from '../../ui/PillSwitch'
 import { Input } from '../../ui/Input'
 import { Button } from '../../ui/Button'
-import { WorktreeSettingsGroup } from './worktrees/WorktreeSettingsGroup'
-
-// Wire types mirroring src/DotCraft.Protocol/AppServer/CoreAppServerModels.cs.
 
 type SourceControlProvider = 'none' | 'git' | 'perforce'
 type SourceControlConnectionMode = 'p4config' | 'manual'
@@ -158,7 +155,6 @@ function testRequestTimeoutMs(timeoutSeconds: number): number {
   return Math.max(20_000, effectiveTimeoutSeconds * 1000 + 5_000)
 }
 
-// Map any persisted/legacy provider value (incl. the removed "auto") to a known one.
 function normalizeProvider(p: string): SourceControlProvider {
   return p === 'none' || p === 'perforce' ? p : 'git'
 }
@@ -219,11 +215,9 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
       const snap = await scRequest<SourceControlSnapshot>('sourceControl/get', {})
       applySnapshot(snap)
     } catch {
-      // Ignore background refresh failures; the next explicit load surfaces errors.
     }
   }, [applySnapshot])
 
-  // Live-refresh when another surface changes this workspace's source control binding.
   useEffect(() => {
     const unsubscribe = window.api.appServer.onNotification((payload) => {
       const event = normalizeConfigChangedPayload(payload as { method: string; params: unknown })
@@ -242,7 +236,6 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
     setForm((prev) => ({ ...prev, [key]: value }))
     setSavedTick(false)
     if (options.invalidateTest ?? true) {
-      // Editing the connection invalidates any prior test result.
       setTestResult(null)
     }
   }, [])
@@ -415,8 +408,6 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
               </SettingsRow>
             )}
           </SettingsGroup>
-
-          {snapshot?.effectiveProvider === 'git' && <WorktreeSettingsGroup workspacePath={workspacePath} />}
 
           {isPerforce && (
             <SettingsGroup title={t('settings.sourceControl.perforce.connectionTitle')}>
@@ -702,8 +693,6 @@ function TestResultView({
   const headline = result.status === 'connected'
     ? (result.summary || localizeCode(result.code, result.fallbackText))
     : localizeCode(result.code, result.fallbackText || result.summary)
-  // The headline already conveys the primary code; only surface errors that add something new
-  // so a single-error failure does not print the same sentence twice.
   const extraErrors = result.errors.filter((e) => e.code !== result.code)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>

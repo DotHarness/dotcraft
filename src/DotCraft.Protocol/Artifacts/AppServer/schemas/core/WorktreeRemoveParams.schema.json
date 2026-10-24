@@ -9,6 +9,9 @@
     },
     "path": {
       "type": "string"
+    },
+    "skipCleanup": {
+      "type": "boolean"
     }
   },
   "additionalProperties": true

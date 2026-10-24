@@ -1,4 +1,4 @@
-import type { ProjectActionPreferences, ProjectEnvironment } from '../../shared/projectActions'
+import type { ProjectActionPreferences, ProjectEnvironment, WorktreeEnvironmentsResult } from '../../shared/projectActions'
 
 const MAX_RECENT_ACTIONS = 50
 
@@ -15,8 +15,11 @@ export function normalizeProjectActionPreferences(
     if (!project || !raw || typeof raw !== 'object' || Array.isArray(raw)) continue
     const entry = raw as Record<string, unknown>
     const preferences: ProjectActionPreferences = {}
-    if (typeof entry.selectedEnvironmentId === 'string' && entry.selectedEnvironmentId) {
+    if (entry.selectedEnvironmentId === null || (typeof entry.selectedEnvironmentId === 'string' && entry.selectedEnvironmentId)) {
       preferences.selectedEnvironmentId = entry.selectedEnvironmentId
+    }
+    if (entry.worktreeEnvironmentId === null || (typeof entry.worktreeEnvironmentId === 'string' && entry.worktreeEnvironmentId)) {
+      preferences.worktreeEnvironmentId = entry.worktreeEnvironmentId
     }
     if (entry.recentActions && typeof entry.recentActions === 'object' && !Array.isArray(entry.recentActions)) {
       const recentActions: Record<string, string[]> = {}
@@ -47,6 +50,7 @@ export function applyProjectActionPreferences<T extends ProjectEnvironment>(
       .map(({ action }) => action)
     return { ...environment, actions }
   })
+  if (preferences?.selectedEnvironmentId === null) return { environments: ordered, selectedEnvironmentId: null }
   const selected = ordered.find((environment) => environment.id === preferences?.selectedEnvironmentId)
     ?? ordered[0]
   return { environments: ordered, selectedEnvironmentId: selected?.id ?? null }
@@ -69,7 +73,33 @@ export function withRecentAction(
 
 export function withSelectedEnvironment(
   preferences: ProjectActionPreferences | undefined,
-  environmentId: string
+  environmentId: string | null
 ): ProjectActionPreferences {
   return { ...preferences, selectedEnvironmentId: environmentId }
+}
+
+export function withWorktreeEnvironment(
+  preferences: ProjectActionPreferences | undefined,
+  environmentId: string | null
+): ProjectActionPreferences {
+  return { ...preferences, worktreeEnvironmentId: environmentId }
+}
+
+export function applyWorktreeEnvironmentPreference(
+  environments: readonly ProjectEnvironment[],
+  preferences: ProjectActionPreferences | undefined
+): WorktreeEnvironmentsResult {
+  const stored = preferences?.worktreeEnvironmentId ?? null
+  const selected = stored === null ? undefined : environments.find((environment) => environment.id === stored)
+  return {
+    environments: environments.map(({ id, name, path, isDefault, error }) => ({
+      id,
+      name,
+      path,
+      isDefault,
+      ...(error === undefined ? {} : { error })
+    })),
+    selectedEnvironmentId: selected?.id ?? null,
+    unavailable: stored !== null && selected === undefined
+  }
 }

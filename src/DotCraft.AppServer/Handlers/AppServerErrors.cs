@@ -5,9 +5,6 @@ using DotCraft.Tools;
 
 namespace DotCraft.AppServer;
 
-/// <summary>
-/// JSON-RPC 2.0 error object for outbound error responses.
-/// </summary>
 public sealed class AppServerError
 {
     [JsonPropertyName("code")]
@@ -47,10 +44,6 @@ public sealed class ConfigWriteErrorData
     public required string ConfigWriteErrorCode { get; init; }
 }
 
-/// <summary>
-/// Exception thrown by AppServer request handlers to produce a JSON-RPC error response.
-/// The handler catches this and serializes it as a JSON-RPC error.
-/// </summary>
 public sealed class AppServerException(int code, string message, object? errorData = null) : Exception(message)
 {
     public int Code { get; } = code;
@@ -60,20 +53,14 @@ public sealed class AppServerException(int code, string message, object? errorDa
     public AppServerError ToError() => new() { Code = Code, Message = Message, Data = ErrorData };
 }
 
-/// <summary>
-/// Error code constants and factory methods from spec Section 8.2 and 8.3.
-/// </summary>
 public static class AppServerErrors
 {
-    // ── JSON-RPC standard codes (Section 8.2) ──
 
     public const int ParseErrorCode = -32700;
     public const int InvalidRequestCode = -32600;
     public const int MethodNotFoundCode = -32601;
     public const int InvalidParamsCode = -32602;
     public const int InternalErrorCode = -32603;
-
-    // ── DotCraft-specific codes (Section 8.3) ──
 
     public const int ServerOverloadedCode = -32001;
     public const int NotInitializedCode = -32002;
@@ -125,13 +112,12 @@ public static class AppServerErrors
     public const int FileSystemErrorCode = -32103;
     public const int CommandExecErrorCode = -32104;
     public const int DreamsStoreChangedCode = -32105;
-    // ── Automation-specific codes (-32050 to -32059) ──
+    public const int WorktreeEnvironmentCode = -32106;
+    public const int WorktreeInUseCode = -32107;
 
     public const int AutomationNotFoundCode = -32051;
     public const int AutomationUnavailableCode = -32052;
     public const int AutomationVersionConflictCode = -32056;
-
-    // ── Factory methods ──
 
     private static AppServerException Create(
         int jsonRpcCode,
@@ -257,6 +243,36 @@ public static class AppServerErrors
             "errors.worktreeHandoffConflict",
             "Local workspace has conflicting uncommitted changes.",
             new WorktreeConflictErrorParams(conflictPaths));
+
+    public static AppServerException WorktreeInUse(string path) =>
+        Create(
+            WorktreeInUseCode,
+            "WorktreeInUse",
+            "errors.worktreeInUse",
+            "Another program is using the worktree folder.",
+            new FileSystemErrorParams(path));
+
+    public static AppServerException WorktreeEnvironment(WorktreeEnvironmentException ex) => ex.Code switch
+    {
+        WorktreeEnvironmentErrorCodes.CleanupFailed => Create(
+            WorktreeEnvironmentCode,
+            ex.Code,
+            "errors.worktreeEnvironment.cleanupFailed",
+            "The environment cleanup script failed.",
+            new WorktreeCleanupErrorParams(ex.WorktreePath ?? string.Empty, ex.ExitCode, ex.OutputTail ?? string.Empty),
+            ex.Message),
+        WorktreeEnvironmentErrorCodes.CreationCancelled => Create(
+            WorktreeEnvironmentCode,
+            ex.Code,
+            "errors.worktreeEnvironment.creationCancelled",
+            "Worktree creation was cancelled."),
+        _ => Create(
+            WorktreeEnvironmentCode,
+            ex.Code,
+            $"errors.worktreeEnvironment.{ex.Code}",
+            "The environment file is invalid.",
+            detail: ex.Message)
+    };
 
     public static AppServerException ChannelRejected(string channelName) =>
         Create(ChannelRejectedCode, "ChannelRejected", "errors.channelRejected", $"Channel adapter rejected: '{channelName}' is not registered in server configuration", new ChannelErrorParams(channelName));

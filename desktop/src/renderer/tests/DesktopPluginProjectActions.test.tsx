@@ -10,6 +10,7 @@ import {
 } from '../plugins/desktopPluginHost'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useConversationStore } from '../stores/conversationStore'
+import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -107,6 +108,49 @@ describe('Desktop Plugin projectActions', () => {
 
     await projectActions.run({ ...request, threadId: 't2' })
     expect(terminalTabs('t2')[0].id).not.toBe(first.id)
+  })
+
+  it('runs an action inside the worktree of a worktree thread', async () => {
+    const prepareRun = vi.fn().mockResolvedValue({ cwd: 'C:\worktrees\repo-1', command: 'npm test', title: 'Test' })
+    installDesktopApiMock({ projectActions: { prepareRun } })
+    useConversationStore.setState({ workspacePath: 'C:\worktrees\repo-1' })
+    useThreadStore.setState({
+      threadList: [{ id: 'w1', workspacePath: WORKSPACE, worktree: { path: 'C:\worktrees\repo-1' } } as never]
+    })
+
+    await host().projectActions.run({ threadId: 'w1', environmentId: 'e', actionId: 'Test' })
+
+    expect(prepareRun).toHaveBeenCalledWith({
+      workspacePath: WORKSPACE,
+      environmentId: 'e',
+      actionId: 'Test',
+      worktreePath: 'C:\worktrees\repo-1'
+    })
+  })
+
+  it('selects No environment', async () => {
+    const select = vi.fn().mockResolvedValue(undefined)
+    installDesktopApiMock({ projectActions: { select } })
+
+    await host().projectActions.select(WORKSPACE, null)
+
+    expect(select).toHaveBeenCalledWith({ workspacePath: WORKSPACE, environmentId: null })
+  })
+
+  it('opens environment settings and remembers the conversation to return to', async () => {
+    installDesktopApiMock({})
+    useUIStore.setState({ activeMainView: 'conversation', environmentSettingsTarget: null })
+
+    await host().projectActions.openSettings({ workspacePath: WORKSPACE, environmentId: 'e' })
+
+    const ui = useUIStore.getState()
+    expect(ui.activeMainView).toBe('settings')
+    expect(ui.activeSettingsTab).toBe('worktrees')
+    expect(ui.environmentSettingsTarget).toMatchObject({
+      projectPath: WORKSPACE,
+      environmentId: 'e',
+      returnTo: { kind: 'conversation' }
+    })
   })
 
   it('opens a plain terminal tab at the workspace root', async () => {

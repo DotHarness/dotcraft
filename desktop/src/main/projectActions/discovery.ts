@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import {
+  PROJECT_ACTION_PLATFORMS,
   isProjectActionIcon,
   isProjectActionPlatform,
   type ProjectAction,
@@ -10,7 +11,7 @@ import {
 } from '../../shared/projectActions'
 
 const MAX_LEVELS = 50
-const DEFAULT_FILE = 'environment.json'
+export const DEFAULT_ENVIRONMENT_FILE = 'environment.json'
 
 export interface DiscoveredEnvironment extends ProjectEnvironment {
   root: string
@@ -29,6 +30,12 @@ export function environmentFolders(workspacePath: string): string[] {
   return folders
 }
 
+export function repositoryRoot(workspacePath: string): string {
+  const folders = environmentFolders(workspacePath)
+  const top = folders[folders.length - 1]
+  return existsSync(join(top, '.git')) ? top : folders[0]
+}
+
 export function environmentsDirectory(folder: string): string {
   return join(folder, '.craft', 'environments')
 }
@@ -39,15 +46,27 @@ export function contentRevision(content: string): string {
 
 type ParsedEnvironment = { name?: string; actions: ProjectAction[] } | { error: string }
 
-function isObject(value: unknown): value is Record<string, unknown> {
+export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function text(value: unknown): string {
+export function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-export function parseEnvironment(content: string, platform: NodeJS.Platform): ParsedEnvironment {
+function scriptError(key: string, value: unknown): string | null {
+  if (value === undefined) return null
+  if (!isObject(value) || typeof value.script !== 'string') return `"${key}" must be an object with a string "script"`
+  for (const platform of PROJECT_ACTION_PLATFORMS) {
+    const override = value[platform]
+    if (override !== undefined && (!isObject(override) || typeof override.script !== 'string')) {
+      return `"${key}.${platform}" must be an object with a string "script"`
+    }
+  }
+  return null
+}
+
+export function readEnvironmentObject(content: string): { raw: Record<string, unknown> } | { error: string } {
   let raw: unknown
   try {
     raw = JSON.parse(content.replace(/^﻿/, ''))
@@ -57,16 +76,26 @@ export function parseEnvironment(content: string, platform: NodeJS.Platform): Pa
   if (!isObject(raw)) return { error: 'The file must contain a JSON object' }
   if (raw.version !== undefined && raw.version !== 1) return { error: '"version" must be 1' }
   if (raw.name !== undefined && typeof raw.name !== 'string') return { error: '"name" must be a string' }
+  const scriptProblem = scriptError('setup', raw.setup) ?? scriptError('cleanup', raw.cleanup)
+  if (scriptProblem) return { error: scriptProblem }
   if (raw.actions !== undefined && !Array.isArray(raw.actions)) return { error: '"actions" must be an array' }
-
-  const actions: ProjectAction[] = []
-  const seen = new Map<string, number>()
   for (const [index, entry] of ((raw.actions as unknown[] | undefined) ?? []).entries()) {
     if (!isObject(entry)) return { error: `actions[${index}] must be an object` }
-    const actionPlatform = entry.platform === undefined ? undefined : text(entry.platform)
-    if (actionPlatform !== undefined && !isProjectActionPlatform(actionPlatform)) {
+    if (entry.platform !== undefined && !isProjectActionPlatform(text(entry.platform))) {
       return { error: `actions[${index}].platform must be win32, darwin, or linux` }
     }
+  }
+  return { raw }
+}
+
+export function parseEnvironment(content: string, platform: NodeJS.Platform): ParsedEnvironment {
+  const parsed = readEnvironmentObject(content)
+  if ('error' in parsed) return parsed
+  const { raw } = parsed
+  const actions: ProjectAction[] = []
+  const seen = new Map<string, number>()
+  for (const entry of (raw.actions as Record<string, unknown>[] | undefined) ?? []) {
+    const actionPlatform = text(entry.platform)
     const name = text(entry.name)
     const command = text(entry.command)
     if (!name || !command || (actionPlatform && actionPlatform !== platform)) continue
@@ -134,7 +163,7 @@ export async function discoverProjectEnvironments(
     }
   }
 
-  const nearestDefault = found.find((environment) => basename(environment.path).toLowerCase() === DEFAULT_FILE)
+  const nearestDefault = found.find((environment) => basename(environment.path).toLowerCase() === DEFAULT_ENVIRONMENT_FILE)
   if (nearestDefault) nearestDefault.isDefault = true
   return found.sort((a, b) =>
     Number(b.isDefault) - Number(a.isDefault)

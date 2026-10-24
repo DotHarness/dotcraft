@@ -1,16 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useState } from 'react'
 import { ListChecks } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { useConversationStore } from '../../stores/conversationStore'
-import { threadFileSummaries } from '../../stores/turnDiffs'
 import { changelistLabel, type PerforceChangelistEntry } from '../../stores/perforceChangelistStore'
-import { ModalHeader } from '../ui/ModalHeader'
-import { Button } from '../ui/Button'
-import { DisclosureChevron } from '../ui/DisclosureChevron'
-import { Textarea } from '../ui/Input'
 import { Select, type SelectOption } from '../ui/Select'
-import { toRelativePath } from './CommitDialog'
+import { ChangeSubmitDialog } from './ChangeSubmitDialog'
 
 const NEW_CHANGELIST_VALUE = '__new_changelist__'
 
@@ -30,37 +23,11 @@ export function PerforcePrepareDialog({
   onClose
 }: PerforcePrepareDialogProps): JSX.Element {
   const t = useT()
-  const turnDiffs = useConversationStore((s) => s.turnDiffs)
-  const allFiles = useMemo(() => threadFileSummaries(turnDiffs), [turnDiffs])
-  const writtenFiles = allFiles.filter((f) => f.status === 'written')
-  const revertedCount = allFiles.length - writtenFiles.length
-  const [description, setDescription] = useState('')
-  const [filesExpanded, setFilesExpanded] = useState(false)
   const [targetChoice, setTargetChoice] = useState(initialTargetChoice(changelist))
-  const descriptionRef = useRef<HTMLTextAreaElement>(null)
-  const totalAdditions = writtenFiles.reduce((sum, file) => sum + file.additions, 0)
-  const totalDeletions = writtenFiles.reduce((sum, file) => sum + file.deletions, 0)
-  const hasFiles = writtenFiles.length > 0
-
-  useEffect(() => {
-    descriptionRef.current?.focus()
-    function handleKeyDown(e: KeyboardEvent): void {
-      if (e.defaultPrevented) return
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
 
   useEffect(() => {
     setTargetChoice(initialTargetChoice(changelist))
   }, [changelist])
-
-  function handleSubmit(): void {
-    if (!hasFiles) return
-    onPrepare(description.trim(), targetChoice === NEW_CHANGELIST_VALUE ? 'default' : targetChoice)
-    onClose()
-  }
 
   const targetEntries = normalizeChangelists(changelists, changelist)
   const targetOptions: SelectOption[] = [
@@ -71,195 +38,41 @@ export function PerforcePrepareDialog({
     }))
   ]
 
-  const dialog = (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="perforce-prepare-title"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'var(--overlay-scrim)'
+  return (
+    <ChangeSubmitDialog
+      icon={<ListChecks size={18} aria-hidden="true" />}
+      workspacePath={workspacePath}
+      target={{
+        label: t('perforcePrepare.targetLabel'),
+        control: true,
+        value: (
+          <Select
+            ariaLabel={t('perforcePrepare.targetLabel')}
+            appearance="frameless"
+            value={targetChoice}
+            options={targetOptions}
+            onValueChange={setTargetChoice}
+          />
+        )
       }}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose()
+      copy={{
+        title: t('perforcePrepare.title'),
+        close: t('perforcePrepare.close'),
+        changesLabel: t('perforcePrepare.changesLabel'),
+        changesSummary: (files) => t('perforcePrepare.changesSummary', { files }),
+        filesHeader: ({ written, all, reverted }) => t('perforcePrepare.filesHeader', {
+          written,
+          all,
+          reverted: reverted > 0 ? t('perforcePrepare.revertedSuffix', { count: reverted }) : ''
+        }),
+        inputLabel: t('perforcePrepare.descriptionLabel'),
+        placeholder: t('perforcePrepare.placeholder'),
+        submit: t('perforcePrepare.button')
       }}
-    >
-      <div
-        style={{
-          backgroundColor: 'var(--bg-secondary)',
-          borderRadius: '16px',
-          boxShadow: 'var(--shadow-level-3)',
-          padding: '18px 24px 22px',
-          width: '440px',
-          maxWidth: 'calc(100vw - 48px)',
-          maxHeight: 'calc(100vh - 96px)',
-          overflow: 'auto'
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <ModalHeader
-          icon={<ListChecks size={18} aria-hidden="true" />}
-          title={t('perforcePrepare.title')}
-          titleId="perforce-prepare-title"
-          onClose={onClose}
-          closeLabel={t('perforcePrepare.close')}
-        />
-
-        <div style={{ ...infoRowStyle, gap: '12px' }}>
-          <span style={infoLabelStyle}>{t('perforcePrepare.targetLabel')}</span>
-          <span style={{ flex: 1, minWidth: 0 }}>
-            <Select
-              ariaLabel={t('perforcePrepare.targetLabel')}
-              appearance="frameless"
-              value={targetChoice}
-              options={targetOptions}
-              onValueChange={setTargetChoice}
-            />
-          </span>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setFilesExpanded((v) => !v)}
-          aria-expanded={filesExpanded}
-          style={{
-            ...infoRowStyle,
-            width: '100%',
-            border: 'none',
-            background: 'transparent',
-            cursor: 'pointer',
-            textAlign: 'left',
-            fontFamily: 'inherit'
-          }}
-        >
-          <span style={infoLabelStyle}>{t('perforcePrepare.changesLabel')}</span>
-          <span style={{ ...infoValueStyle, gap: '8px' }}>
-            <span>{t('perforcePrepare.changesSummary', { files: writtenFiles.length })}</span>
-            <span style={{ color: 'var(--success)' }}>+{totalAdditions}</span>
-            <span style={{ color: 'var(--error)' }}>-{totalDeletions}</span>
-            <DisclosureChevron expanded={filesExpanded} />
-          </span>
-        </button>
-
-        {filesExpanded && (
-          <div
-            style={{
-              background: 'var(--bg-primary)',
-              borderRadius: '10px',
-              padding: '2px 4px',
-              margin: '2px 0 4px',
-              maxHeight: '180px',
-              overflowY: 'auto'
-            }}
-          >
-            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '6px 8px 2px' }}>
-              {t('perforcePrepare.filesHeader', {
-                written: writtenFiles.length,
-                all: allFiles.length,
-                reverted:
-                  revertedCount > 0 ? t('perforcePrepare.revertedSuffix', { count: revertedCount }) : ''
-              })}
-            </div>
-            {writtenFiles.map((file, idx) => (
-              <div
-                key={file.filePath}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '6px 8px',
-                  borderTop: idx === 0 ? 'none' : '1px solid var(--glass-border)',
-                  fontSize: '12px'
-                }}
-              >
-                <span
-                  style={{
-                    width: '7px',
-                    height: '7px',
-                    borderRadius: '50%',
-                    background: 'var(--info)',
-                    flexShrink: 0
-                  }}
-                />
-                <span
-                  style={{
-                    flex: 1,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    fontFamily: 'var(--font-mono)',
-                    color: 'var(--text-primary)'
-                  }}
-                >
-                  {toRelativePath(file.filePath, workspacePath)}
-                </span>
-                <span style={{ display: 'flex', gap: '5px', fontFamily: 'var(--font-mono)', fontSize: '11px', flexShrink: 0 }}>
-                  {file.additions > 0 && <span style={{ color: 'var(--success)' }}>+{file.additions}</span>}
-                  {file.deletions > 0 && <span style={{ color: 'var(--error)' }}>-{file.deletions}</span>}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div style={{ margin: '12px 0 6px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-          {t('perforcePrepare.descriptionLabel')}
-        </div>
-
-        <Textarea
-          ref={descriptionRef}
-          frameless
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-              e.preventDefault()
-              handleSubmit()
-            }
-          }}
-          rows={3}
-          placeholder={t('perforcePrepare.placeholder')}
-        />
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-          <Button
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={!hasFiles}
-          >
-            {t('perforcePrepare.button')}
-          </Button>
-        </div>
-      </div>
-    </div>
+      onSubmit={(description) => onPrepare(description, targetChoice === NEW_CHANGELIST_VALUE ? 'default' : targetChoice)}
+      onClose={onClose}
+    />
   )
-
-  return createPortal(dialog, document.body) as JSX.Element
-}
-
-const infoRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '9px 2px',
-  fontSize: '13px'
-}
-
-const infoLabelStyle: React.CSSProperties = {
-  color: 'var(--text-secondary)'
-}
-
-const infoValueStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '6px',
-  color: 'var(--text-primary)',
-  fontFamily: 'var(--font-mono)'
 }
 
 function initialTargetChoice(changelist: string): string {

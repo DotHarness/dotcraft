@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.9.3 |
 | **Status** | Living |
-| **Date** | 2026-10-22 |
+| **Date** | 2026-10-24 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -517,6 +517,8 @@ If the request fails before being accepted, Desktop clears the stopping state an
 **Handoff**
 
 - On Welcome, `Work locally` starts a normal local thread; `New worktree` calls `worktree/createAndStart`, with the branch selector choosing `baseRef` without switching the local checkout.
+- In a local project, new-worktree creation (Welcome, fork into a new worktree) sends the project's worktree environment as `environmentPath` with an `operationId`; Welcome shows the environment selector only in worktree mode, never as a disabled control. While it runs, the conversation area shows the creation steps and setup output ([Local Environments §8.2](../features/local-environments.md#82-when-it-runs)), with Cancel and Don't use worktree, and the first message waits. Setup failure offers Retry (`worktree/runSetup`), Continue anyway, Edit environment, and Fix with agent ([Local Environments §8](../features/local-environments.md#8-setup)).
+- A `cleanupFailed` from handoff to local is shown in the handoff dialog with the output tail and changes no UI state. A `WorktreeInUse` says another program, such as a terminal, is using the worktree folder and to close it and try again.
 - On a local thread, handoff to a worktree confirms first and calls `thread/worktree/handoff` with `mode = "worktree"`, sending the current branch as `baseRef`. The dialog offers a new worktree or any `worktree/list` entry no thread is bound to; choosing one sends its `path` and keeps its branch. For a new worktree the branch name field is optional; left empty, the server allocates one. The dialog says uncommitted changes move with the thread.
 - On a worktree thread, handoff to local confirms and calls it with `mode = "local"`. The dialog names the branch the local checkout will switch to. A `WorktreeHandoffConflict` lists `conflictPaths` as local changes to commit or stash first and changes no UI state.
 - Handoff is unavailable while the thread has queued input and says why.
@@ -525,8 +527,8 @@ If the request fails before being accepted, Desktop clears the stopping state an
 
 **Worktree settings**
 
-- Settings › Source control › Worktrees, shown for Git workspaces, edits `Worktrees.BranchPrefix` and lists `worktree/list` entries with branch, bound thread (or none), and whether each has uncommitted changes or commits beyond its base.
-- Remove calls `worktree/remove`. An entry with uncommitted changes or commits beyond its base asks for confirmation first and then sends `discardChanges = true`. An entry bound to an Active thread offers no removal.
+- Settings › Worktrees › General, shown for Git workspaces, edits `Worktrees.BranchPrefix` and lists `worktree/list` entries with branch, bound thread (or none), and whether each has uncommitted changes or commits beyond its base.
+- Remove calls `worktree/remove`. An entry with uncommitted changes or commits beyond its base asks for confirmation first and then sends `discardChanges = true`. An entry bound to an Active thread offers no removal. A `cleanupFailed` shows the output tail and offers Remove anyway (`skipCleanup = true`).
 - Branch checkout and create controls operate on the effective Git directory.
 - While a thread is running, waiting, or in blocking maintenance, the handoff confirmation disables the final action and explains why.
 
@@ -665,14 +667,13 @@ Desktop opens a local project, folder, or file in another installed app. Remote 
 
 ### 5.18 Project Actions
 
-A project can declare actions — named commands such as Run or Test — that run in a terminal from the conversation. Actions are available for local workspaces.
+A project can declare actions — named commands such as Run or Test — that run in a terminal from the conversation. Actions are available for local workspaces. They belong to [local environments](../features/local-environments.md), which also define worktree setup and cleanup.
 
-- **Files.** Each `.craft/environments/*.json` file is one environment. Desktop reads the environment folders of the workspace and each parent up to the folder containing `.git` (bounded depth). `environment.json` in the nearest folder is the default; others follow by distance, then path. Files are re-read when they change on disk.
-- **Format.** `{ "version": 1, "name": string, "actions": [{ "name", "icon", "command", "platform"? }] }`. `version` defaults to `1`. `icon` is `tool`, `run`, `debug`, or `test` (others show as `tool`). `platform` is `win32`, `darwin`, or `linux` and limits the action to that platform. Strings are trimmed; actions with an empty name or command are dropped. An unparseable or invalid file is listed as an environment needing attention, with the reason.
+- **Files.** Environment files, their discovery, and their format are defined in [Local Environments §4](../features/local-environments.md#4-environment-files).
 - **Subagents row.** The conversation Summary's Subagents row reads "n working" while any child works or waits, otherwise "n done" counting the finished children, in one label style either way; while some work and some have finished, the finished count follows as secondary text. Its avatars show the working children, otherwise the finished ones. The label changes in place without a transition.
-- **Environment section.** The conversation Summary has an Environment section: a Changes row once the conversation changed files (opening the Changes panel) and, in a local workspace, the primary action plus an actions menu (each action, add action, change environment, open terminal at the workspace root). Actions are ordered by most recent run in the project; the most recent is primary. Without environments the menu offers local environment setup; an environment needing attention offers to open its file. The chosen environment and run order are remembered per project on this device.
-- **Running.** Running an action opens or focuses the conversation's terminal tab for that environment and action, restarts its shell in the folder containing the environment's `.craft` folder, and enters the command in that shell's syntax. The terminal owns the process.
-- **Adding.** Adding an action writes the whole environment file (creating `environment.json` in the workspace when none exists) and runs it. If the file changed on disk since the dialog opened, saving fails and nothing is written.
+- **Environment section.** The conversation Summary has an Environment section: a Changes row once the conversation changed files (opening the Changes panel) and, in a local workspace, the primary action plus an actions menu ([Local Environments §7](../features/local-environments.md#7-conversation-environment-section)). The conversation environment and run order are remembered per project on this device ([Local Environments §5](../features/local-environments.md#5-selection)).
+- **Running.** Running an action opens or focuses the conversation's terminal tab for that environment and action, restarts its shell in the environment root inside the thread's execution workspace, and enters the command in that shell's syntax. The terminal owns the process.
+- **Adding.** Adding an action writes the whole environment file (creating `environment.json` in the workspace when none exists) and makes it the most recent action without running it. If the file changed on disk since the dialog opened, saving fails and nothing is written.
 
 ## 6. Secondary Flows
 
@@ -774,6 +775,10 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 - `sourceControl/update` persists only non-sensitive fields. A binding saved without a passing test in the current edit session is saved with `perforce.online = false`. An offline binding suppresses Git controls but does not enable changelist selection or Checkout.
 - Desktop refreshes the binding on `config/changed` for `sourceControl` and whenever the foreground connection changes.
 - When `sourceControl/get.capabilities.perforceChangelist = true`, the branch selector becomes a changelist selector and the thread commit action becomes Checkout. Checkout calls `sourceControl/changelist/prepare` and never falls back to Git; a blank description is first filled by `workspace/commitMessage/suggest` with `provider = "perforce"`. The user may target the current changelist, another pending one, or a new one (`target = "default"`). A successful Checkout may move already-opened files into the selected target. Desktop does not expose Perforce submit or shelve, and its wording avoids submit semantics.
+
+**Worktrees**
+
+- Settings › Worktrees has a General tab (worktree settings, [§5.11.1](#5111-thread-fork-and-worktree-handoff)) and an Environments tab for every local project's environments ([Local Environments §6](../features/local-environments.md#6-settings--worktrees)).
 
 **Notifications**
 

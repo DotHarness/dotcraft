@@ -5,10 +5,8 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type FormEvent,
   type JSX
 } from 'react'
-import { createPortal } from 'react-dom'
 import { Palette } from 'lucide-react'
 import { HexColorPicker } from 'react-colorful'
 import type {
@@ -16,11 +14,11 @@ import type {
   DesktopPluginColorPickerResult
 } from '@dotcraft/plugin'
 import { normalizeHexColor } from '../../../shared/themeSeed'
-import { LayerBoundary } from '../../contexts/LayerContext'
 import { useT } from '../../contexts/LocaleContext'
 import { useDismissOnViewportChange, type PopupAnchor } from './anchoredPopup'
 import { Button } from './Button'
 import { Input } from './Input'
+import { ModalDialog, ModalFooter } from './ModalDialog'
 import { ModalHeader } from './ModalHeader'
 
 export interface ColorPickerPresentation {
@@ -129,28 +127,20 @@ export function ColorPickerDialog({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onFinish])
 
-  function submit(event: FormEvent): void {
-    event.preventDefault()
+  function submit(): void {
     if (validColor) onFinish({ kind: 'select', color: validColor })
   }
 
-  const dialog = (
-    <div
-      className="dc-color-picker-overlay"
-      data-anchored={anchor ? '' : undefined}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onFinish({ kind: 'cancel' })
-      }}
-    >
-      <div
-        ref={dialogRef}
-        className="dc-color-picker-dialog"
-        style={anchor ? { ...position, visibility: position ? undefined : 'hidden' } : undefined}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+  return (
+    <ModalDialog
+      ref={dialogRef}
+      titleId={titleId}
+      width={352}
+      className={anchor ? 'dc-color-picker-anchored' : undefined}
+      frameStyle={anchor ? { ...position, visibility: position ? undefined : 'hidden' } : undefined}
+      onDismiss={() => onFinish({ kind: 'cancel' })}
+      onSubmit={submit}
+      header={(
         <ModalHeader
           icon={<Palette size={18} aria-hidden />}
           title={options.title}
@@ -159,66 +149,62 @@ export function ColorPickerDialog({
           onClose={() => onFinish({ kind: 'cancel' })}
           closeLabel={t('common.close')}
         />
-        <form onSubmit={submit}>
-          <div className="dc-color-picker-value-row">
-            <span
-              className="dc-color-picker-preview"
-              style={{ background: color }}
-              aria-hidden
-            />
-            <label className="dc-color-picker-field" htmlFor={inputId}>
-              <span>{t('colorPicker.hex')}</span>
-              <Input
-                ref={inputRef}
-                id={inputId}
-                mono
-                invalid={validColor === null}
-                spellCheck={false}
-                value={input}
-                onChange={(event) => {
-                  const next = event.currentTarget.value
-                  setInput(next)
-                  const normalized = normalizeHexColor(next)
-                  if (normalized) preview(normalized)
-                }}
-              />
-            </label>
-          </div>
-          {validColor === null && (
-            <p className="dc-color-picker-error" role="alert">
-              {t('colorPicker.invalid')}
-            </p>
-          )}
-          <div ref={pickerRef} className="dc-color-picker-control">
-            <HexColorPicker
-              color={color}
-              onChange={(next) => {
-                const normalized = normalizeHexColor(next) ?? color
-                preview(normalized)
-                setInput(normalized.toUpperCase())
-              }}
-            />
-          </div>
-          <div className="dc-color-picker-actions">
-            {options.allowReset ? (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => onFinish({ kind: 'reset' })}
-              >
-                {t('colorPicker.reset')}
-              </Button>
-            ) : <span />}
-            <Button type="submit" variant="primary" disabled={validColor === null}>
-              {t('colorPicker.done')}
+      )}
+      error={validColor === null ? t('colorPicker.invalid') : null}
+      footer={(
+        <ModalFooter
+          leading={options.allowReset ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => onFinish({ kind: 'reset' })}
+            >
+              {t('colorPicker.reset')}
             </Button>
-          </div>
-        </form>
+          ) : undefined}
+        >
+          <Button type="submit" variant="primary" disabled={validColor === null}>
+            {t('colorPicker.done')}
+          </Button>
+        </ModalFooter>
+      )}
+    >
+      <div className="dc-color-picker-value-row">
+        <span
+          className="dc-color-picker-preview"
+          style={{ background: color }}
+          aria-hidden
+        />
+        <label className="dc-color-picker-field" htmlFor={inputId}>
+          <span>{t('colorPicker.hex')}</span>
+          <Input
+            ref={inputRef}
+            id={inputId}
+            mono
+            invalid={validColor === null}
+            spellCheck={false}
+            value={input}
+            onChange={(event) => {
+              const next = event.currentTarget.value
+              setInput(next)
+              const normalized = normalizeHexColor(next)
+              if (normalized) preview(normalized)
+            }}
+          />
+        </label>
       </div>
-    </div>
+      <div ref={pickerRef} className="dc-color-picker-control">
+        <HexColorPicker
+          color={color}
+          onChange={(next) => {
+            const normalized = normalizeHexColor(next) ?? color
+            preview(normalized)
+            setInput(normalized.toUpperCase())
+          }}
+        />
+      </div>
+    </ModalDialog>
   )
-
-  return createPortal(<LayerBoundary>{dialog}</LayerBoundary>, document.body) as JSX.Element
 }
 
 export function ColorPickerDialogHost(): JSX.Element | null {

@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type JSX } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useId, useRef, useState, type JSX } from 'react'
 import { ArrowRightLeft, Check, CheckCircle2, XCircle } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
 import { Select } from '../ui/Select'
@@ -9,8 +8,12 @@ import { useThreadStore } from '../../stores/threadStore'
 import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
 import { Button } from '../ui/Button'
-import { DialogCloseButton } from '../ui/DialogCloseButton'
 import { Input } from '../ui/Input'
+import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
+import { ModalHeader } from '../ui/ModalHeader'
+import { ScriptOutput } from '../worktreeCreation/ScriptOutput'
+import { worktreeCleanupFailureOf } from '../../utils/worktreeCleanupFailure'
+import styles from './WorktreeHandoffDialog.module.css'
 
 type HandoffMode = 'local' | 'worktree'
 type DialogPhase = 'confirm' | 'running' | 'success' | 'error'
@@ -75,10 +78,12 @@ export function WorktreeHandoffDialog({
   onBusyChange
 }: WorktreeHandoffDialogProps): JSX.Element | null {
   const t = useT()
+  const titleId = useId()
   const [phase, setPhase] = useState<DialogPhase>('confirm')
   const [branchDraft, setBranchDraft] = useState('')
   const [errorText, setErrorText] = useState<string | null>(null)
   const [conflictPaths, setConflictPaths] = useState<string[]>([])
+  const [cleanupOutput, setCleanupOutput] = useState<string | null>(null)
   const [successView, setSuccessView] = useState<HandoffSuccessView | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [steps, setSteps] = useState<HandoffStep[]>([])
@@ -196,6 +201,7 @@ export function WorktreeHandoffDialog({
 
     setErrorText(null)
     setConflictPaths([])
+    setCleanupOutput(null)
     setSuccessView(null)
     setSteps([])
     operationIdRef.current = `handoff-${thread.id}-${Date.now()}`
@@ -258,8 +264,11 @@ export function WorktreeHandoffDialog({
       })
       setPhase('success')
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = readAppServerErrorFields(err).data?.code === 'WorktreeInUse'
+        ? t('workspaceFooter.handoffWorktreeInUse')
+        : err instanceof Error ? err.message : String(err)
       setConflictPaths(conflictPathsOf(err))
+      setCleanupOutput(worktreeCleanupFailureOf(err)?.outputTail ?? null)
       setErrorText(t('workspaceFooter.handoffFailed', { error: message }))
       addToast(t('workspaceFooter.handoffFailed', { error: message }), 'error')
       if (dismissedRef.current) onClose()
@@ -271,279 +280,119 @@ export function WorktreeHandoffDialog({
 
   if (dismissed) return null
 
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      style={overlayStyle}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && phase !== 'running') onClose()
-      }}
-    >
-      <div style={modalStyle} onMouseDown={(event) => event.stopPropagation()}>
-        <DialogCloseButton label={t('workspaceFooter.close')} onClose={handleClose} style={closeButtonPositionStyle} />
-        <div style={phase === 'success' ? successIconShellStyle : iconShellStyle}>
-          {phase === 'success' ? (
-            <Check size={28} strokeWidth={2.2} aria-hidden />
-          ) : (
-            <ArrowRightLeft size={24} strokeWidth={1.9} aria-hidden />
-          )}
-        </div>
-        <h2 style={titleStyle}>{title}</h2>
-        <p style={descriptionStyle}>{description}</p>
+  const editable = phase === 'confirm' || phase === 'error'
 
-        {phase === 'success' ? null : phase === 'running' ? (
-          <div role="status" style={stepsStyle}>
-            {steps.filter((entry) => entry.status !== 'skipped').map((entry) => (
-              <div key={entry.step} style={stepStyle}>
-                {entry.status === 'completed' ? (
-                  <CheckCircle2 size={18} strokeWidth={1.8} aria-hidden />
-                ) : entry.status === 'failed' ? (
-                  <XCircle size={18} strokeWidth={1.8} aria-hidden style={{ color: 'var(--error)' }} />
-                ) : (
-                  <Spinner size={18} />
-                )}
-                <span>{t(`workspaceFooter.handoffStep.${entry.step}`, { branch: mode === 'local' ? worktreeBranch : '' })}</span>
-              </div>
-            ))}
-            {steps.length === 0 && <Spinner size={20} />}
-          </div>
-        ) : (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              void startHandoff()
-            }}
-          >
-            {mode === 'worktree' ? (
-              <>
-                {unboundWorktrees.length > 0 && (
-                  <label style={fieldStyle}>
-                    <span>{t('workspaceFooter.handoffTarget')}</span>
-                    <Select
-                      value={targetPath}
-                      ariaLabel={t('workspaceFooter.handoffTarget')}
-                      onValueChange={setTargetPath}
-                      options={[
-                        { value: NEW_WORKTREE, label: t('workspaceFooter.handoffTargetNew') },
-                        ...unboundWorktrees.map((entry) => ({
-                          value: entry.path,
-                          label: entry.branchName,
-                          description: t('workspaceFooter.handoffTargetExisting')
-                        }))
-                      ]}
-                    />
-                  </label>
-                )}
-                {!targetPath && (
-                  <label style={fieldStyle}>
-                    <span>{t('workspaceFooter.branchName')}</span>
-                    <Input
-                      value={branchDraft}
-                      autoFocus
-                      placeholder={t('workspaceFooter.branchNameAutomatic')}
-                      onChange={(event) => setBranchDraft(event.target.value)}
-                    />
-                  </label>
-                )}
-              </>
-            ) : (
-              <div style={localSummaryStyle}>
-                <span style={summaryLabelStyle}>{t('workspaceFooter.handoffLocalBranch')}</span>
-                <span style={summaryPillStyle}>{worktreeBranch}</span>
-                <span style={summaryLabelStyle}>{t('workspaceFooter.handoffLocalWorkspace')}</span>
-                <span style={summaryPillStyle}>{targetWorkspace}</span>
-              </div>
-            )}
-
-            {(branchError || errorText) && (
-              <div style={errorStyle}>{errorText || branchError}</div>
-            )}
-
-            {conflictPaths.length > 0 && (
-              <div style={conflictStyle}>
-                <span>{t('workspaceFooter.handoffConflictPaths')}</span>
-                <ul style={conflictListStyle}>
-                  {conflictPaths.map((path) => <li key={path}>{path}</li>)}
-                </ul>
-              </div>
-            )}
-
-            {disabledReason && (
-              <div role="status" style={noticeStyle}>{disabledReason}</div>
-            )}
-
-            <Button
-              type="submit"
-              variant="primary"
-              size="prominent"
-              disabled={handoffDisabled}
-              autoFocus={mode === 'local'}
-              style={{ width: '100%' }}
-            >
-              {t('workspaceFooter.handOff')}
+  return (
+    <ModalDialog
+      titleId={titleId}
+      onDismiss={phase === 'running' ? undefined : onClose}
+      onSubmit={editable ? () => void startHandoff() : undefined}
+      header={(
+        <ModalHeader
+          icon={phase === 'success'
+            ? <Check size={18} strokeWidth={2.2} aria-hidden />
+            : <ArrowRightLeft size={18} strokeWidth={2} aria-hidden />}
+          title={title}
+          titleId={titleId}
+          description={description}
+          onClose={handleClose}
+          closeLabel={t('workspaceFooter.close')}
+        />
+      )}
+      error={editable ? errorText || branchError : null}
+      footer={editable ? (
+        <ModalFooter>
+          {phase === 'error' && (
+            <Button variant="secondary" onClick={onClose}>
+              {t('workspaceFooter.close')}
             </Button>
-          </form>
-        )}
-
-        {phase === 'error' && (
-          <Button
-            variant="secondary"
-            size="prominent"
-            style={{ width: '100%' }}
-            onClick={onClose}
-          >
-            {t('workspaceFooter.close')}
+          )}
+          <Button type="submit" variant="primary" disabled={handoffDisabled} autoFocus={mode === 'local'}>
+            {t('workspaceFooter.handOff')}
           </Button>
-        )}
-      </div>
-    </div>,
-    document.body
+        </ModalFooter>
+      ) : undefined}
+    >
+      {phase === 'running' ? (
+        <div role="status" className={styles.steps}>
+          {steps.filter((entry) => entry.status !== 'skipped').map((entry) => (
+            <div key={entry.step} className={styles.step}>
+              {entry.status === 'completed' ? (
+                <CheckCircle2 size={18} strokeWidth={1.8} aria-hidden />
+              ) : entry.status === 'failed' ? (
+                <XCircle size={18} strokeWidth={1.8} aria-hidden className={styles.failed} />
+              ) : (
+                <Spinner size={18} />
+              )}
+              <span>{t(`workspaceFooter.handoffStep.${entry.step}`, { branch: mode === 'local' ? worktreeBranch : '' })}</span>
+            </div>
+          ))}
+          {steps.length === 0 && <Spinner size={20} />}
+        </div>
+      ) : editable ? (
+        <>
+          {mode === 'worktree' ? (
+            <>
+              {unboundWorktrees.length > 0 && (
+                <label className={styles.field}>
+                  <span>{t('workspaceFooter.handoffTarget')}</span>
+                  <Select
+                    value={targetPath}
+                    ariaLabel={t('workspaceFooter.handoffTarget')}
+                    onValueChange={setTargetPath}
+                    options={[
+                      { value: NEW_WORKTREE, label: t('workspaceFooter.handoffTargetNew') },
+                      ...unboundWorktrees.map((entry) => ({
+                        value: entry.path,
+                        label: entry.branchName,
+                        description: t('workspaceFooter.handoffTargetExisting')
+                      }))
+                    ]}
+                  />
+                </label>
+              )}
+              {!targetPath && (
+                <label className={styles.field}>
+                  <span>{t('workspaceFooter.branchName')}</span>
+                  <Input
+                    value={branchDraft}
+                    autoFocus
+                    placeholder={t('workspaceFooter.branchNameAutomatic')}
+                    onChange={(event) => setBranchDraft(event.target.value)}
+                  />
+                </label>
+              )}
+            </>
+          ) : (
+            <div className={styles.summary}>
+              <span className={styles.summaryLabel}>{t('workspaceFooter.handoffLocalBranch')}</span>
+              <span className={styles.summaryPill}>{worktreeBranch}</span>
+              <span className={styles.summaryLabel}>{t('workspaceFooter.handoffLocalWorkspace')}</span>
+              <span className={styles.summaryPill}>{targetWorkspace}</span>
+            </div>
+          )}
+
+          {conflictPaths.length > 0 && (
+            <div className={styles.detail}>
+              <span>{t('workspaceFooter.handoffConflictPaths')}</span>
+              <ul className={styles.conflictList}>
+                {conflictPaths.map((path) => <li key={path}>{path}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {cleanupOutput ? (
+            <div className={`${styles.detail} ${styles.cleanupOutput}`}>
+              <span>{t('workspaceFooter.cleanupOutput')}</span>
+              <ScriptOutput text={cleanupOutput} label={t('workspaceFooter.cleanupOutput')} />
+            </div>
+          ) : null}
+
+          {disabledReason && (
+            <div role="status" className={styles.notice}>{disabledReason}</div>
+          )}
+        </>
+      ) : null}
+    </ModalDialog>
   )
-}
-
-const overlayStyle: CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 10000,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'var(--overlay-scrim)'
-}
-
-const modalStyle: CSSProperties = {
-  position: 'relative',
-  width: '520px',
-  maxWidth: 'calc(100vw - 48px)',
-  padding: '24px 28px 28px',
-  borderRadius: '10px',
-  background: 'var(--bg-secondary)',
-  color: 'var(--text-primary)',
-  boxShadow: 'var(--shadow-level-3)'
-}
-
-const closeButtonPositionStyle: CSSProperties = {
-  position: 'absolute',
-  top: '16px',
-  right: '16px'
-}
-
-const iconShellStyle: CSSProperties = {
-  width: '48px',
-  height: '48px',
-  borderRadius: '10px',
-  background: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginBottom: '18px'
-}
-
-const successIconShellStyle: CSSProperties = {
-  ...iconShellStyle,
-  background: 'color-mix(in srgb, var(--success) 24%, var(--bg-tertiary))',
-  color: 'var(--success)'
-}
-
-const titleStyle: CSSProperties = {
-  margin: '0 36px 10px 0',
-  fontSize: '24px',
-  lineHeight: 1.2,
-  letterSpacing: 0,
-  color: 'var(--text-primary)'
-}
-
-const descriptionStyle: CSSProperties = {
-  margin: '0 0 22px',
-  color: 'var(--text-secondary)',
-  fontSize: '15px',
-  lineHeight: 1.55
-}
-
-const fieldStyle: CSSProperties = {
-  display: 'grid',
-  gap: '9px',
-  color: 'var(--text-primary)',
-  fontSize: '13px',
-  fontWeight: 600,
-  marginBottom: '12px'
-}
-
-const stepsStyle: CSSProperties = {
-  display: 'grid',
-  gap: '14px',
-  marginTop: '8px'
-}
-
-const stepStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '12px',
-  fontSize: '14px',
-  lineHeight: 1.4,
-  color: 'var(--text-primary)'
-}
-
-const localSummaryStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'max-content minmax(0, 1fr)',
-  alignItems: 'center',
-  gap: '12px 10px',
-  margin: '8px 0 0'
-}
-
-const summaryLabelStyle: CSSProperties = {
-  color: 'var(--text-secondary)',
-  fontSize: '14px'
-}
-
-const summaryPillStyle: CSSProperties = {
-  minWidth: 0,
-  justifySelf: 'start',
-  maxWidth: '100%',
-  padding: '6px 10px',
-  borderRadius: '8px',
-  background: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)',
-  fontSize: '14px',
-  fontWeight: 600,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap'
-}
-
-const errorStyle: CSSProperties = {
-  marginTop: '10px',
-  color: 'var(--error)',
-  fontSize: '13px',
-  lineHeight: 1.45
-}
-
-const conflictStyle: CSSProperties = {
-  marginTop: '10px',
-  color: 'var(--text-secondary)',
-  fontSize: '13px',
-  lineHeight: 1.45
-}
-
-const conflictListStyle: CSSProperties = {
-  margin: '6px 0 0',
-  paddingLeft: '18px',
-  maxHeight: '140px',
-  overflowY: 'auto',
-  fontFamily: 'var(--font-mono)',
-  color: 'var(--text-primary)'
-}
-
-const noticeStyle: CSSProperties = {
-  marginTop: '12px',
-  padding: '10px 12px',
-  borderRadius: '8px',
-  background: 'var(--bg-tertiary)',
-  color: 'var(--text-secondary)',
-  fontSize: '13px',
-  lineHeight: 1.45
 }

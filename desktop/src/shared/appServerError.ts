@@ -1,7 +1,6 @@
 /**
- * Electron flattens a thrown Error to its message, so main returns AppServer failures
- * as an envelope and preload rebuilds an Error carrying the JSON-RPC code and `data`.
- * Imported by main, preload and the renderer, so no Node or Electron APIs.
+ * IPC and the context bridge both flatten an Error to its message, so main returns
+ * AppServer failures as an envelope and preload rejects with a plain object instead.
  */
 
 export interface AppServerErrorData {
@@ -91,8 +90,18 @@ export function fromAppServerErrorEnvelope(
   return error
 }
 
-/** Rethrows a failure envelope; any other value is the request's own result. */
+export interface AppServerRejection extends AppServerErrorFields {
+  name: string
+  message: string
+  toString(): string
+}
+
+export function toAppServerRejection(envelope: AppServerErrorEnvelope): AppServerRejection {
+  const { __appServerError: _marker, name, message, ...fields } = envelope
+  return { ...fields, name: name ?? 'Error', message, toString: () => message }
+}
+
 export function unwrapAppServerResult<T>(outcome: unknown): T {
-  if (isAppServerErrorEnvelope(outcome)) throw fromAppServerErrorEnvelope(outcome)
+  if (isAppServerErrorEnvelope(outcome)) throw toAppServerRejection(outcome)
   return outcome as T
 }

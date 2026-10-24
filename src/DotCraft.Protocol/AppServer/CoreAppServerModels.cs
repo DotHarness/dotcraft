@@ -3,7 +3,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DotCraft.Protocol.AppServer;
-/// <summary>Executable wire contract for AgentProfileAudit.</summary>
 public sealed class AgentProfileAudit : ExtensibleJsonObject
 {
     [JsonPropertyName("code")]
@@ -40,7 +39,6 @@ public sealed class AgentProfileAudit : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileBuilderDraftReadParams.</summary>
 public sealed class AgentProfileBuilderDraftReadParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -49,7 +47,6 @@ public sealed class AgentProfileBuilderDraftReadParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileBuilderDraftResult.</summary>
 public sealed class AgentProfileBuilderDraftResult : ExtensibleJsonObject
 {
     [JsonPropertyName("rawContent")]
@@ -70,7 +67,6 @@ public sealed class AgentProfileBuilderDraftResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileBuilderDraftUpdateParams.</summary>
 public sealed class AgentProfileBuilderDraftUpdateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("rawContent")]
@@ -83,7 +79,6 @@ public sealed class AgentProfileBuilderDraftUpdateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileDiagnostic.</summary>
 public sealed class AgentProfileDiagnostic : ExtensibleJsonObject
 {
     [JsonPropertyName("code")]
@@ -100,7 +95,6 @@ public sealed class AgentProfileDiagnostic : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileEntry.</summary>
 public sealed class AgentProfileEntry : ExtensibleJsonObject
 {
     [JsonPropertyName("compiledConfig")]
@@ -193,7 +187,6 @@ public sealed class AgentProfileEntry : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileListParams.</summary>
 public sealed class AgentProfileListParams : ExtensibleJsonObject
 {
     [JsonPropertyName("includeInvalid")]
@@ -206,7 +199,6 @@ public sealed class AgentProfileListParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileListResult.</summary>
 public sealed class AgentProfileListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("profiles")]
@@ -215,7 +207,6 @@ public sealed class AgentProfileListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileProviderPreference.</summary>
 public sealed class AgentProfileProviderPreference : ExtensibleJsonObject
 {
 
@@ -237,7 +228,6 @@ public sealed class AgentProfileProviderPreference : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileReadParams.</summary>
 public sealed class AgentProfileReadParams : ExtensibleJsonObject
 {
     [JsonPropertyName("id")]
@@ -250,7 +240,6 @@ public sealed class AgentProfileReadParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileReadResult.</summary>
 public sealed class AgentProfileReadResult : ExtensibleJsonObject
 {
     [JsonPropertyName("profile")]
@@ -259,7 +248,6 @@ public sealed class AgentProfileReadResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileReasoningPreference.</summary>
 public sealed class AgentProfileReasoningPreference : ExtensibleJsonObject
 {
     [JsonPropertyName("effort")]
@@ -272,7 +260,6 @@ public sealed class AgentProfileReasoningPreference : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileRefreshThreadParams.</summary>
 public sealed class AgentProfileRefreshThreadParams : ExtensibleJsonObject
 {
     [JsonPropertyName("profileId")]
@@ -285,7 +272,6 @@ public sealed class AgentProfileRefreshThreadParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileRefreshThreadResult.</summary>
 public sealed class AgentProfileRefreshThreadResult : ExtensibleJsonObject
 {
     [JsonPropertyName("audit")]
@@ -310,7 +296,6 @@ public sealed class AgentProfileRefreshThreadResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileRemoveParams.</summary>
 public sealed class AgentProfileRemoveParams : ExtensibleJsonObject
 {
     [JsonPropertyName("id")]
@@ -323,7 +308,6 @@ public sealed class AgentProfileRemoveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileRemoveResult.</summary>
 public sealed class AgentProfileRemoveResult : ExtensibleJsonObject
 {
     [JsonPropertyName("removed")]
@@ -332,7 +316,6 @@ public sealed class AgentProfileRemoveResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileSummary.</summary>
 public sealed class AgentProfileSummary : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
@@ -345,7 +328,6 @@ public sealed class AgentProfileSummary : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileUpsertParams.</summary>
 public sealed class AgentProfileUpsertParams : ExtensibleJsonObject
 {
     [JsonPropertyName("previousName")]
@@ -366,7 +348,6 @@ public sealed class AgentProfileUpsertParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileUpsertResult.</summary>
 public sealed class AgentProfileUpsertResult : ExtensibleJsonObject
 {
     [JsonPropertyName("profile")]
@@ -375,7 +356,6 @@ public sealed class AgentProfileUpsertResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileValidateParams.</summary>
 public sealed class AgentProfileValidateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("rawContent")]
@@ -388,7 +368,6 @@ public sealed class AgentProfileValidateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileValidateResult.</summary>
 public sealed class AgentProfileValidateResult : ExtensibleJsonObject
 {
     [JsonPropertyName("compiledConfig")]
@@ -421,7 +400,6 @@ public sealed class AgentProfileValidateResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for BackgroundTerminalSnapshot.</summary>
 public sealed class BackgroundTerminalSnapshot : ExtensibleJsonObject
 {
     [JsonPropertyName("backgroundReason")]
@@ -495,7 +473,6 @@ public sealed class BackgroundTerminalSnapshot : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ChannelInfo.</summary>
 public sealed class ChannelInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("category")]
@@ -508,7 +485,6 @@ public sealed class ChannelInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ChannelListResult.</summary>
 public sealed class ChannelListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("channels")]
@@ -517,7 +493,6 @@ public sealed class ChannelListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ChannelStatusInfo.</summary>
 public sealed class ChannelStatusInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("category")]
@@ -546,7 +521,6 @@ public sealed class ChannelStatusInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ChannelStatusResult.</summary>
 public sealed class ChannelStatusResult : ExtensibleJsonObject
 {
     [JsonPropertyName("channels")]
@@ -555,7 +529,6 @@ public sealed class ChannelStatusResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for CommandExecuteParams.</summary>
 public sealed class CommandExecuteParams : ExtensibleJsonObject
 {
     [JsonPropertyName("arguments")]
@@ -576,7 +549,6 @@ public sealed class CommandExecuteParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for CommandChoice.</summary>
 public sealed class CommandChoice : ExtensibleJsonObject
 {
     [JsonPropertyName("command")]
@@ -589,7 +561,6 @@ public sealed class CommandChoice : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for CommandExecuteResult.</summary>
 public sealed class CommandExecuteResult : ExtensibleJsonObject
 {
     [JsonPropertyName("choices")]
@@ -618,7 +589,6 @@ public sealed class CommandExecuteResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for CommandInfo.</summary>
 public sealed class CommandInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("aliases")]
@@ -651,7 +621,6 @@ public sealed class CommandInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for CommandListParams.</summary>
 public sealed class CommandListParams : ExtensibleJsonObject
 {
     [JsonPropertyName("includeBuiltins")]
@@ -664,7 +633,6 @@ public sealed class CommandListParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for CommandListResult.</summary>
 public sealed class CommandListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("commands")]
@@ -673,7 +641,6 @@ public sealed class CommandListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ConfigSchemaField.</summary>
 public sealed class ConfigSchemaField : ExtensibleJsonObject
 {
     [JsonPropertyName("defaultValue")]
@@ -720,7 +687,6 @@ public sealed class ConfigSchemaField : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ConfigSchemaSection.</summary>
 public sealed class ConfigSchemaSection : ExtensibleJsonObject
 {
     [JsonPropertyName("fields")]
@@ -747,7 +713,6 @@ public sealed class ConfigSchemaSection : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ContextUsageSnapshot.</summary>
 public sealed class ContextUsageSnapshot : ExtensibleJsonObject
 {
     [JsonPropertyName("autoCompactThreshold")]
@@ -785,7 +750,6 @@ public sealed class ContextUsageSnapshot : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for DreamsCreateParams.</summary>
 public sealed class DreamsCreateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("instructions")]
@@ -806,7 +770,6 @@ public sealed class DreamsCreateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for DreamsFileChange.</summary>
 public sealed class DreamsFileChange : ExtensibleJsonObject
 {
     [JsonPropertyName("baseline")]
@@ -827,7 +790,6 @@ public sealed class DreamsFileChange : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for DreamsGetResult.</summary>
 public sealed class DreamsGetResult : ExtensibleJsonObject
 {
     [JsonPropertyName("files")]
@@ -840,7 +802,6 @@ public sealed class DreamsGetResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for DreamsListParams.</summary>
 public sealed class DreamsListParams : ExtensibleJsonObject
 {
     [JsonPropertyName("includeArchived")]
@@ -849,7 +810,6 @@ public sealed class DreamsListParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for DreamsListResult.</summary>
 public sealed class DreamsListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("runs")]
@@ -858,7 +818,6 @@ public sealed class DreamsListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for DreamsRunChanges.</summary>
 public sealed class DreamsRunChanges : ExtensibleJsonObject
 {
     [JsonPropertyName("added")]
@@ -879,7 +838,6 @@ public sealed class DreamsRunChanges : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for DreamsRunIdParams.</summary>
 public sealed class DreamsRunIdParams : ExtensibleJsonObject
 {
     [JsonPropertyName("runId")]
@@ -888,12 +846,10 @@ public sealed class DreamsRunIdParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for DreamsRunParams.</summary>
 public sealed class DreamsRunParams : ExtensibleJsonObject
 {
 }
 
-/// <summary>Executable wire contract for DreamsRunResult.</summary>
 public sealed class DreamsRunResult : ExtensibleJsonObject
 {
     [JsonPropertyName("run")]
@@ -902,7 +858,6 @@ public sealed class DreamsRunResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for DreamsRunState.</summary>
 public sealed class DreamsRunState : ExtensibleJsonObject
 {
     [JsonPropertyName("autoApplied")]
@@ -987,12 +942,10 @@ public sealed class DreamsRunState : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for DreamsStatusParams.</summary>
 public sealed class DreamsStatusParams : ExtensibleJsonObject
 {
 }
 
-/// <summary>Executable wire contract for DreamsStatusResult.</summary>
 public sealed class DreamsStatusResult : ExtensibleJsonObject
 {
     [JsonPropertyName("autoApply")]
@@ -1025,7 +978,6 @@ public sealed class DreamsStatusResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for HookErrorInfo.</summary>
 public sealed class HookErrorInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("message")]
@@ -1038,7 +990,6 @@ public sealed class HookErrorInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for HookMetadata.</summary>
 public sealed class HookMetadata : ExtensibleJsonObject
 {
     [JsonPropertyName("asyncRewake")]
@@ -1131,12 +1082,10 @@ public sealed class HookMetadata : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for HooksListParams.</summary>
 public sealed class HooksListParams : ExtensibleJsonObject
 {
 }
 
-/// <summary>Executable wire contract for HooksListResult.</summary>
 public sealed class HooksListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("errors")]
@@ -1153,7 +1102,6 @@ public sealed class HooksListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for HooksSetStateParams.</summary>
 public sealed class HooksSetStateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("enabled")]
@@ -1170,7 +1118,6 @@ public sealed class HooksSetStateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for HooksSetStateResult.</summary>
 public sealed class HooksSetStateResult : ExtensibleJsonObject
 {
     [JsonPropertyName("errors")]
@@ -1187,7 +1134,6 @@ public sealed class HooksSetStateResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for HooksTrustPluginParams.</summary>
 public sealed class HooksTrustPluginParams : ExtensibleJsonObject
 {
     [JsonPropertyName("pluginId")]
@@ -1196,7 +1142,6 @@ public sealed class HooksTrustPluginParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for HooksTrustPluginResult.</summary>
 public sealed class HooksTrustPluginResult : ExtensibleJsonObject
 {
     [JsonPropertyName("errors")]
@@ -1213,7 +1158,6 @@ public sealed class HooksTrustPluginResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for VisualizationViewCloseParams.</summary>
 public sealed class VisualizationViewCloseParams : ExtensibleJsonObject
 {
     [JsonPropertyName("viewHandle")]
@@ -1222,7 +1166,6 @@ public sealed class VisualizationViewCloseParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for VisualizationViewCloseResult.</summary>
 public sealed class VisualizationViewCloseResult : ExtensibleJsonObject
 {
     [JsonPropertyName("closed")]
@@ -1231,7 +1174,6 @@ public sealed class VisualizationViewCloseResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for VisualizationViewMessageParams.</summary>
 public sealed class VisualizationViewMessageParams : ExtensibleJsonObject
 {
     [JsonPropertyName("context")]
@@ -1248,7 +1190,6 @@ public sealed class VisualizationViewMessageParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for VisualizationViewMessageResult.</summary>
 public sealed class VisualizationViewMessageResult : ExtensibleJsonObject
 {
     [JsonPropertyName("queuedInputId")]
@@ -1257,7 +1198,6 @@ public sealed class VisualizationViewMessageResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for VisualizationViewOpenParams.</summary>
 public sealed class VisualizationViewOpenParams : ExtensibleJsonObject
 {
     [JsonPropertyName("itemId")]
@@ -1278,7 +1218,6 @@ public sealed class VisualizationViewOpenParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for VisualizationViewOpenResult.</summary>
 public sealed class VisualizationViewOpenResult : ExtensibleJsonObject
 {
     [JsonPropertyName("fragment")]
@@ -1299,7 +1238,6 @@ public sealed class VisualizationViewOpenResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for VisualizationViewWidgetStateUpdateParams.</summary>
 public sealed class VisualizationViewWidgetStateUpdateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("modelContent")]
@@ -1316,7 +1254,6 @@ public sealed class VisualizationViewWidgetStateUpdateParams : ExtensibleJsonObj
 
 }
 
-/// <summary>Executable wire contract for VisualizationWidgetState.</summary>
 public sealed class VisualizationWidgetState : ExtensibleJsonObject
 {
     [JsonPropertyName("modelContent")]
@@ -1329,7 +1266,6 @@ public sealed class VisualizationWidgetState : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for VisualizationWidgetStateUpdatedNotification.</summary>
 public sealed class VisualizationWidgetStateUpdatedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")] public required string ThreadId { get; init; }
@@ -1342,7 +1278,6 @@ public sealed class VisualizationWidgetStateUpdatedNotification : ExtensibleJson
     public VisualizationWidgetState? WidgetState { get; init; }
 }
 
-/// <summary>Executable wire contract for MarketplaceAddParams.</summary>
 public sealed class MarketplaceAddParams : ExtensibleJsonObject
 {
     [JsonPropertyName("marketplacePath")]
@@ -1363,7 +1298,6 @@ public sealed class MarketplaceAddParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for MarketplaceAddResult.</summary>
 public sealed class MarketplaceAddResult : ExtensibleJsonObject
 {
     [JsonPropertyName("alreadyAdded")]
@@ -1376,7 +1310,6 @@ public sealed class MarketplaceAddResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for MarketplaceFailure.</summary>
 public sealed class MarketplaceFailure : ExtensibleJsonObject
 {
     [JsonPropertyName("code")]
@@ -1393,7 +1326,6 @@ public sealed class MarketplaceFailure : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for MarketplaceInfo.</summary>
 public sealed class MarketplaceInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("displayName")]
@@ -1446,7 +1378,6 @@ public sealed class MarketplaceInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for MarketplaceRefreshParams.</summary>
 public sealed class MarketplaceRefreshParams : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -1455,7 +1386,6 @@ public sealed class MarketplaceRefreshParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for MarketplaceRefreshResult.</summary>
 public sealed class MarketplaceRefreshResult : ExtensibleJsonObject
 {
     [JsonPropertyName("errors")]
@@ -1468,7 +1398,6 @@ public sealed class MarketplaceRefreshResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for MarketplaceRemoveParams.</summary>
 public sealed class MarketplaceRemoveParams : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -1477,7 +1406,6 @@ public sealed class MarketplaceRemoveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for MarketplaceRemoveResult.</summary>
 public sealed class MarketplaceRemoveResult : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -1490,7 +1418,6 @@ public sealed class MarketplaceRemoveResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppMessageContent.</summary>
 public sealed class McpAppMessageContent : ExtensibleJsonObject
 {
     [JsonPropertyName("text")]
@@ -1503,7 +1430,6 @@ public sealed class McpAppMessageContent : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppResourceCsp.</summary>
 public sealed class McpAppResourceCsp : ExtensibleJsonObject
 {
     [JsonPropertyName("baseUriDomains")]
@@ -1524,7 +1450,6 @@ public sealed class McpAppResourceCsp : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppResourceMetadata.</summary>
 public sealed class McpAppResourceMetadata : ExtensibleJsonObject
 {
     [JsonPropertyName("csp")]
@@ -1541,7 +1466,6 @@ public sealed class McpAppResourceMetadata : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppResource.</summary>
 public sealed class McpAppResource : ExtensibleJsonObject
 {
     [JsonPropertyName("html")]
@@ -1562,7 +1486,6 @@ public sealed class McpAppResource : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppToolResult.</summary>
 public sealed class McpAppToolResult : ExtensibleJsonObject
 {
     [JsonPropertyName("_meta")]
@@ -1591,7 +1514,6 @@ public sealed class McpAppToolResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppTool.</summary>
 public sealed class McpAppTool : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
@@ -1608,7 +1530,6 @@ public sealed class McpAppTool : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewCloseParams.</summary>
 public sealed class McpAppViewCloseParams : ExtensibleJsonObject
 {
     [JsonPropertyName("viewHandle")]
@@ -1617,7 +1538,6 @@ public sealed class McpAppViewCloseParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewCloseResult.</summary>
 public sealed class McpAppViewCloseResult : ExtensibleJsonObject
 {
     [JsonPropertyName("closed")]
@@ -1626,7 +1546,6 @@ public sealed class McpAppViewCloseResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewMessageParams.</summary>
 public sealed class McpAppViewMessageParams : ExtensibleJsonObject
 {
     [JsonPropertyName("content")]
@@ -1643,7 +1562,6 @@ public sealed class McpAppViewMessageParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewMessageResult.</summary>
 public sealed class McpAppViewMessageResult : ExtensibleJsonObject
 {
     [JsonPropertyName("queuedInputId")]
@@ -1652,7 +1570,6 @@ public sealed class McpAppViewMessageResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewModelContextUpdateParams.</summary>
 public sealed class McpAppViewModelContextUpdateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("content")]
@@ -1669,7 +1586,6 @@ public sealed class McpAppViewModelContextUpdateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewModelContextUpdateResult.</summary>
 public sealed class McpAppViewModelContextUpdateResult : ExtensibleJsonObject
 {
     [JsonPropertyName("cleared")]
@@ -1678,7 +1594,6 @@ public sealed class McpAppViewModelContextUpdateResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewOpenLinkParams.</summary>
 public sealed class McpAppViewOpenLinkParams : ExtensibleJsonObject
 {
     [JsonPropertyName("url")]
@@ -1691,7 +1606,6 @@ public sealed class McpAppViewOpenLinkParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewOpenLinkResult.</summary>
 public sealed class McpAppViewOpenLinkResult : ExtensibleJsonObject
 {
     [JsonPropertyName("url")]
@@ -1700,7 +1614,6 @@ public sealed class McpAppViewOpenLinkResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewOpenParams.</summary>
 public sealed class McpAppViewOpenParams : ExtensibleJsonObject
 {
     [JsonPropertyName("itemId")]
@@ -1717,7 +1630,6 @@ public sealed class McpAppViewOpenParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewOpenResult.</summary>
 public sealed class McpAppViewOpenResult : ExtensibleJsonObject
 {
     [JsonPropertyName("resource")]
@@ -1738,7 +1650,6 @@ public sealed class McpAppViewOpenResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewResourceReadParams.</summary>
 public sealed class McpAppViewResourceReadParams : ExtensibleJsonObject
 {
     [JsonPropertyName("uri")]
@@ -1751,7 +1662,6 @@ public sealed class McpAppViewResourceReadParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewResourceReadResult.</summary>
 public sealed class McpAppViewResourceReadResult : ExtensibleJsonObject
 {
     [JsonPropertyName("contents")]
@@ -1760,7 +1670,6 @@ public sealed class McpAppViewResourceReadResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewStatusUpdatedParams.</summary>
 public sealed class McpAppViewStatusUpdatedParams : ExtensibleJsonObject
 {
     [JsonPropertyName("code")]
@@ -1781,7 +1690,6 @@ public sealed class McpAppViewStatusUpdatedParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewToolCallParams.</summary>
 public sealed class McpAppViewToolCallParams : ExtensibleJsonObject
 {
     [JsonPropertyName("arguments")]
@@ -1798,7 +1706,6 @@ public sealed class McpAppViewToolCallParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewToolsListParams.</summary>
 public sealed class McpAppViewToolsListParams : ExtensibleJsonObject
 {
     [JsonPropertyName("viewHandle")]
@@ -1807,7 +1714,6 @@ public sealed class McpAppViewToolsListParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppViewToolsListResult.</summary>
 public sealed class McpAppViewToolsListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("tools")]
@@ -1816,7 +1722,6 @@ public sealed class McpAppViewToolsListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpGetParams.</summary>
 public sealed class McpGetParams : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -1825,7 +1730,6 @@ public sealed class McpGetParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpGetResult.</summary>
 public sealed class McpGetResult : ExtensibleJsonObject
 {
     [JsonPropertyName("server")]
@@ -1834,7 +1738,6 @@ public sealed class McpGetResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpListResult.</summary>
 public sealed class McpListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("servers")]
@@ -1843,7 +1746,6 @@ public sealed class McpListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpRemoveParams.</summary>
 public sealed class McpRemoveParams : ExtensibleJsonObject
 {
     [JsonPropertyName("scope")] public required string Scope { get; init; }
@@ -1854,7 +1756,6 @@ public sealed class McpRemoveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpRemoveResult.</summary>
 public sealed class McpRemoveResult : ExtensibleJsonObject
 {
     [JsonPropertyName("removed")]
@@ -1863,7 +1764,6 @@ public sealed class McpRemoveResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpRuntimeTool.</summary>
 public sealed class McpRuntimeTool : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
@@ -1888,7 +1788,6 @@ public sealed class McpRuntimeTool : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadMcpServerConfig.</summary>
 public sealed class ThreadMcpServerConfig : ExtensibleJsonObject
 {
     [JsonPropertyName("arguments")]
@@ -1953,7 +1852,6 @@ public sealed class ThreadMcpServerConfig : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerConfig.</summary>
 public sealed class McpServerConfig : ExtensibleJsonObject
 {
     [JsonPropertyName("args")]
@@ -2030,7 +1928,6 @@ public sealed class McpServerConfig : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerElicitationRequestParams.</summary>
 public sealed class McpServerElicitationRequestParams : ExtensibleJsonObject
 {
     [JsonPropertyName("elicitationId")]
@@ -2067,7 +1964,6 @@ public sealed class McpServerElicitationRequestParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerElicitationResponse.</summary>
 public sealed class McpServerElicitationResponse : ExtensibleJsonObject
 {
     [JsonPropertyName("action")]
@@ -2080,7 +1976,6 @@ public sealed class McpServerElicitationResponse : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerOAuthLoginCompletedNotification.</summary>
 public sealed class McpServerOAuthLoginCompletedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("error")]
@@ -2101,7 +1996,6 @@ public sealed class McpServerOAuthLoginCompletedNotification : ExtensibleJsonObj
 
 }
 
-/// <summary>Executable wire contract for McpServerOAuthLoginParams.</summary>
 public sealed class McpServerOAuthLoginParams : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -2122,7 +2016,6 @@ public sealed class McpServerOAuthLoginParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerOAuthLoginResult.</summary>
 public sealed class McpServerOAuthLoginResult : ExtensibleJsonObject
 {
     [JsonPropertyName("authorizationUrl")]
@@ -2131,7 +2024,6 @@ public sealed class McpServerOAuthLoginResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerOrigin.</summary>
 public sealed class McpServerOrigin : ExtensibleJsonObject
 {
     [JsonPropertyName("bindingId")]
@@ -2160,12 +2052,10 @@ public sealed class McpServerOrigin : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerReloadResult.</summary>
 public sealed class McpServerReloadResult : ExtensibleJsonObject
 {
 }
 
-/// <summary>Executable wire contract for McpServerResourceReadParams.</summary>
 public sealed class McpServerResourceReadParams : ExtensibleJsonObject
 {
     [JsonPropertyName("server")]
@@ -2182,7 +2072,6 @@ public sealed class McpServerResourceReadParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerResourceReadResult.</summary>
 public sealed class McpServerResourceReadResult : ExtensibleJsonObject
 {
     [JsonPropertyName("contents")]
@@ -2191,7 +2080,6 @@ public sealed class McpServerResourceReadResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerRuntimeStatus.</summary>
 public sealed class McpServerRuntimeStatus : ExtensibleJsonObject
 {
     [JsonPropertyName("authState")]
@@ -2273,7 +2161,6 @@ public sealed class McpServerRuntimeStatus : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerStartupStatusUpdatedNotification.</summary>
 public sealed class McpServerStartupStatusUpdatedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("authStatus")]
@@ -2306,7 +2193,6 @@ public sealed class McpServerStartupStatusUpdatedNotification : ExtensibleJsonOb
 
 }
 
-/// <summary>Executable wire contract for McpServerStatusListParams.</summary>
 public sealed class McpServerStatusListParams : ExtensibleJsonObject
 {
     [JsonPropertyName("cursor")]
@@ -2327,7 +2213,6 @@ public sealed class McpServerStatusListParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerStatusListResult.</summary>
 public sealed class McpServerStatusListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("data")]
@@ -2340,7 +2225,6 @@ public sealed class McpServerStatusListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerToolCallParams.</summary>
 public sealed class McpServerToolCallParams : ExtensibleJsonObject
 {
     [JsonPropertyName("_meta")]
@@ -2365,7 +2249,6 @@ public sealed class McpServerToolCallParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerToolCallResult.</summary>
 public sealed class McpServerToolCallResult : ExtensibleJsonObject
 {
     [JsonPropertyName("_meta")]
@@ -2386,7 +2269,6 @@ public sealed class McpServerToolCallResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpTestParams.</summary>
 public sealed class McpTestParams : ExtensibleJsonObject
 {
     [JsonPropertyName("server")]
@@ -2395,7 +2277,6 @@ public sealed class McpTestParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpTestResult.</summary>
 public sealed class McpTestResult : ExtensibleJsonObject
 {
     [JsonPropertyName("errorCode")]
@@ -2416,7 +2297,6 @@ public sealed class McpTestResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpUpsertParams.</summary>
 public sealed class McpUpsertParams : ExtensibleJsonObject
 {
     [JsonPropertyName("scope")] public required string Scope { get; init; }
@@ -2427,7 +2307,6 @@ public sealed class McpUpsertParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpUpsertResult.</summary>
 public sealed class McpUpsertResult : ExtensibleJsonObject
 {
     [JsonPropertyName("server")]
@@ -2436,12 +2315,10 @@ public sealed class McpUpsertResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for MemoryResetResult.</summary>
 public sealed class MemoryResetResult : ExtensibleJsonObject
 {
 }
 
-/// <summary>Executable wire contract for ModelCatalogItem.</summary>
 public sealed class ModelCatalogItem : ExtensibleJsonObject
 {
     [JsonPropertyName("contextWindow")]
@@ -2474,7 +2351,6 @@ public sealed class ModelCatalogItem : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ModelListParams.</summary>
 public sealed class ModelListParams : ExtensibleJsonObject
 {
     [JsonPropertyName("providerId")]
@@ -2483,7 +2359,6 @@ public sealed class ModelListParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ModelListResult.</summary>
 public sealed class ModelListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("errorCode")]
@@ -2512,7 +2387,6 @@ public sealed class ModelListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ModelPreference.</summary>
 public sealed class ModelPreference : ExtensibleJsonObject
 {
 
@@ -2530,7 +2404,6 @@ public sealed class ModelPreference : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ModelReasoningCapability.</summary>
 public sealed class ModelReasoningCapability : ExtensibleJsonObject
 {
     [JsonPropertyName("defaultEffort")]
@@ -2555,7 +2428,6 @@ public sealed class ModelReasoningCapability : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ModelReasoningEffortOption.</summary>
 public sealed class ModelReasoningEffortOption : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
@@ -2572,7 +2444,6 @@ public sealed class ModelReasoningEffortOption : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ModelSpeedCapability.</summary>
 public sealed class ModelSpeedCapability : ExtensibleJsonObject
 {
     [JsonPropertyName("defaultMode")]
@@ -2585,7 +2456,6 @@ public sealed class ModelSpeedCapability : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PerforceConnection.</summary>
 public sealed class PerforceConnection : ExtensibleJsonObject
 {
     [JsonPropertyName("autoOffline")]
@@ -2626,7 +2496,6 @@ public sealed class PerforceConnection : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PlanTodo.</summary>
 public sealed class PlanTodo : ExtensibleJsonObject
 {
     [JsonPropertyName("content")]
@@ -2647,7 +2516,6 @@ public sealed class PlanTodo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PlanUpdatedNotification.</summary>
 public sealed class PlanUpdatedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("content")]
@@ -2672,7 +2540,6 @@ public sealed class PlanUpdatedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginAppInfo.</summary>
 public sealed class PluginAppInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("appId")]
@@ -2709,7 +2576,6 @@ public sealed class PluginAppInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginAppNativeApplication.</summary>
 public sealed class PluginAppNativeApplication : ExtensibleJsonObject
 {
     [JsonPropertyName("displayName")]
@@ -2726,7 +2592,6 @@ public sealed class PluginAppNativeApplication : ExtensibleJsonObject
 
 }
 
-/// <summary>Local Desktop module declaration and content revision for one plugin.</summary>
 public sealed class PluginDesktopInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
@@ -2747,7 +2612,6 @@ public sealed class PluginDesktopInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Observed state of one minimum-version code-plugin dependency.</summary>
 public sealed class PluginDependencyInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("availability")]
@@ -2767,7 +2631,6 @@ public sealed class PluginDependencyInfo : ExtensibleJsonObject
     public Optional<string> RequiredVersion { get; init; }
 }
 
-/// <summary>Executable wire contract for PluginDiagnostic.</summary>
 public sealed class PluginDiagnostic : ExtensibleJsonObject
 {
     [JsonPropertyName("code")]
@@ -2796,7 +2659,6 @@ public sealed class PluginDiagnostic : ExtensibleJsonObject
 
 }
 
-/// <summary>Static metadata for a code-plugin bundle.</summary>
 public sealed class PluginDotnetInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("displayName")]
@@ -2824,7 +2686,6 @@ public sealed class PluginDotnetInfo : ExtensibleJsonObject
     public Optional<string> MinHostVersion { get; init; }
 }
 
-/// <summary>Current process-local .NET runtime state for one plugin.</summary>
 public sealed class PluginDotnetRuntimeInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("state")]
@@ -2848,7 +2709,6 @@ public sealed class PluginDotnetRuntimeInfo : ExtensibleJsonObject
     public Optional<string> TrustStatus { get; init; }
 }
 
-/// <summary>Stable runtime blocker with safe structured parameters.</summary>
 public sealed class PluginRuntimeBlocker : ExtensibleJsonObject
 {
     [JsonPropertyName("code")]
@@ -2861,7 +2721,6 @@ public sealed class PluginRuntimeBlocker : ExtensibleJsonObject
     public Optional<IReadOnlyDictionary<string, JsonElement>> Parameters { get; init; }
 }
 
-/// <summary>Executable wire contract for PluginFunctionInfo.</summary>
 public sealed class PluginFunctionInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
@@ -2878,7 +2737,6 @@ public sealed class PluginFunctionInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginHookInfo.</summary>
 public sealed class PluginHookInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("eventName")]
@@ -2891,7 +2749,6 @@ public sealed class PluginHookInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginInfo.</summary>
 public sealed class PluginInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("apps")]
@@ -2992,7 +2849,6 @@ public sealed class PluginInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Safe metadata for a Dynamic Workflow contributed by a plugin.</summary>
 public sealed class PluginWorkflowInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -3009,7 +2865,6 @@ public sealed class PluginWorkflowInfo : ExtensibleJsonObject
     public Optional<string?> WhenToUse { get; init; }
 }
 
-/// <summary>Executable wire contract for PluginInstallLocalParams.</summary>
 public sealed class PluginInstallLocalParams : ExtensibleJsonObject
 {
     [JsonPropertyName("path")]
@@ -3018,7 +2873,6 @@ public sealed class PluginInstallLocalParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginInstallParams.</summary>
 public sealed class PluginInstallParams : ExtensibleJsonObject
 {
     [JsonPropertyName("id")]
@@ -3027,14 +2881,12 @@ public sealed class PluginInstallParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Params for reading one plugin's layered configuration.</summary>
 public sealed class PluginConfigGetParams : ExtensibleJsonObject
 {
     [JsonPropertyName("id")]
     public required string Id { get; init; }
 }
 
-/// <summary>One schema-backed plugin configuration field.</summary>
 public sealed class PluginConfigField : ExtensibleJsonObject
 {
     [JsonPropertyName("key")]
@@ -3060,14 +2912,12 @@ public sealed class PluginConfigField : ExtensibleJsonObject
     public Optional<double> Max { get; init; }
 }
 
-/// <summary>Validated plugin configuration schema.</summary>
 public sealed class PluginConfigSchema : ExtensibleJsonObject
 {
     [JsonPropertyName("fields")]
     public required IReadOnlyList<PluginConfigField> Fields { get; init; }
 }
 
-/// <summary>One set or unset operation for a plugin configuration namespace.</summary>
 public sealed class PluginConfigMutationOperation : ExtensibleJsonObject
 {
     [JsonPropertyName("op")]
@@ -3081,7 +2931,6 @@ public sealed class PluginConfigMutationOperation : ExtensibleJsonObject
     public Optional<JsonElement> Value { get; init; }
 }
 
-/// <summary>Params for atomically mutating one plugin configuration scope.</summary>
 public sealed class PluginConfigMutateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("id")]
@@ -3094,7 +2943,6 @@ public sealed class PluginConfigMutateParams : ExtensibleJsonObject
     public required IReadOnlyList<PluginConfigMutationOperation> Operations { get; init; }
 }
 
-/// <summary>Fresh personal, workspace, and effective plugin configuration.</summary>
 public sealed class PluginConfigSnapshot : ExtensibleJsonObject
 {
     [JsonPropertyName("schema")]
@@ -3113,7 +2961,6 @@ public sealed class PluginConfigSnapshot : ExtensibleJsonObject
     public required IReadOnlyList<string> WritableScopes { get; init; }
 }
 
-/// <summary>Executable wire contract for PluginInterface.</summary>
 public sealed class PluginInterface : ExtensibleJsonObject
 {
     [JsonPropertyName("capabilities")]
@@ -3166,7 +3013,6 @@ public sealed class PluginInterface : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginListParams.</summary>
 public sealed class PluginListParams : ExtensibleJsonObject
 {
     [JsonPropertyName("includeDisabled")]
@@ -3175,7 +3021,6 @@ public sealed class PluginListParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginListResult.</summary>
 public sealed class PluginListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("workspacePath")]
@@ -3200,7 +3045,6 @@ public sealed class PluginListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Final .NET runtime projection for another plugin affected by a mutation.</summary>
 public sealed class PluginRuntimeProjection : ExtensibleJsonObject
 {
     [JsonPropertyName("id")]
@@ -3216,7 +3060,6 @@ public sealed class PluginRuntimeProjection : ExtensibleJsonObject
     public Optional<PluginDotnetRuntimeInfo> DotnetRuntime { get; init; }
 }
 
-/// <summary>Unified result for plugin lifecycle mutations.</summary>
 public sealed class PluginOperationResult : ExtensibleJsonObject
 {
     [JsonPropertyName("outcome")]
@@ -3236,7 +3079,6 @@ public sealed class PluginOperationResult : ExtensibleJsonObject
     public Optional<long> SnapshotRevision { get; init; }
 }
 
-/// <summary>Invalidates a workspace plugin-management snapshot.</summary>
 public sealed class PluginSnapshotUpdatedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("snapshotRevision")]
@@ -3247,7 +3089,6 @@ public sealed class PluginSnapshotUpdatedNotification : ExtensibleJsonObject
     public Optional<IReadOnlyList<string>> PluginIds { get; init; }
 }
 
-/// <summary>Executable wire contract for PluginLspServerInfo.</summary>
 public sealed class PluginLspServerInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("active")]
@@ -3280,7 +3121,6 @@ public sealed class PluginLspServerInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginMcpServerInfo.</summary>
 public sealed class PluginMcpServerInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("active")]
@@ -3309,7 +3149,6 @@ public sealed class PluginMcpServerInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginRemoveParams.</summary>
 public sealed class PluginRemoveParams : ExtensibleJsonObject
 {
     [JsonPropertyName("id")]
@@ -3318,7 +3157,6 @@ public sealed class PluginRemoveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginSetEnabledParams.</summary>
 public sealed class PluginSetEnabledParams : ExtensibleJsonObject
 {
     [JsonPropertyName("enabled")]
@@ -3329,7 +3167,6 @@ public sealed class PluginSetEnabledParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Params for granting or revoking a code plugin's trust confirmation.</summary>
 public sealed class PluginSetTrustedParams : ExtensibleJsonObject
 {
     [JsonPropertyName("id")]
@@ -3339,7 +3176,6 @@ public sealed class PluginSetTrustedParams : ExtensibleJsonObject
     public required bool Trusted { get; init; }
 }
 
-/// <summary>Executable wire contract for PluginSkillInfo.</summary>
 public sealed class PluginSkillInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
@@ -3372,7 +3208,6 @@ public sealed class PluginSkillInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Params for reading source Markdown from a plugin-declared skill.</summary>
 public sealed class PluginSkillReadParams : ExtensibleJsonObject
 {
     [JsonPropertyName("id")]
@@ -3382,7 +3217,6 @@ public sealed class PluginSkillReadParams : ExtensibleJsonObject
     public required string Name { get; init; }
 }
 
-/// <summary>Source Markdown for a plugin-declared skill.</summary>
 public sealed class PluginSkillReadResult : ExtensibleJsonObject
 {
     [JsonPropertyName("id")]
@@ -3395,7 +3229,6 @@ public sealed class PluginSkillReadResult : ExtensibleJsonObject
     public required string Content { get; init; }
 }
 
-/// <summary>Executable wire contract for PluginViewParams.</summary>
 public sealed class PluginViewParams : ExtensibleJsonObject
 {
     [JsonPropertyName("id")]
@@ -3404,7 +3237,6 @@ public sealed class PluginViewParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginViewResult.</summary>
 public sealed class PluginViewResult : ExtensibleJsonObject
 {
     [JsonPropertyName("plugin")]
@@ -3417,7 +3249,6 @@ public sealed class PluginViewResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ProfileInsightsParams.</summary>
 public sealed class ProfileInsightsParams : ExtensibleJsonObject
 {
     [JsonPropertyName("topSkills")]
@@ -3426,7 +3257,6 @@ public sealed class ProfileInsightsParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ProfileInsightsResult.</summary>
 public sealed class ProfileInsightsResult : ExtensibleJsonObject
 {
     [JsonPropertyName("longestTaskMs")]
@@ -3461,7 +3291,6 @@ public sealed class ProfileInsightsResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ProviderCapabilities.</summary>
 public sealed class ProviderCapabilities : ExtensibleJsonObject
 {
     [JsonPropertyName("cachedInputUsageReporting")]
@@ -3510,7 +3339,6 @@ public sealed class ProviderCapabilities : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ProviderInfo.</summary>
 public sealed partial class ProviderInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("apiKey")]
@@ -3569,12 +3397,10 @@ public sealed partial class ProviderInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ProviderListParams.</summary>
 public sealed class ProviderListParams : ExtensibleJsonObject
 {
 }
 
-/// <summary>Executable wire contract for ProviderListResult.</summary>
 public sealed partial class ProviderListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("providers")]
@@ -3583,7 +3409,6 @@ public sealed partial class ProviderListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ProviderTestParams.</summary>
 public sealed class ProviderTestParams : ExtensibleJsonObject
 {
     [JsonPropertyName("apiKey")]
@@ -3620,7 +3445,6 @@ public sealed class ProviderTestParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ProviderTestResult.</summary>
 public sealed class ProviderTestResult : ExtensibleJsonObject
 {
     [JsonPropertyName("errorCode")]
@@ -3649,7 +3473,6 @@ public sealed class ProviderTestResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for RankedMetric.</summary>
 public sealed class RankedMetric : ExtensibleJsonObject
 {
     [JsonPropertyName("count")]
@@ -3668,7 +3491,6 @@ public sealed class RankedMetric : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ReasoningConfig.</summary>
 public sealed class ReasoningConfig : ExtensibleJsonObject
 {
     [JsonPropertyName("effort")]
@@ -3685,7 +3507,6 @@ public sealed class ReasoningConfig : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillInfo.</summary>
 public sealed class SkillInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("defaultPrompt")]
@@ -3746,7 +3567,6 @@ public sealed class SkillInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillUsage.</summary>
 public sealed class SkillUsage : ExtensibleJsonObject
 {
     [JsonPropertyName("count")]
@@ -3764,7 +3584,6 @@ public sealed class SkillUsage : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillsListResult.</summary>
 public sealed class SkillsListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("skills")]
@@ -3773,7 +3592,6 @@ public sealed class SkillsListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillsReadParams.</summary>
 public sealed class SkillsReadParams : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -3782,7 +3600,6 @@ public sealed class SkillsReadParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillsReadResult.</summary>
 public sealed class SkillsReadResult : ExtensibleJsonObject
 {
     [JsonPropertyName("content")]
@@ -3799,7 +3616,6 @@ public sealed class SkillsReadResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillsRestoreOriginalParams.</summary>
 public sealed class SkillsRestoreOriginalParams : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -3808,7 +3624,6 @@ public sealed class SkillsRestoreOriginalParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillsRestoreOriginalResult.</summary>
 public sealed class SkillsRestoreOriginalResult : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -3821,7 +3636,6 @@ public sealed class SkillsRestoreOriginalResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillsSetEnabledParams.</summary>
 public sealed class SkillsSetEnabledParams : ExtensibleJsonObject
 {
     [JsonPropertyName("enabled")]
@@ -3834,7 +3648,6 @@ public sealed class SkillsSetEnabledParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillsSetEnabledResult.</summary>
 public sealed class SkillsSetEnabledResult : ExtensibleJsonObject
 {
     [JsonPropertyName("skill")]
@@ -3843,7 +3656,6 @@ public sealed class SkillsSetEnabledResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillsUninstallParams.</summary>
 public sealed class SkillsUninstallParams : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -3852,7 +3664,6 @@ public sealed class SkillsUninstallParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillsUninstallResult.</summary>
 public sealed class SkillsUninstallResult : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -3877,7 +3688,6 @@ public sealed class SkillsUninstallResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillsViewParams.</summary>
 public sealed class SkillsViewParams : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -3886,7 +3696,6 @@ public sealed class SkillsViewParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillsViewResult.</summary>
 public sealed class SkillsViewResult : ExtensibleJsonObject
 {
     [JsonPropertyName("content")]
@@ -3899,7 +3708,6 @@ public sealed class SkillsViewResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlCapabilities.</summary>
 public sealed class SourceControlCapabilities : ExtensibleJsonObject
 {
     [JsonPropertyName("gitCommit")]
@@ -3924,7 +3732,6 @@ public sealed class SourceControlCapabilities : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlChangelistCreateParams.</summary>
 public sealed class SourceControlChangelistCreateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
@@ -3941,7 +3748,6 @@ public sealed class SourceControlChangelistCreateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlChangelistCreateResult.</summary>
 public sealed class SourceControlChangelistCreateResult : ExtensibleJsonObject
 {
     [JsonPropertyName("changelist")]
@@ -3954,7 +3760,6 @@ public sealed class SourceControlChangelistCreateResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlChangelistEntry.</summary>
 public sealed class SourceControlChangelistEntry : ExtensibleJsonObject
 {
     [JsonPropertyName("client")]
@@ -3983,7 +3788,6 @@ public sealed class SourceControlChangelistEntry : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlChangelistListParams.</summary>
 public sealed class SourceControlChangelistListParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -3992,7 +3796,6 @@ public sealed class SourceControlChangelistListParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlChangelistListResult.</summary>
 public sealed class SourceControlChangelistListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("changelists")]
@@ -4005,7 +3808,6 @@ public sealed class SourceControlChangelistListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlChangelistPrepareParams.</summary>
 public sealed class SourceControlChangelistPrepareParams : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
@@ -4026,7 +3828,6 @@ public sealed class SourceControlChangelistPrepareParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlChangelistPrepareResult.</summary>
 public sealed class SourceControlChangelistPrepareResult : ExtensibleJsonObject
 {
     [JsonPropertyName("changelist")]
@@ -4063,7 +3864,6 @@ public sealed class SourceControlChangelistPrepareResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlDiagnosticItem.</summary>
 public sealed class SourceControlDiagnosticItem : ExtensibleJsonObject
 {
     [JsonPropertyName("code")]
@@ -4076,12 +3876,10 @@ public sealed class SourceControlDiagnosticItem : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlGetParams.</summary>
 public sealed class SourceControlGetParams : ExtensibleJsonObject
 {
 }
 
-/// <summary>Executable wire contract for SourceControlSnapshot.</summary>
 public sealed class SourceControlSnapshot : ExtensibleJsonObject
 {
     [JsonPropertyName("capabilities")]
@@ -4114,7 +3912,6 @@ public sealed class SourceControlSnapshot : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlTestAuthentication.</summary>
 public sealed class SourceControlTestAuthentication : ExtensibleJsonObject
 {
     [JsonPropertyName("expiresMessage")]
@@ -4131,7 +3928,6 @@ public sealed class SourceControlTestAuthentication : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlTestDiagnostics.</summary>
 public sealed class SourceControlTestDiagnostics : ExtensibleJsonObject
 {
     [JsonPropertyName("errorCode")]
@@ -4152,7 +3948,6 @@ public sealed class SourceControlTestDiagnostics : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlTestIdentity.</summary>
 public sealed class SourceControlTestIdentity : ExtensibleJsonObject
 {
     [JsonPropertyName("charset")]
@@ -4177,7 +3972,6 @@ public sealed class SourceControlTestIdentity : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlTestParams.</summary>
 public sealed class SourceControlTestParams : ExtensibleJsonObject
 {
     [JsonPropertyName("connectionMode")]
@@ -4198,7 +3992,6 @@ public sealed class SourceControlTestParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlTestResult.</summary>
 public sealed class SourceControlTestResult : ExtensibleJsonObject
 {
     [JsonPropertyName("authentication")]
@@ -4243,7 +4036,6 @@ public sealed class SourceControlTestResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlTestWorkspace.</summary>
 public sealed class SourceControlTestWorkspace : ExtensibleJsonObject
 {
     [JsonPropertyName("altRoots")]
@@ -4264,7 +4056,6 @@ public sealed class SourceControlTestWorkspace : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlThreadTargetParams.</summary>
 public sealed class SourceControlThreadTargetParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -4273,7 +4064,6 @@ public sealed class SourceControlThreadTargetParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlThreadTargetResult.</summary>
 public sealed class SourceControlThreadTargetResult : ExtensibleJsonObject
 {
     [JsonPropertyName("target")]
@@ -4282,7 +4072,6 @@ public sealed class SourceControlThreadTargetResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlThreadTargetUpdateParams.</summary>
 public sealed class SourceControlThreadTargetUpdateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("target")]
@@ -4295,7 +4084,6 @@ public sealed class SourceControlThreadTargetUpdateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlThreadTarget.</summary>
 public sealed class SourceControlThreadTarget : ExtensibleJsonObject
 {
     [JsonPropertyName("changelist")]
@@ -4308,7 +4096,6 @@ public sealed class SourceControlThreadTarget : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlUpdateParams.</summary>
 public sealed class SourceControlUpdateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("connectionMode")]
@@ -4325,7 +4112,6 @@ public sealed class SourceControlUpdateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentChild.</summary>
 public sealed class SubAgentChild : ExtensibleJsonObject
 {
     [JsonPropertyName("edge")]
@@ -4338,7 +4124,6 @@ public sealed class SubAgentChild : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentChildrenListParams.</summary>
 public sealed class SubAgentChildrenListParams : ExtensibleJsonObject
 {
     [JsonPropertyName("includeClosed")]
@@ -4355,7 +4140,6 @@ public sealed class SubAgentChildrenListParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentChildrenListResult.</summary>
 public sealed class SubAgentChildrenListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("data")]
@@ -4364,7 +4148,6 @@ public sealed class SubAgentChildrenListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentControlResult.</summary>
 public sealed class SubAgentControlResult : ExtensibleJsonObject
 {
     [JsonPropertyName("agentNickname")]
@@ -4413,7 +4196,6 @@ public sealed class SubAgentControlResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentGraphChangedNotification.</summary>
 public sealed class SubAgentGraphChangedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("childThreadId")]
@@ -4426,7 +4208,6 @@ public sealed class SubAgentGraphChangedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProfileDiagnostic.</summary>
 public sealed class SubAgentProfileDiagnostic : ExtensibleJsonObject
 {
     [JsonPropertyName("binaryResolved")]
@@ -4451,7 +4232,6 @@ public sealed class SubAgentProfileDiagnostic : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProfileEntry.</summary>
 public sealed class SubAgentProfileEntry : ExtensibleJsonObject
 {
     [JsonPropertyName("builtInDefaults")]
@@ -4492,7 +4272,6 @@ public sealed class SubAgentProfileEntry : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProfileListResult.</summary>
 public sealed class SubAgentProfileListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("defaultName")]
@@ -4509,7 +4288,6 @@ public sealed class SubAgentProfileListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProfileRemoveParams.</summary>
 public sealed class SubAgentProfileRemoveParams : ExtensibleJsonObject
 {
     [JsonPropertyName("name")]
@@ -4518,7 +4296,6 @@ public sealed class SubAgentProfileRemoveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProfileRemoveResult.</summary>
 public sealed class SubAgentProfileRemoveResult : ExtensibleJsonObject
 {
     [JsonPropertyName("removed")]
@@ -4527,7 +4304,6 @@ public sealed class SubAgentProfileRemoveResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProfileSetEnabledParams.</summary>
 public sealed class SubAgentProfileSetEnabledParams : ExtensibleJsonObject
 {
     [JsonPropertyName("enabled")]
@@ -4540,7 +4316,6 @@ public sealed class SubAgentProfileSetEnabledParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProfileSetEnabledResult.</summary>
 public sealed class SubAgentProfileSetEnabledResult : ExtensibleJsonObject
 {
     [JsonPropertyName("profile")]
@@ -4549,7 +4324,6 @@ public sealed class SubAgentProfileSetEnabledResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProfileUpsertParams.</summary>
 public sealed class SubAgentProfileUpsertParams : ExtensibleJsonObject
 {
     [JsonPropertyName("definition")]
@@ -4562,7 +4336,6 @@ public sealed class SubAgentProfileUpsertParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProfileUpsertResult.</summary>
 public sealed class SubAgentProfileUpsertResult : ExtensibleJsonObject
 {
     [JsonPropertyName("profile")]
@@ -4571,7 +4344,6 @@ public sealed class SubAgentProfileUpsertResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProfileWrite.</summary>
 public sealed class SubAgentProfileWrite : ExtensibleJsonObject
 {
     [JsonPropertyName("args")]
@@ -4692,7 +4464,6 @@ public sealed class SubAgentProfileWrite : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProgressEntry.</summary>
 public sealed class SubAgentProgressEntry : ExtensibleJsonObject
 {
     [JsonPropertyName("cacheWriteInputTokens")]
@@ -4742,7 +4513,6 @@ public sealed class SubAgentProgressEntry : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProgressNotification.</summary>
 public sealed class SubAgentProgressNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("entries")]
@@ -4759,7 +4529,6 @@ public sealed class SubAgentProgressNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentSettingsUpdateParams.</summary>
 public sealed class SubAgentSettingsUpdateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("externalCliSessionResumeEnabled")]
@@ -4772,7 +4541,6 @@ public sealed class SubAgentSettingsUpdateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentSettingsUpdateResult.</summary>
 public sealed class SubAgentSettingsUpdateResult : ExtensibleJsonObject
 {
     [JsonPropertyName("settings")]
@@ -4781,7 +4549,6 @@ public sealed class SubAgentSettingsUpdateResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentSettings.</summary>
 public sealed class SubAgentSettings : ExtensibleJsonObject
 {
     [JsonPropertyName("externalCliSessionResumeEnabled")]
@@ -4794,7 +4561,6 @@ public sealed class SubAgentSettings : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentTargetMessageParams.</summary>
 public sealed class SubAgentTargetMessageParams : ExtensibleJsonObject
 {
     [JsonPropertyName("deliveryMode")]
@@ -4815,7 +4581,6 @@ public sealed class SubAgentTargetMessageParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentTargetParams.</summary>
 public sealed class SubAgentTargetParams : ExtensibleJsonObject
 {
     [JsonPropertyName("parentThreadId")]
@@ -4828,7 +4593,6 @@ public sealed class SubAgentTargetParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SystemEventNotification.</summary>
 public sealed class SystemEventNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("contextUsage")]
@@ -4878,7 +4642,6 @@ public sealed class SystemEventNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SystemJobResultNotification.</summary>
 public sealed class SystemJobResultNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("error")]
@@ -4918,7 +4681,6 @@ public sealed class SystemJobResultNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SystemJobTokenUsage.</summary>
 public sealed class SystemJobTokenUsage : ExtensibleJsonObject
 {
     [JsonPropertyName("inputTokens")]
@@ -4931,7 +4693,6 @@ public sealed class SystemJobTokenUsage : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TerminalCleanParams.</summary>
 public sealed class TerminalCleanParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -4940,7 +4701,6 @@ public sealed class TerminalCleanParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TerminalCleanResult.</summary>
 public sealed class TerminalCleanResult : ExtensibleJsonObject
 {
     [JsonPropertyName("terminals")]
@@ -4949,7 +4709,6 @@ public sealed class TerminalCleanResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TerminalLifecycleNotification.</summary>
 public sealed class TerminalLifecycleNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("delta")]
@@ -4962,7 +4721,6 @@ public sealed class TerminalLifecycleNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TerminalListParams.</summary>
 public sealed class TerminalListParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -4971,7 +4729,6 @@ public sealed class TerminalListParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TerminalListResult.</summary>
 public sealed class TerminalListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("terminals")]
@@ -4980,7 +4737,6 @@ public sealed class TerminalListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TerminalReadParams.</summary>
 public sealed class TerminalReadParams : ExtensibleJsonObject
 {
     [JsonPropertyName("maxOutputChars")]
@@ -4997,7 +4753,6 @@ public sealed class TerminalReadParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TerminalReadResult.</summary>
 public sealed class TerminalReadResult : ExtensibleJsonObject
 {
     [JsonPropertyName("terminal")]
@@ -5006,7 +4761,6 @@ public sealed class TerminalReadResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TerminalStopParams.</summary>
 public sealed class TerminalStopParams : ExtensibleJsonObject
 {
     [JsonPropertyName("sessionId")]
@@ -5015,7 +4769,6 @@ public sealed class TerminalStopParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TerminalStopResult.</summary>
 public sealed class TerminalStopResult : ExtensibleJsonObject
 {
     [JsonPropertyName("terminal")]
@@ -5024,7 +4777,6 @@ public sealed class TerminalStopResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TerminalWriteParams.</summary>
 public sealed class TerminalWriteParams : ExtensibleJsonObject
 {
     [JsonPropertyName("input")]
@@ -5045,7 +4797,6 @@ public sealed class TerminalWriteParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TerminalWriteResult.</summary>
 public sealed class TerminalWriteResult : ExtensibleJsonObject
 {
     [JsonPropertyName("terminal")]
@@ -5054,7 +4805,6 @@ public sealed class TerminalWriteResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadArchiveParams.</summary>
 public sealed class ThreadArchiveParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -5063,7 +4813,6 @@ public sealed class ThreadArchiveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadCompactStartParams.</summary>
 public sealed class ThreadCompactStartParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -5072,7 +4821,6 @@ public sealed class ThreadCompactStartParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadCompactStartResponse.</summary>
 public sealed class ThreadCompactStartResponse : ExtensibleJsonObject
 {
     [JsonPropertyName("contextUsage")]
@@ -5089,7 +4837,6 @@ public sealed class ThreadCompactStartResponse : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadConfigUpdateParams.</summary>
 public sealed class ThreadConfigUpdateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("config")]
@@ -5102,7 +4849,6 @@ public sealed class ThreadConfigUpdateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadConfiguration.</summary>
 public sealed class ThreadConfiguration : ExtensibleJsonObject
 {
     [JsonPropertyName("agentBuilderTargetId")]
@@ -5243,7 +4989,6 @@ public sealed class ThreadConfiguration : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadDeleteParams.</summary>
 public sealed class ThreadDeleteParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -5252,7 +4997,6 @@ public sealed class ThreadDeleteParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadForkParams.</summary>
 public sealed class ThreadForkParams : ExtensibleJsonObject
 {
     [JsonPropertyName("additionalContext")]
@@ -5309,7 +5053,6 @@ public sealed class ThreadForkParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadForkPoint.</summary>
 public sealed class ThreadForkPoint : ExtensibleJsonObject
 {
     [JsonPropertyName("itemId")]
@@ -5326,20 +5069,17 @@ public sealed class ThreadForkPoint : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadForkResult.</summary>
 public sealed class ThreadForkResult : ExtensibleJsonObject
 {
     [JsonPropertyName("thread")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<SessionThread> Thread { get; init; }
 
-    /// <summary>Ordered absolute logical paths that contributed to the thread instruction snapshot.</summary>
     [JsonPropertyName("instructionSources")]
     public required IReadOnlyList<string> InstructionSources { get; init; }
 
 }
 
-/// <summary>Executable wire contract for ThreadGitInfo.</summary>
 public sealed class ThreadGitInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("branch")]
@@ -5352,7 +5092,6 @@ public sealed class ThreadGitInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadGoalClearParams.</summary>
 public sealed class ThreadGoalClearParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -5361,7 +5100,6 @@ public sealed class ThreadGoalClearParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadGoalClearResult.</summary>
 public sealed class ThreadGoalClearResult : ExtensibleJsonObject
 {
     [JsonPropertyName("cleared")]
@@ -5370,7 +5108,6 @@ public sealed class ThreadGoalClearResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadGoalClearedNotification.</summary>
 public sealed class ThreadGoalClearedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -5379,7 +5116,6 @@ public sealed class ThreadGoalClearedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadGoalGetParams.</summary>
 public sealed class ThreadGoalGetParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -5388,7 +5124,6 @@ public sealed class ThreadGoalGetParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadGoalGetResult.</summary>
 public sealed class ThreadGoalGetResult : ExtensibleJsonObject
 {
     [JsonPropertyName("goal")]
@@ -5397,7 +5132,6 @@ public sealed class ThreadGoalGetResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadGoalSetParams.</summary>
 public sealed class ThreadGoalSetParams : ExtensibleJsonObject
 {
     [JsonPropertyName("objective")]
@@ -5419,7 +5153,6 @@ public sealed class ThreadGoalSetParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadGoalSetResult.</summary>
 public sealed class ThreadGoalSetResult : ExtensibleJsonObject
 {
     [JsonPropertyName("goal")]
@@ -5428,7 +5161,6 @@ public sealed class ThreadGoalSetResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadGoalUpdatedNotification.</summary>
 public sealed class ThreadGoalUpdatedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("goal")]
@@ -5445,7 +5177,6 @@ public sealed class ThreadGoalUpdatedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadGoal.</summary>
 public sealed class ThreadGoal : ExtensibleJsonObject
 {
     [JsonPropertyName("createdAt")]
@@ -5480,7 +5211,6 @@ public sealed class ThreadGoal : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadMaintenanceInterruptParams.</summary>
 public sealed class ThreadMaintenanceInterruptParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -5489,7 +5219,6 @@ public sealed class ThreadMaintenanceInterruptParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadMcpPolicy.</summary>
 public sealed class ThreadMcpPolicy : ExtensibleJsonObject
 {
     [JsonPropertyName("servers")]
@@ -5502,7 +5231,6 @@ public sealed class ThreadMcpPolicy : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadModeSetParams.</summary>
 public sealed class ThreadModeSetParams : ExtensibleJsonObject
 {
     [JsonPropertyName("mode")]
@@ -5515,7 +5243,6 @@ public sealed class ThreadModeSetParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadNamePolicy.</summary>
 public sealed class ThreadNamePolicy : ExtensibleJsonObject
 {
     [JsonPropertyName("allow")]
@@ -5528,7 +5255,6 @@ public sealed class ThreadNamePolicy : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadPluginPolicy.</summary>
 public sealed class ThreadPluginPolicy : ExtensibleJsonObject
 {
     [JsonPropertyName("allow")]
@@ -5541,7 +5267,6 @@ public sealed class ThreadPluginPolicy : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadQueueUpdatedNotification.</summary>
 public sealed class ThreadQueueUpdatedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("queuedInputs")]
@@ -5554,7 +5279,6 @@ public sealed class ThreadQueueUpdatedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadRenameParams.</summary>
 public sealed class ThreadRenameParams : ExtensibleJsonObject
 {
     [JsonPropertyName("displayName")]
@@ -5567,7 +5291,6 @@ public sealed class ThreadRenameParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadRenamedNotification.</summary>
 public sealed class ThreadRenamedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("displayName")]
@@ -5580,7 +5303,6 @@ public sealed class ThreadRenamedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadRollbackParams.</summary>
 public sealed class ThreadRollbackParams : ExtensibleJsonObject
 {
     [JsonPropertyName("numTurns")]
@@ -5593,7 +5315,6 @@ public sealed class ThreadRollbackParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadRollbackResponse.</summary>
 public sealed class ThreadRollbackResponse : ExtensibleJsonObject
 {
     [JsonPropertyName("thread")]
@@ -5602,7 +5323,6 @@ public sealed class ThreadRollbackResponse : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadRuntimeState.</summary>
 public sealed class ThreadRuntimeState : ExtensibleJsonObject
 {
     [JsonPropertyName("activeTurnId")]
@@ -5643,7 +5363,6 @@ public sealed class ThreadRuntimeState : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadSkillsPolicy.</summary>
 public sealed class ThreadSkillsPolicy : ExtensibleJsonObject
 {
     [JsonPropertyName("allow")]
@@ -5660,7 +5379,6 @@ public sealed class ThreadSkillsPolicy : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadSpawnEdge.</summary>
 public sealed class ThreadSpawnEdge : ExtensibleJsonObject
 {
     [JsonPropertyName("agentNickname")]
@@ -5737,7 +5455,6 @@ public sealed class ThreadSpawnEdge : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadStatusChangedNotification.</summary>
 public sealed class ThreadStatusChangedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("runtime")]
@@ -5750,7 +5467,6 @@ public sealed class ThreadStatusChangedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadSubscribeParams.</summary>
 public sealed class ThreadSubscribeParams : ExtensibleJsonObject
 {
     [JsonPropertyName("replayRecent")]
@@ -5763,7 +5479,6 @@ public sealed class ThreadSubscribeParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadTokenUsage.</summary>
 public sealed class ThreadTokenUsage : ExtensibleJsonObject
 {
     [JsonPropertyName("last")]
@@ -5780,7 +5495,6 @@ public sealed class ThreadTokenUsage : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadTokenUsageUpdatedNotification.</summary>
 public sealed class ThreadTokenUsageUpdatedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -5797,7 +5511,6 @@ public sealed class ThreadTokenUsageUpdatedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadToolPolicy.</summary>
 public sealed class ThreadToolPolicy : ExtensibleJsonObject
 {
     [JsonPropertyName("agentControl")]
@@ -5818,7 +5531,6 @@ public sealed class ThreadToolPolicy : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadUnarchiveParams.</summary>
 public sealed class ThreadUnarchiveParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -5827,7 +5539,6 @@ public sealed class ThreadUnarchiveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadUnsubscribeParams.</summary>
 public sealed class ThreadUnsubscribeParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -5836,7 +5547,6 @@ public sealed class ThreadUnsubscribeParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadWorktreeDirtyHandoffInfo.</summary>
 public sealed class ThreadWorktreeDirtyHandoffInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("copiedFileCount")]
@@ -5861,7 +5571,6 @@ public sealed class ThreadWorktreeDirtyHandoffInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadWorktreeHandoffProgressNotification.</summary>
 public sealed class ThreadWorktreeHandoffProgressNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("operationId")]
@@ -5882,7 +5591,6 @@ public sealed class ThreadWorktreeHandoffProgressNotification : ExtensibleJsonOb
 
 }
 
-/// <summary>Executable wire contract for ThreadWorktreeHandoffParams.</summary>
 public sealed class ThreadWorktreeHandoffParams : ExtensibleJsonObject
 {
     [JsonPropertyName("baseRef")]
@@ -5915,7 +5623,6 @@ public sealed class ThreadWorktreeHandoffParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadWorktreeHandoffResponse.</summary>
 public sealed class ThreadWorktreeHandoffResponse : ExtensibleJsonObject
 {
     [JsonPropertyName("dirtyHandoff")]
@@ -5936,7 +5643,6 @@ public sealed class ThreadWorktreeHandoffResponse : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadWorktreeInfo.</summary>
 public sealed class ThreadWorktreeInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("baseHead")]
@@ -5958,6 +5664,10 @@ public sealed class ThreadWorktreeInfo : ExtensibleJsonObject
     [JsonPropertyName("dirtyHandoff")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ThreadWorktreeDirtyHandoffInfo?> DirtyHandoff { get; init; }
+
+    [JsonPropertyName("environmentPath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> EnvironmentPath { get; init; }
 
     [JsonPropertyName("head")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -5993,7 +5703,6 @@ public sealed class ThreadWorktreeInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadWorktreeStatus.</summary>
 public sealed class ThreadWorktreeStatus : ExtensibleJsonObject
 {
     [JsonPropertyName("aheadCount")]
@@ -6038,7 +5747,6 @@ public sealed class ThreadWorktreeStatus : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TokenUsageBreakdown.</summary>
 public sealed class TokenUsageBreakdown : ExtensibleJsonObject
 {
     [JsonPropertyName("cacheWriteInputTokens")]
@@ -6073,7 +5781,6 @@ public sealed class TokenUsageBreakdown : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TokenUsageInfo.</summary>
 public sealed class TokenUsageInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("cacheHitRate")]
@@ -6126,7 +5833,6 @@ public sealed class TokenUsageInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ToolInfo.</summary>
 public sealed class ToolInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
@@ -6147,7 +5853,6 @@ public sealed class ToolInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ToolListParams.</summary>
 public sealed class ToolListParams : ExtensibleJsonObject
 {
     [JsonPropertyName("mode")]
@@ -6156,7 +5861,6 @@ public sealed class ToolListParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ToolListResult.</summary>
 public sealed class ToolListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("tools")]
@@ -6165,7 +5869,6 @@ public sealed class ToolListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TurnQueueRemoveParams.</summary>
 public sealed class TurnQueueRemoveParams : ExtensibleJsonObject
 {
     [JsonPropertyName("queuedInputId")]
@@ -6178,7 +5881,6 @@ public sealed class TurnQueueRemoveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TurnQueueRemoveResponse.</summary>
 public sealed class TurnQueueRemoveResponse : ExtensibleJsonObject
 {
     [JsonPropertyName("queuedInputs")]
@@ -6187,7 +5889,6 @@ public sealed class TurnQueueRemoveResponse : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TurnQueueReorderParams.</summary>
 public sealed class TurnQueueReorderParams : ExtensibleJsonObject
 {
     [JsonPropertyName("orderedQueuedInputIds")]
@@ -6200,7 +5901,6 @@ public sealed class TurnQueueReorderParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TurnQueueReorderResponse.</summary>
 public sealed class TurnQueueReorderResponse : ExtensibleJsonObject
 {
     [JsonPropertyName("queuedInputs")]
@@ -6209,7 +5909,6 @@ public sealed class TurnQueueReorderResponse : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TurnQueueStartParams.</summary>
 public sealed class TurnQueueStartParams : ExtensibleJsonObject
 {
     [JsonPropertyName("queuedInputId")]
@@ -6222,7 +5921,6 @@ public sealed class TurnQueueStartParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TurnQueueStartResponse.</summary>
 public sealed class TurnQueueStartResponse : ExtensibleJsonObject
 {
     [JsonPropertyName("turnId")]
@@ -6231,7 +5929,6 @@ public sealed class TurnQueueStartResponse : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TurnQueueUpdateParams.</summary>
 public sealed class TurnQueueUpdateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("expectedTurnId")]
@@ -6252,7 +5949,6 @@ public sealed class TurnQueueUpdateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TurnQueueUpdateResult.</summary>
 public sealed class TurnQueueUpdateResult : ExtensibleJsonObject
 {
     [JsonPropertyName("queuedInputs")]
@@ -6261,7 +5957,6 @@ public sealed class TurnQueueUpdateResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UiResourceContent.</summary>
 public sealed class UiResourceContent : ExtensibleJsonObject
 {
     [JsonPropertyName("mimeType")]
@@ -6278,7 +5973,6 @@ public sealed class UiResourceContent : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UiResourceReadParams.</summary>
 public sealed class UiResourceReadParams : ExtensibleJsonObject
 {
     [JsonPropertyName("namespace")]
@@ -6295,7 +5989,6 @@ public sealed class UiResourceReadParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UiResourceReadResult.</summary>
 public sealed class UiResourceReadResult : ExtensibleJsonObject
 {
     [JsonPropertyName("contents")]
@@ -6304,7 +5997,6 @@ public sealed class UiResourceReadResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageDeltaNotification.</summary>
 public sealed class UsageDeltaNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("cacheWriteInputTokens")]
@@ -6388,7 +6080,6 @@ public sealed class UsageDeltaNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageRequestTiming.</summary>
 public sealed class UsageRequestTiming : ExtensibleJsonObject
 {
     [JsonPropertyName("firstOutputLatencyMs")]
@@ -6399,7 +6090,6 @@ public sealed class UsageRequestTiming : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageHistoryDay.</summary>
 public sealed class UsageHistoryDay : ExtensibleJsonObject
 {
     [JsonPropertyName("date")]
@@ -6417,7 +6107,6 @@ public sealed class UsageHistoryDay : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageHistoryParams.</summary>
 public sealed class UsageHistoryParams : ExtensibleJsonObject
 {
     [JsonPropertyName("from")]
@@ -6446,7 +6135,6 @@ public sealed class UsageHistoryParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageHistoryResult.</summary>
 public sealed class UsageHistoryResult : ExtensibleJsonObject
 {
     [JsonPropertyName("days")]
@@ -6467,7 +6155,6 @@ public sealed class UsageHistoryResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageHistorySeries.</summary>
 public sealed class UsageHistorySeries : ExtensibleJsonObject
 {
     [JsonPropertyName("key")]
@@ -6481,7 +6168,6 @@ public sealed class UsageHistorySeries : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageHistoryValue.</summary>
 public sealed class UsageHistoryValue : ExtensibleJsonObject
 {
     [JsonPropertyName("key")]
@@ -6495,7 +6181,6 @@ public sealed class UsageHistoryValue : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageSummaryParams.</summary>
 public sealed class UsageSummaryParams : ExtensibleJsonObject
 {
     [JsonPropertyName("from")]
@@ -6512,7 +6197,6 @@ public sealed class UsageSummaryParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageSummaryResult.</summary>
 public sealed class UsageSummaryResult : ExtensibleJsonObject
 {
     [JsonPropertyName("avgToolDurationMs")]
@@ -6599,7 +6283,6 @@ public sealed class UsageSummaryResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageThreadGroup.</summary>
 public sealed class UsageThreadGroup : ExtensibleJsonObject
 {
     [JsonPropertyName("cachedInputTokens")]
@@ -6640,7 +6323,6 @@ public sealed class UsageThreadGroup : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageThreadParams.</summary>
 public sealed class UsageThreadParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -6649,7 +6331,6 @@ public sealed class UsageThreadParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageThreadResult.</summary>
 public sealed class UsageThreadResult : ExtensibleJsonObject
 {
     [JsonPropertyName("cacheHitRate")]
@@ -6690,7 +6371,6 @@ public sealed class UsageThreadResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageThreadRow.</summary>
 public sealed class UsageThreadRow : ExtensibleJsonObject
 {
     [JsonPropertyName("archived")]
@@ -6743,7 +6423,6 @@ public sealed class UsageThreadRow : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageThreadsParams.</summary>
 public sealed class UsageThreadsParams : ExtensibleJsonObject
 {
     [JsonPropertyName("from")]
@@ -6764,7 +6443,6 @@ public sealed class UsageThreadsParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for UsageThreadsResult.</summary>
 public sealed class UsageThreadsResult : ExtensibleJsonObject
 {
     [JsonPropertyName("threads")]
@@ -6773,7 +6451,6 @@ public sealed class UsageThreadsResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for WelcomeSuggestionItem.</summary>
 public sealed class WelcomeSuggestionItem : ExtensibleJsonObject
 {
     [JsonPropertyName("prompt")]
@@ -6790,7 +6467,6 @@ public sealed class WelcomeSuggestionItem : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for WelcomeSuggestionsParams.</summary>
 public sealed class WelcomeSuggestionsParams : ExtensibleJsonObject
 {
     [JsonPropertyName("identity")]
@@ -6803,7 +6479,6 @@ public sealed class WelcomeSuggestionsParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for WelcomeSuggestionsResult.</summary>
 public sealed class WelcomeSuggestionsResult : ExtensibleJsonObject
 {
     [JsonPropertyName("fingerprint")]
@@ -6824,7 +6499,6 @@ public sealed class WelcomeSuggestionsResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for WorkspaceCommitMessageSuggestParams.</summary>
 public sealed class WorkspaceCommitMessageSuggestParams : ExtensibleJsonObject
 {
     [JsonPropertyName("maxDiffChars")]
@@ -6845,7 +6519,6 @@ public sealed class WorkspaceCommitMessageSuggestParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for WorkspaceCommitMessageSuggestResult.</summary>
 public sealed class WorkspaceCommitMessageSuggestResult : ExtensibleJsonObject
 {
     [JsonPropertyName("message")]
@@ -6854,7 +6527,6 @@ public sealed class WorkspaceCommitMessageSuggestResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for WorktreeCreateAndForkParams.</summary>
 public sealed class WorktreeCreateAndForkParams : ExtensibleJsonObject
 {
     [JsonPropertyName("additionalContext")]
@@ -6885,6 +6557,10 @@ public sealed class WorktreeCreateAndForkParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<JsonElement>?> DynamicTools { get; init; }
 
+    [JsonPropertyName("environmentPath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> EnvironmentPath { get; init; }
+
     [JsonPropertyName("forkPoint")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ThreadForkPoint?> ForkPoint { get; init; }
@@ -6892,6 +6568,10 @@ public sealed class WorktreeCreateAndForkParams : ExtensibleJsonObject
     [JsonPropertyName("identity")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<SessionIdentity?> Identity { get; init; }
+
+    [JsonPropertyName("operationId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> OperationId { get; init; }
 
     [JsonPropertyName("path")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -6903,9 +6583,12 @@ public sealed class WorktreeCreateAndForkParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for WorktreeCreateAndForkResult.</summary>
 public sealed class WorktreeCreateAndForkResult : ExtensibleJsonObject
 {
+    [JsonPropertyName("setup")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<WorktreeSetupResult> Setup { get; init; }
+
     [JsonPropertyName("thread")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<SessionThread> Thread { get; init; }
@@ -6916,7 +6599,6 @@ public sealed class WorktreeCreateAndForkResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for WorktreeCreateAndStartParams.</summary>
 public sealed class WorktreeCreateAndStartParams : ExtensibleJsonObject
 {
     [JsonPropertyName("additionalContext")]
@@ -6947,6 +6629,10 @@ public sealed class WorktreeCreateAndStartParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<JsonElement>?> DynamicTools { get; init; }
 
+    [JsonPropertyName("environmentPath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> EnvironmentPath { get; init; }
+
     [JsonPropertyName("historyMode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> HistoryMode { get; init; }
@@ -6955,15 +6641,22 @@ public sealed class WorktreeCreateAndStartParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<SessionIdentity> Identity { get; init; }
 
+    [JsonPropertyName("operationId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> OperationId { get; init; }
+
     [JsonPropertyName("path")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Path { get; init; }
 
 }
 
-/// <summary>Executable wire contract for WorktreeCreateAndStartResult.</summary>
 public sealed class WorktreeCreateAndStartResult : ExtensibleJsonObject
 {
+    [JsonPropertyName("setup")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<WorktreeSetupResult> Setup { get; init; }
+
     [JsonPropertyName("thread")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<SessionThread> Thread { get; init; }
@@ -6974,12 +6667,10 @@ public sealed class WorktreeCreateAndStartResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for WorktreeListParams.</summary>
 public sealed class WorktreeListParams : ExtensibleJsonObject
 {
 }
 
-/// <summary>Executable wire contract for WorktreeListResult.</summary>
 public sealed class WorktreeListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("data")]
@@ -6988,7 +6679,6 @@ public sealed class WorktreeListResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for WorktreeRemoveParams.</summary>
 public sealed class WorktreeRemoveParams : ExtensibleJsonObject
 {
     [JsonPropertyName("discardChanges")]
@@ -6999,14 +6689,16 @@ public sealed class WorktreeRemoveParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Path { get; init; }
 
+    [JsonPropertyName("skipCleanup")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> SkipCleanup { get; init; }
+
 }
 
-/// <summary>Executable wire contract for WorktreeRemoveResult.</summary>
 public sealed class WorktreeRemoveResult : ExtensibleJsonObject
 {
 }
 
-/// <summary>Executable wire contract for WorktreeStatusParams.</summary>
 public sealed class WorktreeStatusParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
@@ -7015,7 +6707,6 @@ public sealed class WorktreeStatusParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for WorktreeStatusResult.</summary>
 public sealed class WorktreeStatusResult : ExtensibleJsonObject
 {
     [JsonPropertyName("status")]

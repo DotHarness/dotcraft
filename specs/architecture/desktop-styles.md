@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.9.1 |
+| Version | 0.9.3 |
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-10-24 |
 | Parent Spec | [Desktop Design System](DESIGN.md) |
 
 ## Overview
@@ -46,10 +46,11 @@ thumb colors; features own only whether a region scrolls and whether it reserves
 gutter. Persistent vertical scroll regions (page bodies and long-lived sidebars,
 drawers, rails, and dynamic lists) reserve the gutter through the shared stable-
 gutter primitive, which follows `--scrollbar-size`. Centered conversation surfaces
-may reserve both edges when their layout needs symmetric space. Stable gutters are
-never applied globally: menus, popovers, comboboxes, short-lived dialogs, code
-blocks, horizontal-only scrollers, and rails that hide their scrollbar keep their
-own overflow behavior, and the document root does not scroll.
+may reserve both edges when their layout needs symmetric space, and so does the
+shared modal dialog body, which subtracts the gutter from its inset. Stable gutters
+are never applied globally: menus, popovers, comboboxes, code blocks,
+horizontal-only scrollers, and rails that hide their scrollbar keep their own
+overflow behavior, and the document root does not scroll.
 
 ## Design tokens
 

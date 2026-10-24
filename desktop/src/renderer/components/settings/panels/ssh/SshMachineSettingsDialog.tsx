@@ -10,7 +10,7 @@ import { addToast } from '../../../../stores/toastStore'
 import type { SshMachineValidation, SshMachineView } from '../../../../../shared/sshMachines'
 import { SshDialogFrame } from './SshDialogFrame'
 import { SshDockerDeployments, useDockerDeployments } from './SshDockerDeployments'
-import { SshMachineForm, parseMachineDraft, type MachineDraft } from './SshMachineForm'
+import { SshMachineForm, SshMachineFormFooter, parseMachineDraft, type MachineDraft } from './SshMachineForm'
 import {
   badgeTone,
   canAddProject,
@@ -48,11 +48,13 @@ export function SshMachineSettingsDialog({
 }): JSX.Element {
   const t = useT()
   const titleId = useId()
+  const formId = useId()
   const machines = useSshMachinesStore((s) => s.machines)
   const edit = useSshMachinesStore((s) => s.edit)
   const removeProject = useSshMachinesStore((s) => s.removeProject)
   const openProject = useSshMachinesStore((s) => s.openProject)
   const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [serverErrors, setServerErrors] = useState<SshMachineValidation | undefined>()
   const connected = canAddProject(machine)
   const stacks = useDockerDeployments(machine, canReachMachine(machine))
@@ -78,6 +80,7 @@ export function SshMachineSettingsDialog({
   async function save(draft: MachineDraft): Promise<void> {
     const parsed = parseMachineDraft(draft)
     if ('portError' in parsed) return
+    setSaving(true)
     try {
       const result = await edit(
         machine.id,
@@ -98,7 +101,14 @@ export function SshMachineSettingsDialog({
       }
     } catch (error) {
       addToast(messageOf(error), 'error')
+    } finally {
+      setSaving(false)
     }
+  }
+
+  function stopEditing(): void {
+    setServerErrors(undefined)
+    setEditing(false)
   }
 
   async function guarded(task: () => Promise<unknown>): Promise<void> {
@@ -110,45 +120,55 @@ export function SshMachineSettingsDialog({
   }
 
   return (
-    <SshDialogFrame titleId={titleId} wide onClose={onClose}>
-      <ModalHeader
-        icon={<Server size={18} aria-hidden />}
-        title={machine.name}
-        titleId={titleId}
-        titleAdornment={
-          <span className="dc-status-badge" data-size="compact" data-tone={badgeTone(machine) === 'neutral' ? undefined : badgeTone(machine)}>
-            <span className="dc-status-badge__label">{machineStatusView(t, machine).label}</span>
-          </span>
-        }
-        onClose={onClose}
-        closeLabel={t('common.close')}
-        actions={
-          editing ? null : (
-            <IconButton
-              icon={<Pencil size={15} aria-hidden />}
-              label={t('settings.ssh.edit')}
-              size={30}
-              onClick={() => setEditing(true)}
-            />
-          )
-        }
-      />
+    <SshDialogFrame
+      titleId={titleId}
+      wide
+      onClose={onClose}
+      header={(
+        <ModalHeader
+          icon={<Server size={18} aria-hidden />}
+          title={machine.name}
+          titleId={titleId}
+          titleAdornment={
+            <span className="dc-status-badge" data-size="compact" data-tone={badgeTone(machine) === 'neutral' ? undefined : badgeTone(machine)}>
+              <span className="dc-status-badge__label">{machineStatusView(t, machine).label}</span>
+            </span>
+          }
+          onClose={onClose}
+          closeLabel={t('common.close')}
+          actions={
+            editing ? null : (
+              <IconButton
+                icon={<Pencil size={15} aria-hidden />}
+                label={t('settings.ssh.edit')}
+                size={30}
+                onClick={() => setEditing(true)}
+              />
+            )
+          }
+        />
+      )}
+      footer={editing ? (
+        <SshMachineFormFooter
+          formId={formId}
+          saving={saving}
+          submitLabel={t('settings.ssh.save')}
+          onBack={stopEditing}
+        />
+      ) : undefined}
+    >
       {editing ? (
         <SshMachineForm
+          id={formId}
           initial={draftFor(machine)}
           machines={machines}
           exceptId={machine.id}
           nameOnly={!manual}
-          submitLabel={t('settings.ssh.save')}
           serverErrors={serverErrors}
-          onBack={() => {
-            setServerErrors(undefined)
-            setEditing(false)
-          }}
-          onSubmit={save}
+          onSubmit={(draft) => void save(draft)}
         />
       ) : (
-        <>
+        <div>
           <dl className="dc-ssh-facts">
             {rows.map(([label, value]) => (
               <div key={label} className="dc-ssh-facts__row">
@@ -205,7 +225,7 @@ export function SshMachineSettingsDialog({
           </section>
 
           {stacks.length > 0 && <SshDockerDeployments machine={machine} stacks={stacks} />}
-        </>
+        </div>
       )}
     </SshDialogFrame>
   )

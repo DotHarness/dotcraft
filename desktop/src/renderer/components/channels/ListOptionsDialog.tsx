@@ -1,13 +1,12 @@
 import { useId, useRef, useState, type JSX } from 'react'
-import { createPortal } from 'react-dom'
 import { ListChecks } from 'lucide-react'
 import type { ConfigFieldOptionGroupWire, ConfigFieldOptionWire } from '../../../shared/channelModules'
-import { LayerBoundary } from '../../contexts/LayerContext'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { Button } from '../ui/Button'
 import { Checkbox } from '../ui/Checkbox'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
 import { IconButton } from '../ui/IconButton'
+import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
 import { ModalHeader } from '../ui/ModalHeader'
 import { useImportDialogFocus } from '../settings/panels/useImportDialogFocus'
 import { groupChoice, knownValues, toggleGroup, toggleValue, unknownValues } from './listOptions'
@@ -111,17 +110,13 @@ export function ListOptionsDialog({
     )
   }
 
-  const dialog = (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      className={styles.scrim}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
-    >
-      <div ref={dialogRef} className={styles.dialog} onMouseDown={(event) => event.stopPropagation()}>
+  return (
+    <ModalDialog
+      ref={dialogRef}
+      titleId={titleId}
+      width={560}
+      onDismiss={onClose}
+      header={(
         <ModalHeader
           icon={<ListChecks size={18} />}
           title={title}
@@ -129,38 +124,37 @@ export function ListOptionsDialog({
           description={description}
           onClose={onClose}
         />
-
-        <ul className={styles.list} aria-busy={availability.status === 'loading' || undefined}>
-          {optionGroups?.length
-            ? optionGroups.map(renderGroup)
-            : options.map((option) => renderValue(option.value, false))}
-        </ul>
-
-        {dropped.length > 0 && (
-          <p className={styles.note}>
-            {dropped.length === 1
-              ? t('channels.modules.options.droppedOne')
-              : t('channels.modules.options.dropped', { count: dropped.length })}
-          </p>
-        )}
-        {availability.status === 'unknown' && (
-          <p className={styles.note}>{t('channels.modules.options.availabilityUnknown', { platform })}</p>
-        )}
-        {chosenUnavailable && (
-          <p className={styles.note} role="status">{t('channels.modules.options.unavailableHint', { platform })}</p>
-        )}
-
-        <div className={styles.footer}>
+      )}
+      footer={(
+        <ModalFooter>
           <Button variant="secondary" onClick={onClose}>
             {t('common.cancel')}
           </Button>
           <Button variant="primary" onClick={() => onApply(chosen)}>
             {t('channels.modules.options.done')}
           </Button>
-        </div>
-      </div>
-    </div>
-  )
+        </ModalFooter>
+      )}
+    >
+      <ul className={styles.list} aria-busy={availability.status === 'loading' || undefined}>
+        {optionGroups?.length
+          ? optionGroups.map(renderGroup)
+          : options.map((option) => renderValue(option.value, false))}
+      </ul>
 
-  return createPortal(<LayerBoundary>{dialog}</LayerBoundary>, document.body) as JSX.Element
+      {dropped.length > 0 && (
+        <p className={styles.note}>
+          {dropped.length === 1
+            ? t('channels.modules.options.droppedOne')
+            : t('channels.modules.options.dropped', { count: dropped.length })}
+        </p>
+      )}
+      {availability.status === 'unknown' && (
+        <p className={styles.note}>{t('channels.modules.options.availabilityUnknown', { platform })}</p>
+      )}
+      {chosenUnavailable && (
+        <p className={styles.note} role="status">{t('channels.modules.options.unavailableHint', { platform })}</p>
+      )}
+    </ModalDialog>
+  )
 }

@@ -220,10 +220,13 @@ export interface ClientRequestMethods {
   "workflow/run/resume": { params: Models.WorkflowRunResumeParams; result: Models.WorkflowRunResumeResult };
   "workflow/run/stop": { params: Models.WorkflowRunParams; result: Models.WorkflowRunReadResult };
   "workspace/commitMessage/suggest": { params: Models.WorkspaceCommitMessageSuggestParams; result: Models.WorkspaceCommitMessageSuggestResult };
+  "worktree/cancelCreate": { params: Models.WorktreeCancelCreateParams; result: Models.RpcEmpty };
   "worktree/createAndFork": { params: Models.WorktreeCreateAndForkParams; result: Models.WorktreeCreateAndForkResult };
   "worktree/createAndStart": { params: Models.WorktreeCreateAndStartParams; result: Models.WorktreeCreateAndStartResult };
   "worktree/list": { params: Models.WorktreeListParams; result: Models.WorktreeListResult };
   "worktree/remove": { params: Models.WorktreeRemoveParams; result: Models.WorktreeRemoveResult };
+  "worktree/runSetup": { params: Models.WorktreeRunSetupParams; result: Models.WorktreeRunSetupResult };
+  "worktree/setEnvironment": { params: Models.WorktreeSetEnvironmentParams; result: Models.WorktreeSetEnvironmentResult };
   "worktree/status": { params: Models.WorktreeStatusParams; result: Models.WorktreeStatusResult };
 }
 

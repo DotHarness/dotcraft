@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Check, Download, ExternalLink, Plus, Settings, Sparkles } from 'lucide-react'
+import { Check, Plus, Settings } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useSkillsStore, type SkillEntry } from '../../stores/skillsStore'
-import { useSkillMarketStore, type SkillMarketProviderFilter } from '../../stores/skillMarketStore'
+import { useSkillMarketStore } from '../../stores/skillMarketStore'
 import { useConnectionStore, type ServerCapabilities } from '../../stores/connectionStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
@@ -10,20 +10,18 @@ import { useConfigValue } from '../../stores/configStore'
 import type { MarketDotCraftInstallPreparation, MarketSkillDetail, MarketSkillSummary } from '../../../shared/skillMarket'
 import { SkillAvatar } from './SkillAvatar'
 import { SkillDetailDialog } from './SkillDetailDialog'
+import { MarketSkillDetailDialog, providerLabel } from './MarketSkillDetailDialog'
 import { stageSkillTryInChat } from './skillDraft'
 import { VariantBadge } from './VariantBadge'
 import { PillSwitch } from '../ui/PillSwitch'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { RefreshIcon } from '../ui/AppIcons'
 import { addToast } from '../../stores/toastStore'
-import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadSummary } from '../../types/thread'
 import { CatalogBreadcrumb, CatalogFilterButton, CatalogScrollArea, CatalogSearchBox, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
-import { DialogCloseButton } from '../ui/DialogCloseButton'
-import { Button } from '../ui/Button'
 import { stripYamlFrontmatter } from '../../utils/skillMarkdown'
 
 type ViewMode = 'browse' | 'manage'
@@ -677,112 +675,6 @@ async function startDotCraftInstallThread(
   useUIStore.getState().setActiveMainView('conversation')
 }
 
-function MarketSkillDetailDialog({
-  skill,
-  loading,
-  installing,
-  dotCraftInstalling,
-  dotCraftDisabledReason,
-  installDisabledReason,
-  onClose,
-  onInstall,
-  onDotCraftInstall
-}: {
-  skill: MarketSkillDetail
-  loading: boolean
-  installing: boolean
-  dotCraftInstalling: boolean
-  dotCraftDisabledReason: string | null
-  installDisabledReason: string | null
-  onClose: () => void
-  onInstall: () => void
-  onDotCraftInstall: () => void
-}): JSX.Element {
-  const t = useT()
-
-  useEffect(() => {
-    function onKey(event: KeyboardEvent): void {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  const installLabel = skill.updateAvailable
-    ? t('skillMarket.update')
-    : skill.installed
-      ? t('skillMarket.reinstall')
-      : t('skillMarket.install')
-  const dotCraftInstallLabel = skill.updateAvailable
-    ? t('skillMarket.updateWithDotCraft')
-    : skill.installed
-      ? t('skillMarket.checkWithDotCraft')
-      : t('skillMarket.installWithDotCraft')
-  const dotCraftButtonDisabled = Boolean(dotCraftDisabledReason) || dotCraftInstalling || loading || installing
-  const installButtonDisabled = Boolean(installDisabledReason) || installing || loading
-
-  return (
-    <div role="presentation" style={modalScrim} onClick={onClose}>
-      <div role="dialog" aria-modal aria-labelledby="skill-market-detail-title" style={modal} onClick={(e) => e.stopPropagation()}>
-        <header style={modalHeader}>
-          <div style={{ minWidth: 0 }}>
-            <h2 id="skill-market-detail-title" style={modalTitle}>{skill.name}</h2>
-            <p style={modalSubtitle}>{skill.description || skill.slug}</p>
-          </div>
-          <DialogCloseButton label={t('skillDetail.close')} onClose={onClose} />
-        </header>
-        <div style={metaRow}>
-          <Meta label={t('skillMarket.provider')} value={providerLabel(skill.provider)} />
-          <Meta label={t('skillMarket.version')} value={skill.version || t('skillMarket.versionUnknown')} />
-          {skill.author && <Meta label={t('skillMarket.author')} value={skill.author} />}
-          {skill.downloads != null && <Meta label={t('skillMarket.downloadsLabel')} value={String(skill.downloads)} />}
-        </div>
-        <div style={modalBody}>
-          {loading ? (
-            <p style={emptyText}>{t('skillDetail.loading')}</p>
-          ) : skill.readme ? (
-            <MarkdownRenderer content={stripYamlFrontmatter(skill.readme)} linkMode="external" />
-          ) : skill.description ? (
-            <p style={previewFallbackText}>{skill.description}</p>
-          ) : (
-            <p style={emptyText}>{t('skillMarket.noReadme')}</p>
-          )}
-        </div>
-        <footer style={modalFooter}>
-          <Button
-            variant="ghost"
-            iconLeft={<ExternalLink size={14} aria-hidden />}
-            onClick={() => {
-              if (skill.sourceUrl) void window.api.shell.openExternal(skill.sourceUrl)
-            }}
-            disabled={!skill.sourceUrl}
-          >
-            {t('skillMarket.openSource')}
-          </Button>
-          <ActionTooltip
-            label={installLabel}
-            disabledReason={installDisabledReason ?? undefined}
-            placement="top"
-          >
-            <Button variant="secondary" iconLeft={<Download size={14} aria-hidden />} onClick={onInstall} disabled={installButtonDisabled}>
-              {installing ? t('skillMarket.installing') : installLabel}
-            </Button>
-          </ActionTooltip>
-          <ActionTooltip
-            label={dotCraftInstallLabel}
-            disabledReason={dotCraftDisabledReason ?? undefined}
-            placement="top"
-          >
-            <Button variant="primary" iconLeft={<Sparkles size={14} aria-hidden />} onClick={onDotCraftInstall} disabled={dotCraftButtonDisabled}>
-              {dotCraftInstalling ? t('skillMarket.dotCraftInstallPreparing') : dotCraftInstallLabel}
-            </Button>
-          </ActionTooltip>
-        </footer>
-      </div>
-    </div>
-  )
-}
-
 function SkillSection({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
   return (
     <section style={{ marginBottom: '34px' }}>
@@ -798,15 +690,6 @@ function CompactGrid({ children }: { children: React.ReactNode }): JSX.Element {
 
 function Chip({ label, active = false }: { label: string; active?: boolean }): JSX.Element {
   return <span style={active ? chipActive : chip}>{label}</span>
-}
-
-function Meta({ label, value }: { label: string; value: string }): JSX.Element {
-  return (
-    <div style={metaItem}>
-      <span style={metaLabel}>{label}</span>
-      <span style={metaValue}>{value}</span>
-    </div>
-  )
 }
 
 export function filterLocalSkills(skills: SkillEntry[], query: string, filter: SourceFilter): SkillEntry[] {
@@ -842,12 +725,6 @@ function sourceLabel(skill: SkillEntry, t: ReturnType<typeof useT>): string {
 
 function isUninstallableSkill(skill: SkillEntry): boolean {
   return skill.source === 'workspace' || skill.source === 'user'
-}
-
-function providerLabel(provider: SkillMarketProviderFilter): string {
-  if (provider === 'skillhub') return 'SkillHub'
-  if (provider === 'clawhub') return 'ClawHub'
-  return 'All'
 }
 
 const page: React.CSSProperties = catalogStyles.page
@@ -911,8 +788,6 @@ const manageSource: React.CSSProperties = {
   textAlign: 'left'
 }
 
-// Fixed-width, centered slot for the trailing control so the skill toggle lines up
-// with the plugin list's Install/PillSwitch column (see PluginManageSurface manageActionSlot).
 const manageActionSlot: React.CSSProperties = {
   width: '84px',
   flexShrink: 0,
@@ -922,106 +797,3 @@ const manageActionSlot: React.CSSProperties = {
 }
 
 const emptyText: React.CSSProperties = catalogStyles.emptyText
-
-const modalScrim: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 1000,
-  backgroundColor: 'rgba(0,0,0,0.55)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '24px'
-}
-
-const modal: React.CSSProperties = {
-  width: 'min(760px, 100%)',
-  maxHeight: 'min(86vh, 920px)',
-  backgroundColor: 'var(--bg-primary)',
-  borderRadius: '12px',
-  border: '1px solid var(--border-default)',
-  boxShadow: '0 16px 48px rgba(0,0,0,0.45)',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden'
-}
-
-const modalHeader: React.CSSProperties = {
-  padding: '16px 20px',
-  borderBottom: '1px solid var(--border-default)',
-  display: 'flex',
-  alignItems: 'flex-start',
-  justifyContent: 'space-between',
-  gap: '12px',
-  flexShrink: 0
-}
-
-const modalTitle: React.CSSProperties = {
-  margin: 0,
-  fontSize: '18px',
-  fontWeight: 600,
-  color: 'var(--text-primary)',
-  wordBreak: 'break-word'
-}
-
-const modalSubtitle: React.CSSProperties = {
-  margin: '8px 0 0',
-  color: 'var(--text-secondary)',
-  fontSize: '13px',
-  lineHeight: 1.45
-}
-
-const metaRow: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-  gap: '10px',
-  padding: '12px 20px',
-  borderBottom: '1px solid var(--border-default)',
-  backgroundColor: 'var(--bg-secondary)'
-}
-
-const metaItem: React.CSSProperties = {
-  minWidth: 0
-}
-
-const metaLabel: React.CSSProperties = {
-  display: 'block',
-  fontSize: '11px',
-  color: 'var(--text-dimmed)',
-  textTransform: 'uppercase',
-  marginBottom: '3px'
-}
-
-const metaValue: React.CSSProperties = {
-  display: 'block',
-  fontSize: '13px',
-  color: 'var(--text-primary)',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap'
-}
-
-const modalBody: React.CSSProperties = {
-  flex: 1,
-  overflow: 'auto',
-  padding: '16px 20px',
-  minHeight: '220px'
-}
-
-const previewFallbackText: React.CSSProperties = {
-  margin: 0,
-  fontSize: '14px',
-  lineHeight: 1.6,
-  color: 'var(--text-secondary)',
-  whiteSpace: 'pre-wrap'
-}
-
-const modalFooter: React.CSSProperties = {
-  padding: '12px 20px',
-  borderTop: '1px solid var(--border-default)',
-  display: 'flex',
-  justifyContent: 'flex-end',
-  alignItems: 'center',
-  gap: '8px',
-  flexWrap: 'wrap'
-}

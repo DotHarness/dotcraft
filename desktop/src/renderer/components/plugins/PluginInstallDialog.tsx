@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AlertTriangle, Check, ExternalLink, Link2, RefreshCw } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { PluginAppInfo, PluginEntry } from '../../stores/pluginStore'
@@ -11,7 +10,9 @@ import { getPluginContentSummaries } from '../../utils/pluginContentSummaries'
 import { Button } from '../ui/Button'
 import { DialogCloseButton } from '../ui/DialogCloseButton'
 import { IdentityMark } from '../ui/IdentityMark'
+import { ModalDialog } from '../ui/ModalDialog'
 import { PluginContentIcon } from './PluginContentIcon'
+import styles from './PluginInstallDialog.module.css'
 
 type NativeStatus = 'installed' | 'missing' | 'unknown'
 type SetupStage = 'pluginInstall' | 'trustRequired' | 'nativeAppRequired' | 'nativeAppPending' | 'appConnect' | 'handoffOpened' | 'complete'
@@ -202,45 +203,29 @@ export function PluginInstallDialog({
     }
   }
 
-  const dialog = (
-    <div role="dialog" aria-modal="true" aria-labelledby="plugin-install-title" style={backdrop} onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose()
-    }}>
-      <div style={dialogCard} onMouseDown={(event) => event.stopPropagation()}>
-        <DialogCloseButton label={t('common.close')} onClose={onClose} style={closeButton} />
-        <div style={logoRow}>
-          <IdentityMark role="hero" size={56} src={dotharLogoUrl} fallback="D" />
-          <span style={dotTrail}>•••</span>
-          <PluginIcon plugin={plugin} role="hero" size={56} />
-        </div>
-        <h2 id="plugin-install-title" style={titleStyle}>{dialogTitle}</h2>
-        <div style={subtitleStyle}>{t('plugins.developedBy', { developer: plugin.interface?.developerName || 'DotHarness' })}</div>
-        <div style={infoCard}>
-          <div style={cardTitleLine}>
-            <strong>{title}</strong>
+  return (
+    <ModalDialog
+      titleId="plugin-install-title"
+      width={600}
+      onDismiss={onClose}
+      header={(
+        <div className={styles.hero}>
+          <span className={styles.close}>
+            <DialogCloseButton label={t('common.close')} onClose={onClose} />
+          </span>
+          <div className={styles.logos}>
+            <IdentityMark role="hero" size={56} src={dotharLogoUrl} fallback="D" />
+            <span className={styles.dotTrail}>•••</span>
+            <PluginIcon plugin={plugin} role="hero" size={56} />
           </div>
-          <div style={muted}>{t('plugins.providedBy', { developer: plugin.interface?.developerName || 'DotHarness' })}</div>
-          <div style={muted}>{t('plugins.detail.category')}: {plugin.interface?.category || 'Coding'}</div>
-          <Divider />
-          <SectionTitle>{t('plugins.detail.about')}</SectionTitle>
-          <p style={description}>{plugin.interface?.longDescription || pluginSubtitle(plugin)}</p>
-          <Divider />
-          <SectionTitle>{t('plugins.detail.contents')}</SectionTitle>
-          <ContentChips plugin={plugin} />
-          {capabilities.length > 0 && (
-            <>
-              <Divider />
-              <SectionTitle>{t('plugins.detail.capabilities')}</SectionTitle>
-              <div style={chips}>
-                {capabilities.map((capability) => <span key={capability} style={chip}>{capability}</span>)}
-              </div>
-            </>
-          )}
+          <h2 id="plugin-install-title" className={styles.title}>{dialogTitle}</h2>
+          <div className={styles.subtitle}>{t('plugins.developedBy', { developer: plugin.interface?.developerName || 'DotHarness' })}</div>
         </div>
-
-        <div style={setupArea}>
+      )}
+      footer={(
+        <div className={styles.actions}>
           {setupStage.stage === 'pluginInstall' ? (
-            <Button size="prominent" variant="primary" onClick={() => { void onInstall() }} disabled={installing} loading={installing} style={{ width: '100%' }}>
+            <Button size="prominent" variant="primary" onClick={() => { void onInstall() }} disabled={installing} loading={installing} className={styles.wide}>
               {installing ? t('plugins.installing') : t('plugins.installDialog.addToDotCraft')}
             </Button>
           ) : (
@@ -257,11 +242,32 @@ export function PluginInstallDialog({
             />
           )}
         </div>
+      )}
+    >
+      <div className={styles.infoCard}>
+        <div className={styles.cardTitle}>
+          <strong>{title}</strong>
+        </div>
+        <div className={styles.muted}>{t('plugins.providedBy', { developer: plugin.interface?.developerName || 'DotHarness' })}</div>
+        <div className={styles.muted}>{t('plugins.detail.category')}: {plugin.interface?.category || 'Coding'}</div>
+        <Divider />
+        <SectionTitle>{t('plugins.detail.about')}</SectionTitle>
+        <p className={styles.description}>{plugin.interface?.longDescription || pluginSubtitle(plugin)}</p>
+        <Divider />
+        <SectionTitle>{t('plugins.detail.contents')}</SectionTitle>
+        <ContentChips plugin={plugin} />
+        {capabilities.length > 0 && (
+          <>
+            <Divider />
+            <SectionTitle>{t('plugins.detail.capabilities')}</SectionTitle>
+            <div className={styles.chips}>
+              {capabilities.map((capability) => <span key={capability} className={styles.chip}>{capability}</span>)}
+            </div>
+          </>
+        )}
       </div>
-    </div>
+    </ModalDialog>
   )
-
-  return createPortal(dialog, document.body) as JSX.Element
 }
 
 function ContentChips({ plugin }: { plugin: PluginEntry }): JSX.Element {
@@ -269,18 +275,18 @@ function ContentChips({ plugin }: { plugin: PluginEntry }): JSX.Element {
   const contents = getPluginContentSummaries(plugin, t)
   if (contents.length === 0) {
     return (
-      <div style={chips}>
-        <span style={muted}>{t('plugins.detail.noContents')}</span>
+      <div className={styles.chips}>
+        <span className={styles.muted}>{t('plugins.detail.noContents')}</span>
       </div>
     )
   }
 
   return (
-    <div style={chips}>
+    <div className={styles.chips}>
       {contents.map((item) => (
-        <span key={item.key} style={chip}>
+        <span key={item.key} className={styles.chip}>
           <PluginContentIcon type={item.type} size={12} />
-                  <span>{item.type === 'desktopPlugin' || item.type === 'dotnet' || item.type === 'hooks' ? `${item.title} · ${item.kind}` : item.title}</span>
+          <span>{item.type === 'desktopPlugin' || item.type === 'dotnet' || item.type === 'hooks' ? `${item.title} · ${item.kind}` : item.title}</span>
         </span>
       ))}
     </div>
@@ -321,7 +327,7 @@ function CurrentSetupStage({
           onClick={onTrust}
           disabled={!onTrust || busyKey === 'plugin:trust'}
           loading={busyKey === 'plugin:trust'}
-          style={{ marginInlineStart: 'auto' }}
+          className={styles.trailing}
         >
           {t('plugins.installDialog.trustAction')}
         </Button>
@@ -341,7 +347,7 @@ function CurrentSetupStage({
 
   return (
     <SetupPanel title={title} status={status}>
-      <div style={appSetupList}>
+      <div className={styles.appList}>
         {apps.map((setupApp) => (
           <AppSetupRow
             key={setupApp.app.appId}
@@ -373,18 +379,18 @@ function SetupPanel({
   children?: ReactNode
 }): JSX.Element {
   return (
-    <div style={tone === 'warning' ? warningSetupPanel : setupPanel}>
-      <span style={tone === 'warning' ? warningSetupIcon : setupIcon}>
+    <div className={styles.setupPanel} data-tone={tone}>
+      <span className={styles.setupIcon}>
         {tone === 'warning'
           ? <AlertTriangle size={13} aria-hidden />
           : <Link2 size={13} aria-hidden />}
       </span>
-      <span style={stepBody}>
-        <strong style={stepTitle}>{title}</strong>
-        <span style={muted}>{status}</span>
+      <span className={styles.stepBody}>
+        <strong className={styles.stepTitle}>{title}</strong>
+        <span className={styles.muted}>{status}</span>
         {details}
       </span>
-      {children && <div style={stepAction}>{children}</div>}
+      {children && <div className={styles.stepAction}>{children}</div>}
     </div>
   )
 }
@@ -412,19 +418,19 @@ function AppSetupRow({
   const waitingForApp = stage === 'handoffOpened' && handoffOpened
   const nativePending = nativeStatus !== 'missing' || nativeOpened
   return (
-    <div style={appSetupRow}>
+    <div className={styles.appRow}>
       <AppSetupIcon app={app} />
-      <span style={appSetupBody}>
-        <strong style={stepTitle}>{app.displayName}</strong>
+      <span className={styles.appBody}>
+        <strong className={styles.stepTitle}>{app.displayName}</strong>
         {!connected && (
-          <span style={muted}>
+          <span className={styles.muted}>
             {stage === 'nativeAppRequired' || stage === 'nativeAppPending'
               ? nativePending ? t('plugins.installDialog.nativePending') : nativeStatusLabel(nativeStatus, t)
               : waitingForApp ? t('plugins.installDialog.waitingForApp') : connectionStatusLabel(liveApp, t)}
           </span>
         )}
       </span>
-      <span style={appSetupActions}>
+      <span className={styles.appActions}>
         {connected ? (
           <Button size="sm" disabled variant="secondary">
             <Check size={13} aria-hidden />
@@ -500,84 +506,9 @@ function connectionStatusLabel(app: AppInfo | undefined, t: ReturnType<typeof us
 }
 
 function Divider(): JSX.Element {
-  return <div style={divider} />
+  return <div className={styles.divider} />
 }
 
 function SectionTitle({ children }: { children: string }): JSX.Element {
-  return <div style={sectionTitle}>{children}</div>
+  return <div className={styles.sectionTitle}>{children}</div>
 }
-
-const backdrop: CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 10000,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: 'var(--overlay-scrim)'
-}
-const dialogCard: CSSProperties = {
-  position: 'relative',
-  width: 600,
-  maxWidth: 'calc(100vw - 48px)',
-  maxHeight: 'calc(100vh - 48px)',
-  overflow: 'auto',
-  borderRadius: 18,
-  backgroundColor: 'var(--bg-secondary)',
-  boxShadow: 'var(--shadow-level-3)',
-  padding: '32px 24px 24px'
-}
-const closeButton: CSSProperties = {
-  position: 'absolute',
-  top: 18,
-  right: 18
-}
-const logoRow: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18 }
-const dotTrail: CSSProperties = { color: 'var(--text-dimmed)', letterSpacing: 2 }
-const titleStyle: CSSProperties = { margin: '18px 0 4px', textAlign: 'center', fontSize: 22, fontWeight: 700 }
-const subtitleStyle: CSSProperties = { textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13, marginBottom: 24 }
-const infoCard: CSSProperties = { border: '1px solid var(--border-default)', borderRadius: 12, padding: 16, marginBottom: 18 }
-const setupArea: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12 }
-const cardTitleLine: CSSProperties = { fontSize: 14 }
-const muted: CSSProperties = { marginTop: 8, color: 'var(--text-secondary)', fontSize: 12 }
-const divider: CSSProperties = { height: 1, backgroundColor: 'var(--border-subtle)', margin: '16px 0' }
-const sectionTitle: CSSProperties = { fontSize: 13, fontWeight: 700, marginBottom: 8 }
-const description: CSSProperties = { margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 }
-const chips: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8 }
-const chip: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 26, padding: '4px 9px', borderRadius: 8, border: '1px solid var(--border-default)', fontSize: 12 }
-const setupPanel: CSSProperties = { display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr)', alignItems: 'start', columnGap: 12, rowGap: 10, border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 12 }
-const warningSetupPanel: CSSProperties = {
-  ...setupPanel,
-  border: '1px solid color-mix(in srgb, var(--warning) 45%, var(--border-default))',
-  backgroundColor: 'color-mix(in srgb, var(--warning) 8%, var(--bg-secondary))'
-}
-const warningSetupIcon: CSSProperties = {
-  width: 24,
-  height: 24,
-  borderRadius: 999,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'color-mix(in srgb, var(--warning) 18%, transparent)',
-  color: 'var(--warning)'
-}
-const setupIcon: CSSProperties = {
-  width: 24,
-  height: 24,
-  borderRadius: 999,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'var(--bg-tertiary)',
-  color: 'var(--text-secondary)',
-  fontSize: 12,
-  fontWeight: 700,
-  flex: '0 0 auto'
-}
-const stepBody: CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }
-const stepTitle: CSSProperties = { color: 'var(--text-primary)', fontSize: 13 }
-const stepAction: CSSProperties = { gridColumn: '2', display: 'flex', width: '100%', minWidth: 0 }
-const appSetupList: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }
-const appSetupRow: CSSProperties = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, width: '100%' }
-const appSetupBody: CSSProperties = { display: 'flex', flexDirection: 'column', flex: '1 1 180px', minWidth: 0 }
-const appSetupActions: CSSProperties = { display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, flex: '0 1 auto' }

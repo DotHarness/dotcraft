@@ -1,28 +1,30 @@
 import { useEffect, useRef, type JSX, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
 
-import { LayerBoundary } from '../../../../contexts/LayerContext'
+import { ModalDialog } from '../../../ui/ModalDialog'
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-function isTopmost(scrim: HTMLElement | null): boolean {
-  if (!scrim || document.querySelector('[role="menu"]')) return false
+function isTopmost(dialog: HTMLElement | null): boolean {
+  if (!dialog || document.querySelector('[role="menu"]')) return false
   const modals = document.querySelectorAll('[aria-modal="true"]')
-  return modals[modals.length - 1] === scrim
+  return modals[modals.length - 1] === dialog
 }
 
 export function SshDialogFrame({
   titleId,
   wide = false,
   onClose,
+  header,
+  footer,
   children
 }: {
   titleId: string
   wide?: boolean
   onClose: () => void
+  header: ReactNode
+  footer: ReactNode
   children: ReactNode
 }): JSX.Element {
-  const scrimRef = useRef<HTMLDivElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
@@ -37,7 +39,7 @@ export function SshDialogFrame({
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
-      if (!isTopmost(scrimRef.current)) return
+      if (!isTopmost(dialogRef.current)) return
       if (event.key === 'Escape') {
         closeRef.current()
         return
@@ -59,23 +61,16 @@ export function SshDialogFrame({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  return createPortal(
-    <LayerBoundary>
-      <div
-        ref={scrimRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="dc-ssh-scrim"
-        onMouseDown={(event) => {
-          if (event.target === event.currentTarget) onClose()
-        }}
-      >
-        <div ref={dialogRef} className="dc-ssh-dialog" data-wide={wide || undefined}>
-          {children}
-        </div>
-      </div>
-    </LayerBoundary>,
-    document.body
-  ) as JSX.Element
+  return (
+    <ModalDialog
+      ref={dialogRef}
+      titleId={titleId}
+      width={wide ? 580 : 480}
+      onDismiss={onClose}
+      header={header}
+      footer={footer}
+    >
+      {children}
+    </ModalDialog>
+  )
 }

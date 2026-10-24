@@ -1,12 +1,11 @@
 import { useEffect, useId, useRef, useState, type JSX } from 'react'
-import { createPortal } from 'react-dom'
 import { Box, Download, Plug } from 'lucide-react'
-import { LayerBoundary } from '../../contexts/LayerContext'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
 import { useImportDialogFocus } from '../settings/panels/useImportDialogFocus'
 import { Button } from '../ui/Button'
 import { Checkbox } from '../ui/Checkbox'
+import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
 import { ModalHeader } from '../ui/ModalHeader'
 import { packageKey, planAgentExport, readAgentExport, type AgentExportPackage, type AgentExportPlan } from './agentPackages'
 import styles from './AgentPackageDialog.module.css'
@@ -68,17 +67,13 @@ export function AgentExportDialog({ id, source, onClose }: AgentExportDialogProp
     }
   }
 
-  const dialog = (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      className={styles.scrim}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy) onClose()
-      }}
-    >
-      <div ref={dialogRef} className={styles.dialog} onMouseDown={(event) => event.stopPropagation()}>
+  return (
+    <ModalDialog
+      ref={dialogRef}
+      titleId={titleId}
+      onDismiss={busy ? undefined : onClose}
+      bodyClassName={styles.body}
+      header={(
         <ModalHeader
           icon={<Download size={18} strokeWidth={2} aria-hidden />}
           title={t('agentBuilder.export.title', { name: id })}
@@ -86,53 +81,46 @@ export function AgentExportDialog({ id, source, onClose }: AgentExportDialogProp
           description={t('agentBuilder.export.description')}
           onClose={busy ? undefined : onClose}
         />
-
-        <div className={styles.body}>
-          {plan == null ? (
-            !error && <p className={styles.note}>{t('agentBuilder.export.loading')}</p>
-          ) : plan.packages.length === 0 ? (
-            <p className={styles.note}>{t('agentBuilder.export.noPackages')}</p>
-          ) : (
-            <div className={styles.section}>
-              <span className={styles.sectionTitle}>{t('agentBuilder.export.packages')}</span>
-              <div className={styles.rows}>
-                {plan.packages.map((pkg) => (
-                  <ExportPackageRow
-                    key={packageKey(pkg)}
-                    pkg={pkg}
-                    checked={selected.has(packageKey(pkg))}
-                    disabled={busy}
-                    onChange={(checked) => setSelected((previous) => {
-                      const next = new Set(previous)
-                      if (checked) next.add(packageKey(pkg))
-                      else next.delete(packageKey(pkg))
-                      return next
-                    })}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {error && <p role="alert" className={styles.error}>{error}</p>}
-
-        <div className={styles.footer}>
-          <span className={styles.footerNote}>
-            {plan != null && t('agentBuilder.export.mcpNote')}
-          </span>
+      )}
+      error={error}
+      footer={(
+        <ModalFooter leading={plan != null && <span className={styles.footerNote}>{t('agentBuilder.export.mcpNote')}</span>}>
           <Button variant="secondary" disabled={busy} onClick={onClose}>
             {t('common.cancel')}
           </Button>
           <Button variant="primary" loading={busy} disabled={plan == null} onClick={() => void confirm()}>
             {t('agentBuilder.export.confirm')}
           </Button>
+        </ModalFooter>
+      )}
+    >
+      {plan == null ? (
+        !error && <p className={styles.note}>{t('agentBuilder.export.loading')}</p>
+      ) : plan.packages.length === 0 ? (
+        <p className={styles.note}>{t('agentBuilder.export.noPackages')}</p>
+      ) : (
+        <div className={styles.section}>
+          <span className={styles.sectionTitle}>{t('agentBuilder.export.packages')}</span>
+          <div className={styles.rows}>
+            {plan.packages.map((pkg) => (
+              <ExportPackageRow
+                key={packageKey(pkg)}
+                pkg={pkg}
+                checked={selected.has(packageKey(pkg))}
+                disabled={busy}
+                onChange={(checked) => setSelected((previous) => {
+                  const next = new Set(previous)
+                  if (checked) next.add(packageKey(pkg))
+                  else next.delete(packageKey(pkg))
+                  return next
+                })}
+              />
+            ))}
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </ModalDialog>
   )
-
-  return createPortal(<LayerBoundary>{dialog}</LayerBoundary>, document.body) as JSX.Element
 }
 
 function ExportPackageRow({ pkg, checked, disabled, onChange }: {

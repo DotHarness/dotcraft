@@ -8,6 +8,7 @@ internal static class WorktreeGitOperations
 {
     internal static readonly TimeSpan GitTimeout = TimeSpan.FromSeconds(30);
     internal static readonly TimeSpan GitWorktreeTimeout = TimeSpan.FromSeconds(120);
+    private const string EnvironmentPathConfigKey = "dotcraft.environmentPath";
 
     /// <summary>
     /// Counts the commits on <paramref name="tip"/> beyond <paramref name="baseHead"/>, or, without a base, the ones no
@@ -258,6 +259,43 @@ internal static class WorktreeGitOperations
         {
             logger?.LogWarning(ex, "Failed to run git cleanup command during worktree handoff.");
         }
+    }
+
+    internal static async Task<string?> ReadEnvironmentPathAsync(
+        string worktreePath,
+        CancellationToken ct,
+        ILogger? logger)
+    {
+        if (!Directory.Exists(worktreePath))
+            return null;
+        var value = await GitReadAsync(
+            worktreePath,
+            ["config", "--worktree", "--get", EnvironmentPathConfigKey],
+            ct,
+            logger).ConfigureAwait(false);
+        return value.Length == 0 ? null : value;
+    }
+
+    internal static async Task WriteEnvironmentPathAsync(
+        string worktreePath,
+        string? environmentPath,
+        CancellationToken ct,
+        ILogger? logger)
+    {
+        string[] args = environmentPath == null
+            ? ["config", "--worktree", "--unset", EnvironmentPathConfigKey]
+            : ["config", "--worktree", EnvironmentPathConfigKey, environmentPath];
+        var result = await GitProcessRunner.RunAsync(worktreePath, args, GitTimeout, ct, logger: logger).ConfigureAwait(false);
+        if (result.ExitCode != 0
+            && environmentPath != null
+            && result.StdErr.Contains("worktreeConfig", StringComparison.OrdinalIgnoreCase)
+            && await GitSucceedsAsync(worktreePath, ["config", "extensions.worktreeConfig", "true"], ct, logger).ConfigureAwait(false))
+        {
+            result = await GitProcessRunner.RunAsync(worktreePath, args, GitTimeout, ct, logger: logger).ConfigureAwait(false);
+        }
+
+        if (result.ExitCode != 0 && environmentPath != null)
+            logger?.LogWarning("Failed to record the environment of the worktree {Path}: {Error}", worktreePath, TrimGitError(result));
     }
 
     internal static string NormalizeAbsolutePath(string path, string paramName)

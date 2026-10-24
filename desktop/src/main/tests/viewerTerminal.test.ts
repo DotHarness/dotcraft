@@ -195,4 +195,24 @@ describe('ViewerTerminalManager', () => {
     expect(manager.attachTab(win, 'run')).toMatchObject({ pid: 101, buffer: '' })
     expect(manager.attachTab(win, 'run').exited).toBeUndefined()
   })
+
+  it('starts a restarted shell with the requested variables on top of the app environment', () => {
+    const manager = new ViewerTerminalManager()
+    const win = createMockWindow()
+    spawnMock.mockReset().mockReturnValueOnce(createMockPty())
+
+    manager.restartTab(win, {
+      tabId: 'setup',
+      threadId: 'thread-1',
+      cwd: 'C:\\repo',
+      cols: 80,
+      rows: 24,
+      command: 'npm install',
+      env: { DOTCRAFT_WORKTREE_PATH: 'C:\\repo' }
+    })
+
+    const env = spawnMock.mock.calls[0][2].env as Record<string, string>
+    expect(env.DOTCRAFT_WORKTREE_PATH).toBe('C:\\repo')
+    expect(env.PATH ?? env.Path).toBe(process.env.PATH ?? process.env.Path)
+  })
 })

@@ -433,7 +433,8 @@ describe('registerIpcHandlers', () => {
       expect.unreachable('the envelope must reject')
     } catch (error) {
       const failure = error as Error & { code?: string; rpcCode?: number; data?: Record<string, unknown> }
-      expect(failure).toBeInstanceOf(Error)
+      expect(failure).not.toBeInstanceOf(Error)
+      expect(String(failure)).toBe('Workspace is busy.')
       expect(failure.message).toBe('Workspace is busy.')
       expect(failure.name).toBe('JsonRpcError')
       expect(failure.code).toBe('jsonRpcError')

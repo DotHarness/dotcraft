@@ -1,0 +1,28 @@
+.tip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+}
+
+.title {
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  font-weight: 500;
+  line-height: var(--type-ui-line-height);
+}
+
+.description {
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}

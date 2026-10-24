@@ -12,13 +12,6 @@ using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
 
 namespace DotCraft.AppServer;
 
-/// <summary>
-/// Dispatches incoming JSON-RPC requests to the appropriate <see cref="ISessionService"/>
-/// method and returns a JSON-RPC response object ready for serialization.
-///
-/// Each public Handle* method maps directly to one of the wire protocol methods
-/// defined in the Session Wire Protocol Specification.
-/// </summary>
 public sealed class AppServerRequestHandler(
     ISessionService sessionService,
     AppServerConnection connection,
@@ -80,10 +73,6 @@ public sealed class AppServerRequestHandler(
     private AppServerThreadWireProjector? _threadProjector;
     private AgentProfileThreadConfigResolver? _profileResolver;
 
-    /// <summary>
-    /// Shared skill-variant resolver (variant mode + per-connection target), consulted by the
-    /// initialize capability report, turn start, and the extracted <see cref="SkillsRequestHandler"/>.
-    /// </summary>
     private SkillVariantContext SkillVariants => _skillVariants ??=
         new SkillVariantContext(services.AppConfigMonitor, _chatClientRegistry, services.HostWorkspacePath, services.WorkspaceCraftPath);
 
@@ -142,9 +131,7 @@ public sealed class AppServerRequestHandler(
     private AppServerNotificationTable? _clientNotifications;
 
     /// <summary>
-    /// Methods owned by built-in domain handlers. The dispatcher resolves a request against this
-    /// table before protocol extensions. Built lazily so domain handlers can capture the
-    /// connection-scoped services initialized above.
+    /// Built lazily so domain handlers can capture the connection-scoped services initialized above.
     /// </summary>
     private AppServerMethodTable DomainMethods => _domainMethods ??= BuildDomainMethods();
 
@@ -236,28 +223,13 @@ public sealed class AppServerRequestHandler(
             .Select(static descriptor => descriptor.Name)
             .ToHashSet(StringComparer.Ordinal);
 
-    // -------------------------------------------------------------------------
-    // Main dispatch
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Dispatches an incoming request to the appropriate handler.
-    /// Returns the JSON-RPC response to send to the client.
-    /// Throws <see cref="AppServerException"/> for protocol errors.
-    /// Domain exceptions from <see cref="ISessionService"/> are translated to spec-defined
-    /// error codes (Section 8.3): -32010 ThreadNotFound, -32011 ThreadNotActive, -32012 TurnInProgress.
-    /// </summary>
     public async Task<object?> HandleRequestAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         var method = msg.Method ?? string.Empty;
 
-        // initialize is the only method allowed before the handshake
         if (method != Contract.AppServerRpc.Initialize.Name && !connection.IsInitialized)
             throw AppServerErrors.NotInitialized();
 
-        // After initialize response, block all requests until the client sends the
-        // `initialized` notification (IsClientReady). This prevents premature operations
-        // before the client has finished processing server capabilities.
         if (method != Contract.AppServerRpc.Initialize.Name && connection.IsInitialized && !connection.IsClientReady)
             throw AppServerErrors.InvalidRequest("Server is awaiting the 'initialized' notification before handling requests.");
 
@@ -268,8 +240,6 @@ public sealed class AppServerRequestHandler(
         {
             foreach (var refresher in services.RuntimeRefreshers)
                 await refresher.RefreshAsync(ct);
-            // Extracted domain handlers register their methods in the table; protocol extensions
-            // are the only fallback once built-in domains have had a chance to resolve the method.
             if (DomainMethods.TryGet(method, out var domainHandler))
                 return await domainHandler(msg, ct);
 
@@ -277,12 +247,19 @@ public sealed class AppServerRequestHandler(
         }
         catch (KeyNotFoundException ex)
         {
-            // Thread or turn not found in persistence or in-memory state
             throw AppServerErrors.ThreadNotFound(AppServerExceptionMapper.ExtractQuotedId(ex.Message));
         }
         catch (WorktreeHandoffConflictException ex)
         {
             throw AppServerErrors.WorktreeHandoffConflict(ex.ConflictPaths);
+        }
+        catch (WorktreeInUseException ex)
+        {
+            throw AppServerErrors.WorktreeInUse(ex.Path);
+        }
+        catch (WorktreeEnvironmentException ex)
+        {
+            throw AppServerErrors.WorktreeEnvironment(ex);
         }
         catch (ThreadHistoryUnavailableException ex)
         {
@@ -328,15 +305,11 @@ public sealed class AppServerRequestHandler(
 
     private static bool IsAppPrincipalMethod(string method) => AppPrincipalMethods.Contains(method);
 
-    /// <summary>
-    /// Handles the <c>initialized</c> client notification (no response required).
-    /// </summary>
     public void HandleInitializedNotification()
     {
         connection.MarkClientReady();
     }
 
-    /// <summary>Dispatches a client notification through the typed notification catalog.</summary>
     public bool HandleNotification(AppServerIncomingMessage message) => ClientNotifications.TryHandle(message);
 
     private async Task<object?> TryHandleExtensionAsync(string method, AppServerIncomingMessage msg, CancellationToken ct)
@@ -422,9 +395,6 @@ public sealed class AppServerRequestHandler(
         return methods;
     }
 
-    /// <summary>
-    /// Builds a standard JSON-RPC 2.0 success response.
-    /// </summary>
     public static object BuildResponse(JsonElement? id, object? result) => new
     {
         jsonrpc = "2.0",
@@ -432,9 +402,6 @@ public sealed class AppServerRequestHandler(
         result
     };
 
-    /// <summary>
-    /// Builds a standard JSON-RPC 2.0 error response.
-    /// </summary>
     public static object BuildErrorResponse(JsonElement? id, AppServerError error) => new
     {
         jsonrpc = "2.0",

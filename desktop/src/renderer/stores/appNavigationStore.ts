@@ -196,6 +196,17 @@ export function replaceCurrentAppNavigationLocation(): void {
   useAppNavigationStore.getState().replaceCurrent(captureAppNavigationLocation())
 }
 
+export function openEnvironmentSettings(request: { projectPath: string; environmentId?: string; create?: boolean }): void {
+  const ui = useUIStore.getState()
+  const returnTo = ui.activeMainView === 'settings' ? null : captureAppNavigationLocation()
+  ui.openEnvironmentSettings({ ...request, returnTo })
+}
+
+export function returnToAppNavigationLocation(location: AppNavigationLocation): void {
+  const target = normalizeLocation(location)
+  if (target) restoreLocation(target)
+}
+
 export function startAppNavigationHistory(workspaceKey: string): () => void {
   stopAppNavigationHistory(false)
   activeWorkspaceKey = workspaceKey

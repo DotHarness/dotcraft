@@ -226,29 +226,40 @@ internal static class ThreadWorktreeManager
 
         Directory.CreateDirectory(Path.GetDirectoryName(worktreePath)!);
 
-        await RunStepAsync(request.Progress, WorktreeHandoffSteps.CreateWorktree, () => RunGitRequiredAsync(
-            repositoryRoot,
-            ["worktree", "add", "-b", branchName, worktreePath, baseRef],
-            GitWorktreeTimeout,
-            "Failed to create git worktree",
-            ct,
-            logger)).ConfigureAwait(false);
+        try
+        {
+            await RunStepAsync(request.Progress, WorktreeHandoffSteps.CreateWorktree, () => RunGitRequiredAsync(
+                repositoryRoot,
+                ["worktree", "add", "-b", branchName, worktreePath, baseRef],
+                GitWorktreeTimeout,
+                "Failed to create git worktree",
+                ct,
+                logger)).ConfigureAwait(false);
+        }
+        catch when (ct.IsCancellationRequested)
+        {
+            await DiscardNewWorktreeAsync(repositoryRoot, worktreePath, branchName, logger).ConfigureAwait(false);
+            throw;
+        }
 
         ThreadWorktreeDirtyHandoffInfo handoff;
         try
         {
             var dataDirectoryName = Path.GetFileName(dataPath);
-            await CopyIncludedFilesAsync(repositoryRoot, worktreePath, ct, logger).ConfigureAwait(false);
-            handoff = request.DirtyChanges switch
+            handoff = await RunStepAsync(request.ReportCopyStep ? request.Progress : null, WorktreeCreateSteps.CopyFiles, async () =>
             {
-                DirtyChangeHandling.Copy => await CopyDirtyChangesAsync(repositoryRoot, worktreePath, dataDirectoryName, ct, logger).ConfigureAwait(false),
-                DirtyChangeHandling.Move => await MoveDirtyChangesAsync(repositoryRoot, worktreePath, dataDirectoryName, request.Progress, ct, logger).ConfigureAwait(false),
-                _ => new ThreadWorktreeDirtyHandoffInfo { Requested = false, Status = WorktreeDirtyHandoffStatuses.Skipped }
-            };
+                await CopyIncludedFilesAsync(repositoryRoot, worktreePath, ct, logger).ConfigureAwait(false);
+                return request.DirtyChanges switch
+                {
+                    DirtyChangeHandling.Copy => await CopyDirtyChangesAsync(repositoryRoot, worktreePath, dataDirectoryName, ct, logger).ConfigureAwait(false),
+                    DirtyChangeHandling.Move => await MoveDirtyChangesAsync(repositoryRoot, worktreePath, dataDirectoryName, request.Progress, ct, logger).ConfigureAwait(false),
+                    _ => new ThreadWorktreeDirtyHandoffInfo { Requested = false, Status = WorktreeDirtyHandoffStatuses.Skipped }
+                };
+            }).ConfigureAwait(false);
         }
         catch
         {
-            await RunStepAsync(request.Progress, WorktreeHandoffSteps.Rollback,
+            await RunStepAsync(request.ReportCopyStep ? null : request.Progress, WorktreeHandoffSteps.Rollback,
                 () => DiscardNewWorktreeAsync(repositoryRoot, worktreePath, branchName, logger)).ConfigureAwait(false);
             throw;
         }
@@ -275,7 +286,8 @@ internal static class ThreadWorktreeManager
         string dataPath,
         Action<string, string>? progress,
         CancellationToken ct,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        Func<Task>? beforeChanges = null)
     {
         ArgumentNullException.ThrowIfNull(worktree);
         dataPath = NormalizeAbsolutePath(dataPath, nameof(dataPath));
@@ -305,6 +317,11 @@ internal static class ThreadWorktreeManager
                 "Commit or stash the local changes before moving the worktree back.",
                 [.. targetEntries.Select(static entry => entry.Path.Replace('\\', '/')).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)]);
         }
+
+        if (beforeChanges != null)
+            await beforeChanges().ConfigureAwait(false);
+
+        EnsureFolderNotInUse(worktreePath);
 
         var stashRef = sourceEntries.Count > 0
             ? await RunStepAsync(progress, WorktreeHandoffSteps.StashSourceChanges,
@@ -362,14 +379,6 @@ internal static class ThreadWorktreeManager
             {
                 Skip<string>(progress, WorktreeHandoffSteps.ApplyChanges);
             }
-
-            await RunGitRequiredAsync(
-                targetRoot,
-                ["worktree", "remove", "--force", worktreePath],
-                GitWorktreeTimeout,
-                "Failed to remove git worktree",
-                ct,
-                logger).ConfigureAwait(false);
         }
         catch
         {
@@ -377,7 +386,7 @@ internal static class ThreadWorktreeManager
             if (localSwitched && !stashAppliedLocally)
             {
                 await TryRunGitAsync(targetRoot, ["reset", "--hard"], CancellationToken.None, logger).ConfigureAwait(false);
-                await TryRunGitAsync(targetRoot, ["clean", "-fd"], CancellationToken.None, logger).ConfigureAwait(false);
+                await TryRunGitAsync(targetRoot, ["clean", "-fd", "-e", $"/{dataDirectoryName}/"], CancellationToken.None, logger).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(targetOriginalBranch))
                     await TryRunGitAsync(targetRoot, ["switch", targetOriginalBranch], ct, logger).ConfigureAwait(false);
                 else if (!string.IsNullOrWhiteSpace(targetOriginalHead))
@@ -396,7 +405,36 @@ internal static class ThreadWorktreeManager
             throw;
         }
 
+        await TryRunGitAsync(targetRoot, ["worktree", "remove", "--force", worktreePath], CancellationToken.None, logger).ConfigureAwait(false);
+        if (Directory.Exists(worktreePath))
+        {
+            try
+            {
+                Directory.Delete(worktreePath, recursive: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                logger?.LogWarning(ex, "Left the worktree folder {Path} on disk after handing its thread back.", worktreePath);
+            }
+        }
+
+        await TryRunGitAsync(targetRoot, ["worktree", "prune"], CancellationToken.None, logger).ConfigureAwait(false);
         return BuildDirtyHandoffInfo(sourceEntries);
+    }
+
+    private static void EnsureFolderNotInUse(string worktreePath)
+    {
+        var probePath = $"{worktreePath}.{Guid.NewGuid():N}";
+        try
+        {
+            Directory.Move(worktreePath, probePath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new WorktreeInUseException(worktreePath);
+        }
+
+        Directory.Move(probePath, worktreePath);
     }
 
     public static async Task<ThreadWorktreeInfo> MoveIntoExistingAsync(
@@ -1075,4 +1113,5 @@ internal sealed record WorktreeCreateRequest(
     string? Path,
     DirtyChangeHandling DirtyChanges,
     string BranchPrefix,
-    Action<string, string>? Progress = null);
+    Action<string, string>? Progress = null,
+    bool ReportCopyStep = false);

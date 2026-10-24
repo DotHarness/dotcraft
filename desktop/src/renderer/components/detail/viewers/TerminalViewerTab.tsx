@@ -141,7 +141,8 @@ export function TerminalViewerTab({ tabId }: TerminalViewerTabProps): JSX.Elemen
           cwd,
           cols: term.cols,
           rows: term.rows,
-          command: pendingRun.command
+          command: pendingRun.command,
+          ...(pendingRun.env ? { env: pendingRun.env } : {})
         })
         updateTerminalTabRef.current(threadId, tabId, {
           hasStarted: true,

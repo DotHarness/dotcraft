@@ -1,0 +1,14 @@
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note {
+  flex-shrink: 0;
+  color: var(--text-dimmed);
+  font-size: var(--type-hint-size);
+  line-height: var(--type-hint-line-height);
+}

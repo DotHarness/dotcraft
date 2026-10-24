@@ -4,6 +4,7 @@ import { Container } from 'lucide-react'
 import { Button } from '../../../ui/Button'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../../../ui/ContextMenu'
+import { DisclosureButton } from '../../../ui/DisclosureButton'
 import { MoreActionsButton } from '../../../ui/MoreActionsButton'
 import { StatusIndicator, type StatusTone } from '../../../ui/StatusIndicator'
 import { useT } from '../../../../contexts/LocaleContext'
@@ -165,9 +166,9 @@ function DockerRow({ machineId, stack }: { machineId: string; stack: RemoteStack
           >
             {t('settings.ssh.open')}
           </Button>
-          <Button variant="ghost" aria-expanded={logs != null} onClick={() => void toggleLogs()}>
+          <DisclosureButton expanded={logs != null} onClick={() => void toggleLogs()}>
             {t('settings.ssh.docker.logs')}
-          </Button>
+          </DisclosureButton>
           <MoreActionsButton
             ref={more}
             label={t('settings.ssh.moreActionsFor', { name: stack.name })}

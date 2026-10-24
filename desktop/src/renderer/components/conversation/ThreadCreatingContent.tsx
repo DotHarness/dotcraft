@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from 'react'
+import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import type { InputPart } from '../../types/conversation'
 import { createOptimisticUserMessage } from '../../utils/inputPresentation'
 import { ConversationColumn } from './ConversationColumn'
@@ -8,14 +8,16 @@ import { UserMessageBlock } from './UserMessageBlock'
 export function ThreadCreatingContent({
   text,
   inputParts,
-  sentAsGoal = false
+  sentAsGoal = false,
+  children
 }: {
-  text: string
-  inputParts: InputPart[]
+  text?: string
+  inputParts?: InputPart[]
   sentAsGoal?: boolean
+  children?: ReactNode
 }): JSX.Element {
   const message = useMemo(
-    () => createOptimisticUserMessage(inputParts, text, 'pending', sentAsGoal),
+    () => inputParts ? createOptimisticUserMessage(inputParts, text ?? '', 'pending', sentAsGoal) : null,
     [inputParts, sentAsGoal, text]
   )
   return (
@@ -24,15 +26,18 @@ export function ThreadCreatingContent({
         <ConversationColumn className="dc-conversation-column-stack">
           <div className="dc-conversation-turn-shell">
             <div style={turnStyle}>
-              <UserMessageBlock
-                messageId={message.id}
-                text={message.text ?? ''}
-                nativeInputParts={message.nativeInputParts}
-                imageDataUrls={message.imageDataUrls}
-                images={message.images}
-                createdAt={message.createdAt}
-                sentAsGoal={sentAsGoal}
-              />
+              {message ? (
+                <UserMessageBlock
+                  messageId={message.id}
+                  text={message.text ?? ''}
+                  nativeInputParts={message.nativeInputParts}
+                  imageDataUrls={message.imageDataUrls}
+                  images={message.images}
+                  createdAt={message.createdAt}
+                  sentAsGoal={sentAsGoal}
+                />
+              ) : null}
+              {children}
             </div>
           </div>
         </ConversationColumn>

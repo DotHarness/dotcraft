@@ -1,0 +1,15 @@
+.output {
+  max-height: 240px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-code-size);
+  line-height: var(--text-code-line-height);
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

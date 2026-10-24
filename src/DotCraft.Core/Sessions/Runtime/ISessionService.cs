@@ -6,7 +6,6 @@ using DotCraft.Visualizations;
 
 namespace DotCraft.Sessions;
 
-/// <summary>Controls which identity fields participate in thread discovery.</summary>
 public enum ThreadDiscoveryScope
 {
     /// <summary>Match workspace, user, and channel context, plus explicitly allowed origins.</summary>
@@ -16,10 +15,8 @@ public enum ThreadDiscoveryScope
     Workspace
 }
 
-/// <summary>Provides the Session Core API for thread, turn, and item lifecycles.</summary>
 public interface ISessionService
 {
-    /// <summary>Creates a Thread for the given identity.</summary>
     Task<SessionThread> CreateThreadAsync(
         SessionIdentity identity,
         ThreadConfiguration? config = null,
@@ -30,32 +27,27 @@ public interface ISessionService
         ThreadSource? source = null,
         bool ephemeral = false);
 
-    /// <summary>Forks a Thread at an optional history point.</summary>
     Task<SessionThread> ForkThreadAsync(
         string threadId,
         ThreadForkOptions? options = null,
         CancellationToken ct = default) =>
         throw new NotSupportedException("Thread fork is not supported by this session service.");
 
-    /// <summary>Creates a managed worktree and forks a Thread into it.</summary>
     Task<WorktreeCreateAndForkResult> CreateWorktreeAndForkAsync(
         WorktreeCreateAndForkOptions options,
         CancellationToken ct = default) =>
         throw new NotSupportedException("Git worktree handoff is not supported by this session service.");
 
-    /// <summary>Creates a managed worktree and starts a Thread in it.</summary>
     Task<WorktreeCreateAndStartResult> CreateWorktreeAndStartAsync(
         WorktreeCreateAndStartOptions options,
         CancellationToken ct = default) =>
         throw new NotSupportedException("Git worktree start is not supported by this session service.");
 
-    /// <summary>Moves a Thread between its workspace and a managed worktree.</summary>
     Task<WorktreeHandoffResult> HandoffThreadWorktreeAsync(
         WorktreeHandoffOptions options,
         CancellationToken ct = default) =>
         throw new NotSupportedException("Git worktree handoff is not supported by this session service.");
 
-    /// <summary>Ensures a managed worktree exists and is bound to a Thread.</summary>
     Task<WorktreeEnsureResult> EnsureManagedWorktreeAsync(
         WorktreeEnsureOptions options,
         CancellationToken ct = default) =>
@@ -67,7 +59,6 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("Thread execution workspace configuration is not supported by this session service.");
 
-    /// <summary>Removes a managed worktree and optionally its branch.</summary>
     Task RemoveManagedWorktreeAsync(
         WorktreeRemoveOptions options,
         CancellationToken ct = default) =>
@@ -78,10 +69,27 @@ public interface ISessionService
         Task.FromResult<IReadOnlyList<ThreadWorktreeStatus>>([]);
 
     /// <summary>Removes a managed worktree and its branch, refusing to lose work unless <paramref name="discardChanges"/> is set.</summary>
-    Task RemoveWorktreeAsync(string path, bool discardChanges, CancellationToken ct = default) =>
+    Task RemoveWorktreeAsync(
+        string path,
+        bool discardChanges,
+        bool skipCleanup = false,
+        CancellationToken ct = default) =>
         throw new NotSupportedException("Git worktree removal is not supported by this session service.");
 
-    /// <summary>Returns Git status for a Thread's managed worktree.</summary>
+    void CancelWorktreeOperation(string operationId)
+    {
+    }
+
+    Task<WorktreeSetupResult> RunWorktreeSetupAsync(
+        WorktreeRunSetupOptions options,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Worktree environments are not supported by this session service.");
+
+    Task<ThreadWorktreeInfo> SetWorktreeEnvironmentAsync(
+        WorktreeSetEnvironmentOptions options,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Worktree environments are not supported by this session service.");
+
     Task<ThreadWorktreeStatus> GetWorktreeStatusAsync(
         string threadId,
         CancellationToken ct = default) =>
@@ -92,7 +100,6 @@ public interface ISessionService
     /// </summary>
     Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default);
 
-    /// <summary>Exports a durable Thread into workspace-local recovery staging.</summary>
     Task<ThreadRecoveryPackage> ExportThreadRecoveryAsync(
         string threadId,
         CancellationToken ct = default) =>
@@ -117,7 +124,6 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("Thread import append is not supported by this session service.");
 
-    /// <summary>Returns the current goal attached to a Thread.</summary>
     Task<ThreadGoal?> GetThreadGoalAsync(string threadId, CancellationToken ct = default) =>
         throw new NotSupportedException("Thread goals are not supported by this session service.");
 
@@ -125,15 +131,12 @@ public interface ISessionService
     Task<ThreadGoal?> GetStoredThreadGoalAsync(string threadId, CancellationToken ct = default) =>
         GetThreadGoalAsync(threadId, ct);
 
-    /// <summary>Returns the widget state saved by a Thread's visualization.</summary>
     VisualizationWidgetState? GetVisualizationWidgetState(string threadId, string path) =>
         throw new NotSupportedException("Visualization widget state is not supported by this session service.");
 
-    /// <summary>Replaces the widget state saved by a Thread's visualization.</summary>
     void SetVisualizationWidgetState(string threadId, string path, VisualizationWidgetState state) =>
         throw new NotSupportedException("Visualization widget state is not supported by this session service.");
 
-    /// <summary>Returns the view states saved by a Thread's Generative UI blocks.</summary>
     IReadOnlyList<GenerativeUiBlockState> GetGenerativeUiStates(string threadId) =>
         throw new NotSupportedException("Generative UI state is not supported by this session service.");
 
@@ -141,7 +144,6 @@ public interface ISessionService
     void SetGenerativeUiState(string threadId, string turnId, string itemId, int blockIndex, string? stateJson) =>
         throw new NotSupportedException("Generative UI state is not supported by this session service.");
 
-    /// <summary>Creates, replaces, or updates a Thread goal.</summary>
     Task<ThreadGoal> SetThreadGoalAsync(
         string threadId,
         ThreadGoalUpdate update,
@@ -149,17 +151,13 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("Thread goals are not supported by this session service.");
 
-    /// <summary>Clears a Thread goal.</summary>
     Task<ThreadGoalClearResult> ClearThreadGoalAsync(string threadId, CancellationToken ct = default) =>
         throw new NotSupportedException("Thread goals are not supported by this session service.");
 
-    /// <summary>Archives a Thread, making it read-only.</summary>
     Task ArchiveThreadAsync(string threadId, CancellationToken ct = default);
 
-    /// <summary>Restores an archived Thread to active status.</summary>
     Task UnarchiveThreadAsync(string threadId, CancellationToken ct = default);
 
-    /// <summary>Finds Threads in the requested identity or workspace scope.</summary>
     Task<IReadOnlyList<ThreadSummary>> FindThreadsAsync(
         SessionIdentity identity,
         bool includeArchived = false,
@@ -207,13 +205,11 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("SubAgent mailbox is not supported by this session service.");
 
-    /// <summary>Subscribes to Thread events independently of Turn execution.</summary>
     IAsyncEnumerable<SessionEvent> SubscribeThreadAsync(
         string threadId,
         bool replayRecent = false,
         CancellationToken ct = default);
 
-    /// <summary>Starts a Turn and streams its lifecycle events.</summary>
     IAsyncEnumerable<SessionEvent> SubmitInputAsync(
         string threadId,
         IList<AIContent> content,
@@ -222,7 +218,6 @@ public interface ISessionService
         CancellationToken ct = default,
         SessionInputSnapshot? inputSnapshot = null);
 
-    /// <summary>Queues input for a later Turn.</summary>
     Task<QueuedTurnInput> EnqueueTurnInputAsync(
         string threadId,
         IList<AIContent> content,
@@ -254,13 +249,11 @@ public interface ISessionService
         Func<IAsyncEnumerable<SessionEvent>, IAsyncEnumerable<SessionEvent>>? observe = null) =>
         throw new NotSupportedException("Starting queued input is not supported by this session service.");
 
-    /// <summary>Removes queued input from a Thread.</summary>
     Task<IReadOnlyList<QueuedTurnInput>> RemoveQueuedTurnInputAsync(
         string threadId,
         string queuedInputId,
         CancellationToken ct = default);
 
-    /// <summary>Reorders all queued input for a Thread.</summary>
     Task<IReadOnlyList<QueuedTurnInput>> ReorderQueuedTurnInputsAsync(
         string threadId,
         IReadOnlyList<string> orderedQueuedInputIds,
@@ -274,7 +267,6 @@ public interface ISessionService
         string status,
         CancellationToken ct = default);
 
-    /// <summary>Resolves a pending approval request.</summary>
     Task ResolveApprovalAsync(
         string threadId,
         string turnId,
@@ -282,7 +274,6 @@ public interface ISessionService
         SessionApprovalDecision decision,
         CancellationToken ct = default);
 
-    /// <summary>Resolves a pending model-initiated input request.</summary>
     Task ResolveUserInputRequestAsync(
         string threadId,
         string turnId,
@@ -295,7 +286,6 @@ public interface ISessionService
     /// </summary>
     Task CancelTurnAsync(string threadId, string turnId, CancellationToken ct = default);
 
-    /// <summary>Terminates all background terminals owned by a Thread.</summary>
     Task CleanBackgroundTerminalsAsync(string threadId, CancellationToken ct = default);
 
     Task<IReadOnlyList<BackgroundTask>> ListBackgroundTasksAsync(string threadId, CancellationToken ct = default) =>
@@ -310,18 +300,15 @@ public interface ISessionService
     /// </summary>
     Task<SessionThread> RollbackThreadAsync(string threadId, int numTurns, CancellationToken ct = default);
 
-    /// <summary>Changes a Thread's agent mode.</summary>
     Task SetThreadModeAsync(string threadId, string mode, CancellationToken ct = default);
 
     /// <summary>Compacts model-visible context for an idle server-managed Thread.</summary>
     Task<ThreadCompactResult> CompactThreadAsync(string threadId, CancellationToken ct = default) =>
         throw new NotSupportedException("Manual context compaction is not supported by this session service.");
 
-    /// <summary>Cancels active Thread maintenance.</summary>
     Task CancelThreadMaintenanceAsync(string threadId, CancellationToken ct = default) =>
         Task.CompletedTask;
 
-    /// <summary>Updates a Thread's agent configuration.</summary>
     Task UpdateThreadConfigurationAsync(
         string threadId,
         ThreadConfiguration config,
@@ -337,7 +324,6 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("Thread workspace updates are not supported by this session service.");
 
-    /// <summary>Updates a Thread's source-control target.</summary>
     Task<SessionThread> UpdateThreadSourceControlTargetAsync(
         string threadId,
         ThreadSourceControlTarget? target,
@@ -349,12 +335,10 @@ public interface ISessionService
     /// </summary>
     Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default);
 
-    /// <summary>Returns the ordered sources of a Thread's stable AGENTS.md snapshot.</summary>
     Task<IReadOnlyList<string>> GetInstructionSourcesAsync(
         string threadId,
         CancellationToken ct = default);
 
-    /// <summary>Returns a persisted Thread header without history.</summary>
     Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(
         string threadId,
         CancellationToken ct = default) =>
@@ -369,7 +353,6 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("Paged Thread history is not supported by this session service.");
 
-    /// <summary>Returns a bounded page of persisted Items.</summary>
     Task<ThreadHistoryPage<ThreadHistoryItem>> ListThreadItemsAsync(
         string threadId,
         string? turnId,
@@ -407,7 +390,6 @@ public interface ISessionService
             yield return turn;
     }
 
-    /// <summary>Returns Turn count, token totals, and tool-call count over every visible Turn.</summary>
     async Task<ThreadHistoryAggregates> ReadThreadAggregatesAsync(string threadId, CancellationToken ct = default) =>
         ThreadHistoryTotals.Of((await GetThreadAsync(threadId, ct).ConfigureAwait(false)).Turns);
 
@@ -416,16 +398,12 @@ public interface ISessionService
     /// </summary>
     Task<SessionThread> EnsureThreadLoadedAsync(string threadId, CancellationToken ct = default);
 
-    /// <summary>Permanently deletes a Thread and its files.</summary>
     Task DeleteThreadPermanentlyAsync(string threadId, CancellationToken ct = default);
 
-    /// <summary>Updates a Thread's display name.</summary>
     Task RenameThreadAsync(string threadId, string displayName, CancellationToken ct = default);
 
-    /// <summary>Returns persisted context-window usage when available.</summary>
     ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId);
 
-    /// <summary>Returns the process-local runtime snapshot for a loaded Thread.</summary>
     ThreadSummaryRuntime GetThreadRuntimeSnapshot(SessionThread thread) =>
         ThreadSummaryRuntime.FromThread(thread);
 
@@ -435,13 +413,10 @@ public interface ISessionService
     /// <summary>Returns the Thread when it is loaded in this process, without loading it.</summary>
     SessionThread? TryGetLoadedThread(string threadId) => null;
 
-    /// <summary>Notifies hosts after a Thread is created and persisted.</summary>
     Action<SessionThread>? ThreadCreatedForBroadcast { get; set; }
 
-    /// <summary>Notifies hosts after a Thread is permanently deleted.</summary>
     Action<string>? ThreadDeletedForBroadcast { get; set; }
 
-    /// <summary>Notifies hosts after a Thread display name changes.</summary>
     Action<SessionThread>? ThreadRenamedForBroadcast { get; set; }
 
     /// <summary>Notifies hosts after Thread metadata or execution workspace changes.</summary>
@@ -451,20 +426,16 @@ public interface ISessionService
         set { }
     }
 
-    /// <summary>Notifies hosts after a Thread lifecycle status changes.</summary>
     Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChangedForBroadcast { get; set; }
 
-    /// <summary>Notifies hosts when a Thread runtime signal changes.</summary>
     Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
-    /// <summary>Notifies hosts after a Thread goal changes.</summary>
     Action<ThreadGoal, string?>? ThreadGoalUpdatedForBroadcast
     {
         get => null;
         set { }
     }
 
-    /// <summary>Notifies hosts after a Thread goal is cleared.</summary>
     Action<string>? ThreadGoalClearedForBroadcast
     {
         get => null;

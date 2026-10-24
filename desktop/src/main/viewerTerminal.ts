@@ -28,6 +28,7 @@ export interface TerminalSpawnParams {
   cwd: string
   cols: number
   rows: number
+  env?: Record<string, string>
 }
 
 interface WindowRuntime {
@@ -108,7 +109,6 @@ export class ViewerTerminalManager {
     try {
       proc?.kill()
     } catch {
-      // Best-effort shutdown.
     }
     runtime.tabs.delete(tabId)
   }
@@ -140,7 +140,7 @@ export class ViewerTerminalManager {
       cols: Math.max(2, Math.round(params.cols)),
       rows: Math.max(2, Math.round(params.rows)),
       cwd: params.cwd,
-      env: process.env as Record<string, string>
+      env: { ...process.env, ...params.env } as Record<string, string>
     })
     const tab: TerminalTabRuntime = {
       tabId: params.tabId,

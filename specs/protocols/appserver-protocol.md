@@ -186,7 +186,7 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `threadMaintenanceInterrupt` | `thread/maintenance/interrupt`. |
 | `dynamicToolRebind` | `thread/resume.dynamicTools`. |
 | `runtimeAdditionalContext` | `additionalContext` on `thread/start` and `thread/resume`. |
-| `gitWorktrees` | `worktree/createAndFork`, `worktree/createAndStart`, `thread/worktree/handoff`, `worktree/list`, `worktree/status`, `worktree/remove`. |
+| `gitWorktrees` | `worktree/createAndFork`, `worktree/createAndStart`, `thread/worktree/handoff`, `worktree/list`, `worktree/status`, `worktree/remove`, `worktree/cancelCreate`, `worktree/runSetup`, `worktree/setEnvironment`. |
 | `appBindingVersion` | App Binding control-plane version (`1`). |
 | `appThreadInputEnqueue` | `app/threadInput/enqueue`. |
 | `approvalFlow` | Server may send approval requests. |
@@ -530,7 +530,7 @@ Interrupt active thread maintenance such as manual compaction. Gated by `capabil
 
 Gated by `capabilities.gitWorktrees`. These methods create, inspect, switch, and remove DotCraft-managed Git worktrees ([Session Core §4.1.1.2](../architecture/session-core.md#41112-worktrees)). Thread state (rollout, memory, goals, plans, app bindings, metadata) stays in the original workspace; the worktree is only the execution workspace. Managed worktree paths must resolve under `<workspace>/.craft/worktrees/`.
 
-Creation methods share `branchName` (allocated from `Worktrees.BranchPrefix` when omitted; an existing branch is rejected), `baseRef` (defaults to the source execution workspace `HEAD`), `path`, and `copyDirtyChanges` (default `true`: tracked and non-ignored untracked changes). Creation is atomic: the thread is created or moved only after the worktree and its changes are in place, and a failure leaves no worktree or branch behind.
+Creation methods share `branchName` (allocated from `Worktrees.BranchPrefix` when omitted; an existing branch is rejected), `baseRef` (defaults to the source execution workspace `HEAD`), `path`, and `copyDirtyChanges` (default `true`: tracked and non-ignored untracked changes). Creation is atomic: the thread is created or moved only after the worktree and its changes are in place, and a failure leaves no worktree or branch behind. `worktree/createAndStart` and `worktree/createAndFork` also accept `environmentPath` and `operationId` ([Section 4.17.7](#4177-environments)).
 
 #### 4.17.1 `worktree/createAndFork`
 
@@ -547,7 +547,8 @@ Move an existing thread between its local workspace and a managed worktree witho
 - The thread must be Active with no running turn, pending approval/input, queued input, or blocking maintenance.
 - Local → worktree moves uncommitted changes by default (the local checkout is left without them) and sets `thread.worktree` and `executionWorkspaceOverride`. A `path` naming a managed worktree no thread is bound to reuses it on its own branch: its own uncommitted changes are stashed and kept, and `dirtyHandoff.targetStashed` is `true`. A `path` naming a managed worktree bound to another thread fails. Any other `path`, or none, creates a managed worktree.
 - Worktree → local fails with `WorktreeHandoffConflict` and `params.conflictPaths` listing the local uncommitted paths when the local checkout has any uncommitted change or its state cannot be read. Otherwise it checks the worktree's branch out in the local checkout, applies the worktree's uncommitted changes there, clears `thread.worktree` and `executionWorkspaceOverride`, and removes the managed worktree. The local checkout stays on that branch.
-- A failed step undoes the earlier ones, restoring both checkouts and their changes.
+- Worktree → local fails with `WorktreeInUse` and `params.path` when another program holds the worktree folder (for example a terminal opened in it), checked after the environment cleanup and before any other step.
+- A failed step undoes the earlier ones, restoring both checkouts and their changes. Once the local checkout holds the branch and its changes, the handoff succeeds even if the worktree folder cannot be deleted; the folder is left on disk.
 - While the handoff runs, the server emits `thread/worktree/handoffProgress` for each step. On success it emits `thread/updated`.
 
 #### 4.17.4 `worktree/list`
@@ -560,9 +561,20 @@ Return `ThreadWorktreeStatus` for the worktree bound to `threadId`: a lightweigh
 
 #### 4.17.6 `worktree/remove`
 
-Remove a managed worktree and its branch. Params: `path`, `discardChanges` (default `false`). Refused when an Active thread is bound to it and, unless `discardChanges` is `true`, when it has uncommitted changes or commits beyond its base. A bound archived thread loses its worktree. Result: `{}`.
+Remove a managed worktree and its branch. Params: `path`, `discardChanges` (default `false`), `skipCleanup` (default `false`). Refused when an Active thread is bound to it and, unless `discardChanges` is `true`, when it has uncommitted changes or commits beyond its base. A bound archived thread loses its worktree. Result: `{}`.
 
-`ThreadWorktreeInfo` records branch, path, `baseRef`, resolved `baseHead`, current `head`, optional `ownerKind`/`ownerId`, and `createdAt`. Automation run worktrees set `ownerKind = "automationRun"` and `ownerId = runId`.
+`ThreadWorktreeInfo` records branch, path, `baseRef`, resolved `baseHead`, current `head`, optional `ownerKind`/`ownerId`, optional `environmentPath`, and `createdAt`. Automation run worktrees set `ownerKind = "automationRun"` and `ownerId = runId`.
+
+#### 4.17.7 Environments
+
+A worktree can be created with a [local environment](../features/local-environments.md), whose setup script prepares it and whose cleanup script runs before it is removed ([Session Core §4.1.1.2](../architecture/session-core.md#41112-worktrees)).
+
+- **`environmentPath`** on `worktree/createAndStart` and `worktree/createAndFork` is the absolute path of an environment file: a `.json` file directly in a `.craft/environments` folder of the source workspace or a parent up to the repository root, that parses as a valid environment. Otherwise the request fails with `-32106` `environmentInvalid` before anything is created. Without it, no setup runs and the worktree records no environment.
+- **Setup.** With `environmentPath`, the server runs the setup script after the worktree is created and its files are copied, and before the thread is created. With an `operationId`, it reports `worktree/createProgress` steps and streams `worktree/setupOutput`. The result adds `setup: { status, exitCode?, outputTail }` where `status` is `succeeded`, `failed`, or `skipped` (no script for this platform). A failed setup still creates the thread and keeps the worktree.
+- **`worktree/cancelCreate`** `{ operationId }` → `{}` stops a creation or `worktree/runSetup` with that id. A creation can be cancelled until its thread is saved; it then fails with `-32106` `creationCancelled` and leaves no worktree, branch, or thread. A cancel that arrives later is ignored and the creation succeeds. A cancelled `worktree/runSetup` returns `setup.status = "failed"`. Unknown or finished ids are ignored.
+- **`worktree/runSetup`** `{ threadId, operationId? }` → `{ setup }` runs the setup script of the environment recorded on the thread's worktree again, as it is on disk now. It fails with `environmentInvalid` when nothing is recorded or the file is missing or invalid.
+- **`worktree/setEnvironment`** `{ path, environmentPath }` → `{ worktree }` changes the environment recorded on a managed worktree; `environmentPath` is validated as above, or `null` to record none. It runs no script.
+- **Cleanup.** Before removing a worktree that records an environment, the server runs its cleanup script: in `worktree/remove`, `thread/archive`, `thread/delete`, and `thread/worktree/handoff` to local (as the `cleanupEnvironment` step, before any other step). A missing file or an empty script skips it. If it fails, `worktree/remove` and the handoff fail with `-32106` `cleanupFailed` and change nothing; `worktree/remove` with `skipCleanup = true` removes without running it. Archiving or deleting still completes and keeps the worktree on disk.
 
 ### 4.18 Thread Recovery Methods
 
@@ -719,7 +731,9 @@ A thread is **hidden** when it is ephemeral or internal (DotCraft-owned helper t
 | Notification | Params | Semantics |
 |--------------|--------|-----------|
 | `thread/started` | `{ thread }` | A thread was created. Sent to the initiating client after `thread/start` and broadcast to connections when any channel in the process creates one, including the connection whose other request (such as an extension request) created it as a side effect. SubAgent child creation is broadcast so lists can show the child while the parent turn runs. |
-| `thread/worktree/handoffProgress` | `{ threadId, operationId?, step, status }` | A `thread/worktree/handoff` step changed state. `step` is `createWorktree`, `reuseWorktree`, `stashSourceChanges`, `stashTargetChanges`, `detachWorktreeBranch`, `checkoutLocalBranch`, `applyChanges`, `moveThread`, or `rollback`; `status` is `started`, `completed`, `skipped`, or `failed`. Steps that do not apply report `skipped`. |
+| `thread/worktree/handoffProgress` | `{ threadId, operationId?, step, status }` | A `thread/worktree/handoff` step changed state. `step` is `cleanupEnvironment`, `createWorktree`, `reuseWorktree`, `stashSourceChanges`, `stashTargetChanges`, `detachWorktreeBranch`, `checkoutLocalBranch`, `applyChanges`, `moveThread`, or `rollback`; `status` is `started`, `completed`, `skipped`, or `failed`. Steps that do not apply report `skipped`. |
+| `worktree/createProgress` | `{ operationId, step, status }` | A `worktree/createAndStart` or `worktree/createAndFork` step carrying an `operationId` changed state. `step` is `createWorktree`, `copyFiles`, or `setupEnvironment`; `status` as above. |
+| `worktree/setupOutput` | `{ operationId, delta }` | Output of a setup script run for `operationId` (creation or `worktree/runSetup`), stdout and stderr interleaved as produced. |
 | `thread/updated` | `{ thread }` | Compact metadata changed without create, delete, rename, or status change (for example after `thread/worktree/handoff`, `thread/config/update`, or a Turn start that changed `gitInfo`). The payload may omit history; clients merge it rather than treating omitted history as deleted. |
 | `thread/renamed` | `{ threadId, displayName }` | Display name changed by `thread/rename` or automatic naming. Broadcast to all connections; duplicate deliveries are allowed. |
 | `thread/deleted` | `{ threadId }` | Thread permanently deleted. Broadcast to all connections, including the initiator, regardless of which entry point removed it; no subscription required; may precede or follow the RPC response. Duplicates are ignored. |
@@ -1059,6 +1073,8 @@ Errors use the JSON-RPC 2.0 error object. `error.message` is always an English d
 | `-32103` | File system | `fs/*`: blocked, missing, wrong kind, or too large; `error.data.code` names the case, `error.data.params.path` the path. |
 | `-32104` | Command execution | `command/exec`: program or directory missing, cannot start, or directory blocked. |
 | `-32105` | Dreams store changed | `dreams/apply`: memory store changed after the run started (`error.data.code = storeChanged`). |
+| `-32106` | Worktree environment | Worktree methods ([Section 4.17.7](#4177-environments)): `error.data.code` is `environmentInvalid`, `creationCancelled`, or `cleanupFailed`; `cleanupFailed` carries `error.data.params.path`, `exitCode`, and `outputTail`. |
+| `-32107` | Worktree in use | `thread/worktree/handoff` to local: another program holds the worktree folder; `error.data.params.path` is the folder. |
 
 Automation task methods (`automation/*`) share this error space; their params, results, and persisted shapes are owned by the automations feature.
 

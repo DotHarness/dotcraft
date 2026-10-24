@@ -15,6 +15,7 @@ import { WorktreeHandoffDialog } from './WorktreeHandoffDialog'
 import { useAddProjectFlow } from '../projects/AddProject'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { RunOnPicker, useRunOnVisible } from './RunOnPicker'
+import { WorktreeEnvironmentPicker } from './WorktreeEnvironmentPicker'
 import {
   FooterMenuButton,
   FooterMenuDivider,
@@ -53,14 +54,12 @@ interface ComposerWorkspaceFooterProps {
   onBaseRefChange?: (baseRef: string | null) => void
   onWorktreeBranchNameChange?: (branchName: string | null) => void
   onWelcomeWorkspaceChange?: (workspacePath: string) => Promise<void> | void
-  // Perforce changelist pre-selected on the welcome screen; applied to the thread the first message creates.
   welcomeChangelist?: string | null
   onWelcomeChangelistChange?: (changelist: string) => void
-  /** True while a turn runs; Run on defers its choice while git controls stay live. */
   turnRunning?: boolean
 }
 
-type OpenMenu = 'project' | 'workspace' | 'branch' | 'changelist' | 'runOn' | null
+type OpenMenu = 'project' | 'workspace' | 'branch' | 'changelist' | 'runOn' | 'environment' | null
 
 const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000
 
@@ -109,8 +108,6 @@ export function ComposerWorkspaceFooter({
   const [branchDraft, setBranchDraft] = useState('dotcraft/')
   const [changelistDraft, setChangelistDraft] = useState('')
   const footerRef = useRef<HTMLDivElement>(null)
-  // Each footer dropdown opens upward over the same-tone composer card; the band stops
-  // exactly at the card's top edge (the hook finds the card via the composer root).
   const projectMenuRef = useRef<HTMLDivElement>(null)
   const workspaceMenuRef = useRef<HTMLDivElement>(null)
   const branchMenuRef = useRef<HTMLDivElement>(null)
@@ -149,8 +146,6 @@ export function ComposerWorkspaceFooter({
     )
   const hideGitForSourceControl = sourceControlEnabled && sourceControlProvider != null && sourceControlProvider !== 'git'
   const isPerforceWorkspace = variant === 'thread' && isPerforceProvider && perforceChangelistAvailable && Boolean(thread?.id)
-  // Welcome (pre-thread) Perforce: the pick is stashed in welcome state and applied to
-  // the thread the first message creates.
   const isPerforceWelcome = variant === 'welcome' && isPerforceProvider && perforceChangelistAvailable && Boolean(branchActionPath)
   const [welcomeChangelists, setWelcomeChangelists] = useState<PerforceChangelistEntry[]>([])
   const [welcomeChangelistStatus, setWelcomeChangelistStatus] = useState<'idle' | 'loading' | 'available' | 'error'>('idle')
@@ -509,7 +504,9 @@ export function ComposerWorkspaceFooter({
             open={openMenu === 'workspace'}
             onClick={() => setOpenMenu(openMenu === 'workspace' ? null : 'workspace')}
           >
-            <Laptop size={15} strokeWidth={1.8} aria-hidden />
+            {variant === 'welcome' && mode === 'worktree'
+              ? <FolderPlus size={15} strokeWidth={1.8} aria-hidden />
+              : <Laptop size={15} strokeWidth={1.8} aria-hidden />}
             <span className={css.compactLabel}>{locationLabel}</span>
             <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
           </WorkspaceFooterPill>
@@ -558,6 +555,14 @@ export function ComposerWorkspaceFooter({
           </div>
         )}
       </div>
+      {!isThread && canUseWorktrees && mode === 'worktree' && (
+        <WorktreeEnvironmentPicker
+          workspacePath={branchActionPath}
+          busy={busy}
+          open={openMenu === 'environment'}
+          onOpenChange={(open) => setOpenMenu(open ? 'environment' : null)}
+        />
+      )}
 
       <div style={{ position: 'relative' }}>
         <WorkspaceFooterPill

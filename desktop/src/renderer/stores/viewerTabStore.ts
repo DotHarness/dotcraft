@@ -1,8 +1,3 @@
-/**
- * Label collision resolution (§5.4): when multiple open tabs share the same
- * basename, walk backward up the relative path, appending parent directory
- * segments, until all labels are unique.
- */
 import { create } from 'zustand'
 import type {
   ViewerTab,
@@ -59,7 +54,7 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
   for (const [, indices] of basenameMap.entries()) {
     if (indices.length <= 1) continue
 
-    let depth = 1 // 0 = basename, 1 = parent/basename, ...
+    let depth = 1
     const maxDepth = Math.max(
       ...indices.map((i) => {
         const tab = tabs[i] as FileViewerTab
@@ -141,12 +136,10 @@ interface ViewerTabStoreState {
   byThread: Map<string, PerThreadViewerState>
   currentThreadId: string | null
   welcomeScopeId: string | null
-  /** Current workspace path — used to scope tab identity. */
   currentWorkspacePath: string | null
 }
 
 interface ViewerTabStoreActions {
-  /** Opens or focuses the thread's single empty workspace file viewer. */
   openFiles(params: { threadId: string; initialLabel: string }): string
 
   /** Focuses and returns the existing tab when one already has the same absolutePath. */
@@ -183,6 +176,7 @@ interface ViewerTabStoreActions {
     cwd: string
     title: string
     command: string
+    env?: Record<string, string>
   }): string
 
   openWorkflow(params: { threadId: string; runId: string; initialLabel: string }): string
@@ -191,14 +185,12 @@ interface ViewerTabStoreActions {
 
   openSideChat(params: { threadId: string; sideChatKey: string; label: string }): string
 
-  /** Focuses an existing browser tab in the thread by normalized current URL. */
   focusBrowserTabByUrl(params: { threadId: string; url: string }): string | null
 
   updateBrowserTab(threadId: string, tabId: string, patch: Partial<BrowserViewerTab>): void
 
   updateTerminalTab(threadId: string, tabId: string, patch: Partial<TerminalViewerTab>): void
 
-  /** Closes the tab with `tabId` in `threadId` and selects the nearest neighbor. */
   closeTab(threadId: string, tabId: string): void
 
   setActiveTab(threadId: string, tabId: string): void
@@ -225,7 +217,6 @@ interface ViewerTabStoreActions {
     }
   ): void
 
-  /** Returns the per-thread viewer state for the given thread (lazy-initialised). */
   getThreadState(threadId: string): PerThreadViewerState
 
   getCurrentTabs(): ViewerTab[]
@@ -409,9 +400,9 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
     return newTab.id
   },
 
-  runInTerminal({ threadId, tabId, cwd, title, command }) {
+  runInTerminal({ threadId, tabId, cwd, title, command, env }) {
     const threadState = get().getThreadState(threadId)
-    const pendingRun = { command, nonce: ++_runNonce }
+    const pendingRun = { command, ...(env ? { env } : {}), nonce: ++_runNonce }
     const existing = threadState.tabs.find((tab) => tab.id === tabId && tab.kind === 'terminal')
     const tabs = existing
       ? threadState.tabs.map((tab) => (tab === existing ? { ...existing, cwd, title, pendingRun } : tab))
@@ -561,13 +552,11 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
     let newActiveTabId: string | null = threadState.activeTabId
 
     if (threadState.activeTabId === tabId) {
-      // Nearest-neighbor: prefer left, then right, then fall back to null
       if (idx > 0) {
         newActiveTabId = tabs[idx - 1]!.id
       } else if (idx < tabs.length - 1) {
         newActiveTabId = tabs[idx + 1]!.id
       } else {
-        // No more viewer tabs — signal caller to return to last system tab
         newActiveTabId = null
       }
     }

@@ -136,6 +136,10 @@
   white-space: nowrap;
 }
 
+.dc-ssh-row__actions > .dc-disclosure-button {
+  align-self: center;
+}
+
 .dc-ssh-docker__logs {
   max-height: 140px;
   margin: 0 0 10px;
@@ -155,7 +159,11 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 14px;
+}
+
+.dc-ssh-picker__note {
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
 }
 
 .dc-ssh-crumbs {

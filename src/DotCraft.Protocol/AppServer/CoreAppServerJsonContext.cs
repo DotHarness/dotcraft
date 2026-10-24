@@ -408,4 +408,12 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.WorktreeRemoveResult))]
 [JsonSerializable(typeof(AppServer.WorktreeStatusParams))]
 [JsonSerializable(typeof(AppServer.WorktreeStatusResult))]
+[JsonSerializable(typeof(AppServer.WorktreeCancelCreateParams))]
+[JsonSerializable(typeof(AppServer.WorktreeCreateProgressNotification))]
+[JsonSerializable(typeof(AppServer.WorktreeRunSetupParams))]
+[JsonSerializable(typeof(AppServer.WorktreeRunSetupResult))]
+[JsonSerializable(typeof(AppServer.WorktreeSetEnvironmentParams))]
+[JsonSerializable(typeof(AppServer.WorktreeSetEnvironmentResult))]
+[JsonSerializable(typeof(AppServer.WorktreeSetupOutputNotification))]
+[JsonSerializable(typeof(AppServer.WorktreeSetupResult))]
 public sealed partial class CoreAppServerContractJsonContext : JsonSerializerContext;

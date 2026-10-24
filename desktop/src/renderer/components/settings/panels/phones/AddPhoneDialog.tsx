@@ -127,16 +127,21 @@ export function AddPhoneDialog({ onClose }: { onClose: () => void }): JSX.Elemen
   }
 
   return (
-    <PhonesDialog titleId={titleId} onClose={close}>
-      <ModalHeader
-        icon={<Smartphone size={18} aria-hidden />}
-        title={t('settings.phones.pair.title')}
-        titleId={titleId}
-        onClose={close}
-        closeLabel={t('common.close')}
-      />
+    <PhonesDialog
+      titleId={titleId}
+      onClose={close}
+      header={(
+        <ModalHeader
+          icon={<Smartphone size={18} aria-hidden />}
+          title={t('settings.phones.pair.title')}
+          titleId={titleId}
+          onClose={close}
+          closeLabel={t('common.close')}
+        />
+      )}
+      footer={footer}
+    >
       {body}
-      <div className="dc-satellite-invite-foot">{footer}</div>
     </PhonesDialog>
   )
 }

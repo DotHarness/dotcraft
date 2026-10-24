@@ -3,13 +3,16 @@ using DotCraft.Protocol;
 
 namespace DotCraft.AppServer;
 
-/// <summary>
-/// Writes JSON-RPC responses and ordered response-then-notification pairs for request handlers.
-/// </summary>
 internal sealed class AppServerResponseWriter(IAppServerTransport transport)
 {
     public Task WriteResponseAsync(JsonElement? id, object? result, CancellationToken ct) =>
         transport.WriteMessageAsync(AppServerRequestHandler.BuildResponse(id, result), ct);
+
+    public Task NotifyAsync<TNotification>(
+        RpcNotification<TNotification> notification,
+        TNotification notificationParams,
+        CancellationToken ct) =>
+        transport.NotifyAsync(notification, notificationParams, ct);
 
     public async Task SendNotificationAfterResponseAsync(
         JsonElement? requestId,

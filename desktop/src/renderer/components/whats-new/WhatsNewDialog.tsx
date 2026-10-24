@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useId, useMemo, useState } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,7 +17,9 @@ import {
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { Skeleton } from '../ui/Skeleton'
 import { Button, ButtonLabel } from '../ui/Button'
+import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
 import { ModalHeader } from '../ui/ModalHeader'
+import styles from './WhatsNewDialog.module.css'
 
 interface WhatsNewDialogProps {
   releases: WhatsNewRelease[]
@@ -32,6 +33,7 @@ export function WhatsNewDialog({
   onClose
 }: WhatsNewDialogProps): JSX.Element {
   const t = useT()
+  const titleId = useId()
   const locale = useLocale()
   const releaseKey = useMemo(
     () => releases.map((release) => `${release.version}:${release.cards.map((card) => card.id).join(',')}`).join('|'),
@@ -60,90 +62,78 @@ export function WhatsNewDialog({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  const dialog = (
-    <div
-      style={backdropStyle}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose()
-        }
-      }}
-    >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="whats-new-title"
-        style={dialogStyle}
-      >
+  return (
+    <ModalDialog
+      titleId={titleId}
+      width={900}
+      maxHeight={760}
+      onDismiss={onClose}
+      header={(
         <ModalHeader
           icon={<Sparkles size={18} aria-hidden />}
           title={t('whatsNew.title')}
-          titleId="whats-new-title"
+          titleId={titleId}
           description={activeRelease ? t('whatsNew.subtitle', { version: activeRelease.version }) : undefined}
           onClose={onClose}
           closeLabel={t('whatsNew.closeAria')}
-          style={headerStyle}
         />
-
-        <div style={contentStyle}>
-          {releases.length === 0 ? (
-            <div style={emptyStyle}>
-              <h3 style={emptyTitleStyle}>{t('whatsNew.emptyTitle')}</h3>
-              <p style={emptyBodyStyle}>{t('whatsNew.emptyBody')}</p>
-            </div>
-          ) : (
-            activeRelease && (
-              <ReleaseSection
-                key={activeRelease.version}
-                release={activeRelease}
-                locale={locale}
-                mediaStates={mediaStates}
-                failedMediaIds={failedMediaIds}
-                onMediaFailed={(key) => {
-                  setFailedMediaIds((current) => {
-                    const next = new Set(current)
-                    next.add(key)
-                    return next
-                  })
-                }}
-              />
-            )
-          )}
-        </div>
-
-        <footer style={footerStyle}>
-          <div style={footerNavStyle}>
-            {olderRelease && (
-              <Button
-                variant="ghost"
-                onClick={() => setActiveIndex((index) => index + 1)}
-              >
-                <ChevronLeft size={14} strokeWidth={2} aria-hidden="true" />
-                <ButtonLabel>{t('whatsNew.showOlder', { version: olderRelease.version })}</ButtonLabel>
-              </Button>
-            )}
-            {newerRelease && (
-              <Button
-                variant="ghost"
-                onClick={() => setActiveIndex((index) => index - 1)}
-              >
-                <ButtonLabel>{t('whatsNew.showNewer', { version: newerRelease.version })}</ButtonLabel>
-                <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
-              </Button>
-            )}
-          </div>
-          <Button
-            variant="primary"
-            onClick={onClose}
-          >
+      )}
+      footer={(
+        <ModalFooter
+          leading={olderRelease || newerRelease ? (
+            <>
+              {olderRelease && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setActiveIndex((index) => index + 1)}
+                >
+                  <ChevronLeft size={14} strokeWidth={2} aria-hidden="true" />
+                  <ButtonLabel>{t('whatsNew.showOlder', { version: olderRelease.version })}</ButtonLabel>
+                </Button>
+              )}
+              {newerRelease && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setActiveIndex((index) => index - 1)}
+                >
+                  <ButtonLabel>{t('whatsNew.showNewer', { version: newerRelease.version })}</ButtonLabel>
+                  <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
+                </Button>
+              )}
+            </>
+          ) : undefined}
+        >
+          <Button variant="primary" onClick={onClose}>
             {t('whatsNew.close')}
           </Button>
-        </footer>
-      </section>
-    </div>
+        </ModalFooter>
+      )}
+    >
+      {releases.length === 0 ? (
+        <div className={styles.empty}>
+          <h3 className={styles.emptyTitle}>{t('whatsNew.emptyTitle')}</h3>
+          <p className={styles.emptyBody}>{t('whatsNew.emptyBody')}</p>
+        </div>
+      ) : (
+        activeRelease && (
+          <ReleaseSection
+            key={activeRelease.version}
+            release={activeRelease}
+            locale={locale}
+            mediaStates={mediaStates}
+            failedMediaIds={failedMediaIds}
+            onMediaFailed={(key) => {
+              setFailedMediaIds((current) => {
+                const next = new Set(current)
+                next.add(key)
+                return next
+              })
+            }}
+          />
+        )
+      )}
+    </ModalDialog>
   )
-
-  return createPortal(dialog, document.body)
 }
 
 function ReleaseSection({
@@ -162,7 +152,7 @@ function ReleaseSection({
   const t = useT()
   return (
     <section aria-label={t('whatsNew.versionLabel', { version: release.version })}>
-      <div style={cardGridStyle}>
+      <div className={styles.cardGrid}>
         {release.cards.map((card) => {
           const key = getWhatsNewMediaStateKey(release.version, card.id)
           return (
@@ -203,9 +193,9 @@ function WhatsNewCardView({
   const showPreview = Boolean(mediaUrl) && !mediaFailed
 
   return (
-    <article style={cardStyle}>
+    <article className={styles.card}>
       <div
-        style={mediaFrameStyle}
+        className={styles.mediaFrame}
         {...(showPreview ? {} : { role: 'img', 'aria-label': t('whatsNew.mediaLoading') })}
       >
         {showPreview ? (
@@ -214,20 +204,20 @@ function WhatsNewCardView({
             alt=""
             loading="lazy"
             onError={onMediaFailed}
-            style={mediaImageStyle}
+            className={styles.mediaImage}
           />
         ) : (
           <Skeleton width="100%" height="100%" radius={0} style={{ display: 'block' }} />
         )}
       </div>
-      <div style={cardBodyStyle}>
-        <h4 style={cardTitleStyle}>{title}</h4>
-        <p style={cardSummaryStyle}>{summary}</p>
+      <div className={styles.cardBody}>
+        <h4 className={styles.cardTitle}>{title}</h4>
+        <p className={styles.cardSummary}>{summary}</p>
         {card.docsUrl && (
           <Button
             variant="ghost"
             size="sm"
-            style={docsButtonStyle}
+            className={styles.docsButton}
             onClick={() => {
               void window.api.shell.openExternal(card.docsUrl as string)
             }}
@@ -239,143 +229,4 @@ function WhatsNewCardView({
       </div>
     </article>
   )
-}
-
-const backdropStyle: CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 2000,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 16,
-  background: 'var(--overlay-scrim)'
-}
-
-const dialogStyle: CSSProperties = {
-  width: 'min(900px, calc(100vw - 32px))',
-  maxHeight: 'min(760px, calc(100vh - 32px))',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-  border: '1px solid var(--border-subtle)',
-  borderRadius: 8,
-  background: 'var(--bg-primary)',
-  color: 'var(--text-primary)',
-  boxShadow: '0 24px 80px rgba(0, 0, 0, 0.38)'
-}
-
-const headerStyle: CSSProperties = {
-  margin: '20px 22px 16px'
-}
-
-const contentStyle: CSSProperties = {
-  minHeight: 0,
-  padding: '0 22px',
-  overflowY: 'auto'
-}
-
-const cardGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 235px), 1fr))',
-  gap: 12
-}
-
-const cardStyle: CSSProperties = {
-  minWidth: 0,
-  overflow: 'hidden',
-  display: 'flex',
-  flexDirection: 'column',
-  border: '1px solid var(--border-subtle)',
-  borderRadius: 8,
-  background: 'var(--bg-secondary)'
-}
-
-const mediaFrameStyle: CSSProperties = {
-  position: 'relative',
-  width: '100%',
-  aspectRatio: '16 / 9',
-  overflow: 'hidden',
-  borderBottom: '1px solid var(--border-subtle)',
-  // Lighter than the skeleton's --bg-tertiary so the loading pulse stays visible.
-  background: 'var(--bg-secondary)'
-}
-
-const mediaImageStyle: CSSProperties = {
-  width: '100%',
-  height: '100%',
-  objectFit: 'cover',
-  display: 'block'
-}
-
-const cardBodyStyle: CSSProperties = {
-  minWidth: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 7,
-  padding: 12
-}
-
-const cardTitleStyle: CSSProperties = {
-  margin: 0,
-  color: 'var(--text-primary)',
-  fontSize: 'var(--type-heading-size)',
-  lineHeight: 'var(--type-heading-line-height)',
-  fontWeight: 600,
-  overflowWrap: 'anywhere'
-}
-
-const cardSummaryStyle: CSSProperties = {
-  margin: 0,
-  color: 'var(--text-secondary)',
-  fontSize: 'var(--type-secondary-size)',
-  lineHeight: 'var(--type-secondary-line-height)',
-  overflowWrap: 'anywhere'
-}
-
-const docsButtonStyle: CSSProperties = {
-  alignSelf: 'flex-start',
-  marginLeft: -10
-}
-
-const emptyStyle: CSSProperties = {
-  minHeight: 220,
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 6,
-  color: 'var(--text-secondary)',
-  textAlign: 'center'
-}
-
-const emptyTitleStyle: CSSProperties = {
-  margin: 0,
-  color: 'var(--text-primary)',
-  fontSize: 'var(--type-heading-size)',
-  lineHeight: 'var(--type-heading-line-height)',
-  fontWeight: 600
-}
-
-const emptyBodyStyle: CSSProperties = {
-  maxWidth: 360,
-  margin: 0,
-  fontSize: 'var(--type-secondary-size)',
-  lineHeight: 'var(--type-secondary-line-height)'
-}
-
-const footerStyle: CSSProperties = {
-  display: 'flex',
-  flex: '0 0 auto',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
-  padding: '18px 22px 20px'
-}
-
-const footerNavStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  marginLeft: -10
 }

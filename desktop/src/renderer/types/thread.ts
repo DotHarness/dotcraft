@@ -85,21 +85,16 @@ export interface ThreadAppBindingSummaryWire {
 export interface ThreadOriginApp {
   appId: string
   displayName: string
-  /** Data URL or safe URL for the app icon; optional — clients fall back to the channel badge. */
   icon?: string | null
   /** Set when displayName/icon carry a matched origin member (per-member origin) rather than the app. */
   memberId?: string | null
 }
 
 export interface ThreadOriginPresentation {
-  /** Stable identity of the provider that supplied this presentation. */
   sourceId: string
   displayName: string
-  /** Data URL or safe URL for the origin icon; optional — clients fall back to the channel badge. */
   icon?: string | null
-  /** Optional provider-owned subject identity, such as a workflow worker id. */
   subjectId?: string | null
-  /** Optional provider-owned subject category, such as `member`. */
   subjectKind?: string | null
 }
 
@@ -112,6 +107,7 @@ export interface ThreadWorktreeInfoWire {
   branchName: string
   baseRef: string
   head: string
+  environmentPath?: string | null
   createdAt: string
   dirtyHandoff?: {
     requested: boolean
@@ -140,33 +136,22 @@ export interface ThreadSummary {
   status: ThreadStatus
   originChannel: string
   channelContext?: string | null
-  createdAt: string      // ISO 8601 UTC
-  lastActiveAt: string   // ISO 8601 UTC
+  createdAt: string
+  lastActiveAt: string
   source?: ThreadSourceWire | null
   metadata?: Record<string, unknown>
-  /** Best-effort current runtime snapshot from thread/list. Omitted by older hosts. */
   runtime?: ThreadRuntimeSnapshot
-  /** Best-effort current goal snapshot from thread/list. Omitted by older hosts. */
   goal?: ThreadGoal | null
-  /** Lightweight app binding summaries from thread/list or thread/read. */
   appBindings?: ThreadAppBindingSummaryWire[]
-  /** Server-resolved origin-app branding when originChannel matches an installed app's declared origin channel. */
   originApp?: ThreadOriginApp | null
-  /** Source-neutral server-resolved origin branding. */
   originPresentation?: ThreadOriginPresentation | null
 }
 
-/**
- * Minimal Turn stub used in ThreadSummary / Thread sidebar data.
- * The full ConversationTurn (with items, streaming state) lives in types/conversation.ts
- * and is used by the conversation panel.
- */
 export interface Turn {
   id: string
   status: string
   createdAt: string
   completedAt?: string
-  /** Populated by hydrating a thread/turns/list page with its thread/items/list items. */
   items?: Array<Record<string, unknown>>
   threadId?: string
   tokenUsage?: { inputTokens: number; outputTokens: number }
@@ -200,11 +185,6 @@ export interface ReasoningConfigurationWire {
   Output?: ReasoningOutputWire
 }
 
-/**
- * Per-thread context usage snapshot piggy-backed on thread/read, thread/start,
- * thread/resume responses, and compaction system/event notifications. Optional
- * because older hosts and threads without persisted usage state do not emit one.
- */
 export interface ContextUsageSnapshotWire {
   tokens: number
   contextWindow: number
@@ -243,10 +223,6 @@ export interface Thread extends ThreadSummary {
   plan?: ThreadPlan | null
 }
 
-/**
- * Identity sent with thread/start and thread/list requests.
- * The desktop client uses channelName "dotcraft-desktop" and userId "local".
- */
 export interface SessionIdentity {
   channelName: string
   userId: string
@@ -254,10 +230,8 @@ export interface SessionIdentity {
   workspacePath: string
 }
 
-/** Time-based group label for sidebar thread grouping (spec §7.2) */
 export type ThreadGroup = 'Today' | 'Yesterday' | 'Previous 7 Days' | 'Previous 30 Days' | 'Older'
 
-/** Ordered list of all group labels for consistent rendering */
 export const THREAD_GROUP_ORDER: ThreadGroup[] = [
   'Today',
   'Yesterday',

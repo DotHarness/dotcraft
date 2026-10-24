@@ -1,8 +1,3 @@
-/**
- * Shared types for the Desktop Viewer Panel.
- * Used by main process (IPC handlers) and renderer (store, components).
- */
-
 export type ViewerKind = 'files' | 'file' | 'browser' | 'terminal' | 'workflow' | 'automation' | 'sideChat'
 export type * from './browserFeedback'
 
@@ -17,15 +12,12 @@ export interface FileNavigationHint {
 }
 
 interface ViewerTabBase {
-  /** Stable id created at tab-open time. */
   id: string
   kind: ViewerKind
   label: string
-  /** If set, the tab renders an in-tab error state instead of the viewer body. */
   errorMessage?: string
 }
 
-/** Empty workspace file-viewer tab descriptor. */
 export interface FilesViewerTab extends ViewerTabBase {
   kind: 'files'
 }
@@ -34,47 +26,29 @@ export interface FileViewerTab extends ViewerTabBase {
   kind: 'file'
   /** Normalized absolute path (realpath-resolved by main). */
   absolutePath: string
-  /** Workspace-relative path used for label derivation. */
   relativePath: string
   contentClass: ViewerContentClass
-  /** File size in bytes at classification time; used by image viewer for info display. */
   sizeBytes?: number
-  /** Optional deep-link navigation hint (line/range/column/query/fragment). */
   navigationHint?: FileNavigationHint
   /** Increments for explicit opens, even when the target position is unchanged. */
   navigationRevision?: number
-  /**
-   * Per-tab word-wrap preference for the text viewer. Undefined is treated as
-   * enabled (the historical default); toggled via the viewer `…` menu.
-   */
   wordWrap?: boolean
 }
 
 export interface BrowserViewerTab extends ViewerTabBase {
   kind: 'browser'
-  /**
-   * Stable browser target id. Kept separate from currentUrl so deep-linking
-   * can reference this tab regardless of navigation changes.
-   */
   target: string
   currentUrl: string
   title?: string
-  /** Last-known favicon (data URL). */
   faviconDataUrl?: string
   loading: boolean
   canGoBack: boolean
   canGoForward: boolean
-  /** True when the webContents renderer crashed and requires reload. */
   crashed?: boolean
-  /** User-facing notice for blocked navigation attempts. */
   blockedMessage?: string
-  /** User-facing notice when a download is blocked/cancelled. */
   downloadMessage?: string
-  /** True while an agent is actively operating this embedded browser tab. */
   automationActive?: boolean
-  /** Last browser session name supplied by the agent. */
   automationSessionName?: string
-  /** Concise description of the latest automation action. */
   lastAutomationAction?: string
 }
 
@@ -88,7 +62,7 @@ export interface TerminalViewerTab extends ViewerTabBase {
   cwd: string
   title?: string
   /** A command waiting to restart this tab's shell; `nonce` distinguishes repeated runs. */
-  pendingRun?: { command: string; nonce: number }
+  pendingRun?: { command: string; env?: Record<string, string>; nonce: number }
   shell?: string
   pid?: number
   exited?: TerminalExitState
@@ -109,7 +83,6 @@ export interface AutomationViewerTab extends ViewerTabBase {
 
 export interface SideChatViewerTab extends ViewerTabBase {
   kind: 'sideChat'
-  /** The parent thread the side chat was forked from. */
   threadId: string
   sideChatKey: string
 }
@@ -124,26 +97,19 @@ export type ViewerTab =
   | SideChatViewerTab
 
 export interface PerThreadViewerState {
-  /** Ordered list of open viewer tabs (insertion order). */
   tabs: ViewerTab[]
   activeTabId: string | null
 }
 
-/** Result returned by `workspace:viewer:classify`. */
 export interface ClassifyResult {
   contentClass: ViewerContentClass
-  /** MIME type hint derived from extension / magic bytes. */
   mime: string
-  /** File size in bytes at classification time. */
   sizeBytes: number
 }
 
-/** Result returned by `workspace:viewer:read-text`. */
 export interface ReadTextResult {
   text: string
-  /** True if the file was truncated to stay within `limitBytes`. */
   truncated: boolean
-  /** Encoding that was used (currently always 'utf-8'). */
   encoding: string
   sizeBytes: number
   mtimeMs: number
@@ -152,19 +118,16 @@ export interface ReadTextResult {
   readOnlyReason?: 'large-file'
 }
 
-/** Parameters for `workspace:viewer:list-files`. */
 export interface ListFilesParams {
   workspacePath: string
   query: string
   limit: number
 }
 
-/** Parameters for `workspace:viewer:classify`. */
 export interface ClassifyParams {
   absolutePath: string
 }
 
-/** Parameters for `workspace:viewer:read-text`. */
 export interface ReadTextParams {
   absolutePath: string
   limitBytes?: number
@@ -188,7 +151,6 @@ export interface TextFileChangedPayload {
   sizeBytes: number
 }
 
-/** A single directory entry returned by `workspace:viewer:list-dir`. */
 export interface DirEntryWire {
   name: string
   /** Workspace-relative POSIX path (forward slashes). */
@@ -197,13 +159,11 @@ export interface DirEntryWire {
   isDir: boolean
 }
 
-/** Parameters for `workspace:viewer:list-dir`. */
 export interface ListDirParams {
   /** Absolute directory to list. Defaults to the workspace root when omitted. */
   dirPath?: string
 }
 
-/** Result returned by `workspace:viewer:list-dir`. */
 export interface ListDirResult {
   dirPath: string
   /** Immediate children, directories first then files, each alpha-sorted. */

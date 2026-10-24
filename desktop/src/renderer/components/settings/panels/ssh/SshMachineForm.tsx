@@ -2,6 +2,7 @@ import { useId, useState, type JSX, type ReactNode } from 'react'
 
 import { Button } from '../../../ui/Button'
 import { Input } from '../../../ui/Input'
+import { ModalFooter } from '../../../ui/ModalDialog'
 import { SegmentedControl } from '../../ui/SegmentedControl'
 import { useT } from '../../../../contexts/LocaleContext'
 import type { MessageKey } from '../../../../../shared/locales'
@@ -118,29 +119,26 @@ function Field({
 }
 
 export function SshMachineForm({
+  id,
   initial,
   machines,
   exceptId,
   nameOnly = false,
-  submitLabel,
   serverErrors,
-  onBack,
   onSubmit
 }: {
+  id: string
   initial: MachineDraft
   machines: SshMachine[]
   exceptId?: string
   nameOnly?: boolean
-  submitLabel: string
   serverErrors?: SshMachineValidation
-  onBack: () => void
-  onSubmit: (draft: MachineDraft) => void | Promise<void>
+  onSubmit: (draft: MachineDraft) => void
 }): JSX.Element {
   const t = useT()
   const base = useId()
   const [draft, setDraft] = useState(initial)
   const [submitted, setSubmitted] = useState(false)
-  const [saving, setSaving] = useState(false)
   const localErrors = submitted ? validateMachineDraft(draft, machines, { exceptId, nameOnly }) : {}
   const errors: SshMachineValidation = { ...serverErrors, ...localErrors }
   const set = (patch: Partial<MachineDraft>): void => setDraft((current) => ({ ...current, ...patch }))
@@ -152,14 +150,14 @@ export function SshMachineForm({
 
   return (
     <form
+      id={id}
       className="dc-ssh-form"
       noValidate
       onSubmit={(event) => {
         event.preventDefault()
         setSubmitted(true)
         if (Object.keys(validateMachineDraft(draft, machines, { exceptId, nameOnly })).length > 0) return
-        setSaving(true)
-        void Promise.resolve(onSubmit(draft)).finally(() => setSaving(false))
+        onSubmit(draft)
       }}
     >
       <Field id={`${base}-name`} label={t('settings.ssh.form.name')} error={message('name')}>
@@ -225,15 +223,33 @@ export function SshMachineForm({
           )}
         </>
       )}
-      <div className="dc-ssh-footer">
-        <Button type="button" variant="ghost" onClick={onBack}>
+    </form>
+  )
+}
+
+export function SshMachineFormFooter({
+  formId,
+  saving,
+  submitLabel,
+  onBack
+}: {
+  formId: string
+  saving: boolean
+  submitLabel: string
+  onBack: () => void
+}): JSX.Element {
+  const t = useT()
+  return (
+    <ModalFooter
+      leading={(
+        <Button variant="ghost" onClick={onBack}>
           {t('settings.ssh.back')}
         </Button>
-        <span className="dc-ssh-footer__spacer" />
-        <Button type="submit" variant="primary" loading={saving}>
-          {submitLabel}
-        </Button>
-      </div>
-    </form>
+      )}
+    >
+      <Button type="submit" form={formId} variant="primary" loading={saving}>
+        {submitLabel}
+      </Button>
+    </ModalFooter>
   )
 }

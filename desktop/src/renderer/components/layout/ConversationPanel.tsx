@@ -14,6 +14,8 @@ import { RequestUserInputComposer } from '../conversation/RequestUserInputCompos
 import { ApprovalDecisionComposer } from '../conversation/ApprovalDecisionComposer'
 import { ConversationWelcome } from '../conversation/ConversationWelcome'
 import { ThreadCreatingContent } from '../conversation/ThreadCreatingContent'
+import { WorktreeCreationCard } from '../worktreeCreation/WorktreeCreationCard'
+import { useWorktreeCreationStore } from '../../stores/worktreeCreationStore'
 import { useComposerDraftStore } from '../../stores/composerDraftStore'
 import type { ComposerDraftSnapshot } from '../../utils/composerHistory'
 import { mergeRestoredComposerDraft } from '../../utils/composerSubmission'
@@ -38,11 +40,8 @@ interface ConversationPanelProps {
   projectKey?: string
   remoteWorkspace?: boolean
   onInteractionResponseAccepted?: () => void
-  /** Render the composer with minimal chrome (no workspace/branch footer, permissions, or subscription badge). */
   minimalComposer?: boolean
-  /** Explicit visible name for the composer mascot (e.g. an Agent Builder draft). */
   mascotName?: string
-  /** Purpose-built embedded conversation surface for Agent Builder. */
   variant?: 'default' | 'agentBuilder'
   onBeforeSend?: () => Promise<void> | void
 }
@@ -77,7 +76,6 @@ export function ConversationPanel({
   const selectedConversationViewKey = useDesktopPluginRegistry((s) =>
     activeThreadId ? s.conversationSelections.get(activeThreadId) ?? null : null
   )
-  // Tool approvals (turn-bound) take priority over turn-less approvals (e.g. browser-use).
   const composerApproval = pendingApproval ?? genericApproval
   const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
   const latestCreatePlanTurnId = useConversationStore(selectLatestCreatePlanTurnId)
@@ -157,6 +155,10 @@ export function ConversationPanel({
   }, [activeThread, pendingThreadCreation, setPendingThreadCreation])
 
   const thread = activeThread ?? creatingThread
+  const worktreeCreation = useWorktreeCreationStore((s) => (thread && !isAgentBuilder ? s.creations[thread.id] : undefined))
+  const waitForWorktree = useCallback((): void => {
+    throw new Error(t('worktreeCreation.composerBlocked'))
+  }, [t])
 
   // The thread object arrives a round trip after its id, and the thread-list loading flag does not cover that gap.
   if (!creating && activeThreadId && !activeThread) {
@@ -208,8 +210,6 @@ export function ConversationPanel({
 
   return (
     <ConversationAsideProvider thread={threadSurfaceContext} style={panelStyle}>
-      {/* Interactive Tool UI expanded surface (pip/fullscreen) — portals to body when a card is expanded. */}
-
       {!isAgentBuilder && (
         <ThreadHeader
           threadName={threadName}
@@ -269,6 +269,10 @@ export function ConversationPanel({
           contribution={selectedConversationView}
           threadId={thread.id}
         />
+      ) : worktreeCreation ? (
+        <ThreadCreatingContent text={creating?.text} inputParts={creating?.inputParts} sentAsGoal={creating?.sentAsGoal}>
+          <WorktreeCreationCard creation={worktreeCreation} />
+        </ThreadCreatingContent>
       ) : creating ? (
         <ThreadCreatingContent text={creating.text} inputParts={creating.inputParts} sentAsGoal={creating.sentAsGoal} />
       ) : !hasContent && pendingWelcomeTurn?.threadId === thread.id ? (
@@ -321,7 +325,8 @@ export function ConversationPanel({
       ) : (
         <InputComposer
           threadId={thread.id}
-          submitOverride={creating ? parkWhileCreating : undefined}
+          submitOverride={creating ? parkWhileCreating : worktreeCreation ? waitForWorktree : undefined}
+          placeholder={worktreeCreation ? t('worktreeCreation.composerPlaceholder') : undefined}
           workspacePath={threadStateWorkspacePath}
           fileWorkspacePath={activeEffectiveWorkspacePath}
           remoteWorkspace={remoteWorkspace}

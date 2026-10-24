@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/WorktreeSetupResult.schema.json",
+  "title": "WorktreeSetupResult",
+  "type": "object",
+  "properties": {
+    "exitCode": {
+      "type": "integer"
+    },
+    "outputTail": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "outputTail",
+    "status"
+  ]
+}

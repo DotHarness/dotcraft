@@ -1,0 +1,14 @@
+.document {
+  min-height: 260px;
+  max-height: min(54vh, 490px);
+  padding: 16px 18px;
+  overflow: auto;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--bg-primary);
+}
+
+.status {
+  color: var(--text-tertiary);
+  font-size: 13px;
+}

@@ -7058,7 +7058,12 @@
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
-        "MethodNotFound"
+        "MethodNotFound",
+        "WorktreeHandoffConflict",
+        "WorktreeInUse",
+        "cleanupFailed",
+        "creationCancelled",
+        "environmentInvalid"
       ]
     },
     {
@@ -7869,6 +7874,39 @@
       ]
     },
     {
+      "name": "worktree/cancelCreate",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/WorktreeCancelCreateParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/RpcEmpty.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "gitWorktrees",
+      "x-dotcraft-scope": "workspace",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
       "name": "worktree/createAndFork",
       "paramStructure": "by-name",
       "params": [
@@ -7898,7 +7936,10 @@
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
-        "MethodNotFound"
+        "MethodNotFound",
+        "cleanupFailed",
+        "creationCancelled",
+        "environmentInvalid"
       ]
     },
     {
@@ -7931,7 +7972,10 @@
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
-        "MethodNotFound"
+        "MethodNotFound",
+        "cleanupFailed",
+        "creationCancelled",
+        "environmentInvalid"
       ]
     },
     {
@@ -7997,7 +8041,82 @@
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",
-        "MethodNotFound"
+        "MethodNotFound",
+        "cleanupFailed",
+        "creationCancelled",
+        "environmentInvalid"
+      ]
+    },
+    {
+      "name": "worktree/runSetup",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/WorktreeRunSetupParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/WorktreeRunSetupResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "gitWorktrees",
+      "x-dotcraft-scope": "workspace",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "cleanupFailed",
+        "creationCancelled",
+        "environmentInvalid"
+      ]
+    },
+    {
+      "name": "worktree/setEnvironment",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/WorktreeSetEnvironmentParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/WorktreeSetEnvironmentResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "gitWorktrees",
+      "x-dotcraft-scope": "workspace",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "cleanupFailed",
+        "creationCancelled",
+        "environmentInvalid"
       ]
     },
     {
