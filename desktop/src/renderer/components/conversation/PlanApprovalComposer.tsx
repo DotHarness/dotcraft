@@ -9,7 +9,7 @@ import {
 } from 'react'
 import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { useT } from '../../contexts/LocaleContext'
-import { useConversationStore } from '../../stores/conversationStore'
+import { requestThreadModeChange } from '../../hooks/useActiveThreadModeSync'
 import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
@@ -65,7 +65,6 @@ export function PlanApprovalComposer({
   const [selectedIndex, setSelectedIndex] = useState(0)
   const richRef = useRef<RichInputAreaHandle>(null)
   const sendInFlightRef = useRef(false)
-  const setThreadMode = useConversationStore((s) => s.setThreadMode)
   const dismissPlanApproval = useUIStore((s) => s.dismissPlanApproval)
 
   const text = richRef.current?.getText() ?? ''
@@ -75,24 +74,27 @@ export function PlanApprovalComposer({
   const handleAcceptPlan = useCallback(async (): Promise<void> => {
     if (sendInFlightRef.current) return
     sendInFlightRef.current = true
-    dismissPlanApproval(turnId)
-    setThreadMode('agent')
     try {
-      await window.api.appServer.sendRequest('thread/mode/set', { threadId, mode: 'agent' })
+      if (!await requestThreadModeChange(threadId, 'agent')) return
+      dismissPlanApproval(turnId)
+      await startTurnWithOptimisticUI({
+        threadId,
+        workspacePath,
+        text: 'Implement the plan.',
+        fallbackThreadName: t('toast.imageMessage'),
+        fileFallbackThreadName: t('toast.fileReferenceMessage'),
+        attachmentFallbackThreadName: t('toast.attachmentMessage'),
+        renameThreadFromText: false
+      })
     } catch (err) {
       console.error('thread/mode/set failed:', err)
+      addToast(t('composer.modeSwitchFailed', {
+        error: err instanceof Error ? err.message : String(err)
+      }), 'error')
+    } finally {
+      sendInFlightRef.current = false
     }
-    await startTurnWithOptimisticUI({
-      threadId,
-      workspacePath,
-      text: 'Implement the plan.',
-      fallbackThreadName: t('toast.imageMessage'),
-      fileFallbackThreadName: t('toast.fileReferenceMessage'),
-      attachmentFallbackThreadName: t('toast.attachmentMessage'),
-      renameThreadFromText: false
-    })
-    sendInFlightRef.current = false
-  }, [dismissPlanApproval, setThreadMode, t, threadId, turnId, workspacePath])
+  }, [dismissPlanApproval, t, threadId, turnId, workspacePath])
 
   const handleSubmit = useCallback(async (): Promise<void> => {
     if (sendInFlightRef.current) return

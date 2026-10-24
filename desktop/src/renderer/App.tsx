@@ -21,6 +21,8 @@ import { useViewerTabStore } from './stores/viewerTabStore'
 import { useTransientOverlayStore } from './stores/transientOverlayStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
 import { useUserInputAutoResolutionBridge } from './hooks/useUserInputAutoResolutionBridge'
+import { useActiveThreadModeSync } from './hooks/useActiveThreadModeSync'
+import { normalizeThreadRuntime, runtimeSnapshotFromThread } from './utils/threadRuntime'
 import { useSatelliteNotices } from './hooks/useSatelliteNotices'
 import { useDelayedFlag, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS } from './hooks/useDelayedFlag'
 import { QuickOpenDialog } from './components/detail/QuickOpenDialog'
@@ -437,24 +439,6 @@ function resetWorkspaceScopedRendererState(preserveLocalPlugins = false): void {
   useUIStore.getState().setPendingWelcomeTurn(null)
   // A machine chosen on one workspace's welcome composer means nothing in the next.
   useThreadRouteStore.getState().setPendingRoute(null)
-}
-
-function runtimeSnapshotFromThread(thread: Thread): ThreadRuntimeSnapshot {
-  const runtime = thread.runtime
-  const turns = thread.turns ?? []
-  return {
-    running: runtime?.running === true
-      || turns.some((turn) =>
-        turn.status === 'running' || turn.status === 'waitingApproval' || turn.status === 'waitingInput'
-      ),
-    busy: runtime?.busy === true,
-    waitingOnApproval: runtime?.waitingOnApproval === true
-      || turns.some((turn) => turn.status === 'waitingApproval'),
-    waitingOnInput: runtime?.waitingOnInput === true
-      || turns.some((turn) => turn.status === 'waitingInput'),
-    waitingOnPlanConfirmation: runtime?.waitingOnPlanConfirmation === true,
-    maintenanceKind: runtime?.maintenanceKind ?? null
-  }
 }
 
 /**
@@ -1798,29 +1782,12 @@ export function App(): JSX.Element {
 
             const threadStore = useThreadStore.getState()
             const threadSummary = threadStore.threadList.find((thread) => thread.id === threadId)
-            const runtimeSnapshot: ThreadRuntimeSnapshot = {
-              running: pp.runtime?.running === true,
-              activeTurnId: typeof pp.runtime?.activeTurnId === 'string'
-                ? pp.runtime.activeTurnId
-                : null,
-              activeTurnStartedAt: typeof pp.runtime?.activeTurnStartedAt === 'string'
-                ? pp.runtime.activeTurnStartedAt
-                : null,
-              busy: pp.runtime?.busy === true,
-              waitingOnApproval: pp.runtime?.waitingOnApproval === true,
-              waitingOnInput: pp.runtime?.waitingOnInput === true,
-              waitingOnPlanConfirmation: pp.runtime?.waitingOnPlanConfirmation === true,
-              maintenanceKind: pp.runtime?.maintenanceKind ?? null
-            }
-            threadStore.applyRuntimeSnapshot(threadId, {
-              ...runtimeSnapshot
-            }, {
+            const runtimeSnapshot = normalizeThreadRuntime(pp.runtime ?? {})
+            threadStore.applyRuntimeSnapshot(threadId, runtimeSnapshot, {
               isActive: threadStore.activeThreadId === threadId,
               isDesktopOrigin: threadSummary?.originChannel?.toLowerCase() === 'dotcraft-desktop'
             })
-            useSubAgentStore.getState().updateChildRuntime(threadId, {
-              ...runtimeSnapshot
-            })
+            useSubAgentStore.getState().updateChildRuntime(threadId, runtimeSnapshot)
             if (threadStore.activeThreadId === threadId) {
               const conversation = useConversationStore.getState()
               const pendingApprovals = conversation.pendingApprovals.length > 0
@@ -2938,6 +2905,10 @@ export function App(): JSX.Element {
       && latestCreatePlanTurnId != null
       && planApprovalDismissed[latestCreatePlanTurnId] !== true
 
+    const previousRuntime = prev ? useThreadStore.getState().runtimeSnapshots.get(prev) : null
+    const previousTurnStartedAt = convBeforeReset.turnStartedAt != null
+      ? new Date(convBeforeReset.turnStartedAt).toISOString()
+      : null
     const pendingApprovalsBeforeReset = convBeforeReset.pendingApprovals.length > 0
       ? convBeforeReset.pendingApprovals
       : convBeforeReset.pendingApproval != null
@@ -2963,12 +2934,16 @@ export function App(): JSX.Element {
           }
         })
       }
-      useThreadStore.getState().applyRuntimeSnapshot(prev, {
+      useThreadStore.getState().applyRuntimeSnapshot(prev, normalizeThreadRuntime({
+        ...previousRuntime,
         running: convBeforeReset.turnStatus === 'running' || convBeforeReset.turnStatus === 'waitingApproval',
+        activeTurnId: convBeforeReset.activeTurnId ?? previousRuntime?.activeTurnId ?? null,
+        activeTurnStartedAt: previousTurnStartedAt ?? previousRuntime?.activeTurnStartedAt ?? null,
+        busy: true,
         waitingOnApproval: true,
         waitingOnInput: false,
         waitingOnPlanConfirmation: false
-      }, {
+      }), {
         isActive: false,
         isDesktopOrigin: true
       })
@@ -2987,24 +2962,30 @@ export function App(): JSX.Element {
           questions: pending.questions
         }
       })
-      useThreadStore.getState().applyRuntimeSnapshot(prev, {
+      useThreadStore.getState().applyRuntimeSnapshot(prev, normalizeThreadRuntime({
+        ...previousRuntime,
         running: convBeforeReset.turnStatus === 'running' || convBeforeReset.turnStatus === 'waitingInput',
+        activeTurnId: convBeforeReset.activeTurnId ?? pending.turnId ?? previousRuntime?.activeTurnId ?? null,
+        activeTurnStartedAt: previousTurnStartedAt ?? previousRuntime?.activeTurnStartedAt ?? null,
+        busy: true,
         waitingOnApproval: false,
         waitingOnInput: true,
         waitingOnPlanConfirmation: false
-      }, {
+      }), {
         isActive: false,
         isDesktopOrigin: true
       })
     }
 
     if (prev && prev !== curr && prevHasPendingPlanConfirmation) {
-      useThreadStore.getState().applyRuntimeSnapshot(prev, {
+      useThreadStore.getState().applyRuntimeSnapshot(prev, normalizeThreadRuntime({
         running: false,
+        activeTurnId: null,
+        activeTurnStartedAt: null,
         waitingOnApproval: false,
         waitingOnInput: false,
         waitingOnPlanConfirmation: true
-      }, {
+      }), {
         isActive: false,
         isDesktopOrigin: true
       })
@@ -3075,13 +3056,6 @@ export function App(): JSX.Element {
             if (res.thread.plan) {
               useConversationStore.getState().onPlanUpdated(res.thread.plan)
             }
-            {
-              const rawMode = res.thread.configuration?.mode ?? res.thread.configuration?.Mode
-              const mode = typeof rawMode === 'string' && rawMode.toLowerCase() === 'plan'
-                ? 'plan'
-                : 'agent'
-              useConversationStore.getState().setThreadMode(mode)
-            }
             useConversationStore.getState().setQueuedInputs(res.thread.queuedInputs ?? [])
             useConversationStore.getState().setContextUsage(res.thread.contextUsage ?? null)
             useConversationStore.getState().setMaintenanceKind(runtime?.maintenanceKind ?? null)
@@ -3149,6 +3123,8 @@ export function App(): JSX.Element {
     ensureThreadSubscribed,
     queueThreadUnsubscribe
   ])
+
+  useActiveThreadModeSync(activeProjectKey)
 
   useEffect(() => {
     if (status !== 'connected') {

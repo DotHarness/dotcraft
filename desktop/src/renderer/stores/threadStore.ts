@@ -7,6 +7,8 @@ import { getSubAgentParentThreadId, isSubAgentThread } from '../utils/subAgentTh
 import { isHiddenThread } from '../../shared/hiddenThreads'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import { useWorkspaceProjectsStore } from './workspaceProjectsStore'
+import { applyThreadRuntimeSnapshot, type ApplyRuntimeSnapshotOptions } from './threadRuntimeState'
+import { normalizeThreadSummaryRuntime, syncActiveThreadRuntime } from '../utils/threadRuntime'
 export type { ThreadRuntimeSnapshot } from '../types/thread'
 
 export interface ParkedApproval {
@@ -19,11 +21,6 @@ export interface ParkedUserInput {
   bridgeId: string
   turnId: string | null
   rawParams: Record<string, unknown>
-}
-
-interface ApplyRuntimeSnapshotOptions {
-  isActive: boolean
-  isDesktopOrigin: boolean
 }
 
 interface ThreadStoreState {
@@ -278,7 +275,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
     const unlistedUnread = promotedUnread.filter((id) => !listedIds.has(id))
     if (nextProjectKey) projects.keepUnreadCompleted(nextProjectKey, unlistedUnread)
     set((state) => {
-      const visibleThreads = threads.filter((thread) => !isHiddenThread(thread))
+      const visibleThreads = threads.filter((thread) => !isHiddenThread(thread)).map(normalizeThreadSummaryRuntime)
       const threadListProjectKey = nextProjectKey
       const threadIds = new Set(visibleThreads.map((thread) => thread.id))
       const runtimeSnapshots = filterMapToThreadList(state.runtimeSnapshots, threadIds)
@@ -304,17 +301,8 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
           goalSnapshots.set(thread.id, thread.goal)
         }
 
-        const runtime = thread.runtime
-        if (!runtime) continue
-
-        const snapshot: ThreadRuntimeSnapshot = {
-          running: runtime.running === true,
-          busy: runtime.busy === true,
-          waitingOnApproval: runtime.waitingOnApproval === true,
-          waitingOnInput: runtime.waitingOnInput === true,
-          waitingOnPlanConfirmation: runtime.waitingOnPlanConfirmation === true,
-          maintenanceKind: runtime.maintenanceKind ?? null
-        }
+        const snapshot = thread.runtime
+        if (!snapshot) continue
         const previous = runtimeSnapshots.get(thread.id)
         const isActive = state.activeThreadId === thread.id
         const isDesktopOrigin = thread.originChannel?.toLowerCase() === 'dotcraft-desktop'
@@ -358,6 +346,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
       return {
         threadList: visibleThreads,
+        activeThread: syncActiveThreadRuntime(state.activeThread, visibleThreads),
         threadListProjectKey: threadListProjectKey || null,
         hiddenThreadIds: trackHiddenThreads(state.hiddenThreadIds, threads),
         runtimeSnapshots,
@@ -374,6 +363,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   },
 
   addThread(thread) {
+    thread = normalizeThreadSummaryRuntime(thread)
     set((state) => {
       const hiddenThreadIds = trackHiddenThreads(state.hiddenThreadIds, [thread])
       if (isHiddenThread(thread) || state.threadList.some((t) => t.id === thread.id)) {
@@ -391,7 +381,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
   upsertThreads(threads) {
     const internalThreadIds = new Set(threads.filter((thread) => isHiddenThread(thread)).map((thread) => thread.id))
-    const visibleThreads = threads.filter((thread) => !isHiddenThread(thread))
+    const visibleThreads = threads.filter((thread) => !isHiddenThread(thread)).map(normalizeThreadSummaryRuntime)
     if (visibleThreads.length === 0 && internalThreadIds.size === 0) return
     set((state) => {
       const incoming = new Map(visibleThreads.map((thread) => [thread.id, thread]))
@@ -435,16 +425,8 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
           goalSnapshots.set(thread.id, thread.goal)
         }
 
-        const runtime = thread.runtime
-        if (!runtime) continue
-        const snapshot: ThreadRuntimeSnapshot = {
-          running: runtime.running === true,
-          busy: runtime.busy === true,
-          waitingOnApproval: runtime.waitingOnApproval === true,
-          waitingOnInput: runtime.waitingOnInput === true,
-          waitingOnPlanConfirmation: runtime.waitingOnPlanConfirmation === true,
-          maintenanceKind: runtime.maintenanceKind ?? null
-        }
+        const snapshot = thread.runtime
+        if (!snapshot) continue
         runtimeSnapshots.set(thread.id, snapshot)
         if (snapshot.running) {
           runningTurnThreadIds.add(thread.id)
@@ -459,6 +441,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
       return {
         threadList: [...missing, ...threadList],
+        activeThread: syncActiveThreadRuntime(state.activeThread, visibleThreads),
         hiddenThreadIds: trackHiddenThreads(state.hiddenThreadIds, threads),
         runtimeSnapshots,
         parkedApprovals,
@@ -624,7 +607,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
     set((state) => {
       if (!thread) return { activeThread: thread }
       const incomingTurns = Array.isArray(thread.turns) ? thread.turns : []
-      const normalizedThread = normalizeIncomingWorkspaceState(thread, state.activeThread)
+      const normalizedThread = normalizeThreadSummaryRuntime(normalizeIncomingWorkspaceState(thread, state.activeThread))
       const activeThread = state.activeThread?.id === thread.id
         && incomingTurns.length === 0
         && state.activeThread.turns.length > 0
@@ -744,72 +727,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   },
 
   applyRuntimeSnapshot(threadId, runtime, options) {
-    set((state) => {
-      if (state.hiddenThreadIds.has(threadId)) return state
-      const previous = state.runtimeSnapshots.get(threadId)
-      const runtimeSnapshots = new Map(state.runtimeSnapshots)
-      runtimeSnapshots.set(threadId, runtime)
-
-      const runningTurnThreadIds = new Set(state.runningTurnThreadIds)
-      if (runtime.running) {
-        runningTurnThreadIds.add(threadId)
-      } else {
-        runningTurnThreadIds.delete(threadId)
-      }
-
-      const parkedApprovals = new Map(state.parkedApprovals)
-      if (!runtime.waitingOnApproval) {
-        parkedApprovals.delete(threadId)
-      }
-      const parkedUserInputs = new Map(state.parkedUserInputs)
-      if (!runtime.waitingOnInput) {
-        parkedUserInputs.delete(threadId)
-      }
-
-      const pendingApprovalThreadIds = new Set(state.pendingApprovalThreadIds)
-      if (runtime.waitingOnApproval && !options.isActive && options.isDesktopOrigin) {
-        pendingApprovalThreadIds.add(threadId)
-      } else {
-        pendingApprovalThreadIds.delete(threadId)
-      }
-
-      const pendingUserInputThreadIds = new Set(state.pendingUserInputThreadIds)
-      if (runtime.waitingOnInput && !options.isActive && options.isDesktopOrigin) {
-        pendingUserInputThreadIds.add(threadId)
-      } else {
-        pendingUserInputThreadIds.delete(threadId)
-      }
-
-      const pendingPlanConfirmationThreadIds = new Set(state.pendingPlanConfirmationThreadIds)
-      if (runtime.waitingOnPlanConfirmation && !options.isActive && options.isDesktopOrigin) {
-        pendingPlanConfirmationThreadIds.add(threadId)
-      } else {
-        pendingPlanConfirmationThreadIds.delete(threadId)
-      }
-
-      const unreadCompletedThreadIds = new Set(state.unreadCompletedThreadIds)
-      if (options.isActive || runtime.running) {
-        unreadCompletedThreadIds.delete(threadId)
-      } else if (previous?.running === true) {
-        const thread = state.threadList.find((entry) => entry.id === threadId)
-        if (thread && isSubAgentThread(thread)) {
-          unreadCompletedThreadIds.delete(threadId)
-        } else {
-          unreadCompletedThreadIds.add(threadId)
-        }
-      }
-
-      return {
-        runtimeSnapshots,
-        runningTurnThreadIds,
-        parkedApprovals,
-        parkedUserInputs,
-        pendingApprovalThreadIds,
-        pendingUserInputThreadIds,
-        pendingPlanConfirmationThreadIds,
-        unreadCompletedThreadIds
-      }
-    })
+    set((state) => applyThreadRuntimeSnapshot(state, threadId, runtime, options))
   },
 
   markPlanConfirmationPending(threadId) {

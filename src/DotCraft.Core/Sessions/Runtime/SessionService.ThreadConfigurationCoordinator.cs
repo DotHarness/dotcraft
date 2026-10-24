@@ -17,6 +17,7 @@ public sealed partial class SessionService
                 owner.SetThreadAgent(threadId, await owner.BuildAgentForThreadAsync(thread, ct));
 
                 await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                owner.ThreadUpdatedForBroadcast?.Invoke(thread);
             }
         }
 

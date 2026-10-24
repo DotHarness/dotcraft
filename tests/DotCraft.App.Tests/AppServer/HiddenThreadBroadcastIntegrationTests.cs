@@ -53,6 +53,9 @@ public sealed class HiddenThreadBroadcastIntegrationTests
             var endpoint = new Uri($"ws://127.0.0.1:{port}/ws");
             await using var subscriber = await WebSocketClientConnection.ConnectAsync(endpoint, ct: deadline.Token);
             await using var observer = await WebSocketClientConnection.ConnectAsync(endpoint, ct: deadline.Token);
+            await using var optedOut = await WebSocketClientConnection.ConnectAsync(endpoint, ct: deadline.Token);
+            using var optedOutInit = await optedOut.Wire.InitializeAsync(
+                optOutMethods: ["thread/updated"], ct: deadline.Token);
             using var subscriberInit = await subscriber.Wire.InitializeAsync(ct: deadline.Token);
             using var observerInit = await observer.Wire.InitializeAsync(ct: deadline.Token);
 
@@ -68,6 +71,13 @@ public sealed class HiddenThreadBroadcastIntegrationTests
                 hiddenIds.Add(threadId);
                 using var subscribed = await subscriber.Wire.SendRequestAsync("thread/subscribe", new { threadId }, ct: deadline.Token);
                 Result(subscribed);
+
+                using var mode = await server.Wire.SendRequestAsync(
+                    "thread/mode/set", new { threadId, mode = "plan" }, ct: deadline.Token);
+                Result(mode);
+                using var subscriberUpdated = await subscriber.Wire.WaitForNotificationAsync(
+                    "thread/updated", TimeSpan.FromSeconds(10), deadline.Token);
+                AssertMode(subscriberUpdated, threadId, "plan");
 
                 using var turn = await server.Wire.SendRequestAsync("turn/start", new
                 {
@@ -95,6 +105,18 @@ public sealed class HiddenThreadBroadcastIntegrationTests
             var visibleId = Result(visible).GetProperty("thread").GetProperty("id").GetString()!;
             var observerSaw = await CollectUntilAsync(observer.Wire, IsStartOf(visibleId), deadline.Token);
             var creatorSaw = await CollectUntilAsync(server.Wire, IsStartOf(visibleId), deadline.Token);
+            using var modeChanged = await observer.Wire.SendRequestAsync(
+                "thread/mode/set", new { threadId = visibleId, mode = "plan" }, ct: deadline.Token);
+            Result(modeChanged);
+            using var passiveUpdated = await server.Wire.WaitForNotificationAsync(
+                "thread/updated", TimeSpan.FromSeconds(10), deadline.Token);
+            using var initiatorUpdated = await observer.Wire.WaitForNotificationAsync(
+                "thread/updated", TimeSpan.FromSeconds(10), deadline.Token);
+            AssertMode(passiveUpdated, visibleId, "plan");
+            AssertMode(initiatorUpdated, visibleId, "plan");
+            using var suppressed = await optedOut.Wire.WaitForNotificationAsync(
+                "thread/updated", TimeSpan.FromMilliseconds(300), deadline.Token);
+            Assert.Null(suppressed);
 
             Assert.DoesNotContain(observerSaw, notification => hiddenIds.Contains(ThreadIdOf(notification)!));
             Assert.Contains(observerSaw, notification => ThreadIdOf(notification) == visibleId);
@@ -141,6 +163,14 @@ public sealed class HiddenThreadBroadcastIntegrationTests
         return parameters.TryGetProperty("thread", out var thread) && thread.TryGetProperty("id", out var id)
             ? id.GetString()
             : null;
+    }
+
+    private static void AssertMode(JsonDocument? notification, string threadId, string mode)
+    {
+        Assert.NotNull(notification);
+        var thread = notification.RootElement.GetProperty("params").GetProperty("thread");
+        Assert.Equal(threadId, thread.GetProperty("id").GetString());
+        Assert.Equal(mode, thread.GetProperty("configuration").GetProperty("mode").GetString());
     }
 
     private static JsonElement Result(JsonDocument response)

@@ -375,7 +375,8 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 **Plans**
 
 - Plan updates stay associated with the active thread and reflect the latest complete snapshot. While `CreatePlan` arguments stream, the plan surface renders a live draft that is replaced by the snapshot on `plan/updated`. Plan overviews render Markdown. A to-do list without a plan is labeled as progress. Plan updates and `CreatePlan` drafts refresh the plan surface without opening or switching the detail panel.
-- When the latest completed Plan-mode Turn contains a successful `CreatePlan`, Desktop replaces the composer with a plan-confirmation composer, regardless of later output in that Turn. The confirmation survives thread switches and restarts and clears when the next Turn starts.
+- When the latest completed Plan-mode Turn contains a successful `CreatePlan`, Desktop replaces the composer with a plan-confirmation composer, regardless of later output in that Turn. The confirmation appears without switching threads, survives thread switches and restarts, and clears when the next Turn starts.
+- The active composer mode follows explicit configuration metadata from `thread/updated`, thread reads, and thread restoration, including changes made by another client. Metadata without a mode does not reset it. Synchronization preserves drafts and dismissed plan confirmations; local optimistic mode requests and their callbacks remain scoped to the originating workspace and thread.
 
 **Summary**
 
@@ -476,7 +477,8 @@ If the request fails before being accepted, Desktop clears the stopping state an
 ### 5.10 Archive and Delete
 
 - Archived threads remain readable but not turn-capable. A dedicated archived-thread surface supports browsing and restore; restoring does not force navigation.
-- Archiving an idle conversation is immediate with Undo. Archiving a running or waiting conversation requires a stop-and-archive confirmation; dismissing it leaves the work running. Confirming interrupts the current turn first, and interruption failure prevents the archive. Secondary workspace rows route the operation to their owning workspace.
+- Archiving an idle conversation is immediate with Undo. Archiving a running or waiting conversation requires a stop-and-archive confirmation; dismissing it leaves the work running. This check includes loaded descendants: completed children do not keep an idle parent marked as running. Project-wide archive retains its batch confirmation and uses the current parent and descendant states to choose whether stopping is required. Confirming interrupts the current turn first, and interruption failure prevents the archive. Secondary workspace rows route the operation to their owning workspace and do not use another workspace's activity indicators.
+- Runtime notifications replace the cached snapshot atomically across thread summaries, the active thread, and runtime indicators. Missing active-turn identifiers and timestamps clear their previous values; waiting and blocking-maintenance states remain distinct from an executing Turn. Archive decisions do not require a list refresh after an idle notification.
 - Deleted threads disappear once deletion is confirmed.
 - If a thread is archived or deleted elsewhere while open locally, the user sees the new state immediately and loses only the actions that are no longer valid.
 
